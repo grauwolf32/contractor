@@ -3,8 +3,10 @@
  * colours come only from theme.css tokens.
  */
 
-.skill-library .library-tag {
-  flex: none;
+/* ---------- Skills (base rules; this sheet refines them below) ---------- */
+
+.skill-library {
+  margin-top: 1.5rem;
 }
 
 .skill-list {
@@ -17,8 +19,8 @@
 .skill-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(11rem, auto);
-  gap: 0.5rem 1.5rem;
-  padding: 0.875rem 1.125rem;
+  gap: var(--space-2) var(--space-6);
+  padding: var(--space-3-5) 1.125rem;
   border-bottom: 1px solid var(--line);
 }
 
@@ -32,7 +34,7 @@
 
 .skill-row-main {
   display: grid;
-  gap: 0.25rem;
+  gap: var(--space-1);
   min-width: 0;
 }
 
@@ -40,7 +42,7 @@
   width: fit-content;
   max-width: 100%;
   font-family: var(--font-mono);
-  font-size: 0.875rem;
+  font-size: var(--text-md);
   font-weight: 600;
   overflow-wrap: anywhere;
 }
@@ -52,26 +54,26 @@
   overflow: hidden;
   margin: 0;
   color: var(--muted-strong);
-  font-size: 0.84375rem;
+  font-size: var(--text-md);
   line-height: 1.5;
 }
 
 .skill-purpose {
   display: grid;
-  gap: 0.125rem;
+  gap: var(--space-0-5);
 }
 
 .skill-files,
 .skill-package-size {
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
 }
 
 .skill-description-error {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.375rem 0.75rem;
+  gap: var(--space-1-5) var(--space-3);
 }
 
 .skill-description-error .skill-description {
@@ -82,7 +84,7 @@
   display: grid;
   align-content: start;
   justify-items: end;
-  gap: 0.25rem;
+  gap: var(--space-1);
   min-width: 0;
   text-align: right;
 }
@@ -94,7 +96,7 @@
 
 .skill-revision > summary {
   color: var(--muted-strong);
-  font-size: 0.78125rem;
+  font-size: var(--text-sm);
   font-weight: 700;
   cursor: pointer;
 }
@@ -102,8 +104,8 @@
 .skill-revision code,
 .skill-revision small {
   display: block;
-  margin-top: 0.25rem;
-  font-size: 0.75rem;
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
 }
 
 .skill-revision small {
@@ -121,35 +123,17 @@
 }
 
 .skill-upload-format {
-  margin: 0 0 1rem;
-  color: var(--muted);
-  font-size: 0.78125rem;
+  margin-bottom: var(--space-4);
   overflow-wrap: anywhere;
 }
 
 .skill-upload-fields {
-  display: grid;
-  gap: 1rem;
-  min-width: 0;
   margin: 0;
   border: 0;
   padding: 0;
 }
 
-.skill-upload-fields > label {
-  display: grid;
-  gap: 0.4rem;
-}
-
-.skill-upload-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 0.625rem;
-  margin-top: 1rem;
-}
-
-@media (max-width: 600px) {
+@media (max-width: 640px) {
   .skill-row {
     grid-template-columns: minmax(0, 1fr);
   }

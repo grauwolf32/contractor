@@ -17,8 +17,13 @@ import {
   type PerformanceSnapshot,
 } from "../../../api/performance";
 import { queryKeys } from "../../../api/query-keys";
-import { formatBytes, formatTimestamp } from "../../../app/format";
-import { TechnicalDetails } from "../../../ui";
+import {
+  formatBytes,
+  formatNumber,
+  formatSeconds,
+  formatTimestamp,
+} from "../../../app/format";
+import { Facts, Field, TechnicalDetails } from "../../../ui";
 import { OperationsState, OpsSection } from "../common";
 import { type ChartDatum, MetricChart } from "./chart";
 import { performanceFreshnessState } from "./freshness";
@@ -26,6 +31,7 @@ import { GPUCurrentMetrics, GPUHistoryCharts } from "./gpu";
 import { historyGPUDevices, useGPUColors, type GPUColors } from "./gpu-colors";
 import { RefreshButton } from "../../../app/refresh-button";
 import { QueryView } from "../../../app/query-view";
+import { pollInterval } from "../../../app/polling";
 
 interface HTTPOverview {
   requestRate?: number;
@@ -140,13 +146,8 @@ function metric(
   return value === undefined ? "Unavailable" : formatter(value);
 }
 
-function decimal(value: number): string {
-  return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
-}
-
-function seconds(value: number): string {
-  return `${value.toLocaleString(undefined, { maximumFractionDigits: 3 })} s`;
-}
+const cores = (value: number) => `${formatNumber(value)} cores`;
+const perSecond = (value: number) => `${formatNumber(value)}/s`;
 
 function quantile(
   histogram: PerformanceHistogram | undefined,
@@ -157,30 +158,51 @@ function quantile(
     ? "Unavailable"
     : bound === "overflow"
       ? "> 60 s"
-      : `≤ ${seconds(bound)}`;
+      : `≤ ${formatSeconds(bound)}`;
 }
 
-function GroupCard({
+function MetricCard({
   title,
-  freshness,
-  readAt,
+  state,
+  facts,
   children,
-  note,
 }: {
   title: string;
-  freshness: PerformanceFreshness | undefined;
-  readAt: string;
+  state: string;
+  facts: readonly { term: string; value: string }[];
   children: ReactNode;
-  note?: string;
 }) {
-  const state = performanceFreshnessState(freshness, readAt);
   return (
     <article className="performance-metric-card" data-freshness={state}>
       <header>
         <h3>{title}</h3>
         <OperationsState state={state} />
       </header>
+      <Facts className="ops-glance" items={facts} />
       {children}
+    </article>
+  );
+}
+
+function GroupCard({
+  title,
+  freshness,
+  readAt,
+  facts,
+  note,
+}: {
+  title: string;
+  freshness: PerformanceFreshness | undefined;
+  readAt: string;
+  facts: readonly { term: string; value: string }[];
+  note?: string;
+}) {
+  return (
+    <MetricCard
+      title={title}
+      state={performanceFreshnessState(freshness, readAt)}
+      facts={facts}
+    >
       <small>
         {freshness?.observedAt === undefined
           ? "No successful observation"
@@ -189,8 +211,8 @@ function GroupCard({
           ? ""
           : ` · ${freshness.reason.replaceAll("_", " ")}`}
       </small>
-      {note === undefined ? null : <p className="ops-note">{note}</p>}
-    </article>
+      {note === undefined ? null : <p className="ui-caption">{note}</p>}
+    </MetricCard>
   );
 }
 
@@ -208,23 +230,14 @@ function CurrentResourceSummary({
         title="Server process"
         freshness={sample?.process?.freshness}
         readAt={snapshot.observedAt}
-      >
-        <dl className="ops-glance">
-          <div>
-            <dt>CPU</dt>
-            <dd>
-              {metric(
-                sample?.process?.cpuCores,
-                (value) => `${decimal(value)} cores`,
-              )}
-            </dd>
-          </div>
-          <div>
-            <dt>Resident memory</dt>
-            <dd>{metric(sample?.process?.rssBytes, formatBytes)}</dd>
-          </div>
-        </dl>
-      </GroupCard>
+        facts={[
+          { term: "CPU", value: metric(sample?.process?.cpuCores, cores) },
+          {
+            term: "Resident memory",
+            value: metric(sample?.process?.rssBytes, formatBytes),
+          },
+        ]}
+      />
       <GPUCurrentMetrics
         gpu={sample?.gpu}
         readAt={snapshot.observedAt}
@@ -235,18 +248,20 @@ function CurrentResourceSummary({
         title="PostgreSQL"
         freshness={sample?.database?.freshness}
         readAt={snapshot.observedAt}
-      >
-        <dl className="ops-glance">
-          <div>
-            <dt>Active connections</dt>
-            <dd>{metric(sample?.database?.activeConnections, decimal)}</dd>
-          </div>
-          <div>
-            <dt>Lock waiting</dt>
-            <dd>{metric(sample?.database?.lockWaitingConnections, decimal)}</dd>
-          </div>
-        </dl>
-      </GroupCard>
+        facts={[
+          {
+            term: "Active connections",
+            value: metric(sample?.database?.activeConnections, formatNumber),
+          },
+          {
+            term: "Lock waiting",
+            value: metric(
+              sample?.database?.lockWaitingConnections,
+              formatNumber,
+            ),
+          },
+        ]}
+      />
     </div>
   );
 }
@@ -263,6 +278,7 @@ function CurrentMetrics({
   const pool = sample?.pool;
   const database = sample?.database;
   const databaseSize = sample?.databaseSize;
+  const diagnostics = snapshot.diagnostics;
   const http = currentHTTP(snapshot);
   const acquisitionMean =
     pool?.acquireCount !== undefined &&
@@ -276,40 +292,24 @@ function CurrentMetrics({
         title="Server process"
         freshness={process?.freshness}
         readAt={snapshot.observedAt}
-      >
-        <dl className="ops-glance">
-          <div>
-            <dt>CPU</dt>
-            <dd>
-              {metric(process?.cpuCores, (value) => `${decimal(value)} cores`)}
-            </dd>
-          </div>
-          <div>
-            <dt>RSS</dt>
-            <dd>{metric(process?.rssBytes, formatBytes)}</dd>
-          </div>
-          <div>
-            <dt>Go live heap</dt>
-            <dd>{metric(process?.heapLiveBytes, formatBytes)}</dd>
-          </div>
-          <div>
-            <dt>Goroutines</dt>
-            <dd>
-              {metric(process?.goroutines, (value) => value.toLocaleString())}
-            </dd>
-          </div>
-          <div>
-            <dt>GC cycles</dt>
-            <dd>
-              {metric(process?.gcCycles, (value) => value.toLocaleString())}
-            </dd>
-          </div>
-          <div>
-            <dt>GC pause delta</dt>
-            <dd>{metric(process?.gcPauseSeconds, seconds)}</dd>
-          </div>
-        </dl>
-      </GroupCard>
+        facts={[
+          { term: "CPU", value: metric(process?.cpuCores, cores) },
+          { term: "RSS", value: metric(process?.rssBytes, formatBytes) },
+          {
+            term: "Go live heap",
+            value: metric(process?.heapLiveBytes, formatBytes),
+          },
+          {
+            term: "Goroutines",
+            value: metric(process?.goroutines, formatNumber),
+          },
+          { term: "GC cycles", value: metric(process?.gcCycles, formatNumber) },
+          {
+            term: "GC pause delta",
+            value: metric(process?.gcPauseSeconds, formatSeconds),
+          },
+        ]}
+      />
       <GPUCurrentMetrics
         gpu={sample?.gpu}
         readAt={snapshot.observedAt}
@@ -320,201 +320,143 @@ function CurrentMetrics({
         freshness={sample?.http?.freshness}
         readAt={snapshot.observedAt}
         note="Latency values are upper bounds from merged Server histogram buckets."
-      >
-        <dl className="ops-glance">
-          <div>
-            <dt>Request rate</dt>
-            <dd>
-              {metric(http.requestRate, (value) => `${decimal(value)}/s`)}
-            </dd>
-          </div>
-          <div>
-            <dt>5xx / no-response rate</dt>
-            <dd>{metric(http.errorRate, (value) => `${decimal(value)}/s`)}</dd>
-          </div>
-          <div>
-            <dt>In flight</dt>
-            <dd>{metric(http.inFlight, (value) => value.toLocaleString())}</dd>
-          </div>
-          <div>
-            <dt>p50 latency</dt>
-            <dd>{quantile(http.histogram, 0.5)}</dd>
-          </div>
-          <div>
-            <dt>p95 latency</dt>
-            <dd>{quantile(http.histogram, 0.95)}</dd>
-          </div>
-          <div>
-            <dt>p99 latency</dt>
-            <dd>{quantile(http.histogram, 0.99)}</dd>
-          </div>
-        </dl>
-      </GroupCard>
+        facts={[
+          { term: "Request rate", value: metric(http.requestRate, perSecond) },
+          {
+            term: "5xx / no-response rate",
+            value: metric(http.errorRate, perSecond),
+          },
+          { term: "In flight", value: metric(http.inFlight, formatNumber) },
+          { term: "p50 latency", value: quantile(http.histogram, 0.5) },
+          { term: "p95 latency", value: quantile(http.histogram, 0.95) },
+          { term: "p99 latency", value: quantile(http.histogram, 0.99) },
+        ]}
+      />
       <GroupCard
         title="Working connection pool"
         freshness={pool?.freshness}
         readAt={snapshot.observedAt}
         note="Acquisition duration is a successful-acquisition mean, not p95."
-      >
-        <dl className="ops-glance">
-          <div>
-            <dt>Acquired</dt>
-            <dd>
-              {metric(pool?.acquiredConnections, (value) =>
-                value.toLocaleString(),
-              )}
-            </dd>
-          </div>
-          <div>
-            <dt>Idle</dt>
-            <dd>
-              {metric(pool?.idleConnections, (value) => value.toLocaleString())}
-            </dd>
-          </div>
-          <div>
-            <dt>Total / maximum</dt>
-            <dd>
-              {pool?.totalConnections === undefined ||
+        facts={[
+          {
+            term: "Acquired",
+            value: metric(pool?.acquiredConnections, formatNumber),
+          },
+          { term: "Idle", value: metric(pool?.idleConnections, formatNumber) },
+          {
+            term: "Total / maximum",
+            value:
+              pool?.totalConnections === undefined ||
               pool.maxConnections === undefined
                 ? "Unavailable"
-                : `${pool.totalConnections.toLocaleString()} / ${pool.maxConnections.toLocaleString()}`}
-            </dd>
-          </div>
-          <div>
-            <dt>Acquire mean</dt>
-            <dd>{metric(acquisitionMean, seconds)}</dd>
-          </div>
-          <div>
-            <dt>Empty-pool wait</dt>
-            <dd>{metric(pool?.emptyAcquireWaitSeconds, seconds)}</dd>
-          </div>
-          <div>
-            <dt>Cancelled acquires</dt>
-            <dd>
-              {metric(pool?.canceledAcquireCount, (value) =>
-                value.toLocaleString(),
-              )}
-            </dd>
-          </div>
-        </dl>
-      </GroupCard>
+                : `${formatNumber(pool.totalConnections)} / ${formatNumber(pool.maxConnections)}`,
+          },
+          {
+            term: "Acquire mean",
+            value: metric(acquisitionMean, formatSeconds),
+          },
+          {
+            term: "Empty-pool wait",
+            value: metric(pool?.emptyAcquireWaitSeconds, formatSeconds),
+          },
+          {
+            term: "Cancelled acquires",
+            value: metric(pool?.canceledAcquireCount, formatNumber),
+          },
+        ]}
+      />
       <GroupCard
         title="PostgreSQL"
         freshness={database?.freshness}
         readAt={snapshot.observedAt}
         note="Dead tuples are planner estimates, not a bloat verdict."
-      >
-        <dl className="ops-glance">
-          <div>
-            <dt>Active connections</dt>
-            <dd>
-              {metric(database?.activeConnections, (value) =>
-                value.toLocaleString(),
-              )}
-            </dd>
-          </div>
-          <div>
-            <dt>Lock waiting</dt>
-            <dd>
-              {metric(database?.lockWaitingConnections, (value) =>
-                value.toLocaleString(),
-              )}
-            </dd>
-          </div>
-          <div>
-            <dt>Longest transaction</dt>
-            <dd>{metric(database?.longestTransactionSeconds, seconds)}</dd>
-          </div>
-          <div>
-            <dt>Commits / s</dt>
-            <dd>{metric(database?.rates?.commitsPerSecond, decimal)}</dd>
-          </div>
-          <div>
-            <dt>Buffer hit ratio</dt>
-            <dd>
-              {metric(
-                database?.rates?.bufferHitRatio,
-                (value) => `${(value * 100).toFixed(1)}%`,
-              )}
-            </dd>
-          </div>
-          <div>
-            <dt>Estimated dead tuples</dt>
-            <dd>
-              {metric(database?.estimatedDeadTuples, (value) =>
-                value.toLocaleString(),
-              )}
-            </dd>
-          </div>
-        </dl>
-      </GroupCard>
+        facts={[
+          {
+            term: "Active connections",
+            value: metric(database?.activeConnections, formatNumber),
+          },
+          {
+            term: "Lock waiting",
+            value: metric(database?.lockWaitingConnections, formatNumber),
+          },
+          {
+            term: "Longest transaction",
+            value: metric(database?.longestTransactionSeconds, formatSeconds),
+          },
+          {
+            term: "Commits / s",
+            value: metric(database?.rates?.commitsPerSecond, formatNumber),
+          },
+          {
+            term: "Buffer hit ratio",
+            value: metric(
+              database?.rates?.bufferHitRatio,
+              (value) => `${(value * 100).toFixed(1)}%`,
+            ),
+          },
+          {
+            term: "Estimated dead tuples",
+            value: metric(database?.estimatedDeadTuples, formatNumber),
+          },
+        ]}
+      />
       <GroupCard
         title="Database storage"
         freshness={databaseSize?.freshness}
         readAt={snapshot.observedAt}
         note="Database size is allocated database content, not free disk space."
+        facts={[
+          {
+            term: "Database size",
+            value: metric(databaseSize?.sizeBytes, formatBytes),
+          },
+          {
+            term: "Vacuum count",
+            value: metric(database?.vacuumCount, formatNumber),
+          },
+          {
+            term: "Autovacuum count",
+            value: metric(database?.autovacuumCount, formatNumber),
+          },
+        ]}
+      />
+      <MetricCard
+        title="Collection diagnostics"
+        state={
+          diagnostics.collectorReason === undefined &&
+          diagnostics.writerReason === undefined &&
+          diagnostics.droppedMinutes === 0
+            ? "ok"
+            : "partial"
+        }
+        facts={[
+          {
+            term: "Skipped samples",
+            value: formatNumber(diagnostics.skippedSamples),
+          },
+          {
+            term: "Rejected samples",
+            value: formatNumber(diagnostics.rejectedSamples),
+          },
+          {
+            term: "Skipped minutes",
+            value: formatNumber(diagnostics.skippedMinutes),
+          },
+          {
+            term: "Dropped minutes",
+            value: formatNumber(diagnostics.droppedMinutes),
+          },
+          {
+            term: "Pending minutes",
+            value: formatNumber(diagnostics.pendingMinutes),
+          },
+        ]}
       >
-        <dl className="ops-glance">
-          <div>
-            <dt>Database size</dt>
-            <dd>{metric(databaseSize?.sizeBytes, formatBytes)}</dd>
-          </div>
-          <div>
-            <dt>Vacuum count</dt>
-            <dd>
-              {metric(database?.vacuumCount, (value) => value.toLocaleString())}
-            </dd>
-          </div>
-          <div>
-            <dt>Autovacuum count</dt>
-            <dd>
-              {metric(database?.autovacuumCount, (value) =>
-                value.toLocaleString(),
-              )}
-            </dd>
-          </div>
-        </dl>
-      </GroupCard>
-      <article className="performance-metric-card">
-        <header>
-          <h3>Collection diagnostics</h3>
-          <OperationsState
-            state={
-              snapshot.diagnostics.collectorReason === undefined &&
-              snapshot.diagnostics.writerReason === undefined &&
-              snapshot.diagnostics.droppedMinutes === 0
-                ? "ok"
-                : "partial"
-            }
-          />
-        </header>
-        <dl className="ops-glance">
-          <div>
-            <dt>Skipped samples</dt>
-            <dd>{snapshot.diagnostics.skippedSamples.toLocaleString()}</dd>
-          </div>
-          <div>
-            <dt>Rejected samples</dt>
-            <dd>{snapshot.diagnostics.rejectedSamples.toLocaleString()}</dd>
-          </div>
-          <div>
-            <dt>Skipped minutes</dt>
-            <dd>{snapshot.diagnostics.skippedMinutes.toLocaleString()}</dd>
-          </div>
-          <div>
-            <dt>Dropped minutes</dt>
-            <dd>{snapshot.diagnostics.droppedMinutes.toLocaleString()}</dd>
-          </div>
-          <div>
-            <dt>Pending minutes</dt>
-            <dd>{snapshot.diagnostics.pendingMinutes.toLocaleString()}</dd>
-          </div>
-        </dl>
         <small>
-          {snapshot.diagnostics.collectorReason ?? "collector healthy"} ·{" "}
-          {snapshot.diagnostics.writerReason ?? "writer healthy"}
+          {diagnostics.collectorReason ?? "collector healthy"} ·{" "}
+          {diagnostics.writerReason ?? "writer healthy"}
         </small>
-      </article>
+      </MetricCard>
     </div>
   );
 }
@@ -526,14 +468,16 @@ export function OperationsPerformanceRoute() {
   const current = useQuery({
     queryKey: queryKeys.operations.performance.current,
     queryFn: ({ signal }) => getPerformance(api, signal),
-    refetchInterval: 15_000,
+    refetchInterval: pollInterval<PerformanceSnapshot>({ interval: 15_000 }),
     refetchIntervalInBackground: false,
   });
   const history = useQuery({
     queryKey: queryKeys.operations.performance.history(range),
     queryFn: ({ signal }) =>
       getPerformanceHistory(api, performanceHistoryWindow(range), signal),
-    refetchInterval: PERFORMANCE_RANGES[range].step === "15s" ? 15_000 : 60_000,
+    refetchInterval: pollInterval<PerformanceHistory>({
+      interval: PERFORMANCE_RANGES[range].step === "15s" ? 15_000 : 60_000,
+    }),
     refetchIntervalInBackground: false,
   });
   const series = useMemo(() => chartData(history.data), [history.data]);
@@ -570,7 +514,6 @@ export function OperationsPerformanceRoute() {
               Loading current performance…
             </p>
           }
-          onRetry={() => void current.refetch()}
         >
           {(data) =>
             !data.enabled ? (
@@ -611,28 +554,30 @@ export function OperationsPerformanceRoute() {
               Lines are not joined across gaps or Server restarts.
             </p>
           </div>
-          <label className="ops-field ops-range-field">
-            <span>Time range</span>
-            <select
-              value={range}
-              onChange={(event) =>
-                setRange(event.target.value as PerformanceRange)
-              }
-            >
-              {(
-                Object.entries(PERFORMANCE_RANGES) as Array<
-                  [
-                    PerformanceRange,
-                    (typeof PERFORMANCE_RANGES)[PerformanceRange],
-                  ]
-                >
-              ).map(([value, option]) => (
-                <option key={value} value={value}>
-                  {option.label} · {option.step}
-                </option>
-              ))}
-            </select>
-          </label>
+          <Field label="Time range" className="ops-range-field">
+            {(control) => (
+              <select
+                {...control}
+                value={range}
+                onChange={(event) =>
+                  setRange(event.target.value as PerformanceRange)
+                }
+              >
+                {(
+                  Object.entries(PERFORMANCE_RANGES) as Array<
+                    [
+                      PerformanceRange,
+                      (typeof PERFORMANCE_RANGES)[PerformanceRange],
+                    ]
+                  >
+                ).map(([value, option]) => (
+                  <option key={value} value={value}>
+                    {option.label} · {option.step}
+                  </option>
+                ))}
+              </select>
+            )}
+          </Field>
         </header>
         <QueryView
           query={history}
@@ -641,7 +586,6 @@ export function OperationsPerformanceRoute() {
               Loading bounded history…
             </p>
           }
-          onRetry={() => void history.refetch()}
         >
           {(historyData) => (
             <>

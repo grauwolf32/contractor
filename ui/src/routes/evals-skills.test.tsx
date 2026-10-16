@@ -1,69 +1,29 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createMemoryRouter } from "react-router";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import { PublicAPI } from "../api/client";
-import { Application } from "../app/application";
-import { applicationRoutes } from "../app/router";
-import type { RuntimeConfig } from "../config/runtime-config";
+import { renderApplication } from "../test/application";
+import * as build from "../test/builders";
+import { json, page } from "../test/responses";
+import { CSRF_TOKEN } from "../test/render";
 
-const runtimeConfig: RuntimeConfig = {
-  uiVersion: "0.1.0",
-  supportedApiVersions: ["contractor.public.v1"],
-  apiBaseUrl: "http://127.0.0.1:8080",
-};
-
-const session = {
-  principal: {
-    userId: "user_local",
-    username: "owner",
-    capabilities: ["user", "operations"] as const,
-  },
-  csrfToken: "a".repeat(43),
-  idleExpiresAt: "2026-09-05T20:00:00Z",
-  absoluteExpiresAt: "2026-09-06T12:00:00Z",
-};
-
-const evaluation = {
-  projectId: "evaluation-openapi",
+const evaluation = build.project("evaluation-openapi", {
   kind: "evaluation",
   name: "OpenAPI regression",
   description: "A/B evaluation workspace",
-  lifecycle: "active",
-
-  activeChecks: "automatic",
-  revision: "1",
   createdAt: "2026-09-05T08:00:00Z",
   updatedAt: "2026-09-05T08:01:00Z",
-};
-
-function apiResponse(value: unknown, options: ResponseInit = {}): Response {
-  const headers = new Headers(options.headers);
-  headers.set("content-type", "application/json");
-  headers.set("X-Contractor-API-Version", "contractor.public.v1");
-  return new Response(JSON.stringify(value), { ...options, headers });
-}
-
-function renderApplication(api: PublicAPI, path: string) {
-  const router = createMemoryRouter(applicationRoutes(), {
-    initialEntries: [path],
-  });
-  return {
-    ...render(<Application api={api} publicAPI={api} router={router} />),
-    router,
-  };
-}
+});
 
 describe("Evals and global Skills routes", () => {
   it("filters evaluation Projects and groups their ordinary Runs by eval metadata", async () => {
-    const requests: Request[] = [];
     const runs = [
-      {
+      build.conforming("RunSummary", {
         runId: "run-eval-a",
         projectId: evaluation.projectId,
         workflow: "openapi-from-workspace@5",
         state: "succeeded",
+        deletable: true,
         labels: {
           purpose: "eval",
           "eval.name": "openapi-regression",
@@ -76,12 +36,13 @@ describe("Evals and global Skills routes", () => {
         createdAt: "2026-09-05T08:10:00Z",
         updatedAt: "2026-09-05T08:12:00Z",
         finishedAt: "2026-09-05T08:12:00Z",
-      },
-      {
+      }),
+      build.conforming("RunSummary", {
         runId: "run-eval-b",
         projectId: evaluation.projectId,
         workflow: "openapi-from-workspace@5",
         state: "running",
+        deletable: false,
         labels: {
           purpose: "eval",
           "eval.name": "openapi-regression",
@@ -92,46 +53,30 @@ describe("Evals and global Skills routes", () => {
         },
         createdAt: "2026-09-05T08:11:00Z",
         updatedAt: "2026-09-05T08:13:00Z",
-      },
-      {
+      }),
+      build.conforming("RunSummary", {
         runId: "run-eval-unassigned",
         projectId: evaluation.projectId,
         workflow: "likec4-from-workspace@5",
         state: "failed",
+        deletable: true,
         labels: { purpose: "eval" },
         createdAt: "2026-09-05T08:09:00Z",
         updatedAt: "2026-09-05T08:10:00Z",
         finishedAt: "2026-09-05T08:10:00Z",
-      },
-    ];
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        requests.push(request);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") {
-          return apiResponse(session);
-        }
-        if (url.pathname === "/v1/projects") {
-          return apiResponse({ items: [evaluation], page: { hasMore: false } });
-        }
-        if (url.pathname === `/v1/projects/${evaluation.projectId}`) {
-          return apiResponse(evaluation, { headers: { ETag: '"1"' } });
-        }
-        if (url.pathname === `/v1/projects/${evaluation.projectId}/artifacts`) {
-          return apiResponse({ items: [], page: { hasMore: false } });
-        }
-        if (url.pathname === `/v1/projects/${evaluation.projectId}/runs`) {
-          return apiResponse({ items: runs, page: { hasMore: false } });
-        }
-        if (url.pathname === "/v1/workflows") {
-          return apiResponse({ items: [], page: { hasMore: false } });
-        }
-        throw new Error(`unexpected ${request.method} ${url.pathname}`);
       }),
-    );
-    const view = renderApplication(api, "/evals/legacy");
+    ];
+    const view = renderApplication("/evals/legacy", {
+      server: {
+        "GET /v1/projects": () => json(page([evaluation])),
+        "GET /v1/projects/{projectId}": () =>
+          json(evaluation, 200, { ETag: '"1"' }),
+        "GET /v1/projects/{projectId}/artifacts": () => json(page([])),
+        "GET /v1/projects/{projectId}/runs": () => json(page(runs)),
+        "GET /v1/workflows": () => json(page([])),
+      },
+    });
+    const requests = view.server.requests;
 
     const evalLink = await screen.findByRole("link", {
       name: "OpenAPI regression",
@@ -216,9 +161,8 @@ describe("Evals and global Skills routes", () => {
   });
 
   it("uses only UserScope Artifact APIs for global Skill packages", async () => {
-    const requests: Request[] = [];
     let created = false;
-    const existing = {
+    const existing = build.conforming("ArtifactMetadata", {
       artifact: {
         namespace: "skills",
         name: "architecture-review",
@@ -229,19 +173,12 @@ describe("Evals and global Skills routes", () => {
       current: true,
       frozen: false,
       createdAt: "2026-09-05T08:00:00Z",
-    };
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        requests.push(request);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") {
-          return apiResponse(session);
-        }
-        if (url.pathname === "/v1/artifacts" && request.method === "GET") {
-          return apiResponse({
-            items: [
+    });
+    const { server } = renderApplication("/catalog/skills", {
+      server: {
+        "GET /v1/artifacts": () =>
+          json(
+            page([
               existing,
               ...(created
                 ? [
@@ -255,17 +192,12 @@ describe("Evals and global Skills routes", () => {
                     },
                   ]
                 : []),
-            ],
-            page: { hasMore: false },
-          });
-        }
-        if (
-          url.pathname === "/v1/artifacts/skills/new-skill" &&
-          request.method === "PUT"
-        ) {
+            ]),
+          ),
+        "PUT /v1/artifacts/{namespace}/{name}": () => {
           created = true;
-          return apiResponse(
-            {
+          return json(
+            build.conforming("ArtifactWriteResponse", {
               artifact: {
                 namespace: "skills",
                 name: "new-skill",
@@ -273,14 +205,14 @@ describe("Evals and global Skills routes", () => {
               },
               mediaType: "application/vnd.contractor.agent-skill+zip",
               size: 3,
-            },
-            { status: 201, headers: { ETag: '"skill-r2"' } },
+            }),
+            201,
+            { ETag: '"skill-r2"' },
           );
-        }
-        throw new Error(`unexpected ${request.method} ${url.pathname}`);
-      }),
-    );
-    renderApplication(api, "/catalog/skills");
+        },
+      },
+    });
+    const requests = server.requests;
 
     expect(
       await screen.findByRole("link", { name: "architecture-review" }),
@@ -360,7 +292,7 @@ describe("Evals and global Skills routes", () => {
       "application/vnd.contractor.agent-skill+zip",
     );
     expect(upload.headers.get("If-None-Match")).toBe("*");
-    expect(upload.headers.get("X-CSRF-Token")).toBe(session.csrfToken);
+    expect(upload.headers.get("X-CSRF-Token")).toBe(CSRF_TOKEN);
     expect(await upload.text()).toBe("zip");
     expect(
       requests.every((request) => !request.url.includes("/projects/")),

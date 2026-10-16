@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { Link } from "react-router";
 
 import { auditPollInterval, getAudit, type Audit } from "../../../api/audits";
@@ -10,8 +10,9 @@ import {
 import { PublicAPIError } from "../../../api/error";
 import { getProject } from "../../../api/projects";
 import { queryKeys } from "../../../api/query-keys";
-import { ErrorNotice } from "../../../app/error-notice";
-import { formatTimestamp } from "../../../app/format";
+import { formatTimestamp, plural } from "../../../app/format";
+import { pollInterval } from "../../../app/polling";
+import { QueryView } from "../../../app/query-view";
 import { RecordedTime } from "../../../app/recorded-time";
 import {
   checkItemKind,
@@ -19,9 +20,11 @@ import {
   itemNoun,
 } from "../../../app/vocabulary";
 import {
+  ButtonLink,
   DetailHeader,
   DetailPane,
   EmptyState,
+  Facts,
   IdChip,
   ProgressSegments,
   StatusChip,
@@ -44,17 +47,11 @@ import {
   StopReasonBanner,
 } from "../../projects/audits/progress";
 
-function plural(count: number, singular: string, many: string): string {
-  return `${count.toLocaleString("en-US")} ${count === 1 ? singular : many}`;
-}
-
 function Summary({
   audit,
   projectName,
   listed,
-  fresh,
-  readError,
-  onRetry,
+  read,
 }: {
   audit: Audit;
   projectName: string | undefined;
@@ -63,23 +60,16 @@ function Summary({
    * too (the first projects, their newest checks).
    */
   listed: boolean;
-  /** The check was read on its own, not only listed: controls may act. */
-  fresh: boolean;
-  /** Reading the check on its own failed. */
-  readError: Error | null;
-  onRetry: () => void;
+  /** The check read on its own: only then may its controls act. */
+  read: UseQueryResult<Audit>;
 }) {
   const workspace = useCheckWorkspace(audit, audit.state !== "draft");
   const state = checkStateLabel(audit.state);
   const type = auditProfileLabel(audit);
   const root = checkPath(audit.projectId, audit.auditId);
   const kind = checkItemKind(audit);
-  const snapshot = workspace.data;
-  const counts = snapshot === undefined ? undefined : workCounts(snapshot);
-  const legend = counts === undefined ? [] : countLegend(counts);
-  const shown = legend.filter((entry) => entry.count > 0);
-  const pending = snapshot?.pendingReviews ?? 0;
-  const unreviewed = snapshot?.unreviewedFindings ?? 0;
+  const pending = workspace.data?.pendingReviews ?? 0;
+  const unreviewed = workspace.data?.unreviewedFindings ?? 0;
   const timeLimit = timeLimitText(audit);
   const coverage = sectionPath(audit.projectId, audit.auditId, "coverage");
   // The Inbox shows the decisions of running and waiting checks it reads; a
@@ -113,9 +103,9 @@ function Summary({
             </>
           }
           actions={
-            <Link className="ui-btn" data-variant="primary" to={root}>
+            <ButtonLink variant="primary" to={root}>
               Open check
-            </Link>
+            </ButtonLink>
           }
         />
       }
@@ -124,52 +114,52 @@ function Summary({
         <p className="checks-summary-objective">{audit.scope.objective}</p>
       ) : null}
       {audit.state === "draft" ? (
-        <p className="checks-quiet">
+        <p className="ui-caption">
           This check is a draft: it has no {itemNoun(kind, 2)} yet. Start it to
           create them, or delete it.
         </p>
-      ) : counts === undefined ? (
-        workspace.error === null ? (
-          <p className="checks-quiet" role="status">
-            Loading progress…
-          </p>
-        ) : (
-          <div className="checks-notice" data-tone="warning" role="status">
-            <p>The progress of this check could not be loaded.</p>
-            <button
-              className="ui-btn"
-              data-size="xs"
-              type="button"
-              onClick={() => void workspace.refetch()}
-            >
-              Try again
-            </button>
-          </div>
-        )
       ) : (
-        <section className="checks-summary-progress" aria-label="Progress">
-          <p className="checks-progress-count">
-            {counts.total === 0
-              ? `No ${itemNoun(kind, 2)} yet`
-              : doneSummary(snapshot!.completedChecks, counts.total)}
-          </p>
-          {counts.total === 0 ? null : (
-            <ProgressSegments
-              segments={countSegments(legend)}
-              label={`${doneSummary(snapshot!.completedChecks, counts.total)}: ${legendSentence(shown)}`}
-            />
-          )}
-          <ProgressLegend
-            entries={counts.total === 0 ? [] : legend}
-            // The counts pin the list they open to their revision (S19).
-            linkFor={(group) =>
-              `${coverage}?${new URLSearchParams({
-                ...(group === "all" ? {} : { result: group }),
-                auditRevision: String(snapshot!.auditRevision),
-              }).toString()}`
-            }
-          />
-        </section>
+        <QueryView
+          query={workspace}
+          loading={
+            <p className="ui-caption" role="status">
+              Loading progress…
+            </p>
+          }
+          errorContext="The progress of this check could not be loaded."
+        >
+          {(snapshot) => {
+            const counts = workCounts(snapshot);
+            const legend = countLegend(counts);
+            const done = doneSummary(snapshot.completedChecks, counts.total);
+            return (
+              <section
+                className="checks-summary-progress"
+                aria-label="Progress"
+              >
+                <p className="checks-progress-count">
+                  {counts.total === 0 ? `No ${itemNoun(kind, 2)} yet` : done}
+                </p>
+                {counts.total === 0 ? null : (
+                  <ProgressSegments
+                    segments={countSegments(legend)}
+                    label={`${done}: ${legendSentence(legend.filter((entry) => entry.count > 0))}`}
+                  />
+                )}
+                <ProgressLegend
+                  entries={counts.total === 0 ? [] : legend}
+                  // The counts pin the list they open to their revision (S19).
+                  linkFor={(group) =>
+                    `${coverage}?${new URLSearchParams({
+                      ...(group === "all" ? {} : { result: group }),
+                      auditRevision: String(snapshot.auditRevision),
+                    }).toString()}`
+                  }
+                />
+              </section>
+            );
+          }}
+        </QueryView>
       )}
       <StopReasonBanner audit={audit} />
       {pending > 0 || unreviewed > 0 ? (
@@ -197,61 +187,49 @@ function Summary({
         </p>
       ) : null}
       {timeLimit === undefined ? null : (
-        <p className="checks-quiet">{timeLimit}</p>
+        <p className="ui-caption">{timeLimit}</p>
       )}
-      {fresh ? (
-        <AuditControls audit={audit} projectName={projectName} menu />
-      ) : readError === null ? (
-        <p className="checks-quiet" role="status">
-          Loading the controls…
-        </p>
-      ) : (
-        <ErrorNotice
-          error={readError}
-          context="The check could not be read again; its controls are unavailable."
-          onRetry={onRetry}
-        />
-      )}
+      <QueryView
+        query={read}
+        loading={
+          <p className="ui-caption" role="status">
+            Loading the controls…
+          </p>
+        }
+        errorContext="The check could not be read again; its controls are unavailable."
+      >
+        {() => <AuditControls audit={audit} projectName={projectName} menu />}
+      </QueryView>
       <TechnicalDetails description="Check type version, runs and dates.">
-        <dl className="checks-facts">
-          <div>
-            <dt>Check type</dt>
-            <dd>
-              <IdChip
-                value={`${audit.profile.name}@${audit.profile.version}`}
-                display={`${audit.profile.name}@${audit.profile.version}`}
-                label="check type version"
-              />
-            </dd>
-          </div>
-          <div>
-            <dt>Runs</dt>
-            <dd>
-              {audit.submittedRunCount} submitted · {audit.outstandingRunCount}{" "}
-              in progress
-            </dd>
-          </div>
-          <div>
-            <dt>Created</dt>
-            <dd>{formatTimestamp(audit.createdAt)}</dd>
-          </div>
-          {audit.startedAt === undefined ? null : (
-            <div>
-              <dt>Started</dt>
-              <dd>{formatTimestamp(audit.startedAt)}</dd>
-            </div>
-          )}
-          {audit.finishedAt === undefined ? null : (
-            <div>
-              <dt>Ended</dt>
-              <dd>{formatTimestamp(audit.finishedAt)}</dd>
-            </div>
-          )}
-          <div>
-            <dt>Revision</dt>
-            <dd>{audit.revision}</dd>
-          </div>
-        </dl>
+        <Facts
+          size="sm"
+          items={[
+            {
+              term: "Check type",
+              value: (
+                <IdChip
+                  value={`${audit.profile.name}@${audit.profile.version}`}
+                  display={`${audit.profile.name}@${audit.profile.version}`}
+                  label="check type version"
+                />
+              ),
+            },
+            {
+              term: "Runs",
+              value: `${audit.submittedRunCount} submitted · ${audit.outstandingRunCount} in progress`,
+            },
+            { term: "Created", value: formatTimestamp(audit.createdAt) },
+            {
+              term: "Started",
+              value: audit.startedAt && formatTimestamp(audit.startedAt),
+            },
+            {
+              term: "Ended",
+              value: audit.finishedAt && formatTimestamp(audit.finishedAt),
+            },
+            { term: "Revision", value: audit.revision },
+          ]}
+        />
       </TechnicalDetails>
     </DetailPane>
   );
@@ -275,11 +253,10 @@ export function CheckSummary({
   const audit = useQuery({
     queryKey: queryKeys.audits.detail(auditId),
     queryFn: () => getAudit(api, auditId),
-    refetchInterval: (query) =>
-      auditPollInterval(
-        query.state.data === undefined ? [] : [query.state.data],
-        5_000,
-      ),
+    refetchInterval: pollInterval<Audit>({
+      interval: 5_000,
+      settled: (data) => auditPollInterval([data]) === false,
+    }),
     refetchOnReconnect: true,
     retry: (count, error) =>
       !(error instanceof PublicAPIError && error.status === 404) && count < 2,
@@ -301,17 +278,16 @@ export function CheckSummary({
   if (current === undefined)
     return (
       <DetailPane>
-        {audit.error === null ? (
-          <p className="checks-quiet" role="status">
-            Loading check…
-          </p>
-        ) : (
-          <ErrorNotice
-            error={audit.error}
-            onRetry={() => void audit.refetch()}
-            retryPending={audit.isFetching}
-          />
-        )}
+        <QueryView
+          query={audit}
+          loading={
+            <p className="ui-caption" role="status">
+              Loading check…
+            </p>
+          }
+        >
+          {() => null}
+        </QueryView>
       </DetailPane>
     );
   return (
@@ -319,9 +295,7 @@ export function CheckSummary({
       audit={current}
       projectName={listed?.project.name ?? project.data?.name}
       listed={listed !== undefined}
-      fresh={audit.data !== undefined}
-      readError={audit.error}
-      onRetry={() => void audit.refetch()}
+      read={audit}
     />
   );
 }

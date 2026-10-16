@@ -1,51 +1,48 @@
+import {
+  CONFIG_ID,
+  CONFIG_VERSION,
+  CONFIGURATION_NAME,
+  RESOURCE_ID,
+  stringRule,
+} from "./contract";
 import type { PublicAPI } from "./client";
 import { invalidAPIResponse, PublicAPIError, requireData } from "./error";
 import type { components } from "./generated/public";
-import { safeConfigurationPage, safeCredentialPage } from "./safe-resources";
-import { safeRunRuntimeConfiguration } from "./runtime-configuration";
-import { safeRunMetadataLabels } from "./run-metadata-labels";
-import { RUN_STATES } from "./runs";
+import {
+  canonicalOrder,
+  canonicalRunRuntimeConfiguration,
+} from "./runtime-configuration";
 
-export const WORKFLOW_PAGE_SIZE = 50;
-export const REFERENCE_PAGE_SIZE = 50;
-export const CONFIG_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/;
-// Configuration names and versions as in the public ConfigurationName and
-// ConfigVersion schemas; api/testdata/v1alpha1/config-identity-cases.json
-// holds them to the Server grammar.
-export const CONFIG_NAME_PATTERN = /^[a-z][a-z0-9_-]{0,127}$/;
-export const CONFIG_VERSION_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$/;
-const RESOURCE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/;
+const WORKFLOW_PAGE_SIZE = 50;
+const REFERENCE_PAGE_SIZE = 50;
+// The public ConfigId, ConfigurationName and ConfigVersion rules.
+export const CONFIG_ID_PATTERN = CONFIG_ID;
+export const CONFIG_NAME_PATTERN = CONFIGURATION_NAME;
+export const CONFIG_VERSION_PATTERN = CONFIG_VERSION;
+const SELECTOR = stringRule("Selector");
 
-/**
- * An exact `<name>@<version>` configuration selector, as in the public
- * Selector schema: neither part may contain `@`, so the first one separates.
- */
+/** An exact `<name>@<version>` configuration selector (public Selector). */
 export function isConfigSelector(value: string): boolean {
-  const separator = value.indexOf("@");
-  return (
-    separator > 0 &&
-    CONFIG_NAME_PATTERN.test(value.slice(0, separator)) &&
-    CONFIG_VERSION_PATTERN.test(value.slice(separator + 1))
-  );
+  return SELECTOR.test(value);
 }
 
-export type WorkflowPage = components["schemas"]["WorkflowPage"];
+type WorkflowPage = components["schemas"]["WorkflowPage"];
 export type WorkflowResource = components["schemas"]["WorkflowResource"];
 export type WorkflowSummary = components["schemas"]["WorkflowSummary"];
-export type ConfigurationKind = components["schemas"]["ConfigurationKind"];
-export type ConfigurationPage = components["schemas"]["ConfigurationPage"];
+type ConfigurationKind = components["schemas"]["ConfigurationKind"];
+type ConfigurationPage = components["schemas"]["ConfigurationPage"];
 export type ConfigurationResource =
   components["schemas"]["ConfigurationResource"];
-export type CredentialPage = components["schemas"]["CredentialPage"];
+type CredentialPage = components["schemas"]["CredentialPage"];
 export type CredentialResource = components["schemas"]["CredentialResource"];
 export type CreateRunRequest = components["schemas"]["CreateRunRequest"];
-export type CreateRunResponse = components["schemas"]["CreateRunResponse"];
+type CreateRunResponse = components["schemas"]["CreateRunResponse"];
 
-export interface PageRequest {
+interface PageRequest {
   cursor?: string;
 }
 
-export interface CatalogPageRequest extends PageRequest {
+interface CatalogPageRequest extends PageRequest {
   q?: string;
   name?: string;
   signal?: AbortSignal;
@@ -117,7 +114,29 @@ export async function listConfigurations(
       ...(request.signal === undefined ? {} : { signal: request.signal }),
     }),
   );
-  return safeConfigurationPage(requireData(result));
+  const page = requireData(result);
+  page.items.forEach((item) =>
+    requireCanonicalConfiguration(item, result.response.status),
+  );
+  return page;
+}
+
+/**
+ * An Agent template lists its Skills in the Server's canonical order (by
+ * name), which the schema cannot express.
+ */
+export function requireCanonicalConfiguration(
+  resource: ConfigurationResource,
+  status: number,
+): ConfigurationResource {
+  const skills = "skills" in resource.body ? resource.body.skills : undefined;
+  if (!canonicalOrder((skills ?? []).map((skill) => skill.name))) {
+    throw invalidAPIResponse(
+      status,
+      "Server returned an invalid configuration resource",
+    );
+  }
+  return resource;
 }
 
 function requireCatalogRequest(request: CatalogPageRequest): void {
@@ -143,7 +162,7 @@ export async function listCredentials(
       },
     }),
   );
-  return safeCredentialPage(requireData(result));
+  return requireData(result);
 }
 
 function invalidRunResponse(status: number): PublicAPIError {
@@ -169,7 +188,7 @@ export async function createRun(
       body: request,
     }),
   );
-  return safeCreateRunResponse(result, undefined);
+  return requireCreateRunResponse(result, undefined);
 }
 
 export async function createProjectRun(
@@ -178,7 +197,7 @@ export async function createProjectRun(
   request: CreateRunRequest,
   idempotencyKey: string,
 ): Promise<CreateRunResponse> {
-  if (!RESOURCE_ID_PATTERN.test(projectId)) {
+  if (!RESOURCE_ID.test(projectId)) {
     throw new TypeError("Project ID is invalid");
   }
   const mutationHeaders = api.mutationHeaders({ idempotencyKey });
@@ -195,10 +214,10 @@ export async function createProjectRun(
       body: request,
     }),
   );
-  return safeCreateRunResponse(result, projectId);
+  return requireCreateRunResponse(result, projectId);
 }
 
-function safeCreateRunResponse(
+function requireCreateRunResponse(
   result: {
     data?: CreateRunResponse;
     error?: unknown;
@@ -208,40 +227,13 @@ function safeCreateRunResponse(
 ): CreateRunResponse {
   const response = requireData(result);
   if (
-    result.response.status !== 202 ||
-    !RESOURCE_ID_PATTERN.test(response.runId) ||
-    !RUN_STATES.includes(response.state)
+    // A Project Run answers for that Project; an owner Run has none.
+    response.projectId !== expectedProjectId ||
+    // Runtime labels and pins are in the Server's canonical order.
+    !canonicalOrder(response.runtimeLabels) ||
+    !canonicalRunRuntimeConfiguration(response.runtimeConfiguration)
   ) {
     throw invalidRunResponse(result.response.status);
   }
-  if (
-    (expectedProjectId === undefined && response.projectId !== undefined) ||
-    (expectedProjectId !== undefined &&
-      response.projectId !== expectedProjectId)
-  ) {
-    throw invalidRunResponse(result.response.status);
-  }
-  if (
-    !Array.isArray(response.runtimeLabels) ||
-    response.runtimeLabels.some(
-      (label, index) =>
-        !CONFIG_ID_PATTERN.test(label) ||
-        label === "default" ||
-        (index > 0 && response.runtimeLabels[index - 1]! >= label),
-    )
-  ) {
-    throw invalidRunResponse(result.response.status);
-  }
-  return {
-    runId: response.runId,
-    ...(response.projectId === undefined
-      ? {}
-      : { projectId: response.projectId }),
-    state: response.state,
-    runtimeLabels: [...response.runtimeLabels],
-    labels: safeRunMetadataLabels(response.labels),
-    runtimeConfiguration: safeRunRuntimeConfiguration(
-      response.runtimeConfiguration,
-    ),
-  };
+  return response;
 }

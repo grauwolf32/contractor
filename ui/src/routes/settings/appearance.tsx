@@ -63,7 +63,7 @@ export function AppearanceSettings({
         ))}
       </fieldset>
       {preference === "system" ? (
-        <p className="ops-note" role="status">
+        <p className="ui-caption" role="status">
           Showing the {resolved} theme now.
         </p>
       ) : null}

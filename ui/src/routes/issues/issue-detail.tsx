@@ -1,6 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useId, useRef, useState } from "react";
-import { Link, type To } from "react-router";
 
 import {
   getAudit,
@@ -14,8 +13,10 @@ import type { CrossProjectIssue } from "../../api/cross-project";
 import { getProject, type Project } from "../../api/projects";
 import { queryKeys } from "../../api/query-keys";
 import { ContextLink } from "../../app/context-navigation";
+import { Icon } from "../../app/icon";
+import { QueryView } from "../../app/query-view";
 import { capitalize, findingStateLabel, TERMS } from "../../app/vocabulary";
-import { DetailPane } from "../../ui";
+import { Button, DetailPane, IconButton } from "../../ui";
 import {
   FindingDecision,
   FindingSummary,
@@ -31,43 +32,20 @@ import { evidenceCount } from "./evidence";
 import { EvidencePanel } from "./evidence-panel";
 import { DecisionHistory } from "./history";
 import { checkIssuePath } from "./links";
-import { TabPanel, Tabs, type TabItem } from "./tabs";
+import { TabPanel, Tabs } from "./tabs";
 
 import "./issues.css";
 
 type IssueTab = "summary" | "evidence" | "history";
 
-function Icon({ path }: { path: string }) {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <path d={path} />
-    </svg>
-  );
-}
-
-const CHEVRON_RIGHT = "M9.5 6l6 6-6 6";
-const CHEVRON_UP = "M6 14.5l6-6 6 6";
-const CHEVRON_DOWN = "M6 9.5l6 6 6-6";
-
 /** Where the selected possible issue sits in the list. */
-export interface IssuePosition {
+interface IssuePosition {
   /** Zero-based. */
   index: number;
   count: number;
 }
 
-export interface IssueDetailProps {
+interface IssueDetailProps {
   auditId: string;
   findingId: string;
   /** The possible issue as the list has it, shown until the exact read. */
@@ -90,7 +68,6 @@ export interface IssueDetailProps {
   onDecided: (result: AuditFindingDecisionResult) => void;
   /** Changes when focus should move to the top of the detail. */
   focusRequest?: number | undefined;
-  backTo: To;
 }
 
 function PanelTitle({ finding }: { finding: AuditFinding }) {
@@ -119,7 +96,6 @@ export function IssueDetail({
   onDropReview,
   onDecided,
   focusRequest,
-  backTo,
 }: IssueDetailProps) {
   const api = usePublicAPI();
   const queryClient = useQueryClient();
@@ -266,83 +242,42 @@ export function IssueDetail({
             to={checkIssuePath(projectId, auditId, findingId)}
           >
             View in its check
-            <Icon path={CHEVRON_RIGHT} />
+            <Icon name="chevron-right" size={16} />
           </ContextLink>
         )}
-        <button
-          type="button"
-          className="ui-btn issues-step"
-          data-size="sm"
-          aria-label="Previous possible issue"
+        <IconButton
+          className="issues-step"
+          size="sm"
+          label="Previous possible issue"
           aria-keyshortcuts="K"
-          title="Previous (K)"
+          icon={<Icon name="chevron-up" size={16} />}
           disabled={onPrevious === undefined}
           onClick={onPrevious}
-        >
-          <Icon path={CHEVRON_UP} />
-        </button>
-        <button
-          type="button"
-          className="ui-btn issues-step"
-          data-size="sm"
-          aria-label="Next possible issue"
+        />
+        <IconButton
+          className="issues-step"
+          size="sm"
+          label="Next possible issue"
           aria-keyshortcuts="J"
-          title="Next (J)"
+          icon={<Icon name="chevron-down" size={16} />}
           disabled={onNext === undefined}
           onClick={onNext}
-        >
-          <Icon path={CHEVRON_DOWN} />
-        </button>
+        />
       </div>
     </header>
   );
-
-  if (shown === undefined)
-    return (
-      <DetailPane header={bar}>
-        {finding.error === null ? (
-          <p className="issues-quiet" role="status">
-            Loading the possible issue…
-          </p>
-        ) : (
-          <div className="issues-notice" data-tone="error" role="alert">
-            <p>
-              <strong>This possible issue could not be loaded.</strong>{" "}
-              {finding.error.message}
-            </p>
-            <div className="issues-notice-actions">
-              <button
-                type="button"
-                className="ui-btn"
-                data-size="xs"
-                disabled={finding.isFetching}
-                onClick={() => void finding.refetch()}
-              >
-                Try again
-              </button>
-              <Link to={backTo}>Back to possible issues</Link>
-            </div>
-          </div>
-        )}
-      </DetailPane>
-    );
 
   const refresh = () =>
     void queryClient.invalidateQueries({
       queryKey: queryKeys.audits.detail(auditId),
     });
-  const tabs: TabItem<IssueTab>[] = [
-    { id: "summary", label: "Summary" },
-    { id: "evidence", label: "Evidence", count: evidenceCount(shown) },
-    { id: "history", label: "History" },
-  ];
   const blocked = stale || reviewFailed;
 
   return (
     <DetailPane
       header={bar}
       footer={
-        blocked || waitingForReview ? undefined : (
+        shown === undefined || blocked || waitingForReview ? undefined : (
           <FindingDecision
             auditId={auditId}
             finding={shown}
@@ -355,106 +290,108 @@ export function IssueDetail({
         )
       }
     >
-      {!blocked ? null : (
-        <div className="issues-notice" data-tone="warning" role="alert">
-          <p>
-            {reviewFailed
-              ? `The review this link names could not be loaded: ${review.error?.message ?? "unknown error"}.`
-              : "The review this link names no longer matches this possible issue. Refresh the context before deciding, or decide on its current version."}
+      <QueryView
+        query={finding}
+        loading={
+          <p className="ui-caption" role="status">
+            Loading the possible issue…
           </p>
-          <div className="issues-notice-actions">
-            <button
-              type="button"
-              className="ui-btn"
-              data-size="xs"
-              onClick={refresh}
-            >
-              Refresh context
-            </button>
-            <button
-              type="button"
-              className="ui-btn"
-              data-size="xs"
-              onClick={onDropReview}
-            >
-              Decide on the current version
-            </button>
-          </div>
-        </div>
-      )}
-      <Tabs
-        label="Review sections"
-        items={tabs}
-        selected={tab}
-        onSelect={setTab}
-        idBase={idBase}
-      />
-      <TabPanel idBase={idBase} id={tab}>
-        {tab === "summary" ? (
+        }
+        errorContext="This possible issue could not be loaded."
+      >
+        {(shown) => (
           <>
-            <FindingSummary auditId={auditId} finding={shown} />
-            {auditShown === undefined ? null : (
-              <>
-                <FindingSources
-                  audit={auditShown}
-                  returnLabel="Possible issue"
-                />
-                <FindingTechnicalDetails
-                  audit={auditShown}
-                  finding={shown}
-                  pendingReview={openReview}
-                  showCheckId
-                />
-              </>
+            {!blocked ? null : (
+              <div className="issues-notice" data-tone="warning" role="alert">
+                <p>
+                  {reviewFailed
+                    ? `The review this link names could not be loaded: ${review.error?.message ?? "unknown error"}.`
+                    : "The review this link names no longer matches this possible issue. Refresh the context before deciding, or decide on its current version."}
+                </p>
+                <div className="issues-notice-actions">
+                  <Button size="xs" onClick={refresh}>
+                    Refresh context
+                  </Button>
+                  <Button size="xs" onClick={onDropReview}>
+                    Decide on the current version
+                  </Button>
+                </div>
+              </div>
             )}
-          </>
-        ) : tab === "evidence" ? (
-          <>
-            <PanelTitle finding={shown} />
-            <EvidencePanel finding={shown} />
-          </>
-        ) : (
-          <>
-            <PanelTitle finding={shown} />
-            <DecisionHistory auditId={auditId} findingId={findingId} />
-            <section
-              className="issues-history"
-              aria-labelledby={provenanceHeading}
-            >
-              <h3 id={provenanceHeading} className="issues-heading">
-                Provenance
-              </h3>
-              <p className="issues-quiet">
-                The proposal and the check attempts behind this possible issue.
-              </p>
-              {auditShown === undefined ? (
-                audit.error === null ? (
-                  <p className="issues-quiet" role="status">
-                    Loading the check…
-                  </p>
-                ) : (
-                  <div className="issues-notice" data-tone="error" role="alert">
-                    <p>The check could not be loaded: {audit.error.message}</p>
-                    <div className="issues-notice-actions">
-                      <button
-                        type="button"
-                        className="ui-btn"
-                        data-size="xs"
-                        disabled={audit.isFetching}
-                        onClick={() => void audit.refetch()}
-                      >
-                        Try again
-                      </button>
-                    </div>
-                  </div>
-                )
+            <Tabs
+              label="Review sections"
+              items={[
+                { id: "summary", label: "Summary" },
+                {
+                  id: "evidence",
+                  label: "Evidence",
+                  count: evidenceCount(shown),
+                },
+                { id: "history", label: "History" },
+              ]}
+              selected={tab}
+              onSelect={setTab}
+              idBase={idBase}
+            />
+            <TabPanel idBase={idBase} id={tab}>
+              {tab === "summary" ? (
+                <>
+                  <FindingSummary auditId={auditId} finding={shown} />
+                  {auditShown === undefined ? null : (
+                    <>
+                      <FindingSources
+                        audit={auditShown}
+                        returnLabel="Possible issue"
+                      />
+                      <FindingTechnicalDetails
+                        audit={auditShown}
+                        finding={shown}
+                        pendingReview={openReview}
+                        showCheckId
+                      />
+                    </>
+                  )}
+                </>
+              ) : tab === "evidence" ? (
+                <>
+                  <PanelTitle finding={shown} />
+                  <EvidencePanel finding={shown} />
+                </>
               ) : (
-                <FindingProvenance audit={auditShown} finding={shown} />
+                <>
+                  <PanelTitle finding={shown} />
+                  <DecisionHistory auditId={auditId} findingId={findingId} />
+                  <section
+                    className="issues-history"
+                    aria-labelledby={provenanceHeading}
+                  >
+                    <h3 id={provenanceHeading} className="issues-heading">
+                      Provenance
+                    </h3>
+                    <p className="ui-caption">
+                      The proposal and the check attempts behind this possible
+                      issue.
+                    </p>
+                    <QueryView
+                      query={audit}
+                      loading={
+                        <p className="ui-caption" role="status">
+                          Loading the check…
+                        </p>
+                      }
+                      errorContext="The check could not be loaded."
+                    >
+                      {(checked) => (
+                        <FindingProvenance audit={checked} finding={shown} />
+                      )}
+                    </QueryView>
+                  </section>
+                </>
               )}
-            </section>
+            </TabPanel>
           </>
         )}
-      </TabPanel>
+      </QueryView>
     </DetailPane>
   );
 }

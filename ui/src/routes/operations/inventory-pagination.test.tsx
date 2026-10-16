@@ -1,19 +1,21 @@
-import { QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { type ReactNode } from "react";
-import { MemoryRouter } from "react-router";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import { PublicAPI } from "../../api/client";
-import { PublicAPIProvider } from "../../api/context";
 import type {
   ConfigurationResource,
   CreateCredentialRequest,
   RuntimeConfigAuthorDocument,
   RuntimeCredentialMetadata,
 } from "../../api/operations";
-import { createApplicationQueryClient } from "../../app/query-client";
+import {
+  emptyPageOrNotFound,
+  failure,
+  json,
+  noContent,
+  page,
+} from "../../test/responses";
+import { renderWithAPI } from "../../test/render";
 import { CredentialCreateForm } from "./credentials/form";
 import { RuntimeConfigurationRoute } from "./runtime-configs/index";
 
@@ -69,47 +71,11 @@ function credential(index: number): RuntimeCredentialMetadata {
   };
 }
 
-function page<T>(items: T[], cursor: string | null) {
+/** Two pages of 50 and the rest; `cursor` is null for the first. */
+function split<T>(items: T[], cursor: string | null) {
   return cursor === null
-    ? {
-        items: items.slice(0, 50),
-        page: { hasMore: true, nextCursor: "page-2" },
-      }
-    : { items: items.slice(50), page: { hasMore: false } };
-}
-
-function reply(body: unknown, status = 200): Response {
-  return new Response(status === 204 ? null : JSON.stringify(body), {
-    status,
-    headers: {
-      "content-type": "application/json",
-      "X-Contractor-API-Version": "contractor.public.v1",
-    },
-  });
-}
-
-function renderWithAPI(
-  element: ReactNode,
-  respond: (request: Request) => Promise<Response>,
-) {
-  const api = new PublicAPI(
-    {
-      uiVersion: "0.1.0",
-      supportedApiVersions: ["contractor.public.v1"],
-      apiBaseUrl: "http://127.0.0.1:8080",
-    },
-    vi.fn(async (input) =>
-      respond(input instanceof Request ? input : new Request(input)),
-    ),
-  );
-  api.csrf.replace("a".repeat(43));
-  render(
-    <QueryClientProvider client={createApplicationQueryClient()}>
-      <PublicAPIProvider api={api}>
-        <MemoryRouter>{element}</MemoryRouter>
-      </PublicAPIProvider>
-    </QueryClientProvider>,
-  );
+    ? page(items.slice(0, 50), "page-2")
+    : page(items.slice(50));
 }
 
 describe("Operations inventories beyond the first page", () => {
@@ -119,33 +85,34 @@ describe("Operations inventories beyond the first page", () => {
     );
     const policies = Array.from({ length: 60 }, (_, index) => policy(index));
     const posts: CreateCredentialRequest[] = [];
-    renderWithAPI(<CredentialCreateForm />, async (request) => {
-      const url = new URL(request.url);
-      const cursor = url.searchParams.get("cursor");
-      if (url.pathname === "/v1/configurations/llm-gateways")
-        return reply(page(gateways, cursor));
-      if (url.pathname === "/v1/configurations/model-policies")
-        return reply(page(policies, cursor));
-      if (
-        url.pathname === "/v1/operations/credentials" &&
-        request.method === "POST"
-      ) {
-        const body = (await request.json()) as CreateCredentialRequest;
-        posts.push(body);
-        return reply(
-          {
-            credentialId: body.credentialId,
-            llmGateway: body.llmGateway,
-            createdAt: now,
-            effectivePolicy: {
-              modelPolicies: body.gatewayPolicy.modelPolicies,
-              models: ["model-59"],
+    renderWithAPI(<CredentialCreateForm />, {
+      server: async (request, url) => {
+        const cursor = url.searchParams.get("cursor");
+        if (url.pathname === "/v1/configurations/llm-gateways")
+          return json(split(gateways, cursor));
+        if (url.pathname === "/v1/configurations/model-policies")
+          return json(split(policies, cursor));
+        if (
+          url.pathname === "/v1/operations/credentials" &&
+          request.method === "POST"
+        ) {
+          const body = (await request.json()) as CreateCredentialRequest;
+          posts.push(body);
+          return json(
+            {
+              credentialId: body.credentialId,
+              llmGateway: body.llmGateway,
+              createdAt: now,
+              effectivePolicy: {
+                modelPolicies: body.gatewayPolicy.modelPolicies,
+                models: ["model-59"],
+              },
             },
-          },
-          201,
-        );
-      }
-      return reply({ items: [], page: { hasMore: false } });
+            201,
+          );
+        }
+        return emptyPageOrNotFound(request, url);
+      },
     });
     const user = userEvent.setup();
     await user.click(
@@ -178,32 +145,53 @@ describe("Operations inventories beyond the first page", () => {
   it("publishes a RuntimeConfig with a Gateway from page two", async () => {
     const gateways = Array.from({ length: 60 }, (_, index) => gateway(index));
     const posts: RuntimeConfigAuthorDocument[] = [];
-    renderWithAPI(<RuntimeConfigurationRoute />, async (request) => {
-      const url = new URL(request.url);
-      if (url.pathname === "/v1/configurations/llm-gateways")
-        return reply(page(gateways, url.searchParams.get("cursor")));
-      if (
-        url.pathname === "/v1/operations/runtime-configs" &&
-        request.method === "POST"
-      ) {
-        const document = (await request.json()) as RuntimeConfigAuthorDocument;
-        posts.push(document);
-        return reply(
-          {
-            ref: {
-              name: document.metadata.name,
-              version: document.metadata.version,
-              digest: digest(900),
+    renderWithAPI(<RuntimeConfigurationRoute />, {
+      server: async (request, url) => {
+        if (url.pathname === "/v1/configurations/llm-gateways")
+          return json(split(gateways, url.searchParams.get("cursor")));
+        if (
+          url.pathname === "/v1/operations/runtime-configs" &&
+          request.method === "POST"
+        ) {
+          const document =
+            (await request.json()) as RuntimeConfigAuthorDocument;
+          posts.push(document);
+          // The Server answers with the exact Gateway the selector resolved to.
+          const selected = gateways.find(
+            (candidate) =>
+              `${candidate.ref.name}@${candidate.ref.version}` ===
+              document.spec.worker?.llmGateway?.gateway,
+          );
+          return json(
+            {
+              ref: {
+                name: document.metadata.name,
+                version: document.metadata.version,
+                digest: digest(900),
+              },
+              document: {
+                ...document,
+                spec: {
+                  worker: {
+                    llmGateway: {
+                      gateway: {
+                        gatewayId: selected?.ref.name,
+                        version: selected?.ref.version,
+                        digest: selected?.ref.digest,
+                      },
+                    },
+                  },
+                },
+              },
+              builtIn: false,
+              createdBy: "operator",
+              createdAt: now,
             },
-            document,
-            builtIn: false,
-            createdBy: "operator",
-            createdAt: now,
-          },
-          201,
-        );
-      }
-      return reply({ items: [], page: { hasMore: false } });
+            201,
+          );
+        }
+        return emptyPageOrNotFound(request, url);
+      },
     });
     const user = userEvent.setup();
     await user.click(
@@ -241,24 +229,25 @@ describe("Operations inventories beyond the first page", () => {
       credential(index),
     );
     const deletes: string[] = [];
-    renderWithAPI(<RuntimeConfigurationRoute />, async (request) => {
-      const url = new URL(request.url);
-      if (
-        url.pathname === "/v1/operations/runtime-credentials" &&
-        request.method === "GET"
-      )
-        return reply(page(credentials, url.searchParams.get("cursor")));
-      if (
-        url.pathname === "/v1/operations/runtime-credentials/credential-59" &&
-        request.method === "DELETE"
-      ) {
-        deletes.push(url.pathname);
-        credentials = credentials.filter(
-          (item) => item.credentialId !== "credential-59",
-        );
-        return reply(undefined, 204);
-      }
-      return reply({ items: [], page: { hasMore: false } });
+    renderWithAPI(<RuntimeConfigurationRoute />, {
+      server: async (request, url) => {
+        if (
+          url.pathname === "/v1/operations/runtime-credentials" &&
+          request.method === "GET"
+        )
+          return json(split(credentials, url.searchParams.get("cursor")));
+        if (
+          url.pathname === "/v1/operations/runtime-credentials/credential-59" &&
+          request.method === "DELETE"
+        ) {
+          deletes.push(url.pathname);
+          credentials = credentials.filter(
+            (item) => item.credentialId !== "credential-59",
+          );
+          return noContent();
+        }
+        return emptyPageOrNotFound(request, url);
+      },
     });
     const user = userEvent.setup();
     const navigation = await screen.findByRole("navigation", {
@@ -292,22 +281,21 @@ describe("Operations inventories beyond the first page", () => {
 
   it("does not report an empty inventory while a page loads or fails", async () => {
     let credentialsAvailable = false;
-    renderWithAPI(<RuntimeConfigurationRoute />, async (request) => {
-      const url = new URL(request.url);
-      if (url.pathname === "/v1/operations/runtime-configs")
-        return new Promise<Response>(() => undefined);
-      if (url.pathname === "/v1/operations/runtime-credentials")
-        return credentialsAvailable
-          ? reply({ items: [credential(1)], page: { hasMore: false } })
-          : reply(
-              {
-                code: "unavailable",
-                message: "Runtime credentials are unavailable",
-                retryable: true,
-              },
-              503,
-            );
-      return reply({ items: [], page: { hasMore: false } });
+    renderWithAPI(<RuntimeConfigurationRoute />, {
+      server: async (request, url) => {
+        if (url.pathname === "/v1/operations/runtime-configs")
+          return new Promise<Response>(() => undefined);
+        if (url.pathname === "/v1/operations/runtime-credentials")
+          return credentialsAvailable
+            ? json(page([credential(1)]))
+            : failure(
+                503,
+                "unavailable",
+                "Runtime credentials are unavailable",
+                true,
+              );
+        return emptyPageOrNotFound(request, url);
+      },
     });
     expect(await screen.findByText("Loading RuntimeConfigs…")).toBeVisible();
     expect(
@@ -346,14 +334,15 @@ describe("Operations inventories beyond the first page", () => {
       cursor === null
         ? { items: [item], page: { hasMore: true, nextCursor: "page-2" } }
         : { items: [], page: { hasMore: false } };
-    renderWithAPI(<RuntimeConfigurationRoute />, async (request) => {
-      const url = new URL(request.url);
-      const cursor = url.searchParams.get("cursor");
-      if (url.pathname === "/v1/operations/runtime-configs")
-        return reply(firstOrEmpty(config, cursor));
-      if (url.pathname === "/v1/operations/runtime-credentials")
-        return reply(firstOrEmpty(credential(1), cursor));
-      return reply({ items: [], page: { hasMore: false } });
+    renderWithAPI(<RuntimeConfigurationRoute />, {
+      server: async (request, url) => {
+        const cursor = url.searchParams.get("cursor");
+        if (url.pathname === "/v1/operations/runtime-configs")
+          return json(firstOrEmpty(config, cursor));
+        if (url.pathname === "/v1/operations/runtime-credentials")
+          return json(firstOrEmpty(credential(1), cursor));
+        return emptyPageOrNotFound(request, url);
+      },
     });
     const user = userEvent.setup();
     for (const label of ["RuntimeConfig pages", "Runtime credential pages"]) {

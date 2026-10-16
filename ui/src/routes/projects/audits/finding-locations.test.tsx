@@ -1,12 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { components } from "../../../api/generated/public";
-import {
-  isFindingLocation,
-  validFindingCoordinates,
-} from "../../../api/finding-locations";
 import { decodeBody, isCredentialHeader } from "../../issues/evidence";
 import { FindingLocations } from "./finding-locations";
 
@@ -24,13 +19,6 @@ const proposal: Proposal = {
   severity_suggestion: "",
   limitations: [],
 };
-const cases = JSON.parse(
-  readFileSync(
-    "../internal/auditdomain/testdata/finding-locations.json",
-    "utf8",
-  ),
-) as { name: string; location: unknown; valid: boolean }[];
-
 const exchange: NonNullable<Proposal["http_exchange"]> = {
   request_id: 42,
   request_tag: "probe",
@@ -63,12 +51,6 @@ const exchange: NonNullable<Proposal["http_exchange"]> = {
 };
 
 describe("finding locations", () => {
-  it.each(cases)(
-    "matches the Go/Python coordinate contract: $name",
-    ({ location, valid }) => {
-      expect(isFindingLocation(location)).toBe(valid);
-    },
-  );
   it("renders authored paths and URLs without creating links or inferring coordinates", () => {
     render(
       <FindingLocations
@@ -97,18 +79,7 @@ describe("finding locations", () => {
       ).getAllByRole("listitem"),
     ).toHaveLength(4);
   });
-  it("permits absent coordinates and rejects malformed or unsupported-schema extensions", () => {
-    expect(validFindingCoordinates(proposal)).toBe(true);
-    expect(validFindingCoordinates({ ...proposal, locations: null })).toBe(
-      false,
-    );
-    expect(
-      validFindingCoordinates({
-        ...proposal,
-        schema: "contractor.audit.finding-proposal.unsupported",
-        locations: [{ file: "a.py" }],
-      }),
-    ).toBe(false);
+  it("renders nothing without coordinates", () => {
     const { container } = render(<FindingLocations document={proposal} />);
     expect(container).toBeEmptyDOMElement();
   });

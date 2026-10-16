@@ -2,11 +2,21 @@ import { useId } from "react";
 import { Link } from "react-router";
 
 import type { WorkflowSummary } from "../../api/workflows";
-import { IdChip, StatusChip, StatusGlyph, TechnicalDetails } from "../../ui";
-import type { StatusTone } from "../../ui";
+import { plural } from "../../app/format";
+import {
+  Button,
+  Facts,
+  IdChip,
+  StatusChip,
+  StatusGlyph,
+  TechnicalDetails,
+  type StatusTone,
+} from "../../ui";
 import type { WorkflowCompatibility } from "../projects/recommendations";
-import { workflowFormats } from "./formats";
+import { hasNumericVersions } from "./families";
+import { formatLabel } from "../artifacts/kinds";
 import { workflowDisplayName, workflowSelector } from "./presentation";
+import { WorkflowVersionSelect, WorkflowVersionTag } from "./version-select";
 import "./cards.css";
 
 function Slots({ slots }: { slots: WorkflowSummary["outputs"] }) {
@@ -29,9 +39,7 @@ function Slots({ slots }: { slots: WorkflowSummary["outputs"] }) {
               ) : null}
             </dt>
             <dd title={slot.mediaTypes.join(", ")}>
-              {slot.mediaTypes
-                .map((value) => workflowFormats[value] ?? value)
-                .join(" · ")}
+              {slot.mediaTypes.map(formatLabel).join(" · ")}
             </dd>
           </div>
         ))}
@@ -72,7 +80,7 @@ export function WorkflowCard({
   const selector = workflowSelector(workflow);
   const route = `/catalog/workflows/${encodeURIComponent(workflow.ref.name)}/${encodeURIComponent(workflow.ref.version)}`;
   const state = { returnTo, returnLabel: "Workflow search", returnState };
-  const numeric = versions.every((w) => /^\d+(?:\.\d+)*$/.test(w.ref.version));
+  const numeric = hasNumericVersions(versions);
   const latest = workflow.ref.version === versions[0]?.ref.version;
   const ambiguous =
     matching !== undefined &&
@@ -106,30 +114,14 @@ export function WorkflowCard({
       </header>
       <div className="workflow-card-version">
         <IdChip value={selector} display={selector} label="workflow version" />
-        <label className="workflow-card-select">
-          <span>Version</span>
-          <select
-            aria-label={`Version of ${workflow.ref.name}`}
-            value={workflow.ref.version}
-            onChange={(event) => onVersion(event.target.value)}
-          >
-            {versions.map((version) => (
-              <option key={version.ref.version} value={version.ref.version}>
-                {version.ref.version}
-              </option>
-            ))}
-          </select>
-        </label>
-        {numeric ? (
-          <span
-            className="workflow-card-tag"
-            data-tone={latest ? "accent" : undefined}
-          >
-            {latest ? "Latest" : "Earlier version"}
-          </span>
-        ) : null}
+        <WorkflowVersionSelect
+          workflow={workflow}
+          versions={versions}
+          onChange={onVersion}
+        />
+        {numeric ? <WorkflowVersionTag latest={latest} /> : null}
         <span className="workflow-card-count">
-          {versions.length} version{versions.length === 1 ? "" : "s"}
+          {plural(versions.length, "version")}
         </span>
       </div>
       {workflow.presentation?.description ? (
@@ -184,7 +176,7 @@ export function WorkflowCard({
           </div>
           <p className="workflow-card-parameters">
             {parameters.length
-              ? `${parameters.length} parameter${parameters.length === 1 ? "" : "s"} · ${parameters.filter((p) => p.required).length} required`
+              ? `${plural(parameters.length, "parameter")} · ${parameters.filter((p) => p.required).length} required`
               : "No parameters"}
           </p>
         </>
@@ -193,42 +185,44 @@ export function WorkflowCard({
         <TechnicalDetails
           summary={matching ? "Inputs & contract" : "Technical details"}
         >
-          <dl className="workflow-card-technical">
-            <div>
-              <dt>Entry stage</dt>
-              <dd>
-                <code>{workflow.entryStage}</code>
-              </dd>
-            </div>
-            {Object.entries(workflow.inputs).map(([name, slot]) => (
-              <div key={`input:${name}`}>
-                <dt>
-                  Input <code>{name}</code> ·{" "}
-                  {slot.required ? "required" : "optional"}
-                </dt>
-                <dd>
-                  {slot.mediaTypes.join(", ")}
-                  {matching
+          <Facts
+            layout="list"
+            size="sm"
+            items={[
+              {
+                term: "Entry stage",
+                value: <code>{workflow.entryStage}</code>,
+              },
+              ...Object.entries(workflow.inputs).map(([name, slot]) => ({
+                key: `input:${name}`,
+                term: (
+                  <>
+                    Input <code>{name}</code> ·{" "}
+                    {slot.required ? "required" : "optional"}
+                  </>
+                ),
+                value: `${slot.mediaTypes.join(", ")}${
+                  matching
                     ? ` · ${matching.candidates[name]?.length ?? 0} matching materials`
-                    : ""}
-                </dd>
-              </div>
-            ))}
-            {Object.entries(workflow.parameters).map(([name, slot]) => (
-              <div key={`parameter:${name}`}>
-                <dt>
-                  Parameter <code>{name}</code>
-                </dt>
-                <dd>{slot.required ? "Required" : "Optional"} string</dd>
-              </div>
-            ))}
-          </dl>
+                    : ""
+                }`,
+              })),
+              ...Object.entries(workflow.parameters).map(([name, slot]) => ({
+                key: `parameter:${name}`,
+                term: (
+                  <>
+                    Parameter <code>{name}</code>
+                  </>
+                ),
+                value: `${slot.required ? "Required" : "Optional"} string`,
+              })),
+            ]}
+          />
         </TechnicalDetails>
         {matching ? (
-          <button
-            className="ui-btn workflow-card-action"
-            data-size="sm"
-            type="button"
+          <Button
+            className="workflow-card-action"
+            size="sm"
             aria-label={
               matching.suppressed
                 ? `Run again ${selector}`
@@ -242,7 +236,7 @@ export function WorkflowCard({
                 ? "Configure run"
                 : "Review inputs"}
             <span aria-hidden="true">→</span>
-          </button>
+          </Button>
         ) : (
           <Link className="workflow-card-action" to={route} state={state}>
             View workflow <span aria-hidden="true">→</span>

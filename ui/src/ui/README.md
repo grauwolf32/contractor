@@ -1,10 +1,17 @@
 # Shared UI building blocks (`src/ui`)
 
-The V3B list + detail primitives. Import everything from `src/ui`:
+The V3B list + detail primitives, buttons, dialogs, facts and fields. Import
+them from `src/ui`:
 
 ```tsx
-import { ListPane, ListRow, PaneLayout, StatusGlyph } from "../../ui";
+import { Button, ListPane, ListRow, PaneLayout, StatusGlyph } from "../../ui";
 ```
+
+Pages use these instead of writing their own: lint rejects a hand-written
+`ui-btn` button, `role="alertdialog"` or inline `<svg>` icon outside `src/ui`
+and `src/app` (see [Gates](#gates)). Shared helpers that are not components
+(icons, formatting, polling, write conflicts, late navigation, vocabulary)
+live in `src/app` and are listed under [App helpers](#app-helpers).
 
 Styles live in `src/ui/ui.css` (imported once from `src/main.tsx`, classes
 start with `ui-`). Colours come only from `src/app/theme.css` tokens, so every
@@ -33,8 +40,8 @@ PaneLayout(props: {
 Two `<section>`s named `listLabel` and `detailLabel`, separated by a 1 px
 hairline.
 
-- **≥ 1100 px:** the list is 360 px wide.
-- **821–1099 px:** the list is 300 px wide.
+- **Above 1100 px:** the list is 360 px wide.
+- **821–1100 px:** the list is 300 px wide.
 - **Above 820 px:** the frame is `calc(100dvh - var(--shell-topbar-height, 0px))`
   tall and each pane scrolls on its own.
 - **≤ 820 px:** one pane at a time in normal page flow. The list shows by
@@ -267,18 +274,21 @@ cap of their own.
 
 ```ts
 DetailHeader(props: {
-  breadcrumb?: readonly { label: ReactNode; to?: To }[];
+  breadcrumb?: readonly { label: ReactNode; to?: To; state?: unknown }[];
   title: ReactNode;
   titleAs?: "h1" | "h2";      // default "h2"
   titleRef?: Ref<HTMLHeadingElement>; // the title can take focus (tabIndex -1)
+  eyebrow?: ReactNode;        // the page kind on a line above the title
   status?: ReactNode;         // usually StatusChip
   meta?: ReactNode;
   actions?: ReactNode;
 })
 ```
 
-Breadcrumb items with `to` are links; a last item without `to` gets
-`aria-current="page"`. The title is 20 px in a list pane and up to 28 px in a
+Breadcrumb items with `to` are links (with `state`, the link carries
+location state, such as the origin page's own way back); a last item
+without `to` gets `aria-current="page"`. `eyebrow` names the kind of page
+in small capitals above the title ("Workflow Run"). The title is 20 px in a list pane and up to 28 px in a
 wide detail pane. It also serves as a list pane `header`, for example the
 check page's breadcrumb, h1 and state. `titleRef` works as in `ListPane`: the
 heading gets `tabIndex={-1}`, so the page can focus it when the control that
@@ -676,20 +686,322 @@ return (
 
 ### Helpers
 
-- `isTextEntryTarget(target)`: true for text inputs, textareas, selects and
-  contenteditable regions.
 - `modKeyLabel()`: `"⌘"` on Apple platforms, else `"Ctrl"`, for key hints.
   `isApplePlatform()` is the underlying test.
 - `shortenId(value)`: the IdChip short form.
-- `clockTime(value)`: the ActivityLog time.
+
+## Buttons
+
+### `Button`
+
+```ts
+Button(props: ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: "primary" | "secondary" | "danger" | "ghost" | "link"; // default "secondary"
+  size?: "xs" | "sm" | "md";      // 28, 32 or 38 px; default "md"
+  icon?: ReactNode;               // before the text, usually <Icon />
+  type?: "button" | "submit" | "reset"; // default "button"
+  pending?: boolean;              // disabled + aria-busy
+  pendingLabel?: ReactNode;       // the text while pending ("Saving…")
+  ref?: Ref<HTMLButtonElement>;
+})
+```
+
+The `.ui-btn` look as a component. It is `type="button"` unless `type`
+says otherwise, so it never submits a form by accident. Use `primary` once
+per page for the main action, `danger` for destructive ones, `ghost` for
+quiet toolbar actions and `link` for an action that reads as text.
+
+```tsx
+<Button
+  variant="primary"
+  size="sm"
+  icon={<Icon name="plus" />}
+  pending={create.isPending}
+  pendingLabel="Starting…"
+  onClick={() => create.mutate()}
+>
+  Start check
+</Button>
+```
+
+Adopting it from markup is mechanical: `className="ui-btn"` becomes
+`Button`, `data-variant` and `data-size` become `variant` and `size`, a
+leading `<Icon>` moves into `icon`, and `disabled={x.isPending}` with a
+ternary label becomes `pending` and `pendingLabel`. Other classes stay in
+`className`.
+
+### `IconButton`
+
+```ts
+IconButton(props: Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children"> & {
+  label: string;                  // accessible name and hover title
+  icon: ReactNode;
+  variant?: ButtonVariant; size?: ButtonSize; pending?: boolean;
+})
+```
+
+A square button with only an icon (`data-icon-only`). `label` is required,
+so an icon-only control always has a name.
+
+```tsx
+<IconButton
+  label={`Delete Run ${run.runId}`}
+  icon={<Icon name="delete" />}
+  variant="ghost"
+  size="sm"
+  onClick={onDelete}
+/>
+```
+
+### `ButtonLink`
+
+```ts
+ButtonLink(props: LinkProps & {
+  variant?: ButtonVariant; size?: ButtonSize; icon?: ReactNode;
+  returnLabel?: string;           // a ContextLink: the target offers "Back to …"
+})
+```
+
+Navigation that looks like a button ("Open check", "Start a check").
+
+```tsx
+<ButtonLink size="sm" to={checkPath(audit.projectId, audit.auditId)}>
+  Open check
+</ButtonLink>
+```
+
+## Dialogs
+
+### `AlertDialog`
+
+```ts
+AlertDialog(props: {
+  title: ReactNode;
+  eyebrow?: ReactNode;            // small line above the title
+  children: ReactNode;            // the description (aria-describedby)
+  details?: ReactNode;            // facts, a type-to-confirm Field, notices
+  error?: ReactNode;              // above the buttons, e.g. <ErrorNotice />
+  confirmLabel: string;
+  pendingLabel?: string;          // confirm text while pending
+  cancelLabel?: string;           // default "Cancel"
+  tone?: "danger" | "primary";    // default "danger": danger button and border
+  pending?: boolean;
+  confirmDisabled?: boolean;      // e.g. until a name is typed
+  closeLabel?: string;            // adds a × button with this name
+  dismissOnBackdrop?: boolean;    // default false
+  className?: string;             // panel modifier, e.g. a width
+  onConfirm: () => void;
+  onCancel: () => void;
+})
+```
+
+Every confirmation: removals, Stop and Delete of a check, Continue from
+failed stage, Retry model connection, discarding a Run draft. It is a modal
+`role="alertdialog"` on the shared `Dialog` (`src/app/dialog.tsx`): focus
+starts on the safe action, Tab stays inside, Escape and Cancel close it, and
+focus returns to the opener. Nothing is sent before the confirm button.
+While `pending`, every control is disabled and Escape, the backdrop and the
+close button do nothing.
+
+```tsx
+{
+  confirming ? (
+    <AlertDialog
+      eyebrow="Permanent action"
+      title="Delete completed Run?"
+      confirmLabel="Delete Run"
+      pendingLabel="Deleting…"
+      pending={deletion.isPending}
+      error={
+        deletion.error === null ? null : <ErrorNotice error={deletion.error} />
+      }
+      onCancel={() => setConfirming(false)}
+      onConfirm={() => deletion.mutate(runId)}
+    >
+      <p>This permanently removes the Run and its history.</p>
+    </AlertDialog>
+  ) : null;
+}
+```
+
+Other modal content (forms, pickers) uses `Dialog` and `DialogHeader` from
+`src/app/dialog.tsx` with the `ui-dialog ui-panel` classes.
+
+## Facts and fields
+
+### `Facts`
+
+```ts
+Facts(props: {
+  items: readonly { term: ReactNode; value: ReactNode; key?: string; wide?: boolean }[];
+  layout?: "grid" | "row" | "list" | "rows"; // default "grid" (columns of >= 10rem)
+  size?: "sm" | "md";
+  technical?: readonly Fact[];      // behind a Technical details disclosure
+  technicalSummary?: string;
+  className?: string;
+  "aria-label"?: string;
+})
+```
+
+A `<dl>` of term and value pairs, each pair a `<div>`. A fact whose value
+is `undefined`, `null` or `false` is left out (0 and "" stay), so pages list
+what they know without conditionals; with no fact left it renders nothing.
+A `wide` fact takes a row of its own (a repository URL, a revision).
+
+- **`grid`:** columns of at least 10rem; terms above values.
+- **`row`:** pairs wrap on one line.
+- **`list`:** pairs stacked.
+- **`rows`:** terms in one column (8–13rem) beside the values, a hairline
+  between pairs, values in regular weight: configuration and record
+  details. It turns into one column at 640 px, or when a `.ui-facts-frame`
+  around it is narrower than 30rem (a side panel, a nested value; a frame
+  nested in such a list is then indented).
+
+```tsx
+<Facts
+  layout="row"
+  items={[
+    { term: "Project", value: project.name },
+    {
+      term: "Started",
+      value: audit.startedAt && formatShortDateTime(audit.startedAt),
+    },
+  ]}
+  technical={[
+    {
+      term: "Check ID",
+      value: <IdChip value={audit.auditId} label="check ID" />,
+    },
+  ]}
+/>
+```
+
+### `Field`
+
+```ts
+Field(props: {
+  label: ReactNode;
+  hint?: ReactNode;
+  error?: ReactNode;              // aria-invalid and an alert under the hint
+  required?: boolean;             // required + aria-required, "*" in the label
+  optional?: boolean;             // "(optional)" in the label
+  id?: string;                    // the control's id; generated otherwise
+  className?: string;
+  children: (control: {
+    id: string; "aria-describedby"?: string; "aria-invalid"?: true;
+    "aria-required"?: true; required?: true;
+  }) => ReactNode;
+})
+```
+
+Label, control, hint and error, wired for assistive technology. Spread the
+argument on the control; inputs, selects and textareas inside a Field get
+the shared form-control look and focus ring (`src/app/ui-primitives.css`).
+
+```tsx
+<Field label="Project name" hint="Shown in lists." error={nameError} required>
+  {(control) => (
+    <input
+      {...control}
+      value={name}
+      onChange={(event) => setName(event.currentTarget.value)}
+    />
+  )}
+</Field>
+```
+
+## App helpers
+
+Shared code that is not a component lives in `src/app`:
+
+- **Icons, `src/app/icon.tsx`:** `<Icon name size? strokeWidth? label? className? />`
+  draws every stroke icon of the UI (navigation, actions, chevrons,
+  decisions, material kinds). It is decorative unless `label` names it.
+  Add new icons there instead of an inline `<svg>`; charts and drawings
+  are not icons.
+- **Formatting, `src/app/format.ts`:** `plural(count, one, many?)`,
+  `formatNumber(value, maxFractionDigits = 2, minFractionDigits = 0)`
+  (counts and measurements, "1,204"), `formatCompact` ("1.2K", "1.5M"),
+  `formatBytes`, `formatTimestamp` (absolute, hover titles),
+  `formatShortDateTime` ("Oct 4, 23:51"), `formatClock`, `formatDay`
+  ("Today", "Yesterday", "Oct 4"), `formatRelative` (records, minutes and
+  up: `RecordedTime` uses it), `formatAge` (live observations to the
+  second), `formatElapsed` (Run and step durations), `formatTimeLimit` (a
+  limit in words), `formatSeconds` (measured seconds), `compactId`,
+  `compactDigest`, `middleTruncate` and `compareVersions`. Every Intl
+  formatter of the UI is defined there, with en-US conventions.
+- **Query states, `src/app/query-view.tsx`:** `<QueryView query={useQuery(…)}>`
+  renders loading ("Loading…" unless `loading` replaces it; `null` shows
+  nothing), the error panel when nothing is loaded (with an `errorHint` line
+  under it), a stale-data warning after a failed refetch, the `empty` state
+  for data that `isEmpty` selects, and the content. For an infinite query a
+  failed next page keeps the loaded pages and shows its error
+  (`continuationContext`) under them, retrying only that page. Try again
+  (`retryLabel`) calls the query's own `refetch` unless `onRetry` replaces
+  it; `renderError(error, retry, stale)` replaces the error panel and the
+  stale warning for an area whose errors need their own words, such as the
+  Evals' revision conflicts.
+- **Polling, `src/app/polling.ts`:** `pollInterval({ interval, settled?,
+settledInterval?, maxInterval? })` returns a `refetchInterval` function:
+  the base interval while the data can change, stop (or the slow
+  `settledInterval`) once `settled(data)` holds, doubling waits while reads
+  fail (up to `maxInterval`, 60 s by default) and no polling after a
+  permanent refusal such as 404. A page that shows related data invalidates
+  it when it sees the settled transition.
+
+  ```ts
+  refetchInterval: pollInterval<RunStatus>({
+    interval: 2_000,
+    settled: (run) => isTerminalRunState(run.state),
+  }),
+  ```
+
+- **Write conflicts, `src/app/conflict.ts` and `conflict-notice.tsx`:**
+  `writeConflict(error)` is `"stale"` for 412 (the revision changed first),
+  `"conflict"` for 409 (the current state rules the request out) and
+  undefined otherwise; `<ConflictNotice error subject="The check" />` says
+  so under a form. Neither retries; the page reads the resource again.
+- **Late navigation, `src/app/page-location.ts`:** `useGuardedNavigate()`
+  returns a `navigate` that moves only while the user is still on the page
+  that rendered it. Every navigation after an await or in a mutation
+  callback uses it (AGENTS.md 3.8).
+- **Vocabulary, `src/app/vocabulary.ts`:** labels and tones of Audit,
+  coverage, finding, review and Run states. Run states keep the API words
+  (Initializing, Pending, Running, Waiting, Cancelling, Succeeded, Failed,
+  Cancelled); `runStatePhrase` and `runRecoveryReason` give the sentence
+  forms. `labelOf(table, value)` and `wordOf(table, value)` read a value
+  this client does not know yet as `readableValue(value)` ("release_pending"
+  is "Release pending"). Material kinds are classified once in
+  `src/routes/artifacts/kinds.ts`.
 
 ## Utility classes
 
-- **`.ui-btn`:** buttons and links styled as in the mockups.
+- **`.ui-btn`:** buttons and links styled as in the mockups; use `Button`,
+  `IconButton` or `ButtonLink` rather than writing the attributes.
   - `data-variant`: `primary` (filled with `--primary`), `secondary` (the
-    default look), `danger`, `ghost`.
+    default look), `danger`, `ghost`, `link` (reads as text).
   - `data-size`: `sm` (32 px) or `xs` (28 px); the default is 38 px.
-  - `aria-pressed="true"` gets the selected look.
+  - `data-icon-only`: square, as wide as it is tall.
+  - `aria-pressed="true"` gets the selected look; `aria-busy="true"` the
+    progress cursor; disabled buttons are dimmed and show no hover.
+  - Pressing moves it down 1 px; colours fade in 140 ms.
+- **`.ui-stack`:** a column of children with one gap (12 px; `data-gap`
+  1, 2, 4 or 6 picks another step of the spacing scale).
+- **`.ui-toolbar`:** a wrapping row of controls (8 px gap; `data-gap` as
+  above; `data-justify="between"` or `"end"`).
+- **`.ui-panel`:** a bordered card on the page surface; dialogs are panels
+  too (`ui-dialog ui-panel`).
+- **`.ui-badge`:** a small neutral pill: a version, a scope, "Latest".
+- **`.ui-control`:** a select or input outside a `Field` or form (a list
+  filter, a material choice, a version picker): line border, surface
+  background, focus ring. `data-size="sm"` is 32 px; `data-size="xs"` is a
+  28 px monospace control as wide as its value (up to 12rem); the default
+  is 38 px. Controls inside a `Field` get the form look without it.
+- **`.ui-caption`:** secondary text (muted, 13 px).
+- **`.ui-mono`:** identifiers, paths and digests inline in text.
+- **`.ui-dialog`, `.ui-dialog-heading`, `.ui-dialog-actions`,
+  `.ui-dialog-close`:** the modal panel of `Dialog`; below 640 px it is a
+  bottom sheet.
 - **`.ui-visually-hidden`:** hides text visually but keeps it for screen
   readers.
 - **`.ui-footer-record`:** content of a `DetailPane` footer that shows a
@@ -711,3 +1023,71 @@ From `src/app/theme.css`, added for V3B:
 | `--m-*`                            | Progress segments                        |
 
 Also used: the base surface, line, text, status and primary tokens.
+
+## Style scale
+
+Sizes come from the scale in `src/app/theme.css`: the shared sheets use it,
+and route CSS moves onto it as each area adopts the building blocks. The
+steps were taken from the values pages used most, so mapping an old value
+onto the nearest step changes at most half a pixel; round halves up (12.5 px
+to 13 px).
+
+| Tokens                                          | Values                                                                  |
+| ----------------------------------------------- | ----------------------------------------------------------------------- |
+| `--space-0-5` … `--space-12`                    | 2, 4, 6, 8, 10, 12, 14, 16, 20, 24, 32, 48 px (`--space-N` is N × 4 px) |
+| `--radius-xs` … `--radius-2xl`, `--radius-full` | 4, 6, 8, 10, 12, 14 px; 999 px for pills                                |
+| `--text-2xs` … `--text-xl`                      | 11, 12, 13, 14, 16, 20, 24 px                                           |
+| `--control-xs`, `-sm`, `-md`, `-lg`             | 28, 32, 38 px button heights; 44 px touch target                        |
+
+Breakpoints cannot be custom properties, so they are four fixed widths that
+`make lint` enforces (`scripts/check-css.mjs`): **480, 640, 820 and 1100
+px**. A narrow layout is `@media (max-width: N px)`; the wide side of the
+same breakpoint is `(min-width: N+1 px)`. 820 px is the one-pane switch of
+`PaneLayout` and the rail; 1100 px narrows the list pane; 640 px turns
+dialogs into bottom sheets. Container queries (`@container`) size
+components and may use any width.
+
+Reduced motion is handled once in `ui.css`: every transition and animation
+finishes at once, so pages need no `prefers-reduced-motion` rules of their
+own unless they change more than motion.
+
+Route CSS loads after the shared sheets, so shared classes never need
+`!important`, and shared rules live only in `src/app/theme.css`,
+`src/styles.css`, `src/app/ui-primitives.css` and `src/ui/ui.css` (eager),
+never in a lazily loaded route stylesheet.
+
+A bare `<button>` has no look of its own: `src/styles.css` only resets it
+(no padding, border or background, the surrounding text colour and font, a
+pointer cursor, `not-allowed` while disabled). `.ui-btn` carries the whole
+`Button` look, including the colour transition, the 1 px press and the
+dimmed disabled state. Any other button (a tab, a list row, a chip, a menu
+item, a canvas handle) gets its look from its own class, so no rule has to
+undo a default: write what the control needs, not `min-height: 0`,
+`transform: none` or a `:not(:disabled):hover` that only restores a
+background.
+
+## Gates
+
+`make lint` runs them as the `ui-gates` target (it needs `make
+ui-install`); `pnpm lint` runs the ESLint part. They fail on:
+
+- **Hand-written building blocks** (ESLint rule `building-blocks/use-shared`,
+  `scripts/eslint-building-blocks.mjs`): outside `src/ui` and `src/app`, a
+  `<button>` with the `ui-btn` class, `role="alertdialog"` or an inline
+  `<svg>`. `scripts/building-blocks-baseline.json` lists the files that
+  still have them, with counts; a file may not exceed its count, and a
+  count higher than the file needs fails too, so lower it in the change
+  that adopts the building block. Charts and drawings are listed under
+  `drawings` with a reason.
+- **Unreferenced CSS** (`scripts/check-css.mjs`): a class that no
+  production source names in a string or template literal, and an `@media`
+  width outside the breakpoints. A class built at run time
+  (`diff-line-${kind}`) or rendered by a library goes into
+  `scripts/css-allowlist.json` with its source; stale entries fail.
+- **Needless exports** (`scripts/check-exports.mjs`): an export of a
+  production module that no other production module imports, whether only
+  tests import it or nothing does (an export used only in its own module
+  should not be exported). Test helpers live in `src/test` or a
+  `test-support.tsx` file, and production code must not import them.
+  `scripts/exports-baseline.txt` lists tolerated entries against an open
+  task; an entry that is no longer needed fails, so it only shrinks.

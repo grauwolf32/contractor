@@ -21,7 +21,7 @@ export function continuation(value: unknown): Record<string, unknown> {
       ? record(record(action.escalate).then)
       : action;
 }
-export function nextStages(stage: unknown): string[] {
+function nextStages(stage: unknown): string[] {
   return OUTCOMES.flatMap((outcome) => {
     const next = continuation(record(record(stage).on)[outcome]).next;
     return typeof next === "string" ? [next] : [];
@@ -31,18 +31,18 @@ export function nextStages(stage: unknown): string[] {
 // Configuration names, versions and selectors follow the Server grammar
 // (CONFIG_NAME_PATTERN, CONFIG_VERSION_PATTERN and isConfigSelector, held to
 // api/testdata/v1alpha1/config-identity-cases.json).
-export const NAME_MESSAGE =
+const NAME_MESSAGE =
   "Use a name of at most 128 lowercase letters, digits, - and _, starting with a letter.";
-export const VERSION_MESSAGE =
+const VERSION_MESSAGE =
   "Use a version of at most 64 letters, digits, ., _, + and -, starting with a letter or digit.";
-export const SELECTOR_MESSAGE = "Use a versioned selector such as worker@1.";
+const SELECTOR_MESSAGE = "Use a versioned selector such as worker@1.";
 
 /**
  * Why a file slot's media types are refused, as the Server refuses them: one
  * or more canonical type/subtype values (MEDIA_TYPE_PATTERN), each listed
  * once, or the wildcard alone.
  */
-export function mediaTypesProblem(value: unknown): string | undefined {
+function mediaTypesProblem(value: unknown): string | undefined {
   if (
     !Array.isArray(value) ||
     !value.length ||

@@ -1,11 +1,20 @@
 import { expect, test } from "@playwright/test";
 
-import packageMetadata from "../package.json" with { type: "json" };
+import {
+  stageContract,
+  workflowResource,
+} from "../src/test/builders-execution";
+import {
+  authSession,
+  fulfillJSON,
+  mockAPI,
+  uiOrigin,
+} from "./support/mock-api";
 
 test("Catalog discovers exact Workflows and Agent usage from direct routes", async ({
   page,
 }, testInfo) => {
-  const origin = new URL(String(testInfo.project.use.baseURL)).origin;
+  const origin = uiOrigin(testInfo);
   const digest = `sha256:${"1".repeat(64)}`;
   const secondDigest = `sha256:${"2".repeat(64)}`;
   const prompt =
@@ -55,87 +64,72 @@ test("Catalog discovers exact Workflows and Agent usage from direct routes", asy
     },
   };
 
-  await page.route("**/runtime-config.json", (route) =>
-    route.fulfill({
-      json: {
-        uiVersion: packageMetadata.version,
-        supportedApiVersions: ["contractor.public.v1"],
-        apiBaseUrl: origin,
-      },
-    }),
-  );
-  await page.route(`${origin}/v1/**`, async (route) => {
-    const url = new URL(route.request().url());
-    const path = url.pathname;
-    const version = path.includes("/versions/2") ? "2" : "1";
-    const exactAgent = agent(version);
-    let value: unknown = { items: [], page: { hasMore: false } };
-    if (path === "/v1/auth/session")
-      value = {
-        principal: {
-          userId: "owner",
-          username: "owner",
-          capabilities: ["user"],
-        },
-        csrfToken: "a".repeat(43),
-        idleExpiresAt: "2099-01-01T00:00:00Z",
-        absoluteExpiresAt: "2099-01-02T00:00:00Z",
-      };
-    else if (path.endsWith("/workflow-bindings"))
-      value = {
-        items: [
-          {
-            workflow: workflow.ref,
-            stage: "analyze",
-            logicalWorker: version === "1" ? "researcher" : "reviewer",
+  await mockAPI(
+    page,
+    async (route, _request, url) => {
+      const path = url.pathname;
+      const version = path.includes("/versions/2") ? "2" : "1";
+      const exactAgent = agent(version);
+      let value: unknown = { items: [], page: { hasMore: false } };
+      if (path.endsWith("/workflow-bindings"))
+        value = {
+          items: [
+            {
+              workflow: workflow.ref,
+              stage: "analyze",
+              logicalWorker: version === "1" ? "researcher" : "reviewer",
+            },
+          ],
+          page: { hasMore: false },
+        };
+      else if (path.endsWith("/instructions"))
+        value = {
+          template: {
+            templateId: exactAgent.ref.name,
+            version,
+            digest: exactAgent.ref.digest,
           },
-        ],
-        page: { hasMore: false },
-      };
-    else if (path.endsWith("/instructions"))
-      value = {
-        template: {
-          templateId: exactAgent.ref.name,
-          version,
-          digest: exactAgent.ref.digest,
-        },
-        instructions: {
-          ...exactAgent.body.instructions,
-          text: version === "1" ? prompt : "# Evidence analyst v2",
-        },
-      };
-    else if (
-      path.startsWith("/v1/configurations/agent-templates/") &&
-      path.includes("/versions/")
-    )
-      value = exactAgent;
-    else if (path === "/v1/configurations/agent-templates") {
-      const items = [agent("1"), agent("2")];
-      const q = (url.searchParams.get("q") ?? "").toLowerCase();
-      value = {
-        items:
-          q === "" ? items : items.filter((item) => item.ref.name.includes(q)),
-        page: { hasMore: false },
-      };
-    } else if (path === "/v1/workflows") {
-      const q = (url.searchParams.get("q") ?? "").toLowerCase();
-      value = {
-        items:
-          q === "" ||
-          `${workflow.ref.name} ${workflow.presentation.displayName} ${workflow.presentation.description}`
-            .toLowerCase()
-            .includes(q)
-            ? [workflow]
-            : [],
-        page: { hasMore: false },
-      };
-    } else if (path === "/v1/workflows/openapi-from-source/versions/1")
-      value = { ...workflow, stages: {} };
-    await route.fulfill({
-      json: value,
-      headers: { "X-Contractor-API-Version": "contractor.public.v1" },
-    });
-  });
+          instructions: {
+            ...exactAgent.body.instructions,
+            text: version === "1" ? prompt : "# Evidence analyst v2",
+          },
+        };
+      else if (
+        path.startsWith("/v1/configurations/agent-templates/") &&
+        path.includes("/versions/")
+      )
+        value = exactAgent;
+      else if (path === "/v1/configurations/agent-templates") {
+        const items = [agent("1"), agent("2")];
+        const q = (url.searchParams.get("q") ?? "").toLowerCase();
+        value = {
+          items:
+            q === ""
+              ? items
+              : items.filter((item) => item.ref.name.includes(q)),
+          page: { hasMore: false },
+        };
+      } else if (path === "/v1/workflows") {
+        const q = (url.searchParams.get("q") ?? "").toLowerCase();
+        value = {
+          items:
+            q === "" ||
+            `${workflow.ref.name} ${workflow.presentation.displayName} ${workflow.presentation.description}`
+              .toLowerCase()
+              .includes(q)
+              ? [workflow]
+              : [],
+          page: { hasMore: false },
+        };
+      } else if (path === "/v1/workflows/openapi-from-source/versions/1")
+        value = workflowResource(workflow.ref.name, workflow.ref.version, {
+          ...workflow,
+          stages: { analyze: stageContract() },
+        });
+      await fulfillJSON(route, value);
+    },
+    { session: authSession("owner", ["user"]) },
+  );
 
   await page.goto("/catalog/workflows?keep=yes#section");
   await expect(page).toHaveURL(`${origin}/catalog/workflows?keep=yes#section`);

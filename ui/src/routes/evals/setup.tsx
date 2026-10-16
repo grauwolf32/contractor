@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useId, useState, type ReactNode } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router";
+import { useSearchParams } from "react-router";
 import { usePublicAPI } from "../../api/context";
 import {
   saveEvalDraft,
@@ -10,8 +10,8 @@ import {
 import { createProject } from "../../api/projects";
 import { queryKeys } from "../../api/query-keys";
 import { useDocumentTitle } from "../../app/document-title";
-import { TechnicalDetails } from "../../ui";
-import { EvalError, EvalField, EvalFrame } from "./common";
+import { Button, ButtonLink, Facts, Field, TechnicalDetails } from "../../ui";
+import { EvalError, EvalFrame } from "./common";
 import { AssessmentSetup } from "./assessment-setup";
 import { DatasetAuthor } from "./datasets";
 import {
@@ -35,6 +35,7 @@ import {
   PIN_DIMENSIONS,
 } from "./setup-model";
 import { VariantEditor } from "./variants";
+import { useGuardedNavigate } from "../../app/page-location";
 
 const STEPS = [
   "Variants",
@@ -55,7 +56,7 @@ export function EvalSetupForm({
   const api = usePublicAPI(),
     owner = useEvalOwner(),
     cache = useQueryClient(),
-    navigate = useNavigate();
+    navigate = useGuardedNavigate();
   const [params] = useSearchParams();
   const authorPanel = useId();
   const [projectId, setProjectId] = useState(
@@ -124,7 +125,7 @@ export function EvalSetupForm({
       setDirty(false);
       onDirtyChange?.(false);
       await cache.invalidateQueries({ queryKey: queryKeys.evals.all });
-      void navigate(
+      await navigate(
         `/evals/experiments/${encodeURIComponent(result.experimentId)}/setup`,
       );
     },
@@ -166,129 +167,144 @@ export function EvalSetupForm({
             <>
               <div className="eval-step-heading">
                 <h2>Variants</h2>
-                <p className="eval-muted">
+                <p className="ui-caption">
                   Choose a baseline and a candidate to compare on the same
                   cases.
                 </p>
               </div>
               <div className="eval-grid">
-                <EvalField label="Experiment name">
-                  <input
-                    value={name}
-                    maxLength={256}
-                    onChange={(e) => {
-                      setName(e.target.value);
-                      setDirty(true);
-                      onDirtyChange?.(true);
-                      setValidation(null);
-                    }}
-                  />
-                </EvalField>
-                <EvalField label="Evaluation workspace">
-                  <select
-                    value={projectId}
-                    disabled={!!experiment}
-                    onChange={(e) => {
-                      setProjectId(e.target.value);
-                      update({
-                        ...draft,
-                        dataset: { id: "", revision: "" },
-                        caseIds: [],
-                      });
-                    }}
-                  >
-                    <option value="">Choose a workspace</option>
-                    {projects.data
-                      ?.filter(
-                        (p) =>
-                          p.lifecycle === "active" || p.projectId === projectId,
-                      )
-                      .map((p) => (
-                        <option key={p.projectId} value={p.projectId}>
-                          {p.name}
-                        </option>
-                      ))}
-                  </select>
-                </EvalField>
+                <Field label="Experiment name">
+                  {(control) => (
+                    <input
+                      {...control}
+                      value={name}
+                      maxLength={256}
+                      onChange={(e) => {
+                        setName(e.target.value);
+                        setDirty(true);
+                        onDirtyChange?.(true);
+                        setValidation(null);
+                      }}
+                    />
+                  )}
+                </Field>
+                <Field label="Evaluation workspace">
+                  {(control) => (
+                    <select
+                      {...control}
+                      value={projectId}
+                      disabled={!!experiment}
+                      onChange={(e) => {
+                        setProjectId(e.target.value);
+                        update({
+                          ...draft,
+                          dataset: { id: "", revision: "" },
+                          caseIds: [],
+                        });
+                      }}
+                    >
+                      <option value="">Choose a workspace</option>
+                      {projects.data
+                        ?.filter(
+                          (p) =>
+                            p.lifecycle === "active" ||
+                            p.projectId === projectId,
+                        )
+                        .map((p) => (
+                          <option key={p.projectId} value={p.projectId}>
+                            {p.name}
+                          </option>
+                        ))}
+                    </select>
+                  )}
+                </Field>
               </div>
               {!experiment ? (
                 <details className="eval-disclosure">
                   <summary>Create an evaluation workspace</summary>
                   <div className="eval-disclosure-body">
-                    <EvalField label="New workspace name">
-                      <input
-                        value={workspaceName}
-                        onChange={(e) => setWorkspaceName(e.target.value)}
-                      />
-                    </EvalField>
-                    <div className="eval-actions">
-                      <button
-                        type="button"
-                        className="ui-btn"
-                        data-size="sm"
-                        disabled={
-                          !workspaceName.trim() || createWorkspace.isPending
-                        }
+                    <Field label="New workspace name">
+                      {(control) => (
+                        <input
+                          {...control}
+                          value={workspaceName}
+                          onChange={(e) => setWorkspaceName(e.target.value)}
+                        />
+                      )}
+                    </Field>
+                    <div className="ui-toolbar">
+                      <Button
+                        size="sm"
+                        disabled={!workspaceName.trim()}
+                        pending={createWorkspace.isPending}
                         onClick={() => createWorkspace.mutate()}
                       >
                         Create workspace
-                      </button>
+                      </Button>
                     </div>
                     <EvalError error={createWorkspace.error} />
                   </div>
                 </details>
               ) : null}
               <div className="eval-grid">
-                <EvalField label="Execution kind">
-                  <select
-                    value={kind}
-                    onChange={(e) =>
-                      update({
-                        ...draft,
-                        variants: draft.variants.map((v) => ({
-                          ...v,
-                          kind: e.target.value as typeof kind,
-                          selector: "",
-                          executionConfig: {},
-                        })),
-                      })
-                    }
-                  >
-                    <option value="workflow">
-                      {executionKindLabel("workflow")}
-                    </option>
-                    <option value="audit">{executionKindLabel("audit")}</option>
-                  </select>
-                </EvalField>
-                <EvalField label="Comparison purpose">
-                  <select
-                    defaultValue=""
-                    onChange={(e) => {
-                      const purpose =
-                        COMPARISON_PURPOSES[
-                          e.target.value as keyof typeof COMPARISON_PURPOSES
-                        ];
-                      if (purpose)
+                <Field label="Execution kind">
+                  {(control) => (
+                    <select
+                      {...control}
+                      value={kind}
+                      onChange={(e) =>
                         update({
                           ...draft,
-                          comparison: {
-                            ...draft.comparison,
-                            requiredEqual: [...purpose.equal],
-                            allowedDifferences: [...purpose.different],
-                          },
-                        });
-                    }}
-                  >
-                    <option value="">Choose or retain current policy</option>
-                    {Object.entries(COMPARISON_PURPOSES).map(
-                      ([key, preset]) => (
-                        <option key={key} value={key}>
-                          {preset.label}
-                        </option>
-                      ),
-                    )}
-                  </select>
-                </EvalField>
+                          variants: draft.variants.map((v) => ({
+                            ...v,
+                            kind: e.target.value as typeof kind,
+                            selector: "",
+                            executionConfig: {},
+                          })),
+                        })
+                      }
+                    >
+                      <option value="workflow">
+                        {executionKindLabel("workflow")}
+                      </option>
+                      <option value="audit">
+                        {executionKindLabel("audit")}
+                      </option>
+                    </select>
+                  )}
+                </Field>
+                <Field label="Comparison purpose">
+                  {(control) => (
+                    <select
+                      {...control}
+                      defaultValue=""
+                      onChange={(e) => {
+                        const purpose =
+                          COMPARISON_PURPOSES[
+                            e.target.value as keyof typeof COMPARISON_PURPOSES
+                          ];
+                        if (purpose)
+                          update({
+                            ...draft,
+                            comparison: {
+                              ...draft.comparison,
+                              requiredEqual: [...purpose.equal],
+                              allowedDifferences: [...purpose.different],
+                            },
+                          });
+                      }}
+                    >
+                      <option value="">Choose or retain current policy</option>
+                      {Object.entries(COMPARISON_PURPOSES).map(
+                        ([key, preset]) => (
+                          <option key={key} value={key}>
+                            {preset.label}
+                          </option>
+                        ),
+                      )}
+                    </select>
+                  )}
+                </Field>
               </div>
               <div className="eval-arms">
                 <KeyValueValidityProvider value={keyValues.register}>
@@ -319,52 +335,59 @@ export function EvalSetupForm({
               <details className="eval-disclosure">
                 <summary>Equality policy</summary>
                 <div className="eval-disclosure-body">
-                  <p className="eval-muted">
+                  <p className="ui-caption">
                     Unknown required-equal dimensions block preparation.
                   </p>
                   <div className="eval-policy-grid">
                     {PIN_DIMENSIONS.map((pin) => (
-                      <EvalField label={pinLabel(pin)} key={pin}>
-                        <select
-                          value={
-                            draft.comparison.requiredEqual.includes(pin)
-                              ? "equal"
-                              : draft.comparison.allowedDifferences.includes(
-                                    pin,
-                                  )
-                                ? "different"
-                                : "observe"
-                          }
-                          onChange={(e) =>
-                            update({
-                              ...draft,
-                              comparison: {
-                                ...draft.comparison,
-                                requiredEqual: [
-                                  ...draft.comparison.requiredEqual.filter(
-                                    (x) => x !== pin,
-                                  ),
-                                  ...(e.target.value === "equal" ? [pin] : []),
-                                ],
-                                allowedDifferences: [
-                                  ...draft.comparison.allowedDifferences.filter(
-                                    (x) => x !== pin,
-                                  ),
-                                  ...(e.target.value === "different"
-                                    ? [pin]
-                                    : []),
-                                ],
-                              },
-                            })
-                          }
-                        >
-                          <option value="equal">Required equal</option>
-                          <option value="different">Difference allowed</option>
-                          <option value="observe">
-                            Observe without a gate
-                          </option>
-                        </select>
-                      </EvalField>
+                      <Field label={pinLabel(pin)} key={pin}>
+                        {(control) => (
+                          <select
+                            {...control}
+                            value={
+                              draft.comparison.requiredEqual.includes(pin)
+                                ? "equal"
+                                : draft.comparison.allowedDifferences.includes(
+                                      pin,
+                                    )
+                                  ? "different"
+                                  : "observe"
+                            }
+                            onChange={(e) =>
+                              update({
+                                ...draft,
+                                comparison: {
+                                  ...draft.comparison,
+                                  requiredEqual: [
+                                    ...draft.comparison.requiredEqual.filter(
+                                      (x) => x !== pin,
+                                    ),
+                                    ...(e.target.value === "equal"
+                                      ? [pin]
+                                      : []),
+                                  ],
+                                  allowedDifferences: [
+                                    ...draft.comparison.allowedDifferences.filter(
+                                      (x) => x !== pin,
+                                    ),
+                                    ...(e.target.value === "different"
+                                      ? [pin]
+                                      : []),
+                                  ],
+                                },
+                              })
+                            }
+                          >
+                            <option value="equal">Required equal</option>
+                            <option value="different">
+                              Difference allowed
+                            </option>
+                            <option value="observe">
+                              Observe without a gate
+                            </option>
+                          </select>
+                        )}
+                      </Field>
                     ))}
                   </div>
                 </div>
@@ -377,46 +400,47 @@ export function EvalSetupForm({
                 <h2>Cases and inputs</h2>
               </div>
               {!projectId ? (
-                <p className="eval-muted">
+                <p className="ui-caption">
                   Select an evaluation workspace in Variants first.
                 </p>
               ) : (
                 <>
                   <div className="eval-inline-fields">
-                    <EvalField label="Dataset revision">
-                      <select
-                        value={draft.dataset.revision}
-                        onChange={(e) => {
-                          const dataset = datasets.data?.find(
-                            (d) => d.revision === e.target.value,
-                          );
-                          update({
-                            ...draft,
-                            dataset: {
-                              id: dataset?.datasetId ?? "",
-                              revision: dataset?.revision ?? "",
-                            },
-                            caseIds: [],
-                          });
-                        }}
-                      >
-                        <option value="">Choose a revision</option>
-                        {datasets.data?.map((d) => (
-                          <option key={d.revision} value={d.revision}>
-                            {d.name} · {d.revision} · {d.caseCount} cases
-                          </option>
-                        ))}
-                      </select>
-                    </EvalField>
-                    <button
-                      type="button"
-                      className="ui-btn"
+                    <Field label="Dataset revision">
+                      {(control) => (
+                        <select
+                          {...control}
+                          value={draft.dataset.revision}
+                          onChange={(e) => {
+                            const dataset = datasets.data?.find(
+                              (d) => d.revision === e.target.value,
+                            );
+                            update({
+                              ...draft,
+                              dataset: {
+                                id: dataset?.datasetId ?? "",
+                                revision: dataset?.revision ?? "",
+                              },
+                              caseIds: [],
+                            });
+                          }}
+                        >
+                          <option value="">Choose a revision</option>
+                          {datasets.data?.map((d) => (
+                            <option key={d.revision} value={d.revision}>
+                              {d.name} · {d.revision} · {d.caseCount} cases
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </Field>
+                    <Button
                       aria-expanded={author}
                       aria-controls={author ? authorPanel : undefined}
                       onClick={() => setAuthor(!author)}
                     >
                       Create or import dataset
-                    </button>
+                    </Button>
                   </div>
                   {author ? (
                     <div id={authorPanel}>
@@ -441,11 +465,9 @@ export function EvalSetupForm({
                   ) : null}
                   {cases.data ? (
                     <>
-                      <div className="eval-actions">
-                        <button
-                          type="button"
-                          className="ui-btn"
-                          data-size="sm"
+                      <div className="ui-toolbar">
+                        <Button
+                          size="sm"
                           onClick={() =>
                             update({
                               ...draft,
@@ -454,16 +476,14 @@ export function EvalSetupForm({
                           }
                         >
                           Select all {cases.data.length} cases
-                        </button>
-                        <button
-                          type="button"
-                          className="ui-btn"
-                          data-size="sm"
+                        </Button>
+                        <Button
+                          size="sm"
                           onClick={() => update({ ...draft, caseIds: [] })}
                         >
                           Clear selection
-                        </button>
-                        <span className="eval-muted">
+                        </Button>
+                        <span className="ui-caption">
                           {draft.caseIds.length} of {cases.data.length} selected
                         </span>
                       </div>
@@ -486,7 +506,7 @@ export function EvalSetupForm({
                                 }
                               />
                               <span>
-                                <strong className="eval-mono">{c.id}</strong> ·{" "}
+                                <strong className="ui-mono">{c.id}</strong> ·{" "}
                                 {c.task.objective}
                               </span>
                             </label>
@@ -537,38 +557,31 @@ export function EvalSetupForm({
         />
         <footer className="eval-setup-footer">
           <div className="eval-setup-actions">
-            <div className="eval-actions">
-              <button
-                type="button"
-                className="ui-btn"
+            <div className="ui-toolbar">
+              <Button
                 disabled={step === 0 || keyValues.invalid}
                 onClick={() => setStep(step - 1)}
               >
                 Back
-              </button>
+              </Button>
               {step < last ? (
-                <button
-                  type="button"
-                  className="ui-btn"
-                  data-variant={experiment ? undefined : "primary"}
+                <Button
+                  variant={experiment ? undefined : "primary"}
                   disabled={keyValues.invalid}
                   onClick={() => setStep(step + 1)}
                 >
                   Next step
-                </button>
+                </Button>
               ) : null}
-              <button
-                type="button"
-                className="ui-btn"
-                data-variant={
+              <Button
+                variant={
                   (experiment ? dirty : step === last) ? "primary" : undefined
                 }
                 disabled={
-                  !projectId ||
-                  save.isPending ||
-                  keyValues.invalid ||
-                  (!!experiment && !dirty)
+                  !projectId || keyValues.invalid || (!!experiment && !dirty)
                 }
+                pending={save.isPending}
+                pendingLabel="Saving…"
                 onClick={() => {
                   const problem = draftProblem(name, draft);
                   if (problem) {
@@ -578,10 +591,10 @@ export function EvalSetupForm({
                   save.mutate();
                 }}
               >
-                {save.isPending ? "Saving…" : "Save draft"}
-              </button>
+                Save draft
+              </Button>
             </div>
-            <p className="eval-save-status" role="status">
+            <p className="ui-caption" role="status">
               {experiment && !dirty
                 ? "Saved on server"
                 : "Unsaved changes · save this draft before leaving."}
@@ -589,18 +602,20 @@ export function EvalSetupForm({
           </div>
           {experiment ? (
             <TechnicalDetails summary="Draft details">
-              <dl className="eval-facts">
-                <dt>Saved revision</dt>
-                <dd>{experiment.revision}</dd>
-                <dt>Portable experiment ID</dt>
-                <dd>
-                  <code>{experiment.portableExperimentId}</code>
-                </dd>
-              </dl>
+              <Facts
+                size="sm"
+                items={[
+                  { term: "Saved revision", value: experiment.revision },
+                  {
+                    term: "Portable experiment ID",
+                    value: <code>{experiment.portableExperimentId}</code>,
+                  },
+                ]}
+              />
             </TechnicalDetails>
           ) : null}
           {actions}
-          <p className="eval-muted eval-setup-note">
+          <p className="ui-caption">
             {experiment && dirty
               ? "Save your changes before preparing this draft. "
               : ""}
@@ -624,9 +639,9 @@ export function EvalNewRoute() {
       ]}
       description="Compare two versions on a shared dataset. Save, prepare, then start when ready."
       action={
-        <Link className="ui-btn" data-size="sm" to="/evals/datasets">
+        <ButtonLink size="sm" to="/evals/datasets">
           Manage datasets
-        </Link>
+        </ButtonLink>
       }
     >
       <EvalSetupForm />

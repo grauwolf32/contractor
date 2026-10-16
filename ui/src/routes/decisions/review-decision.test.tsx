@@ -13,18 +13,18 @@ import {
 } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
+import { deferred } from "../../test/deferred";
 import { ActionDecision, ReportDecision } from "./review-decision";
 import {
   AUDIT_ID,
-  failure,
-  json,
   makeActionReview,
   makeDecision,
   makeTriageReview,
   proposedReport,
-  renderWithServer,
-  type Handler,
 } from "./test-support";
+import { fakeServer, type Routes } from "../../test/fake-server";
+import { failure, json } from "../../test/responses";
+import { renderWithAPI } from "../../test/render";
 
 /** A Server that keeps one review request. */
 function reviewServer(
@@ -32,12 +32,19 @@ function reviewServer(
   refuse?: (attempt: number) => Response | undefined,
 ) {
   const state = { review: initial, attempts: 0 };
-  const handle: Handler = async (request, url) => {
-    const path = url.pathname;
-    const base = `/v1/audits/${AUDIT_ID}/reviews/${state.review.requestId}`;
-    if (request.method === "GET" && path === base)
+  const routes = {
+    "GET /v1/audits/{auditId}/reviews/{requestId}": ({ params }) => {
+      expect(params).toEqual({
+        auditId: AUDIT_ID,
+        requestId: state.review.requestId,
+      });
       return json(state.review, 200, { ETag: `"${state.review.revision}"` });
-    if (request.method === "POST" && path === `${base}/decisions`) {
+    },
+    "POST /v1/audits/{auditId}/reviews/{requestId}/decisions": async ({
+      request,
+      params,
+    }) => {
+      expect(params.requestId).toBe(state.review.requestId);
       state.attempts += 1;
       const refused = refuse?.(state.attempts);
       if (refused !== undefined) return refused;
@@ -60,10 +67,9 @@ function reviewServer(
         decision,
       };
       return json({ request: state.review, decision, replayed: false });
-    }
-    throw new Error(`unexpected ${request.method} ${path}`);
-  };
-  return { state, handle };
+    },
+  } satisfies Routes;
+  return { state, routes };
 }
 
 /** Reads the request like a page does and renders its decision. */
@@ -116,12 +122,11 @@ describe("ActionDecision", () => {
   ] as const)(
     "offers only the requested actions (%#)",
     async (review, labels, intro) => {
-      renderWithServer(
-        <ActionDecision auditId={AUDIT_ID} review={review} />,
-        () => {
+      renderWithAPI(<ActionDecision auditId={AUDIT_ID} review={review} />, {
+        server: () => {
           throw new Error("no request expected");
         },
-      );
+      });
       const region = await bar();
       expect(
         within(region)
@@ -135,7 +140,7 @@ describe("ActionDecision", () => {
   it("records an approval with the request revision, an idempotency key and the reason", async () => {
     const onDecided = vi.fn();
     const server = reviewServer(makeActionReview());
-    const { sent } = renderWithServer(
+    const { sent } = renderWithAPI(
       <Live
         requestId="review_action"
         render={(review) => (
@@ -146,7 +151,7 @@ describe("ActionDecision", () => {
           />
         )}
       />,
-      server.handle,
+      { server: fakeServer(server.routes) },
     );
     const user = userEvent.setup();
     const region = await bar();
@@ -203,14 +208,14 @@ describe("ActionDecision", () => {
         "resource revision precondition failed",
       ),
     );
-    const { sent } = renderWithServer(
+    const { sent } = renderWithAPI(
       <Live
         requestId="review_action"
         render={(review) => (
           <ActionDecision auditId={AUDIT_ID} review={review} />
         )}
       />,
-      server.handle,
+      { server: fakeServer(server.routes) },
     );
     const user = userEvent.setup();
     const region = await bar();
@@ -226,7 +231,7 @@ describe("ActionDecision", () => {
     expect(
       screen.getByText("Code precondition_failed · Status 412"),
     ).toBeVisible();
-    expect(screen.getByText("Request req_1")).toBeVisible();
+    expect(screen.getByText("Request request_test")).toBeVisible();
     await waitFor(() =>
       expect(sent("GET", "/reviews/review_action").length).toBeGreaterThan(1),
     );
@@ -240,22 +245,25 @@ describe("ActionDecision", () => {
     });
     delete decided.decision?.verdict;
     delete decided.decision?.severity;
-    const { rerender } = renderWithServer(
+    const noRequests = () => {
+      throw new Error("no request expected");
+    };
+    const { unmount } = renderWithAPI(
       <ActionDecision auditId={AUDIT_ID} review={decided} />,
-      () => {
-        throw new Error("no request expected");
-      },
+      { server: noRequests },
     );
     expect(screen.getByText("Rejected")).toBeVisible();
     expect(screen.getByText("user_analyst")).toBeVisible();
     expect(
       screen.queryByRole("region", { name: "Your decision" }),
     ).not.toBeInTheDocument();
-    rerender(
+    unmount();
+    renderWithAPI(
       <ActionDecision
         auditId={AUDIT_ID}
         review={makeActionReview({ requestId: "other", state: "expired" })}
       />,
+      { server: noRequests },
     );
     expect(
       screen.getByText("This request expired without a decision."),
@@ -308,12 +316,11 @@ describe("ActionDecision", () => {
       });
       delete decided.decision?.verdict;
       delete decided.decision?.severity;
-      renderWithServer(
-        <ActionDecision auditId={AUDIT_ID} review={decided} />,
-        () => {
+      renderWithAPI(<ActionDecision auditId={AUDIT_ID} review={decided} />, {
+        server: () => {
           throw new Error("no request expected");
         },
-      );
+      });
       const user = userEvent.setup();
       const group = screen.getByRole("group", {
         name: "Decision on active test approval",
@@ -335,10 +342,12 @@ describe("ActionDecision", () => {
     });
 
     it("leaves a pending request's group out of the tab order", () => {
-      renderWithServer(
+      renderWithAPI(
         <ActionDecision auditId={AUDIT_ID} review={makeActionReview()} />,
-        () => {
-          throw new Error("no request expected");
+        {
+          server: () => {
+            throw new Error("no request expected");
+          },
         },
       );
       const group = screen.getByRole("group", {
@@ -351,10 +360,12 @@ describe("ActionDecision", () => {
   });
 
   it("renders nothing for a request that is not an item action", () => {
-    const { container } = renderWithServer(
+    const { container } = renderWithAPI(
       <ActionDecision auditId={AUDIT_ID} review={makeTriageReview()} />,
-      () => {
-        throw new Error("no request expected");
+      {
+        server: () => {
+          throw new Error("no request expected");
+        },
       },
     );
     expect(container).toBeEmptyDOMElement();
@@ -373,7 +384,7 @@ describe("ReportDecision", () => {
 
   it("accepts a proposed report next to its own request", async () => {
     const server = reviewServer(reportReview());
-    const { sent } = renderWithServer(
+    const { sent } = renderWithAPI(
       <Live
         requestId="review_report"
         render={(review) => (
@@ -384,7 +395,7 @@ describe("ReportDecision", () => {
           />
         )}
       />,
-      server.handle,
+      { server: fakeServer(server.routes) },
     );
     const user = userEvent.setup();
     const region = await bar();
@@ -421,14 +432,16 @@ describe("ReportDecision", () => {
     ],
     ["a report that is no longer proposed", { status: "unavailable" }],
   ])("does not decide a request next to %s", (_, report) => {
-    renderWithServer(
+    renderWithAPI(
       <ReportDecision
         auditId={AUDIT_ID}
         review={reportReview()}
         report={report}
       />,
-      () => {
-        throw new Error("no request expected");
+      {
+        server: () => {
+          throw new Error("no request expected");
+        },
       },
     );
     expect(
@@ -492,31 +505,33 @@ describe("ReportDecision", () => {
           report = options.refusedReport;
         return refused;
       });
-      const handle: Handler = async (request, url) => {
-        const path = url.pathname;
-        if (
-          request.method === "GET" &&
-          path === `/v1/audits/${AUDIT_ID}/report`
-        )
-          return json(server.state.review.state === "decided" ? ready : report);
-        if (request.method === "POST") {
+      const routes = {
+        ...server.routes,
+        "GET /v1/audits/{auditId}/report": () =>
+          json(server.state.review.state === "decided" ? ready : report),
+        "POST /v1/audits/{auditId}/reviews/{requestId}/decisions": (call) => {
           sentDecision = true;
-          return server.handle(request, url);
-        }
-        if (sentDecision) await options.afterDecision?.();
-        return server.handle(request, url);
-      };
-      return { ...server, handle };
+          return server.routes[
+            "POST /v1/audits/{auditId}/reviews/{requestId}/decisions"
+          ](call);
+        },
+        "GET /v1/audits/{auditId}/reviews/{requestId}": async (call) => {
+          if (sentDecision) await options.afterDecision?.();
+          return server.routes["GET /v1/audits/{auditId}/reviews/{requestId}"](
+            call,
+          );
+        },
+      } satisfies Routes;
+      return { state: server.state, routes };
     }
 
     it("keeps the bar while recording, even once the report moved on", async () => {
-      let release: (() => void) | undefined;
-      const held = new Promise<void>((resolve) => {
-        release = resolve;
-      });
+      const held = deferred();
       const onRecording = vi.fn();
-      const server = reportServer({ afterDecision: () => held });
-      renderWithServer(<ReportPage onRecording={onRecording} />, server.handle);
+      const server = reportServer({ afterDecision: () => held.promise });
+      renderWithAPI(<ReportPage onRecording={onRecording} />, {
+        server: fakeServer(server.routes),
+      });
       const user = userEvent.setup();
       const region = await bar();
       const group = screen.getByRole("group", {
@@ -529,7 +544,7 @@ describe("ReportDecision", () => {
         within(region).getByRole("button", { name: "Record decision" }),
       );
       await waitFor(() => expect(onRecording.mock.calls).toEqual([[true]]));
-      // The refresh shows the report ready while the request read is held:
+      // The refresh shows the report ready while the request read is held.promise:
       // the decision is still recording, so its bar stays.
       expect(await screen.findByText("Report ready")).toBeVisible();
       expect(screen.getByRole("region", { name: "Your decision" })).toBe(
@@ -543,7 +558,7 @@ describe("ReportDecision", () => {
       ).toBeNull();
       expect(onRecording.mock.calls).toEqual([[true]]);
 
-      release?.();
+      held.resolve();
       expect(await screen.findByText("Approved")).toBeVisible();
       expect(screen.getByRole("status")).toHaveTextContent(
         "Decision recorded: Approved.",
@@ -569,7 +584,9 @@ describe("ReportDecision", () => {
           ),
         refusedReport: { status: "pending" },
       });
-      renderWithServer(<ReportPage onRecording={onRecording} />, server.handle);
+      renderWithAPI(<ReportPage onRecording={onRecording} />, {
+        server: fakeServer(server.routes),
+      });
       const user = userEvent.setup();
       const region = await bar();
       await user.click(within(region).getByRole("button", { name: "Reject" }));
@@ -603,34 +620,25 @@ describe("ReportDecision", () => {
   describe("without a report from the page", () => {
     /** A Server whose report read waits for `answer`. */
     function reportRead(answer: () => Response | Promise<Response>) {
-      const handle: Handler = (request, url) => {
-        if (
-          request.method === "GET" &&
-          url.pathname === `/v1/audits/${AUDIT_ID}/report`
-        )
-          return answer();
-        throw new Error(`unexpected ${request.method} ${url.pathname}`);
-      };
-      return handle;
+      return fakeServer({ "GET /v1/audits/{auditId}/report": () => answer() });
     }
 
     it("reads the report and offers actions only once it carries this request", async () => {
-      let release: (() => void) | undefined;
-      const read = new Promise<void>((resolve) => {
-        release = resolve;
-      });
-      const { sent } = renderWithServer(
+      const read = deferred();
+      const { sent } = renderWithAPI(
         <ReportDecision auditId={AUDIT_ID} review={reportReview()} />,
-        reportRead(async () => {
-          await read;
-          return json(proposedReport(reportReview()));
-        }),
+        {
+          server: reportRead(async () => {
+            await read.promise;
+            return json(proposedReport(reportReview()));
+          }),
+        },
       );
       expect(await screen.findByText("Loading the report…")).toBeVisible();
       expect(
         screen.queryByRole("region", { name: "Your decision" }),
       ).not.toBeInTheDocument();
-      release?.();
+      read.resolve();
       const region = await bar();
       expect(
         within(region)
@@ -641,11 +649,15 @@ describe("ReportDecision", () => {
     });
 
     it("does not decide next to a report that carries another request", async () => {
-      renderWithServer(
+      renderWithAPI(
         <ReportDecision auditId={AUDIT_ID} review={reportReview()} />,
-        reportRead(() =>
-          json(proposedReport(makeActionReview({ requestId: "review_newer" }))),
-        ),
+        {
+          server: reportRead(() =>
+            json(
+              proposedReport(makeActionReview({ requestId: "review_newer" })),
+            ),
+          ),
+        },
       );
       expect(
         await screen.findByText(
@@ -660,13 +672,15 @@ describe("ReportDecision", () => {
     it("explains a report that cannot be read and decides only after it loads", async () => {
       let fail = true;
       const user = userEvent.setup();
-      renderWithServer(
+      renderWithAPI(
         <ReportDecision auditId={AUDIT_ID} review={reportReview()} />,
-        reportRead(() =>
-          fail
-            ? failure(503, "unavailable", "report store unavailable")
-            : json(proposedReport(reportReview())),
-        ),
+        {
+          server: reportRead(() =>
+            fail
+              ? failure(503, "unavailable", "report store unavailable")
+              : json(proposedReport(reportReview())),
+          ),
+        },
       );
       const notice = await screen.findByRole("alert");
       expect(notice).toHaveTextContent(
@@ -695,12 +709,11 @@ describe("ReportDecision", () => {
       });
       delete decided.decision.verdict;
       delete decided.decision.severity;
-      renderWithServer(
-        <ReportDecision auditId={AUDIT_ID} review={decided} />,
-        () => {
+      renderWithAPI(<ReportDecision auditId={AUDIT_ID} review={decided} />, {
+        server: () => {
           throw new Error("no request expected");
         },
-      );
+      });
       expect(screen.getByText("Rejected")).toBeVisible();
     });
   });

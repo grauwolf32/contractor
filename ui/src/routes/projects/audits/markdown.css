@@ -11,21 +11,21 @@
   max-height: none;
   overflow: visible;
   padding: 0;
-  font-size: 0.925rem;
+  font-size: var(--text-md);
   overflow-wrap: anywhere;
 }
 
 .audit-markdown .markdown-artifact-preview h1 {
-  font-size: 1.3rem;
+  font-size: var(--text-lg);
 }
 
 .audit-markdown .markdown-artifact-preview h2 {
-  font-size: 1.2rem;
+  font-size: var(--text-lg);
 }
 
 .audit-markdown .markdown-artifact-preview h3,
 .audit-markdown .markdown-artifact-preview h4 {
-  font-size: 1.05rem;
+  font-size: var(--text-base);
 }
 
 .audit-markdown pre,

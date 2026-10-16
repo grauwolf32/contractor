@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   initialRunDraftState,
-  MAX_RETAINED_RUN_DRAFTS,
   RunDraftMemoryStore,
   type RunDraftEntry,
 } from "./memory";
@@ -71,21 +70,38 @@ describe("RunDraftMemoryStore", () => {
   it("requires an explicit discard at the retained draft limit", () => {
     const store = new RunDraftMemoryStore("owner-a");
     const first = acquired(store, "workflow-0");
-    for (let index = 0; index < MAX_RETAINED_RUN_DRAFTS; index += 1) {
-      const entry = index === 0 ? first : acquired(store, `workflow-${index}`);
-      const next = structuredClone(entry.state);
+    // Edit drafts until the store asks for a discard; the limit is the
+    // store's own, so the test only needs it to be reached and kept.
+    let retained = 0;
+    let blocked: ReturnType<RunDraftMemoryStore["acquire"]> | undefined;
+    for (let index = 0; index < 100 && blocked === undefined; index += 1) {
+      const result =
+        index === 0
+          ? ({ kind: "acquired", entry: first } as const)
+          : store.acquire(
+              { workflowName: `workflow-${index}`, workflowVersion: "1" },
+              initialRunDraftState(),
+            );
+      if (result.kind !== "acquired") {
+        blocked = result;
+        break;
+      }
+      const next = structuredClone(result.entry.state);
       next.parameters.objective = `draft-${index}`;
-      store.replaceState(entry, next);
+      store.replaceState(result.entry, next);
+      retained += 1;
     }
-
-    const blocked = store.acquire(
-      { workflowName: "next", workflowVersion: "1" },
-      initialRunDraftState(),
-    );
-    expect(blocked.kind).toBe("capacity");
-    if (blocked.kind !== "capacity") return;
-    expect(blocked.drafts).toHaveLength(MAX_RETAINED_RUN_DRAFTS);
+    expect(retained).toBeGreaterThan(1);
+    expect(blocked?.kind).toBe("capacity");
+    if (blocked?.kind !== "capacity") return;
+    expect(blocked.drafts).toHaveLength(retained);
     expect(store.isCurrent(first)).toBe(true);
+    expect(
+      store.acquire(
+        { workflowName: "next", workflowVersion: "1" },
+        initialRunDraftState(),
+      ).kind,
+    ).toBe("capacity");
 
     store.discard(blocked.drafts[0]!.key);
     expect(

@@ -1,5 +1,9 @@
+import type { ComponentProps } from "react";
+
+import { Button } from "../ui/button";
+
 /** The part of an infinite query result that LoadMoreButton reads. */
-export interface NextPageQuery {
+interface NextPageQuery {
   hasNextPage: boolean;
   isFetchingNextPage: boolean;
   fetchNextPage: () => Promise<unknown>;
@@ -10,20 +14,22 @@ export function LoadMoreButton({
   query,
   label,
   pendingLabel = "Loading…",
+  size,
 }: {
   query: NextPageQuery;
   label: string;
   pendingLabel?: string;
+  size?: ComponentProps<typeof Button>["size"];
 }) {
   if (!query.hasNextPage) return null;
   return (
-    <button
-      className="secondary-button"
-      type="button"
-      disabled={query.isFetchingNextPage}
+    <Button
+      size={size}
+      pending={query.isFetchingNextPage}
+      pendingLabel={pendingLabel}
       onClick={() => void query.fetchNextPage()}
     >
-      {query.isFetchingNextPage ? pendingLabel : label}
-    </button>
+      {label}
+    </Button>
   );
 }

@@ -41,7 +41,7 @@ function EvidenceFiles({ finding }: { finding: AuditFinding }) {
             key={`${artifact.ref.namespace}/${artifact.ref.name}@${artifact.ref.revision}`}
             title={`Revision ${artifact.ref.revision} · ${artifact.digest}`}
           >
-            <span className="issues-mono">
+            <span className="ui-mono">
               {evidenceId ?? `evidence ${index + 1}`}
             </span>
             <span className="issues-file-name">
@@ -55,7 +55,7 @@ function EvidenceFiles({ finding }: { finding: AuditFinding }) {
                 </Link>
               )}
             </span>
-            <span className="issues-quiet">
+            <span className="ui-caption">
               {http
                 ? "Request and available response · "
                 : evidenceId !== undefined && evidenceId === responseBody
@@ -64,7 +64,7 @@ function EvidenceFiles({ finding }: { finding: AuditFinding }) {
               {artifact.mediaType} · {formatBytes(artifact.sizeBytes)}
             </span>
             {href === undefined ? (
-              <span className="issues-quiet">Source is unavailable.</span>
+              <span className="ui-caption">Source is unavailable.</span>
             ) : null}
           </li>
         );
@@ -92,7 +92,7 @@ export function EvidencePanel({ finding }: { finding: AuditFinding }) {
     ) ?? false;
   if (locations.length === 0 && exchange === undefined && files.length === 0)
     return (
-      <p className="issues-quiet">
+      <p className="ui-caption">
         This possible issue names no locations and has no captured evidence.
       </p>
     );
@@ -118,7 +118,7 @@ export function EvidencePanel({ finding }: { finding: AuditFinding }) {
             Captured HTTP exchange
           </h3>
           {masked ? (
-            <p className="issues-quiet">
+            <p className="ui-caption">
               Values that look like credentials are hidden. Show them one at a
               time.
             </p>

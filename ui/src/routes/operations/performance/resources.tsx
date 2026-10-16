@@ -5,7 +5,14 @@ import { useId, useState } from "react";
 import { Link } from "react-router";
 
 import type { AllocationResourceSummary } from "../../../api/performance";
-import { compactId, formatBytes, formatTimestamp } from "../../../app/format";
+import {
+  compactId,
+  formatBytes,
+  formatNumber,
+  formatSeconds,
+  formatTimestamp,
+} from "../../../app/format";
+import { Facts } from "../../../ui";
 import { DisclosureChevron, OperationsState } from "../common";
 import { RecordedTime } from "../../../app/recorded-time";
 
@@ -18,10 +25,6 @@ function unavailable(
   ) : (
     format(value)
   );
-}
-
-function seconds(value: number): string {
-  return `${value.toLocaleString(undefined, { maximumFractionDigits: 3 })} s`;
 }
 
 function resourceReason(item: AllocationResourceSummary): string {
@@ -80,7 +83,7 @@ function CompletedAllocationRow({ item }: { item: AllocationResourceSummary }) {
         </td>
         <td data-label="Run">
           <Link
-            className="ops-mono"
+            className="ui-mono"
             to={`/runs/${encodeURIComponent(item.runId)}`}
             title={item.runId}
             aria-label={item.runId}
@@ -161,71 +164,61 @@ export function AllocationResourceList({
                 <OperationsState state={item.status} />
               </span>
             </header>
-            <dl className="allocation-resource-identity">
-              {showRunLink ? (
-                <div>
-                  <dt>Run</dt>
-                  <dd>
+            <Facts
+              className="allocation-resource-identity"
+              items={[
+                {
+                  term: "Run",
+                  value: showRunLink && (
                     <Link to={`/runs/${encodeURIComponent(item.runId)}`}>
                       {item.runId}
                     </Link>
-                  </dd>
-                </div>
-              ) : null}
-              <div>
-                <dt>Stage</dt>
-                <dd>
-                  <code>{item.stage}</code>
-                </dd>
-              </div>
-              <div>
-                <dt>Finished</dt>
-                <dd>{formatTimestamp(item.finishedAt)}</dd>
-              </div>
-              <div>
-                <dt>Collection policy</dt>
-                <dd>{item.collectionPolicy}</dd>
-              </div>
-            </dl>
-            <dl className="allocation-resource-metrics">
-              <div>
-                <dt>Measured interval</dt>
-                <dd>{unavailable(resources?.durationSeconds, seconds)}</dd>
-              </div>
-              <div>
-                <dt>CPU user</dt>
-                <dd>{unavailable(resources?.cpuUserSeconds, seconds)}</dd>
-              </div>
-              <div>
-                <dt>CPU system</dt>
-                <dd>{unavailable(resources?.cpuSystemSeconds, seconds)}</dd>
-              </div>
-              <div>
-                <dt>Average used cores</dt>
-                <dd>
-                  {unavailable(cores, (value) =>
-                    value.toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    }),
-                  )}
-                </dd>
-              </div>
-              <div>
-                <dt>Observed RSS peak</dt>
-                <dd>
-                  {unavailable(resources?.rssPeakObservedBytes, formatBytes)}
-                </dd>
-              </div>
-              <div>
-                <dt>RSS samples</dt>
-                <dd>
-                  {unavailable(resources?.rssSampleCount, (value) =>
-                    value.toLocaleString(),
-                  )}
-                </dd>
-              </div>
-            </dl>
+                  ),
+                },
+                { term: "Stage", value: <code>{item.stage}</code> },
+                { term: "Finished", value: formatTimestamp(item.finishedAt) },
+                { term: "Collection policy", value: item.collectionPolicy },
+              ]}
+            />
+            <Facts
+              className="allocation-resource-metrics"
+              items={[
+                {
+                  term: "Measured interval",
+                  value: unavailable(resources?.durationSeconds, formatSeconds),
+                },
+                {
+                  term: "CPU user",
+                  value: unavailable(resources?.cpuUserSeconds, formatSeconds),
+                },
+                {
+                  term: "CPU system",
+                  value: unavailable(
+                    resources?.cpuSystemSeconds,
+                    formatSeconds,
+                  ),
+                },
+                {
+                  term: "Average used cores",
+                  value: unavailable(cores, (value) =>
+                    formatNumber(value, 2, 2),
+                  ),
+                },
+                {
+                  term: "Observed RSS peak",
+                  value: unavailable(
+                    resources?.rssPeakObservedBytes,
+                    formatBytes,
+                  ),
+                },
+                {
+                  term: "RSS samples",
+                  value: unavailable(resources?.rssSampleCount, (value) =>
+                    formatNumber(value),
+                  ),
+                },
+              ]}
+            />
             <p className="allocation-resource-note">
               {resources === undefined
                 ? resourceReason(item)

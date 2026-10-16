@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AuditProfile } from "../../../api/audits";
 import { queryKeys } from "../../../api/query-keys";
+import { deferred } from "../../../test/deferred";
 import {
   asvsPilot,
   asvsReview,
@@ -28,14 +29,9 @@ import {
   wstgLive,
   wstgLiveDetail,
 } from "./test-fixtures";
-import {
-  CSRF_TOKEN,
-  failure,
-  gatewayFailure,
-  json,
-  page,
-  renderStart,
-} from "./test-support";
+import { failure, gatewayFailure, json, page } from "../../../test/responses";
+import { CSRF_TOKEN } from "../../../test/render";
+import { renderStart } from "./test-support";
 
 const START = "/checks/new?project=project_shop";
 
@@ -351,7 +347,7 @@ describe("Start a check: check types", () => {
       profiles: [top10, checklist],
       profileList: (_request, url) =>
         url.searchParams.get("cursor") === null
-          ? json(page([top10], { nextCursor: "2" }))
+          ? json(page([top10], "2"))
           : json(page([checklist])),
       materials: [sourceZip],
     });
@@ -377,7 +373,7 @@ describe("Start a check: check types", () => {
       profiles: [top10, checklist],
       profileList: (_request, url) =>
         url.searchParams.get("cursor") === null
-          ? json(page([top10], { nextCursor: "2" }))
+          ? json(page([top10], "2"))
           : unavailable
             ? gatewayFailure(502)
             : json(page([checklist])),
@@ -556,7 +552,7 @@ describe("Start a check: materials", () => {
     const profile = profileFixture("notes-review", {
       inputs: {
         source: { required: true, mediaTypes: ["application/zip"] },
-        notes: { required: false, mediaTypes: ["text/*"] },
+        notes: { required: false, mediaTypes: ["text/markdown"] },
       },
     });
     const { user, sent } = renderStart(START, {
@@ -804,26 +800,20 @@ describe("Start a check: options and starting", () => {
   );
 
   it("leaves the user where they went when the start answers after they left", async () => {
-    let releaseStart = () => {};
-    const startAnswered = new Promise<void>((resolve) => {
-      releaseStart = resolve;
-    });
-    let releaseRuns = () => {};
-    const runsCode = new Promise<void>((resolve) => {
-      releaseRuns = resolve;
-    });
+    const startAnswered = deferred();
+    const runsCode = deferred();
     const { user, router, sent } = renderStart(
       `${START}&type=owasp-top10-2025-source-risk`,
       {
         profiles: [top10],
         materials: [sourceZip],
         start: async (_request, url) => {
-          await startAnswered;
+          await startAnswered.promise;
           const auditId = decodeURIComponent(url.pathname.split("/")[3] ?? "");
           const started = startResponse(draftAudit(top10, { auditId }));
           return json(started, 200, { ETag: `"${started.audit.revision}"` });
         },
-        slowPage: { path: "/runs", until: runsCode },
+        slowPage: { path: "/runs", until: runsCode.promise },
       },
     );
     await waitForTypes();
@@ -839,13 +829,13 @@ describe("Start a check: options and starting", () => {
       expect(router.state.navigation.location?.pathname).toBe("/runs"),
     );
     await act(async () => {
-      releaseStart();
-      await startAnswered;
+      startAnswered.resolve();
+      await startAnswered.promise;
       await new Promise((resolve) => window.setTimeout(resolve, 50));
     });
     expect(router.state.navigation.location?.pathname).toBe("/runs");
 
-    releaseRuns();
+    runsCode.resolve();
     expect(await screen.findByText("The slow page")).toBeVisible();
     expect(router.state.location.pathname).toBe("/runs");
   });
@@ -953,13 +943,13 @@ describe("Start a check: options and starting", () => {
     );
     await waitForTypes();
     const live = within(setup()).getByRole("region", { name: "Live target" });
-    expect(within(live).getByLabelText("Target")).toHaveValue(
+    expect(within(live).getByRole("textbox", { name: "Target" })).toHaveValue(
       "https://staging.example.com",
     );
     expect(startButton()).toBeDisabled();
     expect(screen.getByText("Describe the authorization scope.")).toBeVisible();
     await user.type(
-      within(live).getByLabelText("Authorization scope"),
+      within(live).getByRole("textbox", { name: "Authorization scope" }),
       "Staging only",
     );
     await user.click(startButton());
@@ -998,14 +988,16 @@ describe("Start a check: live target", () => {
         ),
     ).toBe(true);
     const live = within(pane).getByRole("region", { name: "Live target" });
-    expect(within(live).getByLabelText("Target")).toHaveValue("");
+    expect(within(live).getByRole("textbox", { name: "Target" })).toHaveValue(
+      "",
+    );
     expect(screen.getByText("Enter the target to test.")).toBeVisible();
     await user.type(
-      within(live).getByLabelText("Target"),
+      within(live).getByRole("textbox", { name: "Target" }),
       "https://test.example.com",
     );
     await user.type(
-      within(live).getByLabelText("Authorization scope"),
+      within(live).getByRole("textbox", { name: "Authorization scope" }),
       "Test host only",
     );
     await user.click(startButton());

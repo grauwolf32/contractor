@@ -1,9 +1,6 @@
-import { ownerListResponse } from "../../test/owner-lists";
 // A fake Public API for the Issues tests: projects, checks, possible
 // issues and review requests, with the filters, ETags and decisions the
 // Server applies.
-import { createMemoryRouter, RouterProvider } from "react-router";
-
 import type {
   Audit,
   AuditFinding,
@@ -11,79 +8,35 @@ import type {
   AuditState,
 } from "../../api/audits";
 import type { Project } from "../../api/projects";
-import type { AuditReviewDecision } from "../decisions";
-import {
-  ALL_VERDICTS,
-  DIGEST,
-  json,
-  failure,
-  makeFinding,
-  renderWithServer,
-} from "../decisions/test-support";
+import * as build from "../../test/builders";
+import { fakeServer, type FakeCall } from "../../test/fake-server";
+import { failure, json, page } from "../../test/responses";
+import { ownerListRoutes } from "../../test/owner-lists";
+import { renderWithAPI } from "../../test/render";
 import { IssuesRoute } from ".";
 
-export const NOW = "2026-10-05T10:00:00Z";
+const { DIGEST } = build;
 
-export function project(projectId: string, name: string): Project {
-  return {
-    projectId,
-    kind: "project",
-    name,
-    description: "",
-    lifecycle: "active",
-    activeChecks: "automatic",
-    revision: "1",
-    createdAt: NOW,
-    updatedAt: NOW,
-  };
-}
-
+/** A held check of `projectId` over the shop's source archive. */
 export function check(
   projectId: string,
   auditId: string,
   state: AuditState = "completed",
   profile = "openapi-operation-trace",
 ): Audit {
-  return {
-    auditId,
-    projectId,
+  return build.audit(projectId, auditId, state, {
     profile: { name: profile, version: "1", digest: DIGEST },
     inputs: {
-      source: {
+      source: build.auditInput("shop-source", {
         ref: { namespace: "sources", name: "shop-source", revision: "src-r1" },
-        digest: DIGEST,
-        mediaType: "application/zip",
-        sizeBytes: 2048,
-      },
+      }),
     },
-    scope: {},
-    runtimeLabels: [],
-    state,
-    phase: "rounds",
-    currentRoundId: "round_1",
-    revision: 1,
-    dispatchState: "closed",
     holdState: "held",
-    limits: {
-      maxRounds: 1,
-      batchSize: 1,
-      maxItemsPerRound: 8,
-      maxItemsTotal: 8,
-      maxSubmittedRuns: 8,
-      maxItemRunAttempts: 2,
-      maxEvidenceBytes: 1_048_576,
-    },
-    reservedRunCount: 0,
-    submittedRunCount: 0,
-    outstandingRunCount: 0,
-    retainedEvidenceBytes: 0,
-    eventSequence: 1,
-    createdAt: NOW,
-    updatedAt: NOW,
-  };
+    dispatchState: "closed",
+  });
 }
 
-/** A possible issue of `auditId`, created at `createdAt`. */
+/** A possible issue of `auditId`, proposed at `createdAt`. */
 export function issue(
   auditId: string,
   findingId: string,
@@ -92,15 +45,20 @@ export function issue(
   overrides: Partial<AuditFinding> = {},
   document: Partial<AuditFinding["firstProposal"]["document"]> = {},
 ): AuditFinding {
-  const base = makeFinding(
-    { findingId, auditId, createdAt, updatedAt: createdAt, revision: 1 },
+  const base = build.finding(
+    auditId,
+    findingId,
+    { createdAt, updatedAt: createdAt, revision: 1, ...overrides },
     { title, ...document },
   );
-  base.firstProposal.createdAt = createdAt;
-  return { ...base, ...overrides };
+  return build.conforming("AuditFinding", {
+    ...base,
+    firstProposal: { ...base.firstProposal, createdAt },
+  });
 }
 
-export interface FakeServer {
+/** What the fake Server of the Issues pages holds. */
+export interface IssuesServer {
   projects: Project[];
   audits: Audit[];
   findings: AuditFinding[];
@@ -111,13 +69,11 @@ export interface FakeServer {
   more: Set<string>;
   /** Possible-issue list reads wait for this (exact reads do not). */
   gate?: Promise<void> | undefined;
+  /** Recording a decision waits for this. */
+  decisionGate?: Promise<void> | undefined;
 }
 
-function page<T>(items: T[], hasMore = false) {
-  return { items, page: { hasMore } };
-}
-
-function bump(server: FakeServer, auditId: string) {
+function bump(server: IssuesServer, auditId: string) {
   server.audits = server.audits.map((candidate) =>
     candidate.auditId === auditId
       ? {
@@ -131,67 +87,70 @@ function bump(server: FakeServer, auditId: string) {
   );
 }
 
-/** Handles the requests of the Issues pages against `server`. */
-export function handler(server: FakeServer) {
-  return async (request: Request, url: URL): Promise<Response> => {
-    const path = url.pathname;
-    if (path === "/v1/findings") {
+const VERDICT_STATES = {
+  true_positive: "confirmed",
+  false_positive: "rejected",
+  needs_evidence: "needs-evidence",
+  duplicate: "duplicate",
+  reopen: "proposed",
+} as const;
+
+/** The routes of the Issues pages over `server`. */
+function routes(server: IssuesServer) {
+  const auditOf = (auditId: string | undefined) =>
+    server.audits.find((candidate) => candidate.auditId === auditId);
+  const summary = (audit: Audit) => ({
+    auditRevision: audit.revision,
+    asOf: audit.updatedAt,
+  });
+  const owner = ownerListRoutes(() => server);
+  return {
+    ...owner,
+    "GET /v1/findings": async (call: FakeCall) => {
       await server.gate;
       if (server.failing.size > 0)
         return failure(503, "unavailable", "Findings unavailable");
-    }
-
-    const ownerResponse = ownerListResponse(url, {
-      projects: server.projects,
-      audits: server.audits,
-      findings: server.findings,
-      reviews: server.reviews,
-    });
-    if (ownerResponse !== undefined) return ownerResponse;
-
-    if (path === "/v1/projects") return json(page(server.projects));
-    const projectPath = /^\/v1\/projects\/([^/]+)$/.exec(path);
-    if (projectPath !== null) {
+      return owner["GET /v1/findings"]!(call);
+    },
+    "GET /v1/projects": () => json(page(server.projects)),
+    "GET /v1/projects/{projectId}": ({ params }: FakeCall) => {
       const found = server.projects.find(
-        (candidate) => candidate.projectId === projectPath[1],
+        (candidate) => candidate.projectId === params.projectId,
       );
       return found === undefined
         ? failure(404, "not_found", "Project not found")
         : json(found, 200, { ETag: '"1"' });
-    }
-    const projectAudits = /^\/v1\/projects\/([^/]+)\/audits$/.exec(path);
-    if (projectAudits !== null) {
+    },
+    "GET /v1/projects/{projectId}/audits": ({ params, url }: FakeCall) => {
       const state = url.searchParams.get("state");
       return json(
         page(
           server.audits.filter(
             (candidate) =>
-              candidate.projectId === projectAudits[1] &&
+              candidate.projectId === params.projectId &&
               (state === null || candidate.state === state),
           ),
         ),
       );
-    }
-    const auditPath = /^\/v1\/audits\/([^/]+)(\/.*)?$/.exec(path);
-    if (auditPath === null) return failure(404, "not_found", "Not found");
-    const auditId = decodeURIComponent(auditPath[1]!);
-    const rest = auditPath[2] ?? "";
-    const audit = server.audits.find(
-      (candidate) => candidate.auditId === auditId,
-    );
-    if (audit === undefined) return failure(404, "not_found", "No check");
-    const summary = { auditRevision: audit.revision, asOf: audit.updatedAt };
-    if (rest === "") return json(audit, 200, { ETag: `"${audit.revision}"` });
-    if (rest === "/findings") {
+    },
+    "GET /v1/audits/{auditId}": ({ params }: FakeCall) => {
+      const audit = auditOf(params.auditId);
+      return audit === undefined
+        ? failure(404, "not_found", "No check")
+        : json(audit, 200, { ETag: `"${audit.revision}"` });
+    },
+    "GET /v1/audits/{auditId}/findings": async ({ params, url }: FakeCall) => {
+      const audit = auditOf(params.auditId);
+      if (audit === undefined) return failure(404, "not_found", "No check");
       await server.gate;
-      if (server.failing.has(auditId))
+      if (server.failing.has(audit.auditId))
         return failure(503, "unavailable", "Findings unavailable");
       const state = url.searchParams.get("state");
       const verdict = url.searchParams.get("verdict");
       const severity = url.searchParams.get("severity");
       const items = server.findings.filter(
         (candidate) =>
-          candidate.auditId === auditId &&
+          candidate.auditId === audit.auditId &&
           (state === null || candidate.state === state) &&
           (verdict === null ||
             (verdict === "unreviewed"
@@ -199,114 +158,127 @@ export function handler(server: FakeServer) {
               : candidate.analystVerdict === verdict)) &&
           (severity === null || candidate.analystSeverity === severity),
       );
-      const more = server.more.has(auditId);
+      // A check in `more` has a second page; it holds no further match.
+      const more = server.more.has(audit.auditId);
+      const next = url.searchParams.get("cursor") === "more";
       return json({
-        ...summary,
+        ...summary(audit),
         total: items.length + (more ? 50 : 0),
-        ...page(items, more),
+        ...page(next ? [] : items, more && !next ? "more" : undefined),
       });
-    }
-    const findingPath = /^\/findings\/([^/]+)(\/.*)?$/.exec(rest);
-    if (findingPath !== null) {
-      const findingId = decodeURIComponent(findingPath[1]!);
+    },
+    "GET /v1/audits/{auditId}/findings/{findingId}": ({ params }: FakeCall) => {
       const finding = server.findings.find(
         (candidate) =>
-          candidate.auditId === auditId && candidate.findingId === findingId,
+          candidate.auditId === params.auditId &&
+          candidate.findingId === params.findingId,
+      );
+      return finding === undefined
+        ? failure(404, "not_found", "Possible issue not found")
+        : json(finding, 200, { ETag: `"${finding.revision}"` });
+    },
+    "GET /v1/audits/{auditId}/findings/{findingId}/provenance": ({
+      params,
+    }: FakeCall) => {
+      const audit = auditOf(params.auditId);
+      const finding = server.findings.find(
+        (candidate) =>
+          candidate.auditId === params.auditId &&
+          candidate.findingId === params.findingId,
+      );
+      if (audit === undefined || finding === undefined)
+        return failure(404, "not_found", "Possible issue not found");
+      return json({
+        auditRevision: audit.revision,
+        findingRevision: finding.revision,
+        items: [
+          {
+            recordId: "source:receipt_1",
+            kind: "source-proposal",
+            relation: "first",
+            receiptId: "receipt_1",
+            proposal: finding.firstProposal.proposal,
+            origin: finding.firstProposal.origin,
+            supportsCurrentAssessment: false,
+            createdAt: finding.createdAt,
+          },
+        ],
+        page: { hasMore: false },
+      });
+    },
+    "POST /v1/audits/{auditId}/findings/{findingId}/reviews": ({
+      params,
+    }: FakeCall) => {
+      const finding = server.findings.find(
+        (candidate) =>
+          candidate.auditId === params.auditId &&
+          candidate.findingId === params.findingId,
       );
       if (finding === undefined)
         return failure(404, "not_found", "Possible issue not found");
-      if (findingPath[2] === undefined)
-        return json(finding, 200, { ETag: `"${finding.revision}"` });
-      if (findingPath[2] === "/provenance")
-        return json({
-          auditRevision: audit.revision,
-          findingRevision: finding.revision,
-          items: [
-            {
-              recordId: "source:receipt_1",
-              kind: "source-proposal",
-              receiptId: "receipt_1",
-              proposal: finding.firstProposal.proposal,
-              origin: finding.firstProposal.origin,
-              supportsCurrentAssessment: false,
-              createdAt: finding.createdAt,
-            },
-          ],
-          page: { hasMore: false },
-        });
-      if (findingPath[2] === "/reviews" && request.method === "POST") {
-        const created: AuditReviewRequest = {
-          requestId: `review_${findingId}`,
-          auditId,
-          findingId,
-          subjectKind: "finding",
-          subjectId: findingId,
-          kind: "finding-triage",
+      const created = build.review(
+        finding.auditId,
+        `review_${finding.findingId}`,
+        "finding-triage",
+        {
+          findingId: finding.findingId,
+          subjectId: finding.findingId,
           subjectRevision: finding.revision,
-          subjectDigest: DIGEST,
-          requestedActions: ALL_VERDICTS,
-          state: "pending",
-          revision: 1,
-          createdAt: NOW,
-          updatedAt: NOW,
-        };
-        server.reviews.push(created);
-        return json(created, 201, { ETag: '"1"' });
-      }
-    }
-    if (rest === "/reviews") {
+        },
+      );
+      server.reviews.push(created);
+      return json(created, 201, { ETag: '"1"' });
+    },
+    "GET /v1/audits/{auditId}/reviews": ({ params, url }: FakeCall) => {
+      const audit = auditOf(params.auditId);
+      if (audit === undefined) return failure(404, "not_found", "No check");
       const finding = url.searchParams.get("finding");
       const state = url.searchParams.get("state");
       const items = server.reviews.filter(
         (candidate) =>
-          candidate.auditId === auditId &&
+          candidate.auditId === audit.auditId &&
           (finding === null || candidate.findingId === finding) &&
           (state === null || candidate.state === state),
       );
-      return json({ ...summary, total: items.length, ...page(items) });
-    }
-    const reviewPath = /^\/reviews\/([^/]+)(\/decisions)?$/.exec(rest);
-    if (reviewPath !== null) {
+      return json({ ...summary(audit), total: items.length, ...page(items) });
+    },
+    "GET /v1/audits/{auditId}/reviews/{requestId}": ({ params }: FakeCall) => {
       const review = server.reviews.find(
-        (candidate) => candidate.requestId === reviewPath[1],
+        (candidate) => candidate.requestId === params.requestId,
+      );
+      return review === undefined
+        ? failure(404, "not_found", "Review not found")
+        : json(review, 200, { ETag: `"${review.revision}"` });
+    },
+    "POST /v1/audits/{auditId}/reviews/{requestId}/decisions": async ({
+      params,
+      request,
+    }: FakeCall) => {
+      await server.decisionGate;
+      const auditId = params.auditId ?? "";
+      const review = server.reviews.find(
+        (candidate) => candidate.requestId === params.requestId,
       );
       if (review === undefined)
         return failure(404, "not_found", "Review not found");
-      if (reviewPath[2] === undefined)
-        return json(review, 200, { ETag: `"${review.revision}"` });
       const body = (await request.json()) as {
         verdict: AuditFinding["analystVerdict"];
         severity?: AuditFinding["analystSeverity"];
         rationale: string;
       };
-      const decision: AuditReviewDecision = {
-        decisionId: `decision_${review.requestId}`,
-        requestId: review.requestId,
+      const decision = build.decision(review, {
         auditId,
-        ...(review.findingId === undefined
-          ? {}
-          : { findingId: review.findingId }),
-        actorId: "user_analyst",
         ...(body.verdict === undefined ? {} : { verdict: body.verdict }),
         ...(body.severity === undefined ? {} : { severity: body.severity }),
         rationale: body.rationale,
-        subjectRevision: review.subjectRevision,
         subjectDigest: DIGEST,
-        createdAt: NOW,
-      };
-      const states = {
-        true_positive: "confirmed",
-        false_positive: "rejected",
-        needs_evidence: "needs-evidence",
-        duplicate: "duplicate",
-        reopen: "proposed",
-      } as const;
+      });
       let decided: AuditFinding | undefined;
       server.findings = server.findings.map((candidate) => {
         if (candidate.findingId !== review.findingId) return candidate;
         decided = {
           ...candidate,
-          state: states[body.verdict ?? "reopen"],
+          state: VERDICT_STATES[body.verdict ?? "reopen"],
           revision: candidate.revision + 1,
           ...(body.verdict === undefined
             ? {}
@@ -334,35 +306,29 @@ export function handler(server: FakeServer) {
         decision,
         replayed: false,
       });
-    }
-    return failure(404, "not_found", `Unexpected ${request.method} ${path}`);
+    },
   };
 }
 
 /** Renders the Issues route at `path` against `server`. */
-export function renderIssues(server: FakeServer, path: string) {
-  const router = createMemoryRouter(
-    [
+export function renderIssues(server: IssuesServer, path: string) {
+  return renderWithAPI(null, {
+    path,
+    server: fakeServer(routes(server)),
+    routes: [
       { path: "/issues", element: <IssuesRoute /> },
       { path: "/issues/:auditId/:findingId", element: <IssuesRoute /> },
       {
         path: "/projects/:projectId/audits/:auditId/:section",
         element: <p>Check page</p>,
       },
-      { path: "*", element: <p>Elsewhere</p> },
     ],
-    { initialEntries: [path] },
-  );
-  const view = renderWithServer(
-    <RouterProvider router={router} />,
-    handler(server),
-  );
-  return { ...view, router };
+  });
 }
 
-export function server(
-  initial: Partial<FakeServer> & Pick<FakeServer, "projects" | "audits">,
-): FakeServer {
+export function issuesServer(
+  initial: Partial<IssuesServer> & Pick<IssuesServer, "projects" | "audits">,
+): IssuesServer {
   return {
     findings: [],
     reviews: [],

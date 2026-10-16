@@ -22,7 +22,7 @@ export interface ExecutionOverrideDraft {
   stages?: components["schemas"]["ExecutionConfigPatch"]["stages"];
 }
 
-export interface RunDraftValues {
+interface RunDraftValues {
   runtimeLabels: string[];
   metadataLabels: readonly RunMetadataLabelDraft[];
   parameters: Record<string, string | undefined>;
@@ -31,7 +31,7 @@ export interface RunDraftValues {
   overrides: ExecutionOverrideDraft;
 }
 
-export interface RunDraftValidation {
+interface RunDraftValidation {
   request?: CreateRunRequest;
   errors: Record<string, string>;
 }

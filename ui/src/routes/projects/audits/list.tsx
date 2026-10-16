@@ -1,17 +1,19 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link, useLocation } from "react-router";
+import { useLocation } from "react-router";
 
 import { auditPollInterval, listProjectAudits } from "../../../api/audits";
 import { usePublicAPI } from "../../../api/context";
 import { queryKeys } from "../../../api/query-keys";
-import { ContextLink } from "../../../app/context-navigation";
 import { CursorControls } from "../../../app/cursor-controls";
+import { formatNumber } from "../../../app/format";
 import { useURLCursorStack } from "../../../app/pagination";
+import { pollInterval } from "../../../app/polling";
 import { QueryView } from "../../../app/query-view";
 import { RecordedTime } from "../../../app/recorded-time";
 import { RefreshButton } from "../../../app/refresh-button";
 import { checkStateLabel } from "../../../app/vocabulary";
 import {
+  ButtonLink,
   EmptyState,
   IdChip,
   ListRow,
@@ -56,30 +58,28 @@ export function ProjectAuditWorkspace({
         ...(cursor === undefined ? {} : { cursor }),
       }),
     refetchOnReconnect: true,
-    refetchInterval: (query) =>
-      auditPollInterval(query.state.data?.items ?? [], 5_000),
+    refetchInterval: pollInterval({
+      interval: 5_000,
+      settled: (page) => auditPollInterval(page.items) === false,
+    }),
   });
   const start = `/checks/new?${new URLSearchParams({ project: projectId }).toString()}`;
   return (
     <div className="checks-project">
       <ProjectSectionActions>
         <RefreshButton
+          size="sm"
           isFetching={audits.isFetching}
           onRefresh={() => void audits.refetch()}
         />
-        <Link
-          className="ui-btn"
-          data-variant="primary"
-          data-size="sm"
-          to={start}
-        >
+        <ButtonLink variant="primary" size="sm" to={start}>
           Start a check
-        </Link>
+        </ButtonLink>
       </ProjectSectionActions>
       <QueryView
         query={audits}
         loading={
-          <p className="checks-quiet" role="status">
+          <p className="ui-caption" role="status">
             Loading checks…
           </p>
         }
@@ -89,9 +89,9 @@ export function ProjectAuditWorkspace({
           <EmptyState
             title="No checks yet"
             action={
-              <Link className="ui-btn" data-size="sm" to={start}>
+              <ButtonLink size="sm" to={start}>
                 Start a check
-              </Link>
+              </ButtonLink>
             }
           >
             A check reads this project&apos;s materials and reports what it
@@ -119,7 +119,7 @@ export function ProjectAuditWorkspace({
                     </StatusChip>,
                     audit.state === "draft"
                       ? "Not started"
-                      : `Runs: ${audit.submittedRunCount.toLocaleString("en-US")} submitted, ${audit.outstandingRunCount.toLocaleString("en-US")} in progress`,
+                      : `Runs: ${formatNumber(audit.submittedRunCount)} submitted, ${formatNumber(audit.outstandingRunCount)} in progress`,
                     <span key="updated">
                       Updated <RecordedTime value={audit.updatedAt} />
                     </span>,
@@ -140,14 +140,13 @@ export function ProjectAuditWorkspace({
                   )}
                   <div className="checks-row-actions">
                     {audit.state === "waiting_review" ? (
-                      <ContextLink
-                        className="ui-btn"
-                        data-size="sm"
+                      <ButtonLink
+                        size="sm"
                         returnLabel="Project checks"
                         to={`${root}/reviews?state=pending`}
                       >
                         Review decisions
-                      </ContextLink>
+                      </ButtonLink>
                     ) : null}
                     <AuditControls
                       audit={audit}

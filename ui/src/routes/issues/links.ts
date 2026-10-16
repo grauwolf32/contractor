@@ -27,7 +27,7 @@ export interface IssueFilters {
 }
 
 /** The state the list shows without a `state` parameter. */
-export const DEFAULT_STATE: StateFilter = "proposed";
+const DEFAULT_STATE: StateFilter = "proposed";
 
 /** Filters from the list's query string; unknown values fall back. */
 export function readIssueFilters(params: URLSearchParams): IssueFilters {
@@ -80,22 +80,6 @@ export function checkIssuePath(
   return findingId === undefined
     ? section
     : `${section}?finding=${encodeURIComponent(findingId)}`;
-}
-
-/**
- * The check page's possible issues section filtered like an Issues list:
- * the section reads `state` (absent for every state) and `severity`.
- */
-export function checkIssuesHref(
-  projectId: string,
-  auditId: string,
-  filters: Pick<IssueFilters, "state" | "severity">,
-): string {
-  const params = new URLSearchParams();
-  if (filters.state !== "all") params.set("state", filters.state);
-  if (filters.severity !== undefined) params.set("severity", filters.severity);
-  const text = params.toString();
-  return `${checkIssuePath(projectId, auditId)}${text === "" ? "" : `?${text}`}`;
 }
 
 /** True when a possible issue still belongs in a list with these filters. */

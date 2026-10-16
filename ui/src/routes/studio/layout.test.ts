@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { readDraft, type Kind } from "./document";
+import { readDraft } from "./document";
 import { buildGraph, pathID, type StudioGraph } from "./graph";
 import { NODE_HEIGHT, NODE_WIDTH } from "./layout";
+
+type Kind = ReturnType<typeof readDraft>["kind"];
 
 function graph(kind: Kind, spec: Record<string, unknown>) {
   const draft = readDraft(

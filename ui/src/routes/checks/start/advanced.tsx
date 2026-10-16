@@ -1,14 +1,12 @@
-import { useId } from "react";
-
 import { auditPresetPath } from "../../../api/audit-presets";
 import { ContextLink } from "../../../app/context-navigation";
 import { compactDigest } from "../../../app/format";
+import { Icon } from "../../../app/icon";
 import { checkItemKind, itemCount } from "../../../app/vocabulary";
-import { TechnicalDetails } from "../../../ui";
+import { Facts, Field, TechnicalDetails } from "../../../ui";
 import { MODE_LABELS } from "./check-types";
 import { TextAreaField, TextField } from "./fields";
-import { ChevronIcon } from "./icons";
-import { SCOPE_TEXT_LIMIT } from "./request";
+import { SCOPE_TEXT_LIMITS } from "./request";
 import type { StartCheck } from "./use-start-check";
 
 /**
@@ -18,11 +16,11 @@ import type { StartCheck } from "./use-start-check";
  * runtime labels. The digest and input check sit behind Technical details.
  */
 export function AdvancedOptions({ model }: { model: StartCheck }) {
-  const versionId = useId();
   const { selection, exact } = model;
   if (selection === undefined) return null;
   const profile = exact ?? selection.profile;
   const { family } = selection;
+  const selectable = family.versions.length > 1;
   const kind = checkItemKind(profile);
   const standardSelection = profile.inventory.standardSelection;
   const usesTarget = model.scopeFields.has("target");
@@ -32,63 +30,35 @@ export function AdvancedOptions({ model }: { model: StartCheck }) {
     <details className="start-advanced">
       <summary>
         <span className="start-advanced-title">
-          <ChevronIcon />
+          <Icon name="chevron-right" size={13} strokeWidth={2} />
           Advanced options
         </span>
-        <span className="start-quiet">
+        <span className="ui-caption">
           Version, limits, standards, runtime labels and more. The defaults suit
           most checks.
         </span>
       </summary>
       <div className="start-advanced-body">
-        <dl className="start-facts">
-          <div>
-            <dt>
-              {family.versions.length > 1 ? (
-                <label htmlFor={versionId}>Check type version</label>
-              ) : (
-                "Check type version"
-              )}
-            </dt>
-            <dd>
-              {family.versions.length > 1 ? (
-                <select
-                  id={versionId}
-                  className="start-input start-select"
-                  value={selection.profile.ref.version}
-                  onChange={(event) => model.chooseVersion(event.target.value)}
-                >
-                  {family.versions.map((version, index) => (
-                    <option
-                      key={version.ref.version}
-                      value={version.ref.version}
-                    >
-                      {version.ref.version}
-                      {index === 0 ? " (newest)" : ""}
-                      {version.serverCompatible
-                        ? ""
-                        : " · not supported by this server"}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                profile.ref.version
-              )}
-            </dd>
-          </div>
-          <div>
-            <dt>Mode</dt>
-            <dd>{MODE_LABELS[profile.mode] ?? profile.mode}</dd>
-          </div>
-          <div>
-            <dt>Item limit</dt>
-            <dd>{itemCount(kind, profile.execution.maxItemsTotal)}</dd>
-          </div>
-          <div>
-            <dt>Attempts per item</dt>
-            <dd>{profile.execution.maxItemRunAttempts}</dd>
-          </div>
-        </dl>
+        <Facts
+          items={[
+            {
+              term: "Check type version",
+              value: selectable ? undefined : profile.ref.version,
+            },
+            {
+              term: "Mode",
+              value: MODE_LABELS[profile.mode] ?? profile.mode,
+            },
+            {
+              term: "Item limit",
+              value: itemCount(kind, profile.execution.maxItemsTotal),
+            },
+            {
+              term: "Attempts per item",
+              value: profile.execution.maxItemRunAttempts,
+            },
+          ]}
+        />
         {profile.standards.length === 0 ? null : (
           <p className="start-tight" data-testid="start-standards">
             Standards pinned at start:{" "}
@@ -110,12 +80,36 @@ export function AdvancedOptions({ model }: { model: StartCheck }) {
           </div>
         )}
         <div className="start-fields">
+          {selectable ? (
+            <Field label="Check type version">
+              {(control) => (
+                <select
+                  {...control}
+                  value={selection.profile.ref.version}
+                  onChange={(event) => model.chooseVersion(event.target.value)}
+                >
+                  {family.versions.map((version, index) => (
+                    <option
+                      key={version.ref.version}
+                      value={version.ref.version}
+                    >
+                      {version.ref.version}
+                      {index === 0 ? " (newest)" : ""}
+                      {version.serverCompatible
+                        ? ""
+                        : " · not supported by this server"}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </Field>
+          ) : null}
           {usesTarget ? null : (
             <TextField
               label="Target"
               value={model.target}
               onChange={model.setTarget}
-              maxLength={SCOPE_TEXT_LIMIT}
+              maxLength={SCOPE_TEXT_LIMITS.target}
               hint="Optional. Saved with the check."
             />
           )}
@@ -124,7 +118,7 @@ export function AdvancedOptions({ model }: { model: StartCheck }) {
               label="Authorization scope"
               value={model.authorizationScope}
               onChange={model.setAuthorizationScope}
-              maxLength={SCOPE_TEXT_LIMIT}
+              maxLength={SCOPE_TEXT_LIMITS.authorizationScope}
               hint="Optional. What you are allowed to test, saved with the check."
             />
           )}
@@ -150,20 +144,23 @@ export function AdvancedOptions({ model }: { model: StartCheck }) {
           </ContextLink>
         </p>
         <TechnicalDetails description="For admins and debugging.">
-          <dl className="start-facts">
-            <div>
-              <dt>Digest</dt>
-              <dd>
-                <code title={profile.ref.digest}>
-                  {compactDigest(profile.ref.digest)}
-                </code>
-              </dd>
-            </div>
-            <div>
-              <dt>Inputs validated at start</dt>
-              <dd>{profile.requiresInputValidation ? "Yes" : "No"}</dd>
-            </div>
-          </dl>
+          <Facts
+            size="sm"
+            items={[
+              {
+                term: "Digest",
+                value: (
+                  <code title={profile.ref.digest}>
+                    {compactDigest(profile.ref.digest)}
+                  </code>
+                ),
+              },
+              {
+                term: "Inputs validated at start",
+                value: profile.requiresInputValidation ? "Yes" : "No",
+              },
+            ]}
+          />
         </TechnicalDetails>
       </div>
     </details>

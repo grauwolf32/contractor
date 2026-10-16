@@ -13,14 +13,10 @@ import { queryKeys } from "../../api/query-keys";
 import { CursorControls } from "../../app/cursor-controls";
 import { QueryView } from "../../app/query-view";
 import { EmptyState } from "../../ui";
-import { compareWorkflowVersions } from "../workflows/families";
 import { LibrarySearch, LibrarySectionHeader } from "./library-parts";
 import { locationDestination } from "./navigation";
 import { useCatalogQueryState } from "./query-state";
-
-function plural(count: number, singular: string, many: string): string {
-  return `${count} ${count === 1 ? singular : many}`;
-}
+import { plural, compareVersions } from "../../app/format";
 
 function AgentCard({
   name,
@@ -46,6 +42,8 @@ function AgentCard({
         <label className="library-version">
           <span>Version</span>
           <select
+            className="ui-control"
+            data-size="xs"
             aria-label={`Version of ${name}`}
             value={item.ref.version}
             onChange={(event) => onVersion(event.target.value)}
@@ -57,9 +55,8 @@ function AgentCard({
             ))}
           </select>
         </label>
-        <small className="library-muted">
-          {plural(versions.length, "matching version", "matching versions")} on
-          this page
+        <small className="ui-caption">
+          {plural(versions.length, "matching version")} on this page
         </small>
       </div>
       <Link
@@ -73,14 +70,14 @@ function AgentCard({
       >
         <span className="library-agent-identity">
           <strong>{item.ref.name}</strong>
-          <span className="library-tag">{item.ref.version}</span>
+          <span className="ui-badge library-tag">{item.ref.version}</span>
         </span>
         <span className="library-card-text">
           {body.description || "No authored description."}
         </span>
-        <span className="library-agent-facts">
-          {body.runtime} · {plural(body.skills?.length ?? 0, "Skill", "Skills")}{" "}
-          · {plural(tools, "tool", "tools")}
+        <span className="ui-caption">
+          {body.runtime} · {plural(body.skills?.length ?? 0, "Skill")} ·{" "}
+          {plural(tools, "tool")}
         </span>
         <code className="library-selector">
           {item.ref.name}@{item.ref.version}
@@ -146,7 +143,6 @@ export function AgentListRoute() {
       <QueryView
         query={query}
         loading={<p role="status">Searching published Agents…</p>}
-        onRetry={() => void query.refetch()}
         isEmpty={(data) => data.items.length === 0}
         empty={
           <div className="library-empty">
@@ -168,7 +164,7 @@ export function AgentListRoute() {
           <div className="library-grid">
             {[...families].map(([name, versions]) => {
               versions.sort((a, b) =>
-                compareWorkflowVersions(b.ref.version, a.ref.version),
+                compareVersions(b.ref.version, a.ref.version),
               );
               const item =
                 versions.find(
@@ -192,6 +188,7 @@ export function AgentListRoute() {
 
       {query.data === undefined ? null : (
         <CursorControls
+          size="sm"
           label="Agent pages"
           {...state.controls(query.data.page)}
         />

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import type { components } from "../../../api/generated/public";
 import type { PerformanceHistory } from "../../../api/performance";
+import { conforming } from "../../../test/builders";
 import { GPUCurrentMetrics, GPUHistoryCharts } from "./gpu";
 import { useGPUColors } from "./gpu-colors";
 
@@ -25,7 +26,7 @@ const freshness: components["schemas"]["PerformanceFreshness"] = {
     observedSamples: 1,
   },
 };
-const gpu: components["schemas"]["PerformanceGPU"] = {
+const gpu = conforming("PerformanceGPU", {
   freshness,
   devices: [
     {
@@ -36,7 +37,7 @@ const gpu: components["schemas"]["PerformanceGPU"] = {
       memoryTotalBytes: 32 * 1024 ** 3,
     },
   ],
-};
+});
 
 describe("optional GPU observations", () => {
   it("retains distinct UUID colors through reorder, missing readings and range changes", () => {
@@ -172,6 +173,7 @@ describe("optional GPU observations", () => {
             },
           }),
     }));
+    conforming("PerformanceHistory", history);
     rerender(
       <GPUHistoryCharts colors={colors} history={history} stepSeconds={15} />,
     );
@@ -209,7 +211,7 @@ describe("optional GPU observations", () => {
 
   it("renders the last observed aggregate value without inventing unsupported metrics", () => {
     const gauge = { min: 0, max: 90, last: 40, samples: 3, observedAt: at };
-    const history: PerformanceHistory = {
+    const history = conforming("PerformanceHistory", {
       from: "2026-09-19T11:00:00Z",
       to: "2026-09-19T12:01:00Z",
       step: "5m",
@@ -236,7 +238,7 @@ describe("optional GPU observations", () => {
           },
         },
       ],
-    };
+    });
     render(
       <GPUHistoryCharts colors={colors} history={history} stepSeconds={300} />,
     );

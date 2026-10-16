@@ -1,7 +1,7 @@
 import { Link, useLocation } from "react-router";
 
 import type { AllocationObservation } from "../../../api/operations";
-import { IdChip } from "../../../ui";
+import { Facts, IdChip } from "../../../ui";
 import { useOperationsSnapshot } from "../context";
 import {
   ConfigurationRefLink,
@@ -50,115 +50,105 @@ function AllocationEntry({
         <div className="ops-allocation-body">
           <div>
             <h3>Bindings</h3>
-            <dl className="ops-facts">
-              <div>
-                <dt>Allocation</dt>
-                <dd>
-                  <IdChip
-                    value={allocation.allocationId}
-                    label="allocation ID"
-                  />
-                </dd>
-              </div>
-              <div>
-                <dt>Workflow Run</dt>
-                <dd>
-                  <Link to={`/runs/${encodeURIComponent(allocation.runId)}`}>
-                    {allocation.runId}
-                  </Link>
-                </dd>
-              </div>
-              <div>
-                <dt>StageExecution</dt>
-                <dd>
-                  <code>{allocation.stageExecutionId}</code>
-                </dd>
-              </div>
-              <div>
-                <dt>Runtime Agent process</dt>
-                <dd>
-                  <code>{allocation.runtimeAgentInstanceId}</code>
-                </dd>
-              </div>
-              <div>
-                <dt>Temporary logical Worker</dt>
-                <dd>
-                  <code>{allocation.logicalWorker}</code>
-                </dd>
-              </div>
-              <div>
-                <dt>AgentTemplate</dt>
-                <dd>
-                  <ConfigurationRefLink
-                    value={exactConfigurationRef(allocation.agentTemplate)}
-                  />
-                </dd>
-              </div>
-              <div>
-                <dt>ModelPolicy</dt>
-                <dd>
-                  {config.modelPolicy === undefined ? (
-                    <span>No model</span>
-                  ) : (
-                    <ConfigurationRefLink
-                      value={exactConfigurationRef(config.modelPolicy)}
+            <Facts
+              layout="rows"
+              items={[
+                {
+                  term: "Allocation",
+                  value: (
+                    <IdChip
+                      value={allocation.allocationId}
+                      label="allocation ID"
                     />
-                  )}
-                </dd>
-              </div>
-              <div>
-                <dt>LLM Gateway</dt>
-                <dd>
-                  {config.llmGateway === undefined ? (
-                    <span className="ops-muted">
-                      {config.modelPolicy === undefined
-                        ? "Not required"
-                        : "Awaiting route resolution"}
-                    </span>
-                  ) : (
-                    <ConfigurationRefLink
-                      value={exactConfigurationRef(config.llmGateway)}
-                    />
-                  )}
-                </dd>
-              </div>
-              <div>
-                <dt>Credential</dt>
-                <dd>
-                  {config.credential === undefined ? (
-                    <span className="ops-muted">
-                      {config.modelPolicy === undefined
-                        ? "Not required"
-                        : "Unauthenticated Gateway access"}
-                    </span>
-                  ) : (
-                    <Link
-                      to={`/operations/credentials/${encodeURIComponent(config.credential.credentialId)}`}
-                    >
-                      {config.credential.credentialId}
+                  ),
+                },
+                {
+                  term: "Workflow Run",
+                  value: (
+                    <Link to={`/runs/${encodeURIComponent(allocation.runId)}`}>
+                      {allocation.runId}
                     </Link>
-                  )}
-                </dd>
-              </div>
-              <div>
-                <dt>Bounded reason</dt>
-                <dd>
-                  <SafeReason reason={allocation.reason} />
-                </dd>
-              </div>
-              <div>
-                <dt>Exhausted execution-safety dimension</dt>
-                <dd>
-                  <code>{allocation.exhaustedDimension ?? "none"}</code>
-                </dd>
-              </div>
-            </dl>
+                  ),
+                },
+                {
+                  term: "StageExecution",
+                  value: <code>{allocation.stageExecutionId}</code>,
+                },
+                {
+                  term: "Runtime Agent process",
+                  value: <code>{allocation.runtimeAgentInstanceId}</code>,
+                },
+                {
+                  term: "Temporary logical Worker",
+                  value: <code>{allocation.logicalWorker}</code>,
+                },
+                {
+                  term: "AgentTemplate",
+                  value: (
+                    <ConfigurationRefLink
+                      value={exactConfigurationRef(allocation.agentTemplate)}
+                    />
+                  ),
+                },
+                {
+                  term: "ModelPolicy",
+                  value:
+                    config.modelPolicy === undefined ? (
+                      <span>No model</span>
+                    ) : (
+                      <ConfigurationRefLink
+                        value={exactConfigurationRef(config.modelPolicy)}
+                      />
+                    ),
+                },
+                {
+                  term: "LLM Gateway",
+                  value:
+                    config.llmGateway === undefined ? (
+                      <span className="ops-muted">
+                        {config.modelPolicy === undefined
+                          ? "Not required"
+                          : "Awaiting route resolution"}
+                      </span>
+                    ) : (
+                      <ConfigurationRefLink
+                        value={exactConfigurationRef(config.llmGateway)}
+                      />
+                    ),
+                },
+                {
+                  term: "Credential",
+                  value:
+                    config.credential === undefined ? (
+                      <span className="ops-muted">
+                        {config.modelPolicy === undefined
+                          ? "Not required"
+                          : "Unauthenticated Gateway access"}
+                      </span>
+                    ) : (
+                      <Link
+                        to={`/operations/credentials/${encodeURIComponent(config.credential.credentialId)}`}
+                      >
+                        {config.credential.credentialId}
+                      </Link>
+                    ),
+                },
+                {
+                  term: "Bounded reason",
+                  value: <SafeReason reason={allocation.reason} />,
+                },
+                {
+                  term: "Exhausted execution-safety dimension",
+                  value: <code>{allocation.exhaustedDimension ?? "none"}</code>,
+                },
+              ]}
+            />
           </div>
           <div>
             <h3>Safe aggregate metrics</h3>
             <MetricsSummary metrics={allocation.metrics} />
             {!allocation.metrics.reportsComplete ? (
-              <p className="ops-note">
+              <p className="ui-caption">
                 Runtime has not submitted its final report; zero counters are
                 incomplete observations, not proof of no work.
               </p>
@@ -200,7 +190,7 @@ export function AllocationListRoute() {
             ))}
           </ul>
         )}
-        <p className="ops-note">
+        <p className="ui-caption">
           Lifecycle actions are Scheduler-owned. Operations cannot finish,
           abort, release, or reassign an allocation.
         </p>

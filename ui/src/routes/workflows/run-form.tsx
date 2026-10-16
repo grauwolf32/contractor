@@ -1,497 +1,48 @@
-import {
-  GitImportDialog,
-  GitSourceDetails,
-} from "../artifacts/git-import-dialog";
-import {
-  useInfiniteQuery,
-  useMutation,
-  useQueryClient,
-} from "@tanstack/react-query";
-import {
-  type FormEvent,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import { Link, useNavigate } from "react-router";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { type FormEvent, useEffect, useState } from "react";
+import { Link } from "react-router";
 
-import { listArtifacts, type ArtifactMetadata } from "../../api/artifacts";
+import type { ArtifactMetadata } from "../../api/artifacts";
 import { usePublicAPI } from "../../api/context";
 import { PublicAPIError } from "../../api/error";
-import { listProjectArtifacts } from "../../api/project-artifacts";
-import {
-  listRuntimeLabels,
-  type RuntimeLabelBinding,
-} from "../../api/operations";
 import { queryKeys } from "../../api/query-keys";
-import {
-  RUN_METADATA_LABEL_LIMIT,
-  type RunMetadataLabelDraft,
-} from "../../api/run-metadata-labels";
 import {
   createProjectRun,
   createRun,
-  listConfigurations,
-  listCredentials,
-  type ConfigurationResource,
-  type CredentialResource,
   type CreateRunRequest,
   type WorkflowResource,
 } from "../../api/workflows";
-import { Dialog, DialogHeader } from "../../app/dialog";
+import { ErrorNotice } from "../../app/error-notice";
+import { useGuardedNavigate } from "../../app/page-location";
+import { useRunDraftStore } from "../../run-drafts/context";
 import {
   initialRunDraftState,
   type RunDraftEntry,
   type RunDraftIdentity,
+  type RunDraftMemoryStore,
   type RunDraftState,
   type RunDraftSummary,
-  type RunDraftMemoryStore,
 } from "../../run-drafts/memory";
-import { useRunDraftStore } from "../../run-drafts/context";
+import { validateRunDraft } from "../../run-drafts/validation";
+import { AlertDialog, Button, StatusChip } from "../../ui";
+import { InputFields, ParameterFields } from "./run-form-fields";
+import { useRunFormInventories } from "./run-form-inventories";
+import { runDraftReadiness } from "./run-form-readiness";
 import {
-  artifactAccepts,
-  artifactOptionKey,
-  NO_CREDENTIAL_OVERRIDE,
-  validateRunDraft,
-  type ConsumerOverrideDraft,
-  type ExecutionOverrideDraft,
-} from "../../run-drafts/validation";
-import { ErrorNotice } from "../../app/error-notice";
-import { compactDigest, formatBytes, formatTimestamp } from "../../app/format";
-import { StatusChip, type StatusTone } from "../../ui";
-import { GitRepositoryIcon } from "../artifacts/git-repository-icon";
-import { artifactDetailPath } from "../artifacts/paths";
-import { RunInputUploadDialog } from "./run-input-upload-dialog";
-
+  ExecutionOverrides,
+  RunMetadata,
+  RuntimePlacement,
+} from "./run-form-settings";
+import { useRunDraftState } from "./run-form-state";
 import "./run-drafts.css";
-import { nextPageCursor } from "../../app/pagination";
-import { LoadMoreButton } from "../../app/load-more";
 
-const INITIAL_CURSOR = null;
-const EVAL_METADATA_PRESET = [
-  { key: "purpose", value: "eval" },
-  { key: "eval.name", value: "" },
-  { key: "eval.id", value: "" },
-  { key: "eval.leg", value: "" },
-] as const;
-
-function configurationSelector(resource: ConfigurationResource): string {
-  return `${resource.ref.name}@${resource.ref.version}`;
-}
-
-function artifactLabel(metadata: ArtifactMetadata): string {
-  return `${artifactOptionKey(metadata.artifact)} · ${metadata.mediaType} · ${formatBytes(metadata.size)}`;
-}
-
-function RuntimeLabelPreview({ binding }: { binding: RuntimeLabelBinding }) {
-  return (
-    <small className="runtime-label-preview">
-      <code>
-        {binding.config.name}@{binding.config.version}
-      </code>
-      <span>binding revision {binding.revision}</span>
-      <code title={binding.config.digest}>
-        {compactDigest(binding.config.digest)}
-      </code>
-    </small>
-  );
-}
-
-function DraftDisclosureSummary({
-  title,
-  description,
-  status,
-  active = false,
-}: {
-  title: string;
-  description: string;
-  status: string;
-  active?: boolean;
-}) {
-  return (
-    <>
-      <span className="run-draft-disclosure-title">
-        <strong>{title}</strong>
-        <small>{description}</small>
-      </span>
-      <span
-        className={`run-draft-disclosure-status ${active ? "is-active" : ""}`}
-      >
-        {status}
-      </span>
-    </>
-  );
-}
-
-function RunMetadataLabelEditor({
-  labels,
-  labelInput,
-  errors,
-  onAdd,
-  onAddEvalPreset,
-  onChange,
-  onLabelInputChange,
-  onRemove,
-}: {
-  labels: readonly RunMetadataLabelDraft[];
-  labelInput: string;
-  errors: Readonly<Record<string, string>>;
-  onAdd: (key?: string, value?: string) => void;
-  onAddEvalPreset: () => void;
-  onChange: (id: string, field: "key" | "value", value: string) => void;
-  onLabelInputChange: (value: string) => void;
-  onRemove: (id: string) => void;
-}) {
-  const labelInputRef = useRef<HTMLInputElement>(null);
-  const addButtonRef = useRef<HTMLButtonElement>(null);
-  const atLimit = labels.length >= RUN_METADATA_LABEL_LIMIT;
-  const existingKeys = new Set(labels.map((label) => label.key));
-  const missingEvalLabels = EVAL_METADATA_PRESET.filter(
-    (label) => !existingKeys.has(label.key),
-  ).length;
-
-  function addInput(): void {
-    if (labelInput.trim() === "" || atLimit) {
-      return;
-    }
-    const separator = labelInput.indexOf(":");
-    onAdd(
-      (separator < 0 ? labelInput : labelInput.slice(0, separator)).trim(),
-      separator < 0 ? "" : labelInput.slice(separator + 1),
-    );
-    onLabelInputChange("");
-  }
-
-  return (
-    <fieldset
-      className="run-draft-section run-metadata-label-editor"
-      aria-label="Run metadata labels"
-    >
-      <p className="muted-copy">
-        Add labels to find and group Runs. Edit a badge directly or remove it
-        with × before starting the Run.
-      </p>
-      <div className="run-label-secret-warning">
-        <strong>Do not put secrets in labels.</strong>
-        <p>
-          Keys and values are visible through the Run API, list filters and
-          telemetry.
-        </p>
-      </div>
-      <div className="run-label-composer">
-        <div className="run-field">
-          <label htmlFor="run-label-input">Add a label</label>
-          <input
-            ref={labelInputRef}
-            id="run-label-input"
-            placeholder="team:platform or debug"
-            autoComplete="off"
-            spellCheck={false}
-            value={labelInput}
-            disabled={atLimit}
-            aria-describedby="run-label-input-help"
-            onChange={(event) => onLabelInputChange(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.nativeEvent.isComposing) {
-                event.preventDefault();
-                addInput();
-              }
-            }}
-            onBlur={(event) => {
-              if (event.relatedTarget !== addButtonRef.current) {
-                addInput();
-              }
-            }}
-          />
-          <small id="run-label-input-help">
-            {atLimit
-              ? `Limit reached: ${RUN_METADATA_LABEL_LIMIT} labels.`
-              : "Type key:value or just key and press Enter. Labels are fixed once the Run starts."}
-          </small>
-        </div>
-        <button
-          ref={addButtonRef}
-          className="ui-btn"
-          data-size="sm"
-          type="button"
-          disabled={atLimit}
-          onClick={() => {
-            if (labelInput.trim() === "") {
-              onAdd();
-            } else {
-              addInput();
-              labelInputRef.current?.focus();
-            }
-          }}
-        >
-          Add metadata label
-        </button>
-      </div>
-      <div className="run-metadata-label-actions">
-        <button
-          className="ui-btn"
-          data-size="sm"
-          type="button"
-          disabled={
-            missingEvalLabels === 0 ||
-            labels.length + missingEvalLabels > RUN_METADATA_LABEL_LIMIT
-          }
-          onClick={onAddEvalPreset}
-        >
-          Add eval metadata preset
-        </button>
-        <small>
-          {labels.length}/{RUN_METADATA_LABEL_LIMIT} labels
-        </small>
-      </div>
-      {errors.metadataLabels === undefined ? null : (
-        <p className="field-error" role="alert">
-          {errors.metadataLabels}
-        </p>
-      )}
-      {labels.length === 0 ? (
-        <p className="compact-empty">No Run metadata labels.</p>
-      ) : (
-        <div className="run-label-badges">
-          {labels.map((label, index) => {
-            const keyError = errors[`metadataLabel:${label.id}:key`];
-            const valueError = errors[`metadataLabel:${label.id}:value`];
-            const keyErrorID = `metadata-label-${label.id}-key-error`;
-            const valueErrorID = `metadata-label-${label.id}-value-error`;
-            return (
-              <div className="run-label-badge-field" key={label.id}>
-                <div
-                  className={`run-label-badge${label.value === "" ? " is-key-only" : ""}${keyError !== undefined || valueError !== undefined ? " has-error" : ""}`}
-                  onKeyDown={(event) => {
-                    if (
-                      event.key === "Enter" &&
-                      !event.nativeEvent.isComposing &&
-                      event.target instanceof HTMLInputElement
-                    ) {
-                      event.preventDefault();
-                      labelInputRef.current?.focus();
-                    }
-                  }}
-                >
-                  <label
-                    className="visually-hidden"
-                    htmlFor={`metadata-label-${label.id}-key`}
-                  >
-                    Run metadata label key {index + 1}
-                  </label>
-                  <input
-                    id={`metadata-label-${label.id}-key`}
-                    name={`metadata-label-key-${index + 1}`}
-                    type="text"
-                    autoComplete="off"
-                    spellCheck={false}
-                    placeholder="key"
-                    className="run-label-badge-key"
-                    style={{
-                      width: `calc(${Math.max(3, Math.min(24, label.key.length))}ch + 0.2rem)`,
-                    }}
-                    value={label.key}
-                    title={label.key}
-                    aria-invalid={keyError === undefined ? undefined : true}
-                    aria-describedby={
-                      keyError === undefined ? undefined : keyErrorID
-                    }
-                    onChange={(event) =>
-                      onChange(label.id, "key", event.target.value)
-                    }
-                  />
-                  <span
-                    className="run-label-badge-separator"
-                    aria-hidden="true"
-                  >
-                    :
-                  </span>
-                  <label
-                    className="visually-hidden"
-                    htmlFor={`metadata-label-${label.id}-value`}
-                  >
-                    Run metadata label value {index + 1}
-                  </label>
-                  <input
-                    id={`metadata-label-${label.id}-value`}
-                    name={`metadata-label-value-${index + 1}`}
-                    type="text"
-                    autoComplete="off"
-                    spellCheck={false}
-                    placeholder="value"
-                    className="run-label-badge-value"
-                    style={{
-                      width: `calc(${Math.max(5, Math.min(28, label.value.length))}ch + 0.2rem)`,
-                    }}
-                    value={label.value}
-                    title={label.value || "Optional value"}
-                    aria-invalid={valueError === undefined ? undefined : true}
-                    aria-describedby={
-                      valueError === undefined ? undefined : valueErrorID
-                    }
-                    onChange={(event) =>
-                      onChange(label.id, "value", event.target.value)
-                    }
-                  />
-                  <button
-                    className="run-label-badge-remove"
-                    type="button"
-                    aria-label={`Remove Run metadata label ${index + 1}`}
-                    onClick={() => onRemove(label.id)}
-                  >
-                    <span aria-hidden="true">×</span>
-                  </button>
-                </div>
-                {keyError === undefined ? null : (
-                  <p className="field-error" id={keyErrorID} role="alert">
-                    {keyError}
-                  </p>
-                )}
-                {valueError === undefined ? null : (
-                  <p className="field-error" id={valueErrorID} role="alert">
-                    {valueError}
-                  </p>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </fieldset>
-  );
-}
-
-function updateRecord(
-  source: Record<string, string>,
-  name: string,
-  value: string,
-): Record<string, string> {
-  if (value === "") {
-    const result = { ...source };
-    delete result[name];
-    return result;
-  }
-  return { ...source, [name]: value };
-}
-
-function ConsumerOverrides({
-  role,
-  value,
-  modelPolicies,
-  gateways,
-  credentials,
-  disabled = false,
-  onChange,
-}: {
-  role: "Planner" | "Workers";
-  value: ConsumerOverrideDraft;
-  modelPolicies: ConfigurationResource[];
-  gateways: ConfigurationResource[];
-  credentials: CredentialResource[];
-  disabled?: boolean;
-  onChange: (field: keyof ConsumerOverrideDraft, value: string) => void;
-}) {
-  const selectedModelKnown =
-    value.modelPolicy === "" ||
-    modelPolicies.some(
-      (resource) => configurationSelector(resource) === value.modelPolicy,
-    );
-  const selectedGatewayKnown =
-    value.llmGateway === "" ||
-    gateways.some(
-      (resource) => configurationSelector(resource) === value.llmGateway,
-    );
-  const selectedCredentialKnown =
-    value.credential === "" ||
-    value.credential === NO_CREDENTIAL_OVERRIDE ||
-    credentials.some(
-      (credential) => credential.credentialId === value.credential,
-    );
-  return (
-    <fieldset className="override-consumer" disabled={disabled}>
-      <legend>{role}</legend>
-      {disabled ? (
-        <p className="muted-copy">
-          This Workflow has no model-backed Planner selection to override.
-        </p>
-      ) : null}
-      <label>
-        Model policy
-        <select
-          value={value.modelPolicy}
-          onChange={(event) => onChange("modelPolicy", event.target.value)}
-        >
-          <option value="">Use Workflow default</option>
-          {selectedModelKnown ? null : (
-            <option value={value.modelPolicy}>
-              {value.modelPolicy} · retained selection not in loaded catalog
-            </option>
-          )}
-          {modelPolicies.map((resource) => (
-            <option
-              key={`${resource.ref.digest}-${configurationSelector(resource)}`}
-              value={configurationSelector(resource)}
-            >
-              {configurationSelector(resource)} · {resource.source}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        LLM Gateway
-        <select
-          value={value.llmGateway}
-          onChange={(event) => onChange("llmGateway", event.target.value)}
-        >
-          <option value="">Use Workflow default</option>
-          {selectedGatewayKnown ? null : (
-            <option value={value.llmGateway}>
-              {value.llmGateway} · retained selection not in loaded catalog
-            </option>
-          )}
-          {gateways.map((resource) => (
-            <option
-              key={`${resource.ref.digest}-${configurationSelector(resource)}`}
-              value={configurationSelector(resource)}
-            >
-              {configurationSelector(resource)} · {resource.source}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        Credential
-        <select
-          value={value.credential}
-          onChange={(event) => onChange("credential", event.target.value)}
-        >
-          <option value="">Use Workflow default</option>
-          <option value={NO_CREDENTIAL_OVERRIDE}>
-            Explicitly use no credential
-          </option>
-          {selectedCredentialKnown ? null : (
-            <option value={value.credential}>
-              {value.credential} · retained credential unavailable or not loaded
-            </option>
-          )}
-          {credentials.map((credential) => (
-            <option
-              key={credential.credentialId}
-              value={credential.credentialId}
-            >
-              {credential.credentialId}
-              {credential.label === undefined
-                ? ""
-                : ` · ${credential.label}`} · {credential.llmGateway.gatewayId}@
-              {credential.llmGateway.version}
-            </option>
-          ))}
-        </select>
-      </label>
-    </fieldset>
-  );
+interface WorkflowRunFormProps {
+  presentation?: "page" | "drawer";
+  onSubmittingChange?: (pending: boolean) => void;
+  workflow: WorkflowResource;
+  projectId?: string;
+  initialArtifactSelections?: Readonly<Record<string, string>>;
+  initialArtifacts?: readonly ArtifactMetadata[];
 }
 
 function RepeatRunReview({
@@ -500,7 +51,7 @@ function RepeatRunReview({
   onReviewed,
 }: {
   repeat: NonNullable<RunDraftState["repeat"]>;
-  error?: string;
+  error: string | undefined;
   onReviewed: (reviewed: boolean) => void;
 }) {
   return (
@@ -529,7 +80,8 @@ function RepeatRunReview({
         <ul className="run-repeat-notices">
           {repeat.notices.map((notice, index) => (
             <li
-              className={`run-repeat-notice is-${notice.severity}`}
+              className="run-repeat-notice"
+              data-severity={notice.severity}
               key={`${notice.code}:${notice.field ?? "none"}:${index}`}
             >
               <span>{notice.severity}</span>
@@ -560,15 +112,6 @@ function RepeatRunReview({
       )}
     </section>
   );
-}
-
-interface WorkflowRunFormProps {
-  presentation?: "page" | "drawer";
-  onSubmittingChange?: (pending: boolean) => void;
-  workflow: WorkflowResource;
-  projectId?: string;
-  initialArtifactSelections?: Readonly<Record<string, string>>;
-  initialArtifacts?: readonly ArtifactMetadata[];
 }
 
 function draftScopeLabel(draft: RunDraftSummary): string {
@@ -607,15 +150,13 @@ function RunDraftCapacity({
                   : ""}
               </small>
             </span>
-            <button
-              className="ui-btn"
-              data-variant="danger"
-              data-size="sm"
-              type="button"
+            <Button
+              variant="danger"
+              size="sm"
               onClick={() => onDiscard(draft.key)}
             >
               Discard this draft
-            </button>
+            </Button>
           </li>
         ))}
       </ul>
@@ -669,58 +210,14 @@ function WorkflowRunDraftBoundary(props: WorkflowRunFormProps) {
   );
 }
 
+/**
+ * The Run form of one exact Workflow version, standalone or in a Project.
+ * Its draft lives in the tab's draft store, so closing the sheet keeps it;
+ * a submission reuses one idempotency key while the request is unchanged.
+ */
 export function WorkflowRunForm(props: WorkflowRunFormProps) {
   const key = `${props.projectId ?? "standalone"}\u0000${props.workflow.ref.name}\u0000${props.workflow.ref.version}`;
   return <WorkflowRunDraftBoundary {...props} key={key} />;
-}
-
-function DiscardRunDraftDialog({
-  onClose,
-  onDiscard,
-}: {
-  onClose: () => void;
-  onDiscard: () => void;
-}) {
-  const heading = useId();
-  const safeAction = useRef<HTMLButtonElement>(null);
-  return (
-    <Dialog
-      className="project-dialog panel run-draft-discard-dialog"
-      labelledBy={heading}
-      initialFocusRef={safeAction}
-      onRequestClose={onClose}
-      role="alertdialog"
-    >
-      <DialogHeader
-        id={heading}
-        eyebrow="Unsaved Run setup"
-        title="Discard this Run draft?"
-        close={{ label: "Close discard confirmation", onClose: onClose }}
-      />
-      <p>
-        Parameters, input selections, labels, overrides and any ambiguous
-        submission identity in this tab will be removed.
-      </p>
-      <div className="run-draft-actions">
-        <button
-          ref={safeAction}
-          className="ui-btn"
-          type="button"
-          onClick={onClose}
-        >
-          Keep editing
-        </button>
-        <button
-          className="ui-btn"
-          data-variant="danger"
-          type="button"
-          onClick={onDiscard}
-        >
-          Discard Run draft
-        </button>
-      </div>
-    </Dialog>
-  );
 }
 
 function WorkflowRunFormBody({
@@ -737,28 +234,14 @@ function WorkflowRunFormBody({
   onDiscardDraft: () => void;
 }) {
   const api = usePublicAPI();
-  const navigate = useNavigate();
+  const navigate = useGuardedNavigate();
   const queryClient = useQueryClient();
-  const [gitSlot, setGitSlot] = useState<string | null>(null);
-  const [uploadSlot, setUploadSlot] = useState<string | null>(null);
+  const state = useRunDraftState(draftEntry, draftStore);
+  const { draft, errors, setErrors, clearError, change } = state;
   const [discardRequested, setDiscardRequested] = useState(false);
-  const [draft, setDraft] = useState<RunDraftState>(() =>
-    structuredClone(draftEntry.state),
-  );
   const [ambiguousSubmission, setAmbiguousSubmission] = useState(
     draftEntry.ambiguousSubmission,
   );
-  const metadataLabelSequence = useRef(
-    Math.max(
-      0,
-      ...draft.metadataLabels.map(
-        (label) => Number.parseInt(label.id, 10) || 0,
-      ),
-    ),
-  );
-  const [validationErrors, setValidationErrors] = useState<
-    Record<string, string>
-  >({});
   const [optionalParametersOpen, setOptionalParametersOpen] = useState(() =>
     Object.entries(workflow.parameters).some(
       ([name, slot]) => !slot.required && draft.parameters[name] !== undefined,
@@ -776,265 +259,40 @@ function WorkflowRunFormBody({
   );
   const [executionOptionsOpen, setExecutionOptionsOpen] = useState(
     () =>
-      draft.overrides.planner.modelPolicy !== "" ||
-      draft.overrides.planner.llmGateway !== "" ||
-      draft.overrides.planner.credential !== "" ||
-      draft.overrides.workers.modelPolicy !== "" ||
-      draft.overrides.workers.llmGateway !== "" ||
-      draft.overrides.workers.credential !== "" ||
+      Object.values(draft.overrides.planner).some((value) => value !== "") ||
+      Object.values(draft.overrides.workers).some((value) => value !== "") ||
       Object.keys(draft.overrides.stages ?? {}).length > 0 ||
       draft.repeat?.notices.some(
         (notice) => notice.field === "executionConfig",
       ) === true,
   );
-  const {
-    parameters,
-    runtimeLabels: selectedRuntimeLabels,
-    metadataLabels,
-    metadataLabelInput,
-    artifactSelections,
-    artifactSuggestions,
-    artifactReviews,
-    knownArtifacts,
-    overrides,
-  } = draft;
+  const inventories = useRunFormInventories({
+    projectId,
+    knownArtifacts: draft.knownArtifacts,
+    executionOptionsOpen,
+    runtimeOptionsOpen,
+  });
+  const { artifactInventory, artifactMap } = inventories;
   const keyring = draftEntry.keyring;
-  // Artifacts are files in the Library and materials in a Project (§3).
-  const inputNoun = projectId === undefined ? "file" : "material";
-  const inputNouns = projectId === undefined ? "files" : "materials";
+  const keyScope =
+    projectId === undefined ? "standalone" : `project:${projectId}`;
 
-  useEffect(() => {
-    draftStore.retain(draftEntry);
-    return () => draftStore.release(draftEntry);
-  }, [draftEntry, draftStore]);
-
-  function updateDraft(
-    update: (current: RunDraftState) => RunDraftState,
-  ): void {
-    if (!draftStore.isCurrent(draftEntry)) return;
-    const next = update(structuredClone(draftEntry.state));
-    if (draftStore.replaceState(draftEntry, next)) {
-      setDraft(next);
-    }
+  function validate() {
+    return validateRunDraft(
+      workflow,
+      {
+        runtimeLabels: draft.runtimeLabels,
+        metadataLabels: draft.metadataLabels,
+        parameters: draft.parameters,
+        artifacts: draft.artifactSelections,
+        artifactReviews: draft.artifactReviews,
+        overrides: draft.overrides,
+      },
+      artifactMap,
+    );
   }
+  const currentValidation = validate();
 
-  function setParameters(
-    update: (
-      current: Record<string, string | undefined>,
-    ) => Record<string, string | undefined>,
-  ): void {
-    updateDraft((current) => ({
-      ...current,
-      parameters: update(current.parameters),
-    }));
-  }
-
-  function setSelectedRuntimeLabels(
-    update: (current: string[]) => string[],
-  ): void {
-    updateDraft((current) => ({
-      ...current,
-      runtimeLabels: update(current.runtimeLabels),
-    }));
-  }
-
-  function setMetadataLabels(
-    update: (current: RunMetadataLabelDraft[]) => RunMetadataLabelDraft[],
-  ): void {
-    updateDraft((current) => ({
-      ...current,
-      metadataLabels: update(current.metadataLabels),
-    }));
-  }
-
-  function setMetadataLabelInput(value: string): void {
-    updateDraft((current) => ({
-      ...current,
-      metadataLabelInput: value,
-    }));
-  }
-
-  function setOverrides(
-    update: (current: ExecutionOverrideDraft) => ExecutionOverrideDraft,
-  ): void {
-    updateDraft((current) => ({
-      ...current,
-      overrides: update(current.overrides),
-    }));
-  }
-
-  function setRepeatReviewed(reviewed: boolean): void {
-    updateDraft((current) => ({
-      ...current,
-      ...(current.repeat === undefined
-        ? {}
-        : { repeat: { ...current.repeat, reviewed } }),
-    }));
-    if (reviewed) clearError("repeatReview");
-  }
-
-  function selectArtifact(
-    slot: string,
-    selected: string,
-    metadata?: ArtifactMetadata,
-  ): void {
-    updateDraft((current) => {
-      const known =
-        metadata === undefined
-          ? current.knownArtifacts
-          : [
-              ...current.knownArtifacts.filter(
-                (candidate) =>
-                  artifactOptionKey(candidate.artifact) !== selected,
-              ),
-              metadata,
-            ];
-      return {
-        ...current,
-        artifactSelections: updateRecord(
-          current.artifactSelections,
-          slot,
-          selected,
-        ),
-        artifactReviews: updateRecord(current.artifactReviews, slot, selected),
-        knownArtifacts: known,
-      };
-    });
-    clearError(`artifact:${slot}`);
-    clearError(`artifactReview:${slot}`);
-  }
-
-  function confirmArtifact(slot: string): void {
-    const selected = artifactSelections[slot];
-    if (selected === undefined || selected === "") return;
-    updateDraft((current) => ({
-      ...current,
-      artifactReviews: { ...current.artifactReviews, [slot]: selected },
-    }));
-    clearError(`artifactReview:${slot}`);
-  }
-
-  const artifactInventory = useInfiniteQuery({
-    queryKey:
-      projectId === undefined
-        ? queryKeys.artifacts.picker
-        : queryKeys.projects.artifacts.picker(projectId),
-    initialPageParam: INITIAL_CURSOR as string | null,
-    queryFn: ({ pageParam }) =>
-      projectId === undefined
-        ? listArtifacts(api, pageParam === null ? {} : { cursor: pageParam })
-        : listProjectArtifacts(api, {
-            projectId,
-            ...(pageParam === null ? {} : { cursor: pageParam }),
-          }),
-    getNextPageParam: (page) => nextPageCursor(page.page),
-  });
-  const modelPolicyInventory = useInfiniteQuery({
-    queryKey: queryKeys.configurations.infinitePicker("model-policies"),
-    initialPageParam: INITIAL_CURSOR as string | null,
-    queryFn: ({ pageParam }) =>
-      listConfigurations(
-        api,
-        "model-policies",
-        pageParam === null ? {} : { cursor: pageParam },
-      ),
-    getNextPageParam: (page) => nextPageCursor(page.page),
-    enabled: executionOptionsOpen,
-  });
-  const gatewayInventory = useInfiniteQuery({
-    queryKey: queryKeys.configurations.infinitePicker("llm-gateways"),
-    initialPageParam: INITIAL_CURSOR as string | null,
-    queryFn: ({ pageParam }) =>
-      listConfigurations(
-        api,
-        "llm-gateways",
-        pageParam === null ? {} : { cursor: pageParam },
-      ),
-    getNextPageParam: (page) => nextPageCursor(page.page),
-    enabled: executionOptionsOpen,
-  });
-  const credentialInventory = useInfiniteQuery({
-    queryKey: queryKeys.credentials.picker,
-    initialPageParam: INITIAL_CURSOR as string | null,
-    queryFn: ({ pageParam }) =>
-      listCredentials(api, pageParam === null ? {} : { cursor: pageParam }),
-    getNextPageParam: (page) => nextPageCursor(page.page),
-    enabled: executionOptionsOpen,
-  });
-  const runtimeLabelInventory = useInfiniteQuery({
-    queryKey: queryKeys.operations.runtimeLabels.picker,
-    initialPageParam: INITIAL_CURSOR as string | null,
-    queryFn: ({ pageParam }) =>
-      listRuntimeLabels(api, pageParam === null ? {} : { cursor: pageParam }),
-    getNextPageParam: (page) => nextPageCursor(page.page),
-    enabled: runtimeOptionsOpen,
-  });
-
-  const artifacts = useMemo(
-    () =>
-      Array.from(
-        new Map(
-          [
-            ...(artifactInventory.data?.pages.flatMap((page) => page.items) ??
-              []),
-            ...knownArtifacts,
-          ].map((item) => [artifactOptionKey(item.artifact), item]),
-        ).values(),
-      ),
-    [artifactInventory.data, knownArtifacts],
-  );
-  const artifactMap = useMemo(
-    () =>
-      new Map(
-        artifacts.map((metadata) => [
-          artifactOptionKey(metadata.artifact),
-          metadata,
-        ]),
-      ),
-    [artifacts],
-  );
-  const modelPolicies = useMemo(
-    () => modelPolicyInventory.data?.pages.flatMap((page) => page.items) ?? [],
-    [modelPolicyInventory.data],
-  );
-  const gateways = useMemo(
-    () => gatewayInventory.data?.pages.flatMap((page) => page.items) ?? [],
-    [gatewayInventory.data],
-  );
-  const credentials = useMemo(
-    () => credentialInventory.data?.pages.flatMap((page) => page.items) ?? [],
-    [credentialInventory.data],
-  );
-  const runtimeLabels = useMemo(
-    () =>
-      (runtimeLabelInventory.data?.pages.flatMap((page) => page.items) ?? [])
-        .filter((binding) => binding.label !== "default")
-        .sort((left, right) => left.label.localeCompare(right.label)),
-    [runtimeLabelInventory.data],
-  );
-  const retainedRuntimeLabels = useMemo(() => {
-    const visible = new Set(runtimeLabels.map((binding) => binding.label));
-    return selectedRuntimeLabels.filter((label) => !visible.has(label));
-  }, [runtimeLabels, selectedRuntimeLabels]);
-  const defaultRuntimeConfig = useMemo(
-    () =>
-      runtimeLabelInventory.data?.pages
-        .flatMap((page) => page.items)
-        .find((binding) => binding.label === "default"),
-    [runtimeLabelInventory.data],
-  );
-  const currentValidation = validateRunDraft(
-    workflow,
-    {
-      runtimeLabels: selectedRuntimeLabels,
-      metadataLabels,
-      parameters,
-      artifacts: artifactSelections,
-      artifactReviews,
-      overrides,
-    },
-    artifactMap,
-  );
   const mutation = useMutation({
     mutationFn: ({
       request,
@@ -1076,124 +334,22 @@ function WorkflowRunFormBody({
     onSubmittingChange?.(mutation.isPending);
   }, [mutation.isPending, onSubmittingChange]);
 
-  function clearError(key: string): void {
-    setValidationErrors((current) => {
-      if (!(key in current)) {
-        return current;
-      }
-      const result = { ...current };
-      delete result[key];
-      return result;
-    });
-  }
-
-  function clearMetadataLabelErrors(): void {
-    setValidationErrors((current) =>
-      Object.fromEntries(
-        Object.entries(current).filter(
-          ([key]) =>
-            key !== "metadataLabels" && !key.startsWith("metadataLabel:"),
-        ),
-      ),
-    );
-  }
-
-  function newMetadataLabel(key = "", value = ""): RunMetadataLabelDraft {
-    metadataLabelSequence.current += 1;
-    return {
-      id: String(metadataLabelSequence.current),
-      key,
-      value,
-    };
-  }
-
-  function addMetadataLabel(key = "", value = ""): void {
-    if (metadataLabels.length >= RUN_METADATA_LABEL_LIMIT) {
-      setValidationErrors((current) => ({
-        ...current,
-        metadataLabels: `A Run can have at most ${RUN_METADATA_LABEL_LIMIT} metadata labels.`,
-      }));
-      return;
-    }
-    const label = newMetadataLabel(key, value);
-    setMetadataLabels((current) => [...current, label]);
-    clearMetadataLabelErrors();
-  }
-
-  function addEvalMetadataPreset(): void {
-    const existingKeys = new Set(metadataLabels.map((label) => label.key));
-    const missing = EVAL_METADATA_PRESET.filter(
-      (label) => !existingKeys.has(label.key),
-    );
-    if (metadataLabels.length + missing.length > RUN_METADATA_LABEL_LIMIT) {
-      setValidationErrors((current) => ({
-        ...current,
-        metadataLabels: `The eval preset would exceed ${RUN_METADATA_LABEL_LIMIT} metadata labels.`,
-      }));
-      return;
-    }
-    const additions = missing.map((label) =>
-      newMetadataLabel(label.key, label.value),
-    );
-    setMetadataLabels((current) => [...current, ...additions]);
-    clearMetadataLabelErrors();
-  }
-
-  function updateMetadataLabel(
-    id: string,
-    field: "key" | "value",
-    value: string,
-  ): void {
-    setMetadataLabels((current) =>
-      current.map((label) =>
-        label.id === id ? { ...label, [field]: value } : label,
-      ),
-    );
-    clearMetadataLabelErrors();
-  }
-
-  function removeMetadataLabel(id: string): void {
-    setMetadataLabels((current) => current.filter((label) => label.id !== id));
-    clearMetadataLabelErrors();
-  }
-
-  function updateOverride(
-    role: "planner" | "workers",
-    field: keyof ConsumerOverrideDraft,
-    value: string,
-  ): void {
-    setOverrides((current) => ({
-      ...current,
-      [role]: { ...current[role], [field]: value },
-    }));
-  }
-
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
     if (mutation.isPending) return;
     mutation.reset();
     if (draft.repeat !== undefined && !draft.repeat.reviewed) {
-      setValidationErrors((current) => ({
+      setErrors((current) => ({
         ...current,
         repeatReview:
           "Review and confirm the retained values before creating another Run.",
       }));
       return;
     }
-    const validation = validateRunDraft(
-      workflow,
-      {
-        runtimeLabels: selectedRuntimeLabels,
-        metadataLabels,
-        parameters,
-        artifacts: artifactSelections,
-        artifactReviews,
-        overrides,
-      },
-      artifactMap,
-    );
-    setValidationErrors(validation.errors);
+    const validation = validate();
+    setErrors(validation.errors);
     if (validation.request === undefined) {
+      // Open the disclosures that hold an invalid value.
       const errorKeys = Object.keys(validation.errors);
       if (
         Object.entries(workflow.parameters).some(
@@ -1214,17 +370,11 @@ function WorkflowRunFormBody({
       }
       return;
     }
-    const idempotencyKey = keyring.keyFor(
-      validation.request,
-      projectId === undefined ? "standalone" : `project:${projectId}`,
-    );
+    const idempotencyKey = keyring.keyFor(validation.request, keyScope);
     draftStore.markSubmitted(draftEntry);
     draftStore.setAmbiguousSubmission(draftEntry, false);
     setAmbiguousSubmission(false);
-    mutation.mutate({
-      request: validation.request,
-      idempotencyKey,
-    });
+    mutation.mutate({ request: validation.request, idempotencyKey });
   }
 
   const responseLost =
@@ -1232,178 +382,34 @@ function WorkflowRunFormBody({
     (mutation.error instanceof PublicAPIError && mutation.error.status === 0);
   const exactRetry =
     currentValidation.request !== undefined &&
-    keyring.matches(
-      currentValidation.request,
-      projectId === undefined ? "standalone" : `project:${projectId}`,
-    );
-  const plannerSupported = Object.values(workflow.stages).some(
-    (stage) => stage.executionConfig.planner !== undefined,
-  );
-  const inventoryErrors = [
-    modelPolicyInventory.error,
-    gatewayInventory.error,
-    credentialInventory.error,
-  ].filter((error) => error !== null);
-  const requiredParameterNames = Object.entries(workflow.parameters)
-    .filter(([, slot]) => slot.required)
-    .map(([name]) => name);
-  const requiredArtifactNames = Object.entries(workflow.inputs)
-    .filter(([, slot]) => slot.required)
-    .map(([name]) => name);
-  const requiredFieldCount =
-    requiredParameterNames.length + requiredArtifactNames.length;
-  const completedRequiredFieldCount =
-    requiredParameterNames.filter((name) => parameters[name] !== undefined)
-      .length +
-    requiredArtifactNames.filter(
-      (name) => (artifactSelections[name] ?? "") !== "",
-    ).length;
-  const remainingRequiredFieldCount = Math.max(
-    0,
-    requiredFieldCount - completedRequiredFieldCount,
-  );
-  const reviewRequiredNames = Object.keys(workflow.inputs).filter((name) => {
-    const selected = artifactSelections[name] ?? "";
-    return selected !== "" && artifactReviews[name] !== selected;
+    keyring.matches(currentValidation.request, keyScope);
+  const readiness = runDraftReadiness({
+    workflow,
+    draft,
+    valid: currentValidation.request !== undefined,
+    artifactsPending: artifactInventory.isPending,
+    inputNoun: projectId === undefined ? "file" : "material",
   });
-  const repeatReviewPending =
-    draft.repeat !== undefined && !draft.repeat.reviewed;
-  const draftReady =
-    currentValidation.request !== undefined &&
-    !artifactInventory.isPending &&
-    !repeatReviewPending;
-  const consumerOverrideCount = (selection: ConsumerOverrideDraft): number =>
-    Object.values(selection).filter((value) => value !== "").length;
-  const stageOverrideCount = Object.keys(overrides.stages ?? {}).length;
-  const overrideCount =
-    consumerOverrideCount(overrides.planner) +
-    consumerOverrideCount(overrides.workers) +
-    stageOverrideCount;
-  const readinessValue = draftReady
-    ? "Ready"
-    : remainingRequiredFieldCount === 0 && reviewRequiredNames.length > 0
-      ? `Review ${reviewRequiredNames.length}`
-      : requiredFieldCount === 0
-        ? "Defaults"
-        : `${completedRequiredFieldCount}/${requiredFieldCount}`;
-  const readinessCopy = draftReady
-    ? "Fields complete · inputs reviewed"
-    : repeatReviewPending
-      ? "Review retained values for this new Run"
-      : artifactInventory.isPending && requiredArtifactNames.length > 0
-        ? `Loading ${inputNoun} choices…`
-        : remainingRequiredFieldCount > 0
-          ? `${remainingRequiredFieldCount} required ${remainingRequiredFieldCount === 1 ? "field" : "fields"} remaining`
-          : reviewRequiredNames.length > 0
-            ? `Fields complete · ${reviewRequiredNames.length} input ${reviewRequiredNames.length === 1 ? "review" : "reviews"} needed`
-            : "Review highlighted settings";
-  const readinessTone: StatusTone = draftReady
-    ? "success"
-    : remainingRequiredFieldCount === 0 && reviewRequiredNames.length > 0
-      ? "review"
-      : requiredFieldCount === 0
-        ? "neutral"
-        : "idle";
-
-  function renderParameters(
-    slots: [string, WorkflowResource["parameters"][string]][],
-    title: string,
-  ) {
-    return (
-      <fieldset className="run-draft-section">
-        <legend>{title}</legend>
-        {slots.length === 0 ? (
-          <p className="compact-empty">This Workflow declares no parameters.</p>
-        ) : (
-          <div className="run-field-grid">
-            {slots
-              .sort(([left], [right]) => left.localeCompare(right))
-              .map(([name, slot]) => {
-                const error = validationErrors[`parameter:${name}`];
-                const included = parameters[name] !== undefined;
-                const Field = ["objective", "authorization_scope"].includes(
-                  name,
-                )
-                  ? "textarea"
-                  : "input";
-                const hint =
-                  name === "authorization_scope"
-                    ? "Allowed systems, actions, test accounts and exclusions"
-                    : name === "objective"
-                      ? "What should this Run produce or verify?"
-                      : name === "target"
-                        ? "For example, https://app.example.test"
-                        : undefined;
-                return (
-                  <div className="run-field" key={name}>
-                    {!slot.required ? (
-                      <label className="run-field-check">
-                        <input
-                          type="checkbox"
-                          checked={included}
-                          onChange={(event) => {
-                            setParameters((current) => ({
-                              ...current,
-                              [name]: event.target.checked ? "" : undefined,
-                            }));
-                            clearError(`parameter:${name}`);
-                          }}
-                        />
-                        Include optional <code>{name}</code>
-                      </label>
-                    ) : null}
-                    <label>
-                      <span>
-                        {name.replaceAll("_", " ")}{" "}
-                        {slot.required ? <strong>required</strong> : null}
-                        {name.includes("_") ? <small> ({name})</small> : null}
-                      </span>
-                      <Field
-                        name={`parameter-${name}`}
-                        {...(Field === "textarea"
-                          ? { rows: 3 }
-                          : { type: "text" })}
-                        placeholder={hint}
-                        disabled={!slot.required && !included}
-                        value={parameters[name] ?? ""}
-                        aria-invalid={error === undefined ? undefined : true}
-                        aria-describedby={
-                          error === undefined
-                            ? undefined
-                            : `parameter-${name}-error`
-                        }
-                        onChange={(event) => {
-                          setParameters((current) => ({
-                            ...current,
-                            [name]: event.target.value,
-                          }));
-                          clearError(`parameter:${name}`);
-                        }}
-                      />
-                    </label>
-                    {error === undefined ? null : (
-                      <p
-                        className="field-error"
-                        id={`parameter-${name}-error`}
-                        role="alert"
-                      >
-                        {error}
-                      </p>
-                    )}
-                  </div>
-                );
-              })}
-          </div>
-        )}
-      </fieldset>
-    );
-  }
-
   const parameterSlots = Object.entries(workflow.parameters);
   const requiredParameters = parameterSlots.filter(([, slot]) => slot.required);
   const optionalParameters = parameterSlots.filter(
     ([, slot]) => !slot.required,
   );
+
+  function parameterFields(slots: typeof parameterSlots, title: string) {
+    return (
+      <ParameterFields
+        slots={slots}
+        title={title}
+        parameters={draft.parameters}
+        errors={errors}
+        onChange={(name, value) => {
+          change("parameters", (current) => ({ ...current, [name]: value }));
+          clearError(`parameter:${name}`);
+        }}
+      />
+    );
+  }
 
   return (
     <form
@@ -1412,61 +418,22 @@ function WorkflowRunFormBody({
       onSubmit={submit}
       noValidate
     >
-      {gitSlot === null ? null : (
-        <GitImportDialog
-          {...(projectId === undefined ? {} : { projectId })}
-          suggestedName={gitSlot}
-          onClose={() => setGitSlot(null)}
-          onImported={(result) => {
-            if (!draftStore.isCurrent(draftEntry)) return;
-            const metadata: ArtifactMetadata = {
-              artifact: result.artifact,
-              mediaType: result.mediaType,
-              size: result.size,
-              gitSource: result.gitSource,
-              current: true,
-              frozen: false,
-              createdAt: result.gitSource.importedAt,
-            };
-            selectArtifact(
-              gitSlot,
-              artifactOptionKey(result.artifact),
-              metadata,
-            );
-            setGitSlot(null);
-          }}
-        />
-      )}
-      {uploadSlot === null ? null : (
-        <RunInputUploadDialog
-          {...(projectId === undefined ? {} : { projectId })}
-          slotName={uploadSlot}
-          mediaTypes={workflow.inputs[uploadSlot]?.mediaTypes ?? []}
-          onClose={() => setUploadSlot(null)}
-          onUploaded={(result) => {
-            if (!draftStore.isCurrent(draftEntry)) return;
-            const metadata: ArtifactMetadata = {
-              artifact: result.artifact,
-              mediaType: result.mediaType,
-              size: result.size,
-              current: true,
-              frozen: false,
-              createdAt: new Date().toISOString(),
-            };
-            selectArtifact(
-              uploadSlot,
-              artifactOptionKey(result.artifact),
-              metadata,
-            );
-            setUploadSlot(null);
-          }}
-        />
-      )}
       {discardRequested ? (
-        <DiscardRunDraftDialog
-          onClose={() => setDiscardRequested(false)}
-          onDiscard={onDiscardDraft}
-        />
+        <AlertDialog
+          className="run-draft-discard-dialog"
+          eyebrow="Unsaved Run setup"
+          title="Discard this Run draft?"
+          closeLabel="Close discard confirmation"
+          cancelLabel="Keep editing"
+          confirmLabel="Discard Run draft"
+          onCancel={() => setDiscardRequested(false)}
+          onConfirm={onDiscardDraft}
+        >
+          <p>
+            Parameters, input selections, labels, overrides and any ambiguous
+            submission identity in this tab will be removed.
+          </p>
+        </AlertDialog>
       ) : null}
       {presentation === "page" ? (
         <div className="run-draft-heading">
@@ -1486,284 +453,46 @@ function WorkflowRunFormBody({
             </code>
           </div>
           <span className="run-draft-readiness" aria-live="polite">
-            <StatusChip tone={readinessTone}>{readinessValue}</StatusChip>
-            <small>{readinessCopy}</small>
+            <StatusChip tone={readiness.tone}>{readiness.value}</StatusChip>
+            <small>{readiness.copy}</small>
           </span>
         </div>
       ) : (
         <p className="run-draft-readiness is-inline" aria-live="polite">
-          <StatusChip tone={readinessTone} size="sm">
-            {readinessValue}
+          <StatusChip tone={readiness.tone} size="sm">
+            {readiness.value}
           </StatusChip>
-          <span>{readinessCopy}</span>
+          <span>{readiness.copy}</span>
         </p>
       )}
 
       {draft.repeat === undefined ? null : (
         <RepeatRunReview
           repeat={draft.repeat}
-          {...(validationErrors.repeatReview === undefined
-            ? {}
-            : { error: validationErrors.repeatReview })}
-          onReviewed={setRepeatReviewed}
+          error={errors.repeatReview}
+          onReviewed={state.setRepeatReviewed}
         />
       )}
 
       {presentation === "page"
-        ? renderParameters(parameterSlots, "String parameters")
+        ? parameterFields(parameterSlots, "String parameters")
         : null}
 
-      <fieldset className="run-draft-section">
-        <legend>
-          {projectId === undefined ? "Input files" : "Input materials"}
-        </legend>
-        {artifactInventory.error === null ? null : (
-          <ErrorNotice error={artifactInventory.error} />
-        )}
-        {Object.entries(workflow.inputs).length === 0 ? (
-          <p className="run-draft-empty">
-            This Workflow declares no input {inputNouns}.
-          </p>
-        ) : (
-          <div className="run-field-grid">
-            {Object.entries(workflow.inputs)
-              .sort(
-                ([left, leftSlot], [right, rightSlot]) =>
-                  (presentation === "drawer"
-                    ? Number(rightSlot.required) - Number(leftSlot.required)
-                    : 0) || left.localeCompare(right),
-              )
-              .map(([name, slot]) => {
-                const artifactError = validationErrors[`artifact:${name}`];
-                const reviewError = validationErrors[`artifactReview:${name}`];
-                const compatible = artifacts.filter((metadata) =>
-                  artifactAccepts(slot.mediaTypes, metadata),
-                );
-                const selected = artifactSelections[name] ?? "";
-                const selectedMetadata = artifactMap.get(selected);
-                const reviewed =
-                  selected !== "" && artifactReviews[name] === selected;
-                const suggested =
-                  selected !== "" && artifactSuggestions[name] === selected;
-                const needsReview = selected !== "" && !reviewed;
-                const describedBy = [
-                  artifactError === undefined
-                    ? undefined
-                    : `artifact-${name}-error`,
-                  reviewError === undefined
-                    ? undefined
-                    : `artifact-${name}-review-error`,
-                ]
-                  .filter((value) => value !== undefined)
-                  .join(" ");
-                return (
-                  <div className="run-field" key={name}>
-                    <label>
-                      <span>
-                        {name.replaceAll("_", " ")}{" "}
-                        {slot.required ? <strong>required</strong> : null}
-                        {name.includes("_") ? <small> ({name})</small> : null}
-                      </span>
-                      <select
-                        name={`artifact-${name}`}
-                        value={selected}
-                        disabled={artifactInventory.isPending}
-                        aria-invalid={
-                          artifactError === undefined &&
-                          reviewError === undefined
-                            ? undefined
-                            : true
-                        }
-                        aria-describedby={
-                          describedBy === "" ? undefined : describedBy
-                        }
-                        onChange={(event) => {
-                          const exactRef = event.target.value;
-                          selectArtifact(
-                            name,
-                            exactRef,
-                            artifactMap.get(exactRef),
-                          );
-                        }}
-                      >
-                        <option value="">
-                          {slot.required
-                            ? "Select a revision"
-                            : `No ${inputNoun} supplied`}
-                        </option>
-                        {compatible.map((metadata) => (
-                          <option
-                            key={artifactOptionKey(metadata.artifact)}
-                            value={artifactOptionKey(metadata.artifact)}
-                          >
-                            {artifactLabel(metadata)}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <small>
-                      Slot <code>{name}</code> accepts{" "}
-                      {slot.mediaTypes.join(", ")}. A format match does not
-                      check what the {inputNoun} contains.
-                    </small>
-                    {selectedMetadata === undefined ? null : (
-                      <section
-                        className={`run-input-review${needsReview ? " needs-review" : " is-reviewed"}`}
-                        aria-label={`Input review for ${name}`}
-                      >
-                        <div className="run-input-review-heading">
-                          <span>
-                            <small>
-                              {needsReview && suggested
-                                ? "Format-compatible suggestion"
-                                : reviewed
-                                  ? "Reviewed selection"
-                                  : "Selection"}
-                            </small>
-                            <code>{selected}</code>
-                          </span>
-                          <StatusChip
-                            tone={reviewed ? "success" : "review"}
-                            size="sm"
-                          >
-                            {reviewed ? "Confirmed" : "Review needed"}
-                          </StatusChip>
-                        </div>
-                        <dl className="run-input-review-facts">
-                          <div>
-                            <dt>Scope</dt>
-                            <dd>
-                              {projectId === undefined
-                                ? "Your library"
-                                : `Project · ${projectId}`}
-                            </dd>
-                          </div>
-                          <div>
-                            <dt>Stored type</dt>
-                            <dd>{selectedMetadata.mediaType}</dd>
-                          </div>
-                          <div>
-                            <dt>Size</dt>
-                            <dd>{formatBytes(selectedMetadata.size)}</dd>
-                          </div>
-                          <div>
-                            <dt>Provenance</dt>
-                            <dd>
-                              {selectedMetadata.gitSource === undefined
-                                ? `Stored · ${formatTimestamp(selectedMetadata.createdAt)}`
-                                : `Git import · ${formatTimestamp(selectedMetadata.gitSource.importedAt)}`}
-                            </dd>
-                          </div>
-                        </dl>
-                        <p>
-                          {needsReview && suggested
-                            ? `Suggested only because ${selectedMetadata.mediaType} matches this slot. Confirm that this revision is the intended ${name} input.`
-                            : reviewed
-                              ? `Confirmed for ${name}. This records your selection, not a validation of its contents.`
-                              : `Review this revision before using it as ${name}.`}
-                        </p>
-                        <div className="run-input-review-actions">
-                          {needsReview ? (
-                            <button
-                              className="ui-btn"
-                              data-size="sm"
-                              type="button"
-                              onClick={() => confirmArtifact(name)}
-                            >
-                              Confirm input for {name}
-                            </button>
-                          ) : null}
-                          <Link
-                            to={artifactDetailPath(
-                              projectId === undefined
-                                ? { kind: "user" }
-                                : { kind: "project", id: projectId },
-                              selectedMetadata.artifact,
-                            )}
-                          >
-                            Preview {inputNoun} details
-                          </Link>
-                        </div>
-                      </section>
-                    )}
-                    <div className="run-field-actions">
-                      <button
-                        className="ui-btn"
-                        data-size="sm"
-                        type="button"
-                        onClick={() => setUploadSlot(name)}
-                      >
-                        Upload local file for {name}
-                      </button>
-                      {slot.mediaTypes.some((type) =>
-                        ["application/zip", "*/*"].includes(type),
-                      ) ? (
-                        <button
-                          className="ui-btn git-import-icon-button"
-                          data-size="sm"
-                          type="button"
-                          aria-label={`Import Git for ${name}`}
-                          title={`Import Git repository for ${name}`}
-                          onClick={() => setGitSlot(name)}
-                        >
-                          <GitRepositoryIcon />
-                        </button>
-                      ) : null}
-                    </div>
-                    <GitSourceDetails
-                      source={
-                        artifactMap.get(artifactSelections[name] ?? "")
-                          ?.gitSource
-                      }
-                    />
-                    {artifactError === undefined ? null : (
-                      <p
-                        className="field-error"
-                        id={`artifact-${name}-error`}
-                        role="alert"
-                      >
-                        {artifactError}
-                      </p>
-                    )}
-                    {reviewError === undefined ? null : (
-                      <p
-                        className="field-error"
-                        id={`artifact-${name}-review-error`}
-                        role="alert"
-                      >
-                        {reviewError}
-                      </p>
-                    )}
-                    {!artifactInventory.isPending && compatible.length === 0 ? (
-                      <p className="field-guidance">
-                        No matching {inputNouns} found in the loaded list.{" "}
-                        <Link
-                          to={
-                            projectId === undefined
-                              ? "/artifacts"
-                              : `/projects/${encodeURIComponent(projectId)}/artifacts`
-                          }
-                        >
-                          Upload one
-                        </Link>
-                        .
-                      </p>
-                    ) : null}
-                  </div>
-                );
-              })}
-          </div>
-        )}
-        <LoadMoreButton
-          query={artifactInventory}
-          label={`Load more ${inputNouns}`}
-          pendingLabel={`Loading ${inputNouns}…`}
-        />
-      </fieldset>
+      <InputFields
+        workflow={workflow}
+        presentation={presentation}
+        projectId={projectId}
+        draft={draft}
+        errors={errors}
+        inventories={inventories}
+        isCurrent={() => draftStore.isCurrent(draftEntry)}
+        onSelect={state.selectArtifact}
+        onConfirm={state.confirmArtifact}
+      />
       {presentation === "drawer" ? (
         <>
           {requiredParameters.length > 0
-            ? renderParameters(requiredParameters, "Required parameters")
+            ? parameterFields(requiredParameters, "Required parameters")
             : null}
           {optionalParameters.length > 0 ? (
             <details
@@ -1782,7 +511,7 @@ function WorkflowRunFormBody({
                   {optionalParameters.length}
                 </span>
               </summary>
-              {renderParameters(optionalParameters, "Optional strings")}
+              {parameterFields(optionalParameters, "Optional strings")}
             </details>
           ) : null}
         </>
@@ -1799,257 +528,42 @@ function WorkflowRunFormBody({
         </p>
       </div>
 
-      <details
-        className="run-draft-disclosure"
+      <RuntimePlacement
+        selected={draft.runtimeLabels}
+        errors={errors}
+        inventories={inventories}
         open={runtimeOptionsOpen}
-        onToggle={(event) => setRuntimeOptionsOpen(event.currentTarget.open)}
-      >
-        <summary>
-          <DraftDisclosureSummary
-            title="Runtime placement"
-            description="Published default is always applied"
-            status={
-              runtimeLabelInventory.error !== null
-                ? "Unavailable"
-                : runtimeOptionsOpen && runtimeLabelInventory.isPending
-                  ? "Loading…"
-                  : selectedRuntimeLabels.length === 0
-                    ? "Default only"
-                    : `${selectedRuntimeLabels.length} selected`
-            }
-            active={selectedRuntimeLabels.length > 0}
-          />
-        </summary>
-        <fieldset
-          className="run-draft-section runtime-label-picker"
-          aria-label="Runtime infrastructure labels"
-        >
-          <p className="muted-copy">
-            Default is always applied; explicit labels configure infrastructure,
-            not Workflow behavior or model budgets.
-          </p>
-          {runtimeLabelInventory.error === null ? null : (
-            <ErrorNotice error={runtimeLabelInventory.error} />
-          )}
-          <div className="run-runtime-default">
-            <strong>Default · always applied</strong>
-            {defaultRuntimeConfig === undefined ? (
-              <span className="muted-copy">Loading binding…</span>
-            ) : (
-              <RuntimeLabelPreview binding={defaultRuntimeConfig} />
-            )}
-          </div>
-          {runtimeLabels.length === 0 &&
-          retainedRuntimeLabels.length === 0 &&
-          !runtimeLabelInventory.isPending ? (
-            <p className="compact-empty">
-              No explicit Runtime labels are bound.
-            </p>
-          ) : (
-            <div className="runtime-label-options">
-              {retainedRuntimeLabels.map((label) => (
-                <label
-                  className="runtime-label-option retained-selection"
-                  key={`retained:${label}`}
-                >
-                  <input
-                    type="checkbox"
-                    checked
-                    onChange={() => {
-                      setSelectedRuntimeLabels((current) =>
-                        current.filter((candidate) => candidate !== label),
-                      );
-                      clearError("runtimeLabels");
-                    }}
-                  />
-                  <span>
-                    <strong>{label}</strong>
-                    <small>
-                      Retained label · current binding unavailable or not loaded
-                    </small>
-                  </span>
-                </label>
-              ))}
-              {runtimeLabels.map((binding) => (
-                <label className="runtime-label-option" key={binding.label}>
-                  <input
-                    type="checkbox"
-                    checked={selectedRuntimeLabels.includes(binding.label)}
-                    onChange={(event) => {
-                      setSelectedRuntimeLabels((current) =>
-                        (event.target.checked
-                          ? [...current, binding.label]
-                          : current.filter((label) => label !== binding.label)
-                        ).sort(),
-                      );
-                      clearError("runtimeLabels");
-                    }}
-                  />
-                  <span>
-                    <strong>{binding.label}</strong>
-                    <RuntimeLabelPreview binding={binding} />
-                  </span>
-                </label>
-              ))}
-            </div>
-          )}
-          {validationErrors.runtimeLabels === undefined ? null : (
-            <p className="field-error" role="alert">
-              {validationErrors.runtimeLabels}
-            </p>
-          )}
-          <LoadMoreButton
-            query={runtimeLabelInventory}
-            label="Load more Runtime labels"
-            pendingLabel="Loading Runtime labels…"
-          />
-        </fieldset>
-      </details>
-
-      <details
-        className="run-draft-disclosure"
+        onOpenChange={setRuntimeOptionsOpen}
+        onChange={(update) => {
+          change("runtimeLabels", update);
+          clearError("runtimeLabels");
+        }}
+      />
+      <RunMetadata
+        labels={draft.metadataLabels}
+        labelInput={draft.metadataLabelInput}
+        errors={errors}
+        editor={state.metadataLabels}
         open={metadataOptionsOpen}
-        onToggle={(event) => setMetadataOptionsOpen(event.currentTarget.open)}
-      >
-        <summary>
-          <DraftDisclosureSummary
-            title="Run metadata"
-            description="Searchable labels and eval identifiers"
-            status={
-              metadataLabels.length === 0
-                ? "No labels"
-                : `${metadataLabels.length} ${metadataLabels.length === 1 ? "label" : "labels"}`
-            }
-            active={metadataLabels.length > 0}
-          />
-        </summary>
-        <RunMetadataLabelEditor
-          labels={metadataLabels}
-          labelInput={metadataLabelInput}
-          errors={validationErrors}
-          onAdd={addMetadataLabel}
-          onAddEvalPreset={addEvalMetadataPreset}
-          onChange={updateMetadataLabel}
-          onLabelInputChange={setMetadataLabelInput}
-          onRemove={removeMetadataLabel}
-        />
-      </details>
-
-      <details
-        className="run-draft-disclosure override-panel"
+        onOpenChange={setMetadataOptionsOpen}
+      />
+      <ExecutionOverrides
+        overrides={draft.overrides}
+        plannerSupported={Object.values(workflow.stages).some(
+          (stage) => stage.executionConfig.planner !== undefined,
+        )}
+        inventories={inventories}
         open={executionOptionsOpen}
-        onToggle={(event) => setExecutionOptionsOpen(event.currentTarget.open)}
-      >
-        <summary>
-          <DraftDisclosureSummary
-            title="Execution overrides"
-            description="Models, Gateway and credentials"
-            status={
-              executionOptionsOpen && inventoryErrors.length > 0
-                ? "Unavailable"
-                : overrideCount === 0
-                  ? "Workflow defaults"
-                  : `${overrideCount} overridden`
-            }
-            active={overrideCount > 0}
-          />
-        </summary>
-        <div className="run-draft-disclosure-body">
-          <p className="muted-copy">
-            Empty fields retain the Workflow's resolved defaults. Values below
-            are published refs or active credential IDs; this form accepts no
-            free-form model, Gateway URL, budget, provider, or token.
-          </p>
-          {inventoryErrors.map((error, index) => (
-            <ErrorNotice key={index} error={error} />
-          ))}
-          {!modelPolicyInventory.isPending && modelPolicies.length === 0 ? (
-            <p className="inventory-empty">
-              No ModelPolicy versions published.
-            </p>
-          ) : null}
-          {!gatewayInventory.isPending && gateways.length === 0 ? (
-            <p className="inventory-empty">
-              No LLMGatewayConfig versions published.
-            </p>
-          ) : null}
-          {!credentialInventory.isPending && credentials.length === 0 ? (
-            <p className="inventory-empty">No active credentials available.</p>
-          ) : null}
-          <div className="override-grid">
-            <ConsumerOverrides
-              role="Planner"
-              value={overrides.planner}
-              modelPolicies={modelPolicies}
-              gateways={gateways}
-              credentials={credentials}
-              disabled={!plannerSupported}
-              onChange={(field, value) =>
-                updateOverride("planner", field, value)
-              }
-            />
-            <ConsumerOverrides
-              role="Workers"
-              value={overrides.workers}
-              modelPolicies={modelPolicies}
-              gateways={gateways}
-              credentials={credentials}
-              onChange={(field, value) =>
-                updateOverride("workers", field, value)
-              }
-            />
-          </div>
-          {stageOverrideCount === 0 ? null : (
-            <section
-              className="retained-stage-overrides"
-              aria-labelledby="retained-stage-overrides-title"
-            >
-              <div className="run-draft-subheading">
-                <div>
-                  <p className="eyebrow">Configuration</p>
-                  <h4 id="retained-stage-overrides-title">
-                    Stage-specific overrides
-                  </h4>
-                </div>
-                <button
-                  className="ui-btn"
-                  data-size="sm"
-                  type="button"
-                  onClick={() =>
-                    setOverrides((current) => {
-                      const next = { ...current };
-                      delete next.stages;
-                      return next;
-                    })
-                  }
-                >
-                  Remove all Stage overrides
-                </button>
-              </div>
-              <p className="muted-copy">
-                The current form cannot edit per-Stage selections. It preserves
-                the original request exactly or removes this patch as one
-                explicit action.
-              </p>
-              <pre>{JSON.stringify(overrides.stages, null, 2)}</pre>
-            </section>
-          )}
-          <div className="load-more-row">
-            <LoadMoreButton
-              query={modelPolicyInventory}
-              label="Load more ModelPolicies"
-            />
-            <LoadMoreButton
-              query={gatewayInventory}
-              label="Load more Gateways"
-            />
-            <LoadMoreButton
-              query={credentialInventory}
-              label="Load more credentials"
-            />
-          </div>
-        </div>
-      </details>
+        onOpenChange={setExecutionOptionsOpen}
+        onOverride={state.updateOverride}
+        onRemoveStageOverrides={() =>
+          change("overrides", (current) => {
+            const next = { ...current };
+            delete next.stages;
+            return next;
+          })
+        }
+      />
 
       {mutation.error === null ? null : <ErrorNotice error={mutation.error} />}
       {responseLost ? (
@@ -2071,44 +585,40 @@ function WorkflowRunFormBody({
       ) : null}
       <div className="run-submit-row">
         <span className="run-submit-status">
-          <strong>{draftReady ? "Ready to start" : readinessCopy}</strong>
+          <strong>{readiness.ready ? "Ready to start" : readiness.copy}</strong>
           <small>The Run opens after the Server accepts the request.</small>
         </span>
         <div className="run-draft-actions">
           {draftEntry.meaningful ? (
-            <button
-              className="ui-btn"
-              data-variant="ghost"
-              type="button"
+            <Button
+              variant="ghost"
               disabled={mutation.isPending}
               onClick={() => setDiscardRequested(true)}
             >
               Discard saved draft
-            </button>
+            </Button>
           ) : null}
-          <button
-            className="ui-btn"
-            data-variant="primary"
+          <Button
             type="submit"
+            variant="primary"
+            pending={mutation.isPending}
+            pendingLabel={
+              projectId === undefined ? "Submitting…" : "Starting Project Run…"
+            }
             disabled={
-              mutation.isPending ||
-              repeatReviewPending ||
+              readiness.repeatReviewPending ||
               (Object.keys(workflow.inputs).length > 0 &&
                 artifactInventory.isPending)
             }
           >
-            {mutation.isPending
-              ? projectId === undefined
-                ? "Submitting…"
-                : "Starting Project Run…"
-              : responseLost && exactRetry
-                ? "Retry same request"
-                : responseLost
-                  ? "Start changed draft with a new key"
-                  : projectId === undefined
-                    ? "Start Workflow Run"
-                    : "Start Project Workflow Run"}
-          </button>
+            {responseLost && exactRetry
+              ? "Retry same request"
+              : responseLost
+                ? "Start changed draft with a new key"
+                : projectId === undefined
+                  ? "Start Workflow Run"
+                  : "Start Project Workflow Run"}
+          </Button>
         </div>
       </div>
     </form>

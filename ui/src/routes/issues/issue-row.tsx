@@ -2,28 +2,19 @@ import { Fragment, type ReactNode } from "react";
 import type { To } from "react-router";
 
 import type { AuditFinding } from "../../api/audits";
-import { formatTimestamp } from "../../app/format";
+import { formatShortDateTime, formatTimestamp } from "../../app/format";
 import { findingStateLabel, severityLabel } from "../../app/vocabulary";
 import { ListRow, MethodChip, StatusGlyph } from "../../ui";
 import { httpOperation, weaknessReferences } from "../decisions/text";
 
 import "./issues.css";
 
-const foundFormat = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-  hourCycle: "h23",
-});
-
 /** "Oct 4, 23:56", with the full timestamp on hover. */
-export function FoundTime({ value }: { value: string }) {
-  const date = new Date(value);
-  if (Number.isNaN(date.valueOf())) return <span>{value}</span>;
+function FoundTime({ value }: { value: string }) {
+  if (Number.isNaN(Date.parse(value))) return <span>{value}</span>;
   return (
     <time dateTime={value} title={formatTimestamp(value)}>
-      {foundFormat.format(date)}
+      {formatShortDateTime(value)}
     </time>
   );
 }
@@ -84,7 +75,7 @@ function separated(parts: readonly ReactNode[]): ReactNode {
     ));
 }
 
-export interface IssueRowProps {
+interface IssueRowProps {
   finding: AuditFinding;
   to: To;
   selected?: boolean | undefined;

@@ -3,7 +3,7 @@ const VIEWPORT_MARGIN = 8;
 /** Space between the trigger and the menu, in pixels. */
 const TRIGGER_GAP = 6;
 
-export interface MenuPlacement {
+interface MenuPlacement {
   top: number;
   left: number;
   maxHeight: number;

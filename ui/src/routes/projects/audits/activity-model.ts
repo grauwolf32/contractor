@@ -1,6 +1,7 @@
 /** Current item activity comes from its retained attempts and results.
  * Whole-check history uses the immutable event API in event-history.tsx. */
 import type { Audit, AuditFinding, AuditItem } from "../../../api/audits";
+import { formatNumber } from "../../../app/format";
 import type { StatusTone } from "../../../app/status-tone";
 import { itemNoun, verdictLabel, type ItemKind } from "../../../app/vocabulary";
 import type { ActivityEntry } from "../../../ui";
@@ -71,16 +72,14 @@ const DISPOSITIONS: Readonly<
 };
 
 /** "finished", "failed", … for an attempt's technical outcome. */
-export function outcomeWords(
-  outcome: AuditItemAttempt["terminalOutcome"],
-): string {
+function outcomeWords(outcome: AuditItemAttempt["terminalOutcome"]): string {
   return outcome !== undefined && Object.hasOwn(OUTCOME_WORDS, outcome)
     ? OUTCOME_WORDS[outcome]
     : "finished";
 }
 
 /** A sentence and tone for how an attempt's result was collected. */
-export function dispositionOf(attempt: AuditItemAttempt): {
+function dispositionOf(attempt: AuditItemAttempt): {
   text: string | undefined;
   tone: StatusTone;
 } {
@@ -185,7 +184,7 @@ export function nowSentence(
       return `Draft: start the check to create its ${noun(2)}.`;
     case "active":
       return inProgress > 0
-        ? `Running: ${inProgress.toLocaleString("en-US")} ${noun(inProgress)} ${inProgress === 1 ? "is" : "are"} being checked now.`
+        ? `Running: ${formatNumber(inProgress)} ${noun(inProgress)} ${inProgress === 1 ? "is" : "are"} being checked now.`
         : "Running.";
     case "waiting_review":
       return "Waiting for your decisions before it can go on.";

@@ -8,13 +8,12 @@ import {
   type RuntimeLabelBinding,
 } from "../../../api/operations";
 import { queryKeys } from "../../../api/query-keys";
-import { ConfirmRemovalDialog } from "../../../app/confirm-removal-dialog";
+import { AlertDialog, Button, IdChip } from "../../../ui";
 import { Icon } from "../../../app/icon";
 import { ErrorNotice } from "../../../app/error-notice";
-import { formatTimestamp } from "../../../app/format";
-import { IdChip } from "../../../ui";
+import { formatTimestamp, formatAge, plural } from "../../../app/format";
 import { DisclosureChevron } from "../common";
-import { agentDisplayName, relativeAge } from "./identity";
+import { agentDisplayName } from "./identity";
 import { AgentLabelsDialog } from "./labels-dialog";
 import { createMutationIdempotencyKey } from "../../../mutations/idempotency";
 
@@ -74,31 +73,26 @@ function OfflineIdentityRow({
       <span className="ops-offline-fact">
         {labelsWereUpdated ? "Labels updated" : "Registered"}{" "}
         <time dateTime={factTimestamp} title={formatTimestamp(factTimestamp)}>
-          {relativeAge(factTimestamp, now)}
+          {formatAge(factTimestamp, now)}
         </time>
       </span>
       <span className="ops-offline-fact">
-        {principal.labels.length}{" "}
-        {principal.labels.length === 1 ? "label" : "labels"}
+        {plural(principal.labels.length, "label")}
       </span>
       <div className="ops-offline-actions">
-        <button
-          className="ui-btn"
-          data-size="xs"
-          type="button"
+        <Button
+          size="xs"
+          icon={<Icon name="settings" />}
           disabled={bindings === undefined || deletion.isPending}
           aria-haspopup="dialog"
           aria-label={`Edit labels for ${name}`}
           onClick={() => setEditing(true)}
         >
-          <Icon name="settings" />
           Edit labels
-        </button>
-        <button
-          className="ui-btn"
-          data-size="xs"
-          data-variant="danger"
-          type="button"
+        </Button>
+        <Button
+          size="xs"
+          variant="danger"
           disabled={hasLabels || deletion.isPending}
           aria-haspopup="dialog"
           aria-label={`Forget ${name}`}
@@ -113,7 +107,7 @@ function OfflineIdentityRow({
           }}
         >
           Forget
-        </button>
+        </Button>
       </div>
       {editing && bindings !== undefined ? (
         <AgentLabelsDialog
@@ -123,22 +117,13 @@ function OfflineIdentityRow({
         />
       ) : null}
       {forgetting ? (
-        <ConfirmRemovalDialog
+        <AlertDialog
           className="ops-confirm"
           eyebrow="Permanent action"
           title={<>Forget {agentDisplayName(principal)}?</>}
-          description={
-            <>
-              This removes the offline identity{" "}
-              <code>{principal.runtimeAgentId}</code> from Server. A process
-              that registers with this ID again starts as a new identity without
-              saved labels.
-            </>
-          }
           confirmLabel="Forget identity"
           pendingLabel="Forgetting…"
           pending={deletion.isPending}
-          dismissOnBackdrop={false}
           error={
             deletion.error === null ? null : (
               <ErrorNotice error={deletion.error} />
@@ -146,7 +131,14 @@ function OfflineIdentityRow({
           }
           onCancel={() => setForgetting(false)}
           onConfirm={() => deletion.mutate()}
-        />
+        >
+          <p>
+            This removes the offline identity{" "}
+            <code>{principal.runtimeAgentId}</code> from Server. A process that
+            registers with this ID again starts as a new identity without saved
+            labels.
+          </p>
+        </AlertDialog>
       ) : null}
     </li>
   );

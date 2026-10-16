@@ -1,29 +1,44 @@
 import "./common.css";
 import type { ReactNode } from "react";
-import { Link } from "react-router";
+import { Link, type To } from "react-router";
 
 import type { AllocationObservation } from "../../api/operations";
 import { ErrorNotice } from "../../app/error-notice";
-import { compactDigest, formatTimestamp } from "../../app/format";
-import { StatusChip } from "../../ui";
+import { compactDigest, formatNumber, formatTimestamp } from "../../app/format";
+import { Icon } from "../../app/icon";
+import { Facts, StatusChip } from "../../ui";
+import { configurationVersionPath } from "./llm-configurations/kinds";
 import type { ExactConfigurationRef } from "./references";
 import { operationsTone } from "./state";
+
+/** An exact version: its name@version, linked to `to`, and short digest. */
+export function RefLink({
+  to,
+  name,
+  version,
+  digest,
+}: {
+  to: To;
+  name: string;
+  version: string;
+  digest: string;
+}) {
+  return (
+    <span className="ops-ref">
+      <Link to={to}>
+        {name}@{version}
+      </Link>
+      <code title={digest}>{compactDigest(digest)}</code>
+    </span>
+  );
+}
 
 export function ConfigurationRefLink({
   value,
 }: {
   value: ExactConfigurationRef;
 }) {
-  return (
-    <span className="ops-ref">
-      <Link
-        to={`/operations/configurations/${value.kind}/${encodeURIComponent(value.name)}/${encodeURIComponent(value.version)}`}
-      >
-        {value.name}@{value.version}
-      </Link>
-      <code title={value.digest}>{compactDigest(value.digest)}</code>
-    </span>
-  );
+  return <RefLink to={configurationVersionPath(value)} {...value} />;
 }
 
 export function OptionalTimestamp({ value }: { value: string | undefined }) {
@@ -83,21 +98,12 @@ export function DisclosureChevron({
   size?: number | undefined;
 }) {
   return (
-    <svg
+    <Icon
+      name="chevron-right"
+      size={size}
+      strokeWidth={2}
       className="ui-tech-chevron"
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <path d="M9.5 6l6 6-6 6" />
-    </svg>
+    />
   );
 }
 
@@ -166,35 +172,6 @@ export function OpsSection({
   );
 }
 
-/** Label and value pairs in a hairline grid ("at a glance"). */
-export function Glance({
-  items,
-  label,
-  className,
-}: {
-  items: readonly (readonly [ReactNode, ReactNode] | null | false)[];
-  label?: string | undefined;
-  className?: string | undefined;
-}) {
-  return (
-    <dl
-      className={
-        className === undefined ? "ops-glance" : `ops-glance ${className}`
-      }
-      aria-label={label}
-    >
-      {items
-        .filter((item): item is readonly [ReactNode, ReactNode] => !!item)
-        .map(([term, value], index) => (
-          <div key={index}>
-            <dt>{term}</dt>
-            <dd>{value}</dd>
-          </div>
-        ))}
-    </dl>
-  );
-}
-
 export function MetricsSummary({
   metrics,
 }: {
@@ -210,14 +187,18 @@ export function MetricsSummary({
     ["Errors", metrics.errorCount],
   ] as const;
   return (
-    <Glance
-      className="ops-metrics"
+    <Facts
+      className="ops-glance"
       items={[
-        ...values.map(
-          ([label, value]) => [label, value.toLocaleString()] as const,
-        ),
-        ["Reports", metrics.reportsComplete ? "complete" : "incomplete"],
-        ["Truncated", metrics.truncated ? "yes" : "no"],
+        ...values.map(([term, value]) => ({
+          term,
+          value: formatNumber(value),
+        })),
+        {
+          term: "Reports",
+          value: metrics.reportsComplete ? "complete" : "incomplete",
+        },
+        { term: "Truncated", value: metrics.truncated ? "yes" : "no" },
       ]}
     />
   );

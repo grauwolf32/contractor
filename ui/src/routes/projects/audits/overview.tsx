@@ -7,7 +7,7 @@ import {
   formatTimestamp,
 } from "../../../app/format";
 import { checkStateLabel } from "../../../app/vocabulary";
-import { IdChip, TechnicalDetails } from "../../../ui";
+import { Facts, IdChip, TechnicalDetails } from "../../../ui";
 import { SourceLink } from "../../catalog/audit-preset-checks";
 import { auditProfileLabel } from "./labels";
 import { ExactArtifactLink } from "./shared";
@@ -20,22 +20,13 @@ function StringList({
   values: readonly string[];
   empty?: string;
 }) {
-  if (values.length === 0) return <span className="checks-quiet">{empty}</span>;
+  if (values.length === 0) return <span className="ui-caption">{empty}</span>;
   return (
     <ul className="checks-string-list">
       {values.map((value, index) => (
         <li key={`${index}-${value}`}>{value}</li>
       ))}
     </ul>
-  );
-}
-
-function Fact({ term, children }: { term: string; children: ReactNode }) {
-  return (
-    <div>
-      <dt>{term}</dt>
-      <dd>{children}</dd>
-    </div>
   );
 }
 
@@ -90,55 +81,80 @@ export function CheckTechnicalDetails({
         defaultOpen={open || audit.state === "draft"}
       >
         <TechSection title="Profile and scope">
-          <dl className="checks-facts">
-            <Fact term="Check type">
-              {auditProfileLabel(audit)}{" "}
-              <IdChip
-                value={`${audit.profile.name}@${audit.profile.version}`}
-                display={`${audit.profile.name}@${audit.profile.version}`}
-                label="check type version"
-              />
-            </Fact>
-            <Fact term="Profile digest">
-              <code className="checks-mono">{audit.profile.digest}</code>
-            </Fact>
-            <Fact term="Current revision">
-              <code className="checks-mono">{audit.revision}</code>
-            </Fact>
-            <Fact term="Dispatch">{audit.dispatchState}</Fact>
-            <Fact term="Evidence hold">{audit.holdState}</Fact>
-            <Fact term="Objective">{audit.scope.objective ?? "Not set"}</Fact>
-            <Fact term="Target">{audit.scope.target ?? "Not set"}</Fact>
-            <Fact term="Authorization scope">
-              {audit.scope.authorizationScope ?? "Not set"}
-            </Fact>
-            <Fact term="Runtime labels">
-              {audit.runtimeLabels.length === 0
-                ? "default"
-                : audit.runtimeLabels.join(", ")}
-            </Fact>
-            <Fact term="Created">{formatTimestamp(audit.createdAt)}</Fact>
-            {audit.startedAt === undefined ? null : (
-              <Fact term="Started">{formatTimestamp(audit.startedAt)}</Fact>
-            )}
-            {audit.finishedAt === undefined ? null : (
-              <Fact term="Ended">{formatTimestamp(audit.finishedAt)}</Fact>
-            )}
-            <Fact term="Updated">{formatTimestamp(audit.updatedAt)}</Fact>
-            {stop === null ? null : (
-              <Fact term="Stop reason">
-                {stop.label === undefined ? null : (
-                  <strong>{stop.label}.</strong>
-                )}
-                {/* The time limit is explained in words; its message is not. */}
-                {stop.deadline ? null : <> {stop.message}</>}
-              </Fact>
-            )}
-          </dl>
+          <Facts
+            size="sm"
+            items={[
+              {
+                term: "Check type",
+                value: (
+                  <>
+                    {auditProfileLabel(audit)}{" "}
+                    <IdChip
+                      value={`${audit.profile.name}@${audit.profile.version}`}
+                      display={`${audit.profile.name}@${audit.profile.version}`}
+                      label="check type version"
+                    />
+                  </>
+                ),
+              },
+              {
+                term: "Profile digest",
+                value: <code className="ui-mono">{audit.profile.digest}</code>,
+              },
+              {
+                term: "Current revision",
+                value: <code className="ui-mono">{audit.revision}</code>,
+              },
+              { term: "Dispatch", value: audit.dispatchState },
+              { term: "Evidence hold", value: audit.holdState },
+              { term: "Objective", value: audit.scope.objective ?? "Not set" },
+              { term: "Target", value: audit.scope.target ?? "Not set" },
+              {
+                term: "Authorization scope",
+                value: audit.scope.authorizationScope ?? "Not set",
+              },
+              {
+                term: "Runtime labels",
+                value:
+                  audit.runtimeLabels.length === 0
+                    ? "default"
+                    : audit.runtimeLabels.join(", "),
+              },
+              { term: "Created", value: formatTimestamp(audit.createdAt) },
+              {
+                term: "Started",
+                value:
+                  audit.startedAt === undefined
+                    ? undefined
+                    : formatTimestamp(audit.startedAt),
+              },
+              {
+                term: "Ended",
+                value:
+                  audit.finishedAt === undefined
+                    ? undefined
+                    : formatTimestamp(audit.finishedAt),
+              },
+              { term: "Updated", value: formatTimestamp(audit.updatedAt) },
+              {
+                term: "Stop reason",
+                value:
+                  stop === null ? undefined : (
+                    <>
+                      {stop.label === undefined ? null : (
+                        <strong>{stop.label}.</strong>
+                      )}
+                      {/* The time limit is explained in words; its message is not. */}
+                      {stop.deadline ? null : <> {stop.message}</>}
+                    </>
+                  ),
+              },
+            ]}
+          />
         </TechSection>
         <TechSection title="Inputs">
           {inputs.length === 0 ? (
-            <p className="checks-quiet">No inputs selected.</p>
+            <p className="ui-caption">No inputs selected.</p>
           ) : (
             <div className="checks-artifact-list">
               {inputs.map(([name, artifact]) => (
@@ -154,47 +170,71 @@ export function CheckTechnicalDetails({
           )}
         </TechSection>
         <TechSection title="Limits and consumption">
-          <dl className="checks-facts">
-            <Fact term="Rounds">{audit.limits.maxRounds}</Fact>
-            <Fact term="Batch size">{audit.limits.batchSize}</Fact>
-            <Fact term="Items">{audit.limits.maxItemsTotal}</Fact>
-            <Fact term="Attempts per item">
-              {audit.limits.maxItemRunAttempts}
-            </Fact>
-            <Fact term="Runs submitted">
-              {audit.submittedRunCount}/{audit.limits.maxSubmittedRuns}
-            </Fact>
-            <Fact term="Runs outstanding">{audit.outstandingRunCount}</Fact>
-            <Fact term="Evidence retained">
-              {formatBytes(audit.retainedEvidenceBytes)} /{" "}
-              {formatBytes(audit.limits.maxEvidenceBytes)}
-            </Fact>
-            <Fact term="Deadline">{deadlineText(audit)}</Fact>
-          </dl>
+          <Facts
+            size="sm"
+            items={[
+              { term: "Rounds", value: audit.limits.maxRounds },
+              { term: "Batch size", value: audit.limits.batchSize },
+              { term: "Items", value: audit.limits.maxItemsTotal },
+              {
+                term: "Attempts per item",
+                value: audit.limits.maxItemRunAttempts,
+              },
+              {
+                term: "Runs submitted",
+                value: (
+                  <>
+                    {audit.submittedRunCount}/{audit.limits.maxSubmittedRuns}
+                  </>
+                ),
+              },
+              { term: "Runs outstanding", value: audit.outstandingRunCount },
+              {
+                term: "Evidence retained",
+                value: (
+                  <>
+                    {formatBytes(audit.retainedEvidenceBytes)} /{" "}
+                    {formatBytes(audit.limits.maxEvidenceBytes)}
+                  </>
+                ),
+              },
+              { term: "Deadline", value: deadlineText(audit) },
+            ]}
+          />
         </TechSection>
         {workspace === undefined ? null : (
           <TechSection title="Progress snapshot">
-            <dl className="checks-facts">
-              <Fact term="Revision">{workspace.auditRevision}</Fact>
-              <Fact term="As of">{formatTimestamp(workspace.asOf)}</Fact>
-              <Fact term="Round">{workspace.roundId ?? "No round yet"}</Fact>
-              <Fact term="Execution">
-                {checkStateLabel(workspace.executionState).label}
-              </Fact>
-              <Fact term="Outstanding runs">{workspace.outstandingRuns}</Fact>
-              <Fact term="Done / total">
-                {workspace.completedChecks} / {workspace.totalChecks}
-              </Fact>
-              <Fact term="Issues found">{workspace.issues}</Fact>
-              <Fact term="Need follow-up">{workspace.gaps}</Fact>
-              <Fact term="Not checked yet">{workspace.unchecked}</Fact>
-              <Fact term="Possible issues">{workspace.findings}</Fact>
-              <Fact term="Not reviewed yet">
-                {workspace.unreviewedFindings}
-              </Fact>
-              <Fact term="Decisions waiting">{workspace.pendingReviews}</Fact>
-            </dl>
-            <p className="checks-quiet">
+            <Facts
+              size="sm"
+              items={[
+                { term: "Revision", value: workspace.auditRevision },
+                { term: "As of", value: formatTimestamp(workspace.asOf) },
+                { term: "Round", value: workspace.roundId ?? "No round yet" },
+                {
+                  term: "Execution",
+                  value: checkStateLabel(workspace.executionState).label,
+                },
+                { term: "Outstanding runs", value: workspace.outstandingRuns },
+                {
+                  term: "Done / total",
+                  value: (
+                    <>
+                      {workspace.completedChecks} / {workspace.totalChecks}
+                    </>
+                  ),
+                },
+                { term: "Issues found", value: workspace.issues },
+                { term: "Need follow-up", value: workspace.gaps },
+                { term: "Not checked yet", value: workspace.unchecked },
+                { term: "Possible issues", value: workspace.findings },
+                {
+                  term: "Not reviewed yet",
+                  value: workspace.unreviewedFindings,
+                },
+                { term: "Decisions waiting", value: workspace.pendingReviews },
+              ]}
+            />
+            <p className="ui-caption">
               Done counts concluded results and explicit exclusions of the
               current round. Finished work does not mean complete coverage,
               confirmed issues or an accepted report.
@@ -210,42 +250,56 @@ export function CheckTechnicalDetails({
           </TechSection>
         ) : (
           <TechSection title="Baseline and standards">
-            <dl className="checks-facts">
-              <Fact term="Source content">
-                <code className="checks-mono">
-                  {baseline.inventory?.sourceContentDigest ??
-                    "Pending preparation"}
-                </code>
-              </Fact>
-              <Fact term="Inventory">
-                <code className="checks-mono">
-                  {baseline.inventory?.canonicalInventoryDigest ??
-                    "Pending inventory"}
-                </code>
-              </Fact>
-              <Fact term="Worklist">
-                {baseline.inventory === undefined ? (
-                  "Not created yet"
-                ) : (
-                  <ExactArtifactLink
-                    projectId={audit.projectId}
-                    artifact={baseline.inventory.worklist}
-                  />
-                )}
-              </Fact>
-              <Fact term="Active checks">
-                {baseline.activeChecks === "automatic"
-                  ? "Automatically"
-                  : baseline.activeChecks === "approval-required"
-                    ? "Ask before each active check"
-                    : "Disabled"}
-              </Fact>
-              <Fact term="Skills">{baseline.skills.length}</Fact>
-              <Fact term="Standards">{baseline.standards.length}</Fact>
-              <Fact term="Runtime configs">
-                {1 + baseline.runtimeConfig.labels.length}
-              </Fact>
-            </dl>
+            <Facts
+              size="sm"
+              items={[
+                {
+                  term: "Source content",
+                  value: (
+                    <code className="ui-mono">
+                      {baseline.inventory?.sourceContentDigest ??
+                        "Pending preparation"}
+                    </code>
+                  ),
+                },
+                {
+                  term: "Inventory",
+                  value: (
+                    <code className="ui-mono">
+                      {baseline.inventory?.canonicalInventoryDigest ??
+                        "Pending inventory"}
+                    </code>
+                  ),
+                },
+                {
+                  term: "Worklist",
+                  value:
+                    baseline.inventory === undefined ? (
+                      "Not created yet"
+                    ) : (
+                      <ExactArtifactLink
+                        projectId={audit.projectId}
+                        artifact={baseline.inventory.worklist}
+                      />
+                    ),
+                },
+                {
+                  term: "Active checks",
+                  value:
+                    baseline.activeChecks === "automatic"
+                      ? "Automatically"
+                      : baseline.activeChecks === "approval-required"
+                        ? "Ask before each active check"
+                        : "Disabled",
+                },
+                { term: "Skills", value: baseline.skills.length },
+                { term: "Standards", value: baseline.standards.length },
+                {
+                  term: "Runtime configs",
+                  value: 1 + baseline.runtimeConfig.labels.length,
+                },
+              ]}
+            />
             {baseline.standards.length === 0 ? null : (
               <div
                 className="checks-tech-block"
@@ -258,11 +312,11 @@ export function CheckTechnicalDetails({
                       key={`${standard.reference.scheme}@${standard.reference.version}`}
                     >
                       <strong>{standard.title}</strong>{" "}
-                      <code className="checks-mono">
+                      <code className="ui-mono">
                         {standard.reference.scheme}@{standard.reference.version}
                       </code>{" "}
                       ·{" "}
-                      <code className="checks-mono">
+                      <code className="ui-mono">
                         {compactDigest(standard.retained.digest)}
                       </code>{" "}
                       ·{" "}

@@ -16,6 +16,7 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "resolveJsonModule": true,
+    "allowArbitraryExtensions": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
     "noEmit": true,

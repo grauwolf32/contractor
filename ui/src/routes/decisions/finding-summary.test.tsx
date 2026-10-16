@@ -3,14 +3,10 @@ import { describe, expect, it } from "vitest";
 
 import type { AuditFinding } from "../../api/audits";
 import { FindingSummary } from "./finding-summary";
-import {
-  AUDIT_ID,
-  DIGEST,
-  json,
-  makeFinding,
-  NOW,
-  renderWithServer,
-} from "./test-support";
+import { AUDIT_ID, DIGEST, makeFinding, NOW } from "./test-support";
+import { fakeServer } from "../../test/fake-server";
+import { failure, json } from "../../test/responses";
+import { renderWithAPI } from "../../test/render";
 
 const DESCRIPTION = [
   "The handler reads any order by ID.",
@@ -105,9 +101,9 @@ function fact(name: string): string | null | undefined {
 
 describe("FindingSummary", () => {
   it("maps every section to the proposal's own fields", async () => {
-    renderWithServer(
+    renderWithAPI(
       <FindingSummary auditId={AUDIT_ID} finding={detailedFinding()} />,
-      noRequests,
+      { server: noRequests },
     );
     const article = screen.getByRole("article", {
       name: "Any user can read any order",
@@ -124,9 +120,10 @@ describe("FindingSummary", () => {
 
     expect(fact("Endpoint")).toBe("GET /orders/{id}");
     expect(
-      screen.getByText("Endpoint", { selector: "dt" }).nextElementSibling
-        ?.firstElementChild,
-    ).toHaveClass("ui-method-chip");
+      screen
+        .getByText("Endpoint", { selector: "dt" })
+        .nextElementSibling?.querySelector(".ui-method-chip"),
+    ).toHaveTextContent("GET");
     expect(fact("Weakness")).toBe("CWE-639");
     expect(fact("Standard")).toBe("A01 owasp-web-top10@2021");
     expect(fact("Severity")).toBe("Not set · AI suggestion: High");
@@ -181,14 +178,14 @@ describe("FindingSummary", () => {
   });
 
   it("keeps a compact preview to the first paragraph, three locations and the doubts", async () => {
-    renderWithServer(
+    renderWithAPI(
       <FindingSummary
         auditId={AUDIT_ID}
         finding={detailedFinding()}
         variant="compact"
         titleAs="h3"
       />,
-      noRequests,
+      { server: noRequests },
     );
     expect(
       screen.getByRole("heading", {
@@ -220,12 +217,12 @@ describe("FindingSummary", () => {
   });
 
   it("leaves out sections without data and never shows a suggestion as a rating", () => {
-    renderWithServer(
+    renderWithAPI(
       <FindingSummary
         auditId={AUDIT_ID}
-        finding={makeFinding({}, { description: "", severity_suggestion: "" })}
+        finding={makeFinding({}, { description: " ", severity_suggestion: "" })}
       />,
-      noRequests,
+      { server: noRequests },
     );
     expect(
       screen.getByRole("heading", { name: "Missing object authorization" }),
@@ -244,7 +241,7 @@ describe("FindingSummary", () => {
   });
 
   it("reads a confirmed finding as an issue with the analyst's severity", () => {
-    renderWithServer(
+    renderWithAPI(
       <FindingSummary
         auditId={AUDIT_ID}
         finding={makeFinding(
@@ -256,7 +253,7 @@ describe("FindingSummary", () => {
           { subject: { kind: "component", key: "orders" } },
         )}
       />,
-      noRequests,
+      { server: noRequests },
     );
     expect(screen.getByText("Confirmed")).toBeVisible();
     expect(screen.getByText("Issue")).toBeVisible();
@@ -270,7 +267,7 @@ describe("FindingSummary", () => {
       { findingId: "finding_original" },
       { title: "Orders are readable by anyone" },
     );
-    renderWithServer(
+    renderWithAPI(
       <FindingSummary
         auditId={AUDIT_ID}
         finding={makeFinding({
@@ -278,10 +275,13 @@ describe("FindingSummary", () => {
           duplicateTargetId: "finding_original",
         })}
       />,
-      (_request, url) => {
-        if (url.pathname === `/v1/audits/${AUDIT_ID}/findings/finding_original`)
-          return json(original, 200, { ETag: `"${original.revision}"` });
-        throw new Error(`unexpected ${url.pathname}`);
+      {
+        server: fakeServer({
+          "GET /v1/audits/{auditId}/findings/{findingId}": ({ params }) =>
+            params.findingId === "finding_original"
+              ? json(original, 200, { ETag: `"${original.revision}"` })
+              : failure(404),
+        }),
       },
     );
     expect(

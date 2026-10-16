@@ -14,6 +14,7 @@ import {
 } from "../../api/audits";
 import { PublicAPIError } from "../../api/error";
 import type { components } from "../../api/generated/public";
+import { writeConflict } from "../../app/conflict";
 import {
   reviewActionLabel,
   SEVERITY_LABELS,
@@ -25,8 +26,6 @@ import {
 export type AuditReviewDecision = components["schemas"]["AuditReviewDecision"];
 export type AuditFindingDecisionResult =
   components["schemas"]["AuditFindingDecisionResult"];
-export type AuditActionDecisionResult =
-  components["schemas"]["AuditActionDecisionResult"];
 
 /** Rationale limit of every decision: 64 KiB of UTF-8 (S19 §14.1). */
 export const MAX_RATIONALE_BYTES = 65_536;
@@ -235,7 +234,7 @@ export function verdictForState(
 }
 
 /** What a refused decision was about, for the explanation. */
-export type DecisionSubject = "finding" | "request";
+type DecisionSubject = "finding" | "request";
 
 /**
  * Why a decision was not saved and what the page did about it. Every failed
@@ -250,11 +249,12 @@ export function decisionErrorMessage(
       ? `Not saved: ${error.message}`
       : "Not saved: the request failed.";
   }
-  if (error.status === 412)
+  const conflict = writeConflict(error);
+  if (conflict === "stale")
     return subject === "finding"
       ? "Not saved: this possible issue or its check changed first. The latest version is now shown. Check it, then record your decision again."
       : "Not saved: this request changed or expired first. The latest version is now shown. Check it, then decide again.";
-  if (error.status === 409)
+  if (conflict === "conflict")
     return "Not saved: the decision conflicts with the current state, so nothing was retried. The latest version is now shown.";
   if (error.status === 404)
     return subject === "finding"

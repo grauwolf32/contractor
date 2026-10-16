@@ -1,19 +1,14 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 import captures from "../../../../../api/testdata/http-capture-cases.json";
 import { HTTP_EXCHANGE_MEDIA_TYPE } from "../../../api/artifacts";
-import {
-  HTTP_EXCHANGE_SCHEMA,
-  type HTTPCapture,
-  type HTTPExchangeDocument,
-} from "../../../api/http-exchange";
+import type { HTTPExchangeDocument } from "../../../api/http-exchange";
 import HTTPExchangePreview from "./http-exchange";
 import { saveBlob } from "../../../app/download";
 import { LoadedArtifactPreview } from "../loaded-preview";
+import { renderWithAPI } from "../../../test/render";
 import { ArtifactPreviewPanel } from "../preview";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 vi.mock("../../../app/download", () => ({ saveBlob: vi.fn() }));
 
@@ -21,35 +16,33 @@ function document(
   name = "received_http_error_is_response",
 ): HTTPExchangeDocument {
   return {
-    schema: HTTP_EXCHANGE_SCHEMA,
+    schema: "contractor.http.exchange.v1",
     capture: structuredClone(
       captures.cases.find((item) => item.name === name)!.value,
-    ) as HTTPCapture,
+    ) as HTTPExchangeDocument["capture"],
     finding: { proposal_id: "proposal-test", receipt_id: "receipt-test" },
   };
 }
 function preview(value = document(), trusted = true) {
-  return render(
-    <MemoryRouter>
-      <HTTPExchangePreview
-        document={value}
-        context={{
-          scope: { kind: "run", id: "run-test" },
-          metadata: {
-            artifact: {
-              namespace: trusted ? "finding-proposals" : "worker",
-              name: "http.exchange.proposal-test",
-              revision: "exact",
-            },
-            mediaType: HTTP_EXCHANGE_MEDIA_TYPE,
-            size: 1000,
-            current: true,
-            frozen: trusted,
-            createdAt: "2026-10-13T00:00:00Z",
+  return renderWithAPI(
+    <HTTPExchangePreview
+      document={value}
+      context={{
+        scope: { kind: "run", id: "run-test" },
+        metadata: {
+          artifact: {
+            namespace: trusted ? "finding-proposals" : "worker",
+            name: "http.exchange.proposal-test",
+            revision: "exact",
           },
-        }}
-      />
-    </MemoryRouter>,
+          mediaType: HTTP_EXCHANGE_MEDIA_TYPE,
+          size: 1000,
+          current: true,
+          frozen: trusted,
+          createdAt: "2026-10-13T00:00:00Z",
+        },
+      }}
+    />,
   );
 }
 describe("HTTP exchange preview", () => {
@@ -204,13 +197,11 @@ describe("HTTP exchange preview", () => {
     expect(screen.getByRole("tabpanel", { name: "Response" })).toBeVisible();
   });
   it("shows a bounded malformed-artifact error", async () => {
-    render(
-      <MemoryRouter>
-        <LoadedArtifactPreview
-          mediaType={HTTP_EXCHANGE_MEDIA_TYPE}
-          source='{"bad":true}'
-        />
-      </MemoryRouter>,
+    renderWithAPI(
+      <LoadedArtifactPreview
+        mediaType={HTTP_EXCHANGE_MEDIA_TYPE}
+        source='{"bad":true}'
+      />,
     );
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "invalid or unsupported",
@@ -218,26 +209,24 @@ describe("HTTP exchange preview", () => {
   });
   it("explains an oversized preview without fetching its payload", () => {
     const load = vi.fn();
-    render(
-      <QueryClientProvider client={new QueryClient()}>
-        <ArtifactPreviewPanel
-          metadata={{
-            artifact: {
-              namespace: "finding-proposals",
-              name: "http.exchange.proposal-test",
-              revision: "exact",
-            },
-            mediaType: HTTP_EXCHANGE_MEDIA_TYPE,
-            size: 256 * 1024 + 1,
-            current: true,
-            frozen: true,
-            createdAt: "2026-10-13T00:00:00Z",
-          }}
-          loadPreview={load}
-          loadOnMountKey={["oversized-http"]}
-          unavailableCopy="Download the saved exchange"
-        />
-      </QueryClientProvider>,
+    renderWithAPI(
+      <ArtifactPreviewPanel
+        metadata={{
+          artifact: {
+            namespace: "finding-proposals",
+            name: "http.exchange.proposal-test",
+            revision: "exact",
+          },
+          mediaType: HTTP_EXCHANGE_MEDIA_TYPE,
+          size: 256 * 1024 + 1,
+          current: true,
+          frozen: true,
+          createdAt: "2026-10-13T00:00:00Z",
+        }}
+        loadPreview={load}
+        loadOnMountKey={["oversized-http"]}
+        unavailableCopy="Download the saved exchange"
+      />,
     );
     expect(screen.getByText(/exceeds the 256 KiB preview limit/)).toBeVisible();
     expect(load).not.toHaveBeenCalled();

@@ -8,7 +8,8 @@ import type { Audit, AuditEvent } from "../../../api/audits";
 import { PublicAPIProvider } from "../../../api/context";
 import { queryKeys } from "../../../api/query-keys";
 import { checkLinks } from "./check-links";
-import { fakeAPI, jsonResponse, makeAudit } from "./check-test-support";
+import { fakeAPI, makeAudit } from "./check-test-support";
+import { json } from "../../../test/responses";
 import { CheckEventHistory } from "./event-history";
 import { eventEntry } from "./event-model";
 
@@ -62,7 +63,7 @@ describe("durable check history", () => {
       const view = mount(
         () => {
           reads += 1;
-          return jsonResponse({
+          return json({
             items: [event(reads)],
             total: reads,
             throughSequence: reads,
@@ -104,22 +105,22 @@ describe("durable check history", () => {
     mount((_request, url) => {
       reads.push(url.searchParams.get("cursor") ?? "head");
       if (!url.searchParams.has("cursor"))
-        return jsonResponse({
+        return json({
           items: [event(3), event(2, { kind: "audit.resumed", summary: {} })],
           total: 3,
           throughSequence: 3,
           page: { hasMore: true, nextCursor: "older" },
         });
       if (fail)
-        return jsonResponse(
+        return json(
           {
             code: "internal_error",
             message: "Unavailable",
             requestId: "request-1",
           },
-          { status: 500 },
+          500,
         );
-      return jsonResponse({
+      return json({
         items: [event(1, { kind: "audit.created", summary: {} })],
         total: 3,
         throughSequence: 3,
@@ -161,13 +162,13 @@ describe("durable check history", () => {
       const cursor = url.searchParams.get("cursor");
       cursors.push(cursor ?? "head");
       if (cursor === null)
-        return jsonResponse({
+        return json({
           items: [event(refreshed ? 4 : 3)],
           total: 3,
           throughSequence: refreshed ? 4 : 3,
           page: { hasMore: true, nextCursor: refreshed ? "new" : "old" },
         });
-      return jsonResponse({
+      return json({
         items: [event(2), event(1, { kind: "audit.created", summary: {} })],
         total: 3,
         throughSequence: refreshed ? 4 : 3,
@@ -198,7 +199,7 @@ describe("durable check history", () => {
     async (failure) => {
       mount((_request, url) =>
         url.searchParams.has("cursor")
-          ? jsonResponse({
+          ? json({
               items: [event(failure === "overlapping-sequence" ? 3 : 1)],
               total: 3,
               throughSequence: failure === "wrong-prefix" ? 4 : 3,
@@ -207,7 +208,7 @@ describe("durable check history", () => {
                   ? { hasMore: true, nextCursor: "older" }
                   : { hasMore: false },
             })
-          : jsonResponse({
+          : json({
               items: [event(3)],
               total: 3,
               throughSequence: 3,
@@ -228,13 +229,13 @@ describe("durable check history", () => {
 
   it("records loading errors without inventing history from the current check", async () => {
     mount(() =>
-      jsonResponse(
+      json(
         {
           code: "internal_error",
           message: "Unavailable",
           requestId: "request-1",
         },
-        { status: 500 },
+        500,
       ),
     );
     expect(await screen.findByRole("alert")).toHaveTextContent(

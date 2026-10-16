@@ -1,0 +1,18 @@
+{
+  "prefixes": [
+    {
+      "prefix": "ops-signin-spiral-",
+      "source": "src/routes/login-backdrop.tsx: ops-signin-spiral-${position}"
+    },
+    {
+      "prefix": "run-result-",
+      "source": "src/routes/runs/outputs.tsx: run-result-${entry.kind}"
+    }
+  ],
+  "classes": [
+    {
+      "name": "scalar-app",
+      "source": "rendered by @scalar/api-reference-react"
+    }
+  ]
+}

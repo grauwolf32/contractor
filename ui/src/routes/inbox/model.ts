@@ -4,6 +4,7 @@
  * running checks. Everything here is pure, so the sections can be tested
  * without a Server.
  */
+import { RESOURCE_ID } from "../../api/contract";
 import type { AuditState, AuditWorkspace } from "../../api/audits";
 import type {
   CrossProjectCheck,
@@ -12,11 +13,18 @@ import type {
   CrossProjectReport,
 } from "../../api/cross-project";
 import type { RunStatus, RunSummary } from "../../api/runs";
+import {
+  INBOX_AUDIT_STATES,
+  INBOX_LISTED_AUDIT_STATES,
+  OPEN_AUDIT_STATES,
+  WORKING_AUDIT_STATES,
+} from "../../api/states";
+import { plural } from "../../app/format";
 
 /** How far back failed and finished work counts as new: 7 days. */
-export const RECENT_MS = 7 * 24 * 60 * 60 * 1000;
+const RECENT_MS = 7 * 24 * 60 * 60 * 1000;
 /** Rows per kind in Unblock and Ready before "See all …". */
-export const SHOWN_PER_KIND = 5;
+const SHOWN_PER_KIND = 5;
 
 export type InboxSectionId = "decide" | "unblock" | "ready" | "running";
 
@@ -29,10 +37,10 @@ export type InboxRef =
   | { kind: "report"; auditId: string };
 
 /** Why a check is listed. */
-export type CheckReason = "paused" | "failed" | "gaps" | "running" | "finished";
+type CheckReason = "paused" | "failed" | "gaps" | "running" | "finished";
 
 /** Why a Run is listed. */
-export type RunReason = "model" | "failed" | "finished";
+type RunReason = "model" | "failed" | "finished";
 
 interface RowBase {
   /**
@@ -72,7 +80,7 @@ export interface Shown<T> {
   hidden: number;
 }
 
-export interface InboxInput {
+interface InboxInput {
   /** Milliseconds since the epoch; the 7-day window ends here. */
   now: number;
   /** Possible issues that need a review, newest first. */
@@ -112,37 +120,21 @@ export interface InboxModel {
 }
 
 /** Checks the Inbox lists in one of its sections. */
-export const LISTED_CHECK_STATES: readonly AuditState[] = [
-  "active",
-  "waiting_review",
-  "paused",
-  "finalizing",
-  "completed",
-  "failed",
-];
+export const LISTED_CHECK_STATES: readonly AuditState[] =
+  INBOX_LISTED_AUDIT_STATES;
 
 /** Checks whose stopped items show in Unblock (the Inbox check states). */
-const GAP_CHECK_STATES: ReadonlySet<AuditState> = new Set([
-  "active",
-  "waiting_review",
-]);
+const GAP_CHECK_STATES: ReadonlySet<AuditState> = new Set(INBOX_AUDIT_STATES);
 
 /** Checks in Running: working or writing their report. */
-export const RUNNING_CHECK_STATES: ReadonlySet<AuditState> = new Set([
-  "active",
-  "finalizing",
-]);
+const RUNNING_CHECK_STATES: ReadonlySet<AuditState> = new Set(
+  WORKING_AUDIT_STATES,
+);
 
 /** Checks whose workspace counters the list shows. */
-export const COUNTED_CHECK_STATES: ReadonlySet<AuditState> = new Set([
-  "active",
-  "waiting_review",
-  "finalizing",
-  "paused",
-]);
-
-// Server IDs (ResourceId); anything else in `?item=` is ignored.
-const RESOURCE_ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/;
+export const COUNTED_CHECK_STATES: ReadonlySet<AuditState> = new Set(
+  OPEN_AUDIT_STATES,
+);
 
 function idsOf(ref: InboxRef): string[] {
   switch (ref.kind) {
@@ -179,6 +171,7 @@ export function parseRefKey(
   } catch {
     return undefined;
   }
+  // Server IDs are ResourceIds; anything else in `?item=` is ignored.
   if (ids.some((id) => !RESOURCE_ID.test(id))) return undefined;
   const [first, second] = ids;
   if (first === undefined) return undefined;
@@ -221,7 +214,7 @@ export function runTime(run: Pick<RunSummary, "finishedAt" | "updatedAt">) {
 }
 
 /** When a check ended, or last changed while it runs. */
-export function checkTime(check: CrossProjectCheck): string {
+function checkTime(check: CrossProjectCheck): string {
   return check.audit.finishedAt ?? check.audit.updatedAt;
 }
 
@@ -282,7 +275,7 @@ export function waitingRuns(runs: readonly RunSummary[]): RunSummary[] {
 }
 
 /** The model connection needs the user: automatic recovery has ended. */
-export function needsModelRetry(status: RunStatus | undefined): boolean {
+function needsModelRetry(status: RunStatus | undefined): boolean {
   return status?.recovery?.requiresRetry === true;
 }
 
@@ -434,7 +427,7 @@ export function distinctCount(rows: readonly InboxRow[]): number {
   return new Set(rows.map((row) => row.key)).size;
 }
 
-export interface SubtitleCounts {
+interface SubtitleCounts {
   /** Items that need a decision; the rail badge's number. */
   decide: number;
   unblock: number;
@@ -443,18 +436,14 @@ export interface SubtitleCounts {
   running: number;
 }
 
-function phrase(count: number, one: string, many: string): string {
-  return `${count.toLocaleString("en-US")} ${count === 1 ? one : many}`;
-}
-
 /** "2 need you, 1 is stuck, 2 are ready, 1 check is running." */
 export function inboxSubtitle(counts: SubtitleCounts): string {
   const parts = [
-    counts.decide > 0 ? phrase(counts.decide, "needs you", "need you") : "",
-    counts.unblock > 0 ? phrase(counts.unblock, "is stuck", "are stuck") : "",
-    counts.ready > 0 ? phrase(counts.ready, "is ready", "are ready") : "",
+    counts.decide > 0 ? plural(counts.decide, "needs you", "need you") : "",
+    counts.unblock > 0 ? plural(counts.unblock, "is stuck", "are stuck") : "",
+    counts.ready > 0 ? plural(counts.ready, "is ready", "are ready") : "",
     counts.running > 0
-      ? phrase(counts.running, "check is running", "checks are running")
+      ? plural(counts.running, "check is running", "checks are running")
       : "",
   ].filter((part) => part !== "");
   return parts.length === 0

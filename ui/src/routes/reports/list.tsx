@@ -10,6 +10,7 @@ import type { Project } from "../../api/projects";
 import { RecordedTime } from "../../app/recorded-time";
 import { reportStatusLabel } from "../../app/vocabulary";
 import {
+  Button,
   EmptyState,
   FilterChips,
   Kbd,
@@ -97,6 +98,8 @@ function ProjectFilter({
     <label className="reports-project-filter">
       <span>Project</span>
       <select
+        className="ui-control"
+        data-size="sm"
         value={value ?? ""}
         onChange={(event) => onChange(event.target.value)}
       >
@@ -258,39 +261,37 @@ export function ReportsList({
         <EmptyState
           title="Reports could not be loaded"
           action={
-            <button
-              type="button"
-              className="ui-btn"
-              data-size="sm"
-              onClick={() => void reports.refetch()}
-            >
+            <Button size="sm" onClick={() => void reports.refetch()}>
               Try again
-            </button>
+            </Button>
           }
         >
           <p>{indexError.message}</p>
         </EmptyState>
       ) : (
         <>
+          {reports.truncated ? (
+            <div className="reports-list-note" role="status">
+              <p>
+                There are more checks than can be read at once, so this list of
+                reports is incomplete.
+              </p>
+            </div>
+          ) : null}
           {reports.partial ? (
             <div className="reports-list-note" role="status">
               <p>
                 Some reports could not be loaded, so this list may be
                 incomplete.
               </p>
-              <button
-                type="button"
-                className="ui-btn"
-                data-size="xs"
-                onClick={() => void reports.refetch()}
-              >
+              <Button size="xs" onClick={() => void reports.refetch()}>
                 Try again
-              </button>
+              </Button>
             </div>
           ) : null}
           {rows.length === 0 ? (
             reports.isPending ? (
-              <p className="reports-quiet reports-list-loading" role="status">
+              <p className="ui-caption reports-list-loading" role="status">
                 Loading reports…
               </p>
             ) : (
@@ -306,7 +307,7 @@ export function ReportsList({
               </EmptyState>
             )
           ) : (
-            <div {...containerProps} className="reports-sections">
+            <div {...containerProps}>
               {sections.map((section) => {
                 const { label } = reportStatusLabel(section.status);
                 return (
@@ -327,7 +328,7 @@ export function ReportsList({
                 );
               })}
               {reports.isPending ? (
-                <p className="reports-quiet reports-list-loading" role="status">
+                <p className="ui-caption reports-list-loading" role="status">
                   Loading more reports…
                 </p>
               ) : null}

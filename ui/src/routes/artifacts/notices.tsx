@@ -5,7 +5,7 @@ import type { ArtifactWriteResponse } from "../../api/artifacts";
 import type { GitImportResult, GitSource } from "../../api/git-artifacts";
 import { ContextLink } from "../../app/context-navigation";
 import { formatBytes } from "../../app/format";
-import { IdChip, StatusGlyph } from "../../ui";
+import { IconButton, IdChip, StatusGlyph } from "../../ui";
 import { MaterialIcon } from "./icons";
 import { formatLabel, materialKindLabel } from "./kinds";
 import { GitCommitChip, MaterialName } from "./material-row";
@@ -13,14 +13,11 @@ import { artifactDetailPath } from "./paths";
 import "./materials.css";
 
 /** Where a Git import came from: repository, branch or tag, commit. */
-export function GitSourceLine({ source }: { source: GitSource }) {
+function GitSourceLine({ source }: { source: GitSource }) {
   return (
     <p className="materials-notice-line">
       <span>
-        From{" "}
-        <span className="materials-mono materials-wrap">
-          {source.repositoryUrl}
-        </span>
+        From <span className="ui-mono">{source.repositoryUrl}</span>
       </span>
       <span aria-hidden="true">·</span>
       <span>{source.requestedRef ?? "default branch"}</span>
@@ -82,15 +79,13 @@ function StoredNotice({
         {gitSource === undefined ? null : <GitSourceLine source={gitSource} />}
         <p className="materials-notice-links">{links}</p>
       </div>
-      <button
-        type="button"
-        className="materials-icon-button"
-        aria-label="Dismiss"
-        title="Dismiss"
+      <IconButton
+        label="Dismiss"
+        icon={<MaterialIcon name="close" />}
+        variant="ghost"
+        size="sm"
         onClick={onDismiss}
-      >
-        <MaterialIcon name="close" />
-      </button>
+      />
     </div>
   );
 }

@@ -1,19 +1,16 @@
 import { useId } from "react";
 import { useLocation } from "react-router";
 
+import { plural } from "../../app/format";
 import { QueryView } from "../../app/query-view";
 import { RefreshButton } from "../../app/refresh-button";
-import { EmptyState } from "../../ui";
+import { Button, EmptyState } from "../../ui";
 import { LibrarySearch, LibrarySectionHeader } from "../catalog/library-parts";
 import { locationDestination } from "../catalog/navigation";
 import { useCatalogQueryState } from "../catalog/query-state";
 import { WorkflowCard } from "./card";
 import { useWorkflowFamilies } from "./families";
 import { useWorkflowInventory } from "./inventory";
-
-function count(value: number, singular: string, plural: string): string {
-  return `${value} ${value === 1 ? singular : plural}`;
-}
 
 /** Library → Workflows: every published Workflow family and its versions. */
 export function WorkflowListRoute() {
@@ -48,7 +45,6 @@ export function WorkflowListRoute() {
               onChange={state.changeDraftSearch}
             />
             <RefreshButton
-              className="ui-btn"
               isFetching={query.isFetching}
               onRefresh={() => void query.refetch()}
               label="Refresh"
@@ -58,17 +54,16 @@ export function WorkflowListRoute() {
       />
       <p className="library-count" role="status">
         {query.data
-          ? `${count(filtered.length, "workflow", "workflows")} · ${count(query.data.length, "published version", "published versions")}`
+          ? `${plural(filtered.length, "workflow")} · ${plural(query.data.length, "published version")}`
           : "Loading published versions…"}
       </p>
       <QueryView
         query={query}
         loading={
-          <p className="library-muted" role="status">
+          <p className="ui-caption" role="status">
             Loading the complete Workflow inventory…
           </p>
         }
-        onRetry={() => void query.refetch()}
       >
         {() =>
           filtered.length === 0 ? (
@@ -81,14 +76,12 @@ export function WorkflowListRoute() {
                 }
                 action={
                   term ? (
-                    <button
-                      type="button"
-                      className="ui-btn"
-                      data-size="sm"
+                    <Button
+                      size="sm"
                       onClick={() => state.changeDraftSearch("")}
                     >
                       Clear search
-                    </button>
+                    </Button>
                   ) : undefined
                 }
               >

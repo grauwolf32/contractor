@@ -7,30 +7,242 @@
  * existing class names.
  */
 
-/* ---------- Shared text ---------- */
-
-.materials-quiet {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.8125rem;
-  line-height: 1.5;
+/* ---------- Materials forms and previews (base rules; this sheet refines them below) ---------- */
+.artifact-form {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  background: var(--surface);
+  padding: clamp(1rem, 3vw, 1.6rem);
 }
+
+.artifact-form {
+  display: grid;
+  gap: 1.2rem;
+  margin-bottom: 1.5rem;
+}
+
+.artifact-form > button {
+  justify-self: start;
+}
+
+.materials-fields label,
+.inline-form label {
+  display: grid;
+  gap: 0.4rem;
+  color: var(--muted-strong);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.materials-fields input,
+.inline-form input {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--surface-subtle);
+  color: inherit;
+  padding: 0.65rem 0.75rem;
+}
+
+.materials-fields input:focus,
+.inline-form input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.materials-fields input:disabled {
+  color: var(--muted);
+  opacity: 0.8;
+}
+
+.inline-form {
+  display: flex;
+  align-items: end;
+  gap: 0.6rem;
+}
+
+.artifact-preview {
+  max-height: 32rem;
+  overflow: auto;
+  margin: 1rem 0 0;
+  border: 1px solid var(--line);
+  border-radius: 0.55rem;
+  background: var(--sunken);
+  color: var(--text);
+  padding: 1rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.artifact-preview-panel {
+  grid-column: 1 / -1;
+}
+
+.artifact-renderer-loading,
+.artifact-renderer-error {
+  margin: 0;
+  padding: 1rem;
+}
+
+.artifact-renderer-loading {
+  color: var(--muted);
+}
+
+.artifact-renderer-error {
+  overflow: auto;
+  color: var(--danger);
+  white-space: pre-wrap;
+}
+
+.artifact-renderer-toolbar {
+  display: flex;
+  min-height: 3rem;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-subtle);
+  padding: 0.55rem 0.75rem;
+}
+
+.artifact-renderer-toolbar label {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: var(--muted-strong);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.artifact-renderer-toolbar select {
+  max-width: min(28rem, 55vw);
+  border: 1px solid var(--line-strong);
+  border-radius: 0.45rem;
+  background: var(--surface-raised);
+  color: var(--text);
+  padding: 0.45rem 0.65rem;
+}
+
+.artifact-renderer-toolbar select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.artifact-renderer-toolbar > span {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.project-artifact-form {
+  display: grid;
+  gap: 1.15rem;
+}
+
+.project-artifact-form > button {
+  justify-self: start;
+}
+
+.materials-fields textarea {
+  width: 100%;
+  min-width: 0;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--surface-subtle);
+  color: inherit;
+  padding: 0.65rem 0.75rem;
+}
+
+.materials-fields textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.artifact-file-drop {
+  display: grid;
+  min-height: 11rem;
+  align-content: center;
+  justify-items: center;
+  gap: 0.35rem;
+  border: 1px dashed var(--accent-line);
+  border-radius: 0.75rem;
+  background: var(--sunken);
+  padding: 1.2rem;
+  text-align: center;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease;
+}
+
+.artifact-file-drop.is-dragging {
+  border-color: var(--accent);
+  background: var(--accent-dark);
+}
+
+.artifact-file-drop-mark {
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  margin-bottom: 0.25rem;
+  border-radius: 999px;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-size: 1.3rem;
+  font-weight: 850;
+  place-items: center;
+}
+
+.artifact-file-drop small {
+  color: var(--muted);
+}
+
+.artifact-file-drop button {
+  margin-top: 0.6rem;
+}
+
+.project-artifact-fields {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.project-artifact-form .notice {
+  margin: 0;
+}
+
+.project-artifact-page .project-artifact-form {
+  margin: 0;
+}
+
+@media (max-width: 820px) {
+  .inline-form {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .project-artifact-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .artifact-form {
+    padding: 0.9rem;
+  }
+
+  .inline-form,
+  .inline-form label,
+  .inline-form button {
+    width: 100%;
+  }
+}
+
+/* ---------- Shared text ---------- */
 
 .materials-loading {
   margin: 0;
   padding: 1rem var(--ui-pad-end, 1rem) 1rem var(--ui-pad-start, 1rem);
   color: var(--muted);
-  font-size: 0.8125rem;
-}
-
-.materials-mono {
-  font-family: var(--font-mono);
-  font-size: 0.78125rem;
-  font-weight: 500;
-}
-
-.materials-wrap {
-  overflow-wrap: anywhere;
+  font-size: var(--text-sm);
 }
 
 .materials-ns {
@@ -38,17 +250,13 @@
   font-weight: 600;
 }
 
-.materials-icon {
-  flex: none;
-}
-
 .materials-kicker {
   display: inline-flex;
   align-items: center;
-  gap: 0.375rem;
+  gap: var(--space-1-5);
   margin: 0;
   color: var(--muted);
-  font-size: 0.71875rem;
+  font-size: var(--text-xs);
   font-weight: 800;
   letter-spacing: 0.08em;
   line-height: 1.3;
@@ -58,7 +266,7 @@
 .materials-subtitle {
   margin: 0;
   color: var(--text);
-  font-size: 0.84375rem;
+  font-size: var(--text-md);
   font-weight: 800;
   line-height: 1.3;
 }
@@ -66,11 +274,11 @@
 .materials-badge {
   display: inline-flex;
   align-items: center;
-  padding: 0.0625rem 0.4375rem;
-  border-radius: 999px;
+  padding: var(--space-0-5) var(--space-2);
+  border-radius: var(--radius-full);
   background: var(--success-bg);
   color: var(--success);
-  font-size: 0.6875rem;
+  font-size: var(--text-2xs);
   font-weight: 800;
   letter-spacing: 0.04em;
   line-height: 1.5;
@@ -79,22 +287,15 @@
 .materials-hint {
   margin: 0;
   color: var(--muted-strong);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   line-height: 1.5;
-}
-
-.materials-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
 }
 
 .materials-refresh.ui-btn {
   width: 2rem;
   height: 2rem;
   padding: 0;
-  border-radius: 0.5625rem;
+  border-radius: var(--radius-lg);
 }
 
 .materials-refresh .app-icon {
@@ -102,33 +303,12 @@
   height: 1rem;
 }
 
-.materials-icon-button,
-.materials-icon-button:not(:disabled):active {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 2rem;
-  min-height: 0;
-  height: 2rem;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: 0.5rem;
-  background: transparent;
-  color: var(--muted);
-  transform: none;
-}
-
-.materials-icon-button:not(:disabled):hover {
-  background: var(--surface-hover);
-  color: var(--text);
-}
-
 /* ---------- Project → Materials ---------- */
 
 .materials-region {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: var(--space-4);
   min-width: 0;
 }
 
@@ -137,7 +317,7 @@
   flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 0.75rem 1.5rem;
+  gap: var(--space-3) var(--space-6);
 }
 
 .materials-region-intro {
@@ -145,7 +325,7 @@
   max-width: 68ch;
   margin: 0;
   color: var(--muted);
-  font-size: 0.875rem;
+  font-size: var(--text-md);
   line-height: 1.55;
 }
 
@@ -157,7 +337,7 @@
   min-width: 0;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--radius-2xl);
   background: var(--surface);
 }
 
@@ -166,8 +346,8 @@
   flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 0.75rem 1.5rem;
-  padding: 1rem 1rem 0.875rem;
+  gap: var(--space-3) var(--space-6);
+  padding: var(--space-4) var(--space-4) var(--space-3-5);
   border-bottom: 1px solid var(--line);
 }
 
@@ -177,25 +357,25 @@
 }
 
 .materials-page .materials-panel-title h2 {
-  margin: 0 0 0.25rem;
+  margin: 0 0 var(--space-1);
   color: var(--text);
-  font-size: 1.25rem;
+  font-size: var(--text-lg);
   font-weight: 800;
   letter-spacing: -0.02em;
   line-height: 1.2;
 }
 
-.materials-panel-title .materials-quiet {
+.materials-panel-title .ui-caption {
   max-width: 68ch;
 }
 
 .materials-panel-notice {
-  padding: 0.875rem 1rem 0;
+  padding: var(--space-3-5) var(--space-4) 0;
 }
 
 /* A list on several pages: its kind groups cover the shown page only. */
 .materials-panel > .materials-page-note {
-  padding: 0.75rem 1rem 0;
+  padding: var(--space-3) var(--space-4) 0;
 }
 
 .materials-panel-head {
@@ -203,31 +383,31 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem 1rem;
-  padding: 0.625rem 1rem;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-2-5) var(--space-4);
   border-bottom: 1px solid var(--line);
   background: var(--surface-subtle);
 }
 
 .materials-panel > :is(.form-error, .notice) {
-  margin: 0.75rem 1rem;
+  margin: var(--space-3) var(--space-4);
 }
 
 .materials-panel > .ui-empty {
-  padding-inline: 1rem;
+  padding-inline: var(--space-4);
 }
 
 .materials-panel > .ui-list-section:first-of-type .ui-list-section-heading {
-  padding-top: 0.875rem;
+  padding-top: var(--space-3-5);
 }
 
 .materials-panel > .ui-list:first-child,
 .materials-panel-head + .ui-list {
-  padding-top: 0.25rem;
+  padding-top: var(--space-1);
 }
 
 .materials-pager {
-  padding: 0.625rem 1rem;
+  padding: var(--space-2-5) var(--space-4);
   border-top: 1px solid var(--line);
 }
 
@@ -238,28 +418,20 @@
 /* Previous / Next pages inside this area's panels. */
 :is(.materials-pager, .materials-history) .pagination {
   justify-content: flex-end;
-  gap: 0.5rem;
+  gap: var(--space-2);
   margin: 0;
 }
 
 :is(.materials-pager, .materials-history) .pagination button {
   flex: none;
-  min-height: 0;
   height: 2rem;
-  padding: 0 0.75rem;
+  padding: 0 var(--space-3);
   border: 1px solid var(--line-strong);
-  border-radius: 0.5625rem;
+  border-radius: var(--radius-lg);
   background: var(--surface);
   color: var(--text);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   font-weight: 700;
-}
-
-:is(.materials-pager, .materials-history)
-  .pagination
-  button:not(:disabled):hover {
-  border-color: var(--line-strong);
-  background: var(--surface-hover);
 }
 
 /* Rows: the namespace/name link covers the whole row. */
@@ -296,7 +468,7 @@
 .materials-locked {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: var(--space-1);
 }
 
 /* ---------- Namespace filter ---------- */
@@ -307,7 +479,7 @@ form.materials-filter.inline-form {
   flex-direction: row;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-2);
   margin: 0;
 }
 
@@ -315,11 +487,11 @@ form.materials-filter.inline-form label.materials-filter-label {
   display: flex;
   flex: 1 1 10rem;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-2);
   width: auto;
   min-width: 0;
   color: var(--muted);
-  font-size: 0.78125rem;
+  font-size: var(--text-sm);
   font-weight: 700;
 }
 
@@ -329,12 +501,12 @@ form.materials-filter.inline-form input[name="namespaceFilter"] {
   min-width: 0;
   min-height: 0;
   height: 2rem;
-  padding: 0 0.625rem;
+  padding: 0 var(--space-2-5);
   border: 1px solid var(--line-strong);
-  border-radius: 0.5625rem;
+  border-radius: var(--radius-lg);
   background: var(--surface);
   color: var(--text);
-  font-size: 0.84375rem;
+  font-size: var(--text-md);
 }
 
 form.materials-filter.inline-form button {
@@ -352,15 +524,15 @@ form.materials-filter.inline-form button {
   flex-direction: column;
   min-width: 0;
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--radius-2xl);
   background: var(--surface);
 }
 
 .materials-detail-header {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  padding: 1rem 1.5rem 1rem;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-6) var(--space-4);
   border-bottom: 1px solid var(--line);
 }
 
@@ -368,8 +540,8 @@ form.materials-filter.inline-form button {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.25rem 0.75rem;
-  font-size: 0.8125rem;
+  gap: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
 }
 
 .materials-detail-context:empty {
@@ -395,7 +567,7 @@ form.materials-filter.inline-form button {
   flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 0.75rem 1.5rem;
+  gap: var(--space-3) var(--space-6);
 }
 
 .materials-detail-titles {
@@ -403,7 +575,7 @@ form.materials-filter.inline-form button {
   flex: 1 1 18rem;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.375rem 0.75rem;
+  gap: var(--space-1-5) var(--space-3);
   min-width: 0;
 }
 
@@ -421,14 +593,14 @@ form.materials-filter.inline-form button {
 .lede.materials-revision {
   display: inline-flex;
   align-items: center;
-  gap: 0.3125rem;
+  gap: var(--space-1-5);
   max-width: 100%;
   margin: 0;
-  padding: 0.1875rem 0.625rem 0.1875rem 0.4375rem;
-  border-radius: 999px;
+  padding: var(--space-1) var(--space-2-5) var(--space-1) var(--space-2);
+  border-radius: var(--radius-full);
   background: var(--chrome);
   color: var(--muted);
-  font-size: 0.78125rem;
+  font-size: var(--text-sm);
   font-weight: 700;
   line-height: 1.3;
   white-space: nowrap;
@@ -446,9 +618,9 @@ form.materials-filter.inline-form button {
 .materials-detail-body {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: var(--space-6);
   min-width: 0;
-  padding: 1.25rem 1.5rem 1.75rem;
+  padding: var(--space-5) var(--space-6) 1.75rem;
 }
 
 .materials-detail-body > .notice {
@@ -462,67 +634,36 @@ form.materials-filter.inline-form button {
 .materials-invalid {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: var(--space-3);
 }
 
-/* Facts: label over value, wrapping like the issue facts. */
-.materials-facts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem 2rem;
-  margin: 0;
+/* Facts (Facts, layout row) keep their wider row gap. */
+.ui-facts.materials-facts {
+  row-gap: var(--space-3);
 }
 
-.materials-facts > div {
-  min-width: 0;
-}
-
-.materials-facts dt {
-  color: var(--muted);
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-.materials-facts dd {
-  margin: 0.125rem 0 0;
-  color: var(--text);
-  font-size: 0.84375rem;
-  font-weight: 700;
-  overflow-wrap: anywhere;
-}
-
-.materials-facts dd.materials-mono {
-  font-size: 0.8125rem;
-  font-weight: 500;
-}
-
-.materials-facts code {
+.materials-facts :is(code, .ui-mono) {
   font-family: var(--font-mono);
-  font-size: 0.78125rem;
+  font-size: var(--text-sm);
   font-weight: 500;
-  overflow-wrap: anywhere;
-}
-
-.materials-facts .materials-fact-wide {
-  flex: 1 1 100%;
 }
 
 /* Upload a new version. */
 .materials-update {
   min-width: 0;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   background: var(--surface);
 }
 
 .materials-update > summary {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.6875rem 1rem;
-  border-radius: 11px;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-xl);
   color: var(--text);
-  font-size: 0.875rem;
+  font-size: var(--text-md);
   font-weight: 800;
   list-style: none;
   cursor: pointer;
@@ -538,28 +679,28 @@ form.materials-filter.inline-form button {
 
 .materials-update[open] > summary {
   border-bottom: 1px solid var(--line);
-  border-radius: 11px 11px 0 0;
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
 }
 
 .materials-update-body {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  padding: 1rem;
+  gap: var(--space-4);
+  padding: var(--space-4);
 }
 
 .materials-callout {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--space-2);
   min-width: 0;
   margin: 0;
-  padding: 0.75rem 0.875rem;
+  padding: var(--space-3) var(--space-3-5);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   background: var(--sunken);
   color: var(--text);
-  font-size: 0.84375rem;
+  font-size: var(--text-md);
   line-height: 1.5;
 }
 
@@ -569,7 +710,7 @@ form.materials-filter.inline-form button {
 
 .materials-callout code {
   font-family: var(--font-mono);
-  font-size: 0.78125rem;
+  font-size: var(--text-sm);
   overflow-wrap: anywhere;
 }
 
@@ -582,14 +723,14 @@ form.materials-filter.inline-form button {
   flex-direction: row;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.25rem 0.5rem;
+  gap: var(--space-1) var(--space-2);
 }
 
 /* Sections: preview, archive contents. */
 .materials-section {
   display: flex;
   flex-direction: column;
-  gap: 0.625rem;
+  gap: var(--space-2-5);
   min-width: 0;
 }
 
@@ -598,13 +739,13 @@ form.materials-filter.inline-form button {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem 1rem;
+  gap: var(--space-2) var(--space-4);
 }
 
 .materials-section .materials-section-title {
   margin: 0;
   color: var(--text);
-  font-size: 1rem;
+  font-size: var(--text-base);
   font-weight: 800;
   letter-spacing: -0.01em;
   line-height: 1.3;
@@ -617,17 +758,17 @@ form.materials-filter.inline-form button {
 .materials-preview-source {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: var(--space-3);
   min-width: 0;
 }
 
 :is(.materials-preview-source, .materials-preview-shell) pre.artifact-preview {
   max-height: 42rem;
   margin: 0;
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   background: var(--code-bg);
   font-family: var(--font-mono);
-  font-size: 0.78125rem;
+  font-size: var(--text-sm);
   line-height: 1.6;
 }
 
@@ -635,7 +776,7 @@ form.materials-filter.inline-form button {
   min-width: 0;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   background: var(--surface);
 }
 
@@ -658,34 +799,26 @@ form.materials-filter.inline-form button {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: 0 1.25rem;
-  padding: 0 1rem;
+  gap: 0 var(--space-5);
+  padding: 0 var(--space-4);
   border-bottom: 1px solid var(--line);
   background: var(--surface);
 }
 
-.materials-tab,
-.materials-tab:not(:disabled):hover,
-.materials-tab:not(:disabled):active {
-  min-height: 0;
+.materials-tab {
   margin: 0 0 -1px;
-  padding: 0.6875rem 0 0.5625rem;
-  border: 0;
+  padding: var(--space-3) 0 var(--space-2-5);
   border-bottom: 2px solid transparent;
-  border-radius: 0;
-  background: none;
   color: var(--muted);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   font-weight: 700;
-  transform: none;
 }
 
-.materials-tab:not(:disabled):hover {
+.materials-tab:hover {
   color: var(--text);
 }
 
-.materials-tab[aria-selected="true"],
-.materials-tab[aria-selected="true"]:not(:disabled):hover {
+.materials-tab[aria-selected="true"] {
   border-bottom-color: var(--text);
   color: var(--text);
 }
@@ -698,11 +831,11 @@ form.materials-filter.inline-form button {
 .materials-tabs-note {
   align-self: center;
   margin-left: auto;
-  padding: 0.0625rem 0.5rem;
-  border-radius: 999px;
+  padding: var(--space-0-5) var(--space-2);
+  border-radius: var(--radius-full);
   background: var(--chrome);
   color: var(--muted);
-  font-size: 0.71875rem;
+  font-size: var(--text-xs);
   font-weight: 700;
   line-height: 1.6;
 }
@@ -710,11 +843,11 @@ form.materials-filter.inline-form button {
 .materials-scan {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--space-2);
   min-width: 0;
-  padding: 0.875rem 1rem;
+  padding: var(--space-3-5) var(--space-4);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   background: var(--sunken);
 }
 
@@ -726,26 +859,26 @@ form.materials-filter.inline-form button {
 .materials-tech .ui-tech-body {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: var(--space-5);
 }
 
 .materials-history {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(20rem, 100%), 1fr));
-  gap: 1.25rem 2rem;
+  gap: var(--space-5) var(--space-8);
   min-width: 0;
 }
 
 .materials-history > section {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--space-2);
   min-width: 0;
 }
 
 /* Versions and Lineage are h2 beside Preview: outrank `.route-page h2`. */
 .materials-history .materials-subtitle {
-  font-size: 0.84375rem;
+  font-size: var(--text-md);
   letter-spacing: normal;
   line-height: 1.3;
 }
@@ -767,10 +900,10 @@ form.materials-filter.inline-form button {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.25rem 0.75rem;
-  padding: 0.5rem 0.625rem;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-2) var(--space-2-5);
   color: var(--text);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   text-decoration: none;
 }
 
@@ -787,21 +920,21 @@ form.materials-filter.inline-form button {
   flex: 1 1 12rem;
   min-width: 0;
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   overflow-wrap: anywhere;
 }
 
 .materials-versions a > :is(span:not(.materials-badge), time) {
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
 }
 
 .materials-lineage > li {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  padding: 0.625rem 0;
-  font-size: 0.8125rem;
+  gap: var(--space-1);
+  padding: var(--space-2-5) 0;
+  font-size: var(--text-sm);
 }
 
 .materials-lineage strong {
@@ -812,16 +945,16 @@ form.materials-filter.inline-form button {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.125rem 0.5rem;
+  gap: var(--space-0-5) var(--space-2);
   min-width: 0;
 }
 
 .materials-lineage-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.125rem 0.75rem;
+  gap: var(--space-0-5) var(--space-3);
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
 }
 
 /* ---------- Success notice ---------- */
@@ -829,11 +962,11 @@ form.materials-filter.inline-form button {
 .materials-notice {
   display: flex;
   align-items: flex-start;
-  gap: 0.75rem;
+  gap: var(--space-3);
   min-width: 0;
-  padding: 0.875rem 0.75rem 0.875rem 1rem;
+  padding: var(--space-3-5) var(--space-3) var(--space-3-5) var(--space-4);
   border: 1px solid var(--success-line);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   background: var(--success-bg);
   color: var(--text);
 }
@@ -844,21 +977,21 @@ form.materials-filter.inline-form button {
 }
 
 .materials-notice > .ui-glyph {
-  margin-top: 0.125rem;
+  margin-top: var(--space-0-5);
 }
 
 .materials-notice-body {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
-  gap: 0.375rem;
+  gap: var(--space-1-5);
   min-width: 0;
 }
 
 .materials-notice-title {
   margin: 0;
   color: var(--text);
-  font-size: 0.9375rem;
+  font-size: var(--text-base);
   font-weight: 800;
   line-height: 1.3;
 }
@@ -867,10 +1000,10 @@ form.materials-filter.inline-form button {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.25rem 0.625rem;
+  gap: var(--space-1) var(--space-2-5);
   margin: 0;
   color: var(--muted-strong);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
 }
 
 .materials-notice-name {
@@ -882,79 +1015,72 @@ form.materials-filter.inline-form button {
 .materials-notice-revision {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: var(--space-1);
 }
 
 .materials-notice-links {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem 1rem;
-  margin: 0.125rem 0 0;
-  font-size: 0.8125rem;
+  gap: var(--space-1) var(--space-4);
+  margin: var(--space-0-5) 0 0;
+  font-size: var(--text-sm);
   font-weight: 700;
 }
 
 /* ---------- Sheets: Add material, upload, Git import ---------- */
 
-.project-dialog.materials-sheet {
+.ui-dialog.materials-sheet {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: var(--space-4);
   width: min(100%, 42rem);
-  padding: 1.25rem 1.5rem 1.5rem;
+  padding: var(--space-5) var(--space-6) var(--space-6);
   border: 1px solid var(--line-strong);
-  border-radius: 14px;
+  border-radius: var(--radius-2xl);
 }
 
-.materials-sheet .project-dialog-heading h2 {
+.materials-sheet .ui-dialog-heading h2 {
   margin: 0;
   color: var(--text);
-  font-size: 1.25rem;
+  font-size: var(--text-lg);
   font-weight: 800;
   letter-spacing: -0.02em;
   line-height: 1.25;
   overflow-wrap: anywhere;
 }
 
-.materials-sheet .project-dialog-heading .eyebrow {
-  margin: 0 0 0.25rem;
+.materials-sheet .ui-dialog-heading .eyebrow {
+  margin: 0 0 var(--space-1);
   color: var(--muted);
-  font-size: 0.71875rem;
+  font-size: var(--text-xs);
   letter-spacing: 0.08em;
 }
 
-.materials-sheet .project-dialog-close,
-.materials-sheet .project-dialog-close:not(:disabled):active {
+.materials-sheet .ui-dialog-close {
   width: 2rem;
   min-height: 0;
   height: 2rem;
   border: 1px solid var(--line-strong);
-  border-radius: 0.5625rem;
+  border-radius: var(--radius-lg);
   background: var(--surface);
   color: var(--muted);
-  font-size: 1.25rem;
+  font-size: var(--text-lg);
   line-height: 1;
-  transform: none;
-}
-
-.materials-sheet .project-dialog-close:not(:disabled):hover {
-  background: var(--surface-hover);
-  color: var(--text);
 }
 
 .materials-sheet-intro {
   margin: 0;
   color: var(--muted);
-  font-size: 0.875rem;
+  font-size: var(--text-md);
   line-height: 1.55;
 }
 
 .materials-sheet-note {
   margin: 0;
-  padding-top: 0.875rem;
+  padding-top: var(--space-3-5);
   border-top: 1px solid var(--line);
   color: var(--muted);
-  font-size: 0.78125rem;
+  font-size: var(--text-sm);
   line-height: 1.5;
 }
 
@@ -963,7 +1089,7 @@ form.materials-filter.inline-form button {
 }
 
 /* Fields inside the sheets and the new-version panel: V3B control size. */
-.project-dialog.materials-sheet
+.ui-dialog.materials-sheet
   :is(
     input:not(
       [type="checkbox"],
@@ -986,24 +1112,24 @@ form.materials-filter.inline-form button {
   ) {
   min-height: 0;
   height: 2.5rem;
-  padding: 0 0.75rem;
+  padding: 0 var(--space-3);
   border-color: var(--line-strong);
-  border-radius: 0.625rem;
+  border-radius: var(--radius-lg);
   background: var(--sunken);
-  font-size: 0.9375rem;
+  font-size: var(--text-base);
 }
 
-.project-dialog.materials-sheet label,
+.ui-dialog.materials-sheet label,
 .materials-detail .materials-update label {
   color: var(--muted-strong);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   font-weight: 700;
 }
 
 .materials-kinds {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(15rem, 100%), 1fr));
-  gap: 0.5rem;
+  gap: var(--space-2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1014,25 +1140,22 @@ form.materials-filter.inline-form button {
   min-width: 0;
 }
 
-.materials-kind,
-.materials-kind:not(:disabled):active {
+.materials-kind {
   display: flex;
   flex: 1 1 auto;
   align-items: flex-start;
-  gap: 0.75rem;
+  gap: var(--space-3);
   min-width: 0;
-  min-height: 0;
-  padding: 0.75rem 0.875rem;
+  padding: var(--space-3) var(--space-3-5);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   background: var(--surface);
   color: var(--text);
   font-weight: 400;
   text-align: left;
-  transform: none;
 }
 
-.materials-kind:not(:disabled):hover {
+.materials-kind:hover {
   border-color: var(--sel-line);
   background: var(--sel);
 }
@@ -1048,7 +1171,7 @@ form.materials-filter.inline-form button {
   place-items: center;
   width: 2.25rem;
   height: 2.25rem;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--chrome);
   color: var(--text);
 }
@@ -1056,19 +1179,19 @@ form.materials-filter.inline-form button {
 .materials-kind-text {
   display: flex;
   flex-direction: column;
-  gap: 0.125rem;
+  gap: var(--space-0-5);
   min-width: 0;
 }
 
 .materials-kind-text strong {
-  font-size: 0.875rem;
+  font-size: var(--text-md);
   font-weight: 800;
   line-height: 1.3;
 }
 
 .materials-kind-text small {
   color: var(--muted);
-  font-size: 0.78125rem;
+  font-size: var(--text-sm);
   line-height: 1.4;
 }
 
@@ -1077,7 +1200,7 @@ form.materials-filter.inline-form button {
 .materials-write-form {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: var(--space-4);
   min-width: 0;
   margin: 0;
   padding: 0;
@@ -1086,9 +1209,9 @@ form.materials-filter.inline-form button {
 }
 
 .materials-form-head h3 {
-  margin: 0.125rem 0 0;
+  margin: var(--space-0-5) 0 0;
   color: var(--text);
-  font-size: 1rem;
+  font-size: var(--text-base);
   font-weight: 800;
 }
 
@@ -1096,31 +1219,23 @@ form.materials-filter.inline-form button {
 .materials-form-pair {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem 1rem;
+  gap: var(--space-3) var(--space-4);
 }
 
 .materials-form label,
 .materials-write-form .materials-fields label {
   display: grid;
-  gap: 0.375rem;
+  gap: var(--space-1-5);
   min-width: 0;
 }
 
 .materials-form .materials-check {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-2);
   color: var(--text);
-  font-size: 0.84375rem;
+  font-size: var(--text-md);
   font-weight: 700;
-}
-
-.materials-form-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.5rem;
 }
 
 .materials-write-form .form-error {
@@ -1130,11 +1245,11 @@ form.materials-filter.inline-form button {
 /* The shared file drop (uploads in every scope). */
 .artifact-file-drop {
   min-height: 9.5rem;
-  gap: 0.25rem;
+  gap: var(--space-1);
   border: 1px dashed var(--line-strong);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   background: var(--sunken);
-  padding: 1rem;
+  padding: var(--space-4);
 }
 
 .artifact-file-drop.is-dragging {
@@ -1146,8 +1261,8 @@ form.materials-filter.inline-form button {
   display: grid;
   width: 2.5rem;
   height: 2.5rem;
-  margin-bottom: 0.25rem;
-  border-radius: 999px;
+  margin-bottom: var(--space-1);
+  border-radius: var(--radius-full);
   background: var(--chrome);
   color: var(--text);
   place-items: center;
@@ -1156,17 +1271,17 @@ form.materials-filter.inline-form button {
 .artifact-file-drop strong {
   max-width: 100%;
   color: var(--text);
-  font-size: 0.9375rem;
+  font-size: var(--text-base);
   overflow-wrap: anywhere;
 }
 
 .artifact-file-drop small {
   color: var(--muted);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
 }
 
 .artifact-file-drop .ui-btn {
-  margin-top: 0.5rem;
+  margin-top: var(--space-2);
 }
 
 /* ---------- Library → Files ---------- */
@@ -1174,14 +1289,14 @@ form.materials-filter.inline-form button {
 .materials-library-head {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
 }
 
 .materials-library-title {
   margin: 0;
   color: var(--text);
-  font-size: 1.5rem;
+  font-size: var(--text-xl);
   font-weight: 800;
   letter-spacing: -0.025em;
   line-height: 1.2;
@@ -1191,34 +1306,34 @@ form.materials-filter.inline-form button {
 
 @media (max-width: 820px) {
   .materials-detail-header {
-    padding: 0.875rem 1rem;
+    padding: var(--space-3-5) var(--space-4);
   }
 
   .materials-detail-body {
-    gap: 1.25rem;
-    padding: 1rem 1rem 1.25rem;
+    gap: var(--space-5);
+    padding: var(--space-4) var(--space-4) var(--space-5);
   }
 }
 
 /* The shared backdrop docks dialogs to the bottom from 640 px down
    (styles.css); only then do the sheets drop their side and bottom edges. */
 @media (max-width: 640px) {
-  .project-dialog.materials-sheet {
-    padding: 1rem 1rem 1.25rem;
+  .ui-dialog.materials-sheet {
+    padding: var(--space-4) var(--space-4) var(--space-5);
     border-right: 0;
     border-bottom: 0;
     border-left: 0;
-    border-radius: 14px 14px 0 0;
+    border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
   }
 }
 
-@media (max-width: 520px) {
+@media (max-width: 640px) {
   .materials-write-form .materials-fields,
   .materials-form-pair {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .materials-facts {
-    gap: 0.625rem 1.25rem;
+  .ui-facts.materials-facts {
+    gap: var(--space-2-5) var(--space-5);
   }
 }

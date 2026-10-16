@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
 
-import { readDraft, type Kind } from "../src/routes/studio/document";
+import { readDraft } from "../src/routes/studio/document";
 import { buildGraph } from "../src/routes/studio/graph";
 import { validateDraft } from "../src/routes/studio/validation";
 
@@ -10,6 +10,7 @@ import { validateDraft } from "../src/routes/studio/validation";
 // without inventing local errors. Only tests/ui-stack runs this spec (it may
 // read configs/); unit tests use fixture copies in src/routes/studio/testdata.
 const configRoot = resolve(process.cwd(), "../configs");
+type Kind = ReturnType<typeof readDraft>["kind"];
 const DIRECTORIES: readonly (readonly [string, Kind])[] = [
   ["workflows", "Workflow"],
   ["audit-profiles", "AuditProfile"],

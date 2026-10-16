@@ -32,7 +32,7 @@ import {
 } from "./runs";
 
 /** The User, Project or Run scope that owns an Artifact binding. */
-export type ArtifactScope = ArtifactArchiveScope;
+type ArtifactScope = ArtifactArchiveScope;
 
 /** Scopes whose Artifact bindings accept uploads. */
 export type WritableArtifactScope = Exclude<ArtifactScope, { kind: "run" }>;
@@ -40,7 +40,7 @@ export type WritableArtifactScope = Exclude<ArtifactScope, { kind: "run" }>;
 type PageRequest = ArtifactDetailRequest & { cursor?: string };
 
 /** Reads one Artifact binding's revisions through its scope's endpoints. */
-export interface ScopedArtifactAPI {
+interface ScopedArtifactAPI {
   metadata: (request: ArtifactDetailRequest) => Promise<ArtifactMetadata>;
   versions: (request: PageRequest) => Promise<ArtifactPage>;
   lineage: (request: PageRequest) => Promise<ArtifactLineagePage>;

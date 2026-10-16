@@ -1,15 +1,19 @@
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useId, useState } from "react";
 import { Link } from "react-router";
 
-import { MAXIMUM_ARTIFACT_BYTES } from "../../api/artifacts";
-import type { ArtifactWriteResponse } from "../../api/artifacts";
-import { PublicAPIError } from "../../api/error";
+import {
+  MAXIMUM_ARTIFACT_BYTES,
+  type ArtifactWriteResponse,
+} from "../../api/artifacts";
 import type { GitImportResult } from "../../api/git-artifacts";
+import { writeConflict } from "../../app/conflict";
 import { Dialog, DialogHeader } from "../../app/dialog";
 import { ArtifactWriteForm } from "./common";
 import { GitImportDialog } from "./git-import-dialog";
 import { MaterialIcon, type MaterialIconName } from "./icons";
 import { MATERIAL_UPLOAD_KINDS, type MaterialUploadKind } from "./kinds";
+import { UploadDialog } from "./upload-dialog";
+import { uploadCancelNote } from "./upload-operation";
 import "./materials.css";
 
 const SSH_KEY_SETTINGS = "/operations/settings#repository-access";
@@ -49,20 +53,10 @@ function KindButton({
   );
 }
 
-/** A create that met an existing binding: nothing was replaced. */
-function isCreateConflict(error: unknown): boolean {
-  return (
-    error instanceof PublicAPIError &&
-    (error.code === "conflict" || error.status === 409 || error.status === 412)
-  );
-}
-
 /**
  * Upload of one material of a chosen kind. The kind only suggests the
- * namespace and media type. Closing the dialog (or "Cancel upload") aborts
- * a running upload, which the Server may still have stored, so the dialog
- * says to look before retrying; a refused or lost write is explained and
- * never retried.
+ * namespace and media type. Closing the dialog aborts a running upload
+ * (UploadDialog).
  */
 function MaterialUploadDialog({
   projectId,
@@ -75,73 +69,36 @@ function MaterialUploadDialog({
   onClose: () => void;
   onWritten: (result: ArtifactWriteResponse) => void;
 }) {
-  const heading = useId();
-  const description = useId();
-  const cancelNote = useId();
-  const closeButton = useRef<HTMLButtonElement>(null);
-  const operation = useRef<AbortController | null>(null);
-  useEffect(() => () => operation.current?.abort(), []);
-  const startOperation = useCallback(() => {
-    const controller = new AbortController();
-    operation.current = controller;
-    return controller.signal;
-  }, []);
-  function close() {
-    operation.current?.abort();
-    onClose();
-  }
-
   return (
-    <Dialog
-      className="project-dialog panel materials-sheet"
-      labelledBy={heading}
-      describedBy={`${description} ${cancelNote}`}
-      initialFocusRef={closeButton}
-      onRequestClose={close}
+    <UploadDialog
+      eyebrow="Add material"
+      title={kind.label}
+      closeLabel="Close upload dialog"
+      intro={`${kind.description}. The kind only suggests a namespace and media type; change them if they do not fit. Checks and Runs read the exact version you add.`}
+      note={uploadCancelNote("material")}
+      onClose={onClose}
     >
-      <div className="project-dialog-heading">
-        <div>
-          <p className="eyebrow">Add material</p>
-          <h2 id={heading}>{kind.label}</h2>
-        </div>
-        <button
-          ref={closeButton}
-          className="project-dialog-close"
-          type="button"
-          aria-label="Close upload dialog"
-          onClick={close}
-        >
-          ×
-        </button>
-      </div>
-      <p id={description} className="materials-sheet-intro">
-        {kind.description}. The kind only suggests a namespace and media type;
-        change them if they do not fit. Checks and Runs read the exact version
-        you add.
-      </p>
-      <p id={cancelNote} className="materials-quiet">
-        Closing this dialog cancels a running upload. If you cancel it or lose
-        the response, look for the material in the list before trying again: it
-        may already be stored.
-      </p>
-      <ArtifactWriteForm
-        scope={{ kind: "project", id: projectId }}
-        suggested={kind}
-        headingId={heading}
-        startOperation={startOperation}
-        writeErrorHint={(error) =>
-          isCreateConflict(error) ? (
-            <p className="materials-hint">
-              Nothing was replaced. If a material with this namespace and name
-              already exists, open it from the list to upload a new version, or
-              choose another name.
-            </p>
-          ) : null
-        }
-        onCancel={close}
-        onWritten={onWritten}
-      />
-    </Dialog>
+      {(upload) => (
+        <ArtifactWriteForm
+          scope={{ kind: "project", id: projectId }}
+          suggested={kind}
+          headingId={upload.headingId}
+          startOperation={upload.start}
+          writeErrorHint={(error) =>
+            // A create that met an existing binding: nothing was replaced.
+            writeConflict(error) === undefined ? null : (
+              <p className="materials-hint">
+                Nothing was replaced. If a material with this namespace and name
+                already exists, open it from the list to upload a new version,
+                or choose another name.
+              </p>
+            )
+          }
+          onCancel={upload.close}
+          onWritten={onWritten}
+        />
+      )}
+    </UploadDialog>
   );
 }
 
@@ -167,7 +124,7 @@ export function AddMaterialSheet({
   return (
     <>
       <Dialog
-        className="project-dialog panel materials-sheet"
+        className="ui-dialog ui-panel materials-sheet"
         labelledBy={heading}
         describedBy={description}
         onRequestClose={onClose}

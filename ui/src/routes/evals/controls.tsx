@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
-import { useNavigate } from "react-router";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { usePublicAPI } from "../../api/context";
 import { invalidateCrossProject } from "../../api/cross-project";
 import { PublicAPIError } from "../../api/error";
@@ -14,9 +13,10 @@ import {
   type EvalExperiment,
   type EvalReceipt,
 } from "../../api/evals";
-import { Dialog } from "../../app/dialog";
+import { pollInterval } from "../../app/polling";
 import { RecordedTime } from "../../app/recorded-time";
 import { createMutationIdempotencyKey } from "../../mutations/idempotency";
+import { AlertDialog, Button } from "../../ui";
 import { EvalError } from "./common";
 import { EvalExecutionStatus } from "./execution-status";
 import { useEvalOwner } from "./queries";
@@ -28,6 +28,7 @@ import {
   type PendingCommand,
 } from "./recovery";
 import { queryKeys } from "../../api/query-keys";
+import { useGuardedNavigate } from "../../app/page-location";
 
 const LABELS: Record<EvalCommand["kind"], string> = {
   prepare: "Prepare",
@@ -38,6 +39,12 @@ const LABELS: Record<EvalCommand["kind"], string> = {
   duplicate: "Duplicate",
   finalize: "Finalize",
 };
+
+// A command receipt is polled until the command completes or fails.
+const commandPoll = pollInterval<EvalCommandReceipt>({
+  interval: EVAL_POLL_MS,
+  settled: commandFinished,
+});
 
 function needsCurrentRevision(kind: EvalCommand["kind"]): boolean {
   return kind === "pause" || kind === "resume" || kind === "cancel";
@@ -85,7 +92,7 @@ export function EvalControls({
   const api = usePublicAPI(),
     owner = useEvalOwner(),
     cache = useQueryClient(),
-    navigate = useNavigate();
+    navigate = useGuardedNavigate();
   const [pending, setPending] = useState<PendingCommand | null>(() =>
     readCommand(owner, experiment.experimentId),
   );
@@ -96,8 +103,6 @@ export function EvalControls({
   const [storageError, setStorageError] = useState<Error | null>(null);
   const [preparing, setPreparing] = useState(false);
   const preparingRef = useRef(false);
-  const heading = useId(),
-    dismiss = useRef<HTMLButtonElement>(null);
   const [receipt, setReceipt] = useState<EvalCommandReceipt | null>(null);
   const submitted = useRef<string | null>(null);
   const native = experiment.controlMode === "server";
@@ -194,11 +199,7 @@ export function EvalControls({
     queryKey: queryKeys.evals.command(experiment.experimentId, commandId),
     enabled: native && !!pending && !!commandId,
     queryFn: () => getEvalCommand(api, experiment.experimentId, commandId!),
-    refetchInterval: (query) =>
-      query.state.error ||
-      (query.state.data && commandFinished(query.state.data))
-        ? false
-        : EVAL_POLL_MS,
+    refetchInterval: commandPoll,
   });
   // Each mounted instance settles its own pending command from the receipt it
   // observes. The detail view replaces these controls while a command runs
@@ -303,13 +304,11 @@ export function EvalControls({
       <EvalExecutionStatus experiment={experiment} />
       {native ? (
         commands.length ? (
-          <div className="eval-actions eval-command-bar">
+          <div className="ui-toolbar">
             {commands.map((kind) => (
-              <button
+              <Button
                 key={kind}
-                type="button"
-                className="ui-btn"
-                data-variant={
+                variant={
                   disabled
                     ? undefined
                     : kind === "prepare" ||
@@ -328,7 +327,7 @@ export function EvalControls({
                 }}
               >
                 {LABELS[kind]}
-              </button>
+              </Button>
             ))}
           </div>
         ) : null
@@ -347,14 +346,14 @@ export function EvalControls({
         </p>
       )}
       {pending && !error ? (
-        <p className="eval-muted" role="status">
+        <p className="ui-caption" role="status">
           {LABELS[pending.body.kind]}:{" "}
           {command.data?.state ?? "recovering receipt"}. Waiting for the server
           to confirm.
         </p>
       ) : null}
       {receipt ? (
-        <p className="eval-muted" role="status">
+        <p className="ui-caption" role="status">
           {LABELS[receipt.kind]}: {receipt.state}.
         </p>
       ) : null}
@@ -378,15 +377,15 @@ export function EvalControls({
         }
       />
       {confirm ? (
-        <Dialog
-          className="project-dialog panel eval-dialog"
-          labelledBy={heading}
-          initialFocusRef={dismiss}
-          onRequestClose={() => {
-            if (!preparingRef.current) setConfirm(null);
-          }}
+        <AlertDialog
+          title={`${LABELS[confirm.kind]} experiment?`}
+          confirmLabel={`Confirm ${LABELS[confirm.kind].toLowerCase()}`}
+          cancelLabel="Keep current state"
+          tone={confirm.kind === "cancel" ? "danger" : "primary"}
+          pending={preparing}
+          onCancel={() => setConfirm(null)}
+          onConfirm={() => void execute(confirm.kind, confirm.experiment)}
         >
-          <h2 id={heading}>{LABELS[confirm.kind]} experiment?</h2>
           {confirm.kind === "start" ? (
             <>
               <p>
@@ -402,27 +401,7 @@ export function EvalControls({
               have drained.
             </p>
           )}
-          <div className="eval-dialog-actions">
-            <button
-              ref={dismiss}
-              type="button"
-              className="ui-btn"
-              disabled={preparing}
-              onClick={() => setConfirm(null)}
-            >
-              Keep current state
-            </button>
-            <button
-              type="button"
-              className="ui-btn"
-              data-variant={confirm.kind === "cancel" ? "danger" : "primary"}
-              disabled={preparing}
-              onClick={() => void execute(confirm.kind, confirm.experiment)}
-            >
-              Confirm {LABELS[confirm.kind].toLowerCase()}
-            </button>
-          </div>
-        </Dialog>
+        </AlertDialog>
       ) : null}
     </section>
   );

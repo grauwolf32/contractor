@@ -33,7 +33,7 @@ function Avatar({ username }: { username: string | undefined }) {
   return initial === undefined ? <Icon name="user" /> : <>{initial}</>;
 }
 
-export interface AccountPanelProps {
+interface AccountPanelProps {
   /** Runs when a link in the panel is followed, e.g. to close the menu. */
   onNavigate?: (() => void) | undefined;
 }

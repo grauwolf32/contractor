@@ -9,7 +9,7 @@
 .library-page {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: var(--space-5);
   width: 100%;
   min-width: 0;
   max-width: 84rem;
@@ -22,14 +22,14 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.625rem 1.25rem;
+  gap: var(--space-2-5) var(--space-5);
   min-width: 0;
 }
 
 .library-title {
   margin: 0;
   color: var(--text);
-  font-size: 1.5rem;
+  font-size: var(--text-xl);
   font-weight: 800;
   letter-spacing: -0.02em;
   line-height: 1.2;
@@ -41,12 +41,12 @@
 .library-tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 2px;
+  gap: var(--space-0-5);
   width: fit-content;
   max-width: 100%;
   min-width: 0;
-  padding: 3px;
-  border-radius: 10px;
+  padding: var(--space-1);
+  border-radius: var(--radius-lg);
   background: var(--chrome);
 }
 
@@ -55,11 +55,11 @@
   flex: none;
   align-items: center;
   height: 2rem;
-  padding: 0 0.75rem;
+  padding: 0 var(--space-3);
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: var(--muted);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   font-weight: 700;
   line-height: 1;
   white-space: nowrap;
@@ -86,7 +86,7 @@
 .library-section {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: var(--space-4);
   min-width: 0;
 }
 
@@ -95,8 +95,8 @@
   flex-wrap: wrap;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 0.75rem 1.5rem;
-  padding-top: 1rem;
+  gap: var(--space-3) var(--space-6);
+  padding-top: var(--space-4);
   border-top: 1px solid var(--line);
 }
 
@@ -116,9 +116,9 @@
 
 .library-section-lede {
   max-width: 46rem;
-  margin: 0.25rem 0 0;
+  margin: var(--space-1) 0 0;
   color: var(--muted);
-  font-size: 0.875rem;
+  font-size: var(--text-md);
   line-height: 1.5;
 }
 
@@ -127,7 +127,7 @@
   flex: 0 1 auto;
   align-items: center;
   justify-content: flex-end;
-  gap: 0.5rem;
+  gap: var(--space-2);
   min-width: 0;
 }
 
@@ -155,12 +155,12 @@
   width: 100%;
   min-width: 0;
   height: 2.375rem;
-  padding: 0 0.75rem 0 2.125rem;
+  padding: 0 var(--space-3) 0 2.125rem;
   border: 1px solid var(--line-strong);
-  border-radius: 0.625rem;
+  border-radius: var(--radius-lg);
   background: var(--surface);
   color: var(--text);
-  font-size: 0.875rem;
+  font-size: var(--text-md);
 }
 
 .library-search input::placeholder {
@@ -177,50 +177,25 @@
 .library-count {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem 1rem;
+  gap: var(--space-1) var(--space-4);
   margin: 0;
   color: var(--muted);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
 }
 
 .library-count strong {
   color: var(--text);
 }
 
-.library-muted {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.8125rem;
-  line-height: 1.5;
-}
-
 .library-empty {
-  padding: 0.25rem 1.25rem;
+  padding: var(--space-1) var(--space-5);
   border: 1px dashed var(--line-strong);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   background: var(--surface);
 }
 
-/* Shared cursor controls (app/cursor-controls.tsx) in the Library's size. */
 .library-page .pagination {
   margin-top: 0;
-}
-
-.library-page .pagination .secondary-button,
-.library-page .library-agent-versions .secondary-button {
-  min-height: 0;
-  height: 2rem;
-  padding: 0 0.75rem;
-  border-color: var(--line-strong);
-  border-radius: 0.5625rem;
-  background: var(--surface);
-  color: var(--text);
-  font-size: 0.8125rem;
-}
-
-.library-page .pagination .secondary-button:not(:disabled):hover,
-.library-page .library-agent-versions .secondary-button:not(:disabled):hover {
-  background: var(--surface-hover);
 }
 
 /* ---------- Cards ---------- */
@@ -228,18 +203,18 @@
 .library-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 19.5rem), 1fr));
-  gap: 0.875rem;
+  gap: var(--space-3-5);
   min-width: 0;
 }
 
 .library-card {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: var(--space-3);
   min-width: 0;
-  padding: 1rem 1.125rem;
+  padding: var(--space-4) 1.125rem;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   background: var(--surface);
   overflow-wrap: anywhere;
 }
@@ -249,13 +224,13 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.375rem 0.75rem;
+  gap: var(--space-1-5) var(--space-3);
   min-width: 0;
 }
 
 .library-card-kind {
   color: var(--muted);
-  font-size: 0.71875rem;
+  font-size: var(--text-xs);
   font-weight: 800;
   letter-spacing: 0.08em;
   line-height: 1.3;
@@ -265,7 +240,7 @@
 .library-card-title {
   margin: 0;
   color: var(--text);
-  font-size: 1rem;
+  font-size: var(--text-base);
   font-weight: 800;
   letter-spacing: -0.01em;
   line-height: 1.3;
@@ -283,7 +258,7 @@
 .library-card-text {
   margin: 0;
   color: var(--muted-strong);
-  font-size: 0.84375rem;
+  font-size: var(--text-md);
   line-height: 1.5;
 }
 
@@ -291,7 +266,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem 0.75rem;
+  gap: var(--space-2) var(--space-3);
   min-width: 0;
   margin-top: auto;
 }
@@ -313,14 +288,14 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
-  gap: 0.5rem 1rem;
-  padding-top: 0.75rem;
+  gap: var(--space-2) var(--space-4);
+  padding-top: var(--space-3);
   border-top: 1px solid var(--line);
 }
 
 .library-card-link {
   color: var(--link);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   font-weight: 700;
   text-decoration: none;
 }
@@ -329,82 +304,43 @@
   text-decoration: underline;
 }
 
-.library-tag {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.125rem 0.5rem;
-  border-radius: 999px;
-  background: var(--chrome);
-  color: var(--muted-strong);
-  font-size: 0.75rem;
-  font-weight: 700;
-  line-height: 1.3;
-  white-space: nowrap;
-}
-
 /* A version choice inside a card or a header line. */
 .library-version {
   display: inline-flex;
   align-items: center;
-  gap: 0.375rem;
+  gap: var(--space-1-5);
   min-width: 0;
   color: var(--muted);
-  font-size: 0.78125rem;
+  font-size: var(--text-sm);
   font-weight: 700;
-}
-
-.library-version select {
-  max-width: 12rem;
-  height: 1.75rem;
-  min-height: 0;
-  padding: 0 0.375rem;
-  border: 1px solid var(--line-strong);
-  border-radius: 0.5rem;
-  background: var(--surface);
-  color: var(--text);
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-.library-version select:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 1px;
 }
 
 .library-reasons {
   display: grid;
-  gap: 0.25rem;
+  gap: var(--space-1);
   margin: 0;
   padding: 0;
   list-style: none;
   color: var(--muted-strong);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   line-height: 1.45;
 }
 
 .library-reasons code {
   color: var(--muted);
-  font-size: 0.71875rem;
+  font-size: var(--text-xs);
 }
 
 /* ---------- Detail pages ---------- */
 
-.library-detail {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  min-width: 0;
-}
-
 .library-back {
   display: inline-flex;
   align-items: center;
-  gap: 0.375rem;
+  gap: var(--space-1-5);
   width: fit-content;
   max-width: 100%;
   color: var(--muted);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   font-weight: 700;
   text-decoration: none;
   overflow-wrap: anywhere;
@@ -419,7 +355,7 @@
 .library-sheet {
   min-width: 0;
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--radius-2xl);
   background: var(--surface);
   container-type: inline-size;
 }
@@ -430,11 +366,11 @@
 }
 
 .library-sheet .ui-detail-header {
-  border-radius: 14px 14px 0 0;
+  border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
 }
 
 .library-sheet .ui-detail-header-meta {
-  gap: 0.375rem 0.875rem;
+  gap: var(--space-1-5) var(--space-3-5);
 }
 
 .library-title-version {
@@ -447,33 +383,33 @@
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.375rem 0.75rem;
+  gap: var(--space-1-5) var(--space-3);
 }
 
 .library-inline-error {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.375rem;
+  gap: var(--space-1-5);
   color: var(--danger);
-  font-size: 0.78125rem;
+  font-size: var(--text-sm);
 }
 
 /* Blocks inside a sheet: separated by hairlines, not nested boxes. */
 .library-block {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: var(--space-3);
   min-width: 0;
 }
 
 .library-block + .library-block,
 .library-block + .ui-tech,
-.library-facts + .library-block,
+.ui-facts + .library-block,
 .library-agent-grid + .library-block,
 .library-agent-tool + .library-block,
 .library-note + .library-block {
-  padding-top: 1.25rem;
+  padding-top: var(--space-5);
   border-top: 1px solid var(--line);
 }
 
@@ -482,21 +418,21 @@
   flex-wrap: wrap;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 0.5rem 1rem;
+  gap: var(--space-2) var(--space-4);
   min-width: 0;
 }
 
 .library-block-header > div {
   display: grid;
   flex: 1 1 18rem;
-  gap: 0.25rem;
+  gap: var(--space-1);
   min-width: 0;
 }
 
 .library-block-title {
   margin: 0;
   color: var(--text);
-  font-size: 1rem;
+  font-size: var(--text-base);
   font-weight: 800;
   line-height: 1.3;
 }
@@ -504,18 +440,18 @@
 .library-block-lede {
   margin: 0;
   color: var(--muted-strong);
-  font-size: 0.875rem;
+  font-size: var(--text-md);
   line-height: 1.5;
 }
 
 .library-panel {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: var(--space-3);
   min-width: 0;
-  padding: 1rem 1.125rem;
+  padding: var(--space-4) 1.125rem;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   background: var(--surface);
 }
 
@@ -524,34 +460,27 @@
   flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 0.5rem 1rem;
+  gap: var(--space-2) var(--space-4);
   min-width: 0;
 }
 
 .library-panel-header > div:first-child {
   display: grid;
   flex: 1 1 14rem;
-  gap: 0.25rem;
+  gap: var(--space-1);
   min-width: 0;
-}
-
-.library-panel-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
 }
 
 .library-note {
   display: grid;
-  gap: 0.375rem;
+  gap: var(--space-1-5);
   margin: 0;
-  padding: 0.75rem 0.875rem;
+  padding: var(--space-3) var(--space-3-5);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--surface-subtle);
   color: var(--text);
-  font-size: 0.84375rem;
+  font-size: var(--text-md);
   line-height: 1.5;
 }
 
@@ -568,46 +497,6 @@
   color: var(--warning);
 }
 
-/* Label and value pairs. */
-.library-facts {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 8rem), 1fr));
-  gap: 0.75rem 1.5rem;
-  margin: 0;
-}
-
-@container (min-width: 40rem) {
-  .library-facts {
-    grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr));
-  }
-}
-
-.library-facts > div {
-  min-width: 0;
-}
-
-.library-facts dt {
-  color: var(--muted);
-  font-size: 0.75rem;
-  font-weight: 700;
-}
-
-.library-facts dd {
-  margin: 0.125rem 0 0;
-  color: var(--text);
-  font-size: 0.875rem;
-  line-height: 1.45;
-  overflow-wrap: anywhere;
-}
-
-.library-facts-compact {
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
-}
-
-.library-facts-compact dd {
-  font-size: 0.8125rem;
-}
-
 /* Hairline rows: name, a tag and details. */
 .library-rows {
   margin: 0;
@@ -620,17 +509,17 @@
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 0.25rem 0.75rem;
+  gap: var(--space-1) var(--space-3);
   min-width: 0;
-  padding: 0.625rem 0;
+  padding: var(--space-2-5) 0;
   border-bottom: 1px solid var(--line);
-  font-size: 0.84375rem;
+  font-size: var(--text-md);
 }
 
 .library-row-name {
   min-width: 0;
   font-family: var(--font-mono);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   font-weight: 600;
   overflow-wrap: anywhere;
 }
@@ -641,7 +530,7 @@ code.library-row-name {
 
 .library-row-tag {
   color: var(--muted-strong);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   font-weight: 700;
 }
 
@@ -649,89 +538,54 @@ code.library-row-name {
   flex: 1 1 14rem;
   min-width: 0;
   color: var(--muted);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   overflow-wrap: anywhere;
 }
 
 .library-selector {
   color: var(--muted-strong);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   overflow-wrap: anywhere;
 }
 
 /* The V3B segmented control for views inside a panel. */
 .library-segmented {
   display: inline-flex;
-  gap: 2px;
-  padding: 3px;
-  border-radius: 9px;
+  gap: var(--space-0-5);
+  padding: var(--space-1);
+  border-radius: var(--radius-lg);
   background: var(--chrome);
 }
 
-.library-segmented button,
-.library-segmented button:not(:disabled):active {
-  min-height: 0;
+.library-segmented button {
   height: 1.625rem;
-  padding: 0 0.625rem;
+  padding: 0 var(--space-2-5);
   border: 1px solid transparent;
-  border-radius: 7px;
-  background: transparent;
+  border-radius: var(--radius-md);
   color: var(--muted);
-  font-size: 0.78125rem;
+  font-size: var(--text-sm);
   font-weight: 700;
-  transform: none;
 }
 
-.library-segmented button:not(:disabled):hover {
-  background: transparent;
+.library-segmented button:hover {
   color: var(--text);
 }
 
-.library-segmented button[aria-pressed="true"],
-.library-segmented button[aria-pressed="true"]:not(:disabled):hover {
+.library-segmented button[aria-pressed="true"] {
   border-color: var(--line);
   background: var(--surface);
   color: var(--text);
 }
 
-/* Form fields inside a sheet, e.g. an Agent's published version. */
-.library-field {
-  display: grid;
-  gap: 0.375rem;
-  min-width: min(16rem, 100%);
-  color: var(--muted-strong);
-  font-size: 0.8125rem;
-  font-weight: 700;
-}
-
-.library-field select {
-  width: 100%;
-  min-width: 0;
-  height: 2.375rem;
-  padding: 0 0.625rem;
-  border: 1px solid var(--line-strong);
-  border-radius: 0.625rem;
-  background: var(--surface);
-  color: var(--text);
-  font-family: var(--font-mono);
-  font-size: 0.8125rem;
-  font-weight: 600;
-}
-
-.library-field select:focus-visible {
-  border-color: var(--focus);
-  outline: 2px solid var(--focus);
-  outline-offset: 1px;
-}
-
-@media (max-width: 600px) {
+@media (max-width: 640px) {
   .library-title {
     font-size: 1.375rem;
   }
 
+  /* All five sections stay on one row at 390 px. */
   .library-tabs a {
-    padding: 0 0.4375rem;
-    font-size: 0.78125rem;
+    padding: 0 var(--space-1-5);
+    font-size: var(--text-xs);
   }
 
   .library-section-actions {

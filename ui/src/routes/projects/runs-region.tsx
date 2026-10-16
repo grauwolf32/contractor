@@ -8,11 +8,12 @@ import type { RunSummary } from "../../api/runs";
 import { queryKeys } from "../../api/query-keys";
 import { CursorControls } from "../../app/cursor-controls";
 import { useCursorStack } from "../../app/pagination";
-import { compactId, formatTimestamp } from "../../app/format";
-import { StateBadge } from "../runs/components";
+import { compactId, formatTimestamp, plural } from "../../app/format";
+import { RunStateChip } from "../runs/components";
 import { ProjectRegion } from "./common";
 import { groupEvaluationRuns } from "./evaluation-groups";
 import { QueryView } from "../../app/query-view";
+import "./projects.css";
 
 function EvaluationRuns({ runs }: { runs: readonly RunSummary[] }) {
   return (
@@ -31,7 +32,7 @@ function EvaluationRuns({ runs }: { runs: readonly RunSummary[] }) {
               </h4>
             </div>
             <span className="project-workflow-count">
-              {group.runs.length} {group.runs.length === 1 ? "Run" : "Runs"}
+              {plural(group.runs.length, "Run")}
             </span>
           </div>
           {group.names.length === 0 ? null : (
@@ -82,7 +83,7 @@ function EvaluationRuns({ runs }: { runs: readonly RunSummary[] }) {
                       <code>{run.workflow}</code>
                     </td>
                     <td data-label="State">
-                      <StateBadge state={run.state} />
+                      <RunStateChip state={run.state} />
                     </td>
                     <td data-label="Updated">
                       {formatTimestamp(run.updatedAt)}

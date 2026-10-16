@@ -2,6 +2,10 @@ import type { AuditState } from "../../../api/audits";
 import { AUDIT_ID_PATTERN } from "../../../api/audits";
 import { PROJECT_ID_PATTERN } from "../../../api/projects";
 import { CHECK_STATE_LABELS } from "../../../app/vocabulary";
+import {
+  IN_PROGRESS_AUDIT_STATES,
+  STOPPED_AUDIT_STATES,
+} from "../../../api/states";
 
 /**
  * The state filter of the Checks list, `?state=` in the URL. Running holds
@@ -12,7 +16,7 @@ import { CHECK_STATE_LABELS } from "../../../app/vocabulary";
 export type CheckFilter =
   "running" | "waiting" | "drafts" | "finished" | "stopped" | "all";
 
-export interface CheckFilterOption {
+interface CheckFilterOption {
   value: CheckFilter;
   label: string;
   /** Check states in this filter; empty for All. */
@@ -23,7 +27,7 @@ export const CHECK_FILTERS: readonly CheckFilterOption[] = [
   {
     value: "running",
     label: CHECK_STATE_LABELS.active.label,
-    states: ["active", "paused", "finalizing", "cancelling"],
+    states: IN_PROGRESS_AUDIT_STATES,
   },
   {
     value: "waiting",
@@ -39,7 +43,7 @@ export const CHECK_FILTERS: readonly CheckFilterOption[] = [
   {
     value: "stopped",
     label: `${CHECK_STATE_LABELS.cancelled.label} / ${CHECK_STATE_LABELS.failed.label.toLowerCase()}`,
-    states: ["cancelled", "failed"],
+    states: STOPPED_AUDIT_STATES,
   },
   { value: "all", label: "All", states: [] },
 ];

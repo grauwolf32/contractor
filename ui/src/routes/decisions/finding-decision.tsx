@@ -13,10 +13,13 @@ import {
 } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
+import { Icon } from "../../app/icon";
+import { QueryView } from "../../app/query-view";
 import { RecordedTime } from "../../app/recorded-time";
 import { findingStateLabel, severityLabel } from "../../app/vocabulary";
 import { MutationDraftKeyring } from "../../mutations/idempotency";
 import {
+  Button,
   DecisionBar,
   IdChip,
   Kbd,
@@ -28,7 +31,6 @@ import {
 import { useAnnouncement } from "./announcement";
 import { DecisionRecord } from "./decision-record";
 import { DuplicatePicker } from "./duplicate-picker";
-import { DecisionIcon } from "./icons";
 import { DecisionMarkdown } from "./markdown";
 import {
   decisionErrorMessage,
@@ -57,12 +59,12 @@ import { aiSummary } from "./text";
 import "./decisions.css";
 
 /** The next item to decide, e.g. in the Inbox; bound to J. */
-export interface FindingDecisionNext {
+interface FindingDecisionNext {
   label: string;
   onNext: () => void;
 }
 
-export interface FindingDecisionProps {
+interface FindingDecisionProps {
   auditId: string;
   finding: AuditFinding;
   /** Called once the Server recorded the decision and the reads refetched. */
@@ -168,58 +170,54 @@ function StateReason({
       ),
     enabled: open,
   });
-  const decision =
-    history.data === undefined
-      ? undefined
-      : latestDecision(history.data.items, verdictForState(finding.state));
   return (
     <div className="decisions-state-reason">
-      <button
-        type="button"
-        className="decisions-text-button"
+      <Button
+        variant="link"
+        size="xs"
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((value) => !value)}
       >
         {open ? "Hide the reason" : "Show the reason"}
-      </button>
+      </Button>
       <div id={panelId} hidden={!open}>
-        {!open ? null : history.isPending ? (
-          <p className="decisions-quiet">Loading the decision…</p>
-        ) : history.isError ? (
-          <p className="decisions-quiet" role="alert">
-            The decision could not be loaded.{" "}
-            <button
-              type="button"
-              className="decisions-text-button"
-              onClick={() => void history.refetch()}
-            >
-              Try again
-            </button>
-          </p>
-        ) : decision === undefined ? (
-          <p className="decisions-quiet">
-            No recorded decision explains this state.
-          </p>
-        ) : (
-          <>
-            <p className="decisions-record-meta">
-              by{" "}
-              <span className="decisions-record-actor">{decision.actorId}</span>
-              {" · "}
-              <RecordedTime value={decision.createdAt} />
-            </p>
-            <div className="decisions-record-reason">
-              <span className="decisions-record-label">Why</span>
-              <DecisionMarkdown source={decision.rationale} />
-            </div>
-            {history.data.truncated ? (
-              <p className="decisions-quiet">
-                This possible issue has more decisions than shown here; a newer
-                one may be missing.
-              </p>
-            ) : null}
-          </>
+        {!open ? null : (
+          <QueryView
+            query={history}
+            loading={<p className="ui-caption">Loading the decision…</p>}
+            errorContext="The decision could not be loaded."
+          >
+            {(data) => {
+              const decision = latestDecision(
+                data.items,
+                verdictForState(finding.state),
+              );
+              return decision === undefined ? (
+                <p className="ui-caption">
+                  No recorded decision explains this state.
+                </p>
+              ) : (
+                <>
+                  <p className="ui-caption">
+                    by <span className="ui-mono">{decision.actorId}</span>
+                    {" · "}
+                    <RecordedTime value={decision.createdAt} />
+                  </p>
+                  <div className="decisions-record-reason">
+                    <span className="decisions-record-label">Why</span>
+                    <DecisionMarkdown source={decision.rationale} />
+                  </div>
+                  {data.truncated ? (
+                    <p className="ui-caption">
+                      This possible issue has more decisions than shown here; a
+                      newer one may be missing.
+                    </p>
+                  ) : null}
+                </>
+              );
+            }}
+          </QueryView>
         )}
       </div>
     </div>
@@ -244,7 +242,7 @@ function CurrentOutcome({
           {state.label}
         </StatusChip>
         {finding.rejectionReason === undefined ? null : (
-          <span className="decisions-record-meta">
+          <span className="ui-caption">
             Reason:{" "}
             {REJECTION_REASONS[finding.rejectionReason] ??
               finding.rejectionReason}
@@ -529,21 +527,21 @@ function FindingDecisionPanel({
       label: VERDICT_ACTIONS.true_positive,
       shortcut: key("c"),
       tone: "primary",
-      icon: <DecisionIcon name="confirm" />,
+      icon: <Icon name="check" size={16} />,
     });
   if (offered("false_positive"))
     options.push({
       id: "false_positive",
       label: VERDICT_ACTIONS.false_positive,
       shortcut: key("r"),
-      icon: <DecisionIcon name="reject" />,
+      icon: <Icon name="x-circle" size={16} />,
     });
   if (offered("needs_evidence"))
     options.push({
       id: "needs_evidence",
       label: VERDICT_ACTIONS.needs_evidence,
       shortcut: key("e"),
-      icon: <DecisionIcon name="unsure" />,
+      icon: <Icon name="question-circle" size={16} />,
     });
   // Duplicate and Reopen live in More; the chosen one shows as pressed.
   if (verdict === "duplicate")
@@ -602,24 +600,20 @@ function FindingDecisionPanel({
     statusError !== null ? (
       <>
         {statusError.message}{" "}
-        <button
-          type="button"
-          className="decisions-text-button"
-          onClick={() => void reviews.refetch()}
-        >
+        <Button variant="link" size="xs" onClick={() => void reviews.refetch()}>
           Try again
-        </button>
+        </Button>
       </>
     ) : stale ? (
       <>
         Load the latest version before deciding.{" "}
-        <button
-          type="button"
-          className="decisions-text-button"
+        <Button
+          variant="link"
+          size="xs"
           onClick={() => void refreshAfterDecision(queryClient, auditId)}
         >
           Load the latest version
-        </button>
+        </Button>
       </>
     ) : (
       (problem ?? decideMessage)
@@ -669,44 +663,38 @@ function FindingDecisionPanel({
               {open && !canKeep ? null : (
                 <div className="decisions-current-actions">
                   {canKeep ? (
-                    <button
-                      type="button"
-                      className="ui-btn"
-                      data-size="sm"
-                      data-variant="ghost"
+                    <Button
+                      size="sm"
+                      variant="ghost"
                       disabled={decide.isPending}
                       onClick={keepCurrent}
                     >
                       Keep current decision
-                    </button>
+                    </Button>
                   ) : (
-                    <button
-                      type="button"
-                      className="ui-btn"
-                      data-size="sm"
+                    <Button
+                      size="sm"
                       data-decisions-start=""
                       onClick={startChange}
                     >
                       Change decision
-                    </button>
+                    </Button>
                   )}
                   {next === undefined || open ? null : (
-                    <button
-                      type="button"
-                      className="ui-btn"
-                      data-size="sm"
-                      data-variant="ghost"
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      icon={<Icon name="arrow-down" size={16} />}
                       aria-keyshortcuts={shortcuts ? "J" : undefined}
                       onClick={next.onNext}
                     >
-                      <DecisionIcon name="next" />
                       <span>{next.label}</span>
                       {shortcuts ? (
                         <span className="ui-kbd-hint" aria-hidden="true">
                           <Kbd>J</Kbd>
                         </span>
                       ) : null}
-                    </button>
+                    </Button>
                   )}
                 </div>
               )}
@@ -760,15 +748,9 @@ function FindingDecisionPanel({
                     />
                   ) : null}
                   <div className="decisions-assist">
-                    <button
-                      type="button"
-                      className="ui-btn"
-                      data-size="xs"
-                      data-variant="ghost"
-                      onClick={insertSummary}
-                    >
+                    <Button size="xs" variant="ghost" onClick={insertSummary}>
                       Use AI summary
-                    </button>
+                    </Button>
                   </div>
                 </>
               }

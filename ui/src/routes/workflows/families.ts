@@ -1,23 +1,6 @@
 import { useState } from "react";
 import type { WorkflowSummary } from "../../api/workflows";
-
-// Published numeric versions have an explicit UI order, independent of page order.
-// Other version labels remain selectable but do not imply publication chronology.
-export function compareWorkflowVersions(a: string, b: string): number {
-  const numeric = /^\d+(?:\.\d+)*$/;
-  if (numeric.test(a) && numeric.test(b)) {
-    const left = a.split(".").map(BigInt);
-    const right = b.split(".").map(BigInt);
-    for (let i = 0; i < Math.max(left.length, right.length); i++) {
-      const x = left[i] ?? 0n;
-      const y = right[i] ?? 0n;
-      if (x !== y) return x > y ? 1 : -1;
-    }
-  }
-  return (
-    a.localeCompare(b, "en", { numeric: true }) || (a < b ? -1 : a > b ? 1 : 0)
-  );
-}
+import { compareVersions } from "../../app/format";
 
 export function groupWorkflowVersions(items: readonly WorkflowSummary[]) {
   const groups = new Map<string, Map<string, WorkflowSummary>>();
@@ -31,9 +14,19 @@ export function groupWorkflowVersions(items: readonly WorkflowSummary[]) {
     .map(([name, versions]) => ({
       name,
       versions: [...versions.values()].sort((a, b) =>
-        compareWorkflowVersions(b.ref.version, a.ref.version),
+        compareVersions(b.ref.version, a.ref.version),
       ),
     }));
+}
+
+/**
+ * Whether every version of a family is a dotted number, so "Latest" and
+ * "Earlier version" follow publication order (compareVersions).
+ */
+export function hasNumericVersions(
+  versions: readonly WorkflowSummary[],
+): boolean {
+  return versions.every((item) => /^\d+(?:\.\d+)*$/.test(item.ref.version));
 }
 
 export function useWorkflowFamilies(items: readonly WorkflowSummary[]) {

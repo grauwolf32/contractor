@@ -2,16 +2,16 @@ import { type FormEvent, useId, useRef } from "react";
 
 import { Dialog, DialogHeader } from "../../app/dialog";
 import { ErrorNotice } from "../../app/error-notice";
-
-export const CANCELLATION_REASON_LIMIT = 4096;
+import { Button, Field } from "../../ui";
 
 /**
- * The Cancel Run confirmation. A cancellation needs an explicit reason
- * (1–4096 characters); the page shows the Run's state only as the Server
- * reports it after the request.
+ * The Cancel Run confirmation. A cancellation needs an explicit reason; the
+ * page shows the Run's state only as the Server reports it after the
+ * request.
  */
 export function CancelRunDialog({
   reason,
+  maxLength,
   onReasonChange,
   validationError,
   pending,
@@ -20,6 +20,8 @@ export function CancelRunDialog({
   onCancel,
 }: {
   reason: string;
+  /** The longest reason the Server accepts. */
+  maxLength: number;
   onReasonChange: (value: string) => void;
   validationError: string | undefined;
   pending: boolean;
@@ -29,9 +31,6 @@ export function CancelRunDialog({
 }) {
   const titleId = useId();
   const descriptionId = useId();
-  const fieldId = useId();
-  const hintId = useId();
-  const errorId = useId();
   const field = useRef<HTMLTextAreaElement>(null);
 
   function submit(event: FormEvent<HTMLFormElement>): void {
@@ -41,7 +40,7 @@ export function CancelRunDialog({
 
   return (
     <Dialog
-      className="project-dialog panel runs-dialog"
+      className="ui-dialog ui-panel runs-dialog"
       labelledBy={titleId}
       describedBy={descriptionId}
       initialFocusRef={field}
@@ -56,42 +55,37 @@ export function CancelRunDialog({
         cancelled before that.
       </p>
       <form className="runs-dialog-form" onSubmit={submit} noValidate>
-        <label htmlFor={fieldId}>Reason</label>
-        <p className="runs-hint" id={hintId}>
-          Required. Saved with the cancellation record of this Run.
-        </p>
-        <textarea
-          id={fieldId}
-          ref={field}
-          name="cancellationReason"
-          rows={3}
-          maxLength={CANCELLATION_REASON_LIMIT}
-          value={reason}
-          readOnly={pending}
-          aria-invalid={validationError === undefined ? undefined : true}
-          aria-describedby={
-            validationError === undefined ? hintId : `${hintId} ${errorId}`
-          }
-          onChange={(event) => onReasonChange(event.target.value)}
-        />
-        {validationError === undefined ? null : (
-          <p className="runs-field-error" id={errorId} role="alert">
-            {validationError}
-          </p>
-        )}
+        <Field
+          label="Reason"
+          hint="Required. Saved with the cancellation record of this Run."
+          error={validationError}
+        >
+          {(control) => (
+            <textarea
+              {...control}
+              ref={field}
+              name="cancellationReason"
+              rows={3}
+              maxLength={maxLength}
+              value={reason}
+              readOnly={pending}
+              onChange={(event) => onReasonChange(event.target.value)}
+            />
+          )}
+        </Field>
         {error === null ? null : <ErrorNotice error={error} />}
-        <div className="project-dialog-actions">
-          <button
-            className="secondary-button"
-            type="button"
-            disabled={pending}
-            onClick={onCancel}
-          >
+        <div className="ui-dialog-actions">
+          <Button disabled={pending} onClick={onCancel}>
             Keep running
-          </button>
-          <button className="danger-button" type="submit" disabled={pending}>
-            {pending ? "Requesting cancellation…" : "Request cancellation"}
-          </button>
+          </Button>
+          <Button
+            variant="danger"
+            type="submit"
+            pending={pending}
+            pendingLabel="Requesting cancellation…"
+          >
+            Request cancellation
+          </Button>
         </div>
       </form>
     </Dialog>

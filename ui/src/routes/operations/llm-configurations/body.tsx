@@ -6,12 +6,14 @@ import type {
   ModelPolicyBody,
 } from "../../../api/operations";
 import { Link } from "react-router";
+import { formatNumber } from "../../../app/format";
+import { Facts } from "../../../ui";
 import { ConfigurationRefLink } from "../common";
 import { exactConfigurationRef } from "../references";
 import { artifactDetailPath } from "../../artifacts/paths";
 
 function present(value: number | undefined): string {
-  return value === undefined ? "omitted" : value.toLocaleString();
+  return value === undefined ? "omitted" : formatNumber(value);
 }
 
 function ModelPolicyView({ body }: { body: ModelPolicyBody }) {
@@ -26,171 +28,146 @@ function ModelPolicyView({ body }: { body: ModelPolicyBody }) {
     ["Temperature", present(body.temperature)],
   ] as const;
   return (
-    <dl className="ops-facts configuration-body">
-      {fields.map(([label, value]) => (
-        <div key={label}>
-          <dt>{label}</dt>
-          <dd>
-            <code>{value}</code>
-          </dd>
-        </div>
-      ))}
-    </dl>
+    <Facts
+      layout="rows"
+      className="configuration-body"
+      items={fields.map(([term, value]) => ({
+        term,
+        value: <code>{value}</code>,
+      }))}
+    />
   );
 }
 
 function GatewayView({ body }: { body: LLMGatewayBody }) {
   return (
-    <dl className="ops-facts configuration-body">
-      <div>
-        <dt>Protocol</dt>
-        <dd>
-          <code>{body.protocol}</code>
-        </dd>
-      </div>
-      <div>
-        <dt>Inference URL</dt>
-        <dd>
-          <code>{body.url}</code>
-        </dd>
-      </div>
-      <div>
-        <dt>Credential manager</dt>
-        <dd>
-          {body.credentialManager === undefined ? (
-            <span className="ops-muted">Not configured</span>
-          ) : (
-            <span className="ops-value-stack">
-              <code>{body.credentialManager.implementation}</code>
-              <code>{body.credentialManager.managementUrl}</code>
-            </span>
-          )}
-        </dd>
-      </div>
-      <div>
-        <dt>Failure signatures</dt>
-        <dd>
-          {body.failureSignatures === undefined ? (
-            <span className="ops-muted">Protocol default</span>
-          ) : (
-            <span className="ops-value-stack">
-              {(body.failureSignatures.modelUnavailable ?? []).map(
-                (signature, index) => (
-                  <code key={`unavailable-${index}`}>
-                    {signature.status} →{" "}
-                    {signature.messageEquals ?? signature.litellmWrapped}
-                    {signature.litellmWrapped === undefined
-                      ? ""
-                      : " (LiteLLM wrapped)"}
+    <Facts
+      layout="rows"
+      className="configuration-body"
+      items={[
+        { term: "Protocol", value: <code>{body.protocol}</code> },
+        { term: "Inference URL", value: <code>{body.url}</code> },
+        {
+          term: "Credential manager",
+          value:
+            body.credentialManager === undefined ? (
+              <span className="ops-muted">Not configured</span>
+            ) : (
+              <span className="ops-value-stack">
+                <code>{body.credentialManager.implementation}</code>
+                <code>{body.credentialManager.managementUrl}</code>
+              </span>
+            ),
+        },
+        {
+          term: "Failure signatures",
+          value:
+            body.failureSignatures === undefined ? (
+              <span className="ops-muted">Protocol default</span>
+            ) : (
+              <span className="ops-value-stack">
+                {(body.failureSignatures.modelUnavailable ?? []).map(
+                  (signature, index) => (
+                    <code key={`unavailable-${index}`}>
+                      {signature.status} →{" "}
+                      {signature.messageEquals ?? signature.litellmWrapped}
+                      {signature.litellmWrapped === undefined
+                        ? ""
+                        : " (LiteLLM wrapped)"}
+                    </code>
+                  ),
+                )}
+                {(body.failureSignatures.permanentCodes ?? []).length ===
+                0 ? null : (
+                  <code>
+                    permanent:{" "}
+                    {body.failureSignatures.permanentCodes?.join(", ")}
                   </code>
-                ),
-              )}
-              {(body.failureSignatures.permanentCodes ?? []).length ===
-              0 ? null : (
-                <code>
-                  permanent: {body.failureSignatures.permanentCodes?.join(", ")}
-                </code>
-              )}
-            </span>
-          )}
-        </dd>
-      </div>
-    </dl>
+                )}
+              </span>
+            ),
+        },
+      ]}
+    />
   );
 }
 
 function AgentTemplateView({ body }: { body: AgentTemplateBody }) {
   return (
-    <dl className="ops-facts configuration-body">
-      <div>
-        <dt>Description</dt>
-        <dd>{body.description}</dd>
-      </div>
-      <div>
-        <dt>Runtime implementation</dt>
-        <dd>
-          <code>{body.runtime}</code>
-        </dd>
-      </div>
-      {body.instructions === undefined ? null : (
-        <div>
-          <dt>Instructions</dt>
-          <dd className="ops-value-stack">
-            <code>{body.instructions.ref}</code>
-            <code>{body.instructions.digest}</code>
-          </dd>
-        </div>
-      )}
-      {body.modelPolicy === undefined ? null : (
-        <div>
-          <dt>Default ModelPolicy</dt>
-          <dd>
+    <Facts
+      layout="rows"
+      className="configuration-body"
+      items={[
+        { term: "Description", value: body.description },
+        { term: "Runtime implementation", value: <code>{body.runtime}</code> },
+        {
+          term: "Instructions",
+          value: body.instructions && (
+            <span className="ops-value-stack">
+              <code>{body.instructions.ref}</code>
+              <code>{body.instructions.digest}</code>
+            </span>
+          ),
+        },
+        {
+          term: "Default ModelPolicy",
+          value: body.modelPolicy && (
             <ConfigurationRefLink
               value={exactConfigurationRef(body.modelPolicy)}
             />
-          </dd>
-        </div>
-      )}
-      {body.execution === undefined ? null : (
-        <div>
-          <dt>Tool execution</dt>
-          <dd>
-            <code>{body.execution.tool}</code> · {body.execution.timeoutSeconds}
-            s
-          </dd>
-        </div>
-      )}
-      <div>
-        <dt>Sandbox profile</dt>
-        <dd>
-          <code>{body.sandboxProfile}</code>
-        </dd>
-      </div>
-      <div>
-        <dt>Toolset selections</dt>
-        <dd>
-          {body.toolsets.length === 0 ? (
-            <span className="ops-muted">No model-visible tools</span>
-          ) : (
-            <ul className="ops-value-list">
-              {body.toolsets.map((selection) => (
-                <li key={selection.ref}>
-                  <code>{selection.ref}</code> · {selection.tools.join(", ")}
-                </li>
-              ))}
-            </ul>
-          )}
-        </dd>
-      </div>
-      <div>
-        <dt>Global Skills</dt>
-        <dd>
-          {body.skills === undefined || body.skills.length === 0 ? (
-            <span className="ops-muted">None</span>
-          ) : (
-            <ul className="ops-value-list">
-              {body.skills.map((skill) => (
-                <li key={`${skill.namespace}/${skill.name}`}>
-                  <Link
-                    to={artifactDetailPath(
-                      { kind: "user" },
-                      {
-                        namespace: skill.namespace,
-                        name: skill.name,
-                      },
-                    )}
-                  >
-                    <code>
-                      {skill.namespace}/{skill.name}
-                    </code>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </dd>
-      </div>
-    </dl>
+          ),
+        },
+        {
+          term: "Tool execution",
+          value: body.execution && (
+            <>
+              <code>{body.execution.tool}</code> ·{" "}
+              {body.execution.timeoutSeconds}s
+            </>
+          ),
+        },
+        { term: "Sandbox profile", value: <code>{body.sandboxProfile}</code> },
+        {
+          term: "Toolset selections",
+          value:
+            body.toolsets.length === 0 ? (
+              <span className="ops-muted">No model-visible tools</span>
+            ) : (
+              <ul className="ops-value-list">
+                {body.toolsets.map((selection) => (
+                  <li key={selection.ref}>
+                    <code>{selection.ref}</code> · {selection.tools.join(", ")}
+                  </li>
+                ))}
+              </ul>
+            ),
+        },
+        {
+          term: "Global Skills",
+          value:
+            body.skills === undefined || body.skills.length === 0 ? (
+              <span className="ops-muted">None</span>
+            ) : (
+              <ul className="ops-value-list">
+                {body.skills.map((skill) => (
+                  <li key={`${skill.namespace}/${skill.name}`}>
+                    <Link
+                      to={artifactDetailPath(
+                        { kind: "user" },
+                        { namespace: skill.namespace, name: skill.name },
+                      )}
+                    >
+                      <code>
+                        {skill.namespace}/{skill.name}
+                      </code>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            ),
+        },
+      ]}
+    />
   );
 }
 
@@ -229,28 +206,28 @@ function ExecutionSelection({
 
 function ExecutionConfigView({ body }: { body: ExecutionConfigBody }) {
   return (
-    <dl className="ops-facts configuration-body">
-      <div>
-        <dt>Planner overrides</dt>
-        <dd>
-          {body.planner === undefined ? (
-            <span className="ops-muted">None</span>
-          ) : (
-            <ExecutionSelection selection={body.planner} />
-          )}
-        </dd>
-      </div>
-      {Object.entries(body.agents ?? {})
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([name, selection]) => (
-          <div key={name}>
-            <dt>Agent {name}</dt>
-            <dd>
-              <ExecutionSelection selection={selection} />
-            </dd>
-          </div>
-        ))}
-    </dl>
+    <Facts
+      layout="rows"
+      className="configuration-body"
+      items={[
+        {
+          term: "Planner overrides",
+          value:
+            body.planner === undefined ? (
+              <span className="ops-muted">None</span>
+            ) : (
+              <ExecutionSelection selection={body.planner} />
+            ),
+        },
+        ...Object.entries(body.agents ?? {})
+          .sort(([left], [right]) => left.localeCompare(right))
+          .map(([name, selection]) => ({
+            key: `agent-${name}`,
+            term: `Agent ${name}`,
+            value: <ExecutionSelection selection={selection} />,
+          })),
+      ]}
+    />
   );
 }
 
@@ -281,7 +258,7 @@ export function ConfigurationBodyView({
   resource: ConfigurationResource;
 }) {
   return (
-    <div className="ops-facts-frame">
+    <div className="ui-facts-frame">
       <ConfigurationBody resource={resource} />
     </div>
   );

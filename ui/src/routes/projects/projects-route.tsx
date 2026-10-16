@@ -1,14 +1,15 @@
 import { useCallback, useState } from "react";
-import {
-  Link,
-  useLocation,
-  useNavigate,
-  useParams,
-  useSearchParams,
-} from "react-router";
+import { useLocation, useParams, useSearchParams } from "react-router";
 
 import { useDocumentTitle } from "../../app/document-title";
-import { DetailPane, EmptyState, PaneLayout } from "../../ui";
+import { useGuardedNavigate } from "../../app/page-location";
+import {
+  Button,
+  ButtonLink,
+  DetailPane,
+  EmptyState,
+  PaneLayout,
+} from "../../ui";
 import { NewProjectDialog } from "./new-project-dialog";
 import { useNewProjectKeys } from "./new-project-keys";
 import { ProjectDraftsContext } from "./project-drafts";
@@ -26,19 +27,13 @@ function ProjectsStart({ onNewProject }: { onNewProject: () => void }) {
       <EmptyState
         title="Choose a project"
         action={
-          <div className="projects-start-actions">
-            <button
-              type="button"
-              className="ui-btn"
-              data-variant="primary"
-              data-size="sm"
-              onClick={onNewProject}
-            >
+          <div className="ui-toolbar">
+            <Button variant="primary" size="sm" onClick={onNewProject}>
               New project
-            </button>
-            <Link className="ui-btn" data-size="sm" to="/checks/new">
+            </Button>
+            <ButtonLink size="sm" to="/checks/new">
               Start a check
-            </Link>
+            </ButtonLink>
           </div>
         }
       >
@@ -60,7 +55,7 @@ function ProjectsStart({ onNewProject }: { onNewProject: () => void }) {
 export function ProjectsRoute() {
   const { projectId } = useParams();
   const { pathname } = useLocation();
-  const navigate = useNavigate();
+  const navigate = useGuardedNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [creating, setCreating] = useState(false);
   const createKeys = useNewProjectKeys();

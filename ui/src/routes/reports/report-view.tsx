@@ -4,17 +4,21 @@ import { Link } from "react-router";
 
 import type { Audit, AuditReport, ExactArtifactRef } from "../../api/audits";
 import { PublicAPIError } from "../../api/error";
+import { writeConflict } from "../../app/conflict";
 import { ErrorNotice } from "../../app/error-notice";
 import { compactDigest, formatBytes } from "../../app/format";
+import { Icon } from "../../app/icon";
+import { QueryView } from "../../app/query-view";
 import { reportStatusLabel, reviewStateLabel } from "../../app/vocabulary";
 import {
+  Button,
+  Facts,
   StatusChip,
   StatusGlyph,
   TechnicalDetails,
   type StatusTone,
 } from "../../ui";
 import { ReportDecision } from "../decisions";
-import { checkPath } from "./filters";
 import {
   downloadReportFile,
   summaryDisclaimsCertification,
@@ -22,6 +26,7 @@ import {
 } from "./report-data";
 
 import "./reports.css";
+import { sectionPath } from "../projects/audits/check-links";
 
 const ReportMarkdown = lazy(() => import("./report-markdown"));
 
@@ -95,25 +100,6 @@ function StatusNotice({ status }: { status: AuditReport["status"] }) {
   }
 }
 
-function DownloadIcon() {
-  return (
-    <svg
-      width="15"
-      height="15"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19.5h14" />
-    </svg>
-  );
-}
-
 /** JSON and Markdown files built in the browser from the report response. */
 function ReportDownloads({
   auditId,
@@ -125,12 +111,11 @@ function ReportDownloads({
   const { machine, summary } = report;
   if (machine === undefined && summary === undefined) return null;
   return (
-    <div className="reports-downloads">
+    <div className="ui-toolbar">
       {machine === undefined ? null : (
-        <button
-          type="button"
-          className="ui-btn"
-          data-size="sm"
+        <Button
+          size="sm"
+          icon={<Icon name="download" size={15} strokeWidth={2} />}
           onClick={() =>
             downloadReportFile(
               `${auditId}-report.json`,
@@ -139,22 +124,19 @@ function ReportDownloads({
             )
           }
         >
-          <DownloadIcon />
           Download JSON
-        </button>
+        </Button>
       )}
       {summary === undefined ? null : (
-        <button
-          type="button"
-          className="ui-btn"
-          data-size="sm"
+        <Button
+          size="sm"
+          icon={<Icon name="download" size={15} strokeWidth={2} />}
           onClick={() =>
             downloadReportFile(`${auditId}-report.md`, "text/markdown", summary)
           }
         >
-          <DownloadIcon />
           Download summary
-        </button>
+        </Button>
       )}
     </div>
   );
@@ -178,9 +160,21 @@ function fileFacts(artifact: ReportArtifact): ReactNode[] {
   if (artifact.sizeBytes !== undefined)
     facts.push(formatBytes(artifact.sizeBytes));
   facts.push(
-    <code title={artifact.digest}>{compactDigest(artifact.digest)}</code>,
+    <code className="ui-mono" title={artifact.digest}>
+      {compactDigest(artifact.digest)}
+    </code>,
   );
   return facts;
+}
+
+/** An exact reference over a line of details. */
+function FileValue({ code, details }: { code: string; details: ReactNode }) {
+  return (
+    <span className="reports-file">
+      <code className="ui-mono">{code}</code>
+      <span>{details}</span>
+    </span>
+  );
 }
 
 /** Exact retained files and the acceptance request, off the main path. */
@@ -200,50 +194,49 @@ function ReportFiles({ report }: { report: AuditReport }) {
           : "The exact retained report files and the acceptance request."
       }
     >
-      <dl className="reports-facts">
-        {files.map(({ label, artifact }) => (
-          <div key={label}>
-            <dt>{label}</dt>
-            <dd>
-              <code>{exactRef(artifact.ref)}</code>
-              <span>
-                {fileFacts(artifact).map((part, position) => (
+      <Facts
+        layout="list"
+        size="sm"
+        items={[
+          ...files.map(({ label, artifact }) => ({
+            term: label,
+            value: (
+              <FileValue
+                code={exactRef(artifact.ref)}
+                details={fileFacts(artifact).map((part, position) => (
                   // Facts are positional.
                   <Fragment key={position}>
                     {position > 0 ? " · " : null}
                     {part}
                   </Fragment>
                 ))}
-              </span>
-            </dd>
-          </div>
-        ))}
-        {review === undefined ? null : (
-          <div>
-            <dt>Acceptance request</dt>
-            <dd>
-              <code>{review.requestId}</code>
-              <span>
-                {reviewStateLabel(review.state).label} · revision{" "}
-                {review.revision}
-              </span>
-            </dd>
-          </div>
-        )}
-      </dl>
+              />
+            ),
+          })),
+          {
+            term: "Acceptance request",
+            value: review && (
+              <FileValue
+                code={review.requestId}
+                details={`${reviewStateLabel(review.state).label} · revision ${review.revision}`}
+              />
+            ),
+          },
+        ]}
+      />
     </TechnicalDetails>
   );
 }
 
 function loadErrorHint(error: Error): string {
-  if (error instanceof PublicAPIError && error.status === 409)
+  if (writeConflict(error) === "conflict")
     return "The check changed while its report was read. Try again to load the current report.";
   if (error instanceof PublicAPIError && error.status === 404)
     return "The check or its report is no longer available. It may have been deleted.";
   return "Try again to load the report.";
 }
 
-export interface ReportContentProps {
+interface ReportContentProps {
   audit: Audit;
   /** The report read (useAuditReport). */
   query: Pick<
@@ -263,31 +256,43 @@ export function ReportContent({
   query,
   acceptance,
 }: ReportContentProps) {
-  const summaryId = useId();
-  const report = query.data;
-  const retry = () => void query.refetch();
-  if (report === undefined) {
-    if (query.error === null)
-      return (
-        <p className="reports-quiet" role="status">
-          Loading the report…
-        </p>
-      );
-    return (
-      <div className="reports-body">
-        <ErrorNotice
-          error={query.error}
-          context="Could not load the report"
-          onRetry={retry}
-          retryPending={query.isFetching}
-        />
-        <p className="reports-quiet">{loadErrorHint(query.error)}</p>
-      </div>
-    );
-  }
-  const readable = report.status === "proposed" || report.status === "ready";
   return (
     <div className="reports-body">
+      <QueryView
+        query={query}
+        loading={
+          <p className="ui-caption" role="status">
+            Loading the report…
+          </p>
+        }
+        errorContext="Could not load the report"
+        errorHint={loadErrorHint}
+      >
+        {(report) => (
+          <LoadedReportContent
+            audit={audit}
+            report={report}
+            acceptance={acceptance}
+          />
+        )}
+      </QueryView>
+    </div>
+  );
+}
+
+function LoadedReportContent({
+  audit,
+  report,
+  acceptance,
+}: {
+  audit: Audit;
+  report: AuditReport;
+  acceptance: ReportAcceptance;
+}) {
+  const summaryId = useId();
+  const readable = report.status === "proposed" || report.status === "ready";
+  return (
+    <>
       {acceptance.mismatch ? (
         <ReportNotice
           tone="warning"
@@ -297,24 +302,6 @@ export function ReportContent({
           <p>This report cannot be used to decide that review.</p>
         </ReportNotice>
       ) : null}
-      {query.error === null ? null : (
-        <ReportNotice
-          tone="warning"
-          role="status"
-          title="Could not refresh; showing the last loaded data."
-        >
-          <p>{query.error.message}</p>
-          <button
-            type="button"
-            className="ui-btn"
-            data-size="xs"
-            disabled={query.isFetching}
-            onClick={retry}
-          >
-            {query.isFetching ? "Loading…" : "Try again"}
-          </button>
-        </ReportNotice>
-      )}
       <StatusNotice status={report.status} />
       <p className="reports-intro">
         {readable ? (
@@ -323,12 +310,14 @@ export function ReportContent({
             issues are separate from the technical outcome of the check.
           </span>
         ) : null}
-        <Link to={`${checkPath(audit, "coverage")}?result=uncertain`}>
+        <Link
+          to={`${sectionPath(audit.projectId, audit.auditId, "coverage")}?result=uncertain`}
+        >
           Review coverage gaps →
         </Link>
       </p>
       {readable ? (
-        <section className="reports-summary" aria-labelledby={summaryId}>
+        <section className="ui-stack" aria-labelledby={summaryId}>
           <div className="reports-summary-head">
             <h3 id={summaryId} className="reports-heading">
               Summary
@@ -338,7 +327,7 @@ export function ReportContent({
           {report.summary === undefined ? null : (
             <div className="reports-document">
               <Suspense
-                fallback={<p className="reports-quiet">Loading the summary…</p>}
+                fallback={<p className="ui-caption">Loading the summary…</p>}
               >
                 <ReportMarkdown source={report.summary} />
               </Suspense>
@@ -357,7 +346,7 @@ export function ReportContent({
         </p>
       ) : null}
       <ReportFiles report={report} />
-    </div>
+    </>
   );
 }
 

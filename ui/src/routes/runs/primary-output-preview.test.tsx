@@ -1,32 +1,20 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router";
+import { screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { PublicAPI } from "../../api/client";
-import { PublicAPIProvider } from "../../api/context";
 import type { RunStatus } from "../../api/runs";
-import type { WorkflowResource } from "../../api/workflows";
-import type { RuntimeConfig } from "../../config/runtime-config";
-import { RunOutputGallery } from "./artifacts";
+import { conforming } from "../../test/builders";
+import { workflowResource } from "../../test/builders-execution";
+import { fakeServer, type Routes } from "../../test/fake-server";
+import { bytes, failure, json } from "../../test/responses";
+import { renderWithAPI } from "../../test/render";
+import { RunOutputGallery } from "./outputs";
 
 const saved = vi.hoisted(() => [] as Array<{ blob: Blob; filename: string }>);
 vi.mock("../../app/download", () => ({
   saveBlob: (blob: Blob, filename: string) => saved.push({ blob, filename }),
 }));
 
-const runtimeConfig: RuntimeConfig = {
-  uiVersion: "0.1.0",
-  supportedApiVersions: ["contractor.public.v1"],
-  apiBaseUrl: "http://127.0.0.1:8080",
-};
-
-const workflow = {
-  ref: { name: "source-review", version: "1" },
-  entryStage: "review",
-  parameters: {},
-  inputs: {},
+const workflow = workflowResource("source-review", "1", {
   outputs: {
     report: {
       required: true,
@@ -40,52 +28,50 @@ const workflow = {
     },
     trace: { required: false, mediaTypes: ["application/json"] },
   },
-  stages: {},
-} satisfies WorkflowResource;
+});
 
-type GalleryRun = Pick<RunStatus, "runId" | "workflow" | "state" | "outputs">;
+const REPORT = { namespace: "outputs", name: "report", revision: "report-r1" };
+const TRACE = { namespace: "outputs", name: "trace", revision: "trace-r1" };
 
-function runFixture(outputs: RunStatus["outputs"]): GalleryRun {
-  return {
-    runId: "run-primary",
-    workflow: "source-review@1",
-    state: "succeeded",
-    outputs,
-  };
-}
-
-function apiResponse(
-  body: BodyInit | null,
-  options: ResponseInit = {},
-): Response {
-  const headers = new Headers(options.headers);
-  headers.set("X-Contractor-API-Version", "contractor.public.v1");
-  return new Response(body, { ...options, headers });
-}
-
-function jsonResponse(value: unknown, options: ResponseInit = {}): Response {
-  return apiResponse(JSON.stringify(value), {
-    ...options,
-    headers: { "content-type": "application/json", ...options.headers },
+/** Metadata of `artifact`: a frozen file of `size` bytes. */
+function metadata(
+  artifact: typeof REPORT,
+  mediaType: string,
+  size: number,
+  overrides: { current?: boolean; createdAt?: string } = {},
+) {
+  return conforming("ArtifactMetadata", {
+    artifact,
+    mediaType,
+    size,
+    current: overrides.current ?? true,
+    frozen: true,
+    createdAt: overrides.createdAt ?? "2026-09-07T08:00:00Z",
   });
 }
 
-function renderGallery(api: PublicAPI, run: GalleryRun) {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-      mutations: { retry: false },
-    },
+/** The gallery of a succeeded Run with `outputs`; the Workflow is published. */
+function renderGallery(outputs: RunStatus["outputs"], routes: Routes = {}) {
+  const server = fakeServer({
+    "GET /v1/workflows/{name}/versions/{version}": () => json(workflow),
+    ...routes,
   });
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <PublicAPIProvider api={api}>
-        <MemoryRouter>
-          <RunOutputGallery run={run} />
-        </MemoryRouter>
-      </PublicAPIProvider>
-    </QueryClientProvider>,
+  const view = renderWithAPI(
+    <RunOutputGallery
+      run={{
+        runId: "run-primary",
+        workflow: "source-review@1",
+        state: "succeeded",
+        outputs,
+      }}
+    />,
+    { server },
   );
+  return {
+    ...view,
+    /** Paths and query strings of the reads so far. */
+    reads: () => server.requests.map((request) => new URL(request.url)),
+  };
 }
 
 function resultCard(name: string): HTMLElement {
@@ -98,82 +84,47 @@ function resultCard(name: string): HTMLElement {
 
 describe("Run primary output preview", () => {
   it("loads only one selected exact result after one action", async () => {
-    const requests: Request[] = [];
     const reportSource = "safe primary report";
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        requests.push(request);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/workflows/source-review/versions/1") {
-          return jsonResponse(workflow);
-        }
-        if (
-          url.pathname ===
-          "/v1/runs/run-primary/artifacts/outputs/report/metadata"
-        ) {
+    const { container, reads, user } = renderGallery(
+      {
+        report: REPORT,
+        trace: TRACE,
+        legacy: { namespace: "outputs", name: "legacy", revision: "legacy-r1" },
+      },
+      {
+        "GET /v1/runs/{runId}/artifacts/{namespace}/{name}/metadata": ({
+          url,
+        }) => {
+          expect(url.pathname).toBe(
+            "/v1/runs/run-primary/artifacts/outputs/report/metadata",
+          );
           expect(url.searchParams.get("revision")).toBe("report-r1");
-          return jsonResponse({
-            artifact: {
-              namespace: "outputs",
-              name: "report",
-              revision: "report-r1",
-            },
-            mediaType: "text/plain",
-            size: reportSource.length,
-            current: true,
-            frozen: true,
-            createdAt: "2026-09-07T08:00:00Z",
-          });
-        }
-        if (url.pathname === "/v1/runs/run-primary/artifacts/outputs/report") {
-          return apiResponse(reportSource, {
-            headers: {
-              "content-length": String(reportSource.length),
-              "content-type": "text/plain",
-            },
-          });
-        }
-        throw new Error(`Unexpected request ${request.method} ${url.pathname}`);
-      }),
-    );
-    const view = renderGallery(
-      api,
-      runFixture({
-        report: {
-          namespace: "outputs",
-          name: "report",
-          revision: "report-r1",
+          return json(metadata(REPORT, "text/plain", reportSource.length));
         },
-        trace: {
-          namespace: "outputs",
-          name: "trace",
-          revision: "trace-r1",
+        "GET /v1/runs/{runId}/artifacts/{namespace}/{name}": ({ url }) => {
+          expect(url.pathname).toBe(
+            "/v1/runs/run-primary/artifacts/outputs/report",
+          );
+          return bytes(reportSource, "text/plain");
         },
-        legacy: {
-          namespace: "outputs",
-          name: "legacy",
-          revision: "legacy-r1",
-        },
-      }),
+      },
     );
 
     expect(await screen.findAllByText("Declared primary result")).toHaveLength(
       2,
     );
-    const headings = [
-      ...view.container.querySelectorAll(".run-result-card h3"),
-    ].map((heading) => heading.textContent);
+    const headings = [...container.querySelectorAll(".run-result-card h3")].map(
+      (heading) => heading.textContent,
+    );
     expect(headings).toEqual(["report", "missing", "trace", "legacy"]);
     expect(resultCard("missing")).toHaveTextContent(
       "Required output is missing",
     );
     expect(
-      requests.filter((request) => request.url.includes("/artifacts/")),
+      reads().filter((url) => url.pathname.includes("/artifacts/")),
     ).toHaveLength(0);
 
-    await userEvent.click(
+    await user.click(
       within(resultCard("report")).getByRole("button", {
         name: "Preview result",
       }),
@@ -183,45 +134,23 @@ describe("Run primary output preview", () => {
       await screen.findByText(reportSource, { selector: "pre" }),
     ).toBeInTheDocument();
     expect(
-      requests.filter((request) =>
-        request.url.includes("/artifacts/outputs/report"),
+      reads().filter((url) =>
+        url.pathname.includes("/artifacts/outputs/report"),
       ),
     ).toHaveLength(2);
     expect(
-      requests.some((request) =>
-        request.url.includes("/artifacts/outputs/trace"),
-      ),
+      reads().some((url) => url.pathname.includes("/artifacts/outputs/trace")),
     ).toBe(false);
     expect(screen.queryByRole("button", { name: "Load preview" })).toBeNull();
   });
 
   it("keeps present outputs unclassified when the exact Workflow is unavailable", async () => {
-    const requests: Request[] = [];
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        requests.push(request);
-        return jsonResponse(
-          {
-            code: "not_found",
-            message: "exact Workflow version is unavailable",
-            retryable: false,
-            requestId: "request-workflow-missing",
-          },
-          { status: 404 },
-        );
-      }),
-    );
-    renderGallery(
-      api,
-      runFixture({
-        report: {
-          namespace: "outputs",
-          name: "report",
-          revision: "report-r1",
-        },
-      }),
+    const { reads } = renderGallery(
+      { report: REPORT },
+      {
+        "GET /v1/workflows/{name}/versions/{version}": () =>
+          failure(404, "not_found", "exact Workflow version is unavailable"),
+      },
     );
 
     expect(
@@ -229,49 +158,19 @@ describe("Run primary output preview", () => {
     ).toBeInTheDocument();
     expect(resultCard("report")).toHaveTextContent("Unclassified Run output");
     expect(screen.queryByText("Declared primary result")).toBeNull();
-    expect(requests).toHaveLength(1);
+    expect(reads()).toHaveLength(1);
   });
 
   it("does not request bytes for an oversized selected output", async () => {
-    const requests: Request[] = [];
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        requests.push(request);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/workflows/source-review/versions/1") {
-          return jsonResponse(workflow);
-        }
-        if (url.pathname.endsWith("/metadata")) {
-          return jsonResponse({
-            artifact: {
-              namespace: "outputs",
-              name: "report",
-              revision: "report-r1",
-            },
-            mediaType: "text/plain",
-            size: 256 * 1024 + 1,
-            current: true,
-            frozen: true,
-            createdAt: "2026-09-07T08:00:00Z",
-          });
-        }
-        throw new Error(`Unexpected byte request ${url.pathname}`);
-      }),
-    );
-    renderGallery(
-      api,
-      runFixture({
-        report: {
-          namespace: "outputs",
-          name: "report",
-          revision: "report-r1",
-        },
-      }),
+    const { reads, user } = renderGallery(
+      { report: REPORT },
+      {
+        "GET /v1/runs/{runId}/artifacts/{namespace}/{name}/metadata": () =>
+          json(metadata(REPORT, "text/plain", 256 * 1024 + 1)),
+      },
     );
     await screen.findAllByText("Declared primary result");
-    await userEvent.click(
+    await user.click(
       within(resultCard("report")).getByRole("button", {
         name: "Preview result",
       }),
@@ -280,7 +179,7 @@ describe("Run primary output preview", () => {
     expect(
       await screen.findByText(/Inline preview is unavailable/),
     ).toBeInTheDocument();
-    expect(requests).toHaveLength(2);
+    expect(reads()).toHaveLength(2);
     expect(
       within(resultCard("report")).getByRole("link", {
         name: /Open outputs\/report@report-r1 details/,
@@ -292,45 +191,20 @@ describe("Run primary output preview", () => {
   });
 
   it("rejects metadata for a different revision without loading its bytes", async () => {
-    const requests: Request[] = [];
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        requests.push(request);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/workflows/source-review/versions/1") {
-          return jsonResponse(workflow);
-        }
-        if (url.pathname.endsWith("/metadata")) {
-          return jsonResponse({
-            artifact: {
-              namespace: "outputs",
-              name: "report",
-              revision: "stale-r0",
-            },
-            mediaType: "text/plain",
-            size: 5,
-            current: false,
-            frozen: true,
-            createdAt: "2026-09-07T07:59:00Z",
-          });
-        }
-        throw new Error(`Unexpected byte request ${url.pathname}`);
-      }),
-    );
-    renderGallery(
-      api,
-      runFixture({
-        report: {
-          namespace: "outputs",
-          name: "report",
-          revision: "report-r1",
-        },
-      }),
+    const { reads, user } = renderGallery(
+      { report: REPORT },
+      {
+        "GET /v1/runs/{runId}/artifacts/{namespace}/{name}/metadata": () =>
+          json(
+            metadata({ ...REPORT, revision: "stale-r0" }, "text/plain", 5, {
+              current: false,
+              createdAt: "2026-09-07T07:59:00Z",
+            }),
+          ),
+      },
     );
     await screen.findAllByText("Declared primary result");
-    await userEvent.click(
+    await user.click(
       within(resultCard("report")).getByRole("button", {
         name: "Preview result",
       }),
@@ -339,60 +213,36 @@ describe("Run primary output preview", () => {
     expect(
       await screen.findByText(/did not match the requested Artifact revision/),
     ).toBeInTheDocument();
-    expect(requests).toHaveLength(2);
+    expect(reads()).toHaveLength(2);
     expect(screen.queryByText("stale-r0")).toBeNull();
   });
 
   it("downloads the exact original revision with one action", async () => {
     saved.length = 0;
-    const requests: URL[] = [];
     const source = '{"report":true}';
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        requests.push(url);
-        if (url.pathname === "/v1/workflows/source-review/versions/1") {
-          return jsonResponse(workflow);
-        }
-        if (
-          url.pathname ===
-          "/v1/runs/run-primary/artifacts/outputs/trace/metadata"
-        ) {
-          return jsonResponse({
-            artifact: {
-              namespace: "outputs",
-              name: "trace",
-              revision: "trace-r1",
-            },
-            mediaType: "application/json",
-            size: source.length,
-            current: true,
-            frozen: true,
-            createdAt: "2026-09-07T08:00:00Z",
-          });
-        }
-        if (url.pathname === "/v1/runs/run-primary/artifacts/outputs/trace") {
-          return apiResponse(source, {
-            headers: {
-              "content-length": String(source.length),
-              "content-type": "application/json",
-            },
-          });
-        }
-        throw new Error(`Unexpected request ${request.method} ${url.pathname}`);
-      }),
-    );
-    renderGallery(
-      api,
-      runFixture({
-        trace: { namespace: "outputs", name: "trace", revision: "trace-r1" },
-      }),
+    const { reads, user } = renderGallery(
+      { trace: TRACE },
+      {
+        "GET /v1/runs/{runId}/artifacts/{namespace}/{name}/metadata": ({
+          url,
+        }) => {
+          expect(url.pathname).toBe(
+            "/v1/runs/run-primary/artifacts/outputs/trace/metadata",
+          );
+          return json(metadata(TRACE, "application/json", source.length));
+        },
+        "GET /v1/runs/{runId}/artifacts/{namespace}/{name}": ({ url }) => {
+          expect(url.pathname).toBe(
+            "/v1/runs/run-primary/artifacts/outputs/trace",
+          );
+          // The payload is an artifact's own JSON, not an API body.
+          return bytes(source, "application/json");
+        },
+      },
     );
     await screen.findAllByText("Declared supporting result");
 
-    await userEvent.click(
+    await user.click(
       within(resultCard("trace")).getByRole("button", {
         name: "Download trace",
       }),
@@ -401,7 +251,7 @@ describe("Run primary output preview", () => {
     await vi.waitFor(() => expect(saved).toHaveLength(1));
     expect(await saved[0]!.blob.text()).toBe(source);
     expect(
-      requests
+      reads()
         .filter((url) => url.pathname.includes("/artifacts/"))
         .map((url) => `${url.pathname}?${url.searchParams.toString()}`),
     ).toEqual([

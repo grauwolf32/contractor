@@ -1,6 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import packageMetadata from "../package.json" with { type: "json" };
+import {
+  authSession,
+  fulfillEmptyPageOrNotFound,
+  fulfillJSON,
+  mockAPI,
+} from "./support/mock-api";
 
 const now = "2026-09-19T10:00:00Z";
 const config = (name: string, digit: string) => ({
@@ -20,7 +25,6 @@ const base = config("base", "1"),
   concurrent = config("concurrent", "3");
 
 async function installOperations(page: Page, authorized = true) {
-  const origin = new URL(test.info().project.use.baseURL as string).origin;
   let binding = {
     label: "debug",
     config: base.ref,
@@ -33,127 +37,103 @@ async function installOperations(page: Page, authorized = true) {
   const writes: { path: string; ifMatch: string | undefined; body: unknown }[] =
     [];
   let bindingAttempts = 0;
-  await page.route("**/runtime-config.json", (route) =>
-    route.fulfill({
-      json: {
-        uiVersion: packageMetadata.version,
-        supportedApiVersions: ["contractor.public.v1"],
-        apiBaseUrl: origin,
-      },
-    }),
-  );
-  await page.route(`${origin}/v1/**`, async (route) => {
-    const request = route.request();
-    const path = new URL(request.url()).pathname;
-    const reply = (value: unknown, status = 200, headers = {}) =>
-      route.fulfill({
-        status,
-        json: value,
-        headers: {
-          "X-Contractor-API-Version": "contractor.public.v1",
-          ...headers,
-        },
-      });
-    if (path === "/v1/auth/session")
-      return reply({
-        principal: {
-          userId: "operator",
-          username: "operator",
-          capabilities: authorized ? ["user", "operations"] : ["user"],
-        },
-        csrfToken: "a".repeat(43),
-        idleExpiresAt: "2099-01-01T00:00:00Z",
-        absoluteExpiresAt: "2099-01-02T00:00:00Z",
-      });
-    if (request.method() !== "GET")
-      writes.push({
-        path,
-        ifMatch: request.headers()["if-match"],
-        body: request.postDataJSON(),
-      });
-    if (path === "/v1/operations/snapshot")
-      return reply({
-        cursor: { generation: "operations-form-fixture", revision: "3" },
-        runtimeAgents: [
-          {
-            instanceId: "idle-runtime",
-            softwareVersion: "1.0.0",
-            supportedRuntimes: ["adk@1"],
-            supportedToolsets: [],
-            supportedSandboxProfiles: ["local-workdir@1"],
-            supportedRuntimeAdapters: [],
-            observedState: "idle",
-            slotState: "idle",
-          },
-        ],
-        allocations: [],
-      });
-    if (path === "/v1/operations/runtime-configs") {
-      if (request.method() === "POST")
-        return reply(
-          {
-            code: "conflict",
-            message:
-              "This immutable version already exists. Choose a new version.",
-            retryable: false,
-            requestId: "publish-conflict",
-          },
-          409,
-        );
-      return reply({
-        items: [base, proposed, concurrent],
-        page: { hasMore: false },
-      });
-    }
-    if (path === "/v1/operations/runtime-labels")
-      return reply({ items: [binding], page: { hasMore: false } });
-    if (
-      path === "/v1/operations/runtime-labels/debug" &&
-      request.method() === "PUT"
-    ) {
-      bindingAttempts++;
-      if (bindingAttempts === 1) {
-        binding = { ...binding, config: concurrent.ref, revision: "2" };
-        return reply(
-          {
-            code: "precondition_failed",
-            message: "Runtime label revision changed",
-            retryable: false,
-            requestId: "binding-conflict",
-          },
-          412,
-        );
+  await mockAPI(
+    page,
+    async (route, request, url) => {
+      const path = url.pathname;
+      const reply = (value: unknown, status = 200, headers = {}) =>
+        fulfillJSON(route, value, status, headers);
+      if (request.method() !== "GET")
+        writes.push({
+          path,
+          ifMatch: request.headers()["if-match"],
+          body: request.postDataJSON(),
+        });
+      if (path === "/v1/operations/snapshot")
+        return reply({
+          cursor: { generation: "operations-form-fixture", revision: "3" },
+          runtimeAgents: [
+            {
+              instanceId: "idle-runtime",
+              softwareVersion: "1.0.0",
+              supportedRuntimes: ["adk@1"],
+              supportedToolsets: [],
+              supportedSandboxProfiles: ["local-workdir@1"],
+              supportedRuntimeAdapters: [],
+              observedState: "idle",
+              slotState: "idle",
+            },
+          ],
+          allocations: [],
+        });
+      if (path === "/v1/operations/runtime-configs") {
+        if (request.method() === "POST")
+          return reply(
+            {
+              code: "conflict",
+              message:
+                "This immutable version already exists. Choose a new version.",
+              retryable: false,
+              requestId: "publish-conflict",
+            },
+            409,
+          );
+        return reply({
+          items: [base, proposed, concurrent],
+          page: { hasMore: false },
+        });
       }
-      expect(request.headers()["if-match"]).toBe('"2"');
-      expect(request.postDataJSON()).toEqual({ config: proposed.ref });
-      binding = { ...binding, config: proposed.ref, revision: "3" };
-      return reply(binding, 200, { ETag: '"3"' });
-    }
-    if (path === "/v1/operations/runtime-credentials") {
-      if (request.method() === "POST")
-        return reply(
-          {
-            code: "forbidden",
-            message: "Credential creation denied by Server",
-            retryable: false,
-            requestId: "credential-denied",
-          },
-          403,
-        );
-      return reply({ items: [], page: { hasMore: false } });
-    }
-    if (path === "/v1/configurations/llm-gateways")
-      return reply({ items: [], page: { hasMore: false } });
-    return reply(
-      {
-        code: "not_found",
-        message: `Fixture does not implement ${path}`,
-        retryable: false,
-        requestId: "fixture-missing",
-      },
-      404,
-    );
-  });
+      if (path === "/v1/operations/runtime-labels")
+        return reply({ items: [binding], page: { hasMore: false } });
+      if (
+        path === "/v1/operations/runtime-labels/debug" &&
+        request.method() === "PUT"
+      ) {
+        bindingAttempts++;
+        if (bindingAttempts === 1) {
+          binding = { ...binding, config: concurrent.ref, revision: "2" };
+          return reply(
+            {
+              code: "precondition_failed",
+              message: "Runtime label revision changed",
+              retryable: false,
+              requestId: "binding-conflict",
+            },
+            412,
+          );
+        }
+        expect(request.headers()["if-match"]).toBe('"2"');
+        expect(request.postDataJSON()).toEqual({ config: proposed.ref });
+        binding = { ...binding, config: proposed.ref, revision: "3" };
+        return reply(binding, 200, { ETag: '"3"' });
+      }
+      if (path === "/v1/operations/runtime-credentials") {
+        if (request.method() === "POST")
+          return reply(
+            {
+              code: "forbidden",
+              message: "Credential creation denied by Server",
+              retryable: false,
+              requestId: "credential-denied",
+            },
+            403,
+          );
+        return reply({ items: [], page: { hasMore: false } });
+      }
+      if (path === "/v1/configurations/llm-gateways")
+        return reply({ items: [], page: { hasMore: false } });
+      return fulfillEmptyPageOrNotFound(
+        route,
+        `Fixture does not implement ${path}`,
+      );
+    },
+    {
+      session: authSession(
+        "operator",
+        authorized ? ["user", "operations"] : ["user"],
+      ),
+    },
+  );
   return writes;
 }
 

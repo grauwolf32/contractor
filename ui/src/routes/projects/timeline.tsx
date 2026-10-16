@@ -3,10 +3,14 @@ import { type ReactNode, useId } from "react";
 import type { ArtifactMetadata } from "../../api/artifacts";
 import type { Audit, AuditFinding, AuditState } from "../../api/audits";
 import type { Project } from "../../api/projects";
-import type { RunSummary, WorkflowRunState } from "../../api/runs";
+import type { RunSummary } from "../../api/runs";
 import { ContextLink } from "../../app/context-navigation";
 import type { StatusTone } from "../../app/status-tone";
-import { checkStateLabel } from "../../app/vocabulary";
+import {
+  checkStateLabel,
+  runStateLabel,
+  runStatePhrase,
+} from "../../app/vocabulary";
 import {
   type ActivityEntry,
   ActivityLog,
@@ -16,12 +20,12 @@ import {
 } from "../../ui";
 import { artifactDetailPath } from "../artifacts/paths";
 import { auditProfileLabel } from "./audits/labels";
-import { materialKind, materialKindLabel } from "./material-kinds";
 import type { CheckIssues } from "./overview-data";
 import { RunPrimaryResult } from "./overview-runs";
 import { projectPath } from "./project-sections";
-import { runStateLabel } from "./run-state";
 import { TIMELINE_FILTERS, type TimelineFilter } from "./timeline-filter";
+import { formatDay, plural } from "../../app/format";
+import { materialKindLabel } from "../artifacts/kinds";
 
 /** How many events the timeline shows. */
 const TIMELINE_LENGTH = 12;
@@ -47,17 +51,6 @@ const CHECK_PHRASES: Readonly<Record<AuditState, string>> = {
   cancelled: "was stopped",
   failed: "failed",
   deleting: "is being deleted",
-};
-
-const RUN_PHRASES: Readonly<Record<WorkflowRunState, string>> = {
-  initializing: "is initializing",
-  pending: "is pending",
-  waiting: "is waiting",
-  running: "is running",
-  cancelling: "is cancelling",
-  succeeded: "succeeded",
-  failed: "failed",
-  cancelled: "was cancelled",
 };
 
 const HTTP_OPERATION =
@@ -100,7 +93,7 @@ function checkEvent(
         {phrase}
         {reason === undefined ? "" : `: ${reason}`}.
         {toReview > 0
-          ? ` ${toReview} ${toReview === 1 ? "possible issue needs" : "possible issues need"} review.`
+          ? ` ${plural(toReview, "possible issue needs", "possible issues need")} review.`
           : null}
       </>
     ),
@@ -124,7 +117,7 @@ function issueEvent(finding: AuditFinding): TimelineEvent {
         {operation === null ? null : (
           <>
             on{" "}
-            <span className="projects-mono">
+            <span className="ui-mono">
               {operation[1]!.toUpperCase()} {operation[2]}
             </span>
             {": "}
@@ -145,9 +138,7 @@ function issueEvent(finding: AuditFinding): TimelineEvent {
 }
 
 function runEvent(run: RunSummary, projectId: string): TimelineEvent {
-  const phrase = Object.hasOwn(RUN_PHRASES, run.state)
-    ? RUN_PHRASES[run.state]
-    : runStateLabel(run.state).label.toLowerCase();
+  const phrase = runStatePhrase(run.state);
   return {
     id: `run:${run.runId}`,
     kind: "runs",
@@ -182,7 +173,7 @@ function materialEvent(
     kind: "materials",
     time: material.createdAt,
     tone: "neutral",
-    title: materialKindLabel(materialKind(material)),
+    title: materialKindLabel(material),
     text: (
       <>
         <ContextLink
@@ -208,37 +199,12 @@ function timestamp(value: string): number {
   return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
 }
 
-const dayFormat = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-});
-const datedFormat = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-});
-
-function startOfDay(value: Date): number {
-  return new Date(
-    value.getFullYear(),
-    value.getMonth(),
-    value.getDate(),
-  ).valueOf();
-}
-
 /** "Today", "Yesterday", "Oct 4" or "Oct 4, 2025" in local time. */
 function dayLabel(time: string, now: Date): string {
-  const date = new Date(time);
-  if (Number.isNaN(date.valueOf())) return "Earlier";
-  const days = Math.round((startOfDay(now) - startOfDay(date)) / 86_400_000);
-  if (days === 0) return "Today";
-  if (days === 1) return "Yesterday";
-  return date.getFullYear() === now.getFullYear()
-    ? dayFormat.format(date)
-    : datedFormat.format(date);
+  return formatDay(time, now) ?? "Earlier";
 }
 
-export interface ProjectTimelineProps {
+interface ProjectTimelineProps {
   project: Project;
   checks: readonly Audit[];
   issues: readonly CheckIssues[];

@@ -23,7 +23,6 @@
  */
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router";
 
 import {
   auditMutationAudit,
@@ -37,15 +36,17 @@ import { usePublicAPI } from "../../../api/context";
 import { invalidateCrossProject } from "../../../api/cross-project";
 import { PublicAPIError } from "../../../api/error";
 import { queryKeys } from "../../../api/query-keys";
-import { usePageLocationNow } from "../../../app/page-location";
+import { writeConflict } from "../../../app/conflict";
+import { useGuardedNavigate } from "../../../app/page-location";
 import {
   canonicalMutationRequest,
   MutationDraftKeyring,
 } from "../../../mutations/idempotency";
+import { checkPath } from "../../projects/audits/check-links";
 
-export type LaunchIntent = "start" | "draft";
+type LaunchIntent = "start" | "draft";
 
-export interface LaunchRequest {
+interface LaunchRequest {
   request: CreateAuditRequest;
   /** Seconds for the start request; 0 means no time limit. */
   deadlineSeconds: number;
@@ -99,10 +100,6 @@ export type StartFailure =
       readonly revisionChanged: boolean;
     };
 
-export function checkPath(projectId: string, auditId: string): string {
-  return `/projects/${encodeURIComponent(projectId)}/audits/${encodeURIComponent(auditId)}`;
-}
-
 /** A request whose answer did not arrive: the Server may have applied it. */
 export function isLostResponse(error: unknown): boolean {
   return error instanceof PublicAPIError && error.status === 0;
@@ -111,10 +108,6 @@ export function isLostResponse(error: unknown): boolean {
 /** A server or gateway failure: the request may still have been applied. */
 function isServerFailure(error: unknown): boolean {
   return error instanceof PublicAPIError && error.status >= 500;
-}
-
-function isPreconditionFailure(error: unknown): boolean {
-  return error instanceof PublicAPIError && error.status === 412;
 }
 
 export interface Launch {
@@ -144,8 +137,7 @@ export interface Launch {
 
 export function useLaunch(projectId: string): Launch {
   const api = usePublicAPI();
-  const navigate = useNavigate();
-  const pageNow = usePageLocationNow();
+  const navigate = useGuardedNavigate();
   const queryClient = useQueryClient();
   const [createKeys] = useState(
     () => new MutationDraftKeyring<CreateVariables>("create-audit"),
@@ -221,7 +213,7 @@ export function useLaunch(projectId: string): Launch {
   // the request was on its way (the next page may still be loading, with
   // this one on screen).
   function open(auditId: string): void {
-    if (pageNow() !== undefined) void navigate(checkPath(projectId, auditId));
+    void navigate(checkPath(projectId, auditId));
   }
 
   async function readAgain(auditId: string): Promise<Audit | undefined> {
@@ -260,7 +252,7 @@ export function useLaunch(projectId: string): Launch {
         kind: "refused",
         error: reason,
         revisionChanged:
-          isPreconditionFailure(error) ||
+          writeConflict(error) === "stale" ||
           current.revision !== attempt.record.audit.revision,
       };
     setFailed({ failure, attempt });

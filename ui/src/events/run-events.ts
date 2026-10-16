@@ -1,14 +1,8 @@
 import type { PlannerPlan } from "../api/runs";
-import { EVENT_PROTOCOL, EventsSocket, type EventCursor } from "./socket";
-import { hasExactKeys, isRecord } from "../api/json-guards";
+import { EventsSocket, type EventCursor } from "./socket";
+import { conformsToEvent, eventFrameViolation } from "../api/contract";
 
 const MAXIMUM_SERVER_FRAME_BYTES = 64 * 1024;
-const SAFE_IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/;
-const SUBSCRIPTION_IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/;
-const UNSIGNED_DECIMAL = /^(?:0|[1-9][0-9]*)$/;
-const SUBTASK_IDENTIFIER = /^(?:0|[1-9][0-9]{0,2})$/;
-const MAXIMUM_PLANNER_SUBTASKS = 1000;
-const DISPATCH_IDENTIFIER = /^dispatch-[0-9]{4,}$/;
 
 export type RunEventConnectionState =
   "connecting" | "live" | "reconnecting" | "resyncing" | "error";
@@ -21,7 +15,7 @@ export type RunResyncReason =
   | "projection_gap"
   | "subscription_error";
 
-export interface PlannerActivity {
+interface PlannerActivity {
   kind:
     | "adk_event"
     | "scan_owner_acquired"
@@ -67,7 +61,7 @@ export interface PlannerEventData {
   activity?: PlannerActivity;
 }
 
-export interface LifecycleEventData {
+interface LifecycleEventData {
   runId: string;
   resource: "run" | "stageExecution";
   stageExecutionId?: string;
@@ -91,7 +85,7 @@ export interface RunEventEnvelope<T> {
   data: T;
 }
 
-export interface RunEventCallbacks {
+interface RunEventCallbacks {
   onPlannerEvent: (event: RunEventEnvelope<PlannerEventData>) => boolean;
   onLifecycleEvent: (event: RunEventEnvelope<LifecycleEventData>) => void;
   onResync: (reason: RunResyncReason) => void;
@@ -99,14 +93,14 @@ export interface RunEventCallbacks {
   onError: (message: string) => void;
 }
 
-export interface OperationsEventCallbacks {
+interface OperationsEventCallbacks {
   onOperationsEvent: (event: RunEventEnvelope<OperationsEventData>) => void;
   onResync: (reason: RunResyncReason) => void;
   onStateChange: (state: RunEventConnectionState) => void;
   onError: (message: string) => void;
 }
 
-export interface RunEventSubscription {
+interface RunEventSubscription {
   unsubscribe(): void;
 }
 
@@ -115,7 +109,7 @@ export interface OperationsSnapshotCursor {
   revision: string;
 }
 
-export interface OperationsEventSubscription {
+interface OperationsEventSubscription {
   unsubscribe(): void;
   resume(after: OperationsSnapshotCursor): void;
 }
@@ -217,513 +211,51 @@ type ServerFrame =
   | ResyncFrame
   | ErrorFrame;
 
-function exactKeys(
-  value: Record<string, unknown>,
-  required: readonly string[],
-  optional: readonly string[] = [],
-): void {
-  if (!hasExactKeys(value, required, optional)) {
-    throw new Error("Event frame has an invalid closed shape");
-  }
-}
+const SERVER_FRAME_TYPES = new Set([
+  "subscribed",
+  "unsubscribed",
+  "event",
+  "resync_required",
+  "error",
+]);
 
-function safeIdentifier(value: unknown, maximum = 256): string {
-  if (
-    typeof value !== "string" ||
-    value.length > maximum ||
-    !SAFE_IDENTIFIER.test(value)
-  ) {
-    throw new Error("Event frame contains an invalid identifier");
-  }
-  return value;
-}
-
-function subscriptionIdentifier(value: unknown): string {
-  if (typeof value !== "string" || !SUBSCRIPTION_IDENTIFIER.test(value)) {
-    throw new Error("Event frame contains an invalid subscription ID");
-  }
-  return value;
-}
-
-function boundedString(
-  value: unknown,
-  minimum: number,
-  maximum: number,
-): string {
-  if (
-    typeof value !== "string" ||
-    value.length < minimum ||
-    value.length > maximum
-  ) {
-    throw new Error("Event frame contains an invalid bounded string");
-  }
-  return value;
-}
-
-function boundedInteger(value: unknown, minimum: number): number {
-  if (!Number.isSafeInteger(value) || (value as number) < minimum) {
-    throw new Error("Event frame contains an invalid integer");
-  }
-  return value as number;
-}
-
-function optionalBoolean(value: unknown): boolean | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-  if (typeof value !== "boolean") {
-    throw new Error("Event frame contains an invalid boolean");
-  }
-  return value;
-}
-
-function parseCursor(value: unknown): EventCursor {
-  if (!isRecord(value)) {
-    throw new Error("Event frame cursor is invalid");
-  }
-  exactKeys(value, ["generation", "sequence"]);
-  const generation = safeIdentifier(value.generation);
-  if (
-    typeof value.sequence !== "string" ||
-    value.sequence.length > 20 ||
-    !UNSIGNED_DECIMAL.test(value.sequence)
-  ) {
-    throw new Error("Event cursor sequence is invalid");
-  }
-  return { generation, sequence: value.sequence };
-}
-
-function parseStream(
-  value: unknown,
-): { kind: "run"; id: string } | { kind: "operations" } {
-  if (!isRecord(value) || typeof value.kind !== "string") {
-    throw new Error("Event stream is invalid");
-  }
-  if (value.kind === "run") {
-    exactKeys(value, ["kind", "id"]);
-    return { kind: "run", id: safeIdentifier(value.id) };
-  }
-  if (value.kind === "operations") {
-    exactKeys(value, ["kind"]);
-    return { kind: "operations" };
-  }
-  throw new Error("Event stream kind is unknown");
-}
-
-function parseSubtask(value: unknown): PlannerPlan["subtasks"][number] {
-  if (!isRecord(value)) {
-    throw new Error("Planner subtask is invalid");
-  }
-  exactKeys(value, ["id", "objective", "instructions", "status"]);
-  if (typeof value.id !== "string" || !SUBTASK_IDENTIFIER.test(value.id)) {
-    throw new Error("Planner subtask ID is invalid");
-  }
-  const objective = boundedString(value.objective, 1, 8192);
-  const instructions = boundedString(value.instructions, 1, 32768);
-  if (
-    value.status !== "pending" &&
-    value.status !== "running" &&
-    value.status !== "succeeded" &&
-    value.status !== "failed"
-  ) {
-    throw new Error("Planner subtask status is invalid");
-  }
-  return { id: value.id, objective, instructions, status: value.status };
-}
-
-function parseDispatch(
-  value: unknown,
-): NonNullable<PlannerPlan["activeDispatch"]> {
-  if (!isRecord(value)) {
-    throw new Error("Planner dispatch is invalid");
-  }
-  exactKeys(value, ["callId", "subtaskId", "workerName"]);
-  if (
-    typeof value.callId !== "string" ||
-    value.callId.length > 64 ||
-    !DISPATCH_IDENTIFIER.test(value.callId) ||
-    typeof value.subtaskId !== "string" ||
-    !SUBTASK_IDENTIFIER.test(value.subtaskId)
-  ) {
-    throw new Error("Planner dispatch identity is invalid");
-  }
-  return {
-    callId: value.callId,
-    subtaskId: value.subtaskId,
-    workerName: safeIdentifier(value.workerName, 128),
-  };
-}
-
-function parsePlan(value: unknown): PlannerPlan {
-  if (!isRecord(value)) {
-    throw new Error("Planner plan is invalid");
-  }
-  exactKeys(
-    value,
-    ["revision", "subtasks"],
-    ["currentSubtaskId", "activeDispatch"],
-  );
-  const revision = boundedInteger(value.revision, 1);
-  if (
-    !Array.isArray(value.subtasks) ||
-    value.subtasks.length < 1 ||
-    value.subtasks.length > MAXIMUM_PLANNER_SUBTASKS
-  ) {
-    throw new Error("Planner subtask list is invalid");
-  }
-  const subtasks = value.subtasks.map(parseSubtask);
-  if (subtasks.some((subtask, index) => subtask.id !== String(index))) {
+/**
+ * Plan invariants contractor-events-v1 cannot express: subtask IDs are their
+ * list positions, the current subtask is the first unresolved one, and a
+ * running subtask exists exactly when an active dispatch selects it.
+ */
+function requirePlanInvariants(plan: PlannerPlan): void {
+  if (plan.subtasks.some((subtask, index) => subtask.id !== String(index))) {
     throw new Error("Planner subtask ID order is invalid");
   }
-  const identities = new Set(subtasks.map((subtask) => subtask.id));
-  let currentSubtaskId: string | undefined;
-  if (value.currentSubtaskId !== undefined) {
-    if (
-      typeof value.currentSubtaskId !== "string" ||
-      !SUBTASK_IDENTIFIER.test(value.currentSubtaskId) ||
-      !identities.has(value.currentSubtaskId)
-    ) {
-      throw new Error("Planner current subtask is invalid");
-    }
-    currentSubtaskId = value.currentSubtaskId;
-  }
-  const activeDispatch =
-    value.activeDispatch === undefined
-      ? undefined
-      : parseDispatch(value.activeDispatch);
-  if (
-    activeDispatch !== undefined &&
-    !identities.has(activeDispatch.subtaskId)
-  ) {
-    throw new Error("Planner dispatch selects an unknown subtask");
-  }
-  const firstUnresolved = subtasks.find(
+  const firstUnresolved = plan.subtasks.find(
     (subtask) => subtask.status === "pending" || subtask.status === "running",
   );
-  if (currentSubtaskId !== firstUnresolved?.id) {
+  if (plan.currentSubtaskId !== firstUnresolved?.id) {
     throw new Error("Planner current subtask does not match its plan");
   }
-  const running = subtasks.filter((subtask) => subtask.status === "running");
-  if (activeDispatch === undefined) {
+  const running = plan.subtasks.filter(
+    (subtask) => subtask.status === "running",
+  );
+  const dispatch = plan.activeDispatch;
+  if (dispatch === undefined) {
     if (running.length !== 0) {
       throw new Error("Planner running subtask has no active dispatch");
     }
   } else if (
     running.length !== 1 ||
-    currentSubtaskId !== activeDispatch.subtaskId ||
-    running[0]?.id !== activeDispatch.subtaskId
+    plan.currentSubtaskId !== dispatch.subtaskId ||
+    running[0]?.id !== dispatch.subtaskId
   ) {
     throw new Error("Planner active dispatch does not match its plan");
   }
-  return {
-    revision,
-    subtasks,
-    ...(currentSubtaskId === undefined ? {} : { currentSubtaskId }),
-    ...(activeDispatch === undefined ? {} : { activeDispatch }),
-  };
 }
 
-function parseActivity(value: unknown): PlannerActivity {
-  if (!isRecord(value)) {
-    throw new Error("Planner activity is invalid");
-  }
-  exactKeys(
-    value,
-    ["kind", "author", "functionCalls", "functionResults"],
-    [
-      "inputTokens",
-      "outputTokens",
-      "skipSummarization",
-      "escalate",
-      "truncated",
-    ],
-  );
-  if (
-    value.kind === "scan_owner_acquired" ||
-    value.kind === "scan_plan_initialized" ||
-    value.kind === "scan_job_started" ||
-    value.kind === "scan_job_finished"
-  ) {
-    if (
-      value.author !== "scan_planner" ||
-      !Array.isArray(value.functionCalls) ||
-      value.functionCalls.length !== 0 ||
-      !Array.isArray(value.functionResults) ||
-      value.functionResults.length !== 0 ||
-      (value.inputTokens !== undefined && value.inputTokens !== 0) ||
-      (value.outputTokens !== undefined && value.outputTokens !== 0) ||
-      (value.skipSummarization !== undefined &&
-        value.skipSummarization !== false) ||
-      (value.escalate !== undefined && value.escalate !== false) ||
-      (value.truncated !== undefined && value.truncated !== false)
-    ) {
-      throw new Error("Planner scan activity is invalid");
-    }
-    return {
-      kind: value.kind,
-      author: value.author,
-      functionCalls: [],
-      functionResults: [],
-    };
-  }
-  if (value.kind !== "adk_event") {
-    throw new Error("Planner activity kind is invalid");
-  }
-  if (
-    value.author !== "user" &&
-    value.author !== "streamline_planner" &&
-    value.author !== "router_planner" &&
-    value.author !== "other"
-  ) {
-    throw new Error("Planner activity author is invalid");
-  }
-  function names(source: unknown): string[] {
-    if (!Array.isArray(source) || source.length > 32) {
-      throw new Error("Planner activity function list is invalid");
-    }
-    return source.map((name) => safeIdentifier(name));
-  }
-  const inputTokens =
-    value.inputTokens === undefined
-      ? undefined
-      : boundedInteger(value.inputTokens, 0);
-  const outputTokens =
-    value.outputTokens === undefined
-      ? undefined
-      : boundedInteger(value.outputTokens, 0);
-  const skipSummarization = optionalBoolean(value.skipSummarization);
-  const escalate = optionalBoolean(value.escalate);
-  const truncated = optionalBoolean(value.truncated);
-  return {
-    kind: "adk_event",
-    author: value.author,
-    functionCalls: names(value.functionCalls),
-    functionResults: names(value.functionResults),
-    ...(inputTokens === undefined ? {} : { inputTokens }),
-    ...(outputTokens === undefined ? {} : { outputTokens }),
-    ...(skipSummarization === undefined ? {} : { skipSummarization }),
-    ...(escalate === undefined ? {} : { escalate }),
-    ...(truncated === undefined ? {} : { truncated }),
-  };
-}
-
-function plannerBase(
-  value: Record<string, unknown>,
-): Omit<PlannerEventData, "eventKind"> {
-  return {
-    stageExecutionId: safeIdentifier(value.stageExecutionId),
-    sessionId: safeIdentifier(value.sessionId),
-    invocationId: safeIdentifier(value.invocationId),
-  };
-}
-
-function parsePlannerEvent(value: unknown): PlannerEventData {
-  if (!isRecord(value) || typeof value.eventKind !== "string") {
-    throw new Error("Planner event is invalid");
-  }
-  const common = [
-    "stageExecutionId",
-    "sessionId",
-    "invocationId",
-    "eventKind",
-  ] as const;
-  const eventKind = value.eventKind as PlannerEventKind;
-  const base = plannerBase(value);
-  switch (eventKind) {
-    case "planner.started":
-    case "planner.request_recorded":
-      exactKeys(value, common);
-      return { ...base, eventKind };
-    case "planner.activity":
-      exactKeys(value, [...common, "activity"]);
-      return { ...base, eventKind, activity: parseActivity(value.activity) };
-    case "planner.plan_changed": {
-      exactKeys(value, [...common, "plan"]);
-      const plan = parsePlan(value.plan);
-      if (plan.activeDispatch !== undefined) {
-        throw new Error("Changed Planner plan cannot contain a dispatch");
-      }
-      return { ...base, eventKind, plan };
-    }
-    case "planner.current_changed": {
-      exactKeys(value, [...common, "planRevision"], ["subtaskId"]);
-      const planRevision = boundedInteger(value.planRevision, 1);
-      if (
-        value.subtaskId !== undefined &&
-        (typeof value.subtaskId !== "string" ||
-          !SUBTASK_IDENTIFIER.test(value.subtaskId))
-      ) {
-        throw new Error("Planner current subtask is invalid");
-      }
-      return {
-        ...base,
-        eventKind,
-        planRevision,
-        ...(value.subtaskId === undefined
-          ? {}
-          : { subtaskId: value.subtaskId }),
-      };
-    }
-    case "planner.dispatch_selected": {
-      exactKeys(value, [
-        ...common,
-        "planRevision",
-        "subtaskId",
-        "callId",
-        "workerName",
-      ]);
-      const dispatch = parseDispatch({
-        callId: value.callId,
-        subtaskId: value.subtaskId,
-        workerName: value.workerName,
-      });
-      return {
-        ...base,
-        eventKind,
-        planRevision: boundedInteger(value.planRevision, 1),
-        ...dispatch,
-      };
-    }
-    case "planner.dispatch_started":
-    case "planner.dispatch_completed": {
-      exactKeys(value, [
-        ...common,
-        "plan",
-        "subtaskId",
-        "callId",
-        "workerName",
-        ...(eventKind === "planner.dispatch_completed" ? ["outcome"] : []),
-      ]);
-      const plan = parsePlan(value.plan);
-      const dispatch = parseDispatch({
-        callId: value.callId,
-        subtaskId: value.subtaskId,
-        workerName: value.workerName,
-      });
-      if (eventKind === "planner.dispatch_started") {
-        if (
-          plan.activeDispatch === undefined ||
-          JSON.stringify(plan.activeDispatch) !== JSON.stringify(dispatch)
-        ) {
-          throw new Error("Started dispatch and Planner plan disagree");
-        }
-        return { ...base, eventKind, plan, ...dispatch };
-      }
-      if (
-        plan.activeDispatch !== undefined ||
-        (value.outcome !== "succeeded" && value.outcome !== "failed")
-      ) {
-        throw new Error("Completed dispatch is invalid");
-      }
-      return {
-        ...base,
-        eventKind,
-        plan,
-        ...dispatch,
-        outcome: value.outcome,
-      };
-    }
-    case "planner.finish_requested": {
-      exactKeys(value, [...common, "planRevision", "outcome"]);
-      if (value.outcome !== "succeeded" && value.outcome !== "failed") {
-        throw new Error("Planner finish outcome is invalid");
-      }
-      const planRevision = boundedInteger(
-        value.planRevision,
-        value.outcome === "succeeded" ? 1 : 0,
-      );
-      return { ...base, eventKind, planRevision, outcome: value.outcome };
-    }
-    case "planner.completed":
-      exactKeys(value, [...common, "outcome"]);
-      if (value.outcome !== "succeeded" && value.outcome !== "failed") {
-        throw new Error("Planner completion outcome is invalid");
-      }
-      return { ...base, eventKind, outcome: value.outcome };
-    case "planner.failed":
-      exactKeys(value, [...common, "outcome", "code"]);
-      if (value.outcome !== "failure") {
-        throw new Error("Planner failure outcome is invalid");
-      }
-      return {
-        ...base,
-        eventKind,
-        outcome: "failure",
-        code: safeIdentifier(value.code),
-      };
-    default:
-      throw new Error("Planner event kind is unknown");
-  }
-}
-
-function parseLifecycleEvent(value: unknown): LifecycleEventData {
-  if (!isRecord(value)) {
-    throw new Error("Lifecycle event is invalid");
-  }
-  exactKeys(value, ["runId", "resource", "state"], ["stageExecutionId"]);
-  const runId = safeIdentifier(value.runId);
-  const state = safeIdentifier(value.state);
-  if (value.resource === "run") {
-    if (value.stageExecutionId !== undefined) {
-      throw new Error("Run lifecycle event contains a Stage identity");
-    }
-    return { runId, resource: "run", state };
-  }
-  if (value.resource !== "stageExecution") {
-    throw new Error("Lifecycle resource is unknown");
-  }
-  return {
-    runId,
-    resource: "stageExecution",
-    stageExecutionId: safeIdentifier(value.stageExecutionId),
-    state,
-  };
-}
-
-function parseOperationsEvent(value: unknown): OperationsEventData {
-  if (!isRecord(value)) {
-    throw new Error("Operations event is invalid");
-  }
-  exactKeys(value, ["resource", "revision"], ["resourceId"]);
-  if (
-    value.resource !== "runtimeAgent" &&
-    value.resource !== "allocation" &&
-    value.resource !== "configuration" &&
-    value.resource !== "credential" &&
-    value.resource !== "schedulerSettings"
-  ) {
-    throw new Error("Operations resource is unknown");
-  }
-  if (
-    typeof value.revision !== "string" ||
-    value.revision.length > 20 ||
-    !UNSIGNED_DECIMAL.test(value.revision)
-  ) {
-    throw new Error("Operations revision is invalid");
-  }
-  const resourceId =
-    value.resourceId === undefined
-      ? undefined
-      : safeIdentifier(value.resourceId);
-  if (value.resource === "schedulerSettings" && resourceId !== undefined) {
-    throw new Error("Scheduler settings invalidation contains a resource ID");
-  }
-  return {
-    resource: value.resource,
-    revision: value.revision,
-    ...(resourceId === undefined ? {} : { resourceId }),
-  };
-}
-
-function parseOccurredAt(value: unknown): string {
-  const result = boundedString(value, 1, 64);
-  if (Number.isNaN(Date.parse(result))) {
-    throw new Error("Event timestamp is invalid");
-  }
-  return result;
-}
-
-export function parseServerFrame(source: string): ServerFrame {
+/**
+ * Parses one Server frame. The generated contractor-events-v1 schema checks
+ * its shape; only invariants between members stay here.
+ */
+function parseServerFrame(source: string): ServerFrame {
   if (
     source.length === 0 ||
     source.length > MAXIMUM_SERVER_FRAME_BYTES ||
@@ -737,132 +269,30 @@ export function parseServerFrame(source: string): ServerFrame {
   } catch {
     throw new Error("Server event frame is not valid JSON");
   }
-  if (!isRecord(parsed) || parsed.version !== EVENT_PROTOCOL) {
-    throw new Error("Server event protocol version is invalid");
+  const violation = eventFrameViolation(parsed);
+  if (violation !== undefined) {
+    throw new Error(`Server event frame breaks the contract at ${violation}`);
   }
-  switch (parsed.type) {
-    case "subscribed": {
-      exactKeys(parsed, [
-        "version",
-        "type",
-        "subscriptionId",
-        "stream",
-        "cursor",
-      ]);
-      return {
-        type: "subscribed",
-        subscriptionId: subscriptionIdentifier(parsed.subscriptionId),
-        stream: parseStream(parsed.stream),
-        cursor: parseCursor(parsed.cursor),
-      };
-    }
-    case "unsubscribed":
-      exactKeys(parsed, ["version", "type", "subscriptionId"]);
-      return {
-        type: "unsubscribed",
-        subscriptionId: subscriptionIdentifier(parsed.subscriptionId),
-      };
-    case "event": {
-      exactKeys(parsed, [
-        "version",
-        "type",
-        "subscriptionId",
-        "stream",
-        "cursor",
-        "kind",
-        "occurredAt",
-        "data",
-      ]);
-      const subscriptionId = subscriptionIdentifier(parsed.subscriptionId);
-      const stream = parseStream(parsed.stream);
-      const common = {
-        type: "event" as const,
-        subscriptionId,
-        cursor: parseCursor(parsed.cursor),
-        occurredAt: parseOccurredAt(parsed.occurredAt),
-      };
-      if (stream.kind === "operations") {
-        if (parsed.kind !== "operations.changed") {
-          throw new Error("Operations event kind is unknown");
-        }
-        return {
-          ...common,
-          stream,
-          kind: "operations.changed",
-          data: parseOperationsEvent(parsed.data),
-        };
-      }
-      if (parsed.kind === "planner.event") {
-        return {
-          ...common,
-          stream,
-          kind: "planner.event",
-          data: parsePlannerEvent(parsed.data),
-        };
-      }
-      if (parsed.kind === "lifecycle.changed") {
-        return {
-          ...common,
-          stream,
-          kind: "lifecycle.changed",
-          data: parseLifecycleEvent(parsed.data),
-        };
-      }
-      throw new Error("Run event kind is unknown");
-    }
-    case "resync_required": {
-      exactKeys(parsed, [
-        "version",
-        "type",
-        "subscriptionId",
-        "stream",
-        "reason",
-      ]);
-      if (
-        parsed.reason !== "generation_changed" &&
-        parsed.reason !== "cursor_unavailable" &&
-        parsed.reason !== "sequence_gap"
-      ) {
-        throw new Error("Resync reason is unknown");
-      }
-      return {
-        type: "resync_required",
-        subscriptionId: subscriptionIdentifier(parsed.subscriptionId),
-        stream: parseStream(parsed.stream),
-        reason: parsed.reason,
-      };
-    }
-    case "error": {
-      exactKeys(
-        parsed,
-        ["version", "type", "code", "message", "retryable"],
-        ["subscriptionId"],
-      );
-      if (
-        parsed.code !== "invalid_frame" &&
-        parsed.code !== "subscription_limit" &&
-        parsed.code !== "unauthorized" &&
-        parsed.code !== "not_found" &&
-        parsed.code !== "overloaded"
-      ) {
-        throw new Error("Event error code is unknown");
-      }
-      if (typeof parsed.retryable !== "boolean") {
-        throw new Error("Event error retryability is invalid");
-      }
-      return {
-        type: "error",
-        ...(parsed.subscriptionId === undefined
-          ? {}
-          : { subscriptionId: subscriptionIdentifier(parsed.subscriptionId) }),
-        code: parsed.code,
-        message: boundedString(parsed.message, 1, 512),
-        retryable: parsed.retryable,
-      };
-    }
-    default:
-      throw new Error("Server event frame type is unknown");
+  const frame = parsed as ServerFrame | { type: "subscribe" | "unsubscribe" };
+  if (!SERVER_FRAME_TYPES.has(frame.type)) {
+    throw new Error("Server event frame type is a client frame");
   }
+  const server = frame as ServerFrame;
+  if (server.type === "event" && server.kind === "planner.event") {
+    const data = server.data;
+    if (data.plan !== undefined) requirePlanInvariants(data.plan);
+    // A started dispatch is the plan's active dispatch.
+    const active = data.plan?.activeDispatch;
+    if (
+      data.eventKind === "planner.dispatch_started" &&
+      (active?.callId !== data.callId ||
+        active?.subtaskId !== data.subtaskId ||
+        active?.workerName !== data.workerName)
+    ) {
+      throw new Error("Started dispatch and Planner plan disagree");
+    }
+  }
+  return server;
 }
 
 function sameCursor(left: EventCursor, right: EventCursor): boolean {
@@ -876,7 +306,9 @@ function copyCursor(cursor: EventCursor): EventCursor {
 }
 
 function validateCursor(cursor: EventCursor): void {
-  parseCursor(cursor);
+  if (!conformsToEvent("Cursor", cursor)) {
+    throw new TypeError("Event cursor is invalid");
+  }
 }
 
 function subscriptionMatchesStream(
@@ -917,7 +349,9 @@ export class RunEventsManager {
     after: EventCursor,
     callbacks: RunEventCallbacks,
   ): RunEventSubscription {
-    safeIdentifier(runId);
+    if (!conformsToEvent("RunStream", { kind: "run", id: runId })) {
+      throw new TypeError("Run ID is invalid");
+    }
     validateCursor(after);
     const id = this.#subscriptionId("run");
     const record: RunSubscriptionRecord = {

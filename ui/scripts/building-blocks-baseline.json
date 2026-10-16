@@ -1,0 +1,9 @@
+{
+  "drawings": {
+    "src/routes/evals/charts.tsx": "evaluation charts",
+    "src/routes/login-backdrop.tsx": "the sign-in backdrop drawing",
+    "src/routes/operations/performance/chart.tsx": "performance charts",
+    "src/routes/studio/canvas.tsx": "the Studio graph canvas"
+  },
+  "files": {}
+}

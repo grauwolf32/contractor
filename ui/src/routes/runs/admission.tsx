@@ -6,7 +6,7 @@ import { getOwnerQueueControl, setOwnerQueuePaused } from "../../api/queue";
 import { queryKeys } from "../../api/query-keys";
 import { ErrorNotice } from "../../app/error-notice";
 import { Icon } from "../../app/icon";
-import { StatusChip } from "../../ui";
+import { Button, StatusChip } from "../../ui";
 
 /**
  * The owner's durable queue admission gate (S18) for the Runs header: the
@@ -61,15 +61,12 @@ export function useQueueAdmission(): { control: ReactNode; notice: ReactNode } {
         <span className="runs-admission-status" aria-live="polite">
           {status}
         </span>
-        <button
-          className="ui-btn"
-          data-size="sm"
-          type="button"
-          disabled={
-            control === undefined ||
-            controlQuery.error !== null ||
-            controlMutation.isPending
-          }
+        <Button
+          size="sm"
+          icon={<Icon name={paused ? "play" : "pause"} />}
+          disabled={control === undefined || controlQuery.error !== null}
+          pending={controlMutation.isPending}
+          pendingLabel={paused ? "Resuming…" : "Pausing…"}
           onClick={() => {
             if (control !== undefined) {
               controlMutation.mutate({
@@ -79,15 +76,8 @@ export function useQueueAdmission(): { control: ReactNode; notice: ReactNode } {
             }
           }}
         >
-          <Icon name={paused ? "play" : "pause"} />
-          {controlMutation.isPending
-            ? paused
-              ? "Resuming…"
-              : "Pausing…"
-            : paused
-              ? "Resume queue"
-              : "Pause queue"}
-        </button>
+          {paused ? "Resume queue" : "Pause queue"}
+        </Button>
       </div>
     ),
     notice:

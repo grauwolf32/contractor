@@ -1,53 +1,24 @@
+import { deferred } from "../../test/deferred";
 import { ownerListResponse } from "../../test/owner-lists";
-import { act, render, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { createMemoryRouter } from "react-router";
-import { describe, expect, it, vi } from "vitest";
+import { act, screen, waitFor, within } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 
 import type { ArtifactMetadata } from "../../api/artifacts";
 import type { Audit, AuditFinding, AuditProfile } from "../../api/audits";
-import { PublicAPI } from "../../api/client";
 import type { Project } from "../../api/projects";
 import type { RunSummary } from "../../api/runs";
 import type { WorkflowSummary } from "../../api/workflows";
-import { Application } from "../../app/application";
-import * as queryClientFactory from "../../app/query-client";
-import { applicationRoutes } from "../../app/router";
-import type { RuntimeConfig } from "../../config/runtime-config";
+import { createApplicationQueryClient } from "../../app/query-client";
+import { renderApplication } from "../../test/application";
+import { stageContract } from "../../test/builders-execution";
+import { fakeServer } from "../../test/fake-server";
+import { failure, json, page } from "../../test/responses";
+import { testAPI, testSession } from "../../test/render";
 import { auditFixture, projectFixture } from "../../test/shell-harness";
 import { makeFinding } from "../decisions/test-support";
 
-const runtimeConfig: RuntimeConfig = {
-  uiVersion: "0.1.0",
-  supportedApiVersions: ["contractor.public.v1"],
-  apiBaseUrl: "http://127.0.0.1:8080",
-};
-
-function session(capabilities: string[] = ["user", "operations"]) {
-  return {
-    principal: { userId: "user_local", username: "owner", capabilities },
-    csrfToken: "a".repeat(43),
-    idleExpiresAt: "2026-10-06T20:00:00Z",
-    absoluteExpiresAt: "2026-10-07T12:00:00Z",
-  };
-}
-
 const DIGEST = `sha256:${"a".repeat(64)}`;
 const RECENT = new Date(Date.now() - 5 * 60_000).toISOString();
-
-function json(value: unknown, init: ResponseInit = {}): Response {
-  const headers = new Headers(init.headers);
-  headers.set("content-type", "application/json");
-  headers.set("X-Contractor-API-Version", "contractor.public.v1");
-  return new Response(JSON.stringify(value), { ...init, headers });
-}
-
-function page(items: unknown[], hasMore = false) {
-  return {
-    items,
-    page: hasMore ? { hasMore, nextCursor: "next" } : { hasMore },
-  };
-}
 
 function check(
   projectId: string,
@@ -160,7 +131,7 @@ interface FakeServer {
   outputs?: Record<string, Record<string, unknown>>;
   artifacts?: ArtifactMetadata[];
   profiles?: AuditProfile[];
-  capabilities?: string[];
+  capabilities?: Parameters<typeof testSession>[0];
   /** Answers POST /v1/projects. */
   createProject?: (request: Request) => Response | Promise<Response>;
   /** Answers PATCH /v1/projects/:projectId. */
@@ -175,12 +146,9 @@ interface FakeServer {
 
 function serve(server: FakeServer) {
   const requests: Request[] = [];
-  const api = new PublicAPI(
-    runtimeConfig,
-    vi.fn(async (input) => {
-      const request = input instanceof Request ? input : new Request(input);
+  const { api } = testAPI(
+    fakeServer({}, async (request, url) => {
       requests.push(request.clone());
-      const url = new URL(request.url);
       const path = url.pathname;
       if (path === "/v1/audits" && server.holdAudits?.())
         await new Promise(() => {});
@@ -197,8 +165,6 @@ function serve(server: FakeServer) {
       });
       if (ownerResponse !== undefined) return ownerResponse;
       const query = url.searchParams;
-      if (path === "/v1/auth/session")
-        return json(session(server.capabilities));
       if (path === "/v1/projects" && request.method === "POST") {
         if (server.createProject === undefined)
           throw new Error("unexpected POST /v1/projects");
@@ -216,11 +182,8 @@ function serve(server: FakeServer) {
           (candidate) => candidate.projectId === match![1],
         );
         return found === undefined
-          ? json(
-              { code: "not_found", message: "not found", retryable: false },
-              { status: 404 },
-            )
-          : json(found, { headers: { ETag: `"${found.revision}"` } });
+          ? failure(404, "not_found", "not found")
+          : json(found, 200, { ETag: `"${found.revision}"` });
       }
       match = /^\/v1\/projects\/([^/]+)\/audits$/.exec(path);
       if (match !== null) {
@@ -230,7 +193,12 @@ function serve(server: FakeServer) {
         const items = (server.audits?.[match[1]!] ?? []).filter(
           (audit) => state === null || audit.state === state,
         );
-        return json(page(items, server.moreAudits === true && state === null));
+        return json(
+          page(
+            items,
+            server.moreAudits === true && state === null ? "next" : undefined,
+          ),
+        );
       }
       match = /^\/v1\/audits\/([^/]+)\/(start|pause|resume|cancel)$/.exec(path);
       if (match !== null && request.method === "POST") {
@@ -245,11 +213,8 @@ function serve(server: FakeServer) {
           .flat()
           .find((audit) => audit.auditId === auditId);
         return found === undefined
-          ? json(
-              { code: "not_found", message: "not found", retryable: false },
-              { status: 404 },
-            )
-          : json(found, { headers: { ETag: `"${found.revision}"` } });
+          ? failure(404, "not_found", "not found")
+          : json(found, 200, { ETag: `"${found.revision}"` });
       }
       match = /^\/v1\/audits\/([^/]+)\/(findings|reviews)$/.exec(path);
       if (match !== null) {
@@ -301,7 +266,7 @@ function serve(server: FakeServer) {
       }
       if (path === "/v1/workflows") return json(page([workflow]));
       if (path === "/v1/workflows/openapi-from-source/versions/1")
-        return json({ ...workflow, stages: {} });
+        return json({ ...workflow, stages: { analyze: stageContract() } });
       match = /^\/v1\/projects\/([^/]+)\/artifacts$/.exec(path);
       if (match !== null) {
         const namespace = query.get("namespace");
@@ -309,7 +274,12 @@ function serve(server: FakeServer) {
         const items = (server.artifacts ?? []).filter(
           (item) => namespace === null || item.artifact.namespace === namespace,
         );
-        return json(page(items.slice(0, limit), items.length > limit));
+        return json(
+          page(
+            items.slice(0, limit),
+            items.length > limit ? "next" : undefined,
+          ),
+        );
       }
       if (path === "/v1/audit-profiles")
         return json(page(server.profiles ?? []));
@@ -322,17 +292,14 @@ function serve(server: FakeServer) {
 /** Renders the application at `path`, after `earlier` history entries. */
 function renderAt(server: FakeServer, path: string, earlier: string[] = []) {
   const { api, requests } = serve(server);
-  const router = createMemoryRouter(applicationRoutes(), {
-    initialEntries: [...earlier, path],
-    initialIndex: earlier.length,
+  const queryClient = createApplicationQueryClient();
+  const { router, user } = renderApplication(path, {
+    api,
+    history: earlier,
+    queryClient,
+    capabilities: server.capabilities,
   });
-  const queryClient = queryClientFactory.createApplicationQueryClient();
-  const factory = vi
-    .spyOn(queryClientFactory, "createApplicationQueryClient")
-    .mockReturnValueOnce(queryClient);
-  render(<Application api={api} publicAPI={api} router={router} />);
-  factory.mockRestore();
-  return { router, requests, queryClient, user: userEvent.setup() };
+  return { router, requests, queryClient, user };
 }
 
 /** GET requests to `pathname`. */
@@ -602,7 +569,7 @@ describe("New project", () => {
 
   function createdResponse(server: FakeServer): Response {
     server.projects = [created, ...server.projects];
-    return json(created, { status: 201, headers: { ETag: '"1"' } });
+    return json(created, 201, { ETag: '"1"' });
   }
 
   it("replaces ?new=1 once the project exists, so Back does not reopen the dialog", async () => {
@@ -646,7 +613,7 @@ describe("New project", () => {
                 message: "Project store unavailable",
                 retryable: true,
               },
-              { status: 503 },
+              503,
             )
           : createdResponse(server);
       },
@@ -1063,12 +1030,9 @@ describe("Project overview", () => {
       finding("audit_running", "finding_1", "Order IDOR"),
       finding("audit_running", "finding_9", "Price tampering"),
     ];
-    let release = () => {};
-    const held = new Promise<void>((resolve) => {
-      release = resolve;
-    });
+    const held = deferred();
     server.holdFindings = (auditId) =>
-      auditId === "audit_running" ? held : undefined;
+      auditId === "audit_running" ? held.promise : undefined;
     const issueReads = () =>
       reads(requests, "/v1/audits/audit_running/findings");
     const before = issueReads();
@@ -1079,7 +1043,7 @@ describe("Project overview", () => {
       within(glance).getByRole("link", { name: "3 to review" }),
     ).toBeVisible();
     expect(within(glance).queryByText("Counting…")).toBeNull();
-    act(() => release());
+    act(() => held.resolve());
     expect(
       await within(glance).findByRole("link", { name: "4 to review" }),
     ).toBeVisible();
@@ -1122,7 +1086,7 @@ describe("Project overview", () => {
           revision: audit.revision + 1,
         };
         checks[index] = paused;
-        return json(paused, { headers: { ETag: `"${paused.revision}"` } });
+        return json(paused, 200, { ETag: `"${paused.revision}"` });
       },
     };
     const { user } = renderAt(server, "/projects/project_a");
@@ -1240,7 +1204,7 @@ describe("Project settings", () => {
         };
         const updated = { ...projectA, ...body, revision: "2" };
         server.projects = [updated, projectB];
-        return json(updated, { headers: { ETag: '"2"' } });
+        return json(updated, 200, { ETag: '"2"' });
       },
     };
     const { user } = renderAt(server, "/projects/project_a/settings");

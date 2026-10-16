@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { RuntimeConfig } from "../config/runtime-config";
 import { PublicAPI } from "./client";
+import { schemaLimit } from "./contract";
 import {
+  CANCELLATION_REASON_LIMIT,
   cancelRun,
   deleteRun,
   downloadRunArtifact,
@@ -47,8 +49,12 @@ describe("Run API", () => {
       readable: false,
     },
     { origin: { layer: "unknown-layer" }, readable: false },
+    {
+      origin: { layer: "agent_labels" },
+      readable: false,
+    },
   ])(
-    "preserves Run results with optional Caido provenance: $readable",
+    "reads a Run only with valid optional Caido provenance: $readable",
     async ({ origin, readable }) => {
       const pinned = {
         default: {
@@ -79,6 +85,7 @@ describe("Run API", () => {
                 stageExecutionId: "stage-1",
                 stage: "analysis",
                 attempt: 1,
+                executionConfig: { variant: "base", agents: { analyst: {} } },
                 state: "succeeded",
                 runtimeConfiguration: {
                   allocations: [
@@ -95,24 +102,25 @@ describe("Run API", () => {
             ],
             transitions: [],
             outputs: { report: output },
+            outputPublications: [],
           }),
         ),
       );
+      if (!readable) {
+        // A schema or layer violation fails the read; nothing is cached.
+        await expect(getRun(api, "run-1")).rejects.toMatchObject({
+          code: "invalid_api_response",
+          status: 200,
+        });
+        return;
+      }
       const run = await getRun(api, "run-1");
       expect(run.state).toBe("succeeded");
       expect(run.outputs.report).toEqual(output);
       expect(run.runtimeConfiguration).toEqual(pinned);
-      expect(JSON.stringify(run)).not.toContain("never-cache-this");
-      const attempt = run.attempts[0]!;
-      if (readable) {
-        expect(
-          attempt.runtimeConfiguration?.allocations[0]?.origins.caido,
-        ).toEqual(origin);
-        expect(attempt.runtimeConfigurationUnavailable).toBeUndefined();
-      } else {
-        expect(attempt.runtimeConfiguration).toBeUndefined();
-        expect(attempt.runtimeConfigurationUnavailable).toBe(true);
-      }
+      expect(
+        run.attempts[0]?.runtimeConfiguration?.allocations[0]?.origins.caido,
+      ).toEqual(origin);
     },
   );
 
@@ -150,6 +158,7 @@ describe("Run API", () => {
             attempts: [],
             transitions: [],
             outputs: {},
+            outputPublications: [],
           });
         }
         if (path === "/v1/runs/run-1/artifacts") {
@@ -241,9 +250,9 @@ describe("Run API", () => {
       runtimeConfig,
       vi.fn(async () => response({ items: [] })),
     );
-    await expect(listRunArtifacts(api, { runId: "run-1" })).rejects.toThrow(
-      "Server returned an invalid Artifact page",
-    );
+    await expect(
+      listRunArtifacts(api, { runId: "run-1" }),
+    ).rejects.toMatchObject({ code: "invalid_api_response", status: 200 });
   });
 
   it("cancels with trimmed reason and accepts only authoritative 200/202", async () => {
@@ -267,6 +276,31 @@ describe("Run API", () => {
     await expect(cancelRun(api, "run-1", "   ")).rejects.toThrow(
       "Cancellation reason",
     );
+  });
+
+  it("limits the cancellation reason as the contract does, in code points", async () => {
+    const limit = schemaLimit(
+      "CancelRunRequest",
+      "maxLength",
+      "properties",
+      "reason",
+    );
+    expect(CANCELLATION_REASON_LIMIT).toBe(limit);
+    const sent = vi.fn();
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () => {
+        sent();
+        return response({ runId: "run-1", state: "cancelling" }, 202);
+      }),
+    );
+    api.csrf.replace("a".repeat(43));
+    // An astral character is one code point but two UTF-16 units.
+    await cancelRun(api, "run-1", "🛑".repeat(limit));
+    await expect(
+      cancelRun(api, "run-1", "x".repeat(limit + 1)),
+    ).rejects.toThrow(`Cancellation reason must contain 1–${limit} characters`);
+    expect(sent).toHaveBeenCalledOnce();
   });
 
   it("deletes a Run through the CSRF-protected bodyless endpoint", async () => {

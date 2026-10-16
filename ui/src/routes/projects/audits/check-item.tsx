@@ -11,6 +11,8 @@ import {
 } from "../../../app/vocabulary";
 import {
   ActivityLog,
+  Button,
+  ButtonLink,
   Kbd,
   MethodChip,
   StatusChip,
@@ -19,13 +21,14 @@ import {
 import { weaknessReferences } from "../../decisions/text";
 import { itemActivity } from "./activity-model";
 import { statusDescription } from "./assessments";
-import { formatShortDateTime, formatSpan } from "./check-format";
+import { formatSpan } from "./check-format";
 import { itemBeyondLoaded, splitIssues, type CheckEntry } from "./check-model";
 import type { AuditCollectionQuery } from "./collections";
 import { ItemTechnicalDetails } from "./executions";
 import { LoadMoreControl } from "./load-more";
 import { PathText } from "./path-text";
 import { AuditMarkdown } from "./shared";
+import { formatShortDateTime, plural } from "../../../app/format";
 
 const EVIDENCE_LABELS: Readonly<Record<string, string>> = {
   artifact: "Artifact",
@@ -62,7 +65,7 @@ function Section({
       <div className="checks-item-section-heading">
         <h3 id={heading}>{title}</h3>
         {aside === undefined ? null : (
-          <span className="checks-quiet">{aside}</span>
+          <span className="ui-caption">{aside}</span>
         )}
       </div>
       {children}
@@ -146,13 +149,13 @@ function Attempts({ audit, entry }: { audit: Audit; entry: CheckEntry }) {
     last.collectionDisposition === "execution-failed";
   return (
     <>
-      <span className="checks-quiet">
+      <span className="ui-caption">
         {running
           ? `Started ${formatShortDateTime(last.createdAt)}`
           : `${verb} ${formatSpan(first.createdAt, last.collectedAt)}`}
       </span>
       {attempts.length > 1 ? (
-        <span className="checks-quiet">
+        <span className="ui-caption">
           Retried automatically · attempt {last.itemAttempt} of {max}
         </span>
       ) : null}
@@ -166,7 +169,7 @@ function Attempts({ audit, entry }: { audit: Audit; entry: CheckEntry }) {
         </ContextLink>
       )}
       {failed && !running && attempts.length >= max ? (
-        <span className="checks-quiet">
+        <span className="ui-caption">
           No attempts are left. The run shows what went wrong and the recovery
           the Server offers there.
         </span>
@@ -238,21 +241,18 @@ export function CheckItemView({
           </span>
           <span className="checks-item-steps">
             {previous === undefined ? (
-              <button
-                type="button"
-                className="ui-btn"
-                data-size="sm"
+              <Button
+                size="sm"
                 data-icon-only=""
                 aria-label={`Previous ${singular}`}
                 aria-keyshortcuts="K"
                 disabled
               >
                 <span aria-hidden="true">↑</span>
-              </button>
+              </Button>
             ) : (
-              <Link
-                className="ui-btn"
-                data-size="sm"
+              <ButtonLink
+                size="sm"
                 data-icon-only=""
                 to={previous}
                 aria-label={`Previous ${singular}`}
@@ -260,24 +260,21 @@ export function CheckItemView({
                 title="Previous (K)"
               >
                 <span aria-hidden="true">↑</span>
-              </Link>
+              </ButtonLink>
             )}
             {next === undefined ? (
-              <button
-                type="button"
-                className="ui-btn"
-                data-size="sm"
+              <Button
+                size="sm"
                 data-icon-only=""
                 aria-label={`Next ${singular}`}
                 aria-keyshortcuts="J"
                 disabled
               >
                 <span aria-hidden="true">↓</span>
-              </button>
+              </Button>
             ) : (
-              <Link
-                className="ui-btn"
-                data-size="sm"
+              <ButtonLink
+                size="sm"
                 data-icon-only=""
                 to={next}
                 aria-label={`Next ${singular}`}
@@ -285,7 +282,7 @@ export function CheckItemView({
                 title="Next (J)"
               >
                 <span aria-hidden="true">↓</span>
-              </Link>
+              </ButtonLink>
             )}
             <span className="checks-key-hint" aria-hidden="true">
               <Kbd>K</Kbd> <Kbd>J</Kbd>
@@ -338,7 +335,7 @@ export function CheckItemView({
         {conclusion ? (
           <AuditMarkdown source={conclusion} />
         ) : (
-          <p className="checks-quiet">
+          <p className="ui-caption">
             {row.coverage.status === "not-tested"
               ? `This ${singular} has no result yet.`
               : "No written conclusion is available."}
@@ -399,7 +396,7 @@ export function CheckItemView({
           aside={
             supporting.length === 0
               ? undefined
-              : `${supporting.length} ${supporting.length === 1 ? "piece" : "pieces"} of evidence`
+              : `${plural(supporting.length, "piece")} of evidence`
           }
         >
           <ul
@@ -407,7 +404,7 @@ export function CheckItemView({
             aria-label="Evidence coverage"
           >
             {evidence.length === 0 ? (
-              <li className="checks-quiet">No evidence requirements listed.</li>
+              <li className="ui-caption">No evidence requirements listed.</li>
             ) : (
               evidence.map((value) => (
                 <li
@@ -416,7 +413,7 @@ export function CheckItemView({
                 >
                   <StatusGlyph tone={completed.has(value) ? "done" : "idle"} />
                   {readable(value)}{" "}
-                  <span className="checks-quiet">
+                  <span className="ui-caption">
                     · {completed.has(value) ? "collected" : "missing"}
                   </span>
                 </li>
@@ -429,7 +426,7 @@ export function CheckItemView({
                 <li key={piece.id}>
                   <strong>{readable(piece.kind)}</strong>
                   <AuditMarkdown source={piece.summary} />
-                  <code className="checks-mono checks-quiet">{piece.id}</code>
+                  <code className="ui-mono ui-caption">{piece.id}</code>
                 </li>
               ))}
             </ul>
@@ -437,7 +434,7 @@ export function CheckItemView({
         </Section>
         <Section title={`Activity on this ${singular}`}>
           {activity.length === 0 ? (
-            <p className="checks-quiet">Nothing has happened yet.</p>
+            <p className="ui-caption">Nothing has happened yet.</p>
           ) : (
             <ActivityLog
               aria-label={`Activity on this ${singular}`}
@@ -450,7 +447,7 @@ export function CheckItemView({
         <Section title="What the AI was asked">
           {task === "" ? null : <AuditMarkdown source={task} />}
           {row.details?.methods.length ? (
-            <p className="checks-quiet">
+            <p className="ui-caption">
               Method: {row.details.methods.map(readable).join(", ")}
             </p>
           ) : null}

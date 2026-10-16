@@ -19,7 +19,7 @@ export interface DecisionOption {
   icon?: ReactNode;
 }
 
-export interface DecisionSeverityOption {
+interface DecisionSeverityOption {
   value: string;
   label: string;
 }
@@ -36,7 +36,7 @@ export interface DecisionSeverity {
   hint?: ReactNode;
 }
 
-export interface DecisionRationale {
+interface DecisionRationale {
   value: string;
   onChange: (value: string) => void;
   /** Default "Why". */
@@ -47,14 +47,14 @@ export interface DecisionRationale {
   hint?: ReactNode;
 }
 
-export interface DecisionNext {
+interface DecisionNext {
   label: string;
   /** One key, e.g. "j". Shown as a key hint. */
   shortcut?: string | undefined;
   onNext: () => void;
 }
 
-export interface DecisionBarProps {
+interface DecisionBarProps {
   /** The verdicts, in display order. */
   options: readonly DecisionOption[];
   /** Id of the chosen option. */

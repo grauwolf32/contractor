@@ -1,110 +1,56 @@
 import { expect, test } from "@playwright/test";
 
-import packageMetadata from "../package.json" with { type: "json" };
+import { audit, auditInput, project } from "../src/test/builders";
+import { ownerListResponse } from "../src/test/owner-lists";
+import {
+  authSession,
+  fulfillEmptyPageOrNotFound,
+  fulfillJSON,
+  fulfillResponse,
+  mockAPI,
+} from "./support/mock-api";
 
-const digest = `sha256:${"a".repeat(64)}`;
 const date = "2026-10-07T10:00:00Z";
-const projects = Array.from({ length: 51 }, (_, i) => ({
-  projectId: `project_${i}`,
-  kind: "project",
-  name: `Project ${i + 1}`,
-  description: "",
-  lifecycle: "active",
-  revision: "1",
-  createdAt: date,
-  updatedAt: date,
-}));
-const checks = Array.from({ length: 201 }, (_, i) => ({
-  auditId: `audit_${i}`,
-  projectId: "project_50",
-  profile: { name: "openapi-operation-trace", version: "1", digest },
-  inputs: {},
-  scope: {},
-  runtimeLabels: [],
-  state: "draft",
-  phase: "not-started",
-  revision: 1,
-  dispatchState: "closed",
-  holdState: "pending",
-  limits: {
-    maxRounds: 1,
-    batchSize: 1,
-    maxItemsPerRound: 8,
-    maxItemsTotal: 8,
-    maxSubmittedRuns: 8,
-    maxItemRunAttempts: 2,
-    maxEvidenceBytes: 1048576,
-  },
-  reservedRunCount: 0,
-  submittedRunCount: 0,
-  outstandingRunCount: 0,
-  retainedEvidenceBytes: 0,
-  eventSequence: 1,
-  createdAt: date,
-  updatedAt: date,
-}));
+const projects = Array.from({ length: 51 }, (_, i) =>
+  project(`project_${i}`, {
+    name: `Project ${i + 1}`,
+    createdAt: date,
+    updatedAt: date,
+  }),
+);
+const checks = Array.from({ length: 201 }, (_, i) =>
+  audit("project_50", `audit_${i}`, "draft", {
+    inputs: { source: auditInput("owner-source") },
+    createdAt: date,
+    updatedAt: date,
+  }),
+);
 
 for (const width of [1440, 390]) {
-  test(`owner lists follow every page at ${width}px`, async ({
-    page,
-  }, testInfo) => {
+  test(`owner lists follow every page at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
-    const origin = new URL(String(testInfo.project.use.baseURL)).origin;
     const requests: URL[] = [];
-    await page.route("**/runtime-config.json", (route) =>
-      route.fulfill({
-        json: {
-          uiVersion: packageMetadata.version,
-          supportedApiVersions: ["contractor.public.v1"],
-          apiBaseUrl: origin,
-        },
-      }),
-    );
-    await page.route(`${origin}/v1/**`, async (route) => {
-      const url = new URL(route.request().url());
-      requests.push(url);
-      let value: unknown;
-      if (url.pathname === "/v1/auth/session")
-        value = {
-          principal: {
-            userId: "owner",
-            username: "owner",
-            capabilities: ["user"],
-          },
-          csrfToken: "a".repeat(43),
-          idleExpiresAt: "2099-01-01T00:00:00Z",
-          absoluteExpiresAt: "2099-01-02T00:00:00Z",
-        };
-      else {
-        const items =
-          url.pathname === "/v1/projects"
-            ? projects
-            : url.pathname === "/v1/audits"
-              ? checks.filter(
-                  (check) =>
-                    !url.searchParams.has("state") ||
-                    url.searchParams
-                      .get("state")!
-                      .split(",")
-                      .includes(check.state),
-                )
-              : [];
+    await mockAPI(
+      page,
+      async (route, _request, url) => {
+        requests.push(url);
+        const owner = ownerListResponse(url, { projects, audits: checks });
+        if (owner !== undefined) return fulfillResponse(route, owner);
+        if (url.pathname !== "/v1/projects")
+          return fulfillEmptyPageOrNotFound(route);
         const start = Number(url.searchParams.get("cursor") ?? 0);
         const limit = Number(url.searchParams.get("limit") ?? 50);
-        const hasMore = start + limit < items.length;
-        value = {
-          items: items.slice(start, start + limit),
+        const hasMore = start + limit < projects.length;
+        return fulfillJSON(route, {
+          items: projects.slice(start, start + limit),
           page: {
             hasMore,
             ...(hasMore ? { nextCursor: String(start + limit) } : {}),
           },
-        };
-      }
-      await route.fulfill({
-        json: value,
-        headers: { "x-contractor-api-version": "contractor.public.v1" },
-      });
-    });
+        });
+      },
+      { session: authSession("owner", ["user"]) },
+    );
     await page.goto("/checks");
     const list = page.getByRole("region", { name: "Checks", exact: true });
     await expect(list.locator("li.ui-row")).toHaveCount(201);

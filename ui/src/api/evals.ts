@@ -1,5 +1,6 @@
 import type { PublicAPI } from "./client";
 import { requireData } from "./error";
+import { loadCompletePages, type PageLoader } from "./pages";
 import type { components, operations } from "./generated/public";
 
 type Schema = components["schemas"];
@@ -13,15 +14,13 @@ export type EvalDatasetInput = Schema["EvalDatasetInput"];
 export type EvalCapabilities = Schema["EvalCapabilities"];
 export type EvalCheck = Schema["EvalCheck"];
 export type EvalMember = Schema["EvalMemberView"];
-export type EvalPair = Schema["EvalPair"];
 export type EvalChart = Schema["EvalChart"];
 export type EvalSummary = Schema["EvalSummary"];
 export type EvalCommand = Schema["EvalCommand"];
 export type EvalCommandReceipt = Schema["EvalCommandReceipt"];
 export type EvalReceipt = Schema["EvalExperimentReceipt"];
-export type EvalReview = Schema["EvalReview"];
 export type EvalAssessment = Schema["EvalAssessmentInput"];
-export const EVAL_PAGE_SIZE = 50;
+const EVAL_PAGE_SIZE = 50;
 export const EVAL_POLL_MS = 2000;
 // Managed Eval lifecycle states in list-filter order, and the terminal ones.
 // The OpenAPI enums and api/testdata/evals/lifecycle-states.json hold them to
@@ -38,7 +37,7 @@ export const EVAL_STATES = [
   "cancelling",
   "cancelled",
 ] as const satisfies readonly EvalExperiment["state"][];
-export const TERMINAL_EVAL_STATES = [
+const TERMINAL_EVAL_STATES = [
   "finished",
   "cancelled",
 ] as const satisfies readonly EvalExperiment["state"][];
@@ -47,48 +46,24 @@ export function isTerminalEvalState(state: EvalExperiment["state"]): boolean {
   return (TERMINAL_EVAL_STATES as readonly string[]).includes(state);
 }
 
-export function evalNextPage(page: {
-  hasMore: boolean;
-  nextCursor?: string | null;
-}): string | undefined {
-  if (!page.hasMore) return undefined;
-  if (!page.nextCursor)
-    throw new Error("The next page is unavailable. Refresh to retry.");
-  return page.nextCursor;
-}
-
-export async function evalInventory<T>(
-  load: (cursor?: string) => Promise<{
-    items: T[];
-    page: { hasMore: boolean; nextCursor?: string | null };
-  }>,
+/** Every page of an Eval list; a partial list is refused, not returned. */
+export function evalInventory<T>(
+  load: PageLoader<T>,
   signal: AbortSignal,
 ): Promise<T[]> {
-  const items: T[] = [];
-  const seen = new Set<string>();
-  let cursor: string | undefined;
-  do {
-    signal.throwIfAborted();
-    const page = await load(cursor);
-    items.push(...page.items);
-    cursor = evalNextPage(page.page);
-    if (cursor && seen.has(cursor))
-      throw new Error("The collection changed. Refresh to retry.");
-    if (cursor) seen.add(cursor);
-  } while (cursor);
-  return items;
+  return loadCompletePages("This list", load, { signal });
 }
 
-export function mutationHeaders(
+function mutationHeaders(
   api: PublicAPI,
   key: string,
 ): { "Idempotency-Key": string };
-export function mutationHeaders(
+function mutationHeaders(
   api: PublicAPI,
   key: string,
   revision: number,
 ): { "Idempotency-Key": string; "If-Match": string };
-export function mutationHeaders(
+function mutationHeaders(
   api: PublicAPI,
   key: string,
   revision?: number,
@@ -335,7 +310,7 @@ export async function getEvalPair(
   );
 }
 
-export type EvalChartQuery = NonNullable<
+type EvalChartQuery = NonNullable<
   operations["getEvalChart"]["parameters"]["query"]
 >;
 export async function getEvalChart(

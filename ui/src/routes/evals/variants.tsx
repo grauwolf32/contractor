@@ -13,12 +13,11 @@ import {
   type EvalVariant,
 } from "../../api/evals";
 import { queryKeys } from "../../api/query-keys";
-import { IdChip } from "../../ui";
+import { Field, IdChip } from "../../ui";
 import {
   ArmKey,
   CommaSeparatedInput,
   EvalError,
-  EvalField,
   KeyValueEditor,
 } from "./common";
 import { executableLabel } from "./labels";
@@ -92,42 +91,45 @@ function ExecutionOverrides({
             const selected = value[role]?.[field];
             const display = selected === null ? "__none__" : (selected ?? "");
             return (
-              <EvalField label={`${role} ${title}`} key={field}>
-                <select
-                  value={display}
-                  onChange={(e) => {
-                    const patch = { ...value[role] };
-                    if (!e.target.value) delete patch[field];
-                    else
-                      patch[field] =
-                        e.target.value === "__none__"
-                          ? (null as never)
-                          : e.target.value;
-                    onChange({ ...value, [role]: patch });
-                  }}
-                >
-                  <option value="">Use selected Workflow default</option>
-                  {field === "credential" ? (
-                    <option value="__none__">No credential</option>
-                  ) : null}
-                  {display &&
-                  display !== "__none__" &&
-                  !choices?.includes(display) ? (
-                    <option value={display}>
-                      {display} · retained selection
-                    </option>
-                  ) : null}
-                  {choices?.map((option) => (
-                    <option key={option}>{option}</option>
-                  ))}
-                </select>
-              </EvalField>
+              <Field label={`${role} ${title}`} key={field}>
+                {(control) => (
+                  <select
+                    {...control}
+                    value={display}
+                    onChange={(e) => {
+                      const patch = { ...value[role] };
+                      if (!e.target.value) delete patch[field];
+                      else
+                        patch[field] =
+                          e.target.value === "__none__"
+                            ? (null as never)
+                            : e.target.value;
+                      onChange({ ...value, [role]: patch });
+                    }}
+                  >
+                    <option value="">Use selected Workflow default</option>
+                    {field === "credential" ? (
+                      <option value="__none__">No credential</option>
+                    ) : null}
+                    {display &&
+                    display !== "__none__" &&
+                    !choices?.includes(display) ? (
+                      <option value={display}>
+                        {display} · retained selection
+                      </option>
+                    ) : null}
+                    {choices?.map((option) => (
+                      <option key={option}>{option}</option>
+                    ))}
+                  </select>
+                )}
+              </Field>
             );
           })}
         </fieldset>
       ))}
       {value.stages && Object.keys(value.stages).length ? (
-        <p className="eval-muted">
+        <p className="ui-caption">
           Per-stage overrides from the saved draft are retained. Review them in
           Setup before Prepare.
         </p>
@@ -171,60 +173,71 @@ export function VariantEditor({
           {label} · {label === "A" ? "Baseline" : "Candidate"}
         </ArmKey>
       </legend>
-      <EvalField label={`${label} ${executableLabel(value.kind)} family`}>
-        <select
-          value={name}
-          onChange={(e) => {
-            const latest = options.find(
-              (x) => x.available && x.selector.startsWith(e.target.value + "@"),
-            );
-            onChange({
-              ...value,
-              selector: latest?.selector ?? "",
-              executionConfig: {},
-            });
-          }}
-        >
-          <option value="">Choose a family</option>
-          {name && !families.includes(name) ? <option>{name}</option> : null}
-          {families.map((family) => (
-            <option
-              key={family}
-              disabled={
-                !options.some(
-                  (x) => x.available && x.selector.startsWith(family + "@"),
-                )
-              }
-            >
-              {family}
-            </option>
-          ))}
-        </select>
-      </EvalField>
-      <EvalField
+      <Field label={`${label} ${executableLabel(value.kind)} family`}>
+        {(control) => (
+          <select
+            {...control}
+            value={name}
+            onChange={(e) => {
+              const latest = options.find(
+                (x) =>
+                  x.available && x.selector.startsWith(e.target.value + "@"),
+              );
+              onChange({
+                ...value,
+                selector: latest?.selector ?? "",
+                executionConfig: {},
+              });
+            }}
+          >
+            <option value="">Choose a family</option>
+            {name && !families.includes(name) ? <option>{name}</option> : null}
+            {families.map((family) => (
+              <option
+                key={family}
+                disabled={
+                  !options.some(
+                    (x) => x.available && x.selector.startsWith(family + "@"),
+                  )
+                }
+              >
+                {family}
+              </option>
+            ))}
+          </select>
+        )}
+      </Field>
+      <Field
         label={`${label} version`}
         hint="A new family selection proposes its latest compatible version; Prepare pins the choice."
       >
-        <select
-          value={value.selector}
-          onChange={(e) => onChange({ ...value, selector: e.target.value })}
-        >
-          <option value="">Choose a version</option>
-          {value.selector &&
-          !optionsForFamily.some((x) => x.selector === value.selector) ? (
-            <option value={value.selector}>
-              {value.selector} · retained, unavailable in catalog
-            </option>
-          ) : null}
-          {optionsForFamily.map((x, index) => (
-            <option value={x.selector} key={x.selector} disabled={!x.available}>
-              {x.selector}
-              {index === 0 ? " · latest in catalog" : ""}
-              {x.reason ? ` · ${x.reason}` : ""}
-            </option>
-          ))}
-        </select>
-      </EvalField>
+        {(control) => (
+          <select
+            {...control}
+            value={value.selector}
+            onChange={(e) => onChange({ ...value, selector: e.target.value })}
+          >
+            <option value="">Choose a version</option>
+            {value.selector &&
+            !optionsForFamily.some((x) => x.selector === value.selector) ? (
+              <option value={value.selector}>
+                {value.selector} · retained, unavailable in catalog
+              </option>
+            ) : null}
+            {optionsForFamily.map((x, index) => (
+              <option
+                value={x.selector}
+                key={x.selector}
+                disabled={!x.available}
+              >
+                {x.selector}
+                {index === 0 ? " · latest in catalog" : ""}
+                {x.reason ? ` · ${x.reason}` : ""}
+              </option>
+            ))}
+          </select>
+        )}
+      </Field>
       <EvalError error={contract.error} />
       {contract.data ? (
         <div className="eval-contract">
@@ -272,7 +285,7 @@ export function VariantEditor({
       <details className="eval-disclosure">
         <summary>Input/output mapping and parameters</summary>
         <div className="eval-disclosure-body">
-          <p className="eval-muted">
+          <p className="ui-caption">
             Map case roles to executable input/output names. Omitted roles
             retain their name. Use $task.objective for the visible task
             objective.
@@ -305,24 +318,27 @@ export function VariantEditor({
               }
             />
           ) : (
-            <p className="eval-muted">
+            <p className="ui-caption">
               Execution settings come from the pinned check type.
             </p>
           )}
-          <EvalField
+          <Field
             label={`${label} runtime labels`}
             hint="Optional labels, separated by commas; availability is checked during preparation."
           >
-            <CommaSeparatedInput
-              value={value.runtimeLabels ?? []}
-              onChange={(runtimeLabels) =>
-                onChange({
-                  ...value,
-                  runtimeLabels,
-                })
-              }
-            />
-          </EvalField>
+            {(control) => (
+              <CommaSeparatedInput
+                {...control}
+                value={value.runtimeLabels ?? []}
+                onChange={(runtimeLabels) =>
+                  onChange({
+                    ...value,
+                    runtimeLabels,
+                  })
+                }
+              />
+            )}
+          </Field>
         </div>
       </details>
     </fieldset>

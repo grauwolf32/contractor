@@ -4,14 +4,13 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { type FormEvent, useMemo, useState } from "react";
-import { useNavigate } from "react-router";
 
 import { usePublicAPI } from "../../../api/context";
 import {
   BUDGET_DURATION_PATTERN,
   createCredential,
   listConfigurations,
-  MANAGED_CONFIG_NAME_PATTERN,
+  CREDENTIAL_ID,
   type ConfigurationResource,
   type CreateCredentialRequest,
 } from "../../../api/operations";
@@ -21,9 +20,11 @@ import { ErrorNotice } from "../../../app/error-notice";
 import { LoadMoreButton } from "../../../app/load-more";
 import { nextPageCursor } from "../../../app/pagination";
 import { hasCredentialManager } from "../llm-configurations/model";
-import { validateCredentialRequest } from "./validation";
+import { integerBounds, LABEL, validateCredentialRequest } from "./validation";
 import { compactDigest } from "../../../app/format";
 import { PublicationFeedback, ScopeChip } from "../common";
+import { useGuardedNavigate } from "../../../app/page-location";
+import { Button, Field } from "../../../ui";
 
 function configKey(resource: ConfigurationResource): string {
   return `${resource.ref.name}@${resource.ref.version}:${resource.ref.digest}`;
@@ -35,7 +36,7 @@ function optionalNumber(value: string): number | undefined {
 
 export function CredentialCreateForm() {
   const api = usePublicAPI();
-  const navigate = useNavigate();
+  const navigate = useGuardedNavigate();
   const queryClient = useQueryClient();
   const [keyring] = useState(
     () =>
@@ -118,9 +119,9 @@ export function CredentialCreateForm() {
         (resource): resource is ConfigurationResource => resource !== undefined,
       );
     const nextErrors: string[] = [];
-    if (!MANAGED_CONFIG_NAME_PATTERN.test(credentialId)) {
+    if (!CREDENTIAL_ID.test(credentialId)) {
       nextErrors.push(
-        "Credential ID must contain 1–128 letters, digits, dot, dash, or underscore.",
+        `Credential ID must start with a letter or digit and contain at most ${CREDENTIAL_ID.maxLength} letters, digits, dots, dashes or underscores.`,
       );
     }
     if (selectedGateway === undefined) {
@@ -196,50 +197,54 @@ export function CredentialCreateForm() {
         <h3 className="ops-section-title">Create credential</h3>
         <ScopeChip>active when created</ScopeChip>
       </div>
-      <p className="ops-note">
+      <p className="ui-caption">
         Server asks the selected LiteLLM manager to generate a key, encrypts it,
         and never returns it to this browser. Replacing access means a new ID,
         not an in-place update or rotation.
       </p>
       {inventoryError === null ? null : <ErrorNotice error={inventoryError} />}
-      <div className="form-grid">
-        <label>
-          Credential ID
-          <input
-            name="credentialId"
-            required
-            maxLength={128}
-            value={credentialId}
-            onChange={(event) => {
-              setCredentialId(event.target.value);
-              setErrors([]);
-            }}
-          />
-        </label>
-        <label>
-          Managed LLM Gateway
-          <select
-            required
-            value={gatewayKey}
-            onChange={(event) => {
-              setGatewayKey(event.target.value);
-              setErrors([]);
-            }}
-          >
-            <option value="">Select Gateway</option>
-            {managedGateways.map((resource) => (
-              <option key={configKey(resource)} value={configKey(resource)}>
-                {resource.ref.name}@{resource.ref.version} · {resource.source}
-              </option>
-            ))}
-          </select>
-        </label>
+      <div className="ops-form-grid">
+        <Field label="Credential ID">
+          {(control) => (
+            <input
+              {...control}
+              name="credentialId"
+              required
+              maxLength={CREDENTIAL_ID.maxLength}
+              value={credentialId}
+              onChange={(event) => {
+                setCredentialId(event.target.value);
+                setErrors([]);
+              }}
+            />
+          )}
+        </Field>
+        <Field label="Managed LLM Gateway">
+          {(control) => (
+            <select
+              {...control}
+              required
+              value={gatewayKey}
+              onChange={(event) => {
+                setGatewayKey(event.target.value);
+                setErrors([]);
+              }}
+            >
+              <option value="">Select Gateway</option>
+              {managedGateways.map((resource) => (
+                <option key={configKey(resource)} value={configKey(resource)}>
+                  {resource.ref.name}@{resource.ref.version} · {resource.source}
+                </option>
+              ))}
+            </select>
+          )}
+        </Field>
       </div>
       <LoadMoreButton query={gateways} label="Load more Gateways" />
       <fieldset className="ops-checklist">
         <legend>Allowed ModelPolicies</legend>
         {modelPolicies.length === 0 ? (
-          <p className="ops-note">
+          <p className="ui-caption">
             No ModelPolicy is available in loaded pages.
           </p>
         ) : (
@@ -265,86 +270,85 @@ export function CredentialCreateForm() {
       <details className="optional-settings">
         <summary>Optional settings</summary>
         <div>
-          <div className="form-grid">
-            <label>
-              Safe label (optional)
-              <input
-                name="label"
-                maxLength={256}
-                value={label}
-                onChange={(event) => {
-                  setLabel(event.target.value);
-                  setErrors([]);
-                }}
-              />
-            </label>
-            <label>
-              Maximum spend · Gateway-enforced (LiteLLM)
-              <input
-                type="number"
-                min={0}
-                step="any"
-                value={maxBudget}
-                onChange={(event) => {
-                  setMaxBudget(event.target.value);
-                  setErrors([]);
-                }}
-              />
-            </label>
-            <label>
-              Budget reset · Gateway-enforced (LiteLLM)
-              <input
-                placeholder="1d"
-                maxLength={32}
-                value={budgetDuration}
-                onChange={(event) => {
-                  setBudgetDuration(event.target.value);
-                  setErrors([]);
-                }}
-              />
-            </label>
-            <label>
-              TPM limit · Gateway-enforced (LiteLLM)
-              <input
-                type="number"
-                min={1}
-                max={2_147_483_647}
-                step={1}
-                value={tpmLimit}
-                onChange={(event) => {
-                  setTPMLimit(event.target.value);
-                  setErrors([]);
-                }}
-              />
-            </label>
-            <label>
-              RPM limit · Gateway-enforced (LiteLLM)
-              <input
-                type="number"
-                min={1}
-                max={2_147_483_647}
-                step={1}
-                value={rpmLimit}
-                onChange={(event) => {
-                  setRPMLimit(event.target.value);
-                  setErrors([]);
-                }}
-              />
-            </label>
-            <label>
-              Parallel requests · Gateway-enforced (LiteLLM)
-              <input
-                type="number"
-                min={1}
-                max={2_147_483_647}
-                step={1}
-                value={parallelLimit}
-                onChange={(event) => {
-                  setParallelLimit(event.target.value);
-                  setErrors([]);
-                }}
-              />
-            </label>
+          <div className="ops-form-grid">
+            <Field label="Safe label" optional>
+              {(control) => (
+                <input
+                  {...control}
+                  name="label"
+                  maxLength={LABEL.maxLength}
+                  value={label}
+                  onChange={(event) => {
+                    setLabel(event.target.value);
+                    setErrors([]);
+                  }}
+                />
+              )}
+            </Field>
+            <Field label="Maximum spend · Gateway-enforced (LiteLLM)">
+              {(control) => (
+                <input
+                  {...control}
+                  type="number"
+                  min={0}
+                  step="any"
+                  value={maxBudget}
+                  onChange={(event) => {
+                    setMaxBudget(event.target.value);
+                    setErrors([]);
+                  }}
+                />
+              )}
+            </Field>
+            <Field label="Budget reset · Gateway-enforced (LiteLLM)">
+              {(control) => (
+                <input
+                  {...control}
+                  placeholder="1d"
+                  maxLength={BUDGET_DURATION_PATTERN.maxLength}
+                  value={budgetDuration}
+                  onChange={(event) => {
+                    setBudgetDuration(event.target.value);
+                    setErrors([]);
+                  }}
+                />
+              )}
+            </Field>
+            {(
+              [
+                ["tpmLimit", "TPM limit", tpmLimit, setTPMLimit],
+                ["rpmLimit", "RPM limit", rpmLimit, setRPMLimit],
+                [
+                  "maxParallelRequests",
+                  "Parallel requests",
+                  parallelLimit,
+                  setParallelLimit,
+                ],
+              ] as const
+            ).map(([name, title, value, setValue]) => {
+              const { minimum, maximum } = integerBounds(name);
+              return (
+                <Field
+                  key={name}
+                  label={`${title} · Gateway-enforced (LiteLLM)`}
+                >
+                  {(control) => (
+                    <input
+                      {...control}
+                      type="number"
+                      min={minimum}
+                      max={maximum}
+                      step={1}
+                      value={value}
+                      onChange={(event) => {
+                        setValue(event.target.value);
+                        setErrors([]);
+                      }}
+                    />
+                  )}
+                </Field>
+              );
+            })}
           </div>
         </div>
       </details>
@@ -354,14 +358,15 @@ export function CredentialCreateForm() {
         mutationError={mutation.error}
       />
       <div className="ops-form-actions">
-        <button
-          className="ui-btn"
-          data-variant="primary"
+        <Button
+          variant="primary"
           type="submit"
-          disabled={mutation.isPending || inventoryError !== null}
+          disabled={inventoryError !== null}
+          pending={mutation.isPending}
+          pendingLabel="Creating…"
         >
-          {mutation.isPending ? "Creating…" : "Create active credential"}
-        </button>
+          Create active credential
+        </Button>
       </div>
     </form>
   );

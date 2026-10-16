@@ -3,6 +3,7 @@ import { Link, useBlocker, useSearchParams } from "react-router";
 import { Dialog, DialogHeader } from "../../app/dialog";
 import { useDocumentTitle } from "../../app/document-title";
 import { saveBlob } from "../../app/download";
+import { AlertDialog, Button, Field } from "../../ui";
 import { StudioCanvas } from "./canvas";
 import {
   addBlock,
@@ -87,7 +88,6 @@ export function StudioRoute() {
     (problem) => problem.severity === "error",
   ).length;
   const warnings = problems.length - errors;
-  const headingId = useId();
   useEffect(() => {
     if (!dirty) return;
     const beforeUnload = (event: BeforeUnloadEvent) => {
@@ -217,32 +217,28 @@ export function StudioRoute() {
           <p>Local YAML draft · {dirty ? "Unsaved changes" : "In memory"}</p>
         </div>
         <div className="studio-header-actions">
-          <label className="studio-kind">
-            <span>Definition</span>
-            <select
-              value={draft.kind}
-              onChange={(event) =>
-                replace(starter(event.target.value as Draft["kind"]))
-              }
-            >
-              {KINDS.map((kind) => (
-                <option key={kind} value={kind}>
-                  {kindLabel(kind)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            className="ui-btn"
-            onClick={() => replace(starter(draft.kind))}
-          >
+          <Field label="Definition">
+            {(control) => (
+              <select
+                {...control}
+                value={draft.kind}
+                onChange={(event) =>
+                  replace(starter(event.target.value as Draft["kind"]))
+                }
+              >
+                {KINDS.map((kind) => (
+                  <option key={kind} value={kind}>
+                    {kindLabel(kind)}
+                  </option>
+                ))}
+              </select>
+            )}
+          </Field>
+          <Button onClick={() => replace(starter(draft.kind))}>
             New draft
-          </button>
-          <button className="ui-btn" onClick={() => setImporting(true)}>
-            Import YAML
-          </button>
-          <button
-            className="ui-btn"
+          </Button>
+          <Button onClick={() => setImporting(true)}>Import YAML</Button>
+          <Button
             onClick={() => {
               setPane("Console");
               if (pendingYAML) {
@@ -271,35 +267,29 @@ export function StudioRoute() {
             }}
           >
             Validate
-          </button>
-          <button
-            className="ui-btn"
-            data-variant="primary"
-            onClick={exportYAML}
-          >
+          </Button>
+          <Button variant="primary" onClick={exportYAML}>
             Export YAML
-          </button>
+          </Button>
         </div>
       </header>
       <div className="studio-toolbar">
         <div role="group" aria-label="Studio mode">
           {["Design", "Live"].map((value) => (
-            <button
+            <Button
               key={value}
-              className="ui-btn"
               aria-pressed={mode === value}
               onClick={() => setMode(value)}
             >
               {value}
-            </button>
+            </Button>
           ))}
         </div>
         <span className="studio-identity">
           {textValue(at(draft.value, ["metadata", "name"]))}@
           {textValue(at(draft.value, ["metadata", "version"]))}
         </span>
-        <button
-          className="ui-btn"
+        <Button
           disabled={!state.past.length || pendingYAML}
           onClick={() => {
             const source = state.past.at(-1)!;
@@ -313,9 +303,8 @@ export function StudioRoute() {
           }}
         >
           Undo
-        </button>
-        <button
-          className="ui-btn"
+        </Button>
+        <Button
           disabled={!state.future.length || pendingYAML}
           onClick={() => {
             const source = state.future[0]!;
@@ -329,7 +318,7 @@ export function StudioRoute() {
           }}
         >
           Redo
-        </button>
+        </Button>
         <span>
           {errors} errors · {warnings} warnings
         </span>
@@ -349,14 +338,13 @@ export function StudioRoute() {
             aria-label="Studio panels"
           >
             {["Graph", "Blocks", "Properties", "Console"].map((value) => (
-              <button
-                className="ui-btn"
+              <Button
                 key={value}
                 aria-pressed={pane === value}
                 onClick={() => setPane(value)}
               >
                 {value}
-              </button>
+              </Button>
             ))}
           </div>
           <div className="studio-workspace" data-pane={pane}>
@@ -381,40 +369,44 @@ export function StudioRoute() {
                 </button>
               ))}
               <h3>Definition</h3>
-              <label className="studio-field">
-                <span>Name</span>
-                <input
-                  disabled={pendingYAML}
-                  key={textValue(at(draft.value, ["metadata", "name"]))}
-                  defaultValue={textValue(
-                    at(draft.value, ["metadata", "name"]),
-                  )}
-                  onBlur={(event) => {
-                    if (
-                      event.target.value !==
-                      at(draft.value, ["metadata", "name"])
-                    )
-                      patch(["metadata", "name"], event.target.value);
-                  }}
-                />
-              </label>
-              <label className="studio-field">
-                <span>Version</span>
-                <input
-                  disabled={pendingYAML}
-                  key={textValue(at(draft.value, ["metadata", "version"]))}
-                  defaultValue={textValue(
-                    at(draft.value, ["metadata", "version"]),
-                  )}
-                  onBlur={(event) => {
-                    if (
-                      event.target.value !==
-                      at(draft.value, ["metadata", "version"])
-                    )
-                      patch(["metadata", "version"], event.target.value);
-                  }}
-                />
-              </label>
+              <Field label="Name" className="studio-field">
+                {(control) => (
+                  <input
+                    {...control}
+                    disabled={pendingYAML}
+                    key={textValue(at(draft.value, ["metadata", "name"]))}
+                    defaultValue={textValue(
+                      at(draft.value, ["metadata", "name"]),
+                    )}
+                    onBlur={(event) => {
+                      if (
+                        event.target.value !==
+                        at(draft.value, ["metadata", "name"])
+                      )
+                        patch(["metadata", "name"], event.target.value);
+                    }}
+                  />
+                )}
+              </Field>
+              <Field label="Version" className="studio-field">
+                {(control) => (
+                  <input
+                    {...control}
+                    disabled={pendingYAML}
+                    key={textValue(at(draft.value, ["metadata", "version"]))}
+                    defaultValue={textValue(
+                      at(draft.value, ["metadata", "version"]),
+                    )}
+                    onBlur={(event) => {
+                      if (
+                        event.target.value !==
+                        at(draft.value, ["metadata", "version"])
+                      )
+                        patch(["metadata", "version"], event.target.value);
+                    }}
+                  />
+                )}
+              </Field>
               <p>All other authored settings remain available in YAML.</p>
             </aside>
             <div className="studio-graph-panel">
@@ -438,12 +430,12 @@ export function StudioRoute() {
                 }}
               />
               {connect ? (
-                <button
-                  className="ui-btn studio-cancel-connect"
+                <Button
+                  className="studio-cancel-connect"
                   onClick={() => setConnect(undefined)}
                 >
                   Cancel connection
-                </button>
+                </Button>
               ) : null}
             </div>
             <fieldset
@@ -483,15 +475,14 @@ export function StudioRoute() {
                 aria-label="Console views"
               >
                 {["Problems", "YAML", "Diff"].map((value) => (
-                  <button
-                    className="ui-btn"
+                  <Button
                     key={value}
                     aria-pressed={tab === value}
                     onClick={() => setTab(value)}
                   >
                     {value}
                     {value === "Problems" ? ` (${problems.length})` : ""}
-                  </button>
+                  </Button>
                 ))}
               </div>
               {pendingYAML ? (
@@ -543,23 +534,24 @@ export function StudioRoute() {
               ) : null}
               {tab === "YAML" ? (
                 <div className="studio-console-body">
-                  <label className="studio-field">
-                    <span>Authored YAML</span>
-                    <textarea
-                      className="studio-source"
-                      rows={12}
-                      value={state.buffer}
-                      spellCheck={false}
-                      onChange={(event) =>
-                        setState((current) => ({
-                          ...current,
-                          buffer: event.target.value,
-                        }))
-                      }
-                    />
-                  </label>
-                  <button
-                    className="ui-btn"
+                  <Field label="Authored YAML" className="studio-field">
+                    {(control) => (
+                      <textarea
+                        {...control}
+                        className="studio-source"
+                        rows={12}
+                        value={state.buffer}
+                        spellCheck={false}
+                        onChange={(event) =>
+                          setState((current) => ({
+                            ...current,
+                            buffer: event.target.value,
+                          }))
+                        }
+                      />
+                    )}
+                  </Field>
+                  <Button
                     disabled={!pendingYAML}
                     onClick={() => {
                       try {
@@ -582,9 +574,8 @@ export function StudioRoute() {
                     }}
                   >
                     Apply YAML
-                  </button>{" "}
-                  <button
-                    className="ui-btn"
+                  </Button>{" "}
+                  <Button
                     disabled={!pendingYAML}
                     onClick={() =>
                       setState((current) => ({
@@ -594,7 +585,7 @@ export function StudioRoute() {
                     }
                   >
                     Revert YAML edits
-                  </button>
+                  </Button>
                 </div>
               ) : null}
               {tab === "Diff" ? (
@@ -644,82 +635,67 @@ export function StudioRoute() {
         />
       ) : null}
       {replacement || removing || blocker.state === "blocked" ? (
-        <Dialog
-          className="project-dialog studio-dialog"
-          labelledBy={headingId}
-          onRequestClose={() => {
+        <AlertDialog
+          title={
+            removing
+              ? `Remove ${removing.title}?`
+              : "Discard current draft changes?"
+          }
+          confirmLabel={
+            removing ? "Remove block" : "Discard changes and continue"
+          }
+          cancelLabel="Keep editing"
+          details={
+            removing ? undefined : (
+              <div className="ui-toolbar">
+                <Button onClick={exportYAML}>Export YAML</Button>
+              </div>
+            )
+          }
+          onCancel={() => {
             setReplacement(undefined);
             setRemoving(undefined);
             if (blocker.state === "blocked") blocker.reset();
           }}
+          onConfirm={() => {
+            if (removing) {
+              try {
+                push(removeBlock(draft, removing.path));
+                if (
+                  node &&
+                  removing.path.length <= node.path.length &&
+                  removing.path.every(
+                    (part, index) => node.path[index] === part,
+                  )
+                )
+                  setSelected("");
+              } catch (error) {
+                setNotice(
+                  error instanceof Error
+                    ? error.message
+                    : "Could not remove this block.",
+                );
+              }
+              setRemoving(undefined);
+            } else if (replacement) {
+              setState((current) =>
+                initialState(replacement, current.generation + 1),
+              );
+              setSelected("");
+              setConnect(undefined);
+              setReplacement(undefined);
+              setMode("Design");
+              setTab("Problems");
+              setPane("Graph");
+            } else if (blocker.state === "blocked") blocker.proceed();
+          }}
         >
-          <DialogHeader
-            id={headingId}
-            title={
-              removing
-                ? `Remove ${removing.title}?`
-                : "Discard current draft changes?"
-            }
-          />
           <p>
             {removing
               ? "References to this block will remain and appear in Problems. You can undo the removal."
               : "This draft lives only in this tab. Export YAML to keep it before continuing."}
           </p>
-          {!removing ? (
-            <button className="ui-btn" onClick={exportYAML}>
-              Export YAML
-            </button>
-          ) : null}
-          <button
-            className="ui-btn"
-            onClick={() => {
-              setReplacement(undefined);
-              setRemoving(undefined);
-              if (blocker.state === "blocked") blocker.reset();
-            }}
-          >
-            Keep editing
-          </button>
-          <button
-            className="ui-btn"
-            data-variant="danger"
-            onClick={() => {
-              if (removing) {
-                try {
-                  push(removeBlock(draft, removing.path));
-                  if (
-                    node &&
-                    removing.path.length <= node.path.length &&
-                    removing.path.every(
-                      (part, index) => node.path[index] === part,
-                    )
-                  )
-                    setSelected("");
-                } catch (error) {
-                  setNotice(
-                    error instanceof Error
-                      ? error.message
-                      : "Could not remove this block.",
-                  );
-                }
-                setRemoving(undefined);
-              } else if (replacement) {
-                setState((current) =>
-                  initialState(replacement, current.generation + 1),
-                );
-                setSelected("");
-                setConnect(undefined);
-                setReplacement(undefined);
-                setMode("Design");
-                setTab("Problems");
-                setPane("Graph");
-              } else if (blocker.state === "blocked") blocker.proceed();
-            }}
-          >
-            {removing ? "Remove block" : "Discard changes and continue"}
-          </button>
-        </Dialog>
+        </AlertDialog>
       ) : null}
     </div>
   );
@@ -740,7 +716,7 @@ function ImportYAML({
   const close = () => (source ? setDiscard(true) : onClose());
   return (
     <Dialog
-      className="project-dialog studio-dialog"
+      className="ui-dialog ui-panel"
       labelledBy={id}
       onRequestClose={close}
     >
@@ -753,74 +729,76 @@ function ImportYAML({
         Open one Workflow, AuditProfile or AgentTemplate file (up to 1 MiB), or
         paste YAML. Your draft stays in this tab; export it to keep your work.
       </p>
-      <label className="studio-field">
-        <span>YAML file</span>
-        <input
-          type="file"
-          disabled={reading}
-          accept=".yaml,.yml,text/yaml,application/yaml"
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (!file) return;
-            if (file.size > MAX_SOURCE_BYTES) {
-              setError("YAML must be at most 1 MiB.");
-              return;
-            }
-            setReading(true);
-            void file
-              .text()
-              .then((value) => {
-                setSource(value);
-                setError("");
-                setDiscard(false);
-              })
-              .catch(() => setError("The file could not be read."))
-              .finally(() => setReading(false));
-          }}
-        />
-      </label>
-      <label className="studio-field">
-        <span>Paste YAML</span>
-        <textarea
-          className="studio-source"
-          rows={16}
-          disabled={reading}
-          value={source}
-          spellCheck={false}
-          onChange={(event) => {
-            setSource(event.target.value);
-            setError("");
-            setDiscard(false);
-          }}
-        />
-      </label>
+      <Field label="YAML file" className="studio-field">
+        {(control) => (
+          <input
+            {...control}
+            type="file"
+            disabled={reading}
+            accept=".yaml,.yml,text/yaml,application/yaml"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (!file) return;
+              if (file.size > MAX_SOURCE_BYTES) {
+                setError("YAML must be at most 1 MiB.");
+                return;
+              }
+              setReading(true);
+              void file
+                .text()
+                .then((value) => {
+                  setSource(value);
+                  setError("");
+                  setDiscard(false);
+                })
+                .catch(() => setError("The file could not be read."))
+                .finally(() => setReading(false));
+            }}
+          />
+        )}
+      </Field>
+      <Field label="Paste YAML" className="studio-field">
+        {(control) => (
+          <textarea
+            {...control}
+            className="studio-source"
+            rows={16}
+            disabled={reading}
+            value={source}
+            spellCheck={false}
+            onChange={(event) => {
+              setSource(event.target.value);
+              setError("");
+              setDiscard(false);
+            }}
+          />
+        )}
+      </Field>
       {error ? <p role="alert">{error}</p> : null}
       {reading ? <p role="status">Reading YAML file…</p> : null}
       {discard ? (
         <p role="alert">
-          Discard pasted YAML?{" "}
-          <button className="ui-btn" onClick={onClose}>
-            Discard import
-          </button>
-          <button className="ui-btn" onClick={() => setDiscard(false)}>
-            Keep importing
-          </button>
+          Discard pasted YAML? <Button onClick={onClose}>Discard import</Button>
+          <Button onClick={() => setDiscard(false)}>Keep importing</Button>
         </p>
       ) : null}
-      <button
-        className="ui-btn"
-        data-variant="primary"
-        disabled={reading || !source.trim()}
-        onClick={() => {
-          try {
-            onImport(readDraft(source));
-          } catch (error) {
-            setError(error instanceof Error ? error.message : "Invalid YAML.");
-          }
-        }}
-      >
-        Load draft
-      </button>
+      <div className="ui-dialog-actions">
+        <Button
+          variant="primary"
+          disabled={reading || !source.trim()}
+          onClick={() => {
+            try {
+              onImport(readDraft(source));
+            } catch (error) {
+              setError(
+                error instanceof Error ? error.message : "Invalid YAML.",
+              );
+            }
+          }}
+        >
+          Load draft
+        </Button>
+      </div>
     </Dialog>
   );
 }

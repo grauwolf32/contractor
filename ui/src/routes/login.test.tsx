@@ -5,21 +5,13 @@ import { createMemoryRouter } from "react-router";
 import { RouterProvider } from "react-router/dom";
 import { describe, expect, it, vi } from "vitest";
 
-import type { AuthSession } from "../api/client";
+import { stringRule } from "../api/contract";
 import { createApplicationQueryClient } from "../app/query-client";
 import { SessionProvider, type SessionAPI } from "../auth/session";
+import { testSession } from "../test/render";
 import { LoginRoute } from "./login";
 
-const session: AuthSession = {
-  principal: {
-    userId: "user_local",
-    username: "owner",
-    capabilities: ["user"],
-  },
-  csrfToken: "a".repeat(43),
-  idleExpiresAt: "2099-09-20T12:00:00Z",
-  absoluteExpiresAt: "2099-09-21T12:00:00Z",
-};
+const session = testSession();
 
 function renderLogin(login: SessionAPI["login"], from?: string) {
   const api: SessionAPI = {
@@ -97,5 +89,36 @@ describe("LoginRoute", () => {
     expect(router.state.location.pathname).toBe(
       heading === "Inbox page" ? "/" : from,
     );
+  });
+
+  it("checks the username as the LoginRequest schema does", async () => {
+    renderLogin(vi.fn(async () => session));
+    const input = await screen.findByLabelText("Username");
+    const rule = stringRule("LoginRequest", "properties", "username");
+    expect(input).toHaveAttribute("minlength", String(rule.minLength));
+    expect(input).toHaveAttribute("maxlength", String(rule.maxLength));
+    expect(screen.getByLabelText("Password")).toHaveAttribute(
+      "maxlength",
+      String(stringRule("LoginRequest", "properties", "password").maxBytes),
+    );
+    // Browsers compile the pattern attribute with the v flag; the attribute
+    // derived from the schema's pattern accepts exactly what it accepts.
+    const pattern = new RegExp(`^(?:${input.getAttribute("pattern")})$`, "v");
+    for (const name of [
+      "owner",
+      "a",
+      "A9",
+      "user.name_1-x",
+      "0lead",
+      "-dash",
+      "_under",
+      ".dot",
+      "has space",
+      "naïve",
+      "",
+      "a/b",
+    ]) {
+      expect(pattern.test(name), name).toBe(rule.pattern?.test(name));
+    }
   });
 });

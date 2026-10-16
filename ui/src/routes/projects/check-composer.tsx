@@ -5,7 +5,7 @@ import type { ArtifactMetadata } from "../../api/artifacts";
 import type { AuditProfile } from "../../api/audits";
 import type { Project } from "../../api/projects";
 import { artifactAccepts } from "../../run-drafts/validation";
-import { Kbd, modKeyLabel, StatusGlyph } from "../../ui";
+import { Button, Kbd, modKeyLabel, StatusGlyph } from "../../ui";
 import { useAuditPresets } from "../catalog/audit-preset-data";
 import { auditPresetLabel } from "./audits/labels";
 import { useUnsavedDraft } from "./project-drafts";
@@ -169,7 +169,7 @@ export function CheckComposer({
             }
           }}
         />
-        <button type="submit" className="ui-btn" data-variant="primary">
+        <Button type="submit" variant="primary">
           Start a check
           <span
             className="ui-kbd-hint projects-composer-keys"
@@ -178,7 +178,7 @@ export function CheckComposer({
             <Kbd>{modKeyLabel()}</Kbd>
             <Kbd>Enter</Kbd>
           </span>
-        </button>
+        </Button>
       </div>
       <CheckTypeSuggestions
         project={project}

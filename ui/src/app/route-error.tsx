@@ -1,4 +1,6 @@
-import { Link, useLocation, useRouteError } from "react-router";
+import { useLocation, useRouteError } from "react-router";
+
+import { ButtonLink } from "../ui/button";
 
 function isChunkLoadError(error: unknown): boolean {
   return (
@@ -15,7 +17,7 @@ export function RouteErrorPanel() {
   const chunkFailed = isChunkLoadError(error);
   const reloadPath = `${location.pathname}${location.search}${location.hash}`;
   return (
-    <section className="panel centered-state" role="alert">
+    <section className="ui-panel centered-state" role="alert">
       <h2>
         {chunkFailed ? "This page needs a reload" : "This page could not open"}
       </h2>
@@ -25,12 +27,10 @@ export function RouteErrorPanel() {
           : "An unexpected error prevented this page from opening."}
       </p>
       <div className="project-form-actions">
-        <a className="primary-button" href={reloadPath}>
+        <ButtonLink variant="primary" to={reloadPath} reloadDocument>
           Reload application
-        </a>
-        <Link className="secondary-button" to="/">
-          Go to Inbox
-        </Link>
+        </ButtonLink>
+        <ButtonLink to="/">Go to Inbox</ButtonLink>
       </div>
     </section>
   );

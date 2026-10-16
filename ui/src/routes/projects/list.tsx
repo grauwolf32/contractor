@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link } from "react-router";
 
 import { usePublicAPI } from "../../api/context";
 import { listProjects } from "../../api/projects";
@@ -8,14 +8,17 @@ import { queryKeys } from "../../api/query-keys";
 import { compactId } from "../../app/format";
 import { CursorControls } from "../../app/cursor-controls";
 import { useDocumentTitle } from "../../app/document-title";
+import { useGuardedNavigate } from "../../app/page-location";
 import { useCursorStack } from "../../app/pagination";
 import { QueryView } from "../../app/query-view";
 import { RecordedTime } from "../../app/recorded-time";
 import { RefreshButton } from "../../app/refresh-button";
+import { Button } from "../../ui";
 import { EvaluationActivity } from "./evaluation-activity";
 import { NewProjectDialog } from "./new-project-dialog";
 import { useNewProjectKeys } from "./new-project-keys";
 import { ProjectsRoute } from "./projects-route";
+import { pollWhileAnyDeleting } from "./use-project-deletion";
 
 import "./collection.css";
 
@@ -33,7 +36,7 @@ export const ProjectListRoute = ProjectsRoute;
 export function EvaluationListRoute() {
   useDocumentTitle("Evals");
   const api = usePublicAPI();
-  const navigate = useNavigate();
+  const navigate = useGuardedNavigate();
   const pages = useCursorStack();
   const [createOpen, setCreateOpen] = useState(false);
   const createKeys = useNewProjectKeys();
@@ -45,12 +48,7 @@ export function EvaluationListRoute() {
         kind: "evaluation",
         ...(cursor === undefined ? {} : { cursor }),
       }),
-    refetchInterval: (current) =>
-      current.state.data?.items.some(
-        (project) => project.lifecycle === "deleting",
-      )
-        ? 1_000
-        : false,
+    refetchInterval: pollWhileAnyDeleting,
   });
 
   return (
@@ -65,14 +63,9 @@ export function EvaluationListRoute() {
             result.
           </p>
         </div>
-        <button
-          type="button"
-          className="ui-btn"
-          data-variant="primary"
-          onClick={() => setCreateOpen(true)}
-        >
+        <Button variant="primary" onClick={() => setCreateOpen(true)}>
           New Eval
-        </button>
+        </Button>
       </header>
 
       {createOpen ? (
@@ -115,21 +108,16 @@ export function EvaluationListRoute() {
         onRetry={() => void query.refetch()}
         isEmpty={(data) => data.items.length === 0}
         empty={
-          <div className="empty-state panel">
+          <div className="empty-state ui-panel">
             <p className="eyebrow">Nothing here yet</p>
             <h3>Create your first Eval</h3>
             <p>
               An Eval is a Project workspace whose ordinary Runs use
               purpose=eval and eval.* metadata labels.
             </p>
-            <button
-              type="button"
-              className="ui-btn"
-              data-variant="primary"
-              onClick={() => setCreateOpen(true)}
-            >
+            <Button variant="primary" onClick={() => setCreateOpen(true)}>
               New Eval
-            </button>
+            </Button>
           </div>
         }
       >
@@ -139,7 +127,7 @@ export function EvaluationListRoute() {
               const path = `/evals/${encodeURIComponent(project.projectId)}`;
               return (
                 <article
-                  className={`panel project-card ${project.lifecycle === "deleting" ? "is-deleting" : ""}`}
+                  className={`ui-panel project-card ${project.lifecycle === "deleting" ? "is-deleting" : ""}`}
                   key={project.projectId}
                 >
                   <div>

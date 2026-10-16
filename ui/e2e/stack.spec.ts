@@ -14,7 +14,7 @@ import {
   type WebSocket,
 } from "@playwright/test";
 
-import packageMetadata from "../package.json" with { type: "json" };
+import { routeRuntimeConfig } from "./support/mock-api";
 
 interface BrowserEvidence {
   requests: Array<{ method: string; url: string; bodyBase64?: string }>;
@@ -1092,17 +1092,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   expect(await context.cookies([apiURL])).toHaveLength(0);
 
   const incompatible = await context.newPage();
-  await incompatible.route("**/runtime-config.json", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        uiVersion: packageMetadata.version,
-        supportedApiVersions: ["contractor.public.v2"],
-        apiBaseUrl: apiURL,
-      }),
-    });
-  });
+  await routeRuntimeConfig(incompatible, apiURL, ["contractor.public.v2"]);
   await incompatible.goto(baseURL);
   await expect(
     incompatible.getByRole("heading", {

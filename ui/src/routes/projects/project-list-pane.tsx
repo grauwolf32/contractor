@@ -16,6 +16,8 @@ import { RecordedTime } from "../../app/recorded-time";
 import type { StatusTone } from "../../app/status-tone";
 import { checkStateLabel } from "../../app/vocabulary";
 import {
+  Button,
+  IconButton,
   EmptyState,
   Kbd,
   ListPane,
@@ -26,6 +28,9 @@ import {
 } from "../../ui";
 import { type ProjectActivity, useProjectActivity } from "./project-activity";
 import { projectPath } from "./project-sections";
+import { plural } from "../../app/format";
+import { pollWhileAnyDeleting } from "./use-project-deletion";
+import { LIVE_AUDIT_STATES } from "../../api/states";
 
 interface RowStatus {
   tone: StatusTone;
@@ -40,20 +45,11 @@ function Status({ tone, children }: { tone: StatusTone; children: ReactNode }) {
   );
 }
 
-function plural(count: number, one: string, many: string): string {
-  return `${count} ${count === 1 ? one : many}`;
-}
-
 /**
  * Check states a row reports while a check is in them, in this order, with
  * the state's own label: "Check running", "Check stopping", …
  */
-const IN_FLIGHT_STATES: readonly AuditState[] = [
-  "active",
-  "finalizing",
-  "cancelling",
-  "waiting_review",
-];
+const IN_FLIGHT_STATES: readonly AuditState[] = LIVE_AUDIT_STATES;
 
 /** "Check running", "2 checks waiting for you". */
 function checksIn(count: number, stateLabel: string): string {
@@ -187,12 +183,7 @@ export function ProjectListPane({
         kind: "project",
         ...(cursor === undefined ? {} : { cursor }),
       }),
-    refetchInterval: (current) =>
-      current.state.data?.items.some(
-        (project) => project.lifecycle === "deleting",
-      )
-        ? 1_000
-        : false,
+    refetchInterval: pollWhileAnyDeleting,
   });
   const activity = useProjectActivity();
   const items = query.data?.items ?? [];
@@ -227,33 +218,27 @@ export function ProjectListPane({
       subtitle={subtitle}
       actions={
         <>
-          <button
-            type="button"
-            className="ui-btn refresh-button projects-icon-button"
-            data-variant="ghost"
-            data-size="sm"
-            aria-label="Refresh projects"
-            title="Refresh projects"
-            aria-busy={query.isFetching || undefined}
+          <IconButton
+            className="refresh-button"
+            variant="ghost"
+            size="sm"
+            label="Refresh projects"
+            icon={<Icon name="refresh" size={16} />}
+            pending={query.isFetching}
             data-fetching={query.isFetching || undefined}
-            disabled={query.isFetching}
             onClick={() => {
               void query.refetch();
               void invalidateCrossProject(queryClient);
             }}
-          >
-            <Icon name="refresh" />
-          </button>
-          <button
-            type="button"
-            className="ui-btn"
-            data-size="sm"
+          />
+          <Button
+            size="sm"
             aria-label="New project"
             onClick={onNewProject}
+            icon={<Icon name="plus" />}
           >
-            <Icon name="plus" />
             <span>New</span>
-          </button>
+          </Button>
         </>
       }
       toolbar={
@@ -291,15 +276,13 @@ export function ProjectListPane({
           ) : secondary ? (
             <div className="projects-list-error">
               <p>Projects could not be loaded: {query.error.message}</p>
-              <button
-                type="button"
-                className="ui-btn"
-                data-size="xs"
+              <Button
+                size="xs"
                 disabled={query.isFetching}
                 onClick={() => void query.refetch()}
               >
                 Try again
-              </button>
+              </Button>
             </div>
           ) : (
             <ErrorNotice
@@ -326,15 +309,9 @@ export function ProjectListPane({
               <EmptyState
                 title="No projects yet"
                 action={
-                  <button
-                    type="button"
-                    className="ui-btn"
-                    data-variant="primary"
-                    data-size="sm"
-                    onClick={onNewProject}
-                  >
+                  <Button variant="primary" size="sm" onClick={onNewProject}>
                     New project
-                  </button>
+                  </Button>
                 }
               >
                 A project keeps your materials, the checks you run on them and

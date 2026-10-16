@@ -25,24 +25,17 @@ import {
   useProjectsIndex,
 } from "./cross-project";
 import type { Project } from "./projects";
-import { collectOwnerPages } from "./owner-pages";
+import * as build from "../test/builders";
 
-const digest = `sha256:${"a".repeat(64)}`;
+// LIM-UI-15 in docs/spec/platform/limits.md.
+const MAXIMUM_LOADED_PAGES = 20;
 
-function project(projectId: string, overrides: Partial<Project> = {}): Project {
-  return {
-    projectId,
-    kind: "project",
-    name: projectId,
-    description: "",
-    lifecycle: "active",
-    activeChecks: "automatic",
-    revision: "1",
+const project = (projectId: string, overrides: Partial<Project> = {}) =>
+  build.project(projectId, {
     createdAt: "2026-10-01T10:00:00Z",
     updatedAt: "2026-10-01T10:00:00Z",
     ...overrides,
-  };
-}
+  });
 
 function audit(
   projectId: string,
@@ -50,37 +43,11 @@ function audit(
   state: AuditState,
   options: { revision?: number; updatedAt?: string } = {},
 ): Audit {
-  const base = {
-    auditId,
-    projectId,
-    profile: { name: "openapi-operation-trace", version: "1", digest },
-    inputs: {},
-    scope: {},
-    runtimeLabels: [],
-    state,
+  return build.audit(projectId, auditId, state, {
     revision: options.revision ?? 1,
-    dispatchState: "closed" as const,
-    holdState: "pending" as const,
-    limits: {
-      maxRounds: 1,
-      batchSize: 1,
-      maxItemsPerRound: 8,
-      maxItemsTotal: 8,
-      maxSubmittedRuns: 8,
-      maxItemRunAttempts: 2,
-      maxEvidenceBytes: 1_048_576,
-    },
-    reservedRunCount: 0,
-    submittedRunCount: 0,
-    outstandingRunCount: 0,
-    retainedEvidenceBytes: 0,
-    eventSequence: 1,
     createdAt: "2026-10-01T10:00:00Z",
     updatedAt: options.updatedAt ?? "2026-10-01T10:00:00Z",
-  };
-  return state === "draft"
-    ? { ...base, phase: "not-started" }
-    : { ...base, phase: "rounds", currentRoundId: "round_1" };
+  });
 }
 
 function finding(
@@ -94,64 +61,19 @@ function finding(
   } = {},
 ): AuditFinding {
   const createdAt = options.createdAt ?? "2026-10-02T10:00:00Z";
-  return {
-    findingId,
+  const value = build.finding(
     auditId,
-    state: options.state ?? "proposed",
-    firstProposal: {
-      receiptId: `receipt_${findingId}`,
-      proposalId: `proposal_${findingId}`,
-      requestDigest: digest,
-      clientKey: findingId,
-      proposal: {
-        ref: { namespace: "audit-findings", name: findingId, revision: "r1" },
-        digest,
-        mediaType: "application/json",
-        sizeBytes: 1,
-      },
-      document: {
-        schema: "contractor.audit.finding-proposal.v1",
-        client_key: findingId,
-        title: `Finding ${findingId}`,
-        description: "",
-        subject: null,
-        preconditions: [],
-        standard_refs: [],
-        evidence_ids: [],
-        proposed_checks: [],
-        severity_suggestion: "",
-        limitations: [],
-      },
-      evidence: [],
-      origin: {
-        runId: "run_1",
-        stageExecutionId: "stage_1",
-        allocationId: "allocation_1",
-        invocationId: "invocation_1",
-        logicalAgentName: "reviewer",
-        workflow: {
-          name: "trace",
-          version: "1",
-          schemaVersion: "contractor/v1alpha1",
-          configurationRef: { name: "trace", version: "1" },
-          closureDigest: digest,
-        },
-        runDeleted: false,
-      },
-      retention: "audit-held",
-      auditHolds: [],
+    findingId,
+    {
+      state: options.state ?? "proposed",
+      analystVerdict: options.verdict,
+      analystSeverity: options.severity,
       createdAt,
+      updatedAt: createdAt,
     },
-    ...(options.verdict === undefined
-      ? {}
-      : { analystVerdict: options.verdict }),
-    ...(options.severity === undefined
-      ? {}
-      : { analystSeverity: options.severity }),
-    revision: 1,
-    createdAt,
-    updatedAt: createdAt,
-  };
+    { title: `Finding ${findingId}` },
+  );
+  return { ...value, firstProposal: { ...value.firstProposal, createdAt } };
 }
 
 function review(
@@ -160,44 +82,15 @@ function review(
   kind: AuditReviewRequest["kind"],
   createdAt = "2026-10-03T10:00:00Z",
 ): AuditReviewRequest {
-  return {
-    requestId,
-    auditId,
+  return build.review(auditId, requestId, kind, {
     ...(kind === "finding-triage" ? { findingId: "finding_1" } : {}),
-    subjectKind:
-      kind === "finding-triage"
-        ? "finding"
-        : kind === "report-acceptance"
-          ? "audit-report"
-          : "audit-item-action",
-    subjectId: "subject_1",
-    kind,
-    subjectRevision: 1,
-    subjectDigest: digest,
-    requestedActions:
-      kind === "finding-triage"
-        ? ["true_positive", "false_positive"]
-        : ["approve", "reject"],
-    state: "pending",
-    revision: 1,
     createdAt,
     updatedAt: createdAt,
-  };
+  });
 }
 
-function report(status: AuditReport["status"]): AuditReport {
-  return status === "ready" || status === "proposed"
-    ? {
-        status,
-        summary: "# Report",
-        summaryArtifact: {
-          ref: { namespace: "reports", name: "summary", revision: "r1" },
-          digest,
-          mediaType: "text/markdown",
-        },
-      }
-    : { status };
-}
+const report = (status: AuditReport["status"]): AuditReport =>
+  build.report("audit_report", status);
 
 interface ServerState {
   projects: Project[];
@@ -352,6 +245,30 @@ describe("owner-wide lists", () => {
         (r) => !r.pathname.match(/projects\/[^/]+\/audits/),
       ),
     ).toBe(true);
+  });
+  it("stops an owner with more check pages than the cap and reports truncation", async () => {
+    // Owner lists read 200 checks per page.
+    const pageSize = 200;
+    const state = base();
+    const one = audit("project_a", "audit_0", "active");
+    state.audits = {
+      project_a: Array.from(
+        { length: MAXIMUM_LOADED_PAGES * pageSize + 1 },
+        (_, i) => ({ ...one, auditId: `audit_${i}` }),
+      ),
+    };
+    const server = setup(state);
+    const { result } = renderHook(() => useAllChecks(), {
+      wrapper: server.wrapper,
+    });
+    await settled(result);
+    expect(server.count("/v1/audits")).toBe(MAXIMUM_LOADED_PAGES);
+    expect(result.current.checks).toHaveLength(MAXIMUM_LOADED_PAGES * pageSize);
+    expect(result.current).toMatchObject({
+      truncated: true,
+      partial: false,
+      error: null,
+    });
   });
   it("filters multiple check states on the Server and shares canonical keys", async () => {
     const server = setup(base());
@@ -605,24 +522,5 @@ describe("owner-wide lists", () => {
     );
     expect(result.current.checks.isPending).toBe(true);
     expect(server.requests).toEqual([]);
-  });
-});
-
-describe("collection continuations", () => {
-  it("stops on a repeated cursor and exposes the failure", async () => {
-    const load = vi.fn(async () => ({
-      items: [1],
-      page: { hasMore: true, nextCursor: "same" },
-    }));
-    const result = await collectOwnerPages(load);
-    expect(load).toHaveBeenCalledTimes(2);
-    expect(result.error?.message).toMatch(/invalid page/);
-  });
-  it("rejects a hasMore page without a cursor", async () => {
-    const result = await collectOwnerPages(async () => ({
-      items: [],
-      page: { hasMore: true },
-    }));
-    expect(result.error).toBeInstanceOf(Error);
   });
 });

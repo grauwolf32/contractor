@@ -5,46 +5,31 @@ import { MemoryRouter, useNavigate } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
 import type { Audit, AuditCoverageRow } from "../../../api/audits";
-import { PublicAPI } from "../../../api/client";
 import { PublicAPIProvider } from "../../../api/context";
 import { queryKeys } from "../../../api/query-keys";
+import * as build from "../../../test/builders";
+import { fakeServer } from "../../../test/fake-server";
+import { failure, json, page } from "../../../test/responses";
+import { testAPI } from "../../../test/render";
 import { useAuditCoverage } from "./coverage-data";
 
 function auditAt(state: Audit["state"], revision: number): Audit {
-  return {
-    auditId: "audit_example",
-    projectId: "project_example",
+  return build.audit("project_example", "audit_example", state, {
     profile: {
       name: "source-risk",
       version: "1",
       digest: `sha256:${"1".repeat(64)}`,
     },
-    inputs: {},
-    scope: {},
-    runtimeLabels: [],
-    state,
-    phase: "rounds",
     revision,
     currentRoundId: "round_example",
-    dispatchState: state === "active" ? "open" : "closed",
     holdState: "held",
-    limits: {
-      maxRounds: 1,
-      batchSize: 1,
-      maxItemsPerRound: 8,
-      maxItemsTotal: 8,
-      maxSubmittedRuns: 8,
-      maxItemRunAttempts: 2,
-      maxEvidenceBytes: 1_048_576,
-    },
     reservedRunCount: 1,
     submittedRunCount: 1,
     outstandingRunCount: state === "active" ? 1 : 0,
-    retainedEvidenceBytes: 0,
     eventSequence: revision,
     createdAt: "2026-09-20T10:00:00Z",
     updatedAt: "2026-09-20T10:00:00Z",
-  };
+  });
 }
 
 function coverage(audit: Audit): AuditCoverageRow {
@@ -65,32 +50,13 @@ function coverage(audit: Audit): AuditCoverageRow {
   };
 }
 
-function response(value: unknown, revision?: number): Response {
-  return new Response(JSON.stringify(value), {
-    headers: {
-      "Content-Type": "application/json",
-      "X-Contractor-API-Version": "contractor.public.v1",
-      ...(revision === undefined ? {} : { ETag: `"${revision}"` }),
-    },
-  });
-}
-
 /** The Server's answer to a coverage page read at another revision. */
 function revisionConflict(): Response {
-  return new Response(
-    JSON.stringify({
-      code: "conflict",
-      message: "resource state changed; retry with the current revision",
-      retryable: true,
-      requestId: "request_conflict",
-    }),
-    {
-      status: 409,
-      headers: {
-        "Content-Type": "application/json",
-        "X-Contractor-API-Version": "contractor.public.v1",
-      },
-    },
+  return failure(
+    409,
+    "conflict",
+    "resource state changed; retry with the current revision",
+    true,
   );
 }
 
@@ -99,24 +65,14 @@ function fixture(initialPath = "/coverage") {
   // Like the Server, read every page at its pinned revision or answer 409.
   const loadCoverage = vi.fn<(url: URL) => Promise<Response>>(async (url) =>
     url.searchParams.get("auditRevision") === String(current.revision)
-      ? response({
-          items: [coverage(current)],
-          page: { hasMore: false },
-          auditRevision: current.revision,
-        })
+      ? json({ ...page([coverage(current)]), auditRevision: current.revision })
       : revisionConflict(),
   );
-  const api = new PublicAPI(
-    {
-      uiVersion: "0.1.0",
-      supportedApiVersions: ["contractor.public.v1"],
-      apiBaseUrl: "http://127.0.0.1:8080",
-    },
-    vi.fn(async (input) => {
-      const url = new URL((input as Request).url);
-      return url.pathname.endsWith("/coverage")
-        ? loadCoverage(url)
-        : response(current, current.revision);
+  const { api } = testAPI(
+    fakeServer({
+      "GET /v1/audits/{auditId}/coverage": ({ url }) => loadCoverage(url),
+      "GET /v1/audits/{auditId}": () =>
+        json(current, 200, { ETag: `"${current.revision}"` }),
     }),
   );
   const queryClient = new QueryClient({
@@ -190,10 +146,7 @@ describe("Audit coverage completion", () => {
     );
     await act(async () => {
       release(
-        response({
-          items: [coverage(auditAt("active", 1))],
-          page: { hasMore: false },
-        }),
+        json({ ...page([coverage(auditAt("active", 1))]), auditRevision: 1 }),
       );
       await pending;
     });
@@ -309,10 +262,9 @@ describe("Audit coverage completion", () => {
     );
     loadCoverage.mockImplementation(async (url) => {
       expect(url.searchParams.get("auditRevision")).toBe("1");
-      const page = Number(url.searchParams.get("cursor") ?? "0");
-      return response({
-        items: [coverage(auditAt("active", 1))],
-        page: { hasMore: true, nextCursor: String(page + 1) },
+      const next = Number(url.searchParams.get("cursor") ?? "0") + 1;
+      return json({
+        ...page([coverage(auditAt("active", 1))], String(next)),
         auditRevision: 1,
       });
     });

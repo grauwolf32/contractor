@@ -1,32 +1,26 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { createMemoryRouter } from "react-router";
-import { describe, expect, it, vi } from "vitest";
-import { PublicAPI } from "../../../api/client";
-import { Application } from "../../../app/application";
-import { applicationRoutes } from "../../../app/router";
+import { screen, waitFor, within } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 
-function setup(
-  path: string,
-  authorized = true,
-  withRemovalFixtures = false,
-  workerSettings?: Record<string, unknown>,
-  deleteFailure?: { path: string; body: unknown },
-) {
-  const requests: string[] = [];
-  const deletes: Request[] = [];
-  const runtimeResource = {
-    ref: {
-      name: "debug",
-      version: "1",
-      digest: `sha256:${"1".repeat(64)}`,
-    },
+import type { components } from "../../../api/generated/public";
+import { renderApplication } from "../../../test/application";
+import { operationsSnapshot } from "../../../test/builders-execution";
+import { conforming } from "../../../test/builders";
+import { json, noContent, page } from "../../../test/responses";
+
+type Schemas = components["schemas"];
+type Worker = Schemas["RuntimeConfigDocument"]["spec"]["worker"];
+
+const CREATED = "2026-09-07T00:00:00Z";
+
+function runtimeConfig(worker?: Worker): Schemas["RuntimeConfigResource"] {
+  return conforming("RuntimeConfigResource", {
+    ref: { name: "debug", version: "1", digest: `sha256:${"1".repeat(64)}` },
     document: {
       apiVersion: "contractor/v1alpha1",
       kind: "RuntimeConfig",
       metadata: { name: "debug", version: "1" },
       spec: {
-        worker: workerSettings ?? {
+        worker: worker ?? {
           caido: {
             adapter: "caido-graphql@1",
             endpoint: "https://caido.example/graphql",
@@ -38,160 +32,160 @@ function setup(
     },
     builtIn: false,
     createdBy: "user_local",
-    createdAt: "2026-09-07T00:00:00Z",
-  };
-  let credentials = withRemovalFixtures
+    createdAt: CREATED,
+  });
+}
+
+/** A 409 refusal whose details name what still uses the resource. */
+function inUse(
+  code: string,
+  message: string,
+  details: NonNullable<Schemas["Error"]["details"]>,
+): Response {
+  return json(
+    conforming("Error", {
+      code,
+      message,
+      retryable: false,
+      requestId: "request_test",
+      details,
+    }),
+    409,
+  );
+}
+
+/**
+ * Operations at `path`, holding one RuntimeConfig version and, with
+ * `inventory`, one credential and one label bound to it. `refusal` answers
+ * deletions instead of removing the resource.
+ */
+function setup(
+  path: string,
+  options: {
+    authorized?: boolean;
+    inventory?: boolean;
+    worker?: Worker;
+    refusal?: () => Response;
+  } = {},
+) {
+  const resource = runtimeConfig(options.worker);
+  let credentials = options.inventory
     ? [
-        {
+        conforming("RuntimeCredentialMetadata", {
           credentialId: "caido-local",
           kind: "caido-bearer@1",
           createdBy: "user_local",
-          createdAt: "2026-09-07T00:00:00Z",
-        },
+          createdAt: CREATED,
+        }),
       ]
     : [];
-  let bindings = withRemovalFixtures
+  let bindings = options.inventory
     ? [
-        {
+        conforming("RuntimeLabelBinding", {
           label: "debug",
-          config: runtimeResource.ref,
+          config: resource.ref,
           revision: "1",
           createdBy: "user_local",
-          createdAt: "2026-09-07T00:00:00Z",
+          createdAt: CREATED,
           updatedBy: "user_local",
-          updatedAt: "2026-09-07T00:00:00Z",
-        },
+          updatedAt: CREATED,
+        }),
       ]
     : [];
-  const api = new PublicAPI(
-    {
-      uiVersion: "0.1.0",
-      supportedApiVersions: ["contractor.public.v1"],
-      apiBaseUrl: "http://127.0.0.1:8080",
+  const view = renderApplication(path, {
+    capabilities:
+      options.authorized === false ? ["user"] : ["user", "operations"],
+    server: {
+      "GET /v1/operations/snapshot": () => json(operationsSnapshot("1")),
+      "GET /v1/operations/runtime-configs": () => json(page([resource])),
+      "GET /v1/operations/runtime-configs/{name}/versions/{version}": () =>
+        json(resource),
+      "GET /v1/operations/runtime-credentials": () => json(page(credentials)),
+      "GET /v1/operations/runtime-labels": () => json(page(bindings)),
+      "DELETE /v1/operations/runtime-credentials/{credentialId}": () => {
+        if (options.refusal !== undefined) return options.refusal();
+        credentials = [];
+        return noContent();
+      },
+      "DELETE /v1/operations/runtime-labels/{label}": () => {
+        if (options.refusal !== undefined) return options.refusal();
+        bindings = [];
+        return noContent();
+      },
     },
-    vi.fn(async (input) => {
-      const request = input instanceof Request ? input : new Request(input);
-      const pathname = new URL(request.url).pathname;
-      requests.push(pathname);
-      if (request.method === "DELETE") {
-        deletes.push(request.clone());
-        if (deleteFailure?.path === pathname) {
-          return new Response(JSON.stringify(deleteFailure.body), {
-            status: 409,
-            headers: {
-              "content-type": "application/json",
-              "X-Contractor-API-Version": "contractor.public.v1",
-            },
-          });
-        }
-        if (pathname === "/v1/operations/runtime-credentials/caido-local") {
-          credentials = [];
-        } else if (pathname === "/v1/operations/runtime-labels/debug") {
-          bindings = [];
-        } else {
-          throw new Error(`unexpected DELETE ${pathname}`);
-        }
-        return new Response(null, {
-          status: 204,
-          headers: { "X-Contractor-API-Version": "contractor.public.v1" },
-        });
-      }
-      let body: unknown = { items: [], page: { hasMore: false } };
-      if (pathname === "/v1/auth/session")
-        body = {
-          principal: {
-            userId: "user_local",
-            username: "owner",
-            capabilities: authorized ? ["user", "operations"] : ["user"],
-          },
-          csrfToken: "a".repeat(43),
-          idleExpiresAt: "2026-09-07T20:00:00Z",
-          absoluteExpiresAt: "2026-09-08T12:00:00Z",
-        };
-      else if (pathname === "/v1/operations/snapshot")
-        body = {
-          cursor: { generation: "operations-generation-1", revision: "1" },
-          runtimeAgents: [],
-          allocations: [],
-        };
-      else if (pathname === "/v1/operations/runtime-configs")
-        body = { items: [runtimeResource], page: { hasMore: false } };
-      else if (pathname === "/v1/operations/runtime-configs/debug/versions/1")
-        body = runtimeResource;
-      else if (pathname === "/v1/operations/runtime-credentials")
-        body = { items: credentials, page: { hasMore: false } };
-      else if (pathname === "/v1/operations/runtime-labels")
-        body = { items: bindings, page: { hasMore: false } };
-      return new Response(JSON.stringify(body), {
-        headers: {
-          "content-type": "application/json",
-          "X-Contractor-API-Version": "contractor.public.v1",
-        },
-      });
-    }),
-  );
-  const router = createMemoryRouter(applicationRoutes(), {
-    initialEntries: [path],
   });
-  render(<Application api={api} publicAPI={api} router={router} />);
-  return { router, requests, deletes };
+  return {
+    ...view,
+    deletes: () =>
+      view.requests.filter((request) => request.method === "DELETE"),
+    paths: () => view.requests.map((request) => new URL(request.url).pathname),
+  };
 }
 
 describe("Runtime configuration hub navigation", () => {
   it("shows nested RuntimeConfig export settings and explicit clears with labels", async () => {
-    setup("/operations/configuration/debug/1", true, false, {
-      llmGateway: {
-        gateway: {
-          gatewayId: "local-litellm",
-          version: "1",
-          digest: `sha256:${"2".repeat(64)}`,
+    setup("/operations/configuration/debug/1", {
+      worker: {
+        llmGateway: {
+          gateway: {
+            gatewayId: "local-litellm",
+            version: "1",
+            digest: `sha256:${"2".repeat(64)}`,
+          },
+          credential: null,
         },
-        credential: null,
-      },
-      telemetry: {
-        adapter: "otlp-http@1",
-        endpoint: "https://otel.example/v1/traces",
-        export: {
-          batchSizeBytes: 8388608,
-          maxAttempts: 2,
-          maxPendingBytes: 67108864,
-          maxPendingSpans: 2048,
-          retry: {
-            initialBackoffMilliseconds: 100,
-            maxBackoffMilliseconds: 1000,
+        telemetry: {
+          adapter: "otlp-http@1",
+          endpoint: "https://otel.example/v1/traces",
+          export: {
+            batchSizeBytes: 8388608,
+            maxAttempts: 2,
+            maxPendingBytes: 67108864,
+            maxPendingSpans: 2048,
+            retry: {
+              initialBackoffMilliseconds: 100,
+              maxBackoffMilliseconds: 1000,
+            },
           },
         },
       },
     });
     const telemetry = (
       await screen.findByRole("heading", { name: "Worker telemetry" })
-    ).closest("article");
-    expect(telemetry).not.toBeNull();
-    expect(within(telemetry!).getByText("Batch size")).toBeVisible();
-    expect(within(telemetry!).getByText("8.0 MiB")).toBeVisible();
-    expect(within(telemetry!).getByText("Maximum pending bytes")).toBeVisible();
-    expect(within(telemetry!).getByText("64.0 MiB")).toBeVisible();
-    expect(within(telemetry!).getByText("Maximum attempts")).toBeVisible();
-    expect(within(telemetry!).getByText("Maximum pending spans")).toBeVisible();
-    expect(within(telemetry!).getByText("Initial backoff")).toBeVisible();
-    expect(within(telemetry!).getByText("100 ms")).toBeVisible();
-    expect(within(telemetry!).getByText("Maximum backoff")).toBeVisible();
-    expect(within(telemetry!).getByText("1000 ms")).toBeVisible();
+    ).closest("article")!;
+    for (const text of [
+      "Batch size",
+      "8.0 MiB",
+      "Maximum pending bytes",
+      "64.0 MiB",
+      "Maximum attempts",
+      "Maximum pending spans",
+      "Initial backoff",
+      "100 ms",
+      "Maximum backoff",
+      "1000 ms",
+    ]) {
+      expect(within(telemetry).getByText(text)).toBeVisible();
+    }
     expect(telemetry).not.toHaveTextContent("[object Object]");
     const gateway = screen
       .getByRole("heading", { name: "Worker LLM Gateway" })
-      .closest("article");
-    expect(gateway).not.toBeNull();
-    expect(within(gateway!).getByText("Gateway ID")).toBeVisible();
-    expect(within(gateway!).getByText("local-litellm")).toBeVisible();
-    expect(within(gateway!).getByText("Credential")).toBeVisible();
-    expect(within(gateway!).getByText("Explicitly cleared")).toBeVisible();
+      .closest("article")!;
+    for (const text of [
+      "Gateway ID",
+      "local-litellm",
+      "Credential",
+      "Explicitly cleared",
+    ]) {
+      expect(within(gateway).getByText(text)).toBeVisible();
+    }
     expect(gateway).not.toHaveTextContent("null");
   });
 
   it("confirms permanent Runtime credential deletion after safe dismissals", async () => {
-    const { deletes } = setup("/operations/configuration", true, true);
-    const user = userEvent.setup();
+    const { deletes, user } = setup("/operations/configuration", {
+      inventory: true,
+    });
     const trigger = await screen.findByRole("button", {
       name: "Delete Runtime credential caido-local",
     });
@@ -205,7 +199,7 @@ describe("Runtime configuration hub navigation", () => {
       ).toHaveFocus();
       expect(dialog).toHaveTextContent("Its ID cannot be reused");
       expect(dialog).toHaveTextContent("cannot be bound again");
-      expect(deletes).toHaveLength(0);
+      expect(deletes()).toHaveLength(0);
       return dialog;
     };
     let dialog = await open();
@@ -217,14 +211,14 @@ describe("Runtime configuration hub navigation", () => {
     dialog = await open();
     await user.click(dialog.parentElement!);
     expect(screen.queryByRole("alertdialog")).toBeNull();
-    expect(deletes).toHaveLength(0);
+    expect(deletes()).toHaveLength(0);
     expect(trigger).toBeInTheDocument();
     dialog = await open();
     await user.click(
       within(dialog).getByRole("button", { name: "Delete Runtime credential" }),
     );
-    await waitFor(() => expect(deletes).toHaveLength(1));
-    expect(new URL(deletes[0]!.url).pathname).toBe(
+    await waitFor(() => expect(deletes()).toHaveLength(1));
+    expect(new URL(deletes()[0]!.url).pathname).toBe(
       "/v1/operations/runtime-credentials/caido-local",
     );
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
@@ -232,23 +226,22 @@ describe("Runtime configuration hub navigation", () => {
   });
 
   it("shows every Runtime credential deletion blocker in the dialog", async () => {
-    setup("/operations/configuration", true, true, undefined, {
-      path: "/v1/operations/runtime-credentials/caido-local",
-      body: {
-        code: "runtime_credential_in_use",
-        message: "Runtime credential is referenced by active configuration",
-        retryable: false,
-        details: {
-          kind: "runtime_credential_in_use",
-          bindingLabels: ["debug"],
-          projectIds: ["project-one"],
-          runIds: ["run-one"],
-          auditIds: ["audit-one"],
-          allocationIds: ["allocation-one"],
-        },
-      },
+    const { user } = setup("/operations/configuration", {
+      inventory: true,
+      refusal: () =>
+        inUse(
+          "runtime_credential_in_use",
+          "Runtime credential is referenced by active configuration",
+          {
+            kind: "runtime_credential_in_use",
+            bindingLabels: ["debug"],
+            projectIds: ["project-one"],
+            runIds: ["run-one"],
+            auditIds: ["audit-one"],
+            allocationIds: ["allocation-one"],
+          },
+        ),
     });
-    const user = userEvent.setup();
     await user.click(
       await screen.findByRole("button", {
         name: "Delete Runtime credential caido-local",
@@ -261,22 +254,23 @@ describe("Runtime configuration hub navigation", () => {
       within(dialog).getByRole("button", { name: "Delete Runtime credential" }),
     );
     expect(await within(dialog).findByText("audit-one")).toBeVisible();
-    expect(within(dialog).getByRole("link", { name: "debug" })).toHaveAttribute(
-      "href",
-      "/operations/configuration",
-    );
-    expect(
-      within(dialog).getByRole("link", { name: "project-one" }),
-    ).toHaveAttribute("href", "/projects/project-one");
-    expect(
-      within(dialog).getByRole("link", { name: "run-one" }),
-    ).toHaveAttribute("href", "/runs/run-one");
+    for (const [name, href] of [
+      ["debug", "/operations/configuration"],
+      ["project-one", "/projects/project-one"],
+      ["run-one", "/runs/run-one"],
+    ] as const) {
+      expect(within(dialog).getByRole("link", { name })).toHaveAttribute(
+        "href",
+        href,
+      );
+    }
     expect(within(dialog).getByText("allocation-one")).toBeVisible();
   });
 
   it("confirms Runtime label removal after safe dismissals", async () => {
-    const { deletes } = setup("/operations/configuration", true, true);
-    const user = userEvent.setup();
+    const { deletes, user } = setup("/operations/configuration", {
+      inventory: true,
+    });
     await user.click(
       await screen.findByRole("button", {
         name: "Manage bindings for debug@1",
@@ -296,7 +290,7 @@ describe("Runtime configuration hub navigation", () => {
       expect(dialog).toHaveTextContent(
         "New Runs will no longer be able to select",
       );
-      expect(deletes).toHaveLength(0);
+      expect(deletes()).toHaveLength(0);
       return dialog;
     };
     let dialog = await open();
@@ -307,36 +301,32 @@ describe("Runtime configuration hub navigation", () => {
     dialog = await open();
     await user.click(dialog.parentElement!);
     expect(screen.queryByRole("alertdialog")).toBeNull();
-    expect(deletes).toHaveLength(0);
+    expect(deletes()).toHaveLength(0);
     expect(trigger).toBeInTheDocument();
     dialog = await open();
     await user.click(
       within(dialog).getByRole("button", { name: "Remove binding" }),
     );
-    await waitFor(() => expect(deletes).toHaveLength(1));
-    expect(new URL(deletes[0]!.url).pathname).toBe(
+    await waitFor(() => expect(deletes()).toHaveLength(1));
+    expect(new URL(deletes()[0]!.url).pathname).toBe(
       "/v1/operations/runtime-labels/debug",
     );
-    expect(deletes[0]!.headers.get("If-Match")).toBe('"1"');
+    expect(deletes()[0]!.headers.get("If-Match")).toBe('"1"');
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
     await waitFor(() => expect(trigger).not.toBeInTheDocument());
   });
 
   it("shows Runtime Agent IDs blocking label removal", async () => {
     const agentID = "a".repeat(64);
-    setup("/operations/configuration", true, true, undefined, {
-      path: "/v1/operations/runtime-labels/debug",
-      body: {
-        code: "runtime_label_in_use",
-        message: "Runtime label is assigned to a Runtime Agent",
-        retryable: false,
-        details: {
-          kind: "runtime_label_in_use",
-          runtimeAgentIds: [agentID],
-        },
-      },
+    const { user } = setup("/operations/configuration", {
+      inventory: true,
+      refusal: () =>
+        inUse(
+          "runtime_label_in_use",
+          "Runtime label is assigned to a Runtime Agent",
+          { kind: "runtime_label_in_use", runtimeAgentIds: [agentID] },
+        ),
     });
-    const user = userEvent.setup();
     await user.click(
       await screen.findByRole("button", {
         name: "Manage bindings for debug@1",
@@ -358,8 +348,7 @@ describe("Runtime configuration hub navigation", () => {
   });
 
   it("opens creation forms from icons and clears a closed credential draft", async () => {
-    setup("/operations/configuration");
-    const user = userEvent.setup();
+    const { user } = setup("/operations/configuration");
     const addCredential = await screen.findByRole("button", {
       name: "Add Runtime credential",
     });
@@ -411,7 +400,7 @@ describe("Runtime configuration hub navigation", () => {
   });
 
   it("opens Runtime configuration as an Operations section with a scope label and refresh", async () => {
-    const { router, requests } = setup("/operations/configuration");
+    const { router, paths, user } = setup("/operations/configuration");
     await screen.findByRole("heading", { name: "RuntimeConfig versions" });
     expect(await screen.findByRole("link", { name: "debug@1" })).toBeVisible();
     expect(router.state.location.pathname).toBe("/operations/configuration");
@@ -449,17 +438,12 @@ describe("Runtime configuration hub navigation", () => {
       ).getByRole("option", { name: "Configuration" }),
     ).toHaveValue("/operations/configuration");
     expect(screen.queryByRole("navigation", { name: "Run views" })).toBeNull();
-    const reads = requests.filter(
-      (p) => p === "/v1/operations/runtime-configs",
-    ).length;
-    await userEvent
-      .setup()
-      .click(screen.getByRole("button", { name: "Refresh" }));
-    await waitFor(() =>
-      expect(
-        requests.filter((p) => p === "/v1/operations/runtime-configs").length,
-      ).toBeGreaterThan(reads),
-    );
+    const reads = () =>
+      paths().filter((path) => path === "/v1/operations/runtime-configs")
+        .length;
+    const before = reads();
+    await user.click(screen.getByRole("button", { name: "Refresh" }));
+    await waitFor(() => expect(reads()).toBeGreaterThan(before));
   });
 
   it("opens exact versions with query and fragment", async () => {
@@ -512,13 +496,13 @@ describe("Runtime configuration hub navigation", () => {
   it.each(["/operations/configuration", "/operations/configuration/debug/1"])(
     "keeps operator authorization on %s",
     async (path) => {
-      const { requests } = setup(path, false);
+      const { paths } = setup(path, { authorized: false });
       expect(await screen.findByRole("alert")).toHaveTextContent(
         "not authorized to observe or manage Operations",
       );
       expect(screen.queryByRole("link", { name: /Configuration/ })).toBeNull();
       expect(
-        requests.filter(
+        paths().filter(
           (request) =>
             ![
               "/v1/projects",

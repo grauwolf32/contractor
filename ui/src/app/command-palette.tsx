@@ -26,7 +26,7 @@ import { Icon, type IconName } from "./icon";
 import { capitalize, checkStateLabel, TERMS } from "./vocabulary";
 
 /** Results each group shows for a search. */
-export const RESULTS_PER_GROUP = 6;
+const RESULTS_PER_GROUP = 6;
 
 interface PaletteOption {
   readonly key: string;

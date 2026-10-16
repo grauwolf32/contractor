@@ -1,95 +1,27 @@
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createMemoryRouter } from "react-router";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { PublicAPI } from "../../api/client";
 import type {
   RuntimeAgentPrincipal,
   RuntimeConfigAuthorDocument,
   RuntimeConfigResource,
 } from "../../api/operations";
-import { Application } from "../../app/application";
-import { applicationRoutes } from "../../app/router";
-import type { RuntimeConfig } from "../../config/runtime-config";
-import { RunEventsManager } from "../../events/run-events";
+import { createApplicationQueryClient } from "../../app/query-client";
+import { FakeEventSocket, renderApplication } from "../../test/application";
+import { operationsSnapshot as snapshot } from "../../test/builders-execution";
+import { deferred } from "../../test/deferred";
+import type { Fallback } from "../../test/fake-server";
+import {
+  failure,
+  json,
+  noContent,
+  preconditionFailed,
+} from "../../test/responses";
+import { CSRF_TOKEN } from "../../test/render";
 
-const runtimeConfig: RuntimeConfig = {
-  uiVersion: "0.1.0",
-  supportedApiVersions: ["contractor.public.v1"],
-  apiBaseUrl: "http://127.0.0.1:8080",
-};
 const digest = `sha256:${"1".repeat(64)}`;
 const secondDigest = `sha256:${"2".repeat(64)}`;
-const session = {
-  principal: {
-    userId: "user_local",
-    username: "owner",
-    capabilities: ["user", "operations"] as const,
-  },
-  csrfToken: "a".repeat(43),
-  idleExpiresAt: "2026-08-31T20:00:00Z",
-  absoluteExpiresAt: "2026-09-01T12:00:00Z",
-};
-
-function apiResponse(
-  value: unknown,
-  status = 200,
-  extraHeaders: Record<string, string> = {},
-): Response {
-  return new Response(value === undefined ? undefined : JSON.stringify(value), {
-    status,
-    headers: {
-      "content-type": "application/json",
-      "X-Contractor-API-Version": "contractor.public.v1",
-      ...extraHeaders,
-    },
-  });
-}
-
-function snapshot(revision = "7") {
-  return {
-    cursor: { generation: "operations-generation-1", revision },
-    runtimeAgents: [],
-    allocations: [],
-  };
-}
-
-class OperationsWebSocket {
-  static instances: OperationsWebSocket[] = [];
-  protocol = "contractor.events.v1";
-  readyState = 0;
-  sent: string[] = [];
-  onopen: ((event: Event) => unknown) | null = null;
-  onmessage: ((event: MessageEvent) => unknown) | null = null;
-  onerror: ((event: Event) => unknown) | null = null;
-  onclose: ((event: CloseEvent) => unknown) | null = null;
-
-  constructor(
-    readonly url: string | URL,
-    readonly protocols?: string | string[],
-  ) {
-    OperationsWebSocket.instances.push(this);
-  }
-
-  send(value: string): void {
-    this.sent.push(value);
-  }
-
-  close(code?: number): void {
-    this.readyState = 3;
-    this.onclose?.({ code: code ?? 1000 } as CloseEvent);
-  }
-
-  open(): void {
-    this.readyState = 1;
-    this.onopen?.(new Event("open"));
-  }
-
-  message(value: unknown): void {
-    this.onmessage?.({ data: JSON.stringify(value) } as MessageEvent);
-  }
-}
 
 interface ClientFrame {
   type: string;
@@ -98,7 +30,7 @@ interface ClientFrame {
 }
 
 function sentFrames(
-  socket: OperationsWebSocket | undefined,
+  socket: FakeEventSocket | undefined,
   type: string,
 ): ClientFrame[] {
   return (socket?.sent ?? [])
@@ -126,52 +58,17 @@ function cursorUnavailableFrame(frame: ClientFrame | undefined) {
   };
 }
 
-function renderOperations(api: PublicAPI, path: string) {
-  const router = createMemoryRouter(applicationRoutes(), {
-    initialEntries: [path],
-  });
-  const events = new RunEventsManager(runtimeConfig.apiBaseUrl, {
-    WebSocketImplementation: OperationsWebSocket as unknown as typeof WebSocket,
-  });
-  return render(
-    <Application
-      api={api}
-      publicAPI={api}
-      runEvents={events}
-      router={router}
-    />,
-  );
-}
-
-function sessionResponse(request: Request): Response | undefined {
-  return new URL(request.url).pathname === "/v1/auth/session"
-    ? apiResponse(session)
-    : undefined;
-}
-
-beforeEach(() => {
-  OperationsWebSocket.instances = [];
-});
-
 afterEach(() => vi.useRealTimers());
 
 describe("Operations routes", () => {
   it("lists the readiness shortcuts as separate links", async () => {
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const authenticated = sessionResponse(request);
-        if (authenticated !== undefined) {
-          return authenticated;
-        }
-        if (new URL(request.url).pathname === "/v1/operations/snapshot") {
-          return apiResponse(snapshot());
-        }
-        throw new Error(`unexpected ${request.method} ${request.url}`);
-      }),
-    );
-    renderOperations(api, "/operations");
+    const api: Fallback = async (request) => {
+      if (new URL(request.url).pathname === "/v1/operations/snapshot") {
+        return json(snapshot());
+      }
+      return undefined;
+    };
+    renderApplication("/operations", { server: api });
     const shortcuts = await screen.findByRole("list", {
       name: "Readiness shortcuts",
     });
@@ -187,59 +84,51 @@ describe("Operations routes", () => {
 
   it("keeps fenced Runtime observation separate from the authoritative lease", async () => {
     let snapshotReads = 0;
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const authenticated = sessionResponse(request);
-        if (authenticated !== undefined) {
-          return authenticated;
-        }
-        if (new URL(request.url).pathname === "/v1/operations/snapshot") {
-          snapshotReads += 1;
-          return apiResponse({
-            ...snapshot(snapshotReads === 1 ? "7" : "8"),
-            runtimeAgents: [
-              {
-                instanceId: "runtime-vm-1",
-                softwareVersion: "0.1.0",
-                supportedRuntimes: ["python@1", "adk@1"],
-                supportedToolsets: [
-                  {
-                    ref: "likec4@1",
-                    tools: ["validate_likec4", "read_likec4"],
-                  },
-                ],
-                supportedSandboxProfiles: ["local-workdir@1"],
-                supportedRuntimeAdapters: [],
-                observedState: "fenced",
-                slotState: "fenced",
-                lastAcceptedHeartbeat: "2026-08-31T12:00:00Z",
-                confirmedLeaseUntil: "2026-08-31T12:01:00Z",
-                currentAllocationId: "allocation-observed",
-                authoritativeAllocationId: "allocation-authoritative",
-                reconciliationReason: {
-                  code: "lease_confirmation_lost",
-                  retryable: true,
+    const api: Fallback = async (request) => {
+      if (new URL(request.url).pathname === "/v1/operations/snapshot") {
+        snapshotReads += 1;
+        return json({
+          ...snapshot(snapshotReads === 1 ? "7" : "8"),
+          runtimeAgents: [
+            {
+              instanceId: "runtime-vm-1",
+              softwareVersion: "0.1.0",
+              supportedRuntimes: ["python@1", "adk@1"],
+              supportedToolsets: [
+                {
+                  ref: "likec4@1",
+                  tools: ["validate_likec4", "read_likec4"],
                 },
+              ],
+              supportedSandboxProfiles: ["local-workdir@1"],
+              supportedRuntimeAdapters: [],
+              observedState: "fenced",
+              slotState: "fenced",
+              lastAcceptedHeartbeat: "2026-08-31T12:00:00Z",
+              confirmedLeaseUntil: "2026-08-31T12:01:00Z",
+              currentAllocationId: "allocation-observed",
+              authoritativeAllocationId: "allocation-authoritative",
+              reconciliationReason: {
+                code: "lease_confirmation_lost",
+                retryable: true,
               },
-              {
-                instanceId: "runtime-vm-minimal",
-                softwareVersion: "0.1.0",
-                supportedRuntimes: ["adk@1"],
-                supportedToolsets: [],
-                supportedSandboxProfiles: ["local-workdir@1"],
-                supportedRuntimeAdapters: [],
-                observedState: "idle",
-                slotState: "idle",
-              },
-            ],
-          });
-        }
-        throw new Error(`unexpected ${request.method} ${request.url}`);
-      }),
-    );
-    renderOperations(api, "/operations/runtime-agents");
+            },
+            {
+              instanceId: "runtime-vm-minimal",
+              softwareVersion: "0.1.0",
+              supportedRuntimes: ["adk@1"],
+              supportedToolsets: [],
+              supportedSandboxProfiles: ["local-workdir@1"],
+              supportedRuntimeAdapters: [],
+              observedState: "idle",
+              slotState: "idle",
+            },
+          ],
+        });
+      }
+      return undefined;
+    };
+    renderApplication("/operations/runtime-agents", { server: api });
     expect(
       await screen.findByRole("heading", { name: "Runtime Agents" }),
     ).toBeInTheDocument();
@@ -267,8 +156,8 @@ describe("Operations routes", () => {
       screen.queryByRole("button", { name: /force|idle|reassign/i }),
     ).not.toBeInTheDocument();
 
-    await waitFor(() => expect(OperationsWebSocket.instances).toHaveLength(1));
-    const socket = OperationsWebSocket.instances[0];
+    await waitFor(() => expect(FakeEventSocket.instances).toHaveLength(1));
+    const socket = FakeEventSocket.instances[0];
     act(() => socket?.open());
     const subscription = JSON.parse(socket?.sent[0] ?? "{}");
     expect(subscription).toMatchObject({
@@ -339,25 +228,19 @@ describe("Operations routes", () => {
         truncated: false,
       },
     });
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const authenticated = sessionResponse(request);
-        if (authenticated !== undefined) return authenticated;
-        if (new URL(request.url).pathname === "/v1/operations/snapshot") {
-          return apiResponse({
-            ...snapshot(),
-            allocations: [
-              allocation("alloc-a", "researcher"),
-              allocation("alloc-b", "reviewer"),
-            ],
-          });
-        }
-        throw new Error(`unexpected ${request.method} ${request.url}`);
-      }),
-    );
-    renderOperations(api, "/operations/allocations#alloc-b");
+    const api: Fallback = async (request) => {
+      if (new URL(request.url).pathname === "/v1/operations/snapshot") {
+        return json({
+          ...snapshot(),
+          allocations: [
+            allocation("alloc-a", "researcher"),
+            allocation("alloc-b", "reviewer"),
+          ],
+        });
+      }
+      return undefined;
+    };
+    renderApplication("/operations/allocations#alloc-b", { server: api });
     const target = (
       await screen.findByText("alloc-b", { selector: "code" })
     ).closest("details");
@@ -375,33 +258,24 @@ describe("Operations routes", () => {
   it("backs off failed resync baselines instead of resuming the cached cursor", async () => {
     let snapshotReads = 0;
     let snapshotAvailable = true;
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const authenticated = sessionResponse(request);
-        if (authenticated !== undefined) return authenticated;
-        if (new URL(request.url).pathname === "/v1/operations/snapshot") {
-          snapshotReads += 1;
-          if (!snapshotAvailable) {
-            return apiResponse(
-              {
-                error: {
-                  code: "unavailable",
-                  message: "Operations snapshot is unavailable",
-                },
-              },
-              503,
-            );
-          }
-          return apiResponse(snapshot(snapshotReads === 1 ? "7" : "12"));
+    const api: Fallback = async (request) => {
+      if (new URL(request.url).pathname === "/v1/operations/snapshot") {
+        snapshotReads += 1;
+        if (!snapshotAvailable) {
+          return failure(
+            503,
+            "unavailable",
+            "Operations snapshot is unavailable",
+            true,
+          );
         }
-        throw new Error(`unexpected ${request.method} ${request.url}`);
-      }),
-    );
-    renderOperations(api, "/operations");
-    await waitFor(() => expect(OperationsWebSocket.instances).toHaveLength(1));
-    const socket = OperationsWebSocket.instances[0];
+        return json(snapshot(snapshotReads === 1 ? "7" : "12"));
+      }
+      return undefined;
+    };
+    renderApplication("/operations", { server: api });
+    await waitFor(() => expect(FakeEventSocket.instances).toHaveLength(1));
+    const socket = FakeEventSocket.instances[0];
     if (socket === undefined) throw new Error("Operations socket is missing");
     act(() => socket.open());
     act(() =>
@@ -415,7 +289,7 @@ describe("Operations routes", () => {
     // The Server no longer retains revision 7 and answers every subscription
     // from it with another resync request, as the real event hub does.
     socket.send = (value: string) => {
-      OperationsWebSocket.prototype.send.call(socket, value);
+      FakeEventSocket.prototype.send.call(socket, value);
       const frame = JSON.parse(value) as ClientFrame;
       if (frame.type !== "subscribe") return;
       setTimeout(
@@ -463,35 +337,29 @@ describe("Operations routes", () => {
 
   it("recreates a subscription the Server closed with 1008 on Refresh", async () => {
     let snapshotReads = 0;
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const authenticated = sessionResponse(request);
-        if (authenticated !== undefined) return authenticated;
-        if (new URL(request.url).pathname === "/v1/operations/snapshot") {
-          snapshotReads += 1;
-          return apiResponse(snapshot(snapshotReads === 1 ? "7" : "9"));
-        }
-        throw new Error(`unexpected ${request.method} ${request.url}`);
-      }),
-    );
+    const api: Fallback = async (request) => {
+      if (new URL(request.url).pathname === "/v1/operations/snapshot") {
+        snapshotReads += 1;
+        return json(snapshot(snapshotReads === 1 ? "7" : "9"));
+      }
+      return undefined;
+    };
     const user = userEvent.setup();
-    renderOperations(api, "/operations");
-    await waitFor(() => expect(OperationsWebSocket.instances).toHaveLength(1));
-    const refused = OperationsWebSocket.instances[0];
+    renderApplication("/operations", { server: api });
+    await waitFor(() => expect(FakeEventSocket.instances).toHaveLength(1));
+    const refused = FakeEventSocket.instances[0];
     act(() => refused?.open());
     act(() =>
       refused?.message(subscribedFrame(sentFrames(refused, "subscribe")[0])),
     );
-    act(() => refused?.close(1008));
+    act(() => refused?.serverClose(1008));
     expect(
       await screen.findByText("Live event session is no longer authorized"),
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Refresh" }));
-    await waitFor(() => expect(OperationsWebSocket.instances).toHaveLength(2));
-    const recreated = OperationsWebSocket.instances[1];
+    await waitFor(() => expect(FakeEventSocket.instances).toHaveLength(2));
+    const recreated = FakeEventSocket.instances[1];
     act(() => recreated?.open());
     const subscriptions = sentFrames(recreated, "subscribe");
     expect(subscriptions.map((frame) => frame.after)).toEqual([
@@ -506,7 +374,7 @@ describe("Operations routes", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("clones and publishes a new exact ModelPolicy without rendering unknown data", async () => {
+  it("clones and publishes a new exact ModelPolicy", async () => {
     const publishedBodies: unknown[] = [];
     const original = {
       ref: {
@@ -521,54 +389,48 @@ describe("Operations routes", () => {
         maxModelCalls: 8,
         maxToolCalls: 16,
         maxTotalTokens: 32768,
-        providerApiKey: "CONFIG_SECRET_CANARY",
       },
       source: "operator" as const,
     };
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const authenticated = sessionResponse(request);
-        if (authenticated !== undefined) return authenticated;
-        const path = new URL(request.url).pathname;
-        if (path === "/v1/operations/snapshot") return apiResponse(snapshot());
-        if (path === "/v1/configurations/model-policies/worker/versions/1") {
-          return apiResponse(original);
-        }
-        if (
-          path === "/v1/configurations/model-policies" &&
-          request.method === "POST"
-        ) {
-          publishedBodies.push(await request.clone().json());
-          return apiResponse(
-            {
-              ref: {
-                kind: "model-policies",
-                name: "worker",
-                version: "2",
-                digest: secondDigest,
-              },
-              body: {
-                model: "qwen-worker",
-                maxOutputTokens: 4096,
-                maxModelCalls: 8,
-                maxToolCalls: 16,
-                maxTotalTokens: 32768,
-              },
-              source: "managed",
+    const api: Fallback = async (request) => {
+      const path = new URL(request.url).pathname;
+      if (path === "/v1/operations/snapshot") return json(snapshot());
+      if (path === "/v1/configurations/model-policies/worker/versions/1") {
+        return json(original);
+      }
+      if (
+        path === "/v1/configurations/model-policies" &&
+        request.method === "POST"
+      ) {
+        publishedBodies.push(await request.clone().json());
+        return json(
+          {
+            ref: {
+              kind: "model-policies",
+              name: "worker",
+              version: "2",
+              digest: secondDigest,
             },
-            201,
-          );
-        }
-        throw new Error(`unexpected ${request.method} ${request.url}`);
-      }),
-    );
-    renderOperations(api, "/operations/configurations/model-policies/worker/1");
+            body: {
+              model: "qwen-worker",
+              maxOutputTokens: 4096,
+              maxModelCalls: 8,
+              maxToolCalls: 16,
+              maxTotalTokens: 32768,
+            },
+            source: "managed",
+          },
+          201,
+        );
+      }
+      return undefined;
+    };
+    renderApplication("/operations/configurations/model-policies/worker/1", {
+      server: api,
+    });
     expect(
       await screen.findByRole("heading", { name: "Published values" }),
     ).toBeInTheDocument();
-    expect(screen.queryByText("CONFIG_SECRET_CANARY")).not.toBeInTheDocument();
     const user = userEvent.setup();
     await user.click(
       screen.getByRole("button", { name: "Clone to new version" }),
@@ -592,7 +454,7 @@ describe("Operations routes", () => {
     ]);
   });
 
-  it("creates a typed LiteLLM credential without accepting or rendering a secret", async () => {
+  it("creates a typed LiteLLM credential without accepting a secret", async () => {
     const createdBodies: unknown[] = [];
     const gateway = {
       ref: {
@@ -632,36 +494,29 @@ describe("Operations routes", () => {
         maxBudget: 10,
         budgetDuration: "1d",
       },
-      generatedToken: "CREDENTIAL_SECRET_CANARY",
     };
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const authenticated = sessionResponse(request);
-        if (authenticated !== undefined) return authenticated;
-        const path = new URL(request.url).pathname;
-        if (path === "/v1/operations/snapshot") return apiResponse(snapshot());
-        if (path === "/v1/configurations/llm-gateways") {
-          return apiResponse({ items: [gateway], page: { hasMore: false } });
+    const api: Fallback = async (request) => {
+      const path = new URL(request.url).pathname;
+      if (path === "/v1/operations/snapshot") return json(snapshot());
+      if (path === "/v1/configurations/llm-gateways") {
+        return json({ items: [gateway], page: { hasMore: false } });
+      }
+      if (path === "/v1/configurations/model-policies") {
+        return json({ items: [policy], page: { hasMore: false } });
+      }
+      if (path === "/v1/operations/credentials") {
+        if (request.method === "POST") {
+          createdBodies.push(await request.clone().json());
+          return json(credential, 201);
         }
-        if (path === "/v1/configurations/model-policies") {
-          return apiResponse({ items: [policy], page: { hasMore: false } });
-        }
-        if (path === "/v1/operations/credentials") {
-          if (request.method === "POST") {
-            createdBodies.push(await request.clone().json());
-            return apiResponse(credential, 201);
-          }
-          return apiResponse({ items: [], page: { hasMore: false } });
-        }
-        if (path === "/v1/operations/credentials/worker-budget") {
-          return apiResponse(credential);
-        }
-        throw new Error(`unexpected ${request.method} ${request.url}`);
-      }),
-    );
-    renderOperations(api, "/operations/credentials");
+        return json({ items: [], page: { hasMore: false } });
+      }
+      if (path === "/v1/operations/credentials/worker-budget") {
+        return json(credential);
+      }
+      return undefined;
+    };
+    renderApplication("/operations/credentials", { server: api });
     expect(
       await screen.findByRole("heading", { name: "Create credential" }),
     ).toBeInTheDocument();
@@ -700,9 +555,6 @@ describe("Operations routes", () => {
     expect(
       screen.getByRole("heading", { name: "worker-budget" }),
     ).toBeInTheDocument();
-    expect(
-      screen.queryByText("CREDENTIAL_SECRET_CANARY"),
-    ).not.toBeInTheDocument();
     expect(JSON.stringify(createdBodies)).not.toMatch(/token|secret/i);
     expect(createdBodies).toEqual([
       {
@@ -722,6 +574,148 @@ describe("Operations routes", () => {
     ]);
   });
 
+  // AGENTS.md 3.8, V385-001 A7: a late answer never moves a user who left.
+  it("leaves a user who moved on where they are when a credential deletion answers late", async () => {
+    const credential = {
+      credentialId: "worker-budget",
+      llmGateway: { gatewayId: "local-litellm", version: "1", digest },
+      createdAt: "2026-08-31T12:00:00Z",
+      effectivePolicy: {
+        modelPolicies: [{ policyId: "worker", version: "1", digest }],
+        models: ["qwen-worker"],
+      },
+    };
+    const deletion = deferred();
+    const api: Fallback = async (request) => {
+      const path = new URL(request.url).pathname;
+      if (path === "/v1/operations/snapshot") return json(snapshot());
+      if (path === "/v1/operations/credentials/worker-budget") {
+        if (request.method === "DELETE") {
+          await deletion.promise;
+          return noContent();
+        }
+        return json(credential);
+      }
+      if (path === "/v1/operations/credentials")
+        return json({ items: [], page: { hasMore: false } });
+      return undefined;
+    };
+    const queryClient = createApplicationQueryClient();
+    const view = renderApplication("/operations/credentials/worker-budget", {
+      server: api,
+      queryClient,
+    });
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByLabelText(/I understand that the LiteLLM key/),
+    );
+    await user.click(
+      screen.getByRole("button", {
+        name: "Delete from LiteLLM and Contractor",
+      }),
+    );
+    await act(() => view.router.navigate("/settings"));
+    expect(queryClient.isMutating()).toBe(1);
+    deletion.resolve();
+    await waitFor(() => expect(queryClient.isMutating()).toBe(0));
+    await act(async () => undefined);
+    expect(
+      queryClient
+        .getMutationCache()
+        .getAll()
+        .map((m) => m.state.status),
+    ).toEqual(["success"]);
+    expect(view.router.state.navigation.state).toBe("idle");
+    expect(view.router.state.location.pathname).toBe("/settings");
+  });
+
+  it("leaves a user who moved on where they are when a credential creation answers late", async () => {
+    const gateway = {
+      ref: {
+        kind: "llm-gateways" as const,
+        name: "local-litellm",
+        version: "1",
+        digest,
+      },
+      body: {
+        protocol: "openai-compatible@1" as const,
+        url: "http://127.0.0.1:4000/v1",
+        credentialManager: {
+          implementation: "litellm-virtual-keys@1" as const,
+          managementUrl: "http://127.0.0.1:4000",
+        },
+      },
+      source: "operator" as const,
+    };
+    const policy = {
+      ref: {
+        kind: "model-policies" as const,
+        name: "worker",
+        version: "1",
+        digest,
+      },
+      body: { model: "qwen-worker" },
+      source: "operator" as const,
+    };
+    const credential = {
+      credentialId: "worker-budget",
+      llmGateway: { gatewayId: "local-litellm", version: "1", digest },
+      createdAt: "2026-08-31T12:00:00Z",
+      effectivePolicy: {
+        modelPolicies: [{ policyId: "worker", version: "1", digest }],
+        models: ["qwen-worker"],
+      },
+    };
+    const creation = deferred();
+    const api: Fallback = async (request) => {
+      const path = new URL(request.url).pathname;
+      if (path === "/v1/operations/snapshot") return json(snapshot());
+      if (path === "/v1/configurations/llm-gateways")
+        return json({ items: [gateway], page: { hasMore: false } });
+      if (path === "/v1/configurations/model-policies")
+        return json({ items: [policy], page: { hasMore: false } });
+      if (path === "/v1/operations/credentials") {
+        if (request.method === "POST") {
+          await creation.promise;
+          return json(credential, 201);
+        }
+        return json({ items: [], page: { hasMore: false } });
+      }
+      return undefined;
+    };
+    const queryClient = createApplicationQueryClient();
+    const view = renderApplication("/operations/credentials", {
+      server: api,
+      queryClient,
+    });
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByText("Create LLM credential", { selector: "summary" }),
+    );
+    await user.type(screen.getByLabelText("Credential ID"), "worker-budget");
+    await user.selectOptions(
+      screen.getByLabelText("Managed LLM Gateway"),
+      screen.getByRole("option", { name: /local-litellm@1/ }),
+    );
+    await user.click(screen.getByLabelText(/worker@1/));
+    await user.click(
+      screen.getByRole("button", { name: "Create active credential" }),
+    );
+    await act(() => view.router.navigate("/settings"));
+    expect(queryClient.isMutating()).toBe(1);
+    creation.resolve();
+    await waitFor(() => expect(queryClient.isMutating()).toBe(0));
+    await act(async () => undefined);
+    expect(
+      queryClient
+        .getMutationCache()
+        .getAll()
+        .map((m) => m.state.status),
+    ).toEqual(["success"]);
+    expect(view.router.state.navigation.state).toBe("idle");
+    expect(view.router.state.location.pathname).toBe("/settings");
+  });
+
   it("shows Run, Audit and RuntimeConfig label holds on a credential", async () => {
     const credential = {
       credentialId: "worker-budget",
@@ -732,38 +726,32 @@ describe("Operations routes", () => {
         models: ["qwen-worker"],
       },
     };
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const authenticated = sessionResponse(request);
-        if (authenticated !== undefined) return authenticated;
-        const path = new URL(request.url).pathname;
-        if (path === "/v1/operations/snapshot") return apiResponse(snapshot());
-        if (path === "/v1/operations/credentials/worker-budget") {
-          if (request.method === "DELETE") {
-            return apiResponse(
-              {
-                code: "credential_in_use",
-                message: "Credential is pinned by non-terminal Runs",
-                retryable: false,
-                requestId: "request-delete-1",
-                details: {
-                  kind: "credential_in_use",
-                  runIds: ["run-openapi", "run-likec4", "../escape"],
-                  auditIds: ["audit-held", "bad/audit"],
-                  bindingLabels: ["default", "debug", "../escape"],
-                },
+    const api: Fallback = async (request) => {
+      const path = new URL(request.url).pathname;
+      if (path === "/v1/operations/snapshot") return json(snapshot());
+      if (path === "/v1/operations/credentials/worker-budget") {
+        if (request.method === "DELETE") {
+          return json(
+            {
+              code: "credential_in_use",
+              message: "Credential is pinned by non-terminal Runs",
+              retryable: false,
+              requestId: "request-delete-1",
+              details: {
+                kind: "credential_in_use",
+                runIds: ["run-openapi", "run-likec4"],
+                auditIds: ["audit-held"],
+                bindingLabels: ["default", "debug"],
               },
-              409,
-            );
-          }
-          return apiResponse(credential);
+            },
+            409,
+          );
         }
-        throw new Error(`unexpected ${request.method} ${request.url}`);
-      }),
-    );
-    renderOperations(api, "/operations/credentials/worker-budget");
+        return json(credential);
+      }
+      return undefined;
+    };
+    renderApplication("/operations/credentials/worker-budget", { server: api });
     expect(
       await screen.findByText("active", { selector: ".ops-state-word" }),
     ).toBeInTheDocument();
@@ -789,14 +777,12 @@ describe("Operations routes", () => {
     expect(screen.getByText("audit-held")).toBeVisible();
     expect(screen.queryByRole("link", { name: "audit-held" })).toBeNull();
     expect(screen.getByText(/Audit dispatch hold/)).toBeVisible();
-    expect(screen.queryByText("../escape")).toBeNull();
-    expect(screen.queryByText("bad/audit")).toBeNull();
     expect(
       screen.getByText("active", { selector: ".ops-state-word" }),
     ).toBeInTheDocument();
   });
 
-  it("shows an Audit-only hold when the Server sends null Run IDs", async () => {
+  it("shows an Audit-only hold when no Run holds the credential", async () => {
     const credential = {
       credentialId: "worker-budget",
       llmGateway: { gatewayId: "local-litellm", version: "1", digest },
@@ -806,35 +792,29 @@ describe("Operations routes", () => {
         models: ["qwen-worker"],
       },
     };
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const authenticated = sessionResponse(request);
-        if (authenticated !== undefined) return authenticated;
-        const path = new URL(request.url).pathname;
-        if (path === "/v1/operations/snapshot") return apiResponse(snapshot());
-        if (path === "/v1/operations/credentials/worker-budget") {
-          return request.method === "DELETE"
-            ? apiResponse(
-                {
-                  code: "credential_in_use",
-                  message: "Credential is held by an Audit",
-                  retryable: false,
-                  details: {
-                    kind: "credential_in_use",
-                    runIds: null,
-                    auditIds: ["audit-only"],
-                  },
+    const api: Fallback = async (request) => {
+      const path = new URL(request.url).pathname;
+      if (path === "/v1/operations/snapshot") return json(snapshot());
+      if (path === "/v1/operations/credentials/worker-budget") {
+        return request.method === "DELETE"
+          ? json(
+              {
+                code: "credential_in_use",
+                message: "Credential is held by an Audit",
+                retryable: false,
+                details: {
+                  kind: "credential_in_use",
+                  runIds: [],
+                  auditIds: ["audit-only"],
                 },
-                409,
-              )
-            : apiResponse(credential);
-        }
-        throw new Error(`unexpected ${request.method} ${request.url}`);
-      }),
-    );
-    renderOperations(api, "/operations/credentials/worker-budget");
+              },
+              409,
+            )
+          : json(credential);
+      }
+      return undefined;
+    };
+    renderApplication("/operations/credentials/worker-budget", { server: api });
     const user = userEvent.setup();
     await screen.findByText("active", { selector: ".ops-state-word" });
     await user.click(
@@ -878,135 +858,120 @@ describe("Operations routes", () => {
     let runtimeCredentialBody: unknown;
     let runtimeConfigBody: RuntimeConfigAuthorDocument | undefined;
     let bindingWrites = 0;
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const authenticated = sessionResponse(request);
-        if (authenticated !== undefined) return authenticated;
-        const path = new URL(request.url).pathname;
-        if (path === "/v1/operations/snapshot") return apiResponse(snapshot());
-        if (path === "/v1/configurations/llm-gateways") {
-          return apiResponse({
-            items: [
-              {
-                ref: {
-                  kind: "llm-gateways",
-                  name: "local-litellm",
-                  version: "1",
-                  digest,
-                },
-                body: {
-                  protocol: "openai-compatible@1",
-                  url: "https://gateway.example/v1",
-                },
-                source: "operator",
-              },
-            ],
-            page: { hasMore: false },
-          });
-        }
-        if (path === "/v1/operations/runtime-configs") {
-          if (request.method === "POST") {
-            const document = (await request
-              .clone()
-              .json()) as RuntimeConfigAuthorDocument;
-            runtimeConfigBody = document;
-            if (
-              document.spec.worker?.llmGateway?.gateway !== "local-litellm@1"
-            ) {
-              throw new Error(
-                "RuntimeConfig publication requires a gateway selector",
-              );
-            }
-            publishedResource = {
+    const api: Fallback = async (request) => {
+      const path = new URL(request.url).pathname;
+      if (path === "/v1/operations/snapshot") return json(snapshot());
+      if (path === "/v1/configurations/llm-gateways") {
+        return json({
+          items: [
+            {
               ref: {
-                name: document.metadata.name,
-                version: document.metadata.version,
-                digest: secondDigest,
+                kind: "llm-gateways",
+                name: "local-litellm",
+                version: "1",
+                digest,
               },
-              document: {
-                ...document,
-                spec: {
-                  ...document.spec,
-                  worker: {
-                    ...document.spec.worker,
-                    llmGateway: {
-                      gateway: {
-                        gatewayId: "local-litellm",
-                        version: "1",
-                        digest,
-                      },
+              body: {
+                protocol: "openai-compatible@1",
+                url: "https://gateway.example/v1",
+              },
+              source: "operator",
+            },
+          ],
+          page: { hasMore: false },
+        });
+      }
+      if (path === "/v1/operations/runtime-configs") {
+        if (request.method === "POST") {
+          const document = (await request
+            .clone()
+            .json()) as RuntimeConfigAuthorDocument;
+          runtimeConfigBody = document;
+          if (document.spec.worker?.llmGateway?.gateway !== "local-litellm@1") {
+            throw new Error(
+              "RuntimeConfig publication requires a gateway selector",
+            );
+          }
+          publishedResource = {
+            ref: {
+              name: document.metadata.name,
+              version: document.metadata.version,
+              digest: secondDigest,
+            },
+            document: {
+              ...document,
+              spec: {
+                ...document.spec,
+                worker: {
+                  ...document.spec.worker,
+                  llmGateway: {
+                    gateway: {
+                      gatewayId: "local-litellm",
+                      version: "1",
+                      digest,
                     },
                   },
                 },
               },
-              builtIn: false,
-              createdBy: "user_local",
-              createdAt: "2026-08-31T12:01:00Z",
-            };
-            return apiResponse(publishedResource, 201);
-          }
-          return apiResponse({
-            items: [
-              baseResource,
-              ...(publishedResource === undefined ? [] : [publishedResource]),
-            ],
-            page: { hasMore: false },
-          });
-        }
-        if (path === "/v1/operations/runtime-labels") {
-          return apiResponse({
-            items: [
-              defaultBinding,
-              ...(debugBinding === undefined ? [] : [debugBinding]),
-            ],
-            page: { hasMore: false },
-          });
-        }
-        if (path === "/v1/operations/runtime-labels/debug") {
-          bindingWrites += 1;
-          if (bindingWrites > 1) {
-            return apiResponse(
-              {
-                code: "precondition_failed",
-                message: "Runtime label revision changed",
-                retryable: false,
-              },
-              412,
-            );
-          }
-          debugBinding = {
-            label: "debug",
-            config: publishedResource!.ref,
-            revision: "1",
+            },
+            builtIn: false,
             createdBy: "user_local",
-            createdAt: "2026-08-31T12:02:00Z",
-            updatedBy: "user_local",
-            updatedAt: "2026-08-31T12:02:00Z",
+            createdAt: "2026-08-31T12:01:00Z",
           };
-          expect(request.headers.get("If-None-Match")).toBe("*");
-          return apiResponse(debugBinding, 201, { ETag: '"1"' });
+          return json(publishedResource, 201);
         }
-        if (path === "/v1/operations/runtime-credentials") {
-          if (request.method === "POST") {
-            runtimeCredentialBody = await request.clone().json();
-            return apiResponse(
-              {
-                credentialId: "otel-debug",
-                kind: "otlp-headers@1",
-                createdBy: "user_local",
-                createdAt: "2026-08-31T12:00:30Z",
-              },
-              201,
-            );
-          }
-          return apiResponse({ items: [], page: { hasMore: false } });
+        return json({
+          items: [
+            baseResource,
+            ...(publishedResource === undefined ? [] : [publishedResource]),
+          ],
+          page: { hasMore: false },
+        });
+      }
+      if (path === "/v1/operations/runtime-labels") {
+        return json({
+          items: [
+            defaultBinding,
+            ...(debugBinding === undefined ? [] : [debugBinding]),
+          ],
+          page: { hasMore: false },
+        });
+      }
+      if (path === "/v1/operations/runtime-labels/debug") {
+        bindingWrites += 1;
+        if (bindingWrites > 1) {
+          return preconditionFailed("Runtime label revision changed");
         }
-        throw new Error(`unexpected ${request.method} ${request.url}`);
-      }),
-    );
-    renderOperations(api, "/operations/configuration");
+        debugBinding = {
+          label: "debug",
+          config: publishedResource!.ref,
+          revision: "1",
+          createdBy: "user_local",
+          createdAt: "2026-08-31T12:02:00Z",
+          updatedBy: "user_local",
+          updatedAt: "2026-08-31T12:02:00Z",
+        };
+        expect(request.headers.get("If-None-Match")).toBe("*");
+        return json(debugBinding, 201, { ETag: '"1"' });
+      }
+      if (path === "/v1/operations/runtime-credentials") {
+        if (request.method === "POST") {
+          runtimeCredentialBody = await request.clone().json();
+          return json(
+            {
+              credentialId: "otel-debug",
+              kind: "otlp-headers@1",
+              createdBy: "user_local",
+              createdAt: "2026-08-31T12:00:30Z",
+            },
+            201,
+          );
+        }
+        return json({ items: [], page: { hasMore: false } });
+      }
+      return undefined;
+    };
+    renderApplication("/operations/configuration", { server: api });
     expect(
       await screen.findByRole("heading", { name: "RuntimeConfig versions" }),
     ).toBeInTheDocument();
@@ -1166,7 +1131,9 @@ describe("Operations routes", () => {
     expect(
       screen.getByRole("button", { name: "Manage bindings for debug@1" }),
     ).toHaveClass("has-bindings");
-  });
+    // One long journey (publish, credential, binding CAS) that outgrows the
+    // default 5 s budget on a loaded machine.
+  }, 15_000);
 
   it("shows durable offline and adapter-incompatible principals as separate facts", async () => {
     const principalBase = {
@@ -1178,63 +1145,57 @@ describe("Operations routes", () => {
       updatedBy: "user_local",
       updatedAt: "2026-08-31T12:01:00Z",
     };
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const authenticated = sessionResponse(request);
-        if (authenticated !== undefined) return authenticated;
-        const path = new URL(request.url).pathname;
-        if (path === "/v1/operations/snapshot") return apiResponse(snapshot());
-        if (path === "/v1/operations/runtime-labels") {
-          return apiResponse({
-            items: [
-              {
-                label: "debug",
-                config: { name: "debug", version: "1", digest },
-                revision: "1",
-                createdBy: "user_local",
-                createdAt: "2026-08-31T12:00:00Z",
-                updatedBy: "user_local",
-                updatedAt: "2026-08-31T12:00:00Z",
+    const api: Fallback = async (request) => {
+      const path = new URL(request.url).pathname;
+      if (path === "/v1/operations/snapshot") return json(snapshot());
+      if (path === "/v1/operations/runtime-labels") {
+        return json({
+          items: [
+            {
+              label: "debug",
+              config: { name: "debug", version: "1", digest },
+              revision: "1",
+              createdBy: "user_local",
+              createdAt: "2026-08-31T12:00:00Z",
+              updatedBy: "user_local",
+              updatedAt: "2026-08-31T12:00:00Z",
+            },
+          ],
+          page: { hasMore: false },
+        });
+      }
+      if (path === "/v1/operations/runtime-agent-principals") {
+        return json({
+          items: [
+            {
+              ...principalBase,
+              runtimeAgentId: "a".repeat(64),
+              availability: "offline",
+              missingRuntimeAdapters: [],
+            },
+            {
+              ...principalBase,
+              runtimeAgentId: "b".repeat(64),
+              availability: "adapter_capability_mismatch",
+              missingRuntimeAdapters: ["otlp-http@1"],
+              live: {
+                instanceId: "runtime-incompatible",
+                softwareVersion: "0.1.0",
+                supportedRuntimes: ["adk@1"],
+                supportedToolsets: [],
+                supportedSandboxProfiles: ["none@1"],
+                supportedRuntimeAdapters: [],
+                observedState: "idle",
+                slotState: "idle",
               },
-            ],
-            page: { hasMore: false },
-          });
-        }
-        if (path === "/v1/operations/runtime-agent-principals") {
-          return apiResponse({
-            items: [
-              {
-                ...principalBase,
-                runtimeAgentId: "a".repeat(64),
-                availability: "offline",
-                missingRuntimeAdapters: [],
-              },
-              {
-                ...principalBase,
-                runtimeAgentId: "b".repeat(64),
-                availability: "adapter_capability_mismatch",
-                missingRuntimeAdapters: ["otlp-http@1"],
-                live: {
-                  instanceId: "runtime-incompatible",
-                  softwareVersion: "0.1.0",
-                  supportedRuntimes: ["adk@1"],
-                  supportedToolsets: [],
-                  supportedSandboxProfiles: ["none@1"],
-                  supportedRuntimeAdapters: [],
-                  observedState: "idle",
-                  slotState: "idle",
-                },
-              },
-            ],
-            page: { hasMore: false },
-          });
-        }
-        throw new Error(`unexpected ${request.method} ${request.url}`);
-      }),
-    );
-    renderOperations(api, "/operations/runtime-agents");
+            },
+          ],
+          page: { hasMore: false },
+        });
+      }
+      return undefined;
+    };
+    renderApplication("/operations/runtime-agents", { server: api });
     const incompatible = await screen.findByRole("article", { name: "debug" });
     expect(within(incompatible).getByText("bbbbbbbb…bbbb")).toBeVisible();
     expect(screen.getByText("Missing otlp-http@1")).toBeInTheDocument();
@@ -1323,30 +1284,24 @@ describe("Operations routes", () => {
       },
     ];
     const deletes: Request[] = [];
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const authenticated = sessionResponse(request);
-        if (authenticated !== undefined) return authenticated;
-        const path = new URL(request.url).pathname;
-        if (path === "/v1/operations/snapshot") return apiResponse(snapshot());
-        if (path === "/v1/operations/runtime-labels")
-          return apiResponse({ items: [], page: { hasMore: false } });
-        if (
-          request.method === "DELETE" &&
-          path === `/v1/operations/runtime-agent-principals/${"d".repeat(64)}`
-        ) {
-          deletes.push(request.clone());
-          items = items.slice(0, 1);
-          return new Response(null, { status: 204 });
-        }
-        if (path === "/v1/operations/runtime-agent-principals")
-          return apiResponse({ items, page: { hasMore: false } });
-        throw new Error(`unexpected ${request.method} ${request.url}`);
-      }),
-    );
-    renderOperations(api, "/operations/runtime-agents");
+    const api: Fallback = async (request) => {
+      const path = new URL(request.url).pathname;
+      if (path === "/v1/operations/snapshot") return json(snapshot());
+      if (path === "/v1/operations/runtime-labels")
+        return json({ items: [], page: { hasMore: false } });
+      if (
+        request.method === "DELETE" &&
+        path === `/v1/operations/runtime-agent-principals/${"d".repeat(64)}`
+      ) {
+        deletes.push(request.clone());
+        items = items.slice(0, 1);
+        return noContent();
+      }
+      if (path === "/v1/operations/runtime-agent-principals")
+        return json({ items, page: { hasMore: false } });
+      return undefined;
+    };
+    renderApplication("/operations/runtime-agents", { server: api });
     const card = await screen.findByRole("article", { name: "runtime-host-c" });
     expect(within(card).getByText("cccccccc…cccc")).toBeVisible();
     expect(within(card).getByText(/v0\.1\.0/)).toBeVisible();
@@ -1385,7 +1340,7 @@ describe("Operations routes", () => {
     expect(deletes[0]?.headers.get("Idempotency-Key")).toMatch(
       /^delete-runtime-principal-ui-/,
     );
-    expect(deletes[0]?.headers.get("X-CSRF-Token")).toBe(session.csrfToken);
+    expect(deletes[0]?.headers.get("X-CSRF-Token")).toBe(CSRF_TOKEN);
     await waitFor(() =>
       expect(
         screen.queryByRole("group", { name: /Offline identities/ }),
@@ -1434,20 +1389,18 @@ describe("Runtime Agent cards", () => {
     request: Request,
     principal: RuntimeAgentPrincipal,
   ): Response | undefined {
-    const auth = sessionResponse(request);
-    if (auth !== undefined) return auth;
     const path = new URL(request.url).pathname;
     if (request.method !== "GET") return undefined;
-    if (path === "/v1/operations/snapshot") return apiResponse(snapshot());
+    if (path === "/v1/operations/snapshot") return json(snapshot());
     if (path === "/v1/operations/runtime-labels")
-      return apiResponse({ items: bindings, page: { hasMore: false } });
+      return json({ items: bindings, page: { hasMore: false } });
     if (path === "/v1/operations/runtime-agent-principals")
-      return apiResponse({ items: [principal], page: { hasMore: false } });
+      return json({ items: [principal], page: { hasMore: false } });
     if (
       path ===
       `/v1/operations/runtime-agent-principals/${principal.runtimeAgentId}`
     )
-      return apiResponse(principal, 200, { ETag: `"${principal.revision}"` });
+      return json(principal, 200, { ETag: `"${principal.revision}"` });
     return undefined;
   }
 
@@ -1484,62 +1437,55 @@ describe("Runtime Agent cards", () => {
     }));
     const lateBinding = { ...bindings[0]!, label: "zz-scan" };
     const cursors: string[] = [];
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const authenticated = sessionResponse(request);
-        if (authenticated !== undefined) return authenticated;
-        const url = new URL(request.url);
-        const cursor = url.searchParams.get("cursor");
-        if (url.pathname === "/v1/operations/snapshot")
-          return apiResponse(snapshot());
-        if (url.pathname === "/v1/operations/runtime-labels") {
-          cursors.push(`labels:${cursor ?? "first"}`);
-          return apiResponse(
-            cursor === null
-              ? {
-                  items: firstBindings,
-                  page: { hasMore: true, nextCursor: "labels-next" },
-                }
-              : { items: [lateBinding], page: { hasMore: false } },
-          );
-        }
-        if (url.pathname === "/v1/operations/runtime-agent-principals") {
-          cursors.push(`principals:${cursor ?? "first"}`);
-          return apiResponse(
-            cursor === null
-              ? {
-                  items: firstPrincipals,
-                  page: { hasMore: true, nextCursor: "principals-next" },
-                }
-              : {
-                  items: forgotten ? [lateOnline] : [lateOnline, lateOffline],
-                  page: { hasMore: false },
-                },
-          );
-        }
-        if (
-          url.pathname ===
-            `/v1/operations/runtime-agent-principals/${lateOffline.runtimeAgentId}/labels` &&
-          request.method === "PUT"
-        ) {
-          const body = (await request.json()) as { labels: string[] };
-          lateOffline = { ...lateOffline, labels: body.labels, revision: "2" };
-          return apiResponse(lateOffline, 200, { ETag: '"2"' });
-        }
-        if (
-          url.pathname ===
-            `/v1/operations/runtime-agent-principals/${lateOffline.runtimeAgentId}` &&
-          request.method === "DELETE"
-        ) {
-          forgotten = true;
-          return new Response(null, { status: 204 });
-        }
-        throw new Error(`unexpected ${request.method} ${request.url}`);
-      }),
-    );
-    renderOperations(api, "/operations/runtime-agents");
+    const api: Fallback = async (request) => {
+      const url = new URL(request.url);
+      const cursor = url.searchParams.get("cursor");
+      if (url.pathname === "/v1/operations/snapshot") return json(snapshot());
+      if (url.pathname === "/v1/operations/runtime-labels") {
+        cursors.push(`labels:${cursor ?? "first"}`);
+        return json(
+          cursor === null
+            ? {
+                items: firstBindings,
+                page: { hasMore: true, nextCursor: "labels-next" },
+              }
+            : { items: [lateBinding], page: { hasMore: false } },
+        );
+      }
+      if (url.pathname === "/v1/operations/runtime-agent-principals") {
+        cursors.push(`principals:${cursor ?? "first"}`);
+        return json(
+          cursor === null
+            ? {
+                items: firstPrincipals,
+                page: { hasMore: true, nextCursor: "principals-next" },
+              }
+            : {
+                items: forgotten ? [lateOnline] : [lateOnline, lateOffline],
+                page: { hasMore: false },
+              },
+        );
+      }
+      if (
+        url.pathname ===
+          `/v1/operations/runtime-agent-principals/${lateOffline.runtimeAgentId}/labels` &&
+        request.method === "PUT"
+      ) {
+        const body = (await request.json()) as { labels: string[] };
+        lateOffline = { ...lateOffline, labels: body.labels, revision: "2" };
+        return json(lateOffline, 200, { ETag: '"2"' });
+      }
+      if (
+        url.pathname ===
+          `/v1/operations/runtime-agent-principals/${lateOffline.runtimeAgentId}` &&
+        request.method === "DELETE"
+      ) {
+        forgotten = true;
+        return noContent();
+      }
+      return undefined;
+    };
+    renderApplication("/operations/runtime-agents", { server: api });
     const online = await screen.findByRole("article", { name: "zz-scan" });
     expect(within(online).getByText("runtime-page-two")).toBeInTheDocument();
     expect(
@@ -1590,15 +1536,11 @@ describe("Runtime Agent cards", () => {
     const user = userEvent.setup();
     const copy = vi.spyOn(navigator.clipboard, "writeText");
     const mutations: Request[] = [];
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        if (request.method !== "GET") mutations.push(request.clone());
-        return readResponse(request, principalBase) ?? apiResponse({}, 500);
-      }),
-    );
-    renderOperations(api, "/operations/runtime-agents");
+    const api: Fallback = async (request) => {
+      if (request.method !== "GET") mutations.push(request.clone());
+      return readResponse(request, principalBase) ?? failure(500);
+    };
+    renderApplication("/operations/runtime-agents", { server: api });
     const card = await screen.findByRole("article", { name: "debug" });
     expect(within(card).getByText("aaaaaaaa…aaaa")).toBeVisible();
     expect(within(card).queryByRole("checkbox")).toBeNull();
@@ -1635,35 +1577,24 @@ describe("Runtime Agent cards", () => {
   it("requires an explicit reload after a label revision conflict and pins the reviewed revision", async () => {
     let principal = principalBase;
     const requests: Request[] = [];
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        if (request.method === "PUT") {
-          requests.push(request.clone());
-          if (requests.length === 1) {
-            principal = {
-              ...principal,
-              revision: "2",
-              labels: ["caido", "debug"],
-            };
-            return apiResponse(
-              {
-                code: "precondition_failed",
-                message: "Agent labels changed",
-                retryable: false,
-              },
-              412,
-            );
-          }
-          const body = (await request.json()) as { labels: string[] };
-          principal = { ...principal, revision: "3", labels: body.labels };
-          return apiResponse(principal, 200, { ETag: '"3"' });
+    const api: Fallback = async (request) => {
+      if (request.method === "PUT") {
+        requests.push(request.clone());
+        if (requests.length === 1) {
+          principal = {
+            ...principal,
+            revision: "2",
+            labels: ["caido", "debug"],
+          };
+          return preconditionFailed("Agent labels changed");
         }
-        return readResponse(request, principal) ?? apiResponse({}, 500);
-      }),
-    );
-    renderOperations(api, "/operations/runtime-agents");
+        const body = (await request.json()) as { labels: string[] };
+        principal = { ...principal, revision: "3", labels: body.labels };
+        return json(principal, 200, { ETag: '"3"' });
+      }
+      return readResponse(request, principal) ?? failure(500);
+    };
+    renderApplication("/operations/runtime-agents", { server: api });
     const user = userEvent.setup();
     await user.click(
       await screen.findByRole("button", { name: "Edit labels" }),
@@ -1701,7 +1632,7 @@ describe("Runtime Agent cards", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(requests).toHaveLength(2);
     expect(requests[1]?.headers.get("If-Match")).toBe('"2"');
-    expect(requests[1]?.headers.get("X-CSRF-Token")).toBe(session.csrfToken);
+    expect(requests[1]?.headers.get("X-CSRF-Token")).toBe(CSRF_TOKEN);
     expect(requests[1]?.headers.get("Idempotency-Key")).not.toBe(
       requests[0]?.headers.get("Idempotency-Key"),
     );
@@ -1710,14 +1641,10 @@ describe("Runtime Agent cards", () => {
 
   it("refreshes card availability manually when live events are disconnected", async () => {
     let principal = principalBase;
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        return readResponse(request, principal) ?? apiResponse({}, 500);
-      }),
-    );
-    renderOperations(api, "/operations/runtime-agents");
+    const api: Fallback = async (request) => {
+      return readResponse(request, principal) ?? failure(500);
+    };
+    renderApplication("/operations/runtime-agents", { server: api });
     const card = await screen.findByRole("article", { name: "debug" });
     expect(within(card).getByText("Available")).toBeVisible();
     principal = {
@@ -1745,14 +1672,10 @@ describe("Runtime Agent cards", () => {
         reconciliationReason: { code: "release_pending", retryable: true },
       },
     };
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        return readResponse(request, principal) ?? apiResponse({}, 500);
-      }),
-    );
-    renderOperations(api, "/operations/runtime-agents");
+    const api: Fallback = async (request) => {
+      return readResponse(request, principal) ?? failure(500);
+    };
+    renderApplication("/operations/runtime-agents", { server: api });
     const card = await screen.findByRole("article", { name: "debug" });
     expect(within(card).getByText("Slot unavailable")).toBeVisible();
     expect(

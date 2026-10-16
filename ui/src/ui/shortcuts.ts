@@ -10,7 +10,7 @@ import {
 export type ShortcutHandler = (event: KeyboardEvent) => void;
 
 /** A handler that can decline an event before the binding takes it. */
-export interface ShortcutBinding {
+interface ShortcutBinding {
   handler: ShortcutHandler;
   /**
    * Asked last, right before the binding would take the event. False leaves
@@ -25,11 +25,11 @@ export interface ShortcutBinding {
  * values ("j", "?", "enter", "escape", "arrowdown", "space") or "mod+<key>"
  * for Ctrl on Windows and Linux and ⌘ on macOS ("mod+k", "mod+enter").
  */
-export type ShortcutBindings = Readonly<
+type ShortcutBindings = Readonly<
   Record<string, ShortcutHandler | ShortcutBinding>
 >;
 
-export interface ShortcutOptions {
+interface ShortcutOptions {
   /** Default true. */
   enabled?: boolean | undefined;
   /**
@@ -134,7 +134,7 @@ const ARROW_WIDGET_SELECTOR = [
  * textareas, selects and contenteditable regions. Checkboxes, radios and
  * other inputs that take no text are not typing targets.
  */
-export function isTextEntryTarget(target: EventTarget | null): boolean {
+function isTextEntryTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
   if (target instanceof HTMLInputElement) {
     return !NON_TEXT_INPUT_TYPES.has(target.type);
@@ -289,7 +289,7 @@ export function useShortcuts(
   }, [enabled, allowInDialog]);
 }
 
-export interface ListNavigationOptions {
+interface ListNavigationOptions {
   /** Number of items in the list. */
   count: number;
   /** Selected item, or -1 when nothing is selected. */
@@ -307,7 +307,7 @@ export interface ListNavigationContainerProps {
   onKeyDown: (event: ReactKeyboardEvent<HTMLElement>) => void;
 }
 
-export interface ListNavigation {
+interface ListNavigation {
   /** Spread on the element that contains the list rows. */
   containerProps: ListNavigationContainerProps;
 }

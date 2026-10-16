@@ -1,8 +1,5 @@
 // Fixtures and a fake Server for the Checks area tests (the Checks list, the
 // check page and the project's Checks tab). Not imported by the application.
-import { render } from "@testing-library/react";
-import { createMemoryRouter } from "react-router";
-import { vi } from "vitest";
 
 import type {
   Audit,
@@ -12,57 +9,30 @@ import type {
   AuditReviewRequest,
   AuditState,
 } from "../../../api/audits";
-import { PublicAPI } from "../../../api/client";
+import type { PublicAPI } from "../../../api/client";
 import type { Project } from "../../../api/projects";
-import { Application } from "../../../app/application";
-import { applicationRoutes } from "../../../app/router";
-import type { RuntimeConfig } from "../../../config/runtime-config";
+import * as build from "../../../test/builders";
+import { fakeServer, type Fallback } from "../../../test/fake-server";
+import { emptyPageOrNotFound, json, page } from "../../../test/responses";
+import { testAPI, testSession } from "../../../test/render";
 
-export const DIGEST = `sha256:${"a".repeat(64)}`;
+export const { DIGEST } = build;
 export const BASE_TIME = "2026-10-05T10:00:00Z";
-
-const runtimeConfig: RuntimeConfig = {
-  uiVersion: "0.1.0",
-  supportedApiVersions: ["contractor.public.v1"],
-  apiBaseUrl: "http://127.0.0.1:8080",
-};
-
-export const session = {
-  principal: {
-    userId: "user_local",
-    username: "owner",
-    capabilities: ["user"],
-  },
-  csrfToken: "a".repeat(43),
-  idleExpiresAt: "2026-10-05T20:00:00Z",
-  absoluteExpiresAt: "2026-10-06T12:00:00Z",
-};
 
 export function makeProject(
   projectId: string,
   name: string,
   overrides: Partial<Project> = {},
 ): Project {
-  return {
-    projectId,
-    kind: "project",
+  return build.project(projectId, {
     name,
-    description: "",
-    lifecycle: "active",
-    activeChecks: "automatic",
-    revision: "1",
     createdAt: BASE_TIME,
     updatedAt: BASE_TIME,
     ...overrides,
-  };
+  });
 }
 
-const source = {
-  ref: { namespace: "sources", name: "service-source", revision: "r1" },
-  digest: DIGEST,
-  mediaType: "application/zip",
-  sizeBytes: 2048,
-};
+const source = build.auditInput("service-source");
 
 export function makeAudit(
   auditId: string,
@@ -72,9 +42,7 @@ export function makeAudit(
 ): Audit {
   const { profileName, ...rest } = overrides;
   const draft = state === "draft";
-  const base = {
-    auditId,
-    projectId,
+  return build.audit(projectId, auditId, state, {
     profile: {
       name: profileName ?? "openapi-operation-trace",
       version: "1",
@@ -82,11 +50,7 @@ export function makeAudit(
     },
     inputs: { source },
     scope: { objective: "Find broken object authorization" },
-    runtimeLabels: [],
-    state,
     revision: 3,
-    dispatchState: state === "active" ? ("open" as const) : ("closed" as const),
-    holdState: draft ? ("pending" as const) : ("held" as const),
     limits: {
       maxRounds: 1,
       batchSize: 1,
@@ -96,23 +60,13 @@ export function makeAudit(
       maxItemRunAttempts: 3,
       maxEvidenceBytes: 1_048_576,
     },
-    reservedRunCount: 0,
     submittedRunCount: draft ? 0 : 2,
-    outstandingRunCount: 0,
-    retainedEvidenceBytes: 0,
     eventSequence: 3,
     createdAt: BASE_TIME,
     updatedAt: BASE_TIME,
     ...(draft ? {} : { startedAt: "2026-10-05T10:01:00Z" }),
-  };
-  return draft
-    ? ({ ...base, phase: "not-started", ...rest } as Audit)
-    : ({
-        ...base,
-        phase: "rounds",
-        currentRoundId: "round_1",
-        ...rest,
-      } as Audit);
+    ...rest,
+  });
 }
 
 export function endpointRow(
@@ -127,7 +81,7 @@ export function endpointRow(
   } = {},
 ): AuditCoverageRow {
   const { resultSummary, evidence, ...coverage } = overrides;
-  return {
+  return build.conforming("AuditCoverageRow", {
     roundId: "round_1",
     itemId,
     ordinal,
@@ -151,7 +105,7 @@ export function endpointRow(
       evidence: evidence ?? [],
     },
     updatedAt: "2026-10-05T10:20:00Z",
-  };
+  });
 }
 
 export function requirementRow(
@@ -165,7 +119,7 @@ export function requirementRow(
   } = {},
 ): AuditCoverageRow {
   const { resultSummary, ...coverage } = overrides;
-  return {
+  return build.conforming("AuditCoverageRow", {
     roundId: "round_1",
     itemId,
     ordinal,
@@ -189,7 +143,7 @@ export function requirementRow(
       evidence: [],
     },
     updatedAt: "2026-10-05T10:20:00Z",
-  };
+  });
 }
 
 type Attempt = AuditItem["attempts"][number];
@@ -204,24 +158,7 @@ export function makeAttempt(
   n: number,
   overrides: { [K in keyof Attempt]?: Attempt[K] | undefined } = {},
 ): Attempt {
-  const attempt: Record<string, unknown> = {
-    executionItemId: `exec_${itemId}_${n}`,
-    executionId: "round_1",
-    itemId,
-    itemAttempt: n,
-    role: "check",
-    state: "settled",
-    terminalOutcome: "succeeded",
-    collectionDisposition: "accepted-result",
-    runId: `run_${itemId}_${n}`,
-    runDeleted: false,
-    createdAt: `2026-10-05T10:0${n + 1}:00Z`,
-    collectedAt: `2026-10-05T10:0${n + 2}:00Z`,
-    ...overrides,
-  };
-  for (const [key, value] of Object.entries(attempt))
-    if (value === undefined) delete attempt[key];
-  return attempt as Attempt;
+  return build.itemAttempt(itemId, n, overrides);
 }
 
 export function makeItem(
@@ -230,30 +167,12 @@ export function makeItem(
   kind: string,
   overrides: Partial<AuditItem> = {},
 ): AuditItem {
-  return {
-    itemId,
-    roundId: "round_1",
-    itemKey: `key_${itemId}`,
-    ordinal,
-    kind,
-    subjectKey: `subject_${itemId}`,
+  return build.auditItem(itemId, ordinal, kind, {
     task: source,
-    origin: {
-      schema: "contractor.audit.item-origin.v1",
-      entryKey: `entry_${itemId}`,
-      sourceRef: source.ref,
-      sourceContentDigest: DIGEST,
-      sourceMediaType: "application/zip",
-      canonicalInventoryDigest: DIGEST,
-    },
-    workflowRole: "check",
-    state: "settled",
-    approvalKind: "none",
-    attempts: [],
     createdAt: BASE_TIME,
     updatedAt: BASE_TIME,
     ...overrides,
-  };
+  });
 }
 
 export function makeFinding(
@@ -263,62 +182,48 @@ export function makeFinding(
   subjectKey: string | null,
   overrides: Partial<AuditFinding> = {},
 ): AuditFinding {
-  return {
-    findingId,
+  const finding = build.finding(
     auditId,
-    state: "proposed",
-    firstProposal: {
-      receiptId: `receipt_${findingId}`,
-      proposalId: `proposal_${findingId}`,
-      requestDigest: DIGEST,
-      clientKey: findingId,
-      proposal: {
-        ref: { namespace: "audit-findings", name: findingId, revision: "r1" },
-        digest: DIGEST,
-        mediaType: "application/json",
-        sizeBytes: 10,
-      },
-      document: {
-        schema: "contractor.audit.finding-proposal.v1",
-        client_key: findingId,
-        title,
-        description: "Reads another owner's record.",
-        subject:
-          subjectKey === null ? null : { kind: "operation", key: subjectKey },
-        preconditions: [],
-        standard_refs: [
-          { scheme: "CWE", version: "4.14", requirement_id: "CWE-639" },
-        ],
-        evidence_ids: [],
-        proposed_checks: [],
-        severity_suggestion: "high",
-        limitations: [],
-      },
-      evidence: [],
-      origin: {
-        runId: "run_source",
-        stageExecutionId: "stage_source",
-        allocationId: "allocation_source",
-        invocationId: "invocation_source",
-        logicalAgentName: "tracer",
-        workflow: {
-          name: "trace",
-          version: "1",
-          schemaVersion: "contractor/v1alpha1",
-          configurationRef: { name: "trace", version: "1" },
-          closureDigest: DIGEST,
-        },
-        runDeleted: false,
-      },
-      retention: "audit-held",
-      auditHolds: [],
+    findingId,
+    {
       createdAt: "2026-10-05T10:15:00Z",
+      updatedAt: "2026-10-05T10:15:00Z",
+      ...overrides,
     },
-    revision: 1,
-    createdAt: "2026-10-05T10:15:00Z",
-    updatedAt: "2026-10-05T10:15:00Z",
-    ...overrides,
-  };
+    {
+      title,
+      description: "Reads another owner's record.",
+      subject:
+        subjectKey === null ? null : { kind: "operation", key: subjectKey },
+      standard_refs: [
+        { scheme: "CWE", version: "4.14", requirement_id: "CWE-639" },
+      ],
+    },
+  );
+  return overrides.firstProposal === undefined
+    ? {
+        ...finding,
+        firstProposal: {
+          ...finding.firstProposal,
+          createdAt: "2026-10-05T10:15:00Z",
+          origin: {
+            ...finding.firstProposal.origin,
+            runId: "run_source",
+            stageExecutionId: "stage_source",
+            allocationId: "allocation_source",
+            invocationId: "invocation_source",
+            logicalAgentName: "tracer",
+            workflow: {
+              name: "trace",
+              version: "1",
+              schemaVersion: "contractor/v1alpha1",
+              configurationRef: { name: "trace", version: "1" },
+              closureDigest: DIGEST,
+            },
+          },
+        },
+      }
+    : finding;
 }
 
 export function makeReview(
@@ -326,103 +231,42 @@ export function makeReview(
   requestId: string,
   overrides: Partial<AuditReviewRequest> = {},
 ): AuditReviewRequest {
-  return {
-    requestId,
-    auditId,
-    subjectKind: "audit-item-action",
+  return build.review(auditId, requestId, "active-check-approval", {
     subjectId: "item_1",
-    kind: "active-check-approval",
-    subjectRevision: 1,
-    subjectDigest: DIGEST,
-    requestedActions: ["approve", "reject"],
-    state: "pending",
-    revision: 1,
     createdAt: "2026-10-05T10:30:00Z",
     updatedAt: "2026-10-05T10:30:00Z",
     ...overrides,
-  };
+  });
 }
 
-export function workspaceOf(
-  audit: Audit,
-  counts: Partial<{
-    totalChecks: number;
-    completedChecks: number;
-    issues: number;
-    gaps: number;
-    unchecked: number;
-    findings: number;
-    unreviewedFindings: number;
-    pendingReviews: number;
-  }> = {},
-) {
-  return {
-    auditId: audit.auditId,
-    auditRevision: audit.revision,
-    asOf: "2026-10-05T10:40:00Z",
-    roundId: "round_1",
-    executionState: audit.state,
-    outstandingRuns: audit.outstandingRunCount,
-    totalChecks: 0,
-    completedChecks: 0,
-    issues: 0,
-    gaps: 0,
-    unchecked: 0,
-    findings: 0,
-    unreviewedFindings: 0,
-    pendingReviews: 0,
-    ...counts,
-  };
-}
+/** The check workspace summary of `audit`. */
+export const workspaceOf = build.workspace;
 
-export function jsonResponse(
-  value: unknown,
-  options: ResponseInit = {},
-): Response {
-  const headers = new Headers(options.headers);
-  headers.set("content-type", "application/json");
-  headers.set("X-Contractor-API-Version", "contractor.public.v1");
-  return new Response(JSON.stringify(value), { ...options, headers });
-}
-
+/** An empty keyset page. */
 export function emptyPage(extra: Record<string, unknown> = {}): Response {
-  return jsonResponse({ items: [], page: { hasMore: false }, ...extra });
+  return json({ ...page([]), ...extra });
 }
 
-export type Handler = (
-  request: Request,
-  url: URL,
-) => Response | undefined | Promise<Response | undefined>;
+export type Handler = Fallback;
 
 /**
  * A PublicAPI whose Server answers with `handle`; anything it leaves
- * unanswered gets an empty page, so the shell's own reads stay quiet.
+ * unanswered gets an empty page where the operation pages, so the shell's
+ * own reads stay quiet, and 404 otherwise.
  */
-export function fakeAPI(handle: Handler): {
+export function fakeAPI(
+  handle: Handler,
+  options: { capabilities?: Parameters<typeof testSession>[0] } = {},
+): {
   api: PublicAPI;
   requests: Request[];
 } {
-  const requests: Request[] = [];
-  const api = new PublicAPI(
-    runtimeConfig,
-    vi.fn(async (input: RequestInfo | URL) => {
-      const request = input instanceof Request ? input : new Request(input);
-      requests.push(request.clone());
-      const url = new URL(request.url);
-      if (url.pathname === "/v1/auth/session") return jsonResponse(session);
-      const answer = await handle(request, url);
-      return answer ?? emptyPage();
-    }),
+  const { api, server } = testAPI(
+    fakeServer(
+      { "GET /v1/auth/session": () => json(testSession(options.capabilities)) },
+      async (request, url) =>
+        (await handle(request, url)) ?? emptyPageOrNotFound(request, url),
+    ),
   );
-  return { api, requests };
-}
-
-export function renderApplication(api: PublicAPI, path: string) {
-  const router = createMemoryRouter(applicationRoutes(), {
-    initialEntries: [path],
-  });
-  return {
-    ...render(<Application api={api} publicAPI={api} router={router} />),
-    router,
-  };
+  return { api, requests: server.requests };
 }

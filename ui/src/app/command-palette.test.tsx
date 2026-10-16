@@ -14,7 +14,6 @@ import {
   renderShell,
   workflowFixture,
 } from "../test/shell-harness";
-import { RESULTS_PER_GROUP } from "./command-palette";
 
 const server: FakeServer = {
   projects: [
@@ -184,21 +183,28 @@ describe("command palette", () => {
     expect(field).not.toHaveAttribute("aria-activedescendant");
   });
 
-  it(`shows at most ${RESULTS_PER_GROUP} results per group`, async () => {
-    renderShell("/runs", {
-      server: {
-        projects: Array.from({ length: 9 }, (_, index) =>
-          projectFixture(`project_${index}`, { name: `Service ${index}` }),
-        ),
-      },
-    });
-    const { user, field } = await openWithKeyboard();
-    await user.type(field, "service");
-    await waitFor(() =>
-      expect(within(group("Projects")).getAllByRole("option")).toHaveLength(
-        RESULTS_PER_GROUP,
-      ),
-    );
+  it("shows a fixed number of results per group, whatever matches", async () => {
+    const shown: number[] = [];
+    for (const count of [9, 30]) {
+      const { unmount } = renderShell("/runs", {
+        server: {
+          projects: Array.from({ length: count }, (_, index) =>
+            projectFixture(`project_${index}`, { name: `Service ${index}` }),
+          ),
+        },
+      });
+      const { user, field } = await openWithKeyboard();
+      await user.type(field, "service");
+      await waitFor(() =>
+        expect(
+          within(group("Projects")).getAllByRole("option").length,
+        ).toBeGreaterThan(1),
+      );
+      shown.push(within(group("Projects")).getAllByRole("option").length);
+      unmount();
+    }
+    expect(shown[0]).toBeLessThan(9);
+    expect(shown[1]).toBe(shown[0]);
   });
 
   it("moves with the arrow keys, wrapping, and opens with Enter", async () => {

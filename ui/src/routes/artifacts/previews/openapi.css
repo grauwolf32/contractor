@@ -1,0 +1,12 @@
+/* The OpenAPI preview (openapi.tsx) around the Scalar reference. */
+
+.openapi-artifact-preview {
+  height: min(70vh, 52rem);
+  min-height: 32rem;
+  overflow: auto;
+  background: var(--sunken);
+}
+
+.openapi-artifact-preview .scalar-app {
+  min-height: 100%;
+}

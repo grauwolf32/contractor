@@ -1,9 +1,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
 
+import { CONFIG_VERSION, CONFIGURATION_NAME } from "../../../api/contract";
 import { usePublicAPI } from "../../../api/context";
 import {
-  MANAGED_CONFIG_NAME_PATTERN,
   publishConfiguration,
   type ConfigurationResource,
   type LLMGatewayBody,
@@ -11,11 +11,14 @@ import {
   type PublishConfigurationRequest,
 } from "../../../api/operations";
 import { queryKeys } from "../../../api/query-keys";
-import { CONFIG_VERSION_PATTERN } from "../../../api/workflows";
 import { MutationDraftKeyring } from "../../../mutations/idempotency";
+import { Button, Field } from "../../../ui";
 import {
+  GATEWAY_URL_LENGTH,
   llmGatewayBody,
+  MANAGEMENT_URL_LENGTH,
   modelPolicyBody,
+  policyLimit,
   validateLLMGateway,
   validateModelPolicy,
   type ModelPolicyConsumer,
@@ -77,43 +80,49 @@ function IdentityFields({
 }) {
   return (
     <>
-      <label>
-        New managed name
-        <input
-          name="name"
-          required
-          maxLength={128}
-          value={value.name}
-          onChange={(event) => onChange({ ...value, name: event.target.value })}
-        />
-      </label>
-      <label>
-        New version
-        <input
-          name="version"
-          required
-          maxLength={64}
-          placeholder="2"
-          value={value.version}
-          onChange={(event) =>
-            onChange({ ...value, version: event.target.value })
-          }
-        />
-      </label>
+      <Field label="New managed name">
+        {(control) => (
+          <input
+            {...control}
+            name="name"
+            required
+            maxLength={CONFIGURATION_NAME.maxLength}
+            value={value.name}
+            onChange={(event) =>
+              onChange({ ...value, name: event.target.value })
+            }
+          />
+        )}
+      </Field>
+      <Field label="New version">
+        {(control) => (
+          <input
+            {...control}
+            name="version"
+            required
+            maxLength={CONFIG_VERSION.maxLength}
+            placeholder="2"
+            value={value.version}
+            onChange={(event) =>
+              onChange({ ...value, version: event.target.value })
+            }
+          />
+        )}
+      </Field>
     </>
   );
 }
 
 function identityErrors(identity: IdentityDraft): string[] {
   const errors: string[] = [];
-  if (!MANAGED_CONFIG_NAME_PATTERN.test(identity.name)) {
+  if (!CONFIGURATION_NAME.test(identity.name)) {
     errors.push(
-      "Managed name must start with a lowercase letter and contain at most 128 lowercase letters, digits, dashes, or underscores.",
+      `Managed name must start with a lowercase letter and contain at most ${CONFIGURATION_NAME.maxLength} lowercase letters, digits, dashes, or underscores.`,
     );
   }
-  if (!CONFIG_VERSION_PATTERN.test(identity.version)) {
+  if (!CONFIG_VERSION.test(identity.version)) {
     errors.push(
-      "Version must start with a letter or digit and contain at most 64 letters, digits, dots, plus signs, dashes, or underscores.",
+      `Version must start with a letter or digit and contain at most ${CONFIG_VERSION.maxLength} letters, digits, dots, plus signs, dashes, or underscores.`,
     );
   }
   return errors;
@@ -184,34 +193,35 @@ function modelBody(draft: ModelDraft): ModelPolicyBody {
   };
 }
 
+/** A numeric ModelPolicy field; integer fields take the contract's maximum. */
 function NumberDraftField({
   label,
   name,
   value,
-  maximum,
   integer = true,
   onChange,
 }: {
   label: string;
-  name: keyof ModelDraft;
+  name: Exclude<keyof ModelDraft, "model">;
   value: string;
-  maximum?: number;
   integer?: boolean;
   onChange: (name: keyof ModelDraft, value: string) => void;
 }) {
   return (
-    <label>
-      {label}
-      <input
-        name={name}
-        type="number"
-        min={integer ? 1 : 0}
-        {...(maximum === undefined ? {} : { max: maximum })}
-        step={integer ? 1 : "any"}
-        value={value}
-        onChange={(event) => onChange(name, event.target.value)}
-      />
-    </label>
+    <Field label={label}>
+      {(control) => (
+        <input
+          {...control}
+          name={name}
+          type="number"
+          min={integer ? 1 : 0}
+          {...(integer ? { max: policyLimit("maximum", name) } : {})}
+          step={integer ? 1 : "any"}
+          value={value}
+          onChange={(event) => onChange(name, event.target.value)}
+        />
+      )}
+    </Field>
   );
 }
 
@@ -262,11 +272,11 @@ export function ModelPolicyPublicationForm({
           from {source.ref.name}@{source.ref.version}
         </code>
       </div>
-      <p className="ops-note">
+      <p className="ui-caption">
         Intended consumer is validation guidance for this draft and is not
         stored in the shared ModelPolicy body.
       </p>
-      <div className="form-grid">
+      <div className="ops-form-grid">
         <IdentityFields
           value={identity}
           onChange={(value) => {
@@ -274,34 +284,37 @@ export function ModelPolicyPublicationForm({
             setErrors([]);
           }}
         />
-        <label>
-          Intended consumer
-          <select
-            value={consumer}
-            onChange={(event) =>
-              setConsumer(event.target.value as ModelPolicyConsumer)
-            }
-          >
-            <option value="worker">Worker</option>
-            <option value="planner">Planner</option>
-            <option value="both">Planner and Worker</option>
-          </select>
-        </label>
-        <label>
-          Gateway model alias
-          <input
-            name="model"
-            required
-            maxLength={256}
-            value={draft.model}
-            onChange={(event) => change("model", event.target.value)}
-          />
-        </label>
+        <Field label="Intended consumer">
+          {(control) => (
+            <select
+              {...control}
+              value={consumer}
+              onChange={(event) =>
+                setConsumer(event.target.value as ModelPolicyConsumer)
+              }
+            >
+              <option value="worker">Worker</option>
+              <option value="planner">Planner</option>
+              <option value="both">Planner and Worker</option>
+            </select>
+          )}
+        </Field>
+        <Field label="Gateway model alias">
+          {(control) => (
+            <input
+              {...control}
+              name="model"
+              required
+              maxLength={policyLimit("maxLength", "model")}
+              value={draft.model}
+              onChange={(event) => change("model", event.target.value)}
+            />
+          )}
+        </Field>
         <NumberDraftField
           label="Context window tokens"
           name="contextWindowTokens"
           value={draft.contextWindowTokens}
-          maximum={100_000_000}
           onChange={change}
         />
         <NumberDraftField
@@ -314,28 +327,24 @@ export function ModelPolicyPublicationForm({
           label="Maximum model calls"
           name="maxModelCalls"
           value={draft.maxModelCalls}
-          maximum={1_000}
           onChange={change}
         />
         <NumberDraftField
           label="Maximum tool calls"
           name="maxToolCalls"
           value={draft.maxToolCalls}
-          maximum={10_000}
           onChange={change}
         />
         <NumberDraftField
           label="Maximum Worker calls"
           name="maxWorkerCalls"
           value={draft.maxWorkerCalls}
-          maximum={10_000}
           onChange={change}
         />
         <NumberDraftField
           label="Maximum total tokens"
           name="maxTotalTokens"
           value={draft.maxTotalTokens}
-          maximum={100_000_000}
           onChange={change}
         />
         <NumberDraftField
@@ -352,14 +361,14 @@ export function ModelPolicyPublicationForm({
         mutationError={mutation.error}
       />
       <div className="ops-form-actions">
-        <button
-          className="ui-btn"
-          data-variant="primary"
+        <Button
+          variant="primary"
           type="submit"
-          disabled={mutation.isPending}
+          pending={mutation.isPending}
+          pendingLabel="Publishing…"
         >
-          {mutation.isPending ? "Publishing…" : "Publish version"}
-        </button>
+          Publish version
+        </Button>
         <small>The existing version and digest are never edited.</small>
       </div>
     </form>
@@ -431,7 +440,7 @@ export function LLMGatewayPublicationForm({
           from {source.ref.name}@{source.ref.version}
         </code>
       </div>
-      <div className="form-grid">
+      <div className="ops-form-grid">
         <IdentityFields
           value={identity}
           onChange={(value) => {
@@ -439,23 +448,26 @@ export function LLMGatewayPublicationForm({
             setErrors([]);
           }}
         />
-        <label>
-          Protocol
-          <input value="openai-compatible@1" disabled readOnly />
-        </label>
-        <label>
-          Inference URL with explicit path
-          <input
-            name="url"
-            required
-            maxLength={2048}
-            value={url}
-            onChange={(event) => {
-              setURL(event.target.value);
-              setErrors([]);
-            }}
-          />
-        </label>
+        <Field label="Protocol">
+          {(control) => (
+            <input {...control} value="openai-compatible@1" disabled readOnly />
+          )}
+        </Field>
+        <Field label="Inference URL with explicit path">
+          {(control) => (
+            <input
+              {...control}
+              name="url"
+              required
+              maxLength={GATEWAY_URL_LENGTH}
+              value={url}
+              onChange={(event) => {
+                setURL(event.target.value);
+                setErrors([]);
+              }}
+            />
+          )}
+        </Field>
         <label className="checkbox-label">
           <input
             type="checkbox"
@@ -468,22 +480,24 @@ export function LLMGatewayPublicationForm({
           Enable LiteLLM virtual-key management
         </label>
         {managed ? (
-          <label>
-            LiteLLM management root URL
-            <input
-              name="managementUrl"
-              required
-              maxLength={2048}
-              value={managementURL}
-              onChange={(event) => {
-                setManagementURL(event.target.value);
-                setErrors([]);
-              }}
-            />
-          </label>
+          <Field label="LiteLLM management root URL">
+            {(control) => (
+              <input
+                {...control}
+                name="managementUrl"
+                required
+                maxLength={MANAGEMENT_URL_LENGTH}
+                value={managementURL}
+                onChange={(event) => {
+                  setManagementURL(event.target.value);
+                  setErrors([]);
+                }}
+              />
+            )}
+          </Field>
         ) : null}
       </div>
-      <p className="ops-note">
+      <p className="ui-caption">
         Gateway URLs never contain credentials. HTTP management is accepted only
         for an IP-literal loopback origin; production management uses HTTPS.
       </p>
@@ -493,14 +507,14 @@ export function LLMGatewayPublicationForm({
         mutationError={mutation.error}
       />
       <div className="ops-form-actions">
-        <button
-          className="ui-btn"
-          data-variant="primary"
+        <Button
+          variant="primary"
           type="submit"
-          disabled={mutation.isPending}
+          pending={mutation.isPending}
+          pendingLabel="Publishing…"
         >
-          {mutation.isPending ? "Publishing…" : "Publish version"}
-        </button>
+          Publish version
+        </Button>
         <small>
           The Server validates the complete configuration union before
           publication.

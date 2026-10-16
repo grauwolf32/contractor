@@ -3,6 +3,7 @@ import { useId, useState } from "react";
 import { auditPresetPath } from "../../api/audit-presets";
 import type { AuditProfile } from "../../api/audits";
 import { ContextLink } from "../../app/context-navigation";
+import { plural } from "../../app/format";
 import { QueryView } from "../../app/query-view";
 import {
   capitalize,
@@ -72,6 +73,8 @@ function CheckTypeCard({
         <label className="library-version">
           <span>Version</span>
           <select
+            className="ui-control"
+            data-size="xs"
             aria-label={`Version of ${name}`}
             value={profile.ref.version}
             onChange={(event) => onVersion(event.target.value)}
@@ -144,50 +147,48 @@ export function AuditPresetListRoute() {
       <QueryView
         query={query}
         loading={<p role="status">Loading check types…</p>}
-        onRetry={() => void query.refetch()}
-      >
-        {() =>
-          shown.length === 0 ? (
-            <div className="library-empty">
-              <EmptyState
-                title={
-                  search
-                    ? "No check types match this search."
-                    : "No check types published."
-                }
-              >
-                {search
-                  ? "Try a name, a version, a standard or a mode."
-                  : "Check types appear here once the server publishes them."}
-              </EmptyState>
-            </div>
-          ) : (
-            <>
-              <p className="library-count" aria-live="polite">
-                {shown.length}{" "}
-                {shown.length === 1 ? TERMS.checkType : TERMS.checkTypes}
-                {unavailable === 0
-                  ? null
-                  : ` · ${unavailable} unavailable on this server`}
-              </p>
-              <div className="library-grid">
-                {shown.map(({ family, profile }) => (
-                  <CheckTypeCard
-                    key={family.name}
-                    family={family}
-                    profile={profile}
-                    onVersion={(version) =>
-                      setChoices((previous) => ({
-                        ...previous,
-                        [family.name]: version,
-                      }))
-                    }
-                  />
-                ))}
-              </div>
-            </>
-          )
+        isEmpty={() => shown.length === 0}
+        empty={
+          <div className="library-empty">
+            <EmptyState
+              title={
+                search
+                  ? "No check types match this search."
+                  : "No check types published."
+              }
+            >
+              {search
+                ? "Try a name, a version, a standard or a mode."
+                : "Check types appear here once the server publishes them."}
+            </EmptyState>
+          </div>
         }
+      >
+        {() => (
+          <>
+            <p className="library-count" aria-live="polite">
+              {plural(shown.length, TERMS.checkType, TERMS.checkTypes)}
+              {unavailable === 0
+                ? null
+                : ` · ${unavailable} unavailable on this server`}
+            </p>
+            <div className="library-grid">
+              {shown.map(({ family, profile }) => (
+                <CheckTypeCard
+                  key={family.name}
+                  family={family}
+                  profile={profile}
+                  onVersion={(version) =>
+                    setChoices((previous) => ({
+                      ...previous,
+                      [family.name]: version,
+                    }))
+                  }
+                />
+              ))}
+            </div>
+          </>
+        )}
       </QueryView>
     </section>
   );

@@ -1,6 +1,11 @@
 import type { components } from "../../../api/generated/public";
 import type { PerformanceHistory } from "../../../api/performance";
-import { formatBytes, formatTimestamp } from "../../../app/format";
+import {
+  formatBytes,
+  formatNumber,
+  formatTimestamp,
+} from "../../../app/format";
+import { Facts } from "../../../ui";
 import { OperationsState } from "../common";
 import { MetricSeriesChart, type ChartDatum } from "./chart";
 import { performanceFreshnessState } from "./freshness";
@@ -14,6 +19,11 @@ const measurements = [
   ["powerWatts", "Power draw", "W"],
   ["powerLimitWatts", "Power limit", "W"],
 ] as const;
+
+/** The last eight characters of a GPU UUID, without the "GPU-" prefix. */
+function shortGPU(id: string): string {
+  return id.replace(/^GPU-/, "").slice(-8);
+}
 
 export function GPUCurrentMetrics({
   gpu,
@@ -45,7 +55,7 @@ export function GPUCurrentMetrics({
         <article
           className="performance-metric-card"
           key={device.id}
-          aria-label={`GPU ${device.name} · ${device.id.replace(/^GPU-/, "").slice(-8)}`}
+          aria-label={`GPU ${device.name} · ${shortGPU(device.id)}`}
         >
           <header>
             <h3 className="performance-device-heading">
@@ -56,37 +66,30 @@ export function GPUCurrentMetrics({
               />
               <span>
                 {device.name}{" "}
-                <small title={device.id}>
-                  {device.id.replace(/^GPU-/, "").slice(-8)}
-                </small>
+                <small title={device.id}>{shortGPU(device.id)}</small>
               </span>
             </h3>
             <OperationsState
               state={performanceFreshnessState(gpu.freshness, readAt)}
             />
           </header>
-          <p className="ops-note">
+          <p className="ui-caption">
             Server host GPU · includes other applications
           </p>
-          <dl className="ops-glance">
-            {available.map(([field, label, unit]) => (
-              <div key={field}>
-                <dt>{label}</dt>
-                <dd>
-                  {field.startsWith("memory")
-                    ? formatBytes(device[field]!)
-                    : `${device[field]!.toLocaleString(undefined, { maximumFractionDigits: 1 })} ${unit}`}
-                </dd>
-              </div>
-            ))}
-          </dl>
+          <Facts
+            className="ops-glance"
+            items={available.map(([field, label, unit]) => ({
+              term: label,
+              value: field.startsWith("memory")
+                ? formatBytes(device[field]!)
+                : `${formatNumber(device[field]!, 1)} ${unit}`,
+            }))}
+          />
           <small>
             {gpu.freshness.observedAt === undefined
               ? ""
               : `Observed ${formatTimestamp(gpu.freshness.observedAt)} · `}
-            <span title={device.id}>
-              GPU {device.id.replace(/^GPU-/, "").slice(-8)}
-            </span>
+            <span title={device.id}>GPU {shortGPU(device.id)}</span>
           </small>
         </article>
       );
@@ -133,7 +136,7 @@ export function GPUHistoryCharts({
           });
           return {
             id,
-            label: `${name} · ${id.replace(/^GPU-/, "").slice(-8)}`,
+            label: `${name} · ${shortGPU(id)}`,
             color: colors.get(id) ?? "var(--accent)",
             data,
           };

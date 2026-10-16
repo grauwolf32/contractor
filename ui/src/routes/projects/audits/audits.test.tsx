@@ -1,10 +1,8 @@
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createMemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
-import type { RuntimeConfig } from "../../../config/runtime-config";
-import { PublicAPI } from "../../../api/client";
+import type { PublicAPI } from "../../../api/client";
 import type {
   Audit,
   AuditCoverageRow,
@@ -13,42 +11,31 @@ import type {
   AuditProfile,
   AuditReviewRequest,
 } from "../../../api/audits";
-import { Application } from "../../../app/application";
-import * as queryClientFactory from "../../../app/query-client";
-import { applicationRoutes } from "../../../app/router";
+import { createApplicationQueryClient } from "../../../app/query-client";
 import { queryKeys } from "../../../api/query-keys";
+import { renderApplication } from "../../../test/application";
+import * as build from "../../../test/builders";
+import { fakeServer, invalidJSON } from "../../../test/fake-server";
+import { json, page } from "../../../test/responses";
+import { testAPI, testSession } from "../../../test/render";
 
-const runtimeConfig: RuntimeConfig = {
-  uiVersion: "0.1.0",
-  supportedApiVersions: ["contractor.public.v1"],
-  apiBaseUrl: "http://127.0.0.1:8080",
-};
+/** A PublicAPI over `handle` whose answers the fake Server checks. */
+function checkedAPI(
+  handle: (input: Request) => Response | Promise<Response>,
+): PublicAPI {
+  return testAPI(fakeServer({}, (request) => handle(request))).api;
+}
 
-const session = {
-  principal: {
-    userId: "user_local",
-    username: "owner",
-    capabilities: ["user", "operations"],
-  },
-  csrfToken: "a".repeat(43),
-  idleExpiresAt: "2026-09-06T20:00:00Z",
-  absoluteExpiresAt: "2026-09-07T12:00:00Z",
-};
+const session = testSession(["user", "operations"]);
 
-const project = {
-  projectId: "project_example",
-  kind: "project",
+const project = build.project("project_example", {
   name: "Payment service",
   description: "Reusable service analysis",
-  lifecycle: "active",
-
-  activeChecks: "automatic",
-  revision: "1",
   createdAt: "2026-09-06T10:00:00Z",
   updatedAt: "2026-09-06T10:00:00Z",
-};
+});
 
-const profile: AuditProfile = {
+const profile: AuditProfile = build.conforming("AuditProfile", {
   ref: {
     name: "owasp-top10-2025-source-risk",
     version: "1",
@@ -82,7 +69,7 @@ const profile: AuditProfile = {
   serverCompatible: true,
   requiresInputValidation: true,
   compatibilityReasons: [],
-};
+});
 
 const sourceArtifact = {
   artifact: {
@@ -98,7 +85,7 @@ const sourceArtifact = {
 };
 
 function auditAt(state: Audit["state"], revision: number): Audit {
-  return {
+  return build.conforming("Audit", {
     auditId: "audit_example",
     projectId: project.projectId,
     profile: { ...profile.ref },
@@ -134,7 +121,7 @@ function auditAt(state: Audit["state"], revision: number): Audit {
     eventSequence: revision,
     createdAt: "2026-09-06T10:00:00Z",
     updatedAt: `2026-09-06T10:0${revision}:00Z`,
-  };
+  } as Audit);
 }
 
 function findingAt(
@@ -200,21 +187,37 @@ function findingAt(
   };
 }
 
-function jsonResponse(value: unknown, options: ResponseInit = {}): Response {
-  const headers = new Headers(options.headers);
-  headers.set("content-type", "application/json");
-  headers.set("X-Contractor-API-Version", "contractor.public.v1");
-  return new Response(JSON.stringify(value), { ...options, headers });
+/** A page of a check's collection with the summary members it carries. */
+function auditPage(
+  audit: Audit,
+  items: unknown[],
+  total = items.length,
+  nextCursor?: string,
+) {
+  return {
+    auditRevision: audit.revision,
+    asOf: audit.updatedAt,
+    total,
+    items,
+    page:
+      nextCursor === undefined
+        ? { hasMore: false }
+        : { hasMore: true, nextCursor },
+  };
 }
 
-function renderApplication(api: PublicAPI, path: string) {
-  const router = createMemoryRouter(applicationRoutes(), {
-    initialEntries: [path],
-  });
-  return {
-    ...render(<Application api={api} publicAPI={api} router={router} />),
-    router,
-  };
+/** An empty answer for one of `audit`'s collections at `path`. */
+function emptyCollection(path: string, audit: Audit): Response {
+  if (path.endsWith("/workspace")) return json(build.workspace(audit));
+  if (path.endsWith("/coverage"))
+    return json({
+      auditRevision: audit.revision,
+      items: [],
+      page: { hasMore: false },
+    });
+  if (/^\/v1\/audits\/[^/]+\/(findings|reviews)$/u.test(path))
+    return json(auditPage(audit, []));
+  return json({ items: [], page: { hasMore: false } });
 }
 
 describe("Project Audit routes", () => {
@@ -224,11 +227,7 @@ describe("Project Audit routes", () => {
       const previousScroll = HTMLElement.prototype.scrollIntoView;
       HTMLElement.prototype.scrollIntoView = vi.fn();
       let current = auditAt("active", 2);
-      const queryClient = queryClientFactory.createApplicationQueryClient();
-      vi.spyOn(
-        queryClientFactory,
-        "createApplicationQueryClient",
-      ).mockReturnValue(queryClient);
+      const queryClient = createApplicationQueryClient();
       const item: AuditItem = {
         itemId: "item_final",
         roundId: "round_example",
@@ -267,58 +266,54 @@ describe("Project Audit routes", () => {
         updatedAt: current.updatedAt,
       };
       const reads = vi.fn();
-      const api = new PublicAPI(
-        runtimeConfig,
-        vi.fn(async (input) => {
-          const path = new URL((input as Request).url).pathname;
-          if (path === "/v1/auth/session") return jsonResponse(session);
-          if (path === "/v1/projects/project_example")
-            return jsonResponse(project, { headers: { ETag: '"1"' } });
-          if (path === "/v1/audits/audit_example")
-            return jsonResponse(current, {
-              headers: { ETag: `"${current.revision}"` },
-            });
-          if (path.endsWith("/coverage"))
-            return jsonResponse({
-              items: [coverageRow],
-              page: { hasMore: false },
-            });
-          // Each section counts its own projection: the check page reads
-          // the item collection on every section.
-          if (path.endsWith("/items")) {
-            if (section === "coverage") reads();
-            return jsonResponse({
-              items: current.state === "active" ? [] : [item],
-              page: { hasMore: false },
-            });
-          }
-          if (path.endsWith("/report")) {
-            if (section === "report") reads();
-            return jsonResponse(
-              current.state === "active"
-                ? { status: "pending" }
-                : {
-                    status: "ready",
-                    summary: "Final retained report",
-                    summaryArtifact: {
-                      ref: {
-                        namespace: "audit-example",
-                        name: "report.md",
-                        revision: "report-r1",
-                      },
-                      digest: `sha256:${"1".repeat(64)}`,
-                      mediaType: "text/markdown",
-                      sizeBytes: 21,
+      const api = checkedAPI(async (input) => {
+        const path = new URL((input as Request).url).pathname;
+        if (path === "/v1/auth/session") return json(session);
+        if (path === "/v1/projects/project_example")
+          return json(project, 200, { ETag: '"1"' });
+        if (path === "/v1/audits/audit_example")
+          return json(current, 200, { ETag: `"${current.revision}"` });
+        if (path.endsWith("/coverage"))
+          return json({
+            auditRevision: current.revision,
+            items: [coverageRow],
+            page: { hasMore: false },
+          });
+        // Each section counts its own projection: the check page reads
+        // the item collection on every section.
+        if (path.endsWith("/items")) {
+          if (section === "coverage") reads();
+          return json({
+            items: current.state === "active" ? [] : [item],
+            page: { hasMore: false },
+          });
+        }
+        if (path.endsWith("/report")) {
+          if (section === "report") reads();
+          return json(
+            current.state === "active"
+              ? { status: "pending" }
+              : {
+                  status: "ready",
+                  summary: "Final retained report",
+                  summaryArtifact: {
+                    ref: {
+                      namespace: "audit-example",
+                      name: "report.md",
+                      revision: "report-r1",
                     },
+                    digest: `sha256:${"1".repeat(64)}`,
+                    mediaType: "text/markdown",
+                    sizeBytes: 21,
                   },
-            );
-          }
-          return jsonResponse({ items: [], page: { hasMore: false } });
-        }),
-      );
+                },
+          );
+        }
+        return emptyCollection(path, current);
+      });
       renderApplication(
-        api,
         `/projects/project_example/audits/audit_example/${section}${section === "coverage" ? "#check-item_final" : ""}`,
+        { api, queryClient },
       );
       await screen.findByText(
         section === "coverage"
@@ -350,45 +345,43 @@ describe("Project Audit routes", () => {
       const markdown = mediaType === "text/markdown";
       const summary =
         "# Coverage summary\n\n| Status | Count |\n| --- | ---: |\n| satisfied | 2 |\n";
-      const api = new PublicAPI(
-        runtimeConfig,
-        vi.fn(async (input) => {
-          const request = input instanceof Request ? input : new Request(input);
-          const path = new URL(request.url).pathname;
-          if (path === "/v1/auth/session") return jsonResponse(session);
-          if (path === "/v1/projects/project_example")
-            return jsonResponse(project, { headers: { ETag: '"1"' } });
-          if (path === "/v1/audits/audit_example")
-            return jsonResponse(auditAt("completed", 3), {
-              headers: { ETag: '"3"' },
-            });
-          if (path === "/v1/audits/audit_example/report")
-            return jsonResponse({
-              status: "ready",
-              summary,
-              summaryArtifact: {
-                ref: {
-                  namespace: "audit-example",
-                  name: markdown ? "report.md" : "report.txt",
-                  revision: "report-r1",
-                },
-                digest: `sha256:${"1".repeat(64)}`,
-                mediaType,
-                sizeBytes: summary.length,
+      const api = checkedAPI(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const path = new URL(request.url).pathname;
+        if (path === "/v1/auth/session") return json(session);
+        if (path === "/v1/projects/project_example")
+          return json(project, 200, { ETag: '"1"' });
+        if (path === "/v1/audits/audit_example")
+          return json(auditAt("completed", 3), 200, { ETag: '"3"' });
+        if (path === "/v1/audits/audit_example/report")
+          // A text/plain summary breaks the contract on purpose.
+          return (markdown ? json : invalidJSON)({
+            status: "ready",
+            summary,
+            summaryArtifact: {
+              ref: {
+                namespace: "audit-example",
+                name: markdown ? "report.md" : "report.txt",
+                revision: "report-r1",
               },
-            });
-          if (path.endsWith("/coverage") || path.endsWith("/reviews"))
-            return jsonResponse({ items: [], page: { hasMore: false } });
-          throw new Error(`unexpected ${request.method} ${path}`);
-        }),
-      );
+              digest: `sha256:${"1".repeat(64)}`,
+              mediaType,
+              sizeBytes: summary.length,
+            },
+          });
+        if (path.endsWith("/coverage") || path.endsWith("/reviews"))
+          return emptyCollection(path, auditAt("completed", 3));
+        throw new Error(`unexpected ${request.method} ${path}`);
+      });
       renderApplication(
-        api,
         "/projects/project_example/audits/audit_example/report",
+        { api },
       );
       if (!markdown) {
         expect(
-          await screen.findByText("Server returned an invalid Audit response"),
+          await screen.findByText(
+            /The Server sent an answer this page cannot read/u,
+          ),
         ).toBeVisible();
         expect(
           screen.queryByRole("button", { name: "Download summary" }),
@@ -451,44 +444,37 @@ describe("Project Audit routes", () => {
     other.firstProposal.document.title = "Trace information exposure";
     other.firstProposal.document.severity_suggestion = "medium";
     const requested: string[] = [];
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        const path = url.pathname;
-        expect(request.method).toBe("GET");
-        requested.push(`${path}:${url.searchParams.get("cursor") ?? "first"}`);
-        if (path === "/v1/auth/session") return jsonResponse(session);
-        if (path === "/v1/projects/project_example")
-          return jsonResponse(project, { headers: { ETag: '"1"' } });
-        if (path === "/v1/projects/project_example/audits")
-          return jsonResponse(
-            url.searchParams.has("cursor")
-              ? { items: [otherAudit], page: { hasMore: false } }
-              : {
-                  items: [firstAudit],
-                  page: { hasMore: true, nextCursor: "other-audits" },
-                },
-          );
-        if (path === "/v1/audits/audit_example/findings")
-          return jsonResponse(
-            url.searchParams.has("cursor")
-              ? { items: [sibling], page: { hasMore: false } }
-              : {
-                  items: [first],
-                  page: { hasMore: true, nextCursor: "more-findings" },
-                },
-          );
-        if (path === "/v1/audits/audit_trace/findings")
-          return jsonResponse({ items: [other], page: { hasMore: false } });
-        throw new Error(`unexpected ${path}`);
-      }),
-    );
-    const { router } = renderApplication(
+    const api = checkedAPI(async (input) => {
+      const request = input instanceof Request ? input : new Request(input);
+      const url = new URL(request.url);
+      const path = url.pathname;
+      expect(request.method).toBe("GET");
+      requested.push(`${path}:${url.searchParams.get("cursor") ?? "first"}`);
+      if (path === "/v1/auth/session") return json(session);
+      if (path === "/v1/projects/project_example")
+        return json(project, 200, { ETag: '"1"' });
+      if (path === "/v1/projects/project_example/audits")
+        return json(
+          url.searchParams.has("cursor")
+            ? { items: [otherAudit], page: { hasMore: false } }
+            : {
+                items: [firstAudit],
+                page: { hasMore: true, nextCursor: "other-audits" },
+              },
+        );
+      if (path === "/v1/audits/audit_example/findings")
+        return json(
+          url.searchParams.has("cursor")
+            ? auditPage(firstAudit, [sibling], 2)
+            : auditPage(firstAudit, [first], 2, "more-findings"),
+        );
+      if (path === "/v1/audits/audit_trace/findings")
+        return json(auditPage(otherAudit, [other]));
+      throw new Error(`unexpected ${path}`);
+    });
+    const { router } = renderApplication("/projects/project_example/findings", {
       api,
-      "/projects/project_example/findings",
-    );
+    });
     const user = userEvent.setup();
     expect(
       await screen.findByText("3 of 3 possible issues · 2 checks"),
@@ -578,43 +564,37 @@ describe("Project Audit routes", () => {
       profile: { ...profile.ref, name: "openapi-operation-trace" },
     };
     let failed = true;
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const path = new URL(request.url).pathname;
-        if (path === "/v1/auth/session") return jsonResponse(session);
-        if (path === "/v1/projects/project_example")
-          return jsonResponse(project, { headers: { ETag: '"1"' } });
-        if (path === "/v1/projects/project_example/audits")
-          return jsonResponse({
-            items: [firstAudit, otherAudit],
-            page: { hasMore: false },
-          });
-        if (path === "/v1/audits/audit_example/findings")
-          return jsonResponse({
-            items: [findingAt("proposed", 1)],
-            page: { hasMore: false },
-          });
-        if (path === "/v1/audits/audit_trace/findings" && failed)
-          return jsonResponse(
-            {
-              code: "unavailable",
-              message: "Findings unavailable",
-              retryable: true,
-              requestId: "request_failed",
-            },
-            { status: 503 },
-          );
-        if (
-          path.endsWith("/reviews") ||
-          path === "/v1/audits/audit_trace/findings"
-        )
-          return jsonResponse({ items: [], page: { hasMore: false } });
-        throw new Error(`unexpected ${path}`);
-      }),
-    );
-    renderApplication(api, "/projects/project_example/findings");
+    const api = checkedAPI(async (input) => {
+      const request = input instanceof Request ? input : new Request(input);
+      const path = new URL(request.url).pathname;
+      if (path === "/v1/auth/session") return json(session);
+      if (path === "/v1/projects/project_example")
+        return json(project, 200, { ETag: '"1"' });
+      if (path === "/v1/projects/project_example/audits")
+        return json({
+          items: [firstAudit, otherAudit],
+          page: { hasMore: false },
+        });
+      if (path === "/v1/audits/audit_example/findings")
+        return json(auditPage(firstAudit, [findingAt("proposed", 1)]));
+      if (path === "/v1/audits/audit_trace/findings" && failed)
+        return json(
+          {
+            code: "unavailable",
+            message: "Findings unavailable",
+            retryable: true,
+            requestId: "request_failed",
+          },
+          503,
+        );
+      if (
+        path.endsWith("/reviews") ||
+        path === "/v1/audits/audit_trace/findings"
+      )
+        return emptyCollection(path, otherAudit);
+      throw new Error(`unexpected ${path}`);
+    });
+    renderApplication("/projects/project_example/findings", { api });
     const user = userEvent.setup();
     expect(
       await screen.findByRole("link", {
@@ -676,225 +656,219 @@ describe("Project Audit routes", () => {
         createdAt: currentAudit.createdAt,
         updatedAt: currentAudit.updatedAt,
       };
-      const api = new PublicAPI(
-        runtimeConfig,
-        vi.fn(async (input) => {
-          const request = input instanceof Request ? input : new Request(input);
-          requests.push(request.clone());
-          const url = new URL(request.url);
-          const path = url.pathname;
-          const state = url.searchParams.get("state");
-          if (path === "/v1/auth/session") return jsonResponse(session);
-          if (path === "/v1/projects")
-            return jsonResponse({ items: [project], page: { hasMore: false } });
-          if (path === "/v1/projects/project_example") {
-            return jsonResponse(project, { headers: { ETag: '"1"' } });
-          }
-          if (path === "/v1/projects/project_example/audits") {
-            return jsonResponse({
-              items:
-                state === null || state === currentAudit.state
-                  ? [currentAudit]
-                  : [],
-              page: { hasMore: false },
-            });
-          }
-          if (path === "/v1/audits/audit_example") {
-            return jsonResponse(currentAudit, {
-              headers: { ETag: `"${currentAudit.revision}"` },
-            });
-          }
-          if (path === "/v1/audits/audit_example/findings") {
-            const items =
-              state === null || state === currentFinding.state
-                ? [currentFinding]
-                : [];
-            return jsonResponse({
-              items,
-              page: { hasMore: false },
-              total: items.length,
-              auditRevision: currentAudit.revision,
-              asOf: currentAudit.updatedAt,
-            });
-          }
-          if (path === "/v1/audits/audit_example/findings/finding_example") {
-            return jsonResponse(currentFinding, {
-              headers: { ETag: `"${currentFinding.revision}"` },
-            });
-          }
-          if (path === "/v1/audits/audit_example/reviews") {
-            const items = reviews.filter(
-              (review) => state === null || review.state === state,
-            );
-            return jsonResponse({
-              items,
-              page: { hasMore: false },
-              total: items.length,
-              auditRevision: currentAudit.revision,
-              asOf: currentAudit.updatedAt,
-            });
-          }
-          if (
-            path ===
-            "/v1/audits/audit_example/findings/finding_example/provenance"
-          ) {
-            return jsonResponse({
-              auditRevision: currentAudit.revision,
-              findingRevision: currentFinding.revision,
-              items: [
-                {
-                  recordId: "attempt:receipt_example:execution_item_example",
-                  kind: "check-attempt",
-                  receiptId: "receipt_example",
-                  relation: "verification",
-                  proposal: currentFinding.firstProposal.proposal,
-                  origin: currentFinding.firstProposal.origin,
-                  supportsCurrentAssessment: true,
-                  createdAt: currentAudit.createdAt,
-                  assessment: {
-                    assessmentId: "assessment_example",
-                    semanticAssessment: "supported",
-                    result: {
-                      ref: {
-                        namespace: "audit-results",
-                        name: "check-one",
-                        revision: "result-r2",
-                      },
-                      digest: `sha256:${"8".repeat(64)}`,
+      const api = checkedAPI(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        requests.push(request.clone());
+        const url = new URL(request.url);
+        const path = url.pathname;
+        const state = url.searchParams.get("state");
+        if (path === "/v1/auth/session") return json(session);
+        if (path === "/v1/projects")
+          return json({ items: [project], page: { hasMore: false } });
+        if (path === "/v1/projects/project_example") {
+          return json(project, 200, { ETag: '"1"' });
+        }
+        if (path === "/v1/projects/project_example/audits") {
+          return json({
+            items:
+              state === null || state === currentAudit.state
+                ? [currentAudit]
+                : [],
+            page: { hasMore: false },
+          });
+        }
+        if (path === "/v1/audits/audit_example") {
+          return json(currentAudit, 200, {
+            ETag: `"${currentAudit.revision}"`,
+          });
+        }
+        if (path === "/v1/audits/audit_example/findings") {
+          const items =
+            state === null || state === currentFinding.state
+              ? [currentFinding]
+              : [];
+          return json({
+            items,
+            page: { hasMore: false },
+            total: items.length,
+            auditRevision: currentAudit.revision,
+            asOf: currentAudit.updatedAt,
+          });
+        }
+        if (path === "/v1/audits/audit_example/findings/finding_example") {
+          return json(currentFinding, 200, {
+            ETag: `"${currentFinding.revision}"`,
+          });
+        }
+        if (path === "/v1/audits/audit_example/reviews") {
+          const items = reviews.filter(
+            (review) => state === null || review.state === state,
+          );
+          return json({
+            items,
+            page: { hasMore: false },
+            total: items.length,
+            auditRevision: currentAudit.revision,
+            asOf: currentAudit.updatedAt,
+          });
+        }
+        if (
+          path ===
+          "/v1/audits/audit_example/findings/finding_example/provenance"
+        ) {
+          return json({
+            auditRevision: currentAudit.revision,
+            findingRevision: currentFinding.revision,
+            items: [
+              {
+                recordId: "attempt:receipt_example:execution_item_example",
+                kind: "check-attempt",
+                receiptId: "receipt_example",
+                relation: "contributing",
+                proposal: currentFinding.firstProposal.proposal,
+                origin: currentFinding.firstProposal.origin,
+                supportsCurrentAssessment: true,
+                createdAt: currentAudit.createdAt,
+                assessment: {
+                  assessmentId: "assessment_example",
+                  semanticAssessment: "supported",
+                  result: {
+                    ref: {
+                      namespace: "audit-results",
+                      name: "check-one",
+                      revision: "result-r2",
                     },
-                    receiptId: "receipt_example",
-                    directVerification: false,
-                    acceptedAt: currentAudit.createdAt,
+                    digest: `sha256:${"8".repeat(64)}`,
                   },
-                  attempt: {
-                    executionItemId: "execution_item_example",
-                    executionId: "execution_example",
-                    itemId: "item_example",
-                    itemAttempt: 2,
-                    role: "check",
-                    workflowRole: "authorization-check",
-                    state: "settled",
-                    collectionDisposition: "accepted-result",
-                    terminalOutcome: "succeeded",
+                  receiptId: "receipt_example",
+                  directVerification: false,
+                  acceptedAt: currentAudit.createdAt,
+                },
+                attempt: {
+                  executionItemId: "execution_item_example",
+                  executionId: "execution_example",
+                  itemId: "item_example",
+                  itemAttempt: 2,
+                  role: "check",
+                  workflowRole: "authorization-check",
+                  state: "settled",
+                  collectionDisposition: "accepted-result",
+                  terminalOutcome: "succeeded",
+                  runId: "run_verification",
+                  runDeleted: true,
+                  runProvenance: {
+                    schema: "contractor.audit.run-provenance.v1",
                     runId: "run_verification",
-                    runDeleted: true,
-                    runProvenance: {
-                      schema: "contractor.audit.run-provenance.v1",
-                      runId: "run_verification",
-                      workflow: {
+                    workflow: {
+                      name: "verify-authorization",
+                      version: "1",
+                      schemaVersion: "contractor/v1alpha1",
+                      configurationRef: {
                         name: "verify-authorization",
                         version: "1",
-                        schemaVersion: "contractor/v1alpha1",
-                        configurationRef: {
-                          name: "verify-authorization",
-                          version: "1",
-                        },
-                        closureDigest: `sha256:${"9".repeat(64)}`,
                       },
+                      closureDigest: `sha256:${"9".repeat(64)}`,
                     },
-                    task: {
-                      ref: {
-                        namespace: "audit-task-packages",
-                        name: "check-one",
-                        revision: "task-r1",
-                      },
-                      digest: `sha256:${"a".repeat(64)}`,
-                    },
-                    itemOrigin: {
-                      schema: "contractor.audit.item-origin.v1",
-                      entryKey: "check-one",
-                      sourceRef: {
-                        namespace: "inputs",
-                        name: "checks",
-                        revision: "checks-r1",
-                      },
-                      sourceContentDigest: `sha256:${"b".repeat(64)}`,
-                      sourceMediaType: "application/json",
-                      canonicalInventoryDigest: `sha256:${"c".repeat(64)}`,
-                    },
-                    result: {
-                      ref: {
-                        namespace: "audit-results",
-                        name: "check-one",
-                        revision: "result-r2",
-                      },
-                      digest: `sha256:${"8".repeat(64)}`,
-                    },
-                    createdAt: currentAudit.createdAt,
-                    collectedAt: currentAudit.updatedAt,
                   },
+                  task: {
+                    ref: {
+                      namespace: "audit-task-packages",
+                      name: "check-one",
+                      revision: "task-r1",
+                    },
+                    digest: `sha256:${"a".repeat(64)}`,
+                  },
+                  itemOrigin: {
+                    schema: "contractor.audit.item-origin.v1",
+                    entryKey: "check-one",
+                    sourceRef: {
+                      namespace: "inputs",
+                      name: "checks",
+                      revision: "checks-r1",
+                    },
+                    sourceContentDigest: `sha256:${"b".repeat(64)}`,
+                    sourceMediaType: "application/json",
+                    canonicalInventoryDigest: `sha256:${"c".repeat(64)}`,
+                  },
+                  result: {
+                    ref: {
+                      namespace: "audit-results",
+                      name: "check-one",
+                      revision: "result-r2",
+                    },
+                    digest: `sha256:${"8".repeat(64)}`,
+                  },
+                  createdAt: currentAudit.createdAt,
+                  collectedAt: currentAudit.updatedAt,
                 },
-              ],
-              page: { hasMore: false },
-            });
-          }
-          if (
-            path ===
-              "/v1/audits/audit_example/findings/finding_example/reviews" &&
-            request.method === "POST"
-          ) {
-            expect(request.headers.get("If-Match")).toBe('"1"');
-            reviews = [pendingReview];
-            currentAudit = auditAt("completed", 3);
-            return jsonResponse(pendingReview, {
-              status: 201,
-              headers: { ETag: '"1"' },
-            });
-          }
-          if (
-            path ===
-              "/v1/audits/audit_example/reviews/review_example/decisions" &&
-            request.method === "POST"
-          ) {
-            expect(request.headers.get("If-Match")).toBe('"1"');
-            const body = (await request.json()) as Record<string, unknown>;
-            expect(body).toEqual({
-              verdict: "true_positive",
-              severity: "high",
-              rationale: "Confirmed from exact source evidence.",
-            });
-            const decision = {
-              decisionId: "decision_example",
-              requestId: pendingReview.requestId,
-              auditId: currentAudit.auditId,
-              findingId: currentFinding.findingId,
-              actorId: session.principal.userId,
-              verdict: "true_positive" as const,
-              severity: "high" as const,
-              rationale: "Confirmed from exact source evidence.",
-              subjectRevision: 1,
-              subjectDigest: pendingReview.subjectDigest,
-              createdAt: currentAudit.updatedAt,
-            };
-            currentFinding = {
-              ...currentFinding,
-              state: "confirmed",
-              revision: 2,
-              analystVerdict: "true_positive",
-              analystSeverity: "high",
-              analystDecision: decision,
-            };
-            reviews = [
-              { ...pendingReview, state: "decided", revision: 2, decision },
-            ];
-            currentAudit = auditAt("completed", 4);
-            return jsonResponse({
-              finding: currentFinding,
-              request: reviews[0],
-              decision,
-              replayed: false,
-            });
-          }
-          if (path.endsWith("/coverage"))
-            return jsonResponse({ items: [], page: { hasMore: false } });
-          throw new Error(`unexpected ${request.method} ${path}`);
-        }),
-      );
+              },
+            ],
+            page: { hasMore: false },
+          });
+        }
+        if (
+          path ===
+            "/v1/audits/audit_example/findings/finding_example/reviews" &&
+          request.method === "POST"
+        ) {
+          expect(request.headers.get("If-Match")).toBe('"1"');
+          reviews = [pendingReview];
+          currentAudit = auditAt("completed", 3);
+          return json(pendingReview, 201, { ETag: '"1"' });
+        }
+        if (
+          path ===
+            "/v1/audits/audit_example/reviews/review_example/decisions" &&
+          request.method === "POST"
+        ) {
+          expect(request.headers.get("If-Match")).toBe('"1"');
+          const body = (await request.json()) as Record<string, unknown>;
+          expect(body).toEqual({
+            verdict: "true_positive",
+            severity: "high",
+            rationale: "Confirmed from exact source evidence.",
+          });
+          const decision = {
+            decisionId: "decision_example",
+            requestId: pendingReview.requestId,
+            auditId: currentAudit.auditId,
+            findingId: currentFinding.findingId,
+            actorId: session.principal.userId,
+            verdict: "true_positive" as const,
+            severity: "high" as const,
+            rationale: "Confirmed from exact source evidence.",
+            subjectRevision: 1,
+            subjectDigest: pendingReview.subjectDigest,
+            createdAt: currentAudit.updatedAt,
+          };
+          currentFinding = {
+            ...currentFinding,
+            state: "confirmed",
+            revision: 2,
+            analystVerdict: "true_positive",
+            analystSeverity: "high",
+            analystDecision: decision,
+          };
+          reviews = [
+            { ...pendingReview, state: "decided", revision: 2, decision },
+          ];
+          currentAudit = auditAt("completed", 4);
+          return json({
+            finding: currentFinding,
+            request: reviews[0],
+            decision,
+            replayed: false,
+          });
+        }
+        if (path.endsWith("/coverage"))
+          return emptyCollection(path, currentAudit);
+        throw new Error(`unexpected ${request.method} ${path}`);
+      });
       const { router } = renderApplication(
-        api,
         scope === "check"
           ? "/projects/project_example/audits/audit_example/findings"
           : "/projects/project_example/findings",
+        { api },
       );
       const user = userEvent.setup();
 
@@ -1021,89 +995,88 @@ describe("Project Audit routes", () => {
       updatedAt: currentAudit.updatedAt,
     };
     let decided = false;
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const path = new URL(request.url).pathname;
-        if (path === "/v1/auth/session") return jsonResponse(session);
-        if (path === "/v1/projects/project_example") {
-          return jsonResponse(project, { headers: { ETag: '"1"' } });
-        }
-        if (path === "/v1/audits/audit_example") {
-          return jsonResponse(currentAudit, { headers: { ETag: '"3"' } });
-        }
-        if (
-          path === "/v1/audits/audit_example/reviews" &&
-          request.method === "GET"
-        ) {
-          return jsonResponse({
-            items: decided
-              ? [
-                  {
-                    ...review,
-                    state: "decided",
-                    revision: 2,
-                    decision: {
-                      decisionId: "decision_not_applicable",
-                      requestId: review.requestId,
-                      auditId: review.auditId,
-                      action: "not_applicable",
-                      actorId: session.principal.userId,
-                      rationale:
-                        "Documentation is outside this exact application scope.",
-                      subjectRevision: review.subjectRevision,
-                      subjectDigest: review.subjectDigest,
-                      createdAt: currentAudit.updatedAt,
-                    },
+    const api = checkedAPI(async (input) => {
+      const request = input instanceof Request ? input : new Request(input);
+      const path = new URL(request.url).pathname;
+      if (path === "/v1/auth/session") return json(session);
+      if (path === "/v1/projects/project_example") {
+        return json(project, 200, { ETag: '"1"' });
+      }
+      if (path === "/v1/audits/audit_example") {
+        return json(currentAudit, 200, { ETag: '"3"' });
+      }
+      if (
+        path === "/v1/audits/audit_example/reviews" &&
+        request.method === "GET"
+      ) {
+        return json({
+          items: decided
+            ? [
+                {
+                  ...review,
+                  state: "decided",
+                  revision: 2,
+                  decision: {
+                    decisionId: "decision_not_applicable",
+                    requestId: review.requestId,
+                    auditId: review.auditId,
+                    action: "not_applicable",
+                    actorId: session.principal.userId,
+                    rationale:
+                      "Documentation is outside this exact application scope.",
+                    subjectRevision: review.subjectRevision,
+                    subjectDigest: review.subjectDigest,
+                    createdAt: currentAudit.updatedAt,
                   },
-                ]
-              : [review],
-            page: { hasMore: false },
-          });
-        }
-        if (
-          path ===
-            "/v1/audits/audit_example/reviews/review_applicability/decisions" &&
-          request.method === "POST"
-        ) {
-          expect(request.headers.get("If-Match")).toBe('"1"');
-          expect(await request.json()).toEqual({
+                },
+              ]
+            : [review],
+          page: { hasMore: false },
+          auditRevision: currentAudit.revision,
+          asOf: currentAudit.updatedAt,
+          total: 1,
+        });
+      }
+      if (
+        path ===
+          "/v1/audits/audit_example/reviews/review_applicability/decisions" &&
+        request.method === "POST"
+      ) {
+        expect(request.headers.get("If-Match")).toBe('"1"');
+        expect(await request.json()).toEqual({
+          action: "not_applicable",
+          rationale: "Documentation is outside this exact application scope.",
+        });
+        decided = true;
+        return json({
+          request: review,
+          decision: {
+            decisionId: "decision_not_applicable",
+            requestId: review.requestId,
+            auditId: review.auditId,
             action: "not_applicable",
+            actorId: session.principal.userId,
             rationale: "Documentation is outside this exact application scope.",
-          });
-          decided = true;
-          return jsonResponse({
-            request: review,
-            decision: {
-              decisionId: "decision_not_applicable",
-              requestId: review.requestId,
-              auditId: review.auditId,
-              action: "not_applicable",
-              actorId: session.principal.userId,
-              rationale:
-                "Documentation is outside this exact application scope.",
-              subjectRevision: review.subjectRevision,
-              subjectDigest: review.subjectDigest,
-              createdAt: currentAudit.updatedAt,
-            },
-            replayed: false,
-          });
-        }
-        if (path === "/v1/audits/audit_example/items") {
-          return jsonResponse({ items: [], page: { hasMore: false } });
-        }
-        if (path === "/v1/audits/audit_example/report") {
-          return jsonResponse({ status: "pending" });
-        }
-        if (path.endsWith("/coverage") || path.endsWith("/reviews"))
-          return jsonResponse({ items: [], page: { hasMore: false } });
-        throw new Error(`unexpected ${request.method} ${path}`);
-      }),
-    );
+            subjectRevision: review.subjectRevision,
+            subjectDigest: review.subjectDigest,
+            createdAt: currentAudit.updatedAt,
+          },
+          replayed: false,
+        });
+      }
+      if (path === "/v1/audits/audit_example/items") {
+        return json({ items: [], page: { hasMore: false } });
+      }
+      if (path === "/v1/audits/audit_example/report") {
+        return json({ status: "pending" });
+      }
+      if (path.endsWith("/coverage") || path.endsWith("/reviews"))
+        return emptyCollection(path, currentAudit);
+      throw new Error(`unexpected ${request.method} ${path}`);
+    });
     renderApplication(
-      api,
       "/projects/project_example/audits/audit_example/reviews",
+      { api },
     );
     const user = userEvent.setup();
     const decision = await screen.findByRole("region", {
@@ -1136,43 +1109,46 @@ describe("Project Audit routes", () => {
 describe("Bounded Audit collections", () => {
   /** Six pages of one record each: five fill the batch, one waits behind it. */
   function pagedResponse<T>(
+    audit: Audit,
     cursor: string | null,
     record: (ordinal: number) => T,
     pages = 6,
   ): Response {
     const ordinal = cursor === null ? 0 : Number(cursor.slice("page-".length));
-    return jsonResponse({
-      items: [record(ordinal)],
-      page:
-        ordinal + 1 < pages
-          ? { hasMore: true, nextCursor: `page-${ordinal + 1}` }
-          : { hasMore: false },
-    });
+    return json(
+      auditPage(
+        audit,
+        [record(ordinal)],
+        pages,
+        ordinal + 1 < pages ? `page-${ordinal + 1}` : undefined,
+      ),
+    );
   }
 
   it("caps the project's possible issues per check and offers one Load more for the aggregate", async () => {
     const paused = auditAt("paused", 3);
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const url = new URL((input as Request).url);
-        const path = url.pathname;
-        if (path === "/v1/auth/session") return jsonResponse(session);
-        if (path === "/v1/projects/project_example")
-          return jsonResponse(project, { headers: { ETag: '"1"' } });
-        if (path === "/v1/projects/project_example/audits")
-          return jsonResponse({ items: [paused], page: { hasMore: false } });
-        if (path === "/v1/audits/audit_example/findings")
-          return pagedResponse(url.searchParams.get("cursor"), (ordinal) => {
+    const api = checkedAPI(async (input) => {
+      const url = new URL((input as Request).url);
+      const path = url.pathname;
+      if (path === "/v1/auth/session") return json(session);
+      if (path === "/v1/projects/project_example")
+        return json(project, 200, { ETag: '"1"' });
+      if (path === "/v1/projects/project_example/audits")
+        return json({ items: [paused], page: { hasMore: false } });
+      if (path === "/v1/audits/audit_example/findings")
+        return pagedResponse(
+          paused,
+          url.searchParams.get("cursor"),
+          (ordinal) => {
             const finding = findingAt("proposed", 1);
             finding.findingId = `finding_${ordinal + 1}`;
             finding.firstProposal.document.title = `Finding ${ordinal + 1}`;
             return finding;
-          });
-        throw new Error(`unexpected ${path}`);
-      }),
-    );
-    renderApplication(api, "/projects/project_example/findings");
+          },
+        );
+      throw new Error(`unexpected ${path}`);
+    });
+    renderApplication("/projects/project_example/findings", { api });
     expect(
       await screen.findByText("5 of 5 possible issues · 1 check"),
     ).toBeVisible();
@@ -1202,33 +1178,31 @@ describe("Bounded Audit collections", () => {
       findingId: `finding_${index}`,
     }));
     let reviewReads = 0;
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const url = new URL((input as Request).url);
-        if (url.pathname === "/v1/auth/session") return jsonResponse(session);
-        if (url.pathname === "/v1/projects/project_example")
-          return jsonResponse(project, { headers: { ETag: '"1"' } });
-        if (url.pathname === "/v1/projects/project_example/audits")
-          return jsonResponse({ items: [audit], page: { hasMore: false } });
-        if (url.pathname === "/v1/audits/audit_example/findings") {
-          const offset = Number(url.searchParams.get("cursor") ?? "0");
-          return jsonResponse({
-            items: allFindings.slice(offset, offset + 50),
-            page:
-              offset + 50 < allFindings.length
-                ? { hasMore: true, nextCursor: String(offset + 50) }
-                : { hasMore: false },
-          });
-        }
-        if (url.pathname === "/v1/audits/audit_example/reviews") {
-          reviewReads += 1;
-          return jsonResponse({ items: [], page: { hasMore: false } });
-        }
-        throw new Error(`unexpected ${url.pathname}`);
-      }),
-    );
-    renderApplication(api, "/projects/project_example/findings");
+    const api = checkedAPI(async (input) => {
+      const url = new URL((input as Request).url);
+      if (url.pathname === "/v1/auth/session") return json(session);
+      if (url.pathname === "/v1/projects/project_example")
+        return json(project, 200, { ETag: '"1"' });
+      if (url.pathname === "/v1/projects/project_example/audits")
+        return json({ items: [audit], page: { hasMore: false } });
+      if (url.pathname === "/v1/audits/audit_example/findings") {
+        const offset = Number(url.searchParams.get("cursor") ?? "0");
+        return json(
+          auditPage(
+            audit,
+            allFindings.slice(offset, offset + 50),
+            allFindings.length,
+            offset + 50 < allFindings.length ? String(offset + 50) : undefined,
+          ),
+        );
+      }
+      if (url.pathname === "/v1/audits/audit_example/reviews") {
+        reviewReads += 1;
+        return emptyCollection(url.pathname, audit);
+      }
+      throw new Error(`unexpected ${url.pathname}`);
+    });
+    renderApplication("/projects/project_example/findings", { api });
     expect(
       await screen.findByText("250 of 250 possible issues · 1 check"),
     ).toBeVisible();
@@ -1251,28 +1225,22 @@ describe("Bounded Audit collections", () => {
       vi.useFakeTimers({ shouldAdvanceTime: true });
       const audit = auditAt(state, 3);
       const requests = { audits: 0, findings: 0 };
-      const api = new PublicAPI(
-        runtimeConfig,
-        vi.fn(async (input) => {
-          const path = new URL((input as Request).url).pathname;
-          if (path === "/v1/auth/session") return jsonResponse(session);
-          if (path === "/v1/projects/project_example")
-            return jsonResponse(project, { headers: { ETag: '"1"' } });
-          if (path === "/v1/projects/project_example/audits") {
-            requests.audits += 1;
-            return jsonResponse({ items: [audit], page: { hasMore: false } });
-          }
-          if (path === "/v1/audits/audit_example/findings") {
-            requests.findings += 1;
-            return jsonResponse({
-              items: [findingAt("proposed", 1)],
-              page: { hasMore: false },
-            });
-          }
-          throw new Error(`unexpected ${path}`);
-        }),
-      );
-      renderApplication(api, "/projects/project_example/findings");
+      const api = checkedAPI(async (input) => {
+        const path = new URL((input as Request).url).pathname;
+        if (path === "/v1/auth/session") return json(session);
+        if (path === "/v1/projects/project_example")
+          return json(project, 200, { ETag: '"1"' });
+        if (path === "/v1/projects/project_example/audits") {
+          requests.audits += 1;
+          return json({ items: [audit], page: { hasMore: false } });
+        }
+        if (path === "/v1/audits/audit_example/findings") {
+          requests.findings += 1;
+          return json(auditPage(audit, [findingAt("proposed", 1)]));
+        }
+        throw new Error(`unexpected ${path}`);
+      });
+      renderApplication("/projects/project_example/findings", { api });
       expect(
         await screen.findByText("1 of 1 possible issue · 1 check"),
       ).toBeVisible();
@@ -1295,59 +1263,58 @@ describe("Audit workspace snapshot navigation", () => {
   it("uses whole-filter totals, pins continuations, and resets stale cursors on filter changes", async () => {
     const audit = auditAt("completed", 5);
     const queries: URLSearchParams[] = [];
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") return jsonResponse(session);
-        if (url.pathname === "/v1/projects/project_example")
-          return jsonResponse(project, { headers: { ETag: '"1"' } });
-        if (url.pathname === "/v1/audits/audit_example")
-          return jsonResponse(audit, { headers: { ETag: '"5"' } });
-        if (url.pathname === "/v1/audits/audit_example/findings") {
-          // The check page's own unfiltered read of every possible issue.
-          if ([...url.searchParams.keys()].every((key) => key === "limit"))
-            return jsonResponse({
-              items: [],
-              page: { hasMore: false },
-              total: 0,
-              auditRevision: 5,
-              asOf: audit.updatedAt,
-            });
-          queries.push(url.searchParams);
-          if (url.searchParams.has("cursor"))
-            return jsonResponse(
-              {
-                code: "conflict",
-                message: "Audit changed",
-                retryable: false,
-                requestId: "stale",
-              },
-              { status: 409 },
-            );
-          return jsonResponse({
-            items: [findingAt("proposed", 1)],
-            page: { hasMore: true, nextCursor: "next-exact" },
-            total: url.searchParams.has("severity") ? 7 : 65,
-            auditRevision: 5,
-            asOf: audit.updatedAt,
-          });
-        }
-        if (url.pathname.endsWith("/reviews"))
-          return jsonResponse({
+    const api = checkedAPI(async (input) => {
+      const request = input instanceof Request ? input : new Request(input);
+      const url = new URL(request.url);
+      if (url.pathname === "/v1/auth/session") return json(session);
+      if (url.pathname === "/v1/projects/project_example")
+        return json(project, 200, { ETag: '"1"' });
+      if (url.pathname === "/v1/audits/audit_example")
+        return json(audit, 200, { ETag: '"5"' });
+      if (url.pathname === "/v1/audits/audit_example/findings") {
+        // The check page's own unfiltered read of every possible issue.
+        if ([...url.searchParams.keys()].every((key) => key === "limit"))
+          return json({
             items: [],
             page: { hasMore: false },
             total: 0,
             auditRevision: 5,
             asOf: audit.updatedAt,
           });
-        throw new Error(`unexpected ${url}`);
-      }),
-    );
+        queries.push(url.searchParams);
+        if (url.searchParams.has("cursor"))
+          return json(
+            {
+              code: "conflict",
+              message: "Audit changed",
+              retryable: false,
+              requestId: "stale",
+            },
+            409,
+          );
+        return json({
+          items: [findingAt("proposed", 1)],
+          page: { hasMore: true, nextCursor: "next-exact" },
+          total: url.searchParams.has("severity") ? 7 : 65,
+          auditRevision: 5,
+          asOf: audit.updatedAt,
+        });
+      }
+      // The shell's owner-wide read of review requests.
+      if (url.pathname === "/v1/reviews") return json(page([]));
+      if (url.pathname.endsWith("/reviews"))
+        return json({
+          items: [],
+          page: { hasMore: false },
+          total: 0,
+          auditRevision: 5,
+          asOf: audit.updatedAt,
+        });
+      throw new Error(`unexpected ${url}`);
+    });
     const { router } = renderApplication(
-      api,
       "/projects/project_example/audits/audit_example/findings?verdict=unreviewed",
+      { api },
     );
     const user = userEvent.setup();
     expect(
@@ -1417,45 +1384,44 @@ describe("Audit workspace snapshot navigation", () => {
         updatedAt: audit.updatedAt,
       };
       let exactReads = 0;
-      const api = new PublicAPI(
-        runtimeConfig,
-        vi.fn(async (input) => {
-          const request = input instanceof Request ? input : new Request(input);
-          const url = new URL(request.url);
-          const path = url.pathname;
-          if (path === "/v1/auth/session") return jsonResponse(session);
-          if (path === "/v1/projects/project_example")
-            return jsonResponse(project, { headers: { ETag: '"1"' } });
-          if (path === "/v1/audits/audit_example")
-            return jsonResponse(audit, { headers: { ETag: '"5"' } });
-          if (path === "/v1/audits/audit_example/findings/finding_example") {
-            exactReads += 1;
-            return jsonResponse(finding, { headers: { ETag: '"3"' } });
-          }
-          if (path === "/v1/audits/audit_example/reviews/review_linked")
-            return jsonResponse(linked, { headers: { ETag: '"1"' } });
-          if (path === "/v1/audits/audit_example/findings")
-            return jsonResponse({
-              items: [finding],
-              page: { hasMore: false },
-              total: 1,
-              auditRevision: 5,
-              asOf: audit.updatedAt,
-            });
-          if (path.endsWith("/reviews"))
-            return jsonResponse({
-              items: [linked],
-              page: { hasMore: false },
-              total: 1,
-              auditRevision: 5,
-              asOf: audit.updatedAt,
-            });
-          throw new Error(`unexpected ${request.method} ${path}`);
-        }),
-      );
+      const api = checkedAPI(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const url = new URL(request.url);
+        const path = url.pathname;
+        if (path === "/v1/auth/session") return json(session);
+        if (path === "/v1/projects/project_example")
+          return json(project, 200, { ETag: '"1"' });
+        if (path === "/v1/audits/audit_example")
+          return json(audit, 200, { ETag: '"5"' });
+        if (path === "/v1/audits/audit_example/findings/finding_example") {
+          exactReads += 1;
+          return json(finding, 200, { ETag: '"3"' });
+        }
+        if (path === "/v1/audits/audit_example/reviews/review_linked")
+          return json(linked, 200, { ETag: '"1"' });
+        if (path === "/v1/audits/audit_example/findings")
+          return json({
+            items: [finding],
+            page: { hasMore: false },
+            total: 1,
+            auditRevision: 5,
+            asOf: audit.updatedAt,
+          });
+        // The shell's owner-wide read of review requests.
+        if (path === "/v1/reviews") return json(page([]));
+        if (path.endsWith("/reviews"))
+          return json({
+            items: [linked],
+            page: { hasMore: false },
+            total: 1,
+            auditRevision: 5,
+            asOf: audit.updatedAt,
+          });
+        throw new Error(`unexpected ${request.method} ${path}`);
+      });
       const { router } = renderApplication(
-        api,
         "/projects/project_example/audits/audit_example/findings?finding=finding_example&review=review_linked",
+        { api },
       );
       const user = userEvent.setup();
       expect(
@@ -1530,47 +1496,46 @@ describe("Audit workspace snapshot navigation", () => {
       updatedAt: audit.updatedAt,
     };
     const mutations: string[] = [];
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (request.method !== "GET") mutations.push(request.method);
-        if (url.pathname === "/v1/auth/session") return jsonResponse(session);
-        if (url.pathname === "/v1/projects/project_example")
-          return jsonResponse(project, { headers: { ETag: '"1"' } });
-        if (url.pathname === "/v1/audits/audit_example")
-          return jsonResponse(audit, { headers: { ETag: '"5"' } });
-        if (url.pathname.endsWith("/reviews"))
-          return jsonResponse({
-            items: [review],
-            page: { hasMore: false },
-            total: 51,
-            auditRevision: 5,
-            asOf: audit.updatedAt,
-          });
-        if (url.pathname.endsWith("/report"))
-          return jsonResponse({
-            status: "proposed",
-            summary: "Exact retained evidence for owner acceptance.",
-            summaryArtifact: {
-              ref: {
-                namespace: "audit-example",
-                name: "report.md",
-                revision: "report-r1",
-              },
-              digest: `sha256:${"1".repeat(64)}`,
-              mediaType: "text/markdown",
-              sizeBytes: 44,
+    const api = checkedAPI(async (input) => {
+      const request = input instanceof Request ? input : new Request(input);
+      const url = new URL(request.url);
+      if (request.method !== "GET") mutations.push(request.method);
+      if (url.pathname === "/v1/auth/session") return json(session);
+      if (url.pathname === "/v1/projects/project_example")
+        return json(project, 200, { ETag: '"1"' });
+      if (url.pathname === "/v1/audits/audit_example")
+        return json(audit, 200, { ETag: '"5"' });
+      // The shell's owner-wide read of review requests.
+      if (url.pathname === "/v1/reviews") return json(page([]));
+      if (url.pathname.endsWith("/reviews"))
+        return json({
+          items: [review],
+          page: { hasMore: false },
+          total: 51,
+          auditRevision: 5,
+          asOf: audit.updatedAt,
+        });
+      if (url.pathname.endsWith("/report"))
+        return json({
+          status: "proposed",
+          summary: "Exact retained evidence for owner acceptance.",
+          summaryArtifact: {
+            ref: {
+              namespace: "audit-example",
+              name: "report.md",
+              revision: "report-r1",
             },
-            review,
-          });
-        throw new Error(`unexpected ${url}`);
-      }),
-    );
+            digest: `sha256:${"1".repeat(64)}`,
+            mediaType: "text/markdown",
+            sizeBytes: 44,
+          },
+          review,
+        });
+      throw new Error(`unexpected ${url}`);
+    });
     const queue =
       "/projects/project_example/audits/audit_example/reviews?state=pending&cursor=page-two&auditRevision=5";
-    const { router } = renderApplication(api, queue);
+    const { router } = renderApplication(queue, { api });
     const user = userEvent.setup();
     await user.click(
       await screen.findByRole("link", { name: "Review report →" }),

@@ -1,14 +1,21 @@
 import "./login.css";
 import { useDocumentTitle } from "../app/document-title";
 import { type FormEvent, useState } from "react";
-import { Navigate, useLocation, useNavigate } from "react-router";
+import { Navigate, useLocation } from "react-router";
 
+import { htmlPattern, stringRule } from "../api/contract";
+import { useGuardedNavigate } from "../app/page-location";
 import { UI_VERSION } from "../build";
 import { useSession } from "../auth/session";
-import { StatusGlyph } from "../ui";
+import { Button, StatusGlyph } from "../ui";
 import { LoginBackdrop } from "./login-backdrop";
 import { SignInBrand } from "./login-brand";
 import { SessionConnectionError } from "./session-error";
+
+// The sign-in form's limits are the LoginRequest schema's.
+const USERNAME = stringRule("LoginRequest", "properties", "username");
+const USERNAME_PATTERN = htmlPattern(USERNAME);
+const PASSWORD = stringRule("LoginRequest", "properties", "password");
 
 function safeDestination(state: unknown): string {
   if (
@@ -34,7 +41,7 @@ export function LoginRoute() {
     isLoading,
   } = useSession();
   const location = useLocation();
-  const navigate = useNavigate();
+  const navigate = useGuardedNavigate();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -51,7 +58,7 @@ export function LoginRoute() {
     setError(null);
     try {
       await login({ username, password });
-      navigate(safeDestination(location.state), { replace: true });
+      void navigate(safeDestination(location.state), { replace: true });
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : "Authentication failed",
@@ -76,9 +83,9 @@ export function LoginRoute() {
             <input
               name="username"
               autoComplete="username"
-              pattern={"[A-Za-z0-9][A-Za-z0-9_.\\-]*"}
-              minLength={1}
-              maxLength={64}
+              pattern={USERNAME_PATTERN}
+              minLength={USERNAME.minLength}
+              maxLength={USERNAME.maxLength}
               required
               value={username}
               onChange={(event) => setUsername(event.target.value)}
@@ -90,7 +97,7 @@ export function LoginRoute() {
               name="password"
               type="password"
               autoComplete="current-password"
-              maxLength={1024}
+              maxLength={PASSWORD.maxBytes}
               required
               value={password}
               onChange={(event) => setPassword(event.target.value)}
@@ -102,14 +109,15 @@ export function LoginRoute() {
               <span>{error}</span>
             </p>
           )}
-          <button
-            className="ui-btn"
-            data-variant="primary"
+          <Button
+            variant="primary"
             type="submit"
-            disabled={isLoggingIn || isLoading}
+            disabled={isLoading}
+            pending={isLoggingIn}
+            pendingLabel="Signing in…"
           >
-            {isLoggingIn ? "Signing in…" : "Sign in"}
-          </button>
+            Sign in
+          </Button>
         </form>
         <footer className="ops-signin-footer">
           <span className="ops-signin-version">UI {UI_VERSION}</span>

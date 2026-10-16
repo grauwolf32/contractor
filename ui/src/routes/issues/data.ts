@@ -20,27 +20,21 @@ import {
 } from "../../api/cross-project";
 import { FINDING_STATES } from "../projects/audits/finding-options";
 import type { IssueFilters, StateFilter } from "./links";
+import {
+  AUDIT_STATES_WITH_FINDINGS,
+  WORKING_AUDIT_STATES,
+} from "../../api/states";
 
 /** Check states that can hold possible issues (every state but draft and deleting). */
-const ISSUE_CHECK_STATES: readonly AuditState[] = [
-  "active",
-  "waiting_review",
-  "paused",
-  "finalizing",
-  "cancelling",
-  "completed",
-  "cancelled",
-  "failed",
-];
+const ISSUE_CHECK_STATES = AUDIT_STATES_WITH_FINDINGS;
 
 /** Checks that can still propose possible issues. */
-const RUNNING_CHECK_STATES: ReadonlySet<AuditState> = new Set([
-  "active",
-  "finalizing",
-]);
+const RUNNING_CHECK_STATES: ReadonlySet<AuditState> = new Set(
+  WORKING_AUDIT_STATES,
+);
 
 /** A count for a filter chip: exact, a lower bound ("12+") or unknown. */
-export type IssueCount = number | string | undefined;
+type IssueCount = number | string | undefined;
 
 export interface IssueList {
   /** Possible issues matching every filter, newest first. */
@@ -53,10 +47,8 @@ export interface IssueList {
   error: Error | null;
   /** Failed reads (deduplicated); everything else is listed. */
   errors: CrossProjectError[];
-  /** Checks of the shown states with more possible issues than listed. */
-  truncatedChecks: CrossProjectCheck[];
-  /** The project index or a project's check page had more than it read. */
-  checksTruncated: boolean;
+  /** A list stopped at its page cap, so more may exist than are listed. */
+  truncated: boolean;
   /** Listed checks in scope, for names of failed reads. */
   checks: CrossProjectCheck[];
   /** Checks in scope that are still running, so more may arrive. */
@@ -79,10 +71,7 @@ function byText(left: string, right: string): number {
 }
 
 /** Newest first, like the cross-project lists; IDs break ties. */
-export function newerIssue(
-  left: CrossProjectIssue,
-  right: CrossProjectIssue,
-): number {
+function newerIssue(left: CrossProjectIssue, right: CrossProjectIssue): number {
   return (
     time(right.finding.createdAt) - time(left.finding.createdAt) ||
     time(right.finding.updatedAt) - time(left.finding.updatedAt) ||
@@ -148,9 +137,6 @@ export function useIssueList(filters: IssueFilters): IssueList {
     const inScope = (check: CrossProjectCheck) =>
       project === undefined || check.project.projectId === project;
     const scopedChecks = checks.checks.filter(inScope);
-    const checkById = new Map(
-      scopedChecks.map((check) => [check.audit.auditId, check]),
-    );
 
     const scoped = new Map<AuditFindingState, CrossProjectIssue[]>();
     const counts: Partial<Record<StateFilter, IssueCount>> = {};
@@ -158,15 +144,12 @@ export function useIssueList(filters: IssueFilters): IssueList {
       const result = byState[value];
       const issues = result.issues.filter(inScope);
       scoped.set(value, issues);
-      const truncatedHere = result.truncatedAuditIds.some((auditId) =>
-        issues.some((issue) => issue.audit.auditId === auditId),
-      );
       counts[value] =
         project === undefined
           ? result.total
           : result.isPending && issues.length === 0
             ? undefined
-            : truncatedHere
+            : result.truncated
               ? `${issues.length}+`
               : issues.length;
     }
@@ -194,13 +177,6 @@ export function useIssueList(filters: IssueFilters): IssueList {
     }
 
     const shownStates = state === "all" ? FINDING_STATES : [state];
-    const truncatedIds = new Set(
-      shownStates.flatMap((value) => byState[value].truncatedAuditIds),
-    );
-    const truncatedChecks = [...truncatedIds].flatMap((auditId) => {
-      const check = checkById.get(auditId);
-      return check === undefined ? [] : [check];
-    });
 
     const errors = new Map<string, CrossProjectError>();
     for (const error of [
@@ -220,8 +196,7 @@ export function useIssueList(filters: IssueFilters): IssueList {
           project === undefined ||
           error.projectId === project,
       ),
-      truncatedChecks,
-      checksTruncated: checks.truncated,
+      truncated: shownStates.some((value) => byState[value].truncated),
       checks: scopedChecks,
       running: scopedChecks.filter((check) =>
         RUNNING_CHECK_STATES.has(check.audit.state),

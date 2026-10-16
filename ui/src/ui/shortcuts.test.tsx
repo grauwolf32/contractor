@@ -4,13 +4,10 @@ import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { ListRow, ListSection } from "./list";
-import {
-  isTextEntryTarget,
-  useListNavigation,
-  useShortcuts,
-  type ShortcutBindings,
-  type ShortcutOptions,
-} from "./shortcuts";
+import { useListNavigation, useShortcuts } from "./shortcuts";
+
+type ShortcutBindings = Parameters<typeof useShortcuts>[0];
+type ShortcutOptions = Parameters<typeof useShortcuts>[1];
 
 function Shortcuts({
   bindings,
@@ -82,7 +79,6 @@ describe("useShortcuts", () => {
     fireEvent.keyDown(screen.getByLabelText("Done"), { key: "j" });
     fireEvent.keyDown(screen.getByLabelText("High"), { key: "j" });
     expect(onJ).toHaveBeenCalledTimes(2);
-    expect(isTextEntryTarget(screen.getByLabelText("Done"))).toBe(false);
   });
 
   it("ignores plain-key bindings while Ctrl, Meta or Alt is held", () => {

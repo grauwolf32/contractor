@@ -1,90 +1,36 @@
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createMemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
-import * as queryClientFactory from "../../app/query-client";
+import { createApplicationQueryClient } from "../../app/query-client";
 import { queryKeys } from "../../api/query-keys";
-import type { RuntimeConfig } from "../../config/runtime-config";
-import { PublicAPI } from "../../api/client";
-import { Application } from "../../app/application";
-import { applicationRoutes } from "../../app/router";
+import { renderApplication } from "../../test/application";
+import * as build from "../../test/builders";
+import { runStatus, stageContract } from "../../test/builders-execution";
+import { bytes, json, page } from "../../test/responses";
+import { CSRF_TOKEN } from "../../test/render";
+import { fakeAPI } from "./audits/check-test-support";
 
-const runtimeConfig: RuntimeConfig = {
-  uiVersion: "0.1.0",
-  supportedApiVersions: ["contractor.public.v1"],
-  apiBaseUrl: "http://127.0.0.1:8080",
-};
-
-const session = {
-  principal: {
-    userId: "user_local",
-    username: "owner",
-    capabilities: ["user", "operations"],
-  },
-  csrfToken: "a".repeat(43),
-  idleExpiresAt: "2026-09-01T20:00:00Z",
-  absoluteExpiresAt: "2026-09-02T12:00:00Z",
-};
-
-const project = {
-  projectId: "project_example",
-  kind: "project",
+const project = build.project("project_example", {
   name: "Payment service",
   description: "Reusable service analysis",
-  lifecycle: "active",
-  activeChecks: "automatic",
-  revision: "1",
   createdAt: "2026-09-01T10:00:00Z",
   updatedAt: "2026-09-01T10:00:00Z",
-};
-
-function jsonResponse(value: unknown, options: ResponseInit = {}): Response {
-  const headers = new Headers(options.headers);
-  headers.set("content-type", "application/json");
-  headers.set("X-Contractor-API-Version", "contractor.public.v1");
-  return new Response(JSON.stringify(value), { ...options, headers });
-}
-
-function bytesResponse(body: BodyInit, options: ResponseInit = {}): Response {
-  const headers = new Headers(options.headers);
-  headers.set("X-Contractor-API-Version", "contractor.public.v1");
-  return new Response(body, { ...options, headers });
-}
-
-function renderProjectApplication(
-  api: PublicAPI,
-  path: string | { pathname: string; search: string; state: unknown },
-) {
-  const router = createMemoryRouter(applicationRoutes(), {
-    initialEntries: [path],
-  });
-  return {
-    ...render(<Application api={api} publicAPI={api} router={router} />),
-    router,
-  };
-}
+});
 
 describe("Project routes", () => {
   it("loads a bounded Overview and preserves section filters through navigation", async () => {
     const requests: URL[] = [];
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const url = new URL(
-          (input instanceof Request ? input : new Request(input)).url,
-        );
+    const { api } = fakeAPI(
+      async (request, url) => {
         requests.push(url);
-        if (url.pathname === "/v1/auth/session") return jsonResponse(session);
         if (url.pathname === "/v1/projects/project_example")
-          return jsonResponse(project, { headers: { ETag: '"1"' } });
-        return jsonResponse({ items: [], page: { hasMore: false } });
-      }),
+          return json(project, 200, { ETag: '"1"' });
+        return undefined;
+      },
+      { capabilities: ["user", "operations"] },
     );
-    const { router } = renderProjectApplication(
-      api,
-      "/projects/project_example",
-    );
+    const { router } = renderApplication("/projects/project_example", { api });
     const user = userEvent.setup();
     await screen.findByRole("heading", { name: "Timeline" });
     const reads = (suffix: string) =>
@@ -152,22 +98,18 @@ describe("Project routes", () => {
 
   it("opens Run section links, sends cursors to the filtered API and resets pages when the view changes", async () => {
     const requests: URL[] = [];
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const url = new URL(
-          (input instanceof Request ? input : new Request(input)).url,
-        );
+    const { api } = fakeAPI(
+      async (request, url) => {
         requests.push(url);
-        if (url.pathname === "/v1/auth/session") return jsonResponse(session);
         if (url.pathname === "/v1/projects/project_example")
-          return jsonResponse(project, { headers: { ETag: '"1"' } });
-        return jsonResponse({ items: [], page: { hasMore: false } });
-      }),
+          return json(project, 200, { ETag: '"1"' });
+        return undefined;
+      },
+      { capabilities: ["user", "operations"] },
     );
-    const { router } = renderProjectApplication(
-      api,
+    const { router } = renderApplication(
       "/projects/project_example/runs?view=completed&state=succeeded&cursor=page2",
+      { api },
     );
     const user = userEvent.setup();
     await screen.findByRole("button", { name: "All Runs" });
@@ -214,22 +156,19 @@ describe("Project routes", () => {
       deletion: { phase: "draining", requestedAt: "2026-09-05T10:00:00Z" },
       revision: "2",
     };
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") return jsonResponse(session);
+    const { api } = fakeAPI(
+      async (request, url) => {
         if (url.pathname === "/v1/projects") {
-          return jsonResponse({
+          return json({
             items: complete ? [] : [deletingProject],
             page: { hasMore: false },
           });
         }
         throw new Error(`unexpected ${request.method} ${url.pathname}`);
-      }),
+      },
+      { capabilities: ["user", "operations"] },
     );
-    const { router } = renderProjectApplication(api, "/projects");
+    const { router } = renderApplication("/projects", { api });
     const row = await screen.findByRole("link", { name: project.name });
     expect(row).toHaveAttribute("href", "/projects/project_example");
     expect(row.closest("li")).toHaveTextContent("Deleting");
@@ -248,36 +187,31 @@ describe("Project routes", () => {
   it("keeps a refused deletion open and confirms again against the re-read Project", async () => {
     let current = project;
     const deleteRequests: Request[] = [];
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") return jsonResponse(session);
+    const { api } = fakeAPI(
+      async (request, url) => {
         if (url.pathname === "/v1/projects") {
-          return jsonResponse({ items: [current], page: { hasMore: false } });
+          return json({ items: [current], page: { hasMore: false } });
         }
         if (url.pathname === "/v1/projects/project_example") {
           if (request.method === "DELETE") {
             deleteRequests.push(request.clone());
             current = { ...project, name: "Renamed project", revision: "2" };
-            return jsonResponse(
+            return json(
               {
                 code: "precondition_failed",
                 message: "resource revision precondition failed",
                 retryable: false,
               },
-              { status: 412 },
+              412,
             );
           }
-          return jsonResponse(current, {
-            headers: { ETag: `"${current.revision}"` },
-          });
+          return json(current, 200, { ETag: `"${current.revision}"` });
         }
-        return jsonResponse({ items: [], page: { hasMore: false } });
-      }),
+        return undefined;
+      },
+      { capabilities: ["user", "operations"] },
     );
-    renderProjectApplication(api, "/projects/project_example");
+    renderApplication("/projects/project_example", { api });
     const user = userEvent.setup();
     await screen.findByRole("heading", { name: "Payment service" });
     await user.click(screen.getByLabelText("Project actions"));
@@ -327,39 +261,35 @@ describe("Project routes", () => {
       let currentProject = { ...project };
       let projectReads = 0;
       const writes: Request[] = [];
-      const api = new PublicAPI(
-        runtimeConfig,
-        vi.fn(async (input) => {
-          const request = input instanceof Request ? input : new Request(input);
-          const url = new URL(request.url);
-          if (url.pathname === "/v1/auth/session") return jsonResponse(session);
+      const { api } = fakeAPI(
+        async (request, url) => {
           if (url.pathname === "/v1/projects/project_example") {
             if (request.method === "PATCH") {
               writes.push(request.clone());
-              return jsonResponse(
+              return json(
                 {
                   code: "precondition_failed",
                   message: "resource revision precondition failed",
                   retryable: false,
                   requestId: "request-stale-project",
                 },
-                { status: 412 },
+                412,
               );
             }
             projectReads += 1;
-            return jsonResponse(currentProject, {
-              headers: { ETag: `"${currentProject.revision}"` },
+            return json(currentProject, 200, {
+              ETag: `"${currentProject.revision}"`,
             });
           }
-          return jsonResponse({ items: [], page: { hasMore: false } });
-        }),
+          return undefined;
+        },
+        { capabilities: ["user", "operations"] },
       );
-      const queryClient = queryClientFactory.createApplicationQueryClient();
-      const factory = vi
-        .spyOn(queryClientFactory, "createApplicationQueryClient")
-        .mockReturnValueOnce(queryClient);
-      renderProjectApplication(api, "/projects/project_example/settings");
-      factory.mockRestore();
+      const queryClient = createApplicationQueryClient();
+      renderApplication("/projects/project_example/settings", {
+        api,
+        queryClient,
+      });
       const user = userEvent.setup();
       await screen.findByRole("heading", { name: "Payment service" });
       await user.click(
@@ -400,7 +330,7 @@ describe("Project routes", () => {
       expect(screen.getByLabelText(label)).toHaveValue(draft);
       expect(writes).toHaveLength(1);
       expect(writes[0]?.headers.get("If-Match")).toBe('"1"');
-      expect(writes[0]?.headers.get("X-CSRF-Token")).toBe(session.csrfToken);
+      expect(writes[0]?.headers.get("X-CSRF-Token")).toBe(CSRF_TOKEN);
       await expect(writes[0]?.json()).resolves.toEqual(
         operation === "metadata"
           ? { name: draft, description: project.description }
@@ -423,58 +353,45 @@ describe("Project routes", () => {
       revision: "2",
       updatedAt: "2026-09-05T10:00:00Z",
     };
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") {
-          return jsonResponse(session);
-        }
+    const { api } = fakeAPI(
+      async (request, url) => {
         if (url.pathname === "/v1/projects/project_example") {
           if (request.method === "DELETE") {
             deleteRequests.push(request.clone());
             deleting = true;
-            return jsonResponse(deletingProject, {
-              status: 202,
-              headers: { ETag: '"2"' },
-            });
+            return json(deletingProject, 202, { ETag: '"2"' });
           }
           if (complete) {
-            return jsonResponse(
+            return json(
               {
                 code: "not_found",
                 message: "resource was not found",
                 retryable: false,
                 requestId: "request-project-deleted",
               },
-              { status: 404 },
+              404,
             );
           }
           const current = deleting ? deletingProject : project;
-          return jsonResponse(current, {
-            headers: { ETag: deleting ? '"2"' : '"1"' },
-          });
+          return json(current, 200, { ETag: deleting ? '"2"' : '"1"' });
         }
         if (url.pathname === "/v1/projects") {
-          return jsonResponse({ items: [], page: { hasMore: false } });
+          return json(page([]));
         }
         if (url.pathname.endsWith("/artifacts")) {
-          return jsonResponse({ items: [], page: { hasMore: false } });
+          return json(page([]));
         }
         if (url.pathname === "/v1/workflows") {
-          return jsonResponse({ items: [], page: { hasMore: false } });
+          return json(page([]));
         }
         if (url.pathname === "/v1/projects/project_example/runs") {
-          return jsonResponse({ items: [], page: { hasMore: false } });
+          return json(page([]));
         }
         throw new Error(`unexpected ${request.method} ${url.pathname}`);
-      }),
+      },
+      { capabilities: ["user", "operations"] },
     );
-    const { router } = renderProjectApplication(
-      api,
-      "/projects/project_example",
-    );
+    const { router } = renderApplication("/projects/project_example", { api });
     const user = userEvent.setup();
 
     await screen.findByRole("heading", { name: "Payment service" });
@@ -511,9 +428,7 @@ describe("Project routes", () => {
     ).not.toBeInTheDocument();
     expect(deleteRequests).toHaveLength(1);
     expect(deleteRequests[0]?.headers.get("If-Match")).toBe('"1"');
-    expect(deleteRequests[0]?.headers.get("X-CSRF-Token")).toBe(
-      session.csrfToken,
-    );
+    expect(deleteRequests[0]?.headers.get("X-CSRF-Token")).toBe(CSRF_TOKEN);
     await expect(deleteRequests[0]?.text()).resolves.toBe("");
 
     complete = true;
@@ -527,44 +442,36 @@ describe("Project routes", () => {
 
   it("creates an owner-scoped Project and opens its dashboard", async () => {
     const requests: Request[] = [];
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
+    const { api } = fakeAPI(
+      async (request, url) => {
         requests.push(request.clone());
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") {
-          return jsonResponse(session);
-        }
         if (url.pathname === "/v1/projects" && request.method === "GET") {
-          return jsonResponse({ items: [], page: { hasMore: false } });
+          return json(page([]));
         }
         if (url.pathname === "/v1/projects" && request.method === "POST") {
-          return jsonResponse(project, {
-            status: 201,
-            headers: { ETag: '"1"' },
-          });
+          return json(project, 201, { ETag: '"1"' });
         }
         if (url.pathname === "/v1/projects/project_example") {
-          return jsonResponse(project, { headers: { ETag: '"1"' } });
+          return json(project, 200, { ETag: '"1"' });
         }
         if (
           url.pathname.endsWith("/artifacts") ||
           url.pathname === "/v1/projects/project_example/audits" ||
           url.pathname === "/v1/audit-profiles"
         ) {
-          return jsonResponse({ items: [], page: { hasMore: false } });
+          return json(page([]));
         }
         if (url.pathname === "/v1/workflows") {
-          return jsonResponse({ items: [], page: { hasMore: false } });
+          return json(page([]));
         }
         if (url.pathname === "/v1/projects/project_example/runs") {
-          return jsonResponse({ items: [], page: { hasMore: false } });
+          return json(page([]));
         }
         throw new Error(`unexpected ${request.method} ${url.pathname}`);
-      }),
+      },
+      { capabilities: ["user", "operations"] },
     );
-    const { router } = renderProjectApplication(api, "/projects");
+    const { router } = renderApplication("/projects", { api });
     const user = userEvent.setup();
 
     await screen.findByRole("heading", { name: "Projects" });
@@ -600,7 +507,7 @@ describe("Project routes", () => {
     expect(create.headers.get("Idempotency-Key")).toMatch(
       /^create-project-ui-/,
     );
-    expect(create.headers.get("X-CSRF-Token")).toBe(session.csrfToken);
+    expect(create.headers.get("X-CSRF-Token")).toBe(CSRF_TOKEN);
     const body = await create.json();
     expect(body).toEqual({
       kind: "project",
@@ -614,27 +521,24 @@ describe("Project routes", () => {
 
   it("opens New project from ?new=1, reuses the key for the same request and clears the parameter on close", async () => {
     const creates: Request[] = [];
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") return jsonResponse(session);
+    const { api } = fakeAPI(
+      async (request, url) => {
         if (url.pathname === "/v1/projects" && request.method === "POST") {
           creates.push(request.clone());
-          return jsonResponse(
+          return json(
             {
               code: "unavailable",
               message: "Project store unavailable",
               retryable: true,
             },
-            { status: 503 },
+            503,
           );
         }
-        return jsonResponse({ items: [], page: { hasMore: false } });
-      }),
+        return undefined;
+      },
+      { capabilities: ["user", "operations"] },
     );
-    const { router } = renderProjectApplication(api, "/projects?new=1");
+    const { router } = renderApplication("/projects?new=1", { api });
     const user = userEvent.setup();
     const dialog = await screen.findByRole("dialog", { name: "New project" });
     await user.type(within(dialog).getByLabelText("Name"), "Payment service");
@@ -673,23 +577,17 @@ describe("Project routes", () => {
       frozen: false,
       createdAt: "2026-09-01T10:10:00Z",
     };
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
+    const { api } = fakeAPI(
+      async (request, url) => {
         requests.push(request);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") {
-          return jsonResponse(session);
-        }
         if (url.pathname === "/v1/projects/project_example") {
-          return jsonResponse(project, { headers: { ETag: '"1"' } });
+          return json(project, 200, { ETag: '"1"' });
         }
         if (
           url.pathname === "/v1/projects/project_example/artifacts" &&
           request.method === "GET"
         ) {
-          return jsonResponse({
+          return json({
             items: uploaded ? [artifact] : [],
             page: { hasMore: false },
           });
@@ -700,28 +598,29 @@ describe("Project routes", () => {
           request.method === "PUT"
         ) {
           uploaded = true;
-          return jsonResponse(
+          return json(
             {
               artifact: artifact.artifact,
               mediaType: artifact.mediaType,
               size: artifact.size,
             },
-            { status: 201, headers: { ETag: '"revision-1"' } },
+            201,
+            { ETag: '"revision-1"' },
           );
         }
         if (url.pathname === "/v1/workflows") {
-          return jsonResponse({ items: [], page: { hasMore: false } });
+          return json(page([]));
         }
         if (url.pathname === "/v1/projects/project_example/runs") {
-          return jsonResponse({ items: [], page: { hasMore: false } });
+          return json(page([]));
         }
         throw new Error(`unexpected ${request.method} ${url.pathname}`);
-      }),
+      },
+      { capabilities: ["user", "operations"] },
     );
-    renderProjectApplication(
+    renderApplication("/projects/project_example/artifacts?add=artifact", {
       api,
-      "/projects/project_example/artifacts?add=artifact",
-    );
+    });
     const user = userEvent.setup();
 
     await screen.findByRole("dialog", { name: "Add material" });
@@ -755,20 +654,16 @@ describe("Project routes", () => {
     const secret = "project-origin-secret-never-persist";
     let currentProject: Record<string, unknown> = { ...project };
     let credential: Record<string, unknown> | undefined;
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
+    const { api } = fakeAPI(
+      async (request, url) => {
         requests.push(request.clone());
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") return jsonResponse(session);
         if (url.pathname === "/v1/projects/project_example") {
           if (request.method === "PATCH") {
             const body = (await request.json()) as Record<string, unknown>;
             currentProject = { ...currentProject, ...body, revision: "2" };
-            return jsonResponse(currentProject, { headers: { ETag: '"2"' } });
+            return json(currentProject, 200, { ETag: '"2"' });
           }
-          return jsonResponse(currentProject, { headers: { ETag: '"1"' } });
+          return json(currentProject, 200, { ETag: '"1"' });
         }
         if (url.pathname === "/v1/operations/runtime-credentials") {
           if (request.method === "POST") {
@@ -779,26 +674,27 @@ describe("Project routes", () => {
               createdBy: "user-1",
               createdAt: "2026-09-01T10:01:00Z",
             };
-            return jsonResponse(credential, { status: 201 });
+            return json(credential, 201);
           }
-          return jsonResponse({
+          return json({
             items: credential === undefined ? [] : [credential],
             page: { hasMore: false },
           });
         }
         if (url.pathname.endsWith("/artifacts")) {
-          return jsonResponse({ items: [], page: { hasMore: false } });
+          return json(page([]));
         }
         if (url.pathname === "/v1/workflows") {
-          return jsonResponse({ items: [], page: { hasMore: false } });
+          return json(page([]));
         }
         if (url.pathname === "/v1/projects/project_example/runs") {
-          return jsonResponse({ items: [], page: { hasMore: false } });
+          return json(page([]));
         }
         throw new Error(`unexpected ${request.method} ${url.pathname}`);
-      }),
+      },
+      { capabilities: ["user", "operations"] },
     );
-    renderProjectApplication(api, "/projects/project_example/settings");
+    renderApplication("/projects/project_example/settings", { api });
     const user = userEvent.setup();
 
     await screen.findByRole("heading", { name: "Payment service" });
@@ -856,38 +752,33 @@ describe("Project routes", () => {
   });
 
   it("contains a failed artifact request without crashing Project overview", async () => {
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") {
-          return jsonResponse(session);
-        }
+    const { api } = fakeAPI(
+      async (request, url) => {
         if (url.pathname === "/v1/projects/project_example") {
-          return jsonResponse(project, { headers: { ETag: '"1"' } });
+          return json(project, 200, { ETag: '"1"' });
         }
         if (url.pathname.endsWith("/artifacts")) {
-          return jsonResponse(
+          return json(
             {
               code: "artifact_store_unavailable",
               message: "Artifact storage is temporarily unavailable",
               retryable: true,
               requestId: "request-project-artifacts",
             },
-            { status: 500 },
+            500,
           );
         }
         if (url.pathname === "/v1/workflows") {
-          return jsonResponse({ items: [], page: { hasMore: false } });
+          return json(page([]));
         }
         if (url.pathname === "/v1/projects/project_example/runs") {
-          return jsonResponse({ items: [], page: { hasMore: false } });
+          return json(page([]));
         }
         throw new Error(`unexpected ${request.method} ${url.pathname}`);
-      }),
+      },
+      { capabilities: ["user", "operations"] },
     );
-    renderProjectApplication(api, "/projects/project_example");
+    renderApplication("/projects/project_example", { api });
 
     expect(
       await screen.findByText("Artifact storage is temporarily unavailable"),
@@ -928,22 +819,16 @@ describe("Project routes", () => {
       frozen: false,
       createdAt: "2026-09-01T10:10:00Z",
     };
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") {
-          return jsonResponse(session);
-        }
+    const { api } = fakeAPI(
+      async (request, url) => {
         if (url.pathname.endsWith("/metadata")) {
-          return jsonResponse(artifact);
+          return json(artifact);
         }
         if (url.pathname.endsWith("/versions")) {
-          return jsonResponse({ items: [artifact], page: { hasMore: false } });
+          return json({ items: [artifact], page: { hasMore: false } });
         }
         if (url.pathname.endsWith("/lineage")) {
-          return jsonResponse({
+          return json({
             items: [
               {
                 kind: "project_output_publish",
@@ -965,19 +850,15 @@ describe("Project routes", () => {
         if (
           url.pathname === "/v1/projects/project_example/artifacts/docs/readme"
         ) {
-          return bytesResponse(content, {
-            headers: {
-              "content-type": "text/plain",
-              "content-length": String(content.length),
-            },
-          });
+          return bytes(content, "text/plain");
         }
         throw new Error(`unexpected ${request.method} ${url.pathname}`);
-      }),
+      },
+      { capabilities: ["user", "operations"] },
     );
-    renderProjectApplication(
-      api,
+    renderApplication(
       "/projects/project_example/artifacts/docs/readme?revision=revision-2",
+      { api },
     );
 
     expect(
@@ -1025,12 +906,8 @@ describe("Project routes", () => {
         },
       };
       let written = false;
-      const api = new PublicAPI(
-        runtimeConfig,
-        vi.fn(async (input) => {
-          const request = input instanceof Request ? input : new Request(input);
-          const url = new URL(request.url);
-          if (url.pathname === "/v1/auth/session") return jsonResponse(session);
+      const { api } = fakeAPI(
+        async (request, url) => {
           if (
             request.method === "PUT" &&
             url.pathname ===
@@ -1038,25 +915,30 @@ describe("Project routes", () => {
           ) {
             expect(request.headers.get("If-Match")).toBe('"revision-1"');
             written = true;
-            return jsonResponse(
+            return json(
               { artifact: latest.artifact, mediaType: "text/plain", size: 4 },
-              { status: 201, headers: { ETag: '"revision-2"' } },
+              201,
+              { ETag: '"revision-2"' },
             );
           }
           if (url.pathname.endsWith("/metadata"))
-            return jsonResponse(
+            return json(
               url.searchParams.get("revision") === "revision-2"
                 ? latest
                 : { ...original, current: !written },
             );
           throw new Error(`unexpected ${request.method} ${url}`);
-        }),
+        },
+        { capabilities: ["user", "operations"] },
       );
-      const { router } = renderProjectApplication(api, {
-        pathname: `/${scope}/project_example/artifacts/docs/readme`,
-        search: "?revision=revision-1",
-        state: returnState,
-      });
+      const { router } = renderApplication(
+        {
+          pathname: `/${scope}/project_example/artifacts/docs/readme`,
+          search: "?revision=revision-1",
+          state: returnState,
+        },
+        { api },
+      );
       expect(
         await screen.findByText("Current revision", { selector: ".lede" }),
       ).toBeVisible();
@@ -1147,32 +1029,26 @@ describe("Project routes", () => {
       },
       labels: [],
     };
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
+    const { api } = fakeAPI(
+      async (request, url) => {
         requests.push(request);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") {
-          return jsonResponse(session);
-        }
         if (url.pathname === "/v1/projects/project_example") {
-          return jsonResponse(project, { headers: { ETag: '"1"' } });
+          return json(project, 200, { ETag: '"1"' });
         }
         if (url.pathname === "/v1/projects/project_example/artifacts") {
-          return jsonResponse({ items: [source], page: { hasMore: false } });
+          return json({ items: [source], page: { hasMore: false } });
         }
         if (
           url.pathname === "/v1/projects/project_example/runs" &&
           request.method === "GET"
         ) {
-          return jsonResponse({ items: [], page: { hasMore: false } });
+          return json(page([]));
         }
         if (
           url.pathname === "/v1/projects/project_example/runs" &&
           request.method === "POST"
         ) {
-          return jsonResponse(
+          return json(
             {
               runId: "run_project_recommended",
               projectId: "project_example",
@@ -1181,42 +1057,39 @@ describe("Project routes", () => {
               labels: {},
               runtimeConfiguration,
             },
-            { status: 202 },
+            202,
           );
         }
         if (url.pathname === "/v1/workflows") {
-          return jsonResponse({
+          return json({
             items: workflowSummaries,
             page: { hasMore: false },
           });
         }
         if (url.pathname === "/v1/workflows/openapi-from-source/versions/1") {
-          return jsonResponse({
+          return json({
             ...workflowSummaries[0],
-            stages: {},
+            stages: { analyze: stageContract() },
           });
         }
         if (url.pathname === "/v1/runs/run_project_recommended") {
-          return jsonResponse({
-            runId: "run_project_recommended",
-            projectId: "project_example",
-            workflow: "openapi-from-source@1",
-            state: "initializing",
-            runtimeLabels: [],
-            labels: {},
-            runtimeConfiguration,
-            attempts: [],
-            transitions: [],
-            outputs: {},
-            outputPublications: [],
-          });
+          return json(
+            runStatus("run_project_recommended", {
+              projectId: "project_example",
+              workflow: "openapi-from-source@1",
+              state: "initializing",
+              deletable: false,
+              runtimeConfiguration,
+            }),
+          );
         }
         throw new Error(`unexpected ${request.method} ${url.pathname}`);
-      }),
+      },
+      { capabilities: ["user", "operations"] },
     );
-    const { router } = renderProjectApplication(
-      api,
+    const { router } = renderApplication(
       "/projects/project_example/workflows",
+      { api },
     );
     const user = userEvent.setup();
 
@@ -1319,33 +1192,28 @@ describe("Project routes", () => {
         },
       },
     };
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") {
-          return jsonResponse(session);
-        }
+    const { api } = fakeAPI(
+      async (request, url) => {
         if (url.pathname === "/v1/projects/project_example") {
-          return jsonResponse(project, { headers: { ETag: '"1"' } });
+          return json(project, 200, { ETag: '"1"' });
         }
         if (url.pathname === "/v1/projects/project_example/artifacts") {
-          return jsonResponse({
+          return json({
             items: [source, existingOutput],
             page: { hasMore: false },
           });
         }
         if (url.pathname === "/v1/projects/project_example/runs") {
-          return jsonResponse({ items: [], page: { hasMore: false } });
+          return json(page([]));
         }
         if (url.pathname === "/v1/workflows") {
-          return jsonResponse({ items: [workflow], page: { hasMore: false } });
+          return json({ items: [workflow], page: { hasMore: false } });
         }
         throw new Error(`unexpected ${request.method} ${url.pathname}`);
-      }),
+      },
+      { capabilities: ["user", "operations"] },
     );
-    renderProjectApplication(api, "/projects/project_example/workflows");
+    renderApplication("/projects/project_example/workflows", { api });
     const user = userEvent.setup();
 
     expect(await screen.findByText("No new format matches.")).toBeVisible();

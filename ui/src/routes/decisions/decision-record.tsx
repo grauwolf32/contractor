@@ -22,8 +22,8 @@ export function DecisionRecord({
         <StatusChip tone={outcome.tone} size="sm">
           {outcome.label}
         </StatusChip>
-        <span className="decisions-record-meta">
-          by <span className="decisions-record-actor">{decision.actorId}</span>
+        <span className="ui-caption">
+          by <span className="ui-mono">{decision.actorId}</span>
           {" · "}
           <RecordedTime value={decision.createdAt} />
         </span>

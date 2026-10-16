@@ -1,13 +1,17 @@
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
-import { useLocation, useNavigate, useSearchParams } from "react-router";
+import { useLocation, useSearchParams } from "react-router";
 
 import { useDocumentTitle } from "../../app/document-title";
 import { locationDestination } from "../../app/navigation";
-import { usePageLocationNow } from "../../app/page-location";
+import {
+  useGuardedNavigate,
+  usePageLocationNow,
+} from "../../app/page-location";
 import { PaneLayout, useListNavigation } from "../../ui";
 import { useAnnouncement } from "../decisions/announcement";
 import { useInboxData, type InboxData } from "./data";
-import { InboxDetail, type DetailContext } from "./detail";
+import { InboxDetail } from "./detail";
+import type { DetailContext } from "./detail-parts";
 import { InboxList } from "./list";
 import {
   distinctCount,
@@ -24,6 +28,7 @@ import {
 import { rowPage } from "./present";
 
 import "./inbox.css";
+import { plural } from "../../app/format";
 
 /** The overview, where focus requests and announcements name no item. */
 const OVERVIEW = "";
@@ -32,10 +37,6 @@ const OVERVIEW = "";
 interface RowChoice {
   key: string;
   section: InboxSectionId;
-}
-
-function plural(count: number, one: string, many: string): string {
-  return `${count.toLocaleString("en-US")} ${count === 1 ? one : many}`;
 }
 
 /** One line per section for the overview shown when nothing is selected. */
@@ -103,7 +104,9 @@ export function InboxRoute() {
   useDocumentTitle("Inbox");
   const data = useInboxData();
   const { model } = data;
-  const navigate = useNavigate();
+  // Selection follows decisions that answer late: only while the user is
+  // still on the Inbox.
+  const navigate = useGuardedNavigate();
   const location = useLocation();
   const [params] = useSearchParams();
   const selected = parseRefKey(params.get("item"));

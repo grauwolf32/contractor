@@ -15,13 +15,15 @@ import { queryKeys } from "../api/query-keys";
 import { useRunEvents } from "../events/context";
 import { CursorControls } from "../app/cursor-controls";
 import { useURLCursorStack } from "../app/pagination";
+import { pollInterval } from "../app/polling";
 import { RefreshButton } from "../app/refresh-button";
 import { RecordedTime } from "../app/recorded-time";
 import { QueryView } from "../app/query-view";
 import { EmptyState } from "../ui";
 import { RunMetadataLabelChips, RunStateChip } from "./runs/components";
 import { RunIdLink, RunsFilter } from "./runs/list-parts";
-import { MEMBERSHIP_LABELS, RUN_STATE_LABELS } from "./runs/run-state";
+import { MEMBERSHIP_LABELS } from "./runs/run-state";
+import { RUN_STATE_LABELS } from "../app/vocabulary";
 
 const LIVE_SUBSCRIPTION_LIMIT = 24;
 // Live subscriptions left waiting by a failed resync, or by a live session
@@ -170,7 +172,9 @@ export function QueuePanel() {
         ...(membership === undefined ? {} : { membership }),
         ...(cursor === undefined ? {} : { cursor }),
       }),
-    refetchInterval: 10_000,
+    // The active queue never settles: read it every 10 s, backing off while
+    // reads fail.
+    refetchInterval: pollInterval({ interval: 10_000 }),
   });
 
   useQueueInvalidation(query.data?.items ?? []);
@@ -205,6 +209,7 @@ export function QueuePanel() {
         </div>
         <RefreshButton
           className="runs-icon-button"
+          size="sm"
           isFetching={query.isFetching}
           onRefresh={() => void query.refetch()}
         />
@@ -217,11 +222,10 @@ export function QueuePanel() {
         <QueryView
           query={query}
           loading={
-            <p className="runs-loading" role="status">
+            <p className="ui-caption" role="status">
               Loading Queue…
             </p>
           }
-          onRetry={() => void query.refetch()}
           isEmpty={(queryData) => queryData.items.length === 0}
           empty={
             <EmptyState title="No active Runs match this view.">
@@ -288,6 +292,7 @@ export function QueuePanel() {
       </div>
 
       <CursorControls
+        size="sm"
         label="Queue pages"
         {...pages.controls(query.data?.page)}
       />

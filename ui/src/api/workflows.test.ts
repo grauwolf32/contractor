@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { RuntimeConfig } from "../config/runtime-config";
+import { workflowResource } from "../test/builders-execution";
 import { PublicAPI } from "./client";
 import {
   createProjectRun,
@@ -42,14 +43,7 @@ describe("Workflow API", () => {
           return response({ items: [], page: { hasMore: false } });
         }
         if (path === "/v1/workflows/openapi-from-workspace/versions/3") {
-          return response({
-            ref: { name: "openapi-from-workspace", version: "3" },
-            entryStage: "discover",
-            parameters: {},
-            inputs: {},
-            outputs: {},
-            stages: {},
-          });
+          return response(workflowResource("openapi-from-workspace", "3"));
         }
         if (path === "/v1/configurations/model-policies") {
           return response({ items: [], page: { hasMore: false } });
@@ -295,6 +289,6 @@ describe("Workflow API", () => {
     api.csrf.replace("a".repeat(43));
     await expect(
       createRun(api, { workflow: "artifact-copy@1" }, "draft-hostile-1"),
-    ).rejects.toThrow("contractor. prefix is reserved");
+    ).rejects.toMatchObject({ code: "invalid_api_response", status: 202 });
   });
 });

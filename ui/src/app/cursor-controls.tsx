@@ -1,3 +1,8 @@
+import type { ComponentProps } from "react";
+
+import { Button } from "../ui/button";
+
+/** First, Previous and Next for a keyset-paged list. */
 export function CursorControls({
   label,
   canGoBack,
@@ -5,6 +10,7 @@ export function CursorControls({
   onBack,
   onNext,
   onFirst,
+  size,
 }: {
   label: string;
   canGoBack: boolean;
@@ -12,6 +18,7 @@ export function CursorControls({
   onBack: () => void;
   onNext: (cursor: string) => void;
   onFirst?: () => void;
+  size?: ComponentProps<typeof Button>["size"];
 }) {
   if (!canGoBack && nextCursor === undefined && onFirst === undefined) {
     return null;
@@ -19,21 +26,15 @@ export function CursorControls({
   return (
     <nav className="pagination" aria-label={label}>
       {onFirst === undefined ? null : (
-        <button className="secondary-button" type="button" onClick={onFirst}>
+        <Button size={size} onClick={onFirst}>
           First page
-        </button>
+        </Button>
       )}
-      <button
-        className="secondary-button"
-        type="button"
-        disabled={!canGoBack}
-        onClick={onBack}
-      >
+      <Button size={size} disabled={!canGoBack} onClick={onBack}>
         Previous
-      </button>
-      <button
-        className="secondary-button"
-        type="button"
+      </Button>
+      <Button
+        size={size}
         disabled={nextCursor === undefined}
         onClick={() => {
           if (nextCursor !== undefined) {
@@ -42,7 +43,7 @@ export function CursorControls({
         }}
       >
         Next
-      </button>
+      </Button>
     </nav>
   );
 }

@@ -5,9 +5,14 @@ import type { AuditProfile } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
 import type { components } from "../../api/generated/public";
 import { queryKeys } from "../../api/query-keys";
-import { capitalize, checkItemKind, itemNoun } from "../../app/vocabulary";
+import {
+  capitalize,
+  checkItemKind,
+  itemNoun,
+  wordOf,
+} from "../../app/vocabulary";
 import { auditPresetLabel } from "../projects/audits/labels";
-import { compareWorkflowVersions } from "../workflows/families";
+import { compareVersions } from "../../app/format";
 
 // Check types are AuditProfiles in the API (contract §3: "Check type").
 
@@ -77,9 +82,7 @@ const COMPATIBILITY_REASONS: Readonly<Record<CompatibilityReason, string>> = {
 
 /** One readable sentence for a reason the server cannot run a check type. */
 export function compatibilityReasonText(reason: string): string {
-  return Object.hasOwn(COMPATIBILITY_REASONS, reason)
-    ? COMPATIBILITY_REASONS[reason as CompatibilityReason]
-    : capitalize(reason.replaceAll("_", " "));
+  return wordOf(COMPATIBILITY_REASONS, reason as CompatibilityReason);
 }
 
 /** The Start page with this check type chosen (contract §5). */
@@ -125,7 +128,7 @@ export function groupCheckTypes(
     .map(([name, versions]) => ({
       name,
       versions: versions.sort((left, right) =>
-        compareWorkflowVersions(right.ref.version, left.ref.version),
+        compareVersions(right.ref.version, left.ref.version),
       ),
     }));
 }

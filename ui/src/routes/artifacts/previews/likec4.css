@@ -1,0 +1,11 @@
+/* The LikeC4 architecture preview (likec4.tsx). */
+
+.likec4-artifact-preview {
+  background: var(--background);
+}
+
+.likec4-artifact-canvas {
+  width: 100%;
+  height: min(70vh, 48rem);
+  min-height: 30rem;
+}

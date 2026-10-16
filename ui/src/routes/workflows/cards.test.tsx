@@ -1,94 +1,53 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createMemoryRouter } from "react-router";
-import { describe, expect, it, vi } from "vitest";
-import { PublicAPI } from "../../api/client";
-import { Application } from "../../app/application";
-import { applicationRoutes } from "../../app/router";
-import { compareWorkflowVersions } from "./families";
+import { describe, expect, it } from "vitest";
 
-const config = {
-  uiVersion: "0.1.0",
-  supportedApiVersions: ["contractor.public.v1"],
-  apiBaseUrl: "http://127.0.0.1:8080",
-};
-const workflow = (version: string) => ({
-  ref: { name: "check", version },
-  entryStage: "check",
-  presentation:
-    version === "10"
-      ? { displayName: "Source check", description: "Review source evidence." }
-      : { displayName: "Source check" },
-  parameters: {},
-  inputs: {},
-  outputs:
-    version === "10"
-      ? {
-          report: {
-            required: true,
-            primary: true,
-            mediaTypes: ["text/markdown"],
-          },
-        }
-      : {},
-});
-function response(data: unknown) {
-  return new Response(JSON.stringify(data), {
-    headers: {
-      "content-type": "application/json",
-      "X-Contractor-API-Version": "contractor.public.v1",
-    },
-  });
-}
+import {
+  workflowResource,
+  workflowSummary,
+} from "../../test/builders-execution";
+import { json, page } from "../../test/responses";
+import { renderApplication } from "../../test/application";
+
+const workflow = (version: string) =>
+  workflowSummary(
+    workflowResource("check", version, {
+      entryStage: "check",
+      // An older version has no presentation (name and purpose come together).
+      ...(version === "10"
+        ? {
+            presentation: {
+              displayName: "Source check",
+              description: "Review source evidence.",
+            },
+            outputs: {
+              report: {
+                required: true,
+                primary: true,
+                mediaTypes: ["text/markdown"],
+              },
+            },
+          }
+        : {}),
+    }),
+  );
 
 describe("shared Workflow cards", () => {
-  it("orders numeric version components without lexical or number precision errors", () => {
-    expect(compareWorkflowVersions("10", "9")).toBeGreaterThan(0);
-    expect(compareWorkflowVersions("1.10", "1.9")).toBeGreaterThan(0);
-    expect(
-      compareWorkflowVersions("999999999999999999999", "999999999999999999998"),
-    ).toBeGreaterThan(0);
-  });
   it("defaults to the latest version across pages, pins an older choice on refresh and keeps exact links and contracts together", async () => {
-    let secondRead = false;
-    const api = new PublicAPI(
-      config,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session")
-          return response({
-            principal: {
-              userId: "user",
-              username: "owner",
-              capabilities: ["user"],
-            },
-            csrfToken: "a".repeat(43),
-            idleExpiresAt: "2099-01-01T00:00:00Z",
-            absoluteExpiresAt: "2099-01-02T00:00:00Z",
-          });
-        if (url.pathname === "/v1/workflows") {
-          if (url.searchParams.get("cursor") === "next") {
-            secondRead = true;
-            return response({
-              items: [workflow("10")],
-              page: { hasMore: false },
-            });
-          }
-          return response({
-            items: [workflow("9")],
-            page: { hasMore: true, nextCursor: "next" },
-          });
-        }
-        throw Error(url.pathname);
-      }),
-    );
-    const router = createMemoryRouter(applicationRoutes(), {
-      initialEntries: ["/catalog/workflows"],
+    const { sent } = renderApplication("/catalog/workflows", {
+      server: {
+        "GET /v1/workflows": ({ url }) =>
+          url.searchParams.get("cursor") === "next"
+            ? json(page([workflow("10")]))
+            : json(page([workflow("9")], "next")),
+      },
     });
-    render(<Application api={api} publicAPI={api} router={router} />);
     const card = await screen.findByRole("article", { name: "Source check" });
-    expect(secondRead).toBe(true);
+    expect(
+      sent("GET", "/v1/workflows").some(
+        (request) => new URL(request.url).searchParams.get("cursor") === "next",
+      ),
+    ).toBe(true);
     expect(screen.getAllByRole("article")).toHaveLength(1);
     const select = within(card).getByRole("combobox", {
       name: "Version of check",
@@ -104,7 +63,7 @@ describe("shared Workflow cards", () => {
     const user = userEvent.setup();
     await user.selectOptions(select, "9");
     expect(within(card).queryByText("report")).toBeNull();
-    // A version without a description simply omits the purpose line.
+    // A version without a presentation simply omits the purpose line.
     expect(within(card).queryByText("Review source evidence.")).toBeNull();
     expect(within(card).queryByText(/Purpose is not described/)).toBeNull();
     expect(card.querySelector(".workflow-card-description")).toBeNull();

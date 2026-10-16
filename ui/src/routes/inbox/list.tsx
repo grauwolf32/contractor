@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
 
 import { usePublicAPI } from "../../api/context";
@@ -10,6 +10,9 @@ import { RecordedTime } from "../../app/recorded-time";
 import { checkStateLabel, reviewKindLabel } from "../../app/vocabulary";
 import { useSession } from "../../auth/session";
 import {
+  Button,
+  Facts,
+  IconButton,
   Kbd,
   ListPane,
   ListRow,
@@ -29,7 +32,6 @@ import {
   inboxSearch,
   moreRecentRunsMayFollow,
   runTime,
-  SHOWN_PER_KIND,
   type InboxRow,
   type InboxRowOf,
   type InboxSectionId,
@@ -42,13 +44,13 @@ import {
   excerpt,
   FAILED_RUNS_PATH,
   gapsTitle,
-  pendingReviewsPath,
   primaryOutput,
   reviewSubjectItem,
   reviewTitle,
   SECTIONS,
   SUCCEEDED_RUNS_PATH,
 } from "./present";
+import { formatNumber, plural } from "../../app/format";
 
 const UNAVAILABLE = "Some of this could not be loaded. Try again above.";
 
@@ -394,72 +396,6 @@ function Section({
   );
 }
 
-function plural(count: number, one: string, many: string): string {
-  return `${count.toLocaleString("en-US")} ${count === 1 ? one : many}`;
-}
-
-/**
- * Where to decide the requests the Inbox leaves out: each check with more
- * pending requests than its first page links to its own pending requests
- * (the Issues page lists possible issues only).
- */
-function MoreRequests({ data }: { data: InboxData }) {
-  const ids = data.decisions.truncatedAuditIds;
-  if (ids.length === 0) return null;
-  const byId = new Map(
-    data.checks.checks.map((check) => [check.audit.auditId, check]),
-  );
-  const links = ids.map((auditId) => {
-    const check = byId.get(auditId);
-    return check === undefined
-      ? {
-          auditId,
-          to: `/checks?check=${encodeURIComponent(auditId)}`,
-          label: auditId,
-        }
-      : {
-          auditId,
-          to: pendingReviewsPath(check.project.projectId, auditId),
-          label: checkName(check),
-        };
-  });
-  const shown = links.slice(0, SHOWN_PER_KIND);
-  const hidden = links.length - shown.length;
-  return (
-    <More>
-      More decisions wait in{" "}
-      {links.length === 1 ? "this check" : "these checks"} than the Inbox lists:{" "}
-      {shown.map((link, position) => (
-        <Fragment key={link.auditId}>
-          {position === 0 ? null : ", "}
-          <Link to={link.to}>{link.label}</Link>
-        </Fragment>
-      ))}
-      {hidden === 0 ? null : (
-        <>
-          , and {plural(hidden, "more check", "more checks")} in{" "}
-          <Link to="/checks">Checks</Link>
-        </>
-      )}
-      .
-    </More>
-  );
-}
-
-function DecideMore({ data }: { data: InboxData }) {
-  return (
-    <>
-      {data.issues.truncatedAuditIds.length === 0 ? null : (
-        <More>
-          Some checks have more possible issues than the Inbox lists.{" "}
-          <Link to="/issues">Open Issues</Link>
-        </More>
-      )}
-      <MoreRequests data={data} />
-    </>
-  );
-}
-
 /**
  * What a cut list of recent Runs leaves out: "3 more failed Runs in the last
  * 7 days." ("3+" when the Server's next page may hold more of them), or that
@@ -477,7 +413,7 @@ function runsLeftOut(
     page !== undefined &&
     moreRecentRunsMayFollow(page.items, page.page.hasMore, now);
   if (recent.hidden > 0)
-    return `${recent.hidden.toLocaleString("en-US")}${more ? "+" : ""} more ${
+    return `${formatNumber(recent.hidden)}${more ? "+" : ""} more ${
       recent.hidden === 1 && !more ? one : many
     } in the last 7 days. `;
   return page?.page.hasMore === true
@@ -550,19 +486,6 @@ function ActiveRunsRow({ data }: { data: InboxData }) {
  * Counts that were Home tiles: active and failed Runs, idle Runtime slots
  * and published Workflow versions. Read only while the disclosure is open.
  */
-function RunsAndCapacity({ data }: { data: InboxData }) {
-  const marker = useRef<HTMLDivElement>(null);
-  const [open, setOpen] = useState(false);
-  useEffect(() => {
-    const details = marker.current?.closest("details");
-    if (details === null || details === undefined) return undefined;
-    const update = () => setOpen(details.open);
-    details.addEventListener("toggle", update);
-    return () => details.removeEventListener("toggle", update);
-  }, []);
-  return <div ref={marker}>{open ? <CapacityCounts data={data} /> : null}</div>;
-}
-
 function CapacityCounts({ data }: { data: InboxData }) {
   const api = usePublicAPI();
   const { session } = useSession();
@@ -572,8 +495,6 @@ function CapacityCounts({ data }: { data: InboxData }) {
     queryKey: queryKeys.operations.snapshot,
     queryFn: () => getOperationsSnapshot(api),
     enabled: operations,
-    refetchOnWindowFocus: false,
-    retry: false,
   });
   const workflows = useWorkflowInventory();
   const idle = snapshot.data?.runtimeAgents.filter(
@@ -596,23 +517,29 @@ function CapacityCounts({ data }: { data: InboxData }) {
         }`;
   return (
     <>
-      <dl className="inbox-facts" data-size="sm">
-        <div>
-          <dt>Active Runs</dt>
-          <dd>
-            {data.activeRunCount ?? "—"} · <Link to="/runs">Open Runs</Link>
-          </dd>
-        </div>
-        <div>
-          <dt>Failed Runs, last 7 days</dt>
-          <dd>
-            {failedCount} · <Link to={FAILED_RUNS_PATH}>See all</Link>
-          </dd>
-        </div>
-        <div>
-          <dt>Idle Runtime slots</dt>
-          <dd>
-            {!operations ? (
+      <Facts
+        className="inbox-facts"
+        size="sm"
+        items={[
+          {
+            term: "Active Runs",
+            value: (
+              <>
+                {data.activeRunCount ?? "—"} · <Link to="/runs">Open Runs</Link>
+              </>
+            ),
+          },
+          {
+            term: "Failed Runs, last 7 days",
+            value: (
+              <>
+                {failedCount} · <Link to={FAILED_RUNS_PATH}>See all</Link>
+              </>
+            ),
+          },
+          {
+            term: "Idle Runtime slots",
+            value: !operations ? (
               "Needs operations access"
             ) : snapshot.data === undefined ? (
               snapshot.isError ? (
@@ -625,26 +552,28 @@ function CapacityCounts({ data }: { data: InboxData }) {
                 {idle} of {snapshot.data.runtimeAgents.length} ·{" "}
                 <Link to="/operations/runtime-agents">Runtime agents</Link>
               </>
-            )}
-          </dd>
-        </div>
-        <div>
-          <dt>Published Workflow versions</dt>
-          <dd>
-            {workflows.data?.length ??
-              (workflows.isError ? "Could not be loaded" : "Loading…")}{" "}
-            · <Link to="/catalog/workflows">Workflows</Link>
-          </dd>
-        </div>
-      </dl>
-      <p className="inbox-quiet-note">
+            ),
+          },
+          {
+            term: "Published Workflow versions",
+            value: (
+              <>
+                {workflows.data?.length ??
+                  (workflows.isError ? "Could not be loaded" : "Loading…")}{" "}
+                · <Link to="/catalog/workflows">Workflows</Link>
+              </>
+            ),
+          },
+        ]}
+      />
+      <p className="ui-caption">
         An idle slot does not guarantee room for a particular Run.
       </p>
     </>
   );
 }
 
-export interface InboxListProps extends Selection {
+interface InboxListProps extends Selection {
   data: InboxData;
   subtitle: string;
   containerProps: ListNavigationContainerProps;
@@ -660,6 +589,7 @@ export function InboxList({
 }: InboxListProps) {
   const { model } = data;
   const [retrying, setRetrying] = useState(false);
+  const [capacityOpen, setCapacityOpen] = useState(false);
   const paused = data.queue.data?.paused === true;
   const activeRuns = data.activeRuns.data?.items.length ?? 0;
   const selection: Selection = { selected, onChoose };
@@ -673,20 +603,15 @@ export function InboxList({
       subtitle={subtitle}
       actions={
         // The lists refresh every 20 seconds; this reads them now.
-        <button
-          type="button"
-          className="ui-btn inbox-refresh"
-          data-size="xs"
-          data-variant="ghost"
-          aria-label="Refresh"
-          title="Refresh"
-          aria-busy={retrying || undefined}
-          data-busy={retrying || undefined}
-          disabled={retrying}
+        <IconButton
+          className="inbox-refresh"
+          size="xs"
+          variant="ghost"
+          label="Refresh"
+          icon={<Icon name="refresh" />}
+          pending={retrying}
           onClick={retry}
-        >
-          <Icon name="refresh" />
-        </button>
+        />
       }
       footer={
         <>
@@ -723,22 +648,23 @@ export function InboxList({
           <p>
             Some projects, checks or Runs could not be read, so the Inbox may be
             incomplete.{" "}
-            <button
-              type="button"
-              className="ui-btn"
-              data-size="xs"
-              disabled={retrying}
+            <Button
+              size="xs"
+              pending={retrying}
+              pendingLabel="Retrying…"
               onClick={retry}
             >
-              {retrying ? "Retrying…" : "Retry"}
-            </button>
+              Retry
+            </Button>
           </p>
         </div>
       ) : null}
-      {data.checks.truncated ? (
-        <p className="inbox-quiet-note">
-          The Inbox reads your first 50 projects and the newest 50 checks of
-          each. Checks, Issues and Reports list the rest.
+      {data.checks.truncated ||
+      data.issues.truncated ||
+      data.decisions.truncated ? (
+        <p className="ui-caption inbox-list-note">
+          There are more checks, possible issues or decisions than the Inbox can
+          read at once, so it is incomplete.
         </p>
       ) : null}
       <div className="inbox-sections" {...containerProps}>
@@ -748,9 +674,7 @@ export function InboxList({
           selection={selection}
           data={data}
           empty={model.decide.length === 0}
-        >
-          <DecideMore data={data} />
-        </Section>
+        />
         <Section
           id="unblock"
           rows={model.unblock}
@@ -784,8 +708,9 @@ export function InboxList({
       <TechnicalDetails
         summary="Runs and capacity"
         description="Run counts, idle Runtime slots and published Workflows."
+        onToggle={setCapacityOpen}
       >
-        <RunsAndCapacity data={data} />
+        {capacityOpen ? <CapacityCounts data={data} /> : null}
       </TechnicalDetails>
     </ListPane>
   );

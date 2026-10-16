@@ -11,7 +11,7 @@ import {
 import { usePublicAPI } from "../../../api/context";
 import { queryKeys } from "../../../api/query-keys";
 import { ContextLink } from "../../../app/context-navigation";
-import { EmptyState, FilterChips, ListSection } from "../../../ui";
+import { Button, EmptyState, FilterChips, ListSection } from "../../../ui";
 import { IssueRow } from "../../issues/issue-row";
 import { issueHref, type StateFilter } from "../../issues/links";
 import { AuditFindingCard } from "./finding-card";
@@ -132,7 +132,7 @@ function ExactFinding({
     );
   else if (finding.isPending || (reviewId !== null && review.isPending))
     content = (
-      <p className="issues-quiet" role="status">
+      <p className="ui-caption" role="status">
         Loading the possible issue and its review…
       </p>
     );
@@ -153,14 +153,9 @@ function ExactFinding({
               current version. Refresh the context before making a decision.
             </p>
             <div className="issues-notice-actions">
-              <button
-                type="button"
-                className="ui-btn"
-                data-size="xs"
-                onClick={refresh}
-              >
+              <Button size="xs" onClick={refresh}>
                 Refresh context
-              </button>
+              </Button>
             </div>
           </div>
         ) : null}
@@ -296,13 +291,13 @@ export function AuditFindings({ audit }: { audit: Audit }) {
             </select>
           </span>
         </div>
-        <p id={`${severityId}-hint`} className="issues-quiet">
+        <p id={`${severityId}-hint`} className="ui-caption">
           Severity is the analyst&apos;s rating. The AI&apos;s suggestion stays
           with each possible issue and is never filtered on.
         </p>
       </div>
       {findings.isPending ? (
-        <p className="issues-quiet" role="status">
+        <p className="ui-caption" role="status">
           Loading possible issues…
         </p>
       ) : findings.error !== null ? (

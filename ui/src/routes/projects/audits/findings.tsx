@@ -26,11 +26,12 @@ import {
   type VerdictValue,
 } from "../../../app/vocabulary";
 import {
+  Button,
   EmptyState,
+  type FilterChipOption,
   FilterChips,
   ListSection,
   shortenId,
-  type FilterChipOption,
 } from "../../../ui";
 import { IssueRow } from "../../issues/issue-row";
 import { issueHref, type StateFilter } from "../../issues/links";
@@ -45,6 +46,8 @@ import {
 import { auditProfileLabel } from "./labels";
 import { LoadMoreControl } from "./load-more";
 import { AuditAnchor } from "./shared";
+
+import { plural } from "../../../app/format";
 
 import "./styles.css";
 import "../../issues/issues.css";
@@ -64,10 +67,6 @@ function isDecision(value: string): value is VerdictValue {
 interface Row {
   audit: Audit;
   finding: AuditFinding;
-}
-
-function plural(count: number, one: string, many: string): string {
-  return `${count} ${count === 1 ? one : many}`;
 }
 
 /**
@@ -212,6 +211,7 @@ export function ProjectFindingsRoute() {
 
   const refreshControl = (
     <RefreshButton
+      size="sm"
       isFetching={refreshing}
       onRefresh={() =>
         void Promise.all([
@@ -228,13 +228,13 @@ export function ProjectFindingsRoute() {
         <h3 id={headingId} className="issues-section-title">
           Possible issues
         </h3>
-        <p className="issues-quiet">
+        <p className="ui-caption">
           From every check of this project: not reviewed first, then newest.
         </p>
       </header>
       <QueryView
         query={project}
-        loading={<p className="issues-quiet">Loading the project…</p>}
+        loading={<p className="ui-caption">Loading the project…</p>}
         onRetry={() => void project.refetch()}
       >
         {(data) =>
@@ -247,7 +247,7 @@ export function ProjectFindingsRoute() {
           ) : audits.error !== null ? (
             <ErrorNotice error={audits.error} />
           ) : audits.isPending ? (
-            <p className="issues-quiet" role="status">
+            <p className="ui-caption" role="status">
               Loading checks…
             </p>
           ) : (
@@ -341,7 +341,7 @@ export function ProjectFindingsRoute() {
                     </select>
                   </span>
                 </div>
-                <p id={`${severityId}-hint`} className="issues-quiet">
+                <p id={`${severityId}-hint`} className="ui-caption">
                   Severity is the analyst&apos;s rating; AI suggestions are not
                   filtered.
                 </p>
@@ -354,20 +354,18 @@ export function ProjectFindingsRoute() {
                   {plural(sources.length, "check", "checks")}
                 </span>
                 {filtered ? (
-                  <button
-                    className="ui-btn"
-                    data-size="xs"
-                    type="button"
+                  <Button
+                    size="xs"
                     onClick={() =>
                       setFilters({}, { replace: true, state: location.state })
                     }
                   >
                     Clear filters
-                  </button>
+                  </Button>
                 ) : null}
               </div>
               {loading ? (
-                <p className="issues-quiet" role="status">
+                <p className="ui-caption" role="status">
                   Loading possible issues from every check…
                 </p>
               ) : null}
@@ -392,14 +390,12 @@ export function ProjectFindingsRoute() {
                         : "This check is missing from the list below."}
                     </p>
                     <div className="issues-notice-actions">
-                      <button
-                        className="ui-btn"
-                        data-size="xs"
-                        type="button"
+                      <Button
+                        size="xs"
                         onClick={() => void findings.results[index]?.refetch()}
                       >
                         Retry
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 );

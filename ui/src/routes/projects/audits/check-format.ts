@@ -1,29 +1,11 @@
 import type { Audit } from "../../../api/audits";
-
-const shortDateTime = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-  hourCycle: "h23",
-});
-
-const clock = new Intl.DateTimeFormat("en-US", {
-  hour: "2-digit",
-  minute: "2-digit",
-  hourCycle: "h23",
-});
+import { formatClock, formatShortDateTime } from "../../../app/format";
+import { ENDED_AUDIT_STATES } from "../../../api/states";
 
 function parse(value: string | undefined): Date | undefined {
   if (value === undefined) return undefined;
   const date = new Date(value);
   return Number.isNaN(date.valueOf()) ? undefined : date;
-}
-
-/** "Oct 4, 23:51" in local time; the value as written when it is no date. */
-export function formatShortDateTime(value: string): string {
-  const date = parse(value);
-  return date === undefined ? value : shortDateTime.format(date);
 }
 
 /**
@@ -33,9 +15,9 @@ export function formatSpan(start: string, end: string | undefined): string {
   const from = parse(start);
   const to = parse(end);
   if (from === undefined) return start;
-  if (to === undefined) return shortDateTime.format(from);
+  if (end === undefined || to === undefined) return formatShortDateTime(start);
   const sameDay = from.toDateString() === to.toDateString();
-  return `${shortDateTime.format(from)} to ${sameDay ? clock.format(to) : shortDateTime.format(to)}`;
+  return `${formatShortDateTime(start)} to ${sameDay ? formatClock(to) : formatShortDateTime(end)}`;
 }
 
 /** "Started Oct 4, 23:51", or when the check was created as a draft. */
@@ -45,12 +27,7 @@ export function startedText(audit: Audit): string {
     : `Started ${formatShortDateTime(audit.startedAt)}`;
 }
 
-const TERMINAL: readonly Audit["state"][] = [
-  "completed",
-  "cancelled",
-  "failed",
-  "deleting",
-];
+const TERMINAL: readonly Audit["state"][] = ENDED_AUDIT_STATES;
 
 /**
  * The check's time limit in words, or undefined once it no longer matters

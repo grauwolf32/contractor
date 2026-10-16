@@ -1,7 +1,6 @@
 import "./login.css";
-import { Link } from "react-router";
-
 import { useDocumentTitle } from "../app/document-title";
+import { ButtonLink } from "../ui";
 
 export function NotFoundRoute() {
   useDocumentTitle("Page not found");
@@ -14,12 +13,10 @@ export function NotFoundRoute() {
         <h1 id="not-found-heading">Page not found</h1>
         <p>This address may be incomplete or the page may have moved.</p>
         <nav className="ops-state-actions" aria-label="Recovery">
-          <Link className="ui-btn" data-variant="primary" to="/">
+          <ButtonLink variant="primary" to="/">
             Inbox
-          </Link>
-          <Link className="ui-btn" to="/projects">
-            Projects
-          </Link>
+          </ButtonLink>
+          <ButtonLink to="/projects">Projects</ButtonLink>
         </nav>
       </section>
     </main>

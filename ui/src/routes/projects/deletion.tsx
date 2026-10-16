@@ -1,10 +1,11 @@
-import { useId, useRef, useState } from "react";
+import { useId, useState } from "react";
 
 import type { Project, ProjectDeletionPhase } from "../../api/projects";
-import { Dialog, DialogHeader } from "../../app/dialog";
+import { ActionMenu } from "../../app/action-menu";
 import { ErrorNotice } from "../../app/error-notice";
 import { formatTimestamp } from "../../app/format";
-import { StatusGlyph } from "../../ui";
+import { AlertDialog, Button, Field, StatusGlyph } from "../../ui";
+import type { WorkspaceProject } from "./use-project-deletion";
 
 import "./projects.css";
 
@@ -41,78 +42,98 @@ const DELETION_PHASES: readonly ProjectDeletionPhase[] = [
   "purging_artifacts",
 ];
 
+/**
+ * The workspace's action menu: refresh the project and, while it is active,
+ * ask to delete it. `noun` names it ("Project", "Eval").
+ */
+export function ProjectActions({
+  workspace,
+  noun,
+}: {
+  workspace: WorkspaceProject;
+  noun: "Project" | "Eval";
+}) {
+  const { project } = workspace;
+  return (
+    <ActionMenu label={`${noun} actions`}>
+      <Button
+        variant="ghost"
+        size="sm"
+        pending={project.isFetching}
+        pendingLabel="Refreshing…"
+        onClick={() => void project.refetch()}
+      >
+        Refresh project details
+      </Button>
+      {workspace.activeProject === undefined ? null : (
+        <Button variant="danger" size="sm" onClick={workspace.requestDeletion}>
+          Delete {noun}
+        </Button>
+      )}
+    </ActionMenu>
+  );
+}
+
+/** The type-to-confirm deletion dialog, while the workspace asks for it. */
 export function DeleteProjectDialog({
+  workspace,
+}: {
+  workspace: WorkspaceProject;
+}) {
+  const project = workspace.activeProject;
+  if (!workspace.deleteOpen || project === undefined) return null;
+  return <DeleteConfirmation project={project} workspace={workspace} />;
+}
+
+function DeleteConfirmation({
   project,
-  pending,
-  error,
-  onCancel,
-  onConfirm,
+  workspace: { deletion, cancelDeletion },
 }: {
   project: Project;
-  pending: boolean;
-  error: Error | null;
-  onCancel: () => void;
-  onConfirm: () => void;
+  workspace: WorkspaceProject;
 }) {
-  const heading = useId();
-  const warning = useId();
-  const cancelButton = useRef<HTMLButtonElement>(null);
   const [confirmation, setConfirmation] = useState("");
+  const pending = deletion.isPending;
   const resourceLabel = project.kind === "evaluation" ? "Eval" : "Project";
   return (
-    <Dialog
-      className="project-dialog project-delete-dialog panel"
-      labelledBy={heading}
-      describedBy={warning}
-      initialFocusRef={cancelButton}
-      onRequestClose={() => {
-        if (!pending) onCancel();
-      }}
-      role="alertdialog"
+    <AlertDialog
+      eyebrow="Permanent workspace deletion"
+      title={<>Delete {project.name}?</>}
+      confirmLabel={`Delete ${resourceLabel}`}
+      pendingLabel="Starting deletion…"
+      pending={pending}
+      confirmDisabled={confirmation !== project.name}
+      details={
+        <Field
+          label={
+            <>
+              Type <strong>{project.name}</strong> to confirm
+            </>
+          }
+        >
+          {(control) => (
+            <input
+              {...control}
+              value={confirmation}
+              disabled={pending}
+              autoComplete="off"
+              onChange={(event) => setConfirmation(event.currentTarget.value)}
+            />
+          )}
+        </Field>
+      }
+      error={
+        deletion.error === null ? null : <ErrorNotice error={deletion.error} />
+      }
+      onCancel={cancelDeletion}
+      onConfirm={() => deletion.mutate(project)}
     >
-      <DialogHeader
-        id={heading}
-        eyebrow="Permanent workspace deletion"
-        title={<>Delete {project.name}?</>}
-      />
-      <p className="project-delete-warning" id={warning}>
+      <p>
         This cancels every active Run and permanently deletes all Project Runs,
         execution history, and Project-scoped Artifacts. Shared User Artifacts,
         Skills, and Runtime credentials are retained.
       </p>
-      <label className="projects-field">
-        <span>
-          Type <strong>{project.name}</strong> to confirm
-        </span>
-        <input
-          value={confirmation}
-          disabled={pending}
-          autoComplete="off"
-          onChange={(event) => setConfirmation(event.currentTarget.value)}
-        />
-      </label>
-      {error === null ? null : <ErrorNotice error={error} />}
-      <div className="projects-form-actions">
-        <button
-          ref={cancelButton}
-          className="ui-btn"
-          type="button"
-          disabled={pending}
-          onClick={onCancel}
-        >
-          Cancel
-        </button>
-        <button
-          className="ui-btn"
-          data-variant="danger"
-          type="button"
-          disabled={pending || confirmation !== project.name}
-          onClick={onConfirm}
-        >
-          {pending ? "Starting deletion…" : `Delete ${resourceLabel}`}
-        </button>
-      </div>
-    </Dialog>
+    </AlertDialog>
   );
 }
 

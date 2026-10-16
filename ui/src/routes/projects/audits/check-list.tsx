@@ -7,6 +7,7 @@ import {
   type AuditCoverageRow,
 } from "../../../api/audits";
 import { ErrorNotice } from "../../../app/error-notice";
+import { formatNumber } from "../../../app/format";
 import { StaleDataWarning } from "../../../app/query-view";
 import { Icon } from "../../../app/icon";
 import {
@@ -15,17 +16,19 @@ import {
   type ItemKind,
 } from "../../../app/vocabulary";
 import {
+  Button,
   DetailHeader,
   EmptyState,
   FilterChips,
+  IconButton,
   Kbd,
+  type ListNavigationContainerProps,
   ListPane,
   ListRow,
   ListSection,
   MethodChip,
   StatusChip,
   StatusGlyph,
-  type ListNavigationContainerProps,
 } from "../../../ui";
 import { GROUP_IDS, groupLabel, itemHeading, type Group } from "./assessments";
 import { startedText } from "./check-format";
@@ -47,26 +50,6 @@ import { PathText } from "./path-text";
  * row declares them.
  */
 const LIST_KEYS = "J K ArrowDown ArrowUp Home End";
-
-function ActivityGlyph() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <path d="M9 6.5h10.5M9 12h10.5M9 17.5h10.5" />
-      <path d="M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01" />
-    </svg>
-  );
-}
 
 function EntryTitle({
   entry,
@@ -259,32 +242,21 @@ export function CheckListPane({
           </div>
           <div className="checks-list-count">
             <p role="status">
-              Showing {shown.toLocaleString("en-US")} of{" "}
-              {coverage.truncated ? "≥" : ""}
-              {entries.length.toLocaleString("en-US")} {plural}
+              Showing {formatNumber(shown)} of {coverage.truncated ? "≥" : ""}
+              {formatNumber(entries.length)} {plural}
             </p>
-            <button
-              type="button"
-              className="ui-btn"
-              data-variant="ghost"
-              data-size="xs"
-              data-icon-only=""
-              aria-label={`Refresh ${plural}`}
-              title={`Refresh ${plural}`}
-              aria-busy={coverage.isFetching || undefined}
-              disabled={coverage.isFetching}
+            <IconButton
+              variant="ghost"
+              size="xs"
+              label={`Refresh ${plural}`}
+              icon={<Icon name="refresh" />}
+              pending={coverage.isFetching}
               onClick={onRefresh}
-            >
-              <Icon name="refresh" />
-            </button>
+            />
             {filtered ? (
-              <button
-                type="button"
-                className="checks-text-button"
-                onClick={onClearFilters}
-              >
+              <Button variant="link" size="xs" onClick={onClearFilters}>
                 Clear filters
-              </button>
+              </Button>
             ) : null}
           </div>
         </div>
@@ -315,14 +287,9 @@ export function CheckListPane({
         >
           <strong>A newer revision of this check is available.</strong>
           <p>This list shows revision {pin}.</p>
-          <button
-            className="ui-btn"
-            data-size="xs"
-            type="button"
-            onClick={onRefresh}
-          >
+          <Button size="xs" onClick={onRefresh}>
             Show the latest results
-          </button>
+          </Button>
         </div>
       ) : null}
       {coverage.error !== null && entries.length > 0 ? (
@@ -340,7 +307,7 @@ export function CheckListPane({
             to={links.overview}
             selected={activitySelected}
             ariaKeyShortcuts={LIST_KEYS}
-            glyph={<ActivityGlyph />}
+            glyph={<Icon name="list" size={16} strokeWidth={2} />}
             title="All activity"
             meta="What the whole check is doing, in plain words"
             trailing={
@@ -368,7 +335,7 @@ export function CheckListPane({
                 prefix === "" ? undefined : (
                   <>
                     under{" "}
-                    <code className="checks-mono">
+                    <code className="ui-mono">
                       <PathText path={prefix} />
                     </code>
                   </>
@@ -400,7 +367,7 @@ export function CheckListPane({
         />
       </div>
       {entries.length === 0 ? null : (
-        <p className="checks-pane-note checks-quiet">
+        <p className="checks-pane-note ui-caption">
           These results describe single {plural}. A check can finish with issues
           or with incomplete {plural}; excluded {plural} do not count as met.
         </p>

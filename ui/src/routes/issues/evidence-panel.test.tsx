@@ -1,9 +1,11 @@
-import { render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
+import { screen } from "@testing-library/react";
 import { expect, it } from "vitest";
+
 import { HTTP_EXCHANGE_MEDIA_TYPE } from "../../api/artifacts";
-import { issue } from "./test-support";
+import type { AuditFinding } from "../../api/audits";
+import { renderWithAPI } from "../../test/render";
 import { EvidencePanel } from "./evidence-panel";
+import { issue } from "./test-support";
 
 function finding() {
   const value = issue(
@@ -30,12 +32,13 @@ function finding() {
   value.firstProposal.auditHolds = [];
   return value;
 }
+
+function renderPanel(value: AuditFinding) {
+  return renderWithAPI(<EvidencePanel finding={value} />);
+}
+
 it("links HTTP evidence at its exact Run revision", () => {
-  render(
-    <MemoryRouter>
-      <EvidencePanel finding={finding()} />
-    </MemoryRouter>,
-  );
+  renderPanel(finding());
   expect(
     screen.getByRole("link", { name: "Open HTTP exchange" }),
   ).toHaveAttribute(
@@ -64,11 +67,7 @@ it("uses the current Audit's retained Project copy after source deletion", () =>
       ],
     },
   ];
-  render(
-    <MemoryRouter>
-      <EvidencePanel finding={value} />
-    </MemoryRouter>,
-  );
+  renderPanel(value);
   expect(
     screen.getByRole("link", { name: "Open HTTP exchange" }),
   ).toHaveAttribute(
@@ -79,11 +78,7 @@ it("uses the current Audit's retained Project copy after source deletion", () =>
 it("does not fabricate a link to deleted evidence without a retained copy", () => {
   const value = finding();
   value.firstProposal.origin.runDeleted = true;
-  render(
-    <MemoryRouter>
-      <EvidencePanel finding={value} />
-    </MemoryRouter>,
-  );
+  renderPanel(value);
   expect(
     screen.queryByRole("link", { name: "Open HTTP exchange" }),
   ).not.toBeInTheDocument();

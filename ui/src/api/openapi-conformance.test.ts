@@ -10,15 +10,12 @@ import {
   ARTIFACT_REVISION_PATTERN,
   MEDIA_TYPE_PATTERN,
 } from "./artifacts";
-import {
-  AUDIT_STANDARD_SCHEME_PATTERN,
-  AUDIT_STANDARD_VERSION_PATTERN,
-} from "./audit-presets";
 import { AUDIT_ID_PATTERN } from "./audits";
 import { PublicAPI } from "./client";
-import { EVAL_STATES, TERMINAL_EVAL_STATES } from "./evals";
-import { BUDGET_DURATION_PATTERN, CONFIGURATION_KINDS } from "./operations";
-import { PROJECT_ID_PATTERN, PROJECT_REVISION_PATTERN } from "./projects";
+import { stringRule } from "./contract";
+import { EVAL_STATES, isTerminalEvalState } from "./evals";
+import { BUDGET_DURATION_PATTERN, isConfigurationKind } from "./operations";
+import { PROJECT_ID_PATTERN } from "./projects";
 import { QUEUE_MEMBERSHIPS, QUEUE_STATES } from "./queue";
 import { RUN_ID_PATTERN, RUN_STATES, TERMINAL_RUN_STATES } from "./runs";
 import {
@@ -112,22 +109,23 @@ describe("hand-written UI contracts match the public OpenAPI", () => {
     ["ARTIFACT_NAME_PATTERN", ARTIFACT_NAME_PATTERN, "ArtifactName"],
     ["ARTIFACT_REVISION_PATTERN", ARTIFACT_REVISION_PATTERN, "Revision"],
     ["MEDIA_TYPE_PATTERN", MEDIA_TYPE_PATTERN, "MediaType.oneOf.1"],
+    // audit-presets.ts and projects.ts read these rules with stringRule.
     [
-      "AUDIT_STANDARD_SCHEME_PATTERN",
-      AUDIT_STANDARD_SCHEME_PATTERN,
+      "Audit standard scheme",
+      stringRule("AuditStandardRef", "properties", "scheme"),
       "AuditStandardRef.properties.scheme",
     ],
     [
-      "AUDIT_STANDARD_VERSION_PATTERN",
-      AUDIT_STANDARD_VERSION_PATTERN,
+      "Audit standard version",
+      stringRule("AuditStandardRef", "properties", "version"),
       "AuditStandardRef.properties.version",
     ],
     ["AUDIT_ID_PATTERN", AUDIT_ID_PATTERN, "ResourceId"],
     ["PROJECT_ID_PATTERN", PROJECT_ID_PATTERN, "ResourceId"],
     ["RUN_ID_PATTERN", RUN_ID_PATTERN, "ResourceId"],
     [
-      "PROJECT_REVISION_PATTERN",
-      PROJECT_REVISION_PATTERN,
+      "Project revision",
+      stringRule("Project", "properties", "revision"),
       "Project.properties.revision",
     ],
     ["CONFIG_ID_PATTERN", CONFIG_ID_PATTERN, "ConfigId"],
@@ -142,9 +140,19 @@ describe("hand-written UI contracts match the public OpenAPI", () => {
     const schema = schemaAt(path as string);
     const mismatches = probes.filter(
       (value) =>
-        (pattern as RegExp).test(value) !== openapiAccepts(schema, value),
+        (pattern as { test(value: string): boolean }).test(value) !==
+        openapiAccepts(schema, value),
     );
     expect(mismatches).toEqual([]);
+  });
+
+  it("isConfigurationKind accepts exactly the ConfigurationKind values", () => {
+    const kinds = schemaAt("ConfigurationKind").enum ?? [];
+    expect(kinds.length).toBeGreaterThan(0);
+    for (const kind of kinds)
+      expect(isConfigurationKind(kind), kind).toBe(true);
+    for (const value of ["", "workflows", "Agent-Templates", "agent_templates"])
+      expect(isConfigurationKind(value), value).toBe(false);
   });
 
   it("isConfigSelector accepts exactly what Selector accepts", () => {
@@ -163,7 +171,6 @@ describe("hand-written UI contracts match the public OpenAPI", () => {
     ["RUN_STATES", RUN_STATES, "WorkflowRunState"],
     ["QUEUE_STATES", QUEUE_STATES, "NonTerminalWorkflowRunState"],
     ["QUEUE_MEMBERSHIPS", QUEUE_MEMBERSHIPS, "RunQueueMembership"],
-    ["CONFIGURATION_KINDS", CONFIGURATION_KINDS, "ConfigurationKind"],
     ["EVAL_STATES", EVAL_STATES, "EvalExperiment.properties.state"],
     ["EVAL_STATES", EVAL_STATES, "EvalExperimentSummary.properties.state"],
     ["EVAL_STATES", EVAL_STATES, "EvalExperimentReceipt.properties.state"],
@@ -184,9 +191,13 @@ describe("hand-written UI contracts match the public OpenAPI", () => {
 
   it("Eval state sets match the shared lifecycle cases", () => {
     expect([...EVAL_STATES].sort()).toEqual([...evalLifecycle.states].sort());
-    expect([...TERMINAL_EVAL_STATES].sort()).toEqual(
-      [...evalLifecycle.terminal].sort(),
-    );
+    expect(
+      evalLifecycle.states
+        .filter((state) =>
+          isTerminalEvalState(state as (typeof EVAL_STATES)[number]),
+        )
+        .sort(),
+    ).toEqual([...evalLifecycle.terminal].sort());
   });
 
   it("TERMINAL_RUN_STATES are the run states the queue never shows", () => {

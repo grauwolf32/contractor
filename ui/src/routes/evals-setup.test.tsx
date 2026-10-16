@@ -1,44 +1,21 @@
-import { MemoryStorage, storedValues } from "../test/storage";
-import { webcrypto } from "node:crypto";
+import { renderApplication } from "../test/application";
+import { storedValues } from "../test/storage";
 import { onlineManager } from "@tanstack/react-query";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createMemoryRouter } from "react-router";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { PublicAPI } from "../api/client";
-import { Application } from "../app/application";
-import { applicationRoutes } from "../app/router";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
   createEvalFixture,
   EVAL_FIXTURE_ORIGIN,
   EVAL_FIXTURE_SESSION,
-  EVAL_API_VERSION,
 } from "../test/evals-fixture";
 import { writeCommand } from "./evals/recovery";
+import { evalServer, stubEvalBrowser } from "./evals/test-support";
 
-beforeEach(() => {
-  vi.stubGlobal("localStorage", new MemoryStorage());
-  localStorage.clear();
-  vi.stubGlobal("crypto", webcrypto);
-});
+beforeEach(stubEvalBrowser);
 
 function start(fixture: ReturnType<typeof createEvalFixture>, path: string) {
-  const api = new PublicAPI(
-    {
-      uiVersion: "0.4.0",
-      apiBaseUrl: EVAL_FIXTURE_ORIGIN,
-      supportedApiVersions: [EVAL_API_VERSION],
-    },
-    async (input) =>
-      fixture.fetch(input instanceof Request ? input : new Request(input)),
-  );
-  const router = createMemoryRouter(applicationRoutes(), {
-    initialEntries: [path],
-  });
-  return {
-    ...render(<Application api={api} publicAPI={api} router={router} />),
-    router,
-  };
+  return renderApplication(path, { server: evalServer(fixture) });
 }
 
 describe("Managed Evals setup", () => {
@@ -116,7 +93,7 @@ describe("Managed Evals setup", () => {
           .every((r) => (r.body as { kind: string }).kind === "prepare"),
       ).toBe(true);
       await user.click(await screen.findByRole("button", { name: "Start" }));
-      expect(await screen.findByRole("dialog")).toBeVisible();
+      expect(await screen.findByRole("alertdialog")).toBeVisible();
       expect(fixture.state.experiment.state).toBe("ready");
       await user.click(screen.getByRole("button", { name: "Confirm start" }));
       await waitFor(() =>
@@ -446,10 +423,12 @@ describe("Managed Evals setup", () => {
     );
     expect(screen.getByRole("button", { name: "Prepare" })).toBeDisabled();
     view.unmount();
+    // A running experiment carries its prepared setup instead of a draft.
     fixture.state.experiment = {
       ...fixture.state.experiment,
       state: "running",
       allowedCommands: ["cancel"],
+      setup: createEvalFixture({ prepared: true }).state.experiment.setup!,
     };
     delete fixture.state.experiment.draft;
     start(fixture, "/evals/experiments/experiment-1/setup");

@@ -1,10 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  AUDIT_COLLECTION_MAX_PAGES,
-  collectAuditPages,
-  mergeAuditCollections,
-} from "./audit-collections";
+import { collectAuditPages, mergeAuditCollections } from "./audit-collections";
 
 function pagedLoader(pages: number) {
   return vi.fn(async (cursor?: string) => {
@@ -35,7 +31,7 @@ describe("Audit collection pagination", () => {
             },
       );
       await expect(collectAuditPages(load)).rejects.toThrow(
-        "invalid Audit pagination cursor",
+        "invalid page continuation",
       );
       expect(load).toHaveBeenCalledTimes(2);
     },
@@ -60,13 +56,17 @@ describe("Audit collection pagination", () => {
   });
 
   it("stops at the default page cap and reports the continuation cursor", async () => {
-    const load = pagedLoader(AUDIT_COLLECTION_MAX_PAGES + 2);
-    await expect(collectAuditPages(load)).resolves.toEqual({
-      items: [0, 1, 2, 3, 4],
+    // A collection far longer than any batch: the default cap ends the read.
+    const load = pagedLoader(1000);
+    const batch = await collectAuditPages(load);
+    const pages = load.mock.calls.length;
+    expect(pages).toBeGreaterThan(1);
+    expect(pages).toBeLessThan(1000);
+    expect(batch).toEqual({
+      items: Array.from({ length: pages }, (_, index) => index),
       truncated: true,
-      nextCursor: "5",
+      nextCursor: String(pages),
     });
-    expect(load).toHaveBeenCalledTimes(AUDIT_COLLECTION_MAX_PAGES);
   });
 
   it("continues from a cursor with an explicit cap and finishes the collection", async () => {
@@ -89,7 +89,7 @@ describe("Audit collection pagination", () => {
         }),
         { cursor: "start" },
       ),
-    ).rejects.toThrow("invalid Audit pagination cursor");
+    ).rejects.toThrow("invalid page continuation");
   });
 
   it.each([0, -1, 1.5, Number.NaN])(
@@ -97,7 +97,7 @@ describe("Audit collection pagination", () => {
     async (maxPages) => {
       await expect(
         collectAuditPages(pagedLoader(1), { maxPages }),
-      ).rejects.toThrow("page cap is invalid");
+      ).rejects.toThrow("Page cap must be a positive integer");
     },
   );
 

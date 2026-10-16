@@ -3,7 +3,7 @@ import { useIsFetching, useQueryClient } from "@tanstack/react-query";
 
 import { APICompatibilityError } from "../api/error";
 import { queryKeys } from "../api/query-keys";
-import { StatusGlyph } from "../ui";
+import { Button, StatusGlyph } from "../ui";
 import { LoginBackdrop } from "./login-backdrop";
 import { SignInBrand } from "./login-brand";
 
@@ -36,11 +36,10 @@ export function SessionConnectionError({ error }: { error: Error }) {
           {error.message}
         </p>
         <div className="ops-state-actions">
-          <button
-            className="ui-btn"
-            data-variant="primary"
-            type="button"
-            disabled={refreshing}
+          <Button
+            variant="primary"
+            pending={refreshing}
+            pendingLabel="Loading…"
             onClick={() =>
               void queryClient.refetchQueries({
                 queryKey: queryKeys.session,
@@ -48,8 +47,8 @@ export function SessionConnectionError({ error }: { error: Error }) {
               })
             }
           >
-            {refreshing ? "Loading…" : "Try again"}
-          </button>
+            Try again
+          </Button>
         </div>
       </section>
     </main>

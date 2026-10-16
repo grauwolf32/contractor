@@ -18,7 +18,7 @@ import {
   reviewKindLabel,
   type ItemKind,
 } from "../../../app/vocabulary";
-import { StatusChip, StatusGlyph } from "../../../ui";
+import { Button, StatusChip, StatusGlyph } from "../../../ui";
 import { ActionDecision } from "../../decisions";
 import { nowSentence } from "./activity-model";
 import { CheckEventHistory } from "./event-history";
@@ -27,15 +27,12 @@ import { findingsReadable, REPORT_STATES } from "./check-data";
 import { issueSummary, splitIssues, type CheckEntry } from "./check-model";
 import type { AuditCollectionQuery } from "./collections";
 import { CheckTechnicalDetails } from "./overview";
+import { formatNumber, plural } from "../../../app/format";
 
 /** Decisions shown in place before "See all decisions". */
 const INLINE_DECISIONS = 3;
 /** Possible issues listed on the activity view. */
 const LISTED_ISSUES = 5;
-
-function plural(count: number, singular: string, many: string): string {
-  return `${count.toLocaleString("en-US")} ${count === 1 ? singular : many}`;
-}
 
 function Block({ title, children }: { title: string; children: ReactNode }) {
   const heading = useId();
@@ -73,33 +70,31 @@ function Decisions({
   if (waiting.isPending && audit.state !== "draft")
     return (
       <Block title="Decisions waiting">
-        <p className="checks-quiet" role="status">
+        <p className="ui-caption" role="status">
           Loading decisions…
         </p>
       </Block>
     );
   return (
     <Block title="Decisions waiting">
-      <p className="checks-quiet" role="status">
+      <p className="ui-caption" role="status">
         {recorded}
       </p>
       {waiting.error === null ? null : (
         <div className="checks-notice" data-tone="warning" role="status">
           <p>The decisions waiting for you could not be loaded.</p>
-          <button
-            className="ui-btn"
-            data-size="xs"
-            type="button"
+          <Button
+            size="xs"
             disabled={waiting.isFetching}
             onClick={() => void waiting.refetch()}
           >
             Try again
-          </button>
+          </Button>
         </div>
       )}
       {requests.length === 0 ? (
         waiting.error === null ? (
-          <p className="checks-quiet">Nothing is waiting for you.</p>
+          <p className="ui-caption">Nothing is waiting for you.</p>
         ) : null
       ) : (
         <ul className="checks-waiting">
@@ -116,7 +111,7 @@ function Decisions({
                         ? "Check report"
                         : "")}
                 </span>
-                <span className="checks-quiet">
+                <span className="ui-caption">
                   Requested <RecordedTime value={review.createdAt} />
                 </span>
               </p>
@@ -171,7 +166,7 @@ function issuesSentence(
   setAside: number,
 ): string {
   const summary = issueSummary(findings).join(" and ");
-  const read = findings.length.toLocaleString("en-US");
+  const read = formatNumber(findings.length);
   const counted =
     summary === ""
       ? partial
@@ -180,7 +175,7 @@ function issuesSentence(
       : `This check has ${partial ? "at least " : ""}${summary}.`;
   return setAside === 0
     ? counted
-    : `${counted} ${setAside.toLocaleString("en-US")} ${setAside === 1 ? "was" : "were"} marked not an issue or duplicate.`;
+    : `${counted} ${formatNumber(setAside)} ${setAside === 1 ? "was" : "were"} marked not an issue or duplicate.`;
 }
 
 /**
@@ -210,7 +205,7 @@ function Issues({
   // Drafts and checks being deleted are not read (useCheckFindings).
   if (!findingsReadable(audit) && !any)
     status = (
-      <p className="checks-quiet">
+      <p className="ui-caption">
         {audit.state === "draft"
           ? "A draft has no issues or possible issues yet."
           : "This check is being deleted; its issues are no longer read."}
@@ -218,7 +213,7 @@ function Issues({
     );
   else if (findings.isPending)
     status = (
-      <p className="checks-quiet" role="status">
+      <p className="ui-caption" role="status">
         Loading issues…
       </p>
     );
@@ -226,20 +221,18 @@ function Issues({
     status = (
       <div className="checks-notice" data-tone="warning" role="status">
         <p>The issues of this check could not be loaded.</p>
-        <button
-          className="ui-btn"
-          data-size="xs"
-          type="button"
+        <Button
+          size="xs"
           disabled={findings.isFetching}
           onClick={() => void findings.refetch()}
         >
           Try again
-        </button>
+        </Button>
       </div>
     );
   else
     status = (
-      <p className="checks-quiet">
+      <p className="ui-caption">
         {issuesSentence(
           findings.items,
           findings.truncated,
@@ -298,7 +291,7 @@ function Report({
   if (!REPORT_STATES.includes(audit.state))
     return (
       <Block title="Report">
-        <p className="checks-quiet">
+        <p className="ui-caption">
           The report is written when the check finishes.
         </p>
       </Block>
@@ -311,7 +304,7 @@ function Report({
     <Block title="Report">
       <p className="checks-report-line">
         {status === undefined ? (
-          <span className="checks-quiet">
+          <span className="ui-caption">
             {report.error === null
               ? "Loading the report status…"
               : "The report status could not be loaded."}
@@ -363,7 +356,7 @@ export function CheckActivity({
     <div className="checks-activity">
       <div className="checks-section-heading">
         <h2>All activity</h2>
-        <p className="checks-quiet">
+        <p className="ui-caption">
           What the whole check is doing, in plain words.
         </p>
       </div>

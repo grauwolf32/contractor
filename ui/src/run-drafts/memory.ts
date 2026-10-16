@@ -8,7 +8,7 @@ import {
   type ExecutionOverrideDraft,
 } from "./validation";
 
-export const MAX_RETAINED_RUN_DRAFTS = 16;
+const MAX_RETAINED_RUN_DRAFTS = 16;
 
 export interface RunDraftIdentity {
   workflowName: string;
@@ -23,7 +23,7 @@ export interface RepeatDraftNotice {
   message: string;
 }
 
-export interface RepeatDraftContext {
+interface RepeatDraftContext {
   sourceRunId: string;
   notices: RepeatDraftNotice[];
   reviewed: boolean;
@@ -61,11 +61,11 @@ export interface RunDraftEntry {
   updatedAt: string;
 }
 
-export type RunDraftAcquisition =
+type RunDraftAcquisition =
   | { kind: "acquired"; entry: RunDraftEntry }
   | { kind: "capacity"; drafts: RunDraftSummary[] };
 
-export type RunDraftSeedResult =
+type RunDraftSeedResult =
   | { kind: "seeded"; entry: RunDraftEntry }
   | { kind: "conflict"; draft: RunDraftSummary }
   | { kind: "capacity"; drafts: RunDraftSummary[] };

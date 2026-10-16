@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  fakeAPI,
-  jsonResponse,
-} from "../routes/projects/audits/check-test-support";
+import { fakeAPI } from "../routes/projects/audits/check-test-support";
+import { invalidJSON } from "../test/fake-server";
+import { json } from "../test/responses";
 import { listAuditEvents, type AuditEventPage } from "./audits";
 
 const valid: AuditEventPage = {
@@ -32,7 +31,7 @@ describe("Audit event reads", () => {
         cursor: "older",
       });
       expect(request.signal.aborted).toBe(false);
-      return jsonResponse(valid);
+      return json(valid);
     });
     expect(
       await listAuditEvents(
@@ -55,7 +54,7 @@ describe("Audit event reads", () => {
     { items: [], page: { hasMore: true, nextCursor: "older" } },
     { page: { hasMore: true } },
   ])("rejects malformed event pages %j", async (overrides) => {
-    const { api } = fakeAPI(() => jsonResponse({ ...valid, ...overrides }));
+    const { api } = fakeAPI(() => invalidJSON({ ...valid, ...overrides }));
     await expect(listAuditEvents(api, "audit_example")).rejects.toMatchObject({
       code: "invalid_api_response",
     });

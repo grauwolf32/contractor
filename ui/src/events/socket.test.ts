@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { EVENT_PROTOCOL, EventsSocket, eventSocketURL } from "./socket";
+import { EventsSocket } from "./socket";
+
+const EVENT_PROTOCOL = "contractor.events.v1";
 
 class FakeWebSocket {
   readonly url: string;
@@ -35,13 +37,20 @@ class FakeWebSocket {
 
 describe("EventsSocket", () => {
   it("derives a secret-free direct WebSocket URL", () => {
-    expect(eventSocketURL("https://api.example.test:8443")).toBe(
+    const url = (apiBaseUrl: string) =>
+      (
+        new EventsSocket(
+          apiBaseUrl,
+          FakeWebSocket as unknown as typeof WebSocket,
+        ).socket as unknown as FakeWebSocket
+      ).url;
+    expect(url("https://api.example.test:8443")).toBe(
       "wss://api.example.test:8443/v1/events/ws",
     );
-    expect(eventSocketURL("http://127.0.0.1:8080")).toBe(
+    expect(url("http://127.0.0.1:8080")).toBe(
       "ws://127.0.0.1:8080/v1/events/ws",
     );
-    expect(() => eventSocketURL("http://localhost:8080")).toThrow();
+    expect(() => url("http://localhost:8080")).toThrow();
   });
 
   it("sends bounded protocol frames without URL credentials or cursors", () => {

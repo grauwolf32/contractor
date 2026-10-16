@@ -1,27 +1,21 @@
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createMemoryRouter } from "react-router";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import type { AuditStandard } from "../../api/audit-presets";
 import type { AuditProfile } from "../../api/audits";
-import { PublicAPI, type AuthSession } from "../../api/client";
-import { Application } from "../../app/application";
-import { applicationRoutes } from "../../app/router";
+import { renderApplication } from "../../test/application";
 import {
   dynamicPresetFixture,
   newerPresetFixture,
   presetFixture,
   standardFixture,
+  standardResponse,
 } from "../../test/audit-presets-fixture";
+import { stageContract, workflowResource } from "../../test/builders-execution";
+import { fakeServer } from "../../test/fake-server";
+import { failure, json, page } from "../../test/responses";
 import { auditPresetLabel } from "../projects/audits/labels";
-
-const session: AuthSession = {
-  principal: { userId: "owner", username: "owner", capabilities: ["user"] },
-  csrfToken: "a".repeat(43),
-  idleExpiresAt: "2099-01-01T00:00:00Z",
-  absoluteExpiresAt: "2099-01-02T00:00:00Z",
-};
 
 function setup(
   path: string,
@@ -38,98 +32,47 @@ function setup(
     newerPresetFixture,
     dynamicPresetFixture,
   ];
-  const fetcher = vi.fn(async (input: RequestInfo | URL) => {
-    const request = input instanceof Request ? input : new Request(input);
-    const url = new URL(request.url);
-    let body: unknown = { items: [], page: { hasMore: false } };
-    let status = 200;
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      "X-Contractor-API-Version": "contractor.public.v1",
-    };
-    if (url.pathname === "/v1/audit-profiles") {
+  const server = fakeServer({
+    "GET /v1/audit-profiles": ({ url }) => {
       if (options.failCatalog) {
-        status = 503;
-        body = {
-          code: "unavailable",
-          message: "Preset catalog unavailable",
-          retryable: true,
-        };
-      } else {
-        const later = url.searchParams.has("cursor");
-        body = {
-          items: later ? profiles.slice(1) : profiles.slice(0, 1),
-          page:
-            profiles.length > 1 && (!later || options.repeatCursor)
-              ? { hasMore: true, nextCursor: "page-2" }
-              : { hasMore: false },
-        };
+        return failure(503, "unavailable", "Preset catalog unavailable", true);
       }
-    } else if (url.pathname.startsWith("/v1/audit-profiles/")) {
+      const later = url.searchParams.has("cursor");
+      return json(
+        page(
+          later ? profiles.slice(1) : profiles.slice(0, 1),
+          profiles.length > 1 && (!later || options.repeatCursor)
+            ? "page-2"
+            : undefined,
+        ),
+      );
+    },
+    "GET /v1/audit-profiles/{name}/versions/{version}": ({ params }) => {
       const profile = profiles.find(
         (item) =>
-          url.pathname ===
-          `/v1/audit-profiles/${item.ref.name}/versions/${item.ref.version}`,
+          item.ref.name === params.name && item.ref.version === params.version,
       );
-      if (profile) {
-        body = profile;
-        headers.ETag = `"${profile.ref.digest}"`;
-      } else {
-        status = 404;
-        body = {
-          code: "not_found",
-          message: "Preset not found",
-          retryable: false,
-        };
-      }
-    } else if (url.pathname.startsWith("/v1/audit-standards/")) {
-      body = {
-        apiVersion: "contractor/v1alpha1",
-        standard: options.standard ?? standardFixture,
-      };
-      if (options.failStandard) {
-        status = 503;
-        body = {
-          code: "unavailable",
-          message: "Standard unavailable",
-          retryable: true,
-        };
-      }
-    } else if (url.pathname.startsWith("/v1/workflows/")) {
-      body = {
-        ref: { name: "source-check", version: "3" },
-        entryStage: "check",
-        parameters: {},
-        inputs: {},
-        outputs: {},
-        stages: {},
-      };
-    }
-    return new Response(JSON.stringify(body), { status, headers });
-  });
-  const publicAPI = new PublicAPI(
-    {
-      uiVersion: "0.1.0",
-      supportedApiVersions: ["contractor.public.v1"],
-      apiBaseUrl: "http://127.0.0.1:8080",
+      return profile === undefined
+        ? failure(404, "not_found", "Preset not found")
+        : json(profile, 200, { ETag: `"${profile.ref.digest}"` });
     },
-    fetcher,
-  );
-  const router = createMemoryRouter(applicationRoutes(), {
-    initialEntries: [path],
+    "GET /v1/audit-standards/{scheme}/versions/{version}": () =>
+      options.failStandard
+        ? failure(503, "unavailable", "Standard unavailable", true)
+        : json(standardResponse(options.standard ?? standardFixture)),
+    "GET /v1/workflows/{name}/versions/{version}": () =>
+      json(
+        workflowResource("source-check", "3", {
+          entryStage: "check",
+          stages: { check: stageContract() },
+        }),
+      ),
   });
-  render(
-    <Application
-      api={{
-        getSession: async () => session,
-        login: async () => session,
-        logout: async () => undefined,
-      }}
-      publicAPI={publicAPI}
-      router={router}
-    />,
-  );
-  return { router, fetcher };
+  const { router } = renderApplication(path, {
+    server,
+    capabilities: ["user"],
+  });
+  return { router, server };
 }
 
 describe("Library check types", () => {
@@ -333,7 +276,7 @@ describe("Library check types", () => {
     ).toBeVisible();
     expect(screen.getByText("Available")).toBeVisible();
     const facts = screen.getByText("Time limit").closest("dl")!;
-    expect(within(facts).getByText("10 min")).toBeVisible();
+    expect(within(facts).getByText("10 minutes")).toBeVisible();
     expect(within(facts).getByText("Never run")).toBeVisible();
     expect(within(facts).getByText("You confirm each one")).toBeVisible();
     expect(within(facts).getByText("Accepted automatically")).toBeVisible();
@@ -410,7 +353,7 @@ describe("Library check types", () => {
   );
 
   it("explains dynamic endpoint lists without fetching an unrelated standard", async () => {
-    const { fetcher } = setup(
+    const { server } = setup(
       "/catalog/audit-presets/openapi-operation-trace/1",
     );
     await screen.findByText(
@@ -420,10 +363,8 @@ describe("Library check types", () => {
     expect(screen.getByText(/Coverage tab/)).toBeVisible();
     expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
     expect(
-      fetcher.mock.calls.some(([input]) =>
-        String(input instanceof Request ? input.url : input).includes(
-          "/audit-standards/",
-        ),
+      server.requests.some((request) =>
+        request.url.includes("/audit-standards/"),
       ),
     ).toBe(false);
   });
@@ -510,7 +451,7 @@ describe("Library check types", () => {
     { options: { failCatalog: true }, message: "Preset catalog unavailable" },
     {
       options: { repeatCursor: true },
-      message: "The server returned an invalid Audit pagination cursor.",
+      message: "Server returned an invalid page continuation",
     },
   ])(
     "does not present an incomplete catalog as an empty result: $message",

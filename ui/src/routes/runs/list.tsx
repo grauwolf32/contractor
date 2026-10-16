@@ -19,23 +19,36 @@ import {
 import { CursorControls } from "../../app/cursor-controls";
 import { useURLCursorStack } from "../../app/pagination";
 import { ErrorNotice } from "../../app/error-notice";
-import { formatTimestamp } from "../../app/format";
+import { formatTimestamp, plural } from "../../app/format";
 import { RefreshButton } from "../../app/refresh-button";
 import { RecordedTime } from "../../app/recorded-time";
 import { QueryView } from "../../app/query-view";
-import { ConfirmRemovalDialog } from "../../app/confirm-removal-dialog";
-import { DeleteIcon } from "../../app/delete-icon";
 import { Icon } from "../../app/icon";
-import { EmptyState, IdChip } from "../../ui";
+import {
+  AlertDialog,
+  Button,
+  EmptyState,
+  Facts,
+  Field,
+  IconButton,
+  IdChip,
+} from "../../ui";
 import {
   DisclosureChevron,
   RunMetadataLabelChips,
   RunStateChip,
 } from "./components";
 import { RunIdLink, RunsFilter } from "./list-parts";
-import { RUN_STATE_LABELS } from "./run-state";
+import { RUN_STATE_LABELS } from "../../app/vocabulary";
 
 const EVAL_FILTER_KEYS = ["purpose", "eval.name", "eval.id", "eval.leg"];
+
+/** The eval filter fields: label key, form field and label. */
+const EVAL_FIELDS = [
+  ["eval.name", "evalName", "Eval name"],
+  ["eval.id", "evalID", "Eval ID"],
+  ["eval.leg", "evalLeg", "Eval leg"],
+] as const;
 
 const STATE_OPTIONS = [
   { value: "" as const, label: "All" },
@@ -153,11 +166,7 @@ function RunLabelFilters({
       (selector) => !EVAL_FILTER_KEYS.includes(selector.key),
     );
     next.push({ key: "purpose", value: "eval" });
-    for (const [key, field] of [
-      ["eval.name", "evalName"],
-      ["eval.id", "evalID"],
-      ["eval.leg", "evalLeg"],
-    ] as const) {
+    for (const [key, field] of EVAL_FIELDS) {
       const value = String(data.get(field) ?? "");
       if (value !== "") {
         next.push({ key, value });
@@ -199,12 +208,11 @@ function RunLabelFilters({
           className="runs-label-filters-count"
           data-active={selectors.length > 0 ? "" : undefined}
         >
-          {selectors.length}{" "}
-          {selectors.length === 1 ? "active filter" : "active filters"}
+          {plural(selectors.length, "active filter")}
         </span>
       </summary>
       <div className="runs-label-filters-body">
-        <p className="runs-hint">
+        <p className="ui-caption">
           Every active key=value pair must match. Values are exact and may
           contain “=”. Filters are URL-visible; do not use labels for secrets.
         </p>
@@ -213,69 +221,63 @@ function RunLabelFilters({
           key={fingerprint}
           onSubmit={applyEval}
         >
-          <label>
-            Eval name
-            <input
-              name="evalName"
-              type="text"
-              defaultValue={firstSelectorValue(selectors, "eval.name")}
-            />
-          </label>
-          <label>
-            Eval ID
-            <input
-              name="evalID"
-              type="text"
-              defaultValue={firstSelectorValue(selectors, "eval.id")}
-            />
-          </label>
-          <label>
-            Eval leg
-            <input
-              name="evalLeg"
-              type="text"
-              defaultValue={firstSelectorValue(selectors, "eval.leg")}
-            />
-          </label>
-          <button className="ui-btn" data-size="sm" type="submit">
+          {EVAL_FIELDS.map(([key, name, label]) => (
+            <Field key={name} label={label}>
+              {(control) => (
+                <input
+                  {...control}
+                  name={name}
+                  type="text"
+                  defaultValue={firstSelectorValue(selectors, key)}
+                />
+              )}
+            </Field>
+          ))}
+          <Button size="sm" type="submit">
             Apply eval filters
-          </button>
+          </Button>
         </form>
         <form className="runs-filter-form" onSubmit={addExact}>
-          <label>
-            Label key
-            <input name="labelKey" type="text" autoComplete="off" />
-          </label>
-          <label>
-            Label value
-            <input name="labelValue" type="text" autoComplete="off" />
-          </label>
-          <button
-            className="ui-btn"
-            data-size="sm"
+          <Field label="Label key">
+            {(control) => (
+              <input
+                {...control}
+                name="labelKey"
+                type="text"
+                autoComplete="off"
+              />
+            )}
+          </Field>
+          <Field label="Label value">
+            {(control) => (
+              <input
+                {...control}
+                name="labelValue"
+                type="text"
+                autoComplete="off"
+              />
+            )}
+          </Field>
+          <Button
+            size="sm"
             type="submit"
             disabled={selectors.length >= RUN_METADATA_LABEL_LIMIT}
           >
             Add filter
-          </button>
+          </Button>
         </form>
         {parseError === undefined && validationError === undefined ? null : (
-          <p className="runs-field-error" role="alert">
+          <p className="ui-field-error" role="alert">
             {parseError ?? validationError}
           </p>
         )}
         {parseError === undefined ? null : (
-          <button
-            className="ui-btn"
-            data-size="sm"
-            type="button"
-            onClick={() => onReplace([])}
-          >
+          <Button size="sm" onClick={() => onReplace([])}>
             Clear malformed metadata filters
-          </button>
+          </Button>
         )}
         {selectors.length === 0 ? (
-          <p className="runs-hint">
+          <p className="ui-caption">
             No metadata filters applied — all Runs are included.
           </p>
         ) : (
@@ -286,27 +288,25 @@ function RunLabelFilters({
                 key={selectorToken(selector)}
               >
                 <code>{selectorLabel(selector)}</code>
-                <button
-                  type="button"
-                  aria-label={`Remove filter ${selectorLabel(selector)}`}
+                <IconButton
+                  size="xs"
+                  variant="ghost"
+                  label={`Remove filter ${selectorLabel(selector)}`}
+                  icon={<Icon name="close" />}
                   onClick={() => remove(selector)}
-                >
-                  <Icon name="close" />
-                </button>
+                />
               </span>
             ))}
-            <button
-              className="ui-btn"
-              data-size="xs"
-              data-variant="ghost"
-              type="button"
+            <Button
+              size="xs"
+              variant="ghost"
               onClick={() => {
                 onReplace([]);
                 setValidationError(undefined);
               }}
             >
               Clear metadata filters
-            </button>
+            </Button>
           </div>
         )}
       </div>
@@ -319,7 +319,7 @@ function contextSummary(labels: Readonly<Record<string, string>>): string {
   return (
     labels["eval.name"] ??
     labels.purpose ??
-    (count === 0 ? "Details" : `${count} ${count === 1 ? "label" : "labels"}`)
+    (count === 0 ? "Details" : plural(count, "label"))
   );
 }
 
@@ -368,17 +368,14 @@ function CompletedRunRow({
         </td>
         <td className="run-list-actions-cell">
           {run.deletable === true ? (
-            <button
-              className="ui-btn runs-delete"
-              data-size="sm"
-              data-variant="ghost"
-              type="button"
-              aria-label={`Delete Run ${run.runId}`}
-              title="Delete completed Run"
+            <IconButton
+              className="runs-delete"
+              size="sm"
+              variant="ghost"
+              label={`Delete Run ${run.runId}`}
+              icon={<Icon name="delete" />}
               onClick={onDelete}
-            >
-              <DeleteIcon />
-            </button>
+            />
           ) : null}
         </td>
       </tr>
@@ -394,22 +391,17 @@ function CompletedRunRow({
                 labels={run.labels}
                 empty="No metadata labels."
               />
-              <dl className="runs-inline-facts">
-                <div>
-                  <dt>Run ID</dt>
-                  <dd>
-                    <IdChip value={run.runId} label="Run ID" />
-                  </dd>
-                </div>
-                <div>
-                  <dt>Created</dt>
-                  <dd>{formatTimestamp(run.createdAt)}</dd>
-                </div>
-                <div>
-                  <dt>Updated</dt>
-                  <dd>{formatTimestamp(run.updatedAt)}</dd>
-                </div>
-              </dl>
+              <Facts
+                className="runs-inline-facts"
+                items={[
+                  {
+                    term: "Run ID",
+                    value: <IdChip value={run.runId} label="Run ID" />,
+                  },
+                  { term: "Created", value: formatTimestamp(run.createdAt) },
+                  { term: "Updated", value: formatTimestamp(run.updatedAt) },
+                ]}
+              />
             </section>
           </td>
         </tr>
@@ -496,6 +488,7 @@ export function CompletedRunsPanel() {
         </div>
         <RefreshButton
           className="runs-icon-button"
+          size="sm"
           isFetching={query.isFetching}
           disabled={decoded.error !== undefined}
           onRefresh={() => void query.refetch()}
@@ -514,11 +507,10 @@ export function CompletedRunsPanel() {
           <QueryView
             query={query}
             loading={
-              <p className="runs-loading" aria-live="polite">
+              <p className="ui-caption" aria-live="polite">
                 Loading completed Runs…
               </p>
             }
-            onRetry={() => void query.refetch()}
             isEmpty={(data) => data.items.length === 0}
             empty={
               <EmptyState title="No completed Runs match this view.">
@@ -557,23 +549,18 @@ export function CompletedRunsPanel() {
           </QueryView>
         )}
       </div>
-      <CursorControls label="Run pages" {...pages.controls(query.data?.page)} />
+      <CursorControls
+        size="sm"
+        label="Run pages"
+        {...pages.controls(query.data?.page)}
+      />
       {deleteTarget === undefined ? null : (
-        <ConfirmRemovalDialog
-          className="run-delete-dialog"
+        <AlertDialog
           eyebrow="Permanent action"
           title="Delete completed Run?"
-          description={
-            <>
-              This permanently removes Run <code>{deleteTarget}</code>, its
-              execution history, and all Run-owned Artifacts. Shared source
-              Artifacts and published Project outputs are retained.
-            </>
-          }
           confirmLabel="Delete Run"
           pendingLabel="Deleting…"
           pending={deletion.isPending}
-          dismissOnBackdrop={false}
           error={
             deletion.error === null ? null : (
               <ErrorNotice error={deletion.error} />
@@ -584,7 +571,13 @@ export function CompletedRunsPanel() {
             setDeleteTarget(undefined);
           }}
           onConfirm={() => deletion.mutate(deleteTarget)}
-        />
+        >
+          <p>
+            This permanently removes Run <code>{deleteTarget}</code>, its
+            execution history, and all Run-owned Artifacts. Shared source
+            Artifacts and published Project outputs are retained.
+          </p>
+        </AlertDialog>
       )}
     </div>
   );

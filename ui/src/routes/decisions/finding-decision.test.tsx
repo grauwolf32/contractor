@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -11,19 +12,21 @@ import {
 } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
-import { FindingDecision, type FindingDecisionProps } from "./finding-decision";
+import { deferred } from "../../test/deferred";
+import { FindingDecision } from "./finding-decision";
 import {
   AUDIT_ID,
-  failure,
   FINDING_ID,
-  json,
   makeDecision,
   makeFinding,
   makeTriageReview,
   NOW,
-  renderWithServer,
-  type Handler,
 } from "./test-support";
+import { fakeServer, type Routes } from "../../test/fake-server";
+import { failure, json } from "../../test/responses";
+import { renderWithAPI } from "../../test/render";
+
+type FindingDecisionProps = ComponentProps<typeof FindingDecision>;
 
 const STATE_AFTER: Record<AuditAnalystVerdict, AuditFinding["state"]> = {
   true_positive: "confirmed",
@@ -58,7 +61,7 @@ interface ServerState {
 }
 
 /** A Server that keeps one possible issue and its review requests. */
-function fakeServer(options: FakeOptions) {
+function decisionServer(options: FakeOptions) {
   const state: ServerState = {
     finding: options.finding,
     pending: options.pending ?? [],
@@ -74,21 +77,18 @@ function fakeServer(options: FakeOptions) {
       auditRevision: 1,
       asOf: NOW,
     });
-  const handle: Handler = async (request, url) => {
-    const path = url.pathname;
-    const base = `/v1/audits/${AUDIT_ID}`;
-    if (request.method === "GET" && path === `${base}/findings/${FINDING_ID}`) {
+  const routes = {
+    "GET /v1/audits/{auditId}/findings/{findingId}": ({ params }) => {
+      expect(params).toEqual({ auditId: AUDIT_ID, findingId: FINDING_ID });
       state.findingReads += 1;
       return json(state.finding, 200, {
         ETag: `"${state.finding.revision}"`,
       });
-    }
-    if (request.method === "GET" && path === `${base}/findings`)
-      return (
-        options.listFindings?.() ??
-        page([state.finding, ...(options.others ?? [])])
-      );
-    if (request.method === "GET" && path === `${base}/reviews`) {
+    },
+    "GET /v1/audits/{auditId}/findings": () =>
+      options.listFindings?.() ??
+      page([state.finding, ...(options.others ?? [])]),
+    "GET /v1/audits/{auditId}/reviews": ({ url }) => {
       expect(url.searchParams.get("finding")).toBe(FINDING_ID);
       if (url.searchParams.get("state") === "pending") {
         const answer = options.pendingLookup?.();
@@ -99,11 +99,9 @@ function fakeServer(options: FakeOptions) {
           ? state.decided
           : state.pending,
       );
-    }
-    if (
-      request.method === "POST" &&
-      path === `${base}/findings/${FINDING_ID}/reviews`
-    ) {
+    },
+    "POST /v1/audits/{auditId}/findings/{findingId}/reviews": ({ params }) => {
+      expect(params.findingId).toBe(FINDING_ID);
       const created = makeTriageReview({
         requestId: "review_new",
         subjectRevision: state.finding.revision,
@@ -111,11 +109,11 @@ function fakeServer(options: FakeOptions) {
       });
       state.pending = [created];
       return json(created, 201, { ETag: '"1"' });
-    }
-    const decision = new RegExp(`^${base}/reviews/([^/]+)/decisions$`).exec(
-      path,
-    );
-    if (request.method === "POST" && decision !== null) {
+    },
+    "POST /v1/audits/{auditId}/reviews/{requestId}/decisions": async ({
+      request,
+      params,
+    }) => {
       state.decisionAttempts += 1;
       const refused = options.refuseDecision?.(state.decisionAttempts, state);
       if (refused !== undefined) return refused;
@@ -126,7 +124,7 @@ function fakeServer(options: FakeOptions) {
         duplicateTargetId?: string;
       };
       const review = state.pending.find(
-        (candidate) => candidate.requestId === decision[1],
+        (candidate) => candidate.requestId === params.requestId,
       );
       if (review === undefined)
         return failure(404, "not_found", "review not found");
@@ -180,10 +178,9 @@ function fakeServer(options: FakeOptions) {
         200,
         { ETag: `"${decided.revision}"` },
       );
-    }
-    throw new Error(`unexpected ${request.method} ${path}${url.search}`);
-  };
-  return { state, handle };
+    },
+  } satisfies Routes;
+  return { state, routes };
 }
 
 /** Reads the possible issue like a page does and decides on it. */
@@ -211,9 +208,11 @@ function setup(
   options: FakeOptions,
   props: Omit<FindingDecisionProps, "auditId" | "finding"> = {},
 ) {
-  const server = fakeServer(options);
-  const view = renderWithServer(<LiveDecision {...props} />, server.handle);
-  return { ...server, ...view, user: userEvent.setup() };
+  const { state, routes } = decisionServer(options);
+  const view = renderWithAPI(<LiveDecision {...props} />, {
+    server: fakeServer(routes),
+  });
+  return { state, ...view, user: userEvent.setup() };
 }
 
 async function decisionBar() {
@@ -441,14 +440,11 @@ describe("FindingDecision", () => {
   });
 
   it("offers the exact ID while the possible issues are still loading", async () => {
-    let release: (() => void) | undefined;
-    const listed = new Promise<void>((resolve) => {
-      release = resolve;
-    });
+    const listed = deferred();
     const { user, sent } = setup({
       finding: makeFinding(),
       listFindings: async () => {
-        await listed;
+        await listed.promise;
         return json({
           items: [],
           page: { hasMore: false },
@@ -480,7 +476,7 @@ describe("FindingDecision", () => {
     expect(
       await bodyOf(sent("POST", "/reviews/review_new/decisions")[0]),
     ).toMatchObject({ verdict: "duplicate", duplicateTargetId: "finding_77" });
-    release?.();
+    listed.resolve();
     expect(
       await screen.findByRole("region", { name: "Current decision" }),
     ).toBeVisible();
@@ -536,7 +532,7 @@ describe("FindingDecision", () => {
     ).toBeDisabled();
     await user.click(screen.getByText("Request details"));
     expect(screen.getByText("Code unavailable · Status 503")).toBeVisible();
-    expect(screen.getByText("Request req_1")).toBeVisible();
+    expect(screen.getByText("Request request_test")).toBeVisible();
     // The message is already on screen; the details do not repeat it.
     expect(screen.queryByText(/^Message:/u)).toBeNull();
 
@@ -680,7 +676,7 @@ describe("FindingDecision", () => {
     expect(
       screen.getByText("Code precondition_failed · Status 412"),
     ).toBeVisible();
-    expect(screen.getByText("Request req_1")).toBeVisible();
+    expect(screen.getByText("Request request_test")).toBeVisible();
     expect(
       screen.getByText("Message: resource revision precondition failed"),
     ).toBeVisible();
@@ -768,34 +764,36 @@ describe("FindingDecision", () => {
   });
 
   it("keeps recording while the refreshed reads already show a newer open request", async () => {
-    let release: (() => void) | undefined;
-    const held = new Promise<void>((resolve) => {
-      release = resolve;
-    });
+    const held = deferred();
     const onRecording = vi.fn();
-    const server = fakeServer({ finding: makeFinding() });
+    const { state, routes } = decisionServer({ finding: makeFinding() });
     // After the decision the Server opens a request for the new revision,
     // while the read that shows that revision is held.
-    const handle: Handler = async (request, url) => {
-      if (
-        server.state.decisionAttempts > 0 &&
-        request.method === "GET" &&
-        url.pathname === `/v1/audits/${AUDIT_ID}/findings/${FINDING_ID}`
-      )
-        await held;
-      const answer = await server.handle(request, url);
-      if (request.method === "POST" && url.pathname.endsWith("/decisions"))
-        server.state.pending = [
+    const server = fakeServer({
+      ...routes,
+      "GET /v1/audits/{auditId}/findings/{findingId}": async (call) => {
+        if (state.decisionAttempts > 0) await held.promise;
+        return routes["GET /v1/audits/{auditId}/findings/{findingId}"](call);
+      },
+      "POST /v1/audits/{auditId}/reviews/{requestId}/decisions": async (
+        call,
+      ) => {
+        const answer =
+          await routes[
+            "POST /v1/audits/{auditId}/reviews/{requestId}/decisions"
+          ](call);
+        state.pending = [
           makeTriageReview({
             requestId: "review_next",
-            subjectRevision: server.state.finding.revision,
+            subjectRevision: state.finding.revision,
           }),
         ];
-      return answer;
-    };
-    const { queryClient } = renderWithServer(
+        return answer;
+      },
+    });
+    const { queryClient } = renderWithAPI(
       <LiveDecision onRecording={onRecording} />,
-      handle,
+      { server },
     );
     const user = userEvent.setup();
     await readyBar();
@@ -821,7 +819,7 @@ describe("FindingDecision", () => {
     ).toBeNull();
     expect(reasonField()).toBeEnabled();
 
-    release?.();
+    held.resolve();
     expect(
       await screen.findByText("Decision recorded: Needs evidence."),
     ).toBeVisible();

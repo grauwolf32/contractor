@@ -1,12 +1,14 @@
+import { stringRule } from "../../api/contract";
 import type { EvalCapabilities, EvalDraft, EvalVariant } from "../../api/evals";
-import { compareWorkflowVersions } from "../workflows/families";
+import { compareVersions } from "../../app/format";
+import { estimatedPlanBytes, MAX_EVAL_DOCUMENT_BYTES } from "./plan-size";
 
 export const MAX_EVAL_CASES = 1000;
 export const MAX_EVAL_MEMBERS = 1000;
 export const MAX_EVAL_REPETITIONS = 100;
-export const MAX_EVAL_DOCUMENT_BYTES = 1024 * 1024;
-export const DEFAULT_WALL_MS = 90 * 60 * 1000;
-export const EVAL_ID_PATTERN = /^[a-z0-9][a-z0-9_.-]{0,127}$/;
+const DEFAULT_WALL_MS = 90 * 60 * 1000;
+// Eval case and criterion IDs follow the public EvalId rule.
+const EVAL_ID_PATTERN = stringRule("EvalId");
 export const PIN_DIMENSIONS = [
   "source",
   "tasks",
@@ -112,28 +114,9 @@ export function sortedBindings(
       const [aName, aVersion = ""] = a.selector.split("@");
       const [bName, bVersion = ""] = b.selector.split("@");
       return (
-        aName!.localeCompare(bName!) ||
-        compareWorkflowVersions(bVersion, aVersion)
+        aName!.localeCompare(bName!) || compareVersions(bVersion, aVersion)
       );
     });
-}
-
-// Match the server's conservative authoring bound. The portable plan stores
-// each member twice (member row and execution order) and repeats comparison
-// dimensions in both arms' pin maps. JSON escaping follows Go's encoder;
-// api/testdata/evals/plan-size-cases.json holds both estimates to the same
-// cases.
-export function estimatedPlanBytes(draft: EvalDraft): number {
-  const draftJSON = JSON.stringify(draft).replace(
-    /[<>&\u2028\u2029]/g,
-    (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`,
-  );
-  const draftBytes = new TextEncoder().encode(draftJSON).length;
-  const members = draft.caseIds.length * 2 * draft.repetitions;
-  const dimensions =
-    draft.comparison.requiredEqual.length +
-    draft.comparison.allowedDifferences.length;
-  return 3 * draftBytes + 900 * members + 128 * dimensions + 32 * 1024;
 }
 
 export function draftProblem(name: string, draft: EvalDraft): string | null {

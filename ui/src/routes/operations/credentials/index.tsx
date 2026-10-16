@@ -54,7 +54,6 @@ export function CredentialListRoute() {
               Loading credentials…
             </p>
           }
-          onRetry={() => void query.refetch()}
           isEmpty={(data) => data.items.length === 0}
           empty={
             <div className="ops-empty">
@@ -84,7 +83,7 @@ export function CredentialListRoute() {
                       <td data-label="Credential">
                         <span className="ops-chips">
                           <Link
-                            className="ops-mono"
+                            className="ui-mono"
                             to={`/operations/credentials/${encodeURIComponent(credential.credentialId)}`}
                           >
                             {credential.credentialId}
@@ -98,7 +97,7 @@ export function CredentialListRoute() {
                         )}
                       </td>
                       <td data-label="Gateway">
-                        <code className="ops-mono">
+                        <code className="ui-mono">
                           {credential.llmGateway.gatewayId}@
                           {credential.llmGateway.version}
                         </code>

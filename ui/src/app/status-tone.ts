@@ -10,16 +10,3 @@ export type StatusTone =
   | "success"
   | "info"
   | "neutral";
-
-export const STATUS_TONES: readonly StatusTone[] = [
-  "done",
-  "partial",
-  "progress",
-  "blocked",
-  "idle",
-  "review",
-  "warning",
-  "success",
-  "info",
-  "neutral",
-];

@@ -51,7 +51,7 @@ const SHAPES: Readonly<Record<StatusTone, ReactNode>> = {
   neutral: <circle cx="12" cy="12" r="3.5" fill="currentColor" stroke="none" />,
 };
 
-export interface StatusGlyphProps {
+interface StatusGlyphProps {
   tone: StatusTone;
   /** Pixel size of the square icon. Default 16. */
   size?: number | undefined;
@@ -88,7 +88,7 @@ export function StatusGlyph({ tone, size = 16, label }: StatusGlyphProps) {
   );
 }
 
-export interface StatusChipProps {
+interface StatusChipProps {
   tone: StatusTone;
   /** The status word. Always visible: a chip never relies on colour alone. */
   children: ReactNode;
@@ -121,7 +121,7 @@ export interface ProgressSegment {
   label: string;
 }
 
-export interface ProgressSegmentsProps {
+interface ProgressSegmentsProps {
   /** One segment per item, in list order. */
   segments: readonly ProgressSegment[];
   /** Accessible summary of the whole line, e.g. "0 of 5 done: 1 blocked, …". */

@@ -1,25 +1,55 @@
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createMemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
-import { PublicAPI, type AuthSession } from "../../api/client";
-import { Application } from "../../app/application";
-import { applicationRoutes } from "../../app/router";
+import type { components } from "../../api/generated/public";
+import { renderApplication } from "../../test/application";
+import { conforming } from "../../test/builders";
+import { workflowResource } from "../../test/builders-execution";
+import { fakeServer } from "../../test/fake-server";
+import { emptyPageOrNotFound, failure, json, page } from "../../test/responses";
+
+type Schemas = components["schemas"];
 
 const digest = `sha256:${"1".repeat(64)}`;
 const secondDigest = `sha256:${"2".repeat(64)}`;
+const description = "Researches the supplied evidence";
 const prompt =
   "# Careful researcher\n\nRead the evidence first.\n\n![remote](https://example.test/image.png)\n<script>alert('no')</script>";
-const session: AuthSession = {
-  principal: { userId: "owner", username: "owner", capabilities: ["user"] },
-  csrfToken: "a".repeat(43),
-  idleExpiresAt: "2026-09-10T00:00:00Z",
-  absoluteExpiresAt: "2026-09-11T00:00:00Z",
-};
-const configuration = (version = "1") => {
+
+/** The researcher Agent template at `version`; `tool` makes it a tool agent. */
+function agentTemplate(
+  version = "1",
+  tool = false,
+): Schemas["ConfigurationResource"] {
   const exactDigest = version === "2" ? secondDigest : digest;
-  return {
+  const shared = {
+    description,
+    toolsets: [{ ref: "run-artifacts@1", tools: ["read_artifact"] }],
+    skills: [{ namespace: "skills" as const, name: "research" }],
+    sandboxProfile: "local-workdir@1",
+  };
+  const body: Schemas["AgentTemplateBody"] = tool
+    ? {
+        ...shared,
+        runtime: "tool@1",
+        execution: {
+          tool: "read_artifact",
+          arguments: {},
+          resultArtifact: "report",
+          timeoutSeconds: 60,
+        },
+      }
+    : {
+        ...shared,
+        runtime: "adk@1",
+        instructions: {
+          ref: "instructions/researcher.md",
+          digest: exactDigest,
+        },
+        modelPolicy: { policyId: "worker", version: "1", digest },
+      };
+  return conforming("ConfigurationResource", {
     ref: {
       kind: "agent-templates",
       name: "researcher",
@@ -27,26 +57,22 @@ const configuration = (version = "1") => {
       digest: exactDigest,
     },
     source: "operator",
-    body: {
-      description: "Researches the supplied evidence",
-      runtime: "adk@1",
-      instructions: {
-        ref: "instructions/researcher.md",
-        digest: exactDigest,
-      },
-      modelPolicy: { policyId: "worker", version: "1", digest },
-      toolsets: [{ ref: "run-artifacts@1", tools: ["read_artifact"] }],
-      skills: [{ namespace: "skills", name: "research" }],
-      sandboxProfile: "local-workdir@1",
-    },
-  };
-};
+    body,
+  });
+}
+
+/** Resolves once `signal` aborts. */
+function aborted(signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal.aborted) resolve();
+    else signal.addEventListener("abort", () => resolve(), { once: true });
+  });
+}
 
 function setup(
   path: string,
   options: {
     mismatch?: boolean;
-    failPrompt?: boolean;
     failAgentList?: boolean;
     slowSearch?: string;
     paginated?: boolean;
@@ -55,172 +81,106 @@ function setup(
   } = {},
 ) {
   const abortedSearches: string[] = [];
-  const fetcher = vi.fn(async (request: RequestInfo | URL) => {
-    const url = new URL(
-      request instanceof Request ? request.url : String(request),
-    );
-    const version = url.pathname.includes("/versions/2") ? "2" : "1";
-    const exactDigest = version === "2" ? secondDigest : digest;
-    let body: unknown = { items: [], page: { hasMore: false } };
-    let status = 200;
-    if (url.pathname.endsWith("/workflow-bindings")) {
-      body = {
-        items: [
-          version === "2"
-            ? {
-                workflow: { name: "likec4-from-source", version: "beta" },
-                stage: "model",
-                logicalWorker: "architect",
-              }
-            : {
-                workflow: { name: "openapi-from-source", version: "1" },
-                stage: "analyze",
-                logicalWorker: "builder",
-              },
-        ],
-        page:
-          options.paginatedUsage && !url.searchParams.has("cursor")
-            ? { hasMore: true, nextCursor: "usage-next" }
-            : { hasMore: false },
-      };
-    } else if (url.pathname.endsWith("/instructions")) {
-      body = {
-        template: {
-          templateId: "researcher",
-          version,
-          digest: options.mismatch ? secondDigest : exactDigest,
-        },
-        instructions: {
-          ref: "instructions/researcher.md",
-          digest: exactDigest,
-          text: version === "2" ? "# Second version" : prompt,
-        },
-      };
-      if (options.failPrompt) {
-        body = {
-          code: "not_found",
-          message: "Instructions unavailable",
-          retryable: false,
-        };
-        status = 404;
-      }
-    } else if (url.pathname.startsWith("/v1/workflows/")) {
-      const parts = url.pathname.split("/");
-      const workflowName = decodeURIComponent(parts[3] ?? "");
-      const workflowVersion = decodeURIComponent(parts[5] ?? "");
-      body = {
-        ref: { name: workflowName, version: workflowVersion },
-        entryStage: "analyze",
-        parameters: {},
-        inputs: {},
-        outputs: {},
-        stages: {},
-      };
-    } else if (url.pathname.includes("/versions/"))
-      body = options.toolAgent
-        ? {
-            ...configuration(version),
-            body: {
-              ...configuration(version).body,
-              runtime: "tool@1",
-              instructions: undefined,
+  const server = fakeServer(
+    {
+      "GET /v1/configurations/agent-templates/{name}/versions/{version}/workflow-bindings":
+        ({ url, params }) =>
+          json(
+            page(
+              [
+                params.version === "2"
+                  ? {
+                      workflow: { name: "likec4-from-source", version: "beta" },
+                      stage: "model",
+                      logicalWorker: "architect",
+                    }
+                  : {
+                      workflow: { name: "openapi-from-source", version: "1" },
+                      stage: "analyze",
+                      logicalWorker: "builder",
+                    },
+              ],
+              options.paginatedUsage && !url.searchParams.has("cursor")
+                ? "usage-next"
+                : undefined,
+            ),
+          ),
+      "GET /v1/configurations/agent-templates/{name}/versions/{version}/instructions":
+        ({ params }) => {
+          const exactDigest = params.version === "2" ? secondDigest : digest;
+          return json({
+            template: {
+              templateId: "researcher",
+              version: params.version,
+              digest: options.mismatch ? secondDigest : exactDigest,
             },
-          }
-        : configuration(version);
-    else if (url.pathname.endsWith("/agent-templates")) {
-      if (options.failAgentList && url.searchParams.get("name") === null) {
-        body = {
-          code: "catalog_unavailable",
-          message: "Catalog index unavailable",
-          retryable: true,
-        };
-        status = 503;
-      } else {
-        const items = [configuration(), configuration("2")];
+            instructions: {
+              ref: "instructions/researcher.md",
+              digest: exactDigest,
+              text: params.version === "2" ? "# Second version" : prompt,
+            },
+          });
+        },
+      "GET /v1/configurations/{kind}/{name}/versions/{version}": ({ params }) =>
+        json(agentTemplate(params.version, options.toolAgent)),
+      "GET /v1/configurations/{kind}": async ({ request, url, params }) => {
+        if (params.kind !== "agent-templates") return json(page([]));
+        const exactName = url.searchParams.get("name");
+        const cursor = url.searchParams.get("cursor");
+        if (options.failAgentList && exactName === null) {
+          return failure(
+            503,
+            "catalog_unavailable",
+            "Catalog index unavailable",
+            true,
+          );
+        }
+        if (exactName === "researcher") {
+          return cursor === "versions-next"
+            ? json(page([agentTemplate("2")]))
+            : json(page([agentTemplate("1")], "versions-next"));
+        }
+        if (options.paginated) {
+          return json(
+            page(
+              [agentTemplate(cursor === "catalog-2" ? "2" : "1")],
+              cursor === null
+                ? "catalog-2"
+                : cursor === "catalog-2"
+                  ? "catalog-3"
+                  : undefined,
+            ),
+          );
+        }
         const query = (url.searchParams.get("q") ?? "").toLowerCase();
         if (query === options.slowSearch) {
-          const signal =
-            request instanceof Request ? request.signal : undefined;
-          await new Promise<void>((resolve) => {
-            if (signal?.aborted) {
-              abortedSearches.push(query);
-              resolve();
-              return;
-            }
-            signal?.addEventListener(
-              "abort",
-              () => {
-                abortedSearches.push(query);
-                resolve();
-              },
-              { once: true },
-            );
-          });
+          await aborted(request.signal);
+          abortedSearches.push(query);
         }
-        const exactName = url.searchParams.get("name");
-        const versionCursor = url.searchParams.get("cursor");
-        body = {
-          items:
-            exactName === "researcher"
-              ? versionCursor === "versions-next"
-                ? [items[1]]
-                : [items[0]]
-              : query === ""
-                ? items
-                : items.filter((item) =>
-                    `${item.ref.name} ${item.ref.version} ${item.body.description}`
-                      .toLowerCase()
-                      .includes(query),
-                  ),
-          page:
-            exactName === "researcher" && versionCursor === null
-              ? { hasMore: true, nextCursor: "versions-next" }
-              : { hasMore: false },
-        };
-        if (options.paginated && exactName === null) {
-          body = {
-            items: [configuration(versionCursor === "catalog-2" ? "2" : "1")],
-            page:
-              versionCursor === null
-                ? { hasMore: true, nextCursor: "catalog-2" }
-                : versionCursor === "catalog-2"
-                  ? { hasMore: true, nextCursor: "catalog-3" }
-                  : { hasMore: false },
-          };
-        }
-      }
-    }
-    return new Response(JSON.stringify(body), {
-      status,
-      headers: {
-        "Content-Type": "application/json",
-        "X-Contractor-API-Version": "contractor.public.v1",
+        return json(
+          page(
+            [agentTemplate("1"), agentTemplate("2")].filter((item) =>
+              `${item.ref.name} ${item.ref.version} ${description}`
+                .toLowerCase()
+                .includes(query),
+            ),
+          ),
+        );
       },
-    });
-  });
-  const publicAPI = new PublicAPI(
-    {
-      uiVersion: "0.1.0",
-      supportedApiVersions: ["contractor.public.v1"],
-      apiBaseUrl: "http://127.0.0.1:8080",
+      "GET /v1/workflows/{name}/versions/{version}": ({ params }) =>
+        json(workflowResource(params.name ?? "", params.version)),
     },
-    fetcher,
+    emptyPageOrNotFound,
   );
-  const router = createMemoryRouter(applicationRoutes(), {
-    initialEntries: [path],
-  });
-  const view = render(
-    <Application
-      api={{
-        getSession: async () => session,
-        login: async () => session,
-        logout: async () => undefined,
-      }}
-      publicAPI={publicAPI}
-      router={router}
-    />,
+  const view = renderApplication(path, { server, capabilities: ["user"] });
+  return { abortedSearches, ...view };
+}
+
+/** Whether `server` received a request whose query has q=`value`. */
+function searched(server: { requests: Request[] }, value: string): boolean {
+  return server.requests.some(
+    (request) => new URL(request.url).searchParams.get("q") === value,
   );
-  return { abortedSearches, fetcher, router, ...view };
 }
 
 describe("Catalog", () => {
@@ -530,18 +490,11 @@ describe("Catalog", () => {
 
   it("searches the complete Agent catalog on the server and preserves the query on return", async () => {
     const user = userEvent.setup();
-    const { fetcher, router } = setup("/catalog/agents?keep=yes");
+    const { server, router } = setup("/catalog/agents?keep=yes");
     await screen.findAllByText("Researches the supplied evidence");
     await user.type(screen.getByLabelText("Search agents"), "2");
     await waitFor(() => expect(router.state.location.search).toContain("q=2"));
-    await waitFor(() =>
-      expect(
-        fetcher.mock.calls.some(([input]) => {
-          const request = input instanceof Request ? input : new Request(input);
-          return new URL(request.url).searchParams.get("q") === "2";
-        }),
-      ).toBe(true),
-    );
+    await waitFor(() => expect(searched(server, "2")).toBe(true));
     const result = await screen.findByRole("link", {
       name: /researcher.*2.*Inspect version/,
     });
@@ -561,20 +514,13 @@ describe("Catalog", () => {
 
   it("cancels a superseded Agent search before showing the current query", async () => {
     const user = userEvent.setup();
-    const { abortedSearches, fetcher } = setup("/catalog/agents", {
+    const { abortedSearches, server } = setup("/catalog/agents", {
       slowSearch: "slow",
     });
     await screen.findAllByText("Researches the supplied evidence");
     const search = screen.getByLabelText("Search agents");
     await user.type(search, "slow");
-    await waitFor(() =>
-      expect(
-        fetcher.mock.calls.some(([input]) => {
-          const request = input instanceof Request ? input : new Request(input);
-          return new URL(request.url).searchParams.get("q") === "slow";
-        }),
-      ).toBe(true),
-    );
+    await waitFor(() => expect(searched(server, "slow")).toBe(true));
     await user.clear(search);
     await user.type(search, "2");
     await screen.findByRole("link", {
@@ -692,7 +638,7 @@ describe("Catalog", () => {
   });
 
   it("shows a tool agent's configuration without a prompt", async () => {
-    const { fetcher } = setup("/catalog/agents/researcher/1", {
+    const { server } = setup("/catalog/agents/researcher/1", {
       toolAgent: true,
     });
     expect(
@@ -713,11 +659,7 @@ describe("Catalog", () => {
       ).findByRole("link", { name: "openapi-from-source@1" }),
     ).toBeVisible();
     expect(
-      fetcher.mock.calls.some(([input]) =>
-        String(input instanceof Request ? input.url : input).includes(
-          "/instructions",
-        ),
-      ),
+      server.requests.some((request) => request.url.includes("/instructions")),
     ).toBe(false);
   });
 

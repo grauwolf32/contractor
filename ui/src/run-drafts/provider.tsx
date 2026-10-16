@@ -2,7 +2,6 @@ import { type ReactNode, useEffect, useState } from "react";
 
 import { useSession } from "../auth/session";
 import { RunDraftStoreContext } from "./context";
-import { RunDraftMemoryStore } from "./memory";
 import {
   discardSessionRunDrafts,
   sessionRunDraftStore,
@@ -10,34 +9,15 @@ import {
 
 const ANONYMOUS_OWNER = "anonymous";
 
-export function RunDraftProvider({
-  ownerId,
-  retain = false,
-  children,
-}: {
-  ownerId: string;
-  retain?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <RunDraftOwnerScope key={ownerId} ownerId={ownerId} retain={retain}>
-      {children}
-    </RunDraftOwnerScope>
-  );
-}
-
+/** The session store of `ownerId`'s Run drafts, for one owner at a time. */
 function RunDraftOwnerScope({
   ownerId,
-  retain,
   children,
 }: {
   ownerId: string;
-  retain: boolean;
   children: ReactNode;
 }) {
-  const [store] = useState(() =>
-    retain ? sessionRunDraftStore(ownerId) : new RunDraftMemoryStore(ownerId),
-  );
+  const [store] = useState(() => sessionRunDraftStore(ownerId));
   return (
     <RunDraftStoreContext.Provider value={store}>
       {children}
@@ -53,8 +33,11 @@ export function SessionRunDraftProvider({ children }: { children: ReactNode }) {
     if (userId !== undefined) discardSessionRunDrafts(userId);
   }, [userId]);
   return (
-    <RunDraftProvider ownerId={userId ?? ANONYMOUS_OWNER} retain>
+    <RunDraftOwnerScope
+      key={userId ?? ANONYMOUS_OWNER}
+      ownerId={userId ?? ANONYMOUS_OWNER}
+    >
       {children}
-    </RunDraftProvider>
+    </RunDraftOwnerScope>
   );
 }

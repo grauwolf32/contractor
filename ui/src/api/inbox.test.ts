@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { RuntimeConfig } from "../config/runtime-config";
+import { auditItem } from "../test/builders";
 import { PublicAPI } from "./client";
 import { listAwaitingReviewItems } from "./inbox";
 
@@ -35,7 +36,9 @@ function apiAnswering(value: unknown) {
 
 describe("Inbox API", () => {
   it("lists only the work items that wait for the owner", async () => {
-    const item = { itemId: "item_1", state: "awaiting_review" };
+    const item = auditItem("item_1", 0, "check", {
+      state: "awaiting_review",
+    });
     const { api, requests } = apiAnswering({
       items: [item],
       page: { hasMore: true, nextCursor: "next" },
@@ -61,8 +64,8 @@ describe("Inbox API", () => {
       "Audit ID is invalid",
     );
     expect(requests).toHaveLength(0);
-    await expect(listAwaitingReviewItems(api, "audit_1")).rejects.toThrow(
-      "Server returned an invalid Audit item page",
+    await expect(listAwaitingReviewItems(api, "audit_1")).rejects.toMatchObject(
+      { code: "invalid_api_response" },
     );
   });
 });

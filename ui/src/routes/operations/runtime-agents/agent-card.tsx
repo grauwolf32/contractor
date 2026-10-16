@@ -7,15 +7,21 @@ import type {
   RuntimeLabelBinding,
 } from "../../../api/operations";
 import { Icon } from "../../../app/icon";
-import { formatBytes, formatTimestamp } from "../../../app/format";
-import { IdChip, StatusChip, TechnicalDetails } from "../../../ui";
 import {
-  Glance,
-  OperationsState,
-  OptionalTimestamp,
-  SafeReason,
-} from "../common";
-import { agentDisplayName, availabilityCopy, relativeAge } from "./identity";
+  formatAge,
+  formatBytes,
+  formatNumber,
+  formatTimestamp,
+} from "../../../app/format";
+import {
+  Button,
+  Facts,
+  IdChip,
+  StatusChip,
+  TechnicalDetails,
+} from "../../../ui";
+import { OperationsState, OptionalTimestamp, SafeReason } from "../common";
+import { agentDisplayName, availabilityCopy } from "./identity";
 import { AgentLabelsDialog } from "./labels-dialog";
 
 const adapterNames: Record<string, string> = {
@@ -24,7 +30,7 @@ const adapterNames: Record<string, string> = {
   "http-proxy@1": "HTTP proxy",
 };
 
-export function CapabilityRefs({ values }: { values: string[] }) {
+function CapabilityRefs({ values }: { values: string[] }) {
   return values.length === 0 ? (
     <span className="ops-muted">None</span>
   ) : (
@@ -39,11 +45,11 @@ export function CapabilityRefs({ values }: { values: string[] }) {
 }
 
 /** Saved Agent labels as chips, or a line saying there are none. */
-export function AgentLabelChips({ labels }: { labels: readonly string[] }) {
+function AgentLabelChips({ labels }: { labels: readonly string[] }) {
   return (
     <div className="ops-chips runtime-agent-label-chips">
       {labels.length === 0 ? (
-        <span className="ops-note">No labels assigned</span>
+        <span className="ui-caption">No labels assigned</span>
       ) : (
         labels.map((label) => (
           <span className="ops-label-chip" key={label}>
@@ -73,6 +79,80 @@ function SlotValue({
       1 / 1 <small>{slotState}</small>
     </>
   );
+}
+
+/** The diagnostics of a live process, for the Technical details. */
+function liveFacts(live: NonNullable<RuntimeAgentPrincipal["live"]>) {
+  return [
+    { term: "Process ID", value: <code>{live.instanceId}</code> },
+    {
+      term: "Observed process / server slot",
+      value: (
+        <span className="ops-chips">
+          <OperationsState state={live.observedState} />
+          <OperationsState state={live.slotState} />
+        </span>
+      ),
+    },
+    {
+      term: "Last accepted heartbeat",
+      value: <OptionalTimestamp value={live.lastAcceptedHeartbeat} />,
+    },
+    {
+      term: "Confirmed lease until",
+      value: <OptionalTimestamp value={live.confirmedLeaseUntil} />,
+    },
+    {
+      term: "Supported adapters at startup",
+      value: <CapabilityRefs values={live.supportedRuntimeAdapters} />,
+    },
+    {
+      term: "Worker runtimes",
+      value: <CapabilityRefs values={live.supportedRuntimes} />,
+    },
+    {
+      term: "Sandbox profiles",
+      value: <CapabilityRefs values={live.supportedSandboxProfiles} />,
+    },
+    {
+      term: "Workspace limits",
+      value: live.workspaceCapabilities !== undefined && (
+        <>
+          {formatNumber(live.workspaceCapabilities.limits.maxFiles)} files ·{" "}
+          {formatBytes(live.workspaceCapabilities.limits.maxExpandedBytes)}{" "}
+          expanded
+        </>
+      ),
+    },
+    {
+      term: "Agent-reported allocation",
+      value: <code>{live.currentAllocationId ?? "None"}</code>,
+    },
+    {
+      term: "Control Plane allocation",
+      value: <code>{live.authoritativeAllocationId ?? "None"}</code>,
+    },
+    {
+      term: "Reconciliation reason",
+      value: <SafeReason reason={live.reconciliationReason} />,
+    },
+    {
+      term: "Toolsets",
+      value:
+        live.supportedToolsets.length === 0 ? (
+          "None reported"
+        ) : (
+          <ul className="ops-toolsets">
+            {live.supportedToolsets.map((toolset) => (
+              <li key={toolset.ref}>
+                <code>{toolset.ref}</code>
+                <CapabilityRefs values={toolset.tools} />
+              </li>
+            ))}
+          </ul>
+        ),
+    },
+  ];
 }
 
 export function AgentCard({
@@ -136,39 +216,43 @@ export function AgentCard({
         {live === undefined ? (
           <p className="ops-agent-no-process">No live process observed</p>
         ) : (
-          <Glance
-            className="ops-agent-metrics"
+          <Facts
+            className="ops-glance ops-agent-metrics"
             items={[
-              ["Slot", <SlotValue key="slot" slotState={live.slotState} />],
-              [
-                "Last heartbeat",
-                live.lastAcceptedHeartbeat === undefined ? (
-                  "Not observed"
-                ) : (
-                  <time
-                    key="heartbeat"
-                    dateTime={live.lastAcceptedHeartbeat}
-                    title={formatTimestamp(live.lastAcceptedHeartbeat)}
-                  >
-                    {relativeAge(live.lastAcceptedHeartbeat, now)}
-                  </time>
-                ),
-              ],
-              [
-                "Workspace",
-                live.workspaceCapabilities === undefined ? (
-                  "Not observed"
-                ) : (
-                  <span key="workspace">
-                    {live.workspaceCapabilities.storage === "local"
-                      ? "Local"
-                      : "Memory"}
-                    <small>
-                      {live.workspaceCapabilities.modes.join(" · ")}
-                    </small>
-                  </span>
-                ),
-              ],
+              {
+                term: "Slot",
+                value: <SlotValue slotState={live.slotState} />,
+              },
+              {
+                term: "Last heartbeat",
+                value:
+                  live.lastAcceptedHeartbeat === undefined ? (
+                    "Not observed"
+                  ) : (
+                    <time
+                      dateTime={live.lastAcceptedHeartbeat}
+                      title={formatTimestamp(live.lastAcceptedHeartbeat)}
+                    >
+                      {formatAge(live.lastAcceptedHeartbeat, now)}
+                    </time>
+                  ),
+              },
+              {
+                term: "Workspace",
+                value:
+                  live.workspaceCapabilities === undefined ? (
+                    "Not observed"
+                  ) : (
+                    <span>
+                      {live.workspaceCapabilities.storage === "local"
+                        ? "Local"
+                        : "Memory"}
+                      <small>
+                        {live.workspaceCapabilities.modes.join(" · ")}
+                      </small>
+                    </span>
+                  ),
+              },
             ]}
           />
         )}
@@ -189,7 +273,7 @@ export function AgentCard({
           </div>
         )}
         {principal.availability === "offline" ? (
-          <p className="ops-note">
+          <p className="ui-caption">
             Offline · saved labels are retained for the next registration.
           </p>
         ) : null}
@@ -229,17 +313,15 @@ export function AgentCard({
         <div className="ops-agent-labels">
           <div className="ops-agent-labels-head">
             <span>Agent labels</span>
-            <button
-              className="ui-btn"
-              data-size="xs"
-              type="button"
+            <Button
+              size="xs"
+              icon={<Icon name="settings" />}
               disabled={bindings === undefined}
               aria-haspopup="dialog"
               onClick={() => setEditing(true)}
             >
-              <Icon name="settings" />
               Edit labels
-            </button>
+            </Button>
           </div>
           <AgentLabelChips labels={principal.labels} />
         </div>
@@ -256,119 +338,23 @@ export function AgentCard({
       </div>
       <div className="ops-tech">
         <TechnicalDetails summary="Capabilities and diagnostics">
-          <dl className="ops-facts">
-            <div>
-              <dt>Agent ID</dt>
-              <dd>
-                <code>{principal.runtimeAgentId}</code>
-              </dd>
-            </div>
-            <div>
-              <dt>Labels revision</dt>
-              <dd>{principal.revision}</dd>
-            </div>
-            <div>
-              <dt>Required adapters</dt>
-              <dd>
-                <CapabilityRefs values={principal.requiredRuntimeAdapters} />
-              </dd>
-            </div>
-            {live === undefined ? null : (
-              <>
-                <div>
-                  <dt>Process ID</dt>
-                  <dd>
-                    <code>{live.instanceId}</code>
-                  </dd>
-                </div>
-                <div>
-                  <dt>Observed process / server slot</dt>
-                  <dd className="ops-chips">
-                    <OperationsState state={live.observedState} />
-                    <OperationsState state={live.slotState} />
-                  </dd>
-                </div>
-                <div>
-                  <dt>Last accepted heartbeat</dt>
-                  <dd>
-                    <OptionalTimestamp value={live.lastAcceptedHeartbeat} />
-                  </dd>
-                </div>
-                <div>
-                  <dt>Confirmed lease until</dt>
-                  <dd>
-                    <OptionalTimestamp value={live.confirmedLeaseUntil} />
-                  </dd>
-                </div>
-                <div>
-                  <dt>Supported adapters at startup</dt>
-                  <dd>
-                    <CapabilityRefs values={live.supportedRuntimeAdapters} />
-                  </dd>
-                </div>
-                <div>
-                  <dt>Worker runtimes</dt>
-                  <dd>
-                    <CapabilityRefs values={live.supportedRuntimes} />
-                  </dd>
-                </div>
-                <div>
-                  <dt>Sandbox profiles</dt>
-                  <dd>
-                    <CapabilityRefs values={live.supportedSandboxProfiles} />
-                  </dd>
-                </div>
-                {live.workspaceCapabilities === undefined ? null : (
-                  <div>
-                    <dt>Workspace limits</dt>
-                    <dd>
-                      {live.workspaceCapabilities.limits.maxFiles.toLocaleString()}{" "}
-                      files ·{" "}
-                      {formatBytes(
-                        live.workspaceCapabilities.limits.maxExpandedBytes,
-                      )}{" "}
-                      expanded
-                    </dd>
-                  </div>
-                )}
-                <div>
-                  <dt>Agent-reported allocation</dt>
-                  <dd>
-                    <code>{live.currentAllocationId ?? "None"}</code>
-                  </dd>
-                </div>
-                <div>
-                  <dt>Control Plane allocation</dt>
-                  <dd>
-                    <code>{live.authoritativeAllocationId ?? "None"}</code>
-                  </dd>
-                </div>
-                <div>
-                  <dt>Reconciliation reason</dt>
-                  <dd>
-                    <SafeReason reason={live.reconciliationReason} />
-                  </dd>
-                </div>
-                <div>
-                  <dt>Toolsets</dt>
-                  <dd>
-                    {live.supportedToolsets.length === 0 ? (
-                      "None reported"
-                    ) : (
-                      <ul className="ops-toolsets">
-                        {live.supportedToolsets.map((toolset) => (
-                          <li key={toolset.ref}>
-                            <code>{toolset.ref}</code>
-                            <CapabilityRefs values={toolset.tools} />
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </dd>
-                </div>
-              </>
-            )}
-          </dl>
+          <Facts
+            layout="rows"
+            items={[
+              {
+                term: "Agent ID",
+                value: <code>{principal.runtimeAgentId}</code>,
+              },
+              { term: "Labels revision", value: principal.revision },
+              {
+                term: "Required adapters",
+                value: (
+                  <CapabilityRefs values={principal.requiredRuntimeAdapters} />
+                ),
+              },
+              ...(live === undefined ? [] : liveFacts(live)),
+            ]}
+          />
         </TechnicalDetails>
       </div>
       {editing && bindings !== undefined ? (

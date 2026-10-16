@@ -1,27 +1,19 @@
-import { webcrypto } from "node:crypto";
-import { QueryClient } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import type { QueryClient } from "@tanstack/react-query";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createMemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { PublicAPI } from "../../api/client";
 import { queryKeys } from "../../api/query-keys";
-import { Application } from "../../app/application";
-import * as queryClients from "../../app/query-client";
-import { applicationRoutes } from "../../app/router";
+import { createApplicationQueryClient } from "../../app/query-client";
+import { renderApplication } from "../../test/application";
 import {
   createEvalFixture,
-  EVAL_API_VERSION,
   EVAL_FIXTURE_ORIGIN,
 } from "../../test/evals-fixture";
-import { MemoryStorage } from "../../test/storage";
 import { readCommand, writeCommand } from "./recovery";
+import { evalServer, stubEvalBrowser } from "./test-support";
 
-beforeEach(() => {
-  vi.stubGlobal("localStorage", new MemoryStorage());
-  vi.stubGlobal("crypto", webcrypto);
-});
+beforeEach(stubEvalBrowser);
 afterEach(() => {
   vi.restoreAllMocks();
 });
@@ -31,23 +23,10 @@ function start(
   path: string,
   prepare?: (cache: QueryClient) => void,
 ) {
-  const cache = queryClients.createApplicationQueryClient();
+  const cache = createApplicationQueryClient();
   prepare?.(cache);
-  vi.spyOn(queryClients, "createApplicationQueryClient").mockReturnValue(cache);
   const invalidated = vi.spyOn(cache, "invalidateQueries");
-  const api = new PublicAPI(
-    {
-      uiVersion: "0.4.0",
-      apiBaseUrl: EVAL_FIXTURE_ORIGIN,
-      supportedApiVersions: [EVAL_API_VERSION],
-    },
-    async (input) =>
-      fixture.fetch(input instanceof Request ? input : new Request(input)),
-  );
-  const router = createMemoryRouter(applicationRoutes(), {
-    initialEntries: [path],
-  });
-  render(<Application api={api} publicAPI={api} router={router} />);
+  renderApplication(path, { server: evalServer(fixture), queryClient: cache });
   return invalidated;
 }
 
@@ -110,7 +89,9 @@ describe("Experiment controls", () => {
       name: "Experiment controls",
     });
     await user.click(within(controls).getByRole("button", { name: "Start" }));
-    const dialog = screen.getByRole("dialog", { name: "Start experiment?" });
+    const dialog = screen.getByRole("alertdialog", {
+      name: "Start experiment?",
+    });
     expect(within(dialog).getByText(/8 expected members/)).toBeVisible();
     await user.click(
       within(dialog).getByRole("button", { name: "Confirm start" }),

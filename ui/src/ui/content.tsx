@@ -4,7 +4,7 @@ import type { StatusTone } from "../app/status-tone";
 import { clockTime } from "./format";
 import { StatusGlyph } from "./status";
 
-export interface TechnicalDetailsProps {
+interface TechnicalDetailsProps {
   /** Summary text. Default "Technical details". */
   summary?: string | undefined;
   /** One quiet line under the summary, e.g. who it is for. */
@@ -82,7 +82,7 @@ export interface ActivityEntry {
   text?: ReactNode;
 }
 
-export interface ActivityLogProps {
+interface ActivityLogProps {
   /** Entries in display order (newest first or oldest first is the caller's choice). */
   entries: readonly ActivityEntry[];
   "aria-label": string;
@@ -141,7 +141,7 @@ export function ActivityLog({
   );
 }
 
-export interface EmptyStateProps {
+interface EmptyStateProps {
   title: ReactNode;
   /** Explanation under the title. */
   children?: ReactNode;

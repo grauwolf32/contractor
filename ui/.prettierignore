@@ -4,6 +4,6 @@ coverage
 playwright-report
 test-results
 pnpm-lock.yaml
-src/api/generated/public.ts
+src/api/generated/
 # Authored YAML whose exact bytes the Studio round-trip tests compare.
 src/routes/studio/testdata

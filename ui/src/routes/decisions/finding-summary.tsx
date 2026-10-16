@@ -5,7 +5,8 @@ import { getAuditFinding, type AuditFinding } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
 import type { components } from "../../api/generated/public";
 import { queryKeys } from "../../api/query-keys";
-import { formatBytes } from "../../app/format";
+import { formatBytes, plural } from "../../app/format";
+import { Icon } from "../../app/icon";
 import { RecordedTime } from "../../app/recorded-time";
 import {
   capitalize,
@@ -13,9 +14,8 @@ import {
   severityLabel,
   TERMS,
 } from "../../app/vocabulary";
-import { IdChip, MethodChip, StatusChip } from "../../ui";
+import { Facts, IdChip, MethodChip, StatusChip } from "../../ui";
 import { FindingLocations } from "../projects/audits/finding-locations";
-import { DecisionIcon } from "./icons";
 import { DecisionMarkdown } from "./markdown";
 import {
   firstParagraph,
@@ -45,7 +45,7 @@ const ASSESSMENT_LABELS: Readonly<Record<SemanticAssessment, string>> = {
   "not-tested": "Not tested",
 };
 
-export interface FindingSummaryProps {
+interface FindingSummaryProps {
   auditId: string;
   finding: AuditFinding;
   /**
@@ -93,7 +93,7 @@ function DuplicateOriginal({
   );
 }
 
-function Facts({
+function FindingFacts({
   auditId,
   finding,
 }: {
@@ -107,29 +107,33 @@ function Facts({
   const standards = standardReferences(document);
   const suggestion = document.severity_suggestion;
   return (
-    <dl className="decisions-facts">
-      {subject === null ? null : operation === undefined ? (
-        <div>
-          <dt>Subject</dt>
-          <dd>
-            <span className="decisions-mono">{subject.key}</span>{" "}
-            <span className="decisions-quiet">{subject.kind}</span>
-          </dd>
-        </div>
-      ) : (
-        <div>
-          <dt>Endpoint</dt>
-          <dd className="decisions-fact-endpoint">
-            <MethodChip method={operation.method} />{" "}
-            <span className="decisions-mono">{operation.path}</span>
-          </dd>
-        </div>
-      )}
-      {weaknesses.length === 0 ? null : (
-        <div>
-          <dt>Weakness</dt>
-          <dd>
-            {weaknesses.map((reference, index) => (
+    <Facts
+      layout="row"
+      className="decisions-facts"
+      items={[
+        {
+          term: "Subject",
+          value: subject !== null && operation === undefined && (
+            <>
+              <span className="ui-mono">{subject.key}</span>{" "}
+              <span className="ui-caption">{subject.kind}</span>
+            </>
+          ),
+        },
+        {
+          term: "Endpoint",
+          value: operation && (
+            <span className="decisions-fact-endpoint">
+              <MethodChip method={operation.method} />{" "}
+              <span className="ui-mono">{operation.path}</span>
+            </span>
+          ),
+        },
+        {
+          term: "Weakness",
+          value:
+            weaknesses.length > 0 &&
+            weaknesses.map((reference, index) => (
               <span
                 key={`${reference.requirement_id}@${reference.version}`}
                 title={`${reference.scheme} ${reference.version}`}
@@ -137,65 +141,63 @@ function Facts({
                 {index === 0 ? "" : ", "}
                 {reference.requirement_id}
               </span>
-            ))}
-          </dd>
-        </div>
-      )}
-      {standards.length === 0 ? null : (
-        <div>
-          <dt>{standards.length === 1 ? "Standard" : "Standards"}</dt>
-          <dd className="decisions-fact-list">
-            {standards.map((reference) => (
-              <span
-                key={`${reference.scheme}@${reference.version}/${reference.requirement_id}`}
-              >
-                {reference.requirement_id}{" "}
-                <span className="decisions-quiet">
-                  {reference.scheme}@{reference.version}
+            )),
+        },
+        {
+          term: standards.length === 1 ? "Standard" : "Standards",
+          value: standards.length > 0 && (
+            <span className="decisions-fact-list">
+              {standards.map((reference) => (
+                <span
+                  key={`${reference.scheme}@${reference.version}/${reference.requirement_id}`}
+                >
+                  {reference.requirement_id}{" "}
+                  <span className="ui-caption">
+                    {reference.scheme}@{reference.version}
+                  </span>
                 </span>
-              </span>
-            ))}
-          </dd>
-        </div>
-      )}
-      <div>
-        <dt>Severity</dt>
-        <dd>
-          {severityLabel(finding.analystSeverity)}
-          {finding.analystSeverity !== undefined || suggestion === "" ? null : (
-            <span className="decisions-suggestion">
-              {" "}
-              · AI suggestion: {severityLabel(suggestion)}
+              ))}
             </span>
-          )}
-        </dd>
-      </div>
-      {finding.duplicateTargetId === undefined ? null : (
-        <div>
-          <dt>Duplicate of</dt>
-          <dd>
+          ),
+        },
+        {
+          term: "Severity",
+          value: (
+            <>
+              {severityLabel(finding.analystSeverity)}
+              {finding.analystSeverity !== undefined ||
+              suggestion === "" ? null : (
+                <span className="decisions-suggestion">
+                  {" "}
+                  · AI suggestion: {severityLabel(suggestion)}
+                </span>
+              )}
+            </>
+          ),
+        },
+        {
+          term: "Duplicate of",
+          value: finding.duplicateTargetId !== undefined && (
             <DuplicateOriginal
               auditId={auditId}
               findingId={finding.duplicateTargetId}
             />
-          </dd>
-        </div>
-      )}
-      {finding.currentAssessment === undefined ? null : (
-        <div>
-          <dt>Verification</dt>
-          <dd>
-            {ASSESSMENT_LABELS[finding.currentAssessment.semanticAssessment] ??
+          ),
+        },
+        {
+          term: "Verification",
+          value:
+            finding.currentAssessment !== undefined &&
+            (ASSESSMENT_LABELS[finding.currentAssessment.semanticAssessment] ??
               capitalize(
                 finding.currentAssessment.semanticAssessment.replaceAll(
                   "-",
                   " ",
                 ),
-              )}
-          </dd>
-        </div>
-      )}
-    </dl>
+              )),
+        },
+      ]}
+    />
   );
 }
 
@@ -223,7 +225,7 @@ function Unsure({
   return (
     <section className="decisions-unsure" aria-labelledby={headingId}>
       <Heading id={headingId} className="decisions-heading">
-        <DecisionIcon name="unsure" size={15} />
+        <Icon name="question-circle" size={15} />
         What the AI is unsure about
       </Heading>
       {limitations.length === 0 ? null : list(limitations)}
@@ -300,7 +302,7 @@ export function FindingSummary({
         <Title id={`${id}-title`} className="decisions-summary-title">
           {document.title}
         </Title>
-        <Facts auditId={auditId} finding={finding} />
+        <FindingFacts auditId={auditId} finding={finding} />
       </header>
       {foundText === "" ? null : (
         <section className="decisions-section" aria-labelledby={`${id}-found`}>
@@ -315,10 +317,8 @@ export function FindingSummary({
           <Heading className="decisions-heading">Locations</Heading>
           <FindingLocations document={shown} />
           {hiddenLocations <= 0 ? null : (
-            <p className="decisions-quiet">
-              {hiddenLocations === 1
-                ? "1 more location"
-                : `${hiddenLocations} more locations`}
+            <p className="ui-caption">
+              {plural(hiddenLocations, "more location")}
             </p>
           )}
         </div>
@@ -360,13 +360,13 @@ export function FindingSummary({
                 key={`${artifact.ref.namespace}/${artifact.ref.name}@${artifact.ref.revision}`}
                 title={`Revision ${artifact.ref.revision} · ${artifact.digest}`}
               >
-                <span className="decisions-mono">
+                <span className="ui-mono">
                   {evidenceLabel(document, index)}
                 </span>
-                <span className="decisions-mono decisions-row-main">
+                <span className="ui-mono decisions-row-main">
                   {artifact.ref.namespace}/{artifact.ref.name}
                 </span>
-                <span className="decisions-quiet">
+                <span className="ui-caption">
                   {artifact.mediaType} · {formatBytes(artifact.sizeBytes)}
                 </span>
               </li>

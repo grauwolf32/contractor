@@ -5,16 +5,20 @@ import { getAuditStandard, type AuditStandard } from "../../api/audit-presets";
 import type { AuditProfile } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
-import { ErrorNotice } from "../../app/error-notice";
+import { Icon } from "../../app/icon";
+import { QueryView } from "../../app/query-view";
+import {
+  type AuditCoverageStatus,
+  capitalize,
+  coverageStatusLabel,
+  type ItemKind,
+  itemNoun,
+  wordOf,
+} from "../../app/vocabulary";
+import { Facts } from "../../ui";
 // The check page shows these lists too, without the Library layout.
 import "./catalog.css";
 import "./library.css";
-import {
-  capitalize,
-  COVERAGE_STATUS_LABELS,
-  itemNoun,
-  type ItemKind,
-} from "../../app/vocabulary";
 
 export function SourceLink({
   url,
@@ -69,44 +73,33 @@ const HUMAN_REVIEW_LABELS: Readonly<
   required: "Always",
 };
 
-function labelOf<K extends string>(
-  table: Readonly<Record<K, string>>,
-  value: K,
-): string {
-  return Object.hasOwn(table, value)
-    ? table[value]
-    : capitalize(value.replaceAll(/[_-]+/g, " "));
-}
-
 /** Coverage words from the shared vocabulary ("Met", "Issue found", …). */
 function outcomeLabel(assessment: string): string {
-  return Object.hasOwn(COVERAGE_STATUS_LABELS, assessment)
-    ? COVERAGE_STATUS_LABELS[assessment as keyof typeof COVERAGE_STATUS_LABELS]
-        .label
-    : capitalize(assessment.replaceAll("-", " "));
+  return coverageStatusLabel(assessment as AuditCoverageStatus).label;
 }
 
 function EvidenceContractFacts({ contract }: { contract: EvidenceContract }) {
   return (
-    <dl className="library-evidence">
-      <div>
-        <dt>Evidence</dt>
-        <dd>
-          {contract.minimumEvidence}–{contract.maximumEvidence} evidence items ·{" "}
-          {contract.evidenceKinds
-            .map((kind) => labelOf(EVIDENCE_KIND_LABELS, kind))
-            .join(", ")}
-        </dd>
-      </div>
-      <div>
-        <dt>Possible outcomes</dt>
-        <dd>{contract.assessments.map(outcomeLabel).join(", ")}</dd>
-      </div>
-      <div>
-        <dt>Human review</dt>
-        <dd>{labelOf(HUMAN_REVIEW_LABELS, contract.humanReview)}</dd>
-      </div>
-    </dl>
+    <Facts
+      size="sm"
+      className="library-evidence"
+      items={[
+        {
+          term: "Evidence",
+          value: `${contract.minimumEvidence}–${contract.maximumEvidence} evidence items · ${contract.evidenceKinds
+            .map((kind) => wordOf(EVIDENCE_KIND_LABELS, kind))
+            .join(", ")}`,
+        },
+        {
+          term: "Possible outcomes",
+          value: contract.assessments.map(outcomeLabel).join(", "),
+        },
+        {
+          term: "Human review",
+          value: wordOf(HUMAN_REVIEW_LABELS, contract.humanReview),
+        },
+      ]}
+    />
   );
 }
 
@@ -178,7 +171,7 @@ function StandardItems({
             not available in the Library.
           </p>
           {identifiers.length === 0 ? (
-            <p className="library-muted">No {plural} match this search.</p>
+            <p className="ui-caption">No {plural} match this search.</p>
           ) : (
             <ul className="library-identifiers">
               {identifiers.map((entry) => (
@@ -199,7 +192,7 @@ function StandardItems({
             {itemNoun(kind, mappings.length)}
           </p>
           {visible.length === 0 ? (
-            <p className="library-muted">
+            <p className="ui-caption">
               {search
                 ? `No ${plural} match this search.`
                 : `This check type defines no ${plural}.`}
@@ -215,21 +208,12 @@ function StandardItems({
                 return (
                   <details className="library-item" key={mapping.key}>
                     <summary>
-                      <svg
+                      <Icon
+                        name="chevron-right"
+                        size={14}
+                        strokeWidth={2}
                         className="library-item-chevron"
-                        width="14"
-                        height="14"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        aria-hidden="true"
-                        focusable="false"
-                      >
-                        <path d="M9.5 6l6 6-6 6" />
-                      </svg>
+                      />
                       <span className="library-item-heading">
                         <code className="library-item-key">{mapping.key}</code>
                         <span className="library-item-title">
@@ -237,7 +221,7 @@ function StandardItems({
                         </span>
                       </span>
                       <span className="library-item-method">
-                        {labelOf(METHOD_LABELS, mapping.method)}
+                        {wordOf(METHOD_LABELS, mapping.method)}
                       </span>
                     </summary>
                     <div className="library-item-body">
@@ -247,7 +231,7 @@ function StandardItems({
                         return (
                           <div className="library-entry" key={id}>
                             <strong>{entry?.title ?? id}</strong>
-                            <p className="library-muted">
+                            <p className="ui-caption">
                               <code>{id}</code>
                               {entry?.level ? ` · Level ${entry.level}` : ""}
                             </p>
@@ -303,26 +287,24 @@ export function AuditPresetStandardChecks({
     queryFn: ({ signal }) =>
       getAuditStandard(api, reference.scheme, reference.version, signal),
   });
-  if (query.isPending)
-    return (
-      <p role="status" className="library-muted">
-        Loading {itemNoun(kind, 2)} from {reference.scheme}@{reference.version}…
-      </p>
-    );
-  if (query.error)
-    return (
-      <ErrorNotice
-        error={query.error}
-        onRetry={() => void query.refetch()}
-        retryPending={query.isFetching}
-      />
-    );
   return (
-    <StandardItems
-      standard={query.data}
-      profile={profile}
-      kind={kind}
-      search={search}
-    />
+    <QueryView
+      query={query}
+      loading={
+        <p role="status" className="ui-caption">
+          Loading {itemNoun(kind, 2)} from {reference.scheme}@
+          {reference.version}…
+        </p>
+      }
+    >
+      {(standard) => (
+        <StandardItems
+          standard={standard}
+          profile={profile}
+          kind={kind}
+          search={search}
+        />
+      )}
+    </QueryView>
   );
 }

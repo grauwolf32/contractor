@@ -2,8 +2,17 @@ import { useId, useRef } from "react";
 import { Link, useNavigate } from "react-router";
 
 import { ErrorNotice } from "../../../app/error-notice";
+import { Icon } from "../../../app/icon";
 import { checkStateLabel } from "../../../app/vocabulary";
-import { IdChip, Kbd, modKeyLabel, useShortcuts } from "../../../ui";
+import {
+  Button,
+  ButtonLink,
+  Field,
+  IdChip,
+  Kbd,
+  modKeyLabel,
+  useShortcuts,
+} from "../../../ui";
 import { AdvancedOptions } from "./advanced";
 import {
   compatibilityReasonText,
@@ -12,19 +21,19 @@ import {
   scopeSummary,
 } from "./check-types";
 import { TextAreaField, TextField } from "./fields";
-import { BulbIcon, ChevronIcon, PlayIcon } from "./icons";
-import { checkPath, isLostResponse, type StartFailure } from "./launch";
+import { isLostResponse, type StartFailure } from "./launch";
 import { MaterialsCard } from "./materials";
 import { projectPaths } from "./paths";
-import { SCOPE_TEXT_LIMIT } from "./request";
+import { SCOPE_TEXT_LIMITS } from "./request";
 import {
-  describeTimeLimit,
   isTimeLimitChoice,
   MAX_CUSTOM_HOURS,
   MIN_CUSTOM_HOURS,
   TIME_LIMIT_OPTIONS,
 } from "./time-limit";
 import type { StartCheck } from "./use-start-check";
+import { formatTimeLimit } from "../../../app/format";
+import { checkPath } from "../../projects/audits/check-links";
 
 function labelOf(model: StartCheck, checkType: string): string {
   const family = model.catalog.families.find(
@@ -44,21 +53,16 @@ export function SetupHeader({ model }: { model: StartCheck }) {
         <ol>
           <li>
             <Link to={paths.overview}>{model.project?.name ?? "Project"}</Link>
-            <ChevronIcon />
+            <Icon name="chevron-right" size={13} strokeWidth={2} />
           </li>
           <li>
             <span aria-current="page">New check</span>
           </li>
         </ol>
       </nav>
-      <Link
-        className="ui-btn"
-        data-variant="ghost"
-        data-size="sm"
-        to={paths.overview}
-      >
+      <ButtonLink variant="ghost" size="sm" to={paths.overview}>
         Cancel
-      </Link>
+      </ButtonLink>
     </header>
   );
 }
@@ -103,13 +107,13 @@ function ObjectiveField({ model }: { model: StartCheck }) {
         className="start-objective-field"
         rows={2}
         value={model.objective}
-        maxLength={SCOPE_TEXT_LIMIT}
+        maxLength={SCOPE_TEXT_LIMITS.objective}
         placeholder="For example: check the shop API for broken access control"
         aria-describedby={`${id}-suggestion`}
         onChange={(event) => model.setObjective(event.target.value)}
       />
       <p id={`${id}-suggestion`} className="start-suggestion-line">
-        <BulbIcon />
+        <Icon name="bulb" size={14} strokeWidth={2} />
         <span>{line}</span>
       </p>
     </div>
@@ -143,7 +147,7 @@ function TypeSection({ model }: { model: StartCheck }) {
       </p>
       {suggested && suggestions.suggestion !== undefined ? (
         <div className="start-why">
-          <BulbIcon size={17} />
+          <Icon name="bulb" size={17} strokeWidth={2} />
           <p>
             <strong>Why this fits:</strong> {suggestions.suggestion.reason}
           </p>
@@ -221,7 +225,7 @@ function ScopeCard({ model }: { model: StartCheck }) {
           <h3 id={`${id}-heading`}>Scope</h3>
         </div>
         <p className="start-scope-size">{summary.size}</p>
-        <p className="start-quiet start-tight">{summary.detail}</p>
+        <p className="ui-caption">{summary.detail}</p>
       </section>
     );
   }
@@ -247,7 +251,7 @@ function ScopeCard({ model }: { model: StartCheck }) {
             />
             <span>
               <span className="start-scope-size">{summary.size}</span>
-              <span className="start-quiet start-scope-detail">
+              <span className="ui-caption start-scope-detail">
                 {family.preferred.inventory.standardSelection === undefined
                   ? `${presentCheckType(family.preferred).label} · ${summary.detail}`
                   : summary.detail}
@@ -270,9 +274,9 @@ function LiveTargetFields({ model }: { model: StartCheck }) {
     <section className="start-card" aria-labelledby={headingId}>
       <div className="start-card-head">
         <h3 id={headingId}>Live target</h3>
-        <span className="start-quiet">Passed to the check&apos;s workers</span>
+        <span className="ui-caption">Passed to the check&apos;s workers</span>
       </div>
-      <p className="start-quiet start-tight">
+      <p className="ui-caption">
         This check type sends requests to the target you name. Test only what
         you are allowed to.
       </p>
@@ -283,7 +287,7 @@ function LiveTargetFields({ model }: { model: StartCheck }) {
             value={model.target}
             onChange={model.setTarget}
             placeholder="https://staging.example.com"
-            maxLength={SCOPE_TEXT_LIMIT}
+            maxLength={SCOPE_TEXT_LIMITS.target}
             required
             hint={
               model.project?.httpTarget === undefined
@@ -298,7 +302,7 @@ function LiveTargetFields({ model }: { model: StartCheck }) {
             value={model.authorizationScope}
             onChange={model.setAuthorizationScope}
             placeholder="For example: staging only, test accounts A and B, no denial of service"
-            maxLength={SCOPE_TEXT_LIMIT}
+            maxLength={SCOPE_TEXT_LIMITS.authorizationScope}
             required
             hint="What you are allowed to test, in your own words."
           />
@@ -309,63 +313,64 @@ function LiveTargetFields({ model }: { model: StartCheck }) {
 }
 
 function TimeLimitField({ model }: { model: StartCheck }) {
-  const id = useId();
   const { timeLimit } = model;
   const invalid =
     timeLimit.choice === "custom" && model.deadlineSeconds === undefined;
   return (
     <div className="start-time">
       <div className="start-time-fields">
-        <div className="start-field">
-          <label htmlFor={`${id}-choice`}>Time limit</label>
-          <select
-            id={`${id}-choice`}
-            className="start-input start-select"
-            value={timeLimit.choice}
-            onChange={(event) => {
-              const choice = event.target.value;
-              if (isTimeLimitChoice(choice))
-                model.setTimeLimit({ ...timeLimit, choice });
-            }}
-          >
-            {TIME_LIMIT_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        <Field label="Time limit">
+          {(control) => (
+            <select
+              {...control}
+              value={timeLimit.choice}
+              onChange={(event) => {
+                const choice = event.target.value;
+                if (isTimeLimitChoice(choice))
+                  model.setTimeLimit({ ...timeLimit, choice });
+              }}
+            >
+              {TIME_LIMIT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          )}
+        </Field>
         {timeLimit.choice === "custom" ? (
-          <div className="start-field">
-            <label htmlFor={`${id}-hours`}>Time limit in hours</label>
-            <input
-              id={`${id}-hours`}
-              className="start-input"
-              type="number"
-              inputMode="decimal"
-              min={MIN_CUSTOM_HOURS}
-              max={MAX_CUSTOM_HOURS}
-              step="0.01"
-              value={timeLimit.hours}
-              aria-invalid={invalid || undefined}
-              aria-describedby={invalid ? `${id}-error` : undefined}
-              onChange={(event) =>
-                model.setTimeLimit({ ...timeLimit, hours: event.target.value })
-              }
-            />
-          </div>
+          <Field
+            label="Time limit in hours"
+            error={
+              invalid
+                ? `Enter a time limit from ${MIN_CUSTOM_HOURS} to ${MAX_CUSTOM_HOURS} hours (365 days).`
+                : undefined
+            }
+          >
+            {(control) => (
+              <input
+                {...control}
+                type="number"
+                inputMode="decimal"
+                min={MIN_CUSTOM_HOURS}
+                max={MAX_CUSTOM_HOURS}
+                step="0.01"
+                value={timeLimit.hours}
+                onChange={(event) =>
+                  model.setTimeLimit({
+                    ...timeLimit,
+                    hours: event.target.value,
+                  })
+                }
+              />
+            )}
+          </Field>
         ) : null}
       </div>
-      <p className="start-field-hint">
+      <p className="ui-caption">
         The limit counts time waiting in the queue but not pauses. When it is
         reached, the check starts no new work; work already running can finish.
       </p>
-      {invalid ? (
-        <p id={`${id}-error`} className="start-field-error" role="alert">
-          Enter a time limit from {MIN_CUSTOM_HOURS} to {MAX_CUSTOM_HOURS} hours
-          (365 days).
-        </p>
-      ) : null}
     </div>
   );
 }
@@ -391,7 +396,7 @@ function timeSentence(seconds: number | undefined): string {
   if (seconds === undefined) return "";
   return seconds === 0
     ? "It runs without a time limit."
-    : `It starts no new work after ${describeTimeLimit(seconds)}; work already running can finish.`;
+    : `It starts no new work after ${formatTimeLimit(seconds)}; work already running can finish.`;
 }
 
 /**
@@ -431,14 +436,9 @@ function UnconfirmedStartNotice({
             : "“Retry same request” sends it again with the same key, so it cannot start the check twice."}{" "}
           <Link to={open}>Open the check</Link>
         </p>
-        <button
-          type="button"
-          className="ui-btn"
-          data-size="sm"
-          onClick={onRetry}
-        >
+        <Button size="sm" onClick={onRetry}>
           Retry same request
-        </button>
+        </Button>
       </div>
     </>
   );
@@ -463,14 +463,9 @@ function LaunchNotices({ model }: { model: StartCheck }) {
             : "The form changed after the answer was lost. Sending it now uses a new key and may create a second check; restore the earlier values to retry the first request."}
         </p>
         {same ? (
-          <button
-            type="button"
-            className="ui-btn"
-            data-size="sm"
-            onClick={launch.retryCreate}
-          >
+          <Button size="sm" onClick={launch.retryCreate}>
             Retry same request
-          </button>
+          </Button>
         ) : null}
       </div>
     );
@@ -532,7 +527,7 @@ function LaunchNotices({ model }: { model: StartCheck }) {
   }
   if (draft !== undefined && changed)
     return (
-      <p className="start-tight start-quiet">
+      <p className="ui-caption">
         {draft.state === "draft"
           ? "Your earlier attempt is saved as a draft ("
           : "Your earlier check has started ("}
@@ -598,31 +593,31 @@ export function SetupFooter({ model }: { model: StartCheck }) {
           <strong>
             {selection.presentation.label} on {projectName}.
           </strong>{" "}
-          <span className="start-quiet">
+          <span className="ui-caption">
             {timeSentence(model.deadlineSeconds)}
           </span>
         </p>
         <div className="start-actions">
-          <button
-            type="button"
-            className="ui-btn"
+          <Button
             disabled={pending || model.saveBlocker !== undefined}
+            pending={launch.pending === "draft"}
+            pendingLabel="Saving…"
             aria-describedby={`${id}-draft`}
             onClick={model.saveDraft}
           >
-            {launch.pending === "draft" ? "Saving…" : "Save as draft"}
-          </button>
-          <button
+            Save as draft
+          </Button>
+          <Button
             ref={startButton}
-            type="button"
-            className="ui-btn start-primary"
-            data-variant="primary"
+            variant="primary"
+            className="start-primary"
+            icon={<Icon name="play" size={16} />}
             disabled={pending || model.startBlocker !== undefined}
+            pending={launch.pending === "start"}
             aria-describedby={hint === undefined ? undefined : `${id}-hint`}
             aria-keyshortcuts="Control+Enter Meta+Enter"
             onClick={model.start}
           >
-            <PlayIcon />
             <span>
               {launch.pending === "start" ? "Starting…" : "Start check"}
             </span>
@@ -630,14 +625,14 @@ export function SetupFooter({ model }: { model: StartCheck }) {
               <Kbd>{modKeyLabel()}</Kbd>
               <Kbd>Enter</Kbd>
             </span>
-          </button>
+          </Button>
         </div>
       </div>
       <span id={`${id}-draft`} className="ui-visually-hidden">
         Creates the check without starting it. Start it later from its page.
       </span>
       {hint === undefined ? null : (
-        <p id={`${id}-hint`} className="start-hint">
+        <p id={`${id}-hint`} className="ui-caption">
           {hint}
         </p>
       )}

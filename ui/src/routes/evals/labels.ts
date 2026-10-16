@@ -10,40 +10,22 @@ import type {
   EvalPairQuery,
   EvalSummary,
 } from "../../api/evals";
-import type { StatusTone } from "../../app/status-tone";
+import { plural } from "../../app/format";
+import {
+  labelOf,
+  readableValue,
+  type VocabularyLabel,
+} from "../../app/vocabulary";
 
 export type EvalState = EvalExperiment["state"];
-export type EvalConclusion = EvalSummary["conclusion"];
-export type EvalExecutionKind = EvalExperiment["executionKind"];
-export type EvalControlMode = EvalExperiment["controlMode"];
-export type EvalFreshness = NonNullable<EvalExperiment["freshness"]>;
-export type EvalSection = "overview" | "comparison" | "attempts" | "setup";
-
-/** A status word and the tone of its glyph or chip. */
-export interface EvalLabel {
-  readonly label: string;
-  readonly tone: StatusTone;
-}
-
-/** Readable fallback for a value this client does not know yet. */
-function unknownLabel(value: string): string {
-  const words = value.replaceAll(/[_-]+/g, " ").trim();
-  return words === ""
-    ? "Unknown"
-    : words.charAt(0).toUpperCase() + words.slice(1);
-}
-
-function lookup(
-  table: Readonly<Record<string, EvalLabel>>,
-  value: string,
-): EvalLabel {
-  return Object.hasOwn(table, value)
-    ? table[value]!
-    : { label: unknownLabel(value), tone: "neutral" };
-}
+type EvalConclusion = EvalSummary["conclusion"];
+type EvalExecutionKind = EvalExperiment["executionKind"];
+type EvalControlMode = EvalExperiment["controlMode"];
+type EvalFreshness = NonNullable<EvalExperiment["freshness"]>;
+type EvalSection = "overview" | "comparison" | "attempts" | "setup";
 
 // Key order is the lifecycle order of the list filter.
-export const EVAL_STATE_LABELS: Readonly<Record<EvalState, EvalLabel>> = {
+export const EVAL_STATE_LABELS: Readonly<Record<EvalState, VocabularyLabel>> = {
   draft: { label: "Draft", tone: "idle" },
   preparing: { label: "Preparing", tone: "progress" },
   ready: { label: "Ready to start", tone: "info" },
@@ -57,14 +39,14 @@ export const EVAL_STATE_LABELS: Readonly<Record<EvalState, EvalLabel>> = {
 };
 
 /** Lifecycle state of an experiment: "Draft", "Running", "Finished", … */
-export function evalStateLabel(state: EvalState): EvalLabel {
-  return lookup(EVAL_STATE_LABELS, state);
+export function evalStateLabel(state: EvalState): VocabularyLabel {
+  return labelOf(EVAL_STATE_LABELS, state);
 }
 
 // "Meets declared gates" is the only passing wording (S30:529-530): it is not
 // a universal quality approval.
-export const EVAL_CONCLUSION_LABELS: Readonly<
-  Record<EvalConclusion, EvalLabel>
+const EVAL_CONCLUSION_LABELS: Readonly<
+  Record<EvalConclusion, VocabularyLabel>
 > = {
   pass: { label: "Meets declared gates", tone: "success" },
   regressions: { label: "Regressions found", tone: "blocked" },
@@ -74,10 +56,10 @@ export const EVAL_CONCLUSION_LABELS: Readonly<
 /** Comparison conclusion; without a summary nothing is concluded yet. */
 export function evalConclusionLabel(
   conclusion: EvalConclusion | null | undefined,
-): EvalLabel {
+): VocabularyLabel {
   return conclusion === null || conclusion === undefined
     ? { label: "Not concluded yet", tone: "idle" }
-    : lookup(EVAL_CONCLUSION_LABELS, conclusion);
+    : labelOf(EVAL_CONCLUSION_LABELS, conclusion);
 }
 
 const FRESHNESS: Readonly<Record<EvalFreshness, string>> = {
@@ -93,7 +75,7 @@ export function evalFreshnessText(
   if (freshness === null || freshness === undefined) return undefined;
   return Object.hasOwn(FRESHNESS, freshness)
     ? FRESHNESS[freshness]
-    : unknownLabel(freshness);
+    : readableValue(freshness);
 }
 
 /** What one experiment member executes: a Workflow Run or a whole check. */
@@ -102,7 +84,7 @@ export function executionKindLabel(kind: EvalExecutionKind | string): string {
     ? "Check"
     : kind === "workflow"
       ? "Workflow"
-      : unknownLabel(kind);
+      : readableValue(kind);
 }
 
 /** The executable a variant selects: a Workflow or a check type. */
@@ -116,7 +98,7 @@ export function executionRefLabel(kind: string): string {
     ? "Run"
     : kind === "audit"
       ? "Check"
-      : unknownLabel(kind);
+      : readableValue(kind);
 }
 
 /** Who dispatches the experiment's members. */
@@ -125,12 +107,12 @@ export function controlModeLabel(mode: EvalControlMode | string): string {
     ? "Server controlled"
     : mode === "external"
       ? "External producer"
-      : unknownLabel(mode);
+      : readableValue(mode);
 }
 
 /** "8 expected members". */
 export function expectedMembersText(count: number): string {
-  return `${count.toLocaleString("en-US")} expected ${count === 1 ? "member" : "members"}`;
+  return plural(count, "expected member");
 }
 
 export const PAIR_FILTERS: readonly {
@@ -220,7 +202,7 @@ const PIN_LABELS: Readonly<Record<string, string>> = {
 export function pinLabel(dimension: string): string {
   return Object.hasOwn(PIN_LABELS, dimension)
     ? PIN_LABELS[dimension]!
-    : unknownLabel(dimension);
+    : readableValue(dimension);
 }
 
 // Each evaluator assesses one declared property; the UI calls an assessment

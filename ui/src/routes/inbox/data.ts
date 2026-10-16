@@ -57,19 +57,20 @@ import { listAwaitingReviewItems } from "../../api/inbox";
 import { queryKeys } from "../../api/query-keys";
 import { getOwnerQueueControl, type OwnerQueueControl } from "../../api/queue";
 import {
-  getRun,
   listRuns,
   type RunPage,
   type RunStatus,
   type RunSummary,
 } from "../../api/runs";
 import { getWorkflow, type WorkflowResource } from "../../api/workflows";
+import { pollInterval } from "../../app/polling";
 import {
   parseWorkflowIdentity,
   requireWorkflowOutputs,
   type WorkflowIdentity,
   type WorkflowOutputSlot,
 } from "../runs/output-model";
+import { runStatusQuery } from "../runs/status";
 import {
   buildInbox,
   COUNTED_CHECK_STATES,
@@ -93,35 +94,26 @@ const DECISION_KINDS: readonly AuditReviewRequest["kind"][] = [
   "report-acceptance",
 ];
 
-// Run lists and queue admission: polled while the page is visible.
+// Run lists and queue admission: polled while the page is visible, backing
+// off while reads fail.
 const POLLED = {
   staleTime: POLL_MS,
-  refetchInterval: POLL_MS,
-  refetchIntervalInBackground: false,
-  refetchOnWindowFocus: false,
-  retry: false,
-} as const;
-
-// A terminal Run's status no longer changes the Inbox's view of it.
-const SETTLED = {
-  staleTime: 60_000,
-  refetchOnWindowFocus: false,
-  retry: false,
+  refetchInterval: pollInterval({ interval: POLL_MS }),
 } as const;
 
 /**
  * A read pinned to a check revision: once it has data it is never
- * refetched; a failed read retries on the poll interval.
+ * refetched; a failed read retries on the poll interval, backing off. The
+ * list and the check detail read a check's workspace with these options.
  */
-function pinned<T>() {
+export function pinned<T>() {
   return {
     staleTime: (query: Query<T, Error, T, QueryKey>) =>
       query.state.data === undefined ? 0 : ("static" as const),
-    refetchInterval: (query: Query<T, Error, T, QueryKey>) =>
-      query.state.status === "error" ? POLL_MS : false,
-    refetchIntervalInBackground: false,
-    refetchOnWindowFocus: false,
-    retry: false,
+    refetchInterval: pollInterval<T>({
+      interval: POLL_MS,
+      settled: () => true,
+    }),
   };
 }
 
@@ -166,7 +158,7 @@ function useNow(intervalMs = 60_000): number {
   return now;
 }
 
-export interface PerCheck<T> {
+interface PerCheck<T> {
   /** Settled data (or the previous revision's) by check ID. */
   byCheck: Map<string, T>;
   failed: number;
@@ -217,13 +209,13 @@ function usePerCheckReads<T>(
 }
 
 /** Declared outputs of a Workflow version; null when they cannot be read. */
-export type WorkflowOutputs = Record<string, WorkflowOutputSlot> | null;
+type WorkflowOutputs = Record<string, WorkflowOutputSlot> | null;
 
-export function workflowKey(identity: WorkflowIdentity): string {
+function workflowKey(identity: WorkflowIdentity): string {
   return `${identity.name}@${identity.version}`;
 }
 
-export interface RunStatuses {
+interface RunStatuses {
   byRun: Map<string, RunStatus>;
   /** Runs whose status could not be read. */
   failed: Set<string>;
@@ -236,7 +228,7 @@ export interface RunList {
 }
 
 /** Ready reports of the checks that finished in the last 7 days. */
-export interface ReadyReports {
+interface ReadyReports {
   /** Newest check first. */
   reports: CrossProjectReport[];
   /** Some of those reports have not been read yet. */
@@ -437,9 +429,9 @@ export function useInboxData(): InboxData {
   const statusQueries = useMemo(
     () =>
       statusRuns.map((run) => ({
-        queryKey: queryKeys.runs.detail(run.runId),
-        queryFn: () => getRun(api, run.runId),
-        ...(run.state === "waiting" ? POLLED : SETTLED),
+        ...runStatusQuery(api, run.runId),
+        // A terminal Run's status no longer changes the Inbox's view of it.
+        staleTime: run.state === "waiting" ? POLL_MS : 60_000,
       })),
     [api, statusRuns],
   );
@@ -484,8 +476,6 @@ export function useInboxData(): InboxData {
         queryFn: ({ signal }: { signal: AbortSignal }) =>
           getWorkflow(api, identity.name, identity.version, signal),
         staleTime: Number.POSITIVE_INFINITY,
-        refetchOnWindowFocus: false,
-        retry: false,
       })),
     [api, identities],
   );

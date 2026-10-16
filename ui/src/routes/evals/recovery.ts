@@ -3,6 +3,7 @@ import {
   createMutationIdempotencyKey,
 } from "../../mutations/idempotency";
 import type { EvalCommand, EvalCommandReceipt } from "../../api/evals";
+import { conformsTo } from "../../api/contract";
 import { PublicAPIError } from "../../api/error";
 import { sha256Hex } from "../../app/digest";
 
@@ -31,7 +32,7 @@ function digest(value: unknown): Promise<string> {
 
 // Persist only correlation, never request bodies containing cases, rubrics,
 // credentials or input parameters. The server owns the saved draft.
-export async function mutationKey(
+async function mutationKey(
   owner: string,
   operation: string,
   request: unknown,
@@ -112,12 +113,12 @@ export function readCommand(owner: string, id: string): PendingCommand | null {
       return null;
     if (
       value.body.planSha256 !== undefined &&
-      !/^sha256:[a-f0-9]{64}$/.test(value.body.planSha256)
+      !conformsTo("EvalDigest", value.body.planSha256)
     )
       return null;
     if (
       value.commandId !== undefined &&
-      !/^[A-Za-z0-9_.:-]{1,256}$/.test(value.commandId)
+      !conformsTo("EvalOpaque", value.commandId)
     )
       return null;
     return {

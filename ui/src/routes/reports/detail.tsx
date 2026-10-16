@@ -8,9 +8,14 @@ import { getProject } from "../../api/projects";
 import { queryKeys } from "../../api/query-keys";
 import { ErrorNotice } from "../../app/error-notice";
 import { RecordedTime } from "../../app/recorded-time";
-import { DetailHeader, DetailPane, EmptyState, IdChip } from "../../ui";
+import {
+  ButtonLink,
+  DetailHeader,
+  DetailPane,
+  EmptyState,
+  IdChip,
+} from "../../ui";
 import { auditProfileLabel } from "../projects/audits/labels";
-import { checkPath } from "./filters";
 import {
   showsAcceptance,
   useAuditReport,
@@ -23,6 +28,7 @@ import {
 } from "./report-view";
 
 import "./reports.css";
+import { checkPath } from "../projects/audits/check-links";
 
 /** The detail pane when no report is selected. */
 export function NoReportSelected() {
@@ -76,9 +82,12 @@ function LoadedReport({ audit }: { audit: Audit }) {
             </>
           }
           actions={
-            <Link className="ui-btn" data-size="sm" to={checkPath(audit)}>
+            <ButtonLink
+              size="sm"
+              to={checkPath(audit.projectId, audit.auditId)}
+            >
               Open check
-            </Link>
+            </ButtonLink>
           }
         />
       }
@@ -122,7 +131,7 @@ export function ReportDetail({
     if (check.error === null)
       return (
         <DetailPane>
-          <p className="reports-quiet" role="status">
+          <p className="ui-caption" role="status">
             Loading the report…
           </p>
         </DetailPane>

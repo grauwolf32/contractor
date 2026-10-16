@@ -2,8 +2,8 @@ const RUN_METADATA_LABEL_KEY = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/;
 const encoder = new TextEncoder();
 
 export const RUN_METADATA_LABEL_LIMIT = 32;
-export const RUN_METADATA_LABEL_KEY_BYTE_LIMIT = 63;
-export const RUN_METADATA_LABEL_VALUE_BYTE_LIMIT = 256;
+const RUN_METADATA_LABEL_KEY_BYTE_LIMIT = 63;
+const RUN_METADATA_LABEL_VALUE_BYTE_LIMIT = 256;
 
 export interface RunMetadataLabelDraft {
   id: string;
@@ -55,26 +55,6 @@ function validateRunMetadataLabel(key: string, value: unknown): string {
     );
   }
   return value as string;
-}
-
-export function safeRunMetadataLabels(value: unknown): Record<string, string> {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    throw new TypeError("Run metadata labels must be an object");
-  }
-  const entries = Object.entries(value);
-  if (entries.length > RUN_METADATA_LABEL_LIMIT) {
-    throw new TypeError(
-      `Run metadata labels exceed ${RUN_METADATA_LABEL_LIMIT} entries`,
-    );
-  }
-  entries.sort(([left], [right]) =>
-    left === right ? 0 : left < right ? -1 : 1,
-  );
-  const result: Record<string, string> = {};
-  for (const [key, child] of entries) {
-    result[key] = validateRunMetadataLabel(key, child);
-  }
-  return result;
 }
 
 export function normalizeRunMetadataLabelSelectors(

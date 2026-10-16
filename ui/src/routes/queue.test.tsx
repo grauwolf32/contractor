@@ -1,55 +1,21 @@
-import { act, render, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { createMemoryRouter } from "react-router";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, screen, waitFor, within } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
-import { PublicAPI } from "../api/client";
-import { Application } from "../app/application";
-import { applicationRoutes } from "../app/router";
-import type { RuntimeConfig } from "../config/runtime-config";
-import { RunEventsManager } from "../events/run-events";
+import type { components } from "../api/generated/public";
+import { conforming } from "../test/builders";
+import { fakeServer, type FakeCall, type Routes } from "../test/fake-server";
+import { emptyPageOrNotFound, failure, json, page } from "../test/responses";
+import { CSRF_TOKEN } from "../test/render";
+import { FakeEventSocket, renderApplication } from "../test/application";
 
-const runtimeConfig: RuntimeConfig = {
-  uiVersion: "0.1.0",
-  supportedApiVersions: ["contractor.public.v1"],
-  apiBaseUrl: "http://127.0.0.1:8080",
-};
-
-const session = {
-  principal: {
-    userId: "user_local",
-    username: "owner",
-    capabilities: ["user", "operations"] as const,
-  },
-  csrfToken: "a".repeat(43),
-  idleExpiresAt: "2026-09-05T20:00:00Z",
-  absoluteExpiresAt: "2026-09-06T12:00:00Z",
-};
-
-function apiResponse(value: unknown): Response {
-  return new Response(JSON.stringify(value), {
-    headers: {
-      "content-type": "application/json",
-      "X-Contractor-API-Version": "contractor.public.v1",
-    },
-  });
-}
-
-function queueControlResponse(paused = false, revision = "0"): Response {
-  const response = apiResponse({
-    paused,
-    revision,
-    ...(revision === "0" ? {} : { updatedAt: "2026-09-05T08:02:00Z" }),
-  });
-  response.headers.set("ETag", `"${revision}"`);
-  return response;
-}
+type QueueItem = components["schemas"]["RunQueueItem"];
 
 function queueItem(
   runId: string,
-  state: "initializing" | "running" | "cancelling" = "running",
-) {
-  return {
+  state: QueueItem["state"] = "running",
+  overrides: Partial<QueueItem> = {},
+): QueueItem {
+  return conforming("RunQueueItem", {
     runId,
     workflow: "openapi-from-workspace@5",
     state,
@@ -57,149 +23,103 @@ function queueItem(
     eventCursor: { generation: `events-${runId}`, sequence: "1" },
     createdAt: "2026-09-05T08:00:00Z",
     updatedAt: "2026-09-05T08:01:00Z",
-  };
-}
-
-class QueueWebSocket {
-  static instances: QueueWebSocket[] = [];
-
-  protocol = "contractor.events.v1";
-  readyState = 0;
-  sent: string[] = [];
-  onopen: ((event: Event) => unknown) | null = null;
-  onmessage: ((event: MessageEvent) => unknown) | null = null;
-  onerror: ((event: Event) => unknown) | null = null;
-  onclose: ((event: CloseEvent) => unknown) | null = null;
-
-  constructor(
-    readonly url: string | URL,
-    readonly protocols?: string | string[],
-  ) {
-    QueueWebSocket.instances.push(this);
-  }
-
-  send(value: string): void {
-    this.sent.push(value);
-  }
-
-  close(code?: number): void {
-    if (
-      code !== undefined &&
-      code !== 1000 &&
-      (!Number.isInteger(code) || code < 3000 || code > 4999)
-    ) {
-      throw new DOMException(
-        "Invalid WebSocket close code",
-        "InvalidAccessError",
-      );
-    }
-    this.serverClose(code ?? 1000);
-  }
-
-  serverClose(code: number): void {
-    this.readyState = 3;
-    this.onclose?.({ code } as CloseEvent);
-  }
-
-  open(): void {
-    this.readyState = 1;
-    this.onopen?.(new Event("open"));
-  }
-
-  message(value: unknown): void {
-    this.onmessage?.({ data: JSON.stringify(value) } as MessageEvent);
-  }
-}
-
-function renderQueueApplication(api: PublicAPI, path = "/runs") {
-  const router = createMemoryRouter(applicationRoutes(), {
-    initialEntries: [path],
+    ...overrides,
   });
-  const events = new RunEventsManager(runtimeConfig.apiBaseUrl, {
-    WebSocketImplementation: QueueWebSocket as unknown as typeof WebSocket,
+}
+
+const PAYMENT = {
+  projectId: "project-payment",
+  name: "Payment service",
+  kind: "project",
+} as const;
+
+/** The owner's admission gate at `revision`, with its ETag. */
+function queueControl(paused = false, revision = "0"): Response {
+  return json(
+    {
+      paused,
+      revision,
+      ...(revision === "0" ? {} : { updatedAt: "2026-09-05T08:02:00Z" }),
+    },
+    200,
+    { ETag: `"${revision}"` },
+  );
+}
+
+/**
+ * A signed-in owner whose Queue `queue` answers, with admission running;
+ * `routes` add or replace operations.
+ */
+function renderQueue(
+  queue: (call: FakeCall) => Response,
+  path = "/runs",
+  routes: Routes = {},
+) {
+  const view = renderApplication(path, {
+    server: fakeServer(
+      {
+        "GET /v1/queue/control": () => queueControl(),
+        "GET /v1/queue": queue,
+        ...routes,
+      },
+      emptyPageOrNotFound,
+    ),
   });
   return {
-    ...render(
-      <Application
-        api={api}
-        publicAPI={api}
-        runEvents={events}
-        router={router}
-      />,
-    ),
-    router,
+    ...view,
+    /** The Queue reads so far. */
+    queueReads: () =>
+      view.sent("GET", "/v1/queue").map((request) => new URL(request.url)),
   };
 }
 
-beforeEach(() => {
-  QueueWebSocket.instances = [];
-});
+/** Opens the first event socket and confirms its first subscription. */
+async function subscribed() {
+  await waitFor(() => expect(FakeEventSocket.instances).toHaveLength(1));
+  const socket = FakeEventSocket.instances[0]!;
+  act(() => socket.open());
+  const subscription = JSON.parse(socket.sent[0] ?? "{}");
+  act(() =>
+    socket.message({
+      version: "contractor.events.v1",
+      type: "subscribed",
+      subscriptionId: subscription.subscriptionId,
+      stream: subscription.stream,
+      cursor: subscription.after,
+    }),
+  );
+  return { socket, subscription };
+}
 
 describe("Runs Queue view", () => {
   it("groups all active Run contexts and keeps filters across stable pages", async () => {
-    const requests: URL[] = [];
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") {
-          return apiResponse(session);
-        }
-        if (url.pathname === "/v1/queue/control") {
-          return queueControlResponse();
-        }
-        if (url.pathname !== "/v1/queue") {
-          throw new Error(`unexpected ${request.method} ${url.pathname}`);
-        }
-        requests.push(url);
-        if (url.searchParams.get("cursor") === "next-queue") {
-          return apiResponse({
-            items: [queueItem("run-next", "cancelling")],
-            page: { hasMore: false },
-          });
-        }
-        if (url.searchParams.get("membership") === "project") {
-          return apiResponse({
-            items: [
-              {
-                ...queueItem("run-project"),
-                project: {
-                  projectId: "project-payment",
-                  name: "Payment service",
-                  kind: "project",
-                },
-              },
-            ],
-            page: { hasMore: false },
-          });
-        }
-        return apiResponse({
-          items: [
+    const { router, user, queueReads } = renderQueue(({ url }) => {
+      if (url.searchParams.get("cursor") === "next-queue") {
+        return json(page([queueItem("run-next", "cancelling")]));
+      }
+      if (url.searchParams.get("membership") === "project") {
+        return json(
+          page([queueItem("run-project", "running", { project: PAYMENT })]),
+        );
+      }
+      return json(
+        page(
+          [
             queueItem("run-standalone", "initializing"),
-            {
-              ...queueItem("run-project"),
-              project: {
-                projectId: "project-payment",
-                name: "Payment service",
-                kind: "project",
-              },
-            },
-            {
-              ...queueItem("run-eval"),
+            queueItem("run-project", "running", { project: PAYMENT }),
+            queueItem("run-eval", "running", {
               labels: { "eval.leg": "a", purpose: "eval" },
               project: {
                 projectId: "evaluation-openapi",
                 name: "OpenAPI regression",
                 kind: "evaluation",
               },
-            },
+            }),
           ],
-          page: { hasMore: true, nextCursor: "next-queue" },
-        });
-      }),
-    );
-    const { router } = renderQueueApplication(api);
+          "next-queue",
+        ),
+      );
+    });
 
     expect(
       await screen.findByRole("link", { name: "run-standalone" }),
@@ -237,7 +157,6 @@ describe("Runs Queue view", () => {
       "page",
     );
 
-    const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Next" }));
     expect(
       await screen.findByRole("link", { name: "run-next" }),
@@ -248,8 +167,8 @@ describe("Runs Queue view", () => {
     expect(
       await screen.findByRole("link", { name: "run-project" }),
     ).toBeInTheDocument();
-    expect(requests.at(-1)?.searchParams.get("membership")).toBe("project");
-    expect(requests.at(-1)?.searchParams.has("cursor")).toBe(false);
+    expect(queueReads().at(-1)?.searchParams.get("membership")).toBe("project");
+    expect(queueReads().at(-1)?.searchParams.has("cursor")).toBe(false);
     expect(
       within(context).getByRole("button", { name: "Projects" }),
     ).toHaveAttribute("aria-pressed", "true");
@@ -257,7 +176,7 @@ describe("Runs Queue view", () => {
     const state = screen.getByRole("group", { name: "State" });
     await user.click(within(state).getByRole("button", { name: "Running" }));
     await waitFor(() =>
-      expect(requests.at(-1)?.searchParams.get("state")).toBe("running"),
+      expect(queueReads().at(-1)?.searchParams.get("state")).toBe("running"),
     );
     expect(router.state.location.search).toBe(
       "?membership=project&state=running",
@@ -265,48 +184,21 @@ describe("Runs Queue view", () => {
 
     await user.click(within(context).getByRole("button", { name: "All" }));
     await waitFor(() =>
-      expect(requests.at(-1)?.searchParams.has("membership")).toBe(false),
+      expect(queueReads().at(-1)?.searchParams.has("membership")).toBe(false),
     );
     expect(router.state.location.search).toBe("?state=running");
   });
 
   it("drops the page cursor when a tab link changes the filters", async () => {
-    const requests: URL[] = [];
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") {
-          return apiResponse(session);
-        }
-        if (url.pathname === "/v1/queue/control") {
-          return queueControlResponse();
-        }
-        if (url.pathname !== "/v1/queue") {
-          throw new Error(`unexpected ${request.method} ${url.pathname}`);
-        }
-        requests.push(url);
-        if (url.searchParams.get("cursor") === "running-2") {
-          return apiResponse({
-            items: [queueItem("run-running-2")],
-            page: { hasMore: false },
-          });
-        }
-        if (url.searchParams.get("state") === "running") {
-          return apiResponse({
-            items: [queueItem("run-running-1")],
-            page: { hasMore: true, nextCursor: "running-2" },
-          });
-        }
-        return apiResponse({
-          items: [queueItem("run-any", "initializing")],
-          page: { hasMore: false },
-        });
-      }),
-    );
-    const { router } = renderQueueApplication(api, "/runs?state=running");
-    const user = userEvent.setup();
+    const { router, user, queueReads } = renderQueue(({ url }) => {
+      if (url.searchParams.get("cursor") === "running-2") {
+        return json(page([queueItem("run-running-2")]));
+      }
+      if (url.searchParams.get("state") === "running") {
+        return json(page([queueItem("run-running-1")], "running-2"));
+      }
+      return json(page([queueItem("run-any", "initializing")]));
+    }, "/runs?state=running");
 
     expect(
       await screen.findByRole("link", { name: "run-running-1" }),
@@ -325,8 +217,8 @@ describe("Runs Queue view", () => {
       await screen.findByRole("link", { name: "run-any" }),
     ).toBeInTheDocument();
     expect(router.state.location.search).toBe("");
-    expect(requests.at(-1)?.searchParams.has("state")).toBe(false);
-    expect(requests.at(-1)?.searchParams.has("cursor")).toBe(false);
+    expect(queueReads().at(-1)?.searchParams.has("state")).toBe(false);
+    expect(queueReads().at(-1)?.searchParams.has("cursor")).toBe(false);
     expect(
       screen.queryByRole("navigation", { name: "Queue pages" }),
     ).toBeNull();
@@ -343,54 +235,22 @@ describe("Runs Queue view", () => {
 
   it("removes a terminal Run after its lifecycle event", async () => {
     let terminal = false;
-    let queueReads = 0;
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") {
-          return apiResponse(session);
-        }
-        if (url.pathname === "/v1/queue/control") {
-          return queueControlResponse();
-        }
-        if (url.pathname === "/v1/queue") {
-          queueReads += 1;
-          return apiResponse({
-            items: terminal ? [] : [queueItem("run-live")],
-            page: { hasMore: false },
-          });
-        }
-        throw new Error(`unexpected ${request.method} ${url.pathname}`);
-      }),
+    const { queueReads } = renderQueue(() =>
+      json(page(terminal ? [] : [queueItem("run-live")])),
     );
-    renderQueueApplication(api);
 
     expect(
       await screen.findByRole("link", { name: "run-live" }),
     ).toBeInTheDocument();
-    await waitFor(() => expect(QueueWebSocket.instances).toHaveLength(1));
-    const socket = QueueWebSocket.instances[0];
-    act(() => socket?.open());
-    const subscription = JSON.parse(socket?.sent[0] ?? "{}");
+    const { socket, subscription } = await subscribed();
     expect(subscription).toMatchObject({
       stream: { kind: "run", id: "run-live" },
       after: { generation: "events-run-live", sequence: "1" },
     });
-    act(() =>
-      socket?.message({
-        version: "contractor.events.v1",
-        type: "subscribed",
-        subscriptionId: subscription.subscriptionId,
-        stream: subscription.stream,
-        cursor: subscription.after,
-      }),
-    );
 
     terminal = true;
     act(() =>
-      socket?.message({
+      socket.message({
         version: "contractor.events.v1",
         type: "event",
         subscriptionId: subscription.subscriptionId,
@@ -406,53 +266,21 @@ describe("Runs Queue view", () => {
       await screen.findByText("No active Runs match this view."),
     ).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "run-live" })).toBeNull();
-    expect(queueReads).toBeGreaterThan(1);
+    expect(queueReads().length).toBeGreaterThan(1);
   });
 
   it("resubscribes after a resync even when the refetched cursors are unchanged", async () => {
-    let queueReads = 0;
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") {
-          return apiResponse(session);
-        }
-        if (url.pathname === "/v1/queue/control") {
-          return queueControlResponse();
-        }
-        if (url.pathname === "/v1/queue") {
-          queueReads += 1;
-          return apiResponse({
-            items: [queueItem("run-live")],
-            page: { hasMore: false },
-          });
-        }
-        throw new Error(`unexpected ${request.method} ${url.pathname}`);
-      }),
+    const { queueReads } = renderQueue(() =>
+      json(page([queueItem("run-live")])),
     );
-    renderQueueApplication(api);
 
     expect(
       await screen.findByRole("link", { name: "run-live" }),
     ).toBeInTheDocument();
-    await waitFor(() => expect(QueueWebSocket.instances).toHaveLength(1));
-    const socket = QueueWebSocket.instances[0];
-    act(() => socket?.open());
-    const subscription = JSON.parse(socket?.sent[0] ?? "{}");
+    const { socket, subscription } = await subscribed();
+    const readsBeforeResync = queueReads().length;
     act(() =>
-      socket?.message({
-        version: "contractor.events.v1",
-        type: "subscribed",
-        subscriptionId: subscription.subscriptionId,
-        stream: subscription.stream,
-        cursor: subscription.after,
-      }),
-    );
-    const readsBeforeResync = queueReads;
-    act(() =>
-      socket?.message({
+      socket.message({
         version: "contractor.events.v1",
         type: "resync_required",
         subscriptionId: subscription.subscriptionId,
@@ -461,84 +289,41 @@ describe("Runs Queue view", () => {
       }),
     );
 
-    await waitFor(() => expect(queueReads).toBeGreaterThan(readsBeforeResync));
+    await waitFor(() =>
+      expect(queueReads().length).toBeGreaterThan(readsBeforeResync),
+    );
     // Only that subscription is resynchronized; it resumes on the same socket.
     await waitFor(() =>
-      expect(JSON.parse(socket?.sent.at(-1) ?? "{}")).toMatchObject({
+      expect(JSON.parse(socket.sent.at(-1) ?? "{}")).toMatchObject({
         type: "subscribe",
         stream: { kind: "run", id: "run-live" },
         after: { generation: "events-run-live", sequence: "1" },
       }),
     );
-    expect(JSON.parse(socket?.sent.at(-1) ?? "{}").subscriptionId).not.toBe(
+    expect(JSON.parse(socket.sent.at(-1) ?? "{}").subscriptionId).not.toBe(
       subscription.subscriptionId,
     );
-    expect(QueueWebSocket.instances).toHaveLength(1);
+    expect(FakeEventSocket.instances).toHaveLength(1);
   });
 
   it("retries live subscriptions later when the resync read fails", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
       let failReads = false;
-      let queueReads = 0;
-      const api = new PublicAPI(
-        runtimeConfig,
-        vi.fn(async (input) => {
-          const request = input instanceof Request ? input : new Request(input);
-          const url = new URL(request.url);
-          if (url.pathname === "/v1/auth/session") {
-            return apiResponse(session);
-          }
-          if (url.pathname === "/v1/queue/control") {
-            return queueControlResponse();
-          }
-          if (url.pathname === "/v1/queue") {
-            queueReads += 1;
-            if (failReads) {
-              failReads = false;
-              return new Response(
-                JSON.stringify({
-                  code: "unavailable",
-                  message: "Queue unavailable",
-                  retryable: true,
-                }),
-                {
-                  status: 503,
-                  headers: {
-                    "content-type": "application/json",
-                    "X-Contractor-API-Version": "contractor.public.v1",
-                  },
-                },
-              );
-            }
-            return apiResponse({
-              items: [queueItem("run-live")],
-              page: { hasMore: false },
-            });
-          }
-          throw new Error(`unexpected ${request.method} ${url.pathname}`);
-        }),
-      );
-      renderQueueApplication(api);
+      const { queueReads } = renderQueue(() => {
+        if (failReads) {
+          failReads = false;
+          return failure(503, "unavailable", "Queue unavailable", true);
+        }
+        return json(page([queueItem("run-live")]));
+      });
 
       expect(
         await screen.findByRole("link", { name: "run-live" }),
       ).toBeInTheDocument();
-      await waitFor(() => expect(QueueWebSocket.instances).toHaveLength(1));
-      const socket = QueueWebSocket.instances[0]!;
-      act(() => socket.open());
-      const subscription = JSON.parse(socket.sent[0] ?? "{}");
-      act(() =>
-        socket.message({
-          version: "contractor.events.v1",
-          type: "subscribed",
-          subscriptionId: subscription.subscriptionId,
-          stream: subscription.stream,
-          cursor: subscription.after,
-        }),
-      );
+      const { socket, subscription } = await subscribed();
       failReads = true;
-      const readsBeforeResync = queueReads;
+      const readsBeforeResync = queueReads().length;
       act(() =>
         socket.message({
           version: "contractor.events.v1",
@@ -548,7 +333,9 @@ describe("Runs Queue view", () => {
           reason: "sequence_gap",
         }),
       );
-      await waitFor(() => expect(queueReads).toBe(readsBeforeResync + 1));
+      await waitFor(() =>
+        expect(queueReads()).toHaveLength(readsBeforeResync + 1),
+      );
       const subscribes = () =>
         socket.sent
           .map((frame) => JSON.parse(frame))
@@ -571,57 +358,25 @@ describe("Runs Queue view", () => {
   it("resubscribes after the Server refuses the live session", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
-      const api = new PublicAPI(
-        runtimeConfig,
-        vi.fn(async (input) => {
-          const request = input instanceof Request ? input : new Request(input);
-          const url = new URL(request.url);
-          if (url.pathname === "/v1/auth/session") {
-            return apiResponse(session);
-          }
-          if (url.pathname === "/v1/queue/control") {
-            return queueControlResponse();
-          }
-          if (url.pathname === "/v1/queue") {
-            return apiResponse({
-              items: [queueItem("run-live")],
-              page: { hasMore: false },
-            });
-          }
-          throw new Error(`unexpected ${request.method} ${url.pathname}`);
-        }),
-      );
-      renderQueueApplication(api);
+      renderQueue(() => json(page([queueItem("run-live")])));
 
       expect(
         await screen.findByRole("link", { name: "run-live" }),
       ).toBeInTheDocument();
-      await waitFor(() => expect(QueueWebSocket.instances).toHaveLength(1));
-      const socket = QueueWebSocket.instances[0]!;
-      act(() => socket.open());
-      const subscription = JSON.parse(socket.sent[0] ?? "{}");
-      act(() =>
-        socket.message({
-          version: "contractor.events.v1",
-          type: "subscribed",
-          subscriptionId: subscription.subscriptionId,
-          stream: subscription.stream,
-          cursor: subscription.after,
-        }),
-      );
+      const { socket } = await subscribed();
       // The Server's session check closes the socket with 1008; the manager
       // does not reconnect or request a resync on its own.
       act(() => socket.serverClose(1008));
       await act(async () => {
         await vi.advanceTimersByTimeAsync(1_000);
       });
-      expect(QueueWebSocket.instances).toHaveLength(1);
+      expect(FakeEventSocket.instances).toHaveLength(1);
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(10_000);
       });
-      await waitFor(() => expect(QueueWebSocket.instances).toHaveLength(2));
-      const replacement = QueueWebSocket.instances[1]!;
+      await waitFor(() => expect(FakeEventSocket.instances).toHaveLength(2));
+      const replacement = FakeEventSocket.instances[1]!;
       act(() => replacement.open());
       expect(JSON.parse(replacement.sent[0] ?? "{}")).toMatchObject({
         type: "subscribe",
@@ -634,27 +389,8 @@ describe("Runs Queue view", () => {
   });
 
   it("opens Queue deep links with active filters", async () => {
-    const requests: URL[] = [];
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") {
-          return apiResponse(session);
-        }
-        if (url.pathname === "/v1/queue/control") {
-          return queueControlResponse();
-        }
-        if (url.pathname === "/v1/queue") {
-          requests.push(url);
-          return apiResponse({ items: [], page: { hasMore: false } });
-        }
-        throw new Error(`unexpected ${request.method} ${url.pathname}`);
-      }),
-    );
-    const { router } = renderQueueApplication(
-      api,
+    const { router, queueReads } = renderQueue(
+      () => json(page([])),
       "/runs?membership=project&state=running",
     );
 
@@ -665,40 +401,24 @@ describe("Runs Queue view", () => {
     expect(router.state.location.search).toBe(
       "?membership=project&state=running",
     );
-    expect(requests).toHaveLength(1);
-    expect(requests[0]?.searchParams.get("membership")).toBe("project");
-    expect(requests[0]?.searchParams.get("state")).toBe("running");
+    expect(queueReads()).toHaveLength(1);
+    expect(queueReads()[0]?.searchParams.get("membership")).toBe("project");
+    expect(queueReads()[0]?.searchParams.get("state")).toBe("running");
   });
 
   it("pauses and resumes admission with one authoritative action", async () => {
     let paused = false;
     let revision = 0;
-    const controlWrites: Request[] = [];
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") {
-          return apiResponse(session);
-        }
-        if (url.pathname === "/v1/queue") {
-          return apiResponse({ items: [], page: { hasMore: false } });
-        }
-        if (url.pathname === "/v1/queue/control") {
-          if (request.method === "PUT") {
-            controlWrites.push(request);
-            const body = (await request.json()) as { paused: boolean };
-            paused = body.paused;
-            revision += 1;
-          }
-          return queueControlResponse(paused, String(revision));
-        }
-        throw new Error(`unexpected ${request.method} ${url.pathname}`);
-      }),
-    );
-    renderQueueApplication(api);
-    const user = userEvent.setup();
+    const { user, sent } = renderQueue(() => json(page([])), "/runs", {
+      "GET /v1/queue/control": () => queueControl(paused, String(revision)),
+      "PUT /v1/queue/control": async ({ request }) => {
+        const body = (await request.json()) as { paused: boolean };
+        paused = body.paused;
+        revision += 1;
+        return queueControl(paused, String(revision));
+      },
+    });
+    const controlWrites = () => sent("PUT", "/v1/queue/control");
 
     await user.click(
       await screen.findByRole("button", { name: "Pause queue" }),
@@ -710,51 +430,22 @@ describe("Runs Queue view", () => {
     expect(
       screen.getByText(/No next Stage starts until you resume/),
     ).toBeInTheDocument();
-    expect(controlWrites[0]?.headers.get("If-Match")).toBe('"0"');
-    expect(controlWrites[0]?.headers.get("X-CSRF-Token")).toBe(
-      session.csrfToken,
-    );
+    expect(controlWrites()[0]?.headers.get("If-Match")).toBe('"0"');
+    expect(controlWrites()[0]?.headers.get("X-CSRF-Token")).toBe(CSRF_TOKEN);
 
     await user.click(screen.getByRole("button", { name: "Resume queue" }));
     expect(
       await screen.findByRole("button", { name: "Pause queue" }),
     ).toBeEnabled();
     expect(screen.getByText("Admission running")).toBeInTheDocument();
-    expect(controlWrites[1]?.headers.get("If-Match")).toBe('"1"');
+    expect(controlWrites()[1]?.headers.get("If-Match")).toBe('"1"');
   });
 
   it("shows an unknown admission state and keeps the control disabled when the gate cannot be read", async () => {
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") {
-          return apiResponse(session);
-        }
-        if (url.pathname === "/v1/queue/control") {
-          return new Response(
-            JSON.stringify({
-              code: "unavailable",
-              message: "Queue control unavailable",
-              retryable: true,
-            }),
-            {
-              status: 503,
-              headers: {
-                "content-type": "application/json",
-                "X-Contractor-API-Version": "contractor.public.v1",
-              },
-            },
-          );
-        }
-        if (url.pathname === "/v1/queue") {
-          return apiResponse({ items: [], page: { hasMore: false } });
-        }
-        throw new Error(`unexpected ${request.method} ${url.pathname}`);
-      }),
-    );
-    renderQueueApplication(api);
+    renderQueue(() => json(page([])), "/runs", {
+      "GET /v1/queue/control": () =>
+        failure(503, "unavailable", "Queue control unavailable", true),
+    });
 
     expect(
       await screen.findByText("Could not read the queue admission state"),
@@ -765,30 +456,14 @@ describe("Runs Queue view", () => {
   });
 
   it("marks Queue rows for the compact narrow layout without hiding facts", async () => {
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") {
-          return apiResponse(session);
-        }
-        if (url.pathname === "/v1/queue/control") {
-          return queueControlResponse();
-        }
-        if (url.pathname === "/v1/queue") {
-          return apiResponse({
-            items: [
-              queueItem("run-plain", "initializing"),
-              { ...queueItem("run-labelled"), labels: { purpose: "eval" } },
-            ],
-            page: { hasMore: false },
-          });
-        }
-        throw new Error(`unexpected ${request.method} ${url.pathname}`);
-      }),
+    renderQueue(() =>
+      json(
+        page([
+          queueItem("run-plain", "initializing"),
+          queueItem("run-labelled", "running", { labels: { purpose: "eval" } }),
+        ]),
+      ),
     );
-    renderQueueApplication(api);
 
     const plain = (
       await screen.findByRole("link", { name: "run-plain" })

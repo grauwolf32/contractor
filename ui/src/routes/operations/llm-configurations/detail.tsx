@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { type RefObject, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 
+import { CONFIG_VERSION, CONFIGURATION_NAME } from "../../../api/contract";
 import { usePublicAPI } from "../../../api/context";
 import {
   getConfiguration,
@@ -9,18 +10,24 @@ import {
   type ConfigurationResource,
 } from "../../../api/operations";
 import { queryKeys } from "../../../api/query-keys";
-import {
-  CONFIG_NAME_PATTERN,
-  CONFIG_VERSION_PATTERN,
-} from "../../../api/workflows";
 import { compactDigest } from "../../../app/format";
 import { QueryView } from "../../../app/query-view";
 import { ErrorNotice } from "../../../app/error-notice";
-import { DetailHeader, IdChip, TechnicalDetails } from "../../../ui";
-import { DisclosureChevron, Glance, ScopeChip } from "../common";
+import {
+  Button,
+  DetailHeader,
+  Facts,
+  IdChip,
+  TechnicalDetails,
+} from "../../../ui";
+import { DisclosureChevron, ScopeChip } from "../common";
 import { ConfigurationBodyView } from "./body";
 import { LLMGatewayPublicationForm, ModelPolicyPublicationForm } from "./forms";
-import { configurationListPath, KIND_LABELS } from "./kinds";
+import {
+  configurationListPath,
+  configurationVersionPath,
+  KIND_LABELS,
+} from "./kinds";
 
 function writable(resource: ConfigurationResource): boolean {
   return (
@@ -56,9 +63,7 @@ function LoadedConfiguration({
           <span>
             Server assigned digest <code>{published.ref.digest}</code>.
           </span>
-          <Link
-            to={`/operations/configurations/${published.ref.kind}/${encodeURIComponent(published.ref.name)}/${encodeURIComponent(published.ref.version)}`}
-          >
+          <Link to={configurationVersionPath(published.ref)}>
             Open the new version
           </Link>
         </div>
@@ -71,7 +76,7 @@ function LoadedConfiguration({
           <h3 id="configuration-values-heading" className="ops-panel-title">
             Published values
           </h3>
-          <span className="ops-panel-aside">
+          <span className="ui-caption">
             The existing version and digest are never edited.
           </span>
         </div>
@@ -81,19 +86,21 @@ function LoadedConfiguration({
         summary="Published identity"
         description={`Kind, source and digest · ${resource.source}`}
       >
-        <Glance
+        <Facts
+          className="ops-glance"
           items={[
-            ["Kind", <code key="kind">{resource.ref.kind}</code>],
-            ["Source", resource.source],
-            [
-              "Digest",
-              <IdChip
-                key="digest"
-                value={resource.ref.digest}
-                display={compactDigest(resource.ref.digest)}
-                label="configuration digest"
-              />,
-            ],
+            { term: "Kind", value: <code>{resource.ref.kind}</code> },
+            { term: "Source", value: resource.source },
+            {
+              term: "Digest",
+              value: (
+                <IdChip
+                  value={resource.ref.digest}
+                  display={compactDigest(resource.ref.digest)}
+                  label="configuration digest"
+                />
+              ),
+            },
           ]}
         />
       </TechnicalDetails>
@@ -116,7 +123,7 @@ function LoadedConfiguration({
           )}
         </details>
       ) : (
-        <p className="ops-note">
+        <p className="ui-caption">
           This configuration kind is operator-authored and read-only. Publish
           new versions through the configuration source; this page shows the
           recorded values.
@@ -133,8 +140,8 @@ export function ConfigurationDetailRoute() {
   const configurationKind = isConfigurationKind(kind) ? kind : undefined;
   const valid =
     configurationKind !== undefined &&
-    CONFIG_NAME_PATTERN.test(name) &&
-    CONFIG_VERSION_PATTERN.test(version);
+    CONFIGURATION_NAME.test(name) &&
+    CONFIG_VERSION.test(version);
   const query = useQuery({
     queryKey: queryKeys.configurations.detail(kind, name, version),
     queryFn: () => {
@@ -168,14 +175,9 @@ export function ConfigurationDetailRoute() {
         }
         actions={
           resource !== undefined && writable(resource) ? (
-            <button
-              type="button"
-              className="ui-btn"
-              data-size="sm"
-              onClick={() => openDraft(clone)}
-            >
+            <Button size="sm" onClick={() => openDraft(clone)}>
               Clone to new version
-            </button>
+            </Button>
           ) : undefined
         }
       />
@@ -189,7 +191,6 @@ export function ConfigurationDetailRoute() {
               Loading configuration…
             </p>
           }
-          onRetry={() => void query.refetch()}
         >
           {(loaded) => (
             <LoadedConfiguration

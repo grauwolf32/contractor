@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   DEFAULT_TIME_LIMIT,
-  describeTimeLimit,
   TIME_LIMIT_OPTIONS,
   timeLimitSeconds,
 } from "./time-limit";
@@ -29,13 +28,5 @@ describe("time limit", () => {
     );
     for (const hours of ["", "0", "0.001", "8760.01", "-1", "abc", "Infinity"])
       expect(timeLimitSeconds({ choice: "custom", hours })).toBeUndefined();
-  });
-
-  it("describes a limit in words", () => {
-    expect(describeTimeLimit(86400)).toBe("24 hours");
-    expect(describeTimeLimit(604800)).toBe("7 days");
-    expect(describeTimeLimit(5400)).toBe("1.5 hours");
-    expect(describeTimeLimit(36)).toBe("36 seconds");
-    expect(describeTimeLimit(0)).toBe("no time limit");
   });
 });

@@ -3,18 +3,33 @@
  * Start form: the exact check type version, one exact material per chosen
  * input, the non-empty scope fields and the runtime labels.
  */
+import { RUNTIME_INFRASTRUCTURE_ID, schemaLimit } from "../../../api/contract";
 import type {
   AuditProfile,
   CreateAuditRequest,
   ExactArtifactRef,
 } from "../../../api/audits";
 
-/** Longest objective, target and authorization scope the form accepts. */
-export const SCOPE_TEXT_LIMIT = 4096;
+/** Longest objective, target and authorization scope the Server accepts. */
+export const SCOPE_TEXT_LIMITS = {
+  objective: schemaLimit("AuditScope", "maxLength", "properties", "objective"),
+  target: schemaLimit("AuditScope", "maxLength", "properties", "target"),
+  authorizationScope: schemaLimit(
+    "AuditScope",
+    "maxLength",
+    "properties",
+    "authorizationScope",
+  ),
+} as const;
 
-// RuntimeInfrastructureId in the public API: lowercase, at most 63 bytes.
-const RUNTIME_LABEL = /^[a-z][a-z0-9_-]{0,62}$/;
-export const MAX_RUNTIME_LABELS = 32;
+// Runtime labels are public RuntimeInfrastructureIds.
+const RUNTIME_LABEL = RUNTIME_INFRASTRUCTURE_ID;
+export const MAX_RUNTIME_LABELS = schemaLimit(
+  "CreateAuditRequest",
+  "maxItems",
+  "properties",
+  "runtimeLabels",
+);
 
 export interface ParsedRuntimeLabels {
   /** Unique labels in the order typed. */
@@ -39,7 +54,7 @@ export function parseRuntimeLabels(text: string): ParsedRuntimeLabels {
   };
 }
 
-export interface CreateRequestDraft {
+interface CreateRequestDraft {
   profile: Pick<AuditProfile["ref"], "name" | "version">;
   /** Chosen material per input name. */
   inputs: Readonly<Record<string, ExactArtifactRef>>;

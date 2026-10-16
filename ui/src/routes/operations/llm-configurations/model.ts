@@ -1,8 +1,10 @@
+import { schemaLimit } from "../../../api/contract";
 import type {
   ConfigurationResource,
   LLMGatewayBody,
   ModelPolicyBody,
 } from "../../../api/operations";
+import { formatNumber } from "../../../app/format";
 
 export type ModelPolicyConsumer = "worker" | "planner" | "both";
 
@@ -18,6 +20,14 @@ export function llmGatewayBody(
   return resource.body as LLMGatewayBody;
 }
 
+/** A ModelPolicyBody bound from the public contract. */
+export function policyLimit(
+  keyword: "maximum" | "maxLength",
+  property: keyof ModelPolicyBody,
+): number {
+  return schemaLimit("ModelPolicyBody", keyword, "properties", property);
+}
+
 function positiveInteger(value: number | undefined, maximum: number): boolean {
   return (
     value === undefined ||
@@ -30,21 +40,25 @@ export function validateModelPolicy(
   consumer: ModelPolicyConsumer,
 ): string[] {
   const errors: string[] = [];
-  if (value.model.trim().length === 0 || value.model.length > 256) {
-    errors.push("Model alias must contain 1–256 non-whitespace characters.");
+  const modelLength = policyLimit("maxLength", "model");
+  if (value.model.trim().length === 0 || value.model.length > modelLength) {
+    errors.push(
+      `Model alias must contain 1–${modelLength} non-whitespace characters.`,
+    );
   }
   const fields = [
-    ["Context window tokens", value.contextWindowTokens, 100_000_000],
-    ["Maximum output tokens", value.maxOutputTokens, Number.MAX_SAFE_INTEGER],
-    ["Maximum model calls", value.maxModelCalls, 1_000],
-    ["Maximum tool calls", value.maxToolCalls, 10_000],
-    ["Maximum Worker calls", value.maxWorkerCalls, 10_000],
-    ["Maximum total tokens", value.maxTotalTokens, 100_000_000],
+    ["Context window tokens", value.contextWindowTokens, "contextWindowTokens"],
+    ["Maximum output tokens", value.maxOutputTokens, "maxOutputTokens"],
+    ["Maximum model calls", value.maxModelCalls, "maxModelCalls"],
+    ["Maximum tool calls", value.maxToolCalls, "maxToolCalls"],
+    ["Maximum Worker calls", value.maxWorkerCalls, "maxWorkerCalls"],
+    ["Maximum total tokens", value.maxTotalTokens, "maxTotalTokens"],
   ] as const;
-  for (const [label, field, maximum] of fields) {
+  for (const [label, field, property] of fields) {
+    const maximum = policyLimit("maximum", property);
     if (!positiveInteger(field, maximum)) {
       errors.push(
-        `${label} must be a positive integer no greater than ${maximum.toLocaleString()}.`,
+        `${label} must be a positive integer no greater than ${formatNumber(maximum)}.`,
       );
     }
   }
@@ -150,12 +164,25 @@ function isLoopbackIP(hostname: string): boolean {
   );
 }
 
+export const GATEWAY_URL_LENGTH = schemaLimit(
+  "LLMGatewayBody",
+  "maxLength",
+  "properties",
+  "url",
+);
+export const MANAGEMENT_URL_LENGTH = schemaLimit(
+  "CredentialManagerDescriptor",
+  "maxLength",
+  "properties",
+  "managementUrl",
+);
+
 export function validateLLMGateway(value: LLMGatewayBody): string[] {
   const errors: string[] = [];
   const inference = parseHTTPURL(value.url);
   if (
     inference === undefined ||
-    value.url.length > 2048 ||
+    value.url.length > GATEWAY_URL_LENGTH ||
     !/^https?:\/\/(?:\[[^\]]+\]|[^/?#]+)\//i.test(value.url)
   ) {
     errors.push(
@@ -170,7 +197,7 @@ export function validateLLMGateway(value: LLMGatewayBody): string[] {
     if (
       value.credentialManager.implementation !== "litellm-virtual-keys@1" ||
       management === undefined ||
-      value.credentialManager.managementUrl.length > 2048 ||
+      value.credentialManager.managementUrl.length > MANAGEMENT_URL_LENGTH ||
       management.pathname !== "/"
     ) {
       errors.push("LiteLLM management URL must be an HTTP(S) root origin.");

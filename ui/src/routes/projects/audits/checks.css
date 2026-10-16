@@ -7,70 +7,24 @@
 
 /* ---------- Shared text ---------- */
 
-.checks-quiet {
-  color: var(--muted);
-  font-size: 0.8125rem;
-}
-
-/* No specificity, so layout classes (checks-pane-note) keep their margins. */
-:where(p.checks-quiet) {
-  margin: 0;
-}
-
-.checks-mono {
-  font-family: var(--font-mono);
-  font-size: 0.78125rem;
-  overflow-wrap: anywhere;
-}
-
 .checks-eyebrow {
   margin: 0;
   color: var(--muted);
-  font-size: 0.71875rem;
+  font-size: var(--text-xs);
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-}
-
-.checks-text-button,
-.checks-text-button:not(:disabled):hover,
-.checks-text-button:not(:disabled):active {
-  min-height: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 0.25rem;
-  background: none;
-  color: var(--link);
-  font-size: inherit;
-  font-weight: 700;
-  text-decoration: underline;
-  text-decoration-thickness: 0.08em;
-  text-underline-offset: 0.18em;
-  transform: none;
-}
-
-.checks-text-button:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
 }
 
 .checks-key-hint {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.25rem;
-}
-
-/* Icon-only buttons and links of this area. */
-:is(.checks-controls, .checks-item-steps) .ui-btn[data-icon-only] {
-  width: 2rem;
-  padding: 0;
+  gap: var(--space-1);
 }
 
 .checks-list-count .ui-btn[data-icon-only] {
-  width: 1.75rem;
   margin-left: auto;
-  padding: 0;
 }
 
 .checks-list-count .ui-btn .app-icon {
@@ -92,14 +46,14 @@
 
 .checks-notice {
   display: grid;
-  gap: 0.375rem;
+  gap: var(--space-1-5);
   justify-items: start;
-  padding: 0.625rem 0.875rem;
+  padding: var(--space-2-5) var(--space-3-5);
   border: 1px solid var(--line-strong);
-  border-radius: 0.625rem;
+  border-radius: var(--radius-lg);
   background: var(--surface-subtle);
   color: var(--text);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
 }
 
 .checks-notice > p,
@@ -121,13 +75,13 @@
 .checks-banner {
   display: flex;
   align-items: flex-start;
-  gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
   border: 1px solid var(--info-line);
-  border-radius: 0.625rem;
+  border-radius: var(--radius-lg);
   background: var(--info-bg);
   color: var(--text);
-  font-size: 0.84375rem;
+  font-size: var(--text-md);
   line-height: 1.45;
 }
 
@@ -137,7 +91,7 @@
 }
 
 .checks-banner > .ui-glyph {
-  margin-top: 0.125rem;
+  margin-top: var(--space-0-5);
 }
 
 .checks-banner[data-tone="warning"] {
@@ -167,57 +121,34 @@
 /* A loading or error message in place of a pane page. */
 .checks-page-message {
   display: grid;
-  gap: 0.75rem;
+  gap: var(--space-3);
   max-width: 48rem;
 }
 
 /* ---------- Facts and tables ---------- */
 
-.checks-facts {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(13rem, 100%), 1fr));
-  gap: 0.75rem 1.5rem;
-  margin: 0;
-}
-
-.checks-facts > div {
-  min-width: 0;
-}
-
-.checks-facts dt {
-  color: var(--muted);
-  font-size: 0.75rem;
-  font-weight: 700;
-}
-
-.checks-facts dd {
-  margin: 0.125rem 0 0;
-  font-size: 0.84375rem;
-  overflow-wrap: anywhere;
-}
-
 .checks-string-list {
   display: grid;
-  gap: 0.25rem;
+  gap: var(--space-1);
   margin: 0;
   padding-left: 1.125rem;
-  font-size: 0.84375rem;
+  font-size: var(--text-md);
   overflow-wrap: anywhere;
 }
 
 .checks-artifact-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem 1rem;
+  gap: var(--space-2) var(--space-4);
   min-width: 0;
 }
 
 .checks-artifact-list .artifact-ref-link {
   display: inline-flex;
   flex-wrap: wrap;
-  gap: 0.375rem;
+  gap: var(--space-1-5);
   min-width: 0;
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   overflow-wrap: anywhere;
 }
 
@@ -229,21 +160,21 @@
 .checks-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
 }
 
 .checks-table th {
-  padding: 0.375rem 0.75rem 0.375rem 0;
+  padding: var(--space-1-5) var(--space-3) var(--space-1-5) 0;
   border-bottom: 1px solid var(--line-strong);
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   font-weight: 700;
   text-align: left;
   white-space: nowrap;
 }
 
 .checks-table td {
-  padding: 0.5rem 0.75rem 0.5rem 0;
+  padding: var(--space-2) var(--space-3) var(--space-2) 0;
   border-bottom: 1px solid var(--line);
   vertical-align: top;
   overflow-wrap: anywhere;
@@ -263,22 +194,22 @@
   }
 
   .checks-table tr {
-    padding: 0.375rem 0;
+    padding: var(--space-1-5) 0;
     border-bottom: 1px solid var(--line);
   }
 
   .checks-table td {
     display: grid;
     grid-template-columns: minmax(6rem, 0.4fr) minmax(0, 1fr);
-    gap: 0.75rem;
-    padding: 0.25rem 0;
+    gap: var(--space-3);
+    padding: var(--space-1) 0;
     border: 0;
   }
 
   .checks-table td::before {
     color: var(--muted);
     content: attr(data-label);
-    font-size: 0.75rem;
+    font-size: var(--text-xs);
     font-weight: 700;
   }
 }
@@ -287,36 +218,28 @@
   width: fit-content;
   cursor: pointer;
   color: var(--muted);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   font-weight: 700;
 }
 
 .checks-code {
   max-height: 24rem;
-  margin: 0.5rem 0 0;
+  margin: var(--space-2) 0 0;
   overflow: auto;
-  padding: 0.75rem;
-  border-radius: 0.625rem;
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
   background: var(--code-bg);
   color: var(--text);
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
 /* ---------- Lifecycle controls and dialogs ---------- */
 
-.checks-controls {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-  min-width: 0;
-}
-
 .checks-controls[data-layout="compact"] {
-  gap: 0.375rem;
+  gap: var(--space-1-5);
 }
 
 .checks-controls-error {
@@ -328,20 +251,20 @@
   margin: 0;
 }
 
-.project-dialog.checks-dialog {
+.ui-dialog.checks-dialog {
   display: grid;
-  gap: 1rem;
+  gap: var(--space-4);
   width: min(100%, 36rem);
 }
 
-.checks-dialog .project-dialog-heading h2 {
+.checks-dialog .ui-dialog-heading h2 {
   font-size: 1.375rem;
   letter-spacing: -0.02em;
 }
 
 .checks-dialog-form {
   display: grid;
-  gap: 1rem;
+  gap: var(--space-4);
 }
 
 .checks-dialog-text {
@@ -351,64 +274,34 @@
 }
 
 .checks-dialog-facts {
-  padding: 0.75rem;
+  padding: var(--space-3);
   border: 1px solid var(--line);
-  border-radius: 0.625rem;
+  border-radius: var(--radius-lg);
   background: var(--surface-subtle);
-}
-
-.checks-dialog-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 0.5rem;
 }
 
 .checks-dialog .notice {
   margin: 0;
 }
 
-.checks-field {
-  display: grid;
-  gap: 0.375rem;
-  font-size: 0.8125rem;
-  font-weight: 700;
-}
-
-.checks-field :is(select, input) {
-  min-height: 2.375rem;
-  padding: 0 0.75rem;
-  border: 1px solid var(--line-strong);
-  border-radius: 0.625rem;
-  background: var(--surface);
-  color: var(--text);
-  font-weight: 400;
-}
-
-.checks-field :is(select, input):focus-visible {
-  border-color: var(--focus);
-  outline: 2px solid var(--focus);
-  outline-offset: 1px;
-}
-
 /* ---------- Check page: list pane ---------- */
 
 .checks-list-toolbar {
   display: grid;
-  gap: 0.625rem;
+  gap: var(--space-2-5);
 }
 
 .checks-search,
 .checks-project-filter {
   display: grid;
-  gap: 0.25rem;
+  gap: var(--space-1);
   min-width: 0;
 }
 
 .checks-search label,
 .checks-project-filter label {
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   font-weight: 700;
 }
 
@@ -417,12 +310,12 @@
   width: 100%;
   min-width: 0;
   height: 2.125rem;
-  padding: 0 0.625rem;
+  padding: 0 var(--space-2-5);
   border: 1px solid var(--line-strong);
-  border-radius: 0.5625rem;
+  border-radius: var(--radius-lg);
   background: var(--surface);
   color: var(--text);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
 }
 
 .checks-search input::placeholder {
@@ -441,9 +334,9 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.25rem 0.75rem;
+  gap: var(--space-1) var(--space-3);
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
 }
 
 .checks-list-count > p {
@@ -482,7 +375,7 @@
 .checks-row-path,
 .checks-item-key {
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   font-weight: 600;
   overflow-wrap: anywhere;
 }
@@ -490,7 +383,7 @@
 .checks-live {
   display: inline-flex;
   align-items: center;
-  gap: 0.3125rem;
+  gap: var(--space-1-5);
   color: var(--info);
   font-weight: 700;
 }
@@ -498,19 +391,19 @@
 .checks-live-dot {
   width: 0.4375rem;
   height: 0.4375rem;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: currentColor;
 }
 
 .checks-footer-tech {
   display: grid;
-  gap: 0.125rem;
+  gap: var(--space-0-5);
 }
 
 .checks-footer-tech > a {
   width: fit-content;
   color: var(--muted);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   font-weight: 700;
 }
 
@@ -522,7 +415,7 @@
 
 .checks-detail-header {
   display: grid;
-  gap: 0.75rem;
+  gap: var(--space-3);
   padding: 0.875rem var(--ui-pad-end, 1.75rem) 0 var(--ui-pad-start, 1.75rem);
   border-bottom: 1px solid var(--line);
 }
@@ -532,7 +425,7 @@
   display: none;
   margin: 0;
   color: var(--text);
-  font-size: 0.9375rem;
+  font-size: var(--text-base);
   font-weight: 800;
 }
 
@@ -544,7 +437,7 @@
 
 .checks-return {
   width: fit-content;
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   font-weight: 700;
 }
 
@@ -554,7 +447,7 @@
 
 .checks-progress {
   display: grid;
-  gap: 0.625rem;
+  gap: var(--space-2-5);
 }
 
 .checks-progress-top,
@@ -563,7 +456,7 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem 1.25rem;
+  gap: var(--space-2) var(--space-5);
 }
 
 .checks-progress-summary {
@@ -571,7 +464,7 @@
   flex: 1 1 20rem;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem 1rem;
+  gap: var(--space-2) var(--space-4);
   min-width: 0;
 }
 
@@ -582,7 +475,7 @@
 
 .checks-progress-count {
   margin: 0;
-  font-size: 1.0625rem;
+  font-size: var(--text-base);
   font-weight: 800;
   letter-spacing: -0.01em;
   white-space: nowrap;
@@ -592,14 +485,14 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-2);
   min-width: 0;
 }
 
 .checks-legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem 1rem;
+  gap: var(--space-1) var(--space-4);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -608,10 +501,10 @@
 .checks-legend a {
   display: inline-flex;
   align-items: center;
-  gap: 0.375rem;
-  border-radius: 0.375rem;
+  gap: var(--space-1-5);
+  border-radius: var(--radius-sm);
   color: var(--text);
-  font-size: 0.78125rem;
+  font-size: var(--text-sm);
   text-decoration: none;
 }
 
@@ -623,7 +516,7 @@
   flex: none;
   width: 0.625rem;
   height: 0.625rem;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   background: var(--m-idle);
 }
 
@@ -650,7 +543,7 @@
 .checks-legend-count {
   color: var(--muted);
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   font-weight: 600;
 }
 
@@ -658,27 +551,27 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.25rem 1rem;
+  gap: var(--space-1) var(--space-4);
   color: var(--muted);
-  font-size: 0.78125rem;
+  font-size: var(--text-sm);
 }
 
 .checks-progress-id {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.375rem;
+  gap: var(--space-1-5);
   min-width: 0;
   color: var(--muted);
-  font-size: 0.78125rem;
+  font-size: var(--text-sm);
 }
 
 .checks-progress-waiting {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem 1.25rem;
+  gap: var(--space-1) var(--space-5);
   margin: 0;
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   font-weight: 700;
 }
 
@@ -699,9 +592,9 @@
 
 .checks-tabs a {
   display: inline-block;
-  padding: 0.5rem 0 0.625rem;
+  padding: var(--space-2) 0 var(--space-2-5);
   color: var(--muted);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   font-weight: 700;
   text-decoration: none;
 }
@@ -719,13 +612,13 @@
 
 .checks-section {
   display: grid;
-  gap: 0.875rem;
+  gap: var(--space-3-5);
   min-width: 0;
 }
 
 .checks-section-heading {
   display: grid;
-  gap: 0.125rem;
+  gap: var(--space-0-5);
 }
 
 .checks-section-heading h2 {
@@ -749,7 +642,7 @@
 
 .checks-item-header {
   display: grid;
-  gap: 0.625rem;
+  gap: var(--space-2-5);
 }
 
 .checks-item-place {
@@ -757,20 +650,20 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.375rem 1rem;
+  gap: var(--space-1-5) var(--space-4);
   color: var(--muted);
-  font-size: 0.78125rem;
+  font-size: var(--text-sm);
   font-weight: 700;
 }
 
 .checks-item-steps {
   display: inline-flex;
   align-items: center;
-  gap: 0.375rem;
+  gap: var(--space-1-5);
 }
 
 .checks-item-steps .checks-key-hint {
-  margin-left: 0.25rem;
+  margin-left: var(--space-1);
   font-weight: 400;
 }
 
@@ -778,9 +671,9 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.375rem 0.625rem;
+  gap: var(--space-1-5) var(--space-2-5);
   margin: 0;
-  font-size: 1.1875rem;
+  font-size: var(--text-lg);
   font-weight: 800;
   letter-spacing: -0.01em;
   line-height: 1.3;
@@ -788,8 +681,8 @@
 }
 
 .checks-item-title .ui-method-chip {
-  padding: 0.25rem 0.4375rem;
-  font-size: 0.75rem;
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-xs);
 }
 
 .checks-item-path {
@@ -799,11 +692,11 @@
 }
 
 .checks-item-title .checks-item-key {
-  font-size: 1rem;
+  font-size: var(--text-base);
 }
 
 .checks-item-name {
-  font-size: 1rem;
+  font-size: var(--text-base);
   font-weight: 700;
 }
 
@@ -811,17 +704,17 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.375rem 0.75rem;
+  gap: var(--space-1-5) var(--space-3);
 }
 
 .checks-run-link {
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   font-weight: 700;
 }
 
 .checks-item-section {
   display: grid;
-  gap: 0.375rem;
+  gap: var(--space-1-5);
   min-width: 0;
 }
 
@@ -830,21 +723,21 @@
   flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
-  gap: 0.25rem 0.75rem;
+  gap: var(--space-1) var(--space-3);
 }
 
 .checks-item-section h3,
 .checks-block h3,
 .checks-tech-section h3 {
   margin: 0;
-  font-size: 0.84375rem;
+  font-size: var(--text-md);
   font-weight: 800;
   letter-spacing: -0.005em;
   line-height: 1.3;
 }
 
 .checks-item-section .audit-markdown {
-  font-size: 1rem;
+  font-size: var(--text-base);
   line-height: 1.6;
 }
 
@@ -858,14 +751,14 @@
 .checks-status-note {
   margin: 0;
   color: var(--muted);
-  font-size: 0.84375rem;
+  font-size: var(--text-md);
 }
 
 .checks-gaps {
   display: grid;
-  gap: 0.25rem;
+  gap: var(--space-1);
   max-width: 80ch;
-  font-size: 0.84375rem;
+  font-size: var(--text-md);
 }
 
 .checks-gaps ul {
@@ -875,7 +768,7 @@
 
 .checks-issues {
   display: grid;
-  gap: 0.5rem;
+  gap: var(--space-2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -885,14 +778,14 @@
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
-  gap: 0.5rem 0.75rem;
-  padding: 0.75rem 0.875rem;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3) var(--space-3-5);
   border: 1px solid var(--line-strong);
-  border-radius: 0.75rem;
+  border-radius: var(--radius-xl);
 }
 
 .checks-issue > .ui-glyph {
-  margin-top: 0.1875rem;
+  margin-top: var(--space-1);
 }
 
 .checks-issue-main {
@@ -902,7 +795,7 @@
 
 .checks-issue-main > a {
   color: var(--text);
-  font-size: 0.90625rem;
+  font-size: var(--text-md);
   font-weight: 700;
   line-height: 1.35;
   overflow-wrap: anywhere;
@@ -911,33 +804,33 @@
 .checks-issue-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.125rem 0.75rem;
-  margin: 0.1875rem 0 0;
+  gap: var(--space-0-5) var(--space-3);
+  margin: var(--space-1) 0 0;
   color: var(--muted);
-  font-size: 0.78125rem;
+  font-size: var(--text-sm);
 }
 
 .checks-item-columns {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(22rem, 100%), 1fr));
-  gap: 1.5rem 2.25rem;
+  gap: var(--space-6) 2.25rem;
   align-items: start;
 }
 
 .checks-evidence-checklist {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem 1rem;
-  margin: 0 0 0.5rem;
+  gap: var(--space-1) var(--space-4);
+  margin: 0 0 var(--space-2);
   padding: 0;
   list-style: none;
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
 }
 
 .checks-evidence-checklist > li {
   display: inline-flex;
   align-items: center;
-  gap: 0.3125rem;
+  gap: var(--space-1-5);
 }
 
 .checks-evidence {
@@ -950,9 +843,9 @@
 
 .checks-evidence > li {
   display: grid;
-  gap: 0.125rem;
-  padding: 0.5rem 0;
-  font-size: 0.84375rem;
+  gap: var(--space-0-5);
+  padding: var(--space-2) 0;
+  font-size: var(--text-md);
 }
 
 .checks-evidence > li + li {
@@ -961,7 +854,7 @@
 
 .checks-item-tech {
   display: grid;
-  gap: 0.875rem;
+  gap: var(--space-3-5);
   min-width: 0;
 }
 
@@ -969,27 +862,27 @@
 
 .checks-activity {
   display: grid;
-  gap: 1.5rem;
+  gap: var(--space-6);
   min-width: 0;
 }
 
 .checks-activity-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(18rem, 100%), 1fr));
-  gap: 1.25rem 2rem;
+  gap: var(--space-5) var(--space-8);
   align-items: start;
 }
 
 .checks-block {
   display: grid;
-  gap: 0.5rem;
+  gap: var(--space-2);
   min-width: 0;
 }
 
 .checks-waiting {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(26rem, 100%), 1fr));
-  gap: 0.75rem;
+  gap: var(--space-3);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -997,19 +890,19 @@
 
 .checks-waiting-item {
   display: grid;
-  gap: 0.375rem;
-  padding: 0.625rem 0.75rem;
+  gap: var(--space-1-5);
+  padding: var(--space-2-5) var(--space-3);
   border: 1px solid var(--line-strong);
-  border-radius: 0.75rem;
+  border-radius: var(--radius-xl);
 }
 
 .checks-waiting-title {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.25rem 0.5rem;
+  gap: var(--space-1) var(--space-2);
   margin: 0;
-  font-size: 0.84375rem;
+  font-size: var(--text-md);
   overflow-wrap: anywhere;
 }
 
@@ -1018,38 +911,38 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.375rem 1rem;
+  gap: var(--space-1-5) var(--space-4);
   margin: 0;
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   font-weight: 700;
 }
 
 .checks-tech .ui-tech-body {
   display: grid;
-  gap: 1.25rem;
+  gap: var(--space-5);
 }
 
 .checks-tech-section {
   display: grid;
-  gap: 0.5rem;
+  gap: var(--space-2);
   min-width: 0;
 }
 
 .checks-tech-section > p {
   margin: 0;
-  font-size: 0.84375rem;
+  font-size: var(--text-md);
 }
 
 .checks-tech-block {
   display: grid;
-  gap: 0.375rem;
+  gap: var(--space-1-5);
   min-width: 0;
-  font-size: 0.84375rem;
+  font-size: var(--text-md);
 }
 
 .checks-tech-block h4 {
   margin: 0;
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
 }
 
 .checks-tech-block p {
@@ -1060,7 +953,7 @@
 
 .checks-reviews {
   display: grid;
-  gap: 0.75rem;
+  gap: var(--space-3);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1068,11 +961,11 @@
 
 .checks-review {
   display: grid;
-  gap: 0.5rem;
+  gap: var(--space-2);
   min-width: 0;
-  padding: 0.875rem 1rem;
+  padding: var(--space-3-5) var(--space-4);
   border: 1px solid var(--line-strong);
-  border-radius: 0.75rem;
+  border-radius: var(--radius-xl);
 }
 
 .checks-review-heading {
@@ -1080,7 +973,7 @@
   flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 0.375rem 0.75rem;
+  gap: var(--space-1-5) var(--space-3);
 }
 
 .checks-review-heading > div {
@@ -1088,8 +981,8 @@
 }
 
 .checks-review-heading h3 {
-  margin: 0.125rem 0 0;
-  font-size: 0.9375rem;
+  margin: var(--space-0-5) 0 0;
+  font-size: var(--text-base);
   font-weight: 800;
   overflow-wrap: anywhere;
 }
@@ -1098,9 +991,9 @@
 .checks-review-links {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem 1rem;
+  gap: var(--space-1) var(--space-4);
   margin: 0;
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
 }
 
 .checks-review-meta {
@@ -1117,7 +1010,7 @@
 
 .checks-runs {
   display: grid;
-  gap: 0.75rem;
+  gap: var(--space-3);
   min-width: 0;
 }
 
@@ -1125,10 +1018,10 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
-  gap: 0.25rem 1rem;
+  gap: var(--space-1) var(--space-4);
   margin: 0;
   color: var(--muted);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
 }
 
 .checks-runs-intro a {
@@ -1139,14 +1032,14 @@
 
 .checks-project {
   display: grid;
-  gap: 1rem;
+  gap: var(--space-4);
   min-width: 0;
 }
 
 .checks-project .ui-list {
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 0.875rem;
+  border-radius: var(--radius-2xl);
   background: var(--surface);
 }
 
@@ -1156,8 +1049,8 @@
 
 .checks-row-objective,
 .checks-row-stop {
-  margin: 0 0 0.375rem;
-  font-size: 0.8125rem;
+  margin: 0 0 var(--space-1-5);
+  font-size: var(--text-sm);
   overflow-wrap: anywhere;
 }
 
@@ -1173,14 +1066,14 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.375rem;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1-5);
 }
 
 .checks-identity {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.375rem 0.75rem;
+  gap: var(--space-1-5) var(--space-3);
   margin: 0;
 }
 
@@ -1190,10 +1083,10 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.25rem 0.625rem;
+  gap: var(--space-1) var(--space-2-5);
   max-width: 20rem;
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
 }
 
 .checks-row-progress > .ui-segments {
@@ -1203,50 +1096,12 @@
 .checks-summary-objective {
   margin: 0;
   max-width: 72ch;
-  font-size: 0.9375rem;
+  font-size: var(--text-base);
   line-height: 1.55;
 }
 
 .checks-summary-progress {
   display: grid;
-  gap: 0.5rem;
+  gap: var(--space-2);
   max-width: 36rem;
-}
-
-/* The review queue's pager inside the Decisions section. */
-.checks-section .audit-queue-pagination {
-  display: grid;
-  gap: 0.5rem;
-}
-
-.checks-section .audit-queue-pagination p {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.78125rem;
-}
-
-.checks-section .audit-queue-pagination .notice {
-  margin: 0;
-  color: var(--text);
-}
-
-.checks-section .audit-queue-pagination .form-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.checks-section .audit-queue-pagination button {
-  min-height: 0;
-  height: 1.75rem;
-  padding: 0 0.625rem;
-  border: 1px solid var(--line-strong);
-  border-radius: 0.5rem;
-  background: var(--surface);
-  color: var(--text);
-  font-size: 0.78125rem;
-}
-
-.checks-section .audit-queue-pagination button:not(:disabled):hover {
-  background: var(--surface-hover);
 }

@@ -1,8 +1,97 @@
 import { Link } from "react-router";
 
-import { TechnicalDetails } from "../../../ui";
+import { formatNumber } from "../../../app/format";
+import { Facts, TechnicalDetails } from "../../../ui";
 import { useOperationsSnapshot } from "../context";
+import type { RuntimeAgentObservation } from "../../../api/operations";
 import { OperationsState, OptionalTimestamp, SafeReason } from "../common";
+
+/** What a registered process advertised, and its allocation binding. */
+function ProcessFacts({ agent }: { agent: RuntimeAgentObservation }) {
+  const workspace = agent.workspaceCapabilities;
+  return (
+    <Facts
+      layout="rows"
+      items={[
+        {
+          term: "Software version",
+          value: <code>{agent.softwareVersion}</code>,
+        },
+        {
+          term: "Worker runtimes",
+          value: (
+            <span className="ops-chips">
+              {agent.supportedRuntimes.map((runtime) => (
+                <code key={runtime}>{runtime}</code>
+              ))}
+            </span>
+          ),
+        },
+        {
+          term: "Sandbox profiles",
+          value: (
+            <span className="ops-chips">
+              {agent.supportedSandboxProfiles.map((sandbox) => (
+                <code key={sandbox}>{sandbox}</code>
+              ))}
+            </span>
+          ),
+        },
+        {
+          term: "Toolsets",
+          value:
+            agent.supportedToolsets.length === 0 ? (
+              <span className="ops-muted">No usable Toolsets reported</span>
+            ) : (
+              <ul
+                className="ops-toolsets"
+                aria-label={`Toolsets for ${agent.instanceId}`}
+              >
+                {agent.supportedToolsets.map((toolset) => (
+                  <li key={toolset.ref}>
+                    <code>{toolset.ref}</code>:{" "}
+                    {toolset.tools.map((tool) => (
+                      <code key={tool}>{tool}</code>
+                    ))}
+                  </li>
+                ))}
+              </ul>
+            ),
+        },
+        {
+          term: "Workspace",
+          value:
+            workspace === undefined ? (
+              <span className="ops-muted">Not configured</span>
+            ) : (
+              <>
+                <code>{workspace.storage}</code>
+                {" · "}
+                {workspace.modes.map((mode) => (
+                  <code key={mode}>{mode}</code>
+                ))}
+                {" · "}
+                {formatNumber(workspace.limits.maxFiles)} files /{" "}
+                {formatNumber(workspace.limits.maxExpandedBytes)} bytes expanded
+              </>
+            ),
+        },
+        {
+          term: "Agent-reported allocation",
+          value: <code>{agent.currentAllocationId ?? "none"}</code>,
+        },
+        {
+          term: "Control Plane allocation",
+          value: <code>{agent.authoritativeAllocationId ?? "none"}</code>,
+        },
+        {
+          term: "Reconciliation reason",
+          value: <SafeReason reason={agent.reconciliationReason} />,
+        },
+      ]}
+    />
+  );
+}
 
 /**
  * The registered processes of the current snapshot with their lease facts,
@@ -56,109 +145,7 @@ export function ProcessInventory() {
                         <td data-label="Runtime Agent">
                           <details className="ops-inventory-agent">
                             <summary>{agent.instanceId}</summary>
-                            <dl className="ops-facts">
-                              <div>
-                                <dt>Software version</dt>
-                                <dd>
-                                  <code>{agent.softwareVersion}</code>
-                                </dd>
-                              </div>
-                              <div>
-                                <dt>Worker runtimes</dt>
-                                <dd className="ops-chips">
-                                  {agent.supportedRuntimes.map((runtime) => (
-                                    <code key={runtime}>{runtime}</code>
-                                  ))}
-                                </dd>
-                              </div>
-                              <div>
-                                <dt>Sandbox profiles</dt>
-                                <dd className="ops-chips">
-                                  {agent.supportedSandboxProfiles.map(
-                                    (sandbox) => (
-                                      <code key={sandbox}>{sandbox}</code>
-                                    ),
-                                  )}
-                                </dd>
-                              </div>
-                              <div>
-                                <dt>Toolsets</dt>
-                                <dd>
-                                  {agent.supportedToolsets.length === 0 ? (
-                                    <span className="ops-muted">
-                                      No usable Toolsets reported
-                                    </span>
-                                  ) : (
-                                    <ul
-                                      className="ops-toolsets"
-                                      aria-label={`Toolsets for ${agent.instanceId}`}
-                                    >
-                                      {agent.supportedToolsets.map(
-                                        (toolset) => (
-                                          <li key={toolset.ref}>
-                                            <code>{toolset.ref}</code>:{" "}
-                                            {toolset.tools.map((tool) => (
-                                              <code key={tool}>{tool}</code>
-                                            ))}
-                                          </li>
-                                        ),
-                                      )}
-                                    </ul>
-                                  )}
-                                </dd>
-                              </div>
-                              <div>
-                                <dt>Workspace</dt>
-                                <dd>
-                                  {agent.workspaceCapabilities === undefined ? (
-                                    <span className="ops-muted">
-                                      Not configured
-                                    </span>
-                                  ) : (
-                                    <>
-                                      <code>
-                                        {agent.workspaceCapabilities.storage}
-                                      </code>
-                                      {" · "}
-                                      {agent.workspaceCapabilities.modes.map(
-                                        (mode) => (
-                                          <code key={mode}>{mode}</code>
-                                        ),
-                                      )}
-                                      {" · "}
-                                      {agent.workspaceCapabilities.limits.maxFiles.toLocaleString()}{" "}
-                                      files /{" "}
-                                      {agent.workspaceCapabilities.limits.maxExpandedBytes.toLocaleString()}{" "}
-                                      bytes expanded
-                                    </>
-                                  )}
-                                </dd>
-                              </div>
-                              <div>
-                                <dt>Agent-reported allocation</dt>
-                                <dd>
-                                  <code>
-                                    {agent.currentAllocationId ?? "none"}
-                                  </code>
-                                </dd>
-                              </div>
-                              <div>
-                                <dt>Control Plane allocation</dt>
-                                <dd>
-                                  <code>
-                                    {agent.authoritativeAllocationId ?? "none"}
-                                  </code>
-                                </dd>
-                              </div>
-                              <div>
-                                <dt>Reconciliation reason</dt>
-                                <dd>
-                                  <SafeReason
-                                    reason={agent.reconciliationReason}
-                                  />
-                                </dd>
-                              </div>
-                            </dl>
+                            <ProcessFacts agent={agent} />
                           </details>
                         </td>
                         <td data-label="Observed">
@@ -182,7 +169,7 @@ export function ProcessInventory() {
                             <span className="ops-muted">Unallocated</span>
                           ) : (
                             <Link
-                              className="ops-mono"
+                              className="ui-mono"
                               to={`/operations/allocations#${encodeURIComponent(agent.authoritativeAllocationId)}`}
                             >
                               {agent.authoritativeAllocationId}

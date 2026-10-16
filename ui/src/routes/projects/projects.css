@@ -5,21 +5,93 @@
  * with projects-. Visual reference: docs/design/ui/mockups/v3b/project.html.
  */
 
-/* ---------- Shared text and controls ---------- */
+/* ---------- Project pages (base rules; this sheet refines them below) ---------- */
 
-.projects-caption {
-  margin: 0;
+.eval-run-groups {
+  display: grid;
+  gap: 1rem;
+}
+
+.eval-run-group {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 0.7rem;
+  background: var(--surface-subtle);
+  padding: 1rem;
+}
+
+.eval-run-group-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.eval-run-group-heading h4 {
+  margin: 0.15rem 0 0;
+}
+
+.eval-run-group > .muted-copy {
+  margin: 0.5rem 0 0;
+}
+
+.eval-run-group .table-scroll {
+  margin-top: 0.8rem;
+}
+
+.eval-case-value {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.eval-case-value small {
   color: var(--muted);
-  font-size: 0.8125rem;
-  line-height: 1.5;
 }
 
-.projects-mono {
-  color: var(--text);
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  overflow-wrap: anywhere;
+.project-local-navigation {
+  display: flex;
+  position: sticky;
+  top: 0.7rem;
+  z-index: 4;
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
+  gap: 0.25rem;
+  margin: -0.6rem 0 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  padding: 0.35rem;
+  backdrop-filter: blur(0.8rem);
 }
+
+.project-local-navigation a {
+  flex: none;
+  border-radius: 0.4rem;
+  color: var(--muted-strong);
+  padding: 0.45rem 0.75rem;
+  font-size: 0.76rem;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.project-local-navigation a:hover {
+  background: var(--surface-raised);
+  color: var(--accent);
+}
+
+.project-workflow-count {
+  flex: none;
+  border: 1px solid var(--accent-line);
+  border-radius: 999px;
+  background: var(--accent-dark);
+  color: var(--accent);
+  padding: 0.35rem 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+/* ---------- Shared text and controls ---------- */
 
 .projects-prose {
   overflow-wrap: anywhere;
@@ -31,44 +103,44 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem 1rem;
+  gap: var(--space-2) var(--space-4);
 }
 
 .projects-section-heading h3 {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-2);
   margin: 0;
   color: var(--text);
-  font-size: 1rem;
+  font-size: var(--text-base);
   font-weight: 800;
   letter-spacing: -0.01em;
   line-height: 1.25;
 }
 
 .projects-section-heading > a {
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   font-weight: 700;
 }
 
 .projects-panel {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 0.75rem;
+  gap: var(--space-3);
   min-width: 0;
-  padding: 1rem 1.125rem;
+  padding: var(--space-4) 1.125rem;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   background: var(--surface);
 }
 
 .projects-empty {
   display: grid;
-  gap: 0.375rem;
+  gap: var(--space-1-5);
   justify-items: start;
-  padding: 1.25rem 0;
+  padding: var(--space-5) 0;
   color: var(--muted);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
 }
 
 .projects-empty > p {
@@ -77,7 +149,7 @@
 
 .projects-empty-title {
   color: var(--text);
-  font-size: 0.875rem;
+  font-size: var(--text-md);
   font-weight: 700;
 }
 
@@ -85,17 +157,17 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.75rem 1rem;
+  gap: var(--space-3) var(--space-4);
 }
 
 .projects-inline-field {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.375rem 0.5rem;
+  gap: var(--space-1-5) var(--space-2);
   min-width: 0;
   color: var(--muted);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   font-weight: 700;
 }
 
@@ -103,12 +175,12 @@
   min-width: 0;
   max-width: 100%;
   height: 2rem;
-  padding: 0 0.625rem;
+  padding: 0 var(--space-2-5);
   border: 1px solid var(--line-strong);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--surface);
   color: var(--text);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   font-weight: 500;
 }
 
@@ -120,16 +192,16 @@
 .projects-form {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 0.875rem;
+  gap: var(--space-3-5);
   min-width: 0;
 }
 
 .projects-field {
   display: grid;
-  gap: 0.375rem;
+  gap: var(--space-1-5);
   min-width: 0;
   color: var(--muted-strong);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   font-weight: 700;
 }
 
@@ -137,12 +209,12 @@
   width: 100%;
   min-width: 0;
   min-height: 2.5rem;
-  padding: 0.5rem 0.75rem;
+  padding: var(--space-2) var(--space-3);
   border: 1px solid var(--line-strong);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--sunken);
   color: var(--text);
-  font-size: 0.875rem;
+  font-size: var(--text-md);
   font-weight: 500;
 }
 
@@ -162,39 +234,27 @@
 .projects-field-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(12rem, 100%), 1fr));
-  gap: 0.875rem;
+  gap: var(--space-3-5);
 }
 
 .projects-checkbox {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-2);
   color: var(--muted-strong);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   font-weight: 600;
-}
-
-.projects-form-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.project-dialog .projects-form-actions {
-  justify-content: flex-end;
-  margin-top: 0.25rem;
 }
 
 .projects-new-dialog .projects-form,
 .projects-target-dialog .projects-form {
-  margin-top: 1rem;
+  margin-top: var(--space-4);
 }
 
 .projects-facts {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(11rem, 100%), 1fr));
-  gap: 0.75rem 1.25rem;
+  gap: var(--space-3) var(--space-5);
   margin: 0;
 }
 
@@ -208,21 +268,21 @@
 
 .projects-facts dt {
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   font-weight: 700;
 }
 
 .projects-facts dd {
-  margin: 0.125rem 0 0;
+  margin: var(--space-0-5) 0 0;
   color: var(--text);
-  font-size: 0.875rem;
+  font-size: var(--text-md);
   overflow-wrap: anywhere;
 }
 
 .projects-editor {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 0.875rem;
+  gap: var(--space-3-5);
   min-width: 0;
 }
 
@@ -236,8 +296,8 @@
 .projects-row {
   display: flex;
   align-items: flex-start;
-  gap: 0.625rem;
-  padding: 0.625rem 0;
+  gap: var(--space-2-5);
+  padding: var(--space-2-5) 0;
   border-top: 1px solid var(--line);
 }
 
@@ -251,30 +311,30 @@
 }
 
 .projects-row > .ui-glyph {
-  margin-top: 0.125rem;
+  margin-top: var(--space-0-5);
 }
 
 .projects-row-main {
   display: grid;
   flex: 1 1 auto;
-  gap: 0.125rem;
+  gap: var(--space-0-5);
   min-width: 0;
-  font-size: 0.84375rem;
+  font-size: var(--text-md);
 }
 
 .projects-row-meta {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.125rem 0.375rem;
+  gap: var(--space-0-5) var(--space-1-5);
   min-width: 0;
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   line-height: 1.4;
 }
 
 .projects-row-meta > * + *::before {
-  margin-right: 0.375rem;
+  margin-right: var(--space-1-5);
   color: var(--faint);
   content: "·";
 }
@@ -328,12 +388,12 @@
   width: 100%;
   min-width: 0;
   height: 2rem;
-  padding: 0 0.625rem 0 2rem;
+  padding: 0 var(--space-2-5) 0 var(--space-8);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--sunken);
   color: var(--text);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
 }
 
 .projects-filter input::placeholder {
@@ -352,11 +412,11 @@
 
 .projects-list-error {
   display: grid;
-  gap: 0.375rem;
+  gap: var(--space-1-5);
   justify-items: start;
-  margin-block: 0.75rem;
+  margin-block: var(--space-3);
   color: var(--muted);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
 }
 
 .projects-list-error > p {
@@ -366,22 +426,6 @@
 .projects-list-pages > .pagination {
   margin: 0;
   padding: 0.5rem var(--ui-pad-end, 1rem) 0.75rem var(--ui-pad-start, 1.25rem);
-}
-
-.projects-icon-button {
-  width: 2rem;
-  padding: 0;
-}
-
-.projects-icon-button svg {
-  width: 1rem;
-  height: 1rem;
-}
-
-.projects-start-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
 }
 
 /* ---------- Selected project: header, actions, tabs ---------- */
@@ -407,7 +451,7 @@
   -webkit-line-clamp: 3;
   line-clamp: 3;
   color: var(--muted);
-  font-size: 0.875rem;
+  font-size: var(--text-md);
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
@@ -416,7 +460,7 @@
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.375rem;
+  gap: var(--space-1-5);
   min-width: 0;
 }
 
@@ -446,7 +490,7 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem 1rem;
+  gap: var(--space-2) var(--space-4);
   padding: 0 var(--ui-pad-end, 1.75rem) 0 var(--ui-pad-start, 1.75rem);
   border-bottom: 1px solid var(--line);
   background: var(--surface);
@@ -456,14 +500,14 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0 1rem;
+  gap: 0 var(--space-4);
   min-width: 0;
 }
 
 .projects-tabs-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 0 1rem;
+  gap: 0 var(--space-4);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -475,7 +519,7 @@
   min-height: 2.75rem;
   border-bottom: 2px solid transparent;
   color: var(--muted);
-  font-size: 0.84375rem;
+  font-size: var(--text-md);
   font-weight: 700;
   text-decoration: none;
   white-space: nowrap;
@@ -491,7 +535,7 @@
 }
 
 .projects-tab:focus-visible {
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   outline: 2px solid var(--focus);
   outline-offset: -2px;
 }
@@ -499,14 +543,14 @@
 .projects-tabs-advanced {
   display: flex;
   align-items: center;
-  gap: 0 0.75rem;
-  padding-left: 1rem;
+  gap: 0 var(--space-3);
+  padding-left: var(--space-4);
   border-left: 1px solid var(--line);
 }
 
 .projects-tabs-label {
   color: var(--faint);
-  font-size: 0.6875rem;
+  font-size: var(--text-2xs);
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -522,10 +566,10 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
-  gap: 0.5rem;
+  gap: var(--space-2);
   min-width: 0;
   margin-left: auto;
-  padding-block: 0.375rem;
+  padding-block: var(--space-1-5);
 }
 
 .projects-section-actions:empty,
@@ -534,18 +578,12 @@
 }
 
 .projects-section-actions > :is(a, span):not(.ui-btn) {
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
 }
 
 /* The bar is as tall as the tabs: section buttons there are compact. */
 .projects-section-actions :is(button, a.ui-btn) {
   min-height: 2rem;
-}
-
-.projects-section-actions .refresh-button.icon-button {
-  width: 2rem;
-  height: 2rem;
-  padding: 0;
 }
 
 /* Narrow detail panes (phones; the pane beside the list on small laptops)
@@ -559,11 +597,11 @@
     display: flex;
     flex: 1 1 12rem;
     align-items: center;
-    gap: 0.5rem;
+    gap: var(--space-2);
     min-width: 0;
-    padding-block: 0.5rem;
+    padding-block: var(--space-2);
     color: var(--muted);
-    font-size: 0.8125rem;
+    font-size: var(--text-sm);
     font-weight: 700;
   }
 
@@ -571,17 +609,17 @@
     flex: 1 1 auto;
     min-width: 0;
     height: 2.25rem;
-    padding: 0 0.625rem;
+    padding: 0 var(--space-2-5);
     border: 1px solid var(--line-strong);
-    border-radius: 9px;
+    border-radius: var(--radius-lg);
     background: var(--surface);
     color: var(--text);
-    font-size: 0.875rem;
+    font-size: var(--text-md);
     font-weight: 600;
   }
 
   .projects-section-actions {
-    padding-block: 0 0.5rem;
+    padding-block: 0 var(--space-2);
   }
 }
 
@@ -602,12 +640,12 @@
 .projects-deletion {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 0.5rem;
-  padding: 1rem 1.125rem;
+  gap: var(--space-2);
+  padding: var(--space-4) 1.125rem;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   background: var(--surface);
-  font-size: 0.875rem;
+  font-size: var(--text-md);
 }
 
 .projects-deletion > * {
@@ -617,9 +655,9 @@
 .projects-deletion-state {
   display: inline-flex;
   align-items: center;
-  gap: 0.375rem;
+  gap: var(--space-1-5);
   color: var(--info);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   font-weight: 700;
 }
 
@@ -630,16 +668,16 @@
 
 .projects-deletion-phases {
   display: grid;
-  gap: 0.375rem;
-  padding: 0.25rem 0;
+  gap: var(--space-1-5);
+  padding: var(--space-1) 0;
   list-style: none;
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
 }
 
 .projects-deletion-phases > li {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-2);
 }
 
 .projects-deletion-phases > li[data-state="next"] {
@@ -653,7 +691,7 @@
 .projects-deletion small,
 .projects-deletion-durability {
   color: var(--muted);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
 }
 
 /* ---------- Overview ---------- */
@@ -661,20 +699,20 @@
 .projects-overview {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 1.5rem;
+  gap: var(--space-6);
   min-width: 0;
 }
 
 .projects-materials {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 0.75rem;
+  gap: var(--space-3);
 }
 
 .projects-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: var(--space-2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -688,15 +726,15 @@
 .projects-chip {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-2);
   max-width: 100%;
   min-height: 2.25rem;
-  padding: 0.25rem 0.75rem 0.25rem 0.3125rem;
+  padding: var(--space-1) var(--space-3) var(--space-1) var(--space-1-5);
   border: 1px solid var(--line-strong);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--surface);
   color: var(--text);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   line-height: 1.3;
   text-decoration: none;
 }
@@ -710,7 +748,7 @@ a.projects-chip:hover {
   flex: none;
   width: 1.625rem;
   height: 1.625rem;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--chrome);
   color: var(--text);
   place-items: center;
@@ -746,7 +784,7 @@ a.projects-chip:hover {
 }
 
 .projects-chip[data-variant="add"] {
-  padding-inline: 0.75rem;
+  padding-inline: var(--space-3);
   border-style: dashed;
   color: var(--muted);
   font-weight: 700;
@@ -758,7 +796,7 @@ a.projects-chip:hover {
 }
 
 .projects-chip[data-variant="quiet"] {
-  padding-inline: 0.75rem;
+  padding-inline: var(--space-3);
   border-color: var(--line);
   color: var(--muted);
   font-weight: 700;
@@ -769,11 +807,11 @@ a.projects-chip:hover {
 .projects-glance dl {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 1px;
+  gap: var(--space-0-5);
   margin: 0;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   background: var(--line);
 }
 
@@ -791,37 +829,37 @@ a.projects-chip:hover {
 
 .projects-glance-cell {
   min-width: 0;
-  padding: 0.625rem 0.875rem;
+  padding: var(--space-2-5) var(--space-3-5);
   background: var(--surface);
 }
 
 .projects-glance-cell dt {
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   font-weight: 600;
 }
 
 .projects-glance-cell dd {
   display: grid;
-  gap: 0.125rem;
-  margin: 0.125rem 0 0;
+  gap: var(--space-0-5);
+  margin: var(--space-0-5) 0 0;
 }
 
 .projects-glance-value {
   color: var(--text);
-  font-size: 0.84375rem;
+  font-size: var(--text-md);
   font-weight: 700;
 }
 
 .projects-glance-value a {
   display: inline-flex;
   align-items: center;
-  gap: 0.375rem;
+  gap: var(--space-1-5);
 }
 
 .projects-glance-caption {
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   overflow-wrap: anywhere;
 }
 
@@ -837,9 +875,9 @@ a.projects-chip:hover {
 .projects-composer {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 0.875rem;
+  gap: var(--space-3-5);
   min-width: 0;
-  padding: 1.25rem 1.375rem;
+  padding: var(--space-5) 1.375rem;
   border: 1px solid var(--line-strong);
   border-radius: 16px;
   background: var(--surface);
@@ -847,7 +885,7 @@ a.projects-chip:hover {
 
 .projects-composer-title {
   color: var(--text);
-  font-size: 1.25rem;
+  font-size: var(--text-lg);
   font-weight: 800;
   letter-spacing: -0.018em;
   line-height: 1.2;
@@ -857,19 +895,19 @@ a.projects-chip:hover {
   display: flex;
   flex-wrap: wrap;
   align-items: stretch;
-  gap: 0.625rem;
+  gap: var(--space-2-5);
 }
 
 .projects-composer textarea {
   flex: 1 1 20rem;
   min-width: 0;
   min-height: 4.5rem;
-  padding: 0.75rem 0.875rem;
+  padding: var(--space-3) var(--space-3-5);
   border: 1px solid var(--line-strong);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   background: var(--sunken);
   color: var(--text);
-  font-size: 0.9375rem;
+  font-size: var(--text-base);
   line-height: 1.5;
   resize: vertical;
 }
@@ -888,7 +926,7 @@ a.projects-chip:hover {
 .projects-suggestions {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 0.5rem;
+  gap: var(--space-2);
 }
 
 .projects-suggestions-heading {
@@ -896,20 +934,20 @@ a.projects-chip:hover {
   flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
-  gap: 0.25rem 1rem;
+  gap: var(--space-1) var(--space-4);
   color: var(--muted);
-  font-size: 0.78125rem;
+  font-size: var(--text-sm);
   font-weight: 700;
 }
 
 .projects-suggestions-heading > a {
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
 }
 
 .projects-suggestion-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: var(--space-2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -924,11 +962,11 @@ a.projects-chip:hover {
 .projects-suggestion {
   display: grid;
   flex: 1 1 auto;
-  gap: 0.1875rem;
+  gap: var(--space-1);
   min-width: 0;
-  padding: 0.625rem 0.8125rem 0.6875rem;
+  padding: var(--space-2-5) var(--space-3-5) var(--space-3);
   border: 1px solid var(--line-strong);
-  border-radius: 11px;
+  border-radius: var(--radius-xl);
   background: var(--surface);
   color: var(--text);
   text-decoration: none;
@@ -939,16 +977,16 @@ a.projects-chip:hover {
 }
 
 .projects-suggestion-title {
-  font-size: 0.875rem;
+  font-size: var(--text-md);
   font-weight: 800;
 }
 
 .projects-suggestion-fit {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: var(--space-1);
   color: var(--success);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   font-weight: 700;
 }
 
@@ -957,7 +995,7 @@ a.projects-chip:hover {
   overflow: hidden;
   color: var(--muted);
   font-family: var(--font-mono);
-  font-size: 0.71875rem;
+  font-size: var(--text-xs);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -966,22 +1004,22 @@ a.projects-chip:hover {
 .projects-timeline {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 0.75rem;
+  gap: var(--space-3);
   min-width: 0;
 }
 
 .projects-timeline-days {
   display: grid;
-  gap: 1rem;
+  gap: var(--space-4);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .projects-timeline-date {
-  margin: 0 0 0.5rem;
+  margin: 0 0 var(--space-2);
   color: var(--text);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   font-weight: 800;
 }
 
@@ -993,7 +1031,7 @@ a.projects-chip:hover {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(18rem, 100%), 1fr));
   align-items: start;
-  gap: 1rem;
+  gap: var(--space-4);
 }
 
 .projects-results {
@@ -1004,8 +1042,8 @@ a.projects-chip:hover {
 
 .projects-result {
   display: grid;
-  gap: 0.5rem;
-  padding: 0.75rem 0;
+  gap: var(--space-2);
+  padding: var(--space-3) 0;
   border-top: 1px solid var(--line);
 }
 
@@ -1020,20 +1058,20 @@ a.projects-chip:hover {
 
 .projects-result-head {
   display: grid;
-  gap: 0.25rem;
+  gap: var(--space-1);
   min-width: 0;
 }
 
 .projects-result-workflow {
   color: var(--text);
-  font-size: 0.84375rem;
+  font-size: var(--text-md);
   font-weight: 700;
   overflow-wrap: anywhere;
 }
 
 .projects-outputs {
   display: grid;
-  gap: 0.375rem;
+  gap: var(--space-1-5);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1042,11 +1080,11 @@ a.projects-chip:hover {
 .projects-output {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-2);
   min-width: 0;
-  padding: 0.5rem 0.625rem;
+  padding: var(--space-2) var(--space-2-5);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--sunken);
   color: var(--text);
   text-decoration: none;
@@ -1061,7 +1099,7 @@ a.projects-chip:hover {
   flex: none;
   width: 1.625rem;
   height: 1.625rem;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--chrome);
   place-items: center;
 }
@@ -1069,7 +1107,7 @@ a.projects-chip:hover {
 .projects-output-text {
   display: grid;
   min-width: 0;
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
 }
 
 .projects-output-text strong {
@@ -1078,13 +1116,13 @@ a.projects-chip:hover {
 
 .projects-output-text small {
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
 }
 
 /* A Run: Workflow link over its shortened ID (Overview, Recent Runs). */
 .project-run-identity {
   display: grid;
-  gap: 0.125rem;
+  gap: var(--space-0-5);
   min-width: 0;
 }
 
@@ -1101,7 +1139,7 @@ a.projects-chip:hover {
 
 .project-run-identity > code {
   color: var(--muted);
-  font-size: 0.71875rem;
+  font-size: var(--text-xs);
 }
 
 /* ---------- Settings ---------- */
@@ -1109,12 +1147,12 @@ a.projects-chip:hover {
 .projects-settings {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 1rem;
+  gap: var(--space-4);
   max-width: 56rem;
 }
 
 .projects-settings > .ui-tech {
-  padding: 0.25rem 0;
+  padding: var(--space-1) 0;
 }
 
 /* settings#live-target lands below the sticky section tabs. */
@@ -1124,7 +1162,7 @@ a.projects-chip:hover {
 
 .projects-settings .ui-tech-body {
   display: grid;
-  gap: 0.75rem;
+  gap: var(--space-3);
 }
 
 /* ---------- Runs ---------- */
@@ -1132,7 +1170,7 @@ a.projects-chip:hover {
 .projects-runs {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 1rem;
+  gap: var(--space-4);
   min-width: 0;
 }
 
@@ -1141,15 +1179,15 @@ a.projects-chip:hover {
   padding: 0;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   list-style: none;
 }
 
 .projects-run {
   display: flex;
   align-items: flex-start;
-  gap: 0.625rem;
-  padding: 0.75rem 1rem;
+  gap: var(--space-2-5);
+  padding: var(--space-3) var(--space-4);
   border-top: 1px solid var(--line);
 }
 
@@ -1158,19 +1196,19 @@ a.projects-chip:hover {
 }
 
 .projects-run > .ui-glyph {
-  margin-top: 0.125rem;
+  margin-top: var(--space-0-5);
 }
 
 .projects-run-main {
   display: grid;
   flex: 1 1 auto;
-  gap: 0.25rem;
+  gap: var(--space-1);
   min-width: 0;
 }
 
 .projects-run-title {
   color: var(--text);
-  font-size: 0.875rem;
+  font-size: var(--text-md);
   font-weight: 700;
   overflow-wrap: anywhere;
   text-decoration: none;
@@ -1183,26 +1221,26 @@ a.projects-chip:hover {
 .project-run-labels > summary {
   width: fit-content;
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   font-weight: 600;
   cursor: pointer;
 }
 
 .projects-run-identity {
   display: grid;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
 }
 
 .projects-run-identity .run-metadata-label-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.375rem;
+  gap: var(--space-1-5);
 }
 
 .projects-run-identity .run-metadata-label-chip {
   max-width: 100%;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   overflow-wrap: anywhere;
 }
 
@@ -1216,7 +1254,7 @@ a.projects-chip:hover {
 .projects-workflows {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 1rem;
+  gap: var(--space-4);
   min-width: 0;
 }
 
@@ -1228,7 +1266,7 @@ a.projects-chip:hover {
 }
 
 .projects-run-body {
-  margin-top: 1.25rem;
+  margin-top: var(--space-5);
 }
 
 @media (max-width: 820px) {
@@ -1241,7 +1279,7 @@ a.projects-chip:hover {
   }
 
   .projects-composer {
-    padding: 1rem;
+    padding: var(--space-4);
   }
 
   .projects-composer-row > .ui-btn {

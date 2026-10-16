@@ -20,16 +20,16 @@ import type { PublicAPI } from "./client";
 import { requireData } from "./error";
 import { requireProjectID } from "./projects";
 
-export interface ProjectArtifactPageRequest extends ArtifactPageRequest {
+interface ProjectArtifactPageRequest extends ArtifactPageRequest {
   limit?: number;
   projectId: string;
 }
 
-export interface ProjectArtifactDetailRequest extends ArtifactDetailRequest {
+interface ProjectArtifactDetailRequest extends ArtifactDetailRequest {
   projectId: string;
 }
 
-export interface ProjectArtifactWriteRequest extends ArtifactWriteRequest {
+interface ProjectArtifactWriteRequest extends ArtifactWriteRequest {
   projectId: string;
 }
 
@@ -201,7 +201,12 @@ export function writeProjectArtifact(
     request.namespace,
     request.name,
   );
-  return writeScopedArtifact(api, path, request);
+  return writeScopedArtifact(
+    api,
+    "PUT /v1/projects/{projectId}/artifacts/{namespace}/{name}",
+    path,
+    request,
+  );
 }
 
 export function downloadProjectArtifact(

@@ -8,10 +8,10 @@ import {
 } from "yaml";
 
 export const KINDS = ["Workflow", "AuditProfile", "AgentTemplate"] as const;
-export type Kind = (typeof KINDS)[number];
+type Kind = (typeof KINDS)[number];
 export type Path = (string | number)[];
 export const MAX_SOURCE_BYTES = 1024 * 1024;
-export const MAX_BLOCKS = 256;
+const MAX_BLOCKS = 256;
 export const kindLabel = (kind: Kind) =>
   ({
     Workflow: "Workflow",
@@ -355,7 +355,7 @@ export function addBlock(
   return { draft: patchDraft(draft, path, value), path };
 }
 
-export interface Difference {
+interface Difference {
   kind: "same" | "add" | "remove";
   line: string;
 }

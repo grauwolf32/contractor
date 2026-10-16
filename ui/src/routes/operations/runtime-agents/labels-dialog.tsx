@@ -2,7 +2,6 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useId, useRef, useState } from "react";
 
 import { usePublicAPI } from "../../../api/context";
-import { PublicAPIError } from "../../../api/error";
 import {
   getRuntimeAgentPrincipal,
   replaceRuntimeAgentPrincipalLabels,
@@ -10,7 +9,9 @@ import {
   type RuntimeLabelBinding,
 } from "../../../api/operations";
 import { queryKeys } from "../../../api/query-keys";
+import { writeConflict } from "../../../app/conflict";
 import { Dialog, DialogHeader } from "../../../app/dialog";
+import { Button } from "../../../ui";
 import { MutationDraftKeyring } from "../../../mutations/idempotency";
 import { ErrorNotice } from "../../../app/error-notice";
 import { shortAgentId } from "./identity";
@@ -69,8 +70,7 @@ export function AgentLabelsDialog({
       onClose();
     },
     onError: (error) => {
-      if (error instanceof PublicAPIError && error.status === 412)
-        setConflict(true);
+      if (writeConflict(error) === "stale") setConflict(true);
     },
   });
   const reload = useMutation({
@@ -96,7 +96,7 @@ export function AgentLabelsDialog({
   );
   return (
     <Dialog
-      className="project-dialog panel ops-dialog ops-labels-dialog"
+      className="ui-dialog ui-panel ops-dialog ops-labels-dialog"
       labelledBy={heading}
       describedBy={description}
       initialFocusRef={firstInput}
@@ -129,7 +129,7 @@ export function AgentLabelsDialog({
           <fieldset className="ops-label-options" disabled={pending || stale}>
             <legend>Agent labels</legend>
             {selectable.length === 0 ? (
-              <p className="ops-note">No named Runtime labels are bound.</p>
+              <p className="ui-caption">No named Runtime labels are bound.</p>
             ) : (
               selectable.map((binding, index) => (
                 <label className="checkbox-label" key={binding.label}>
@@ -169,38 +169,34 @@ export function AgentLabelsDialog({
               <p>
                 Reload the saved labels and review them before applying changes.
               </p>
-              <button
-                className="ui-btn"
-                data-size="sm"
-                type="button"
+              <Button
+                size="sm"
                 disabled={pending}
+                pending={reload.isPending}
+                pendingLabel="Reloading…"
                 onClick={() => reload.mutate()}
               >
-                {reload.isPending ? "Reloading…" : "Reload labels"}
-              </button>
+                Reload labels
+              </Button>
             </div>
           ) : null}
           {mutation.error === null || stale ? null : (
             <ErrorNotice error={mutation.error} />
           )}
           {reload.error === null ? null : <ErrorNotice error={reload.error} />}
-          <div className="project-dialog-actions">
-            <button
-              className="ui-btn"
-              type="button"
-              disabled={pending}
-              onClick={onClose}
-            >
+          <div className="ui-dialog-actions">
+            <Button disabled={pending} onClick={onClose}>
               Cancel
-            </button>
-            <button
-              className="ui-btn"
-              data-variant="primary"
+            </Button>
+            <Button
+              variant="primary"
               type="submit"
               disabled={pending || stale || unchanged || unbound.length > 0}
+              pending={mutation.isPending}
+              pendingLabel="Saving labels…"
             >
-              {mutation.isPending ? "Saving labels…" : "Save labels"}
-            </button>
+              Save labels
+            </Button>
           </div>
         </div>
       </form>

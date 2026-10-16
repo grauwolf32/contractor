@@ -8,6 +8,9 @@ import {
 } from "../../api/evals";
 import { queryKeys } from "../../api/query-keys";
 import { ContextLink } from "../../app/context-navigation";
+import { formatNumber } from "../../app/format";
+import { QueryView } from "../../app/query-view";
+import { Button } from "../../ui";
 import { ArmKey, EvalError } from "./common";
 
 const CHART_TITLES: Record<EvalChart["chart"], string> = {
@@ -19,9 +22,7 @@ const CHART_TITLES: Record<EvalChart["chart"], string> = {
 };
 // A missing measurement is never zero (UUS:178-179).
 const format = (value: number | null | undefined) =>
-  value === null || value === undefined
-    ? "Unavailable"
-    : value.toLocaleString();
+  value === null || value === undefined ? "Unavailable" : formatNumber(value);
 
 function DataTable({
   summary = "Show data table",
@@ -58,7 +59,7 @@ function QualityPlot({
         />
         <span>Quality among scored results only</span>
       </label>
-      <p className="eval-muted">
+      <p className="ui-caption">
         {conditional
           ? "Denominator: scored results"
           : "Denominator: every expected member"}
@@ -146,7 +147,7 @@ function DistributionPlot({
   );
   if (!data.coverage.includedPairs)
     return (
-      <p className="eval-muted">
+      <p className="ui-caption">
         No complete matching pairs are available for this measurement.
       </p>
     );
@@ -230,14 +231,9 @@ function DistributionPlot({
                 <td>{bin.counts.b}</td>
                 <td>
                   {onBin ? (
-                    <button
-                      type="button"
-                      className="ui-btn"
-                      data-size="xs"
-                      onClick={() => onBin(bin.filterToken)}
-                    >
+                    <Button size="xs" onClick={() => onBin(bin.filterToken)}>
                       Open matching pairs
-                    </button>
+                    </Button>
                   ) : null}
                 </td>
               </tr>
@@ -284,7 +280,7 @@ function ProgressPlot({ data }: { data: EvalChart }) {
   }
   return (
     <>
-      <p className="eval-muted">
+      <p className="ui-caption">
         Observed terminal members against experiment wall time. Gaps mean no
         observation, not zero progress.
       </p>
@@ -340,7 +336,7 @@ function ProgressPlot({ data }: { data: EvalChart }) {
           ))}
         </svg>
       ) : (
-        <p className="eval-muted">No progress observations yet.</p>
+        <p className="ui-caption">No progress observations yet.</p>
       )}
       <p className="eval-legend">
         <ArmKey arm="a">A: blue circles</ArmKey>
@@ -382,7 +378,7 @@ function DifferencePlot({ data, id }: { data: EvalChart; id: string }) {
     maximum = Math.max(1, ...points.map((p) => Math.abs(p.difference)));
   return (
     <>
-      <p className="eval-muted">
+      <p className="ui-caption">
         Candidate minus baseline ({data.unit}). Negative values use less;
         quality regressions remain labelled separately.
       </p>
@@ -418,7 +414,7 @@ function DifferencePlot({ data, id }: { data: EvalChart; id: string }) {
           ))}
         </ul>
       ) : (
-        <p className="eval-muted">No complete pairs for this metric.</p>
+        <p className="ui-caption">No complete pairs for this metric.</p>
       )}
       <DataTable>
         <table>
@@ -484,8 +480,7 @@ export function EvalChartPanel({
     queryFn: ({ signal }) =>
       getEvalChart(api, experiment.experimentId, chart, query, signal),
   });
-  const data = result.data,
-    comparison = experiment.setup?.comparison;
+  const comparison = experiment.setup?.comparison;
   async function refresh() {
     if (onRefresh) {
       onRefresh();
@@ -501,53 +496,58 @@ export function EvalChartPanel({
   return (
     <section className="eval-panel eval-chart" aria-labelledby={heading}>
       <h3 id={heading}>{CHART_TITLES[chart]}</h3>
-      <EvalError error={result.error} reload={() => void refresh()} />
-      {result.isPending ? <p role="status">Loading chart…</p> : null}
-      {data ? (
-        <>
-          <p className="eval-chart-scope">
-            {data.coverage.includedPairs}/{data.coverage.expectedPairs} pairs
-            included · {data.freshness}
-            {data.measurementScope ? ` · ${data.measurementScope}` : ""}
-          </p>
-          {chart === "duration" ? (
-            <p className="eval-muted">
-              Execution duration in milliseconds, including queue/hold time; a
-              check&apos;s duration is its parent interval.
+      <QueryView
+        query={result}
+        loading={<p role="status">Loading chart…</p>}
+        onRetry={() => void refresh()}
+        renderError={(error, retry) => (
+          <EvalError error={error} reload={retry} />
+        )}
+      >
+        {(data) => (
+          <>
+            <p className="ui-caption">
+              {data.coverage.includedPairs}/{data.coverage.expectedPairs} pairs
+              included · {data.freshness}
+              {data.measurementScope ? ` · ${data.measurementScope}` : ""}
             </p>
-          ) : null}
-          {Object.entries(data.coverage.reasons).map(([reason, count]) => (
-            <p className="eval-muted" key={reason}>
-              {reason.replaceAll("_", " ")}: {count}
-            </p>
-          ))}
-          {chart === "quality" ? (
-            <QualityPlot
-              data={data}
-              baseline={comparison?.baseline ?? "a"}
-              candidate={comparison?.candidate ?? "b"}
-            />
-          ) : chart === "progress" ? (
-            <ProgressPlot data={data} />
-          ) : chart === "pair-deltas" ? (
-            <DifferencePlot data={data} id={experiment.experimentId} />
-          ) : (
-            <DistributionPlot data={data} {...(onBin ? { onBin } : {})} />
-          )}
-          {data.page?.hasMore && data.page.nextCursor && onNext ? (
-            <div className="eval-actions">
-              <button
-                type="button"
-                className="ui-btn"
-                data-size="sm"
-                onClick={() => onNext(data.page!.nextCursor!)}
-              >
-                Next differences
-              </button>
-            </div>
-          ) : null}
-        </>
-      ) : null}
+            {chart === "duration" ? (
+              <p className="ui-caption">
+                Execution duration in milliseconds, including queue/hold time; a
+                check&apos;s duration is its parent interval.
+              </p>
+            ) : null}
+            {Object.entries(data.coverage.reasons).map(([reason, count]) => (
+              <p className="ui-caption" key={reason}>
+                {reason.replaceAll("_", " ")}: {count}
+              </p>
+            ))}
+            {chart === "quality" ? (
+              <QualityPlot
+                data={data}
+                baseline={comparison?.baseline ?? "a"}
+                candidate={comparison?.candidate ?? "b"}
+              />
+            ) : chart === "progress" ? (
+              <ProgressPlot data={data} />
+            ) : chart === "pair-deltas" ? (
+              <DifferencePlot data={data} id={experiment.experimentId} />
+            ) : (
+              <DistributionPlot data={data} {...(onBin ? { onBin } : {})} />
+            )}
+            {data.page?.hasMore && data.page.nextCursor && onNext ? (
+              <div className="ui-toolbar">
+                <Button
+                  size="sm"
+                  onClick={() => onNext(data.page!.nextCursor!)}
+                >
+                  Next differences
+                </Button>
+              </div>
+            ) : null}
+          </>
+        )}
+      </QueryView>
     </section>
   );
 }

@@ -8,7 +8,7 @@ const MarkdownPreview = lazy(() => import("../artifacts/previews/markdown"));
 export function DecisionMarkdown({ source }: { source: string }) {
   return (
     <div className="decisions-markdown">
-      <Suspense fallback={<p className="decisions-quiet">Loading text…</p>}>
+      <Suspense fallback={<p className="ui-caption">Loading text…</p>}>
         <MarkdownPreview source={source} />
       </Suspense>
     </div>

@@ -45,10 +45,14 @@ root before building. Rebuilding alone does not increment the version. Deploy
 the matching `package.json` with the new bundle and restart the UI service so
 the browser and runtime configuration report the same version.
 
-The generated file at `src/api/generated/public.ts` comes only from
-`api/openapi/contractor-public-v1.yaml`. Run `make ui-generate`; never edit the
-file by hand. `make ui-generate-check` regenerates it and fails on a tracked
-diff.
+The files in `src/api/generated/` come only from
+`api/openapi/contractor-public-v1.yaml` and
+`api/events/contractor-events-v1.schema.json`: `public.ts` holds the TypeScript
+types (openapi-typescript), and `scripts/generate-schemas.mjs` writes the schema
+bundles and the operation-to-response-schema map that `src/api/contract.ts`
+validates every JSON response and event frame against. Run `make ui-generate`;
+never edit the files by hand. `make ui-generate-check` regenerates them and
+fails when any of them differs.
 
 The `/artifacts` route manages UserScope Workflow inputs. Uploads are limited
 to 64 MiB and use explicit create/CAS preconditions; the UI never retries a
@@ -149,6 +153,11 @@ make ui-browser-mocked
 
 This builds and serves an isolated production UI, runs every API-mocked spec,
 and checks the Playwright report for executed passes with no skips or flaky
-attempts. The real-stack scenarios still use their Go harness and its isolated
+attempts. Specs answer API requests only through `e2e/support/mock-api.ts`,
+which checks every mocked status and success body against the generated
+contract before serving it and fails the test with the operation and the
+failing location otherwise; build mock bodies with the shared builders in
+`src/test`. The gate refuses a spec that calls `route.fulfill` itself.
+The real-stack scenarios still use their Go harness and its isolated
 URLs, credentials, source fixture and evidence paths. The pinned baseline is
 Chromium; broader browser and visual-regression matrices are deferred.

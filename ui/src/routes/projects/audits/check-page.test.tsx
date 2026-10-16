@@ -1,6 +1,7 @@
 import {
   act,
   fireEvent,
+  render,
   screen,
   waitFor,
   within,
@@ -17,25 +18,28 @@ import type {
   AuditReviewRequest,
 } from "../../../api/audits";
 import { queryKeys } from "../../../api/query-keys";
-import * as queryClientFactory from "../../../app/query-client";
+import { deferred } from "../../../test/deferred";
+import { SourceLink } from "../../catalog/audit-preset-checks";
+import { renderApplication } from "../../../test/application";
+import { auditRound } from "../../../test/builders";
+import { createApplicationQueryClient } from "../../../app/query-client";
 import { CHECK_STATE_LABELS } from "../../../app/vocabulary";
 import {
   DIGEST,
   emptyPage,
   endpointRow,
   fakeAPI,
-  jsonResponse,
   makeAttempt,
   makeAudit,
   makeFinding,
   makeItem,
   makeProject,
   makeReview,
-  renderApplication,
   requirementRow,
   workspaceOf,
   type Handler,
 } from "./check-test-support";
+import { json } from "../../../test/responses";
 
 const ROOT = "/projects/project_example/audits/audit_example";
 const project = makeProject("project_example", "Payment service");
@@ -69,13 +73,19 @@ interface CheckServer {
   handle?: Handler;
 }
 
-function page(items: unknown[], audit: Audit) {
-  return jsonResponse({
+/** A last page with the summary members its collection carries. */
+function page(
+  items: unknown[],
+  audit: Audit,
+  summary: "none" | "revision" | "full",
+) {
+  return json({
     items,
     page: { hasMore: false },
-    total: items.length,
-    auditRevision: audit.revision,
-    asOf: audit.updatedAt,
+    ...(summary === "none" ? {} : { auditRevision: audit.revision }),
+    ...(summary === "full"
+      ? { total: items.length, asOf: audit.updatedAt }
+      : {}),
   });
 }
 
@@ -86,36 +96,36 @@ function serveCheck(server: CheckServer) {
     const path = url.pathname;
     const audit = server.audit();
     if (path === "/v1/projects/project_example")
-      return jsonResponse(project, { headers: { ETag: '"1"' } });
+      return json(project, 200, { ETag: '"1"' });
     if (path === "/v1/audits/audit_example")
-      return jsonResponse(audit, {
-        headers: { ETag: `"${audit.revision}"` },
-      });
+      return json(audit, 200, { ETag: `"${audit.revision}"` });
     const answer = <T,>(
       read: ((url: URL) => Response | T[]) | undefined,
+      summary: "none" | "revision" | "full",
     ): Response => {
-      if (read === undefined) return page([], audit);
+      if (read === undefined) return page([], audit, summary);
       const value = read(url);
-      return value instanceof Response ? value : page(value, audit);
+      return value instanceof Response ? value : page(value, audit, summary);
     };
     if (path === `/v1/audits/audit_example/coverage`)
-      return answer(server.coverage);
-    if (path === `/v1/audits/audit_example/items`) return answer(server.items);
+      return answer(server.coverage, "revision");
+    if (path === `/v1/audits/audit_example/items`)
+      return answer(server.items, "none");
     if (path === `/v1/audits/audit_example/findings`)
-      return answer(server.findings);
+      return answer(server.findings, "full");
     if (path === `/v1/audits/audit_example/reviews`)
-      return answer(server.reviews);
+      return answer(server.reviews, "full");
     if (path === `/v1/audits/audit_example/workspace`) {
       const value = server.workspace?.(audit) ?? workspaceOf(audit);
-      return value instanceof Response ? value : jsonResponse(value);
+      return value instanceof Response ? value : json(value);
     }
     if (path === `/v1/audits/audit_example/report`)
-      return jsonResponse(server.report?.() ?? { status: "pending" });
+      return json(server.report?.() ?? { status: "pending" });
     if (path === `/v1/audits/audit_example/events`) {
       const events = server.events?.(url) ?? [];
       return events instanceof Response
         ? events
-        : jsonResponse({
+        : json({
             items: events,
             page: { hasMore: false },
             total: events.length,
@@ -226,8 +236,8 @@ describe("Check page", () => {
       },
     });
     const { router } = renderApplication(
-      api,
       `${ROOT}/checks#check-item_attempted`,
+      { api },
     );
     const view = await screen.findByRole("article", {
       name: "Attempted check",
@@ -289,7 +299,7 @@ describe("Check page", () => {
       entryIds: ["v5.0.0-1.2.4", "v5.0.0-2.1.1"],
     };
     const { api } = serveCheck({ audit: () => current });
-    renderApplication(api, ROOT);
+    renderApplication(ROOT, { api });
     const detail = await screen.findByRole("region", { name: "All activity" });
     await userEvent
       .setup()
@@ -341,21 +351,11 @@ describe("Check page", () => {
     );
   });
 
-  it("does not link a non-http standard source", async () => {
-    const current = auditAt("completed", 3);
-    current.baseline = top10Baseline(current);
-    current.baseline.standards[0]!.source.url = "javascript:alert(1)";
-    const { api } = serveCheck({ audit: () => current });
-    renderApplication(api, ROOT);
-    const detail = await screen.findByRole("region", { name: "All activity" });
-    await userEvent
-      .setup()
-      .click(within(detail).getByText("Technical details"));
-    const standards = within(detail).getByTestId("audit-baseline-standards");
-    expect(within(standards).getByText("source")).toBeVisible();
-    expect(
-      within(standards).queryByRole("link", { name: "source" }),
-    ).not.toBeInTheDocument();
+  it("does not link a non-http standard source", () => {
+    // The contract only allows https sources; the link keeps its own guard.
+    render(<SourceLink url="javascript:alert(1)">source</SourceLink>);
+    expect(screen.getByText("source")).toBeVisible();
+    expect(screen.queryByRole("link", { name: "source" })).toBeNull();
   });
 
   it("lists mixed results with their status words and polls a running check", async () => {
@@ -386,7 +386,7 @@ describe("Check page", () => {
         ),
       ],
     });
-    renderApplication(api, `${ROOT}/coverage`);
+    renderApplication(`${ROOT}/coverage`, { api });
     const list = await screen.findByRole("region", {
       name: "Check and requirements",
     });
@@ -459,17 +459,18 @@ describe("Check page", () => {
         expect(url.searchParams.get("round")).toBe("round_1");
         const cursor = url.searchParams.get("cursor");
         cursors.push(cursor);
-        return jsonResponse(
-          cursor === null
+        return json({
+          auditRevision: completed.revision,
+          ...(cursor === null
             ? {
                 items: [custom],
                 page: { hasMore: true, nextCursor: "next-check" },
               }
-            : { items: [trace], page: { hasMore: false } },
-        );
+            : { items: [trace], page: { hasMore: false } }),
+        });
       },
     });
-    const { router } = renderApplication(api, `${ROOT}/coverage`);
+    const { router } = renderApplication(`${ROOT}/coverage`, { api });
     const user = userEvent.setup();
     const list = await screen.findByRole("region", {
       name: "Check and requirements",
@@ -550,7 +551,7 @@ describe("Check page", () => {
         requirementRow("r3", 2, "A03:2025", "Supply chain.", "violated"),
       ],
     });
-    const { router } = renderApplication(api, `${ROOT}?result=issues`);
+    const { router } = renderApplication(`${ROOT}?result=issues`, { api });
     const user = userEvent.setup();
     const list = await screen.findByRole("region", {
       name: "Check and requirements",
@@ -600,7 +601,7 @@ describe("Check page", () => {
         requirementRow("r2", 1, "A02:2025", "Configuration.", "satisfied"),
       ],
     });
-    const { router } = renderApplication(api, `${ROOT}/coverage`);
+    const { router } = renderApplication(`${ROOT}/coverage`, { api });
     const list = await screen.findByRole("region", {
       name: "Check and requirements",
     });
@@ -644,7 +645,7 @@ describe("Check page", () => {
           ),
         ),
     });
-    renderApplication(api, `${ROOT}/coverage`);
+    renderApplication(`${ROOT}/coverage`, { api });
     const list = await screen.findByRole("region", {
       name: "Check and scenarios",
     });
@@ -746,7 +747,7 @@ describe("Check page", () => {
           unreviewedFindings: 1,
         }),
     });
-    renderApplication(api, `${ROOT}/coverage#check-item_1`);
+    renderApplication(`${ROOT}/coverage#check-item_1`, { api });
     const list = await screen.findByRole("region", {
       name: "Check and endpoints",
     });
@@ -799,7 +800,7 @@ describe("Check page", () => {
   it("keeps every section reachable under the new names", async () => {
     const current = auditAt("completed", 3);
     const { api } = serveCheck({ audit: () => current });
-    renderApplication(api, `${ROOT}/runs`);
+    renderApplication(`${ROOT}/runs`, { api });
     const tabs = await screen.findByRole("navigation", {
       name: "Check sections",
     });
@@ -902,7 +903,7 @@ describe("Check page", () => {
         review: report,
       }),
     });
-    renderApplication(api, ROOT);
+    renderApplication(ROOT, { api });
     const detail = await screen.findByRole("region", { name: "All activity" });
     const decisions = within(detail).getByRole("region", {
       name: "Decisions waiting",
@@ -961,13 +962,15 @@ describe("Check page", () => {
     const { api } = serveCheck({
       audit: () => completed,
       coverage: (url) =>
-        jsonResponse(
+        json(
           url.searchParams.get("cursor") === null
             ? {
+                auditRevision: completed.revision,
                 items: [requirementRow("met", 0, "met", "", "satisfied")],
                 page: { hasMore: true, nextCursor: "coverage-next" },
               }
             : {
+                auditRevision: completed.revision,
                 items: [
                   requirementRow("gap", 1, "gap", "", "blocked"),
                   requirementRow("waiting", 2, "waiting", "", "not-tested"),
@@ -977,7 +980,7 @@ describe("Check page", () => {
         ),
       reviews: (url) => {
         reviewReads.push(url.search);
-        return jsonResponse({
+        return json({
           items: [review],
           page: { hasMore: false },
           auditRevision: 4,
@@ -996,7 +999,7 @@ describe("Check page", () => {
           pendingReviews: 1,
         }),
     });
-    const { router } = renderApplication(api, ROOT);
+    const { router } = renderApplication(ROOT, { api });
     const progress = await screen.findByRole("region", {
       name: "Check progress",
     });
@@ -1069,7 +1072,7 @@ describe("Check page", () => {
     const { api, requests } = serveCheck({
       audit: () => current,
       items: (url) =>
-        jsonResponse(
+        json(
           url.searchParams.has("cursor")
             ? { items: [item], page: { hasMore: false } }
             : { items: [], page: { hasMore: true, nextCursor: "later" } },
@@ -1099,12 +1102,12 @@ describe("Check page", () => {
           };
           review = { ...review, state: "decided", revision: 2, decision };
           current = auditAt("active", 4);
-          return jsonResponse({ request: review, decision, replayed: false });
+          return json({ request: review, decision, replayed: false });
         }
         return undefined;
       },
     });
-    renderApplication(api, `${ROOT}/reviews`);
+    renderApplication(`${ROOT}/reviews`, { api });
     const user = userEvent.setup();
     const card = (
       await screen.findByRole("heading", { name: item.subjectKey })
@@ -1167,7 +1170,7 @@ describe("Check page", () => {
       workspace: (audit) =>
         workspaceOf(audit, { findings: 3, unreviewedFindings: 1 }),
     });
-    const { router } = renderApplication(api, ROOT);
+    const { router } = renderApplication(ROOT, { api });
     const issues = await screen.findByRole("region", {
       name: "Issues and possible issues",
     });
@@ -1235,7 +1238,7 @@ describe("Check page", () => {
       ],
       workspace: (audit) => workspaceOf(audit, { findings: 1 }),
     });
-    renderApplication(api, ROOT);
+    renderApplication(ROOT, { api });
     const issues = await screen.findByRole("region", {
       name: "Issues and possible issues",
     });
@@ -1279,7 +1282,7 @@ describe("Check page", () => {
         return [];
       },
     });
-    renderApplication(api, `${ROOT}/runs`);
+    renderApplication(`${ROOT}/runs`, { api });
     const detail = await screen.findByRole("region", { name: "Runs" });
     expect(
       await within(detail).findByText(
@@ -1306,7 +1309,7 @@ describe("Check page", () => {
       ],
       reviews: () => [review],
     });
-    const { router } = renderApplication(api, ROOT);
+    const { router } = renderApplication(ROOT, { api });
     const user = userEvent.setup();
     const decisions = await screen.findByRole("region", {
       name: "Decisions waiting",
@@ -1360,7 +1363,7 @@ describe("Check page", () => {
         cursors.push(cursor);
         const index =
           cursor === null ? 0 : Number(cursor.slice("page-".length));
-        return jsonResponse({
+        return json({
           items: [
             makeItem(`i${index + 1}`, index, "operation-trace", {
               attempts: [makeAttempt(`i${index + 1}`, 1)],
@@ -1373,7 +1376,7 @@ describe("Check page", () => {
         });
       },
     });
-    renderApplication(api, `${ROOT}/coverage#check-i6`);
+    renderApplication(`${ROOT}/coverage#check-i6`, { api });
     const view = await screen.findByRole("article", {
       name: "GET /api/orders/6",
     });
@@ -1440,7 +1443,7 @@ describe("Check page", () => {
         mapped("r3", 2, "owasp-wstg"),
       ],
     });
-    const { router } = renderApplication(api, `${ROOT}/coverage#check-r1`);
+    const { router } = renderApplication(`${ROOT}/coverage#check-r1`, { api });
     const list = await screen.findByRole("region", {
       name: "Check and scenarios",
     });
@@ -1479,11 +1482,7 @@ describe("Check lifecycle controls", () => {
   it("keeps the started check when an older detail read resolves later", async () => {
     let current = auditAt("draft", 2);
     let releaseStale: (() => void) | undefined;
-    const queryClient = queryClientFactory.createApplicationQueryClient();
-    vi.spyOn(
-      queryClientFactory,
-      "createApplicationQueryClient",
-    ).mockReturnValue(queryClient);
+    const queryClient = createApplicationQueryClient();
     const detailKey = queryKeys.audits.detail("audit_example");
     const { api } = serveCheck({
       audit: () => current,
@@ -1494,22 +1493,19 @@ describe("Check lifecycle controls", () => {
             await new Promise<void>((resolve) => {
               releaseStale = resolve;
             });
-          return jsonResponse(snapshot, {
-            headers: { ETag: `"${snapshot.revision}"` },
-          });
+          return json(snapshot, 200, { ETag: `"${snapshot.revision}"` });
         }
         if (url.pathname.endsWith("/start")) {
           current = auditAt("active", 3);
-          return jsonResponse(
-            { audit: current, round: { roundId: "round_1" }, items: [] },
-            { headers: { ETag: '"3"' } },
-          );
+          return json({ audit: current, round: auditRound(), items: [] }, 200, {
+            ETag: '"3"',
+          });
         }
         return undefined;
       },
     });
     queryClient.setQueryData(detailKey, current);
-    renderApplication(api, ROOT);
+    renderApplication(ROOT, { api, queryClient });
     const user = userEvent.setup();
     await user.click(
       await screen.findByRole("button", { name: "Start check" }),
@@ -1551,17 +1547,18 @@ describe("Check lifecycle controls", () => {
             expect(await request.json()).toEqual({ deadlineSeconds: 0 });
             expect(request.headers.get("If-Match")).toBe('"2"');
             current = auditAt("active", 3);
-            return jsonResponse(
+            return json(
               url.pathname.endsWith("/start")
-                ? { audit: current, round: { roundId: "round_1" }, items: [] }
+                ? { audit: current, round: auditRound(), items: [] }
                 : current,
-              { headers: { ETag: '"3"' } },
+              200,
+              { ETag: '"3"' },
             );
           }
           return undefined;
         },
       });
-      renderApplication(api, ROOT);
+      renderApplication(ROOT, { api });
       const user = userEvent.setup();
       const name = state === "draft" ? "Start check" : "Continue check";
       await user.click(await screen.findByRole("button", { name }));
@@ -1586,7 +1583,7 @@ describe("Check lifecycle controls", () => {
   it("offers to keep the remaining time when continuing an ordinary pause", async () => {
     const current = auditAt("paused", 2);
     const { api } = serveCheck({ audit: () => current });
-    renderApplication(api, ROOT);
+    renderApplication(ROOT, { api });
     const user = userEvent.setup();
     await user.click(
       await screen.findByRole("button", { name: "Continue check" }),
@@ -1621,7 +1618,7 @@ describe("Check lifecycle controls", () => {
         },
       };
       const { api, requests } = serveCheck({ audit: () => current });
-      renderApplication(api, ROOT);
+      renderApplication(ROOT, { api });
       const progress = await screen.findByRole("region", {
         name: "Check progress",
       });
@@ -1665,20 +1662,20 @@ describe("Check lifecycle controls", () => {
           expect(request.headers.get("If-Match")).toBe('"2"');
           pauseRequested = true;
           current = auditAt("paused", 3);
-          return jsonResponse(
+          return json(
             {
               code: "precondition_failed",
               message: "Audit revision changed",
               retryable: false,
               requestId: "request_stale",
             },
-            { status: 412 },
+            412,
           );
         }
         return undefined;
       },
     });
-    renderApplication(api, ROOT);
+    renderApplication(ROOT, { api });
     const user = userEvent.setup();
     await user.click(
       await screen.findByRole("button", { name: "Pause new work" }),
@@ -1711,10 +1708,7 @@ describe("Check lifecycle controls", () => {
       // The rail's Inbox badge reads the project index and the project's
       // checks; once the pause is answered, those reads stay unanswered.
       let held = false;
-      let release = () => {};
-      const gate = new Promise<void>((resolve) => {
-        release = resolve;
-      });
+      const gate = deferred();
       const listReads: string[] = [];
       const { api } = serveCheck({
         audit: () => current,
@@ -1724,9 +1718,9 @@ describe("Check lifecycle controls", () => {
             (url.pathname === "/v1/projects" || url.pathname === "/v1/audits")
           ) {
             listReads.push(url.pathname);
-            if (held) await gate;
+            if (held) await gate.promise;
             const state = url.searchParams.get("state");
-            return jsonResponse({
+            return json({
               items:
                 url.pathname === "/v1/projects"
                   ? [project]
@@ -1740,21 +1734,21 @@ describe("Check lifecycle controls", () => {
             held = true;
             current = auditAt("paused", 3);
             return status === 200
-              ? jsonResponse(current, { headers: { ETag: '"3"' } })
-              : jsonResponse(
+              ? json(current, 200, { ETag: '"3"' })
+              : json(
                   {
                     code: "precondition_failed",
                     message: "Audit revision changed",
                     retryable: false,
                     requestId: "request_stale",
                   },
-                  { status: 412 },
+                  412,
                 );
           }
           return undefined;
         },
       });
-      renderApplication(api, ROOT);
+      renderApplication(ROOT, { api });
       const user = userEvent.setup();
       const pause = await screen.findByRole("button", {
         name: "Pause new work",
@@ -1777,8 +1771,8 @@ describe("Check lifecycle controls", () => {
           within(screen.getByRole("alert")).getByText("Audit revision changed"),
         ).toBeVisible();
       await act(async () => {
-        release();
-        await gate;
+        gate.resolve();
+        await gate.promise;
       });
     },
   );
@@ -1786,21 +1780,15 @@ describe("Check lifecycle controls", () => {
   it("confirms stopping and deleting a check without duplicate requests", async () => {
     let current = auditAt("active", 2);
     const mutations: Request[] = [];
-    let releaseCancel: (() => void) | undefined;
-    const cancelGate = new Promise<void>((resolve) => {
-      releaseCancel = resolve;
-    });
+    const cancelGate = deferred();
     const { api } = serveCheck({
       audit: () => current,
       handle: async (request, url) => {
         if (url.pathname === "/v1/audits/audit_example/cancel") {
           mutations.push(request.clone());
-          await cancelGate;
+          await cancelGate.promise;
           current = auditAt("cancelled", 3);
-          return jsonResponse(current, {
-            status: 202,
-            headers: { ETag: '"3"' },
-          });
+          return json(current, 202, { ETag: '"3"' });
         }
         if (
           url.pathname === "/v1/audits/audit_example" &&
@@ -1808,15 +1796,12 @@ describe("Check lifecycle controls", () => {
         ) {
           mutations.push(request.clone());
           current = auditAt("deleting", 4);
-          return jsonResponse(current, {
-            status: 202,
-            headers: { ETag: '"4"' },
-          });
+          return json(current, 202, { ETag: '"4"' });
         }
         return undefined;
       },
     });
-    renderApplication(api, ROOT);
+    renderApplication(ROOT, { api });
     const user = userEvent.setup();
     await user.click(await screen.findByRole("button", { name: "Stop check" }));
     let dialog = screen.getByRole("alertdialog", { name: "Stop this check?" });
@@ -1847,7 +1832,7 @@ describe("Check lifecycle controls", () => {
     expect(mutations[0]?.headers.get("Idempotency-Key")).toMatch(
       /^mutate-audit-ui-/u,
     );
-    releaseCancel?.();
+    cancelGate.resolve();
     await vi.waitFor(() =>
       expect(
         within(regions().list()).getByText("Stopped", {
@@ -1927,15 +1912,12 @@ describe("Check lifecycle controls", () => {
               3,
               { deletionRequestedAt: "2026-10-05T10:03:00Z" },
             );
-            return jsonResponse(current, {
-              status: 202,
-              headers: { ETag: '"3"' },
-            });
+            return json(current, 202, { ETag: '"3"' });
           }
           return undefined;
         },
       });
-      renderApplication(api, ROOT);
+      renderApplication(ROOT, { api });
       const user = userEvent.setup();
       const progress = await screen.findByRole("region", {
         name: "Check progress",
@@ -1973,7 +1955,7 @@ describe("Check lifecycle controls", () => {
       audit: () =>
         auditAt("deleting", 3, { deletionRequestedAt: "2026-10-05T10:03:00Z" }),
     });
-    renderApplication(api, ROOT);
+    renderApplication(ROOT, { api });
     const progress = await screen.findByRole("region", {
       name: "Check progress",
     });
@@ -2001,26 +1983,23 @@ describe("Check lifecycle controls", () => {
           cancelRevisions.push(request.headers.get("If-Match") ?? "");
           if (cancelRevisions.length === 1) {
             current = auditAt("paused", 3);
-            return jsonResponse(
+            return json(
               {
                 code: "precondition_failed",
                 message: "Audit revision changed",
                 retryable: false,
                 requestId: "request_stale_cancel",
               },
-              { status: 412 },
+              412,
             );
           }
           current = auditAt("cancelled", 4);
-          return jsonResponse(current, {
-            status: 202,
-            headers: { ETag: '"4"' },
-          });
+          return json(current, 202, { ETag: '"4"' });
         }
         return undefined;
       },
     });
-    renderApplication(api, ROOT);
+    renderApplication(ROOT, { api });
     const user = userEvent.setup();
     await user.click(await screen.findByRole("button", { name: "Stop check" }));
     let dialog = screen.getByRole("alertdialog", { name: "Stop this check?" });
@@ -2087,11 +2066,7 @@ describe("Check refresh correctness", () => {
 
   it("signals a newer revision without replacing pinned rows", async () => {
     let current = auditAt("completed", 2);
-    const queryClient = queryClientFactory.createApplicationQueryClient();
-    vi.spyOn(
-      queryClientFactory,
-      "createApplicationQueryClient",
-    ).mockReturnValue(queryClient);
+    const queryClient = createApplicationQueryClient();
     const coverageReads = vi.fn();
     const { api } = serveCheck({
       audit: () => current,
@@ -2101,8 +2076,8 @@ describe("Check refresh correctness", () => {
       },
     });
     const { router } = renderApplication(
-      api,
       `${ROOT}/coverage?auditRevision=2#check-item_refresh`,
+      { api, queryClient },
     );
     const view = await screen.findByRole("article", {
       name: "check_refresh Refresh check.",
@@ -2140,21 +2115,17 @@ describe("Check refresh correctness", () => {
     "keeps loaded %s rows after a failed background read",
     async (section) => {
       const current = auditAt("completed", 3);
-      const queryClient = queryClientFactory.createApplicationQueryClient();
-      vi.spyOn(
-        queryClientFactory,
-        "createApplicationQueryClient",
-      ).mockReturnValue(queryClient);
+      const queryClient = createApplicationQueryClient();
       let failRead = false;
       const failure = () =>
-        jsonResponse(
+        json(
           {
             code: "temporarily_unavailable",
             message: "Temporary read failure",
             retryable: true,
             requestId: "retry_refresh",
           },
-          { status: 503 },
+          503,
         );
       const { api } = serveCheck({
         audit: () => current,
@@ -2166,10 +2137,10 @@ describe("Check refresh correctness", () => {
           failRead && section === "runs" ? failure() : [refreshItem(current)],
       });
       renderApplication(
-        api,
         section === "coverage"
           ? `${ROOT}/coverage#check-item_refresh`
           : `${ROOT}/runs`,
+        { api, queryClient },
       );
       const row =
         section === "coverage"
@@ -2219,11 +2190,7 @@ describe("Check refresh correctness", () => {
 
   it("counts a list pinned to an older revision from its own rows", async () => {
     let current = auditAt("completed", 2);
-    const queryClient = queryClientFactory.createApplicationQueryClient();
-    vi.spyOn(
-      queryClientFactory,
-      "createApplicationQueryClient",
-    ).mockReturnValue(queryClient);
+    const queryClient = createApplicationQueryClient();
     const workspaceReads = vi.fn();
     const { api } = serveCheck({
       audit: () => current,
@@ -2238,7 +2205,7 @@ describe("Check refresh correctness", () => {
           : workspaceOf(audit, { totalChecks: 5, completedChecks: 3 });
       },
     });
-    renderApplication(api, `${ROOT}/coverage?auditRevision=2`);
+    renderApplication(`${ROOT}/coverage?auditRevision=2`, { api, queryClient });
     const progress = await screen.findByRole("region", {
       name: "Check progress",
     });
@@ -2295,7 +2262,7 @@ describe("Check refresh correctness", () => {
         return workspaceOf(audit);
       },
     });
-    renderApplication(api, ROOT);
+    renderApplication(ROOT, { api });
     await screen.findByRole("region", { name: "Check progress" });
     await waitFor(() => expect(workspaceReads).toHaveBeenCalledOnce());
     const shownRevision = () =>
@@ -2325,7 +2292,7 @@ describe("Check refresh correctness", () => {
         return workspaceOf(audit);
       },
     });
-    renderApplication(api, ROOT);
+    renderApplication(ROOT, { api });
     await screen.findByRole("region", { name: "Check progress" });
     await waitFor(() => expect(workspaceReads).toHaveBeenCalledWith(3));
     current = { ...auditAt("paused", 4), outstandingRunCount: 0 };
@@ -2348,12 +2315,12 @@ describe("Check refresh correctness", () => {
       handle: (_request, url) => {
         if (url.pathname === "/v1/audits/audit_example/pause") {
           current = { ...auditAt("paused", 3), outstandingRunCount: 1 };
-          return jsonResponse(current, { headers: { ETag: '"3"' } });
+          return json(current, 200, { ETag: '"3"' });
         }
         return undefined;
       },
     });
-    renderApplication(api, ROOT);
+    renderApplication(ROOT, { api });
     await userEvent
       .setup()
       .click(await screen.findByRole("button", { name: "Pause new work" }));
@@ -2371,7 +2338,8 @@ describe("Check refresh correctness", () => {
         cursors.push(cursor);
         const ordinal =
           cursor === null ? 0 : Number(cursor.slice("page-".length));
-        return jsonResponse({
+        return json({
+          auditRevision: completed.revision,
           items: [
             requirementRow(
               `check-${ordinal + 1}`,
@@ -2388,7 +2356,7 @@ describe("Check refresh correctness", () => {
         });
       },
     });
-    renderApplication(api, `${ROOT}/coverage`);
+    renderApplication(`${ROOT}/coverage`, { api });
     const list = await screen.findByRole("region", {
       name: "Check and requirements",
     });
@@ -2438,15 +2406,15 @@ describe("Project Checks tab", () => {
     });
     const { api } = fakeAPI((_request, url) => {
       if (url.pathname === "/v1/projects/project_example")
-        return jsonResponse(project, { headers: { ETag: '"1"' } });
+        return json(project, 200, { ETag: '"1"' });
       if (url.pathname === "/v1/projects/project_example/audits")
-        return jsonResponse({
+        return json({
           items: [waiting, completed, failed],
           page: { hasMore: false },
         });
       return undefined;
     });
-    renderApplication(api, "/projects/project_example/audits");
+    renderApplication("/projects/project_example/audits", { api });
     const user = userEvent.setup();
     const open = await screen.findByRole("link", {
       name: "OWASP Top 10 · Source risks",

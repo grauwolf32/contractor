@@ -9,6 +9,7 @@ import {
   formatLabel,
   groupMaterialsByKind,
   materialKindLabel,
+  materialFormat,
   materialKindOf,
   MATERIAL_KIND_ORDER,
   MATERIAL_UPLOAD_KINDS,
@@ -59,6 +60,26 @@ describe("material kinds", () => {
     expect(materialKindOf(item("outputs", "application/zip"))).toBe("other");
     expect(materialKindOf(item("artifacts", "application/yaml"))).toBe("other");
     expect(materialKindOf(item("artifacts", "application/json"))).toBe("other");
+  });
+
+  // One classification for the Project Overview, its timeline and Materials
+  // (V385-001 A5): a ZIP is source code only where its namespace says so,
+  // and an OpenAPI media type is an API spec in any namespace.
+  it("classifies ZIP archives and OpenAPI documents the same for every page", () => {
+    expect(materialKindLabel(item("sources", "application/zip"))).toBe(
+      "Source code",
+    );
+    expect(materialKindLabel(item("uploads", "application/zip"))).toBe("Other");
+    expect(materialKindLabel(item("outputs", "application/zip"))).toBe("Other");
+    for (const mediaType of [
+      "application/vnd.oai.openapi",
+      "application/vnd.oai.openapi+json",
+      "application/vnd.oai.openapi+yaml",
+    ])
+      expect(materialKindLabel(item("artifacts", mediaType))).toBe("API spec");
+    expect(materialFormat({ mediaType: "application/zip", size: 70_350 })).toBe(
+      "ZIP · 68.7 KiB",
+    );
   });
 
   it("treats every Git import as source code", () => {

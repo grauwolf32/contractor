@@ -3,34 +3,29 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { PublicAPI } from "../../api/client";
 import { PublicAPIProvider } from "../../api/context";
 import { EVAL_POLL_MS } from "../../api/evals";
 import { createApplicationQueryClient } from "../../app/query-client";
-import {
-  createEvalFixture,
-  EVAL_FIXTURE_ORIGIN,
-} from "../../test/evals-fixture";
+import { createEvalFixture } from "../../test/evals-fixture";
+import { testAPI } from "../../test/render";
 import { EvalListRoute } from "./list";
-import {
-  EVAL_SETTLED_POLL_MS,
-  evalExperimentPollInterval,
-  evalListPollInterval,
-} from "./polling";
+import { evalExperimentPollInterval, evalListPollInterval } from "./polling";
 import { useEvalExperiment } from "./queries";
+import { evalServer } from "./test-support";
 
 afterEach(() => vi.useRealTimers());
 
-function transport(fixture: ReturnType<typeof createEvalFixture>) {
-  return new PublicAPI(
-    {
-      uiVersion: "0.4.0",
-      apiBaseUrl: EVAL_FIXTURE_ORIGIN,
-      supportedApiVersions: ["contractor.public.v1"],
+/** A query that has read `data` once, as refetchInterval sees it. */
+function read<T>(data: T) {
+  return {
+    state: {
+      data,
+      error: null,
+      status: "success" as const,
+      dataUpdateCount: 1,
+      errorUpdateCount: 0,
     },
-    async (input) =>
-      fixture.fetch(input instanceof Request ? input : new Request(input)),
-  );
+  };
 }
 
 function DetailProbe() {
@@ -46,32 +41,36 @@ function reads(fixture: ReturnType<typeof createEvalFixture>, path: string) {
 
 describe("Eval polling", () => {
   it("keeps active, stale and deletion-pending detail views on short polling", () => {
-    expect(evalExperimentPollInterval({ state: "draft" })).toBe(false);
+    expect(evalExperimentPollInterval(read({ state: "draft" }))).toBe(false);
     for (const state of [
       "preparing",
       "running",
       "settling",
       "cancelling",
     ] as const) {
-      expect(evalExperimentPollInterval({ state, freshness: "current" })).toBe(
-        EVAL_POLL_MS,
-      );
+      expect(
+        evalExperimentPollInterval(read({ state, freshness: "current" })),
+      ).toBe(EVAL_POLL_MS);
     }
     for (const freshness of ["stale", "pending"] as const) {
-      expect(evalExperimentPollInterval({ state: "finished", freshness })).toBe(
-        EVAL_POLL_MS,
-      );
+      expect(
+        evalExperimentPollInterval(read({ state: "finished", freshness })),
+      ).toBe(EVAL_POLL_MS);
     }
     expect(
-      evalExperimentPollInterval({
-        state: "cancelled",
-        freshness: "current",
-        deletionRequestedAt: "2026-09-01T00:00:00Z",
-      }),
+      evalExperimentPollInterval(
+        read({
+          state: "cancelled",
+          freshness: "current",
+          deletionRequestedAt: "2026-09-01T00:00:00Z",
+        }),
+      ),
     ).toBe(EVAL_POLL_MS);
     expect(
-      evalExperimentPollInterval({ state: "finished", freshness: "current" }),
-    ).toBe(EVAL_SETTLED_POLL_MS);
+      evalExperimentPollInterval(
+        read({ state: "finished", freshness: "current" }),
+      ),
+    ).toBeGreaterThan(EVAL_POLL_MS);
   });
 
   it("backs off list page one only while all rows are terminal and current", () => {
@@ -79,17 +78,37 @@ describe("Eval polling", () => {
       { state: "finished" as const, freshness: "current" as const },
       { state: "cancelled" as const, freshness: "current" as const },
     ];
-    expect(evalListPollInterval(settled, false)).toBe(EVAL_SETTLED_POLL_MS);
+    expect(evalListPollInterval(read({ items: settled }))).toBeGreaterThan(
+      EVAL_POLL_MS,
+    );
     expect(
-      evalListPollInterval([...settled, { state: "running" }], false),
+      evalListPollInterval(
+        read({ items: [...settled, { state: "running" as const }] }),
+      ),
     ).toBe(EVAL_POLL_MS);
     expect(
       evalListPollInterval(
-        [...settled, { state: "finished", freshness: "stale" }],
-        false,
+        read({
+          items: [
+            ...settled,
+            { state: "finished" as const, freshness: "stale" as const },
+          ],
+        }),
       ),
     ).toBe(EVAL_POLL_MS);
-    expect(evalListPollInterval(settled, true)).toBe(false);
+  });
+
+  it("waits longer after each failed read of a running experiment", () => {
+    const failed = {
+      state: {
+        data: { state: "running" as const },
+        error: new Error("unavailable"),
+        status: "error" as const,
+        dataUpdateCount: 1,
+        errorUpdateCount: 1,
+      },
+    };
+    expect(evalExperimentPollInterval(failed)).toBe(2 * EVAL_POLL_MS);
   });
 
   it("refetches a settled detail after invalidation and polls until its view is current", async () => {
@@ -100,7 +119,7 @@ describe("Eval polling", () => {
     const client = createApplicationQueryClient();
     const view = render(
       <QueryClientProvider client={client}>
-        <PublicAPIProvider api={transport(fixture)}>
+        <PublicAPIProvider api={testAPI(evalServer(fixture)).api}>
           <DetailProbe />
         </PublicAPIProvider>
       </QueryClientProvider>,
@@ -134,7 +153,7 @@ describe("Eval polling", () => {
     const client = createApplicationQueryClient();
     const view = render(
       <QueryClientProvider client={client}>
-        <PublicAPIProvider api={transport(fixture)}>
+        <PublicAPIProvider api={testAPI(evalServer(fixture)).api}>
           <MemoryRouter initialEntries={["/evals"]}>
             <EvalListRoute />
           </MemoryRouter>

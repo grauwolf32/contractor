@@ -1,22 +1,23 @@
+import { REVISION, stringRule } from "./contract";
 import type { PublicAPI } from "./client";
+import type { ResponseOperation } from "./contract";
 import { invalidAPIResponse, PublicAPIError, requireData } from "./error";
 import type { components } from "./generated/public";
 
 export const MAXIMUM_ARTIFACT_BYTES = 64 * 1024 * 1024;
 export const MAXIMUM_PREVIEW_BYTES = 256 * 1024;
 export const ARTIFACT_PAGE_SIZE = 50;
+// An ArtifactWriteResponse is a few hundred bytes.
+const MAXIMUM_WRITE_RESPONSE_BYTES = 64 * 1024;
 export const HTTP_EXCHANGE_MEDIA_TYPE =
   "application/vnd.contractor.http-exchange+json";
 
-// A strict end assertion also rejects a trailing newline (unlike JavaScript $).
-export const ARTIFACT_NAME_PATTERN =
-  /^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}(?![\s\S])/;
-export const ARTIFACT_REVISION_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/;
-// RFC 6838 restricted names in canonical lowercase, at most 255 characters as
-// in the public MediaType schema; the shared cases in
-// api/testdata/v1alpha1/media-type-cases.json pin the grammar.
-export const MEDIA_TYPE_PATTERN =
-  /^(?=.{3,255}$)[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/;
+export const ARTIFACT_NAME_PATTERN = stringRule("ArtifactName");
+// An exact Artifact revision is the public Revision grammar.
+export const ARTIFACT_REVISION_PATTERN = REVISION;
+// A concrete media type: the second branch of the public MediaType schema
+// (RFC 6838 restricted names in canonical lowercase).
+export const MEDIA_TYPE_PATTERN = stringRule("MediaType", "oneOf", "1");
 
 const PREVIEW_MEDIA_TYPES = new Set([
   HTTP_EXCHANGE_MEDIA_TYPE,
@@ -127,44 +128,6 @@ function invalidWriteResponse(status = 0): PublicAPIError {
   );
 }
 
-function parseWriteResponse(value: unknown): ArtifactWriteResponse {
-  if (
-    typeof value !== "object" ||
-    value === null ||
-    !("artifact" in value) ||
-    !("mediaType" in value) ||
-    !("size" in value)
-  ) {
-    throw invalidWriteResponse();
-  }
-  const candidate = value as {
-    artifact?: { namespace?: unknown; name?: unknown; revision?: unknown };
-    mediaType?: unknown;
-    size?: unknown;
-  };
-  if (
-    typeof candidate.artifact?.namespace !== "string" ||
-    typeof candidate.artifact.name !== "string" ||
-    typeof candidate.artifact.revision !== "string" ||
-    typeof candidate.mediaType !== "string" ||
-    typeof candidate.size !== "number" ||
-    !Number.isSafeInteger(candidate.size) ||
-    candidate.size < 0 ||
-    candidate.size > MAXIMUM_ARTIFACT_BYTES
-  ) {
-    throw invalidWriteResponse();
-  }
-  try {
-    requireArtifactName("namespace", candidate.artifact.namespace);
-    requireArtifactName("name", candidate.artifact.name);
-    requireRevision(candidate.artifact.revision);
-    requireMediaType(candidate.mediaType);
-  } catch {
-    throw invalidWriteResponse();
-  }
-  return candidate as ArtifactWriteResponse;
-}
-
 export async function listArtifacts(
   api: PublicAPI,
   request: ArtifactPageRequest = {},
@@ -211,18 +174,19 @@ export function requireRequestedMetadata(
   return metadata;
 }
 
-/** Copies a list page after checking its items and continuation. */
+/** Returns a list page after checking that a continued page has a cursor. */
 export function requireArtifactPage<T>(
   page: { items: T[]; page: components["schemas"]["PageInfo"] },
   status: number,
 ): { items: T[]; page: components["schemas"]["PageInfo"] } {
-  if (!Array.isArray(page.items) || page.page === undefined) {
+  // Cross-field: PageInfo cannot require nextCursor exactly when hasMore.
+  if (page.page.hasMore && page.page.nextCursor === undefined) {
     throw invalidAPIResponse(
       status,
       "Server returned an invalid Artifact page",
     );
   }
-  return { items: [...page.items], page: { ...page.page } };
+  return page;
 }
 
 export async function getArtifactMetadata(
@@ -289,19 +253,26 @@ export async function writeArtifact(
   request: ArtifactWriteRequest,
 ): Promise<ArtifactWriteResponse> {
   const path = artifactPath(request.namespace, request.name);
-  return writeScopedArtifact(api, path, request);
+  return writeScopedArtifact(
+    api,
+    "PUT /v1/artifacts/{namespace}/{name}",
+    path,
+    request,
+  );
 }
 
 /**
  * Shared exact-CAS transport for scope-bound Artifact endpoints.
  *
- * Callers must construct a path whose scope is already authorized by the
- * endpoint (for example ProjectScope). The response is still checked against
- * the requested logical identity, media type, size, and ETag so a rolling or
- * malformed Server response cannot be accepted as a successful upload.
+ * Callers must construct a path for `operation` whose scope is already
+ * authorized by the endpoint (for example ProjectScope). Besides its schema,
+ * the response is checked against the requested logical identity, media type,
+ * size, and ETag so a rolling Server response cannot be accepted as a
+ * successful upload.
  */
 export async function writeScopedArtifact(
   api: PublicAPI,
+  operation: ResponseOperation,
   path: string,
   request: ArtifactWriteRequest,
 ): Promise<ArtifactWriteResponse> {
@@ -335,17 +306,13 @@ export async function writeScopedArtifact(
   if (!response.ok) {
     throw await api.error(response);
   }
-  let value: unknown;
-  try {
-    value = await response.json();
-  } catch {
-    throw new PublicAPIError({
-      status: response.status,
-      code: "invalid_api_response",
-      message: "Server returned an unreadable Artifact write response",
-    });
-  }
-  const result = parseWriteResponse(value);
+  const result = await api.readJSON<ArtifactWriteResponse>(
+    operation,
+    response,
+    MAXIMUM_WRITE_RESPONSE_BYTES,
+  );
+  // Cross-field: the stored revision is the requested upload, and the ETag
+  // names it.
   if (
     result.artifact.namespace !== request.namespace ||
     result.artifact.name !== request.name ||
@@ -365,7 +332,7 @@ export function canPreviewArtifact(metadata: ArtifactMetadata): boolean {
   );
 }
 
-export function suggestedArtifactFilename(
+function suggestedArtifactFilename(
   artifact: ExactArtifactRef,
   mediaType: string,
 ): string {

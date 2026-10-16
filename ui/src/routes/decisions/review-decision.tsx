@@ -4,6 +4,7 @@ import { useRef, useState, type ReactNode } from "react";
 import {
   decideAuditAction,
   getAuditReport,
+  type AuditActionDecisionResult,
   type AuditReport,
   type AuditReviewAction,
   type AuditReviewRequest,
@@ -12,7 +13,7 @@ import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
 import { reviewKindLabel } from "../../app/vocabulary";
 import { MutationDraftKeyring } from "../../mutations/idempotency";
-import { DecisionBar, type DecisionOption } from "../../ui";
+import { Button, DecisionBar, type DecisionOption } from "../../ui";
 import { focusIfLost, useAnnouncement } from "./announcement";
 import { DecisionRecord } from "./decision-record";
 import {
@@ -22,7 +23,6 @@ import {
   RATIONALE_HELP,
   REVIEW_ACTIONS,
   utf8Length,
-  type AuditActionDecisionResult,
 } from "./model";
 import { useRecordingCallback } from "./recording";
 import { refreshAfterDecision } from "./refresh";
@@ -167,21 +167,19 @@ function RequestDecision({
   else if (review.state === "decided")
     body =
       review.decision === undefined ? (
-        <p className="decisions-quiet">Decided.</p>
+        <p className="ui-caption">Decided.</p>
       ) : (
         <DecisionRecord decision={review.decision} />
       );
   else if (review.state === "expired")
     body = (
-      <p className="decisions-quiet">
-        This request expired without a decision.
-      </p>
+      <p className="ui-caption">This request expired without a decision.</p>
     );
   else if (blocked !== undefined && blocked !== null && !recording)
     body = blocked;
   else if (options.length === 0)
     body = (
-      <p className="decisions-quiet">
+      <p className="ui-caption">
         This request offers no decision that can be made here.
       </p>
     );
@@ -213,7 +211,7 @@ function RequestDecision({
           extra={
             <>
               {intro === undefined ? null : (
-                <p className="decisions-intro">{intro}</p>
+                <p className="ui-caption">{intro}</p>
               )}
             </>
           }
@@ -258,7 +256,7 @@ function RequestDecision({
   );
 }
 
-export interface ActionDecisionProps {
+interface ActionDecisionProps {
   auditId: string;
   /** An active test approval or requirement applicability request. */
   review: AuditReviewRequest;
@@ -308,7 +306,7 @@ export function ActionDecision({
   );
 }
 
-export interface ReportDecisionProps {
+interface ReportDecisionProps {
   auditId: string;
   /** The report acceptance request. */
   review: AuditReviewRequest;
@@ -355,18 +353,14 @@ function ReportAcceptance({
         <p>
           The report could not be loaded, so this request cannot be decided here
           yet.{" "}
-          <button
-            type="button"
-            className="decisions-text-button"
-            onClick={() => void read.refetch()}
-          >
+          <Button variant="link" size="xs" onClick={() => void read.refetch()}>
             Try again
-          </button>
+          </Button>
         </p>
         <RequestDetails error={read.error} />
       </div>
     ) : (
-      <p className="decisions-quiet" role="status">
+      <p className="ui-caption" role="status">
         Loading the report…
       </p>
     );
