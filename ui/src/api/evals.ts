@@ -14,15 +14,13 @@ export type EvalDatasetInput = Schema["EvalDatasetInput"];
 export type EvalCapabilities = Schema["EvalCapabilities"];
 export type EvalCheck = Schema["EvalCheck"];
 export type EvalMember = Schema["EvalMemberView"];
-export type EvalPair = Schema["EvalPair"];
 export type EvalChart = Schema["EvalChart"];
 export type EvalSummary = Schema["EvalSummary"];
 export type EvalCommand = Schema["EvalCommand"];
 export type EvalCommandReceipt = Schema["EvalCommandReceipt"];
 export type EvalReceipt = Schema["EvalExperimentReceipt"];
-export type EvalReview = Schema["EvalReview"];
 export type EvalAssessment = Schema["EvalAssessmentInput"];
-export const EVAL_PAGE_SIZE = 50;
+const EVAL_PAGE_SIZE = 50;
 export const EVAL_POLL_MS = 2000;
 // Managed Eval lifecycle states in list-filter order, and the terminal ones.
 // The OpenAPI enums and api/testdata/evals/lifecycle-states.json hold them to
@@ -312,7 +310,7 @@ export async function getEvalPair(
   );
 }
 
-export type EvalChartQuery = NonNullable<
+type EvalChartQuery = NonNullable<
   operations["getEvalChart"]["parameters"]["query"]
 >;
 export async function getEvalChart(

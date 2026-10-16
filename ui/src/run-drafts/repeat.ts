@@ -17,7 +17,7 @@ import {
 
 type SelectionPatch = components["schemas"]["ExecutionSelectionPatch"];
 
-export interface PreparedRepeatDraft {
+interface PreparedRepeatDraft {
   identity: RunDraftIdentity;
   state: RunDraftState;
   destination: string;

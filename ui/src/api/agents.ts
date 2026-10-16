@@ -3,11 +3,11 @@ import { invalidAPIResponse, requireData } from "./error";
 import type { components } from "./generated/public";
 import { CONFIG_NAME_PATTERN, CONFIG_VERSION_PATTERN } from "./workflows";
 
-export type AgentInstructions = components["schemas"]["AgentInstructions"];
-export type AgentTemplateWorkflowBindingPage =
+type AgentInstructions = components["schemas"]["AgentInstructions"];
+type AgentTemplateWorkflowBindingPage =
   components["schemas"]["AgentTemplateWorkflowBindingPage"];
 
-export interface AgentUsagePageRequest {
+interface AgentUsagePageRequest {
   cursor?: string;
   signal?: AbortSignal;
 }

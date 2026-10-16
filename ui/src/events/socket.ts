@@ -8,7 +8,7 @@ export interface EventCursor {
   sequence: string;
 }
 
-export type EventStream = { kind: "run"; id: string } | { kind: "operations" };
+type EventStream = { kind: "run"; id: string } | { kind: "operations" };
 
 type WebSocketFactory = new (
   url: string | URL,

@@ -45,25 +45,25 @@ export type RunSummary = components["schemas"]["RunSummary"];
 export type StageAttempt = components["schemas"]["StageAttempt"];
 export type StageTransition = components["schemas"]["StageTransition"];
 export type PlannerPlan = components["schemas"]["PlannerPlan"];
-export type CancelRunResponse = components["schemas"]["CancelRunResponse"];
-export type ArtifactLineagePage = components["schemas"]["ArtifactLineagePage"];
+type CancelRunResponse = components["schemas"]["CancelRunResponse"];
+type ArtifactLineagePage = components["schemas"]["ArtifactLineagePage"];
 export type RunRepeatDraftResponse =
   components["schemas"]["RunRepeatDraftResponse"];
 
-export interface RunPageRequest {
+interface RunPageRequest {
   state?: WorkflowRunState;
   lifecycle?: WorkflowRunLifecycle;
   cursor?: string;
   labelSelectors?: readonly RunMetadataLabelSelector[];
 }
 
-export interface RunArtifactPageRequest {
+interface RunArtifactPageRequest {
   runId: string;
   namespace?: string;
   cursor?: string;
 }
 
-export interface RunArtifactDetailRequest extends ArtifactDetailRequest {
+interface RunArtifactDetailRequest extends ArtifactDetailRequest {
   runId: string;
 }
 

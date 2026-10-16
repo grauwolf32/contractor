@@ -23,7 +23,7 @@ export interface RepeatDraftNotice {
   message: string;
 }
 
-export interface RepeatDraftContext {
+interface RepeatDraftContext {
   sourceRunId: string;
   notices: RepeatDraftNotice[];
   reviewed: boolean;
@@ -61,11 +61,11 @@ export interface RunDraftEntry {
   updatedAt: string;
 }
 
-export type RunDraftAcquisition =
+type RunDraftAcquisition =
   | { kind: "acquired"; entry: RunDraftEntry }
   | { kind: "capacity"; drafts: RunDraftSummary[] };
 
-export type RunDraftSeedResult =
+type RunDraftSeedResult =
   | { kind: "seeded"; entry: RunDraftEntry }
   | { kind: "conflict"; draft: RunDraftSummary }
   | { kind: "capacity"; drafts: RunDraftSummary[] };

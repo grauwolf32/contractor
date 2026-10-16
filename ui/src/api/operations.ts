@@ -19,14 +19,14 @@ import {
   requireCanonicalConfiguration,
 } from "./workflows";
 
-export const OPERATIONS_PAGE_SIZE = 50;
+const OPERATIONS_PAGE_SIZE = 50;
 export const CONFIGURATION_KINDS = [
   "agent-templates",
   "execution-configs",
   "model-policies",
   "llm-gateways",
 ] as const satisfies readonly ConfigurationKind[];
-export const WRITABLE_CONFIGURATION_KINDS = [
+const WRITABLE_CONFIGURATION_KINDS = [
   "model-policies",
   "llm-gateways",
 ] as const satisfies readonly WritableConfigurationKind[];
@@ -42,17 +42,14 @@ const DEFAULT_INITIAL_BACKOFF_MILLISECONDS = 100;
 const DEFAULT_MAX_BACKOFF_MILLISECONDS = 1000;
 
 export type OperationsSnapshot = components["schemas"]["OperationsSnapshot"];
-export type OperationsCursor = components["schemas"]["SnapshotCursor"];
 export type RuntimeAgentObservation =
   components["schemas"]["RuntimeAgentObservation"];
-export type WorkspaceCapabilities =
-  components["schemas"]["WorkspaceCapabilities"];
+type WorkspaceCapabilities = components["schemas"]["WorkspaceCapabilities"];
 export type AllocationObservation =
   components["schemas"]["AllocationObservation"];
 export type ConfigurationKind = components["schemas"]["ConfigurationKind"];
 export type ConfigurationResource =
   components["schemas"]["ConfigurationResource"];
-export type ConfigurationPage = components["schemas"]["ConfigurationPage"];
 export type PublishConfigurationRequest =
   components["schemas"]["PublishConfigurationRequest"];
 export type ModelPolicyBody = components["schemas"]["ModelPolicyBody"];
@@ -62,18 +59,15 @@ export type ExecutionConfigBody = components["schemas"]["ExecutionConfigBody"];
 export type ModelPolicyRef = components["schemas"]["ModelPolicyRef"];
 export type LLMGatewayConfigRef = components["schemas"]["LLMGatewayConfigRef"];
 export type CredentialResource = components["schemas"]["CredentialResource"];
-export type CredentialPage = components["schemas"]["CredentialPage"];
 export type CreateCredentialRequest =
   components["schemas"]["CreateCredentialRequest"];
 export type RuntimeConfigAuthorDocument =
   components["schemas"]["RuntimeConfigAuthorDocument"];
-export type RuntimeConfigDocument =
-  components["schemas"]["RuntimeConfigDocument"];
 export type RuntimeConfigResource =
   components["schemas"]["RuntimeConfigResource"];
-export type RuntimeConfigPage = components["schemas"]["RuntimeConfigPage"];
+type RuntimeConfigPage = components["schemas"]["RuntimeConfigPage"];
 export type RuntimeLabelBinding = components["schemas"]["RuntimeLabelBinding"];
-export type RuntimeLabelPage = components["schemas"]["RuntimeLabelPage"];
+type RuntimeLabelPage = components["schemas"]["RuntimeLabelPage"];
 export type RuntimeCredentialMetadata =
   components["schemas"]["RuntimeCredentialMetadata"];
 export type RuntimeCredentialPage =
@@ -82,18 +76,18 @@ export type CreateRuntimeCredentialRequest =
   components["schemas"]["CreateRuntimeCredentialRequest"];
 export type RuntimeAgentPrincipal =
   components["schemas"]["RuntimeAgentPrincipal"];
-export type RuntimeAgentPrincipalPage =
+type RuntimeAgentPrincipalPage =
   components["schemas"]["RuntimeAgentPrincipalPage"];
-export type SchedulerSettings = components["schemas"]["SchedulerSettings"];
+type SchedulerSettings = components["schemas"]["SchedulerSettings"];
 
 export interface SchedulerSettingsSnapshot {
   resource: SchedulerSettings;
   etag: string;
 }
 
-export type WritableConfigurationKind = "model-policies" | "llm-gateways";
+type WritableConfigurationKind = "model-policies" | "llm-gateways";
 
-export interface CursorPageRequest {
+interface CursorPageRequest {
   cursor?: string;
 }
 

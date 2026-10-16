@@ -15,7 +15,7 @@ export type RunResyncReason =
   | "projection_gap"
   | "subscription_error";
 
-export interface PlannerActivity {
+interface PlannerActivity {
   kind:
     | "adk_event"
     | "scan_owner_acquired"
@@ -61,7 +61,7 @@ export interface PlannerEventData {
   activity?: PlannerActivity;
 }
 
-export interface LifecycleEventData {
+interface LifecycleEventData {
   runId: string;
   resource: "run" | "stageExecution";
   stageExecutionId?: string;
@@ -100,7 +100,7 @@ export interface OperationsEventCallbacks {
   onError: (message: string) => void;
 }
 
-export interface RunEventSubscription {
+interface RunEventSubscription {
   unsubscribe(): void;
 }
 
@@ -109,7 +109,7 @@ export interface OperationsSnapshotCursor {
   revision: string;
 }
 
-export interface OperationsEventSubscription {
+interface OperationsEventSubscription {
   unsubscribe(): void;
   resume(after: OperationsSnapshotCursor): void;
 }

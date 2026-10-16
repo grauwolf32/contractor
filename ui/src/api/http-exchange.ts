@@ -16,7 +16,7 @@ export interface HTTPHeader {
 export type HTTPMessage =
   | { kind: "structured"; headers: HTTPHeader[]; body_base64: string }
   | { kind: "raw"; data_base64: string };
-export interface HTTPAttempt {
+interface HTTPAttempt {
   request: { method: string; url: string; message: HTTPMessage };
   response?: { status: number; message: HTTPMessage; complete: boolean };
   error?: string;

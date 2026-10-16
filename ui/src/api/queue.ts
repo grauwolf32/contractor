@@ -4,7 +4,7 @@ import { NON_TERMINAL_RUN_STATES } from "./states";
 import { invalidAPIResponse, PublicAPIError, requireData } from "./error";
 import type { components } from "./generated/public";
 
-export const QUEUE_PAGE_SIZE = 50;
+const QUEUE_PAGE_SIZE = 50;
 // The Queue lists the Run states that can still change.
 export const QUEUE_STATES = NON_TERMINAL_RUN_STATES;
 export const QUEUE_MEMBERSHIPS =
@@ -13,10 +13,10 @@ export const QUEUE_MEMBERSHIPS =
 export type QueueState = components["schemas"]["NonTerminalWorkflowRunState"];
 export type QueueMembership = components["schemas"]["RunQueueMembership"];
 export type QueueItem = components["schemas"]["RunQueueItem"];
-export type QueuePage = components["schemas"]["RunQueuePage"];
+type QueuePage = components["schemas"]["RunQueuePage"];
 export type OwnerQueueControl = components["schemas"]["OwnerQueueControl"];
 
-export interface QueuePageRequest {
+interface QueuePageRequest {
   state?: QueueState;
   membership?: QueueMembership;
   cursor?: string;

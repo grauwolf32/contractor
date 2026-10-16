@@ -19,7 +19,7 @@ export interface AuditCollection<T> {
   nextCursor?: string;
 }
 
-export interface CollectAuditPagesOptions {
+interface CollectAuditPagesOptions {
   /** Page to continue from (the `nextCursor` of a truncated batch). */
   cursor?: string;
   /** Maximum number of pages to read in this batch (at least 1). */
