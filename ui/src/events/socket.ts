@@ -23,7 +23,7 @@ function send(socket: WebSocket, frame: object): void {
   socket.send(JSON.stringify(frame));
 }
 
-export function eventSocketURL(apiBaseUrl: string): string {
+function eventSocketURL(apiBaseUrl: string): string {
   const origin = validateAPIBaseURL(apiBaseUrl);
   const url = new URL("/v1/events/ws", origin);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";

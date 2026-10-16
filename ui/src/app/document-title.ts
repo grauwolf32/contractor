@@ -2,7 +2,7 @@ import { useEffect } from "react";
 
 const APPLICATION_NAME = "Contractor";
 
-export function documentTitle(title?: string | null): string {
+function documentTitle(title?: string | null): string {
   const trimmed = title?.trim();
   return trimmed ? `${trimmed} · ${APPLICATION_NAME}` : APPLICATION_NAME;
 }

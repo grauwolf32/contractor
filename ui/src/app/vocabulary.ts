@@ -28,7 +28,7 @@ import type { StatusTone } from "./status-tone";
 export type AuditCoverageStatus = components["schemas"]["AuditCoverageStatus"];
 type AuditReportStatus = components["schemas"]["AuditReportStatus"];
 export type AuditReviewState = components["schemas"]["AuditReviewState"];
-export type AuditReviewKind = AuditReviewRequest["kind"];
+type AuditReviewKind = AuditReviewRequest["kind"];
 
 /** A status word and the tone its glyph, chip or segment uses. */
 export interface VocabularyLabel {
@@ -121,7 +121,7 @@ export const VERDICT_LABELS: Readonly<Record<VerdictValue, VocabularyLabel>> = {
   unreviewed: { label: "Not reviewed", tone: "idle" },
 };
 
-export const REVIEW_ACTION_LABELS: Readonly<
+const REVIEW_ACTION_LABELS: Readonly<
   Record<AuditReviewAction, VocabularyLabel>
 > = {
   approve: { label: "Approved", tone: "success" },
@@ -138,7 +138,7 @@ export const REVIEW_STATE_LABELS: Readonly<
 };
 
 // A proposed report never reads as accepted (contract §3).
-export const REPORT_STATUS_LABELS: Readonly<
+const REPORT_STATUS_LABELS: Readonly<
   Record<AuditReportStatus, VocabularyLabel>
 > = {
   pending: { label: "Not ready yet", tone: "idle" },
@@ -147,7 +147,7 @@ export const REPORT_STATUS_LABELS: Readonly<
   unavailable: { label: "Not available", tone: "neutral" },
 };
 
-export const REVIEW_KIND_LABELS: Readonly<Record<AuditReviewKind, string>> = {
+const REVIEW_KIND_LABELS: Readonly<Record<AuditReviewKind, string>> = {
   "finding-triage": "Possible issue",
   "active-check-approval": "Active test approval",
   "requirement-applicability": "Requirement applicability",

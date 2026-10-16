@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { STATUS_TONES } from "../app/status-tone";
+import { STATUS_TONES } from "../test/status-tones";
 import {
   ProgressSegments,
   StatusChip,

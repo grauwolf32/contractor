@@ -1,12 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { UI_VERSION } from "../build";
-import {
-  loadRuntimeConfig,
-  parseRuntimeConfig,
-  RuntimeConfigError,
-  validateAPIBaseURL,
-} from "./runtime-config";
+import { loadRuntimeConfig, validateAPIBaseURL } from "./runtime-config";
 
 const validConfig = {
   uiVersion: UI_VERSION,
@@ -14,18 +9,32 @@ const validConfig = {
   apiBaseUrl: "https://api.contractor.example:8443",
 };
 
+/** The configuration loaded from a /runtime-config.json serving `value`. */
+function load(value: unknown) {
+  return loadRuntimeConfig(
+    vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify(value), {
+        headers: { "content-type": "application/json" },
+      }),
+    ),
+  );
+}
+
+/** A runtime configuration refusal, whatever its message. */
+const refusal = expect.objectContaining({ name: "RuntimeConfigError" });
+
 describe("runtime configuration", () => {
-  it("accepts only the exact compatible closed shape", () => {
-    expect(parseRuntimeConfig(validConfig)).toEqual(validConfig);
-    expect(() => parseRuntimeConfig({ ...validConfig, secret: "no" })).toThrow(
-      RuntimeConfigError,
+  it("accepts only the exact compatible closed shape", async () => {
+    await expect(load(validConfig)).resolves.toEqual(validConfig);
+    await expect(load({ ...validConfig, secret: "no" })).rejects.toEqual(
+      refusal,
     );
-    expect(() =>
-      parseRuntimeConfig({ ...validConfig, uiVersion: "another-build" }),
-    ).toThrow("UI build and runtime configuration differ");
-    expect(() =>
-      parseRuntimeConfig({ ...validConfig, supportedApiVersions: ["v2"] }),
-    ).toThrow("incompatible APIs");
+    await expect(
+      load({ ...validConfig, uiVersion: "another-build" }),
+    ).rejects.toThrow("UI build and runtime configuration differ");
+    await expect(
+      load({ ...validConfig, supportedApiVersions: ["v2"] }),
+    ).rejects.toThrow("incompatible APIs");
   });
 
   it.each([
@@ -43,7 +52,7 @@ describe("runtime configuration", () => {
     "https://example.test/%2e%2e/",
     " https://example.test",
   ])("rejects unsafe API origin %s", (candidate) => {
-    expect(() => validateAPIBaseURL(candidate)).toThrow(RuntimeConfigError);
+    expect(() => validateAPIBaseURL(candidate)).toThrow(refusal);
   });
 
   it.each([

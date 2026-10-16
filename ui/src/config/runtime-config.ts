@@ -13,7 +13,7 @@ export interface RuntimeConfig {
   apiBaseUrl: string;
 }
 
-export class RuntimeConfigError extends Error {
+class RuntimeConfigError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "RuntimeConfigError";
@@ -97,7 +97,7 @@ export function validateAPIBaseURL(candidate: unknown): string {
   return parsed.origin;
 }
 
-export function parseRuntimeConfig(value: unknown): RuntimeConfig {
+function parseRuntimeConfig(value: unknown): RuntimeConfig {
   if (!isRecord(value)) {
     throw new RuntimeConfigError("Runtime configuration must be an object");
   }

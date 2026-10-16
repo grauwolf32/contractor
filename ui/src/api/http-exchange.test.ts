@@ -6,12 +6,23 @@ import {
   HTTP_EXCHANGE_MEDIA_TYPE,
   MAXIMUM_PREVIEW_BYTES,
 } from "./artifacts";
-import {
-  HTTP_CAPTURE_LIMITS,
-  HTTP_EXCHANGE_SCHEMA,
-  isHTTPCapture,
-  parseHTTPExchange,
-} from "./http-exchange";
+import { parseHTTPExchange } from "./http-exchange";
+
+/** The selected-exchange artifact format the preview reads. */
+const HTTP_EXCHANGE_SCHEMA = "contractor.http.exchange.v1";
+
+/** Whether the preview accepts `capture` inside a selected-exchange artifact. */
+function acceptsCapture(capture: unknown): boolean {
+  return (
+    parseHTTPExchange(
+      JSON.stringify({
+        schema: HTTP_EXCHANGE_SCHEMA,
+        capture,
+        finding: { proposal_id: "proposal-test", receipt_id: "receipt-test" },
+      }),
+    ) !== undefined
+  );
+}
 
 describe("shared HTTP finding capture contract", () => {
   it.each(attempts)("matches the retained URL/status rules: $name", (item) => {
@@ -26,15 +37,45 @@ describe("shared HTTP finding capture contract", () => {
     }
     if ("response" in attempt && attempt.response)
       attempt.response.status = item.status;
-    expect(isHTTPCapture(value)).toBe(item.valid);
+    expect(acceptsCapture(value)).toBe(item.valid);
   });
   it.each(captures.cases)("$name", ({ value, valid }) => {
-    expect(isHTTPCapture(value)).toBe(valid);
+    expect(acceptsCapture(value)).toBe(valid);
   });
-  it("pins shared body, header and attempt bounds", () => {
-    for (const [key, value] of Object.entries(HTTP_CAPTURE_LIMITS)) {
-      expect(captures.limits[key as keyof typeof captures.limits]).toBe(value);
-    }
+  // The shared bounds, read from the fixture every language checks. Bodies
+  // larger than a preview (LIM-UI-12) never reach the capture check, so the
+  // body bounds (LIM-FND-7) are exercised by the Go and Python suites.
+  it("applies the shared attempt bound (LIM-FND-9)", () => {
+    const capture = structuredClone(captures.cases[0]!.value) as {
+      attempts: unknown[];
+    };
+    const one = capture.attempts[0];
+    capture.attempts = Array.from({ length: captures.limits.attempts }, () =>
+      structuredClone(one),
+    );
+    expect(acceptsCapture(capture)).toBe(true);
+    capture.attempts.push(structuredClone(one));
+    expect(acceptsCapture(capture)).toBe(false);
+  });
+  it("applies the shared header block bound (LIM-FND-8)", () => {
+    const capture = structuredClone(captures.cases[0]!.value) as {
+      attempts: {
+        request: { message: { headers: { name: string; value: string }[] } };
+      }[];
+    };
+    const request = capture.attempts[0]!.request.message;
+    const used = request.headers.reduce(
+      (total, header) => total + header.name.length + header.value.length,
+      0,
+    );
+    const filler = { name: "X-Fill", value: "" };
+    request.headers.push(filler);
+    filler.value = "v".repeat(
+      captures.limits.headerBytes - used - filler.name.length,
+    );
+    expect(acceptsCapture(capture)).toBe(true);
+    filler.value += "v";
+    expect(acceptsCapture(capture)).toBe(false);
   });
 });
 

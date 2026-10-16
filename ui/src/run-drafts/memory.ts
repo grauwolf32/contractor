@@ -8,7 +8,7 @@ import {
   type ExecutionOverrideDraft,
 } from "./validation";
 
-export const MAX_RETAINED_RUN_DRAFTS = 16;
+const MAX_RETAINED_RUN_DRAFTS = 16;
 
 export interface RunDraftIdentity {
   workflowName: string;

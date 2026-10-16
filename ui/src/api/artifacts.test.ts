@@ -9,7 +9,6 @@ import {
   listArtifacts,
   MAXIMUM_PREVIEW_BYTES,
   previewArtifact,
-  suggestedArtifactFilename,
   writeArtifact,
   type ArtifactMetadata,
 } from "./artifacts";
@@ -38,6 +37,23 @@ function response(body: BodyInit | null, options: ResponseInit = {}): Response {
   const headers = new Headers(options.headers);
   headers.set("X-Contractor-API-Version", "contractor.public.v1");
   return new Response(body, { ...options, headers });
+}
+
+/** The filename downloadArtifact suggests for `metadata` in `mediaType`. */
+async function downloadedFilename(mediaType: string): Promise<string> {
+  const content = "x".repeat(metadata.size);
+  const api = new PublicAPI(
+    runtimeConfig,
+    vi.fn(async () =>
+      response(content, {
+        headers: {
+          "content-type": mediaType,
+          "content-length": String(content.length),
+        },
+      }),
+    ),
+  );
+  return (await downloadArtifact(api, { ...metadata, mediaType })).filename;
 }
 
 describe("Artifact API", () => {
@@ -220,10 +236,10 @@ describe("Artifact API", () => {
     await expect(downloadArtifact(api, metadata)).rejects.toMatchObject({
       code: "invalid_api_response",
     });
-    expect(
-      suggestedArtifactFilename(metadata.artifact, metadata.mediaType),
-    ).toBe("projects-architecture-revision-2.c4");
-    expect(suggestedArtifactFilename(metadata.artifact, "text/x-diff")).toBe(
+    await expect(downloadedFilename(metadata.mediaType)).resolves.toBe(
+      "projects-architecture-revision-2.c4",
+    );
+    await expect(downloadedFilename("text/x-diff")).resolves.toBe(
       "projects-architecture-revision-2.diff",
     );
   });
@@ -250,7 +266,7 @@ describe("Artifact API", () => {
         size: MAXIMUM_PREVIEW_BYTES + 1,
       }),
     ).toBe(false);
-    expect(suggestedArtifactFilename(metadata.artifact, mediaType)).toBe(
+    await expect(downloadedFilename(mediaType)).resolves.toBe(
       "projects-architecture-revision-2.txt",
     );
     await expect(previewArtifact(api, wordlistMetadata)).resolves.toBe(content);

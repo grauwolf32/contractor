@@ -3,38 +3,3 @@
 # is "<file>:<export> <task ID>"; the rules are in check-exports.mjs. The
 # check fails when an entry is no longer needed or its task is finished or
 # missing, so the list only shrinks.
-
-src/api/artifacts.ts:suggestedArtifactFilename V385-001
-src/api/audit-collections.ts:AUDIT_COLLECTION_MAX_PAGES V385-001
-src/api/audit-presets.ts:AUDIT_STANDARD_SCHEME_PATTERN V385-001
-src/api/audit-presets.ts:AUDIT_STANDARD_VERSION_PATTERN V385-001
-src/api/audits.ts:AuditStartResponse V385-001
-src/api/evals.ts:TERMINAL_EVAL_STATES V385-001
-src/api/evals.ts:mutationHeaders V385-001
-src/api/http-exchange.ts:HTTPCapture V385-001
-src/api/http-exchange.ts:HTTP_CAPTURE_LIMITS V385-001
-src/api/http-exchange.ts:HTTP_EXCHANGE_SCHEMA V385-001
-src/api/http-exchange.ts:isHTTPCapture V385-001
-src/api/operations.ts:CONFIGURATION_KINDS V385-001
-src/api/operations.ts:listRuntimeAgentPrincipals V385-001
-src/api/projects.ts:PROJECT_REVISION_PATTERN V385-001
-src/app/command-palette.tsx:RESULTS_PER_GROUP V385-001
-src/app/document-title.ts:documentTitle V385-001
-src/app/status-tone.ts:STATUS_TONES V385-001
-src/app/vocabulary.ts:AuditReviewKind V385-001
-src/app/vocabulary.ts:REPORT_STATUS_LABELS V385-001
-src/app/vocabulary.ts:REVIEW_ACTION_LABELS V385-001
-src/app/vocabulary.ts:REVIEW_KIND_LABELS V385-001
-src/config/runtime-config.ts:RuntimeConfigError V385-001
-src/config/runtime-config.ts:parseRuntimeConfig V385-001
-src/events/run-events.ts:OperationsEventCallbacks V385-001
-src/events/run-events.ts:RunEventCallbacks V385-001
-src/events/run-events.ts:parseServerFrame V385-001
-src/events/socket.ts:eventSocketURL V385-001
-src/routes/studio/document.ts:Kind V385-001
-src/run-drafts/memory.ts:MAX_RETAINED_RUN_DRAFTS V385-001
-src/run-drafts/provider.tsx:RunDraftProvider V385-001
-src/ui/decision-bar.tsx:DecisionBarProps V385-001
-src/ui/shortcuts.ts:ShortcutBindings V385-001
-src/ui/shortcuts.ts:ShortcutOptions V385-001
-src/ui/shortcuts.ts:isTextEntryTarget V385-001

@@ -20,7 +20,7 @@ import {
   listRuntimeConfigs,
   listRuntimeCredentials,
   listRuntimeLabels,
-  listRuntimeAgentPrincipals,
+  listAllRuntimeAgentPrincipals,
   publishConfiguration,
   publishRuntimeConfig,
   putRuntimeLabel,
@@ -462,7 +462,7 @@ describe("Operations API", () => {
     api.csrf.replace("a".repeat(43));
 
     const values = [
-      await listRuntimeAgentPrincipals(api),
+      await listAllRuntimeAgentPrincipals(api),
       await getRuntimeAgentPrincipal(api, runtimeAgentId),
       await replaceRuntimeAgentPrincipalLabels(
         api,
@@ -495,7 +495,9 @@ describe("Operations API", () => {
         }),
       ),
     );
-    await expect(listRuntimeAgentPrincipals(unexpected)).rejects.toMatchObject({
+    await expect(
+      listAllRuntimeAgentPrincipals(unexpected),
+    ).rejects.toMatchObject({
       code: "invalid_api_response",
     });
   });

@@ -9,7 +9,7 @@ import { createApplicationQueryClient } from "../app/query-client";
 import { SessionProvider } from "../auth/session";
 import { useRunDraftStore } from "./context";
 import { initialRunDraftState, type RunDraftMemoryStore } from "./memory";
-import { RunDraftProvider, SessionRunDraftProvider } from "./provider";
+import { SessionRunDraftProvider } from "./provider";
 import { discardSessionRunDrafts } from "./session-stores";
 
 function authSession(userId: string): AuthSession {
@@ -70,29 +70,13 @@ function Capture({
 }
 
 describe("RunDraftProvider", () => {
-  it("replaces all in-memory drafts when the authenticated owner changes", () => {
+  it("gives another authenticated owner a store without the drafts", async () => {
     const stores: RunDraftMemoryStore[] = [];
-    const capture = (store: RunDraftMemoryStore) => stores.push(store);
-    const view = render(
-      <RunDraftProvider ownerId="owner-a">
-        <Capture onStore={capture} />
-      </RunDraftProvider>,
-    );
+    const setSession = renderSessionProvider((store) => stores.push(store));
     const first = stores.at(-1)!;
-    const acquired = first.acquire(
-      { workflowName: "inspect", workflowVersion: "1" },
-      initialRunDraftState(),
-    );
-    if (acquired.kind !== "acquired") throw new Error("draft not acquired");
-    const changed = structuredClone(acquired.entry.state);
-    changed.parameters.objective = "private owner-a draft";
-    first.replaceState(acquired.entry, changed);
+    writeDraft(first, "private owner-a draft");
 
-    view.rerender(
-      <RunDraftProvider ownerId="owner-b">
-        <Capture onStore={capture} />
-      </RunDraftProvider>,
-    );
+    await setSession(authSession("owner-b"));
     const second = stores.at(-1)!;
     expect(second).not.toBe(first);
     expect(second.ownerId).toBe("owner-b");

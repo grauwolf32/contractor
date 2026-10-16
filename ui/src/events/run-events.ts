@@ -85,7 +85,7 @@ export interface RunEventEnvelope<T> {
   data: T;
 }
 
-export interface RunEventCallbacks {
+interface RunEventCallbacks {
   onPlannerEvent: (event: RunEventEnvelope<PlannerEventData>) => boolean;
   onLifecycleEvent: (event: RunEventEnvelope<LifecycleEventData>) => void;
   onResync: (reason: RunResyncReason) => void;
@@ -93,7 +93,7 @@ export interface RunEventCallbacks {
   onError: (message: string) => void;
 }
 
-export interface OperationsEventCallbacks {
+interface OperationsEventCallbacks {
   onOperationsEvent: (event: RunEventEnvelope<OperationsEventData>) => void;
   onResync: (reason: RunResyncReason) => void;
   onStateChange: (state: RunEventConnectionState) => void;
@@ -255,7 +255,7 @@ function requirePlanInvariants(plan: PlannerPlan): void {
  * Parses one Server frame. The generated contractor-events-v1 schema checks
  * its shape; only invariants between members stay here.
  */
-export function parseServerFrame(source: string): ServerFrame {
+function parseServerFrame(source: string): ServerFrame {
   if (
     source.length === 0 ||
     source.length > MAXIMUM_SERVER_FRAME_BYTES ||

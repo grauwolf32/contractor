@@ -25,11 +25,11 @@ interface ShortcutBinding {
  * values ("j", "?", "enter", "escape", "arrowdown", "space") or "mod+<key>"
  * for Ctrl on Windows and Linux and ⌘ on macOS ("mod+k", "mod+enter").
  */
-export type ShortcutBindings = Readonly<
+type ShortcutBindings = Readonly<
   Record<string, ShortcutHandler | ShortcutBinding>
 >;
 
-export interface ShortcutOptions {
+interface ShortcutOptions {
   /** Default true. */
   enabled?: boolean | undefined;
   /**
@@ -134,7 +134,7 @@ const ARROW_WIDGET_SELECTOR = [
  * textareas, selects and contenteditable regions. Checkboxes, radios and
  * other inputs that take no text are not typing targets.
  */
-export function isTextEntryTarget(target: EventTarget | null): boolean {
+function isTextEntryTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
   if (target instanceof HTMLInputElement) {
     return !NON_TEXT_INPUT_TYPES.has(target.type);

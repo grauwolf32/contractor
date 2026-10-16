@@ -19,7 +19,7 @@ import {
 const PROJECT_PAGE_SIZE = 50;
 // Project IDs are public ResourceIds.
 export const PROJECT_ID_PATTERN = RESOURCE_ID;
-export const PROJECT_REVISION_PATTERN = stringRule(
+const PROJECT_REVISION_PATTERN = stringRule(
   "Project",
   "properties",
   "revision",

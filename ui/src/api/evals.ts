@@ -37,7 +37,7 @@ export const EVAL_STATES = [
   "cancelling",
   "cancelled",
 ] as const satisfies readonly EvalExperiment["state"][];
-export const TERMINAL_EVAL_STATES = [
+const TERMINAL_EVAL_STATES = [
   "finished",
   "cancelled",
 ] as const satisfies readonly EvalExperiment["state"][];
@@ -54,16 +54,16 @@ export function evalInventory<T>(
   return loadCompletePages("This list", load, { signal });
 }
 
-export function mutationHeaders(
+function mutationHeaders(
   api: PublicAPI,
   key: string,
 ): { "Idempotency-Key": string };
-export function mutationHeaders(
+function mutationHeaders(
   api: PublicAPI,
   key: string,
   revision: number,
 ): { "Idempotency-Key": string; "If-Match": string };
-export function mutationHeaders(
+function mutationHeaders(
   api: PublicAPI,
   key: string,
   revision?: number,

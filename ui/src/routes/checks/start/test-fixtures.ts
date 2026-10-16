@@ -1,11 +1,8 @@
 // Check types, materials and projects shaped like the bundled catalog
 // (configs/audit-profiles), for the Start page tests.
 import type { ArtifactMetadata } from "../../../api/artifacts";
-import type {
-  Audit,
-  AuditProfile,
-  AuditStartResponse,
-} from "../../../api/audits";
+import type { Audit, AuditProfile } from "../../../api/audits";
+import type { components } from "../../../api/generated/public";
 import type { Project } from "../../../api/projects";
 import * as build from "../../../test/builders";
 
@@ -300,5 +297,5 @@ export function startResponse(draft: Audit) {
       updatedAt: audit.updatedAt,
     }),
     items: [],
-  } as AuditStartResponse);
+  } as components["schemas"]["AuditStartResponse"]);
 }

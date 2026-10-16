@@ -1,15 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
 
+import eventSchema from "../../../api/events/contractor-events-v1.schema.json";
 import plannerSubtaskCases from "../../../api/testdata/planner-subtask-cases.json";
 
 import {
-  parseServerFrame,
   RunEventsManager,
-  type OperationsEventCallbacks,
-  type RunEventCallbacks,
   type RunEventConnectionState,
   type RunResyncReason,
 } from "./run-events";
+
+type RunEventCallbacks = Parameters<RunEventsManager["subscribeRun"]>[2];
+type OperationsEventCallbacks = Parameters<
+  RunEventsManager["subscribeOperations"]
+>[1];
 
 class FakeWebSocket {
   static instances: FakeWebSocket[] = [];
@@ -163,6 +166,75 @@ function operationsCallbacks() {
   return { value, states, resyncs, changed, errors };
 }
 
+interface DeliveredFrame {
+  stream: { kind: string; id?: string };
+  cursor: { generation: string; sequence: string };
+  data?: unknown;
+}
+
+/**
+ * Hands `frame` to a live subscription of its stream, as the next frame the
+ * Server sends, and returns what the subscriber saw: the events it was given
+ * and the resyncs a refused frame started. A Run frame is renumbered to
+ * follow the subscription; an Operations frame keeps its revision cursor.
+ */
+function deliver(frame: DeliveredFrame) {
+  FakeWebSocket.instances = [];
+  const manager = new RunEventsManager("http://127.0.0.1:8080", {
+    WebSocketImplementation: FakeWebSocket as unknown as typeof WebSocket,
+  });
+  const seen: { data: unknown }[] = [];
+  const resyncs: RunResyncReason[] = [];
+  const common = {
+    onResync: (reason: RunResyncReason) => resyncs.push(reason),
+    onStateChange: () => undefined,
+    onError: () => undefined,
+  };
+  const operations = frame.stream.kind === "operations";
+  const next = operations ? frame.cursor : cursor("42");
+  const before = {
+    generation: next.generation,
+    sequence: String(Number(next.sequence) - 1),
+  };
+  if (operations) {
+    manager.subscribeOperations(
+      { generation: before.generation, revision: before.sequence },
+      { ...common, onOperationsEvent: (event) => seen.push(event) },
+    );
+  } else {
+    manager.subscribeRun(frame.stream.id ?? "", before, {
+      ...common,
+      onPlannerEvent: (event) => {
+        seen.push(event);
+        return true;
+      },
+      onLifecycleEvent: (event) => seen.push(event),
+    });
+  }
+  const socket = FakeWebSocket.instances[0]!;
+  socket.open();
+  const { subscriptionId } = JSON.parse(socket.sent[0] ?? "{}") as {
+    subscriptionId: string;
+  };
+  socket.message({
+    version: "contractor.events.v1",
+    type: "subscribed",
+    subscriptionId,
+    stream: frame.stream,
+    cursor: before,
+  });
+  socket.message({ ...frame, subscriptionId, cursor: next });
+  manager.close();
+  return { seen, resyncs };
+}
+
+/** Expects the manager to refuse `frame` and resynchronise. */
+function expectRefused(frame: DeliveredFrame) {
+  const { seen, resyncs } = deliver(frame);
+  expect(seen).toEqual([]);
+  expect(resyncs).toContain("protocol_error");
+}
+
 describe("Run event protocol", () => {
   it("accepts only fixed scan progress codes without request data", () => {
     for (const code of [
@@ -186,44 +258,35 @@ describe("Run event protocol", () => {
           },
         },
       };
-      expect(parseServerFrame(JSON.stringify(frame))).toMatchObject({
+      expect(deliver(frame).seen).toMatchObject([
+        {
+          data: {
+            eventKind: "planner.activity",
+            activity: { kind: code, author: "scan_planner" },
+          },
+        },
+      ]);
+      expectRefused({
+        ...frame,
         data: {
-          eventKind: "planner.activity",
-          activity: { kind: code, author: "scan_planner" },
+          ...frame.data,
+          activity: { ...frame.data.activity, kind: "private_value" },
         },
       });
-      expect(() =>
-        parseServerFrame(
-          JSON.stringify({
-            ...frame,
-            data: {
-              ...frame.data,
-              activity: { ...frame.data.activity, kind: "private_value" },
-            },
-          }),
-        ),
-      ).toThrow("breaks the contract at #/data/activity/kind");
-      expect(() =>
-        parseServerFrame(
-          JSON.stringify({
-            ...frame,
-            data: { ...frame.data, url: "https://secret.invalid" },
-          }),
-        ),
-      ).toThrow("breaks the contract");
+      expectRefused({
+        ...frame,
+        data: { ...frame.data, url: "https://secret.invalid" },
+      });
     }
   });
 
   it("parses only the reduced typed Planner projection", () => {
-    const parsed = parseServerFrame(
-      JSON.stringify(plannerEvent("run-ui-1", "run-1", "42")),
-    );
-    expect(parsed.type).toBe("event");
-    if (parsed.type !== "event" || parsed.kind !== "planner.event") {
-      throw new Error("expected Planner event");
-    }
-    expect(parsed.data.plan?.subtasks[0]?.objective).toBe("Inspect source");
-    expect("prompt" in parsed.data).toBe(false);
+    const { seen } = deliver(plannerEvent("run-ui-1", "run-1", "42"));
+    const data = seen[0]?.data as {
+      plan?: { subtasks: { objective: string }[] };
+    };
+    expect(data.plan?.subtasks[0]?.objective).toBe("Inspect source");
+    expect("prompt" in data).toBe(false);
   });
 
   it("rejects unknown fields instead of admitting prompt or tool payload data", () => {
@@ -234,34 +297,28 @@ describe("Run event protocol", () => {
     };
     data.prompt = "secret prompt";
     data.toolArguments = { token: "secret" };
-    expect(() => parseServerFrame(JSON.stringify(unsafe))).toThrow(
-      "breaks the contract at #/data/toolArguments",
-    );
+    expectRefused(unsafe);
   });
 
   it("parses a closed Operations invalidation without resource payload", () => {
-    const parsed = parseServerFrame(
-      JSON.stringify({
-        version: "contractor.events.v1",
-        type: "event",
-        subscriptionId: "operations-ui-1",
-        stream: { kind: "operations" },
-        cursor: { generation: "operations-generation-1", sequence: "10" },
-        kind: "operations.changed",
-        occurredAt: "2026-08-31T12:00:00Z",
-        data: {
-          resource: "allocation",
-          resourceId: "allocation-1",
-          revision: "10",
-        },
-      }),
-    );
-    expect(parsed).toMatchObject({
+    const { seen } = deliver({
+      version: "contractor.events.v1",
       type: "event",
+      subscriptionId: "operations-ui-1",
+      stream: { kind: "operations" },
+      cursor: { generation: "operations-generation-1", sequence: "10" },
       kind: "operations.changed",
-      data: { resource: "allocation", revision: "10" },
-    });
-    expect(JSON.stringify(parsed)).not.toMatch(/observedState|credentialId/);
+      occurredAt: "2026-08-31T12:00:00Z",
+      data: {
+        resource: "allocation",
+        resourceId: "allocation-1",
+        revision: "10",
+      },
+    } as DeliveredFrame);
+    expect(seen).toMatchObject([
+      { data: { resource: "allocation", revision: "10" } },
+    ]);
+    expect(JSON.stringify(seen)).not.toMatch(/observedState|credentialId/);
   });
 
   it("parses Scheduler settings invalidations only without a resource identity", () => {
@@ -275,19 +332,13 @@ describe("Run event protocol", () => {
       occurredAt: "2026-08-31T12:00:01Z",
       data: { resource: "schedulerSettings", revision: "11" },
     };
-    expect(parseServerFrame(JSON.stringify(frame))).toMatchObject({
-      type: "event",
-      kind: "operations.changed",
-      data: { resource: "schedulerSettings", revision: "11" },
+    expect(deliver(frame).seen).toMatchObject([
+      { data: { resource: "schedulerSettings", revision: "11" } },
+    ]);
+    expectRefused({
+      ...frame,
+      data: { ...frame.data, resourceId: "singleton" },
     });
-    expect(() =>
-      parseServerFrame(
-        JSON.stringify({
-          ...frame,
-          data: { ...frame.data, resourceId: "singleton" },
-        }),
-      ),
-    ).toThrow("breaks the contract");
   });
 });
 
@@ -948,13 +999,12 @@ describe("shared Planner subtask contract", () => {
           status: "pending",
         }),
       );
-      const parse = () => parseServerFrame(JSON.stringify(event));
       if (testCase.valid && testCase.eventFrameValid) {
-        expect(parse()).toMatchObject({
-          data: { plan: { subtasks: event.data.plan.subtasks } },
-        });
+        expect(deliver(event).seen).toMatchObject([
+          { data: { plan: { subtasks: event.data.plan.subtasks } } },
+        ]);
       } else {
-        expect(parse).toThrow();
+        expectRefused(event);
       }
     });
   }
@@ -971,12 +1021,41 @@ describe("shared Planner subtask contract", () => {
           subtaskId: testCase.value,
         },
       };
-      const parse = () => parseServerFrame(JSON.stringify(event));
       if (testCase.valid) {
-        expect(parse()).toMatchObject({ data: { subtaskId: testCase.value } });
+        expect(deliver(event).seen).toMatchObject([
+          { data: { subtaskId: testCase.value } },
+        ]);
       } else {
-        expect(parse).toThrow();
+        expectRefused(event);
       }
     });
   }
+});
+
+// The Go server validates these schema examples; the UI must accept every
+// server-sent one.
+describe("event schema examples", () => {
+  const events = eventSchema.examples.filter(
+    (example) => example.type === "event",
+  );
+
+  it("include server events and no other server frame", () => {
+    expect(events.length).toBeGreaterThan(0);
+    // A new server frame example needs its own delivery case here.
+    expect(
+      eventSchema.examples.filter(
+        (example) =>
+          !["subscribe", "unsubscribe", "event"].includes(example.type),
+      ),
+    ).toEqual([]);
+  });
+
+  it.each(events.map((example) => [example.kind, example] as const))(
+    "delivers the %s example",
+    (_kind, example) => {
+      const { seen, resyncs } = deliver(example as DeliveredFrame);
+      expect(resyncs).toEqual([]);
+      expect(seen).toMatchObject([{ data: example.data }]);
+    },
+  );
 });

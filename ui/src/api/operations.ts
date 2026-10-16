@@ -6,6 +6,7 @@ import {
   RUNTIME_CONFIG_VERSION,
   RUNTIME_CREDENTIAL_ID,
   RUNTIME_INFRASTRUCTURE_ID,
+  schemaEnum,
   stringRule,
 } from "./contract";
 import { invalidAPIResponse, publicAPIError, requireData } from "./error";
@@ -20,12 +21,7 @@ import {
 } from "./workflows";
 
 const OPERATIONS_PAGE_SIZE = 50;
-export const CONFIGURATION_KINDS = [
-  "agent-templates",
-  "execution-configs",
-  "model-policies",
-  "llm-gateways",
-] as const satisfies readonly ConfigurationKind[];
+const CONFIGURATION_KINDS = schemaEnum<ConfigurationKind>("ConfigurationKind");
 const WRITABLE_CONFIGURATION_KINDS = [
   "model-policies",
   "llm-gateways",
@@ -384,7 +380,7 @@ export async function getOperationsSnapshot(
   return snapshot;
 }
 
-export async function listRuntimeAgentPrincipals(
+async function listRuntimeAgentPrincipals(
   api: PublicAPI,
   request: CursorPageRequest = {},
 ): Promise<RuntimeAgentPrincipalPage> {

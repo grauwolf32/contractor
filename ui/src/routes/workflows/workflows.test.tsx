@@ -11,7 +11,6 @@ import {
   initialRunDraftState,
   RunDraftMemoryStore,
 } from "../../run-drafts/memory";
-import { RunDraftProvider } from "../../run-drafts/provider";
 import { renderApplication } from "../../test/application";
 import {
   artifactMetadata,
@@ -271,7 +270,11 @@ function renderRunForm(
   queryClient = createApplicationQueryClient(),
 ) {
   return renderWithAPI(
-    <RunDraftProvider ownerId="user_local">{form}</RunDraftProvider>,
+    <RunDraftStoreContext.Provider
+      value={new RunDraftMemoryStore("user_local")}
+    >
+      {form}
+    </RunDraftStoreContext.Provider>,
     { server: fakeServer(routes), queryClient },
   );
 }
