@@ -8,7 +8,7 @@ import {
 } from "yaml";
 
 export const KINDS = ["Workflow", "AuditProfile", "AgentTemplate"] as const;
-export type Kind = (typeof KINDS)[number];
+type Kind = (typeof KINDS)[number];
 export type Path = (string | number)[];
 export const MAX_SOURCE_BYTES = 1024 * 1024;
 const MAX_BLOCKS = 256;

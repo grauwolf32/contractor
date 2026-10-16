@@ -8,7 +8,7 @@ export interface EventCursor {
   sequence: string;
 }
 
-export type EventStream = { kind: "run"; id: string } | { kind: "operations" };
+type EventStream = { kind: "run"; id: string } | { kind: "operations" };
 
 type WebSocketFactory = new (
   url: string | URL,
@@ -23,7 +23,7 @@ function send(socket: WebSocket, frame: object): void {
   socket.send(JSON.stringify(frame));
 }
 
-export function eventSocketURL(apiBaseUrl: string): string {
+function eventSocketURL(apiBaseUrl: string): string {
   const origin = validateAPIBaseURL(apiBaseUrl);
   const url = new URL("/v1/events/ws", origin);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";

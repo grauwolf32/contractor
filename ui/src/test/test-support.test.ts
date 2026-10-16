@@ -1,5 +1,7 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
+import { schemaViolation } from "../api/contract";
 import {
   audit,
   conforming,
@@ -8,14 +10,9 @@ import {
   report,
   review,
 } from "./builders";
-import {
-  failure,
-  fakeServer,
-  invalidJSON,
-  json,
-  operationOf,
-  page,
-} from "./fake-server";
+import { createEvalFixture } from "./evals-fixture";
+import { fakeServer, invalidJSON } from "./fake-server";
+import { bytes, failure, json, operationOf, page } from "./responses";
 import { testAPI } from "./render";
 
 describe("fake Server", () => {
@@ -92,6 +89,58 @@ describe("fake Server", () => {
       ),
     ).rejects.toMatchObject({ code: "invalid_api_response", status: 200 });
     expect(failure(503).status).toBe(503);
+  });
+
+  it("serves artifact content as raw bytes, also when it is JSON", async () => {
+    const server = fakeServer({
+      "GET /v1/runs/{runId}/artifacts/{namespace}/{name}": () =>
+        bytes('{"anything": "goes"}', "application/json"),
+    });
+    const response = await server.fetch(
+      "http://127.0.0.1:8080/v1/runs/run_1/artifacts/outputs/trace",
+    );
+    expect(response.headers.get("Content-Length")).toBe("20");
+    expect(await response.text()).toBe('{"anything": "goes"}');
+    expect(
+      server.handles("GET /v1/runs/{runId}/artifacts/{namespace}/{name}"),
+    ).toBe(true);
+    expect(server.handles("GET /v1/projects")).toBe(false);
+  });
+});
+
+describe("browser-safe helpers", () => {
+  // The Playwright specs import these; a value import of vitest (directly or
+  // through fake-server.ts) would load the unit test runner into the browser
+  // run.
+  it.each([
+    "responses.ts",
+    "builders.ts",
+    "builders-execution.ts",
+    "owner-lists.ts",
+    "evals-fixture.ts",
+    "audit-presets-fixture.ts",
+  ])("%s imports no test runner", (file) => {
+    const source = readFileSync(new URL(file, import.meta.url), "utf8");
+    const runtimeImports = [
+      ...source.matchAll(/^import (?!type )[^;]*?from "([^"]+)";/gms),
+    ].map((match) => match[1]);
+    expect(runtimeImports).not.toContain("vitest");
+    expect(runtimeImports).not.toContain("./fake-server");
+    expect(runtimeImports).not.toContain("./render");
+  });
+});
+
+describe("Eval fixture", () => {
+  it("answers errors with the contract's error envelope", async () => {
+    const fixture = createEvalFixture();
+    const refused = await fixture.fetch(
+      new Request("http://127.0.0.1:8080/v1/eval-experiments", {
+        method: "POST",
+        body: "{}",
+      }),
+    );
+    expect(refused.status).toBe(403);
+    expect(schemaViolation("Error", await refused.json())).toBeUndefined();
   });
 });
 

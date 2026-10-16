@@ -51,7 +51,7 @@ type AuditReviewKind = AuditReviewRequest["kind"];
 type AuditReportStatus = components["schemas"]["AuditReportStatus"];
 
 /** Analyst verdict filter values the findings endpoint accepts. */
-export type FindingVerdictFilter = NonNullable<
+type FindingVerdictFilter = NonNullable<
   NonNullable<operations["listAuditFindings"]["parameters"]["query"]>["verdict"]
 >;
 
@@ -93,7 +93,7 @@ export type CrossProjectError =
   | { scope: "check"; projectId: string; auditId: string; error: Error };
 
 /** Completeness and loading state shared by every cross-project list. */
-export interface CrossProjectStatus {
+interface CrossProjectStatus {
   /** A bounded read had more records than it returned. */
   truncated: boolean;
   /** Some read failed; everything else is still listed. */
@@ -314,7 +314,7 @@ export function useProjectsIndex(
   }, [data, error, isPending, refetch]);
 }
 
-export interface AllChecksOptions {
+interface AllChecksOptions {
   /** Checks in these states; omitted or empty means every state. Server-filtered. */
   states?: readonly AuditState[];
   /** False keeps every read idle (and `isPending` true). */
@@ -533,7 +533,7 @@ function statusOf(
   };
 }
 
-export interface PossibleIssuesOptions {
+interface PossibleIssuesOptions {
   /**
    * Only checks in these states; omit (or pass none) for every check that
    * can hold possible issues (every state but draft and deleting). The Inbox
@@ -711,7 +711,7 @@ export function useAllPossibleIssues(
   }, [checks, findings]);
 }
 
-export interface PendingDecisionsOptions {
+interface PendingDecisionsOptions {
   /**
    * Only checks in these states; omit (or pass none) for every check that
    * can ask for a decision (running, waiting, paused or finishing). The
@@ -808,7 +808,7 @@ export function usePendingDecisions(
   }, [checks, kindKey, query.data, query.error, query.isPending]);
 }
 
-export interface AllReportsOptions {
+interface AllReportsOptions {
   /**
    * Report statuses to list. Omitted: the reports that exist (proposed and
    * ready). An empty list, like every empty filter here: every status.
@@ -818,7 +818,7 @@ export interface AllReportsOptions {
   enabled?: boolean;
 }
 
-export interface AllReports extends CrossProjectStatus {
+interface AllReports extends CrossProjectStatus {
   /** Reports in the order of their checks: newest check first. */
   reports: CrossProjectReport[];
 }

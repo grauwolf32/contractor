@@ -13,10 +13,10 @@ import type { components } from "./generated/public";
 import { PROJECT_ID_PATTERN } from "./projects";
 import { RUN_ID_PATTERN } from "./runs";
 
-export type ArtifactArchive = components["schemas"]["ArtifactArchive"];
+type ArtifactArchive = components["schemas"]["ArtifactArchive"];
 export type ArtifactArchiveEntry =
   components["schemas"]["ArtifactArchiveEntry"];
-export type ArtifactArchiveFile = components["schemas"]["ArtifactArchiveFile"];
+type ArtifactArchiveFile = components["schemas"]["ArtifactArchiveFile"];
 export type ArtifactArchiveScope =
   | { kind: "user" }
   | { kind: "project"; id: string }

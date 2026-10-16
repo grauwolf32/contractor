@@ -2,8 +2,9 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
-import { json, page } from "../../../test/fake-server";
-import { operationsSnapshot, renderOperationsApp } from "../test-support";
+import { renderApplication } from "../../../test/application";
+import { operationsSnapshot } from "../../../test/builders-execution";
+import { json, page } from "../../../test/responses";
 
 const digest = `sha256:${"5".repeat(64)}`;
 
@@ -20,8 +21,8 @@ const policy = {
 
 function setup(path: string) {
   const reads: string[] = [];
-  const { router } = renderOperationsApp(path, {
-    routes: {
+  const { router } = renderApplication(path, {
+    server: {
       "GET /v1/operations/snapshot": () => json(operationsSnapshot("1")),
       "GET /v1/projects": () => json(page([])),
       "GET /v1/configurations/{kind}": ({ url, params }) => {

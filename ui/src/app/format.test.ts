@@ -7,8 +7,10 @@ import {
   formatAge,
   formatBytes,
   formatClock,
+  formatCompact,
   formatDay,
   formatElapsed,
+  formatNumber,
   formatRelative,
   formatSeconds,
   formatShortDateTime,
@@ -39,6 +41,21 @@ describe("counts and sizes", () => {
     expect(plural(1204, "endpoint")).toBe("1,204 endpoints");
     expect(plural(2, "entry", "entries")).toBe("2 entries");
     expect(plural(1.5, "hour")).toBe("1.5 hours");
+  });
+
+  it("formats counts and measurements with en-US grouping", () => {
+    expect(formatNumber(1204)).toBe("1,204");
+    expect(formatNumber(0.256)).toBe("0.26");
+    expect(formatNumber(3.25, 1)).toBe("3.3");
+    expect(formatNumber(2, 2, 2)).toBe("2.00");
+    expect(formatNumber(2_147_483_647)).toBe("2,147,483,647");
+  });
+
+  it("shortens large counts", () => {
+    expect(formatCompact(999)).toBe("999");
+    expect(formatCompact(1_234)).toBe("1.2K");
+    expect(formatCompact(34_000)).toBe("34K");
+    expect(formatCompact(1_500_000)).toBe("1.5M");
   });
 
   it("formats byte sizes in binary units", () => {

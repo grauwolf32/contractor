@@ -54,7 +54,7 @@ interface DecisionNext {
   onNext: () => void;
 }
 
-export interface DecisionBarProps {
+interface DecisionBarProps {
   /** The verdicts, in display order. */
   options: readonly DecisionOption[];
   /** Id of the chosen option. */

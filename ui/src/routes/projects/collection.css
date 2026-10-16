@@ -1,5 +1,39 @@
 /* Legacy evaluation workspaces (/evals/legacy, /evals/:projectId). */
 
+/* ---------- Projects list (base rules; this sheet refines them below) ---------- */
+
+.empty-state {
+  min-height: 19rem;
+  margin-top: 3rem;
+  border: 1px dashed var(--line-strong);
+  border-radius: 0.8rem;
+  background: var(--surface);
+  padding: 3rem;
+}
+
+.empty-state span {
+  display: inline-block;
+  border: 1px solid var(--accent-line);
+  border-radius: 999px;
+  background: var(--accent-dark);
+  color: var(--accent);
+  padding: 0.3rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.empty-state p {
+  color: var(--muted);
+}
+
+@media (max-width: 640px) {
+  .empty-state {
+    min-height: 0;
+    padding: 1.25rem;
+  }
+}
+
 .project-list-heading {
   display: flex;
   align-items: end;

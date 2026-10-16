@@ -5,14 +5,46 @@
  * in the browser's time zone.
  */
 
-const counts = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
+const numbers = new Map<string, Intl.NumberFormat>();
+
+/**
+ * A count or a measurement: "1,204", "0.25", "3.5". Integers stay whole;
+ * other values keep at most `maximumFractionDigits` (2) and at least
+ * `minimumFractionDigits` (0) fraction digits.
+ */
+export function formatNumber(
+  value: number,
+  maximumFractionDigits = 2,
+  minimumFractionDigits = 0,
+): string {
+  const key = `${minimumFractionDigits}/${maximumFractionDigits}`;
+  let format = numbers.get(key);
+  if (format === undefined) {
+    format = new Intl.NumberFormat("en-US", {
+      minimumFractionDigits,
+      maximumFractionDigits,
+    });
+    numbers.set(key, format);
+  }
+  return format.format(value);
+}
+
+const compact = new Intl.NumberFormat("en-US", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
+/** A large count in a small space: "999", "1.2K", "34K", "1.5M". */
+export function formatCompact(value: number): string {
+  return compact.format(value);
+}
 
 /**
  * A count and its noun: "1 check", "3 checks", "1,204 endpoints",
  * "1.5 hours". The plural is `one` + "s" unless `many` is given.
  */
 export function plural(count: number, one: string, many = `${one}s`): string {
-  return `${counts.format(count)} ${count === 1 ? one : many}`;
+  return `${formatNumber(count)} ${count === 1 ? one : many}`;
 }
 
 /** "512 B", "68.7 KiB", "3.2 MiB", "1.0 GiB", "2.0 TiB". */

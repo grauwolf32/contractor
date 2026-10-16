@@ -1,12 +1,13 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { fakeServer, json } from "../../test/fake-server";
+import { fakeServer } from "../../test/fake-server";
+import { json } from "../../test/responses";
 import { renderWithAPI } from "../../test/render";
 import { inferredArtifactMediaType } from "./artifact-file";
 import { ArtifactWriteForm } from "./common";
 import { LoadedArtifactPreview } from "./loaded-preview";
-import { artifactMetadata, artifactWrite } from "./test-support";
+import { artifactMetadata, artifactWrite } from "../../test/builders";
 
 const wordlist = "text/vnd.contractor.wordlist";
 

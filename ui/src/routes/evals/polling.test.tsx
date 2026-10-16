@@ -7,10 +7,11 @@ import { PublicAPIProvider } from "../../api/context";
 import { EVAL_POLL_MS } from "../../api/evals";
 import { createApplicationQueryClient } from "../../app/query-client";
 import { createEvalFixture } from "../../test/evals-fixture";
+import { testAPI } from "../../test/render";
 import { EvalListRoute } from "./list";
 import { evalExperimentPollInterval, evalListPollInterval } from "./polling";
 import { useEvalExperiment } from "./queries";
-import { evalAPI } from "./test-support";
+import { evalServer } from "./test-support";
 
 afterEach(() => vi.useRealTimers());
 
@@ -118,7 +119,7 @@ describe("Eval polling", () => {
     const client = createApplicationQueryClient();
     const view = render(
       <QueryClientProvider client={client}>
-        <PublicAPIProvider api={evalAPI(fixture)}>
+        <PublicAPIProvider api={testAPI(evalServer(fixture)).api}>
           <DetailProbe />
         </PublicAPIProvider>
       </QueryClientProvider>,
@@ -152,7 +153,7 @@ describe("Eval polling", () => {
     const client = createApplicationQueryClient();
     const view = render(
       <QueryClientProvider client={client}>
-        <PublicAPIProvider api={evalAPI(fixture)}>
+        <PublicAPIProvider api={testAPI(evalServer(fixture)).api}>
           <MemoryRouter initialEntries={["/evals"]}>
             <EvalListRoute />
           </MemoryRouter>

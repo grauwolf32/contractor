@@ -3,13 +3,15 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { createApplicationQueryClient } from "../../app/query-client";
+import { renderApplication } from "../../test/application";
+import { deferred } from "../../test/deferred";
 import { createEvalFixture } from "../../test/evals-fixture";
-import { renderEvals, stubEvalBrowser } from "./test-support";
+import { evalServer, stubEvalBrowser } from "./test-support";
 
 beforeEach(stubEvalBrowser);
 
 function start(fixture: ReturnType<typeof createEvalFixture>, path: string) {
-  return renderEvals(fixture, path).router;
+  return renderApplication(path, { server: evalServer(fixture) }).router;
 }
 
 describe("Experiment setup vocabulary", () => {
@@ -101,22 +103,20 @@ describe("Experiment setup navigation", () => {
     { timeout: 15_000 },
     async () => {
       const fixture = createEvalFixture();
-      let release: () => void = () => undefined;
-      const released = new Promise<void>((resolve) => {
-        release = resolve;
-      });
+      const released = deferred();
       const answer = fixture.fetch;
       fixture.fetch = async (request) => {
         if (
           request.method === "POST" &&
           new URL(request.url).pathname.endsWith("/eval-experiments")
         )
-          await released;
+          await released.promise;
         return answer(request);
       };
       const queryClient = createApplicationQueryClient();
-      const { router } = renderEvals(fixture, "/evals/new", {
-        cache: queryClient,
+      const { router } = renderApplication("/evals/new", {
+        server: evalServer(fixture),
+        queryClient,
       });
       const user = userEvent.setup();
       await user.type(
@@ -149,7 +149,7 @@ describe("Experiment setup navigation", () => {
       await user.click(screen.getByRole("button", { name: "Save draft" }));
       await act(() => router.navigate("/settings"));
       expect(queryClient.isMutating()).toBe(1);
-      release();
+      released.resolve();
       await waitFor(() => expect(queryClient.isMutating()).toBe(0));
       await act(async () => undefined);
       expect(

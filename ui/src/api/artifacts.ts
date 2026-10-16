@@ -332,7 +332,7 @@ export function canPreviewArtifact(metadata: ArtifactMetadata): boolean {
   );
 }
 
-export function suggestedArtifactFilename(
+function suggestedArtifactFilename(
   artifact: ExactArtifactRef,
   mediaType: string,
 ): string {

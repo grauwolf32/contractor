@@ -10,14 +10,8 @@ import type {
 } from "../../api/audits";
 import type { Project } from "../../api/projects";
 import * as build from "../../test/builders";
-import {
-  failure,
-  fakeServer,
-  json,
-  page,
-  type FakeCall,
-  type Route,
-} from "../../test/fake-server";
+import { fakeServer, type FakeCall, type Route } from "../../test/fake-server";
+import { failure, json, page } from "../../test/responses";
 import { ownerListRoutes } from "../../test/owner-lists";
 import { renderWithAPI } from "../../test/render";
 import { ReportsRoute } from "./index";
@@ -88,15 +82,6 @@ export interface ServerState {
     (() => Response | undefined | Promise<Response | undefined>) | undefined;
   /** Requests whose path matches wait for `until` before they are answered. */
   hold?: { path: RegExp; until: Promise<void> } | undefined;
-}
-
-/** A promise for ServerState.hold and the function that settles it. */
-export function gate(): { until: Promise<void>; release: () => void } {
-  let release: () => void = () => undefined;
-  const until = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  return { until, release };
 }
 
 /**

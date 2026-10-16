@@ -15,6 +15,8 @@ export function WorkflowVersionSelect({
     <label className="workflow-card-select">
       <span>Version</span>
       <select
+        className="ui-control"
+        data-size="xs"
         aria-label={`Version of ${workflow.ref.name}`}
         value={workflow.ref.version}
         onChange={(event) => onChange(event.target.value)}

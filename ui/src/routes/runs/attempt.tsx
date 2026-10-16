@@ -479,7 +479,7 @@ export function StageAttemptView({
         <StatusGlyph tone={state.tone} />
         <span className="runs-attempt-name">
           <code>{attempt.stage}</code>
-          <span className="runs-attempt-number">attempt {attempt.attempt}</span>
+          <span className="ui-caption">attempt {attempt.attempt}</span>
           {active ? <strong className="runs-marker">active</strong> : null}
         </span>
         <span className="runs-attempt-aside">

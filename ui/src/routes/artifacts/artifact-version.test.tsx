@@ -1,7 +1,8 @@
 import { screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { fakeServer, json } from "../../test/fake-server";
+import { fakeServer } from "../../test/fake-server";
+import { json } from "../../test/responses";
 import { renderWithAPI } from "../../test/render";
 import {
   MAXIMUM_SKILL_ARCHIVE_BYTES,
@@ -9,7 +10,7 @@ import {
 } from "./artifact-file";
 import { ArtifactWriteForm } from "./common";
 import { ArtifactDetailRoute } from "./detail";
-import { artifactMetadata, artifactWrite } from "./test-support";
+import { artifactMetadata, artifactWrite } from "../../test/builders";
 
 describe("Artifact version media types", () => {
   it.each(["user", "project"])(

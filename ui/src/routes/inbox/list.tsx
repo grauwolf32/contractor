@@ -50,7 +50,7 @@ import {
   SECTIONS,
   SUCCEEDED_RUNS_PATH,
 } from "./present";
-import { plural } from "../../app/format";
+import { formatNumber, plural } from "../../app/format";
 
 const UNAVAILABLE = "Some of this could not be loaded. Try again above.";
 
@@ -413,7 +413,7 @@ function runsLeftOut(
     page !== undefined &&
     moreRecentRunsMayFollow(page.items, page.page.hasMore, now);
   if (recent.hidden > 0)
-    return `${recent.hidden.toLocaleString("en-US")}${more ? "+" : ""} more ${
+    return `${formatNumber(recent.hidden)}${more ? "+" : ""} more ${
       recent.hidden === 1 && !more ? one : many
     } in the last 7 days. `;
   return page?.page.hasMore === true

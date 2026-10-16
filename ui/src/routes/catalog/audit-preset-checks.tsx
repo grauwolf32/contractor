@@ -8,14 +8,14 @@ import { queryKeys } from "../../api/query-keys";
 import { Icon } from "../../app/icon";
 import { QueryView } from "../../app/query-view";
 import {
+  type AuditCoverageStatus,
   capitalize,
   coverageStatusLabel,
-  itemNoun,
-  type AuditCoverageStatus,
   type ItemKind,
+  itemNoun,
+  wordOf,
 } from "../../app/vocabulary";
 import { Facts } from "../../ui";
-import { wordOf } from "./audit-preset-data";
 // The check page shows these lists too, without the Library layout.
 import "./catalog.css";
 import "./library.css";

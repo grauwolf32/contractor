@@ -1,5 +1,6 @@
 import { schemaLimit, stringRule } from "../../../api/contract";
 import type { CreateCredentialRequest } from "../../../api/operations";
+import { formatNumber } from "../../../app/format";
 
 // CreateCredentialRequest and GatewayPolicy limits, as the contract states them.
 export const LABEL = stringRule(
@@ -60,9 +61,8 @@ export function validateCredentialRequest(
       value !== undefined &&
       (!Number.isInteger(value) || value < minimum || value > maximum)
     ) {
-      // V385: needs a shared integer formatter in src/app/format.ts.
       errors.push(
-        `${title} must be an integer from ${minimum} through ${maximum.toLocaleString("en-US")}.`,
+        `${title} must be an integer from ${minimum} through ${formatNumber(maximum)}.`,
       );
     }
   }

@@ -7,6 +7,7 @@ import {
   type AuditCoverageRow,
 } from "../../../api/audits";
 import { ErrorNotice } from "../../../app/error-notice";
+import { formatNumber } from "../../../app/format";
 import { StaleDataWarning } from "../../../app/query-view";
 import { Icon } from "../../../app/icon";
 import {
@@ -241,9 +242,8 @@ export function CheckListPane({
           </div>
           <div className="checks-list-count">
             <p role="status">
-              Showing {shown.toLocaleString("en-US")} of{" "}
-              {coverage.truncated ? "≥" : ""}
-              {entries.length.toLocaleString("en-US")} {plural}
+              Showing {formatNumber(shown)} of {coverage.truncated ? "≥" : ""}
+              {formatNumber(entries.length)} {plural}
             </p>
             <IconButton
               variant="ghost"

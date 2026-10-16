@@ -16,10 +16,10 @@ import {
   type WorkflowRunLifecycle,
 } from "./runs";
 
-export const PROJECT_PAGE_SIZE = 50;
+const PROJECT_PAGE_SIZE = 50;
 // Project IDs are public ResourceIds.
 export const PROJECT_ID_PATTERN = RESOURCE_ID;
-export const PROJECT_REVISION_PATTERN = stringRule(
+const PROJECT_REVISION_PATTERN = stringRule(
   "Project",
   "properties",
   "revision",
@@ -37,7 +37,7 @@ export const MAXIMUM_PROJECT_DESCRIPTION_LENGTH = schemaLimit(
   "description",
 );
 // The Server bounds the target URL in UTF-8 bytes.
-export const MAXIMUM_PROJECT_TARGET_URL_BYTES = schemaLimit(
+const MAXIMUM_PROJECT_TARGET_URL_BYTES = schemaLimit(
   "ProjectHTTPTarget",
   "maxLength",
   "properties",
@@ -54,38 +54,36 @@ export function requireActiveChecksPolicy(value: unknown): ActiveChecksPolicy {
   throw new TypeError("Project active checks policy is invalid");
 }
 export type ProjectKind = components["schemas"]["ProjectKind"];
-export type ProjectLifecycle = components["schemas"]["ProjectLifecycle"];
 export type ProjectDeletionPhase =
   components["schemas"]["ProjectDeletionPhase"];
 export type ProjectPage = components["schemas"]["ProjectPage"];
 export type CreateProjectRequest =
   components["schemas"]["CreateProjectRequest"];
-export type UpdateProjectRequest =
-  components["schemas"]["UpdateProjectRequest"];
-export type ProjectHTTPTarget = components["schemas"]["ProjectHTTPTarget"];
+type UpdateProjectRequest = components["schemas"]["UpdateProjectRequest"];
+type ProjectHTTPTarget = components["schemas"]["ProjectHTTPTarget"];
 
-export interface ProjectPageRequest {
+interface ProjectPageRequest {
   kind?: ProjectKind;
   cursor?: string;
 }
 
-export interface CreateProjectOptions {
+interface CreateProjectOptions {
   request: CreateProjectRequest;
   idempotencyKey: string;
 }
 
-export interface UpdateProjectOptions {
+interface UpdateProjectOptions {
   projectId: string;
   request: UpdateProjectRequest;
   expectedRevision: string;
 }
 
-export interface DeleteProjectOptions {
+interface DeleteProjectOptions {
   projectId: string;
   expectedRevision: string;
 }
 
-export interface ProjectRunPageRequest {
+interface ProjectRunPageRequest {
   projectId: string;
   cursor?: string;
   limit?: number;

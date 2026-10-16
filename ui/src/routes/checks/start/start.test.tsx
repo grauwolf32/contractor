@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AuditProfile } from "../../../api/audits";
 import { queryKeys } from "../../../api/query-keys";
+import { deferred } from "../../../test/deferred";
 import {
   asvsPilot,
   asvsReview,
@@ -28,7 +29,7 @@ import {
   wstgLive,
   wstgLiveDetail,
 } from "./test-fixtures";
-import { failure, gatewayFailure, json, page } from "../../../test/fake-server";
+import { failure, gatewayFailure, json, page } from "../../../test/responses";
 import { CSRF_TOKEN } from "../../../test/render";
 import { renderStart } from "./test-support";
 
@@ -799,26 +800,20 @@ describe("Start a check: options and starting", () => {
   );
 
   it("leaves the user where they went when the start answers after they left", async () => {
-    let releaseStart = () => {};
-    const startAnswered = new Promise<void>((resolve) => {
-      releaseStart = resolve;
-    });
-    let releaseRuns = () => {};
-    const runsCode = new Promise<void>((resolve) => {
-      releaseRuns = resolve;
-    });
+    const startAnswered = deferred();
+    const runsCode = deferred();
     const { user, router, sent } = renderStart(
       `${START}&type=owasp-top10-2025-source-risk`,
       {
         profiles: [top10],
         materials: [sourceZip],
         start: async (_request, url) => {
-          await startAnswered;
+          await startAnswered.promise;
           const auditId = decodeURIComponent(url.pathname.split("/")[3] ?? "");
           const started = startResponse(draftAudit(top10, { auditId }));
           return json(started, 200, { ETag: `"${started.audit.revision}"` });
         },
-        slowPage: { path: "/runs", until: runsCode },
+        slowPage: { path: "/runs", until: runsCode.promise },
       },
     );
     await waitForTypes();
@@ -834,13 +829,13 @@ describe("Start a check: options and starting", () => {
       expect(router.state.navigation.location?.pathname).toBe("/runs"),
     );
     await act(async () => {
-      releaseStart();
-      await startAnswered;
+      startAnswered.resolve();
+      await startAnswered.promise;
       await new Promise((resolve) => window.setTimeout(resolve, 50));
     });
     expect(router.state.navigation.location?.pathname).toBe("/runs");
 
-    releaseRuns();
+    runsCode.resolve();
     expect(await screen.findByText("The slow page")).toBeVisible();
     expect(router.state.location.pathname).toBe("/runs");
   });

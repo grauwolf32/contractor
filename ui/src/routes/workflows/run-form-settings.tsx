@@ -209,6 +209,7 @@ export function RuntimePlacement({
           </p>
         )}
         <LoadMoreButton
+          size="sm"
           query={runtimeLabelInventory}
           label="Load more Runtime labels"
           pendingLabel="Loading Runtime labels…"
@@ -253,7 +254,7 @@ function MetadataLabelBadge({
         }}
       >
         <label
-          className="visually-hidden"
+          className="ui-visually-hidden"
           htmlFor={`metadata-label-${label.id}-key`}
         >
           Run metadata label key {index + 1}
@@ -281,7 +282,7 @@ function MetadataLabelBadge({
           :
         </span>
         <label
-          className="visually-hidden"
+          className="ui-visually-hidden"
           htmlFor={`metadata-label-${label.id}-value`}
         >
           Run metadata label value {index + 1}
@@ -741,11 +742,17 @@ export function ExecutionOverrides({
         )}
         <div className="load-more-row">
           <LoadMoreButton
+            size="sm"
             query={modelPolicyInventory}
             label="Load more ModelPolicies"
           />
-          <LoadMoreButton query={gatewayInventory} label="Load more Gateways" />
           <LoadMoreButton
+            size="sm"
+            query={gatewayInventory}
+            label="Load more Gateways"
+          />
+          <LoadMoreButton
+            size="sm"
             query={credentialInventory}
             label="Load more credentials"
           />

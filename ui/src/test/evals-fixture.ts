@@ -112,9 +112,16 @@ export function createEvalFixture(
       },
     };
   }
+  /** An error envelope; only an unavailable service is worth retrying. */
   function error(code: string, status = 409) {
     return response(
-      { code, message: code, details: { kind: "eval", recovery: "reload" } },
+      {
+        code,
+        message: code,
+        retryable: status === 503,
+        requestId: "request_eval_fixture",
+        details: { kind: "eval", recovery: "reload" },
+      },
       status,
     );
   }

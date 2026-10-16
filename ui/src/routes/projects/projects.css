@@ -5,6 +5,92 @@
  * with projects-. Visual reference: docs/design/ui/mockups/v3b/project.html.
  */
 
+/* ---------- Project pages (base rules; this sheet refines them below) ---------- */
+
+.eval-run-groups {
+  display: grid;
+  gap: 1rem;
+}
+
+.eval-run-group {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 0.7rem;
+  background: var(--surface-subtle);
+  padding: 1rem;
+}
+
+.eval-run-group-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.eval-run-group-heading h4 {
+  margin: 0.15rem 0 0;
+}
+
+.eval-run-group > .muted-copy {
+  margin: 0.5rem 0 0;
+}
+
+.eval-run-group .table-scroll {
+  margin-top: 0.8rem;
+}
+
+.eval-case-value {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.eval-case-value small {
+  color: var(--muted);
+}
+
+.project-local-navigation {
+  display: flex;
+  position: sticky;
+  top: 0.7rem;
+  z-index: 4;
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
+  gap: 0.25rem;
+  margin: -0.6rem 0 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  padding: 0.35rem;
+  backdrop-filter: blur(0.8rem);
+}
+
+.project-local-navigation a {
+  flex: none;
+  border-radius: 0.4rem;
+  color: var(--muted-strong);
+  padding: 0.45rem 0.75rem;
+  font-size: 0.76rem;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.project-local-navigation a:hover {
+  background: var(--surface-raised);
+  color: var(--accent);
+}
+
+.project-workflow-count {
+  flex: none;
+  border: 1px solid var(--accent-line);
+  border-radius: 999px;
+  background: var(--accent-dark);
+  color: var(--accent);
+  padding: 0.35rem 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
 /* ---------- Shared text and controls ---------- */
 
 .projects-prose {
@@ -498,12 +584,6 @@
 /* The bar is as tall as the tabs: section buttons there are compact. */
 .projects-section-actions :is(button, a.ui-btn) {
   min-height: 2rem;
-}
-
-.projects-section-actions .refresh-button.icon-button {
-  width: 2rem;
-  height: 2rem;
-  padding: 0;
 }
 
 /* Narrow detail panes (phones; the pane beside the list on small laptops)

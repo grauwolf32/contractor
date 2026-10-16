@@ -173,7 +173,7 @@ export function RuntimeCredentialCreateForm({
           Secret values are erased from the form immediately on submit and are
           never readable through the API. A failed request requires re-entry.
         </p>
-        <div className="form-grid">
+        <div className="ops-form-grid">
           <Field label="Runtime credential ID">
             {(control) => (
               <input
@@ -260,7 +260,7 @@ export function RuntimeCredentialCreateForm({
             </Button>
           </div>
         ) : basic ? (
-          <div className="form-grid">
+          <div className="ops-form-grid">
             <Field
               label={`${kind === "http-origin-basic@1" ? "Origin" : "Proxy"} username · write only`}
             >

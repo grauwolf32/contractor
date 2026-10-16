@@ -276,7 +276,7 @@ export function ModelPolicyPublicationForm({
         Intended consumer is validation guidance for this draft and is not
         stored in the shared ModelPolicy body.
       </p>
-      <div className="form-grid">
+      <div className="ops-form-grid">
         <IdentityFields
           value={identity}
           onChange={(value) => {
@@ -440,7 +440,7 @@ export function LLMGatewayPublicationForm({
           from {source.ref.name}@{source.ref.version}
         </code>
       </div>
-      <div className="form-grid">
+      <div className="ops-form-grid">
         <IdentityFields
           value={identity}
           onChange={(value) => {

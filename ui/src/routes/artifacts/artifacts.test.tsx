@@ -9,15 +9,14 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import type { ArtifactMetadata } from "../../api/artifacts";
-import { conforming } from "../../test/builders";
-import { failure, json, page } from "../../test/fake-server";
-import { CSRF_TOKEN } from "../../test/render";
+import { renderApplication } from "../../test/application";
 import {
   artifactMetadata,
   artifactWrite,
-  payload,
-  renderApplication,
-} from "./test-support";
+  conforming,
+} from "../../test/builders";
+import { bytes, failure, json, page } from "../../test/responses";
+import { CSRF_TOKEN } from "../../test/render";
 
 const LIST = "GET /v1/artifacts";
 const METADATA = "GET /v1/artifacts/{namespace}/{name}/metadata";
@@ -56,14 +55,16 @@ describe("Artifact routes", () => {
       createdAt: "2026-09-01T10:00:00Z",
     });
     const { router, sent } = renderApplication("/artifacts", {
-      [LIST]: ({ url }) =>
-        url.searchParams.get("cursor") === "page-2"
-          ? json(
-              page([
-                { ...file, artifact: { ...file.artifact, name: "second" } },
-              ]),
-            )
-          : json(page([file], "page-2")),
+      server: {
+        [LIST]: ({ url }) =>
+          url.searchParams.get("cursor") === "page-2"
+            ? json(
+                page([
+                  { ...file, artifact: { ...file.artifact, name: "second" } },
+                ]),
+              )
+            : json(page([file], "page-2")),
+      },
     });
 
     expect(
@@ -123,7 +124,9 @@ describe("Artifact routes", () => {
       respond = resolve;
     });
     renderApplication("/artifacts/projects/source", {
-      [METADATA]: () => metadata,
+      server: {
+        [METADATA]: () => metadata,
+      },
     });
     expect(await screen.findByText("Loading this file…")).toBeVisible();
     expect(
@@ -144,12 +147,14 @@ describe("Artifact routes", () => {
   it("recovers a failed filtered read without submitting a write or dropping filters", async () => {
     let reads = 0;
     const { requests } = renderApplication("/artifacts?namespace=projects", {
-      [LIST]: ({ url }) => {
-        expect(url.searchParams.get("namespace")).toBe("projects");
-        reads += 1;
-        return reads === 1
-          ? failure(503, "unavailable", "Storage is temporarily unavailable")
-          : json(page([]));
+      server: {
+        [LIST]: ({ url }) => {
+          expect(url.searchParams.get("namespace")).toBe("projects");
+          reads += 1;
+          return reads === 1
+            ? failure(503, "unavailable", "Storage is temporarily unavailable")
+            : json(page([]));
+        },
       },
     });
     expect(await screen.findByText("Could not load files")).toBeVisible();
@@ -194,24 +199,27 @@ describe("Artifact routes", () => {
       size: 3,
     });
     const { sent } = renderApplication("/artifacts", {
-      [LIST]: ({ url }) => {
-        expect(url.searchParams.get("excludeNamespace")).toBe("skills");
-        return url.searchParams.get("cursor") === "cursor-next"
-          ? json(
-              page([
-                {
-                  ...current,
-                  artifact: {
-                    ...current.artifact,
-                    name: "next-page",
-                    revision: "revision-next",
+      server: {
+        [LIST]: ({ url }) => {
+          expect(url.searchParams.get("excludeNamespace")).toBe("skills");
+          return url.searchParams.get("cursor") === "cursor-next"
+            ? json(
+                page([
+                  {
+                    ...current,
+                    artifact: {
+                      ...current.artifact,
+                      name: "next-page",
+                      revision: "revision-next",
+                    },
                   },
-                },
-              ]),
-            )
-          : json(page([current], "cursor-next"));
+                ]),
+              )
+            : json(page([current], "cursor-next"));
+        },
+        [WRITE]: () =>
+          json(artifactWrite(stored), 201, { ETag: '"revision-2"' }),
       },
-      [WRITE]: () => json(artifactWrite(stored), 201, { ETag: '"revision-2"' }),
     });
     // Library rows open the current binding, not the listed revision.
     expect(
@@ -259,8 +267,10 @@ describe("Artifact routes", () => {
 
   it("reconciles a CAS conflict and never retries the unsafe PUT", async () => {
     const { sent } = renderApplication("/artifacts", {
-      [LIST]: () => json(page([])),
-      [WRITE]: () => failure(409, "conflict", "resource state changed", true),
+      server: {
+        [LIST]: () => json(page([])),
+        [WRITE]: () => failure(409, "conflict", "resource state changed", true),
+      },
     });
     await screen.findByText("No files yet");
     const user = userEvent.setup();
@@ -282,9 +292,11 @@ describe("Artifact routes", () => {
 
   it("keeps Skill packages on the dedicated Skills surface", async () => {
     const { sent } = renderApplication("/artifacts", {
-      [LIST]: ({ url }) => {
-        expect(url.searchParams.get("excludeNamespace")).toBe("skills");
-        return json(page([]));
+      server: {
+        [LIST]: ({ url }) => {
+          expect(url.searchParams.get("excludeNamespace")).toBe("skills");
+          return json(page([]));
+        },
       },
     });
     await screen.findByText("No files yet");
@@ -332,37 +344,39 @@ describe("Artifact routes", () => {
       current: true,
     };
     renderApplication("/artifacts/projects/architecture?revision=revision-2", {
-      [METADATA]: () => json(selected),
-      [VERSIONS]: () => json(page([current, selected])),
-      [LINEAGE]: () =>
-        json(
-          page([
-            conforming("ArtifactLineageEdge", {
-              kind: "input_fork",
-              sourceScope: "user",
-              source: selected.artifact,
-              targetScope: "run",
-              target: {
-                namespace: "inputs",
-                name: "architecture",
-                revision: "revision-run-1",
-              },
-              runId: "run-example",
-              stageExecutionId: "stage-example",
-              createdAt: "2026-08-31T12:01:00Z",
-            }),
-            conforming("ArtifactLineageEdge", {
-              kind: "project_output_publish",
-              sourceScope: "run",
-              source: selected.artifact,
-              targetScope: "project",
-              target: selected.artifact,
-              createdAt: "2026-08-31T12:02:00Z",
-            }),
-          ]),
-        ),
-      "GET /v1/artifacts/{namespace}/{name}": () =>
-        payload(preview, "text/plain"),
+      server: {
+        [METADATA]: () => json(selected),
+        [VERSIONS]: () => json(page([current, selected])),
+        [LINEAGE]: () =>
+          json(
+            page([
+              conforming("ArtifactLineageEdge", {
+                kind: "input_fork",
+                sourceScope: "user",
+                source: selected.artifact,
+                targetScope: "run",
+                target: {
+                  namespace: "inputs",
+                  name: "architecture",
+                  revision: "revision-run-1",
+                },
+                runId: "run-example",
+                stageExecutionId: "stage-example",
+                createdAt: "2026-08-31T12:01:00Z",
+              }),
+              conforming("ArtifactLineageEdge", {
+                kind: "project_output_publish",
+                sourceScope: "run",
+                source: selected.artifact,
+                targetScope: "project",
+                target: selected.artifact,
+                createdAt: "2026-08-31T12:02:00Z",
+              }),
+            ]),
+          ),
+        "GET /v1/artifacts/{namespace}/{name}": () =>
+          bytes(preview, "text/plain"),
+      },
     });
     expect(
       (await screen.findAllByText("revision-2", { selector: "code" })).length,
@@ -401,20 +415,23 @@ describe("Artifact routes", () => {
         state: returnState,
       },
       {
-        [WRITE]: ({ request }) => {
-          expect(request.headers.get("If-Match")).toBe('"revision-1"');
-          written = true;
-          return json(artifactWrite(latest), 201, { ETag: '"revision-2"' });
+        server: {
+          [WRITE]: ({ request }) => {
+            expect(request.headers.get("If-Match")).toBe('"revision-1"');
+            written = true;
+            return json(artifactWrite(latest), 201, { ETag: '"revision-2"' });
+          },
+          [METADATA]: ({ url }) =>
+            json(
+              url.searchParams.get("revision") === "revision-2"
+                ? latest
+                : { ...original, current: !written },
+            ),
+          [VERSIONS]: () =>
+            json(page([latest, { ...original, current: false }])),
+          [LINEAGE]: () => json(page([])),
+          [LIST]: () => json(page([])),
         },
-        [METADATA]: ({ url }) =>
-          json(
-            url.searchParams.get("revision") === "revision-2"
-              ? latest
-              : { ...original, current: !written },
-          ),
-        [VERSIONS]: () => json(page([latest, { ...original, current: false }])),
-        [LINEAGE]: () => json(page([])),
-        [LIST]: () => json(page([])),
       },
     );
     expect(
@@ -482,28 +499,30 @@ describe("Artifact routes", () => {
       const { router, sent } = renderApplication(
         { search: "", ...path, state: returnState },
         {
-          [WRITE]: ({ request }) => {
-            if (request.headers.get("If-Match") === '"revision-2"') {
-              return json(artifactWrite(mine), 200, { ETag: '"revision-3"' });
-            }
-            concurrentWriter = true;
-            return failure(
-              409,
-              "conflict",
-              "resource state changed; retry with the current revision",
-              true,
-            );
+          server: {
+            [WRITE]: ({ request }) => {
+              if (request.headers.get("If-Match") === '"revision-2"') {
+                return json(artifactWrite(mine), 200, { ETag: '"revision-3"' });
+              }
+              concurrentWriter = true;
+              return failure(
+                409,
+                "conflict",
+                "resource state changed; retry with the current revision",
+                true,
+              );
+            },
+            [METADATA]: ({ url }) => {
+              switch (url.searchParams.get("revision")) {
+                case "revision-1":
+                  return json({ ...original, current: !concurrentWriter });
+                case "revision-3":
+                  return json(mine);
+              }
+              return json(concurrentWriter ? concurrent : original);
+            },
+            [LIST]: () => json(page([])),
           },
-          [METADATA]: ({ url }) => {
-            switch (url.searchParams.get("revision")) {
-              case "revision-1":
-                return json({ ...original, current: !concurrentWriter });
-              case "revision-3":
-                return json(mine);
-            }
-            return json(concurrentWriter ? concurrent : original);
-          },
-          [LIST]: () => json(page([])),
         },
       );
       const writes = () => sent("PUT", "/v1/artifacts/projects/source");
@@ -563,12 +582,14 @@ describe("Artifact routes", () => {
     let answer!: (response: Response) => void;
     const original = source("revision-1");
     const { router } = renderApplication("/artifacts/projects/source", {
-      [METADATA]: () => json(original),
-      [WRITE]: () =>
-        new Promise<Response>((resolve) => {
-          answer = resolve;
-        }),
-      [LIST]: () => json(page([])),
+      server: {
+        [METADATA]: () => json(original),
+        [WRITE]: () =>
+          new Promise<Response>((resolve) => {
+            answer = resolve;
+          }),
+        [LIST]: () => json(page([])),
+      },
     });
     const user = userEvent.setup();
     await user.click(
@@ -607,9 +628,11 @@ describe("Artifact routes", () => {
     const { sent } = renderApplication(
       "/artifacts/projects/source?revision=revision-1",
       {
-        [METADATA]: () => json(binary),
-        [VERSIONS]: () => json(page([binary])),
-        [LINEAGE]: () => json(page([])),
+        server: {
+          [METADATA]: () => json(binary),
+          [VERSIONS]: () => json(page([binary])),
+          [LINEAGE]: () => json(page([])),
+        },
       },
     );
     const previewButton = await screen.findByRole("button", {
@@ -635,11 +658,13 @@ describe("Artifact routes", () => {
     const { router } = renderApplication(
       "/artifacts?namespace=sources&cursor=page-two",
       {
-        [METADATA]: () => json(binding),
-        [LIST]: ({ url }) => {
-          expect(url.searchParams.get("namespace")).toBe("sources");
-          expect(url.searchParams.get("cursor")).toBe("page-two");
-          return json(page([binding]));
+        server: {
+          [METADATA]: () => json(binding),
+          [LIST]: ({ url }) => {
+            expect(url.searchParams.get("namespace")).toBe("sources");
+            expect(url.searchParams.get("cursor")).toBe("page-two");
+            return json(page([binding]));
+          },
         },
       },
     );
@@ -665,11 +690,13 @@ describe("Files upload dialog", () => {
   async function startPendingUpload() {
     let signal: AbortSignal | undefined;
     const { sent } = renderApplication("/artifacts", {
-      [LIST]: () => json(page([])),
-      [WRITE]: ({ request, params }) => {
-        expect(params).toEqual({ namespace: "inputs", name: "wordlist" });
-        signal = request.signal;
-        return pendingUntilAborted(request);
+      server: {
+        [LIST]: () => json(page([])),
+        [WRITE]: ({ request, params }) => {
+          expect(params).toEqual({ namespace: "inputs", name: "wordlist" });
+          signal = request.signal;
+          return pendingUntilAborted(request);
+        },
       },
     });
     const listReads = () => sent("GET", "/v1/artifacts").length;

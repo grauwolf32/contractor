@@ -19,8 +19,9 @@ import {
 import { queryKeys } from "../../../api/query-keys";
 import {
   formatBytes,
-  formatTimestamp,
+  formatNumber,
   formatSeconds,
+  formatTimestamp,
 } from "../../../app/format";
 import { Facts, Field, TechnicalDetails } from "../../../ui";
 import { OperationsState, OpsSection } from "../common";
@@ -145,14 +146,8 @@ function metric(
   return value === undefined ? "Unavailable" : formatter(value);
 }
 
-// V385: needs shared number formatter (en-US, at most two fraction digits,
-// as plural() counts); every value here is an integer or a rate.
-function decimal(value: number): string {
-  return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
-}
-
-const cores = (value: number) => `${decimal(value)} cores`;
-const perSecond = (value: number) => `${decimal(value)}/s`;
+const cores = (value: number) => `${formatNumber(value)} cores`;
+const perSecond = (value: number) => `${formatNumber(value)}/s`;
 
 function quantile(
   histogram: PerformanceHistogram | undefined,
@@ -256,11 +251,14 @@ function CurrentResourceSummary({
         facts={[
           {
             term: "Active connections",
-            value: metric(sample?.database?.activeConnections, decimal),
+            value: metric(sample?.database?.activeConnections, formatNumber),
           },
           {
             term: "Lock waiting",
-            value: metric(sample?.database?.lockWaitingConnections, decimal),
+            value: metric(
+              sample?.database?.lockWaitingConnections,
+              formatNumber,
+            ),
           },
         ]}
       />
@@ -301,8 +299,11 @@ function CurrentMetrics({
             term: "Go live heap",
             value: metric(process?.heapLiveBytes, formatBytes),
           },
-          { term: "Goroutines", value: metric(process?.goroutines, decimal) },
-          { term: "GC cycles", value: metric(process?.gcCycles, decimal) },
+          {
+            term: "Goroutines",
+            value: metric(process?.goroutines, formatNumber),
+          },
+          { term: "GC cycles", value: metric(process?.gcCycles, formatNumber) },
           {
             term: "GC pause delta",
             value: metric(process?.gcPauseSeconds, formatSeconds),
@@ -325,7 +326,7 @@ function CurrentMetrics({
             term: "5xx / no-response rate",
             value: metric(http.errorRate, perSecond),
           },
-          { term: "In flight", value: metric(http.inFlight, decimal) },
+          { term: "In flight", value: metric(http.inFlight, formatNumber) },
           { term: "p50 latency", value: quantile(http.histogram, 0.5) },
           { term: "p95 latency", value: quantile(http.histogram, 0.95) },
           { term: "p99 latency", value: quantile(http.histogram, 0.99) },
@@ -339,16 +340,16 @@ function CurrentMetrics({
         facts={[
           {
             term: "Acquired",
-            value: metric(pool?.acquiredConnections, decimal),
+            value: metric(pool?.acquiredConnections, formatNumber),
           },
-          { term: "Idle", value: metric(pool?.idleConnections, decimal) },
+          { term: "Idle", value: metric(pool?.idleConnections, formatNumber) },
           {
             term: "Total / maximum",
             value:
               pool?.totalConnections === undefined ||
               pool.maxConnections === undefined
                 ? "Unavailable"
-                : `${decimal(pool.totalConnections)} / ${decimal(pool.maxConnections)}`,
+                : `${formatNumber(pool.totalConnections)} / ${formatNumber(pool.maxConnections)}`,
           },
           {
             term: "Acquire mean",
@@ -360,7 +361,7 @@ function CurrentMetrics({
           },
           {
             term: "Cancelled acquires",
-            value: metric(pool?.canceledAcquireCount, decimal),
+            value: metric(pool?.canceledAcquireCount, formatNumber),
           },
         ]}
       />
@@ -372,11 +373,11 @@ function CurrentMetrics({
         facts={[
           {
             term: "Active connections",
-            value: metric(database?.activeConnections, decimal),
+            value: metric(database?.activeConnections, formatNumber),
           },
           {
             term: "Lock waiting",
-            value: metric(database?.lockWaitingConnections, decimal),
+            value: metric(database?.lockWaitingConnections, formatNumber),
           },
           {
             term: "Longest transaction",
@@ -384,7 +385,7 @@ function CurrentMetrics({
           },
           {
             term: "Commits / s",
-            value: metric(database?.rates?.commitsPerSecond, decimal),
+            value: metric(database?.rates?.commitsPerSecond, formatNumber),
           },
           {
             term: "Buffer hit ratio",
@@ -395,7 +396,7 @@ function CurrentMetrics({
           },
           {
             term: "Estimated dead tuples",
-            value: metric(database?.estimatedDeadTuples, decimal),
+            value: metric(database?.estimatedDeadTuples, formatNumber),
           },
         ]}
       />
@@ -411,11 +412,11 @@ function CurrentMetrics({
           },
           {
             term: "Vacuum count",
-            value: metric(database?.vacuumCount, decimal),
+            value: metric(database?.vacuumCount, formatNumber),
           },
           {
             term: "Autovacuum count",
-            value: metric(database?.autovacuumCount, decimal),
+            value: metric(database?.autovacuumCount, formatNumber),
           },
         ]}
       />
@@ -431,23 +432,23 @@ function CurrentMetrics({
         facts={[
           {
             term: "Skipped samples",
-            value: decimal(diagnostics.skippedSamples),
+            value: formatNumber(diagnostics.skippedSamples),
           },
           {
             term: "Rejected samples",
-            value: decimal(diagnostics.rejectedSamples),
+            value: formatNumber(diagnostics.rejectedSamples),
           },
           {
             term: "Skipped minutes",
-            value: decimal(diagnostics.skippedMinutes),
+            value: formatNumber(diagnostics.skippedMinutes),
           },
           {
             term: "Dropped minutes",
-            value: decimal(diagnostics.droppedMinutes),
+            value: formatNumber(diagnostics.droppedMinutes),
           },
           {
             term: "Pending minutes",
-            value: decimal(diagnostics.pendingMinutes),
+            value: formatNumber(diagnostics.pendingMinutes),
           },
         ]}
       >

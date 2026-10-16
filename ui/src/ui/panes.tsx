@@ -252,6 +252,8 @@ export interface BreadcrumbItem {
   label: ReactNode;
   /** Items with `to` are links; the last item without `to` is the current page. */
   to?: To | undefined;
+  /** Location state of the link, e.g. the origin page's own return link. */
+  state?: unknown;
 }
 
 interface DetailHeaderProps {
@@ -264,6 +266,8 @@ interface DetailHeaderProps {
    * e.g. when the control that had focus went away.
    */
   titleRef?: Ref<HTMLHeadingElement> | undefined;
+  /** A small line above the title naming the kind of page ("Workflow Run"). */
+  eyebrow?: ReactNode;
   /** Next to the title, usually a StatusChip. */
   status?: ReactNode;
   /** Line under the title (dates, owner, IdChip). */
@@ -298,6 +302,7 @@ export function DetailHeader({
   title,
   titleAs: Title = "h2",
   titleRef,
+  eyebrow,
   status,
   meta,
   actions,
@@ -317,7 +322,9 @@ export function DetailHeader({
                       {item.label}
                     </span>
                   ) : (
-                    <Link to={item.to}>{item.label}</Link>
+                    <Link to={item.to} state={item.state}>
+                      {item.label}
+                    </Link>
                   )}
                   {last ? null : <Chevron />}
                 </li>
@@ -328,6 +335,9 @@ export function DetailHeader({
       )}
       <div className="ui-detail-header-main">
         <div className="ui-detail-header-title">
+          {eyebrow === undefined ? null : (
+            <p className="ui-detail-header-eyebrow">{eyebrow}</p>
+          )}
           <Title
             ref={titleRef}
             className="ui-detail-header-heading"

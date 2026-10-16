@@ -1,5 +1,6 @@
 import { Link } from "react-router";
 import type { Audit, AuditEvent } from "../../../api/audits";
+import { formatNumber } from "../../../app/format";
 import {
   checkStateLabel,
   reviewActionLabel,
@@ -46,9 +47,7 @@ export function eventEntry(
             ? "Check started."
             : "Next round started.";
       entry.text =
-        s.items === undefined
-          ? undefined
-          : `${s.items.toLocaleString("en-US")} items.`;
+        s.items === undefined ? undefined : `${formatNumber(s.items)} items.`;
       entry.tone = "progress";
       break;
     case "round.state_changed":

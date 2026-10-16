@@ -12,18 +12,18 @@ export const AUDIT_PAGE_SIZE = 50;
 export const AUDIT_ID_PATTERN = RESOURCE_ID;
 
 export type AuditProfile = components["schemas"]["AuditProfile"];
-export type AuditProfilePage = components["schemas"]["AuditProfilePage"];
+type AuditProfilePage = components["schemas"]["AuditProfilePage"];
 export type Audit = components["schemas"]["Audit"];
-export type AuditPage = components["schemas"]["AuditPage"];
+type AuditPage = components["schemas"]["AuditPage"];
 export type AuditEvent = components["schemas"]["AuditEvent"];
 export type AuditEventPage = components["schemas"]["AuditEventPage"];
 export type AuditState = components["schemas"]["AuditState"];
 export type AuditItem = components["schemas"]["AuditItem"];
 export type AuditItemPage = components["schemas"]["AuditItemPage"];
 export type AuditCoverageRow = components["schemas"]["AuditCoverageRow"];
-export type AuditCoveragePage = components["schemas"]["AuditCoveragePage"];
+type AuditCoveragePage = components["schemas"]["AuditCoveragePage"];
 export type AuditReport = components["schemas"]["AuditReport"];
-export type AuditStartResponse = components["schemas"]["AuditStartResponse"];
+type AuditStartResponse = components["schemas"]["AuditStartResponse"];
 export type CreateAuditRequest = components["schemas"]["CreateAuditRequest"];
 export type ExactArtifactRef = components["schemas"]["ExactArtifactRef"];
 export type AuditFinding = components["schemas"]["AuditFinding"];
@@ -34,12 +34,12 @@ export type AuditFindingSeverity =
 export type AuditAnalystVerdict = components["schemas"]["AuditAnalystVerdict"];
 export type AuditReviewRequest = components["schemas"]["AuditReviewRequest"];
 export type AuditReviewPage = components["schemas"]["AuditReviewPage"];
-export type OwnerFindingPage = components["schemas"]["OwnerFindingPage"];
-export type OwnerReviewPage = components["schemas"]["OwnerReviewPage"];
+type OwnerFindingPage = components["schemas"]["OwnerFindingPage"];
+type OwnerReviewPage = components["schemas"]["OwnerReviewPage"];
 export type AuditReviewAction = components["schemas"]["AuditReviewAction"];
 export type AuditActionDecisionResult =
   components["schemas"]["AuditActionDecisionResult"];
-export type AuditFindingProvenancePage =
+type AuditFindingProvenancePage =
   components["schemas"]["AuditFindingProvenancePage"];
 export type DecideAuditFindingRequest =
   components["schemas"]["DecideAuditFindingRequest"];
@@ -51,13 +51,13 @@ export interface FindingPageRequest extends PageRequest {
   verdict?: "true_positive" | "false_positive" | "unreviewed";
   severity?: AuditFindingSeverity;
 }
-export interface ReviewPageRequest extends PageRequest {
+interface ReviewPageRequest extends PageRequest {
   auditRevision?: number;
   finding?: string;
   state?: AuditReviewRequest["state"];
 }
 
-export interface PageRequest {
+interface PageRequest {
   cursor?: string;
 }
 
@@ -95,7 +95,7 @@ export async function listAuditEvents(
   return value;
 }
 
-export interface ProjectAuditPageRequest extends PageRequest {
+interface ProjectAuditPageRequest extends PageRequest {
   limit?: number;
   projectId: string;
   state?: AuditState;
@@ -152,7 +152,7 @@ export async function listOwnerReviews(
   return requireData(result);
 }
 
-export interface AuditCreateOptions {
+interface AuditCreateOptions {
   projectId: string;
   request: CreateAuditRequest;
   idempotencyKey: string;
@@ -161,7 +161,7 @@ export interface AuditCreateOptions {
 export type AuditMutationAction =
   "start" | "pause" | "resume" | "cancel" | "delete";
 
-export interface AuditMutationOptions {
+interface AuditMutationOptions {
   auditId: string;
   expectedRevision: number;
   idempotencyKey: string;
@@ -712,7 +712,7 @@ export function auditMutationAudit(value: Audit | AuditStartResponse): Audit {
  * change while submitted Runs drain; callers should use auditPollInterval
  * when they have the outstanding Run count.
  */
-export function auditNeedsPolling(state: AuditState): boolean {
+function auditNeedsPolling(state: AuditState): boolean {
   return isStateIn(CHANGING_AUDIT_STATES, state);
 }
 

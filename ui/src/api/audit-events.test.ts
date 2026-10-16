@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { fakeAPI } from "../routes/projects/audits/check-test-support";
-import { invalidJSON, json } from "../test/fake-server";
+import { invalidJSON } from "../test/fake-server";
+import { json } from "../test/responses";
 import { listAuditEvents, type AuditEventPage } from "./audits";
 
 const valid: AuditEventPage = {

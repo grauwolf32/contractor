@@ -4,6 +4,7 @@ import type { Location } from "react-router";
 import { createMemoryRouter, MemoryRouter, RouterProvider } from "react-router";
 import { describe, expect, it } from "vitest";
 
+import { deferred } from "../test/deferred";
 import { useGuardedNavigate, usePageLocationNow } from "./page-location";
 
 type Read = () => Location | undefined;
@@ -14,28 +15,20 @@ function Page({ onRead }: { onRead: (read: Read) => void }) {
   return <p>Page</p>;
 }
 
-function gate() {
-  let release = () => {};
-  const wait = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  return { wait, release };
-}
-
 describe("usePageLocationNow", () => {
   it("follows the router while the page stays, and lets go once it is left", async () => {
     let read: Read = () => undefined;
     const capture = (next: Read) => {
       read = next;
     };
-    const slow = gate();
+    const slow = deferred();
     const router = createMemoryRouter(
       [
         { path: "/", element: <Page onRead={capture} /> },
         {
           path: "/elsewhere",
           lazy: async () => {
-            await slow.wait;
+            await slow.promise;
             return { element: <p>Elsewhere</p> };
           },
         },
@@ -61,8 +54,8 @@ describe("usePageLocationNow", () => {
     expect(leaving()).toBeUndefined();
 
     await act(async () => {
-      slow.release();
-      await slow.wait;
+      slow.resolve();
+      await slow.promise;
     });
     await screen.findByText("Elsewhere");
     expect(leaving()).toBeUndefined();

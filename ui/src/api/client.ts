@@ -29,15 +29,15 @@ const SAFE_HEADER_VALUE = /^[\x21-\x7E]{1,256}$/;
 export type AuthSession = components["schemas"]["AuthSession"];
 export type LoginRequest = components["schemas"]["LoginRequest"];
 
-export interface MutationHeaders {
+interface MutationHeaders {
   idempotencyKey?: string;
   ifMatch?: string;
   ifNoneMatch?: string;
 }
 
-export type DirectRequestInit = Omit<RequestInit, "credentials">;
+type DirectRequestInit = Omit<RequestInit, "credentials">;
 
-export class CSRFMemoryStore {
+class CSRFMemoryStore {
   #value: string | undefined;
   #generation = 0;
 

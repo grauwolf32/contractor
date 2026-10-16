@@ -76,7 +76,7 @@ function LoadedConfiguration({
           <h3 id="configuration-values-heading" className="ops-panel-title">
             Published values
           </h3>
-          <span className="ops-panel-aside">
+          <span className="ui-caption">
             The existing version and digest are never edited.
           </span>
         </div>

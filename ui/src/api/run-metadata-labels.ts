@@ -2,8 +2,8 @@ const RUN_METADATA_LABEL_KEY = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/;
 const encoder = new TextEncoder();
 
 export const RUN_METADATA_LABEL_LIMIT = 32;
-export const RUN_METADATA_LABEL_KEY_BYTE_LIMIT = 63;
-export const RUN_METADATA_LABEL_VALUE_BYTE_LIMIT = 256;
+const RUN_METADATA_LABEL_KEY_BYTE_LIMIT = 63;
+const RUN_METADATA_LABEL_VALUE_BYTE_LIMIT = 256;
 
 export interface RunMetadataLabelDraft {
   id: string;

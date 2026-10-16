@@ -11,13 +11,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { gitKeyQueryKey } from "../../api/git-artifacts";
 import { conforming } from "../../test/builders";
-import {
-  failure,
-  fakeServer,
-  json,
-  noContent,
-  type Routes,
-} from "../../test/fake-server";
+import { fakeServer, type Routes } from "../../test/fake-server";
+import { failure, json, noContent } from "../../test/responses";
 import { renderWithAPI } from "../../test/render";
 import { GitKeySettings } from "../settings/git-key";
 import { GitImportDialog } from "./git-import-dialog";

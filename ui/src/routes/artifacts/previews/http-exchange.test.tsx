@@ -3,11 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import captures from "../../../../../api/testdata/http-capture-cases.json";
 import { HTTP_EXCHANGE_MEDIA_TYPE } from "../../../api/artifacts";
-import {
-  HTTP_EXCHANGE_SCHEMA,
-  type HTTPCapture,
-  type HTTPExchangeDocument,
-} from "../../../api/http-exchange";
+import type { HTTPExchangeDocument } from "../../../api/http-exchange";
 import HTTPExchangePreview from "./http-exchange";
 import { saveBlob } from "../../../app/download";
 import { LoadedArtifactPreview } from "../loaded-preview";
@@ -20,10 +16,10 @@ function document(
   name = "received_http_error_is_response",
 ): HTTPExchangeDocument {
   return {
-    schema: HTTP_EXCHANGE_SCHEMA,
+    schema: "contractor.http.exchange.v1",
     capture: structuredClone(
       captures.cases.find((item) => item.name === name)!.value,
-    ) as HTTPCapture,
+    ) as HTTPExchangeDocument["capture"],
     finding: { proposal_id: "proposal-test", receipt_id: "receipt-test" },
   };
 }

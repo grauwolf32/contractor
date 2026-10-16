@@ -1,5 +1,5 @@
-// Workflow, Run and configuration fixtures, checked against the generated
-// schemas when they are built (see builders.ts).
+// Workflow, Run, configuration and Operations fixtures, checked against the
+// generated schemas when they are built (see builders.ts).
 import type { components } from "../api/generated/public";
 import { conforming, DIGEST, NOW } from "./builders";
 
@@ -113,4 +113,17 @@ export function workflowSummary(
   const summary: Partial<Schemas["WorkflowResource"]> = { ...resource };
   delete summary.stages;
   return conforming("WorkflowSummary", summary as Schemas["WorkflowSummary"]);
+}
+
+/** An empty Operations snapshot at `revision`. */
+export function operationsSnapshot(
+  revision = "7",
+  overrides: Partial<Schemas["OperationsSnapshot"]> = {},
+): Schemas["OperationsSnapshot"] {
+  return conforming("OperationsSnapshot", {
+    cursor: { generation: "operations-generation-1", revision },
+    runtimeAgents: [],
+    allocations: [],
+    ...overrides,
+  });
 }

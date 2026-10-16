@@ -167,21 +167,19 @@ function RequestDecision({
   else if (review.state === "decided")
     body =
       review.decision === undefined ? (
-        <p className="decisions-quiet">Decided.</p>
+        <p className="ui-caption">Decided.</p>
       ) : (
         <DecisionRecord decision={review.decision} />
       );
   else if (review.state === "expired")
     body = (
-      <p className="decisions-quiet">
-        This request expired without a decision.
-      </p>
+      <p className="ui-caption">This request expired without a decision.</p>
     );
   else if (blocked !== undefined && blocked !== null && !recording)
     body = blocked;
   else if (options.length === 0)
     body = (
-      <p className="decisions-quiet">
+      <p className="ui-caption">
         This request offers no decision that can be made here.
       </p>
     );
@@ -213,7 +211,7 @@ function RequestDecision({
           extra={
             <>
               {intro === undefined ? null : (
-                <p className="decisions-intro">{intro}</p>
+                <p className="ui-caption">{intro}</p>
               )}
             </>
           }
@@ -362,7 +360,7 @@ function ReportAcceptance({
         <RequestDetails error={read.error} />
       </div>
     ) : (
-      <p className="decisions-quiet" role="status">
+      <p className="ui-caption" role="status">
         Loading the report…
       </p>
     );

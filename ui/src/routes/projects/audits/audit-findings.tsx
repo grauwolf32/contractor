@@ -132,7 +132,7 @@ function ExactFinding({
     );
   else if (finding.isPending || (reviewId !== null && review.isPending))
     content = (
-      <p className="issues-quiet" role="status">
+      <p className="ui-caption" role="status">
         Loading the possible issue and its review…
       </p>
     );
@@ -291,13 +291,13 @@ export function AuditFindings({ audit }: { audit: Audit }) {
             </select>
           </span>
         </div>
-        <p id={`${severityId}-hint`} className="issues-quiet">
+        <p id={`${severityId}-hint`} className="ui-caption">
           Severity is the analyst&apos;s rating. The AI&apos;s suggestion stays
           with each possible issue and is never filtered on.
         </p>
       </div>
       {findings.isPending ? (
-        <p className="issues-quiet" role="status">
+        <p className="ui-caption" role="status">
           Loading possible issues…
         </p>
       ) : findings.error !== null ? (

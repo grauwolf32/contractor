@@ -12,7 +12,7 @@ import {
 } from "../../../app/format";
 import { QueryView } from "../../../app/query-view";
 import { DetailHeader, Facts, IdChip } from "../../../ui";
-import { FactRows, ScopeChip } from "../common";
+import { ScopeChip } from "../common";
 
 const FIELD_LABELS: Record<string, string> = {
   gatewayId: "Gateway ID",
@@ -59,8 +59,9 @@ function ConfigValue({ name, value }: { name: string; value: unknown }) {
  */
 function ConfigFields({ record }: { record: Record<string, unknown> }) {
   return (
-    <div className="ops-facts-frame">
-      <FactRows
+    <div className="ui-facts-frame">
+      <Facts
+        layout="rows"
         items={Object.entries(record).map(([key, value]) => ({
           key,
           term: fieldLabel(key),

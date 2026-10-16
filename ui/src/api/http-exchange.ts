@@ -1,8 +1,8 @@
 import { parseDocument } from "yaml";
 import { MAXIMUM_PREVIEW_BYTES } from "./artifacts";
 
-export const HTTP_EXCHANGE_SCHEMA = "contractor.http.exchange.v1";
-export const HTTP_CAPTURE_LIMITS = {
+const HTTP_EXCHANGE_SCHEMA = "contractor.http.exchange.v1";
+const HTTP_CAPTURE_LIMITS = {
   requestBodyBytes: 1024 * 1024,
   responseBodyBytes: 16 * 1024 * 1024,
   headerBytes: 64 * 1024,
@@ -16,12 +16,12 @@ export interface HTTPHeader {
 export type HTTPMessage =
   | { kind: "structured"; headers: HTTPHeader[]; body_base64: string }
   | { kind: "raw"; data_base64: string };
-export interface HTTPAttempt {
+interface HTTPAttempt {
   request: { method: string; url: string; message: HTTPMessage };
   response?: { status: number; message: HTTPMessage; complete: boolean };
   error?: string;
 }
-export interface HTTPCapture {
+interface HTTPCapture {
   source: "http" | "caido";
   request_id: string;
   request_tag?: string;
@@ -170,7 +170,7 @@ function attempt(value: unknown, source: string): value is HTTPAttempt {
 }
 
 /** Strict current capture contract; shared Go/Python/UI cases pin its semantics. */
-export function isHTTPCapture(value: unknown): value is HTTPCapture {
+function isHTTPCapture(value: unknown): value is HTTPCapture {
   if (
     !fields(value, ["source", "request_id", "attempts"], ["request_tag"]) ||
     typeof value.source !== "string" ||

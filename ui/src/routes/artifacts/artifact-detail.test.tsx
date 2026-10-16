@@ -2,20 +2,14 @@ import { screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ArtifactMetadata } from "../../api/artifacts";
-import { conforming } from "../../test/builders";
-import {
-  failure,
-  fakeServer,
-  json,
-  page,
-  type Routes,
-} from "../../test/fake-server";
+import { artifactMetadata, conforming } from "../../test/builders";
+import { fakeServer, type Routes } from "../../test/fake-server";
+import { bytes, failure, json, page } from "../../test/responses";
 import { renderWithAPI } from "../../test/render";
 import { ProjectArtifactDetailRoute } from "../projects/artifact-detail";
 import { SKILL_ARCHIVE_MEDIA_TYPE } from "./artifact-file";
 import { ArtifactDetailView } from "./artifact-detail-view";
 import { ArtifactDetailRoute } from "./detail";
-import { artifactMetadata, payload } from "./test-support";
 
 const COMMIT = "b".repeat(40);
 
@@ -257,8 +251,7 @@ describe("Material detail", () => {
               size: new TextEncoder().encode(source).byteLength,
             }),
           ),
-        "GET /v1/artifacts/{namespace}/{name}": () =>
-          payload(source, mediaType),
+        "GET /v1/artifacts/{namespace}/{name}": () => bytes(source, mediaType),
       });
       await user.click(
         await screen.findByRole("button", { name: "Load preview" }),
@@ -301,7 +294,7 @@ describe("Material detail", () => {
           }),
         ),
       "GET /v1/artifacts/{namespace}/{name}": () =>
-        payload(report, "application/json"),
+        bytes(report, "application/json"),
     });
     await user.click(
       await screen.findByRole("button", { name: "Load preview" }),
@@ -346,7 +339,7 @@ describe("Material detail", () => {
               "Artifact bytes are unavailable",
               true,
             )
-          : payload("hello", "text/plain"),
+          : bytes("hello", "text/plain"),
     });
     const click = vi
       .spyOn(HTMLAnchorElement.prototype, "click")

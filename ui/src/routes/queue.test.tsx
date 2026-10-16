@@ -3,21 +3,10 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { components } from "../api/generated/public";
 import { conforming } from "../test/builders";
-import {
-  emptyPageOrNotFound,
-  failure,
-  fakeServer,
-  json,
-  page,
-  type FakeCall,
-  type Routes,
-} from "../test/fake-server";
+import { fakeServer, type FakeCall, type Routes } from "../test/fake-server";
+import { emptyPageOrNotFound, failure, json, page } from "../test/responses";
 import { CSRF_TOKEN } from "../test/render";
-import {
-  FakeEventSocket,
-  renderApplication,
-  SIGNED_IN,
-} from "./runs/test-support";
+import { FakeEventSocket, renderApplication } from "../test/application";
 
 type QueueItem = components["schemas"]["RunQueueItem"];
 
@@ -66,18 +55,16 @@ function renderQueue(
   path = "/runs",
   routes: Routes = {},
 ) {
-  const view = renderApplication(
-    fakeServer(
+  const view = renderApplication(path, {
+    server: fakeServer(
       {
-        ...SIGNED_IN,
         "GET /v1/queue/control": () => queueControl(),
         "GET /v1/queue": queue,
         ...routes,
       },
       emptyPageOrNotFound,
     ),
-    path,
-  );
+  });
   return {
     ...view,
     /** The Queue reads so far. */

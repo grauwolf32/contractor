@@ -1,6 +1,7 @@
 import { act, render, screen, within } from "@testing-library/react";
 import { createRef } from "react";
-import { MemoryRouter } from "react-router";
+import userEvent from "@testing-library/user-event";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { ListRow } from "./list";
@@ -283,6 +284,44 @@ describe("DetailHeader and DetailPane", () => {
     expect(pane).toHaveTextContent(
       /Running.*Pause.*Started Oct 4, 23:51.*Body.*Decision/,
     );
+  });
+
+  it("carries a breadcrumb link's state and shows an eyebrow above the title", async () => {
+    function Origin() {
+      const { state } = useLocation();
+      return <p>Origin state {JSON.stringify(state)}</p>;
+    }
+    render(
+      <MemoryRouter initialEntries={["/runs/run_1"]}>
+        <Routes>
+          <Route
+            path="/runs/run_1"
+            element={
+              <DetailHeader
+                breadcrumb={[
+                  {
+                    label: "Queue",
+                    to: "/runs",
+                    state: { returnTo: "/checks" },
+                  },
+                  { label: "run_1" },
+                ]}
+                eyebrow="Workflow Run"
+                title="router-analysis"
+                titleAs="h1"
+              />
+            }
+          />
+          <Route path="/runs" element={<Origin />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    const heading = screen.getByRole("heading", { level: 1 });
+    expect(heading.previousElementSibling).toHaveTextContent("Workflow Run");
+    await userEvent.setup().click(screen.getByRole("link", { name: "Queue" }));
+    expect(
+      screen.getByText('Origin state {"returnTo":"/checks"}'),
+    ).toBeVisible();
   });
 
   it("can use an h1 title without a breadcrumb", () => {

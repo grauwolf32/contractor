@@ -3,6 +3,12 @@
  * colours come only from theme.css tokens.
  */
 
+/* ---------- Skills (base rules; this sheet refines them below) ---------- */
+
+.skill-library {
+  margin-top: 1.5rem;
+}
+
 .skill-list {
   margin: 0 -1.125rem;
   padding: 0;

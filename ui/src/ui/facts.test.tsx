@@ -30,6 +30,28 @@ describe("Facts", () => {
     expect(within(list).getByText("0")).toBeVisible();
   });
 
+  it("marks the rows layout and a fact that takes a row of its own", () => {
+    render(
+      <Facts
+        aria-label="Configuration"
+        layout="rows"
+        items={[
+          { term: "Gateway", value: "local-litellm" },
+          {
+            term: "Repository",
+            value: "https://example.test/repo.git",
+            wide: true,
+          },
+        ]}
+      />,
+    );
+    const list = screen.getByLabelText("Configuration");
+    expect(list).toHaveAttribute("data-layout", "rows");
+    const [gateway, repository] = Array.from(list.children);
+    expect(gateway).not.toHaveAttribute("data-wide");
+    expect(repository).toHaveAttribute("data-wide", "");
+  });
+
   it("renders nothing when no fact has a value", () => {
     const { container } = render(
       <Facts items={[{ term: "Started", value: undefined }]} />,

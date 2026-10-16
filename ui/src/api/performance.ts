@@ -3,7 +3,7 @@ import type { PublicAPI } from "./client";
 import { invalidAPIResponse, requireData } from "./error";
 import type { components } from "./generated/public";
 
-export const ALLOCATION_HISTORY_PAGE_SIZE = 50;
+const ALLOCATION_HISTORY_PAGE_SIZE = 50;
 export const PERFORMANCE_RANGES = {
   "15m": { label: "15 minutes", durationMs: 15 * 60_000, step: "15s" },
   "1h": { label: "1 hour", durationMs: 60 * 60_000, step: "15s" },
@@ -13,8 +13,7 @@ export const PERFORMANCE_RANGES = {
 } as const;
 
 export type PerformanceRange = keyof typeof PERFORMANCE_RANGES;
-export type PerformanceStep =
-  components["schemas"]["PerformanceHistory"]["step"];
+type PerformanceStep = components["schemas"]["PerformanceHistory"]["step"];
 export type PerformanceSnapshot = components["schemas"]["PerformanceSnapshot"];
 export type PerformanceHistory = components["schemas"]["PerformanceHistory"];
 export type PerformanceHistoryPoint = PerformanceHistory["points"][number];
@@ -24,16 +23,15 @@ export type PerformanceFreshness =
   components["schemas"]["PerformanceFreshness"];
 export type AllocationResourceSummary =
   components["schemas"]["AllocationResourceSummary"];
-export type AllocationResourcePage =
-  components["schemas"]["AllocationResourcePage"];
+type AllocationResourcePage = components["schemas"]["AllocationResourcePage"];
 
-export interface PerformanceHistoryRequest {
+interface PerformanceHistoryRequest {
   from: string;
   to: string;
   step: PerformanceStep;
 }
 
-export interface AllocationResourcePageRequest {
+interface AllocationResourcePageRequest {
   runId?: string;
   cursor?: string;
 }

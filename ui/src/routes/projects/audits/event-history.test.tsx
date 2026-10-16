@@ -9,7 +9,7 @@ import { PublicAPIProvider } from "../../../api/context";
 import { queryKeys } from "../../../api/query-keys";
 import { checkLinks } from "./check-links";
 import { fakeAPI, makeAudit } from "./check-test-support";
-import { json } from "../../../test/fake-server";
+import { json } from "../../../test/responses";
 import { CheckEventHistory } from "./event-history";
 import { eventEntry } from "./event-model";
 

@@ -23,9 +23,10 @@ import {
   capitalize,
   checkItemKind,
   itemCount,
+  type ItemKind,
   itemNoun,
   TERMS,
-  type ItemKind,
+  wordOf,
 } from "../../app/vocabulary";
 import {
   Button,
@@ -45,7 +46,6 @@ import {
   presetScope,
   startCheckPath,
   useAuditPresets,
-  wordOf,
 } from "./audit-preset-data";
 import {
   CheckTypeAvailability,
@@ -101,6 +101,8 @@ function VersionPicker({ name, version }: { name: string; version: string }) {
       <label className="library-version">
         <span>Version</span>
         <select
+          className="ui-control"
+          data-size="xs"
           aria-label="Check type version"
           value={version}
           onChange={(event) =>

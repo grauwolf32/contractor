@@ -1,12 +1,10 @@
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createMemoryRouter } from "react-router";
 import { describe, expect, it } from "vitest";
 
 import type { AuditStandard } from "../../api/audit-presets";
 import type { AuditProfile } from "../../api/audits";
-import { Application } from "../../app/application";
-import { applicationRoutes } from "../../app/router";
+import { renderApplication } from "../../test/application";
 import {
   dynamicPresetFixture,
   newerPresetFixture,
@@ -15,8 +13,8 @@ import {
   standardResponse,
 } from "../../test/audit-presets-fixture";
 import { stageContract, workflowResource } from "../../test/builders-execution";
-import { failure, fakeServer, json, page } from "../../test/fake-server";
-import { testAPI, testSession } from "../../test/render";
+import { fakeServer } from "../../test/fake-server";
+import { failure, json, page } from "../../test/responses";
 import { auditPresetLabel } from "../projects/audits/labels";
 
 function setup(
@@ -70,22 +68,10 @@ function setup(
         }),
       ),
   });
-  const { api: publicAPI } = testAPI(server);
-  const session = testSession();
-  const router = createMemoryRouter(applicationRoutes(), {
-    initialEntries: [path],
+  const { router } = renderApplication(path, {
+    server,
+    capabilities: ["user"],
   });
-  render(
-    <Application
-      api={{
-        getSession: async () => session,
-        login: async () => session,
-        logout: async () => undefined,
-      }}
-      publicAPI={publicAPI}
-      router={router}
-    />,
-  );
   return { router, server };
 }
 

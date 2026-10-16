@@ -2,17 +2,15 @@ import { act, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import type { ArtifactMetadata } from "../../api/artifacts";
-import { conforming } from "../../test/builders";
 import {
-  failure,
-  fakeServer,
-  json,
-  page,
-  type Routes,
-} from "../../test/fake-server";
+  artifactMetadata,
+  artifactWrite,
+  conforming,
+} from "../../test/builders";
+import { fakeServer, type Routes } from "../../test/fake-server";
+import { failure, json, page } from "../../test/responses";
 import { renderWithAPI } from "../../test/render";
 import { ProjectArtifactRegion } from "../projects/artifact-region";
-import { artifactMetadata, artifactWrite } from "./test-support";
 
 const PROJECT = "project-1";
 const LIST = `/v1/projects/${PROJECT}/artifacts`;

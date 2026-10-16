@@ -3,7 +3,9 @@ import { act, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import * as build from "../../test/builders";
-import { json, page, type Fallback } from "../../test/fake-server";
+import { deferred } from "../../test/deferred";
+import type { Fallback } from "../../test/fake-server";
+import { json, page } from "../../test/responses";
 import { renderWithAPI } from "../../test/render";
 import { useProjectArtifactInventory } from "./inventory";
 
@@ -40,24 +42,21 @@ const artifact = (name: string) =>
 
 describe("Project matching inventory", () => {
   it("does not offer a partial sole match while later pages are loading", async () => {
-    let finish!: () => void;
-    const second = new Promise<void>((resolve) => {
-      finish = resolve;
-    });
+    const second = deferred();
     let laterPage = false;
     const result = renderInventory(async (_request, url) => {
       if (url.searchParams.has("cursor")) {
         laterPage = true;
-        await second;
-        return json(page([artifact("second")]));
+        await second.promise;
+        return json(page([artifact("second.promise")]));
       }
       return json(page([artifact("first")], "next"));
     });
     await waitFor(() => expect(laterPage).toBe(true));
     expect(result().data).toBeUndefined();
     await act(async () => {
-      finish();
-      await second;
+      second.resolve();
+      await second.promise;
     });
     await waitFor(() => expect(result().data).toHaveLength(2));
   });

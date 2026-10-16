@@ -12,8 +12,8 @@ import type {
 } from "../../api/evals";
 import { plural } from "../../app/format";
 import {
-  capitalize,
   labelOf,
+  readableValue,
   type VocabularyLabel,
 } from "../../app/vocabulary";
 
@@ -23,16 +23,6 @@ type EvalExecutionKind = EvalExperiment["executionKind"];
 type EvalControlMode = EvalExperiment["controlMode"];
 type EvalFreshness = NonNullable<EvalExperiment["freshness"]>;
 type EvalSection = "overview" | "comparison" | "attempts" | "setup";
-
-/**
- * An API value in words ("not_eligible" is "Not eligible"), also for a
- * value this client does not know yet.
- */
-// V385: needs shared readable-value word (vocabulary.ts keeps its unknownLabel private).
-export function readableValue(value: string): string {
-  const words = value.replaceAll(/[_-]+/g, " ").trim();
-  return words === "" ? "Unknown" : capitalize(words);
-}
 
 // Key order is the lifecycle order of the list filter.
 export const EVAL_STATE_LABELS: Readonly<Record<EvalState, VocabularyLabel>> = {

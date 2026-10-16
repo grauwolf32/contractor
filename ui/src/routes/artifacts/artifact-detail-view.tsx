@@ -242,7 +242,7 @@ export function ArtifactDetailView({
               </>
             )}
             <RefreshButton
-              className="ui-btn materials-refresh"
+              className="materials-refresh"
               isFetching={query.isFetching}
               onRefresh={() => void query.refetch()}
             />

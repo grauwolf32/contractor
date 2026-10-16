@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { renderWithAPI } from "../../test/render";
 import { ArtifactPreviewPanel } from "./preview";
-import { artifactMetadata } from "./test-support";
+import { artifactMetadata } from "../../test/builders";
 
 describe("Artifact preview keyboard navigation", () => {
   it("moves selection and focus with arrows, Home and End, then Tabs into the panel", async () => {

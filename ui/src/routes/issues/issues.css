@@ -10,22 +10,6 @@
 
 /* ---------- Shared text ---------- */
 
-.issues-quiet {
-  color: var(--muted);
-  font-size: var(--text-sm);
-  line-height: 1.45;
-}
-
-p.issues-quiet {
-  margin: 0;
-}
-
-.issues-mono {
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  overflow-wrap: anywhere;
-}
-
 .issues-heading {
   margin: 0 0 var(--space-1-5);
   color: var(--text);
@@ -711,31 +695,6 @@ code.issues-attempt-request {
   overflow-wrap: anywhere;
 }
 
-.issues-facts {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(13rem, 100%), 1fr));
-  gap: var(--space-3) var(--space-6);
-  margin: 0;
-}
-
-.issues-facts > div {
-  min-width: 0;
-}
-
-.issues-facts dt {
-  color: var(--muted);
-  font-size: var(--text-xs);
-  font-weight: 600;
-}
-
-.issues-facts dd {
-  margin: var(--space-0-5) 0 0;
-  color: var(--text);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-
 /* ---------- History and provenance ---------- */
 
 .issues-history {
@@ -943,12 +902,6 @@ code.issues-attempt-request {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2) var(--space-4);
-}
-
-.issues-queue-status {
-  margin: 0;
-  color: var(--muted);
-  font-size: var(--text-sm);
 }
 
 .issues-queue-actions {

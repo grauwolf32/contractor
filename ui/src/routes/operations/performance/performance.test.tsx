@@ -2,9 +2,10 @@ import { screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { components } from "../../../api/generated/public";
+import { FakeEventSocket, renderApplication } from "../../../test/application";
 import { conforming } from "../../../test/builders";
-import { json, page, type FakeCall } from "../../../test/fake-server";
-import { FakeSocket, renderOperationsApp } from "../test-support";
+import type { FakeCall } from "../../../test/fake-server";
+import { json, page } from "../../../test/responses";
 import { performanceFreshnessState } from "./freshness";
 import { metricSeriesSegments } from "./series";
 
@@ -159,8 +160,8 @@ describe("Operations performance views", () => {
       vi.useFakeTimers({ toFake: ["Date"] });
       vi.setSystemTime(new Date("2026-09-06T12:01:30Z"));
       try {
-        const { user } = renderOperationsApp("/operations/performance", {
-          routes: {
+        const { user } = renderApplication("/operations/performance", {
+          server: {
             "GET /v1/operations/performance": () => json(snapshot()),
             "GET /v1/operations/performance/history": (call) => {
               const { from, to, step } = window(call);
@@ -225,8 +226,8 @@ describe("Operations performance views", () => {
 
   it("renders truthful current/history metrics without reading the registry", async () => {
     const historySteps: string[] = [];
-    const { user, sent } = renderOperationsApp("/operations/performance", {
-      routes: {
+    const { user, sent } = renderApplication("/operations/performance", {
+      server: {
         "GET /v1/operations/performance": () => json(snapshot()),
         "GET /v1/operations/performance/history": (call) => {
           const { from, to, step } = window(call);
@@ -262,7 +263,7 @@ describe("Operations performance views", () => {
     expect(screen.getByText(/not free disk space/i)).toBeInTheDocument();
     expect(screen.getByText(/not a bloat verdict/i)).toBeInTheDocument();
     expect(sent("GET", "/v1/operations/snapshot")).toHaveLength(0);
-    expect(FakeSocket.instances).toHaveLength(0);
+    expect(FakeEventSocket.instances).toHaveLength(0);
 
     await user.selectOptions(screen.getByLabelText("Time range"), "7d");
     await waitFor(() => expect(historySteps).toContain("1h"));
@@ -271,8 +272,8 @@ describe("Operations performance views", () => {
 
   it("aborts obsolete history when the selected range changes", async () => {
     let fineSignal: AbortSignal | undefined;
-    const { user } = renderOperationsApp("/operations/performance", {
-      routes: {
+    const { user } = renderApplication("/operations/performance", {
+      server: {
         "GET /v1/operations/performance": () => json(disabledSnapshot()),
         "GET /v1/operations/performance/history": (call) => {
           const { from, to, step } = window(call);
@@ -297,14 +298,14 @@ describe("Operations performance views", () => {
     expect(
       await screen.findAllByText("No observations in this range."),
     ).toHaveLength(3);
-    expect(FakeSocket.instances).toHaveLength(0);
+    expect(FakeEventSocket.instances).toHaveLength(0);
   });
 
   it("shows durable completed summaries without lifecycle controls", async () => {
-    const { user, sent } = renderOperationsApp(
+    const { user, sent } = renderApplication(
       "/operations/allocations/completed",
       {
-        routes: {
+        server: {
           "GET /v1/operations/allocation-history": () =>
             json(
               page([
@@ -374,7 +375,7 @@ describe("Operations performance views", () => {
       screen.queryByRole("button", { name: /force|idle|reassign|release/i }),
     ).not.toBeInTheDocument();
     expect(sent("GET", "/v1/operations/snapshot")).toHaveLength(0);
-    expect(FakeSocket.instances).toHaveLength(0);
+    expect(FakeEventSocket.instances).toHaveLength(0);
   });
 
   it("splits charts at missing values, gaps and generation changes", () => {

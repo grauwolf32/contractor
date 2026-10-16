@@ -11,11 +11,12 @@ import type {
   AuditProfile,
   AuditReviewRequest,
 } from "../../../api/audits";
-import * as queryClientFactory from "../../../app/query-client";
+import { createApplicationQueryClient } from "../../../app/query-client";
 import { queryKeys } from "../../../api/query-keys";
+import { renderApplication } from "../../../test/application";
 import * as build from "../../../test/builders";
-import { fakeServer, invalidJSON, json, page } from "../../../test/fake-server";
-import { renderApplication } from "./check-test-support";
+import { fakeServer, invalidJSON } from "../../../test/fake-server";
+import { json, page } from "../../../test/responses";
 import { testAPI, testSession } from "../../../test/render";
 
 /** A PublicAPI over `handle` whose answers the fake Server checks. */
@@ -226,11 +227,7 @@ describe("Project Audit routes", () => {
       const previousScroll = HTMLElement.prototype.scrollIntoView;
       HTMLElement.prototype.scrollIntoView = vi.fn();
       let current = auditAt("active", 2);
-      const queryClient = queryClientFactory.createApplicationQueryClient();
-      vi.spyOn(
-        queryClientFactory,
-        "createApplicationQueryClient",
-      ).mockReturnValue(queryClient);
+      const queryClient = createApplicationQueryClient();
       const item: AuditItem = {
         itemId: "item_final",
         roundId: "round_example",
@@ -315,8 +312,8 @@ describe("Project Audit routes", () => {
         return emptyCollection(path, current);
       });
       renderApplication(
-        api,
         `/projects/project_example/audits/audit_example/${section}${section === "coverage" ? "#check-item_final" : ""}`,
+        { api, queryClient },
       );
       await screen.findByText(
         section === "coverage"
@@ -377,8 +374,8 @@ describe("Project Audit routes", () => {
         throw new Error(`unexpected ${request.method} ${path}`);
       });
       renderApplication(
-        api,
         "/projects/project_example/audits/audit_example/report",
+        { api },
       );
       if (!markdown) {
         expect(
@@ -475,10 +472,9 @@ describe("Project Audit routes", () => {
         return json(auditPage(otherAudit, [other]));
       throw new Error(`unexpected ${path}`);
     });
-    const { router } = renderApplication(
+    const { router } = renderApplication("/projects/project_example/findings", {
       api,
-      "/projects/project_example/findings",
-    );
+    });
     const user = userEvent.setup();
     expect(
       await screen.findByText("3 of 3 possible issues · 2 checks"),
@@ -598,7 +594,7 @@ describe("Project Audit routes", () => {
         return emptyCollection(path, otherAudit);
       throw new Error(`unexpected ${path}`);
     });
-    renderApplication(api, "/projects/project_example/findings");
+    renderApplication("/projects/project_example/findings", { api });
     const user = userEvent.setup();
     expect(
       await screen.findByRole("link", {
@@ -869,10 +865,10 @@ describe("Project Audit routes", () => {
         throw new Error(`unexpected ${request.method} ${path}`);
       });
       const { router } = renderApplication(
-        api,
         scope === "check"
           ? "/projects/project_example/audits/audit_example/findings"
           : "/projects/project_example/findings",
+        { api },
       );
       const user = userEvent.setup();
 
@@ -1079,8 +1075,8 @@ describe("Project Audit routes", () => {
       throw new Error(`unexpected ${request.method} ${path}`);
     });
     renderApplication(
-      api,
       "/projects/project_example/audits/audit_example/reviews",
+      { api },
     );
     const user = userEvent.setup();
     const decision = await screen.findByRole("region", {
@@ -1152,7 +1148,7 @@ describe("Bounded Audit collections", () => {
         );
       throw new Error(`unexpected ${path}`);
     });
-    renderApplication(api, "/projects/project_example/findings");
+    renderApplication("/projects/project_example/findings", { api });
     expect(
       await screen.findByText("5 of 5 possible issues · 1 check"),
     ).toBeVisible();
@@ -1206,7 +1202,7 @@ describe("Bounded Audit collections", () => {
       }
       throw new Error(`unexpected ${url.pathname}`);
     });
-    renderApplication(api, "/projects/project_example/findings");
+    renderApplication("/projects/project_example/findings", { api });
     expect(
       await screen.findByText("250 of 250 possible issues · 1 check"),
     ).toBeVisible();
@@ -1244,7 +1240,7 @@ describe("Bounded Audit collections", () => {
         }
         throw new Error(`unexpected ${path}`);
       });
-      renderApplication(api, "/projects/project_example/findings");
+      renderApplication("/projects/project_example/findings", { api });
       expect(
         await screen.findByText("1 of 1 possible issue · 1 check"),
       ).toBeVisible();
@@ -1317,8 +1313,8 @@ describe("Audit workspace snapshot navigation", () => {
       throw new Error(`unexpected ${url}`);
     });
     const { router } = renderApplication(
-      api,
       "/projects/project_example/audits/audit_example/findings?verdict=unreviewed",
+      { api },
     );
     const user = userEvent.setup();
     expect(
@@ -1424,8 +1420,8 @@ describe("Audit workspace snapshot navigation", () => {
         throw new Error(`unexpected ${request.method} ${path}`);
       });
       const { router } = renderApplication(
-        api,
         "/projects/project_example/audits/audit_example/findings?finding=finding_example&review=review_linked",
+        { api },
       );
       const user = userEvent.setup();
       expect(
@@ -1539,7 +1535,7 @@ describe("Audit workspace snapshot navigation", () => {
     });
     const queue =
       "/projects/project_example/audits/audit_example/reviews?state=pending&cursor=page-two&auditRevision=5";
-    const { router } = renderApplication(api, queue);
+    const { router } = renderApplication(queue, { api });
     const user = userEvent.setup();
     await user.click(
       await screen.findByRole("link", { name: "Review report →" }),

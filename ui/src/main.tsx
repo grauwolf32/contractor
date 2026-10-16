@@ -1,9 +1,10 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { createBrowserRouter } from "react-router";
 
 import { PublicAPI } from "./api/client";
 import { Application } from "./app/application";
-import { createApplicationRouter } from "./app/router";
+import { applicationRoutes } from "./app/router";
 import { initializeTheme } from "./app/theme";
 import { loadRuntimeConfig } from "./config/runtime-config";
 import "@fontsource-variable/manrope";
@@ -38,7 +39,7 @@ async function bootstrap(): Promise<void> {
   try {
     const runtimeConfig = await loadRuntimeConfig();
     const api = new PublicAPI(runtimeConfig);
-    const router = createApplicationRouter();
+    const router = createBrowserRouter(applicationRoutes());
     createRoot(root).render(
       <StrictMode>
         <Application api={api} publicAPI={api} router={router} />

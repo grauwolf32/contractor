@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { RuntimeConfig } from "../config/runtime-config";
 import { PublicAPI } from "./client";
+import { schemaLimit } from "./contract";
 import {
+  CANCELLATION_REASON_LIMIT,
   cancelRun,
   deleteRun,
   downloadRunArtifact,
@@ -274,6 +276,31 @@ describe("Run API", () => {
     await expect(cancelRun(api, "run-1", "   ")).rejects.toThrow(
       "Cancellation reason",
     );
+  });
+
+  it("limits the cancellation reason as the contract does, in code points", async () => {
+    const limit = schemaLimit(
+      "CancelRunRequest",
+      "maxLength",
+      "properties",
+      "reason",
+    );
+    expect(CANCELLATION_REASON_LIMIT).toBe(limit);
+    const sent = vi.fn();
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () => {
+        sent();
+        return response({ runId: "run-1", state: "cancelling" }, 202);
+      }),
+    );
+    api.csrf.replace("a".repeat(43));
+    // An astral character is one code point but two UTF-16 units.
+    await cancelRun(api, "run-1", "🛑".repeat(limit));
+    await expect(
+      cancelRun(api, "run-1", "x".repeat(limit + 1)),
+    ).rejects.toThrow(`Cancellation reason must contain 1–${limit} characters`);
+    expect(sent).toHaveBeenCalledOnce();
   });
 
   it("deletes a Run through the CSRF-protected bodyless endpoint", async () => {

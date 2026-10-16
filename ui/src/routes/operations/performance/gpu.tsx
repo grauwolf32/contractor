@@ -1,6 +1,10 @@
 import type { components } from "../../../api/generated/public";
 import type { PerformanceHistory } from "../../../api/performance";
-import { formatBytes, formatTimestamp } from "../../../app/format";
+import {
+  formatBytes,
+  formatNumber,
+  formatTimestamp,
+} from "../../../app/format";
 import { Facts } from "../../../ui";
 import { OperationsState } from "../common";
 import { MetricSeriesChart, type ChartDatum } from "./chart";
@@ -78,7 +82,7 @@ export function GPUCurrentMetrics({
               term: label,
               value: field.startsWith("memory")
                 ? formatBytes(device[field]!)
-                : `${device[field]!.toLocaleString(undefined, { maximumFractionDigits: 1 })} ${unit}`,
+                : `${formatNumber(device[field]!, 1)} ${unit}`,
             }))}
           />
           <small>

@@ -1,20 +1,17 @@
 import { Link } from "react-router";
 
-import { TechnicalDetails } from "../../../ui";
+import { formatNumber } from "../../../app/format";
+import { Facts, TechnicalDetails } from "../../../ui";
 import { useOperationsSnapshot } from "../context";
 import type { RuntimeAgentObservation } from "../../../api/operations";
-import {
-  FactRows,
-  OperationsState,
-  OptionalTimestamp,
-  SafeReason,
-} from "../common";
+import { OperationsState, OptionalTimestamp, SafeReason } from "../common";
 
 /** What a registered process advertised, and its allocation binding. */
 function ProcessFacts({ agent }: { agent: RuntimeAgentObservation }) {
   const workspace = agent.workspaceCapabilities;
   return (
-    <FactRows
+    <Facts
+      layout="rows"
       items={[
         {
           term: "Software version",
@@ -74,9 +71,8 @@ function ProcessFacts({ agent }: { agent: RuntimeAgentObservation }) {
                   <code key={mode}>{mode}</code>
                 ))}
                 {" · "}
-                {workspace.limits.maxFiles.toLocaleString()} files /{" "}
-                {workspace.limits.maxExpandedBytes.toLocaleString()} bytes
-                expanded
+                {formatNumber(workspace.limits.maxFiles)} files /{" "}
+                {formatNumber(workspace.limits.maxExpandedBytes)} bytes expanded
               </>
             ),
         },

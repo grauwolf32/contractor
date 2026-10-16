@@ -7,15 +7,6 @@
 
 /* ---------- Shared text ---------- */
 
-.decisions-quiet {
-  color: var(--muted);
-  font-size: var(--text-sm);
-}
-
-p.decisions-quiet {
-  margin: 0;
-}
-
 .decisions-heading {
   display: flex;
   align-items: center;
@@ -147,7 +138,7 @@ p.decisions-quiet {
   margin-top: var(--space-1);
 }
 
-.decisions-facts dd .decisions-quiet,
+.decisions-facts dd .ui-caption,
 .decisions-suggestion {
   color: var(--muted);
   font-size: var(--text-sm);
@@ -272,7 +263,7 @@ p.decisions-quiet {
   overflow-wrap: anywhere;
 }
 
-.decisions-locations > .decisions-quiet {
+.decisions-locations > .ui-caption {
   margin-top: var(--space-1-5);
 }
 
@@ -393,17 +384,6 @@ p.decisions-quiet {
   font-size: var(--text-sm);
 }
 
-.decisions-record-meta {
-  margin: 0;
-  color: var(--muted);
-  font-size: var(--text-sm);
-}
-
-.decisions-record-actor {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-}
-
 .decisions-record-reason {
   display: flex;
   flex-direction: column;
@@ -431,12 +411,6 @@ p.decisions-quiet {
 
 .decisions-state-reason > button {
   align-self: flex-start;
-}
-
-.decisions-intro {
-  margin: 0;
-  color: var(--muted);
-  font-size: var(--text-sm);
 }
 
 .decisions-notice {
@@ -640,12 +614,6 @@ p.decisions-quiet {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   overflow-wrap: anywhere;
-}
-
-.decisions-duplicate-note {
-  margin: 0;
-  color: var(--muted);
-  font-size: var(--text-sm);
 }
 
 /* ---------- Inside a card instead of a pane ---------- */

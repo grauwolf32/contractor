@@ -154,61 +154,6 @@
   font-weight: 500;
 }
 
-/*
- * Plain facts without the hairline grid: label / value rows. Each row is a
- * subgrid of the list, so the labels share one column, and the row carries
- * the separator, so the list reads right in two columns and in one (narrow
- * screens, narrow frames, the Library's side panel via .configuration-body).
- */
-.ops-facts {
-  display: grid;
-  grid-template-columns: minmax(8rem, 13rem) minmax(0, 1fr);
-  margin: 0;
-}
-
-.ops-facts > div {
-  display: grid;
-  grid-column: 1 / -1;
-  grid-template-columns: subgrid;
-  row-gap: var(--space-0-5);
-  min-width: 0;
-  padding: var(--space-2) 0;
-  border-top: 1px solid var(--line);
-}
-
-.ops-facts > div:first-child {
-  border-top: 0;
-}
-
-.ops-facts dt,
-.ops-facts dd {
-  min-width: 0;
-}
-
-.ops-facts dt {
-  padding-right: var(--space-4);
-  color: var(--muted);
-  font-size: var(--text-sm);
-  font-weight: 600;
-}
-
-.ops-facts dd {
-  margin: 0;
-  color: var(--text);
-  font-size: var(--text-md);
-  overflow-wrap: anywhere;
-}
-
-.ops-facts dd code {
-  font-size: var(--text-sm);
-}
-
-/* Lists in a value have no bullets; they start where the other values do. */
-.ops-facts dd ul {
-  margin: 0;
-  padding-left: 0;
-}
-
 .ops-value-list {
   display: grid;
   gap: var(--space-1);
@@ -227,30 +172,4 @@
   justify-items: start;
   gap: var(--space-1);
   min-width: 0;
-}
-
-/*
- * A frame lays its facts out by its own width, not the viewport's: one
- * column when it is narrow (a side panel, a block card, a nested value).
- */
-.ops-facts-frame {
-  container: ops-facts / inline-size;
-  min-width: 0;
-}
-
-@container ops-facts (max-width: 30rem) {
-  .ops-facts {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  /* A nested list then sits under its label: indent it by one level. */
-  .ops-facts .ops-facts-frame {
-    padding-left: var(--space-3);
-  }
-}
-
-@media (max-width: 640px) {
-  .ops-facts {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }

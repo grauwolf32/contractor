@@ -1,7 +1,7 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { documentTitle, useDocumentTitle } from "./document-title";
+import { useDocumentTitle } from "./document-title";
 
 function Page({ title }: { title?: string | null }) {
   useDocumentTitle(title);
@@ -15,6 +15,8 @@ describe("useDocumentTitle", () => {
     view.rerender(<Page title="  " />);
     expect(document.title).toBe("Contractor");
     view.rerender(<Page />);
+    expect(document.title).toBe("Contractor");
+    view.rerender(<Page title={null} />);
     expect(document.title).toBe("Contractor");
     view.rerender(<Page title="crapi-workshop" />);
     expect(document.title).toBe("crapi-workshop · Contractor");
@@ -35,10 +37,5 @@ describe("useDocumentTitle", () => {
     expect(document.title).toBe("Runs · Contractor");
     later.unmount();
     expect(document.title).toBe("Contractor");
-  });
-
-  it("formats titles without rendering", () => {
-    expect(documentTitle("Runs")).toBe("Runs · Contractor");
-    expect(documentTitle(null)).toBe("Contractor");
   });
 });

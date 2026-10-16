@@ -42,6 +42,8 @@ function AgentCard({
         <label className="library-version">
           <span>Version</span>
           <select
+            className="ui-control"
+            data-size="xs"
             aria-label={`Version of ${name}`}
             value={item.ref.version}
             onChange={(event) => onVersion(event.target.value)}
@@ -73,7 +75,7 @@ function AgentCard({
         <span className="library-card-text">
           {body.description || "No authored description."}
         </span>
-        <span className="library-agent-facts">
+        <span className="ui-caption">
           {body.runtime} · {plural(body.skills?.length ?? 0, "Skill")} ·{" "}
           {plural(tools, "tool")}
         </span>
@@ -186,6 +188,7 @@ export function AgentListRoute() {
 
       {query.data === undefined ? null : (
         <CursorControls
+          size="sm"
           label="Agent pages"
           {...state.controls(query.data.page)}
         />

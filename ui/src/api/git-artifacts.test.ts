@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { fakeServer, json } from "../test/fake-server";
+import { fakeServer } from "../test/fake-server";
+import { json } from "../test/responses";
 import { testAPI } from "../test/render";
 import { importGitArtifact } from "./git-artifacts";
 

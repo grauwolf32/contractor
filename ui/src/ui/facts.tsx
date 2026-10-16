@@ -8,7 +8,11 @@ interface Fact {
   value: ReactNode;
   /** React key; defaults to the term when it is a string. */
   key?: string;
+  /** Takes a row of its own: a repository URL, a revision. */
+  wide?: boolean;
 }
+
+type FactLayout = "grid" | "row" | "list" | "rows";
 
 function present(fact: Fact): boolean {
   return (
@@ -24,7 +28,7 @@ function FactList({
   className,
 }: {
   facts: readonly Fact[];
-  layout: "grid" | "row" | "list";
+  layout: FactLayout;
   size: "sm" | "md";
   label: string | undefined;
   className: string | undefined;
@@ -41,6 +45,7 @@ function FactList({
       {shown.map((fact, index) => (
         <div
           key={fact.key ?? (typeof fact.term === "string" ? fact.term : index)}
+          data-wide={fact.wide === true ? "" : undefined}
         >
           <dt>{fact.term}</dt>
           <dd>{fact.value}</dd>
@@ -58,7 +63,9 @@ function FactList({
  * Technical details disclosure under the list.
  *
  * Layouts: `grid` (default) fills columns of at least 10rem, `row` wraps
- * pairs on one line, `list` stacks them.
+ * pairs on one line, `list` stacks them, `rows` puts the terms in one column
+ * with a hairline between pairs (one column in a narrow `ui-facts-frame` or
+ * screen). A `wide` fact takes a row of its own.
  */
 export function Facts({
   items,
@@ -70,7 +77,7 @@ export function Facts({
   "aria-label": label,
 }: {
   items: readonly Fact[];
-  layout?: "grid" | "row" | "list" | undefined;
+  layout?: FactLayout | undefined;
   /** `sm` for dense panes: smaller, lighter values. */
   size?: "sm" | "md" | undefined;
   technical?: readonly Fact[] | undefined;

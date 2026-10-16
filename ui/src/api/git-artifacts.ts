@@ -3,7 +3,7 @@ import { ARTIFACT_NAME_PATTERN } from "./artifacts";
 import { invalidAPIResponse, publicAPIError, requireData } from "./error";
 import type { components } from "./generated/public";
 
-export type GitKeyState = components["schemas"]["GitKeyState"];
+type GitKeyState = components["schemas"]["GitKeyState"];
 export type GitImportResult = components["schemas"]["GitImportResult"];
 export type GitSource = components["schemas"]["GitSource"];
 export const gitKeyQueryKey = ["settings", "git-key"] as const;
@@ -39,7 +39,7 @@ export async function removeGitKey(
   if (!result.response.ok)
     throw publicAPIError(result.response.status, result.error);
 }
-export interface GitImportDraft {
+interface GitImportDraft {
   projectId?: string;
   namespace: string;
   name: string;

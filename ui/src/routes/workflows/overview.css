@@ -4,6 +4,14 @@
  * theme.css tokens.
  */
 
+/* ---------- Workflow page (base rules; this sheet refines them below) ---------- */
+
+.workflow-skill-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.55rem;
+}
+
 /* ---------- Overview ---------- */
 
 .workflow-overview-lede {
@@ -198,11 +206,6 @@
   color: var(--text);
   font-size: var(--text-sm);
   font-weight: 600;
-}
-
-.workflow-stage-summary {
-  color: var(--muted);
-  font-size: var(--text-sm);
 }
 
 .workflow-stage-body {

@@ -5,7 +5,12 @@ import type { AuditProfile } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
 import type { components } from "../../api/generated/public";
 import { queryKeys } from "../../api/query-keys";
-import { capitalize, checkItemKind, itemNoun } from "../../app/vocabulary";
+import {
+  capitalize,
+  checkItemKind,
+  itemNoun,
+  wordOf,
+} from "../../app/vocabulary";
 import { auditPresetLabel } from "../projects/audits/labels";
 import { compareVersions } from "../../app/format";
 
@@ -74,20 +79,6 @@ const COMPATIBILITY_REASONS: Readonly<Record<CompatibilityReason, string>> = {
     "This server cannot ask you to accept the report.",
   manual_item_unsupported: "This server cannot run manual items.",
 };
-
-/**
- * The word for `value` in `table`; a value this client does not know yet
- * reads as written ("release_pending" is "Release pending").
- */
-// V385: needs shared wordOf (src/app/vocabulary.ts keeps its copy private).
-export function wordOf<K extends string>(
-  table: Readonly<Record<K, string>>,
-  value: K,
-): string {
-  return Object.hasOwn(table, value)
-    ? table[value]
-    : capitalize(value.replaceAll(/[_-]+/g, " "));
-}
 
 /** One readable sentence for a reason the server cannot run a check type. */
 export function compatibilityReasonText(reason: string): string {

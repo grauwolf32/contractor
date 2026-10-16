@@ -8,7 +8,8 @@ import type { Audit, AuditCoverageRow } from "../../../api/audits";
 import { PublicAPIProvider } from "../../../api/context";
 import { queryKeys } from "../../../api/query-keys";
 import * as build from "../../../test/builders";
-import { failure, fakeServer, json, page } from "../../../test/fake-server";
+import { fakeServer } from "../../../test/fake-server";
+import { failure, json, page } from "../../../test/responses";
 import { testAPI } from "../../../test/render";
 import { useAuditCoverage } from "./coverage-data";
 

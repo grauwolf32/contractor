@@ -13,6 +13,7 @@ import {
 } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
+import { deferred } from "../../test/deferred";
 import { ActionDecision, ReportDecision } from "./review-decision";
 import {
   AUDIT_ID,
@@ -21,7 +22,8 @@ import {
   makeTriageReview,
   proposedReport,
 } from "./test-support";
-import { failure, fakeServer, json, type Routes } from "../../test/fake-server";
+import { fakeServer, type Routes } from "../../test/fake-server";
+import { failure, json } from "../../test/responses";
 import { renderWithAPI } from "../../test/render";
 
 /** A Server that keeps one review request. */
@@ -524,12 +526,9 @@ describe("ReportDecision", () => {
     }
 
     it("keeps the bar while recording, even once the report moved on", async () => {
-      let release: (() => void) | undefined;
-      const held = new Promise<void>((resolve) => {
-        release = resolve;
-      });
+      const held = deferred();
       const onRecording = vi.fn();
-      const server = reportServer({ afterDecision: () => held });
+      const server = reportServer({ afterDecision: () => held.promise });
       renderWithAPI(<ReportPage onRecording={onRecording} />, {
         server: fakeServer(server.routes),
       });
@@ -545,7 +544,7 @@ describe("ReportDecision", () => {
         within(region).getByRole("button", { name: "Record decision" }),
       );
       await waitFor(() => expect(onRecording.mock.calls).toEqual([[true]]));
-      // The refresh shows the report ready while the request read is held:
+      // The refresh shows the report ready while the request read is held.promise:
       // the decision is still recording, so its bar stays.
       expect(await screen.findByText("Report ready")).toBeVisible();
       expect(screen.getByRole("region", { name: "Your decision" })).toBe(
@@ -559,7 +558,7 @@ describe("ReportDecision", () => {
       ).toBeNull();
       expect(onRecording.mock.calls).toEqual([[true]]);
 
-      release?.();
+      held.resolve();
       expect(await screen.findByText("Approved")).toBeVisible();
       expect(screen.getByRole("status")).toHaveTextContent(
         "Decision recorded: Approved.",
@@ -625,15 +624,12 @@ describe("ReportDecision", () => {
     }
 
     it("reads the report and offers actions only once it carries this request", async () => {
-      let release: (() => void) | undefined;
-      const read = new Promise<void>((resolve) => {
-        release = resolve;
-      });
+      const read = deferred();
       const { sent } = renderWithAPI(
         <ReportDecision auditId={AUDIT_ID} review={reportReview()} />,
         {
           server: reportRead(async () => {
-            await read;
+            await read.promise;
             return json(proposedReport(reportReview()));
           }),
         },
@@ -642,7 +638,7 @@ describe("ReportDecision", () => {
       expect(
         screen.queryByRole("region", { name: "Your decision" }),
       ).not.toBeInTheDocument();
-      release?.();
+      read.resolve();
       const region = await bar();
       expect(
         within(region)

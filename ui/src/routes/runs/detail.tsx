@@ -130,14 +130,10 @@ function RunHeader({
   return (
     <DetailHeader
       breadcrumb={[
-        // V385: needs shared BreadcrumbItem state: the origin link carries
-        // its page's own return state, which a breadcrumb `to` cannot.
         {
-          label: (
-            <Link to={origin.returnTo} state={origin.returnState}>
-              {origin.returnLabel}
-            </Link>
-          ),
+          label: origin.returnLabel,
+          to: origin.returnTo,
+          state: origin.returnState,
         },
         {
           label: (
@@ -150,14 +146,8 @@ function RunHeader({
       titleAs="h1"
       titleRef={titleRef}
       title={<span id="run-title">{title}</span>}
-      status={
-        <>
-          {/* V385: needs a shared DetailHeader eyebrow; CSS shows this one
-              above the title. */}
-          <p className="runs-label runs-run-kind">Workflow Run</p>
-          {status}
-        </>
-      }
+      eyebrow="Workflow Run"
+      status={status}
       actions={actions}
       meta={meta}
     />
@@ -489,6 +479,7 @@ function RunPage({ runId }: { runId: string }) {
   const refresh = (
     <RefreshButton
       className="runs-icon-button"
+      size="sm"
       isFetching={query.isFetching}
       onRefresh={() => void query.refetch()}
     />

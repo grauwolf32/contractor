@@ -7,26 +7,26 @@ import type {
   RunSummary,
   StageAttempt,
 } from "../../api/runs";
-import * as queryClientFactory from "../../app/query-client";
+import { createApplicationQueryClient } from "../../app/query-client";
 import { conforming, DIGEST } from "../../test/builders";
+import { deferred } from "../../test/deferred";
 import {
   runStatus,
   stageAttempt,
   workflowResource,
 } from "../../test/builders-execution";
+import { fakeServer, type Routes } from "../../test/fake-server";
 import {
-  API_VERSION_HEADERS,
+  bytes,
   conflict,
   emptyPageOrNotFound,
   failure,
-  fakeServer,
   json,
   noContent,
   page,
-  type Routes,
-} from "../../test/fake-server";
+} from "../../test/responses";
 import { CSRF_TOKEN } from "../../test/render";
-import { FakeEventSocket, renderApplication, SIGNED_IN } from "./test-support";
+import { FakeEventSocket, renderApplication } from "../../test/application";
 
 const executionConfig: StageAttempt["executionConfig"] = {
   variant: "failed_escalation",
@@ -150,20 +150,8 @@ function artifactMetadata(
   });
 }
 
-// V385: needs shared byte response helper (src/test/fake-server.ts).
-function bytes(value: string, mediaType: string): Response {
-  return new Response(value, {
-    headers: {
-      "content-type": mediaType,
-      "content-length": String(new TextEncoder().encode(value).byteLength),
-      ...API_VERSION_HEADERS,
-    },
-  });
-}
-
-/** The signed-in owner and the Run's empty Artifact library. */
+/** The Run's empty Artifact library. */
 const RUN_PAGE: Routes = {
-  ...SIGNED_IN,
   "GET /v1/runs/{runId}/artifacts": () => json(page([])),
 };
 
@@ -223,10 +211,9 @@ describe("Run routes", () => {
       attempts: [first, second],
       activeStageExecutionId: "stage-router-2",
     });
-    const view = renderApplication(
-      runServer(() => currentRun),
-      "/runs/run-router",
-    );
+    const view = renderApplication("/runs/run-router", {
+      server: runServer(() => currentRun),
+    });
     const { socket, frame } = await subscribe();
     const attempt = (id: string) =>
       view.container.querySelector<HTMLDetailsElement>(`#attempt-${id}`)!;
@@ -294,15 +281,14 @@ describe("Run routes", () => {
         requiresRetry: true,
       },
     });
-    const view = renderApplication(
-      runServer(() => current, {
+    const view = renderApplication("/runs/run-router", {
+      server: runServer(() => current, {
         "POST /v1/runs/{runId}/retry-gateway": () => {
           current = runFixture();
           return json({ runId: "run-router" }, 202);
         },
       }),
-      "/runs/run-router",
-    );
+    });
     const retries = () =>
       view.sent("POST", "/v1/runs/run-router/retry-gateway");
     const retry = await screen.findByRole("button", {
@@ -372,8 +358,8 @@ describe("Run routes", () => {
           recovery: value,
         });
       let withoutRecovery = false;
-      const view = renderApplication(
-        runServer(() =>
+      const view = renderApplication("/runs/run-router", {
+        server: runServer(() =>
           withoutRecovery
             ? waiting(undefined)
             : waiting({
@@ -381,8 +367,7 @@ describe("Run routes", () => {
                 requiresRetry: Date.now() >= Date.parse(automaticUntil),
               }),
         ),
-        "/runs/run-router",
-      );
+      });
       expect(
         await screen.findByText(/Next recovery check:/),
       ).toBeInTheDocument();
@@ -421,16 +406,15 @@ describe("Run routes", () => {
 
   it("keeps a loaded Run visible when a background refetch fails", async () => {
     let fail = false;
-    const view = renderApplication(
-      fakeServer({
+    const view = renderApplication("/runs/run-router", {
+      server: fakeServer({
         ...RUN_PAGE,
         "GET /v1/runs/{runId}": () =>
           fail
             ? failure(503, "unavailable", "Server unavailable", true)
             : json(runFixture()),
       }),
-      "/runs/run-router",
-    );
+    });
     const stageHeading = {
       name: "Produce a global architecture review.",
     };
@@ -456,8 +440,8 @@ describe("Run routes", () => {
       attempts: [failed],
       activeStageExecutionId: undefined,
     });
-    const view = renderApplication(
-      runServer(() => current, {
+    const view = renderApplication("/runs/run-router", {
+      server: runServer(() => current, {
         "POST /v1/runs/{runId}/resume": () => {
           current = runFixture({
             attempts: [
@@ -482,8 +466,7 @@ describe("Run routes", () => {
           );
         },
       }),
-      "/runs/run-router",
-    );
+    });
     const posts = () => view.sent("POST", "/v1/runs/run-router/resume");
     const user = view.user;
     await user.click(
@@ -523,10 +506,7 @@ describe("Run routes", () => {
       state: "failed",
       activeStageExecutionId: undefined,
     });
-    renderApplication(
-      runServer(() => current),
-      "/runs/run-router",
-    );
+    renderApplication("/runs/run-router", { server: runServer(() => current) });
     expect(
       await screen.findByText(/Continuation is unavailable/),
     ).toBeInTheDocument();
@@ -541,13 +521,12 @@ describe("Run routes", () => {
       resumeStageExecutionId: "stage-router-1",
       activeStageExecutionId: undefined,
     });
-    const view = renderApplication(
-      runServer(() => current, {
+    const view = renderApplication("/runs/run-router", {
+      server: runServer(() => current, {
         "POST /v1/runs/{runId}/resume": () =>
           conflict("conflict", "Run cannot be continued"),
       }),
-      "/runs/run-router",
-    );
+    });
     const user = view.user;
     await user.click(
       await screen.findByRole("button", { name: "Continue from failed stage" }),
@@ -589,8 +568,8 @@ describe("Run routes", () => {
         resumeStageExecutionId: attempt.stageExecutionId,
       });
     let current = failedAt(analysis);
-    const view = renderApplication(
-      runServer(() => current, {
+    const view = renderApplication("/runs/run-router", {
+      server: runServer(() => current, {
         "POST /v1/runs/{runId}/resume": () => {
           // Another tab continued the Run first: it is queued again.
           current = runFixture({
@@ -602,8 +581,7 @@ describe("Run routes", () => {
           return conflict("conflict", "The Run is no longer failed");
         },
       }),
-      "/runs/run-router",
-    );
+    });
     const user = view.user;
     await user.click(
       await screen.findByRole("button", { name: "Continue from failed stage" }),
@@ -671,8 +649,8 @@ describe("Run routes", () => {
         },
       });
     let current = waitingFor("model_unavailable");
-    const view = renderApplication(
-      runServer(() => current, {
+    const view = renderApplication("/runs/run-router", {
+      server: runServer(() => current, {
         "POST /v1/runs/{runId}/retry-gateway": () => {
           // The model came back and the Run resumed before this request.
           current = runFixture({ eventCursor: undefined });
@@ -682,8 +660,7 @@ describe("Run routes", () => {
           );
         },
       }),
-      "/runs/run-router",
-    );
+    });
     const user = view.user;
     await user.click(
       await screen.findByRole("button", { name: "Retry model connection" }),
@@ -731,9 +708,8 @@ describe("Run routes", () => {
 
   it("offers confirmed deletion only for server-deletable completed Runs", async () => {
     let deleted = false;
-    const view = renderApplication(
-      fakeServer({
-        ...SIGNED_IN,
+    const view = renderApplication("/runs?view=completed", {
+      server: fakeServer({
         "GET /v1/runs": () =>
           json(
             page([
@@ -758,8 +734,7 @@ describe("Run routes", () => {
           return noContent();
         },
       }),
-      "/runs?view=completed",
-    );
+    });
     const deletions = () => view.sent("DELETE", "/v1/runs/run-delete");
     const user = view.user;
 
@@ -796,9 +771,8 @@ describe("Run routes", () => {
   });
 
   it("filters and paginates authoritative Run history", async () => {
-    const view = renderApplication(
-      fakeServer({
-        ...SIGNED_IN,
+    const view = renderApplication("/runs?view=completed", {
+      server: fakeServer({
         "GET /v1/runs": ({ url }) => {
           if (url.searchParams.get("cursor") === "next-run") {
             return json(
@@ -823,8 +797,7 @@ describe("Run routes", () => {
           );
         },
       }),
-      "/runs?view=completed",
-    );
+    });
     const lastList = () =>
       new URL(view.sent("GET", "/v1/runs").at(-1)!.url).searchParams;
     expect(
@@ -860,9 +833,8 @@ describe("Run routes", () => {
         state: "failed",
         finishedAt: "2026-08-31T12:01:00Z",
       });
-    const view = renderApplication(
-      fakeServer({
-        ...SIGNED_IN,
+    const view = renderApplication("/runs?view=completed&state=failed", {
+      server: fakeServer({
         "GET /v1/runs": ({ url }) => {
           if (url.searchParams.get("cursor") === "failed-2") {
             return json(page([failed("run-failed-2")]));
@@ -875,8 +847,7 @@ describe("Run routes", () => {
           );
         },
       }),
-      "/runs?view=completed&state=failed",
-    );
+    });
     const lastList = () =>
       new URL(view.sent("GET", "/v1/runs").at(-1)!.url).searchParams;
     const user = view.user;
@@ -904,10 +875,9 @@ describe("Run routes", () => {
   });
 
   it("honors a deep-linked Run state filter", async () => {
-    const view = renderApplication(
-      fakeServer({ ...SIGNED_IN, "GET /v1/runs": () => json(page([])) }),
-      "/runs?state=failed",
-    );
+    const view = renderApplication("/runs?state=failed", {
+      server: fakeServer({ "GET /v1/runs": () => json(page([])) }),
+    });
 
     expect(
       await screen.findByText("No completed Runs match this view."),
@@ -934,10 +904,9 @@ describe("Run routes", () => {
   });
 
   it("stays in Completed when a state deep link is cleared or filtered further", async () => {
-    const view = renderApplication(
-      fakeServer({ ...SIGNED_IN, "GET /v1/runs": () => json(page([])) }),
-      "/runs?state=failed",
-    );
+    const view = renderApplication("/runs?state=failed", {
+      server: fakeServer({ "GET /v1/runs": () => json(page([])) }),
+    });
     const { router, user } = view;
     const lastList = () =>
       new URL(view.sent("GET", "/v1/runs").at(-1)!.url).searchParams;
@@ -985,33 +954,34 @@ describe("Run routes", () => {
       purpose: "eval",
     });
     const view = renderApplication(
-      fakeServer({
-        ...SIGNED_IN,
-        "GET /v1/runs": ({ url }) => {
-          if (url.searchParams.get("cursor") === "next-eval") {
-            return json(
-              page([
-                summary("run-leg-a-page-2", {
-                  labels: evalLabels("a"),
-                  createdAt: "2026-08-31T10:00:00Z",
-                  updatedAt: "2026-08-31T10:10:00Z",
-                  finishedAt: "2026-08-31T10:10:00Z",
-                }),
-              ]),
-            );
-          }
-          const leg = url.searchParams.getAll("label").includes("eval.leg=b")
-            ? "b"
-            : "a";
-          return json(
-            page(
-              [summary(`run-leg-${leg}`, { labels: evalLabels(leg) })],
-              "next-eval",
-            ),
-          );
-        },
-      }),
       "/runs?view=completed&label=eval.id%3Deval-group%3D01&label=eval.leg%3Da",
+      {
+        server: fakeServer({
+          "GET /v1/runs": ({ url }) => {
+            if (url.searchParams.get("cursor") === "next-eval") {
+              return json(
+                page([
+                  summary("run-leg-a-page-2", {
+                    labels: evalLabels("a"),
+                    createdAt: "2026-08-31T10:00:00Z",
+                    updatedAt: "2026-08-31T10:10:00Z",
+                    finishedAt: "2026-08-31T10:10:00Z",
+                  }),
+                ]),
+              );
+            }
+            const leg = url.searchParams.getAll("label").includes("eval.leg=b")
+              ? "b"
+              : "a";
+            return json(
+              page(
+                [summary(`run-leg-${leg}`, { labels: evalLabels(leg) })],
+                "next-eval",
+              ),
+            );
+          },
+        }),
+      },
     );
     const lastList = () =>
       new URL(view.sent("GET", "/v1/runs").at(-1)!.url).searchParams;
@@ -1067,10 +1037,9 @@ describe("Run routes", () => {
 
   it("shows a global task and advances only its nested typed Planner projection", async () => {
     let currentRun = runFixture();
-    const view = renderApplication(
-      runServer(() => currentRun),
-      "/runs/run-router",
-    );
+    const view = renderApplication("/runs/run-router", {
+      server: runServer(() => currentRun),
+    });
     expect(
       await screen.findByRole("heading", {
         name: "Produce a global architecture review.",
@@ -1168,10 +1137,7 @@ describe("Run routes", () => {
   });
 
   it("follows a new attempt's first Planner fact without a projection resync", async () => {
-    let releaseRefetch!: () => void;
-    const refetchReleased = new Promise<void>((resolve) => {
-      releaseRefetch = resolve;
-    });
+    const refetch = deferred();
     const retry = {
       ...RUNNING_ATTEMPT,
       stageExecutionId: "stage-router-2",
@@ -1183,13 +1149,13 @@ describe("Run routes", () => {
     };
     delete retry.plan;
     let reads = 0;
-    const view = renderApplication(
-      fakeServer({
+    const view = renderApplication("/runs/run-router", {
+      server: fakeServer({
         ...RUN_PAGE,
         "GET /v1/runs/{runId}": async () => {
           reads += 1;
           if (reads === 1) return json(runFixture());
-          await refetchReleased;
+          await refetch.promise;
           return json(
             runFixture({
               attempts: [{ ...RUNNING_ATTEMPT, state: "failed" }, retry],
@@ -1199,8 +1165,7 @@ describe("Run routes", () => {
           );
         },
       }),
-      "/runs/run-router",
-    );
+    });
     const { socket, frame } = await subscribe();
     act(() => {
       // The Stage start commits its lifecycle hint and planner.started
@@ -1231,8 +1196,8 @@ describe("Run routes", () => {
     expect(screen.queryByText(/REST resync after/)).toBeNull();
 
     await act(async () => {
-      releaseRefetch();
-      await refetchReleased;
+      refetch.resolve();
+      await refetch.promise;
     });
     expect(
       await screen.findByRole("heading", {
@@ -1244,8 +1209,8 @@ describe("Run routes", () => {
   });
 
   it("titles the Run detail, Run Artifact and Runs pages", async () => {
-    const { router } = renderApplication(
-      fakeServer(
+    const { router } = renderApplication("/runs/run-router", {
+      server: fakeServer(
         {
           ...RUN_PAGE,
           "GET /v1/runs/{runId}": () =>
@@ -1261,8 +1226,7 @@ describe("Run routes", () => {
         },
         emptyPageOrNotFound,
       ),
-      "/runs/run-router",
-    );
+    });
     await waitFor(() =>
       expect(document.title).toBe("router-analysis@1 · Run · Contractor"),
     );
@@ -1282,8 +1246,8 @@ describe("Run routes", () => {
 
   it("reconciles a cancellation race without an optimistic terminal state", async () => {
     let currentRun = runFixture({ eventCursor: undefined });
-    const view = renderApplication(
-      runServer(() => currentRun, {
+    const view = renderApplication("/runs/run-router", {
+      server: runServer(() => currentRun, {
         "POST /v1/runs/{runId}/cancel": () => {
           currentRun = runFixture({
             state: "succeeded",
@@ -1294,8 +1258,7 @@ describe("Run routes", () => {
           return json({ runId: "run-router", state: "succeeded" });
         },
       }),
-      "/runs/run-router",
-    );
+    });
     const cancellations = () => view.sent("POST", "/v1/runs/run-router/cancel");
     const user = view.user;
     await user.click(await screen.findByRole("button", { name: "Cancel Run" }));
@@ -1336,8 +1299,8 @@ describe("Run routes", () => {
   it("keeps cancellation retryable after a failed request while the Run is active", async () => {
     let currentRun = runFixture({ eventCursor: undefined });
     let calls = 0;
-    const view = renderApplication(
-      runServer(() => currentRun, {
+    const view = renderApplication("/runs/run-router", {
+      server: runServer(() => currentRun, {
         "POST /v1/runs/{runId}/cancel": () => {
           calls += 1;
           if (calls === 1) {
@@ -1355,8 +1318,7 @@ describe("Run routes", () => {
           return json({ runId: "run-router", state: "cancelling" }, 202);
         },
       }),
-      "/runs/run-router",
-    );
+    });
     const cancellations = () => view.sent("POST", "/v1/runs/run-router/cancel");
     const user = view.user;
     await user.click(await screen.findByRole("button", { name: "Cancel Run" }));
@@ -1432,10 +1394,9 @@ describe("Run routes", () => {
       updatedAt: "2026-08-31T12:00:34Z",
       finishedAt: "2026-08-31T12:00:34Z",
     });
-    const view = renderApplication(
-      runServer(() => failedRun),
-      "/runs/run-router",
-    );
+    const view = renderApplication("/runs/run-router", {
+      server: runServer(() => failedRun),
+    });
     const heading = await screen.findByRole("heading", {
       name: "Run failed in analysis",
     });
@@ -1505,8 +1466,8 @@ describe("Run routes", () => {
     const workflow = workflowResource("router-analysis", "1", {
       parameters: { objective: { required: true } },
     });
-    const view = renderApplication(
-      fakeServer({
+    const view = renderApplication("/runs/run-router", {
+      server: fakeServer({
         ...RUN_PAGE,
         "GET /v1/runs/{runId}": ({ params }) =>
           json(
@@ -1555,8 +1516,7 @@ describe("Run routes", () => {
             202,
           ),
       }),
-      "/runs/run-router",
-    );
+    });
     const creations = () => view.sent("POST", "/v1/runs");
     const user = view.user;
     await user.click(
@@ -1612,8 +1572,8 @@ describe("Run routes", () => {
         activeStageExecutionId: undefined,
         finishedAt: "2026-08-31T12:02:00Z",
       });
-      const view = renderApplication(
-        runServer(() => terminal, {
+      const view = renderApplication("/runs/run-router", {
+        server: runServer(() => terminal, {
           "GET /v1/workflows/{name}/versions/{version}": () =>
             json(workflowResource("router-analysis", "1")),
           "GET /v1/runs/{runId}/repeat-draft": () =>
@@ -1624,8 +1584,7 @@ describe("Run routes", () => {
               notices: [{ code, severity: "blocking", message }],
             }),
         }),
-        "/runs/run-router",
-      );
+      });
       for (let attempt = 0; attempt < 2; attempt++) {
         await view.user.click(
           await screen.findByRole("button", { name: "Configure another Run" }),
@@ -1652,8 +1611,8 @@ describe("Run routes", () => {
     });
     // Everything the Audit page reads answers 404: the fixture stops after
     // the navigation.
-    const view = renderApplication(
-      runServer(() => terminal, {
+    const view = renderApplication("/runs/run-router", {
+      server: runServer(() => terminal, {
         "GET /v1/runs/{runId}/repeat-draft": () =>
           json({
             sourceRunId: "run-router",
@@ -1671,8 +1630,7 @@ describe("Run routes", () => {
             ],
           }),
       }),
-      "/runs/run-router",
-    );
+    });
     await view.user.click(
       await screen.findByRole("button", { name: "Configure another Run" }),
     );
@@ -1721,31 +1679,24 @@ describe("Run routes", () => {
         activeStageExecutionId: undefined,
         finishedAt: "2026-08-31T12:02:00Z",
       });
-      let answer: () => void = () => undefined;
-      const answered = new Promise<void>((resolve) => {
-        answer = resolve;
-      });
-      const queryClient = queryClientFactory.createApplicationQueryClient();
-      const factory = vi
-        .spyOn(queryClientFactory, "createApplicationQueryClient")
-        .mockReturnValueOnce(queryClient);
-      const view = renderApplication(
-        runServer(() => terminal, {
+      const answer = deferred();
+      const queryClient = createApplicationQueryClient();
+      const view = renderApplication("/runs/run-router", {
+        server: runServer(() => terminal, {
           "GET /v1/runs/{runId}/repeat-draft": async () => {
-            await answered;
+            await answer.promise;
             return json(repeatDraft);
           },
           "GET /v1/runs": () => json(page([])),
         }),
-        "/runs/run-router",
-      );
-      factory.mockRestore();
+        queryClient,
+      });
       await view.user.click(
         await screen.findByRole("button", { name: "Configure another Run" }),
       );
       await act(() => view.router.navigate("/settings"));
       expect(queryClient.isMutating()).toBe(1);
-      answer();
+      answer.resolve();
       // Once the draft request settled, the code after it has run: the user
       // is still where they went, and no navigation is under way.
       await waitFor(() => expect(queryClient.isMutating()).toBe(0));
@@ -1903,8 +1854,8 @@ describe("Run routes", () => {
       ],
       finishedAt: "2026-08-31T12:05:00Z",
     });
-    const view = renderApplication(
-      runServer(() => terminalRun, {
+    const view = renderApplication("/runs/run-router", {
+      server: runServer(() => terminalRun, {
         "GET /v1/runs/{runId}/artifacts": () =>
           json(page([artifactMetadata(output)])),
         "GET /v1/runs/{runId}/artifacts/{namespace}/{name}/metadata": () =>
@@ -1912,8 +1863,7 @@ describe("Run routes", () => {
         "GET /v1/runs/{runId}/artifacts/{namespace}/{name}": () =>
           bytes("safe report\n", "text/plain"),
       }),
-      "/runs/run-router",
-    );
+    });
     expect(await screen.findByText("worker_lease_lost")).toBeInTheDocument();
     // The Planner summary is Markdown, rendered inside a bounded preview.
     expect(
@@ -2045,10 +1995,9 @@ describe("Run routes", () => {
       ],
       finishedAt: "2026-08-31T12:05:01Z",
     });
-    renderApplication(
-      runServer(() => projectRun),
-      "/runs/run-router",
-    );
+    renderApplication("/runs/run-router", {
+      server: runServer(() => projectRun),
+    });
 
     const panel = (
       await screen.findByRole("heading", {
@@ -2079,35 +2028,36 @@ describe("Run routes", () => {
       revision: "output-r2",
     });
     const view = renderApplication(
-      fakeServer({
-        ...SIGNED_IN,
-        "GET /v1/runs/{runId}/artifacts/{namespace}/{name}/metadata": () =>
-          json(metadata),
-        "GET /v1/runs/{runId}/artifacts/{namespace}/{name}/versions": () =>
-          json(page([metadata])),
-        "GET /v1/runs/{runId}/artifacts/{namespace}/{name}/lineage": () =>
-          json(
-            page([
-              {
-                kind: "output_bind",
-                sourceScope: "run",
-                source: {
-                  namespace: "reviewer",
-                  name: "report",
-                  revision: "worker-r1",
-                },
-                targetScope: "run",
-                target: metadata.artifact,
-                runId: "run-router",
-                stageExecutionId: "stage-router-1",
-                createdAt: "2026-08-31T12:05:00Z",
-              },
-            ]),
-          ),
-        "GET /v1/runs/{runId}/artifacts/{namespace}/{name}": () =>
-          bytes("safe report\n", "text/plain"),
-      }),
       "/runs/run-router/artifacts/outputs/report?revision=output-r2",
+      {
+        server: fakeServer({
+          "GET /v1/runs/{runId}/artifacts/{namespace}/{name}/metadata": () =>
+            json(metadata),
+          "GET /v1/runs/{runId}/artifacts/{namespace}/{name}/versions": () =>
+            json(page([metadata])),
+          "GET /v1/runs/{runId}/artifacts/{namespace}/{name}/lineage": () =>
+            json(
+              page([
+                {
+                  kind: "output_bind",
+                  sourceScope: "run",
+                  source: {
+                    namespace: "reviewer",
+                    name: "report",
+                    revision: "worker-r1",
+                  },
+                  targetScope: "run",
+                  target: metadata.artifact,
+                  runId: "run-router",
+                  stageExecutionId: "stage-router-1",
+                  createdAt: "2026-08-31T12:05:00Z",
+                },
+              ]),
+            ),
+          "GET /v1/runs/{runId}/artifacts/{namespace}/{name}": () =>
+            bytes("safe report\n", "text/plain"),
+        }),
+      },
     );
     expect(
       await screen.findByRole("heading", { name: "outputs/report" }),
@@ -2131,8 +2081,8 @@ describe("Run routes", () => {
 
   describe("Run page header", () => {
     function renderRun(run: RunStatus, path = "/runs/run-router") {
-      const view = renderApplication(
-        runServer(() => run, {
+      const view = renderApplication(path, {
+        server: runServer(() => run, {
           "GET /v1/runs": () =>
             json(
               page([
@@ -2144,8 +2094,7 @@ describe("Run routes", () => {
               ]),
             ),
         }),
-        path,
-      );
+      });
       return {
         ...view,
         /** Requests that would change something; none is expected. */

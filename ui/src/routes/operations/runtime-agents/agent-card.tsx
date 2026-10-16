@@ -7,7 +7,12 @@ import type {
   RuntimeLabelBinding,
 } from "../../../api/operations";
 import { Icon } from "../../../app/icon";
-import { formatBytes, formatTimestamp, formatAge } from "../../../app/format";
+import {
+  formatAge,
+  formatBytes,
+  formatNumber,
+  formatTimestamp,
+} from "../../../app/format";
 import {
   Button,
   Facts,
@@ -15,12 +20,7 @@ import {
   StatusChip,
   TechnicalDetails,
 } from "../../../ui";
-import {
-  FactRows,
-  OperationsState,
-  OptionalTimestamp,
-  SafeReason,
-} from "../common";
+import { OperationsState, OptionalTimestamp, SafeReason } from "../common";
 import { agentDisplayName, availabilityCopy } from "./identity";
 import { AgentLabelsDialog } from "./labels-dialog";
 
@@ -118,7 +118,7 @@ function liveFacts(live: NonNullable<RuntimeAgentPrincipal["live"]>) {
       term: "Workspace limits",
       value: live.workspaceCapabilities !== undefined && (
         <>
-          {live.workspaceCapabilities.limits.maxFiles.toLocaleString()} files ·{" "}
+          {formatNumber(live.workspaceCapabilities.limits.maxFiles)} files ·{" "}
           {formatBytes(live.workspaceCapabilities.limits.maxExpandedBytes)}{" "}
           expanded
         </>
@@ -338,7 +338,8 @@ export function AgentCard({
       </div>
       <div className="ops-tech">
         <TechnicalDetails summary="Capabilities and diagnostics">
-          <FactRows
+          <Facts
+            layout="rows"
             items={[
               {
                 term: "Agent ID",

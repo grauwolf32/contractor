@@ -18,9 +18,11 @@ import type {
   AuditReviewRequest,
 } from "../../../api/audits";
 import { queryKeys } from "../../../api/query-keys";
+import { deferred } from "../../../test/deferred";
 import { SourceLink } from "../../catalog/audit-preset-checks";
+import { renderApplication } from "../../../test/application";
 import { auditRound } from "../../../test/builders";
-import * as queryClientFactory from "../../../app/query-client";
+import { createApplicationQueryClient } from "../../../app/query-client";
 import { CHECK_STATE_LABELS } from "../../../app/vocabulary";
 import {
   DIGEST,
@@ -33,12 +35,11 @@ import {
   makeItem,
   makeProject,
   makeReview,
-  renderApplication,
   requirementRow,
   workspaceOf,
   type Handler,
 } from "./check-test-support";
-import { json } from "../../../test/fake-server";
+import { json } from "../../../test/responses";
 
 const ROOT = "/projects/project_example/audits/audit_example";
 const project = makeProject("project_example", "Payment service");
@@ -235,8 +236,8 @@ describe("Check page", () => {
       },
     });
     const { router } = renderApplication(
-      api,
       `${ROOT}/checks#check-item_attempted`,
+      { api },
     );
     const view = await screen.findByRole("article", {
       name: "Attempted check",
@@ -298,7 +299,7 @@ describe("Check page", () => {
       entryIds: ["v5.0.0-1.2.4", "v5.0.0-2.1.1"],
     };
     const { api } = serveCheck({ audit: () => current });
-    renderApplication(api, ROOT);
+    renderApplication(ROOT, { api });
     const detail = await screen.findByRole("region", { name: "All activity" });
     await userEvent
       .setup()
@@ -385,7 +386,7 @@ describe("Check page", () => {
         ),
       ],
     });
-    renderApplication(api, `${ROOT}/coverage`);
+    renderApplication(`${ROOT}/coverage`, { api });
     const list = await screen.findByRole("region", {
       name: "Check and requirements",
     });
@@ -469,7 +470,7 @@ describe("Check page", () => {
         });
       },
     });
-    const { router } = renderApplication(api, `${ROOT}/coverage`);
+    const { router } = renderApplication(`${ROOT}/coverage`, { api });
     const user = userEvent.setup();
     const list = await screen.findByRole("region", {
       name: "Check and requirements",
@@ -550,7 +551,7 @@ describe("Check page", () => {
         requirementRow("r3", 2, "A03:2025", "Supply chain.", "violated"),
       ],
     });
-    const { router } = renderApplication(api, `${ROOT}?result=issues`);
+    const { router } = renderApplication(`${ROOT}?result=issues`, { api });
     const user = userEvent.setup();
     const list = await screen.findByRole("region", {
       name: "Check and requirements",
@@ -600,7 +601,7 @@ describe("Check page", () => {
         requirementRow("r2", 1, "A02:2025", "Configuration.", "satisfied"),
       ],
     });
-    const { router } = renderApplication(api, `${ROOT}/coverage`);
+    const { router } = renderApplication(`${ROOT}/coverage`, { api });
     const list = await screen.findByRole("region", {
       name: "Check and requirements",
     });
@@ -644,7 +645,7 @@ describe("Check page", () => {
           ),
         ),
     });
-    renderApplication(api, `${ROOT}/coverage`);
+    renderApplication(`${ROOT}/coverage`, { api });
     const list = await screen.findByRole("region", {
       name: "Check and scenarios",
     });
@@ -746,7 +747,7 @@ describe("Check page", () => {
           unreviewedFindings: 1,
         }),
     });
-    renderApplication(api, `${ROOT}/coverage#check-item_1`);
+    renderApplication(`${ROOT}/coverage#check-item_1`, { api });
     const list = await screen.findByRole("region", {
       name: "Check and endpoints",
     });
@@ -799,7 +800,7 @@ describe("Check page", () => {
   it("keeps every section reachable under the new names", async () => {
     const current = auditAt("completed", 3);
     const { api } = serveCheck({ audit: () => current });
-    renderApplication(api, `${ROOT}/runs`);
+    renderApplication(`${ROOT}/runs`, { api });
     const tabs = await screen.findByRole("navigation", {
       name: "Check sections",
     });
@@ -902,7 +903,7 @@ describe("Check page", () => {
         review: report,
       }),
     });
-    renderApplication(api, ROOT);
+    renderApplication(ROOT, { api });
     const detail = await screen.findByRole("region", { name: "All activity" });
     const decisions = within(detail).getByRole("region", {
       name: "Decisions waiting",
@@ -998,7 +999,7 @@ describe("Check page", () => {
           pendingReviews: 1,
         }),
     });
-    const { router } = renderApplication(api, ROOT);
+    const { router } = renderApplication(ROOT, { api });
     const progress = await screen.findByRole("region", {
       name: "Check progress",
     });
@@ -1106,7 +1107,7 @@ describe("Check page", () => {
         return undefined;
       },
     });
-    renderApplication(api, `${ROOT}/reviews`);
+    renderApplication(`${ROOT}/reviews`, { api });
     const user = userEvent.setup();
     const card = (
       await screen.findByRole("heading", { name: item.subjectKey })
@@ -1169,7 +1170,7 @@ describe("Check page", () => {
       workspace: (audit) =>
         workspaceOf(audit, { findings: 3, unreviewedFindings: 1 }),
     });
-    const { router } = renderApplication(api, ROOT);
+    const { router } = renderApplication(ROOT, { api });
     const issues = await screen.findByRole("region", {
       name: "Issues and possible issues",
     });
@@ -1237,7 +1238,7 @@ describe("Check page", () => {
       ],
       workspace: (audit) => workspaceOf(audit, { findings: 1 }),
     });
-    renderApplication(api, ROOT);
+    renderApplication(ROOT, { api });
     const issues = await screen.findByRole("region", {
       name: "Issues and possible issues",
     });
@@ -1281,7 +1282,7 @@ describe("Check page", () => {
         return [];
       },
     });
-    renderApplication(api, `${ROOT}/runs`);
+    renderApplication(`${ROOT}/runs`, { api });
     const detail = await screen.findByRole("region", { name: "Runs" });
     expect(
       await within(detail).findByText(
@@ -1308,7 +1309,7 @@ describe("Check page", () => {
       ],
       reviews: () => [review],
     });
-    const { router } = renderApplication(api, ROOT);
+    const { router } = renderApplication(ROOT, { api });
     const user = userEvent.setup();
     const decisions = await screen.findByRole("region", {
       name: "Decisions waiting",
@@ -1375,7 +1376,7 @@ describe("Check page", () => {
         });
       },
     });
-    renderApplication(api, `${ROOT}/coverage#check-i6`);
+    renderApplication(`${ROOT}/coverage#check-i6`, { api });
     const view = await screen.findByRole("article", {
       name: "GET /api/orders/6",
     });
@@ -1442,7 +1443,7 @@ describe("Check page", () => {
         mapped("r3", 2, "owasp-wstg"),
       ],
     });
-    const { router } = renderApplication(api, `${ROOT}/coverage#check-r1`);
+    const { router } = renderApplication(`${ROOT}/coverage#check-r1`, { api });
     const list = await screen.findByRole("region", {
       name: "Check and scenarios",
     });
@@ -1481,11 +1482,7 @@ describe("Check lifecycle controls", () => {
   it("keeps the started check when an older detail read resolves later", async () => {
     let current = auditAt("draft", 2);
     let releaseStale: (() => void) | undefined;
-    const queryClient = queryClientFactory.createApplicationQueryClient();
-    vi.spyOn(
-      queryClientFactory,
-      "createApplicationQueryClient",
-    ).mockReturnValue(queryClient);
+    const queryClient = createApplicationQueryClient();
     const detailKey = queryKeys.audits.detail("audit_example");
     const { api } = serveCheck({
       audit: () => current,
@@ -1508,7 +1505,7 @@ describe("Check lifecycle controls", () => {
       },
     });
     queryClient.setQueryData(detailKey, current);
-    renderApplication(api, ROOT);
+    renderApplication(ROOT, { api, queryClient });
     const user = userEvent.setup();
     await user.click(
       await screen.findByRole("button", { name: "Start check" }),
@@ -1561,7 +1558,7 @@ describe("Check lifecycle controls", () => {
           return undefined;
         },
       });
-      renderApplication(api, ROOT);
+      renderApplication(ROOT, { api });
       const user = userEvent.setup();
       const name = state === "draft" ? "Start check" : "Continue check";
       await user.click(await screen.findByRole("button", { name }));
@@ -1586,7 +1583,7 @@ describe("Check lifecycle controls", () => {
   it("offers to keep the remaining time when continuing an ordinary pause", async () => {
     const current = auditAt("paused", 2);
     const { api } = serveCheck({ audit: () => current });
-    renderApplication(api, ROOT);
+    renderApplication(ROOT, { api });
     const user = userEvent.setup();
     await user.click(
       await screen.findByRole("button", { name: "Continue check" }),
@@ -1621,7 +1618,7 @@ describe("Check lifecycle controls", () => {
         },
       };
       const { api, requests } = serveCheck({ audit: () => current });
-      renderApplication(api, ROOT);
+      renderApplication(ROOT, { api });
       const progress = await screen.findByRole("region", {
         name: "Check progress",
       });
@@ -1678,7 +1675,7 @@ describe("Check lifecycle controls", () => {
         return undefined;
       },
     });
-    renderApplication(api, ROOT);
+    renderApplication(ROOT, { api });
     const user = userEvent.setup();
     await user.click(
       await screen.findByRole("button", { name: "Pause new work" }),
@@ -1711,10 +1708,7 @@ describe("Check lifecycle controls", () => {
       // The rail's Inbox badge reads the project index and the project's
       // checks; once the pause is answered, those reads stay unanswered.
       let held = false;
-      let release = () => {};
-      const gate = new Promise<void>((resolve) => {
-        release = resolve;
-      });
+      const gate = deferred();
       const listReads: string[] = [];
       const { api } = serveCheck({
         audit: () => current,
@@ -1724,7 +1718,7 @@ describe("Check lifecycle controls", () => {
             (url.pathname === "/v1/projects" || url.pathname === "/v1/audits")
           ) {
             listReads.push(url.pathname);
-            if (held) await gate;
+            if (held) await gate.promise;
             const state = url.searchParams.get("state");
             return json({
               items:
@@ -1754,7 +1748,7 @@ describe("Check lifecycle controls", () => {
           return undefined;
         },
       });
-      renderApplication(api, ROOT);
+      renderApplication(ROOT, { api });
       const user = userEvent.setup();
       const pause = await screen.findByRole("button", {
         name: "Pause new work",
@@ -1777,8 +1771,8 @@ describe("Check lifecycle controls", () => {
           within(screen.getByRole("alert")).getByText("Audit revision changed"),
         ).toBeVisible();
       await act(async () => {
-        release();
-        await gate;
+        gate.resolve();
+        await gate.promise;
       });
     },
   );
@@ -1786,16 +1780,13 @@ describe("Check lifecycle controls", () => {
   it("confirms stopping and deleting a check without duplicate requests", async () => {
     let current = auditAt("active", 2);
     const mutations: Request[] = [];
-    let releaseCancel: (() => void) | undefined;
-    const cancelGate = new Promise<void>((resolve) => {
-      releaseCancel = resolve;
-    });
+    const cancelGate = deferred();
     const { api } = serveCheck({
       audit: () => current,
       handle: async (request, url) => {
         if (url.pathname === "/v1/audits/audit_example/cancel") {
           mutations.push(request.clone());
-          await cancelGate;
+          await cancelGate.promise;
           current = auditAt("cancelled", 3);
           return json(current, 202, { ETag: '"3"' });
         }
@@ -1810,7 +1801,7 @@ describe("Check lifecycle controls", () => {
         return undefined;
       },
     });
-    renderApplication(api, ROOT);
+    renderApplication(ROOT, { api });
     const user = userEvent.setup();
     await user.click(await screen.findByRole("button", { name: "Stop check" }));
     let dialog = screen.getByRole("alertdialog", { name: "Stop this check?" });
@@ -1841,7 +1832,7 @@ describe("Check lifecycle controls", () => {
     expect(mutations[0]?.headers.get("Idempotency-Key")).toMatch(
       /^mutate-audit-ui-/u,
     );
-    releaseCancel?.();
+    cancelGate.resolve();
     await vi.waitFor(() =>
       expect(
         within(regions().list()).getByText("Stopped", {
@@ -1926,7 +1917,7 @@ describe("Check lifecycle controls", () => {
           return undefined;
         },
       });
-      renderApplication(api, ROOT);
+      renderApplication(ROOT, { api });
       const user = userEvent.setup();
       const progress = await screen.findByRole("region", {
         name: "Check progress",
@@ -1964,7 +1955,7 @@ describe("Check lifecycle controls", () => {
       audit: () =>
         auditAt("deleting", 3, { deletionRequestedAt: "2026-10-05T10:03:00Z" }),
     });
-    renderApplication(api, ROOT);
+    renderApplication(ROOT, { api });
     const progress = await screen.findByRole("region", {
       name: "Check progress",
     });
@@ -2008,7 +1999,7 @@ describe("Check lifecycle controls", () => {
         return undefined;
       },
     });
-    renderApplication(api, ROOT);
+    renderApplication(ROOT, { api });
     const user = userEvent.setup();
     await user.click(await screen.findByRole("button", { name: "Stop check" }));
     let dialog = screen.getByRole("alertdialog", { name: "Stop this check?" });
@@ -2075,11 +2066,7 @@ describe("Check refresh correctness", () => {
 
   it("signals a newer revision without replacing pinned rows", async () => {
     let current = auditAt("completed", 2);
-    const queryClient = queryClientFactory.createApplicationQueryClient();
-    vi.spyOn(
-      queryClientFactory,
-      "createApplicationQueryClient",
-    ).mockReturnValue(queryClient);
+    const queryClient = createApplicationQueryClient();
     const coverageReads = vi.fn();
     const { api } = serveCheck({
       audit: () => current,
@@ -2089,8 +2076,8 @@ describe("Check refresh correctness", () => {
       },
     });
     const { router } = renderApplication(
-      api,
       `${ROOT}/coverage?auditRevision=2#check-item_refresh`,
+      { api, queryClient },
     );
     const view = await screen.findByRole("article", {
       name: "check_refresh Refresh check.",
@@ -2128,11 +2115,7 @@ describe("Check refresh correctness", () => {
     "keeps loaded %s rows after a failed background read",
     async (section) => {
       const current = auditAt("completed", 3);
-      const queryClient = queryClientFactory.createApplicationQueryClient();
-      vi.spyOn(
-        queryClientFactory,
-        "createApplicationQueryClient",
-      ).mockReturnValue(queryClient);
+      const queryClient = createApplicationQueryClient();
       let failRead = false;
       const failure = () =>
         json(
@@ -2154,10 +2137,10 @@ describe("Check refresh correctness", () => {
           failRead && section === "runs" ? failure() : [refreshItem(current)],
       });
       renderApplication(
-        api,
         section === "coverage"
           ? `${ROOT}/coverage#check-item_refresh`
           : `${ROOT}/runs`,
+        { api, queryClient },
       );
       const row =
         section === "coverage"
@@ -2207,11 +2190,7 @@ describe("Check refresh correctness", () => {
 
   it("counts a list pinned to an older revision from its own rows", async () => {
     let current = auditAt("completed", 2);
-    const queryClient = queryClientFactory.createApplicationQueryClient();
-    vi.spyOn(
-      queryClientFactory,
-      "createApplicationQueryClient",
-    ).mockReturnValue(queryClient);
+    const queryClient = createApplicationQueryClient();
     const workspaceReads = vi.fn();
     const { api } = serveCheck({
       audit: () => current,
@@ -2226,7 +2205,7 @@ describe("Check refresh correctness", () => {
           : workspaceOf(audit, { totalChecks: 5, completedChecks: 3 });
       },
     });
-    renderApplication(api, `${ROOT}/coverage?auditRevision=2`);
+    renderApplication(`${ROOT}/coverage?auditRevision=2`, { api, queryClient });
     const progress = await screen.findByRole("region", {
       name: "Check progress",
     });
@@ -2283,7 +2262,7 @@ describe("Check refresh correctness", () => {
         return workspaceOf(audit);
       },
     });
-    renderApplication(api, ROOT);
+    renderApplication(ROOT, { api });
     await screen.findByRole("region", { name: "Check progress" });
     await waitFor(() => expect(workspaceReads).toHaveBeenCalledOnce());
     const shownRevision = () =>
@@ -2313,7 +2292,7 @@ describe("Check refresh correctness", () => {
         return workspaceOf(audit);
       },
     });
-    renderApplication(api, ROOT);
+    renderApplication(ROOT, { api });
     await screen.findByRole("region", { name: "Check progress" });
     await waitFor(() => expect(workspaceReads).toHaveBeenCalledWith(3));
     current = { ...auditAt("paused", 4), outstandingRunCount: 0 };
@@ -2341,7 +2320,7 @@ describe("Check refresh correctness", () => {
         return undefined;
       },
     });
-    renderApplication(api, ROOT);
+    renderApplication(ROOT, { api });
     await userEvent
       .setup()
       .click(await screen.findByRole("button", { name: "Pause new work" }));
@@ -2377,7 +2356,7 @@ describe("Check refresh correctness", () => {
         });
       },
     });
-    renderApplication(api, `${ROOT}/coverage`);
+    renderApplication(`${ROOT}/coverage`, { api });
     const list = await screen.findByRole("region", {
       name: "Check and requirements",
     });
@@ -2435,7 +2414,7 @@ describe("Project Checks tab", () => {
         });
       return undefined;
     });
-    renderApplication(api, "/projects/project_example/audits");
+    renderApplication("/projects/project_example/audits", { api });
     const user = userEvent.setup();
     const open = await screen.findByRole("link", {
       name: "OWASP Top 10 · Source risks",

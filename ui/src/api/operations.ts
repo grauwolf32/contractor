@@ -1,10 +1,12 @@
 import type { PublicAPI } from "./client";
 import {
+  CONFIG_ID,
   DIGEST,
   RUNTIME_AGENT_ID,
   RUNTIME_CONFIG_VERSION,
   RUNTIME_CREDENTIAL_ID,
   RUNTIME_INFRASTRUCTURE_ID,
+  schemaEnum,
   stringRule,
 } from "./contract";
 import { invalidAPIResponse, publicAPIError, requireData } from "./error";
@@ -18,18 +20,14 @@ import {
   requireCanonicalConfiguration,
 } from "./workflows";
 
-export const OPERATIONS_PAGE_SIZE = 50;
-export const CONFIGURATION_KINDS = [
-  "agent-templates",
-  "execution-configs",
-  "model-policies",
-  "llm-gateways",
-] as const satisfies readonly ConfigurationKind[];
-export const WRITABLE_CONFIGURATION_KINDS = [
+const OPERATIONS_PAGE_SIZE = 50;
+const CONFIGURATION_KINDS = schemaEnum<ConfigurationKind>("ConfigurationKind");
+const WRITABLE_CONFIGURATION_KINDS = [
   "model-policies",
   "llm-gateways",
 ] as const satisfies readonly WritableConfigurationKind[];
-export const MANAGED_CONFIG_NAME_PATTERN = CONFIG_NAME_PATTERN;
+/** LLM credential IDs are ConfigId (CreateCredentialRequest.credentialId). */
+export const CREDENTIAL_ID = CONFIG_ID;
 export const BUDGET_DURATION_PATTERN = stringRule(
   "GatewayPolicy",
   "properties",
@@ -40,17 +38,14 @@ const DEFAULT_INITIAL_BACKOFF_MILLISECONDS = 100;
 const DEFAULT_MAX_BACKOFF_MILLISECONDS = 1000;
 
 export type OperationsSnapshot = components["schemas"]["OperationsSnapshot"];
-export type OperationsCursor = components["schemas"]["SnapshotCursor"];
 export type RuntimeAgentObservation =
   components["schemas"]["RuntimeAgentObservation"];
-export type WorkspaceCapabilities =
-  components["schemas"]["WorkspaceCapabilities"];
+type WorkspaceCapabilities = components["schemas"]["WorkspaceCapabilities"];
 export type AllocationObservation =
   components["schemas"]["AllocationObservation"];
 export type ConfigurationKind = components["schemas"]["ConfigurationKind"];
 export type ConfigurationResource =
   components["schemas"]["ConfigurationResource"];
-export type ConfigurationPage = components["schemas"]["ConfigurationPage"];
 export type PublishConfigurationRequest =
   components["schemas"]["PublishConfigurationRequest"];
 export type ModelPolicyBody = components["schemas"]["ModelPolicyBody"];
@@ -60,18 +55,15 @@ export type ExecutionConfigBody = components["schemas"]["ExecutionConfigBody"];
 export type ModelPolicyRef = components["schemas"]["ModelPolicyRef"];
 export type LLMGatewayConfigRef = components["schemas"]["LLMGatewayConfigRef"];
 export type CredentialResource = components["schemas"]["CredentialResource"];
-export type CredentialPage = components["schemas"]["CredentialPage"];
 export type CreateCredentialRequest =
   components["schemas"]["CreateCredentialRequest"];
 export type RuntimeConfigAuthorDocument =
   components["schemas"]["RuntimeConfigAuthorDocument"];
-export type RuntimeConfigDocument =
-  components["schemas"]["RuntimeConfigDocument"];
 export type RuntimeConfigResource =
   components["schemas"]["RuntimeConfigResource"];
-export type RuntimeConfigPage = components["schemas"]["RuntimeConfigPage"];
+type RuntimeConfigPage = components["schemas"]["RuntimeConfigPage"];
 export type RuntimeLabelBinding = components["schemas"]["RuntimeLabelBinding"];
-export type RuntimeLabelPage = components["schemas"]["RuntimeLabelPage"];
+type RuntimeLabelPage = components["schemas"]["RuntimeLabelPage"];
 export type RuntimeCredentialMetadata =
   components["schemas"]["RuntimeCredentialMetadata"];
 export type RuntimeCredentialPage =
@@ -80,18 +72,18 @@ export type CreateRuntimeCredentialRequest =
   components["schemas"]["CreateRuntimeCredentialRequest"];
 export type RuntimeAgentPrincipal =
   components["schemas"]["RuntimeAgentPrincipal"];
-export type RuntimeAgentPrincipalPage =
+type RuntimeAgentPrincipalPage =
   components["schemas"]["RuntimeAgentPrincipalPage"];
-export type SchedulerSettings = components["schemas"]["SchedulerSettings"];
+type SchedulerSettings = components["schemas"]["SchedulerSettings"];
 
 export interface SchedulerSettingsSnapshot {
   resource: SchedulerSettings;
   etag: string;
 }
 
-export type WritableConfigurationKind = "model-policies" | "llm-gateways";
+type WritableConfigurationKind = "model-policies" | "llm-gateways";
 
-export interface CursorPageRequest {
+interface CursorPageRequest {
   cursor?: string;
 }
 
@@ -123,6 +115,12 @@ function requireRuntimeIdentity(name: string, version?: string): void {
     (version !== undefined && !RUNTIME_CONFIG_VERSION.test(version))
   ) {
     throw new TypeError("Runtime configuration identity is invalid");
+  }
+}
+
+function requireCredentialId(value: string): void {
+  if (!CREDENTIAL_ID.test(value)) {
+    throw new TypeError("Credential ID is invalid");
   }
 }
 
@@ -382,7 +380,7 @@ export async function getOperationsSnapshot(
   return snapshot;
 }
 
-export async function listRuntimeAgentPrincipals(
+async function listRuntimeAgentPrincipals(
   api: PublicAPI,
   request: CursorPageRequest = {},
 ): Promise<RuntimeAgentPrincipalPage> {
@@ -551,7 +549,7 @@ export async function publishConfiguration(
     throw new TypeError("Configuration kind is read-only");
   }
   if (
-    !MANAGED_CONFIG_NAME_PATTERN.test(request.name) ||
+    !CONFIG_NAME_PATTERN.test(request.name) ||
     !CONFIG_VERSION_PATTERN.test(request.version)
   ) {
     throw new TypeError("Managed configuration identity is invalid");
@@ -588,7 +586,7 @@ export async function getCredential(
   api: PublicAPI,
   credentialId: string,
 ): Promise<CredentialResource> {
-  requireConfigIdentity(credentialId);
+  requireCredentialId(credentialId);
   const result = await api.request((client) =>
     client.GET("/v1/operations/credentials/{credentialId}", {
       params: { path: { credentialId } },
@@ -610,7 +608,7 @@ export async function createCredential(
   request: CreateCredentialRequest,
   idempotencyKey: string,
 ): Promise<CredentialResource> {
-  requireConfigIdentity(request.credentialId);
+  requireCredentialId(request.credentialId);
   requirePublishedRef(request.llmGateway);
   request.gatewayPolicy.modelPolicies.forEach(requirePublishedRef);
   const header = idempotencyHeader(api, idempotencyKey);
@@ -641,7 +639,7 @@ export async function deleteCredential(
   credentialId: string,
   idempotencyKey: string,
 ): Promise<void> {
-  requireConfigIdentity(credentialId);
+  requireCredentialId(credentialId);
   const header = idempotencyHeader(api, idempotencyKey);
   const result = await api.request((client) =>
     client.DELETE("/v1/operations/credentials/{credentialId}", {

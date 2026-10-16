@@ -594,7 +594,7 @@ export function EvalSetupForm({
                 Save draft
               </Button>
             </div>
-            <p className="eval-save-status" role="status">
+            <p className="ui-caption" role="status">
               {experiment && !dirty
                 ? "Saved on server"
                 : "Unsaved changes · save this draft before leaving."}

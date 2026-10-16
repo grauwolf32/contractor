@@ -13,8 +13,8 @@ import {
   canonicalRunRuntimeConfiguration,
 } from "./runtime-configuration";
 
-export const WORKFLOW_PAGE_SIZE = 50;
-export const REFERENCE_PAGE_SIZE = 50;
+const WORKFLOW_PAGE_SIZE = 50;
+const REFERENCE_PAGE_SIZE = 50;
 // The public ConfigId, ConfigurationName and ConfigVersion rules.
 export const CONFIG_ID_PATTERN = CONFIG_ID;
 export const CONFIG_NAME_PATTERN = CONFIGURATION_NAME;
@@ -26,23 +26,23 @@ export function isConfigSelector(value: string): boolean {
   return SELECTOR.test(value);
 }
 
-export type WorkflowPage = components["schemas"]["WorkflowPage"];
+type WorkflowPage = components["schemas"]["WorkflowPage"];
 export type WorkflowResource = components["schemas"]["WorkflowResource"];
 export type WorkflowSummary = components["schemas"]["WorkflowSummary"];
-export type ConfigurationKind = components["schemas"]["ConfigurationKind"];
-export type ConfigurationPage = components["schemas"]["ConfigurationPage"];
+type ConfigurationKind = components["schemas"]["ConfigurationKind"];
+type ConfigurationPage = components["schemas"]["ConfigurationPage"];
 export type ConfigurationResource =
   components["schemas"]["ConfigurationResource"];
-export type CredentialPage = components["schemas"]["CredentialPage"];
+type CredentialPage = components["schemas"]["CredentialPage"];
 export type CredentialResource = components["schemas"]["CredentialResource"];
 export type CreateRunRequest = components["schemas"]["CreateRunRequest"];
-export type CreateRunResponse = components["schemas"]["CreateRunResponse"];
+type CreateRunResponse = components["schemas"]["CreateRunResponse"];
 
-export interface PageRequest {
+interface PageRequest {
   cursor?: string;
 }
 
-export interface CatalogPageRequest extends PageRequest {
+interface CatalogPageRequest extends PageRequest {
   q?: string;
   name?: string;
   signal?: AbortSignal;

@@ -26,7 +26,7 @@ import {
 } from "./check-model";
 import { AuditControls } from "./controls";
 import { describeStopReason, stopReasonTone } from "./stop-reason";
-import { plural } from "../../../app/format";
+import { formatNumber, plural } from "../../../app/format";
 
 /**
  * The legend under a progress line: a swatch, the status and how many items
@@ -55,7 +55,7 @@ export function ProgressLegend({
             />
             <span>{entry.label}</span>
             <span className="checks-legend-count">
-              {entry.count.toLocaleString("en-US")}
+              {formatNumber(entry.count)}
             </span>
           </Link>
         </li>
@@ -153,7 +153,7 @@ export function CheckProgress({
   const summary =
     total === 0
       ? headline
-      : `${done.toLocaleString("en-US")} of ${total.toLocaleString("en-US")} ${noun} done${shown.length === 0 ? "" : `: ${legendSentence(shown)}`}`;
+      : `${formatNumber(done)} of ${formatNumber(total)} ${noun} done${shown.length === 0 ? "" : `: ${legendSentence(shown)}`}`;
   // Counts read from the snapshot pin the list they link to; counts read
   // from a pinned list keep its pin (S19).
   const linkPin = fromRows
@@ -202,14 +202,14 @@ export function CheckProgress({
         <p className="ui-caption">
           {`Counts describe revision ${pin}, the one the list shows${
             partialList
-              ? `: the ${entries.length.toLocaleString("en-US")} ${pluralNoun} loaded so far`
+              ? `: the ${formatNumber(entries.length)} ${pluralNoun} loaded so far`
               : ""
           }.`}
         </p>
       ) : fromRows || !partialList ? null : (
         <p className="ui-caption">
           Counts cover the whole check; the list shows the{" "}
-          {entries.length.toLocaleString("en-US")} {pluralNoun} loaded so far.
+          {formatNumber(entries.length)} {pluralNoun} loaded so far.
         </p>
       )}
       <StopReasonBanner audit={audit} />

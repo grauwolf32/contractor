@@ -1,13 +1,11 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  DecisionBar,
-  type DecisionBarProps,
-  type DecisionOption,
-} from "./decision-bar";
+import { DecisionBar, type DecisionOption } from "./decision-bar";
+
+type DecisionBarProps = ComponentProps<typeof DecisionBar>;
 
 const OPTIONS: DecisionOption[] = [
   { id: "confirm", label: "Confirm issue", shortcut: "c", tone: "primary" },

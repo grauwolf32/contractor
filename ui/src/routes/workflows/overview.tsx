@@ -27,7 +27,7 @@ function OverviewSlots({
     <section className="workflow-overview-slots" aria-labelledby={heading}>
       <h4 id={heading}>{title}</h4>
       {Object.keys(slots).length === 0 ? (
-        <p className="library-muted">None declared.</p>
+        <p className="ui-caption">None declared.</p>
       ) : (
         <dl>
           {Object.entries(slots)
@@ -151,7 +151,6 @@ export function WorkflowOverview({
               }
               actions={
                 <RefreshButton
-                  className="ui-btn"
                   isFetching={refreshing || inventory.isFetching}
                   onRefresh={() => {
                     refresh();
@@ -191,7 +190,7 @@ export function WorkflowOverview({
                   <h3 id={contractId} className="library-block-title">
                     Inputs and results
                   </h3>
-                  <span className="library-muted">Contract</span>
+                  <span className="ui-caption">Contract</span>
                 </header>
                 <div
                   className={`workflow-overview-io${stages.length === 1 ? " is-single-stage" : ""}`}
@@ -220,7 +219,7 @@ export function WorkflowOverview({
                   <h3 id={stagesId} className="library-block-title">
                     How it runs
                   </h3>
-                  <span className="library-muted">
+                  <span className="ui-caption">
                     {plural(stages.length, "Stage")}
                   </span>
                 </header>

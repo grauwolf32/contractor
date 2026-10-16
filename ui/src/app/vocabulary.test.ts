@@ -8,9 +8,10 @@ import type {
   AuditFindingState,
   AuditItem,
   AuditProfile,
+  AuditReviewRequest,
   AuditState,
 } from "../api/audits";
-import { STATUS_TONES } from "./status-tone";
+import { STATUS_TONES } from "../test/status-tones";
 import {
   capitalize,
   CHECK_STATE_LABELS,
@@ -22,10 +23,8 @@ import {
   findingStateLabel,
   itemCount,
   itemNoun,
-  REPORT_STATUS_LABELS,
+  readableValue,
   reportStatusLabel,
-  REVIEW_ACTION_LABELS,
-  REVIEW_KIND_LABELS,
   REVIEW_STATE_LABELS,
   reviewActionLabel,
   reviewKindLabel,
@@ -39,8 +38,8 @@ import {
   TERMS,
   VERDICT_LABELS,
   verdictLabel,
+  wordOf,
   type AuditCoverageStatus,
-  type AuditReviewKind,
   type ItemKind,
   type VocabularyLabel,
 } from "./vocabulary";
@@ -88,20 +87,45 @@ describe("vocabulary", () => {
       VERDICT_LABELS,
       [...enumOf("AuditAnalystVerdict"), "unreviewed"],
     ],
-    ["AuditReviewAction", REVIEW_ACTION_LABELS, enumOf("AuditReviewAction")],
     ["AuditReviewState", REVIEW_STATE_LABELS, enumOf("AuditReviewState")],
-    ["AuditReportStatus", REPORT_STATUS_LABELS, enumOf("AuditReportStatus")],
     ["WorkflowRunState", RUN_STATE_LABELS, enumOf("WorkflowRunState")],
   ])("labels every %s value with a tone", (_schema, table, values) => {
     expect(Object.keys(table).sort()).toEqual([...values].sort());
     for (const value of values) expectLabel(table[value]!);
   });
 
+  // Tables only their lookup reads are typed Record<enum, …> over the
+  // generated types, which keeps their keys equal to the contract's enum at
+  // compile time. At run time each value must come from the table:
+  // labelOf returns the table's own entry, while a value missing from it
+  // gets a new fallback object on every call.
+  it.each<[string, (value: string) => VocabularyLabel, string[]]>([
+    [
+      "AuditReviewAction",
+      (value) =>
+        reviewActionLabel(value as Parameters<typeof reviewActionLabel>[0]),
+      enumOf("AuditReviewAction"),
+    ],
+    [
+      "AuditReportStatus",
+      (value) =>
+        reportStatusLabel(value as Parameters<typeof reportStatusLabel>[0]),
+      enumOf("AuditReportStatus"),
+    ],
+  ])("labels every %s value from its table", (_schema, lookup, values) => {
+    for (const value of values) {
+      expect(lookup(value), value).toBe(lookup(value));
+      expectLabel(lookup(value));
+    }
+    expect(lookup("unknown_value")).not.toBe(lookup("unknown_value"));
+  });
+
   it("labels every review kind and severity", () => {
     const kinds = enumOf("AuditReviewRequest", "kind");
-    expect(Object.keys(REVIEW_KIND_LABELS).sort()).toEqual([...kinds].sort());
     for (const kind of kinds)
-      expect(reviewKindLabel(kind as AuditReviewKind).trim()).not.toBe("");
+      expect(
+        reviewKindLabel(kind as AuditReviewRequest["kind"]).trim(),
+      ).not.toBe("");
     const severities = enumOf("AuditFindingSeverity");
     expect(Object.keys(SEVERITY_LABELS).sort()).toEqual([...severities].sort());
     for (const severity of severities)
@@ -218,9 +242,9 @@ describe("vocabulary", () => {
       label: "ToString",
       tone: "neutral",
     });
-    expect(reviewKindLabel("budget-approval" as AuditReviewKind)).toBe(
-      "Budget approval",
-    );
+    expect(
+      reviewKindLabel("budget-approval" as AuditReviewRequest["kind"]),
+    ).toBe("Budget approval");
     expect(severityLabel("severe" as AuditFindingSeverity)).toBe("Severe");
   });
 
@@ -251,6 +275,20 @@ describe("vocabulary", () => {
   it("counts items", () => {
     expect(itemCount("endpoint", 1)).toBe("1 endpoint");
     expect(itemCount("requirement", 1204)).toBe("1,204 requirements");
+  });
+});
+
+describe("readable values", () => {
+  it("reads an API value as words, also one this client does not know", () => {
+    expect(readableValue("release_pending")).toBe("Release pending");
+    expect(readableValue("not-eligible")).toBe("Not eligible");
+    expect(readableValue("__")).toBe("Unknown");
+    const table: Record<"ready" | "later", string> = {
+      ready: "Ready to start",
+      later: "Later",
+    };
+    expect(wordOf(table, "ready")).toBe("Ready to start");
+    expect(wordOf(table, "release_pending" as "ready")).toBe("Release pending");
   });
 });
 

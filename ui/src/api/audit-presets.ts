@@ -8,12 +8,12 @@ import type { components } from "./generated/public";
 export type AuditStandard = components["schemas"]["AuditStandardPackage"];
 
 // The OpenAPI AuditStandardRef identity rules.
-export const AUDIT_STANDARD_SCHEME_PATTERN = stringRule(
+const AUDIT_STANDARD_SCHEME_PATTERN = stringRule(
   "AuditStandardRef",
   "properties",
   "scheme",
 );
-export const AUDIT_STANDARD_VERSION_PATTERN = stringRule(
+const AUDIT_STANDARD_VERSION_PATTERN = stringRule(
   "AuditStandardRef",
   "properties",
   "version",

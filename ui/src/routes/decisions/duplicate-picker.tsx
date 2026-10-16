@@ -160,12 +160,12 @@ export function DuplicatePicker({
         </div>
       ) : null}
       {candidates.isPending ? (
-        <p className="decisions-duplicate-note">
+        <p className="ui-caption">
           Loading possible issues… You can also enter the exact ID of the
           original.
         </p>
       ) : candidates.isError ? (
-        <p className="decisions-duplicate-note" role="alert">
+        <p className="ui-caption" role="alert">
           The possible issues of this check could not be loaded. You can still
           enter the exact ID of the original.{" "}
           <Button
@@ -177,16 +177,16 @@ export function DuplicatePicker({
           </Button>
         </p>
       ) : others.length === 0 ? (
-        <p className="decisions-duplicate-note">
+        <p className="ui-caption">
           No other possible issue in this check yet. Enter the exact ID of the
           original.
         </p>
       ) : visible.length === 0 && !offerTyped ? (
-        <p className="decisions-duplicate-note">
+        <p className="ui-caption">
           No possible issue matches. Search by title, or enter an exact ID.
         </p>
       ) : truncated ? (
-        <p className="decisions-duplicate-note">
+        <p className="ui-caption">
           Showing the first {others.length} possible issues. For another one,
           enter its exact ID.
         </p>

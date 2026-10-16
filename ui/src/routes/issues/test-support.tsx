@@ -9,13 +9,8 @@ import type {
 } from "../../api/audits";
 import type { Project } from "../../api/projects";
 import * as build from "../../test/builders";
-import {
-  failure,
-  fakeServer,
-  json,
-  page,
-  type FakeCall,
-} from "../../test/fake-server";
+import { fakeServer, type FakeCall } from "../../test/fake-server";
+import { failure, json, page } from "../../test/responses";
 import { ownerListRoutes } from "../../test/owner-lists";
 import { renderWithAPI } from "../../test/render";
 import { IssuesRoute } from ".";

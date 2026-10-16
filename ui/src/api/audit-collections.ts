@@ -5,7 +5,7 @@ import { loadAllPages } from "./pages";
  * server page size of 50 this bounds a batch at 250 records; the caller shows
  * a "Load more" control and continues from `nextCursor` when `truncated`.
  */
-export const AUDIT_COLLECTION_MAX_PAGES = 5;
+const AUDIT_COLLECTION_MAX_PAGES = 5;
 
 export interface AuditCollectionPage<T> {
   items: T[];
@@ -19,7 +19,7 @@ export interface AuditCollection<T> {
   nextCursor?: string;
 }
 
-export interface CollectAuditPagesOptions {
+interface CollectAuditPagesOptions {
   /** Page to continue from (the `nextCursor` of a truncated batch). */
   cursor?: string;
   /** Maximum number of pages to read in this batch (at least 1). */

@@ -2,10 +2,11 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useRef, useState } from "react";
 import { Link } from "react-router";
 
-import { schemaLimit } from "../../api/contract";
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
 import {
+  CANCELLATION_REASON_LIMIT,
+  cancellationReasonLength,
   cancelRun,
   getRunRepeatDraft,
   isTerminalRunState,
@@ -20,14 +21,6 @@ import { CancelRunDialog } from "./cancel";
 import { useRetryModelConnection } from "./recovery";
 import { useGuardedNavigate } from "../../app/page-location";
 import { AlertDialog, Button } from "../../ui";
-
-/** The longest cancellation reason the Server accepts (CancelRunRequest). */
-const CANCELLATION_REASON_LIMIT = schemaLimit(
-  "CancelRunRequest",
-  "maxLength",
-  "properties",
-  "reason",
-);
 
 /** What one header action contributes: its button, a dialog and a notice. */
 interface ActionParts {
@@ -323,10 +316,8 @@ function useCancelRun(
   async function submit(): Promise<void> {
     mutation.reset();
     const normalized = reason.trim();
-    if (
-      normalized.length === 0 ||
-      normalized.length > CANCELLATION_REASON_LIMIT
-    ) {
+    const length = cancellationReasonLength(normalized);
+    if (length === 0 || length > CANCELLATION_REASON_LIMIT) {
       setValidationError(
         `Give a cancellation reason of 1–${CANCELLATION_REASON_LIMIT} characters.`,
       );

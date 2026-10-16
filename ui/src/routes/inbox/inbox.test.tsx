@@ -1,6 +1,5 @@
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createMemoryRouter, type RouteObject } from "react-router";
 import { describe, expect, it } from "vitest";
 
 import type {
@@ -16,25 +15,18 @@ import type {
 import type { Project } from "../../api/projects";
 import type { RunStatus, RunSummary } from "../../api/runs";
 import type { WorkflowResource } from "../../api/workflows";
-import { Application } from "../../app/application";
-import { applicationRoutes } from "../../app/router";
+import { renderApplication } from "../../test/application";
 import * as build from "../../test/builders";
 import {
   runStatus,
   stageAttempt,
   workflowResource,
 } from "../../test/builders-execution";
-import {
-  emptyPageOrNotFound,
-  failure,
-  fakeServer,
-  json,
-  page,
-  type Route,
-  type Routes,
-} from "../../test/fake-server";
+import { deferred } from "../../test/deferred";
+import { fakeServer, type Route, type Routes } from "../../test/fake-server";
+import { emptyPageOrNotFound, failure, json, page } from "../../test/responses";
 import { ownerListRoutes } from "../../test/owner-lists";
-import { testAPI, testSession } from "../../test/render";
+import { testSession } from "../../test/render";
 
 const NOW = Date.now();
 
@@ -171,18 +163,6 @@ interface InboxServer {
   override?: (url: URL, request: Request) => Response | undefined;
   /** Holds a request until the returned promise settles. */
   delay?: (url: URL, request: Request) => Promise<void> | undefined;
-}
-
-/**
- * A promise the test settles: a Server answer that takes a while.
- * V385: needs shared deferred helper in src/test.
- */
-function gate(): { wait: Promise<void>; release: () => void } {
-  let release!: () => void;
-  const wait = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  return { wait, release };
 }
 
 /** The check with this ID. */
@@ -592,52 +572,6 @@ function inboxServer(server: InboxServer) {
   );
 }
 
-/** Holds a route's lazy code until `until` settles: a slow next page. */
-function delayRoute(
-  routes: RouteObject[],
-  path: string,
-  until: Promise<void>,
-): boolean {
-  for (const route of routes) {
-    const { lazy } = route;
-    if (route.path === path && typeof lazy === "function") {
-      route.lazy = async () => {
-        await until;
-        return lazy();
-      };
-      return true;
-    }
-    if (route.children !== undefined && delayRoute(route.children, path, until))
-      return true;
-  }
-  return false;
-}
-
-/**
- * The application at `path` over `server`.
- * V385: needs shared application harness in src/test.
- */
-function renderInbox(
-  server: InboxServer,
-  path = "/",
-  slowRoute?: { path: string; until: Promise<void> },
-) {
-  const { api, server: fake } = testAPI(inboxServer(server));
-  const routes = applicationRoutes();
-  if (
-    slowRoute !== undefined &&
-    !delayRoute(routes, slowRoute.path, slowRoute.until)
-  )
-    throw new Error(`No lazy route ${slowRoute.path}`);
-  const router = createMemoryRouter(routes, {
-    initialEntries: [path],
-  });
-  const view = render(
-    <Application api={api} publicAPI={api} router={router} />,
-  );
-  return { ...view, router, requests: fake.requests, sent: fake.sent };
-}
-
 /** The detail pane, once the application has rendered it. */
 function findDetail(): Promise<HTMLElement> {
   return screen.findByRole("region", { name: "Selected item" });
@@ -701,7 +635,9 @@ const FIRST_DECIDED =
 
 describe("Inbox", () => {
   it("lists decisions, blocked work, finished results and running checks", async () => {
-    const { sent } = renderInbox(busyServer());
+    const { sent } = renderApplication("/", {
+      server: inboxServer(busyServer()),
+    });
 
     expect(
       await screen.findByRole("heading", { name: "Inbox", level: 1 }),
@@ -834,7 +770,7 @@ describe("Inbox", () => {
         expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
       }),
     );
-    const { sent } = renderInbox(server);
+    const { sent } = renderApplication("/", { server: inboxServer(server) });
 
     const decide = await findSection("Decide");
     await waitFor(() =>
@@ -859,7 +795,7 @@ describe("Inbox", () => {
   });
 
   it("says plainly when a section is empty", async () => {
-    renderInbox(emptyServer());
+    renderApplication("/", { server: inboxServer(emptyServer()) });
 
     expect(
       await screen.findByText("Nothing needs you right now."),
@@ -895,7 +831,9 @@ describe("Inbox", () => {
   });
 
   it("opens the item named in the URL", async () => {
-    renderInbox(busyServer(), "/?item=issue:audit_trace:finding_sqli");
+    renderApplication("/?item=issue:audit_trace:finding_sqli", {
+      server: inboxServer(busyServer()),
+    });
 
     const pane = await findDetail();
     expect(
@@ -924,7 +862,9 @@ describe("Inbox", () => {
   });
 
   it("moves through the items with J and K and opens one with Enter", async () => {
-    const { router } = renderInbox(busyServer());
+    const { router } = renderApplication("/", {
+      server: inboxServer(busyServer()),
+    });
     const user = userEvent.setup();
     const first = await screen.findByRole("link", {
       name: "Any user can read any report",
@@ -960,9 +900,9 @@ describe("Inbox", () => {
   });
 
   it("records a decision, announces it and moves to the next decision", async () => {
-    const { router, sent } = renderInbox(
-      busyServer(),
+    const { router, sent } = renderApplication(
       "/?item=issue:audit_trace:finding_idor",
+      { server: inboxServer(busyServer()) },
     );
     const user = userEvent.setup();
     const pane = await findDetail();
@@ -1013,9 +953,9 @@ describe("Inbox", () => {
   });
 
   it("moves focus once after a decision and drops the message when the user moves on", async () => {
-    const { router } = renderInbox(
-      busyServer(),
+    const { router } = renderApplication(
       "/?item=issue:audit_trace:finding_idor",
+      { server: inboxServer(busyServer()) },
     );
     const user = userEvent.setup();
     await decideNotAnIssue(user);
@@ -1079,9 +1019,9 @@ describe("Inbox", () => {
   });
 
   it("decides an approval in place and moves to the next decision", async () => {
-    const { router, sent } = renderInbox(
-      busyServer(),
+    const { router, sent } = renderApplication(
       "/?item=review:audit_trace:review_approval",
+      { server: inboxServer(busyServer()) },
     );
     const user = userEvent.setup();
     const pane = await findDetail();
@@ -1146,7 +1086,9 @@ describe("Inbox", () => {
   });
 
   it("shows a proposed report next to its acceptance request", async () => {
-    renderInbox(busyServer(), "/?item=review:audit_wait:review_report");
+    renderApplication("/?item=review:audit_wait:review_report", {
+      server: inboxServer(busyServer()),
+    });
     const pane = await findDetail();
 
     expect(
@@ -1195,7 +1137,9 @@ describe("Inbox", () => {
       url.pathname === "/v1/audits/audit_wait/report"
         ? failure(500)
         : undefined;
-    renderInbox(server, "/?item=review:audit_wait:review_report");
+    renderApplication("/?item=review:audit_wait:review_report", {
+      server: inboxServer(server),
+    });
     const pane = await findDetail();
 
     expect(
@@ -1214,14 +1158,14 @@ describe("Inbox", () => {
 
   it("keeps the row the user clicked when a decision is answered later", async () => {
     const server = busyServer();
-    const answer = gate();
+    const answer = deferred();
     server.delay = (url, request) =>
       request.method === "POST" && url.pathname.endsWith("/decisions")
-        ? answer.wait
+        ? answer.promise
         : undefined;
-    const { router, sent } = renderInbox(
-      server,
+    const { router, sent } = renderApplication(
       "/?item=issue:audit_trace:finding_idor",
+      { server: inboxServer(server) },
     );
     const user = userEvent.setup();
     await decideNotAnIssue(user);
@@ -1240,7 +1184,7 @@ describe("Inbox", () => {
         "?item=review:audit_trace:review_approval",
       ),
     );
-    answer.release();
+    answer.resolve();
 
     // The decision is announced by name, and the user stays where they are.
     await waitFor(() => expect(pageStatus()).toHaveTextContent(FIRST_DECIDED));
@@ -1260,14 +1204,14 @@ describe("Inbox", () => {
 
   it("keeps the item J moved to when a decision is answered later", async () => {
     const server = busyServer();
-    const answer = gate();
+    const answer = deferred();
     server.delay = (url, request) =>
       request.method === "POST" && url.pathname.endsWith("/decisions")
-        ? answer.wait
+        ? answer.promise
         : undefined;
-    const { router, sent } = renderInbox(
-      server,
+    const { router, sent } = renderApplication(
       "/?item=issue:audit_trace:finding_idor",
+      { server: inboxServer(server) },
     );
     const user = userEvent.setup();
     await decideNotAnIssue(user);
@@ -1293,7 +1237,7 @@ describe("Inbox", () => {
         "?item=review:audit_wait:review_report",
       ),
     );
-    answer.release();
+    answer.resolve();
 
     await waitFor(() => expect(pageStatus()).toHaveTextContent(FIRST_DECIDED));
     expect(router.state.location.search).toBe(
@@ -1304,14 +1248,14 @@ describe("Inbox", () => {
 
   it("leaves another page alone when a decision is answered after the user left", async () => {
     const server = busyServer();
-    const answer = gate();
+    const answer = deferred();
     server.delay = (url, request) =>
       request.method === "POST" && url.pathname.endsWith("/decisions")
-        ? answer.wait
+        ? answer.promise
         : undefined;
-    const { router, sent } = renderInbox(
-      server,
+    const { router, sent } = renderApplication(
       "/?item=issue:audit_trace:finding_idor",
+      { server: inboxServer(server) },
     );
     const user = userEvent.setup();
     await decideNotAnIssue(user);
@@ -1327,7 +1271,7 @@ describe("Inbox", () => {
     await user.click(within(navigation).getByRole("link", { name: "Runs" }));
     await waitFor(() => expect(router.state.location.pathname).toBe("/runs"));
     const refreshes = sent("GET", "/v1/projects").length;
-    answer.release();
+    answer.resolve();
 
     // The decision's refresh runs (the rail badge reads the same lists),
     // then nothing takes the user back to the Inbox.
@@ -1343,16 +1287,18 @@ describe("Inbox", () => {
 
   it("lets the user leave while the next page loads when a decision is answered meanwhile", async () => {
     const server = busyServer();
-    const answer = gate();
+    const answer = deferred();
     server.delay = (url, request) =>
       request.method === "POST" && url.pathname.endsWith("/decisions")
-        ? answer.wait
+        ? answer.promise
         : undefined;
-    const runsCode = gate();
-    const { router, sent } = renderInbox(
-      server,
+    const runsCode = deferred();
+    const { router, sent } = renderApplication(
       "/?item=issue:audit_trace:finding_idor",
-      { path: "/runs", until: runsCode.wait },
+      {
+        server: inboxServer(server),
+        slowRoutes: { "/runs": runsCode.promise },
+      },
     );
     const user = userEvent.setup();
     await decideNotAnIssue(user);
@@ -1372,14 +1318,14 @@ describe("Inbox", () => {
     );
     expect(await findDetail()).toBeInTheDocument();
     const refreshes = sent("GET", "/v1/projects").length;
-    answer.release();
+    answer.resolve();
 
     // The decision's refresh runs, and the user is still on the way to Runs.
     await waitFor(() =>
       expect(sent("GET", "/v1/projects").length).toBeGreaterThan(refreshes),
     );
     expect(router.state.navigation.location?.pathname).toBe("/runs");
-    runsCode.release();
+    runsCode.resolve();
     await waitFor(() => expect(router.state.location.pathname).toBe("/runs"));
     await act(async () => {
       await new Promise((resolve) => window.setTimeout(resolve, 200));
@@ -1390,16 +1336,16 @@ describe("Inbox", () => {
 
   it("moves to the decision after one a refresh already removed", async () => {
     const server = busyServer();
-    const answer = gate();
+    const answer = deferred();
     // The Server records the decision at once but answers late; a refresh
     // in between already leaves the decided possible issue out.
     server.delay = (url, request) =>
       request.method === "POST" && url.pathname.endsWith("/decisions")
-        ? answer.wait
+        ? answer.promise
         : undefined;
-    const { router, sent } = renderInbox(
-      server,
+    const { router, sent } = renderApplication(
       "/?item=issue:audit_trace:finding_sqli",
+      { server: inboxServer(server) },
     );
     const user = userEvent.setup();
     await decideNotAnIssue(user);
@@ -1418,7 +1364,7 @@ describe("Inbox", () => {
         screen.queryByRole("link", { name: "Order search builds raw SQL" }),
       ).not.toBeInTheDocument(),
     );
-    answer.release();
+    answer.resolve();
 
     // Not the top of the list: the item that followed the decided one.
     await waitFor(() =>
@@ -1434,7 +1380,9 @@ describe("Inbox", () => {
   });
 
   it("selects the row the user chose for a check listed twice", async () => {
-    const { router } = renderInbox(busyServer(), "/?item=check:audit_trace");
+    const { router } = renderApplication("/?item=check:audit_trace", {
+      server: inboxServer(busyServer()),
+    });
     const user = userEvent.setup();
     const stuck = await within(await findSection("Unblock")).findByRole(
       "link",
@@ -1473,7 +1421,9 @@ describe("Inbox", () => {
 
   it("keeps a check's progress shown while its new counts load", async () => {
     const server = busyServer();
-    const { sent } = renderInbox(server, "/?item=check:audit_paused");
+    const { sent } = renderApplication("/?item=check:audit_paused", {
+      server: inboxServer(server),
+    });
     const user = userEvent.setup();
     const pane = await findDetail();
     expect(
@@ -1481,10 +1431,10 @@ describe("Inbox", () => {
     ).toBeInTheDocument();
 
     // The check moves on; its new counts take a while.
-    const counts = gate();
+    const counts = deferred();
     server.delay = (url) =>
       url.pathname === "/v1/audits/audit_paused/workspace"
-        ? counts.wait
+        ? counts.promise
         : undefined;
     advance(server, "audit_paused");
     server.workspaces.audit_paused = workspace(
@@ -1503,7 +1453,7 @@ describe("Inbox", () => {
     ).not.toBeInTheDocument();
     expect(within(pane).getByText("2 of 5 endpoints done")).toBeInTheDocument();
 
-    counts.release();
+    counts.resolve();
     expect(
       await within(pane).findByText("3 of 5 endpoints done"),
     ).toBeInTheDocument();
@@ -1521,7 +1471,9 @@ describe("Inbox", () => {
         unreviewedFindings: 1,
       },
     );
-    renderInbox(server, "/?item=check:audit_paused");
+    renderApplication("/?item=check:audit_paused", {
+      server: inboxServer(server),
+    });
 
     const pane = await findDetail();
     expect(
@@ -1559,7 +1511,9 @@ describe("Inbox", () => {
   });
 
   it("says when the item in the URL has left the Inbox", async () => {
-    renderInbox(busyServer(), "/?item=issue:audit_trace:finding_gone");
+    renderApplication("/?item=issue:audit_trace:finding_gone", {
+      server: inboxServer(busyServer()),
+    });
 
     const pane = await findDetail();
     expect(
@@ -1571,7 +1525,9 @@ describe("Inbox", () => {
   });
 
   it("shows a failed Run's cause and leaves its recovery to the Run page", async () => {
-    renderInbox(busyServer(), "/?item=run:run_failed");
+    renderApplication("/?item=run:run_failed", {
+      server: inboxServer(busyServer()),
+    });
 
     const pane = await findDetail();
     expect(
@@ -1602,7 +1558,9 @@ describe("Inbox", () => {
   });
 
   it("retries the model connection only when the Server asks for it", async () => {
-    const { sent } = renderInbox(busyServer(), "/?item=run:run_waiting");
+    const { sent } = renderApplication("/?item=run:run_waiting", {
+      server: inboxServer(busyServer()),
+    });
     const user = userEvent.setup();
     const pane = await findDetail();
 
@@ -1641,7 +1599,7 @@ describe("Inbox", () => {
   it("shows the queue admission notice only while admission is paused", async () => {
     const server = busyServer();
     server.paused = true;
-    renderInbox(server);
+    renderApplication("/", { server: inboxServer(server) });
 
     expect(
       await screen.findByText(
@@ -1659,7 +1617,7 @@ describe("Inbox", () => {
     let failing = true;
     server.override = (url) =>
       failing && url.pathname === "/v1/audits" ? failure(500) : undefined;
-    renderInbox(server);
+    renderApplication("/", { server: inboxServer(server) });
     const user = userEvent.setup();
 
     expect(

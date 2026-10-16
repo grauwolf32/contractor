@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { RuntimeConfig } from "../config/runtime-config";
 import { PublicAPI } from "./client";
+import { stringRule } from "./contract";
+import publicSchemas from "./generated/public-schemas.json";
 import {
+  CREDENTIAL_ID,
   createCredential,
   createRuntimeCredential,
   deleteCredential,
@@ -17,7 +20,7 @@ import {
   listRuntimeConfigs,
   listRuntimeCredentials,
   listRuntimeLabels,
-  listRuntimeAgentPrincipals,
+  listAllRuntimeAgentPrincipals,
   publishConfiguration,
   publishRuntimeConfig,
   putRuntimeLabel,
@@ -349,6 +352,47 @@ describe("Operations API", () => {
     expect(JSON.stringify(credential)).not.toMatch(/token|cipher|remoteKey/i);
   });
 
+  // Credential IDs are ConfigId (CreateCredentialRequest.credentialId and
+  // the CredentialId path parameter), which also allows capitals, digits
+  // first and dots; a ConfigurationName check refused them.
+  it("accepts every ConfigId as a credential ID and nothing else", async () => {
+    const request = publicSchemas.$defs.CreateCredentialRequest as {
+      properties: { credentialId: { $ref: string } };
+    };
+    expect(request.properties.credentialId.$ref).toMatch(
+      /#\/\$defs\/ConfigId$/,
+    );
+    const rule = stringRule("ConfigId");
+    expect(CREDENTIAL_ID.pattern?.source).toBe(rule.pattern?.source);
+    expect(CREDENTIAL_ID.maxLength).toBe(rule.maxLength);
+    const sent: string[] = [];
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        sent.push(new URL(request.url).pathname);
+        return response(undefined, 204);
+      }),
+    );
+    api.csrf.replace("a".repeat(43));
+    for (const id of ["Worker.Budget-2", "1st_key", "worker-budget"]) {
+      expect(rule.test(id)).toBe(true);
+      await deleteCredential(api, id, `credential-delete-${id}`);
+    }
+    expect(sent).toEqual([
+      "/v1/operations/credentials/Worker.Budget-2",
+      "/v1/operations/credentials/1st_key",
+      "/v1/operations/credentials/worker-budget",
+    ]);
+    for (const id of ["-worker", "worker budget", "a".repeat(129), ""]) {
+      expect(rule.test(id)).toBe(false);
+      await expect(getCredential(api, id)).rejects.toThrow(
+        "Credential ID is invalid",
+      );
+    }
+    expect(sent).toHaveLength(3);
+  });
+
   it("rejects malformed snapshot cursors and read-only publication", async () => {
     const api = new PublicAPI(
       runtimeConfig,
@@ -418,7 +462,7 @@ describe("Operations API", () => {
     api.csrf.replace("a".repeat(43));
 
     const values = [
-      await listRuntimeAgentPrincipals(api),
+      await listAllRuntimeAgentPrincipals(api),
       await getRuntimeAgentPrincipal(api, runtimeAgentId),
       await replaceRuntimeAgentPrincipalLabels(
         api,
@@ -451,7 +495,9 @@ describe("Operations API", () => {
         }),
       ),
     );
-    await expect(listRuntimeAgentPrincipals(unexpected)).rejects.toMatchObject({
+    await expect(
+      listAllRuntimeAgentPrincipals(unexpected),
+    ).rejects.toMatchObject({
       code: "invalid_api_response",
     });
   });

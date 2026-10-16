@@ -7,13 +7,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { getAudit } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
-import { failure, json } from "../../test/fake-server";
+import { deferred } from "../../test/deferred";
+import { failure, json } from "../../test/responses";
 import { AuditReportView } from "../projects/audits/report";
 import {
   acceptanceReview,
   audit,
   reportsServer,
-  gate,
   project,
   renderRoutes,
   report,
@@ -214,10 +214,10 @@ describe("Report detail", () => {
     const server = reportsServer(state());
     const { queryClient } = renderRoutes("/reports/audit_proposed", server);
     await screen.findByRole("region", { name: "Your decision" });
-    const read = gate();
+    const read = deferred();
     server.state.hold = {
       path: /\/reviews\/review_audit_proposed$/,
-      until: read.until,
+      until: read.promise,
     };
     approveElsewhere(server);
     await rereadReport(queryClient);
@@ -232,7 +232,7 @@ describe("Report detail", () => {
     ).toBeNull();
     expect(within(pane).queryByRole("button", { name: "Approve" })).toBeNull();
 
-    read.release();
+    read.resolve();
     const record = await within(pane).findByRole("group", {
       name: "Decision on report acceptance",
     });
@@ -285,8 +285,8 @@ describe("Report detail", () => {
     });
     // The decision's refresh waits for the project index; meanwhile the
     // report moves on and reading its request fails.
-    const refresh = gate();
-    server.state.hold = { path: /^\/v1\/projects$/, until: refresh.until };
+    const refresh = deferred();
+    server.state.hold = { path: /^\/v1\/projects$/, until: refresh.promise };
     server.state.reviewRead = () =>
       failure(503, "unavailable", "Review store unavailable");
     await user.click(within(decision).getByRole("button", { name: "Approve" }));
@@ -317,7 +317,7 @@ describe("Report detail", () => {
     expect(within(decision).getByText("Recording…")).toBeVisible();
     expect(within(pane).queryByRole("alert")).toBeNull();
 
-    refresh.release();
+    refresh.resolve();
     expect(
       await screen.findByText("Decision recorded: Approved."),
     ).toBeVisible();
@@ -340,10 +340,10 @@ describe("Report detail", () => {
     await screen.findByRole("region", { name: "Your decision" });
     // Another change of the page is in flight while the report moves on
     // and its request stays pending.
-    const other = gate();
+    const other = deferred();
     void queryClient
       .getMutationCache()
-      .build(queryClient, { mutationFn: () => other.until })
+      .build(queryClient, { mutationFn: () => other.promise })
       .execute(undefined);
     server.state.reports.audit_proposed = report("audit_proposed", "pending");
     await rereadReport(queryClient);
@@ -354,7 +354,7 @@ describe("Report detail", () => {
     expect(
       within(pane).queryByRole("region", { name: "Your decision" }),
     ).toBeNull();
-    other.release();
+    other.resolve();
   });
 
   it("ends without an accepted report when the owner rejects it", async () => {

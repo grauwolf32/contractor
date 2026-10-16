@@ -6,7 +6,7 @@ import type { RuntimeCredentialMetadata } from "../../api/operations";
 import type { Project } from "../../api/projects";
 import { queryKeys } from "../../api/query-keys";
 import * as build from "../../test/builders";
-import { json, page } from "../../test/fake-server";
+import { json, page } from "../../test/responses";
 import { renderWithAPI } from "../../test/render";
 import { ProjectHTTPTargetEditor } from "./http-target-editor";
 

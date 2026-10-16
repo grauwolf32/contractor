@@ -274,18 +274,21 @@ cap of their own.
 
 ```ts
 DetailHeader(props: {
-  breadcrumb?: readonly { label: ReactNode; to?: To }[];
+  breadcrumb?: readonly { label: ReactNode; to?: To; state?: unknown }[];
   title: ReactNode;
   titleAs?: "h1" | "h2";      // default "h2"
   titleRef?: Ref<HTMLHeadingElement>; // the title can take focus (tabIndex -1)
+  eyebrow?: ReactNode;        // the page kind on a line above the title
   status?: ReactNode;         // usually StatusChip
   meta?: ReactNode;
   actions?: ReactNode;
 })
 ```
 
-Breadcrumb items with `to` are links; a last item without `to` gets
-`aria-current="page"`. The title is 20 px in a list pane and up to 28 px in a
+Breadcrumb items with `to` are links (with `state`, the link carries
+location state, such as the origin page's own way back); a last item
+without `to` gets `aria-current="page"`. `eyebrow` names the kind of page
+in small capitals above the title ("Workflow Run"). The title is 20 px in a list pane and up to 28 px in a
 wide detail pane. It also serves as a list pane `header`, for example the
 check page's breadcrumb, h1 and state. `titleRef` works as in `ListPane`: the
 heading gets `tabIndex={-1}`, so the page can focus it when the control that
@@ -830,8 +833,8 @@ Other modal content (forms, pickers) uses `Dialog` and `DialogHeader` from
 
 ```ts
 Facts(props: {
-  items: readonly { term: ReactNode; value: ReactNode; key?: string }[];
-  layout?: "grid" | "row" | "list"; // default "grid" (columns of >= 10rem)
+  items: readonly { term: ReactNode; value: ReactNode; key?: string; wide?: boolean }[];
+  layout?: "grid" | "row" | "list" | "rows"; // default "grid" (columns of >= 10rem)
   size?: "sm" | "md";
   technical?: readonly Fact[];      // behind a Technical details disclosure
   technicalSummary?: string;
@@ -843,6 +846,16 @@ Facts(props: {
 A `<dl>` of term and value pairs, each pair a `<div>`. A fact whose value
 is `undefined`, `null` or `false` is left out (0 and "" stay), so pages list
 what they know without conditionals; with no fact left it renders nothing.
+A `wide` fact takes a row of its own (a repository URL, a revision).
+
+- **`grid`:** columns of at least 10rem; terms above values.
+- **`row`:** pairs wrap on one line.
+- **`list`:** pairs stacked.
+- **`rows`:** terms in one column (8–13rem) beside the values, a hairline
+  between pairs, values in regular weight: configuration and record
+  details. It turns into one column at 640 px, or when a `.ui-facts-frame`
+  around it is narrower than 30rem (a side panel, a nested value; a frame
+  nested in such a list is then indented).
 
 ```tsx
 <Facts
@@ -907,6 +920,8 @@ Shared code that is not a component lives in `src/app`:
   Add new icons there instead of an inline `<svg>`; charts and drawings
   are not icons.
 - **Formatting, `src/app/format.ts`:** `plural(count, one, many?)`,
+  `formatNumber(value, maxFractionDigits = 2, minFractionDigits = 0)`
+  (counts and measurements, "1,204"), `formatCompact` ("1.2K", "1.5M"),
   `formatBytes`, `formatTimestamp` (absolute, hover titles),
   `formatShortDateTime` ("Oct 4, 23:51"), `formatClock`, `formatDay`
   ("Today", "Yesterday", "Oct 4"), `formatRelative` (records, minutes and
@@ -916,10 +931,16 @@ Shared code that is not a component lives in `src/app`:
   `compactDigest`, `middleTruncate` and `compareVersions`. Every Intl
   formatter of the UI is defined there, with en-US conventions.
 - **Query states, `src/app/query-view.tsx`:** `<QueryView query={useQuery(…)}>`
-  renders loading ("Loading…" unless `loading` replaces it), the error panel
-  when nothing is loaded, a stale-data warning after a failed refetch, the
-  `empty` state for data that `isEmpty` selects, and the content. Try again
-  calls the query's own `refetch` unless `onRetry` replaces it.
+  renders loading ("Loading…" unless `loading` replaces it; `null` shows
+  nothing), the error panel when nothing is loaded (with an `errorHint` line
+  under it), a stale-data warning after a failed refetch, the `empty` state
+  for data that `isEmpty` selects, and the content. For an infinite query a
+  failed next page keeps the loaded pages and shows its error
+  (`continuationContext`) under them, retrying only that page. Try again
+  (`retryLabel`) calls the query's own `refetch` unless `onRetry` replaces
+  it; `renderError(error, retry, stale)` replaces the error panel and the
+  stale warning for an area whose errors need their own words, such as the
+  Evals' revision conflicts.
 - **Polling, `src/app/polling.ts`:** `pollInterval({ interval, settled?,
 settledInterval?, maxInterval? })` returns a `refetchInterval` function:
   the base interval while the data can change, stop (or the slow
@@ -948,7 +969,9 @@ settledInterval?, maxInterval? })` returns a `refetchInterval` function:
   coverage, finding, review and Run states. Run states keep the API words
   (Initializing, Pending, Running, Waiting, Cancelling, Succeeded, Failed,
   Cancelled); `runStatePhrase` and `runRecoveryReason` give the sentence
-  forms. Material kinds are classified once in
+  forms. `labelOf(table, value)` and `wordOf(table, value)` read a value
+  this client does not know yet as `readableValue(value)` ("release_pending"
+  is "Release pending"). Material kinds are classified once in
   `src/routes/artifacts/kinds.ts`.
 
 ## Utility classes
@@ -968,6 +991,11 @@ settledInterval?, maxInterval? })` returns a `refetchInterval` function:
 - **`.ui-panel`:** a bordered card on the page surface; dialogs are panels
   too (`ui-dialog ui-panel`).
 - **`.ui-badge`:** a small neutral pill: a version, a scope, "Latest".
+- **`.ui-control`:** a select or input outside a `Field` or form (a list
+  filter, a material choice, a version picker): line border, surface
+  background, focus ring. `data-size="sm"` is 32 px; `data-size="xs"` is a
+  28 px monospace control as wide as its value (up to 12rem); the default
+  is 38 px. Controls inside a `Field` get the form look without it.
 - **`.ui-caption`:** secondary text (muted, 13 px).
 - **`.ui-mono`:** identifiers, paths and digests inline in text.
 - **`.ui-dialog`, `.ui-dialog-heading`, `.ui-dialog-actions`,

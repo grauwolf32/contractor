@@ -2,13 +2,14 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 
+import { renderApplication } from "../../test/application";
 import { createEvalFixture } from "../../test/evals-fixture";
-import { renderEvals, stubEvalBrowser } from "./test-support";
+import { evalServer, stubEvalBrowser } from "./test-support";
 
 beforeEach(stubEvalBrowser);
 
 function start(fixture: ReturnType<typeof createEvalFixture>, path: string) {
-  return renderEvals(fixture, path).router;
+  return renderApplication(path, { server: evalServer(fixture) }).router;
 }
 
 function preview() {

@@ -459,3 +459,36 @@ export function auditRound(
     ),
   );
 }
+
+/** The current revision `r1` of a 64-byte ZIP at `namespace/name`. */
+export function artifactMetadata(
+  namespace: string,
+  name: string,
+  overrides: Overrides<Schemas["ArtifactMetadata"]> = {},
+): Schemas["ArtifactMetadata"] {
+  return conforming(
+    "ArtifactMetadata",
+    merge<Schemas["ArtifactMetadata"]>(
+      {
+        artifact: { namespace, name, revision: "r1" },
+        mediaType: "application/zip",
+        size: 64,
+        current: true,
+        frozen: false,
+        createdAt: NOW,
+      },
+      overrides,
+    ),
+  );
+}
+
+/** The write answer that stored `metadata`. */
+export function artifactWrite(
+  metadata: Schemas["ArtifactMetadata"],
+): Schemas["ArtifactWriteResponse"] {
+  return conforming("ArtifactWriteResponse", {
+    artifact: metadata.artifact,
+    mediaType: metadata.mediaType,
+    size: metadata.size,
+  });
+}
