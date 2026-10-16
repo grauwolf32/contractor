@@ -5,9 +5,8 @@
  * docs/design/ui/mockups/v3b; colours come only from theme.css tokens.
  *
  * The router imports the shell before main.tsx imports styles.css and
- * ui-primitives.css, so this file loads first. Rules that compete with their
- * element rules (button, a) or with `.content` carry one more class or
- * pseudo-class.
+ * ui-primitives.css, so this file loads first. Rules that compete with an
+ * element rule (a) or with `.content` carry one more class or pseudo-class.
  */
 
 .application {
@@ -222,8 +221,6 @@
   place-items: center;
   width: 32px;
   height: 32px;
-  min-height: 0;
-  padding: 0;
   border: 1px solid var(--line-strong);
   border-radius: 999px;
   background: var(--surface);
@@ -239,7 +236,7 @@
   color: var(--text);
 }
 
-.shell-account-button:not(:disabled):hover {
+.shell-account-button:hover {
   background: var(--surface-hover);
   color: var(--text);
 }
@@ -325,9 +322,7 @@
   width: 100%;
   min-height: 36px;
   padding: 0 10px;
-  border: 0;
   border-radius: 8px;
-  background: transparent;
   color: var(--text);
   font-size: 0.84375rem;
   font-weight: 600;
@@ -348,8 +343,8 @@
   background: var(--surface-hover);
 }
 
-.shell-account-item:not(:disabled):active {
-  transform: none;
+.shell-account-item:disabled {
+  opacity: 0.58;
 }
 
 .shell-account-item svg {
@@ -472,7 +467,6 @@
   width: 100%;
   max-width: 520px;
   height: 38px;
-  min-height: 0;
   padding: 0 8px 0 12px;
   border: 1px solid var(--line-strong);
   border-radius: 10px;
@@ -485,12 +479,8 @@
   cursor: text;
 }
 
-.shell-command:not(:disabled):hover {
+.shell-command:hover {
   background: var(--surface-hover);
-}
-
-.shell-command:not(:disabled):active {
-  transform: none;
 }
 
 .shell-command > svg {
@@ -580,23 +570,16 @@
   display: inline-flex;
   flex: none;
   align-items: center;
-  min-height: 0;
   padding: 2px;
-  border: 0;
   border-radius: 8px;
-  background: transparent;
   color: var(--text);
   font-size: 0.875rem;
   font-weight: 700;
   line-height: 1;
 }
 
-.shell-palette-close:not(:disabled):hover {
+.shell-palette-close:hover {
   background: var(--surface-hover);
-}
-
-.shell-palette-close:not(:disabled):active {
-  transform: none;
 }
 
 .shell-palette-close-text {
@@ -764,11 +747,9 @@
     gap: 8px;
     min-width: 40px;
     height: 40px;
-    min-height: 0;
     padding: 0 10px;
     border: 1px solid transparent;
     border-radius: 10px;
-    background: transparent;
     color: var(--text);
     font-size: 0.875rem;
     font-weight: 700;
@@ -790,7 +771,7 @@
     background: var(--sel);
   }
 
-  .shell-bar-button:not(:disabled):hover {
+  .shell-bar-button:hover {
     background: var(--surface-hover);
   }
 

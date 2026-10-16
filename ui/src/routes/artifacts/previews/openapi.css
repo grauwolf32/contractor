@@ -10,9 +10,3 @@
 .openapi-artifact-preview .scalar-app {
   min-height: 100%;
 }
-
-/* Third-party buttons inside the preview keep their own size, not the
-   global button rule's minimum height (src/styles.css). */
-.openapi-artifact-preview button {
-  min-height: initial;
-}

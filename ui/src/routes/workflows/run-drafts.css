@@ -733,24 +733,19 @@
   display: none;
 }
 
-.run-draft .run-label-badge-remove,
-.run-draft .run-label-badge-remove:not(:disabled):active {
+.run-draft .run-label-badge-remove {
   display: grid;
   flex: none;
   place-items: center;
   width: 1.625rem;
-  min-height: 0;
   height: 1.625rem;
-  padding: 0;
-  border: 0;
   border-radius: var(--radius-sm);
-  background: transparent;
   color: var(--muted);
   font-size: var(--text-base);
-  transform: none;
+  font-weight: 700;
 }
 
-.run-draft .run-label-badge-remove:not(:disabled):hover {
+.run-draft .run-label-badge-remove:hover {
   background: var(--danger-bg);
   color: var(--danger);
 }

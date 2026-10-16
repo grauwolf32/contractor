@@ -9,9 +9,3 @@
   height: min(70vh, 48rem);
   min-height: 30rem;
 }
-
-/* Third-party buttons inside the preview keep their own size, not the
-   global button rule's minimum height (src/styles.css). */
-.likec4-artifact-preview button {
-  min-height: initial;
-}

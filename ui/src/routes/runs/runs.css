@@ -394,26 +394,20 @@
   height: 16px;
 }
 
-.runs-context-toggle,
-.runs-context-toggle:not(:disabled):hover,
-.runs-context-toggle:not(:disabled):active {
+.runs-context-toggle {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
   max-width: 100%;
-  min-height: 0;
   padding: var(--space-0-5) 0;
-  border: 0;
-  background: transparent;
   color: var(--text);
   font-size: var(--text-sm);
   font-weight: 600;
   text-align: left;
   overflow-wrap: anywhere;
-  transform: none;
 }
 
-.runs-context-toggle:not(:disabled):hover {
+.runs-context-toggle:hover {
   color: var(--link);
 }
 

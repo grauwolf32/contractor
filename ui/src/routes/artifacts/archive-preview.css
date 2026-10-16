@@ -45,24 +45,19 @@
   background: var(--row-hover);
 }
 
-.archive-file-button,
-.archive-file-button:not(:disabled):active {
+.archive-file-button {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: var(--space-2);
   width: 100%;
-  min-height: 0;
   padding: var(--space-1-5) var(--space-2);
-  border: 0;
   border-radius: var(--radius-md);
-  background: transparent;
   color: var(--text);
   font-family: var(--font-mono);
   font-size: var(--text-sm);
   font-weight: 500;
   text-align: left;
-  transform: none;
 }
 
 .archive-file-button bdi,
@@ -71,14 +66,13 @@
   overflow-wrap: anywhere;
 }
 
-.archive-file-button:not(:disabled):hover {
+.archive-file-button:hover {
   background: var(--row-hover);
   color: var(--text);
 }
 
 /* The chosen file reads like a selected row: tint and a 3 px bar. */
-.archive-file-button[aria-pressed="true"],
-.archive-file-button[aria-pressed="true"]:not(:disabled):hover {
+.archive-file-button[aria-pressed="true"] {
   background: var(--sel);
   box-shadow: inset 3px 0 var(--sel-bar);
 }
