@@ -722,3 +722,145 @@ describe("response contract", () => {
     });
   });
 });
+
+describe("client-side failures and unreadable answers", () => {
+  /** A versioned answer whose body stream breaks while it is read. */
+  function brokenBody(status: number): Response {
+    return new Response(
+      new ReadableStream({
+        pull(controller) {
+          controller.error(new TypeError("connection reset"));
+        },
+      }),
+      {
+        status,
+        headers: {
+          "content-type": "application/json",
+          "X-Contractor-API-Version": "contractor.public.v1",
+        },
+      },
+    );
+  }
+
+  it("reports a request the UI cannot build as a client request error, sending nothing", async () => {
+    const fetchImplementation = vi.fn(async () => apiResponse({}));
+    const api = new PublicAPI(runtimeConfig, fetchImplementation);
+    api.csrf.replace(session.csrfToken);
+
+    // A caller-side grammar check inside the request callback.
+    const grammar = await api
+      .request((client) =>
+        client.POST("/v1/runs", {
+          params: {
+            header: {
+              "Idempotency-Key": api
+                .mutationHeaders({ idempotencyKey: "bad\nvalue" })
+                .get("Idempotency-Key")!,
+            },
+          },
+          body: { workflow: "artifact-copy@2" },
+        }),
+      )
+      .catch((cause: unknown) => cause);
+    expect(grammar).not.toBeInstanceOf(InvalidResponseError);
+    expect(grammar).toMatchObject({
+      status: 0,
+      code: "invalid_client_request",
+      retryable: false,
+      message: expect.stringContaining("visible ASCII"),
+    });
+
+    // A mutation without a session token, through both request paths.
+    api.csrf.clear();
+    for (const attempt of [
+      api.request((client) =>
+        client.PUT("/v1/queue/control", {
+          params: { header: { "If-Match": '"1"' } },
+          body: { paused: true },
+        }),
+      ),
+      api.fetch("/v1/artifacts/projects/source", {
+        method: "PUT",
+        body: new Blob(["zip"]),
+      }),
+    ]) {
+      const error = await attempt.catch((cause: unknown) => cause);
+      expect(error).not.toBeInstanceOf(InvalidResponseError);
+      expect(error).toMatchObject({
+        status: 0,
+        code: "invalid_client_request",
+        message: "An authenticated CSRF token is required",
+      });
+    }
+    expect(fetchImplementation).not.toHaveBeenCalled();
+  });
+
+  it("reports an answer whose body cannot be read as the invalid-response error", async () => {
+    const malformed = vi.fn(
+      async () =>
+        new Response("not-json", {
+          status: 200,
+          headers: {
+            "content-type": "application/json",
+            "content-length": "8",
+            "X-Contractor-API-Version": "contractor.public.v1",
+          },
+        }),
+    );
+    const parse = await new PublicAPI(runtimeConfig, malformed)
+      .getSession()
+      .catch((cause: unknown) => cause);
+    expect(malformed).toHaveBeenCalledTimes(1);
+    expect(parse).toBeInstanceOf(InvalidResponseError);
+    expect(parse).toMatchObject({
+      status: 0,
+      code: "invalid_api_response",
+      detail: "Server response to GET /v1/auth/session was unreadable",
+    });
+
+    const broken = await new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () => brokenBody(200)),
+    )
+      .getSession()
+      .catch((cause: unknown) => cause);
+    expect(broken).toBeInstanceOf(InvalidResponseError);
+    expect(broken).toMatchObject({
+      detail: "Server response to GET /v1/auth/session was unreadable",
+    });
+  });
+
+  it("reports an error answer whose body cannot be read as the invalid-response error", async () => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () => brokenBody(500)),
+    );
+    for (const attempt of [
+      api.getSession(),
+      api.fetch("/v1/artifacts/projects/source"),
+    ]) {
+      const error = await attempt.catch((cause: unknown) => cause);
+      expect(error).toBeInstanceOf(InvalidResponseError);
+      expect(error).toMatchObject({
+        status: 0,
+        code: "invalid_api_response",
+        detail: "Server error response was unreadable",
+      });
+    }
+  });
+
+  it("reports a direct JSON body that breaks off as unreadable", async () => {
+    const api = new PublicAPI(runtimeConfig, vi.fn());
+    await expect(
+      api.readJSON(
+        "PUT /v1/artifacts/{namespace}/{name}",
+        brokenBody(201),
+        1024,
+      ),
+    ).rejects.toMatchObject({
+      code: "invalid_api_response",
+      detail:
+        "Server response to PUT /v1/artifacts/{namespace}/{name} was unreadable",
+    });
+  });
+});
