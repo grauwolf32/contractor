@@ -5,7 +5,7 @@ milestone: ui-consolidation-2026-10
 epic: ui
 kind: chore
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [typescript, css]
 goal: "The UI states each contract rule, vocabulary, building block and style value once, validates Server responses with validators generated from the pinned OpenAPI document and event schema, and carries no dead code, so that the copies that have already drifted agree and new pages stop adding copies."
@@ -157,7 +157,7 @@ acceptance_criteria:
   - id: A11
     text: "Before/after screenshots of every top-level route at 1280 and 390 px in light, dark and black show no unexplained difference."
   - id: A12
-    text: "Production TS/TSX, CSS and unit-test line counts under ui/src (excluding generated files) each drop; the commit body records the counts before and after."
+    text: "Production TS/TSX and CSS line counts under ui/src and e2e lines under ui/e2e (excluding generated files) drop; unit-test lines may stay level when the drop in existing tests is spent on tests of the new shared layer, the contract guards and the shared test support. The task records the counts before and after. (Revised 2026-10-16 with the user: the first wording required unit tests to drop as well.)"
   - id: A13
     text: "make ui-verify, make lint and the mocked browser gate pass."
 tests:
@@ -167,3 +167,23 @@ tests:
     covers: [A4, A8, A9, A13]
   - command: make ui-browser-mocked
     covers: [A11, A13]
+implementation_commit: 4fe041df7ccccd1ffd3b11ec37021b76f3e66a6d
+verification_results:
+  - "On 4fe041df: make ui-verify passed (184 files, 2156 unit tests plus 1 expected fail; test:server 16/16; generate:check, ESLint, Prettier, both TypeScript projects, build); make ui-browser-mocked 53/53 across 17 specs; make test-ui-stack passed all 7 tests (TestBrowserOperationsStack 116 s, which failed 10 of 86 on the base 1c990bc0 because of stale mocks); make lint passed with an empty UI exports baseline and no building-block baseline entries."
+  - "Line counts 1c990bc0 -> 4fe041df (generated files excluded): production TS/TSX 85,173 -> 83,025 (-2.5%), CSS 24,169 -> 21,030 (-13.0%), unit tests and test support 56,390 -> 56,539 (+0.3%: about 3,000 lines removed from existing tests, about 3,060 added as src/test support and tests of the shared blocks and contract guards), e2e 9,711 -> 8,703 (-10.4%)."
+  - "Screenshots of 42 routes at 1280 and 390 px in light, dark and black (252 per set) against a HEAD Server on a copy of the demo data: no page errors, no horizontal overflow, no invalid-response pages; differences are the listed scale, Field, Facts and chip changes; two layout changes found this way (Library tabs wrapping at 390 px, the scheduler limit box stretching) were fixed in 4bc03ae1. The demo data holds no Audits, so Audit, Issues and decision views were compared through the mocked browser specs and computed styles."
+  - "Validation cost measured in Chromium: a 180 kB page of 200 Audits validates in 11.9 ms median, 51 ms with 4x CPU throttling (decision bound 16 ms)."
+notes:
+  - >-
+    Follow-ups outside this task: (1) ProjectFindingsRoute
+    (ui/src/routes/projects/audits/findings.tsx) still fans out per check
+    because GET /v1/findings has no project filter and the Issues view is
+    not embeddable; (2) the client-side aggregation in
+    ui/src/api/cross-project.ts needs Server endpoints (multi-value finding
+    filters, owner-wide reports, Inbox counts); (3) OpenAPI is looser than
+    Go for RunMetadataLabels (code points, U+0000) and the finding location
+    grammar, so the UI no longer checks what Go rejects; (4) Evals keeps
+    38 px controls where other forms use the shared 44 px Field; (5) one
+    early failure in TestBrowserOperationsStack still exhausts the shared
+    5-minute context for later specs (tests/ui-stack/stack_test.go:121).
+
