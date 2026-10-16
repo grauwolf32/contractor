@@ -100,8 +100,12 @@
   border-radius: var(--radius-md);
   background: var(--surface);
   color: var(--text);
+  font-weight: 700;
   text-align: left;
   cursor: grab;
+}
+.studio-palette-block:disabled {
+  opacity: 0.58;
 }
 /* Fields stack in the panes and dialogs with room between them. */
 .studio-field {
@@ -239,23 +243,22 @@
   border-color: var(--danger-line);
 }
 .studio-node button {
-  background: transparent;
-  border: 0;
   width: 100%;
   color: var(--text);
   text-align: left;
 }
-.studio-node button:not(:disabled):hover,
+.studio-node button:hover,
 .studio-palette-block:not(:disabled):hover {
   background: var(--surface-hover);
   color: var(--text);
 }
-.studio-console-body li button:not(:disabled):hover {
+.studio-console-body li button:hover {
   background: var(--surface-hover);
 }
 .studio-node-handle {
+  min-height: var(--control-lg);
   padding: var(--space-1-5) var(--space-3);
-  border-bottom: 1px solid var(--line) !important;
+  border-bottom: 1px solid var(--line);
   cursor: grab;
   touch-action: none;
   font: var(--text-2xs) var(--font-mono);
@@ -266,6 +269,7 @@
 }
 .studio-node-select {
   padding: var(--space-2-5) var(--space-3);
+  font-weight: 700;
   cursor: pointer;
 }
 .studio-node-select strong,
@@ -388,11 +392,12 @@
   list-style: none;
 }
 .studio-console-body li button {
+  min-height: var(--control-lg);
   text-align: left;
-  border: 0;
   background: var(--surface);
   color: var(--text);
   padding: var(--space-2) 0;
+  font-weight: 700;
   overflow-wrap: anywhere;
 }
 .studio-console-body [data-severity="error"] strong {

@@ -557,27 +557,21 @@ code.library-row-name {
   background: var(--chrome);
 }
 
-.library-segmented button,
-.library-segmented button:not(:disabled):active {
-  min-height: 0;
+.library-segmented button {
   height: 1.625rem;
   padding: 0 var(--space-2-5);
   border: 1px solid transparent;
   border-radius: var(--radius-md);
-  background: transparent;
   color: var(--muted);
   font-size: var(--text-sm);
   font-weight: 700;
-  transform: none;
 }
 
-.library-segmented button:not(:disabled):hover {
-  background: transparent;
+.library-segmented button:hover {
   color: var(--text);
 }
 
-.library-segmented button[aria-pressed="true"],
-.library-segmented button[aria-pressed="true"]:not(:disabled):hover {
+.library-segmented button[aria-pressed="true"] {
   border-color: var(--line);
   background: var(--surface);
   color: var(--text);

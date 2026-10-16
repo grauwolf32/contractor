@@ -1195,25 +1195,19 @@
   font-size: var(--text-xs);
 }
 
-.ops-metrics-toggle,
-.ops-metrics-toggle:not(:disabled):active {
+.ops-metrics-toggle {
   display: inline-flex;
   align-items: center;
   justify-self: start;
   gap: var(--space-1);
-  min-height: 0;
   margin-top: var(--space-0-5);
   padding: var(--space-0-5) 0;
-  border: 0;
-  background: transparent;
   color: var(--link);
   font-size: var(--text-sm);
   font-weight: 700;
-  transform: none;
 }
 
-.ops-metrics-toggle:not(:disabled):hover {
-  background: transparent;
+.ops-metrics-toggle:hover {
   color: var(--text);
 }
 

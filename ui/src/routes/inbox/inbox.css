@@ -338,27 +338,20 @@
   border-bottom: 1px solid var(--line);
 }
 
-.inbox-overview-item,
-.inbox-overview-item:not(:disabled):hover,
-.inbox-overview-item:not(:disabled):active {
+.inbox-overview-item {
   display: flex;
   align-items: center;
   gap: var(--space-2-5);
   width: 100%;
-  min-height: 0;
   margin: 0;
   padding: var(--space-3) var(--space-2);
-  border: 0;
-  border-radius: 0;
-  background: none;
   color: var(--text);
   font: inherit;
   font-size: var(--text-md);
   text-align: left;
-  transform: none;
 }
 
-button.inbox-overview-item:not(:disabled):hover {
+button.inbox-overview-item:hover {
   background: var(--row-hover);
 }
 

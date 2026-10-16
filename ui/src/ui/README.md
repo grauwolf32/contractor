@@ -983,7 +983,8 @@ settledInterval?, maxInterval? })` returns a `refetchInterval` function:
   - `data-size`: `sm` (32 px) or `xs` (28 px); the default is 38 px.
   - `data-icon-only`: square, as wide as it is tall.
   - `aria-pressed="true"` gets the selected look; `aria-busy="true"` the
-    progress cursor.
+    progress cursor; disabled buttons are dimmed and show no hover.
+  - Pressing moves it down 1 px; colours fade in 140 ms.
 - **`.ui-stack`:** a column of children with one gap (12 px; `data-gap`
   1, 2, 4 or 6 picks another step of the spacing scale).
 - **`.ui-toolbar`:** a wrapping row of controls (8 px gap; `data-gap` as
@@ -1055,11 +1056,15 @@ Route CSS loads after the shared sheets, so shared classes never need
 `src/styles.css`, `src/app/ui-primitives.css` and `src/ui/ui.css` (eager),
 never in a lazily loaded route stylesheet.
 
-The global `button {}` rule in `src/styles.css` (a filled primary look and a
-44 px minimum height for every `<button>`) still styles legacy buttons, and
-route CSS fights it in places. It is removed once every page uses `Button`
-and the building-blocks baseline below has no `button` entries left; until
-then new code uses `Button`, whose `.ui-btn` rules override it.
+A bare `<button>` has no look of its own: `src/styles.css` only resets it
+(no padding, border or background, the surrounding text colour and font, a
+pointer cursor, `not-allowed` while disabled). `.ui-btn` carries the whole
+`Button` look, including the colour transition, the 1 px press and the
+dimmed disabled state. Any other button (a tab, a list row, a chip, a menu
+item, a canvas handle) gets its look from its own class, so no rule has to
+undo a default: write what the control needs, not `min-height: 0`,
+`transform: none` or a `:not(:disabled):hover` that only restores a
+background.
 
 ## Gates
 

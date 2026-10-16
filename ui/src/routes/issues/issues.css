@@ -3,9 +3,9 @@
  * project pages). Every class starts with issues-; colours come only from
  * theme.css tokens. Sizes follow docs/design/ui/mockups/v3b/issue.html.
  *
- * Global element rules (button, code, the check page's .route-page h2)
- * would otherwise win, so rules that restyle those elements carry two
- * classes or reset what they inherit.
+ * Global element rules (code, the check page's .route-page h2) would
+ * otherwise win, so rules that restyle those elements carry two classes or
+ * reset what they inherit.
  */
 
 /* ---------- Shared text ---------- */
@@ -353,32 +353,24 @@
   border-bottom: 1px solid var(--line);
 }
 
-.issues-tab,
-.issues-tab:not(:disabled):hover,
-.issues-tab:not(:disabled):active {
+.issues-tab {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1-5);
-  min-height: 0;
   height: 2.5rem;
   margin-bottom: -1px;
   padding: 0 var(--space-0-5);
-  border: 0;
   border-bottom: 2px solid transparent;
-  border-radius: 0;
-  background: transparent;
   color: var(--muted);
   font-size: var(--text-md);
   font-weight: 800;
-  transform: none;
 }
 
-.issues-tab:not(:disabled):hover {
+.issues-tab:hover {
   color: var(--text);
 }
 
-.issues-tab[aria-selected="true"],
-.issues-tab[aria-selected="true"]:not(:disabled):hover {
+.issues-tab[aria-selected="true"] {
   border-bottom-color: var(--sel-bar);
   color: var(--text);
 }
