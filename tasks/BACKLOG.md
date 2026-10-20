@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-81 open tasks: 3 in progress, 64 pending, 14 deferred. 903 finished: 900 completed, 3 archived.
+81 open tasks: 4 in progress, 63 pending, 14 deferred. 903 finished: 900 completed, 3 archived.
 
 ## In progress
 
@@ -14,6 +14,7 @@ the epics are in [epics.yml](epics.yml).
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
+| [V371-002](v371-002-worker-state-endpoint-contract.yml) | planner-worker | defect | P1 | Serve a schema-valid Worker State and classify its failures like the Server |
 
 ## Pending
 
@@ -30,7 +31,6 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V371-002](v371-002-worker-state-endpoint-contract.yml) | defect | P2 | — | Serve a schema-valid Worker State and classify its failures like the Server |
 | [V371-004](v371-004-worker-completion-exact-integers.yml) | defect | P3 | — | Bound WorkerCompletion integers to the range A2A carries exactly |
 | [V371-005](v371-005-worker-state-read-cost-guard.yml) | chore | P3 | — | Guard the Worker State read cost with a deterministic bound and re-measure it |
 | [V371-006](v371-006-workspace-observation-descriptor.yml) | chore | P3 | — | Take the Worker tools that observe the workspace from the shared Toolset descriptor |
