@@ -6,7 +6,8 @@ epic: planner-worker
 kind: defect
 introduced_by: V368-027
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: ffbb9eed73c44950f246a385ee7fff2c58f6b2db
 depends_on: []
 languages: [python, go]
 goal: "The Runtime agent-state endpoint serves only bodies agent-state.schema.json accepts, answers a snapshot that fails its own validation with the retryability the Server gives the same failure, and Go and Python measure the 4 KiB completion bound with the shared byte rule."
