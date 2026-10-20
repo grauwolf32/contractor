@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-80 open tasks: 3 in progress, 63 pending, 14 deferred. 906 finished: 903 completed, 3 archived.
+80 open tasks: 4 in progress, 62 pending, 14 deferred. 906 finished: 903 completed, 3 archived.
 
 ## In progress
 
@@ -14,6 +14,7 @@ the epics are in [epics.yml](epics.yml).
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
+| [V371-003](v371-003-reject-optional-member-null.yml) | api-contracts | defect | P1 | Reject explicit null for optional private-wire members and null map values |
 
 ## Pending
 
@@ -115,7 +116,6 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V371-003](v371-003-reject-optional-member-null.yml) | defect | P3 | — | Reject explicit null for optional private-wire members and null map values |
 | [V371-016](v371-016-idempotency-key-grammar.yml) | defect | P3 | — | Give the Idempotency-Key grammar one Go definition |
 | [V371-017](v371-017-strong-etag-grammar.yml) | defect | P3 | — | Accept only RFC 9110 strong entity tags in If-Match |
 | [V371-018](v371-018-repeat-draft-description.yml) | chore | P3 | — | Remove the historical-request sentence from the repeat-draft OpenAPI description |
