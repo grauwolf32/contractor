@@ -1,0 +1,65 @@
+schema_version: "1.0"
+id: V386-004
+title: Keep Caido catalog selection usable above one hundred entries
+milestone: http-caido-tools-hardening
+epic: http-tools
+kind: defect
+introduced_by: V12-004
+priority: P2
+status: pending
+depends_on: []
+languages: [python, markdown]
+goal: Bound catalog browsing and selection without classifying valid larger Caido catalogs as malformed responses.
+context:
+  authority: Sibling sweep while implementing V375-002 under the requested audit foundation work.
+  severity: low
+  specification:
+    - docs/spec/tools/http-caido.md#HTP-R87
+    - docs/spec/tools/http-caido.md#HTP-R110
+    - docs/spec/tools/http-caido.md#HTP-R112
+  finding: >-
+    runtime/src/contractor_runtime/toolsets/caido/tools.py:400 applies the
+    100-row page cap to the complete scopes array; :867 rejects the complete
+    workflow array above MAX_WORKFLOWS=100 before filtering by kind; :1939
+    rejects the complete Automate session entries array above
+    MAX_AUTOMATE_ENTRIES=100 before selecting the requested or newest entry.
+    All three flat collections can therefore fail caido_response_invalid
+    solely on cardinality. No live collection above those limits was observed.
+    git blame identifies e37ba6fb7c301dfbb5fa7435e19f66d98efd7b7b (V12-004)
+    as the introduction of all three guards.
+  siblings: >-
+    V375-002 fixes root and descendant sitemap selection with bounded stable
+    pages. History, Automate result rows and workflow findings use actual
+    provider pagination and retain their existing page caps. Scope terms,
+    Automate placeholders and payload values have separate per-request domain
+    bounds; those do not describe provider catalog cardinality.
+scope:
+  in:
+    - Define bounded continuation or selection for scopes and workflows, with truthful truncation metadata and reachable remaining entries.
+    - Select the explicit or newest Automate entry across the bounded complete source collection without a false one-hundred-entry guard.
+    - Preserve source byte and structural bounds, model result bounds, strict validation and safe failures.
+    - Document expected and maximum catalog sizes, cancellation, refresh and teardown behavior for any retained state.
+    - Add regressions through the production adapter and tool path against a local GraphQL server.
+    - Update tool docstrings, the Caido Skill and the owning specification together.
+  out:
+    - Change scope creation, workflow or Automate mutation retry semantics.
+    - Change the 100-row cap of an actual result page or increase caps only to fit a demonstrated collection.
+    - Change live Caido configuration or targets.
+acceptance_criteria:
+  - id: A1
+    text: Valid scope and workflow catalogs of 0, 100, 101, 107 and 1000 members remain browsable with bounded results and a documented way to reach every selected member; kind filtering does not reject unrelated valid members solely because there are more than one hundred.
+  - id: A2
+    text: An explicit Automate entry or the newest entry can be selected when it occurs after the first hundred valid session entries; neither selection silently truncates its search.
+  - id: A3
+    text: Work and retained state remain bounded by rows and bytes; malformed off-page nodes, oversized source bytes, cancellation, expiry and teardown have stable tested outcomes without secret exposure.
+  - id: A4
+    text: Local production adapter/tool regressions fail on the original code, all Caido/HTTP suites and the PostgreSQL process gate pass, and catalog validation plus lint accept the updated contracts.
+tests:
+  - command: uv run --project runtime pytest runtime/tests/test_caido_*.py runtime/tests/test_http_caido_*.py
+    covers: [A1, A2, A3, A4]
+  - command: make test-http-caido-e2e
+    covers: [A4]
+  - command: go run ./cmd/contractor-server config validate --root ./configs
+    covers: [A4]
+  - command: make lint
+    covers: [A4]

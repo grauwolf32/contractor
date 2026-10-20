@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-76 open tasks: 3 in progress, 59 pending, 14 deferred. 911 finished: 908 completed, 3 archived.
+77 open tasks: 3 in progress, 60 pending, 14 deferred. 911 finished: 908 completed, 3 archived.
 
 ## In progress
 
@@ -46,6 +46,7 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V377-001](v377-001-http-cookie-session-artifact.yml) | feature | P2 | — | Preserve target cookies as an ordinary artifact across Run continuation |
 | [V382-001](v382-001-interactsh-worker-tools.yml) | feature | P1 | — | Add configurable Interactsh tools for Worker callback evidence |
+| [V386-004](v386-004-caido-catalog-cardinality.yml) | defect | P2 | — | Keep Caido catalog selection usable above one hundred entries |
 
 ### Scanner tool Workers and scan planning (`scan-tools`)
 
@@ -179,7 +180,7 @@ tasks in `introduced_by`.
 | Agent Skills (`agent-skills`) | 0 | 10 | 2 | 1 | 1 |
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 12 | 4 | 15 |
 | Code analysis and taint annotations (`code-analysis`) | 0 | 13 | 12 | 2 | 17 |
-| HTTP and Caido tools (`http-tools`) | 2 | 11 | 13 | 4 | 14 |
+| HTTP and Caido tools (`http-tools`) | 3 | 11 | 14 | 4 | 15 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 1 | 10 | 4 | 1 | 7 |
 | Findings tools and collections (`findings`) | 4 | 7 | 5 | 4 | 7 |
 | Workflow catalog and document workflows (`workflows`) | 3 | 14 | 13 | 12 | 12 |
