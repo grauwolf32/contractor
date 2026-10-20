@@ -6,7 +6,8 @@ epic: operations
 kind: chore
 introduced_by: V32-005
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: 071ae1f66824247b2acb25ea0cb0f95dcab611ce
 depends_on: []
 languages: [python, go]
 goal: Verify complete resource reports in the real Go/Python lifecycle independently of the host operating system.
