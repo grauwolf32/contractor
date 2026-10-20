@@ -84,6 +84,9 @@ instead of `str.strip`. `json-byte-size-cases.json` pins the compact UTF-8
 JSON size that byte bounds measure (WRK-R37, WRK-R165;
 `contracts.ResultJSONSize`, `json_byte_size`): U+2028 and U+2029 count three
 bytes and `<`, `>` and `&` one.
+`execution-error-cases.json` pins the 4 KiB UTF-8 text bound of error messages
+and the compact JSON bound of tool arguments in both final reports and live
+State, including multibyte boundaries and JSON escaping.
 
 `memory-reservation-cases.json` holds the purpose-reserved Run Namespaces and,
 per binding, whether it is a reserved Memory binding and whether a Stage or

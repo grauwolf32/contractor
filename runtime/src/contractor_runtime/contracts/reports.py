@@ -25,6 +25,7 @@ from contractor_runtime.contracts.base import (
     _bounded_completion,
     _require_aware_datetime,
     _require_text,
+    _require_tool_arguments,
 )
 
 
@@ -36,7 +37,7 @@ class ExecutionError(WireModel):
     @model_validator(mode="after")
     def validate_error(self) -> Self:
         _require_text("code", self.code)
-        _require_text("message", self.message)
+        _require_text("message", self.message, max_bytes=4096)
         return self
 
 
@@ -213,7 +214,7 @@ class ToolCallRecord(WireModel):
     call_id: str
     tool: str
     arguments: dict[str, Any] | None = None
-    arguments_truncated: bool = False
+    arguments_truncated: bool
     outcome: ToolCallOutcome
     duration_ms: int | None = Field(default=None, ge=0)
     result_size_bytes: int | None = Field(default=None, ge=0)
@@ -225,6 +226,8 @@ class ToolCallRecord(WireModel):
         _require_text("tool", self.tool)
         if self.arguments is None and self.arguments_truncated:
             raise ValueError("absent arguments cannot be marked truncated")
+        if self.arguments is not None:
+            _require_tool_arguments(self.arguments)
         if (self.outcome is ToolCallOutcome.SUCCEEDED) == (self.error is not None):
             raise ValueError("tool outcome and error are inconsistent")
         return self

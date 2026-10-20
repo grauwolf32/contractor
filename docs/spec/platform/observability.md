@@ -465,7 +465,9 @@ counters and sets `truncated`.
 
 **OBS-R42.** JSON sizes count compact UTF-8 bytes without HTML
 escaping; U+2028 and U+2029 count as three-byte UTF-8 characters. Error-message
-sizes count UTF-8 text bytes.
+sizes count UTF-8 text bytes, independently of their JSON escaping. These rules
+apply both to final reports and live Worker State, including per-tool errors.
+The shared `execution-error-cases.json` fixture pins both diagnostic bounds.
 
 **OBS-R43.** Durable telemetry expires after 30 days (LIM-OBS-8). Cleanup
 is batch-bounded and may delete only telemetry that belongs to a terminal

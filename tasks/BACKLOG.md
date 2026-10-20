@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-79 open tasks: 3 in progress, 62 pending, 14 deferred. 908 finished: 905 completed, 3 archived.
+79 open tasks: 4 in progress, 61 pending, 14 deferred. 908 finished: 905 completed, 3 archived.
 
 ## In progress
 
@@ -14,6 +14,7 @@ the epics are in [epics.yml](epics.yml).
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
+| [V372-027](v372-027-execution-error-message-bound.yml) | api-contracts | defect | P3 | Enforce execution diagnostic byte bounds on both sides with shared cases |
 
 ## Pending
 
@@ -122,7 +123,6 @@ the epics are in [epics.yml](epics.yml).
 | [V372-022](v372-022-standby-public-api-envelope.yml) | defect | P3 | — | Answer the public API on a standby Server with the error envelope |
 | [V372-025](v372-025-typed-openapi-enums.yml) | chore | P3 | — | Give every enum of the public OpenAPI document a type |
 | [V372-026](v372-026-request-digests-in-services.yml) | chore | P3 | — | Move the Project, Audit and review request digests out of the public handlers |
-| [V372-027](v372-027-execution-error-message-bound.yml) | defect | P3 | — | Count the execution error message bound in UTF-8 bytes on both sides and cover it with shared cases |
 
 ### PostgreSQL persistence and schema (`persistence`)
 

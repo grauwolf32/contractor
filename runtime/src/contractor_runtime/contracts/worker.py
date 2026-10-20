@@ -32,6 +32,7 @@ from contractor_runtime.contracts.base import (
     _bounded_completion,
     _require_state_workspace_path,
     _require_text,
+    _require_tool_arguments,
     _require_worker_result_text,
     _require_worker_subtask_id,
     is_blank,
@@ -149,7 +150,7 @@ class WorkerStateExecutionError(WireModel):
     @model_validator(mode="after")
     def validate_error(self) -> Self:
         _require_text("code", self.code)
-        _require_text("message", self.message)
+        _require_text("message", self.message, max_bytes=4096)
         return self
 
 
@@ -414,17 +415,7 @@ class WorkerAllocationMetricsState(WireModel):
             raise ValueError("Worker State final outcome is invalid")
         for call in self.tool_calls:
             if call.arguments is not None:
-                try:
-                    size = json_byte_size(call.arguments)
-                except (TypeError, ValueError) as error:
-                    raise ValueError("Worker State tool arguments are invalid") from error
-                if size > 4096:
-                    raise ValueError("Worker State tool arguments exceed their bound")
-            if call.error is not None and len(call.error.message.encode("utf-8")) > 4096:
-                raise ValueError("Worker State tool error exceeds its bound")
-        for error in self.errors:
-            if len(error.message.encode("utf-8")) > 4096:
-                raise ValueError("Worker State error exceeds its bound")
+                _require_tool_arguments(call.arguments)
         return self
 
 

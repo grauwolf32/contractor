@@ -153,10 +153,21 @@ def relative_path_problem(value: str, *, max_bytes: int, max_components: int) ->
     return None
 
 
-def _require_text(field: str, value: str) -> str:
+def _require_text(field: str, value: str, *, max_bytes: int | None = None) -> str:
     if is_blank(value):
         raise ValueError(f"{field} must not be empty")
+    if max_bytes is not None and len(value.encode("utf-8")) > max_bytes:
+        raise ValueError(f"{field} exceeds {max_bytes} UTF-8 bytes")
     return value
+
+
+def _require_tool_arguments(value: dict[str, object]) -> None:
+    try:
+        size = json_byte_size(value)
+    except (TypeError, ValueError) as error:
+        raise ValueError("tool arguments are invalid") from error
+    if size > 4096:
+        raise ValueError("tool arguments exceed 4096 JSON bytes")
 
 
 def _require_resource_id(field: str, value: str) -> str:

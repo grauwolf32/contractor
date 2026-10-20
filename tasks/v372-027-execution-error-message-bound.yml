@@ -1,14 +1,14 @@
 schema_version: "1.0"
 id: V372-027
-title: "Count the execution error message bound in UTF-8 bytes on both sides and cover it with shared cases"
+title: "Enforce execution diagnostic byte bounds on both sides with shared cases"
 milestone: hub-audit-defects-2026-10
 epic: api-contracts
 kind: defect
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, python, json]
-goal: "Go, Python and the private schemas apply LIM-OBS-6's 4,096-byte bound to ExecutionError.message the same way, and shared fixture cases with execution errors reach the field so the mutation gate covers it."
+goal: "Go, Python and the private schemas apply LIM-OBS-6's 4,096-byte message bound consistently, both implementations bound tool arguments in compact JSON bytes, and shared cases exercise final reports and live State."
 context:
   review: "Out-of-scope finding of the hub audit fix batch, wave 2 (group w2b: V370-017, V369-002, V370-005), recorded 2026-10-12; file:line verified on b2b09ea"
   specification: "docs/spec/platform/observability.md#OBS-R40"
@@ -30,7 +30,11 @@ context:
     6349621).
   siblings: >-
     Other report text bounded by LIM-OBS-6: the tool argument summaries; check
-    their Go and Python bounds the same way. The completion diagnostics bound
+    their Go and Python bounds the same way. Inspection found that Python's
+    final-report ToolCallRecord.validate_call did not bound its arguments,
+    unlike Go ExecutionReport.Validate and Worker State; include this sibling
+    in the fix, sharing its existing JSON size check across the Python paths.
+    The completion diagnostics bound
     (LIM-AWC-12) has the same kind of divergence and is V371-002. Other
     private text bounds use the shared json_byte_size and ResultJSONSize rule
     pinned by api/testdata/v1alpha1/json-byte-size-cases.json, or ASCII
@@ -39,6 +43,8 @@ scope:
   in:
     - "Python counts the UTF-8 bytes of the message (one shared helper with the other byte bounds); the schemas keep maxLength 4096 as an outer bound and their descriptions name the byte rule."
     - "Valid fixtures with an execution error (an allocation report and an agent-state snapshot) and shared cases at 4,096 bytes and 4,097 bytes of multi-byte text, read by Go and Python."
+    - "Apply the existing compact JSON byte bound to final-report tool arguments in Python too; reuse the Worker State check and test both paths at 4096 and 4097 bytes."
+    - "Keep argumentsTruncated required in Python, matching the schema and Go; the new populated tool-call fixture must pass the generated required-member mutations."
   out:
     - "The size of the bound and the report shape."
 acceptance_criteria:
@@ -48,12 +54,35 @@ acceptance_criteria:
     then: "Both reject the first and accept the second."
   - id: A2
     text: "The shared fixture gate mutates the execution error member of the new valid fixtures, and the new cases fail on b2b09ea."
+  - id: A3
+    text: "Final-report and Worker State tool arguments are accepted at 4096 compact UTF-8 JSON bytes and rejected at 4097 bytes by both implementations."
 tests:
   - command: "go test ./internal/contracts/..."
-    covers: [A1, A2]
+    covers: [A1, A2, A3]
   - command: "cd runtime && uv run pytest tests/test_contracts.py"
-    covers: [A1, A2]
+    covers: [A1, A2, A3]
   - command: "make test-wire-cross-language"
-    covers: [A1, A2]
+    covers: [A1, A2, A3]
   - command: make lint
-    covers: [A1, A2]
+    covers: [A1, A2, A3]
+verification:
+  date: "2026-10-20"
+  baseline: >-
+    Shared message cases failed before the fix: schemas admitted multibyte
+    overflows, and after adding x-maxBytes Python still admitted a 4097-byte
+    report error which its schema rejected (False, True). Go already rejected
+    the oversized messages. Populating the final-report tool-call fixture
+    also exposed Python's implicit argumentsTruncated default, contrary to
+    the schema and Go required member; the generated mutation now covers it.
+  siblings: >-
+    Report and State errors, including per-tool errors, use the same bounded
+    text helper. Both argument DTO paths share compact JSON validation.
+    MetricsState already clips error text and argument summaries with the
+    correct measures, and its full suite passes. Limits and report shape
+    remain unchanged. Both generated mutation catalogs were regenerated.
+  passed:
+    - "go test ./internal/contracts/...: all packages passed."
+    - "Runtime contract, shared text, metrics, agent-state, summarizer, ADK and audit diagnostics suites: 473 passed."
+    - "make test-wire-cross-language: 231 fixtures, 209 Go and 163 Python shared tests; 1075 selected Runtime cases passed."
+    - "make test-control-integration: finalize and abort passed."
+    - "make lint: passed."

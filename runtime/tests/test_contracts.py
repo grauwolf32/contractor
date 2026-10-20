@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import ssl
+from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -45,6 +46,7 @@ from contractor_runtime.contracts import (
     WorkspaceCapabilities,
     decode_private,
 )
+from contractor_runtime.contracts.base import json_byte_size
 from contractor_runtime.digests import (
     _agent_template_digest,
 )
@@ -104,6 +106,67 @@ INVALID_MODELS: dict[str, type[BaseModel]] = {
     for name, entry in INDEX["invalid"].items()
     if entry.get("strict") and entry["type"] in MODELS
 }
+
+
+def test_shared_execution_error_message_byte_bounds() -> None:
+    cases = json.loads((FIXTURES / "execution-error-cases.json").read_text())["cases"]
+    assert cases
+    for filename, pointers in (
+        (
+            "allocation-final-response.json",
+            ["/report/worker/errors/0/message", "/report/worker/toolCalls/0/error/message"],
+        ),
+        (
+            "agent-state-snapshot.json",
+            ["/state/metrics/errors/0/message", "/state/metrics/toolCalls/0/error/message"],
+        ),
+    ):
+        base = json.loads((FIXTURES / "valid" / filename).read_text())
+        schema = private_validator(INDEX["valid"][filename]["schema"])
+        model = VALID_MODELS[filename]
+        for case in cases:
+            message = case["unit"] * case["count"] + case["suffix"]
+            assert len(message.encode("utf-8")) == case["bytes"]
+            for pointer in pointers:
+                document = deepcopy(base)
+                target = document
+                tokens = pointer.strip("/").split("/")
+                for token in tokens[:-1]:
+                    target = target[int(token)] if isinstance(target, list) else target[token]
+                target[tokens[-1]] = message
+                label = (filename, pointer, case["name"])
+                try:
+                    model.model_validate_json(json.dumps(document))
+                except ValidationError:
+                    accepted = False
+                else:
+                    accepted = True
+                assert (schema.is_valid(document), accepted) == (case["valid"], case["valid"]), (
+                    label
+                )
+
+
+def test_shared_execution_argument_json_byte_bounds() -> None:
+    cases = json.loads((FIXTURES / "execution-error-cases.json").read_text())["argumentCases"]
+    assert cases
+    for filename in ("allocation-final-response.json", "agent-state-snapshot.json"):
+        for case in cases:
+            document = json.loads((FIXTURES / "valid" / filename).read_text())
+            arguments = {"path": case["unit"] * case["count"] + case["suffix"]}
+            assert json_byte_size(arguments) == case["bytes"]
+            report = (
+                document["report"]["worker"]
+                if filename.startswith("allocation")
+                else document["state"]["metrics"]
+            )
+            report["toolCalls"][0]["arguments"] = arguments
+            try:
+                VALID_MODELS[filename].model_validate_json(json.dumps(document))
+            except ValidationError:
+                accepted = False
+            else:
+                accepted = True
+            assert accepted == case["valid"], (filename, case["name"])
 
 
 def test_shared_stage_content_request_does_not_expose_session_controls() -> None:

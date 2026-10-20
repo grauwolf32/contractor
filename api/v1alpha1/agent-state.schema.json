@@ -18,7 +18,7 @@
       "required": ["code", "message"],
       "properties": {
         "code": {"type": "string", "minLength": 1},
-        "message": {"type": "string", "minLength": 1, "maxLength": 4096},
+        "message": {"type": "string", "minLength": 1, "maxLength": 4096, "x-maxBytes": 4096, "description": "At most 4096 UTF-8 text bytes (LIM-OBS-6), independently of JSON escaping."},
         "retryable": {"type": "boolean"}
       }
     },
