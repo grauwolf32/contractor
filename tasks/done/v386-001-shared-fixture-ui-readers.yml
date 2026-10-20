@@ -6,7 +6,8 @@ epic: quality
 kind: defect
 introduced_by: V385-001
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 63f01af49fab31c7da2ccfa77bb560c0b15001e0
 depends_on: []
 languages: [python, json]
 goal: Keep the fixture reader manifest consistent with UI imports and catch drift in the fast script suite.
