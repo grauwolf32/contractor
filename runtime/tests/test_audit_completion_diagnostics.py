@@ -83,6 +83,8 @@ def test_shared_completion_diagnostics_contract(case, live):
     schema_valid = not list(schema.iter_errors(raw))
     assert schema_valid == (case["valid"] or case.get("semanticOnly", False))
     encoded = json.dumps(raw)
+    if padding := case.get("jsonWhitespaceBytes", 0):
+        encoded = encoded.replace('"completion": {', '"completion": {' + " " * padding, 1)
     if not case["valid"]:
         with pytest.raises(ValidationError):
             model.model_validate(raw)
@@ -126,15 +128,17 @@ def test_shared_completion_diagnostics_gate_the_agent_state_endpoint(
                 response = await client.get("/private/v1/allocations/allocation-1/agent-state")
                 if case["valid"]:
                     assert response.status_code == 200, case["name"]
-                    completion = WorkerCompletionDiagnostics.model_validate(
-                        response.json()["state"]["metrics"]["completion"]
+                    served_snapshot = response.json()
+                    validator = Draft202012Validator(
+                        SCHEMAS["agent-state.schema.json"], registry=REGISTRY
                     )
-                    served = completion.model_dump(by_alias=True, exclude_none=True)
+                    assert not list(validator.iter_errors(served_snapshot)), case["name"]
+                    served = served_snapshot["state"]["metrics"]["completion"]
                     assert served == case["value"], case["name"]
                 else:
                     assert response.status_code == 503, case["name"]
                     assert response.json()["code"] == "agent_state_unavailable", case["name"]
-                    assert response.json()["retryable"] is True, case["name"]
+                    assert response.json()["retryable"] is False, case["name"]
 
     asyncio.run(scenario())
 

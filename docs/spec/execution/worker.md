@@ -975,7 +975,12 @@ The endpoint:
   State exists;
 - **WRK-R121.** returns the closed, safe `allocation_not_found` or
   `agent_state_unavailable` errors for stale, preparing,
-  draining-with-destroyed-State or released slots;
+  draining-with-destroyed-State or released slots. A missing, preparing or
+  draining Worker returns retryable `409 agent_state_unavailable`; a snapshot
+  that fails its own validation or exceeds LIM-WRK-17 returns non-retryable
+  `503 agent_state_unavailable`. Other temporary snapshot infrastructure
+  failures return retryable `503 agent_state_unavailable`. Invalid snapshots
+  are never served partially;
 - **WRK-R122.** never persists, mutates, resumes or reconstructs
   State.
 

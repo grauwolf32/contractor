@@ -201,7 +201,7 @@ def _bounded_completion(value):
     # The optional completion object is bounded before its strict model
     # validation (LIM-AWC-12). An unknown kind or phase is not dropped: the
     # model rejects it like any other malformed value (AWC-R115).
-    if isinstance(value, dict) and len(json.dumps(value).encode()) > 4096:
+    if isinstance(value, dict) and json_byte_size(value) > 4096:
         raise ValueError("completion diagnostics exceed their bound")
     return value
 

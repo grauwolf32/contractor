@@ -1,5 +1,17 @@
 [
   {
+    "name": "whitespace-padded",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "collecting",
+      "acceptedCount": 0,
+      "totalCount": 2,
+      "reminderCount": 0
+    },
+    "valid": true,
+    "jsonWhitespaceBytes": 4096
+  },
+  {
     "name": "collecting",
     "value": {
       "kind": "audit-check-results@1",

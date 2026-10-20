@@ -222,7 +222,7 @@ def create_app(
                 raise AllocationError(
                     "agent_state_unavailable",
                     "allocation Worker State is unavailable",
-                    retryable=True,
+                    retryable=False,
                     status_code=503,
                 )
             etag = f'"contractor-agent-state-v1-{snapshot.state.state_revision}"'

@@ -117,3 +117,16 @@ tests:
     covers: [A1, A3]
   - command: make lint
     covers: [A1, A2, A3, A4]
+verification:
+  date: "2026-10-20"
+  baseline: >-
+    At main 2ef8f30f the new endpoint checks failed on invalid snapshot
+    retryability, oversized snapshot retryability and raw served completion
+    JSON. A Go overlay of the unchanged baseline decoder failed the new
+    whitespace-padded shared case.
+  passed:
+    - "uv run pytest tests/test_agent_state_endpoint.py tests/test_audit_completion_diagnostics.py tests/test_contracts.py: 327 passed."
+    - "go test ./internal/contracts/reporting ./internal/controlplane ./internal/planner/stateview: passed with PostgreSQL."
+    - "make test-wire-cross-language: 230 shared fixtures, 207 Go and 161 Python shared tests; 1069 selected Python cases passed."
+    - "make lint: passed."
+  gate_blockers_fixed: [V386-001, V386-002]
