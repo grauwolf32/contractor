@@ -5,7 +5,8 @@ milestone: hub-audit-defects-2026-10
 epic: execution-core
 kind: defect
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 8389c3673a7a3f92e2a1044bbfae929084c3764c
 depends_on: []
 languages: [go]
 goal: "A failed or acquire update from a participant whose Stage has already ended cannot create a recovery wait or move its Run to waiting; a PostgreSQL race test shows this for allocation and Planner participants, or the task records why the race cannot occur."
