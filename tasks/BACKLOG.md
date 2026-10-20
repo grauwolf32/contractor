@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-81 open tasks: 4 in progress, 63 pending, 14 deferred. 903 finished: 900 completed, 3 archived.
+82 open tasks: 5 in progress, 63 pending, 14 deferred. 903 finished: 900 completed, 3 archived.
 
 ## In progress
 
@@ -15,6 +15,7 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V371-002](v371-002-worker-state-endpoint-contract.yml) | planner-worker | defect | P1 | Serve a schema-valid Worker State and classify its failures like the Server |
+| [V386-001](v386-001-shared-fixture-ui-readers.yml) | quality | defect | P1 | Declare every UI shared fixture reader and check repository imports |
 
 ## Pending
 
@@ -192,8 +193,8 @@ tasks in `introduced_by`.
 | Audits (`audits`) | 19 | 50 | 68 | 13 | 79 |
 | Evaluations (`evals`) | 3 | 21 | 28 | 5 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 9 | 1 | 1 | 2 |
-| Web UI (`ui`) | 1 | 20 | 53 | 11 | 48 |
+| Web UI (`ui`) | 1 | 20 | 53 | 11 | 49 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 8 | 31 | 4 | 6 |
 | Public API and wire contracts (`api-contracts`) | 9 | 1 | 29 | 20 | 8 |
 | PostgreSQL persistence and schema (`persistence`) | 4 | 0 | 19 | 33 | 8 |
-| Quality, CI and process (`quality`) | 14 | 1 | 19 | 78 | 16 |
+| Quality, CI and process (`quality`) | 15 | 1 | 20 | 78 | 16 |
