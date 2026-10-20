@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-78 open tasks: 3 in progress, 61 pending, 14 deferred. 909 finished: 906 completed, 3 archived.
+78 open tasks: 4 in progress, 60 pending, 14 deferred. 909 finished: 906 completed, 3 archived.
 
 ## In progress
 
@@ -14,6 +14,7 @@ the epics are in [epics.yml](epics.yml).
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
+| [V372-012](v372-012-gateway-recovery-late-update.yml) | execution-core | defect | P2 | Keep a late model-recovery update of an ended Stage from moving its Run back to waiting |
 
 ## Pending
 
@@ -23,7 +24,6 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V371-014](v371-014-scheduler-stage-history-reads.yml) | defect | P3 | — | Read only the Stage history fields escalation counting and cancellation cleanup use |
 | [V372-007](v372-007-terminal-stage-state-set.yml) | chore | P3 | — | Define the terminal StageExecution states once and hold SQL and the UI to them |
-| [V372-012](v372-012-gateway-recovery-late-update.yml) | defect | P2 | — | Keep a late model-recovery update of an ended Stage from moving its Run back to waiting |
 | [V372-028](v372-028-runstore-strict-snapshot-reads.yml) | chore | P3 | — | Decode persisted Run, Stage and allocation snapshots strictly in runstore |
 
 ### Planners and the Worker model boundary (`planner-worker`)

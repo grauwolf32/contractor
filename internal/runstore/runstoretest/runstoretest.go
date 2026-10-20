@@ -5,6 +5,7 @@ package runstoretest
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -32,4 +33,29 @@ func CreateRun(
 		return runstore.WorkflowRun{}, fmt.Errorf("create WorkflowRun %q: %w", params.RunID, runstore.ErrConflict)
 	}
 	return run, nil
+}
+
+// CreateRunningStage stores and starts one minimal Stage through production
+// RunStore paths. The caller has already admitted runID as running.
+func CreateRunningStage(ctx context.Context, store *runstore.PostgresStore, runID, stageID, schemaVersion string) error {
+	if _, err := store.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
+		StageExecutionID: stageID, RunID: runID, StageName: "test", Attempt: 1,
+		StageSpecSchemaVersion: schemaVersion, StageSpecSnapshot: json.RawMessage(`{"objective":"test"}`),
+		StageContextSchemaVersion: schemaVersion,
+		StageContext:              runstore.StageContextSnapshot{Parameters: map[string]string{}, Artifacts: map[string]runstore.PinnedContextArtifact{}},
+	}); err != nil {
+		return err
+	}
+	data, err := json.Marshal(map[string]string{
+		"stageExecutionId": stageID, "sessionId": stageID + "-session", "invocationId": stageID + "-invocation",
+	})
+	if err != nil {
+		return err
+	}
+	return store.StartPlanner(ctx, runstore.StartPlannerParams{
+		StageExecutionID: stageID, SessionID: stageID + "-session", InvocationID: stageID + "-invocation",
+		StateSchemaVersion: schemaVersion, InitialState: json.RawMessage(`{"status":"test"}`),
+		RunEvent: runstore.RunEventAppend{EventID: stageID + "-started", EventSchemaVersion: schemaVersion, Kind: runstore.RunEventPlannerStarted, Data: data},
+		Reason:   runstore.Reason{Code: "planner_started"},
+	})
 }

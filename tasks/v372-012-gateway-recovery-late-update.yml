@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: execution-core
 kind: defect
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: "A failed or acquire update from a participant whose Stage has already ended cannot create a recovery wait or move its Run to waiting; a PostgreSQL race test shows this for allocation and Planner participants, or the task records why the race cannot occur."
@@ -47,7 +47,7 @@ context:
 scope:
   in:
     - "A PostgreSQL test for each participant kind: the Stage ends (EndStage commits) and the Run moves on, then a delayed failed or acquire update of the ended Stage's participant is applied."
-    - "If it reproduces: the update transaction refuses non-terminal updates of a participant whose Stage is no longer active (for example by checking the participant's StageExecution through the RunStates port, which runstore owns), and the refusal is the existing non-retryable unavailable answer. If it cannot happen, record the reason in this task and in SCH-R107."
+    - "Refuse non-terminal updates whose durable participant Stage is no longer running, before any recovery write and under the existing Run row lock. Healthy-route acquires read the same participant fact in their single snapshot. Use the existing non-retryable unavailable answer."
   out:
     - "The recovery policy (windows, probes and delays) and the terminal-update rules of SCH-R108."
 failure_outcomes:
@@ -71,3 +71,48 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -tags=integration -count=1 ./internal/gatewayrecovery"
+    covers: [A1, A2, A3]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/runstore/... ./internal/persistence ./internal/persistence/postgres ./internal/archtest"
+    covers: [A1, A2, A3]
+boundary_decision:
+  guarantee: Non-terminal updates read the participant's exact durable running Stage before any recovery mutation; the Run lock orders that fact with the Scheduler's terminal commits.
+  choice: >-
+    Recovery reads Stage and allocation primary keys through explicit read
+    grants in the table ownership registry. The active-participant predicate
+    is shared by its one lock-free snapshot and its guarded transaction.
+    Run locks and Run state writes still go through RunStates; no Stage is
+    written or locked by recovery.
+  alternatives: >-
+    A separate participant lookup through the RunStates port would add a
+    second read to every healthy model call, contrary to SCH-R165. A liveness
+    cache or tombstone would duplicate durable Scheduler state and require
+    another recovery mechanism. Moving recovery route reads into RunStore
+    would couple the higher store to the lower recovery authority's state.
+  reopen_when: Stage lifecycle transitions no longer serialize on the Run row, or participant identity gains a new kind.
+cardinality:
+  - collection: Active participant lookup
+    expected: One Stage row for a Planner; one allocation and its Stage for a Worker.
+    maximum: One row per primary key; no collection scan or lock is introduced.
+verification:
+  date: "2026-10-20"
+  baseline: >-
+    Six deterministic PostgreSQL cases failed before the fix, for Planner
+    and allocation participants after real CommitResultProgression and the
+    next Planner start. Late failed and blocked-acquire updates moved the Run
+    back to waiting and created a new wait; failed also wrote a receipt.
+    Healthy acquires still granted calls to the ended Stage.
+  siblings: >-
+    The healthy fast path shares the same durable Stage predicate and still
+    answers while Run and route rows are locked. Terminal updates remain
+    accepted after Stage end; cancellation and probe-release suites pass.
+    Allocation cases recreate the service after progression, exercising the
+    durable binding across authority restart. Admission and manual retry are
+    Run-level operations: EndStage removes old membership, and the existing
+    progression regression still proves an old route cannot be retried from
+    the later Stage. Test fixtures now create actual running Stages and bind
+    Planner identity to StageExecution ID rather than invocation ID.
+  passed:
+    - "go test -count=1 ./internal/gatewayrecovery ./internal/scheduler ./internal/httpapi/privateartifacts ./internal/runstore/... ./internal/persistence ./internal/persistence/postgres ./internal/archtest: all full packages passed with PostgreSQL."
+    - "go test -tags=integration -count=1 ./internal/gatewayrecovery: passed with PostgreSQL."
+    - "make lint: passed."

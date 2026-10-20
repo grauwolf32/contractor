@@ -129,6 +129,13 @@ func TestRecoveryRoutesOutliveRunsAndReceiptsDoNot(t *testing.T) {
 	if allowed, err := service.Admit(ctx, "run-1", []Route{route}); err != nil || !allowed {
 		t.Fatalf("admit = %t, %v", allowed, err)
 	}
+	runs := runstore.NewPostgresStore(pool)
+	if _, err := runs.TransitionRun(ctx, "run-1", runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "admitted"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := runstoretest.CreateRunningStage(ctx, runs, "run-1", "stage-1", contracts.APIVersion); err != nil {
+		t.Fatal(err)
+	}
 	participant := service.Planner("run-1", "stage-1", route, llmgateway.DefaultGatewayFailureSignatures())
 	if decision, err := participant.Update(ctx, Request{RequestID: "request-1", Action: "acquire"}); err != nil || !decision.Allowed {
 		t.Fatalf("acquire = %+v, %v", decision, err)

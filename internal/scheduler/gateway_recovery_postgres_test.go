@@ -50,6 +50,9 @@ func (f recoveryFixture) run(t *testing.T, id string, routes ...gatewayrecovery.
 		if _, err := f.runs.TransitionRun(t.Context(), id, runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "admitted"}); err != nil {
 			t.Fatal(err)
 		}
+		if err := runstoretest.CreateRunningStage(t.Context(), f.runs, id, id, contracts.APIVersion); err != nil {
+			t.Fatal(err)
+		}
 	}
 	return f.service.Planner(id, id, routes[0], llmgateway.DefaultGatewayFailureSignatures())
 }
@@ -145,7 +148,7 @@ func TestGatewayRecoveryDropsPreviousStageRoutesOnProgression(t *testing.T) {
 		if allowed, err := service.Admit(ctx, "run-1", []gatewayrecovery.Route{oldRoute}); err != nil || !allowed {
 			t.Fatalf("admit first Stage route = %v, %v", allowed, err)
 		}
-		participant := service.Planner("run-1", "invocation-finalizing", oldRoute, llmgateway.DefaultGatewayFailureSignatures())
+		participant := service.Planner("run-1", "stage-finalizing", oldRoute, llmgateway.DefaultGatewayFailureSignatures())
 		recoveryUpdate(t, participant, "old-outage", "failed")
 	})
 	var beforeAutomatic, beforeNext time.Time
@@ -436,7 +439,7 @@ func TestGatewayWaitingRunAcceptsStageResultAndDropsWaits(t *testing.T) {
 		if allowed, err := service.Admit(ctx, "run-1", []gatewayrecovery.Route{route}); err != nil || !allowed {
 			t.Fatalf("admit route = %v, %v", allowed, err)
 		}
-		participant := service.Planner("run-1", "invocation-finalizing", route, llmgateway.DefaultGatewayFailureSignatures())
+		participant := service.Planner("run-1", "stage-finalizing", route, llmgateway.DefaultGatewayFailureSignatures())
 		recoveryUpdate(t, participant, "outage", "failed")
 		run, err := runstore.NewPostgresStore(pool).GetRun(ctx, "run-1")
 		if err != nil || run.State != runstore.RunWaiting {
