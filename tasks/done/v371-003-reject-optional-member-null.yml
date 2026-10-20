@@ -5,7 +5,8 @@ milestone: hub-audit-defects-2026-10
 epic: api-contracts
 kind: defect
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 3ef8f30753d7c49a2560800f8be1581e0edd856a
 depends_on: [V371-002]
 languages: [go, python]
 goal: "Every optional member of every valid private fixture, set to null, and every null value in a scalar map is rejected by the schema, the Go strict private decoder and the Python models alike."
