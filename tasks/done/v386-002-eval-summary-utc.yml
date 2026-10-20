@@ -5,7 +5,8 @@ milestone: eval-maintenance-2026-10
 epic: evals
 kind: defect
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: ba6bef20100483a3f2c08dd9d4d253ec6cc87952
 depends_on: []
 languages: [go]
 goal: Return schema-valid Eval experiment pages when the PostgreSQL session uses a non-UTC timezone.
