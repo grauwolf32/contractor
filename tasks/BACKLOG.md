@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-77 open tasks: 3 in progress, 60 pending, 14 deferred. 910 finished: 907 completed, 3 archived.
+77 open tasks: 4 in progress, 59 pending, 14 deferred. 910 finished: 907 completed, 3 archived.
 
 ## In progress
 
@@ -14,6 +14,7 @@ the epics are in [epics.yml](epics.yml).
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
+| [V375-002](v375-002-caido-sitemap-cardinality.yml) | http-tools | defect | P1 | Keep Caido sitemap browsing usable above one hundred entries |
 
 ## Pending
 
@@ -44,7 +45,6 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V375-002](v375-002-caido-sitemap-cardinality.yml) | defect | P1 | — | Keep Caido sitemap browsing usable above one hundred entries |
 | [V377-001](v377-001-http-cookie-session-artifact.yml) | feature | P2 | — | Preserve target cookies as an ordinary artifact across Run continuation |
 | [V382-001](v382-001-interactsh-worker-tools.yml) | feature | P1 | — | Add configurable Interactsh tools for Worker callback evidence |
 
