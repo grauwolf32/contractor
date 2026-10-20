@@ -90,9 +90,7 @@ class CollectedCompletion(PreparedWorkerCompletion):
                     )
                 },
                 summarized=False,
-                observations=WorkerObservations(
-                    profile="lean@1", tools={}, workspace=None, truncated=False
-                ),
+                observations=WorkerObservations(profile="lean@1", tools={}, truncated=False),
             )
         )
 
@@ -301,7 +299,6 @@ def _collected_result(text="Collected result"):
         observations=WorkerObservations(
             profile="lean@1",
             tools={"untrusted": {"calls": 9, "failures": 1}},
-            workspace=None,
             truncated=True,
         ),
     )
@@ -357,9 +354,7 @@ def test_collected_completion_uses_typed_request_owned_result(collected_runtime,
         "observed": ArtifactRef(namespace="builder", name="observed", revision="observed-r2"),
     }
     assert outcome.summarized is False
-    assert outcome.observations == WorkerObservations(
-        profile="lean@1", tools={}, workspace=None, truncated=False
-    )
+    assert outcome.observations == WorkerObservations(profile="lean@1", tools={}, truncated=False)
     assert decision.subtask_id == "999" and decision.summarized is True
 
 

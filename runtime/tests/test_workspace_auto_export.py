@@ -385,9 +385,7 @@ def worker_result() -> WorkerResult:
     return WorkerResult(
         subtaskId="0",
         result="Worker completed gracefully",
-        observations=WorkerObservations(
-            profile="lean@1", tools={}, workspace=None, truncated=False
-        ),
+        observations=WorkerObservations(profile="lean@1", tools={}, truncated=False),
         artifacts={},
         summarized=False,
     )

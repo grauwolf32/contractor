@@ -133,6 +133,8 @@ class AgentHeartbeat(VersionedWireModel):
 
 
 class AgentRegistration(VersionedWireModel):
+    nullable_fields = frozenset({"capabilities", "workspace_capabilities"})
+
     instance_id: str
     software_version: str = Field(min_length=1, max_length=128, pattern=VERSION_PATTERN.pattern)
     started_at: datetime

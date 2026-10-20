@@ -98,8 +98,8 @@ type AllocationWorkspaceExport struct {
 type AllocationWorkspaceSpec struct {
 	Mode    WorkspaceMode               `json:"mode" strictjson:"required"`
 	Sources []AllocationWorkspaceSource `json:"sources" strictjson:"required"`
-	State   *AllocationWorkspaceState   `json:"state,omitempty"`
-	Export  *AllocationWorkspaceExport  `json:"export,omitempty"`
+	State   *AllocationWorkspaceState   `json:"state,omitempty" strictjson:"nullable"`
+	Export  *AllocationWorkspaceExport  `json:"export,omitempty" strictjson:"nullable"`
 }
 
 // CloneAllocationWorkspaceSpec returns a detached copy suitable for crossing

@@ -61,7 +61,7 @@ func decodeWorkerCompletionDiagnostics(data []byte) (WorkerCompletionDiagnostics
 		// FailureCode tells an explicit empty code from an omitted one.
 		FailureCode *string `json:"failureCode"`
 	}
-	if err := strictjson.Decode(data, &wire); err != nil {
+	if err := strictjson.DecodeNonNull(data, &wire); err != nil {
 		return WorkerCompletionDiagnostics{}, err
 	}
 	value := WorkerCompletionDiagnostics(wire.plain)

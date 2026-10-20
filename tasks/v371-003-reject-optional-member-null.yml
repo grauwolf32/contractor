@@ -11,7 +11,9 @@ languages: [go, python]
 goal: "Every optional member of every valid private fixture, set to null, and every null value in a scalar map is rejected by the schema, the Go strict private decoder and the Python models alike."
 context:
   review: "Out-of-scope finding of the hub audit fix batch (groups G1 and G13), recorded 2026-10-12; left open by V368-002 ('Not fixed here'); re-verified on a07f5e9"
-  specification: "docs/spec/execution/control-plane.md#CTL-R149"
+  specification:
+    - docs/spec/execution/control-plane.md#CTL-R149
+    - docs/spec/configuration/runtime-config.md#RCF-R20
   severity: low
   finding: >-
     CTL-R149 and api/testdata/v1alpha1/required-member-cases.json reject a
@@ -47,6 +49,7 @@ context:
     V371-002, which must land first.
 scope:
   in:
+    - "Use the owning LLMGatewayConfig failure-signature schema in AllocationSpec too: the copied nullable matcher fields disagree with the exact one-member rule of RCF-R20."
     - "Record in CTL-R149: an optional private-wire member is omitted, never null (as FND-R74 states for findings), unless its schema allows null."
     - "Go private decoders reject an explicit null for such a member and a null value in a scalar map; Python WireModel does the same."
     - "Extend the generated required-member-cases.json, or a sibling generated fixture, with the null replacement of every optional member and map value the schema rejects; the schema, Go and Python must reject each."
@@ -73,12 +76,40 @@ tests:
     covers: [A1, A3]
   - command: make lint
     covers: [A1, A2, A3, A4]
-work_checkpoint:
+verification:
   date: "2026-10-20"
-  reason: User requested a temporary interruption after committing the current work.
-  state: Dependency V371-002 is complete; implementation and regression changes for this task have not started.
-  next_step: >-
-    Extend the generated required-member cases to schema-rejected nulls in
-    optional members and scalar map values; reproduce the failures before
-    changing the private Go decoders and Python WireModel. Preserve public
-    nullable request fields and required nullable Worker State fields.
+  baseline: >-
+    Expanding the generated null mutations before changing the decoders
+    reproduced Go and Python acceptance of schema-forbidden optional nulls
+    and Go acceptance of scalar map nulls on the merged main revision.
+  siblings: >-
+    Private custom unmarshallers use the same non-null decoder. Nullable tags
+    are checked against the owning schemas, public Decode retains its null
+    semantics, and isolated Runtime telemetry retains its existing behavior.
+    Runtime producers and test helpers omit absent fields when constructing
+    registrations, heartbeats, recovery updates, artifact refs, reports,
+    completions and workspace observations. Required nullable State members
+    remain present. Failure signatures reference the owning strict schema.
+  passed:
+    - "go test ./internal/strictjson ./internal/contracts/..."
+    - "cd runtime && uv run pytest tests/test_contracts.py tests/test_shared_text_rules.py: 263 passed."
+    - "make verify-public-api"
+    - "make test-control-integration: finalize and abort passed with the deterministic resource fixture (V386-003)."
+    - "make test-wire-cross-language: 230 fixtures, 207 Go and 161 Python shared tests; 1073 selected Runtime cases passed."
+    - "make lint: passed."
+  runtime_suite: >-
+    After fixing the producers and helpers, the broad macOS selection ran
+    3568 cases: 3529 passed, 21 skipped, 16 deselected and two scanner
+    capability probes failed under their existing 200 ms wall-clock budget.
+    The isolated scanner suite passed 44 cases, skipped two and failed one
+    probe; the same five probe cases passed on main. No contract validation
+    is involved in that probe path. The full suite is not reported as green.
+  environment_limits: >-
+    The full Runtime suite was exercised and revealed macOS-specific baseline
+    failures. Nine cases for long graph paths, /proc socket/read hooks,
+    filesystem name normalization, detached descendants and RLIM_INFINITY
+    also fail on unmodified main (8dde37c4); the separate main baseline ran
+    15 selected cases, with 9 failures and 6 passes. Podman owner tests need
+    Linux SOCK_SEQPACKET, and the existing native-parser wall-clock assertion
+    exceeds 100 ms here. These are not reported as passing or as contract
+    regressions. Linux CI remains required for the complete Runtime suite.

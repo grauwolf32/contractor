@@ -311,13 +311,17 @@ and fixtures must change together.
 `WorkerCompletion` a Worker returns over A2A) with one strict decoder. Besides
 duplicate keys, case aliases, unknown members and trailing data, it rejects a
 message that omits a member its schema requires wherever the Go type is used,
-or sets such a member to null where the schema does not allow null, instead of
-reading the member's zero value. The Go types declare these members, and a
-test holds the declarations to the schemas' `required` lists; a member required
+or sets any member or typed map value to null where the schema does not allow
+null, instead of reading the member's zero value. Optional members are omitted,
+never null, unless their schema explicitly allows null. Untyped JSON retains
+the nulls its schema permits. Required nullable Worker State members remain
+present and nullable. The Go types declare these members, and a test holds the
+declarations to the schemas' `required` and nullability rules; a member required
 only in some branches or places stays with semantic validation. The generated
 cases in
 [`required-member-cases.json`](../../../api/testdata/v1alpha1/required-member-cases.json)
-omit, and set to null, every required member of every valid fixture, and the
+omit every required member and set to null every object member and map value
+of every valid fixture whose null the schema rejects, and the
 schema, the Server and the Runtime reject each. The only exceptions are the
 isolated parts of a `RuntimeReport`: malformed adapter metrics
 ([OBS-R36](../platform/observability.md)) and a malformed resources block

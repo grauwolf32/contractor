@@ -28,8 +28,8 @@ var updateRequiredMemberCases = flag.Bool(
 
 const requiredMemberCasesDescription = "Generated from api/v1alpha1 and the valid golden fixtures; do not edit. " +
 	"For every valid fixture, omit lists the JSON Pointer of each object member whose omission makes the " +
-	"fixture's JSON Schema reject the document, and null those of them whose replacement by null the schema " +
-	"rejects too. Go and Python recompute both lists with their own schema validators and must reject every " +
+	"fixture's JSON Schema reject the document, and null lists every member or map value whose replacement " +
+	"by null the schema rejects. Go and Python recompute both lists with their own schema validators and must reject every " +
 	"case. Regenerate with: go test ./internal/contracts -run TestSharedRequiredMemberCasesAreRejected " +
 	"-args -update-required-member-cases"
 
@@ -45,7 +45,7 @@ type requiredMemberMutes struct {
 }
 
 // TestSharedRequiredMemberCasesAreRejected drops every member of every valid
-// fixture in turn, and sets each required one to null. Each document the
+// fixture in turn, and sets every object member or map value to null. Each document the
 // schema rejects must also be rejected by the private decoder, and the shared
 // case file must list exactly those documents, so the Python side tests the
 // same cases. Only the parts of a RuntimeReport that the Server isolates are
@@ -68,10 +68,9 @@ func TestSharedRequiredMemberCasesAreRejected(t *testing.T) {
 		raw := contractstest.ReadFixture(t, "valid", name)
 		cases := requiredMemberMutes{Omit: []string{}, Null: []string{}}
 		for _, pointer := range memberPointers(t, decodeNumbers(t, raw), "") {
-			if schema.Validate(withoutMember(t, raw, pointer)) == nil {
-				continue
+			if schema.Validate(withoutMember(t, raw, pointer)) != nil {
+				cases.Omit = append(cases.Omit, pointer)
 			}
-			cases.Omit = append(cases.Omit, pointer)
 			if schema.Validate(withNullMember(t, raw, pointer)) != nil {
 				cases.Null = append(cases.Null, pointer)
 			}
@@ -141,7 +140,7 @@ func TestSharedRequiredMemberCasesAreRejected(t *testing.T) {
 // discards as incomplete telemetry instead of rejecting the whole report: one
 // adapter's metrics (OBS-R36, FAIL-OBS-1) and the resources block (CTL-R136,
 // FAIL-CTL-10).
-var isolatedRuntimeTelemetryPattern = regexp.MustCompile(`^(/report/runtime)?/(adapters/[^/]+|resources)/`)
+var isolatedRuntimeTelemetryPattern = regexp.MustCompile(`^(/report/runtime)?/(adapters/[^/]+|resources)(?:/|$)`)
 
 // isolatedRuntimeTelemetry returns, for a case inside an isolated part, the
 // check that the decoded report dropped that part and is marked incomplete.

@@ -119,7 +119,7 @@ class GatewayRecoveryClient:
                 model=model,
                 requestId=request_id,
                 action=action,
-                code=code,
+                **({"code": code} if code is not None else {}),
                 retryAfterSeconds=retry_after_seconds,
             )
             .model_dump_json(by_alias=True, exclude_none=True)

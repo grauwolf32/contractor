@@ -65,7 +65,11 @@ class DocumentSession[D]:
         require_model_visible_binding(self._namespace, target_name)
         if namespace != self._namespace and revision is None:
             raise ToolInputError(self.seed_revision_message)
-        source_ref = ArtifactRef(namespace=namespace, name=name, revision=revision)
+        source_ref = ArtifactRef(
+            namespace=namespace,
+            name=name,
+            **({"revision": revision} if revision is not None else {}),
+        )
         async with self._lock:
             try:
                 value = await self._client.read_artifact(source_ref, max_bytes=self.max_bytes)

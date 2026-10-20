@@ -91,8 +91,8 @@ func TestSharedRequiredMembersMatchSchemas(t *testing.T) {
 				pin.problem("%s.%s: the schema lets the required member be null in only some contexts (%s)",
 					typ, name, where)
 			}
-			if everywhere && member.required && member.nullable != nullEverywhere {
-				pin.problem("%s.%s: tagged nullable=%v, the schema lets the required member be null=%v (%s)",
+			if member.nullable != nullEverywhere {
+				pin.problem("%s.%s: tagged nullable=%v, the schema lets the member be null=%v (%s)",
 					typ, name, member.nullable, nullEverywhere, where)
 			}
 			if member.required && member.omitempty {
@@ -342,8 +342,10 @@ func goMembers(t reflect.Type) map[string]goMember {
 			member.required = true
 		case "required,nullable":
 			member.required, member.nullable = true, true
+		case "nullable":
+			member.nullable = true
 		default:
-			member.tagErr = fmt.Sprintf("strictjson tag %q is neither required nor required,nullable", tag)
+			member.tagErr = fmt.Sprintf("strictjson tag %q is not required, required,nullable or nullable", tag)
 		}
 		result[name] = member
 	}
@@ -411,7 +413,7 @@ func (p *requiredPin) value(n schemaNode, t reflect.Type, path string) {
 			p.structs[t] = use
 		}
 		nullable := map[string]bool{}
-		for name := range shape.required {
+		for name := range shape.properties {
 			if p.catalog.allowsNull(shape.properties[name]) {
 				nullable[name] = true
 			}
@@ -425,7 +427,7 @@ func (p *requiredPin) value(n schemaNode, t reflect.Type, path string) {
 				p.problem("%s: Go struct %s lacks schema member %q", path, t, name)
 				continue
 			}
-			if nullable[name] && !holdsNull(member.typ) {
+			if shape.required[name] && nullable[name] && !holdsNull(member.typ) {
 				p.problem("%s/%s: the schema lets the required member be null, but %s cannot hold null",
 					path, name, member.typ)
 			}

@@ -17,7 +17,7 @@ import (
 )
 
 type AgentRegistration struct {
-	Capabilities *contracts.RuntimeCompletionCapabilities `json:"capabilities,omitempty"`
+	Capabilities *contracts.RuntimeCompletionCapabilities `json:"capabilities,omitempty" strictjson:"nullable"`
 	APIVersion   string                                   `json:"apiVersion" strictjson:"required"`
 
 	InstanceID                          string                               `json:"instanceId" strictjson:"required"`
@@ -31,7 +31,7 @@ type AgentRegistration struct {
 	SupportedSandboxProfiles            []string                             `json:"supportedSandboxProfiles" strictjson:"required"`
 	SupportedRuntimeAdapters            []runtimesettings.RuntimeAdapterRef  `json:"supportedRuntimeAdapters" strictjson:"required"`
 	SupportedPerformanceMetricsVersions reporting.PerformanceMetricsVersions `json:"supportedPerformanceMetricsVersions,omitempty"`
-	WorkspaceCapabilities               *contracts.WorkspaceCapabilities     `json:"workspaceCapabilities,omitempty"`
+	WorkspaceCapabilities               *contracts.WorkspaceCapabilities     `json:"workspaceCapabilities,omitempty" strictjson:"nullable"`
 	ObservedState                       AgentObservedState                   `json:"observedState" strictjson:"required"`
 	AllocationID                        *string                              `json:"allocationId,omitempty"`
 }

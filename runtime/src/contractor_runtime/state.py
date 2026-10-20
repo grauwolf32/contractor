@@ -128,7 +128,7 @@ class RuntimeState:
                     capabilities.workspace.wire() if capabilities.workspace is not None else None
                 ),
                 observedState=observed_state,
-                allocationId=allocation_id,
+                **({"allocationId": allocation_id} if allocation_id is not None else {}),
             )
 
     async def mark_registered(self) -> None:
@@ -146,7 +146,7 @@ class RuntimeState:
                 heartbeatSeq=sequence,
                 echoedAckSeq=echoed_ack,
                 observedState=observed_state,
-                allocationId=allocation_id,
+                **({"allocationId": allocation_id} if allocation_id is not None else {}),
             )
 
     async def begin_stopping(self) -> None:

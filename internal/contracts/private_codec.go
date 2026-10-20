@@ -38,14 +38,14 @@ func DecodePrivateStrict[T Validatable](data []byte) (T, error) {
 }
 
 // DecodePrivate decodes one private message into target, a pointer, with
-// strictjson.Decode: duplicate keys, case aliases, unknown members, omitted or
-// null required members (the strictjson tags that a test pins to the
-// api/v1alpha1 schemas) and trailing data are rejected. It leaves semantic
+// strictjson.DecodeNonNull: duplicate keys, case aliases, unknown members,
+// missing required members, schema-forbidden nulls (with strictjson tags pinned
+// to the api/v1alpha1 schemas) and trailing data are rejected. It leaves semantic
 // validation to the caller, which DecodePrivateStrict runs at once and a
 // lifecycle response runs after discarding isolated telemetry. Errors carry
 // only their class.
 func DecodePrivate(data []byte, target any) error {
-	err := strictjson.Decode(data, target)
+	err := strictjson.DecodeNonNull(data, target)
 	if err == nil {
 		return nil
 	}

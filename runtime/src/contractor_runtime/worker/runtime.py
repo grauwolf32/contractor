@@ -578,8 +578,7 @@ class AdkWorkerRuntime:
             )
         completion = WorkerCompletion(
             apiVersion=API_VERSION,
-            result=outcome if isinstance(outcome, WorkerResult) else None,
-            failure=outcome if isinstance(outcome, WorkerFailure) else None,
+            **({"result": outcome} if isinstance(outcome, WorkerResult) else {"failure": outcome}),
             invocationId=invocation_id,
             stateRevision=state_snapshot["stateRevision"],
         )
@@ -1043,9 +1042,7 @@ class AdkWorkerRuntime:
         result = WorkerResult(
             subtaskId=request.subtask_id,
             result=validated_fields.result,
-            observations=WorkerObservations(
-                profile="lean@1", tools={}, workspace=None, truncated=False
-            ),
+            observations=WorkerObservations(profile="lean@1", tools={}, truncated=False),
             artifacts=artifacts,
             summarized=False,
         )
@@ -1540,6 +1537,6 @@ def _lean_observations(
     return WorkerObservations(
         profile="lean@1",
         tools=tools,
-        workspace=workspace,
+        **({"workspace": workspace} if workspace is not None else {}),
         truncated=(bool(metrics.get("truncated")) or workspace_truncated or projection_failed),
     )

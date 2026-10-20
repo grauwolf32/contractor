@@ -164,6 +164,10 @@ class DroppedSpanCounts(WireModel):
 
 
 class RuntimeAdapterMetrics(WireModel):
+    nullable_fields = frozenset(
+        {"flush_attempted", "flush_succeeded", "last_error_code", "dropped_spans"}
+    )
+
     operations: int = Field(ge=0, le=2**64 - 1)
     failed_operations: int = Field(ge=0, le=2**64 - 1)
     flush_attempted: bool | None = None
@@ -307,6 +311,8 @@ class ExecutionReport(WireModel):
 
 
 class RuntimeReport(WireModel):
+    nullable_fields = frozenset({"duration_ms", "stop_reason"})
+
     complete: bool
     duration_ms: int | None = Field(default=None, ge=0)
     stop_reason: str | None = None

@@ -109,8 +109,8 @@ type AllocationSpec struct {
 	ModelPolicy                     contracts.ResolvedModelPolicy                   `json:"modelPolicy,omitzero"`
 	RuntimeSettings                 runtimesettings.RuntimeSettings                 `json:"runtimeSettings" strictjson:"required"`
 	ResolvedRuntimeConfigProvenance runtimesettings.ResolvedRuntimeConfigProvenance `json:"resolvedRuntimeConfigProvenance" strictjson:"required"`
-	Workspace                       *contracts.AllocationWorkspaceSpec              `json:"workspace,omitempty"`
-	PerformanceMetrics              *reporting.PerformanceMetricsRequest            `json:"performanceMetrics,omitempty"`
+	Workspace                       *contracts.AllocationWorkspaceSpec              `json:"workspace,omitempty" strictjson:"nullable"`
+	PerformanceMetrics              *reporting.PerformanceMetricsRequest            `json:"performanceMetrics,omitempty" strictjson:"nullable"`
 }
 
 func (s AllocationSpec) Validate() error {

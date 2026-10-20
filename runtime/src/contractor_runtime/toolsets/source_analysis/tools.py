@@ -484,7 +484,11 @@ class OpenSourceArchiveTool(_BaseSourceTool):
 
     async def _open(self, namespace: str, name: str, revision: str) -> dict[str, Any]:
         summary = await self._session.open(
-            ArtifactRef(namespace=namespace, name=name, revision=revision)
+            ArtifactRef(
+                namespace=namespace,
+                name=name,
+                **({"revision": revision} if revision is not None else {}),
+            )
         )
         return summary.payload()
 

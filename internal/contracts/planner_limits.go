@@ -32,7 +32,7 @@ func (limit PlannerSubtaskLimit) Validate() error {
 
 func (limit *PlannerSubtaskLimit) UnmarshalJSON(data []byte) error {
 	var value *int
-	if err := strictjson.Decode(data, &value); err != nil {
+	if err := strictjson.DecodeNonNull(data, &value); err != nil {
 		return fmt.Errorf("maxSubtasks: %w", err)
 	}
 	if value == nil || *value <= 0 || *value > MaxPlannerSubtasks {

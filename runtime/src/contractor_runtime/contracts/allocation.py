@@ -110,6 +110,8 @@ class ReleaseAllocationRequest(VersionedWireModel):
 
 
 class AllocationSpec(VersionedWireModel):
+    nullable_fields = frozenset({"workspace", "performance_metrics"})
+
     completion_contract: WorkerCompletionContract | None = None
     allocation_id: str
     run_id: str

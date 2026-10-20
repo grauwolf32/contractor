@@ -29,6 +29,8 @@ const (
 // contain cycles through pointers, maps and slices.
 type typeInfo struct {
 	kind kind
+	// untyped values (interfaces and raw JSON) can represent JSON null.
+	untyped bool
 	// elem describes the pointer target, map value or sequence element.
 	elem   *typeInfo
 	fields *structInfo
@@ -51,7 +53,7 @@ type member struct {
 }
 
 var (
-	anyInfo   = &typeInfo{kind: kindAny}
+	anyInfo   = &typeInfo{kind: kindAny, untyped: true}
 	infoCache sync.Map // reflect.Type -> *typeInfo
 	buildMu   sync.Mutex
 
@@ -86,7 +88,7 @@ func buildInfo(t reflect.Type, building map[reflect.Type]*typeInfo) *typeInfo {
 	if info, ok := building[t]; ok {
 		return info
 	}
-	info := &typeInfo{kind: kindAny}
+	info := &typeInfo{kind: kindAny, untyped: t.Kind() == reflect.Interface || t == reflect.TypeFor[json.RawMessage]()}
 	building[t] = info
 	if decodesItself(t) {
 		return info
@@ -158,6 +160,8 @@ func parseStrictTag(name, tag string) (required, nullable bool, err error) {
 		return true, false, nil
 	case "required,nullable":
 		return true, true, nil
+	case "nullable":
+		return false, true, nil
 	default:
 		return false, false, fmt.Errorf("member %q has an invalid strictjson tag %q", name, tag)
 	}

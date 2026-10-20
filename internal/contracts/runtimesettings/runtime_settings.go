@@ -88,9 +88,9 @@ type HTTPProxyTarget string
 type HTTPProxySettings struct {
 	Adapter     RuntimeAdapterRef       `json:"adapter" strictjson:"required"`
 	ProxyURL    string                  `json:"proxyUrl" strictjson:"required"`
-	BasicAuth   *HTTPProxyBasicAuth     `json:"basicAuth,omitempty"`
-	BearerToken *contracts.SecretString `json:"bearerToken,omitempty"`
-	CABundlePEM *string                 `json:"caBundlePem,omitempty"`
+	BasicAuth   *HTTPProxyBasicAuth     `json:"basicAuth,omitempty" strictjson:"nullable"`
+	BearerToken *contracts.SecretString `json:"bearerToken,omitempty" strictjson:"nullable"`
+	CABundlePEM *string                 `json:"caBundlePem,omitempty" strictjson:"nullable"`
 	Targets     []HTTPProxyTarget       `json:"targets" strictjson:"required"`
 }
 
@@ -100,8 +100,8 @@ const MaxCaidoRequestTimeoutSeconds = 120
 type CaidoSettings struct {
 	Adapter               RuntimeAdapterRef       `json:"adapter" strictjson:"required"`
 	Endpoint              string                  `json:"endpoint" strictjson:"required"`
-	BearerToken           *contracts.SecretString `json:"bearerToken,omitempty"`
-	CABundlePEM           *string                 `json:"caBundlePem,omitempty"`
+	BearerToken           *contracts.SecretString `json:"bearerToken,omitempty" strictjson:"nullable"`
+	CABundlePEM           *string                 `json:"caBundlePem,omitempty" strictjson:"nullable"`
 	RequestTimeoutSeconds int                     `json:"requestTimeoutSeconds" strictjson:"required"`
 }
 
@@ -175,18 +175,18 @@ func (s HTTPProxySettings) Validate() error {
 }
 
 type RuntimeSettings struct {
-	SourceArchiveLimits *sourcezip.Limits       `json:"sourceArchiveLimits,omitempty"`
+	SourceArchiveLimits *sourcezip.Limits       `json:"sourceArchiveLimits,omitempty" strictjson:"nullable"`
 	LLMRecovery         bool                    `json:"llmRecovery,omitempty"`
 	LLMGatewayURL       string                  `json:"llmGatewayUrl,omitempty"`
-	LLMGatewayToken     *contracts.SecretString `json:"llmGatewayToken,omitempty"`
+	LLMGatewayToken     *contracts.SecretString `json:"llmGatewayToken,omitempty" strictjson:"nullable"`
 	// LLMGatewayFailureSignatures carries the selected Gateway's declared set;
 	// absent means the protocol default, exactly as on the Gateway body.
-	LLMGatewayFailureSignatures *llmgateway.GatewayFailureSignatures `json:"llmGatewayFailureSignatures,omitempty"`
+	LLMGatewayFailureSignatures *llmgateway.GatewayFailureSignatures `json:"llmGatewayFailureSignatures,omitempty" strictjson:"nullable"`
 	ArtifactAPIURL              string                               `json:"artifactApiUrl" strictjson:"required"`
-	Telemetry                   *TelemetrySettings                   `json:"telemetry,omitempty"`
-	HTTPProxy                   *HTTPProxySettings                   `json:"httpProxy,omitempty"`
-	Caido                       *CaidoSettings                       `json:"caido,omitempty"`
-	HTTPOriginTarget            *HTTPOriginTargetSettings            `json:"httpOriginTarget,omitempty"`
+	Telemetry                   *TelemetrySettings                   `json:"telemetry,omitempty" strictjson:"nullable"`
+	HTTPProxy                   *HTTPProxySettings                   `json:"httpProxy,omitempty" strictjson:"nullable"`
+	Caido                       *CaidoSettings                       `json:"caido,omitempty" strictjson:"nullable"`
+	HTTPOriginTarget            *HTTPOriginTargetSettings            `json:"httpOriginTarget,omitempty" strictjson:"nullable"`
 	RequestTimeoutSeconds       int                                  `json:"requestTimeoutSeconds" strictjson:"required"`
 }
 
@@ -333,8 +333,8 @@ func (t HTTPOriginTargetRef) Validate() error {
 // optional secret members are mutually exclusive and are never persisted.
 type HTTPOriginTargetSettings struct {
 	URL         string                  `json:"url" strictjson:"required"`
-	BasicAuth   *HTTPProxyBasicAuth     `json:"basicAuth,omitempty"`
-	BearerToken *contracts.SecretString `json:"bearerToken,omitempty"`
+	BasicAuth   *HTTPProxyBasicAuth     `json:"basicAuth,omitempty" strictjson:"nullable"`
+	BearerToken *contracts.SecretString `json:"bearerToken,omitempty" strictjson:"nullable"`
 }
 
 func (s HTTPOriginTargetSettings) Validate() error {
@@ -403,8 +403,8 @@ type ResolvedRuntimeConfigProvenance struct {
 	RunLabels             []RuntimeLabelBindingProvenance `json:"runLabels" strictjson:"required"`
 	AgentLabels           []RuntimeLabelBindingProvenance `json:"agentLabels" strictjson:"required"`
 	RuntimeAdapters       []RuntimeAdapterRef             `json:"runtimeAdapters" strictjson:"required"`
-	LLMGatewayConfig      *llmgateway.LLMGatewayConfigRef `json:"llmGatewayConfig,omitempty"`
-	LLMCredential         *llmgateway.LLMCredentialRef    `json:"llmCredential,omitempty"`
+	LLMGatewayConfig      *llmgateway.LLMGatewayConfigRef `json:"llmGatewayConfig,omitempty" strictjson:"nullable"`
+	LLMCredential         *llmgateway.LLMCredentialRef    `json:"llmCredential,omitempty" strictjson:"nullable"`
 	RuntimeCredentialRefs []RuntimeCredentialRef          `json:"runtimeCredentialRefs" strictjson:"required"`
 }
 

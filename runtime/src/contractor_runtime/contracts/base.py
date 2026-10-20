@@ -7,13 +7,15 @@ import re
 import unicodedata
 from datetime import datetime
 from enum import StrEnum
-from typing import Annotated, Literal, Self
+from typing import Annotated, ClassVar, Literal, Self
 from urllib.parse import urlsplit
 
 from pydantic import (
     AfterValidator,
     BaseModel,
     ConfigDict,
+    ValidationInfo,
+    field_validator,
     model_validator,
 )
 
@@ -391,12 +393,28 @@ def _require_worker_result_text(value: str) -> str:
 
 
 class WireModel(BaseModel):
+    # Optional fields mean omission unless their owning wire schema allows null.
+    nullable_fields: ClassVar[frozenset[str]] = frozenset()
+
     model_config = ConfigDict(
         alias_generator=_to_camel,
         populate_by_name=True,
         extra="forbid",
         strict=True,
     )
+
+    @field_validator("*", mode="after")
+    @classmethod
+    def reject_optional_null(cls, value, info: ValidationInfo):
+        name = info.field_name
+        if (
+            value is None
+            and name is not None
+            and not cls.model_fields[name].is_required()
+            and name not in cls.nullable_fields
+        ):
+            raise ValueError(f"{name} must be omitted, not null")
+        return value
 
 
 def _require_runtime_adapter_ref(value: str) -> str:

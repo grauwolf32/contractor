@@ -287,16 +287,19 @@ class MetricsState:
             result_size = result_size_bytes
         else:
             result_size = _json_size(result) if result is not None else None
+        optional = {
+            "arguments": arguments_summary,
+            "durationMs": max(0, duration_ms) if duration_ms is not None else None,
+            "resultSizeBytes": result_size,
+            "error": call_error,
+        }
         record = ToolCallRecord(
             callId=f"tool-{self._next_call_number:08d}",
             # A Runtime-registered tool name is bounded but never redacted.
             tool=_truncate_utf8(name, MAX_METRIC_TEXT_BYTES),
-            arguments=arguments_summary,
             argumentsTruncated=value_truncated or size_truncated,
             outcome=outcome,
-            durationMs=max(0, duration_ms) if duration_ms is not None else None,
-            resultSizeBytes=result_size,
-            error=call_error,
+            **{key: value for key, value in optional.items() if value is not None},
         )
         self._next_call_number += 1
         self._append_tool_call(record)
@@ -473,15 +476,18 @@ class MetricsState:
             )
             for name, values in sorted(self._tool_metrics.items())
         }
+        optional_metrics = {
+            "inputTokens": self.counters.get("input_tokens"),
+            "outputTokens": self.counters.get("output_tokens"),
+            "totalTokens": self.counters.get("total_tokens"),
+            "workerBudget": self._worker_budget,
+            "summarizer": self._summarizer,
+        }
         metrics = ExecutionMetrics(
             durationMs=max(0, duration_ms),
             modelCalls=self.counters.get("llm_calls", 0),
-            inputTokens=self.counters.get("input_tokens"),
-            outputTokens=self.counters.get("output_tokens"),
-            totalTokens=self.counters.get("total_tokens"),
             tools=tools,
-            workerBudget=self._worker_budget,
-            summarizer=self._summarizer,
+            **{key: value for key, value in optional_metrics.items() if value is not None},
         )
         tool_calls = list(self.tool_calls)
         report = ExecutionReport(
@@ -491,7 +497,7 @@ class MetricsState:
             toolCalls=tool_calls,
             errors=errors,
             truncated=truncated,
-            completion=self._completion.model_copy(deep=True) if self._completion else None,
+            **({"completion": self._completion.model_copy(deep=True)} if self._completion else {}),
         )
         maximum = MAX_REPORT_JSON_BYTES - _ALLOCATION_ENVELOPE_RESERVE_BYTES
         while (

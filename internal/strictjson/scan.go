@@ -31,11 +31,16 @@ type scanner struct {
 	pos       int
 	depth     int
 	memberErr error
+	nonNull   bool
 }
 
 // check scans data as one JSON value decoded into a value described by info.
 func check(data []byte, info *typeInfo) error {
-	s := scanner{data: data}
+	return checkNonNull(data, info, false)
+}
+
+func checkNonNull(data []byte, info *typeInfo, nonNull bool) error {
+	s := scanner{data: data, nonNull: nonNull}
 	s.skipSpace()
 	if err := s.value(info); err != nil {
 		return err
@@ -61,6 +66,9 @@ func (s *scanner) skipSpace() {
 func (s *scanner) value(info *typeInfo) error {
 	if s.pos >= len(s.data) {
 		return errSyntax
+	}
+	if s.nonNull && !info.untyped && s.data[s.pos] == 'n' {
+		s.memberError(fmt.Errorf("%w: null instead of a typed value", ErrInvalid))
 	}
 	if info.kind == kindStruct && len(info.fields.required) > 0 && s.data[s.pos] == 'n' {
 		// encoding/json leaves a struct unchanged for null, which would
@@ -142,6 +150,7 @@ func (s *scanner) object(info *typeInfo) error {
 		s.pos++
 		s.skipSpace()
 		valueInfo := elem
+		nullable := false
 		index := -1
 		if fields != nil {
 			if found, ok := fields.byName[string(key)]; ok {
@@ -153,8 +162,9 @@ func (s *scanner) object(info *typeInfo) error {
 				return ErrDuplicateKey
 			}
 			field := &fields.members[index]
+			nullable = field.nullable
 			valueInfo = field.info
-			if field.required && !field.nullable && s.pos < len(s.data) && s.data[s.pos] == 'n' {
+			if (field.required || s.nonNull) && !field.nullable && s.pos < len(s.data) && s.data[s.pos] == 'n' {
 				s.memberError(fmt.Errorf("%w: %q is null", ErrMissingField, field.name))
 			}
 		} else {
@@ -165,8 +175,14 @@ func (s *scanner) object(info *typeInfo) error {
 				s.memberError(unknownMember(fields, string(key)))
 			}
 		}
-		if err := s.value(valueInfo); err != nil {
-			return err
+		var valueErr error
+		if s.nonNull && nullable && s.pos < len(s.data) && s.data[s.pos] == 'n' {
+			valueErr = s.literal("null")
+		} else {
+			valueErr = s.value(valueInfo)
+		}
+		if valueErr != nil {
+			return valueErr
 		}
 		s.skipSpace()
 		if s.pos >= len(s.data) {
