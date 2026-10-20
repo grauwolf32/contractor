@@ -89,8 +89,8 @@ type ExecutionReport struct {
 
 type RuntimeReport struct {
 	Complete       bool                                                        `json:"complete" strictjson:"required"`
-	DurationMS     *int64                                                      `json:"durationMs,omitempty"`
-	StopReason     *string                                                     `json:"stopReason,omitempty"`
+	DurationMS     *int64                                                      `json:"durationMs,omitempty" strictjson:"nullable"`
+	StopReason     *string                                                     `json:"stopReason,omitempty" strictjson:"nullable"`
 	Adapters       map[runtimesettings.RuntimeAdapterRef]RuntimeAdapterMetrics `json:"adapters" strictjson:"required"`
 	Resources      *RuntimeResources                                           `json:"resources,omitempty"`
 	ResourcesError *ResourceReason                                             `json:"-"`
@@ -112,13 +112,13 @@ func (r RuntimeReport) MarshalJSON() ([]byte, error) {
 func (r *RuntimeReport) UnmarshalJSON(data []byte) error {
 	type wireRuntimeReport struct {
 		Complete   bool                       `json:"complete" strictjson:"required"`
-		DurationMS *int64                     `json:"durationMs,omitempty"`
-		StopReason *string                    `json:"stopReason,omitempty"`
+		DurationMS *int64                     `json:"durationMs,omitempty" strictjson:"nullable"`
+		StopReason *string                    `json:"stopReason,omitempty" strictjson:"nullable"`
 		Adapters   map[string]json.RawMessage `json:"adapters" strictjson:"required"`
-		Resources  json.RawMessage            `json:"resources"`
+		Resources  json.RawMessage            `json:"resources" strictjson:"nullable"`
 	}
 	var wire wireRuntimeReport
-	if err := strictjson.Decode(data, &wire); errors.Is(err, strictjson.ErrDuplicateKey) {
+	if err := strictjson.DecodeNonNull(data, &wire); errors.Is(err, strictjson.ErrDuplicateKey) {
 		return contracts.Invalidf("invalid runtime report JSON")
 	} else if err != nil {
 		return err
@@ -142,7 +142,7 @@ func (r *RuntimeReport) UnmarshalJSON(data []byte) error {
 
 func decodeRuntimeAdapterMetrics(data []byte) (RuntimeAdapterMetrics, error) {
 	var metrics RuntimeAdapterMetrics
-	if err := strictjson.Decode(data, &metrics); err != nil {
+	if err := strictjson.DecodeNonNull(data, &metrics); err != nil {
 		return RuntimeAdapterMetrics{}, err
 	}
 	if err := metrics.Validate(); err != nil {
@@ -173,7 +173,7 @@ func (r *AllocationFinalReport) UnmarshalJSON(data []byte) error {
 	}
 	type wireReport AllocationFinalReport
 	var value wireReport
-	if err := strictjson.Decode(data, &value); errors.Is(err, strictjson.ErrDuplicateKey) {
+	if err := strictjson.DecodeNonNull(data, &value); errors.Is(err, strictjson.ErrDuplicateKey) {
 		return contracts.Invalidf("invalid allocation report JSON")
 	} else if err != nil {
 		return err
@@ -415,10 +415,10 @@ var runtimeAdapterErrorCodes = map[string]struct{}{
 type RuntimeAdapterMetrics struct {
 	Operations       uint64             `json:"operations" strictjson:"required"`
 	FailedOperations uint64             `json:"failedOperations" strictjson:"required"`
-	FlushAttempted   *bool              `json:"flushAttempted,omitempty"`
-	FlushSucceeded   *bool              `json:"flushSucceeded,omitempty"`
-	LastErrorCode    *string            `json:"lastErrorCode,omitempty"`
-	DroppedSpans     *DroppedSpanCounts `json:"droppedSpans,omitempty"`
+	FlushAttempted   *bool              `json:"flushAttempted,omitempty" strictjson:"nullable"`
+	FlushSucceeded   *bool              `json:"flushSucceeded,omitempty" strictjson:"nullable"`
+	LastErrorCode    *string            `json:"lastErrorCode,omitempty" strictjson:"nullable"`
+	DroppedSpans     *DroppedSpanCounts `json:"droppedSpans,omitempty" strictjson:"nullable"`
 }
 
 func (m RuntimeAdapterMetrics) Validate() error {

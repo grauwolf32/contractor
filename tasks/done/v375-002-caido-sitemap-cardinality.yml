@@ -1,0 +1,110 @@
+schema_version: "1.0"
+id: V375-002
+title: Keep Caido sitemap browsing usable above one hundred entries
+milestone: http-caido-tools-hardening
+epic: http-tools
+kind: defect
+introduced_by: V12-004
+priority: P1
+status: completed
+implementation_commit: e0c7320d012a3c1520a4dd65409cf992a5305d94
+depends_on: []
+languages: [python, markdown]
+goal: Return bounded sitemap results with truthful continuation metadata when Caido has more than one hundred valid entries.
+context:
+  authority: User requested investigation of Caido errors found in demo Runs on 2026-10-13.
+  severity: medium
+  specification:
+    - docs/spec/tools/http-caido.md#HTP-R87
+    - docs/spec/tools/http-caido.md#HTP-R110
+    - docs/spec/tools/http-caido.md#HTP-R112
+    - docs/spec/tools/http-caido.md#HTP-R126
+    - docs/spec/platform/limits.md#LIM-HTP-19
+  finding: >-
+    runtime/src/contractor_runtime/toolsets/caido/tools.py:727 applies
+    MAX_SITEMAP_ENTRIES=100 to the entire provider nodes array through _list,
+    so a valid larger sitemap becomes caido_response_invalid. Read-only queries
+    against the demo Caido reproduced the rejection for parent 151 with 107
+    individually valid nodes. Run run_c36e022df21c15979b3ddd29a3447706 retained
+    one failed caido_sitemap call with the same code and depth ALL; its exact
+    parent argument was not retained, so identity with this reproduced query
+    is not established. The failure is independent of Gateway termination.
+  siblings: >-
+    Both sitemapRootEntries and sitemapDescendantEntries share the faulty
+    cardinality check. History, Automate results and findings use provider-side
+    paging; their existing page bounds retain regression coverage. Unpaged
+    scope, workflow and Automate session-entry catalogs have separate whole-list
+    caps and need a follow-up beyond this sitemap browsing contract. The two
+    caido_automate_run errors in run_97b5a6546297eeeb5af8b1a680e0f672 were
+    caido_request_invalid before session creation, and are outside this finding.
+scope:
+  in:
+    - Define bounded sitemap paging or subtree continuation without treating valid collection size as malformed data.
+    - Preserve the adapter's response byte bound, strict node validation and a bounded model-visible response.
+    - Expose truncation and a usable next step when a response cannot contain the full selection.
+    - Add sanitized fixtures and a regression through the production Caido adapter and tool path with a local GraphQL server.
+    - Document cardinality, byte bounds and the selected continuation contract in the owning specification.
+    - Retain one byte-bounded allocation-local snapshot; serve stable cursor pages without rescanning or refetching the provider collection.
+    - Join off-thread provider decoding and snapshot assembly before cancellation or cleanup completes.
+  out:
+    - Increase the entry limit to fit only the observed 107-node tree.
+    - Change live Caido state, model choice, target policy or retry mutations.
+    - Relax malformed node or GraphQL envelope validation.
+acceptance_criteria:
+  - id: A1
+    text: Given valid root or descendant collections of 0, 100, 101, 107 and at least 1000 entries, sitemap calls return bounded usable results with truthful continuation metadata instead of caido_response_invalid solely because of cardinality.
+  - id: A2
+    text: Each call has explicit row and byte work bounds, including the containing provider collection; callers can obtain remaining entries through the documented continuation or narrower subtree requests.
+  - id: A3
+    text: Malformed nodes, oversized responses, cancellation and expired allocation deadlines retain stable failures and do not expose credentials or arbitrary provider content.
+  - id: A4
+    text: A production adapter and tool regression against a local GraphQL server fails on the original code; all touched Caido suites and lint pass after the fix.
+tests:
+  - command: uv run --project runtime pytest runtime/tests/test_caido_*.py runtime/tests/test_http_caido_*.py
+    covers: [A1, A2, A3, A4]
+  - command: make test-http-caido-e2e
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A4]
+  - command: go run ./cmd/contractor-server config validate --root ./configs
+    covers: [A4]
+implementation:
+  decision: >-
+    The existing provider operations expose complete flat node lists, not
+    cursor pages. Retain one bounded indexed snapshot rather than refetching
+    and rescanning the whole collection on every page, which would both repeat
+    the work and skip or duplicate entries when Caido changes. Reopen this
+    choice if the pinned provider contract gains stable cursor pagination.
+  work_bounds: >-
+    Initial work is bounded by the existing 16 MiB response, 100000 structural
+    JSON values and depth 32. Validate every node, including off-page nodes.
+    Retain at most 16 MiB of compact projected entries and 100001 eight-byte
+    offsets in one allocation-local snapshot. Pages decode at most 100 entries
+    and fit 1 MiB of compact UTF-8 JSON; byte fitting uses indexed prefix sizes.
+  lifecycle_and_failures: >-
+    A new selection invalidates the old snapshot before fetching; failed or
+    cancelled construction never installs a partial snapshot. Cursor reads
+    never call Caido. Invalid, foreign or stale cursors fail permanently with
+    caido_request_invalid. Malformed nodes fail caido_response_invalid and
+    byte-oversized source responses fail caido_response_too_large. Threaded JSON
+    decoding, snapshot construction and page assembly join before cancellation
+    or deadline propagation releases the session lock. Finalize/release clears
+    the retained snapshot through the existing Toolset cleanup path.
+verification:
+  date: "2026-10-20"
+  baseline: >-
+    The local production GraphQL adapter and tool regression failed on the
+    original code for both root and descendant collections of 107 valid
+    nodes, with caido_response_invalid from MAX_SITEMAP_ENTRIES.
+  passed:
+    - "uv run --project runtime pytest runtime/tests/test_caido_*.py runtime/tests/test_http_caido_*.py: 99 passed, including 25 sitemap cases."
+    - "make test-http-caido-e2e: passed the PostgreSQL Server/Runtime process test (73.668 s)."
+    - "make lint: passed."
+    - "go run ./cmd/contractor-server config validate --root ./configs: passed."
+  coverage: >-
+    Real local HTTP/GraphQL covers both selections at 0, 100, 101, 107 and
+    1000 entries; UTF-8 byte fitting; stable pages after source mutation;
+    replay and foreign/stale cursor rejection; invalid limits; malformed
+    off-page nodes; oversized source bytes; refresh failure invalidation;
+    cleanup; and joined decoding, snapshot and page processing on both
+    cancellation and owner deadline expiry. Existing sibling tools pass.

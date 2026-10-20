@@ -13,6 +13,7 @@ from typing import Any, Literal
 
 import httpx
 
+from contractor_runtime import threads
 from contractor_runtime.adapters.host import (
     AdapterFactoryError,
     AdapterHandles,
@@ -312,7 +313,9 @@ class CaidoGraphQLClient:
                 raw = await _read_bounded_response(response)
             finally:
                 await response.aclose()
-            decoded = _decode_response(raw)
+            decoded = await threads.to_thread_until_done(
+                _decode_response, raw, name="caido-response-decode"
+            )
         except asyncio.CancelledError:
             raise
         except CaidoClientError as error:

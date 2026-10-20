@@ -201,7 +201,7 @@ def test_internal_failure_is_correlated_and_does_not_log_injected_secret(
     ):
         response = client.post(
             f"/private/v1/allocations/{injected_secret}/prepare",
-            content=request.model_dump_json(by_alias=True),
+            content=request.model_dump_json(by_alias=True, exclude_none=True),
             headers={
                 "Content-Type": "application/json",
                 "X-Request-ID": "failure-request-1",

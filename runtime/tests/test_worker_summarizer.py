@@ -120,7 +120,6 @@ def test_summarizer_document_is_bounded_and_prefers_newest_complete_groups() -> 
         WorkerObservations(
             profile="lean@1",
             tools={},
-            workspace=None,
             truncated=False,
         ),
         groups,

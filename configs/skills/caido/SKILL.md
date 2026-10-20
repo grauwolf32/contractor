@@ -56,8 +56,13 @@ analysis or when starting from a captured request. Every replay has a fresh
   on the exact tagged UTF-8 request sent to Caido.
 - `caido_automate_results(session_id, entry_id="", limit=50, offset=0, ...)`
   reads a bounded result page. Omit `entry_id` to select the newest entry.
-- `caido_sitemap(parent_id="", scope_id="", depth="DIRECT")` browses a
-  bounded root or descendant set; depth is `DIRECT` or `ALL`.
+- `caido_sitemap(parent_id="", scope_id="", depth="DIRECT", cursor="", limit=100)`
+  starts a root or descendant selection; depth is `DIRECT` or `ALL`. Read
+  `total_entries`, `offset` and `truncated`. When truncated, continue with
+  `caido_sitemap(cursor=next_cursor)` alone; pages contain at most 100 entries
+  and may be shorter for large labels. A new selection or refresh invalidates
+  earlier cursors. If the whole provider response is too large, narrow the
+  parent or scope.
 - `caido_workflow_list(kind="")` lists installed workflows. IDs are
   instance-specific: resolve by name each time rather than assuming an ID.
 - `caido_workflow_run(workflow_id, input="...")` runs a convert workflow;

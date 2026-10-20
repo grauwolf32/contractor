@@ -14,6 +14,7 @@ from contractor_runtime.mtls import runtime_agent_server_context
 from contractor_runtime.server import RuntimeServer, create_app, create_server_config
 from contractor_runtime.settings import Settings
 from contractor_runtime.state import RuntimeState
+from contractor_runtime.telemetry.resources import ProcessReading, ResourceCollector
 from contractor_runtime.workspace import cleanup_orphan_workdirs
 
 
@@ -40,6 +41,9 @@ async def serve(args: argparse.Namespace) -> None:
         factories,
         capabilities,
         a2a_base_url=settings.advertised_a2a_url,
+        resource_collector_factory=lambda: ResourceCollector(
+            reader=lambda _: ProcessReading(1.0, 0.5, 4096)
+        ),
     )
     tls_context = runtime_agent_server_context(
         ca_file=settings.ca_file,

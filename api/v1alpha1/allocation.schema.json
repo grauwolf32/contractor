@@ -17,7 +17,9 @@
         "message": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 4096
+          "maxLength": 4096,
+          "x-maxBytes": 4096,
+          "description": "At most 4096 UTF-8 text bytes (LIM-OBS-6), independently of JSON escaping."
         },
         "retryable": {
           "type": "boolean"
@@ -1053,23 +1055,7 @@
       "type": "object"
     },
     "GatewayFailureSignature": {
-      "additionalProperties": false,
-      "properties": {
-        "status": {"enum": [400, 404, 409, 422], "title": "Status", "type": "integer"},
-        "messageEquals": {
-          "anyOf": [{"maxLength": 512, "minLength": 1, "type": "string", "x-maxBytes": 512}, {"type": "null"}],
-          "default": null,
-          "title": "Messageequals"
-        },
-        "litellmWrapped": {
-          "anyOf": [{"maxLength": 512, "minLength": 1, "type": "string", "x-maxBytes": 512}, {"type": "null"}],
-          "default": null,
-          "title": "Litellmwrapped"
-        }
-      },
-      "required": ["status"],
-      "title": "GatewayFailureSignature",
-      "type": "object"
+      "$ref": "llm-gateway-config.schema.json#/$defs/failureSignature"
     },
     "GatewayFailureSignatures": {
       "additionalProperties": false,

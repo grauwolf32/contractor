@@ -87,7 +87,7 @@ class PreparedAuditCompletion(PreparedWorkerCompletion):
             {
                 **self.diagnostics.model_dump(by_alias=True),
                 "phase": phase,
-                "failureCode": failure_code,
+                **({"failureCode": failure_code} if failure_code is not None else {}),
                 "reminderCount": self._reminders,
             }
         )
@@ -235,9 +235,7 @@ class PreparedAuditCompletion(PreparedWorkerCompletion):
                 result=f"Recorded and published results for {len(accepted)} assigned Audit items.",
                 artifacts=artifacts,
                 summarized=False,
-                observations=WorkerObservations(
-                    profile="lean@1", tools={}, workspace=None, truncated=False
-                ),
+                observations=WorkerObservations(profile="lean@1", tools={}, truncated=False),
             )
         )
 

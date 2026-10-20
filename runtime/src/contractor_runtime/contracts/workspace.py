@@ -115,6 +115,8 @@ class WorkspaceCapabilities(WireModel):
 
 
 class AllocationWorkspaceSpec(WireModel):
+    nullable_fields = frozenset({"state", "export"})
+
     mode: WorkspaceMode
     sources: list[AllocationWorkspaceSource] = Field(min_length=1, max_length=32)
     state: AllocationWorkspaceState | None = None

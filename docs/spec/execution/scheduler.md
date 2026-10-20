@@ -972,6 +972,14 @@ termination, finishes a cancelled Run or fails an unprogressable Run, also
 drops that Stage's waits and route membership and relinquishes any probe its
 Run holds or reserved, without reopening the route or resetting its retry
 window, so another Run can probe at once.
+Non-terminal model updates of an ending, ended or unknown participant are
+refused before writing a failure receipt, wait or route change. A Planner is
+identified by its exact StageExecution, and an allocation by its durable
+owning StageExecution; only a `running` Stage may acquire or report a failure.
+The authority reads these primary-key facts under the same Run row lock that
+orders Stage-ending transactions, so an old Stage cannot put a later one back
+into `waiting`, including after Server restart. Terminal updates retain the
+cleanup rules of SCH-R108.
 
 **SCH-R108.** A Runtime call or Server-side Planner request that abandons a
 granted attempt, through cancellation or an unexpected failure at any point
@@ -1034,13 +1042,17 @@ session after Runtime process loss. Which model request is retried during
 `waiting` is specified in [Runs](runs.md).
 
 **SCH-R165.** A model-call update that changes nothing is decided from one
-read without row locks or writes: an `acquire` on a route that is not blocked,
+read without row locks or writes: an `acquire` by an active participant on a
+route that is not blocked,
 and a terminal update whose participant holds neither the route's probe nor,
 for `succeeded` and `finished`, a recovery wait while its Run is not
 `waiting`. Every call on a healthy route is such a pair, so model calls of an
 owner's Runs no longer serialize on the Run row and the shared route row. The
 decision is the one the locking path makes at the moment of that read; every
 other update takes the Run and route locks (SCH-R106, SCH-R108).
+The participant's Stage state is part of that same read; refusing an inactive
+participant's `acquire` also needs no lock or write. A healthy route never
+grants an ended Stage a new call.
 
 ### Run claims and execution lanes
 

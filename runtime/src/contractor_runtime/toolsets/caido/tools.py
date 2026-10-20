@@ -10,6 +10,7 @@ import json
 import math
 import secrets
 import time
+from array import array
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -22,7 +23,12 @@ from google.adk.tools.tool_context import ToolContext
 
 from contractor_runtime import threads
 from contractor_runtime.adapters import AdapterHandles
-from contractor_runtime.adapters.caido_graphql import CaidoClientError, CaidoGraphQLClient
+from contractor_runtime.adapters.caido_graphql import (
+    MAX_CAIDO_RESPONSE_BYTES,
+    MAX_CAIDO_RESPONSE_ITEMS,
+    CaidoClientError,
+    CaidoGraphQLClient,
+)
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.artifacts import MAX_ARTIFACT_BYTES, ArtifactClient, ArtifactTransportError
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
@@ -62,7 +68,6 @@ MAX_PREVIEW_CHARACTERS = 8192
 MAX_BINARY_PREVIEW_BYTES = 6144
 MAX_TOOL_RESULT_BYTES = 1024 * 1024
 MAX_WORKFLOWS = 100
-MAX_SITEMAP_ENTRIES = 100
 MAX_AUTOMATE_ENTRIES = 100
 MAX_PAYLOADS_PER_RESULT = 32
 MAX_RAW_REQUEST_BYTES = 1024 * 1024
@@ -76,6 +81,70 @@ POLL_INTERVAL_SECONDS = 0.5
 MAX_POLL_ATTEMPTS = 121
 CAIDO_OUTPUT_ARTIFACT_PREFIX = "caido.output."
 REQUEST_TAG_HEADER = b"X-Request-Id"
+
+
+@dataclass(frozen=True, slots=True, repr=False)
+class _SitemapSnapshot:
+    cursor_id: str
+    rows: bytes
+    offsets: array
+
+    def cursor_offset(self, cursor: str) -> int:
+        identity, separator, index = cursor.partition(".")
+        if (
+            identity != self.cursor_id
+            or not separator
+            or not index.isascii()
+            or not index.isdecimal()
+        ):
+            raise CaidoToolError("caido_request_invalid")
+        offset = int(index)
+        if str(offset) != index or not 0 < offset < len(self.offsets) - 1:
+            raise CaidoToolError("caido_request_invalid")
+        return offset
+
+    def page(self, offset: int, limit: int) -> dict[str, Any]:
+        total = len(self.offsets) - 1
+
+        def envelope(count: int) -> tuple[dict[str, Any], int]:
+            end = offset + count
+            value = {
+                "entries": [],
+                "total_entries": total,
+                "offset": offset,
+                "truncated": end < total,
+            }
+            if end < total:
+                value["next_cursor"] = f"{self.cursor_id}.{end}"
+            size = (
+                len(_tool_result_json(value))
+                + self.offsets[end]
+                - self.offsets[offset]
+                + max(0, count - 1)
+            )
+            return value, size
+
+        count = min(limit, total - offset)
+        if envelope(count)[1] > MAX_TOOL_RESULT_BYTES:
+            # Non-final prefixes all retain a cursor, so their exact encoded
+            # sizes increase monotonically. Each row was encoded only once.
+            low, high = 0, count - 1
+            while low < high:
+                middle = (low + high + 1) // 2
+                if envelope(middle)[1] <= MAX_TOOL_RESULT_BYTES:
+                    low = middle
+                else:
+                    high = middle - 1
+            count = low
+            if count == 0:
+                raise CaidoToolError("caido_response_too_large")
+        value, _size = envelope(count)
+        value["entries"] = [
+            json.loads(self.rows[self.offsets[index] : self.offsets[index + 1]])
+            for index in range(offset, offset + count)
+        ]
+        return _bounded_result(value)
+
 
 CAIDO_TOOL_NAMES = frozenset(
     {
@@ -305,6 +374,7 @@ class _CaidoSession:
         self._lock = asyncio.Lock()
         self._closed = False
         self._captures = captures
+        self._sitemap_snapshot: _SitemapSnapshot | None = None
 
     @property
     def metric_secrets(self) -> tuple[str, ...]:
@@ -734,12 +804,33 @@ class _CaidoSession:
                 }
             )
 
-    async def sitemap(self, parent_id: str, scope_id: str, depth: str) -> dict[str, Any]:
+    async def sitemap(
+        self, parent_id: str, scope_id: str, depth: str, cursor: str, limit: int
+    ) -> dict[str, Any]:
         selected_parent = _optional_identifier(parent_id)
         selected_scope = _optional_identifier(scope_id)
         if not isinstance(depth, str) or depth not in _SITEMAP_DEPTHS:
             raise CaidoToolError("caido_request_invalid")
+        if not isinstance(cursor, str) or len(cursor) > MAX_ID_BYTES:
+            raise CaidoToolError("caido_request_invalid")
+        selected_limit, _ = _page(limit, 0)
+        if cursor and (selected_parent or selected_scope or depth != "DIRECT"):
+            raise CaidoToolError("caido_request_invalid")
         async with self._lock:
+            if self._closed or self._handle is None:
+                raise CaidoToolError("caido_request_failed")
+            if self._handle.closed:
+                raise CaidoToolError("caido_request_invalid")
+            if cursor:
+                snapshot = self._sitemap_snapshot
+                if snapshot is None:
+                    raise CaidoToolError("caido_request_invalid")
+                offset = snapshot.cursor_offset(cursor)
+                return await threads.to_thread_until_done(
+                    snapshot.page, offset, selected_limit, name="caido-sitemap-page"
+                )
+            # A new browse or refresh replaces the sole retained snapshot.
+            self._sitemap_snapshot = None
             if selected_parent:
                 data = await self._execute(
                     "sitemap_descendants",
@@ -754,9 +845,15 @@ class _CaidoSession:
                 include_parent = False
             _exact_object(data, {field})
             connection = _exact_object(data[field], {"nodes"})
-            nodes = _list(connection["nodes"], maximum=MAX_SITEMAP_ENTRIES)
-            entries = [_sitemap_entry(node, include_parent=include_parent) for node in nodes]
-            return _bounded_result({"entries": entries})
+            snapshot = await threads.to_thread_until_done(
+                lambda: _sitemap_snapshot(connection["nodes"], include_parent=include_parent),
+                name="caido-sitemap-snapshot",
+            )
+            result = await threads.to_thread_until_done(
+                snapshot.page, 0, selected_limit, name="caido-sitemap-page"
+            )
+            self._sitemap_snapshot = snapshot
+            return result
 
     async def workflow_list(self, kind: str) -> dict[str, Any]:
         if not isinstance(kind, str):
@@ -1017,6 +1114,7 @@ class _CaidoSession:
             self._monotonic = _closed_monotonic
             self._closed = True
             self._captures.clear("caido")
+            self._sitemap_snapshot = None
 
     async def _execute(
         self, operation: str, variables: Mapping[str, Any] | None = None
@@ -1368,23 +1466,35 @@ class CaidoSitemapTool(_CaidoTool):
         parent_id: Parent entry ID to expand; empty selects root entries.
         scope_id: Scope ID to filter by; empty includes all scopes.
         depth: DIRECT for immediate children or ALL for descendants; default DIRECT.
+        cursor: Copy next_cursor to continue the same snapshot; leave empty to
+            start or refresh. With a cursor, omit parent_id, scope_id and depth.
+        limit: Maximum entries on this page, 1 through 100; defaults to 100.
 
     Returns:
-        A bounded list of sitemap entries and truncation metadata.
+        Entries, total_entries, offset and truncation metadata. If truncated,
+        call again with next_cursor alone. Refreshing or changing the selection
+        invalidates earlier cursors. Pages may be shorter to fit the byte bound.
     """
 
     async def __call__(
-        self, parent_id: str = "", scope_id: str = "", depth: str = "DIRECT"
+        self,
+        parent_id: str = "",
+        scope_id: str = "",
+        depth: str = "DIRECT",
+        cursor: str = "",
+        limit: int = 100,
     ) -> dict[str, Any]:
         arguments = {
             "hasParentId": bool(parent_id) if isinstance(parent_id, str) else False,
             "hasScopeId": bool(scope_id) if isinstance(scope_id, str) else False,
             "depth": (depth if isinstance(depth, str) and depth in _SITEMAP_DEPTHS else "invalid"),
+            "hasCursor": bool(cursor) if isinstance(cursor, str) else False,
+            "limit": limit if type(limit) is int and 1 <= limit <= MAX_PAGE_SIZE else 0,
         }
         return await self._call(
             arguments,
             lambda result: {"count": len(result["entries"])},
-            lambda: self._session.sitemap(parent_id, scope_id, depth),
+            lambda: self._session.sitemap(parent_id, scope_id, depth, cursor, limit),
         )
 
 
@@ -1919,6 +2029,21 @@ def _sitemap_entry(value: object, *, include_parent: bool) -> dict[str, Any]:
     return result
 
 
+def _sitemap_snapshot(value: object, *, include_parent: bool) -> _SitemapSnapshot:
+    # The adapter's existing structural-value bound dominates the number of
+    # nodes. Validate the complete provider selection, even beyond page one.
+    nodes = _list(value, maximum=MAX_CAIDO_RESPONSE_ITEMS)
+    rows = bytearray()
+    offsets = array("Q", [0])
+    for node in nodes:
+        encoded = _tool_result_json(_sitemap_entry(node, include_parent=include_parent))
+        if len(rows) + len(encoded) > MAX_CAIDO_RESPONSE_BYTES:
+            raise CaidoToolError("caido_response_too_large")
+        rows.extend(encoded)
+        offsets.append(len(rows))
+    return _SitemapSnapshot(secrets.token_urlsafe(24), bytes(rows), offsets)
+
+
 def _workflow(value: object) -> dict[str, Any]:
     item = _exact_object(value, {"id", "name", "kind", "enabled", "global"})
     kind = _text(item["kind"]).lower()
@@ -2216,14 +2341,17 @@ def _nullable_number(value: object, *, minimum: float) -> int | float | None:
     return value
 
 
-def _bounded_result(value: dict[str, Any]) -> dict[str, Any]:
+def _tool_result_json(value: Any) -> bytes:
     try:
-        encoded = json.dumps(
+        return json.dumps(
             value, ensure_ascii=False, allow_nan=False, separators=(",", ":")
         ).encode()
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, UnicodeError):
         raise CaidoToolError("caido_response_invalid") from None
-    if len(encoded) > MAX_TOOL_RESULT_BYTES:
+
+
+def _bounded_result(value: dict[str, Any]) -> dict[str, Any]:
+    if len(_tool_result_json(value)) > MAX_TOOL_RESULT_BYTES:
         raise CaidoToolError("caido_response_too_large")
     return value
 

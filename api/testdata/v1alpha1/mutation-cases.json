@@ -205,8 +205,16 @@
           "maxLength": 4096
         },
         {
+          "pointer": "/state/metrics/errors/0/message",
+          "maxLength": 4096
+        },
+        {
           "pointer": "/state/metrics/finalOutcome",
           "maxLength": 64
+        },
+        {
+          "pointer": "/state/metrics/toolCalls/0/error/message",
+          "maxLength": 4096
         }
       ],
       "maxBytes": [
@@ -256,8 +264,18 @@
           "verdict": "reject"
         },
         {
+          "pointer": "/state/metrics/errors/0/message",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
           "pointer": "/state/metrics/finalOutcome",
           "maxLength": 64,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/metrics/toolCalls/0/error/message",
+          "maxLength": 4096,
           "verdict": "reject"
         }
       ],
@@ -275,7 +293,9 @@
         "/state/lastCompletedInvocation/workspace",
         "/state/lastCompletedInvocation/workspace/interactions/0",
         "/state/metrics",
+        "/state/metrics/errors/0",
         "/state/metrics/toolCalls/0",
+        "/state/metrics/toolCalls/0/error",
         "/state/metrics/workerBudget"
       ],
       "duplicateKey": [
@@ -294,32 +314,61 @@
         "/state/lastCompletedInvocation/workspace/interactions/0",
         "/state/metrics",
         "/state/metrics/counters",
+        "/state/metrics/errors/0",
         "/state/metrics/toolCalls/0",
         "/state/metrics/toolCalls/0/arguments",
+        "/state/metrics/toolCalls/0/error",
         "/state/metrics/workerBudget"
       ]
     },
     "allocation-final-response.json": {
       "enum": [
-        "/apiVersion"
+        "/apiVersion",
+        "/report/worker/toolCalls/0/outcome"
       ],
-      "maxLength": [],
-      "maxBytes": [],
+      "maxLength": [
+        {
+          "pointer": "/report/worker/errors/0/message",
+          "maxLength": 4096
+        },
+        {
+          "pointer": "/report/worker/toolCalls/0/error/message",
+          "maxLength": 4096
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/report/worker/errors/0/message",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/report/worker/toolCalls/0/error/message",
+          "maxLength": 4096,
+          "verdict": "reject"
+        }
+      ],
       "unknownMember": [
         "",
         "/report",
         "/report/runtime",
         "/report/worker",
+        "/report/worker/errors/0",
         "/report/worker/metrics",
-        "/report/worker/metrics/summarizer"
+        "/report/worker/metrics/summarizer",
+        "/report/worker/toolCalls/0",
+        "/report/worker/toolCalls/0/error"
       ],
       "duplicateKey": [
         "",
         "/report",
         "/report/runtime",
         "/report/worker",
+        "/report/worker/errors/0",
         "/report/worker/metrics",
-        "/report/worker/metrics/summarizer"
+        "/report/worker/metrics/summarizer",
+        "/report/worker/toolCalls/0",
+        "/report/worker/toolCalls/0/error"
       ]
     },
     "allocation-spec-skills.json": {

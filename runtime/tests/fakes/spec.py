@@ -44,7 +44,7 @@ def allocation_spec(
     policy = ResolvedModelPolicy(
         ref=ModelPolicyRef(policyId="worker", version="1", digest="sha256:" + "0" * 64),
         model="worker-model",
-        contextWindowTokens=131_072 if summarizer else None,
+        **({"contextWindowTokens": 131_072} if summarizer else {}),
         maxOutputTokens=4096,
         maxModelCalls=8,
         maxToolCalls=16,
@@ -84,7 +84,7 @@ def allocation_spec(
             text=instructions,
         ),
         modelPolicy=policy,
-        summarizer=summarizer_config,
+        **({"summarizer": summarizer_config} if summarizer_config is not None else {}),
         toolsets=[
             ToolsetSelection(
                 ref=ToolsetRef(toolsetId="run-artifacts", version="1"),

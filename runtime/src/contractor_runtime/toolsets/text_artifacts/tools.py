@@ -145,7 +145,11 @@ class ReadTextArtifactTool(ArtifactTool):
                 raise ToolInputError("line_offset must be a non-negative integer")
             value = await self._cache.read(
                 self._client,
-                ArtifactRef(namespace=namespace, name=name, revision=revision),
+                ArtifactRef(
+                    namespace=namespace,
+                    name=name,
+                    **({"revision": revision} if revision is not None else {}),
+                ),
                 accept=_refuse_binary_media_type,
             )
             try:

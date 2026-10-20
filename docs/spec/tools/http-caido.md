@@ -662,7 +662,7 @@ Rationale: schema validation alone does not validate scalar values.
 | One GraphQL response, received and decoded | 16 MiB | LIM-HTP-19 |
 | Raw request supplied to replay or a workflow | 1 MiB | LIM-HTP-20 |
 | Inline raw preview | 8192 characters | LIM-HTP-21 |
-| History, results or findings page | 100 entries | LIM-HTP-22 |
+| History, sitemap, results or findings page | 100 entries | LIM-HTP-22 |
 | Scope allowlist plus denylist | 256 terms | LIM-HTP-23 |
 | HTTPQL or filter text | 8192 UTF-8 bytes | LIM-HTP-24 |
 | Automate targets | 32 | LIM-HTP-25 |
@@ -670,6 +670,38 @@ Rationale: schema validation alone does not validate scalar values.
 | One payload or target | 8192 UTF-8 bytes | LIM-HTP-27 |
 | Automate workers | 1..50 | LIM-HTP-28 |
 | Poll or wait | At most the allocation deadline and 60 seconds | LIM-HTP-29 |
+| One GraphQL response structure | 100,000 JSON values, depth 32 | LIM-HTP-34 |
+| One model-visible Caido tool result | 1 MiB of compact UTF-8 JSON | LIM-HTP-35 |
+| Retained sitemap snapshot | One per allocation; 16 MiB of encoded entries plus at most 100,001 eight-byte offsets | LIM-HTP-36 |
+
+**HTP-R126.** `caido_sitemap(parent_id="", scope_id="", depth="DIRECT",
+cursor="", limit=100)` starts a root or descendant selection. `depth` is
+`DIRECT` or `ALL`, and `limit` is an integer from 1 through 100. The result has
+`entries`, `total_entries`, zero-based `offset` and `truncated`; a truncated
+page also has `next_cursor`. A page may contain fewer than `limit` entries to
+fit LIM-HTP-35. A valid collection exceeding one page is not malformed.
+
+The provider's root and descendant queries return flat collections without
+provider pagination. The first call fetches and strictly validates the entire
+selected collection under LIM-HTP-19 and LIM-HTP-34, then retains one indexed
+snapshot under LIM-HTP-36. Following calls pass `cursor=next_cursor` and may
+choose a new `limit`, but must omit `parent_id`, `scope_id` and `depth`.
+Pages preserve the snapshot's provider order even if Caido changes. Replaying
+a cursor returns the same entries for the same limit without another provider
+request. Starting or refreshing a selection invalidates the previous snapshot
+and its cursors, including when the new request fails. Cursors from another
+allocation or an invalidated snapshot fail `caido_request_invalid`.
+
+Provider JSON decoding and snapshot construction run outside the event loop;
+each is bounded by the complete response limits. Continuations use indexed
+offsets and decode at most one page, with no whole-collection rescan. Cancelled
+or expired calls join their processing before releasing the session lock;
+they do not publish a new snapshot. Finalize or release erases the snapshot.
+Malformed nodes anywhere in the selected collection fail
+`caido_response_invalid`; a response exceeding the byte bound fails
+`caido_response_too_large`. The caller may narrow `parent_id` or `scope_id`
+when a complete provider selection exceeds the source bounds. Failures retain
+the redaction rules of HTP-R112.
 
 ### Raw exchanges and workflow output
 
@@ -905,6 +937,9 @@ Limits ([registry](../platform/limits.md)):
 - LIM-HTP-31 — Automate delay of 0..60000 ms (HTP-R106).
 - LIM-HTP-32 — zero Caido request retries for Automate (HTP-R106).
 - LIM-HTP-33 — 64 MiB serialized capture buffer, with oldest-first eviction (HTP-R71).
+- LIM-HTP-34 — at most 100,000 JSON values and depth 32 in a Caido response (HTP-R87).
+- LIM-HTP-35 — at most 1 MiB of compact UTF-8 JSON per Caido tool result (HTP-R87).
+- LIM-HTP-36 — one bounded indexed sitemap snapshot per allocation (HTP-R87, HTP-R126).
 - The generic Artifact payload limit (LIM-ART-4) belongs to
   [Artifact store](../artifacts/artifact-store.md); the host-name bounds and
   the allowed-target-network count belong to

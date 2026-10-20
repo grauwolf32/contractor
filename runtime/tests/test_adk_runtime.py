@@ -2706,24 +2706,32 @@ async def create_runtime(
             contextWindowTokens=131_072,
             maxOutputTokens=2048,
             maxModelCalls=1,
-            maxTotalTokens=summary_max_total_tokens,
+            **(
+                {"maxTotalTokens": summary_max_total_tokens}
+                if summary_max_total_tokens is not None
+                else {}
+            ),
             temperature=0.0,
         )
         context = replace(
             context,
             summarizer=WorkerSummarizerConfig(
-                instructions=(
-                    ResolvedInstructions(
-                        ref="instructions/custom-summary.md",
-                        digest="sha256:" + "a" * 64,
-                        text=summary_instructions,
-                    )
+                **(
+                    {
+                        "instructions": ResolvedInstructions(
+                            ref="instructions/custom-summary.md",
+                            digest="sha256:" + "a" * 64,
+                            text=summary_instructions,
+                        )
+                    }
                     if summary_instructions is not None
-                    else None
+                    else {}
                 ),
                 modelPolicy=summary_policy,
                 contextWindowRatio=context_window_ratio,
-                cumulativeBudget=cumulative_budget,
+                **(
+                    {"cumulativeBudget": cumulative_budget} if cumulative_budget is not None else {}
+                ),
             ),
         )
 

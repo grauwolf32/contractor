@@ -197,7 +197,11 @@ class ReadArtifactTool(ArtifactTool):
             # The Artifact API has no range reads, so page a cached exact revision.
             value = await self._cache.read(
                 self._client,
-                ArtifactRef(namespace=namespace, name=name, revision=revision),
+                ArtifactRef(
+                    namespace=namespace,
+                    name=name,
+                    **({"revision": revision} if revision is not None else {}),
+                ),
                 accept=_refuse_binary_media_type,
             )
             try:

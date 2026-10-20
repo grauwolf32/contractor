@@ -35,11 +35,15 @@ scan both implementations apply: the trusted path table, the Runtime's card and
 the cases each must accept or reject.
 `required-member-cases.json` is generated from these schemas and the valid
 fixtures: for every valid fixture it lists each member whose omission the
-schema rejects, and those of them whose `null` the schema rejects too. Go,
+schema rejects, and every object member or map value whose `null` the schema rejects. Go,
 Python and the schema reject every case. Go DTO fields declare such members
 with `strictjson:"required"` (or `strictjson:"required,nullable"` where the
 schema allows `null`), which `strictjson.Decode` enforces, and a test pins the
-tags to the `required` lists; Python models declare them without defaults.
+tags to the `required` lists. Private decoding uses `strictjson.DecodeNonNull`,
+with `strictjson:"nullable"` for an optional schema-declared nullable member;
+ordinary public `strictjson.Decode` keeps its nullable request semantics.
+Python models declare required members without defaults and reject an explicit
+null for optional members outside their schema-declared `nullable_fields`.
 `mutation-cases.json` is generated the same way (`go test ./internal/contracts
 -run TestSharedMutationCasesAreRejected -args -update-mutation-cases`): for
 every valid fixture it lists the members whose value outside an `enum` or
@@ -80,6 +84,9 @@ instead of `str.strip`. `json-byte-size-cases.json` pins the compact UTF-8
 JSON size that byte bounds measure (WRK-R37, WRK-R165;
 `contracts.ResultJSONSize`, `json_byte_size`): U+2028 and U+2029 count three
 bytes and `<`, `>` and `&` one.
+`execution-error-cases.json` pins the 4 KiB UTF-8 text bound of error messages
+and the compact JSON bound of tool arguments in both final reports and live
+State, including multibyte boundaries and JSON escaping.
 
 `memory-reservation-cases.json` holds the purpose-reserved Run Namespaces and,
 per binding, whether it is a reserved Memory binding and whether a Stage or

@@ -8,7 +8,8 @@
 // decoded into the struct must set to a non-null value, and
 // `strictjson:"required,nullable"` one it must set but may set to null, as a
 // JSON Schema required list does. Without the tag encoding/json would leave
-// an omitted or null member at its zero value.
+// an omitted or null member at its zero value. DecodeNonNull additionally
+// rejects optional null members unless tagged `strictjson:"nullable"`.
 package strictjson
 
 import (
@@ -48,13 +49,26 @@ var (
 // only; its method checks its own members, normally with Decode. Syntax and
 // type errors are returned as encoding/json reports them.
 func Decode(data []byte, target any) error {
+	return decode(data, target, false)
+}
+
+// DecodeNonNull applies Decode's checks and rejects explicit null for typed
+// values and object members unless the field is tagged strictjson:"nullable"
+// or strictjson:"required,nullable". Untyped map values retain ordinary JSON
+// nulls. This is the private-wire omission rule; Decode retains the caller's
+// public nullable-field semantics.
+func DecodeNonNull(data []byte, target any) error {
+	return decode(data, target, true)
+}
+
+func decode(data []byte, target any, nonNull bool) error {
 	var info *typeInfo
 	if value := reflect.ValueOf(target); value.Kind() == reflect.Pointer && !value.IsNil() {
 		info = infoFor(value.Type().Elem())
 	} else {
 		info = anyInfo
 	}
-	err := check(data, info)
+	err := checkNonNull(data, info, nonNull)
 	if err != nil && !errors.Is(err, errSyntax) {
 		return err
 	}

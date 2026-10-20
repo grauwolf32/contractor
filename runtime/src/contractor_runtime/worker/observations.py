@@ -251,7 +251,7 @@ def lean_workspace_summary(
             matchedFiles=len(matched),
             modifiedFiles=len(modified),
             detailComplete=workspace["detailComplete"],
-            unreadFiles=unread_files,
+            **({"unreadFiles": unread_files} if unread_files is not None else {}),
             filesRead=files_read,
             filesReadTruncated=len(files_read) < len(read),
         ),

@@ -104,6 +104,15 @@ func (s *Service) update(
 		if err := lockRun(ctx, tx, s.runs, runID, request.Terminal()); err != nil {
 			return err
 		}
+		if !request.Terminal() {
+			var active bool
+			if err := tx.QueryRow(ctx, readActiveParticipantSQL, runID, participantID).Scan(&active); err != nil {
+				return err
+			}
+			if !active {
+				return ErrUnavailable
+			}
+		}
 		state, err := readRoute(ctx, tx, key)
 		if err != nil {
 			return err
@@ -206,7 +215,8 @@ WHERE route_key=$1 AND probe_id=$2`, key, request.RequestID)
 }
 
 // unchanged decides, from one read without row locks or writes, a request
-// that changes nothing (SCH-R165): an acquire on a route that is not blocked,
+// that changes nothing (SCH-R165): an acquire by an active participant on a
+// route that is not blocked,
 // or a terminal update whose participant holds neither the route's probe nor,
 // for succeeded and finished, a wait while its Run is not waiting. Every
 // model call of a healthy route is such a pair, so it no longer serializes on
@@ -219,14 +229,10 @@ func (s *Service) unchanged(
 	ctx context.Context, runID, participantID, key string, request Request,
 ) (Decision, bool, error) {
 	var runState, code string
-	var blocked, waits bool
+	var blocked, waits, active bool
 	var probeID *string
-	err := s.pool.QueryRow(ctx, `
-SELECT run.state, route.blocked, route.failure_code, route.probe_id,
-       EXISTS (SELECT 1 FROM gateway_recovery_waits WHERE participant_id = $3 AND model = $4)
-FROM workflow_runs AS run, gateway_recovery_routes AS route
-WHERE run.run_id = $1 AND route.route_key = $2`,
-		runID, key, participantID, request.Model).Scan(&runState, &blocked, &code, &probeID, &waits)
+	err := s.pool.QueryRow(ctx, readUnchangedUpdateSQL,
+		runID, participantID, key, request.Model).Scan(&runState, &blocked, &code, &probeID, &waits, &active)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Decision{}, false, nil
 	}
@@ -236,6 +242,9 @@ WHERE run.run_id = $1 AND route.route_key = $2`,
 	decision := Decision{RetryAfterSeconds: s.policy.MaxDelay.Seconds()}
 	switch {
 	case request.Action == "acquire":
+		if !active {
+			return Decision{}, true, ErrUnavailable
+		}
 		if blocked || !acceptsUpdate(runState, false) {
 			return Decision{}, false, nil
 		}

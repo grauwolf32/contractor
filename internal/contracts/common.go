@@ -122,10 +122,10 @@ type Validatable interface {
 }
 
 // DecodeStrictObject decodes one JSON object into target with
-// strictjson.Decode and returns its raw top-level members so callers can tell
+// strictjson.DecodeNonNull and returns its raw top-level members so callers can tell
 // an explicit null from an omitted field.
 func DecodeStrictObject(data []byte, target any) (map[string]json.RawMessage, error) {
-	if err := strictjson.Decode(data, target); err != nil {
+	if err := strictjson.DecodeNonNull(data, target); err != nil {
 		return nil, err
 	}
 	var fields map[string]json.RawMessage

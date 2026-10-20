@@ -110,7 +110,7 @@ def test_shared_gateway_recovery_outcomes(case: dict[str, Any]) -> None:
         model="worker",
         requestId="request-1",
         action=action,
-        code=code,
+        **({"code": code} if code is not None else {}),
         retryAfterSeconds=retry_after_seconds,
     )
 

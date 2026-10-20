@@ -415,6 +415,8 @@ class TelemetrySettings(WireModel):
 
 
 class HTTPOriginTargetSettings(WireModel):
+    nullable_fields = frozenset({"basic_auth", "bearer_token"})
+
     url: str
     basic_auth: HTTPProxyBasicAuth | None = None
     bearer_token: SecretStr | None = None
@@ -438,6 +440,8 @@ class HTTPOriginTargetSettings(WireModel):
 
 
 class HTTPProxySettings(WireModel):
+    nullable_fields = frozenset({"basic_auth", "bearer_token", "ca_bundle_pem"})
+
     adapter: RuntimeAdapterRef
     proxy_url: str
     basic_auth: HTTPProxyBasicAuth | None = None
@@ -467,6 +471,8 @@ class HTTPProxySettings(WireModel):
 
 
 class CaidoSettings(WireModel):
+    nullable_fields = frozenset({"bearer_token", "ca_bundle_pem"})
+
     adapter: RuntimeAdapterRef
     endpoint: str
     bearer_token: SecretStr | None = None
@@ -544,6 +550,18 @@ def default_source_archive_limits() -> SourceArchiveLimits:
 
 
 class RuntimeSettings(WireModel):
+    nullable_fields = frozenset(
+        {
+            "source_archive_limits",
+            "llm_gateway_token",
+            "llm_gateway_failure_signatures",
+            "telemetry",
+            "http_proxy",
+            "caido",
+            "http_origin_target",
+        }
+    )
+
     source_archive_limits: SourceArchiveLimits | None = None
     llm_recovery: bool = Field(default=False, strict=True, exclude_if=lambda value: not value)
     llm_gateway_url: str | None = Field(default=None, exclude_if=lambda value: value is None)
@@ -575,6 +593,8 @@ class RuntimeSettings(WireModel):
 
 
 class ResolvedRuntimeConfigProvenance(WireModel):
+    nullable_fields = frozenset({"llm_gateway_config", "llm_credential"})
+
     default: RuntimeLabelBindingProvenance
     run_labels: list[RuntimeLabelBindingProvenance] = Field(max_length=32)
     agent_labels: list[RuntimeLabelBindingProvenance] = Field(max_length=32)

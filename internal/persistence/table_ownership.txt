@@ -174,6 +174,10 @@ internal/findingintake       workflow_runs                  Receipts join their 
 internal/gatewayrecovery     workflow_runs                  Admission waits while a running or waiting Run waits on the
     route, an update that changes nothing is decided from one read without locks (SCH-R165), recovery status shows
     only active Runs and manual retry checks the Run's owner. Recovery locks and moves Runs through the Run store.
+internal/gatewayrecovery     stage_executions               Recovery refuses non-terminal updates of an ending or ended
+    participant. Primary-key reads share the healthy-route snapshot or the existing Run row lock; no Stage is locked.
+internal/gatewayrecovery     stage_allocations              Recovery resolves an allocation participant's owning Stage by
+    primary key for the same lifecycle fence; allocations are never changed or locked here.
 
 internal/gitimport           projects                       Git import checks that the Project is active and fences its
     deletion FOR SHARE.

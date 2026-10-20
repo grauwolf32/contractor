@@ -63,6 +63,9 @@ func admitRunOnRoute(
 	if _, err := runs.TransitionRun(ctx, runID, runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "admitted"}); err != nil {
 		t.Fatal(err)
 	}
+	if err := runstoretest.CreateRunningStage(ctx, runs, runID, "stage-"+runID, contracts.APIVersion); err != nil {
+		t.Fatal(err)
+	}
 	return service.Planner(runID, "stage-"+runID, route, llmgateway.DefaultGatewayFailureSignatures())
 }
 

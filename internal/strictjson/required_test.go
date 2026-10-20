@@ -107,13 +107,13 @@ func TestDecodeRequiresMembersBeyondTheFirstSixtyFour(t *testing.T) {
 }
 
 type invalidStrictTag struct {
-	Value int `json:"value" strictjson:"nullable"`
+	Value int `json:"value" strictjson:"required,unknown"`
 }
 
 func TestDecodeRejectsAnInvalidStrictTag(t *testing.T) {
 	var value invalidStrictTag
 	err := Decode([]byte(`{"value":1}`), &value)
-	if err == nil || errors.Is(err, ErrMissingField) || !strings.Contains(err.Error(), `invalid strictjson tag "nullable"`) {
+	if err == nil || errors.Is(err, ErrMissingField) || !strings.Contains(err.Error(), `invalid strictjson tag "required,unknown"`) {
 		t.Fatalf("Decode = %v", err)
 	}
 }

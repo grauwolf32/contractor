@@ -33,7 +33,7 @@ func TestSharedWorkerCompletionDiagnostics(t *testing.T) {
 			item.Value = json.RawMessage(strings.Replace(string(item.Value), "{", "{"+strings.Repeat(" ", item.JSONWhitespaceBytes), 1))
 			liveRaw := `{"counters":{},"toolCalls":[],"errors":[],"finalOutcome":null,"truncated":false,"completion":` + string(item.Value) + `}`
 			var live WorkerAllocationState
-			liveErr := json.Unmarshal([]byte(liveRaw), &live)
+			liveErr := contracts.DecodePrivate([]byte(liveRaw), &live)
 			if liveErr == nil {
 				liveErr = live.validate()
 			}
@@ -42,16 +42,20 @@ func TestSharedWorkerCompletionDiagnostics(t *testing.T) {
 			}
 			raw := `{"reportId":"report-1","complete":true,"metrics":{"tools":{}},"toolCalls":[],"errors":[],"truncated":false,"completion":` + string(item.Value) + `}`
 			var report ExecutionReport
-			err := json.Unmarshal([]byte(raw), &report)
+			err := contracts.DecodePrivate([]byte(raw), &report)
 			if err == nil {
 				err = report.Validate()
 			}
 			if (err == nil) != item.Valid {
 				t.Fatalf("valid=%v want=%v: %v", err == nil, item.Valid, err)
 			}
-			if strings.HasPrefix(item.Name, "unknown-") &&
-				(!errors.Is(err, contracts.ErrValidation) || !errors.Is(liveErr, contracts.ErrValidation)) {
-				t.Fatalf("unknown kind or phase is not a validation error: report %v, live %v", err, liveErr)
+			if strings.HasPrefix(item.Name, "unknown-") {
+				for _, problem := range []error{err, liveErr} {
+					var typed *contracts.PrivateProtocolError
+					if !errors.As(problem, &typed) || typed.Class != contracts.PrivateProtocolErrorSchema {
+						t.Fatalf("unknown kind or phase is not a private schema error: %v", problem)
+					}
+				}
 			}
 			if !item.Valid {
 				return

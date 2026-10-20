@@ -57,7 +57,9 @@ class DeterministicAuditResultPublisher:
         the existing cancellation/budget/sandbox signal unchanged. Construction
         does not grant output access; preparation and the Artifact API enforce it.
         """
-        target = ArtifactRef.model_validate(result_artifact.model_dump(by_alias=True))
+        target = ArtifactRef.model_validate(
+            result_artifact.model_dump(by_alias=True, exclude_none=True)
+        )
         if (
             not isinstance(owner, AuditInvocationOwner)
             or client.allocation_id != owner.allocation_id

@@ -1,5 +1,22 @@
 [
   {
+    "name": "null-completion",
+    "value": null,
+    "valid": false
+  },
+  {
+    "name": "null-failure-code",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "collecting",
+      "acceptedCount": 0,
+      "totalCount": 2,
+      "reminderCount": 0,
+      "failureCode": null
+    },
+    "valid": false
+  },
+  {
     "name": "whitespace-padded",
     "value": {
       "kind": "audit-check-results@1",

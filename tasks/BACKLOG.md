@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-80 open tasks: 4 in progress, 62 pending, 14 deferred. 906 finished: 903 completed, 3 archived.
+77 open tasks: 3 in progress, 60 pending, 14 deferred. 911 finished: 908 completed, 3 archived.
 
 ## In progress
 
@@ -14,7 +14,6 @@ the epics are in [epics.yml](epics.yml).
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
-| [V371-003](v371-003-reject-optional-member-null.yml) | api-contracts | defect | P1 | Reject explicit null for optional private-wire members and null map values |
 
 ## Pending
 
@@ -24,7 +23,6 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V371-014](v371-014-scheduler-stage-history-reads.yml) | defect | P3 | — | Read only the Stage history fields escalation counting and cancellation cleanup use |
 | [V372-007](v372-007-terminal-stage-state-set.yml) | chore | P3 | — | Define the terminal StageExecution states once and hold SQL and the UI to them |
-| [V372-012](v372-012-gateway-recovery-late-update.yml) | defect | P2 | — | Keep a late model-recovery update of an ended Stage from moving its Run back to waiting |
 | [V372-028](v372-028-runstore-strict-snapshot-reads.yml) | chore | P3 | — | Decode persisted Run, Stage and allocation snapshots strictly in runstore |
 
 ### Planners and the Worker model boundary (`planner-worker`)
@@ -46,9 +44,9 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V375-002](v375-002-caido-sitemap-cardinality.yml) | defect | P1 | — | Keep Caido sitemap browsing usable above one hundred entries |
 | [V377-001](v377-001-http-cookie-session-artifact.yml) | feature | P2 | — | Preserve target cookies as an ordinary artifact across Run continuation |
 | [V382-001](v382-001-interactsh-worker-tools.yml) | feature | P1 | — | Add configurable Interactsh tools for Worker callback evidence |
+| [V386-004](v386-004-caido-catalog-cardinality.yml) | defect | P2 | — | Keep Caido catalog selection usable above one hundred entries |
 
 ### Scanner tool Workers and scan planning (`scan-tools`)
 
@@ -123,7 +121,6 @@ the epics are in [epics.yml](epics.yml).
 | [V372-022](v372-022-standby-public-api-envelope.yml) | defect | P3 | — | Answer the public API on a standby Server with the error envelope |
 | [V372-025](v372-025-typed-openapi-enums.yml) | chore | P3 | — | Give every enum of the public OpenAPI document a type |
 | [V372-026](v372-026-request-digests-in-services.yml) | chore | P3 | — | Move the Project, Audit and review request digests out of the public handlers |
-| [V372-027](v372-027-execution-error-message-bound.yml) | defect | P3 | — | Count the execution error message bound in UTF-8 bytes on both sides and cover it with shared cases |
 
 ### PostgreSQL persistence and schema (`persistence`)
 
@@ -176,14 +173,14 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 4 | 36 | 49 | 11 | 63 |
+| Run execution core (`execution-core`) | 3 | 36 | 49 | 11 | 63 |
 | Planners and the Worker model boundary (`planner-worker`) | 3 | 25 | 37 | 13 | 50 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 11 | 25 | 12 | 3 | 37 |
 | Shared Memory tools (`memory`) | 0 | 6 | 8 | 1 | 11 |
 | Agent Skills (`agent-skills`) | 0 | 10 | 2 | 1 | 1 |
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 12 | 4 | 15 |
 | Code analysis and taint annotations (`code-analysis`) | 0 | 13 | 12 | 2 | 17 |
-| HTTP and Caido tools (`http-tools`) | 3 | 11 | 13 | 4 | 14 |
+| HTTP and Caido tools (`http-tools`) | 3 | 11 | 14 | 4 | 15 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 1 | 10 | 4 | 1 | 7 |
 | Findings tools and collections (`findings`) | 4 | 7 | 5 | 4 | 7 |
 | Workflow catalog and document workflows (`workflows`) | 3 | 14 | 13 | 12 | 12 |
@@ -192,7 +189,7 @@ tasks in `introduced_by`.
 | Evaluations (`evals`) | 3 | 21 | 29 | 5 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 9 | 1 | 1 | 2 |
 | Web UI (`ui`) | 1 | 20 | 53 | 11 | 49 |
-| Operations, authentication, CLI and deployment (`operations`) | 0 | 8 | 31 | 4 | 6 |
-| Public API and wire contracts (`api-contracts`) | 9 | 1 | 29 | 20 | 8 |
+| Operations, authentication, CLI and deployment (`operations`) | 0 | 8 | 31 | 5 | 7 |
+| Public API and wire contracts (`api-contracts`) | 7 | 1 | 29 | 20 | 8 |
 | PostgreSQL persistence and schema (`persistence`) | 4 | 0 | 19 | 33 | 8 |
 | Quality, CI and process (`quality`) | 14 | 1 | 20 | 78 | 16 |
