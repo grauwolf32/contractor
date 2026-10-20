@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-81 open tasks: 3 in progress, 64 pending, 14 deferred. 903 finished: 900 completed, 3 archived.
+80 open tasks: 4 in progress, 62 pending, 14 deferred. 906 finished: 903 completed, 3 archived.
 
 ## In progress
 
@@ -14,6 +14,7 @@ the epics are in [epics.yml](epics.yml).
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
+| [V371-003](v371-003-reject-optional-member-null.yml) | api-contracts | defect | P1 | Reject explicit null for optional private-wire members and null map values |
 
 ## Pending
 
@@ -30,7 +31,6 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V371-002](v371-002-worker-state-endpoint-contract.yml) | defect | P2 | — | Serve a schema-valid Worker State and classify its failures like the Server |
 | [V371-004](v371-004-worker-completion-exact-integers.yml) | defect | P3 | — | Bound WorkerCompletion integers to the range A2A carries exactly |
 | [V371-005](v371-005-worker-state-read-cost-guard.yml) | chore | P3 | — | Guard the Worker State read cost with a deterministic bound and re-measure it |
 | [V371-006](v371-006-workspace-observation-descriptor.yml) | chore | P3 | — | Take the Worker tools that observe the workspace from the shared Toolset descriptor |
@@ -116,7 +116,6 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V371-003](v371-003-reject-optional-member-null.yml) | defect | P3 | V371-002 | Reject explicit null for optional private-wire members and null map values |
 | [V371-016](v371-016-idempotency-key-grammar.yml) | defect | P3 | — | Give the Idempotency-Key grammar one Go definition |
 | [V371-017](v371-017-strong-etag-grammar.yml) | defect | P3 | — | Accept only RFC 9110 strong entity tags in If-Match |
 | [V371-018](v371-018-repeat-draft-description.yml) | chore | P3 | — | Remove the historical-request sentence from the repeat-draft OpenAPI description |
@@ -178,7 +177,7 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 4 | 36 | 49 | 11 | 63 |
-| Planners and the Worker model boundary (`planner-worker`) | 4 | 25 | 37 | 13 | 50 |
+| Planners and the Worker model boundary (`planner-worker`) | 3 | 25 | 37 | 13 | 50 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 11 | 25 | 12 | 3 | 37 |
 | Shared Memory tools (`memory`) | 0 | 6 | 8 | 1 | 11 |
 | Agent Skills (`agent-skills`) | 0 | 10 | 2 | 1 | 1 |
@@ -190,10 +189,10 @@ tasks in `introduced_by`.
 | Workflow catalog and document workflows (`workflows`) | 3 | 14 | 13 | 12 | 12 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 29 | 32 | 4 | 34 |
 | Audits (`audits`) | 19 | 50 | 68 | 13 | 79 |
-| Evaluations (`evals`) | 3 | 21 | 28 | 5 | 33 |
+| Evaluations (`evals`) | 3 | 21 | 29 | 5 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 9 | 1 | 1 | 2 |
-| Web UI (`ui`) | 1 | 20 | 53 | 11 | 48 |
+| Web UI (`ui`) | 1 | 20 | 53 | 11 | 49 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 8 | 31 | 4 | 6 |
 | Public API and wire contracts (`api-contracts`) | 9 | 1 | 29 | 20 | 8 |
 | PostgreSQL persistence and schema (`persistence`) | 4 | 0 | 19 | 33 | 8 |
-| Quality, CI and process (`quality`) | 14 | 1 | 19 | 78 | 16 |
+| Quality, CI and process (`quality`) | 14 | 1 | 20 | 78 | 16 |

@@ -1,0 +1,62 @@
+schema_version: "1.0"
+id: V386-002
+title: Render Eval experiment summaries in UTC independently of PostgreSQL timezone
+milestone: eval-maintenance-2026-10
+epic: evals
+kind: defect
+priority: P1
+status: completed
+implementation_commit: ba6bef20100483a3f2c08dd9d4d253ec6cc87952
+depends_on: []
+languages: [go]
+goal: Return schema-valid Eval experiment pages when the PostgreSQL session uses a non-UTC timezone.
+context:
+  severity: medium
+  specification: docs/spec/evals/managed-evals.md#EVM-R146
+  finding: >-
+    internal/evalstore/public_read_sql.go:55 serializes updated_at into JSON
+    in the PostgreSQL session timezone; public_read.go:143 decodes that offset
+    into time.Time and publishes it unchanged. The managed Timestamp schema
+    requires UTC. On a Europe/Moscow PostgreSQL 17 server, both
+    TestSharedEvalPostgresBoundedCollectionsRejectStaleAndForeignCursors and
+    TestSharedEvalPostgresNativeAuthoringCommandsAndPublicViews return 500
+    internal_error on GET /v1/eval-experiments instead of 200 at main 2ef8f30f.
+    git blame traces this projection to 98ad7b81, whose task association is
+    not present in the task records.
+  siblings: >-
+    Owner-wide and Project-filtered lists share SummaryPage. Check dataset
+    pages, experiment detail and command timestamps for the same JSON
+    round-trip; retain public UTC Timestamp contracts and cursor ordering.
+scope:
+  in:
+    - Normalize summary timestamps at the owning read boundary.
+    - Add a real PostgreSQL regression for UTC and non-UTC sessions through the public list handler.
+  out:
+    - Change host/database timezone settings or relax the Timestamp schema.
+failure_outcomes:
+  - operation: List Eval experiments
+    permanent: Existing validation and ownership failures stay unchanged.
+    retryable: Existing classified store failures stay unchanged.
+    ambiguous: Read-only; no mutation.
+    cancelled: The existing request context ends the read.
+    timeout: The existing database operation budget owns the read.
+cardinality:
+  - collection: Experiment summaries on one page
+    expected: 25
+    maximum: Existing MaxPageSize
+    bound: Normalize only returned rows without additional database calls.
+acceptance_criteria:
+  - {id: A1, text: Public experiment lists return schema-valid UTC timestamps under UTC and non-UTC PostgreSQL sessions.}
+  - {id: A2, text: Pagination, exact setup metadata and all existing public PostgreSQL regressions pass.}
+  - {id: A3, text: The non-UTC regression fails on the original SummaryPage implementation.}
+tests:
+  - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/evalstore ./internal/httpapi/public", covers: [A1, A2, A3]}
+  - {command: make lint, covers: [A1, A2, A3]}
+verification:
+  date: "2026-10-20"
+  baseline: The real public handler regression passed for UTC and returned 500 for Asia/Kolkata and America/New_York before the fix.
+  siblings: Experiment detail already normalizes its timestamps in evalservice.Get; dataset pages return validated immutable metadata, and command timestamps do not pass through PostgreSQL JSON.
+  passed:
+    - "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/evalstore ./internal/httpapi/public: both full packages passed with PostgreSQL 17.11."
+    - "make lint: passed."
+  environment: TMPDIR=/private/tmp avoids macOS symlink ancestors, which the filesystem Artifact backend intentionally rejects.

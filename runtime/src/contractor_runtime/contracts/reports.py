@@ -113,7 +113,9 @@ class WorkerCompletionDiagnostics(WireModel):
     accepted_count: int = Field(ge=0, le=64)
     total_count: int = Field(ge=1, le=64)
     reminder_count: int = Field(ge=0, le=2)
-    failure_code: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_]{0,63}$")
+    failure_code: str | None = Field(
+        default=None, pattern=r"^[a-z][a-z0-9_]{0,63}$", exclude_if=lambda value: value is None
+    )
 
     @model_validator(mode="after")
     def validate_completion(self) -> Self:

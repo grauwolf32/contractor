@@ -17,10 +17,11 @@ import (
 func TestSharedWorkerCompletionDiagnostics(t *testing.T) {
 	data := contractstest.ReadFile(t, "api", "testdata", "audit-completion", "diagnostics.json")
 	var cases []struct {
-		Name         string
-		Value        json.RawMessage
-		Valid        bool
-		SemanticOnly bool
+		Name                string
+		Value               json.RawMessage
+		Valid               bool
+		SemanticOnly        bool
+		JSONWhitespaceBytes int
 	}
 	if err := json.Unmarshal(data, &cases); err != nil {
 		t.Fatal(err)
@@ -29,6 +30,7 @@ func TestSharedWorkerCompletionDiagnostics(t *testing.T) {
 	for _, item := range cases {
 		seen[item.Name] = true
 		t.Run(item.Name, func(t *testing.T) {
+			item.Value = json.RawMessage(strings.Replace(string(item.Value), "{", "{"+strings.Repeat(" ", item.JSONWhitespaceBytes), 1))
 			liveRaw := `{"counters":{},"toolCalls":[],"errors":[],"finalOutcome":null,"truncated":false,"completion":` + string(item.Value) + `}`
 			var live WorkerAllocationState
 			liveErr := json.Unmarshal([]byte(liveRaw), &live)

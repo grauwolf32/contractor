@@ -13,6 +13,7 @@ from shared_fixture_gate import (
     go_outcomes,
     load_manifest,
     observed_reads,
+    ui_reads,
 )
 
 
@@ -21,6 +22,16 @@ def entry(*readers: str, reason: str = "") -> Entry:
 
 
 class ManifestTest(unittest.TestCase):
+    def test_repository_ui_imports_are_declared(self):
+        manifest = load_manifest()
+        imports = ui_reads()
+        self.assertTrue(imports, "no UI shared fixture imports were checked")
+        for fixture in imports:
+            with self.subTest(fixture=fixture):
+                declared = declared_readers(fixture, manifest)
+                self.assertIsNotNone(declared)
+                self.assertIn("ui", declared[1].readers)
+
     def test_the_longest_key_wins(self):
         manifest = {"v1alpha1/": entry("go", "python"), "v1alpha1/a.json": entry("go", "python", "ui")}
         self.assertEqual(declared_readers("v1alpha1/a.json", manifest)[0], "v1alpha1/a.json")

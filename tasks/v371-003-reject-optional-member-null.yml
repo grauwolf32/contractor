@@ -4,8 +4,8 @@ title: "Reject explicit null for optional private-wire members and null map valu
 milestone: hub-audit-defects-2026-10
 epic: api-contracts
 kind: defect
-priority: P3
-status: pending
+priority: P1
+status: in_progress
 depends_on: [V371-002]
 languages: [go, python]
 goal: "Every optional member of every valid private fixture, set to null, and every null value in a scalar map is rejected by the schema, the Go strict private decoder and the Python models alike."
@@ -73,3 +73,12 @@ tests:
     covers: [A1, A3]
   - command: make lint
     covers: [A1, A2, A3, A4]
+work_checkpoint:
+  date: "2026-10-20"
+  reason: User requested a temporary interruption after committing the current work.
+  state: Dependency V371-002 is complete; implementation and regression changes for this task have not started.
+  next_step: >-
+    Extend the generated required-member cases to schema-rejected nulls in
+    optional members and scalar map values; reproduce the failures before
+    changing the private Go decoders and Python WireModel. Preserve public
+    nullable request fields and required nullable Worker State fields.

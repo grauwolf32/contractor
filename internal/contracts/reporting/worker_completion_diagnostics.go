@@ -55,9 +55,6 @@ func (d *WorkerCompletionDiagnostics) UnmarshalJSON(data []byte) error {
 // it fails the containing message with contracts.ErrValidation instead of
 // being dropped.
 func decodeWorkerCompletionDiagnostics(data []byte) (WorkerCompletionDiagnostics, error) {
-	if len(data) > 4096 {
-		return WorkerCompletionDiagnostics{}, contracts.Invalidf("Worker completion diagnostics exceed 4096 bytes")
-	}
 	type plain WorkerCompletionDiagnostics
 	var wire struct {
 		plain
@@ -73,6 +70,10 @@ func decodeWorkerCompletionDiagnostics(data []byte) (WorkerCompletionDiagnostics
 			return WorkerCompletionDiagnostics{}, contracts.Invalidf("empty Worker completion failure code")
 		}
 		value.FailureCode = *wire.FailureCode
+	}
+	size, err := contracts.ResultJSONSize(value)
+	if err != nil || size > 4096 {
+		return WorkerCompletionDiagnostics{}, contracts.Invalidf("Worker completion diagnostics exceed 4096 bytes")
 	}
 	if err := value.Validate(); err != nil {
 		return WorkerCompletionDiagnostics{}, err

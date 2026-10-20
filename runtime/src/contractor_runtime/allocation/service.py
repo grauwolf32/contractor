@@ -10,6 +10,8 @@ from collections.abc import Awaitable, Callable, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from pydantic import ValidationError
+
 from contractor_runtime.adapters import (
     AdapterHandles,
     AdapterPreparationError,
@@ -178,6 +180,13 @@ class AllocationService:
                 return await worker.agent_state_snapshot()
             except asyncio.CancelledError:
                 raise
+            except ValidationError:
+                raise AllocationError(
+                    "agent_state_unavailable",
+                    "allocation Worker State is unavailable",
+                    retryable=False,
+                    status_code=503,
+                ) from None
             except Exception:
                 raise AllocationError(
                     "agent_state_unavailable",

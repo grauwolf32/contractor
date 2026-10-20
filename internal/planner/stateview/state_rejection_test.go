@@ -13,16 +13,20 @@ import (
 // completion diagnostics carry an unknown kind or phase, is a non-retryable
 // unavailable projection rather than a retry loop or a partial State.
 func TestServiceKeepsRejectedStateReadNonRetryable(t *testing.T) {
-	reader := &recordingReader{err: &reporting.WorkerStateReadError{
-		StatusCode: http.StatusOK, Code: "worker_state_response_invalid", Retryable: false,
-	}}
-	service := testService(t, reader, Binding{
-		LogicalName: "builder", Handle: stateHandle("allocation-builder"), WorkspaceEligible: false,
-	})
-	service.RecordCompletion("builder", "1.1", stateCompletion("worker-completed", "1.1", 7))
-	_, err := service.GetWorkerToolUsage(t.Context(), "builder")
-	var typed *Error
-	if !errors.As(err, &typed) || typed.Code != CodeUnavailable || typed.Retryable {
-		t.Fatalf("rejected State projection error = %#v", err)
+	for _, code := range []string{"worker_state_response_invalid", "agent_state_unavailable"} {
+		t.Run(code, func(t *testing.T) {
+			reader := &recordingReader{err: &reporting.WorkerStateReadError{
+				StatusCode: http.StatusServiceUnavailable, Code: code, Retryable: false,
+			}}
+			service := testService(t, reader, Binding{
+				LogicalName: "builder", Handle: stateHandle("allocation-builder"), WorkspaceEligible: false,
+			})
+			service.RecordCompletion("builder", "1.1", stateCompletion("worker-completed", "1.1", 7))
+			_, err := service.GetWorkerToolUsage(t.Context(), "builder")
+			var typed *Error
+			if !errors.As(err, &typed) || typed.Code != CodeUnavailable || typed.Retryable {
+				t.Fatalf("rejected State projection error = %#v", err)
+			}
+		})
 	}
 }

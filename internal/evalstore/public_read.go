@@ -144,6 +144,9 @@ func (s *Store) SummaryPage(ctx context.Context, p SummaryPageParams) (SummaryPa
 	}
 	result.Items = make([]PublicSummary, len(rows))
 	for i, row := range rows {
+		// PostgreSQL's JSON timestamps carry the session offset; public
+		// managed-Eval Timestamp values are UTC regardless of that setting.
+		row.UpdatedAt = row.UpdatedAt.UTC()
 		result.Items[i] = row.PublicSummary
 		result.LastCreatedAt = row.CreatedAt
 	}

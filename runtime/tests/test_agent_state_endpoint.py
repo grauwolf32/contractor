@@ -6,6 +6,7 @@ from datetime import timedelta
 from pathlib import Path
 
 import httpx
+import pytest
 from test_allocation import NOW, make_service, make_spec
 
 from contractor_runtime.capabilities import CapabilitySnapshot
@@ -126,7 +127,41 @@ def test_agent_state_endpoint_is_read_only_and_lifecycle_bound(
             stopped = await client.get(STATE_PATH)
             assert stopped.status_code == 409
             assert stopped.json()["code"] == "agent_state_unavailable"
+            assert stopped.json()["retryable"] is True
             assert stopped.headers["cache-control"] == "no-store"
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("failure", ["invalid", "oversized", "infrastructure"])
+def test_agent_state_endpoint_classifies_snapshot_failures(
+    tmp_path, runtime_capabilities, monkeypatch, failure
+):
+    async def scenario():
+        state, service = await make_service(tmp_path, runtime_capabilities)
+        await service.prepare(make_spec())
+        if failure == "invalid":
+            service._context.worker_state._state["stateRevision"] = 0
+        elif failure == "oversized":
+            # Exercise the wire-size guard after the model has validated the snapshot.
+            monkeypatch.setattr("contractor_runtime.server.MAX_AGENT_STATE_SNAPSHOT_BYTES", 1)
+        else:
+
+            async def unavailable():
+                raise RuntimeError(SECRET)
+
+            monkeypatch.setattr(service._context.worker, "agent_state_snapshot", unavailable)
+        app = create_app(state, allocation_service=service, require_verified_peer=False)
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="https://runtime.example"
+        ) as client:
+            for _ in range(2):
+                response = await client.get(STATE_PATH)
+                assert response.status_code == 503
+                assert response.json()["code"] == "agent_state_unavailable"
+                assert response.json()["retryable"] is (failure == "infrastructure")
+                assert response.headers["cache-control"] == "no-store"
+                assert SECRET not in response.text
 
     asyncio.run(scenario())
 

@@ -709,7 +709,8 @@ the same verdict (FAIL-AWC-7):
   non-retryable `worker_state_unavailable`, and the Stage continues.
 - The Runtime models the object with the closed kind and phase sets, so its
   producer cannot record an unknown value. Its State endpoint validates every
-  snapshot at the wire boundary and answers `503 agent_state_unavailable`
+  snapshot at the wire boundary and answers non-retryable
+  `503 agent_state_unavailable`
   rather than serving the snapshot without the object.
 - Reports are validated before they are stored and are read back with the same
   strict decoder.
@@ -718,7 +719,10 @@ Rationale: a misspelt phase must surface as a rejected report or State read,
 not as a report that silently lacks its completion facts.
 
 **AWC-R116.** The optional object is bounded to 4 KiB at the wire boundary
-(LIM-AWC-12).
+(LIM-AWC-12), measured as compact UTF-8 JSON by the shared private-wire byte
+rule of WRK-R37. Formatting whitespace and unnecessary escape spellings do not
+consume the bound; Go and Python apply the same verdict to the whitespace-padded
+case in `diagnostics.json`.
 
 **AWC-R117.** Public attempt diagnostics retain these facts through the
 existing report projection and explicitly distinguish publication from Audit
