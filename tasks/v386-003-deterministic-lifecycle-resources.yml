@@ -1,0 +1,43 @@
+schema_version: "1.0"
+id: V386-003
+title: Make cross-language lifecycle resource measurements deterministic
+milestone: operations-performance-and-profiling
+epic: operations
+kind: chore
+introduced_by: V32-005
+priority: P3
+status: in_progress
+depends_on: []
+languages: [python, go]
+goal: Verify complete resource reports in the real Go/Python lifecycle independently of the host operating system.
+context:
+  specification: docs/spec/operations/operations.md#OPS-R73
+  finding: >-
+    internal/controlplane/runtime_client_integration_test.go:177 requires
+    complete process measurements, but runtime/tests/lifecycle_server.py
+    uses the default Linux-only reader. On macOS finalize and abort decode
+    successfully but carry the legitimate unavailable/unsupported_platform
+    result, so both tests fail before their cleanup assertions. git blame
+    traces the complete-status assertion to 34d61223, the V32-005 integration.
+scope:
+  in:
+    - Inject a deterministic process reader into the standalone lifecycle test server, retaining the real collector and transport.
+    - Retain the existing complete-resource assertions for finalize and abort.
+  out:
+    - Production resource readers, collection policy and unsupported-platform behavior.
+acceptance_criteria:
+  - {id: A1, text: Both real mTLS lifecycle variants return complete schema-valid resources and reach cleanup assertions on macOS.}
+  - {id: A2, text: Resource collector tests retain coverage of unsupported hosts and failure outcomes.}
+tests:
+  - {command: make test-control-integration, covers: [A1]}
+  - {command: "go test ./internal/controlplane", covers: [A1]}
+  - {command: "cd runtime && uv run pytest tests/test_resource_metrics.py", covers: [A2]}
+  - {command: make lint, covers: [A1, A2]}
+verification:
+  date: "2026-10-20"
+  baseline: Both lifecycle variants decoded their reports but failed the complete-resource assertion on macOS before the fixture change.
+  passed:
+    - "make test-control-integration: finalize and abort passed."
+    - "go test ./internal/controlplane: full package passed."
+    - "cd runtime && uv run pytest tests/test_resource_metrics.py: 28 passed, 2 Linux-specific cases skipped."
+    - "make lint: passed."
