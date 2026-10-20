@@ -6,7 +6,8 @@ epic: http-tools
 kind: defect
 introduced_by: V12-004
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: e0c7320d012a3c1520a4dd65409cf992a5305d94
 depends_on: []
 languages: [python, markdown]
 goal: Return bounded sitemap results with truthful continuation metadata when Caido has more than one hundred valid entries.
