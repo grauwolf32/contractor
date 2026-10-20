@@ -5,7 +5,8 @@ milestone: hub-audit-defects-2026-10
 epic: api-contracts
 kind: defect
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: 3abf4fb58514caa7e3916429e9e880ce1b6a2aa6
 depends_on: []
 languages: [go, python, json]
 goal: "Go, Python and the private schemas apply LIM-OBS-6's 4,096-byte message bound consistently, both implementations bound tool arguments in compact JSON bytes, and shared cases exercise final reports and live State."
