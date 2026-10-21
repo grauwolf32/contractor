@@ -6,8 +6,8 @@ epic: ui
 kind: defect
 introduced_by: V32-008
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: a9aaa0791aee858040971dce641241ee74adaafb
 depends_on: []
 languages: [typescript]
 goal: Keep the real browser gate strict about available Linux measurements and truthful unsupported-host outcomes.
@@ -36,3 +36,10 @@ acceptance_criteria:
 tests:
   - {command: make test-ui-stack-operations, covers: [A1, A2, A3]}
   - {command: make lint, covers: [A1, A2]}
+verification:
+  date: "2026-10-21"
+  host: Native macOS with real Server, PostgreSQL, Runtime and Chromium.
+  passed:
+    - "make test-ui-stack-operations: TestBrowserOperationsStack passed in 113 seconds; both resource views and subsequent output/repeat flows executed."
+    - "make lint: passed."
+  limitation: The Linux branch retains the strict available assertion; Linux execution was not repeated on this macOS host.
