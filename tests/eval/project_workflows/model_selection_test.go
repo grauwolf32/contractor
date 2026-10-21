@@ -38,7 +38,15 @@ func TestProjectWorkflowModelSelection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	changed := bytes.Replace(data, []byte("model: worker-model"), []byte("model: previous-alias"), 1)
+	fixtureCatalog, err := configload.Load(filepath.Join(fixture, "configs"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixturePolicy, err := fixtureCatalog.ModelPolicy("worker@2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed := bytes.Replace(data, []byte("model: "+fixturePolicy.Model), []byte("model: previous-alias"), 1)
 	if bytes.Equal(changed, data) {
 		t.Fatal("fixture model marker was absent")
 	}

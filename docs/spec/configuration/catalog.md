@@ -458,6 +458,34 @@ dependency is embedded in the immutable Run snapshot, so editing or deleting
 the configuration resource cannot change an existing Run
 ([LIFE-CAT-2](../platform/lifecycle.md)).
 
+### Deployment model compilation
+
+**CAT-R80.** Deployment model sources under `deploy/models/` separate model
+connection/capability profiles, bootstrap role selection and portable role
+budgets. Offline generation produces normal ModelPolicy manifests, a safe
+model-choice catalog and LiteLLM routes. Profiles contain symbolic API-key
+environment names, never credential values. All deployed model profiles have
+separate digest-qualified routes and exact role policy selectors; changing
+selection never retargets another profile's alias. Run/Eval execution selections
+pin resolved policies under [TPL-R79](agent-templates.md); an opaque route does
+not prove a provider weights revision ([EVM-R61](../evals/managed-evals.md)).
+
+**CAT-R81.** Model compilation accepts at most 32 profiles (LIM-CAT-6), reads
+at most 64 KiB per source (LIM-CAT-7), and supports exactly four roles: Planner,
+Worker, summarizer and Audit completion Worker. It generates up to four compatible model-specific
+policies per profile and six shared outputs, at most 134 files of at most 1 MiB
+each (LIM-CAT-8); cleanup examines at most 256 generated policy files to recover
+an interrupted generation (LIM-CAT-9). Unknown fields, duplicate keys, YAML
+indirection, invalid capabilities/budgets, unsafe endpoints, missing selections
+and symlink targets reject generation before writes. A role's output budget
+must fit the selected model's declared output capacity and context. Context and
+cumulative spend remain separate; compilation changes no AgentTemplate summary
+trigger, tool, instruction or Workflow reference. Individual replacements are
+atomic; check mode detects an interrupted multi-file write or drift and the
+operator reruns generation before deployment. Generation never contacts a
+provider or changes a running service. The role-policy directory dedicated to
+generation contains no operator-authored files; unexpected files prevent cleanup.
+
 ### Immutability
 
 **CAT-R44.** A configuration version published at runtime is
@@ -666,6 +694,8 @@ Registry entries owned by this document:
   Unicode code points (CAT-R63).
 - [LIM-CAT-5](../platform/limits.md): one YAML manifest or instruction resource
   is read with at most 4 MiB (CAT-R77).
+- [LIM-CAT-6](../platform/limits.md) to [LIM-CAT-9](../platform/limits.md):
+  bounded offline model compilation and recovery (CAT-R81).
 - [FAIL-CAT-1](../platform/failure-model.md): loading and resolving the
   configuration set (CAT-R24, CAT-R15,
   CAT-R32).

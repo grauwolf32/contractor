@@ -162,20 +162,40 @@ eleven bounded structural operations. They wait for a Runtime Agent whose
 positive capability includes the complete local Trailmark graph surface; there
 is no automatic downgrade to shallow analysis.
 
+Model authoring is split into three deployment sources:
+
+| Change | Source |
+| --- | --- |
+| Upstream model, endpoint, API-key environment name, context and output capacity | `deploy/models/catalog/<model>.yaml` |
+| Initial model for all roles and optional role overrides | `deploy/models/selection.yaml` |
+| Planner, Worker, summarizer and Audit completion spending/generation budgets | `deploy/models/roles.yaml` |
+| Whether and when a Worker produces a terminal summary | `agent-templates/*.yaml`, `spec.summarizer` |
+
+Run `make model-config` after editing these deployment sources, then
+`make test-config`. The generated `model-policies/*.yaml`,
+`model-policies/models/*.yaml`, `model-selection.json` and
+`deploy/litellm/litellm_config.yaml` must not be edited by hand;
+`make model-config-check` (also in `make lint`) detects drift. The model-choice
+catalog contains all deployed model-specific policies, so a Run or Eval can
+select an exact policy without replacing a shared route. The initial selection
+is a deployment bootstrap; it is not a mutable setting of an active Run.
+E2E and optional Eval fixtures have their own policies outside this generator.
+
 The default catalog uses `planner@2` and `worker@2` for normal execution,
-plus `summarizer@1` for terminal Worker summaries. The separately versioned
-Audit completion example retains its `audit_completion_worker@1` policy.
-The Planner and Worker policies both permit 200 model calls, with temperature
-0.6 (0.1 produced repetition loops; 1.0 is the Qwen3.8 card value). `planner@2`
-permits 2,500,000 cumulative provider-reported tokens, 16,384 output tokens per
-response and 200 Worker calls; `worker@2` permits 25,000,000 cumulative tokens,
-32,768 output tokens per response and 200 tool calls. The Worker token budget
-covers 200 calls at the summarization boundary, so a long investigation ends on
-its call budget rather than its token budget. They select `planner-model` and
-`worker-model`, respectively. The local LiteLLM configuration maps both aliases
-to OpenRouter `z-ai/glm-5.3-flash`; this also covers Audit completion and
-terminal summarization through `worker-model`. Each role can be routed
-independently later.
+`summarizer@1` for terminal summaries and `audit_completion_worker@1` for the
+separately selected Audit completion example. Each model also has up to four exact
+model-specific policies under `model-policies/models/`. Aliases carry the
+upstream model name, a model-profile digest and the role; changing the selection
+never retargets an old alias. A changed profile produces new aliases. Keep a
+profile deployed for as long as its pinned Runs may still execute. A requested
+model identifier is not proof of a provider's observed weights revision.
+
+The Planner and Worker policies both permit 200 model calls at temperature 0.6.
+`planner@2` permits 2,500,000 cumulative provider-reported tokens, 16,384 output
+tokens per response and 200 Worker calls; `worker@2` permits 25,000,000 cumulative
+tokens, 32,768 output tokens per response and 200 tool calls. Cumulative token
+budgets are independent of model context; a larger context can exhaust the
+spending budget before the call budget. Model changes never raise these budgets.
 
 The passthrough workspace Workflows pin `worker@2`.
 `openapi-from-workspace-streamline@2` and `likec4-from-workspace-streamline@4`
@@ -190,14 +210,26 @@ Choose these when each semantic Stage benefits from explicit
 ordered subtask decomposition; the passthrough variant remains the simpler
 default when one Worker invocation can own the complete Stage objective.
 
-The three shared policies declare a context window of 118,000 tokens. The
-ordinary model-backed Worker templates enable a one-shot, tool-free terminal
-summarizer at `contextWindowRatio: 0.8` (94,400 provider-reported prompt
-tokens). It uses the existing `worker-model` alias with up to 8,192 output
-tokens. No cumulative summary threshold is configured. The summarizer completes
-the invocation; it does not compact history and resume the tool loop. Required
-output artifacts must already exist, and an invalid or incomplete summary still
-fails the task.
+The GLM-5.3-Flash profile pins an operating context of 1,000,000 tokens and
+an output capability ceiling of 128,000 tokens; individual role output budgets
+remain lower. Ordinary model-backed Worker templates enable a one-shot,
+tool-free terminal summarizer at `contextWindowRatio: 0.8`: the threshold is
+`min(floor(worker context * ratio), worker context - worker max output)`.
+With the current Worker policy this is 800,000 provider-reported prompt tokens.
+The check occurs after a completed normal model response, not before the next
+request; context metadata does not guarantee prompt admission at the provider.
+The summarizer has its own selected model and an 8,192-token output budget.
+No cumulative summary threshold is configured in the default templates.
+
+The summarizer completes the invocation; it does not compact history and resume
+the same tool loop. Required output artifacts must already exist, and an invalid
+or incomplete summary still fails the task. Its transcript projection remains
+bounded to 512 KiB, with individual projected text bounded to 64 KiB. These byte
+limits do not grow with the model window and do not prove that the projection
+fits a smaller summarizer model's token window. Planner request/response bounds,
+tool read sizes and request timeouts are separate absolute limits; see
+[deployment](../docs/deployment.md#llm-gateway) and
+[timeout configuration](../docs/operations/timeout-configuration.md).
 
 The model-backed Audit Worker templates, including the
 `audit_source_checker@1` completion variant, retain mandatory

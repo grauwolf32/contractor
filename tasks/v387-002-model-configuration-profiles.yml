@@ -1,0 +1,127 @@
+schema_version: "1.0"
+id: V387-002
+title: Generate model routes and context from explicit model profiles
+milestone: model-policy-runtime-correctness
+epic: planner-worker
+kind: feature
+priority: P1
+status: in_progress
+depends_on: [V387-001]
+languages: [go, python, yaml]
+goal: >-
+  Change the default model or a role-specific model once while keeping its
+  Gateway route and advertised context consistent, with role spending budgets
+  and Worker terminal-summarization behavior configured separately.
+context:
+  specification:
+    - docs/spec/configuration/agent-templates.md#TPL-R19
+    - docs/spec/configuration/agent-templates.md#TPL-R22
+    - docs/spec/configuration/catalog.md#CAT-R74
+    - docs/spec/configuration/catalog.md#CAT-R80
+    - docs/spec/execution/worker.md#WRK-R162
+  design: docs/deployment.md
+scope:
+  in:
+    - Separate deployment model metadata, role selection and portable role budgets.
+    - Generate bootstrap role policies, model-specific policies, an exact model-choice catalog and immutable LiteLLM routes deterministically.
+    - Give GLM-5.3-Flash a 1000000-token operating window while other profiles retain their own capacities.
+    - Keep summarization in AgentTemplates and document its independent trigger and terminal semantics.
+    - Guard generated configuration drift in make lint and use fixture-only generator tests.
+    - Apply the generated GLM routes to the existing manual local Gateway and scope its virtual key to the generated aliases.
+  out:
+    - New Runtime provider logic, inheritance or execution-selection precedence.
+    - New API configuration kinds, UI provider management, login startup and existing business-data changes.
+requirements:
+  - id: R1
+    text: Each model profile owns the upstream route, API-key environment name, context and output capacity; every profile has permanent digest-qualified aliases.
+  - id: R2
+    text: Planner, Worker, summarizer and Audit completion retain their existing finite budgets; distinct model-specific policies are available for Run and Eval overrides.
+  - id: R3
+    text: Model context and cumulative token budget remain independent; GLM's larger context does not raise the spending budget.
+  - id: R4
+    text: Generation changes no AgentTemplate summarization ratio, instruction, tool or Workflow reference.
+  - id: R5
+    text: Credentials remain outside tracked configuration and generated output; model profiles name environment variables only.
+failure_outcomes:
+  - operation: Generate or check model configuration
+    permanent: Unknown models, unknown fields, duplicate YAML keys, invalid limits and unsafe output targets fail without applying configuration.
+    retryable: No automatic retry; the operator fixes the input or filesystem error and reruns the command.
+    ambiguous: Deterministic output and check mode detect an incomplete or drifted generation; a live Gateway is changed only after validation succeeds.
+    cancelled: No background work or subprocess outlives generation.
+    timeout: Reads are bounded by explicit file count and byte limits; no provider calls occur during generation.
+cardinality:
+  - collection: Model profiles
+    expected: 1
+    maximum: 32
+    bound: Each source is at most 65536 bytes; four roles produce up to four compatible policies per model and six shared outputs, at most 134 files of at most 1 MiB each. Generated-policy cleanup examines at most 256 files to recover an interrupted regeneration.
+  - collection: Model roles
+    expected: 4
+    maximum: 4
+    bound: Closed roles are planner, worker, summarizer and audit_completion_worker.
+lifecycle:
+  - entity: Deployment model profile
+    delete: An operator may remove an unselected profile; selected missing profiles reject generation.
+    cascade: None; retained Run snapshots and managed configuration identities are unchanged.
+    retention: Tracked source profiles and deterministic generated manifests; ignored local install metadata records the applied revision.
+acceptance_criteria:
+  - id: A1
+    given: The default GLM profile and existing role budgets
+    when: Configuration is generated and loaded by the real catalog
+    then: All four roles use GLM-5.3-Flash with a 1000000-token window and their existing output, call and cumulative budgets.
+  - id: A2
+    given: Two fixture model profiles with different context capacities
+    when: Only one role selects the second model
+    then: Only that bootstrap role policy and selection change; routes and model-specific policies stay immutable and all spending budgets remain unchanged.
+  - id: A3
+    given: Invalid input or drifted generated output
+    when: Generate or check is invoked
+    then: The command fails clearly, does not contact a provider and does not accept secret-bearing or partial configuration.
+  - id: A4
+    given: Existing AgentTemplates and the manually started local Gateway
+    when: The generated GLM configuration is applied
+    then: Summarization remains a separately configured terminal trigger and the real Planner, Worker and summarizer contracts pass without login startup.
+tests:
+  - command: cd runtime && uv run python -m unittest discover -s ../scripts -p test_generate_model_config.py
+    covers: [A1, A2, A3]
+  - command: make model-config-check
+    covers: [A1, A3]
+  - command: make test-config
+    covers: [A1]
+  - command: go test ./tests/eval/project_workflows
+    covers: [A1, A4]
+  - command: make test-hardening-matrices
+    covers: [A1, A4]
+  - command: make test-live-routing
+    covers: [A4]
+  - command: cd runtime && uv run pytest tests/test_live_gateway.py
+    covers: [A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+decisions:
+  guarantee: >-
+    Deployment-time generation couples model routing and context metadata.
+    Catalog model identifiers and digest-qualified routes stay stable when selection changes.
+    selection.yaml is a bootstrap default, not the future durable UI setting.
+    Runtime receives complete policies without model-name inference.
+    Role budgets and AgentTemplate terminal-summary triggers keep their existing owners.
+  alternatives: >-
+    Separate GLM policies would duplicate role budgets and require changing
+    dozens of references. Runtime inheritance or provider-specific ModelPolicy
+    fields would alter the public contract for an operator-configuration problem.
+  reversal: Revisit when a provider exposes a pinned model revision or model management must provision new remote routes at runtime; never equate a requested alias with observed weights.
+validation_results:
+  deterministic: >-
+    Fourteen fixture-only generator tests pass, including all four role overrides,
+    small output-capacity models, immutable routes, malformed input, bounded
+    enumeration, symlinks, drift and interrupted-write recovery.
+  catalog: make model-config-check, make test-config, go test ./tests/eval/project_workflows and make test-hardening-matrices pass.
+  lint: make lint passes with 110 script tests and all layer, schema, UI gate and generated-file checks.
+  live: >-
+    make test-live-routing passes (three calls, selected reviewer);
+    runtime tests/test_live_gateway.py has three passes with no skips;
+    all four new aliases return content and positive provider usage through the persisted scoped virtual key.
+  local_installation: >-
+    Generated routes are copied to the ignored manual local installation;
+    its virtual key permits exactly the four new aliases. Only the foreground
+    Gateway job was restarted; PostgreSQL and its persistent volume were retained.
+    No login startup or automatic restart was installed.
