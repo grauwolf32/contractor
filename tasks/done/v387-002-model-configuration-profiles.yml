@@ -5,7 +5,7 @@ milestone: model-policy-runtime-correctness
 epic: planner-worker
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V387-001]
 languages: [go, python, yaml]
 goal: >-
@@ -125,3 +125,4 @@ validation_results:
     its virtual key permits exactly the four new aliases. Only the foreground
     Gateway job was restarted; PostgreSQL and its persistent volume were retained.
     No login startup or automatic restart was installed.
+implementation_commit: 52b60b3b0830598a1057a8954f37b36a3f32ae08
