@@ -58,12 +58,16 @@ test("source preparation, approval, Nuclei and retained evidence survive Run del
     }
     throw new Error("Audit projection did not settle within five reads");
   };
-  const capture = async (name: string) =>
-    page.screenshot({
+  const capture = async (name: string) => {
+    await expect(page.getByText("Loading text…", { exact: true })).toHaveCount(
+      0,
+    );
+    await page.screenshot({
       path: path.join(directory, `${name}.png`),
       fullPage: true,
       animations: "disabled",
     });
+  };
   const control = async (command: string) => {
     const response = await page.request.post(
       `${required("CONTRACTOR_COMPOSITION_CONTROL")}/${command}`,
@@ -147,6 +151,17 @@ test("source preparation, approval, Nuclei and retained evidence survive Run del
     "Source composition browser",
   );
   const id = await start(seeded.projectId);
+  // Wait for the preparation Run binding, then load that committed revision.
+  // The scripted Gateway holds its first invocation, so no output acceptance
+  // can race Pause. A stale write must remain a visible conflict, not be retried.
+  await expect
+    .poll(
+      async () =>
+        Boolean((await getAudit(id)).preparation?.roles["generate-api"]?.runId),
+      { timeout: 30_000 },
+    )
+    .toBe(true);
+  await page.reload();
   await expect(
     page.getByRole("heading", { name: "Preparing materials", exact: true }),
   ).toBeVisible();
