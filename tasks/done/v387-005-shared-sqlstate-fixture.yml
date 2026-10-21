@@ -6,7 +6,7 @@ epic: audits
 kind: chore
 introduced_by: V62-012
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages: [go]
 goal: Keep the controlled Audit inventory fault byte-equivalent while satisfying the single SQLSTATE definition guard.
@@ -32,3 +32,7 @@ tests:
     covers: [A1]
   - command: make lint
     covers: [A2]
+implementation_commit: a5181602cad782b3f28bfdf09b93918b1a4f0c59
+verification:
+  packages: go test ./internal/persistence ./tests/e2e passed, and the e2e-tagged process package compiled.
+  lint: make lint passed including the SQLSTATE source guard and 112 script tests.
