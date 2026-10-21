@@ -46,8 +46,7 @@ podman run -d --name "$proxy_name" --network "$network_name" \
   -e LITELLM_MASTER_KEY="$admin_key" \
   -e LITELLM_SALT_KEY=sk-contractor-pinned-contract-salt \
   -e DATABASE_URL="postgresql://postgres:contract-test@$database_name:5432/litellm" \
-  -e CONTRACTOR_LM_STUDIO_URL=http://lm-studio.example:1234/v1 \
-  -e CONTRACTOR_LM_STUDIO_TOKEN=lm-studio \
+  -e OPENROUTER_API_KEY=sk-or-v1-contract-test-not-for-inference \
   -v "$script_dir/litellm_config.yaml:/app/config.yaml:ro,Z" \
   "$litellm_image" \
   --config /app/config.yaml --host 0.0.0.0 --port 4000 >/dev/null
