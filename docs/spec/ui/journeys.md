@@ -60,7 +60,7 @@ Each term is defined once in the [glossary](../glossary.md).
 - **Primary journey** — the path Project → materials → Workflow → Run setup →
   execution → result → next Run or Audit review.
 - **User story** — one user goal with completion criteria, identified as
-  US-01 to US-11; US-*nn* corresponds to UC-*nn* of the usability study.
+  US-01 to US-11; US-_nn_ corresponds to UC-_nn_ of the usability study.
 - **Workflow user surface** — the UI capabilities for discovering published
   Workflows and configuring, starting, following and inspecting their Runs
   (UIJ-R5 to UIJ-R20).
@@ -77,11 +77,11 @@ Each term is defined once in the [glossary](../glossary.md).
 
 The roles describe user scenarios; UIJ-R1 states how they relate to authorization.
 
-| Role | Activities |
-| --- | --- |
-| Analyst / researcher | Prepares materials, starts analyses, reads results and makes Audit decisions |
-| Workflow / agent author | Selects and checks published definitions, reads prompts and compares behavior variants |
-| Operator | Monitors execution and resources, changes settings and resolves infrastructure issues that cause waits or failures |
+| Role                    | Activities                                                                                                         |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Analyst / researcher    | Prepares materials, starts analyses, reads results and makes Audit decisions                                       |
+| Workflow / agent author | Selects and checks published definitions, reads prompts and compares behavior variants                             |
+| Operator                | Monitors execution and resources, changes settings and resolves infrastructure issues that cause waits or failures |
 
 ### Primary journey
 
@@ -96,22 +96,22 @@ flowchart LR
 ### User stories
 
 Each story states a user goal; its completion criteria are the requirements in
-the matching subsection of [Requirements](#requirements). US-*nn* corresponds
-to UC-*nn* of the usability study.
+the matching subsection of [Requirements](#requirements). US-_nn_ corresponds
+to UC-_nn_ of the usability study.
 
-| Story | Title | Goal |
-| --- | --- | --- |
-| US-01 | Prepare a Project | As an analyst, I want to collect source code, the target and results in one Project so that I can continue and repeat work on the same subject. |
-| US-02 | Choose an analysis by its intended result | As a user, I want to find a Workflow by its purpose and expected result so that I can choose an analysis without first learning about Stages and internal names. |
-| US-03 | Configure and start a Run without losing input | As an analyst, I want to select suitable inputs, add a file if necessary and return to unfinished setup so that I do not have to assemble the request again. |
-| US-04 | Understand execution progress and waits | As a user, I want to see the current work and the reason for a wait so that I can decide whether to intervene or wait for execution to continue. |
-| US-05 | Retrieve and use a result | As an analyst, I want to find the primary result immediately and open a specific document so that I can assess it and continue working with it. |
-| US-06 | Fix the cause and repeat an analysis | As a user, I want to open a new draft from a previous Run with the same inputs and parameters so that I can repeat the work after fixing an error. |
-| US-07 | Conduct an Audit and make decisions | As a researcher, I want to see check progress, gaps and pending decisions so that I can assess findings against their evidence and accept the report. |
-| US-08 | Inspect an agent and its prompt | As a Workflow author, I want to open an exact agent version, read its base prompt, Skills and tools, and see the Workflows that use it so that I can understand its behavior. |
-| US-09 | Find and inspect the right file | As an analyst, I want to add a file and see its purpose, revision and provenance so that I can select the right material and reproduce the result. |
-| US-10 | Compare variants through Evals | As an agent author, I want to define variants, shared cases and a repeat count so that I can compare results, duration and token usage using comparable data. |
-| US-11 | Monitor and configure execution | As an operator, I want to see Runtime readiness, Server load and database state, and understand the impact of settings before changing them, so that I can resolve execution blockers and manage resources. |
+| Story | Title                                          | Goal                                                                                                                                                                                                        |
+| ----- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| US-01 | Prepare a Project                              | As an analyst, I want to collect source code, the target and results in one Project so that I can continue and repeat work on the same subject.                                                             |
+| US-02 | Choose an analysis by its intended result      | As a user, I want to find a Workflow by its purpose and expected result so that I can choose an analysis without first learning about Stages and internal names.                                            |
+| US-03 | Configure and start a Run without losing input | As an analyst, I want to select suitable inputs, add a file if necessary and return to unfinished setup so that I do not have to assemble the request again.                                                |
+| US-04 | Understand execution progress and waits        | As a user, I want to see the current work and the reason for a wait so that I can decide whether to intervene or wait for execution to continue.                                                            |
+| US-05 | Retrieve and use a result                      | As an analyst, I want to find the primary result immediately and open a specific document so that I can assess it and continue working with it.                                                             |
+| US-06 | Fix the cause and repeat an analysis           | As a user, I want to open a new draft from a previous Run with the same inputs and parameters so that I can repeat the work after fixing an error.                                                          |
+| US-07 | Conduct an Audit and make decisions            | As a researcher, I want to see check progress, gaps and pending decisions so that I can assess findings against their evidence and accept the report.                                                       |
+| US-08 | Inspect an agent and its prompt                | As a Workflow author, I want to open an exact agent version, read its base prompt, Skills and tools, and see the Workflows that use it so that I can understand its behavior.                               |
+| US-09 | Find and inspect the right file                | As an analyst, I want to add a file and see its purpose, revision and provenance so that I can select the right material and reproduce the result.                                                          |
+| US-10 | Compare variants through Evals                 | As an agent author, I want to define variants, shared cases and a repeat count so that I can compare results, duration and token usage using comparable data.                                               |
+| US-11 | Monitor and configure execution                | As an operator, I want to see Runtime readiness, Server load and database state, and understand the impact of settings before changing them, so that I can resolve execution blockers and manage resources. |
 
 ### Audit draft input selection
 
@@ -369,6 +369,39 @@ controlling Audit, without copying its internal labels into an ordinary user
 request.
 
 ### US-07 — Conduct an Audit and make decisions
+
+#### Preparation and endpoint details
+
+**UIJ-R113.** A prepared Check has a guided overview showing material
+preparation, endpoint checks and review/report as separate stages. Server
+`phase`, role status and accepted inventory determine progress; authored role
+names do not determine lifecycle. Before inventory acceptance there is no
+endpoint denominator or coverage percentage. A failed preparation shows the
+failed attempt and its diagnostics without presenting an empty clean assessment
+or offering an unsupported in-place restart.
+
+**UIJ-R114.** Endpoint details keep the bounded endpoint list beside its
+conclusion, observations, exact source/settings and saved evidence. SQLMap
+request checks name the prepared request identity; Nuclei URL checks name the
+fixed URL and explain that method, body and authenticated session are not
+replayed. Technical scan completion uses the neutral information tone and
+remains separate from security coverage and confirmed findings. Partial lists
+label completion counts as describing the loaded endpoints.
+
+**UIJ-R115.** Original materials and accepted generated outputs are distinct.
+Generated outputs and result members open through an exact committed Audit
+receipt, with no generic access to protected Project prefixes. Content is read
+only when opened, within the existing Artifact byte and preview limits; closing
+cancels the read. Read failures offer an explicit read retry, never replay an
+execution or decision. Unsupported or large previews explain the limit and offer
+download; textual content is rendered without executing embedded HTML.
+
+**UIJ-R116.** A phase or first-Round change refreshes dependent items, coverage,
+workspace counts, findings and decisions immediately, as do existing terminal
+transition and reconnect rules. Starting preparation moves focus to its new
+overview heading; closing a material returns focus to its trigger. The guided
+overview and endpoint workspace support keyboard navigation, 390-pixel layouts
+and the existing light, dark and black themes.
 
 #### Summary and review navigation
 

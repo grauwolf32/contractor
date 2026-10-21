@@ -114,6 +114,8 @@ export function CheckProgress({
   workspace: UseQueryResult<AuditWorkspace>;
   links: CheckLinks;
 }) {
+  const inventoryPending =
+    audit.phase === "preparing" || audit.phase === "inventory";
   const snapshot = workspace.data;
   // The list is pinned to another revision than the snapshot: its own rows
   // feed the whole header.
@@ -125,9 +127,13 @@ export function CheckProgress({
   const source = pinned ? undefined : snapshot;
   const counts = source === undefined ? undefined : workCounts(source);
   const fromRows = entries.length > 0 && (pinned || !partialList);
-  const total = counts?.total ?? entries.length;
+  const scanRows =
+    entries.length > 0 &&
+    entries.every((entry) => entry.row.details?.scan !== undefined);
+  const total =
+    scanRows && fromRows ? entries.length : (counts?.total ?? entries.length);
   const legendEntries =
-    audit.state === "draft" || total === 0
+    audit.state === "draft" || inventoryPending || total === 0
       ? []
       : fromRows
         ? legend(entries)
@@ -143,15 +149,35 @@ export function CheckProgress({
   const done = source?.completedChecks ?? entries.filter(isConcluded).length;
   const noun = itemNoun(kind, total);
   const pluralNoun = itemNoun(kind, 2);
+  const completedScans = entries.filter((entry) =>
+    entry.row.coverage.completed.includes(
+      entry.row.details?.scan?.scanner === "nuclei"
+        ? "nuclei-url-template-scan"
+        : "sqlmap-request-scan",
+    ),
+  ).length;
   const headline =
     audit.state === "draft"
       ? "Not started"
-      : total === 0
-        ? `No ${pluralNoun} yet`
-        : doneSummary(done, total);
+      : inventoryPending
+        ? audit.state === "failed"
+          ? "Preparation failed"
+          : audit.state === "cancelled"
+            ? "Preparation cancelled"
+            : audit.state === "cancelling"
+              ? "Stopping preparation"
+              : audit.phase === "inventory"
+                ? "Building the worklist"
+                : "Preparing materials"
+        : total === 0
+          ? `No ${pluralNoun} yet`
+          : scanRows
+            ? `${formatNumber(completedScans)} of ${formatNumber(entries.length)} scans completed${partialList ? " in loaded endpoints" : ""}`
+            : doneSummary(done, total);
   const shown = legendEntries.filter((entry) => entry.count > 0);
-  const summary =
-    total === 0
+  const summary = scanRows
+    ? `${headline}${shown.length === 0 ? "" : `: ${legendSentence(shown)}`}`
+    : total === 0
       ? headline
       : `${formatNumber(done)} of ${formatNumber(total)} ${noun} done${shown.length === 0 ? "" : `: ${legendSentence(shown)}`}`;
   // Counts read from the snapshot pin the list they link to; counts read
@@ -185,6 +211,17 @@ export function CheckProgress({
           ) : null}
         </div>
       </div>
+      {inventoryPending ? (
+        <p className="ui-caption">
+          Endpoint count and security coverage are not available yet.
+        </p>
+      ) : null}
+      {scanRows ? (
+        <p className="ui-caption">
+          Completed scans have inconclusive security coverage until their
+          observations are verified.
+        </p>
+      ) : null}
       <div className="checks-progress-bottom">
         <ProgressLegend
           entries={legendEntries}

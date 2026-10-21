@@ -1,6 +1,6 @@
 # V62 preparation and scan journey: fresh UI alternatives
 
-Date: 2026-10-21. Status: **A overview + B endpoint detail accepted by the user on 2026-10-21; implementation pending**.
+Date: 2026-10-21. Status: **A overview + B endpoint detail accepted by the user on 2026-10-21; UI implemented; production-process release verification pending**.
 
 [UI design index](README.md) · [V62 plan](../../plans/2026-09-20-audit-workflow-composition.md)
 · [UI implementation task](../../../tasks/v62-011-audit-composition-ui.yml)
@@ -134,3 +134,33 @@ an isolated temporary profile and local file URLs. It writes 15 PNGs: three
 desktop variants in all three themes, three 390-pixel layouts, preparation,
 failure and a URL-mode example. No model, external target, database or live
 Server is used. Saved images were rendered with Firefox 158.0.1.
+
+## Implementation evidence (2026-10-21)
+
+The V62 preparation overview now uses A, and endpoint details use B. The UI
+shows committed generated inventory, separate original/accepted materials,
+request-versus-URL scan provenance and receipt-authorized saved reports. Source
+Run deletion does not remove accepted materials. Completion of a scanner is
+shown in the information palette, separately from security coverage.
+
+The browser evidence below exercises the production React components against
+contract-validated synthetic API responses. It covers start without a Round,
+preparation, inventory acceptance, approvals, exact report navigation, failure,
+keyboard focus, all three themes and 390 px. It does not substitute for the
+Server/Scheduler/Runtime release journey.
+
+- [Overview, light](screenshots/v62/implementation/overview-light.png) ·
+  [dark](screenshots/v62/implementation/overview-dark.png) ·
+  [black](screenshots/v62/implementation/overview-black.png) ·
+  [390 px](screenshots/v62/implementation/overview-mobile.png).
+- [Endpoint, light](screenshots/v62/implementation/endpoint-light.png) ·
+  [dark](screenshots/v62/implementation/endpoint-dark.png) ·
+  [black](screenshots/v62/implementation/endpoint-black.png) ·
+  [390 px](screenshots/v62/implementation/endpoint-mobile.png).
+- [Preparation](screenshots/v62/implementation/preparing.png) ·
+  [failed preparation](screenshots/v62/implementation/preparation-failed.png).
+
+Reproduce with a local UI development server and `playwright test
+e2e/audits.spec.ts`. `CONTRACTOR_UI_E2E_BASE_URL` selects that server;
+`CONTRACTOR_V62_SCREENSHOT_DIR` selects the image destination. The screenshots
+use Chromium 151.0.7922.34 through the pinned Playwright installation.

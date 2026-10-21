@@ -11,16 +11,16 @@ Accepted behaviour belongs in the [specification](../../spec/README.md).
 The [2026-10-21 V62 preparation exploration](v62-preparation.md) adds three
 fresh alternatives for preparation, generated endpoint checks and exact evidence
 navigation. The user accepted A for the overview and B for endpoint details
-on 2026-10-21; production implementation remains pending.
+on 2026-10-21. The V62 UI now implements those views; production-process release verification remains pending.
 
 ## Decision status (2026-10-07)
 
-| Track | Variants | State |
-| --- | --- | --- |
-| Main journey, first round | [V1 Guided](v1-guided.md), [V2 Workspace](v2-workspace.md), [V3 Inbox](v3-inbox.md) | **V3 Inbox** chosen as the base |
-| Main journey, V3 variations | [V3A Focus](v3a-focus.md), [V3B Panes](v3b-panes.md), [V3C Board](v3c-board.md) | **V3B Panes** implemented on `main` |
-| Palette and themes | [Themes](themes.md) | Accepted: neutral accent instead of lime; light, dark and black themes |
-| Workflow / Audit / Agent editor | [Editor studio A, B, C](editor-studio.md) | **B (node studio)** implemented: local YAML authoring, automatic graph layout, catalog selectors, workspace/execution forms and live Check view; composition/round design proposed |
+| Track                           | Variants                                                                            | State                                                                                                                                                                              |
+| ------------------------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Main journey, first round       | [V1 Guided](v1-guided.md), [V2 Workspace](v2-workspace.md), [V3 Inbox](v3-inbox.md) | **V3 Inbox** chosen as the base                                                                                                                                                    |
+| Main journey, V3 variations     | [V3A Focus](v3a-focus.md), [V3B Panes](v3b-panes.md), [V3C Board](v3c-board.md)     | **V3B Panes** implemented on `main`                                                                                                                                                |
+| Palette and themes              | [Themes](themes.md)                                                                 | Accepted: neutral accent instead of lime; light, dark and black themes                                                                                                             |
+| Workflow / Audit / Agent editor | [Editor studio A, B, C](editor-studio.md)                                           | **B (node studio)** implemented: local YAML authoring, automatic graph layout, catalog selectors, workspace/execution forms and live Check view; composition/round design proposed |
 
 V3B Panes is the implemented direction for the `ui/` redesign. The
 [comparison](#variants-at-a-glance) gives the reasoning, and the [V3B
@@ -44,8 +44,8 @@ machinery on every page:
    needs me, what is this project, what should I check, how is it going, is this
    issue real.
 2. **Technical detail on demand, not deleted.** IDs, revisions, digests, limits,
-   token counts and runtime data stay reachable behind a *Technical details*
-   disclosure, or in an *Operations* area for admins. They never appear on the
+   token counts and runtime data stay reachable behind a _Technical details_
+   disclosure, or in an _Operations_ area for admins. They never appear on the
    main path.
 3. **One primary action per page**, visually distinct from everything else.
 4. **Act in place.** Confirm or reject a possible issue, and retry a blocked
@@ -57,51 +57,51 @@ machinery on every page:
 
 ### Vocabulary
 
-| Internal term | User-facing term |
-| --- | --- |
-| Audit | Check (a security check of a project) |
-| AuditProfile, preset | Check type |
-| Workflow, Run, Stage | Hidden; at most "steps" inside a check |
-| Artifact (source ZIP, OpenAPI) | Materials: "Source code", "API spec" |
-| Coverage or check item | Endpoint (API checks) or requirement (standards) |
-| Finding proposal (unreviewed) | Possible issue · needs your review |
-| Confirmed finding | Issue |
-| Report acceptance | Report |
-| Runtime, allocation, queue, slots | Operations area only (admins) |
+| Internal term                     | User-facing term                                 |
+| --------------------------------- | ------------------------------------------------ |
+| Audit                             | Check (a security check of a project)            |
+| AuditProfile, preset              | Check type                                       |
+| Workflow, Run, Stage              | Hidden; at most "steps" inside a check           |
+| Artifact (source ZIP, OpenAPI)    | Materials: "Source code", "API spec"             |
+| Coverage or check item            | Endpoint (API checks) or requirement (standards) |
+| Finding proposal (unreviewed)     | Possible issue · needs your review               |
+| Confirmed finding                 | Issue                                            |
+| Report acceptance                 | Report                                           |
+| Runtime, allocation, queue, slots | Operations area only (admins)                    |
 
 The review decisions in the mockups map onto `AuditFindingState`:
 
-| Button | State |
-| --- | --- |
-| Confirm issue | `confirmed` |
-| Not an issue | `rejected` |
+| Button         | State            |
+| -------------- | ---------------- |
+| Confirm issue  | `confirmed`      |
+| Not an issue   | `rejected`       |
 | Needs evidence | `needs-evidence` |
 
 ## The journey every variant draws
 
 Each variant draws the same five pages with the same real data from the demo
-stand: project `crapi-workshop`, a running *API endpoint trace* over five
+stand: project `crapi-workshop`, a running _API endpoint trace_ over five
 endpoints, and one possible IDOR issue (CWE-639) on
 `GET /workshop/api/mechanic/mechanic_report`.
 
-| Page | Question it answers | Replaces |
-| --- | --- | --- |
-| Home | What needs me, and what is running? | Operator dashboard |
-| Project | What is this project, and what can I check with its materials? | Artifact, Run and Workflow lists |
-| Start a check | What should I check, and with what? | "Configure Run" form |
-| Check in progress | How far along is it, and what is stuck? | Audit overview, coverage and Run detail |
-| Review a possible issue | Is this real, and how bad is it? | Audit findings page |
+| Page                    | Question it answers                                            | Replaces                                |
+| ----------------------- | -------------------------------------------------------------- | --------------------------------------- |
+| Home                    | What needs me, and what is running?                            | Operator dashboard                      |
+| Project                 | What is this project, and what can I check with its materials? | Artifact, Run and Workflow lists        |
+| Start a check           | What should I check, and with what?                            | "Configure Run" form                    |
+| Check in progress       | How far along is it, and what is stuck?                        | Audit overview, coverage and Run detail |
+| Review a possible issue | Is this real, and how bad is it?                               | Audit findings page                     |
 
 ## Variants at a glance
 
-| Variant | Idea | Navigation | Type | Strength | Trade-off |
-| --- | --- | --- | --- | --- | --- |
-| [V1 Guided](v1-guided.md) | Task-first, wizards, generous spacing | Top bar | Geist | Easiest first journey | Low density; power users click more |
-| [V2 Workspace](v2-workspace.md) | Project-centric workspace | Project sidebar, split panes | IBM Plex | Calm, dense triage inside one project | Assumes one project at a time; dense shell |
-| [V3 Inbox](v3-inbox.md) | Decisions first, act in place, intent-driven start | Icon rail and command bar | Manrope | Fastest path to decisions | Browsing is second-class |
-| [V3A Focus](v3a-focus.md) | V3 without containers; typographic, keyboard-first | Rail; rows expand inline | Manrope | Calmest, fastest to scan from the keyboard | Less self-explanatory for occasional mouse users |
-| [V3B Panes](v3b-panes.md) | Rail · list · detail on every page | Rail and list pane | Manrope | Triage without navigation; one layout everywhere | Narrower detail column; sparse lists look empty |
-| [V3C Board](v3c-board.md) | Lanes of cards; detail as a sheet | Rail; board lanes | Manrope | Whole state in one glance | Narrow lanes wrap long paths; sideways scroll on phones |
+| Variant                         | Idea                                               | Navigation                   | Type     | Strength                                         | Trade-off                                               |
+| ------------------------------- | -------------------------------------------------- | ---------------------------- | -------- | ------------------------------------------------ | ------------------------------------------------------- |
+| [V1 Guided](v1-guided.md)       | Task-first, wizards, generous spacing              | Top bar                      | Geist    | Easiest first journey                            | Low density; power users click more                     |
+| [V2 Workspace](v2-workspace.md) | Project-centric workspace                          | Project sidebar, split panes | IBM Plex | Calm, dense triage inside one project            | Assumes one project at a time; dense shell              |
+| [V3 Inbox](v3-inbox.md)         | Decisions first, act in place, intent-driven start | Icon rail and command bar    | Manrope  | Fastest path to decisions                        | Browsing is second-class                                |
+| [V3A Focus](v3a-focus.md)       | V3 without containers; typographic, keyboard-first | Rail; rows expand inline     | Manrope  | Calmest, fastest to scan from the keyboard       | Less self-explanatory for occasional mouse users        |
+| [V3B Panes](v3b-panes.md)       | Rail · list · detail on every page                 | Rail and list pane           | Manrope  | Triage without navigation; one layout everywhere | Narrower detail column; sparse lists look empty         |
+| [V3C Board](v3c-board.md)       | Lanes of cards; detail as a sheet                  | Rail; board lanes            | Manrope  | Whole state in one glance                        | Narrow lanes wrap long paths; sideways scroll on phones |
 
 The V3 variations all keep V3's core: an inbox of decisions, acting in place,
 an intent-driven start, a plain-language live narrative, a focused review with
@@ -134,7 +134,7 @@ All names, counts, times, file:line references and texts come from the demo
 stand, either from the brief or from read-only API reads. Where a fact was
 missing, the mockups show a visible placeholder (`[TEAM NAME]`, `[USER NAME]`).
 They do not invent a value. V2 labels two project rows "Nothing running" and
-"No checks yet" without a source. V1's collapsed *Technical details* keeps the
+"No checks yet" without a source. V1's collapsed _Technical details_ keeps the
 demo stand's run and Audit IDs to show where that information moves.
 
 ## Implementation

@@ -169,6 +169,33 @@ function TypeSection({ model }: { model: StartCheck }) {
           retryPending={detail.isFetching}
         />
       ) : null}
+      {Object.values(profile.workflows ?? {}).some(
+        (binding) => binding.kind === "prepare",
+      ) ? (
+        <section
+          className="start-preparation-plan"
+          aria-label="Planned check stages"
+        >
+          <h3>What will happen</h3>
+          <ol>
+            <li>
+              Pin the selected materials and prepare the required outputs.
+            </li>
+            <li>
+              Validate the generated input and accept the endpoint worklist.
+            </li>
+            <li>
+              Run the selected checks under the project's active-check policy.
+            </li>
+            <li>Review observations, evidence and remaining coverage gaps.</li>
+          </ol>
+          <p className="ui-caption">
+            Endpoint count and coverage become available after preparation.
+            Missing or invalid generated input stops the check with an
+            explanation.
+          </p>
+        </section>
+      ) : null}
       {/* From the version itself: it does not depend on the materials. */}
       {selection.profile.serverCompatible ? null : (
         <div className="notice notice-error" role="note">
