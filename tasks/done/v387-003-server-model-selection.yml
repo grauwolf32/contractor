@@ -5,7 +5,7 @@ milestone: model-policy-runtime-correctness
 epic: planner-worker
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V387-002]
 languages: [go, python, typescript, yaml]
 goal: >-
@@ -132,3 +132,4 @@ verification:
   lint: make lint passed with 112 script tests and all layer, source, generated-file and schema checks.
   live: The real GLM Gateway routing probe made three calls successfully; all three live Runtime Gateway tests passed without skips.
   installation: LiteLLM and its virtual key use four immutable GLM role aliases with a 1000000-token operating window; login startup remains disabled.
+implementation_commit: 3d6d143410161c17b4ebd7d56cd159cd89353147
