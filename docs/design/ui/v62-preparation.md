@@ -1,6 +1,6 @@
 # V62 preparation and scan journey: fresh UI alternatives
 
-Date: 2026-10-21. Status: **A overview + B endpoint detail accepted by the user on 2026-10-21; UI implemented; production-process release verification pending**.
+Date: 2026-10-21. Status: **A overview + B endpoint detail accepted by the user on 2026-10-21; UI implemented and real-process/browser acceptance verified**.
 
 [UI design index](README.md) · [V62 plan](../../plans/2026-09-20-audit-workflow-composition.md)
 · [UI implementation task](../../../tasks/done/v62-011-audit-composition-ui.yml)
@@ -164,3 +164,28 @@ Reproduce with a local UI development server and `playwright test
 e2e/audits.spec.ts`. `CONTRACTOR_UI_E2E_BASE_URL` selects that server;
 `CONTRACTOR_V62_SCREENSHOT_DIR` selects the image destination. The screenshots
 use Chromium 151.0.7922.34 through the pinned Playwright installation.
+
+### Real production-boundary evidence
+
+`make test-audit-composition-e2e` passed 34 mandatory PostgreSQL cases, nine
+mandatory process cases and the real Chromium journey, with zero skips.
+The browser creates the check through the public UI, observes preparation,
+pauses and continues it, waits for atomic inventory acceptance, records approval
+and inspects a real Nuclei report. API spec and report previews remain available
+after deleting both producing Runs. A separate invalid ZIP proves failed
+preparation without a Round or accepted scope.
+
+- [Preparing](screenshots/v62/production/preparing.png) ·
+  [inventory pending](screenshots/v62/production/inventory-pending.png) ·
+  [approval](screenshots/v62/production/approval.png).
+- [A overview](screenshots/v62/production/overview-completed.png) ·
+  [B endpoint](screenshots/v62/production/endpoint-completed.png).
+- [Retained after Run deletion](screenshots/v62/production/retained-after-run-deletion.png) ·
+  [failed preparation](screenshots/v62/production/preparation-failed.png).
+
+Server, PostgreSQL, Scheduler, Runtime tools, built-in validation, SQLMap,
+Nuclei and browser are real. Model responses and the external validator are
+controlled fixtures, so this demonstrates orchestration rather than model or
+finding quality. The generated Nuclei profile is test-only; the shipped
+source-to-OpenAPI profile uses SQLMap. Exact commands, cases and screenshot
+digests are recorded in [release evidence](../../../tasks/evidence/v62-012.json).

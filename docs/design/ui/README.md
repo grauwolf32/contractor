@@ -11,7 +11,9 @@ Accepted behaviour belongs in the [specification](../../spec/README.md).
 The [2026-10-21 V62 preparation exploration](v62-preparation.md) adds three
 fresh alternatives for preparation, generated endpoint checks and exact evidence
 navigation. The user accepted A for the overview and B for endpoint details
-on 2026-10-21. The V62 UI now implements those views; production-process release verification remains pending.
+on 2026-10-21. The V62 UI now implements those views and has passed the real
+generated-source process/browser gate. See the exploration's implementation
+evidence for screenshots and the tested production boundaries.
 
 ## Decision status (2026-10-07)
 

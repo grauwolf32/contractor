@@ -5,8 +5,8 @@ milestone: audit-workflow-composition
 epic: audits
 kind: feature
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 8c2441f0b3bd2643adb44ca8c70e30c5cdb38c74
 depends_on: [V62-011, V389-001]
 languages: [go, python, typescript, yaml, markdown]
 goal: Prove supplied and generated OpenAPI scan journeys with mandatory persistence, process, browser and current-schema regression evidence.
@@ -71,3 +71,11 @@ test_prerequisites:
 verification_requirements:
   - Record exact revision, complete mandatory case list/counts, zero mandatory skips, production boundaries and retained browser evidence.
   - Keep pending/in_progress until all criteria and required checks pass; task planning never supplies implementation_commit or verification results.
+verification:
+  date: "2026-10-21"
+  evidence: tasks/evidence/v62-012.json
+  passed:
+    - "make test-audit-composition-e2e: 34 mandatory PostgreSQL cases, nine mandatory process cases and one real browser journey; zero skips."
+    - "make test-audits-e2e test-audit-program-library-e2e test-audit-completion-e2e: passed, including Operations, Native and External browser stacks; completion verified 198 Go and 412 Runtime cases without selected skips."
+    - "make verify-public-api ui-generate-check ui-typecheck ui-test ui-build test-config lint: passed; UI had 2173 passes and one existing expected-failure case."
+  scope: Selected preparation/source-to-scan delivery only; V62-005 through V62-008 and V64 remain deferred.

@@ -5,14 +5,13 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-75 open tasks: 4 in progress, 46 pending, 25 deferred. 916 finished: 913 completed, 3 archived.
+74 open tasks: 3 in progress, 46 pending, 25 deferred. 917 finished: 914 completed, 3 archived.
 
 ## In progress
 
 | Task | Epic | Kind | Priority | Title |
 | --- | --- | --- | --- | --- |
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
-| [V62-012](v62-012-audit-composition-release.yml) | audits | feature | P1 | Verify preparation and OpenAPI scans across production boundaries |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 
@@ -183,7 +182,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 4 | 7 | 5 | 4 | 7 |
 | Workflow catalog and document workflows (`workflows`) | 3 | 14 | 13 | 12 | 12 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 29 | 32 | 4 | 34 |
-| Audits (`audits`) | 17 | 50 | 68 | 14 | 79 |
+| Audits (`audits`) | 16 | 50 | 68 | 14 | 79 |
 | Evaluations (`evals`) | 3 | 21 | 29 | 5 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 9 | 1 | 1 | 2 |
 | Web UI (`ui`) | 1 | 20 | 54 | 11 | 49 |
