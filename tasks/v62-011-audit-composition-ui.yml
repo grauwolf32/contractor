@@ -11,8 +11,11 @@ depends_on: [V62-009, V62-010]
 languages: [typescript]
 goal: Let a user start the generated-OpenAPI profile, follow preparation and scans, and trace results back to exact inputs without understanding internal storage scopes.
 context:
+  delivery_selection: User selected this chain after V377-001 on 2026-10-21; finish the existing preparation-to-scan journey without expanding into V64 or generic graph editing.
   authority: User-requested V62 Audit Workflow composition task series.
-  design: docs/plans/2026-09-20-audit-workflow-composition.md
+  design:
+    - docs/plans/2026-09-20-audit-workflow-composition.md
+    - docs/design/ui/v62-preparation.md
   specification: [docs/spec/audits/audits.md, docs/spec/ui/journeys.md]
   boundary: UI consumes public projections from V62-010 and the generated-source profile from V62-004 using the V62-009 scan adapter; it does not infer phase from role names.
 scope:

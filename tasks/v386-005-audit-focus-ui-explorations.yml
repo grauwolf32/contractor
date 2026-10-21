@@ -1,0 +1,61 @@
+schema_version: "1.0"
+id: V386-005
+title: Focus the next audit delivery and refresh V62 interface explorations
+milestone: audit-workflow-composition
+epic: audits
+kind: chore
+priority: P3
+status: in_progress
+depends_on: []
+languages: [yaml, markdown, html, css, javascript]
+goal: Record the user-selected cookies and V62 delivery order and provide current, comparable V62 UI renders without adding production behavior.
+context:
+  request: User requested V64 deferral, target-cookie persistence and V62 completion next, plus several fresh V62 UI renders on 2026-10-21.
+  design:
+    - docs/design/ui/README.md
+    - docs/design/ui/editor-studio.md
+    - docs/plans/2026-09-20-audit-workflow-composition.md
+  specification:
+    - docs/spec/ui/journeys.md
+    - docs/spec/audits/scans.md
+scope:
+  in:
+    - Defer V64-001 through V64-011 with dated reasons and explicit reactivation conditions; preserve the completed V64-000 core.
+    - Promote V377-001 and record cookies then V62-010, V62-011 and V62-012 as the next delivery order without inventing technical dependencies.
+    - Create three current HTML/CSS V62 design variants using existing UI vocabulary, fonts and theme tokens.
+    - Render comparable desktop variants and preparation, failure, narrow-screen and theme examples with clearly labeled synthetic data.
+    - Link the alternatives from the design index and V62 UI task without declaring any variant accepted.
+  out:
+    - Implement cookie persistence, public API changes, production UI or Audit prioritization.
+    - Reactivate other deferred work, change another task's active ownership or merge/push without a new request.
+acceptance_criteria:
+  - id: A1
+    text: All eleven remaining V64 tasks are deferred with previous status, date, reason and user-owned reactivation condition; V64-000 remains completed.
+  - id: A2
+    text: Cookies and the V62 completion chain retain truthful pending statuses and dependencies and their delivery order is explicit; generated backlog is current.
+  - id: A3
+    text: Three distinct desktop alternatives show the same accepted scope, progress and evidence; preparation has an unknown coverage denominator and failure never appears as a successful empty audit.
+  - id: A4
+    text: Saved renders include preparation and failure, readable 390-pixel layouts and light, dark and black themes; alternatives remain design explorations linked from V62-011.
+tests:
+  - command: make tasks-backlog
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]
+  - command: node --check docs/design/ui/mockups/v62/app.js
+    covers: [A3]
+  - command: node docs/design/ui/mockups/v62/render.mjs
+    covers: [A3, A4]
+  - command: Visual review of saved V62 desktop, preparation, failure, mobile and theme browser renders
+    covers: [A3, A4]
+test_prerequisites:
+  - Installed Firefox and UI dependencies for the existing Manrope and JetBrains Mono fonts; FIREFOX_BIN may select the browser executable.
+verification:
+  date: "2026-10-21"
+  passed:
+    - "make tasks-backlog: regenerated and validated all task records."
+    - "make lint: passed, including task consistency, spec references, UI gates, Go checks, Ruff and Runtime layers."
+    - "node --check docs/design/ui/mockups/v62/app.js and render.mjs: passed."
+    - "node docs/design/ui/mockups/v62/render.mjs: 15 local Firefox renders with verified PNG dimensions."
+    - "Visual review: three desktop variants, all three 390-pixel layouts, preparation, failure, URL mode and representative light/dark/black views."
+  limitations: Standalone design samples only; no cookie or V62 production behavior was implemented, and no UI alternative was accepted.
