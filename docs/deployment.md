@@ -178,11 +178,16 @@ select the issued credential in the Workflow or Run execution configuration.
 
 The repository includes a small local proxy profile in
 [`deploy/litellm/litellm_config.yaml`](../deploy/litellm/litellm_config.yaml).
-It exposes `planner-model` and `worker-model`, both mapped to the configured
-Qwen model in LM Studio. The run script uses digest-pinned LiteLLM
+It exposes `planner-model` and `worker-model`, both mapped to OpenRouter
+`z-ai/glm-5.3-flash`. Audit completion and terminal summarization use
+`worker-model`, so all shipped model-backed roles use the same upstream model.
+The run script uses digest-pinned LiteLLM
 and PostgreSQL images, retains LiteLLM's virtual-key database in a named Podman
 volume, and keeps the proxy itself in the foreground. Create two owner-only
-local bootstrap keys before the first start:
+local bootstrap keys before the first start, and save a dedicated OpenRouter
+inference key in `.local/secrets/openrouter-api-key` with mode `0600`. An
+OpenRouter management key provisions inference keys; keep it separate from
+LiteLLM and never use it as the upstream inference key:
 
 ```shell
 umask 077
@@ -191,14 +196,21 @@ printf 'sk-%s\n' "$(openssl rand -hex 32)" > .local/secrets/litellm-master-key
 printf 'sk-%s\n' "$(openssl rand -hex 32)" > .local/secrets/litellm-salt-key
 CONTRACTOR_LITELLM_MASTER_KEY_FILE="$(pwd)/.local/secrets/litellm-master-key" \
 CONTRACTOR_LITELLM_SALT_KEY_FILE="$(pwd)/.local/secrets/litellm-salt-key" \
-CONTRACTOR_LM_STUDIO_URL='http://lm-studio-host:1234/v1' \
+CONTRACTOR_OPENROUTER_API_KEY_FILE="$(pwd)/.local/secrets/openrouter-api-key" \
   deploy/litellm/run.sh
 ```
 
 `Ctrl-C` removes the proxy container but deliberately leaves
 `contractor-litellm-postgres` and its named volume intact. The master key file
 is also the `adminKeyFile` used by Contractor's exact Gateway binding; the salt
-key remains LiteLLM-only. Neither file belongs in repository YAML.
+key remains LiteLLM-only. The upstream inference key is read from its file and
+passed to Podman by environment name, keeping all three credential values out
+of process arguments. None of these files belongs in repository YAML.
+
+The Gateway keeps the published model aliases and Contractor policy budgets;
+changing the upstream model does not require rewriting Workflow or Run
+snapshots. Restart the proxy to apply this profile. Existing named PostgreSQL
+containers and volumes must be retained so managed Gateway credentials survive.
 
 ## Start and verify
 
