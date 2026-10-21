@@ -4125,6 +4125,52 @@
         }
       }
     },
+    "AuditGeneratedInventory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "snapshot",
+        "sources",
+        "sourceContentDigest",
+        "canonicalInventoryDigest",
+        "worklist",
+        "itemCount",
+        "gaps"
+      ],
+      "properties": {
+        "snapshot": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditExactArtifact"
+        },
+        "sources": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source"],
+          "properties": {
+            "source": {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditExactArtifact"
+            },
+            "settings": {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditExactArtifact"
+            }
+          }
+        },
+        "sourceContentDigest": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Digest"
+        },
+        "canonicalInventoryDigest": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Digest"
+        },
+        "worklist": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditExactArtifact"
+        },
+        "itemCount": { "type": "integer", "minimum": 1, "maximum": 10000 },
+        "gaps": {
+          "type": "array",
+          "maxItems": 1024,
+          "items": { "type": "string", "maxLength": 512 }
+        }
+      }
+    },
     "AuditPhase": {
       "enum": ["not-started", "preparing", "inventory", "rounds"]
     },
@@ -4347,6 +4393,9 @@
         },
         "preparation": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditPreparation"
+        },
+        "generatedInventory": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditGeneratedInventory"
         },
         "revision": { "type": "integer", "minimum": 1 },
         "currentRoundId": {
@@ -4951,11 +5000,57 @@
         "rationale": { "type": "string", "maxLength": 4096 }
       }
     },
+    "AuditScanProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scanner",
+        "operation",
+        "source",
+        "settings",
+        "preparationDigest",
+        "runnable",
+        "testParameters",
+        "gaps"
+      ],
+      "properties": {
+        "scanner": { "enum": ["sqlmap", "nuclei"] },
+        "operation": { "type": "string", "minLength": 1, "maxLength": 8192 },
+        "source": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditExactArtifact"
+        },
+        "settings": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditExactArtifact"
+        },
+        "preparationDigest": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Digest"
+        },
+        "requestDigest": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Digest"
+        },
+        "targetUrl": { "type": "string", "minLength": 1, "maxLength": 8192 },
+        "runnable": { "type": "boolean" },
+        "testParameters": {
+          "type": "array",
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1, "maxLength": 128 }
+        },
+        "gaps": {
+          "type": "array",
+          "maxItems": 1024,
+          "items": { "type": "string", "maxLength": 512 }
+        }
+      }
+    },
     "AuditCoverageDetails": {
       "type": "object",
       "additionalProperties": false,
       "required": ["objective", "methods", "taskDocument", "evidence"],
       "properties": {
+        "scan": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditScanProvenance"
+        },
         "objective": { "type": "string" },
         "methods": { "type": "array", "items": { "type": "string" } },
         "taskDocument": { "type": "object", "additionalProperties": true },
@@ -4969,7 +5064,12 @@
             "properties": {
               "id": { "type": "string" },
               "kind": { "type": "string" },
-              "summary": { "type": "string" }
+              "summary": { "type": "string" },
+              "contentMemberId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              }
             }
           }
         }

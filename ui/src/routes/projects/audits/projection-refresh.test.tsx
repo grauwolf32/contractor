@@ -34,3 +34,27 @@ describe("useAuditProjectionRefresh", () => {
     });
   });
 });
+
+it("refreshes dependent projections immediately when preparation accepts its first Round", async () => {
+  const queryClient = new QueryClient();
+  const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
+  const before = { ...audit(1, "active"), phase: "preparing" as const };
+  const after = {
+    ...audit(2, "active"),
+    phase: "rounds" as const,
+    currentRoundId: "round_1",
+  };
+  const { rerender } = renderHook(
+    ({ current }: { current: Audit }) =>
+      useAuditProjectionRefresh(current, ["audits", current.auditId, "items"]),
+    { wrapper, initialProps: { current: before as Audit } },
+  );
+  rerender({ current: after });
+  await waitFor(() => expect(invalidate).toHaveBeenCalledOnce());
+  rerender({ current: after });
+  await Promise.resolve();
+  expect(invalidate).toHaveBeenCalledOnce();
+});

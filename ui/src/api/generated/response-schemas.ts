@@ -163,6 +163,7 @@ export type PublicSchemaName =
   | "AuditSkill"
   | "AuditBaselineInventory"
   | "AuditBaseline"
+  | "AuditGeneratedInventory"
   | "AuditPhase"
   | "AuditPreparationOutput"
   | "AuditPreparationRole"
@@ -196,6 +197,7 @@ export type PublicSchemaName =
   | "AuditItemPage"
   | "AuditCoverageStatus"
   | "AuditCoverage"
+  | "AuditScanProvenance"
   | "AuditCoverageDetails"
   | "AuditCoverageRow"
   | "AuditCoveragePage"
@@ -1213,6 +1215,15 @@ export const RESPONSE_SCHEMAS = {
   },
   "GET /v1/audits/{auditId}/coverage": {
     "200": "AuditCoveragePage",
+    "400": "Error",
+    "401": "Error",
+    "404": "Error",
+    "409": "Error",
+    "500": "Error",
+    "503": "Error",
+  },
+  "GET /v1/audits/{auditId}/artifacts": {
+    "200": null,
     "400": "Error",
     "401": "Error",
     "404": "Error",

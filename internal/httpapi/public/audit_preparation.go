@@ -25,6 +25,11 @@ func (h *auditHandlers) auditDetailReadModel(r *http.Request, audit auditstore.A
 	if err != nil {
 		return auditResponse{}, err
 	}
+	inventory, err := h.Audits.GeneratedInventory(r.Context(), principalUserID(r.Context()), audit.AuditID, audit.Revision)
+	if err != nil {
+		return auditResponse{}, err
+	}
+	response.GeneratedInventory = inventory
 	response.Preparation = &auditPreparationResponse{Roles: map[string]auditPreparationRoleResponse{}}
 	for name, role := range roles {
 		view := auditPreparationRoleResponse{Status: role.Status, Attempts: role.Attempts, MaxAttempts: role.MaxRunAttempts,
@@ -37,6 +42,13 @@ func (h *auditHandlers) auditDetailReadModel(r *http.Request, audit auditstore.A
 			}
 		}
 		response.Preparation.Roles[name] = view
+	}
+	latest, err := h.Audits.Get(r.Context(), principalUserID(r.Context()), audit.AuditID)
+	if err != nil {
+		return auditResponse{}, err
+	}
+	if latest.Revision != audit.Revision {
+		return auditResponse{}, auditstore.ErrConflict
 	}
 	return response, nil
 }

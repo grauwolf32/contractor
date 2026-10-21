@@ -41,6 +41,13 @@ import {
 } from "./check-test-support";
 import { json } from "../../../test/responses";
 
+import {
+  compositionAudit,
+  compositionItems,
+  compositionRows,
+} from "../../../test/audit-composition";
+import { bytes } from "../../../test/responses";
+
 const ROOT = "/projects/project_example/audits/audit_example";
 const project = makeProject("project_example", "Payment service");
 
@@ -2541,3 +2548,116 @@ function top10Baseline(audit: Audit): NonNullable<Audit["baseline"]> {
     },
   };
 }
+
+describe("V62 preparation A overview and B endpoint workspace", () => {
+  it("shows preparation without an invented denominator or accepted output", async () => {
+    const current = {
+      ...compositionAudit("preparing"),
+      auditId: "audit_example",
+      projectId: "project_example",
+    };
+    const { api } = serveCheck({ audit: () => current });
+    renderApplication(ROOT, { api });
+    const overview = await screen.findByRole("region", {
+      name: "Check overview",
+    });
+    expect(
+      within(overview).getByRole("list", { name: "Check stages" }),
+    ).toBeVisible();
+    expect(
+      within(overview).getAllByText("Preparing materials").length,
+    ).toBeGreaterThan(0);
+    expect(within(overview).queryByText(/0 of 0/)).not.toBeInTheDocument();
+    expect(
+      within(overview).queryByText("No endpoints yet"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(overview).queryByRole("button", { name: "API spec" }),
+    ).not.toBeInTheDocument();
+  });
+  it("keeps a failed preparation actionable without a clean result or retry", async () => {
+    const current = {
+      ...compositionAudit("failed"),
+      auditId: "audit_example",
+      projectId: "project_example",
+    };
+    const { api } = serveCheck({ audit: () => current });
+    renderApplication(ROOT, { api });
+    const overview = await screen.findByRole("region", {
+      name: "Check overview",
+    });
+    expect(within(overview).getByText("Preparation stopped")).toBeVisible();
+    expect(
+      within(overview).getByRole("link", { name: "Inspect preparation" }),
+    ).toBeVisible();
+    expect(
+      within(overview).queryByRole("button", { name: /Continue check/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(overview).queryByRole("button", { name: "API spec" }),
+    ).not.toBeInTheDocument();
+  });
+  it("opens exact accepted scanner evidence without Project-prefix reads", async () => {
+    const current = {
+      ...compositionAudit("rounds"),
+      auditId: "audit_example",
+      projectId: "project_example",
+    };
+    const reports: URL[] = [];
+    const { api } = serveCheck({
+      audit: () => current,
+      coverage: () => compositionRows(),
+      items: () => compositionItems(),
+      handle: (_request, url) => {
+        if (url.pathname.endsWith("/artifacts")) {
+          reports.push(url);
+          return bytes('{"observations":[]}', "application/json");
+        }
+        return undefined;
+      },
+    });
+    renderApplication(ROOT + "/coverage#check-item_0", { api });
+    expect(
+      await screen.findByRole("heading", { name: "GET /orders" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("region", { name: "Scan inputs and evidence" }),
+    ).toHaveTextContent("SQLMap");
+    expect(screen.getAllByText("Scan completed").length).toBeGreaterThan(0);
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "Scanner report" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Scanner report",
+    });
+    expect(
+      await within(dialog).findByText('{"observations":[]}'),
+    ).toBeVisible();
+    expect(reports).toHaveLength(1);
+    expect(reports[0]!.searchParams.get("key")).toBe(
+      "result/scan-execution-item",
+    );
+    expect(reports[0]!.searchParams.get("revision")).toBe("result-r1");
+    expect(reports[0]!.searchParams.get("member")).toBe("scanner-report");
+  });
+  it("labels Nuclei URL coverage without claiming authenticated request replay", async () => {
+    const current = {
+      ...compositionAudit("rounds"),
+      auditId: "audit_example",
+      projectId: "project_example",
+    };
+    const { api } = serveCheck({
+      audit: () => current,
+      coverage: () => compositionRows("nuclei"),
+      items: () => compositionItems(),
+    });
+    renderApplication(ROOT + "/coverage#check-item_0", { api });
+    const inputs = await screen.findByRole("region", {
+      name: "Scan inputs and evidence",
+    });
+    expect(inputs).toHaveTextContent("Nuclei · URL template check");
+    expect(inputs).toHaveTextContent(
+      "does not replay the OpenAPI method, request body or authenticated session",
+    );
+  });
+});

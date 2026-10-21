@@ -204,7 +204,7 @@ func scanFixtureRequests(h *scanProcessHarness) []scanHTTPRequest {
 func startOpenAPIScanAudit(t *testing.T, h *scanProcessHarness, scanner, prefix string, mutate func(map[string]any)) auditProgramAudit {
 	t.Helper()
 	var project projectResourceResponse
-	scanAuditPOST(t, h, "/v1/projects", map[string]string{"kind": "project", "name": "Local scan fixture", "description": "Controlled acceptance target"}, 0, http.StatusCreated, &project)
+	scanAuditPOST(t, h, "/v1/projects", map[string]string{"kind": "project", "name": "Local scan fixture", "description": "Controlled acceptance target", "activeChecks": "approval-required"}, 0, http.StatusCreated, &project)
 	root := filepath.Join(h.repositoryRoot, "configs", "scan", "examples", "audit-openapi-scan")
 	source, err := os.ReadFile(filepath.Join(root, "openapi.json"))
 	if err != nil {

@@ -206,6 +206,12 @@ const KNOWN: Readonly<Record<string, CheckTypePresentation>> = {
       "Runs Nuclei on the endpoints your scan settings select, using your project’s active-check setting.",
     order: 70,
   },
+  "source-openapi-sqlmap-scan": {
+    label: "Source code to SQLMap checks",
+    description:
+      "Prepares a validated API spec from source code, accepts its selected endpoints, then runs request checks using your scan settings.",
+    order: 81,
+  },
   "openapi-sqlmap-scan": {
     label: "SQLMap scan",
     description:

@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-77 open tasks: 3 in progress, 49 pending, 25 deferred. 912 finished: 909 completed, 3 archived.
+74 open tasks: 3 in progress, 46 pending, 25 deferred. 917 finished: 914 completed, 3 archived.
 
 ## In progress
 
@@ -81,9 +81,6 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V62-010](v62-010-audit-composition-api.yml) | feature | P1 | — | Expose Audit preparation and exact composition provenance through the API |
-| [V62-011](v62-011-audit-composition-ui.yml) | feature | P1 | V62-010 | Show preparation and generated coverage in the Audit user journey |
-| [V62-012](v62-012-audit-composition-release.yml) | feature | P1 | V62-011 | Verify preparation and OpenAPI scans across production boundaries |
 | [V371-009](v371-009-audit-list-preparation-batch.yml) | defect | P3 | — | Read the preparation state of a whole Audit page in bounded statements |
 
 ### Evaluations (`evals`)
@@ -185,11 +182,11 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 4 | 7 | 5 | 4 | 7 |
 | Workflow catalog and document workflows (`workflows`) | 3 | 14 | 13 | 12 | 12 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 29 | 32 | 4 | 34 |
-| Audits (`audits`) | 19 | 50 | 68 | 14 | 79 |
+| Audits (`audits`) | 16 | 50 | 68 | 14 | 79 |
 | Evaluations (`evals`) | 3 | 21 | 29 | 5 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 9 | 1 | 1 | 2 |
-| Web UI (`ui`) | 1 | 20 | 53 | 11 | 49 |
-| Operations, authentication, CLI and deployment (`operations`) | 0 | 8 | 31 | 5 | 7 |
+| Web UI (`ui`) | 1 | 20 | 54 | 11 | 49 |
+| Operations, authentication, CLI and deployment (`operations`) | 0 | 9 | 31 | 5 | 8 |
 | Public API and wire contracts (`api-contracts`) | 7 | 1 | 29 | 20 | 8 |
 | PostgreSQL persistence and schema (`persistence`) | 4 | 0 | 19 | 33 | 8 |
 | Quality, CI and process (`quality`) | 14 | 1 | 20 | 78 | 16 |

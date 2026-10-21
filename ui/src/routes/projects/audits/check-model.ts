@@ -55,10 +55,24 @@ export interface CheckEntry {
 
 /** A coverage status, or the work going on while it has none yet. */
 function itemStatus(
-  row: Pick<AuditCoverageRow, "coverage">,
+  row: Pick<AuditCoverageRow, "coverage" | "details">,
   item: Pick<AuditItem, "state"> | undefined,
 ): ItemStatus {
   const status = row.coverage.status;
+  const scanner = row.details?.scan?.scanner;
+  if (
+    scanner !== undefined &&
+    status === "inconclusive" &&
+    row.coverage.completed.includes(
+      scanner === "nuclei" ? "nuclei-url-template-scan" : "sqlmap-request-scan",
+    )
+  )
+    return {
+      label: "Scan completed",
+      tone: "info",
+      group: statusGroup(status),
+    };
+
   if (status === "not-tested" && item !== undefined) {
     if (item.state === "submitted" || item.state === "collecting")
       return { label: "Checking now", tone: "progress", group: "not-tested" };

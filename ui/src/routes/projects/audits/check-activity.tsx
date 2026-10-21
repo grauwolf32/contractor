@@ -5,6 +5,7 @@ import { Link } from "react-router";
 import type {
   Audit,
   AuditFinding,
+  AuditCoverageRow,
   AuditReport,
   AuditReviewPage,
   AuditWorkspace,
@@ -18,7 +19,7 @@ import {
   reviewKindLabel,
   type ItemKind,
 } from "../../../app/vocabulary";
-import { Button, StatusChip, StatusGlyph } from "../../../ui";
+import { Button, MethodChip, StatusChip, StatusGlyph } from "../../../ui";
 import { ActionDecision } from "../../decisions";
 import { nowSentence } from "./activity-model";
 import { CheckEventHistory } from "./event-history";
@@ -26,6 +27,9 @@ import type { CheckLinks } from "./check-links";
 import { findingsReadable, REPORT_STATES } from "./check-data";
 import { issueSummary, splitIssues, type CheckEntry } from "./check-model";
 import type { AuditCollectionQuery } from "./collections";
+import { CheckJourney, CheckMaterials, CheckPreparation } from "./preparation";
+import { ErrorNotice } from "../../../app/error-notice";
+import { entryName } from "./check-model";
 import { CheckTechnicalDetails } from "./overview";
 import { formatNumber, plural } from "../../../app/format";
 
@@ -240,6 +244,14 @@ function Issues({
         )}
       </p>
     );
+  if (audit.phase === "preparing" || audit.phase === "inventory")
+    return (
+      <Block title="Issues and possible issues">
+        <p className="ui-caption">
+          Checks have not started; no security verdict is available.
+        </p>
+      </Block>
+    );
   return (
     <Block title="Issues and possible issues">
       {status}
@@ -331,6 +343,7 @@ export function CheckActivity({
   kind,
   entries,
   findings,
+  coverage,
   workspace,
   waiting,
   report,
@@ -341,6 +354,7 @@ export function CheckActivity({
   audit: Audit;
   kind: ItemKind;
   entries: readonly CheckEntry[];
+  coverage: AuditCollectionQuery<AuditCoverageRow>;
   /** Every issue and possible issue of the check (useCheckFindings). */
   findings: AuditCollectionQuery<AuditFinding>;
   workspace: AuditWorkspace | undefined;
@@ -355,11 +369,74 @@ export function CheckActivity({
   return (
     <div className="checks-activity">
       <div className="checks-section-heading">
-        <h2>All activity</h2>
+        <h2>{audit.preparation === undefined ? "All activity" : "Overview"}</h2>
         <p className="ui-caption">
           What the whole check is doing, in plain words.
         </p>
       </div>
+      {audit.preparation === undefined ? null : (
+        <>
+          <CheckJourney audit={audit} kind={kind} />
+          <div className="checks-overview-columns">
+            <div className="ui-stack">
+              <CheckPreparation audit={audit} kind={kind} />
+              {audit.phase !== "rounds" ? null : (
+                <section
+                  aria-label="Accepted endpoints"
+                  className="checks-overview-worklist"
+                >
+                  <div className="checks-section-heading">
+                    <h3>Endpoint checks</h3>
+                    <Link to={links.section("coverage")}>
+                      Browse all endpoints →
+                    </Link>
+                  </div>
+                  <p className="ui-caption">
+                    Execution state is separate from security coverage. Finished
+                    scans still need their observations verified.
+                  </p>
+                  {coverage.error === null ? null : (
+                    <ErrorNotice
+                      error={coverage.error}
+                      onRetry={() => void coverage.refetch()}
+                      retryPending={coverage.isFetching}
+                    />
+                  )}
+                  {coverage.isPending ? (
+                    <p role="status">Loading endpoints…</p>
+                  ) : null}
+                  <ul className="checks-overview-endpoints">
+                    {entries.slice(0, 12).map((entry) => (
+                      <li key={entry.row.itemId}>
+                        <Link to={links.item(entry.row.itemId)}>
+                          {entry.operation === undefined ? (
+                            entryName(entry)
+                          ) : (
+                            <>
+                              <MethodChip method={entry.operation.method} />
+                              <span>{entry.operation.path}</span>
+                            </>
+                          )}
+                        </Link>
+                        <StatusChip tone={entry.status.tone}>
+                          {entry.status.label}
+                        </StatusChip>
+                      </li>
+                    ))}
+                  </ul>
+                  {entries.length > 12 || coverage.truncated ? (
+                    <p className="ui-caption">
+                      Showing the first {Math.min(12, entries.length)} loaded
+                      endpoints. Browse all endpoints to load more.
+                    </p>
+                  ) : null}
+                </section>
+              )}
+            </div>
+            <CheckMaterials audit={audit} />
+          </div>
+        </>
+      )}
       <Decisions
         audit={audit}
         waiting={waiting}

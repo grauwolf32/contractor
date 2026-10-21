@@ -370,7 +370,8 @@ function standardsKind(schemes: readonly string[]): ItemKind | undefined {
 
 /** Last resort for a check without a baseline: its check type's name. */
 function checkTypeNameKind(name: string): ItemKind {
-  if (name.startsWith("openapi-")) return "endpoint";
+  if (name.startsWith("openapi-") || name.startsWith("source-openapi-"))
+    return "endpoint";
   if (WSTG.test(name)) return "scenario";
   if (/\b(asvs|top-?10)\b/i.test(name)) return "requirement";
   return "item";

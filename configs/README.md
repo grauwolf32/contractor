@@ -173,7 +173,9 @@ response and 200 Worker calls; `worker@2` permits 25,000,000 cumulative tokens,
 covers 200 calls at the summarization boundary, so a long investigation ends on
 its call budget rather than its token budget. They select `planner-model` and
 `worker-model`, respectively. The local LiteLLM configuration maps both aliases
-to the same Qwen model; each role can be routed independently later.
+to OpenRouter `z-ai/glm-5.3-flash`; this also covers Audit completion and
+terminal summarization through `worker-model`. Each role can be routed
+independently later.
 
 The passthrough workspace Workflows pin `worker@2`.
 `openapi-from-workspace-streamline@2` and `likec4-from-workspace-streamline@4`
