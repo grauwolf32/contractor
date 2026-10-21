@@ -1,6 +1,6 @@
 # Contextual Audit checklist prioritization
 
-Date: 2026-09-20. Series: **V64**. Status: **V64-000 completed; opt-in Audit integration pending**.
+Date: 2026-09-20. Series: **V64**. Status: **V64-000 completed; V64-001–011 deferred by user decision on 2026-10-21**.
 
 The user requested optional service/finding context, independent checklist-item
 priority verdicts and selection of at least ten highest-priority checks for each
@@ -11,6 +11,15 @@ self-contained implementation tasks followed by a detailed review.
 contract. This plan records decomposition and integration boundaries; individual
 `tasks/v64-*.yml` own implementation status. Planning/review does not satisfy any
 implementation acceptance criterion.
+
+## Current delivery decision (2026-10-21)
+
+Deliver V377-001 target-cookie continuity first, then V62-010–012 to finish the
+existing preparation-to-scan user journey. V64-001–011 are deferred at P2;
+the completed V64-000 pure core remains available and unchanged. Reactivation
+requires an explicit user decision after representative audits demonstrate a
+benefit from model-based prioritization over fixed ordering. The design below
+is retained for that review; it is not the current implementation queue.
 
 ## Agreed outcome and design decisions
 
@@ -84,8 +93,7 @@ this planning change unless explicitly referenced.
 Implementation starts with the independent V64-000 core extracted from 001/006.
 On 2026-09-20 concurrent V62 replanning placed the already in-progress V62-009
 ahead of V62-001. The core has no pre-Round lifecycle dependency; this extraction
-allows implementation without taking over that work. Tasks 001–011 remain
-pending. Each implementation commit must satisfy its own acceptance checks and
+allows implementation without taking over that work. Tasks 001–011 are deferred by the 2026-10-21 decision. Each implementation commit must satisfy its own acceptance checks and
 keep unimplemented capabilities unavailable.
 
 | Task | Deliverable | Dependencies |
@@ -103,8 +111,8 @@ keep unimplemented capabilities unavailable.
 | [010](../../tasks/v64-010-audit-priority-profile.yml) | Complete custom-checklist profile, Workflow, rubric and examples | 008 |
 | [011](../../tasks/v64-011-audit-priority-release.yml) | Required database, real-process and browser release gate | 009, 010 |
 
-The release task transitively depends on every task. Contract/shape/selector
-work can proceed independently where the dependency graph allows it. This plan
+The release task transitively depends on every task. After explicit reactivation, contract/shape/selector work can proceed
+independently where the dependency graph allows it. This plan
 does not assign or take over pending/in-progress V62 tasks; their statuses remain
 authoritative.
 

@@ -37,6 +37,16 @@ status; this document does not establish feature readiness. Tasks V62-005/006/00
 have status `deferred`, priority P2 and explicit reactivation conditions. Neither
 dependency completion nor broad instructions to continue V62 reactivate them.
 
+## Current delivery decision (2026-10-21)
+
+The next delivery is V377-001 target-cookie continuity, followed by
+V62-010 → V62-011 → V62-012. These are delivery priorities; cookies are not a
+new technical dependency of preparation. Keep this slice focused on the
+existing source-to-OpenAPI-to-check journey. Fresh UI alternatives are in
+[the V62 preparation exploration](../design/ui/v62-preparation.md); A is accepted for the overview and B for endpoint details
+(user decision on 2026-10-21). Generic graph editing, prioritization and
+cross-round routing are outside this UI increment.
+
 ## Intended user outcome
 
 The first slice accepts an exact existing OpenAPI and explicit scan settings:

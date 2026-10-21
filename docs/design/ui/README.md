@@ -8,6 +8,11 @@ Workflows, Audits and Agent templates. The static mockups remain design
 exploration; the chosen V3B journey is now implemented in `ui/` on `main`.
 Accepted behaviour belongs in the [specification](../../spec/README.md).
 
+The [2026-10-21 V62 preparation exploration](v62-preparation.md) adds three
+fresh alternatives for preparation, generated endpoint checks and exact evidence
+navigation. The user accepted A for the overview and B for endpoint details
+on 2026-10-21; production implementation remains pending.
+
 ## Decision status (2026-10-07)
 
 | Track | Variants | State |

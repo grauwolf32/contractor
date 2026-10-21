@@ -4,8 +4,14 @@ title: Select exact top-N candidates and reject incomplete or undersized admissi
 milestone: audit-check-prioritization
 epic: audits
 kind: feature
-priority: P1
-status: pending
+priority: P2
+status: deferred
+deferral:
+  date: "2026-10-21"
+  previous_status: pending
+  previous_priority: P1
+  reason: User deferred the remaining V64 integration to focus on authenticated HTTP continuity and completion of the existing V62 audit journey.
+  reactivate_when: Explicit user decision after cookies and V62 are delivered and representative audit measurements show that model-based prioritization improves useful-result yield or time/cost over fixed ordering.
 implementation_commit: null
 depends_on: [V64-000, V64-002]
 languages: [go]

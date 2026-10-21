@@ -1,6 +1,6 @@
 # Contextual Audit checklist prioritization
 
-Proposal 0034 · Status: **Draft integration target; pure core implemented
+Proposal 0034 · Status: **Deferred integration target (user decision 2026-10-21); pure core implemented
 ([V64-000](../../tasks/done/v64-000-audit-priority-core.yml)); Audit capability
 not enabled.**
 

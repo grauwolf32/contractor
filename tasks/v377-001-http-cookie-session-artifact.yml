@@ -4,7 +4,7 @@ title: Preserve target cookies as an ordinary artifact across Run continuation
 milestone: http-session-continuation-2026-10
 epic: http-tools
 kind: feature
-priority: P2
+priority: P1
 status: pending
 depends_on: [V376-002]
 languages: [go, python, markdown]
@@ -14,6 +14,7 @@ goal: >-
   from the investigated target as an ordinary Run artifact in the same resolved
   Agent Namespace and restore them into the next HTTP toolset instance.
 context:
+  delivery_selection: User selected this as the first next-delivery task on 2026-10-21, followed by V62-010 through V62-012; technical dependencies remain unchanged.
   request: >-
     On 2026-10-14 the user proposed passing the original task and summarizer
     summary from passthrough to streamline through Planner escalation. They
