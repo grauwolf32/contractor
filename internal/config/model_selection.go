@@ -320,6 +320,10 @@ func (m *Manager) ResolveAuditProfile(ctx context.Context, raw string) (auditpro
 		}
 		profile.Workflows[role] = binding
 	}
+	profile.Ref.Digest, err = auditprofile.Digest(profile)
+	if err != nil {
+		return auditprofile.ResolvedAuditProfile{}, err
+	}
 	return profile, nil
 }
 

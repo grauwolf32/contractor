@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-73 open tasks: 3 in progress, 45 pending, 25 deferred. 926 finished: 923 completed, 3 archived.
+74 open tasks: 4 in progress, 45 pending, 25 deferred. 926 finished: 923 completed, 3 archived.
 
 ## In progress
 
@@ -14,6 +14,7 @@ the epics are in [epics.yml](epics.yml).
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
+| [V391-001](v391-001-audit-model-profile-digest.yml) | audits | defect | P1 | Pin Audit profile digests after deployment model selection |
 
 ## Pending
 
@@ -170,7 +171,7 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 3 | 36 | 49 | 11 | 64 |
-| Planners and the Worker model boundary (`planner-worker`) | 3 | 27 | 37 | 14 | 50 |
+| Planners and the Worker model boundary (`planner-worker`) | 3 | 27 | 37 | 14 | 51 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 11 | 25 | 12 | 3 | 37 |
 | Shared Memory tools (`memory`) | 0 | 6 | 8 | 1 | 11 |
 | Agent Skills (`agent-skills`) | 0 | 10 | 2 | 1 | 1 |
@@ -181,7 +182,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 4 | 7 | 5 | 4 | 7 |
 | Workflow catalog and document workflows (`workflows`) | 3 | 14 | 13 | 12 | 12 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 30 | 32 | 4 | 34 |
-| Audits (`audits`) | 16 | 50 | 68 | 15 | 80 |
+| Audits (`audits`) | 17 | 50 | 69 | 15 | 80 |
 | Evaluations (`evals`) | 3 | 21 | 29 | 5 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 9 | 1 | 1 | 2 |
 | Web UI (`ui`) | 1 | 20 | 54 | 11 | 49 |

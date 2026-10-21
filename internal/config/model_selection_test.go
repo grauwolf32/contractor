@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
@@ -246,5 +247,137 @@ func TestDeploymentModelSelectionRejectsStaleUnknownAndIncompatibleChoices(t *te
 	}
 	if _, err := partial.ReplaceModelSelection(t.Context(), settingsstore.ModelSelectionValue{DefaultModel: "fixture-b", Roles: map[string]string{}}, 2, partialInfo.CatalogDigest); !errors.Is(err, settingsstore.ErrModelSelectionInvalid) {
 		t.Fatalf("unsupported Worker default accepted: %v", err)
+	}
+}
+
+func modelAuditProfileFixture(t *testing.T, root string) {
+	t.Helper()
+	writeAuditProfile(t, root, "model-checklist", `apiVersion: contractor/v1alpha1
+kind: AuditProfile
+metadata: {name: model-checklist, version: "1"}
+spec:
+  mode: custom-checklist
+  standards: []
+  inputs:
+    source: {required: true, mediaTypes: [text/plain]}
+    checklist: {required: true, mediaTypes: [application/json]}
+  inventory:
+    implementation: checklist@1
+    source: {source: audit-input, name: checklist}
+    itemWorkflowRole: check
+  workflows:
+    check:
+      kind: check
+      ref: artifact-copy@1
+      inputs:
+        source: {source: audit-input, name: source}
+      parameters:
+        objective: {source: item-field, name: subjectKey}
+      outputs: {result: result}
+  execution:
+    roundMode: fixed-barrier
+    maxRounds: 1
+    batchSize: 1
+    maxItemsPerRound: 10
+    maxItemsTotal: 10
+    maxSubmittedRuns: 20
+    maxItemRunAttempts: 2
+    deadlineSeconds: 3600
+    maxEvidenceBytes: 1048576
+    incompleteRound: assess-with-gaps
+  interaction:
+    activeChecks: prohibited
+    findingConfirmation: disabled
+    notApplicable: profile-rule
+    reportAcceptance: automatic
+`)
+}
+
+func TestDeploymentModelSelectionPinsAuditProfileDigest(t *testing.T) {
+	root, _ := modelSelectionFixture(t)
+	modelAuditProfileFixture(t, root)
+	manager := configuredModelManager(t, root, &memoryModelSettings{})
+	catalog, err := manager.Snapshot().AuditProfile("model-checklist@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := manager.ResolveAuditProfile(t.Context(), "model-checklist@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(before)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := auditprofile.DecodeResolvedAuditProfileSnapshot(encoded)
+	if err != nil || !reflect.DeepEqual(decoded, before) || before.Ref.Digest == catalog.Ref.Digest {
+		t.Fatalf("effective profile does not retain its own digest: %v", err)
+	}
+	info, err := manager.GetModelSelection(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.ReplaceModelSelection(t.Context(), settingsstore.ModelSelectionValue{
+		DefaultModel: "fixture-b", Roles: map[string]string{},
+	}, 1, info.CatalogDigest); err != nil {
+		t.Fatal(err)
+	}
+	after, err := manager.ResolveAuditProfile(t.Context(), "model-checklist@1")
+	if err != nil || after.Ref.Digest == before.Ref.Digest {
+		t.Fatalf("new selection did not change the effective digest: %v", err)
+	}
+	retained, err := manager.ResolvePinnedAuditProfile(t.Context(), decoded)
+	if err != nil || !reflect.DeepEqual(retained, before) {
+		t.Fatalf("retained Eval profile changed after model selection: %v", err)
+	}
+	unchanged, err := manager.Snapshot().AuditProfile("model-checklist@1")
+	if err != nil || !reflect.DeepEqual(unchanged, catalog) {
+		t.Fatalf("effective selection mutated the catalog: %v", err)
+	}
+	for _, test := range []struct {
+		name string
+		edit func(*auditprofile.ResolvedAuditProfile)
+	}{
+		{"digest", func(p *auditprofile.ResolvedAuditProfile) { p.Ref.Digest = catalog.Ref.Digest }},
+		{"missing role", func(p *auditprofile.ResolvedAuditProfile) { delete(p.Workflows, "check") }},
+		{"profile limits", func(p *auditprofile.ResolvedAuditProfile) { p.Execution.MaxItemsTotal++ }},
+		{"role kind", func(p *auditprofile.ResolvedAuditProfile) {
+			binding := p.Workflows["check"]
+			binding.Kind = auditprofile.AuditWorkflowDiscovery
+			p.Workflows["check"] = binding
+		}},
+		{"workflow objective", func(p *auditprofile.ResolvedAuditProfile) {
+			workflow := p.Workflows["check"].Workflow
+			stage := workflow.Stages["copy"]
+			stage.Objective = "a different task"
+			workflow.Stages["copy"] = stage
+		}},
+		{"model policy", func(p *auditprofile.ResolvedAuditProfile) {
+			stage := p.Workflows["check"].Workflow.Stages["copy"]
+			policy := stage.ModelDefaults["worker"]
+			policy.Model = "unconfigured/replacement"
+			stage.ModelDefaults["worker"] = policy
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			changed := before.Clone()
+			test.edit(&changed)
+			if test.name != "digest" {
+				changed.Ref.Digest, err = auditprofile.Digest(changed)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := manager.ResolvePinnedAuditProfile(t.Context(), changed); !errors.Is(err, contentdigest.ErrPinnedSelectionChanged) {
+				t.Fatalf("changed retained profile accepted: %v", err)
+			}
+		})
+	}
+	// Exact selected policy drift invalidates the retained closure even though
+	// a later deployment default is otherwise irrelevant to it.
+	replaceFile(t, filepath.Join(root, "model-policies/worker_fixture_a.yaml"), `"temperature":0.1`, `"temperature":0.2`)
+	restarted := configuredModelManager(t, root, &memoryModelSettings{})
+	if _, err := restarted.ResolvePinnedAuditProfile(t.Context(), before); !errors.Is(err, contentdigest.ErrPinnedSelectionChanged) {
+		t.Fatalf("changed catalog dependency accepted: %v", err)
 	}
 }
