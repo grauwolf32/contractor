@@ -8,24 +8,25 @@ proxy_name=${CONTRACTOR_LITELLM_CONTAINER:-contractor-litellm}
 database_name=${CONTRACTOR_LITELLM_DATABASE_CONTAINER:-contractor-litellm-postgres}
 database_volume=${CONTRACTOR_LITELLM_DATABASE_VOLUME:-contractor-litellm-postgres-data}
 network_name=${CONTRACTOR_LITELLM_NETWORK:-contractor-litellm}
-upstream_url=${CONTRACTOR_LM_STUDIO_URL:?CONTRACTOR_LM_STUDIO_URL is required, for example http://lm-studio-host:1234/v1}
-upstream_token=${CONTRACTOR_LM_STUDIO_TOKEN:-lm-studio}
+upstream_key_file=${CONTRACTOR_OPENROUTER_API_KEY_FILE:?CONTRACTOR_OPENROUTER_API_KEY_FILE is required}
 master_key_file=${CONTRACTOR_LITELLM_MASTER_KEY_FILE:?CONTRACTOR_LITELLM_MASTER_KEY_FILE is required}
 salt_key_file=${CONTRACTOR_LITELLM_SALT_KEY_FILE:?CONTRACTOR_LITELLM_SALT_KEY_FILE is required}
 
-if [ ! -f "$master_key_file" ] || [ -L "$master_key_file" ] || [ ! -f "$salt_key_file" ] || [ -L "$salt_key_file" ]; then
-  echo 'LiteLLM master and salt key paths must be regular non-symlink files' >&2
+if [ ! -f "$master_key_file" ] || [ -L "$master_key_file" ] || [ ! -f "$salt_key_file" ] || [ -L "$salt_key_file" ] || [ ! -f "$upstream_key_file" ] || [ -L "$upstream_key_file" ]; then
+  echo 'LiteLLM master, salt and upstream key paths must be regular non-symlink files' >&2
   exit 1
 fi
 master_key=$(sed -n '1p' "$master_key_file")
 salt_key=$(sed -n '1p' "$salt_key_file")
+upstream_key=$(sed -n '1p' "$upstream_key_file")
 case "$master_key" in sk-*) ;; *) echo 'LiteLLM master key must start with sk-' >&2; exit 1 ;; esac
 case "$salt_key" in sk-*) ;; *) echo 'LiteLLM salt key must start with sk-' >&2; exit 1 ;; esac
+case "$upstream_key" in sk-or-v1-?*) ;; *) echo 'OpenRouter inference key must start with sk-or-v1-' >&2; exit 1 ;; esac
 
 if ! podman network exists "$network_name"; then
   podman network create "$network_name" >/dev/null
 fi
-podman volume create "$database_volume" >/dev/null
+podman volume create --ignore "$database_volume" >/dev/null
 if podman container exists "$database_name"; then
   podman start "$database_name" >/dev/null
 else
@@ -53,14 +54,13 @@ fi
 # its long-lived command line while the foreground proxy is running.
 export LITELLM_MASTER_KEY="$master_key"
 export LITELLM_SALT_KEY="$salt_key"
-export CONTRACTOR_LM_STUDIO_TOKEN="$upstream_token"
+export OPENROUTER_API_KEY="$upstream_key"
 exec podman run --rm --name "$proxy_name" --network "$network_name" \
   -p 127.0.0.1:4000:4000 \
   -e LITELLM_MASTER_KEY \
   -e LITELLM_SALT_KEY \
   -e DATABASE_URL="postgresql://postgres:contractor-litellm-local@$database_name:5432/litellm" \
-  -e CONTRACTOR_LM_STUDIO_URL="$upstream_url" \
-  -e CONTRACTOR_LM_STUDIO_TOKEN \
+  -e OPENROUTER_API_KEY \
   -v "$script_dir/litellm_config.yaml:/app/config.yaml:ro,Z" \
   "$litellm_image" \
   --config /app/config.yaml --host 0.0.0.0 --port 4000

@@ -14,7 +14,7 @@ OpenAI-compatible LLM Gateway must already be running. Its immutable API base
 is authored in `configs/llm-gateways/` and its model aliases and limits are
 authored in `configs/model-policies/`; LiteLLM is one supported backend. The
 checked-in Gateway uses `http://127.0.0.1:4000/v1` with `worker-model` and
-`planner-model` aliases. See [the local LiteLLM setup](../deployment.md#llm-gateway)
+`planner-model` aliases. See [the local OpenRouter GLM-5.3-Flash setup](../deployment.md#llm-gateway)
 if you need to start that Gateway.
 
 Create deployment identities:
