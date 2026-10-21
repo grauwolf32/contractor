@@ -7,7 +7,7 @@
 	test-audit-program-library-hardening test-audit-program-library-process \
 	test-audit-program-library-browser test-audit-program-library-e2e \
 	test-audit-completion-e2e test-evals test-findings-e2e \
-	test-openapi-audit-scan-e2e
+	test-openapi-audit-scan-e2e test-audit-composition-e2e
 
 test-audits-matrix: test-hardening-matrices
 
@@ -56,3 +56,6 @@ test-findings-e2e:
 
 test-openapi-audit-scan-e2e:
 	python3 scripts/test-openapi-audit-scan-e2e.py
+
+test-audit-composition-e2e:
+	python3 scripts/test-audit-composition-e2e.py

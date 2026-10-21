@@ -5,7 +5,7 @@ milestone: audit-workflow-composition
 epic: audits
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on: [V62-011]
 languages: [go, python, typescript, yaml, markdown]
@@ -17,8 +17,9 @@ context:
   specification:
     - docs/spec/audits/audits.md
     - docs/spec/audits/worker-completion.md
+    - docs/spec/audits/scans.md
     - docs/spec/tools/scanners.md
-    - docs/spec/tools/scanners.md
+  existing_gate_alignment: V380-001 changed the default Project policy to automatic and added activeChecks to Project reads; scanner acceptance fixtures must explicitly select approval-required when they assert review behavior, and strict Project response fixtures must accept the current field.
   boundary: Use disposable infrastructure and controlled local targets; these tests do not demonstrate autonomous pentest readiness or live-model quality.
 scope:
   in:
@@ -31,7 +32,7 @@ scope:
   out:
     - Deferred iterative snapshots/dependency routing, deploy production services, invoke external targets, run paid models or claim findings quality from scripted fixtures.
 deliverables:
-  - path: Makefile
+  - path: make/features.mk
     description: New test-audit-composition-e2e target with mandatory prerequisites and contract/regression selection.
   - path: scripts/test-audit-composition-e2e.py
     description: New fail-on-missing/skip orchestrator and actual case-count reporting.
