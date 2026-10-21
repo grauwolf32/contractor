@@ -6,7 +6,8 @@ epic: operations
 kind: defect
 introduced_by: V388-002
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 4a4a7783a4da0290c03c3a606c7b8c8e9da0791a
 depends_on: [V388-002]
 languages: [go, python]
 goal: >-
