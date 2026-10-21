@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-77 open tasks: 3 in progress, 49 pending, 25 deferred. 914 finished: 911 completed, 3 archived.
+78 open tasks: 3 in progress, 50 pending, 25 deferred. 914 finished: 911 completed, 3 archived.
 
 ## In progress
 
@@ -32,6 +32,7 @@ the epics are in [epics.yml](epics.yml).
 | [V371-004](v371-004-worker-completion-exact-integers.yml) | defect | P3 | — | Bound WorkerCompletion integers to the range A2A carries exactly |
 | [V371-005](v371-005-worker-state-read-cost-guard.yml) | chore | P3 | — | Guard the Worker State read cost with a deterministic bound and re-measure it |
 | [V371-006](v371-006-workspace-observation-descriptor.yml) | chore | P3 | — | Take the Worker tools that observe the workspace from the shared Toolset descriptor |
+| [V387-003](v387-003-server-model-selection.yml) | feature | P1 | — | Persist model selection in Operations and pin each Run and Eval |
 
 ### Runtime labels, configuration and credentials (`runtime-config`)
 
@@ -174,7 +175,7 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 3 | 36 | 49 | 11 | 63 |
-| Planners and the Worker model boundary (`planner-worker`) | 3 | 26 | 37 | 13 | 50 |
+| Planners and the Worker model boundary (`planner-worker`) | 4 | 27 | 37 | 13 | 50 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 11 | 25 | 12 | 3 | 37 |
 | Shared Memory tools (`memory`) | 0 | 6 | 8 | 1 | 11 |
 | Agent Skills (`agent-skills`) | 0 | 10 | 2 | 1 | 1 |
