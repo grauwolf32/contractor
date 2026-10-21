@@ -810,8 +810,9 @@ lineage preserve that context and the
 `summary_escalation` variant/ordinal; only its first automatic root consumes
 the strategy slot. Missing exact pins or changed source authority are permanent
 invalid state. Existing Artifact and selected Memory tools access the same
-Run/Namespace through fresh allocations; allocation-local HTTP buffers,
-cookies, ADK sessions and in-flight calls are not inherited.
+Run/Namespace through fresh allocations. Target cookies restore through the
+ordinary Artifact contract (HTP-R37 in [HTTP tools](../tools/http-caido.md));
+allocation-local HTTP buffers, ADK sessions and in-flight calls are not inherited.
 
 **SCH-R174.** Summary publication retries only known transient context,
 blob-I/O and classified PostgreSQL failures, with each operation bounded by

@@ -9,6 +9,7 @@ from contractor_runtime.toolsets.common.artifacts import (
     _reject_unconfigured_client,
     _unconfigured_client,
 )
+from contractor_runtime.toolsets.http.tools import HTTPToolsetFactory
 from contractor_runtime.toolsets.likec4.tools import LikeC4ToolsetFactory
 from contractor_runtime.toolsets.memory.tools import MemoryToolsetFactory
 from contractor_runtime.toolsets.openapi.tools import OpenAPIToolsetFactory
@@ -31,6 +32,7 @@ def test_rejecting_factory_fails_at_construction() -> None:
 @pytest.mark.parametrize(
     ("factory", "expected"),
     [
+        (HTTPToolsetFactory, _reject_unconfigured_client),
         (LikeC4ToolsetFactory, _unconfigured_client),
         (MemoryToolsetFactory, _unconfigured_client),
         (OpenAPIToolsetFactory, _unconfigured_client),

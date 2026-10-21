@@ -236,7 +236,9 @@ def built_in_factories(
 ) -> FactoryRegistry:
     runtime = AdkWorkerRuntimeFactory(model_factory, artifact_client_factory)
     filesystem_toolset = FilesystemToolsetFactory()
-    http_toolset = HTTPToolsetFactory(target_policy=target_policy)
+    http_toolset = HTTPToolsetFactory(
+        target_policy=target_policy, artifact_client_factory=artifact_client_factory
+    )
     caido_toolset = CaidoToolsetFactory(artifact_client_factory, target_policy=target_policy)
     code_analysis_toolset = CodeAnalysisToolsetFactory(
         workspace_storage=workspace_settings.storage if workspace_settings is not None else None,

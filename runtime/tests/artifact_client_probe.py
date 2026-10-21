@@ -28,6 +28,10 @@ async def run(args: argparse.Namespace) -> dict[str, object]:
             args.api_url, context, timeout_seconds=3, runtime_instance_id=args.instance_id
         ),
     )
+    if args.mode == "cookies":
+        from http_cookie_probe import cookie_probe
+
+        return await cookie_probe(client, args.cookie_action, args.cookie_proxy)
     if args.mode == "page":
         return await page_through(client, args.limit)
     if args.mode == "binary-read":
@@ -195,8 +199,14 @@ def main() -> None:
     parser.add_argument("--certificate", type=Path, required=True)
     parser.add_argument("--private-key", type=Path, required=True)
     parser.add_argument(
-        "--mode", choices=("normal", "fenced", "page", "binary-read"), default="normal"
+        "--mode", choices=("normal", "fenced", "page", "binary-read", "cookies"), default="normal"
     )
+    parser.add_argument(
+        "--cookie-action",
+        default="login",
+        choices=("login", "read", "clear", "delete", "fenced", "faults"),
+    )
+    parser.add_argument("--cookie-proxy", action="store_true")
     parser.add_argument("--expected-revision")
     parser.add_argument("--limit", type=int, default=256)
     print(json.dumps(asyncio.run(run(parser.parse_args())), separators=(",", ":")))

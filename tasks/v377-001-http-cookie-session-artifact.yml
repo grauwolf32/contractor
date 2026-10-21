@@ -54,7 +54,7 @@ requirements:
   - id: R1
     text: Use an ordinary versioned RunScope artifact in the same resolved Agent Namespace, with normal Artifact grants and retention; no new table, separate secret store, generic-tool restriction or encryption requirement for target cookies.
   - id: R2
-    text: Record the target origin and cookie attributes needed to preserve direct/proxy matching semantics in a strict versioned payload; validate Go/Python readers and writers with shared fixtures and no legacy readers.
+    text: Record the target origin and cookie attributes needed to preserve direct/proxy matching semantics in a strict versioned payload; validate the Runtime format with shared fixtures and Go/Python Artifact transport with real-store tests; Go treats these ordinary bytes as opaque and owns no duplicate cookie parser. No legacy readers.
   - id: R3
     text: Restore only the same Run and Namespace's committed state, retaining target and redirect authority checks. Absence means an empty jar; malformed or incompatible state is a classified failure rather than silent replacement.
   - id: R4
@@ -134,3 +134,13 @@ tests:
     covers: [A1, A2, A3, A4, A5, A6, A7]
   - command: make test-postgres
     covers: [A1, A2, A4, A5, A6, A7]
+
+implementation_notes:
+  boundary: Runtime owns the strict cookie payload; the Go Artifact API stores ordinary opaque bytes with existing grants, CAS, blob backends, fencing and retention. No table, legacy reader or credential store was added.
+  artifact: "<resolved-namespace>/http-cookie-session; application/vnd.contractor.http-cookie-session+json; schema_version 1"
+  recovery: Completed target responses retain their actual outcome when checkpointing is unconfirmed. Session inspection repairs storage without target replay; templates without that operation stop HTTP work and report the checkpoint.
+  cancellation: The full response/capture is the acceptance boundary. Joined checkpoint cancellation mirrors any committed revision locally, including clear, before releasing session ownership.
+  matching: Host-only cookies are filtered explicitly before CookieJar domain/path/Secure matching on both transports. Generic HTTP without a Project target retains RFC-scoped jars and existing explicit unscoped cookie behavior.
+  verification: Required lint, wire, HTTP/Caido hardening and PostgreSQL gates passed on macOS with Go package concurrency limited to two. The test cluster needed max_locks_per_transaction 1024 for concurrent schema migrations.
+  additional_checks: The touched Runtime sibling suites passed with two existing real-Vacuum tests skipped because the executable is absent. Unrelated broad Runtime platform failures were reproduced on unchanged main; see the delivery evidence.
+  evidence: tasks/evidence/v377-001.json

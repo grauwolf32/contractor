@@ -8,7 +8,12 @@ from pathlib import Path
 import pytest
 
 from contractor_runtime.allocation import WorkerState
-from contractor_runtime.artifacts import ArtifactValue
+from contractor_runtime.artifacts import (
+    MAX_ARTIFACT_BYTES,
+    ArtifactAPIError,
+    ArtifactResponseLimitError,
+    ArtifactValue,
+)
 from contractor_runtime.contracts import (
     API_VERSION,
     ArtifactReadResult,
@@ -411,12 +416,19 @@ class MemoryArtifactClient:
             size=len(stored.data),
         )
 
-    async def read_artifact(self, ref: ArtifactRef) -> ArtifactValue:
+    async def read_artifact(
+        self, ref: ArtifactRef, *, max_bytes: int = MAX_ARTIFACT_BYTES
+    ) -> ArtifactValue:
         self.read_calls += 1
-        if ref.revision is None:
-            stored = self.bindings[(ref.namespace, ref.name)]
-        else:
-            stored = self.history[(ref.namespace, ref.name, ref.revision)]
+        try:
+            if ref.revision is None:
+                stored = self.bindings[(ref.namespace, ref.name)]
+            else:
+                stored = self.history[(ref.namespace, ref.name, ref.revision)]
+        except KeyError:
+            raise ArtifactAPIError(404, "artifact_not_found", False) from None
+        if len(stored.data) > max_bytes:
+            raise ArtifactResponseLimitError("response too large")
         exact = ArtifactRef(
             namespace=ref.namespace,
             name=ref.name,

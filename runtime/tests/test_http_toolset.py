@@ -10,6 +10,7 @@ from typing import Any
 import httpx
 import idna
 import pytest
+from http_cookie_store import HTTPToolsetFactory
 
 import contractor_runtime.toolsets.http.tools as http_tools
 from contractor_runtime.adapters import AdapterHandles
@@ -29,7 +30,6 @@ from contractor_runtime.contracts import (
 from contractor_runtime.core.target_policy import TargetDenied
 from contractor_runtime.toolsets.http.tools import (
     HTTPToolError,
-    HTTPToolsetFactory,
 )
 from contractor_runtime.workspace import AllocationWorkspace
 

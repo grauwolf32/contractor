@@ -1010,7 +1010,7 @@ model {
     allocationCapabilities.taintAnnotationTools -> allocationCapabilities.workspaceProvider 'Resolve current function syntax and atomically update one managed-text file'
     allocationCapabilities.workspaceProvider -> allocationCapabilities.artifactClient 'Read exact ZIP/state; overlay auto-export keeps independent 16 MiB ceiling despite 64 MiB Artifact transport'
     allocationCapabilities.workspaceProvider -> runtimeWorkspaceStorage 'Create isolated disposable allocation storage'
-    allocationCapabilities.httpCaidoTools -> allocationCapabilities.artifactClient 'Persist bounded response bodies as ordinary exact Run artifacts'
+    allocationCapabilities.httpCaidoTools -> allocationCapabilities.artifactClient 'Persist selected HTTP evidence and same-Run target cookies as ordinary artifacts'
     allocationCapabilities.httpCaidoTools -> caidoService 'Target HTTP via optional proxy; call static GraphQL operations through typed adapter'
   }
 
@@ -2358,7 +2358,7 @@ views {
       title 'Target HTTP / static GraphQL'
     }
     include runtimeAgent.allocationCapabilities.httpCaidoTools -> runtimeAgent.allocationCapabilities.artifactClient with {
-      title 'Persist bounded response bodies'
+      title 'Selected evidence / cookie continuation'
     }
     include runtimeAgent.allocationCapabilities.adapterHost -> runtimeAgent.allocationCapabilities.otlpExporter with {
       title 'Own sender / bounded flush / close'

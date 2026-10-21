@@ -9,6 +9,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from http_cookie_store import HTTPToolsetFactory
 from test_caido_read_tools import FakeArtifactClient as CaidoArtifactClient
 from test_caido_read_tools import close_tools as close_caido_tools
 from test_caido_read_tools import create_tools as create_caido_tools
@@ -30,7 +31,7 @@ from contractor_runtime.core.target_policy import (
     validate_host_syntax,
 )
 from contractor_runtime.toolsets.caido.tools import CaidoToolError, CaidoToolsetFactory
-from contractor_runtime.toolsets.http.tools import HTTPToolError, HTTPToolsetFactory
+from contractor_runtime.toolsets.http.tools import HTTPToolError
 from contractor_runtime.toolsets.scan.ffuf import validate_ffuf_url
 from contractor_runtime.toolsets.scan.http_request import parse_http_request
 from contractor_runtime.toolsets.scan.katana import canonical_url
