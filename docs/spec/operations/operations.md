@@ -621,7 +621,7 @@ effective value is [SCH-R144](../execution/scheduler.md).
 
 ### Model selection
 
-**OPS-R219.** The optional compiled deployment catalog exposes all deployed
+**OPS-R223.** The optional compiled deployment catalog exposes all deployed
 models and their compatible role policies. `GET /v1/operations/settings/models`
 returns whether the facility is configured, safe capabilities and policy
 selectors, and the saved selection, revision, catalog digest and update time.
@@ -630,7 +630,7 @@ invent model capabilities or call a provider. Collection and identifier bounds
 are [LIM-CAT-6](../platform/limits.md), [LIM-CAT-10](../platform/limits.md) and
 [LIM-CAT-11](../platform/limits.md).
 
-**OPS-R220.** PostgreSQL owns one current default model plus optional Planner,
+**OPS-R224.** PostgreSQL owns one current default model plus optional Planner,
 Worker, summarizer and Audit completion overrides. Startup initializes an absent
 row from `model-selection.json` once; restarting with changed bootstrap selection
 must not replace saved operator choices. Every selected effective role must have
@@ -638,7 +638,7 @@ a deployed compatible policy. Unknown or incompatible saved selection rejects
 startup, rather than silently choosing another model. The singleton has no
 delete API and its database row cannot be deleted.
 
-**OPS-R221.** `PUT /v1/operations/settings/models` replaces the whole selection
+**OPS-R225.** `PUT /v1/operations/settings/models` replaces the whole selection
 using one strong `If-Match` binding both revision and catalog digest. Missing or
 malformed preconditions and invalid choices return `400`; stale revision or
 catalog returns `412`. No-op replacement with the current precondition keeps
@@ -648,7 +648,7 @@ concurrent replacements have one winner. Database conflicts follow the public
 no retry performs inference, provisions credentials or edits Gateway routes.
 Successful changes invalidate the `modelSelection` Operations resource.
 
-**OPS-R222.** Operations Settings lets the operator choose a default and each
+**OPS-R226.** Operations Settings lets the operator choose a default and each
 role override from the complete bounded catalog. It displays server-confirmed
 saved selection and context capacity, collapses optional role overrides, shows
 a concrete unsaved-change preview, preserves unsaved edits during refresh,
@@ -1344,7 +1344,7 @@ the conventions of [Public API](../api/public-api.md).
 
 | Resource | Methods | Rules |
 | --- | --- | --- |
-| `/v1/operations/settings/models` | `GET`, `PUT` | OPS-R219 to OPS-R222 |
+| `/v1/operations/settings/models` | `GET`, `PUT` | OPS-R223 to OPS-R226 |
 | `/v1/operations/settings/scheduler` | `GET`, `PUT` | OPS-R53 to OPS-R63 |
 | `/v1/operations/performance` | `GET` | OPS-R164 |
 | `/v1/operations/performance/history` | `GET` | OPS-R165 to OPS-R167 |

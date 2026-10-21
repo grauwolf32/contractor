@@ -492,7 +492,7 @@ bound. The compiled catalog is bounded by [LIM-CAT-11](../platform/limits.md),
 validated against exact deployed policies at load, and contains no credentials.
 Generated model aliases must fit the existing public model-name bound. The
 catalog's bootstrap selection initializes durable Server settings under
-[OPS-R220](../operations/operations.md); changing files does not overwrite a
+[OPS-R224](../operations/operations.md); changing files does not overwrite a
 saved selection. Deployed routes and policies needed by pinned executions must
 remain available until those executions no longer need them.
 

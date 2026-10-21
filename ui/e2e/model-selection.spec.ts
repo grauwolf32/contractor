@@ -85,6 +85,12 @@ for (const theme of ["light", "dark", "black"]) {
     await page
       .getByRole("combobox", { name: "Summarizer model", exact: true })
       .selectOption("alpha");
+    await expect(
+      section.getByText("Unsaved changes", { exact: true }),
+    ).toBeVisible();
+    await expect(section.getByLabel("Model changes to save")).toContainText(
+      "alpha → beta",
+    );
     await page.getByRole("button", { name: "Save model defaults" }).click();
     await expect(
       page.getByText("Model defaults saved for new executions."),
@@ -99,10 +105,8 @@ for (const theme of ["light", "dark", "black"]) {
     );
     expect(overflow).toBe(false);
     await page
-      .locator(":focus")
-      .evaluateAll((elements) =>
-        elements.forEach((element) => (element as HTMLElement).blur()),
-      );
+      .getByRole("combobox", { name: "Default model", exact: true })
+      .focus();
     await section.screenshot({
       path: `/private/tmp/contractor-model-selection-${theme}.png`,
     });

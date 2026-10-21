@@ -105,7 +105,7 @@ tests:
     covers: [A2, A5]
   - command: make test-wire-cross-language
     covers: [A3, A4]
-  - command: make test-runtime
+  - command: cd runtime && uv run --no-sync pytest -o cache_dir=/tmp/pytest-runner-cache
     covers: [A4]
   - command: make ui-verify
     covers: [A5]
@@ -123,3 +123,12 @@ decisions:
     ambiguous. Browser-only selection would not affect server-created Runs.
     Editing operator YAML from an API would introduce competing configuration owners.
   reversal: Revisit remote model provisioning only with a separate versioned provider-management contract.
+verification:
+  context: Tests use a disposable PostgreSQL database, never the demo database; the full Runtime suite runs as an unprivileged Linux user with the locked dependencies and Go 1.26.9.
+  postgres: Full Go and PostgreSQL package suites passed, including restart, CAS races, transaction-bound reads and retained Workflow/Audit Eval dispatch that rejects mutable re-resolution.
+  wire: Shared wire fixtures passed with 300 contract tests, 1081 shared Python checks and 237 fixtures across 212 Go and 164 Python shared tests.
+  runtime: Full non-root Linux pytest passed with 3880 passed and 56 optional environment checks skipped; macOS-specific process/socket failures were not reported as a pass.
+  ui: ui-verify passed with 187 test files and 2193 tests, plus one expected failure; the model form saves at 390px in light, dark and black themes.
+  lint: make lint passed with 112 script tests and all layer, source, generated-file and schema checks.
+  live: The real GLM Gateway routing probe made three calls successfully; all three live Runtime Gateway tests passed without skips.
+  installation: LiteLLM and its virtual key use four immutable GLM role aliases with a 1000000-token operating window; login startup remains disabled.
