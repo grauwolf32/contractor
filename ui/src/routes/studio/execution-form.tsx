@@ -9,11 +9,13 @@ function SelectionForm({
   path,
   title,
   allowClear = false,
+  allowSummary = false,
 }: {
   editor: FormEditor;
   path: Path;
   title: string;
   allowClear?: boolean;
+  allowSummary?: boolean;
 }) {
   const { edit, error } = useDraftEdit(editor.draft, editor.onReplace);
   const value = at(editor.draft.value, path),
@@ -35,11 +37,17 @@ function SelectionForm({
       ) : (
         <>
           <p>Unset fields inherit their existing configuration.</p>
-          {(["modelPolicy", "llmGateway"] as const).map((field) => (
+          {(
+            [
+              "modelPolicy",
+              ...(allowSummary ? ["summarizerModelPolicy"] : []),
+              "llmGateway",
+            ] as const
+          ).map((field) => (
             <CatalogField
               key={field}
-              label={`${title} ${field === "modelPolicy" ? "model policy" : "gateway"}`}
-              kind={field === "modelPolicy" ? "model-policies" : "llm-gateways"}
+              label={`${title} ${field === "modelPolicy" ? "model policy" : field === "summarizerModelPolicy" ? "summarizer model policy" : "gateway"}`}
+              kind={field === "llmGateway" ? "llm-gateways" : "model-policies"}
               value={textValue(row[field])}
               onChange={(value) =>
                 edit((document) =>
@@ -142,6 +150,7 @@ export function ExecutionDefaultsForm({ editor }: { editor: FormEditor }) {
         editor={editor}
         path={["spec", "executionConfig", "workers"]}
         title="Default workers"
+        allowSummary
       />
       {at(editor.draft.value, ["spec", "executionConfig"]) !== undefined ? (
         <Button
@@ -189,6 +198,7 @@ function StageSelections({
           editor={editor}
           path={[...path, "agents", name]}
           title={`${title} agent ${name}`}
+          allowSummary
           allowClear={allowClear}
         />
       ))}

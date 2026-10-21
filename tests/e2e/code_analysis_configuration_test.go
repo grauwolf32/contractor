@@ -38,9 +38,6 @@ func TestCodeAnalysisE2EConfigurationLoads(t *testing.T) {
 			if !reflect.DeepEqual(template.ModelPolicy, production.ModelPolicy) {
 				t.Fatal("generated analyst must use the current production Worker policy")
 			}
-			if template.ModelPolicy.Model != "worker-model" {
-				t.Fatalf("scripted Gateway requires worker-model, got %q", template.ModelPolicy.Model)
-			}
 			var tools []string
 			for _, selection := range template.Toolsets {
 				tools = append(tools, selection.Tools...)

@@ -2109,6 +2109,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/operations/settings/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get deployed model choices and durable model defaults
+         * @description Returns deployed immutable model routes and the saved default/per-role selection. An absent compiled catalog returns configured=false and an empty models array. The strong ETag binds both selection revision and catalog digest. Transient storage conflicts return 503 storage_transaction_conflict.
+         */
+        get: operations["getModelSelection"];
+        /**
+         * Replace model defaults for new Runs and Audits
+         * @description Changes model defaults for newly resolved executions. Explicit Run/Eval policy selections win; active Runs and prepared Eval model selections remain pinned. Unknown or incompatible models reject the whole change. Replacing equal values at the current ETag is a no-op. Revision or catalog mismatch returns 412. Transient storage conflicts return 503 storage_transaction_conflict.
+         */
+        put: operations["putModelSelection"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/operations/settings/scheduler": {
         parameters: {
             query?: never;
@@ -2356,6 +2380,7 @@ export interface components {
             modelPolicy?: components["schemas"]["EvalSelector"];
             llmGateway?: components["schemas"]["EvalSelector"];
             credential?: components["schemas"]["EvalOpaque"] | null;
+            summarizerModelPolicy?: components["schemas"]["EvalSelector"];
         };
         EvalStageOverride: {
             planner?: components["schemas"]["EvalExecutionSelection"];
@@ -3048,6 +3073,38 @@ export interface components {
         };
         UpdateOwnerQueueControlRequest: {
             paused: boolean;
+        };
+        ModelProfileId: string;
+        ModelSelectionValue: {
+            defaultModel: components["schemas"]["ModelProfileId"];
+            roles: {
+                planner?: components["schemas"]["ModelProfileId"];
+                worker?: components["schemas"]["ModelProfileId"];
+                summarizer?: components["schemas"]["ModelProfileId"];
+                audit_completion_worker?: components["schemas"]["ModelProfileId"];
+            };
+        };
+        DeployedModelChoice: {
+            id: components["schemas"]["ModelProfileId"];
+            digest: components["schemas"]["Digest"];
+            upstreamModel: string;
+            contextWindowTokens: number;
+            maxOutputTokens: number;
+            policies: {
+                planner?: components["schemas"]["Selector"];
+                worker?: components["schemas"]["Selector"];
+                summarizer?: components["schemas"]["Selector"];
+                audit_completion_worker?: components["schemas"]["Selector"];
+            };
+        };
+        ModelSelectionInfo: {
+            configured: boolean;
+            models: components["schemas"]["DeployedModelChoice"][];
+            selection?: components["schemas"]["ModelSelectionValue"];
+            revision?: string;
+            catalogDigest?: components["schemas"]["Digest"];
+            /** Format: date-time */
+            updatedAt?: string;
         };
         SchedulerSettings: {
             maxConcurrentRuns: number;
@@ -4676,10 +4733,14 @@ export interface components {
         };
         ConsumerExecutionConfig: {
             modelPolicy?: components["schemas"]["ModelPolicyRef"];
+            model?: string;
+            summarizerModelPolicy?: components["schemas"]["ModelPolicyRef"];
+            summarizerModel?: string;
             llmGateway?: components["schemas"]["LLMGatewayConfigRef"];
             credential?: components["schemas"]["CredentialRef"];
             origins?: {
                 modelPolicy?: string;
+                summarizerModelPolicy?: string;
                 llmGateway?: string;
                 credential?: string;
             };
@@ -4904,6 +4965,7 @@ export interface components {
         };
         ExecutionSelectionPatch: {
             modelPolicy?: components["schemas"]["Selector"];
+            summarizerModelPolicy?: components["schemas"]["Selector"];
             llmGateway?: components["schemas"]["Selector"];
             credential?: components["schemas"]["ConfigId"] | null;
         };
@@ -6268,6 +6330,7 @@ export interface components {
         IfMatch: string;
         /** @description One strong quoted Artifact revision in the `Revision` grammar. A malformed revision is 400 `invalid_request`, never a CAS conflict. */
         ArtifactIfMatch: string;
+        RequiredModelSelectionIfMatch: string;
         RequiredIfMatch: string;
         RequiredQueueControlIfMatch: string;
         IfNoneMatch: "*";
@@ -11495,6 +11558,75 @@ export interface operations {
             500: components["responses"]["InternalError"];
             502: components["responses"]["GatewayUnavailable"];
             503: components["responses"]["CredentialRecoveryRequired"];
+        };
+    };
+    getModelSelection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current model defaults and deployed choices */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    ETag: components["headers"]["ETag"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelSelectionInfo"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
+        };
+    };
+    putModelSelection: {
+        parameters: {
+            query?: never;
+            header: {
+                "If-Match": components["parameters"]["RequiredModelSelectionIfMatch"];
+                /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
+                Origin?: components["parameters"]["OptionalOrigin"];
+                /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
+                "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModelSelectionValue"];
+            };
+        };
+        responses: {
+            /** @description Current model defaults and deployed choices after replacement or exact no-op */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    ETag: components["headers"]["ETag"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelSelectionInfo"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            412: components["responses"]["PreconditionFailed"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     getSchedulerSettings: {

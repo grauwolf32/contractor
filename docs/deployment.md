@@ -160,7 +160,7 @@ offline cleanup are described in [artifact blob storage](operations/artifact-blo
 
 The Gateway endpoint and model aliases belong to immutable documents under
 `configs/llm-gateways` and `configs/model-policies`. The shipped catalog uses
-`local-litellm@1`, `planner-model` and `worker-model`; verify that both Server
+`local-litellm@1` and the digest-qualified model routes compiled from `deploy/models/`; verify that both Server
 and Runtime hosts can reach the selected Gateway. Tokens remain outside YAML.
 For the shipped development credential selectors, set the bootstrap token
 variables described in [the local walkthrough](guides/local-stack.md).
@@ -176,11 +176,57 @@ select the issued credential in the Workflow or Run execution configuration.
 
 ## LLM Gateway
 
-The repository includes a small local proxy profile in
+The local model source is `deploy/models/`: model capabilities and upstream
+routes are in `catalog/*.yaml`, initial role selection in `selection.yaml`, and
+portable role budgets in `roles.yaml`. All four roles initially select
+OpenRouter `z-ai/glm-5.3-flash`, with a 1,000,000-token operating window and a
+128,000-token output capability ceiling. These conservative values fit the
+[OpenRouter endpoint capacities](https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash/endpoints)
+checked on 2026-10-21; they are operator metadata, not live discovery.
+
+To switch the bootstrap model, add a profile and change `defaultModel`, or
+set a role override, for example:
+
+```yaml
+defaultModel: glm-5.3-flash
+roles:
+  summarizer: another-deployed-model
+```
+
+Run `make model-config` and `make test-config`. Generation creates the existing
+four bootstrap ModelPolicies, up to four compatible model-specific ModelPolicies per profile,
+`configs/model-selection.json` and
 [`deploy/litellm/litellm_config.yaml`](../deploy/litellm/litellm_config.yaml).
-It exposes `planner-model` and `worker-model`, both mapped to OpenRouter
-`z-ai/glm-5.3-flash`. Audit completion and terminal summarization use
-`worker-model`, so all shipped model-backed roles use the same upstream model.
+The Server/Runtime continue to consume ordinary resolved ModelPolicies;
+Workflow and AgentTemplate references need no mass rewrite. The generated
+model-choice catalog makes model-specific policies available for Run/Eval
+selection. `selection.yaml` supplies the initial deployment choice; a Run pins
+its resolved selection and never reads this file during execution.
+
+Each Gateway alias includes the upstream model identifier, profile digest and
+role. All deployed profiles have separate routes: switching selection does not
+rewrite a route used by another Run. Keep profiles needed by active Runs.
+Changing profile content creates new aliases, and removing a profile removes
+its generated model-specific policies and routes. History records the requested
+route and configuration digest; only provider evidence can establish a weights
+revision. The generator never contacts a provider, reads credentials or applies
+changes to running services. It prevalidates all inputs/targets and replaces
+individual files atomically. An interrupted multi-file write fails check mode;
+rerun generation before applying. Unknown fields, duplicate keys, YAML aliases,
+symlinks, literal key fields and unsafe endpoints are rejected.
+
+Context capacity, per-response output and cumulative spend are independent.
+Generation rejects a role output budget above the model's declared output
+capacity; it never silently raises or shrinks the role budget. Terminal-summary
+triggers remain in AgentTemplates. Byte limits (including the 512 KiB summary
+projection and 4 MiB Planner request/response bounds), tool read sizes and
+request timeouts do not scale with context. Choosing a smaller summarizer still
+requires validating that the actual projection fits its token window.
+
+The bundled `run.sh` loads the OpenRouter inference key. A profile using another
+provider's environment name also needs that variable passed by its deployment
+launcher; selecting a profile does not provision provider credentials.
+
 The run script uses digest-pinned LiteLLM
 and PostgreSQL images, retains LiteLLM's virtual-key database in a named Podman
 volume, and keeps the proxy itself in the foreground. Create two owner-only
@@ -207,9 +253,8 @@ key remains LiteLLM-only. The upstream inference key is read from its file and
 passed to Podman by environment name, keeping all three credential values out
 of process arguments. None of these files belongs in repository YAML.
 
-The Gateway keeps the published model aliases and Contractor policy budgets;
-changing the upstream model does not require rewriting Workflow or Run
-snapshots. Restart the proxy to apply this profile. Existing named PostgreSQL
+Restart the proxy to load new model routes and restart the Server to load
+newly generated catalog content. Existing Run snapshots retain their selection. Existing named PostgreSQL
 containers and volumes must be retained so managed Gateway credentials survive.
 
 ## Local trace viewer
@@ -320,3 +365,21 @@ to choose release checks. Deployment examples under `deploy/` cover the
 (PostgreSQL by default, with an opt-in filesystem overlay),
 [Runtime labels](../deploy/runtime-labels/README.md) and [Podman](../deploy/podman/README.md);
 they are component examples and require the remaining services above.
+
+### Changing the active model selection
+
+After deploying profiles and their Gateway routes, use **Operations → Settings →
+Models** to change the default or a role override for new executions. PostgreSQL
+stores this selection with a revision; `selection.yaml` initializes it only on
+the first startup. Restarting or regenerating files does not reset a saved
+selection. Removing a selected model makes startup fail until a valid deployment
+and saved selection agree. The UI does not install provider credentials or
+provision remote routes.
+
+Run and Eval execution overrides can select exact model-specific policies,
+including `workers.summarizerModelPolicy` for a summary-enabled Worker. An Audit
+pins defaults at draft creation; a prepared Eval retains its binding through
+submission. Run history shows requested aliases and exact policy digests per
+consumer; provider weight revisions remain unknown unless observed. Context
+capacity comes from the profile, role spending/output budgets from `roles.yaml`,
+and the terminal-summary trigger and instructions from the AgentTemplate.

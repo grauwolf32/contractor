@@ -159,9 +159,10 @@ type workflowPresentationSource struct {
 }
 
 type executionSelectionSource struct {
-	ModelPolicy yaml.Node `yaml:"modelPolicy,omitempty"`
-	LLMGateway  yaml.Node `yaml:"llmGateway,omitempty"`
-	Credential  yaml.Node `yaml:"credential,omitempty"`
+	SummarizerModelPolicy yaml.Node `yaml:"summarizerModelPolicy,omitempty"`
+	ModelPolicy           yaml.Node `yaml:"modelPolicy,omitempty"`
+	LLMGateway            yaml.Node `yaml:"llmGateway,omitempty"`
+	Credential            yaml.Node `yaml:"credential,omitempty"`
 }
 
 type workflowExecutionConfigSource struct {

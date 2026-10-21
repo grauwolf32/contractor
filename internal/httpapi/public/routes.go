@@ -157,6 +157,8 @@ func (c contextHandlers) routes() []route {
 		{"GET", "/v1/operations/allocation-history", "listAllocationResourceHistory", c.operations.listAllocationResourceHistory},
 		{"GET", "/v1/operations/performance", "getPerformance", c.operations.getPerformance},
 		{"GET", "/v1/operations/performance/history", "getPerformanceHistory", c.operations.getPerformanceHistory},
+		{"GET", "/v1/operations/settings/models", "getModelSelection", c.operations.getModelSelection},
+		{"PUT", "/v1/operations/settings/models", "putModelSelection", c.operations.putModelSelection},
 		{"GET", "/v1/operations/settings/scheduler", "getSchedulerSettings", c.operations.getSchedulerSettings},
 		{"PUT", "/v1/operations/settings/scheduler", "putSchedulerSettings", c.operations.putSchedulerSettings},
 

@@ -26,6 +26,9 @@ interface PreparedRepeatDraft {
 function consumerDraft(patch?: SelectionPatch): ConsumerOverrideDraft {
   return {
     modelPolicy: patch?.modelPolicy ?? "",
+    ...(patch?.summarizerModelPolicy === undefined
+      ? {}
+      : { summarizerModelPolicy: patch.summarizerModelPolicy }),
     llmGateway: patch?.llmGateway ?? "",
     credential:
       patch?.credential === null

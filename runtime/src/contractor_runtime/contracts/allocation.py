@@ -33,6 +33,7 @@ from contractor_runtime.contracts.settings import (
     RuntimeSettings,
     WorkerRuntimeRef,
     _require_worker_policy,
+    _require_worker_summarizer_policy,
 )
 from contractor_runtime.contracts.workspace import AllocationWorkspaceSpec
 
@@ -126,6 +127,7 @@ class AllocationSpec(VersionedWireModel):
     model_policy: ResolvedModelPolicy | None = Field(
         default=None, exclude_if=lambda value: value is None
     )
+    summarizer_model_policy: ResolvedModelPolicy | None = None
     runtime_settings: RuntimeSettings
     resolved_runtime_config_provenance: ResolvedRuntimeConfigProvenance
     workspace: AllocationWorkspaceSpec | None = None
@@ -162,6 +164,7 @@ class AllocationSpec(VersionedWireModel):
         if self.agent_template.is_tool_worker:
             if (
                 "model_policy" in self.model_fields_set
+                or "summarizer_model_policy" in self.model_fields_set
                 or "completion_contract" in self.model_fields_set
                 or "llm_gateway_url" in self.runtime_settings.model_fields_set
                 or self.runtime_settings.llm_gateway_url is not None
@@ -184,6 +187,10 @@ class AllocationSpec(VersionedWireModel):
                 or any(selection.tools for selection in self.agent_template.toolsets)
             ),
         )
+        if self.summarizer_model_policy is not None:
+            if self.agent_template.summarizer is None:
+                raise ValueError("summarizerModelPolicy requires an enabled summarizer")
+            _require_worker_summarizer_policy(self.summarizer_model_policy)
         if (
             self.agent_template.summarizer is not None
             and self.agent_template.summarizer.cumulative_budget is not None

@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-74 open tasks: 3 in progress, 46 pending, 25 deferred. 920 finished: 917 completed, 3 archived.
+74 open tasks: 3 in progress, 46 pending, 25 deferred. 924 finished: 921 completed, 3 archived.
 
 ## In progress
 
@@ -170,8 +170,8 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 3 | 36 | 49 | 11 | 63 |
-| Planners and the Worker model boundary (`planner-worker`) | 3 | 25 | 37 | 13 | 50 |
+| Run execution core (`execution-core`) | 3 | 36 | 49 | 11 | 64 |
+| Planners and the Worker model boundary (`planner-worker`) | 3 | 27 | 37 | 14 | 50 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 11 | 25 | 12 | 3 | 37 |
 | Shared Memory tools (`memory`) | 0 | 6 | 8 | 1 | 11 |
 | Agent Skills (`agent-skills`) | 0 | 10 | 2 | 1 | 1 |
@@ -182,7 +182,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 4 | 7 | 5 | 4 | 7 |
 | Workflow catalog and document workflows (`workflows`) | 3 | 14 | 13 | 12 | 12 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 29 | 32 | 4 | 34 |
-| Audits (`audits`) | 16 | 50 | 68 | 14 | 79 |
+| Audits (`audits`) | 16 | 50 | 68 | 15 | 80 |
 | Evaluations (`evals`) | 3 | 21 | 29 | 5 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 9 | 1 | 1 | 2 |
 | Web UI (`ui`) | 1 | 20 | 54 | 11 | 49 |

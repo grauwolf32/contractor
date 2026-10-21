@@ -1,5 +1,7 @@
 package resolved
 
+import "github.com/grauwolf32/contractor/internal/contracts"
+
 // The configuration Snapshot hands out, and every holder of a decoded
 // snapshot keeps, values that share no mutable state with another holder.
 // These are the deep copies they use.
@@ -60,6 +62,12 @@ func CloneArtifactSlots(source map[string]ArtifactSlot) map[string]ArtifactSlot 
 
 func cloneStage(source ResolvedStage) ResolvedStage {
 	result := source
+	if source.ModelDefaults != nil {
+		result.ModelDefaults = make(map[string]contracts.ResolvedModelPolicy, len(source.ModelDefaults))
+		for role, policy := range source.ModelDefaults {
+			result.ModelDefaults[role] = policy.Clone()
+		}
+	}
 	result.ScanPlan = cloneScanPlanPolicy(source.ScanPlan)
 	result.AuditScan = cloneAuditScan(source.AuditScan)
 	result.Agents = make(map[string]ResolvedAgentBinding, len(source.Agents))
@@ -119,6 +127,10 @@ func cloneStageExecutionConfig(source ResolvedStageExecutionConfig) ResolvedStag
 func cloneConsumerExecutionConfig(source ResolvedConsumerExecutionConfig) ResolvedConsumerExecutionConfig {
 	result := source
 	result.ModelPolicy = source.ModelPolicy.Clone()
+	if source.SummarizerModelPolicy != nil {
+		policy := source.SummarizerModelPolicy.Clone()
+		result.SummarizerModelPolicy = &policy
+	}
 	if source.LLMGateway != nil {
 		gateway := source.LLMGateway.Clone()
 		result.LLMGateway = &gateway
@@ -157,6 +169,10 @@ func cloneExecutionSelectionOverride(
 	source ResolvedExecutionSelectionOverride,
 ) ResolvedExecutionSelectionOverride {
 	result := source
+	if source.SummarizerModelPolicy != nil {
+		policy := source.SummarizerModelPolicy.Clone()
+		result.SummarizerModelPolicy = &policy
+	}
 	if source.ModelPolicy != nil {
 		policy := source.ModelPolicy.Clone()
 		result.ModelPolicy = &policy

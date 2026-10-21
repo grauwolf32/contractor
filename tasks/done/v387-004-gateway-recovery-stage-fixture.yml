@@ -1,0 +1,37 @@
+schema_version: "1.0"
+id: V387-004
+title: Exercise Planner Gateway recovery with an active Stage fixture
+milestone: model-policy-runtime-correctness
+epic: planner-worker
+kind: chore
+introduced_by: V372-012
+priority: P2
+status: completed
+depends_on: []
+languages: [go]
+goal: Restore real PostgreSQL recovery regressions by constructing the active Planner participant required by the Stage fence.
+context:
+  finding: >-
+    internal/planner/streamline/gateway_recovery_postgres_test.go:222 binds
+    planner:stage-1 without creating stage-1. Since V372-012 all model calls
+    reject that inactive participant before reaching the fake Gateway.
+scope:
+  in:
+    - Create and start the fixture Stage through the real Run store before binding its Planner participant.
+    - Keep permanent rejection, bookkeeping contention and abandoned request checks on the real recovery path.
+  out:
+    - Relaxing production Stage lifecycle fences or changing model selection.
+acceptance_criteria:
+  - id: A1
+    text: All three PostgreSQL-backed Planner Gateway recovery test families reach the fake Gateway and retain their asserted outcomes.
+  - id: A2
+    text: The complete Streamline package and repository lint pass with no production behavior changes.
+tests:
+  - command: go test -count=1 ./internal/planner/streamline
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A2]
+implementation_commit: 8abf49cfa00501bed9ee18d6947c769cf743528b
+verification:
+  postgres: go test -count=1 ./internal/planner/streamline passed against the disposable PostgreSQL database, including every Gateway recovery family.
+  lint: make lint passed with the active model-selection worktree and 111 script tests.

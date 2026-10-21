@@ -1503,13 +1503,18 @@ func validateAuthenticatedPrincipal(principal AuthenticatedPrincipal) error {
 
 func validateRuntimeSelection(value resolved.ResolvedConsumerExecutionConfig, toolWorker bool) error {
 	if toolWorker {
-		if !value.ModelPolicy.IsZero() || value.LLMGateway != nil || value.Credential != nil || value.Origins != (resolved.ExecutionConfigOrigins{}) {
+		if !value.ModelPolicy.IsZero() || value.SummarizerModelPolicy != nil || value.LLMGateway != nil || value.Credential != nil || value.Origins != (resolved.ExecutionConfigOrigins{}) {
 			return ErrInvalidRequest
 		}
 		return nil
 	}
 	if err := value.ModelPolicy.Validate(); err != nil || strings.TrimSpace(value.Origins.ModelPolicy) == "" {
 		return ErrInvalidRequest
+	}
+	if value.SummarizerModelPolicy != nil {
+		if err := value.SummarizerModelPolicy.ValidateForWorkerSummarizer(); err != nil || strings.TrimSpace(value.Origins.SummarizerModelPolicy) == "" {
+			return ErrInvalidRequest
+		}
 	}
 	if value.LLMGateway != nil {
 		if err := value.LLMGateway.Validate(); err != nil || strings.TrimSpace(value.Origins.LLMGateway) == "" {

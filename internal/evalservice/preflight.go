@@ -12,13 +12,14 @@ import (
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/settingsstore"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Catalog interface {
 	ResolveRunWorkflow(context.Context, string, resolved.ExecutionConfigPatch, resolved.CredentialLookup) (resolved.ResolvedWorkflow, error)
-	AuditProfile(string) (auditprofile.ResolvedAuditProfile, error)
+	ResolveAuditProfile(context.Context, string) (auditprofile.ResolvedAuditProfile, error)
 }
 
 type CredentialBarrier interface {
@@ -56,6 +57,7 @@ func (r *Resolver) Resolve(ctx context.Context, owner string, v evaldomain.Varia
 	}
 	err = r.Barrier.WithRunCreation(ctx, func() error {
 		return pg.InTx(ctx, r.Pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
+			ctx = settingsstore.WithModelSelectionTransaction(ctx, tx)
 			lookup, err := runtimeconfig.BindTransactionLLMCredentialLookup(tx, r.Credentials)
 			if err != nil {
 				return err

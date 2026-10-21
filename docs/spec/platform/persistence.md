@@ -137,7 +137,7 @@ own the rules of particular state are indexed in the next section.
 | `internal/projectstore` | `projects` |
 | `internal/runstore` | `owner_queue_controls`, `planner_sessions`, `run_stage_resumptions`, `stage_allocations`, `stage_executions`, `stage_transition_decisions`, `workflow_run_events`, `workflow_run_output_publications`, `workflow_runs` |
 | `internal/runtimeconfig` | `runtime_config_versions`, `runtime_label_bindings` |
-| `internal/settingsstore` | `scheduler_settings` |
+| `internal/settingsstore` | `scheduler_settings`, `model_selection_settings` |
 | `internal/telemetry` | `allocation_execution_reports`, `planner_execution_reports`, `stage_metrics` |
 
 ### PostgreSQL state and its owners

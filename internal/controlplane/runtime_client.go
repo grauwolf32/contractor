@@ -91,6 +91,7 @@ func (c *RuntimeControlClient) Prepare(
 		LeaseExpiresAt:    wireTime(reservation.LeaseExpiresAt), AgentTemplate: reservation.AgentTemplate.Clone(),
 		ResolvedSkills: contracts.CloneResolvedSkills(resolvedSkills),
 		ModelPolicy:    settings.ModelPolicy.Clone(), RuntimeSettings: settings.RuntimeSettings,
+		SummarizerModelPolicy:           settings.SummarizerModelPolicy,
 		ResolvedRuntimeConfigProvenance: settings.ResolvedRuntimeConfigProvenance,
 		Workspace:                       contracts.CloneAllocationWorkspaceSpec(reservation.Workspace),
 		PerformanceMetrics:              clonePerformanceMetricsRequest(reservation.PerformanceMetrics),

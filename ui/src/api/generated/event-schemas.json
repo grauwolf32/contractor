@@ -605,7 +605,8 @@
             "allocation",
             "configuration",
             "credential",
-            "schedulerSettings"
+            "schedulerSettings",
+            "modelSelection"
           ]
         },
         "resourceId": {
@@ -621,7 +622,9 @@
       "allOf": [
         {
           "if": {
-            "properties": { "resource": { "const": "schedulerSettings" } }
+            "properties": {
+              "resource": { "enum": ["schedulerSettings", "modelSelection"] }
+            }
           },
           "then": { "not": { "required": ["resourceId"] } }
         }

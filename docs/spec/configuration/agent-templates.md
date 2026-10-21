@@ -734,7 +734,7 @@ invalid.
 
 **TPL-R72.** Every execution-selection leaf, whether in Workflow defaults, a
 Run override or an ExecutionConfig profile, contains only the optional exact
-`<id>@<version>` selectors `modelPolicy` and `llmGateway` plus the optional
+`<id>@<version>` selectors `modelPolicy`, `summarizerModelPolicy` and `llmGateway` plus the optional
 exact credential ID `credential`, and must select at least one of them.
 Explicit `credential: null` is accepted only in a Run or escalation override
 (TPL-R78).
@@ -776,11 +776,13 @@ consumer in this order, with later values winning:
 1. the AgentTemplate's ModelPolicy, for a Worker;
 2. Workflow-wide execution defaults;
 3. Workflow Stage and binding defaults;
-4. Run-request-wide overrides;
-5. Run-request Stage and binding overrides.
+4. captured deployment model defaults for canonical role policies (TPL-R111);
+5. Run-request-wide overrides;
+6. Run-request Stage and binding overrides.
 
 **TPL-R80.** For an escalated attempt only, the selected Stage transition's
-escalation executionConfig is applied as a sixth and final layer.
+escalation executionConfig is applied as a final layer, with canonical role
+references materialized using the same captured defaults (TPL-R111).
 
 **TPL-R81.** This order is authoritative for ModelPolicy, budgets and Planner
 model access. ExecutionConfig is not another label and alone selects them:
@@ -924,6 +926,37 @@ removing the catalog entry cannot retarget an already prepared or recorded
 StageExecution (LIFE-TPL-3). They never re-resolve a current owner skill
 binding either: exact skill artifacts come from the immutable WorkflowRun
 snapshot ([Skills](../tools/skills.md)).
+
+### Deployment defaults and summary selection
+
+**TPL-R111.** At new Run resolution the Server reads the durable deployment
+selection once, before explicit Run overrides. A Stage captures up to four
+complete role policies in `modelDefaults`. A canonical role policy (same ID and
+version as the compiled role budget) is replaced by its selected model-specific
+policy; other exact policies remain explicit. Captured defaults also materialize
+canonical policies in escalation and terminal-summary continuation variants,
+including a Streamline Planner absent from the Passthrough base. An explicit Run
+policy is preserved even when it names a canonical policy. The snapshot carries
+these choices; allocation and later transitions never read mutable defaults.
+Audit profile resolution captures choices at draft creation, and Eval preparation
+captures the same resolved bodies. Deployment defaults cannot add model access
+to a tool Worker or a Passthrough Planner.
+
+**TPL-R112.** `summarizerModelPolicy` independently selects an exact compatible
+one-shot summary policy for a Worker whose AgentTemplate already enables terminal
+summarization. It cannot enable a summary, alter its instructions, ratio or
+cumulative trigger, and is invalid for a Planner or model-free Worker. Omission
+uses the template's summary policy unless a canonical deployment role default
+applies. Run and escalation overrides follow TPL-R79 and TPL-R80. Credential
+model authorization checks both effective main and summary policies. The
+AgentTemplate body and its digest remain unchanged.
+
+**TPL-R113.** Run history and consumer projections expose the stored requested
+model aliases and exact policy refs/digests for main and explicitly resolved
+summary selections. A Workflow may use several models across Stages, roles and
+attempts. Profile digests identify operator configuration, not observed provider
+weights. Unknown provider revision remains unknown; changing current defaults
+never relabels historical execution.
 
 ### Read endpoints
 

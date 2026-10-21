@@ -580,6 +580,15 @@ function ConsumerOverrides({
         retainedNote="retained selection not in loaded catalog"
         onChange={(next) => onChange("modelPolicy", next)}
       />
+      {role === "Workers" ? (
+        <OverrideSelect
+          label="Summarizer model policy"
+          value={value.summarizerModelPolicy ?? ""}
+          options={configurations(modelPolicies)}
+          retainedNote="retained selection not in loaded catalog"
+          onChange={(next) => onChange("summarizerModelPolicy", next)}
+        />
+      ) : null}
       <OverrideSelect
         label="LLM Gateway"
         value={value.llmGateway}

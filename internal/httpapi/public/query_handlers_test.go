@@ -528,12 +528,13 @@ func TestRunDetailJoinsImmutableObjectiveTypedPlanInputsAndCursor(t *testing.T) 
 		len(result.Attempts) != 1 || result.Attempts[0].Objective != stage.Objective ||
 		result.Attempts[0].Plan == nil || result.Attempts[0].Plan.Revision != 1 ||
 		result.Attempts[0].ExecutionConfig.Agents["builder"].Origins.ModelPolicy == "" ||
+		result.Attempts[0].ExecutionConfig.Agents["builder"].Model != stage.ExecutionConfig.Agents["builder"].ModelPolicy.Model ||
 		len(result.OutputPublications) != 1 ||
 		result.OutputPublications[0].Status != runstore.OutputPublicationPublished ||
 		result.OutputPublications[0].Target == nil {
 		t.Fatalf("joined Run detail = %+v", result)
 	}
-	if strings.Contains(response.Body.String(), stage.Instructions.Text) || strings.Contains(response.Body.String(), "worker-model") ||
+	if strings.Contains(response.Body.String(), stage.Instructions.Text) ||
 		strings.Contains(response.Body.String(), "llmGatewayUrl") {
 		t.Fatalf("Run detail leaked private resolved values: %s", response.Body.String())
 	}

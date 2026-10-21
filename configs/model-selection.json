@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "1",
+  "initialSelection": {
+    "defaultModel": "glm-5.3-flash",
+    "roles": {}
+  },
+  "models": [
+    {
+      "id": "glm-5.3-flash",
+      "digest": "sha256:cc78cc13596ab7d7dff06d9eca06bd48f0f8bd31b306a685120202bafeafc257",
+      "upstreamModel": "openrouter/z-ai/glm-5.3-flash",
+      "contextWindowTokens": 1000000,
+      "maxOutputTokens": 128000,
+      "policies": {
+        "planner": "planner_glm_5_3_flash_cc78cc13596ab7d7@2",
+        "worker": "worker_glm_5_3_flash_cc78cc13596ab7d7@2",
+        "summarizer": "summarizer_glm_5_3_flash_cc78cc13596ab7d7@1",
+        "audit_completion_worker": "audit_completion_worker_glm_5_3_flash_cc78cc13596ab7d7@1"
+      }
+    }
+  ]
+}

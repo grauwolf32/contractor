@@ -160,6 +160,7 @@ type ResolveRuntimeConfigInput struct {
 // ResolvedRuntimeConfig is safe non-secret allocation input. RuntimeSettings
 // secret material is deliberately resolved only after placement by V8-007.
 type ResolvedRuntimeConfig struct {
+	SummarizerModelPolicy    *contracts.ResolvedModelPolicy                  `json:"summarizerModelPolicy,omitempty"`
 	ModelFree                bool                                            `json:"modelFree,omitempty"`
 	ModelPolicy              contracts.ResolvedModelPolicy                   `json:"modelPolicy,omitzero"`
 	LLMGateway               llmgateway.ResolvedLLMGatewayConfig             `json:"llmGateway,omitzero"`
@@ -176,7 +177,7 @@ type ResolvedRuntimeConfig struct {
 
 func (r ResolvedRuntimeConfig) Validate() error {
 	if r.ModelFree {
-		if !r.ModelPolicy.IsZero() || r.LLMGateway != (llmgateway.ResolvedLLMGatewayConfig{}) || r.LLMCredential != nil || r.Origins.LLMGateway != nil || r.Origins.LLMCredential != nil || r.Provenance.LLMGatewayConfig != nil || r.Provenance.LLMCredential != nil {
+		if !r.ModelPolicy.IsZero() || r.SummarizerModelPolicy != nil || r.LLMGateway != (llmgateway.ResolvedLLMGatewayConfig{}) || r.LLMCredential != nil || r.Origins.LLMGateway != nil || r.Origins.LLMCredential != nil || r.Provenance.LLMGatewayConfig != nil || r.Provenance.LLMCredential != nil {
 			return resolutionError(ResolutionInvalid, "modelFree", ErrInvalid)
 		}
 	} else {
@@ -185,6 +186,11 @@ func (r ResolvedRuntimeConfig) Validate() error {
 		}
 		if err := r.LLMGateway.Validate(); err != nil || r.LLMGateway.Protocol != llmgateway.OpenAICompatibleProtocol {
 			return resolutionError(ResolutionInvalid, "worker.llmGateway.gateway", ErrInvalid)
+		}
+	}
+	if r.SummarizerModelPolicy != nil {
+		if err := r.SummarizerModelPolicy.ValidateForWorkerSummarizer(); err != nil {
+			return resolutionError(ResolutionInvalid, "summarizerModelPolicy", ErrInvalid)
 		}
 	}
 	if err := r.Origins.Validate(); err != nil {
@@ -325,6 +331,10 @@ func ResolveRuntimeConfig(input ResolveRuntimeConfigInput) (ResolvedRuntimeConfi
 		RequiredRuntimeAdapters:  append([]runtimesettings.RuntimeAdapterRef{}, adapters...),
 		Origins:                  cloneOrigins(effective.origins),
 		Provenance:               provenance,
+	}
+	if input.SummarizerModelPolicy != nil {
+		policy := input.SummarizerModelPolicy.Clone()
+		result.SummarizerModelPolicy = &policy
 	}
 	if err := result.Origins.Validate(); err != nil {
 		return ResolvedRuntimeConfig{}, err
@@ -832,6 +842,10 @@ func cloneOrigins(value ResolvedRuntimeConfigOrigins) ResolvedRuntimeConfigOrigi
 func (r ResolvedRuntimeConfig) Clone() ResolvedRuntimeConfig {
 	result := r
 	result.ModelPolicy = r.ModelPolicy.Clone()
+	if r.SummarizerModelPolicy != nil {
+		policy := r.SummarizerModelPolicy.Clone()
+		result.SummarizerModelPolicy = &policy
+	}
 	result.LLMGateway = r.LLMGateway.Clone()
 	result.LLMCredential = clone.Pointer(r.LLMCredential)
 	result.WorkerTelemetry = cloneTelemetry(r.WorkerTelemetry)

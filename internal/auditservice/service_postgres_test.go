@@ -1538,6 +1538,19 @@ func (c *switchableProfileCatalog) AuditProfile(selector string) (auditprofile.R
 	return c.snapshot.AuditProfile(selector)
 }
 
+func (c *switchableProfileCatalog) ResolveAuditProfile(_ context.Context, selector string) (auditprofile.ResolvedAuditProfile, error) {
+	return c.AuditProfile(selector)
+}
+
+func (c *switchableProfileCatalog) ResolvePinnedAuditProfile(ctx context.Context, pinned auditprofile.ResolvedAuditProfile) (auditprofile.ResolvedAuditProfile, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.available {
+		return auditprofile.ResolvedAuditProfile{}, config.ErrConfigurationNotFound
+	}
+	return c.snapshot.ResolvePinnedAuditProfile(ctx, pinned)
+}
+
 func (c *switchableProfileCatalog) AuditProfiles() []auditprofile.ResolvedAuditProfile {
 	c.mu.Lock()
 	defer c.mu.Unlock()

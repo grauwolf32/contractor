@@ -393,6 +393,9 @@
               "type": "null"
             }
           ]
+        },
+        "summarizerModelPolicy": {
+          "$ref": "#/$defs/Selector"
         }
       },
       "required": [],

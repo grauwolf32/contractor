@@ -82,6 +82,10 @@ func cloneRuntimeSelection(
 	}
 	result := *source
 	result.ModelPolicy = source.ModelPolicy.Clone()
+	if source.SummarizerModelPolicy != nil {
+		policy := source.SummarizerModelPolicy.Clone()
+		result.SummarizerModelPolicy = &policy
+	}
 	if source.LLMGateway != nil {
 		gateway := *source.LLMGateway
 		if source.LLMGateway.CredentialManager != nil {

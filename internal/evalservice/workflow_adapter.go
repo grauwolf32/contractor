@@ -68,8 +68,16 @@ func (d *workflowAdapter) Create(ctx context.Context, e evalstore.Experiment, m 
 	if err = json.Unmarshal(op.Request, &request); err != nil {
 		return err
 	}
+	binding, err := d.resources.binding(ctx, e, m)
+	if err != nil {
+		return err
+	}
+	if binding.Workflow == nil {
+		return evaldomain.Failure("eval_pin_mismatch")
+	}
 	result, err := d.Runs.CreatePublic(ctx, runservice.PublicCreateParams{
 		OwnerID:                e.OwnerID,
+		PinnedWorkflow:         binding.Workflow,
 		ProjectID:              &request.ProjectID,
 		Workflow:               request.Workflow,
 		ExecutionConfig:        m.Recipe.Variant.ExecutionConfig,

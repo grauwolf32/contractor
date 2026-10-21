@@ -363,6 +363,7 @@ func (s HTTPOriginTargetSettings) Validate() error {
 // WorkerExecutionSettings is the in-process secret-bearing value delivered
 // only after allocation provenance is durable.
 type WorkerExecutionSettings struct {
+	SummarizerModelPolicy           *contracts.ResolvedModelPolicy
 	ModelPolicy                     contracts.ResolvedModelPolicy
 	RuntimeSettings                 RuntimeSettings
 	ResolvedRuntimeConfigProvenance ResolvedRuntimeConfigProvenance

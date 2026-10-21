@@ -135,7 +135,7 @@ func (g *codeAnalysisGateway) serveHTTP(w http.ResponseWriter, r *http.Request) 
 		"id":      fmt.Sprintf("chatcmpl-code-analysis-%d", call),
 		"object":  "chat.completion",
 		"created": time.Now().Unix(),
-		"model":   "worker-model",
+		"model":   request["model"],
 		"choices": []any{map[string]any{
 			"index": 0, "message": message, "finish_reason": reason,
 		}},

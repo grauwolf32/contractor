@@ -95,19 +95,21 @@ type ResolvedAgentBinding struct {
 // ExecutionConfigOrigins records which authoring layer selected each resolved
 // field. Values are safe provenance strings, never secret material.
 type ExecutionConfigOrigins struct {
-	ModelPolicy string `json:"modelPolicy,omitempty"`
-	LLMGateway  string `json:"llmGateway,omitempty"`
-	Credential  string `json:"credential,omitempty"`
+	ModelPolicy           string `json:"modelPolicy,omitempty"`
+	SummarizerModelPolicy string `json:"summarizerModelPolicy,omitempty"`
+	LLMGateway            string `json:"llmGateway,omitempty"`
+	Credential            string `json:"credential,omitempty"`
 }
 
 // ResolvedConsumerExecutionConfig is one complete immutable model-access
 // selection. Credential is a non-secret identity; token bytes never enter a
 // Workflow or Run snapshot.
 type ResolvedConsumerExecutionConfig struct {
-	ModelPolicy contracts.ResolvedModelPolicy        `json:"modelPolicy,omitzero"`
-	LLMGateway  *llmgateway.ResolvedLLMGatewayConfig `json:"llmGateway,omitempty"`
-	Credential  *llmgateway.LLMCredentialRef         `json:"credential,omitempty"`
-	Origins     ExecutionConfigOrigins               `json:"origins"`
+	SummarizerModelPolicy *contracts.ResolvedModelPolicy       `json:"summarizerModelPolicy,omitempty"`
+	ModelPolicy           contracts.ResolvedModelPolicy        `json:"modelPolicy,omitzero"`
+	LLMGateway            *llmgateway.ResolvedLLMGatewayConfig `json:"llmGateway,omitempty"`
+	Credential            *llmgateway.LLMCredentialRef         `json:"credential,omitempty"`
+	Origins               ExecutionConfigOrigins               `json:"origins"`
 }
 
 type ResolvedStageExecutionConfig struct {
@@ -133,9 +135,10 @@ type ResolvedCredentialOverride struct {
 // ResolvedExecutionSelectionOverride is a partial, dependency-resolved
 // selection. Nil fields inherit the Run's base Stage configuration.
 type ResolvedExecutionSelectionOverride struct {
-	ModelPolicy *contracts.ResolvedModelPolicy       `json:"modelPolicy,omitempty"`
-	LLMGateway  *llmgateway.ResolvedLLMGatewayConfig `json:"llmGateway,omitempty"`
-	Credential  *ResolvedCredentialOverride          `json:"credential,omitempty"`
+	SummarizerModelPolicy *contracts.ResolvedModelPolicy       `json:"summarizerModelPolicy,omitempty"`
+	ModelPolicy           *contracts.ResolvedModelPolicy       `json:"modelPolicy,omitempty"`
+	LLMGateway            *llmgateway.ResolvedLLMGatewayConfig `json:"llmGateway,omitempty"`
+	Credential            *ResolvedCredentialOverride          `json:"credential,omitempty"`
 }
 
 type ResolvedStageExecutionConfigOverride struct {
@@ -199,19 +202,20 @@ type StageTransitions struct {
 }
 
 type ResolvedStage struct {
-	MaxSubtasks     contracts.PlannerSubtaskLimit   `json:"maxSubtasks,omitempty"`
-	Objective       string                          `json:"objective"`
-	Instructions    contracts.ResolvedInstructions  `json:"instructions"`
-	Planner         PlannerRef                      `json:"planner"`
-	ScanPlan        *scan.ScanPlanPolicy            `json:"scanPlan,omitempty"`
-	AuditScan       *AuditScanConfig                `json:"auditScan,omitempty"`
-	Session         contracts.WorkerSessionMode     `json:"session"`
-	Agents          map[string]ResolvedAgentBinding `json:"agents"`
-	ExecutionConfig ResolvedStageExecutionConfig    `json:"executionConfig"`
-	Context         StageContext                    `json:"context"`
-	Result          StageResultContract             `json:"result"`
-	WorkflowOutputs map[string]string               `json:"workflowOutputs"`
-	On              StageTransitions                `json:"on"`
+	ModelDefaults   map[string]contracts.ResolvedModelPolicy `json:"modelDefaults,omitempty"`
+	MaxSubtasks     contracts.PlannerSubtaskLimit            `json:"maxSubtasks,omitempty"`
+	Objective       string                                   `json:"objective"`
+	Instructions    contracts.ResolvedInstructions           `json:"instructions"`
+	Planner         PlannerRef                               `json:"planner"`
+	ScanPlan        *scan.ScanPlanPolicy                     `json:"scanPlan,omitempty"`
+	AuditScan       *AuditScanConfig                         `json:"auditScan,omitempty"`
+	Session         contracts.WorkerSessionMode              `json:"session"`
+	Agents          map[string]ResolvedAgentBinding          `json:"agents"`
+	ExecutionConfig ResolvedStageExecutionConfig             `json:"executionConfig"`
+	Context         StageContext                             `json:"context"`
+	Result          StageResultContract                      `json:"result"`
+	WorkflowOutputs map[string]string                        `json:"workflowOutputs"`
+	On              StageTransitions                         `json:"on"`
 }
 
 // ResolvedWorkflow is the complete immutable-in-snapshot Workflow definition.

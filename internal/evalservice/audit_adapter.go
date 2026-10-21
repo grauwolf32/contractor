@@ -77,8 +77,16 @@ func (d *auditAdapter) Create(ctx context.Context, e evalstore.Experiment, m eva
 	if err = json.Unmarshal(op.Request, &request); err != nil {
 		return err
 	}
+	binding, err := d.resources.binding(ctx, e, m)
+	if err != nil {
+		return err
+	}
+	if binding.Audit == nil {
+		return evaldomain.Failure("eval_pin_mismatch")
+	}
 	audit, _, err := d.Audits.CreateDraft(ctx, auditservice.CreateDraftParams{
 		OwnerID:               e.OwnerID,
+		PinnedProfile:         binding.Audit,
 		ProjectID:             request.ProjectID,
 		AuditID:               request.ID,
 		Profile:               request.Profile,

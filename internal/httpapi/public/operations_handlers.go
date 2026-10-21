@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
@@ -39,10 +40,16 @@ type SchedulerSettingsManagement interface {
 	) (settingsstore.SchedulerSettings, error)
 }
 
+type ModelSelectionManagement interface {
+	GetModelSelection(context.Context) (config.ModelSelectionInfo, error)
+	ReplaceModelSelection(context.Context, settingsstore.ModelSelectionValue, uint64, string) (config.ModelSelectionInfo, error)
+}
+
 // OperationsDependencies serve the Operations snapshot, Runtime Agent and
 // allocation pages, performance and allocation history, and the Scheduler
 // settings.
 type OperationsDependencies struct {
+	ModelSelection        ModelSelectionManagement
 	Operations            OperationsReader
 	Performance           PerformanceReader
 	AllocationResources   AllocationResourceReader
