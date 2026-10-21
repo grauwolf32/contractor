@@ -185,6 +185,13 @@ export async function fulfillEmptyPageOrNotFound(
   message = "not found",
 ): Promise<void> {
   const request = route.request();
+  if (
+    request.method() === "GET" &&
+    new URL(request.url()).pathname === "/v1/operations/settings/models"
+  ) {
+    await fulfillJSON(route, { configured: false, models: [] });
+    return;
+  }
   const empty = { items: [], page: { hasMore: false } };
   if (
     request.method() === "GET" &&

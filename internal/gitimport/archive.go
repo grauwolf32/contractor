@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/sourcebundle"
 	"github.com/grauwolf32/contractor/internal/sourcezip"
 )
@@ -24,32 +25,33 @@ type sourceFile struct {
 	data []byte
 }
 
-func archiveSnapshot(ctx context.Context, objects map[plumbing.Hash]*gitObject, selected plumbing.Hash, limits sourcezip.Limits) ([]byte, plumbing.Hash, error) {
+func archiveSnapshot(ctx context.Context, objects map[plumbing.Hash]*gitObject, selected plumbing.Hash, limits sourcezip.Limits, mode Mode) ([]byte, plumbing.Hash, *artifacts.GitAnalysis, error) {
 	if err := limits.Validate(); err != nil {
-		return nil, plumbing.ZeroHash, ErrBudget
+		return nil, plumbing.ZeroHash, nil, ErrBudget
 	}
 	commit := selected
 	for depth := 0; ; depth++ {
 		object := objects[commit]
 		if object == nil {
-			return nil, plumbing.ZeroHash, ErrContent
+			return nil, plumbing.ZeroHash, nil, ErrContent
 		}
 		if object.kind == plumbing.CommitObject {
 			break
 		}
 		if object.kind != plumbing.TagObject || depth >= 8 {
-			return nil, plumbing.ZeroHash, ErrContent
+			return nil, plumbing.ZeroHash, nil, ErrContent
 		}
 		hash, err := headerHash(object.data, "object ")
 		if err != nil {
-			return nil, plumbing.ZeroHash, err
+			return nil, plumbing.ZeroHash, nil, err
 		}
 		commit = hash
 	}
 	tree, err := headerHash(objects[commit].data, "tree ")
 	if err != nil {
-		return nil, plumbing.ZeroHash, err
+		return nil, plumbing.ZeroHash, nil, err
 	}
+	report := analysisReport{Excluded: make([]exclusion, 0)}
 	files := make([]sourceFile, 0)
 	seen := map[string]bool{}
 	entries, total := 0, 0
@@ -71,7 +73,7 @@ func archiveSnapshot(ctx context.Context, objects map[plumbing.Hash]*gitObject, 
 			if entries > limits.MaxEntries {
 				return ErrBudget
 			}
-			mode, tail, ok := bytes.Cut(data, []byte{' '})
+			entryMode, tail, ok := bytes.Cut(data, []byte{' '})
 			if !ok {
 				return ErrContent
 			}
@@ -90,11 +92,14 @@ func archiveSnapshot(ctx context.Context, objects map[plumbing.Hash]*gitObject, 
 			if len(path) > MaxPathBytes {
 				return ErrBudget
 			}
+			if mode == ModeAnalysis && (path == artifacts.GitAnalysisReportPath || strings.HasPrefix(path, artifacts.GitAnalysisReportPath+"/")) {
+				return ErrContent
+			}
 			if seen[path] {
 				return ErrContent
 			}
 			seen[path] = true
-			switch string(mode) {
+			switch string(entryMode) {
 			case "40000":
 				if err := walk(child, path+"/"); err != nil {
 					return err
@@ -103,6 +108,23 @@ func archiveSnapshot(ctx context.Context, objects map[plumbing.Hash]*gitObject, 
 				blob := objects[child]
 				if blob == nil || blob.kind != plumbing.BlobObject {
 					return ErrContent
+				}
+				if mode == ModeAnalysis {
+					reason := ""
+					switch {
+					case bytes.HasPrefix(blob.data, []byte("version https://git-lfs.github.com/spec/v1\n")) || bytes.HasPrefix(blob.data, []byte("version https://git-lfs.github.com/spec/v1\r\n")):
+						reason = "lfs_pointer"
+					case !sourcebundle.RuntimeTextPath(path):
+						reason = "not_source_path"
+					case !utf8.Valid(blob.data):
+						reason = "non_utf8"
+					}
+					if reason != "" {
+						if err := report.exclude(path, reason); err != nil {
+							return err
+						}
+						continue
+					}
 				}
 				if int64(len(blob.data)) > limits.MaxFileBytes || int64(len(blob.data)) > limits.MaxExpandedBytes-int64(total) {
 					return ErrBudget
@@ -113,8 +135,20 @@ func archiveSnapshot(ctx context.Context, objects map[plumbing.Hash]*gitObject, 
 				total += len(blob.data)
 				files = append(files, sourceFile{name: path, data: blob.data})
 			case "120000":
+				if mode == ModeAnalysis {
+					if err := report.exclude(path, "symbolic_link"); err != nil {
+						return err
+					}
+					continue
+				}
 				return &UnsupportedEntryError{Kind: "symbolic link", Path: path}
 			case "160000":
+				if mode == ModeAnalysis {
+					if err := report.exclude(path, "submodule"); err != nil {
+						return err
+					}
+					continue
+				}
 				return &UnsupportedEntryError{Kind: "submodule", Path: path}
 			default:
 				return ErrContent
@@ -123,17 +157,26 @@ func archiveSnapshot(ctx context.Context, objects map[plumbing.Hash]*gitObject, 
 		return nil
 	}
 	if err := walk(tree, ""); err != nil {
-		return nil, plumbing.ZeroHash, err
+		return nil, plumbing.ZeroHash, nil, err
 	}
 	if len(files) == 0 {
-		return nil, plumbing.ZeroHash, ErrContent
+		return nil, plumbing.ZeroHash, nil, ErrContent
 	}
 	readable := false
 	for _, file := range files {
 		readable = readable || sourcebundle.RuntimeTextPath(file.name) && utf8.Valid(file.data)
 	}
 	if !readable {
-		return nil, plumbing.ZeroHash, ErrContent
+		return nil, plumbing.ZeroHash, nil, ErrContent
+	}
+	var analysis *artifacts.GitAnalysis
+	if mode == ModeAnalysis {
+		data, summary, err := report.encode(commit.String(), len(files))
+		if err != nil {
+			return nil, plumbing.ZeroHash, nil, err
+		}
+		analysis = summary
+		files = append(files, sourceFile{name: artifacts.GitAnalysisReportPath, data: data})
 	}
 	sort.Slice(files, func(i, j int) bool { return files[i].name < files[j].name })
 	members := make([]sourcezip.Member, len(files))
@@ -158,12 +201,12 @@ func archiveSnapshot(ctx context.Context, objects map[plumbing.Hash]*gitObject, 
 	}
 	archive, err := sourcezip.Encode(ctx, members, sourcezip.Options{ModifiedField: true, Limits: &limits})
 	if errors.Is(err, sourcezip.ErrLimit) {
-		return nil, plumbing.ZeroHash, ErrBudget
+		return nil, plumbing.ZeroHash, nil, ErrBudget
 	}
 	if err != nil {
-		return nil, plumbing.ZeroHash, err
+		return nil, plumbing.ZeroHash, nil, err
 	}
-	return archive, commit, nil
+	return archive, commit, analysis, nil
 }
 
 func headerHash(data []byte, prefix string) (plumbing.Hash, error) {

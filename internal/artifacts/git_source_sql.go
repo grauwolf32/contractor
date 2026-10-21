@@ -13,7 +13,7 @@ WITH revision AS (
     WHERE scope_kind=$1 AND scope_id=$2 AND namespace=$3 AND name=$4 AND revision=$5
 ), recorded AS (
     UPDATE artifact_versions AS version
-       SET git_repository_url=$6, git_requested_ref=$7, git_resolved_commit=$8, git_imported_at=$9
+       SET git_repository_url=$6, git_requested_ref=$7, git_resolved_commit=$8, git_imported_at=$9, git_analysis=$10
       FROM revision
      WHERE version.version_id = revision.version_id AND version.git_resolved_commit IS NULL
     RETURNING 1

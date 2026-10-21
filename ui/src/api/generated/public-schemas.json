@@ -2880,6 +2880,20 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       }
     },
+    "GitAnalysis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policy", "reportPath", "includedFiles", "excludedEntries"],
+      "properties": {
+        "policy": { "type": "string", "const": "source-analysis-v1" },
+        "reportPath": {
+          "type": "string",
+          "const": ".contractor-import-report.json"
+        },
+        "includedFiles": { "type": "integer", "minimum": 1, "maximum": 49999 },
+        "excludedEntries": { "type": "integer", "minimum": 0, "maximum": 50000 }
+      }
+    },
     "GitSource": {
       "type": "object",
       "additionalProperties": false,
@@ -2893,7 +2907,10 @@
         "repositoryUrl": { "type": "string", "maxLength": 4096 },
         "requestedRef": { "type": ["string", "null"], "maxLength": 1024 },
         "resolvedCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
-        "importedAt": { "type": "string", "format": "date-time" }
+        "importedAt": { "type": "string", "format": "date-time" },
+        "analysis": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/GitAnalysis"
+        }
       }
     },
     "GitImportRequest": {
@@ -2905,6 +2922,11 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 4096
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["snapshot", "analysis"],
+          "default": "snapshot"
         },
         "ref": { "type": "string", "minLength": 1, "maxLength": 1024 }
       }

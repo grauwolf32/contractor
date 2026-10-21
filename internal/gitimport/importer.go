@@ -28,12 +28,13 @@ var (
 
 type SnapshotClient interface {
 	Allowed(Remote) bool
-	Fetch(context.Context, Remote, string, ssh.Signer) (Snapshot, error)
+	Fetch(context.Context, Remote, string, Mode, ssh.Signer) (Snapshot, error)
 }
 type KeyProvider interface {
 	Signer(context.Context, string) (ssh.Signer, error)
 }
 type ImportRequest struct {
+	Mode             Mode
 	OwnerID          string
 	ProjectID        string
 	Target           artifacts.ArtifactRef
@@ -68,6 +69,12 @@ func (i *Importer) Timeout() time.Duration { return i.timeout }
 // response. The complete ZIP is never passed to the HTTP response callback.
 func (i *Importer) DoImport(ctx context.Context, request ImportRequest, respond func(ImportResult)) (err error) {
 	defer func() { err = importEnded(err) }()
+	if request.Mode == "" {
+		request.Mode = ModeSnapshot
+	}
+	if request.Mode != ModeSnapshot && request.Mode != ModeAnalysis {
+		return ErrContent
+	}
 	if respond == nil {
 		return ErrConfiguration
 	}
@@ -125,15 +132,18 @@ func (i *Importer) DoImport(ctx context.Context, request ImportRequest, respond 
 		}
 	}
 	// Every query above has returned its connection before remote work begins.
-	snapshot, err := i.client.Fetch(ctx, remote, request.Ref, signer)
+	snapshot, err := i.client.Fetch(ctx, remote, request.Ref, request.Mode, signer)
 	if err != nil {
 		return err
+	}
+	if (request.Mode == ModeAnalysis) != (snapshot.Analysis != nil) {
+		return ErrContent
 	}
 	payload, err := artifacts.PreparePayload(ctx, artifacts.Payload{MediaType: "application/zip", Data: snapshot.Data})
 	if err != nil {
 		return err
 	}
-	source := artifacts.GitSource{RepositoryURL: snapshot.RepositoryURL, RequestedRef: snapshot.RequestedRef, ResolvedCommit: snapshot.Commit, ImportedAt: time.Now().UTC().Truncate(time.Microsecond)}
+	source := artifacts.GitSource{Analysis: snapshot.Analysis, RepositoryURL: snapshot.RepositoryURL, RequestedRef: snapshot.RequestedRef, ResolvedCommit: snapshot.Commit, ImportedAt: time.Now().UTC().Truncate(time.Microsecond)}
 	var result artifacts.WriteResult
 	err = postgres.InTx(ctx, i.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		if request.ProjectID != "" {

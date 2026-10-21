@@ -3,9 +3,32 @@
 Git import creates an ordinary immutable ZIP Artifact. It is available in
 Workflow input selection and the Project artifact library. The selected input
 uses the returned exact revision; a Run never fetches the repository again.
-The ZIP contains tracked regular files from one resolved commit. Its metadata
+The default Complete snapshot mode includes tracked regular files from one resolved commit. Its metadata
 retains the repository, requested branch/tag, full commit and import time,
 including after the artifact is forked into a Run input.
+
+## Sources for analysis
+
+Choose **Sources for analysis** in the import dialog, or send `mode: analysis`
+on either Git-import route. This mode keeps readable UTF-8 source files using
+the Runtime's existing path policy. It excludes build/dependency directories,
+binary resources, non-UTF-8 files, symbolic links, submodules and LFS pointers.
+It never follows links or downloads dependencies. The default **Complete
+snapshot** keeps its strict tracked-content rules.
+
+The source ZIP contains `.contractor-import-report.json`, a complete sorted
+list of every excluded path and reason. Material details, the import result
+and selected input retain the mode's coverage summary and report location.
+The report is limited to 4 MiB and also consumes the configured source budgets;
+if it cannot fit, the import fails instead of truncating the exclusions.
+The report filename is reserved in analysis mode. Exact input forks retain the
+same source ZIP, report and summary.
+
+Large repositories still need sufficient transport and decoding budgets before
+filtering. The shipped local configuration uses a 10-minute import timeout,
+256 MiB received, 512 MiB decoded, 128 MiB expanded source, 16 MiB per file and
+20,000 traversed entries. Configure proxy/client timeouts above the selected
+whole-import timeout. The compressed Artifact ceiling remains 64 MiB.
 
 ## Configuration
 
@@ -62,7 +85,8 @@ Gateways published in that ephemeral root. PostgreSQL is the default blob
 backend; filesystem requires an explicit writable blob path and can use an
 ephemeral `emptyDir`. S3 remains a future backend with details deferred.
 
-The operation deadline is 120 seconds, including publication. Set ingress,
+The default operation deadline is 120 seconds, including publication;
+`gitImport.timeout` can raise it (the shipped local configuration uses 10 minutes). Set ingress,
 reverse-proxy and client request timeouts above that bound (for example, 130
 seconds) so the Server can return its bounded error. One Git import per Server
 also occupies one of the four shared full-payload transfer slots, through the
@@ -72,10 +96,10 @@ These admission limits are per process, not a cluster-wide semaphore or RAM cap.
 The reader accepts SHA-1 repositories, shallow fetch and supported pack v2/v3
 objects. Receive bytes are capped at 128 MiB and cumulative decoded objects,
 delta programs and delta results at 256 MiB. Each object is at most 64 MiB;
-there are at most 50,000 objects, 50 delta levels and 10,000 advertised refs.
+there are at most 50,000 objects, 50 delta levels and 100,000 advertised refs, independently bounded by a 4 MiB advertisement.
 The snapshot permits at most 10,000 entries, 64 MiB expanded content, 4 MiB per
 file and 512 UTF-8 bytes per path. The generated ZIP also has a 64 MiB cap.
-Symlinks, submodules, LFS pointers, unsafe paths and an empty file tree fail the
+In Complete snapshot mode, symlinks, submodules, LFS pointers, unsafe paths and an empty file tree fail the
 whole import; for a symlink, submodule or LFS pointer, the
 `git_content_unsupported` message names the kind and path of the first one.
 Unlike `contractor source push`, which skips submodules of a local working tree,

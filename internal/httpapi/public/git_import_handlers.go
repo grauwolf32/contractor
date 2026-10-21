@@ -47,11 +47,20 @@ func (h *artifactHandlers) importGitArtifact(w http.ResponseWriter, r *http.Requ
 	}
 	var body struct {
 		RepositoryURL string          `json:"repositoryUrl"`
+		Mode          json.RawMessage `json:"mode"`
 		Ref           json.RawMessage `json:"ref"`
 	}
 	if err := decodeJSONBounded(w, r, &body, 64<<10); err != nil {
 		handleError(w, err)
 		return
+	}
+	mode := gitimport.ModeSnapshot
+	if len(body.Mode) != 0 {
+		mode = ""
+		if json.Unmarshal(body.Mode, &mode) != nil || (mode != gitimport.ModeSnapshot && mode != gitimport.ModeAnalysis) {
+			handleError(w, errInvalidRequest)
+			return
+		}
 	}
 	ref := ""
 	if len(body.Ref) != 0 {
@@ -61,7 +70,7 @@ func (h *artifactHandlers) importGitArtifact(w http.ResponseWriter, r *http.Requ
 		}
 	}
 	err = h.GitImports.DoImport(r.Context(), gitimport.ImportRequest{
-		OwnerID: principalUserID(r.Context()), ProjectID: r.PathValue("projectId"), Target: artifacts.ArtifactRef{Namespace: r.PathValue("namespace"), Name: r.PathValue("name")}, ExpectedRevision: expected, RepositoryURL: body.RepositoryURL, Ref: ref,
+		Mode: mode, OwnerID: principalUserID(r.Context()), ProjectID: r.PathValue("projectId"), Target: artifacts.ArtifactRef{Namespace: r.PathValue("namespace"), Name: r.PathValue("name")}, ExpectedRevision: expected, RepositoryURL: body.RepositoryURL, Ref: ref,
 	}, func(result gitimport.ImportResult) {
 		// Import admission is still held here; bound this write from now, not
 		// from the start of the 120-second import.

@@ -25,11 +25,11 @@ func TestConfiguredSourceBudgetsAcceptLargerSnapshot(t *testing.T) {
 	commit := &gitObject{kind: plumbing.CommitObject, data: []byte("tree " + treeHash.String() + "\n\nfixture\n")}
 	commitHash := objectHash(commit)
 	objects := map[plumbing.Hash]*gitObject{blobHash: blob, treeHash: tree, commitHash: commit}
-	if _, _, err := archiveSnapshot(t.Context(), objects, commitHash, sourcezip.DefaultLimits()); !errors.Is(err, ErrBudget) {
+	if _, _, _, err := archiveSnapshot(t.Context(), objects, commitHash, sourcezip.DefaultLimits(), ModeSnapshot); !errors.Is(err, ErrBudget) {
 		t.Fatalf("default limit = %v", err)
 	}
 	limits := sourcezip.Limits{MaxExpandedBytes: 128 << 20, MaxFileBytes: 16 << 20, MaxEntries: 10000}
-	archive, resolved, err := archiveSnapshot(t.Context(), objects, commitHash, limits)
+	archive, resolved, _, err := archiveSnapshot(t.Context(), objects, commitHash, limits, ModeSnapshot)
 	if err != nil || resolved != commitHash {
 		t.Fatalf("raised budgets = %v", err)
 	}
@@ -43,17 +43,17 @@ func TestConfiguredSourceBudgetsAcceptLargerSnapshot(t *testing.T) {
 		}
 	}
 	limits.MaxFileBytes = 4 << 20
-	if _, _, err := archiveSnapshot(t.Context(), objects, commitHash, limits); !errors.Is(err, ErrBudget) {
+	if _, _, _, err := archiveSnapshot(t.Context(), objects, commitHash, limits, ModeSnapshot); !errors.Is(err, ErrBudget) {
 		t.Fatalf("file budget = %v", err)
 	}
 	limits.MaxFileBytes = 16 << 20
 	limits.MaxExpandedBytes = 64 << 20
-	if _, _, err := archiveSnapshot(t.Context(), objects, commitHash, limits); !errors.Is(err, ErrBudget) {
+	if _, _, _, err := archiveSnapshot(t.Context(), objects, commitHash, limits, ModeSnapshot); !errors.Is(err, ErrBudget) {
 		t.Fatalf("expanded budget = %v", err)
 	}
 	limits.MaxExpandedBytes = 128 << 20
 	limits.MaxEntries = 13
-	if _, _, err := archiveSnapshot(t.Context(), objects, commitHash, limits); !errors.Is(err, ErrBudget) {
+	if _, _, _, err := archiveSnapshot(t.Context(), objects, commitHash, limits, ModeSnapshot); !errors.Is(err, ErrBudget) {
 		t.Fatalf("entry budget = %v", err)
 	}
 }

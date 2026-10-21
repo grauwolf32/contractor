@@ -15,7 +15,7 @@ import { fakeServer, type Routes } from "../../test/fake-server";
 import { failure, json, noContent } from "../../test/responses";
 import { renderWithAPI } from "../../test/render";
 import { GitKeySettings } from "../settings/git-key";
-import { GitImportDialog } from "./git-import-dialog";
+import { GitImportDialog, GitSourceDetails } from "./git-import-dialog";
 
 function setup(child: ReactNode, routes: Routes) {
   const view = renderWithAPI(<>{child}</>, { server: fakeServer(routes) });
@@ -385,4 +385,79 @@ describe("Git artifacts", () => {
     expect(signal?.aborted).toBe(true);
     expect(onClose).toHaveBeenCalledOnce();
   });
+});
+
+it.each([undefined, "project-1"])(
+  "imports explicit analysis sources in scope %s",
+  async (projectId) => {
+    const result = {
+      ...imported,
+      gitSource: {
+        ...imported.gitSource,
+        analysis: {
+          policy: "source-analysis-v1" as const,
+          reportPath: ".contractor-import-report.json" as const,
+          includedFiles: 11895,
+          excludedEntries: 2309,
+        },
+      },
+    };
+    const onImported = vi.fn();
+    const route =
+      projectId === undefined
+        ? "POST /v1/artifacts/{namespace}/{name}/git-import"
+        : "POST /v1/projects/{projectId}/artifacts/{namespace}/{name}/git-import";
+    setup(
+      <GitImportDialog
+        {...(projectId === undefined ? {} : { projectId })}
+        onClose={() => {}}
+        onImported={onImported}
+      />,
+      {
+        "GET /v1/artifacts/{namespace}/{name}/metadata": () =>
+          failure(404, "artifact_not_found", "not found"),
+        "GET /v1/projects/{projectId}/artifacts/{namespace}/{name}/metadata":
+          () => failure(404, "artifact_not_found", "not found"),
+        [route]: async ({ request }: { request: Request }) => {
+          expect(await request.json()).toMatchObject({ mode: "analysis" });
+          return json(result, 201);
+        },
+      },
+    );
+    expect(screen.getByLabelText("Import content")).toHaveValue("snapshot");
+    await userEvent.selectOptions(
+      screen.getByLabelText("Import content"),
+      "analysis",
+    );
+    expect(
+      screen.getByText(/Every excluded path and reason/),
+    ).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Repository URL"), {
+      target: { value: "https://example.test/repo.git" },
+    });
+    await userEvent.click(
+      screen.getByRole("button", { name: "Import sources" }),
+    );
+    await waitFor(() => expect(onImported).toHaveBeenCalledWith(result));
+  },
+);
+
+it("keeps analysis coverage visible beside a selected source", () => {
+  setup(
+    <GitSourceDetails
+      source={{
+        ...imported.gitSource,
+        analysis: {
+          policy: "source-analysis-v1",
+          reportPath: ".contractor-import-report.json",
+          includedFiles: 12,
+          excludedEntries: 3,
+        },
+      }}
+    />,
+    {},
+  );
+  expect(screen.getByText(/3 entries excluded/)).toHaveTextContent(
+    ".contractor-import-report.json",
+  );
 });

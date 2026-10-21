@@ -84,6 +84,7 @@ A Git-source record belongs to one Artifact version (GIT-R29) and holds:
 | Requested ref | The ref as requested; null for the default branch |
 | Resolved commit | The full resolved commit object ID |
 | Import time | The Server import timestamp |
+| Analysis summary (optional) | For an explicit analysis import: policy, report ZIP path, included source-file count and excluded entry count |
 
 A Run's exact input leads through forks to the version and its record:
 
@@ -91,7 +92,7 @@ A Run's exact input leads through forks to the version and its record:
 flowchart LR
     RunInput["Run input: exact ArtifactRef"] -->|ordinary exact input fork reuses| Version["Imported Artifact version"]
     Forked["Forked version"] -.->|explicit origin lineage edge| Version
-    Version --> Record["Git-source record in artifact_git_sources, keyed by version_id"]
+    Version --> Record["Git-source fields on artifact_versions, keyed by version_id"]
     Record --> Repo["Normalized repository URL and requested ref"]
     Record --> Commit["Full resolved commit object ID"]
 ```
@@ -164,7 +165,8 @@ closing the parent Run form.
 returned ref to the requested input slot only, preserve every other input and
 show the recorded commit.
 
-**GIT-R12.** Artifact metadata detail pages must display Git provenance.
+**GIT-R12.** Artifact metadata detail pages must display Git provenance, including
+analysis coverage when present (GIT-R97).
 
 The Repository access editor's location (`/operations/settings`, linked from
 the account menu), its availability without the Operations capability, the
@@ -204,7 +206,7 @@ never reinterpret an object ID.
 ### Snapshot content
 
 **GIT-R21.** The archive must contain the complete tracked regular-file
-tree at the selected commit, in stable sorted path order, with normalized file
+tree at the selected commit in the default `snapshot` mode, in stable sorted path order, with normalized file
 modes and timestamps: every entry has mode 0644 and the same fixed 1980
 timestamp.
 
@@ -218,8 +220,8 @@ execute hooks, filters, scripts or builds.
 `.gitignore` rules to already tracked files, or host-specific source-directory
 bundling rules.
 
-**GIT-R25.** The importer must reject unsafe paths, symlink
-entries, submodules and recognizable Git LFS pointer entries with explicit
+**GIT-R25.** The importer must reject unsafe paths in every mode. In `snapshot`
+mode it must reject symlink entries, submodules and recognizable Git LFS pointer entries with explicit
 unsupported-content errors; it must not silently omit them or claim that their
 targets were fetched. For a symlink, submodule or LFS pointer, the
 `git_content_unsupported` message names the entry kind and its tree path.
@@ -234,6 +236,52 @@ archive rules before publication.
 
 **GIT-R28.** An empty source tree must be rejected.
 
+### Explicit analysis sources
+
+**GIT-R94.** Both import routes accept optional `mode`, exactly `snapshot` or
+`analysis`. Omission selects `snapshot`; null and unknown values return
+`400 invalid_request` before remote access. The shared dialog defaults to
+Complete snapshot and offers Sources for analysis with its exclusions stated
+before submission. There is no automatic fallback between modes.
+
+**GIT-R95.** In `analysis` mode the same safe tree traversal keeps regular files
+whose paths pass the existing Runtime source text-path policy and whose bytes
+are strict UTF-8. Each excluded non-directory entry is recorded with its exact
+validated path and one reason: `symbolic_link`, `submodule`, `lfs_pointer`,
+`not_source_path` (Runtime-ignored directory or binary extension), or `non_utf8`.
+Symlinks and submodules are never followed; LFS objects are never downloaded.
+Ignored directories are traversed under the same tree-entry budget so every
+omitted descendant file has a report entry. Unsafe paths and unsupported
+special modes still fail; an empty readable source selection fails with
+`git_content_unsupported`.
+
+**GIT-R96.** Analysis ZIPs include the deterministic UTF-8 JSON member
+`.contractor-import-report.json`, with `policy: source-analysis-v1`,
+`resolvedCommit`, `includedFiles` (repository files only), and `excluded`, the
+complete path/reason array sorted by path. The report has no wall-clock time.
+A tracked path colliding with the report file or its descendants fails with
+`git_content_unsupported`. The report is at most 4 MiB (LIM-GIT-20), also
+counts towards configured source entry, per-file and expanded-byte budgets,
+and stays inside the existing 64 MiB compressed Artifact ceiling. Exhaustion
+returns `git_import_limit`; no list is truncated. Transport and decoded-object
+budgets continue to charge all fetched content before filtering.
+
+**GIT-R97.** The immutable Git-source record of an analysis import also carries
+`analysis`, exactly `policy`, `reportPath`, `includedFiles` and
+`excludedEntries`. It is validated on write and read, belongs to the immutable
+Artifact version and survives exact forks and history. Metadata never reads
+the ZIP to obtain the summary. The completion notice, selected source and
+material details display analysis coverage, exclusion count and the report
+location; they must never describe it as a complete repository snapshot.
+The summary and ZIP report have the same ownership, retention and purge
+lifecycle as the existing version and blob.
+
+Rationale: analysis admission filters content the Runtime cannot read, while
+keeping omitted coverage inspectable. A complete snapshot remains available
+for callers that require all regular tracked bytes. Recursive dependencies,
+symlink resolution, user-defined patterns and a higher compressed Artifact
+ceiling require separate contracts.
+
 ### Provenance
 
 **GIT-R29.** Every import must persist an immutable Git-source record
@@ -243,9 +291,8 @@ commit metadata preserves origin across exact input forks without changing
 ArtifactRef and without turning a Workflow input into a live repository
 reference.
 
-**GIT-R30.** Git-source records are stored in `artifact_git_sources`,
-keyed by `artifact_versions.version_id`; metadata queries join it without
-reading blobs.
+**GIT-R30.** Git-source fields, including the optional analysis summary, are stored
+on `artifact_versions`; metadata queries project them without reading blobs.
 
 **GIT-R31.** Content deduplication may share bytes between imports with
 different origins; it must not merge their provenance.
@@ -408,7 +455,7 @@ as the final output:
 | Cumulative received Git protocol and pack bytes | configurable, default 128 MiB | LIM-GIT-7 |
 | Cumulative decoded Git object bytes, including delta results | configurable, default 256 MiB | LIM-GIT-8 |
 | One advertisement or ACK negotiation | 4 MiB | LIM-GIT-9 |
-| Advertised references, including peeled entries | 10,000 | LIM-GIT-10 |
+| Advertised references, including peeled entries | 100,000 | LIM-GIT-10 |
 | Packed objects | 50,000 | LIM-GIT-11 |
 | One decoded object or delta result | 64 MiB | LIM-GIT-12 |
 | Delta depth | 50 | LIM-GIT-13 |
@@ -436,6 +483,11 @@ A process setting change applies to newly prepared allocations after restart;
 existing allocations retain their received values. Raising archive admission
 does not widen model-visible read/search windows or code-analysis parser
 budgets. Local directory bundling retains its independent default budgets.
+
+The advertised-ref count admits large repositories with pull-request refs;
+the independent 4 MiB advertisement ceiling still bounds parser work. If a
+normal selected-ref import crosses that byte ceiling, the Git reader owner
+must revisit scoped protocol negotiation rather than admit unbounded refs.
 
 Rationale: compressed transport size, expanded source content and parsing work
 are separate bounds. Configurable source admission permits larger snapshots

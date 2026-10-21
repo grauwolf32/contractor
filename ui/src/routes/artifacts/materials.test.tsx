@@ -509,6 +509,7 @@ describe("Project materials", () => {
     const post = requests.find((request) => request.method === "POST")!;
     expect(post.headers.get("If-None-Match")).toBe("*");
     expect(await post.json()).toEqual({
+      mode: "snapshot",
       repositoryUrl: "https://example.test/repo.git",
       ref: "main",
     });

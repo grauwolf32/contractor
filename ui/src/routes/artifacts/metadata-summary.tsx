@@ -69,6 +69,15 @@ export function ArtifactFacts({ metadata }: { metadata: ArtifactMetadata }) {
                 term: "Git commit",
                 value: <IdChip value={git.resolvedCommit} label="Git commit" />,
               },
+              ...(git.analysis === undefined
+                ? []
+                : [
+                    {
+                      term: "Source coverage",
+                      value: `Sources for analysis · ${git.analysis.includedFiles} source files · ${git.analysis.excludedEntries} entries excluded. Full list: ${git.analysis.reportPath} inside the source ZIP.`,
+                      wide: true,
+                    },
+                  ]),
               {
                 term: "Imported",
                 value: <RecordedTime value={git.importedAt} />,

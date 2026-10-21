@@ -225,9 +225,8 @@ var (
 		link("GIT-R86", gitImport))
 	GitContentUnsupported = define("git_content_unsupported", http.StatusUnprocessableEntity, false,
 		"Git snapshot contains unsupported or invalid content",
-		"The selected tree contains content the import does not support, such as an unsafe path, a symlink entry, "+
-			"a submodule or a Git LFS pointer (the message names the entry kind and its tree path), or it is empty; "+
-			"nothing is published.",
+		"The tree has unsafe or unsupported content, no readable source, or an analysis report path collision. "+
+			"Complete snapshots also reject symlinks, submodules and Git LFS pointers, naming the first entry. Nothing is published.",
 		link("GIT-R25", gitImport)+", "+link("GIT-R28", gitImport))
 	GitImportLimit = define("git_import_limit", http.StatusRequestEntityTooLarge, false,
 		"Git import exceeds a resource limit",

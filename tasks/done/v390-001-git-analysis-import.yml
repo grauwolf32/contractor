@@ -1,0 +1,114 @@
+schema_version: "1.0"
+id: V390-001
+title: Import large Git repositories as explicit analysis source snapshots
+milestone: git-artifact-import
+epic: projects-artifacts
+kind: feature
+priority: P1
+status: completed
+implementation_commit: 0ff53084b27807ac91bc1d72a921604be61518df
+depends_on: []
+languages: [go, typescript, yaml, markdown]
+goal: Admit Nextcloud-sized repositories through an explicit analysis mode, preserve a complete exclusion report and exact provenance, and keep strict complete snapshots available.
+context:
+  authority: User selected analysis sources with explicit exclusions on 2026-10-21 after the Nextcloud import investigation.
+  specification:
+    - docs/spec/artifacts/git-import.md
+    - docs/spec/platform/limits.md
+    - docs/spec/operations/operations.md
+    - docs/spec/artifacts/artifact-store.md
+  evidence: Nextcloud b9759221 has 47501 advertised refs, 16191 tree entries, 286900806 blob bytes, one submodule and 238 symlinks. The candidate readable-source ZIP has 11895 files and 27176553 bytes.
+scope:
+  in:
+    - Add an explicit analysis import mode to both public import routes and the shared UI dialog; omission preserves strict snapshot semantics.
+    - Reuse the existing Runtime text-path policy and UTF-8 validation to omit ignored directories, binary resources, symlinks, submodules and LFS pointers; never dereference or fetch exclusions.
+    - Put a bounded deterministic complete path/reason report in the ZIP and retain its summary in immutable version provenance, including exact forks and history.
+    - Raise the bounded advertised-ref count and committed local process budgets to support the measured repository.
+    - Verify real HTTPS and SSH Git paths, real-store publication and UI behavior, including the standard browser mock response for the existing model-settings read used by Operations Settings.
+  out:
+    - Recursive submodules, dereferencing symlinks, arbitrary filters, Git protocol v2 and increasing the generic compressed Artifact ceiling.
+    - Changing model selection, widening Runtime analysis windows, or deploying a new release without a deployment request.
+requirements:
+  - id: R1
+    text: Unknown or null import modes fail before network work. Analysis is an explicit choice and full snapshots retain their existing content rules.
+  - id: R2
+    text: Analysis retains regular readable UTF-8 files using the existing shared Runtime text-path policy and records every omitted non-directory path and reason, including exclusions below ignored directories.
+  - id: R3
+    text: The reserved report path cannot collide with tracked content; the report is bounded at 4 MiB and by the source file budget. Empty readable selections fail. Transport and decode budgets still charge all fetched objects.
+  - id: R4
+    text: Analysis summaries and the report survive exact revision reads, history, forks and deletion of other bindings; the UI identifies partial source coverage and the downloadable report path.
+failure_outcomes:
+  - operation: Fetch, select, encode and publish an analysis source snapshot
+    permanent: Invalid modes return 400 invalid_request; unsafe paths, report collisions and no readable source retain 422 git_content_unsupported; budget exhaustion returns 413 git_import_limit and publishes nothing.
+    retryable: Existing network, storage and admission error classes remain authoritative; no automatic mutation retry is added.
+    ambiguous: Inspect the existing exact Artifact metadata and CAS result before retrying publication.
+    cancelled: Existing context cancellation closes transport and stops traversal and encoding before releasing admission.
+    timeout: The configured whole-import deadline covers selection, report encoding and publication.
+cardinality:
+  - collection: Advertised Git references
+    expected: 47501 for the reported repository, mostly pull refs.
+    maximum: 100000 including peeled refs, independently bounded by the existing 4 MiB advertisement ceiling.
+    bound: One advertisement per import; no unbounded history or additional fetch.
+  - collection: Source tree and exclusion report
+    expected: About 16000 tree entries, 12000 included files and 2300 excluded paths.
+    maximum: Configured 1..50000 traversed entries; report at most 4 MiB and included in configured ZIP entry, expanded and per-file budgets.
+    bound: One traversal, deterministic sorting and one bounded report; the final ZIP remains at most 64 MiB.
+lifecycle:
+  - entity: Analysis source provenance and exclusion report
+    delete: Existing owned Artifact and Project lifecycle authority applies.
+    cascade: Summary is stored on the version and report in its ordinary ZIP blob; existing version and blob GC applies.
+    retention: Retained exact revisions and input forks retain the same summary and complete report.
+acceptance_criteria:
+  - id: A1
+    given: A real repository containing ordinary text, ignored trees, binary data, symlinks, submodules and LFS pointers
+    when: Snapshot or explicit analysis mode is imported over HTTPS and SSH
+    then: Snapshot rejects unsupported content; analysis preserves readable source bytes and a deterministic complete exclusion report without resolving exclusions.
+  - id: A2
+    given: Invalid modes, unsafe trees, reserved-path collisions, empty readable selections and exhausted budgets
+    when: Import is attempted
+    then: It fails with the specified class and publishes no partial revision; cancellation and existing admission semantics remain valid.
+  - id: A3
+    given: A published analysis source artifact
+    when: Metadata, version history and exact forks are read against PostgreSQL
+    then: Its immutable summary and ZIP report remain attached to the exact version and invalid summaries are rejected.
+  - id: A4
+    given: Both UI import destinations and subsequent material views
+    when: Analysis is selected and import completes
+    then: The request explicitly selects analysis and the result and retained provenance identify excluded content and report location.
+  - id: A5
+    given: The updated implementation, contracts, specification and local budgets
+    when: Required package suites, API generation and verification, UI verification and lint run
+    then: All checks pass and the live public Nextcloud probe produces a bounded archive accepted by the production Runtime reader.
+tests:
+  - command: go test -count=1 ./internal/gitimport ./internal/artifacts ./internal/httpapi/public ./internal/sourcebundle ./internal/sourcezip ./internal/apierror
+    covers: [A1, A2, A3, A5]
+  - command: go test -count=1 -tags=integration ./internal/gitimport -skip '^TestRealGitReadOnlyContainer$'
+    covers: [A1, A2, A5]
+  - command: go test -count=1 ./internal/publicclient/... ./internal/cli
+    covers: [A5]
+  - command: make test-wire-cross-language
+    covers: [A2, A3, A5]
+  - command: go run ./cmd/contractor server config validate --root ./configs
+    covers: [A5]
+  - command: >-
+      node --input-type=module -e 'import { runBrowserGate } from "./ui/server/browser-gate.mjs"; await runBrowserGate("Git analysis", ["e2e/git-artifacts.spec.ts"]);'
+    covers: [A4, A5]
+  - command: make verify-public-api
+    covers: [A2, A5]
+  - command: make ui-verify
+    covers: [A4, A5]
+  - command: make lint
+    covers: [A5]
+
+verification:
+  - The live Nextcloud HTTPS and original SSH URL both produced the same 27780158-byte archive at b9759221cbbed0c07edb06f834f508eb1d0fff8c, with SHA-256 ebd6fe9036b2ffdd418bf57ad6cc01a54b8bcd196c6160aa5c0d95302c2eec25. Evidence is tasks/evidence/v390-001-nextcloud.json.
+  - The archive retains 11895 repository source files and a complete report of 2310 exclusions (2062 ignored paths, 238 symlinks, one submodule and nine non-UTF-8 files). The production Runtime reader opened all 11896 ZIP members, including the report, with no ignored entries.
+  - HTTPS took 105.45 seconds and SSH 79.92 seconds with the committed local budgets. Both were read-only diagnostic fetches; no Artifact was published and the SSH key lookup used a read-only database transaction.
+  - The whole native Git integration suite passed, including real HTTPS and SSH analysis imports, with the existing Podman container proof explicitly excluded. The initial unfiltered integration run failed because the local Podman socket is unavailable; that Linux-container proof is not claimed as passed.
+  - The initial broader app suite passed all but the unchanged Linux tcp_user_timeout assertion, which sees zero on macOS PostgreSQL. Repeating that full package with that one explicit platform exclusion passed. No app implementation was changed.
+  - All eight focused Chromium Git scenarios passed, including 390 px light, dark and black themes; screenshots were inspected locally. The pre-existing Settings scenario needed the same unconfigured model-settings fallback already used by the unit fake Server.
+  - The database ERD was regenerated through a disposable scratch database at migration 000021; no demo migration or restart was performed.
+  - Full affected Go package suites passed against the dedicated PostgreSQL test database, including immutable analysis summary retention, exact forks, atomic publication and report-byte preservation. Generated public client and CLI suites passed as well.
+  - make verify-public-api and make test-wire-cross-language passed; the shared gate covered 238 fixtures through 214 Go and 164 Python shared tests, with 1081 selected Runtime tests passing.
+  - make ui-verify passed all 187 test files (2212 tests plus one expected failure), 16 static-server tests, typecheck, lint, generated-client checks and the production build.
+  - make lint, shipped configuration validation, specification checks, shared-fixture source checks, ERD freshness and git diff --check passed.

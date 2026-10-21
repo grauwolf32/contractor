@@ -4,6 +4,9 @@ import { invalidAPIResponse, publicAPIError, requireData } from "./error";
 import type { components } from "./generated/public";
 
 type GitKeyState = components["schemas"]["GitKeyState"];
+export type GitImportMode = NonNullable<
+  components["schemas"]["GitImportRequest"]["mode"]
+>;
 export type GitImportResult = components["schemas"]["GitImportResult"];
 export type GitSource = components["schemas"]["GitSource"];
 export const gitKeyQueryKey = ["settings", "git-key"] as const;
@@ -40,6 +43,7 @@ export async function removeGitKey(
     throw publicAPIError(result.response.status, result.error);
 }
 interface GitImportDraft {
+  mode?: GitImportMode;
   projectId?: string;
   namespace: string;
   name: string;
@@ -68,6 +72,7 @@ export async function importGitArtifact(
   };
   const body = {
     repositoryUrl: draft.repositoryUrl,
+    mode: draft.mode ?? "snapshot",
     ...(draft.ref === undefined ? {} : { ref: draft.ref }),
   };
   const response =

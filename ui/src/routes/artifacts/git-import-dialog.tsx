@@ -12,6 +12,7 @@ import { PublicAPIError } from "../../api/error";
 import {
   importGitArtifact,
   type GitImportResult,
+  type GitImportMode,
   type GitSource,
 } from "../../api/git-artifacts";
 import { getProjectArtifactMetadata } from "../../api/project-artifacts";
@@ -40,6 +41,13 @@ export function GitSourceDetails({
       <code>{source.repositoryUrl}</code>
       <span>{source.requestedRef ?? "Default branch"}</span>
       <code>Commit {source.resolvedCommit}</code>
+      {source.analysis === undefined ? null : (
+        <span>
+          Sources for analysis · {source.analysis.excludedEntries} entries
+          excluded. Full list in {source.analysis.reportPath} inside the source
+          ZIP.
+        </span>
+      )}
     </div>
   );
 }
@@ -66,6 +74,7 @@ export function GitImportDialog({
   const heading = useId();
   const description = useId();
   const [repositoryUrl, setURL] = useState("");
+  const [mode, setMode] = useState<GitImportMode>("snapshot");
   const [ref, setRef] = useState("");
   const [namespace, setNamespace] = useState("sources");
   const [name, setName] = useState(suggestedName);
@@ -132,6 +141,7 @@ export function GitImportDialog({
           namespace,
           name,
           repositoryUrl,
+          mode,
           ...(ref === "" ? {} : { ref }),
           ...(baseline === undefined
             ? {}
@@ -206,6 +216,22 @@ export function GitImportDialog({
             maxLength={1024}
           />
         </label>
+        <label>
+          Import content
+          <select
+            value={mode}
+            disabled={pending}
+            onChange={(event) => setMode(event.target.value as GitImportMode)}
+          >
+            <option value="snapshot">Complete snapshot</option>
+            <option value="analysis">Sources for analysis</option>
+          </select>
+        </label>
+        <p className="ui-caption">
+          {mode === "analysis"
+            ? "Excludes build and dependency directories, binary and non-UTF-8 files, symbolic links, submodules and LFS pointers. Every excluded path and reason is listed in the source ZIP report."
+            : "Includes every tracked regular file. Symbolic links, submodules and LFS pointers stop the import."}
+        </p>
         <div className="materials-form-pair">
           <label>
             Namespace
@@ -262,7 +288,7 @@ export function GitImportDialog({
         )}
         {error === undefined ? null : <ErrorNotice error={error} />}
         <p className="ui-caption">
-          An import can take up to two minutes. If you cancel it or lose the
+          An import can take several minutes. If you cancel it or lose the
           response, look for it before trying again: a complete import may
           already be stored.
         </p>
@@ -277,7 +303,7 @@ export function GitImportDialog({
             pendingLabel="Importing…"
             disabled={baseline !== undefined && (!replace || baseline.frozen)}
           >
-            Import snapshot
+            {mode === "analysis" ? "Import sources" : "Import snapshot"}
           </Button>
         </div>
       </form>
