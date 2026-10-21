@@ -80,11 +80,17 @@ function OperationsLiveSubscription({
   const [initialCursor] = useState(() => snapshot.cursor);
 
   useEffect(() => {
-    const invalidateSchedulerSettings = () =>
-      queryClient.invalidateQueries(
-        { queryKey: queryKeys.operations.schedulerSettings },
-        { cancelRefetch: false },
-      );
+    const invalidateDeploymentSettings = () =>
+      Promise.all([
+        queryClient.invalidateQueries(
+          { queryKey: queryKeys.operations.schedulerSettings },
+          { cancelRefetch: false },
+        ),
+        queryClient.invalidateQueries(
+          { queryKey: queryKeys.operations.modelSelection },
+          { cancelRefetch: false },
+        ),
+      ]);
     const updates = new OperationsLiveRefresh({
       initial: initialCursor,
       // Always reads the Server (joining a read in flight) and rejects when
@@ -124,8 +130,13 @@ function OperationsLiveSubscription({
           queryKey: queryKeys.operations.runtimeCredentials.all,
         });
       }
+      if (resource === "modelSelection") {
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.operations.modelSelection,
+        });
+      }
       if (resource === "schedulerSettings") {
-        void invalidateSchedulerSettings();
+        void invalidateDeploymentSettings();
       }
       updates.event(
         { generation: event.cursor.generation, revision: event.data.revision },
@@ -137,12 +148,12 @@ function OperationsLiveSubscription({
       onResync: (reason) => {
         onResync(reason);
         updates.resync(reason);
-        void invalidateSchedulerSettings();
+        void invalidateDeploymentSettings();
       },
       onStateChange: (state) => {
         onConnection(state);
         if (state === "live") {
-          void invalidateSchedulerSettings();
+          void invalidateDeploymentSettings();
         }
       },
       onError: (message) => onError(message),

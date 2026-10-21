@@ -117,7 +117,8 @@ func configureHTTP(
 			Config: configurationManager, Audits: audits.service,
 		},
 		Operations: publicapi.OperationsDependencies{
-			Operations: control.registry, Performance: performanceReader,
+			ModelSelection: configurationManager,
+			Operations:     control.registry, Performance: performanceReader,
 			AllocationResources: telemetry.NewRepository(pool), SchedulerSettings: workflows.settings,
 			OperationsInvalidator: control.registry, RunNotifier: workflows.scheduler, Logger: logger,
 		},

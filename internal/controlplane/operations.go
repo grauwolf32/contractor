@@ -110,6 +110,7 @@ const (
 	OperationsConfiguration     OperationsResource = "configuration"
 	OperationsCredential        OperationsResource = "credential"
 	OperationsSchedulerSettings OperationsResource = "schedulerSettings"
+	OperationsModelSelection    OperationsResource = "modelSelection"
 )
 
 // OperationsChange is a reduced process-local invalidation. SnapshotOperations
@@ -398,7 +399,7 @@ func (r *InMemoryRegistry) InvalidateOperations(
 ) error {
 	if !validOperationsResource(resource) ||
 		resourceID != "" && !contracts.ValidResourceID(resourceID) ||
-		resource == OperationsSchedulerSettings && resourceID != "" {
+		(resource == OperationsSchedulerSettings || resource == OperationsModelSelection) && resourceID != "" {
 		return ErrInvalidRequest
 	}
 	r.mu.Lock()
@@ -438,7 +439,7 @@ func (r *InMemoryRegistry) recordOperationsChangeLocked(
 func validOperationsResource(resource OperationsResource) bool {
 	switch resource {
 	case OperationsRuntimeAgent, OperationsAllocation, OperationsConfiguration, OperationsCredential,
-		OperationsSchedulerSettings:
+		OperationsSchedulerSettings, OperationsModelSelection:
 		return true
 	default:
 		return false

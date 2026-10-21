@@ -133,6 +133,7 @@ describe("Run draft validation", () => {
     overrides.planner.modelPolicy = "planner-strong@2";
     overrides.planner.credential = NO_CREDENTIAL_OVERRIDE;
     overrides.workers.llmGateway = "local@1";
+    overrides.workers.summarizerModelPolicy = "summary-small@1";
     overrides.workers.credential = "credential-worker";
     const result = validateRunDraft(
       workflow,
@@ -148,7 +149,11 @@ describe("Run draft validation", () => {
     );
     expect(result.request?.executionConfig).toEqual({
       planner: { modelPolicy: "planner-strong@2", credential: null },
-      workers: { llmGateway: "local@1", credential: "credential-worker" },
+      workers: {
+        llmGateway: "local@1",
+        credential: "credential-worker",
+        summarizerModelPolicy: "summary-small@1",
+      },
     });
     expect(result.request?.parameters).toEqual({
       objective: "Build OpenAPI",

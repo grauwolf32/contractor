@@ -20,6 +20,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -141,6 +142,19 @@ func (a *lostAuditResponse) Start(ctx context.Context, p auditservice.StartParam
 	return v, err
 }
 
+// Dispatch must consume the retained preparation binding even if mutable
+// defaults can no longer resolve. Dependency validation remains the real
+// Snapshot implementation on the ordinary PostgreSQL-backed Run/Audit path.
+type retainedExecutionCatalog struct{ *config.Snapshot }
+
+func (retainedExecutionCatalog) ResolveRunWorkflow(context.Context, string, resolved.ExecutionConfigPatch, resolved.CredentialLookup) (resolved.ResolvedWorkflow, error) {
+	return resolved.ResolvedWorkflow{}, errors.New("mutable defaults must not be consulted after preparation")
+}
+
+func (retainedExecutionCatalog) ResolveAuditProfile(context.Context, string) (auditprofile.ResolvedAuditProfile, error) {
+	return auditprofile.ResolvedAuditProfile{}, errors.New("mutable defaults must not be consulted after preparation")
+}
+
 func newHarness(t *testing.T) *serviceHarness {
 	t.Helper()
 	pool := serviceTestPool(t)
@@ -151,11 +165,11 @@ func newHarness(t *testing.T) *serviceHarness {
 	}
 	credentialLookup := testCredentials{gateway: gateway.Ref}
 	transactionLLMCredentials := runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) { return credentialLookup, nil })
-	audits, err := auditservice.New(auditservice.Options{Pool: pool, Profiles: catalog, TransactionLLMCredentials: transactionLLMCredentials, CredentialGuard: testBarrier{}})
+	audits, err := auditservice.New(auditservice.Options{Pool: pool, Profiles: retainedExecutionCatalog{catalog}, TransactionLLMCredentials: transactionLLMCredentials, CredentialGuard: testBarrier{}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	runs, err := runservice.New(runservice.Options{Runs: runstore.NewPostgresStore(pool), Workflows: catalog, LLMCredentials: credentialLookup, CredentialGuard: testBarrier{}, RuntimeCredentials: testBarrier{}, Projects: projectstore.NewPostgresStore(pool), SkillInitializationAvailable: true, PublicTransaction: func(ctx context.Context, fn func(runservice.PublicRunWriter, *artifacts.Service) error) error {
+	runs, err := runservice.New(runservice.Options{Runs: runstore.NewPostgresStore(pool), Workflows: retainedExecutionCatalog{catalog}, LLMCredentials: credentialLookup, CredentialGuard: testBarrier{}, RuntimeCredentials: testBarrier{}, Projects: projectstore.NewPostgresStore(pool), SkillInitializationAvailable: true, PublicTransaction: func(ctx context.Context, fn func(runservice.PublicRunWriter, *artifacts.Service) error) error {
 		return pg.InTx(ctx, pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
 			lookup, err := runtimeconfig.BindTransactionLLMCredentialLookup(tx, transactionLLMCredentials)
 			if err != nil {

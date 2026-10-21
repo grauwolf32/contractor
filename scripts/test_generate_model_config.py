@@ -84,6 +84,25 @@ class ModelConfigurationTest(unittest.TestCase):
     def select(self, default="large", **roles):
         self.write("deploy/models/selection.yaml", {"defaultModel": default, "roles": roles})
 
+    def test_shared_model_profile_ids(self):
+        cases = json.loads((Path(__file__).resolve().parents[1] / "api/testdata/model-profile-id-cases.json").read_text())
+        for group, values in cases.items():
+            for value in values:
+                with self.subTest(value=value):
+                    with tempfile.TemporaryDirectory() as directory:
+                        root = Path(directory)
+                        source = root / "deploy/models/catalog"
+                        source.mkdir(parents=True)
+                        (source / f"{value}.yaml").parent.mkdir(parents=True, exist_ok=True)
+                        (source / f"{value}.yaml").write_text(yaml.safe_dump(self.large))
+                        for name, content in [("selection.yaml", {"defaultModel": value, "roles": {}}), ("roles.yaml", self.budgets)]:
+                            (root / "deploy/models" / name).write_text(yaml.safe_dump(content))
+                        if group == "valid":
+                            render(root)
+                        else:
+                            with self.assertRaises(ConfigError):
+                                render(root)
+
     def test_default_routes_context_and_role_budgets_are_compiled_together(self):
         output = render(self.root)
         self.assertEqual(len(output), 14)

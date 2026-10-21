@@ -479,6 +479,10 @@ func (a *PlacementAllocator) resolveCandidateWithCache(
 		policy := binding.AgentTemplate.Summarizer.ModelPolicy
 		summarizerModelPolicy = &policy
 	}
+	if binding.RuntimeSelection.SummarizerModelPolicy != nil {
+		policy := binding.RuntimeSelection.SummarizerModelPolicy.Clone()
+		summarizerModelPolicy = &policy
+	}
 	return runtimeconfig.ResolveRuntimeConfig(runtimeconfig.ResolveRuntimeConfigInput{
 		ModelFree:   binding.AgentTemplate.IsToolWorker(),
 		ModelPolicy: binding.RuntimeSelection.ModelPolicy, SummarizerModelPolicy: summarizerModelPolicy,

@@ -25,6 +25,8 @@ const (
 
 type ProfileCatalog interface {
 	AuditProfile(string) (auditprofile.ResolvedAuditProfile, error)
+	ResolveAuditProfile(context.Context, string) (auditprofile.ResolvedAuditProfile, error)
+	ResolvePinnedAuditProfile(context.Context, auditprofile.ResolvedAuditProfile) (auditprofile.ResolvedAuditProfile, error)
 	AuditProfiles() []auditprofile.ResolvedAuditProfile
 }
 
@@ -89,6 +91,8 @@ type ProfileProjection struct {
 }
 
 type CreateDraftParams struct {
+	// PinnedProfile is trusted server-side Eval preparation, never a public field.
+	PinnedProfile         *auditprofile.ResolvedAuditProfile
 	ExpectedProfileSHA256 string
 	AuditID               string
 	OwnerID               string

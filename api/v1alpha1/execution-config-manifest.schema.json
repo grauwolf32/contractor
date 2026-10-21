@@ -8,6 +8,7 @@
       "minProperties": 1,
       "properties": {
         "modelPolicy": {"$ref": "common.schema.json#/$defs/selector"},
+        "summarizerModelPolicy": {"$ref": "common.schema.json#/$defs/selector"},
         "llmGateway": {"$ref": "common.schema.json#/$defs/selector"},
         "credential": {
           "oneOf": [

@@ -308,6 +308,8 @@ its owning requirement.
 | `LIM-CAT-6` | at most 32 profiles | Deployment model profile catalog | Offline model compiler | [CAT-R81](../configuration/catalog.md) |
 | `LIM-CAT-7` | 64 KiB per source | Deployment model selection, role budgets and each model profile | Offline model compiler bounded reads | [CAT-R81](../configuration/catalog.md) |
 | `LIM-CAT-8` | at most 134 outputs, at most 1 MiB each | Four model-specific policies per profile and six shared model configuration outputs | Offline model compiler | [CAT-R81](../configuration/catalog.md) |
+| `LIM-CAT-10` | 75 ASCII characters | Deployment model profile ID | Model compiler, Go settings validator, PostgreSQL constraint and public schema; shared ID fixture | [CAT-R82](../configuration/catalog.md) |
+| `LIM-CAT-11` | 1 MiB | Compiled model-choice catalog read | Server bounded secure file read | [CAT-R82](../configuration/catalog.md) |
 | `LIM-CAT-9` | at most 256 files | Generated model-policy cleanup including interrupted-generation recovery | Offline model compiler preflight | [CAT-R81](../configuration/catalog.md) |
 | `LIM-CTL-1` | 10 seconds | Runtime Agent heartbeat interval, returned by Control Plane on registration | Control Plane (authority, returned on registration); Runtime Agent (sends heartbeats) | [CTL-R39](../execution/control-plane.md) |
 | `LIM-CTL-2` | 60 seconds | Confirmed Runtime Agent control lease on Control Plane and the symmetric Runtime Agent watchdog | Control Plane Runtime Agent Registry; Runtime Agent watchdog | [CTL-R39](../execution/control-plane.md) |

@@ -160,7 +160,7 @@ offline cleanup are described in [artifact blob storage](operations/artifact-blo
 
 The Gateway endpoint and model aliases belong to immutable documents under
 `configs/llm-gateways` and `configs/model-policies`. The shipped catalog uses
-`local-litellm@1`, `planner-model` and `worker-model`; verify that both Server
+`local-litellm@1` and the digest-qualified model routes compiled from `deploy/models/`; verify that both Server
 and Runtime hosts can reach the selected Gateway. Tokens remain outside YAML.
 For the shipped development credential selectors, set the bootstrap token
 variables described in [the local walkthrough](guides/local-stack.md).
@@ -351,3 +351,21 @@ to choose release checks. Deployment examples under `deploy/` cover the
 (PostgreSQL by default, with an opt-in filesystem overlay),
 [Runtime labels](../deploy/runtime-labels/README.md) and [Podman](../deploy/podman/README.md);
 they are component examples and require the remaining services above.
+
+### Changing the active model selection
+
+After deploying profiles and their Gateway routes, use **Operations → Settings →
+Models** to change the default or a role override for new executions. PostgreSQL
+stores this selection with a revision; `selection.yaml` initializes it only on
+the first startup. Restarting or regenerating files does not reset a saved
+selection. Removing a selected model makes startup fail until a valid deployment
+and saved selection agree. The UI does not install provider credentials or
+provision remote routes.
+
+Run and Eval execution overrides can select exact model-specific policies,
+including `workers.summarizerModelPolicy` for a summary-enabled Worker. An Audit
+pins defaults at draft creation; a prepared Eval retains its binding through
+submission. Run history shows requested aliases and exact policy digests per
+consumer; provider weight revisions remain unknown unless observed. Context
+capacity comes from the profile, role spending/output budgets from `roles.yaml`,
+and the terminal-summary trigger and instructions from the AgentTemplate.

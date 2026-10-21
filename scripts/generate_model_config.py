@@ -201,6 +201,8 @@ def render(root: Path) -> dict[str, bytes]:
             # The model identifier and profile digest travel with every request
             # and Run snapshot. A selection change never retargets an old alias.
             alias = f"{model['model']}@{digest[:16]}/{budget['gatewayAlias']}"
+            if len(alias) > 256:
+                raise ConfigError("generated model route exceeds the 256-character model limit")
             name = f"{role}_{model_id.replace('.', '_').replace('-', '_')[:32]}_{digest[:16]}"
             spec = {"model": alias, "contextWindowTokens": model["contextWindowTokens"]}
             spec.update(

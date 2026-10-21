@@ -363,3 +363,21 @@ copyable multi-Stage, bounded-retry, single-Worker
 `streamline@1`, and multi-Worker `router@1` Workflow manifests. They are
 intentionally outside `workflows/`, so they document supported shapes without
 changing the default end-to-end fixture.
+
+### Changing the active model selection
+
+After deploying profiles and their Gateway routes, use **Operations → Settings →
+Models** to change the default or a role override for new executions. PostgreSQL
+stores this selection with a revision; `selection.yaml` initializes it only on
+the first startup. Restarting or regenerating files does not reset a saved
+selection. Removing a selected model makes startup fail until a valid deployment
+and saved selection agree. The UI does not install provider credentials or
+provision remote routes.
+
+Run and Eval execution overrides can select exact model-specific policies,
+including `workers.summarizerModelPolicy` for a summary-enabled Worker. An Audit
+pins defaults at draft creation; a prepared Eval retains its binding through
+submission. Run history shows requested aliases and exact policy digests per
+consumer; provider weight revisions remain unknown unless observed. Context
+capacity comes from the profile, role spending/output budgets from `roles.yaml`,
+and the terminal-summary trigger and instructions from the AgentTemplate.

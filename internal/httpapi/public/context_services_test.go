@@ -24,6 +24,7 @@ import (
 // catalog, Run repeat drafts and Evals read, and what the test Run creator
 // resolves Workflows with.
 type testCatalog interface {
+	ResolvePinnedRunWorkflow(context.Context, resolved.ResolvedWorkflow, resolved.CredentialLookup) (resolved.ResolvedWorkflow, error)
 	CatalogReader
 	RepeatWorkflowResolver
 	WorkflowLister
@@ -92,9 +93,14 @@ type testServices struct {
 	Performance           PerformanceReader
 	AllocationResources   AllocationResourceReader
 	SchedulerSettings     SchedulerSettingsManagement
+	ModelSelection        ModelSelectionManagement
 }
 
 func (s testServices) dependencies() Dependencies {
+	if s.ModelSelection == nil {
+		s.ModelSelection = newFakeModelSelection()
+	}
+
 	return Dependencies{
 		BearerToken: s.BearerToken, NewRequestID: s.NewRequestID, Logger: s.Logger,
 		Session: SessionDependencies{
@@ -132,7 +138,8 @@ func (s testServices) dependencies() Dependencies {
 			Evals: s.Evals, EvalNotifier: s.EvalNotifier, Config: s.Config, Audits: s.Audits,
 		},
 		Operations: OperationsDependencies{
-			Operations: s.Operations, Performance: s.Performance,
+			ModelSelection: s.ModelSelection,
+			Operations:     s.Operations, Performance: s.Performance,
 			AllocationResources: s.AllocationResources, SchedulerSettings: s.SchedulerSettings,
 			OperationsInvalidator: s.OperationsInvalidator, RunNotifier: s.RunNotifier, Logger: s.Logger,
 		},

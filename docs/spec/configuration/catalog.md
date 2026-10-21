@@ -486,6 +486,16 @@ operator reruns generation before deployment. Generation never contacts a
 provider or changes a running service. The role-policy directory dedicated to
 generation contains no operator-authored files; unexpected files prevent cleanup.
 
+**CAT-R82.** Profile IDs use lowercase ASCII letters/digits, dots and hyphens,
+start with a letter or digit and have the [LIM-CAT-10](../platform/limits.md)
+bound. The compiled catalog is bounded by [LIM-CAT-11](../platform/limits.md),
+validated against exact deployed policies at load, and contains no credentials.
+Generated model aliases must fit the existing public model-name bound. The
+catalog's bootstrap selection initializes durable Server settings under
+[OPS-R220](../operations/operations.md); changing files does not overwrite a
+saved selection. Deployed routes and policies needed by pinned executions must
+remain available until those executions no longer need them.
+
 ### Immutability
 
 **CAT-R44.** A configuration version published at runtime is

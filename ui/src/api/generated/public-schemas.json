@@ -314,6 +314,9 @@
             },
             { "type": "null" }
           ]
+        },
+        "summarizerModelPolicy": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/EvalSelector"
         }
       },
       "required": [],
@@ -2953,6 +2956,115 @@
       "additionalProperties": false,
       "required": ["paused"],
       "properties": { "paused": { "type": "boolean" } }
+    },
+    "ModelProfileId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 75,
+      "pattern": "^[a-z0-9][a-z0-9.-]{0,74}$"
+    },
+    "ModelSelectionValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["defaultModel", "roles"],
+      "properties": {
+        "defaultModel": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ModelProfileId"
+        },
+        "roles": {
+          "type": "object",
+          "additionalProperties": false,
+          "maxProperties": 4,
+          "properties": {
+            "planner": {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ModelProfileId"
+            },
+            "worker": {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ModelProfileId"
+            },
+            "summarizer": {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ModelProfileId"
+            },
+            "audit_completion_worker": {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ModelProfileId"
+            }
+          }
+        }
+      }
+    },
+    "DeployedModelChoice": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "digest",
+        "upstreamModel",
+        "contextWindowTokens",
+        "maxOutputTokens",
+        "policies"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ModelProfileId"
+        },
+        "digest": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Digest"
+        },
+        "upstreamModel": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "contextWindowTokens": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000000
+        },
+        "maxOutputTokens": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000000
+        },
+        "policies": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "maxProperties": 4,
+          "properties": {
+            "planner": {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Selector"
+            },
+            "worker": {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Selector"
+            },
+            "summarizer": {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Selector"
+            },
+            "audit_completion_worker": {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Selector"
+            }
+          }
+        }
+      }
+    },
+    "ModelSelectionInfo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["configured", "models"],
+      "properties": {
+        "configured": { "type": "boolean" },
+        "models": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DeployedModelChoice"
+          }
+        },
+        "selection": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ModelSelectionValue"
+        },
+        "revision": { "type": "string", "pattern": "^[1-9][0-9]{0,19}$" },
+        "catalogDigest": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Digest"
+        },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
     },
     "SchedulerSettings": {
       "type": "object",
@@ -7689,6 +7801,11 @@
         "modelPolicy": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ModelPolicyRef"
         },
+        "model": { "type": "string", "minLength": 1 },
+        "summarizerModelPolicy": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ModelPolicyRef"
+        },
+        "summarizerModel": { "type": "string", "minLength": 1 },
         "llmGateway": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/LLMGatewayConfigRef"
         },
@@ -7700,6 +7817,11 @@
           "additionalProperties": false,
           "properties": {
             "modelPolicy": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "summarizerModelPolicy": {
               "type": "string",
               "minLength": 1,
               "maxLength": 256
@@ -8313,6 +8435,9 @@
       "minProperties": 1,
       "properties": {
         "modelPolicy": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Selector"
+        },
+        "summarizerModelPolicy": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Selector"
         },
         "llmGateway": {
@@ -10944,6 +11069,10 @@
       "minLength": 1,
       "maxLength": 128,
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "RequiredModelSelectionIfMatchHeader": {
+      "type": "string",
+      "pattern": "^\"[1-9][0-9]{0,19}:[0-9a-f]{64}\"$"
     },
     "connectEventsWebSocketSecWebSocketProtocolHeader": {
       "type": "string",

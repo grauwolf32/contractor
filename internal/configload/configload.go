@@ -74,7 +74,14 @@ func (c *bundleChecks) take() Bundles {
 
 // Load validates one operator root: its bundles, then its catalog.
 func Load(root string) (*config.Snapshot, error) {
-	return config.Load(root, newBundleChecks().operatorRootChecks()...)
+	snapshot, err := config.Load(root, newBundleChecks().operatorRootChecks()...)
+	if err != nil {
+		return nil, err
+	}
+	if err := config.ValidateModelChoiceCatalog(root, snapshot); err != nil {
+		return nil, err
+	}
+	return snapshot, nil
 }
 
 // LoadUnionReadOnly is offline validation of the Server's operator and managed
@@ -84,6 +91,9 @@ func LoadUnionReadOnly(operatorRoot, managedRoot string) (*config.Snapshot, Bund
 	checks := newBundleChecks()
 	snapshot, err := config.LoadUnionReadOnly(operatorRoot, managedRoot, checks.operatorRootChecks()...)
 	if err != nil {
+		return nil, Bundles{}, err
+	}
+	if err := config.ValidateModelChoiceCatalog(operatorRoot, snapshot); err != nil {
 		return nil, Bundles{}, err
 	}
 	return snapshot, checks.take(), nil
@@ -98,6 +108,9 @@ func NewManager(options config.ManagerOptions) (*config.Manager, Bundles, error)
 	options.OperatorRootChecks = append(checks.operatorRootChecks(), options.OperatorRootChecks...)
 	manager, err := config.NewManager(options)
 	if err != nil {
+		return nil, Bundles{}, err
+	}
+	if err := config.ValidateModelChoiceCatalog(options.OperatorRoot, manager.Snapshot()); err != nil {
 		return nil, Bundles{}, err
 	}
 	return manager, checks.take(), nil

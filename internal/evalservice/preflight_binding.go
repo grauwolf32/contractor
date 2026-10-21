@@ -56,7 +56,7 @@ func (r *Resolver) resolveBinding(ctx context.Context, owner string, v evaldomai
 	if string(patch) != "{}" {
 		return b, evaldomain.Failure("eval_not_ready")
 	}
-	profile, err := r.Catalog.AuditProfile(v.Selector)
+	profile, err := r.Catalog.ResolveAuditProfile(ctx, v.Selector)
 	if err != nil {
 		return b, errors.Join(evaldomain.Failure("eval_not_ready"), err)
 	}

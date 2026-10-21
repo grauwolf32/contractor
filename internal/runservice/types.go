@@ -55,6 +55,7 @@ type PublicTransaction func(context.Context, func(PublicRunWriter, *artifacts.Se
 type AuditTransaction func(context.Context, func(AuditRunWriter, *artifacts.Service, AuditExecutionWriter) error) error
 
 type WorkflowResolver interface {
+	ResolvePinnedRunWorkflow(context.Context, resolved.ResolvedWorkflow, resolved.CredentialLookup) (resolved.ResolvedWorkflow, error)
 	ResolveRunWorkflow(context.Context, string, resolved.ExecutionConfigPatch, resolved.CredentialLookup) (resolved.ResolvedWorkflow, error)
 }
 
@@ -102,7 +103,8 @@ type Service struct {
 }
 
 type PublicCreateParams struct {
-	// Trusted preparation expectations are not public request fields.
+	// Trusted preparation expectations and the retained binding are not public request fields.
+	PinnedWorkflow         *resolved.ResolvedWorkflow
 	ExpectedWorkflowSHA256 string
 	ExpectedRuntimeSHA256  string
 	ExpectedSkillsSHA256   string

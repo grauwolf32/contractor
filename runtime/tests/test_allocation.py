@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -58,6 +59,62 @@ def test_worker_build_context_does_not_expose_agent_template() -> None:
     assert "agent_template" not in fields
     assert "run_metadata_labels" not in fields
     assert {"description", "instruction", "card_version"} <= fields.keys()
+
+
+def test_prepare_uses_pinned_summary_model_without_changing_template(
+    tmp_path: Path, runtime_capabilities: CapabilitySnapshot
+) -> None:
+    contexts: list[WorkerBuildContext] = []
+
+    class CapturingFactory(StubADKWorkerRuntimeFactory):
+        async def create(self, context: WorkerBuildContext) -> StubWorkerRuntime:
+            contexts.append(context)
+            return StubWorkerRuntime(context)
+
+    async def scenario() -> None:
+        state = RuntimeState(instance_id="summary-selection-test")
+        await state.mark_registered()
+        registry = replace(
+            built_in_factories(tmp_path), worker_runtimes={"adk@1": CapturingFactory()}
+        )
+        service = AllocationService(
+            state,
+            registry,
+            runtime_capabilities,
+            a2a_base_url="https://runtime.example",
+            now=lambda: NOW,
+        )
+        spec = allocation_spec(summarizer=True)
+        assert spec.agent_template.summarizer is not None
+        original = spec.agent_template.model_dump_json(by_alias=True, exclude_none=True)
+        policy = spec.agent_template.summarizer.model_policy.model_copy(deep=True)
+        policy.ref.policy_id = "selected_summary"
+        policy.model = "fixture/selected-summary-model"
+        policy.context_window_tokens = 65536
+        policy.ref.digest = _model_policy_digest(policy)
+        spec.summarizer_model_policy = policy
+        await service.prepare(spec)
+        assert len(contexts) == 1
+        assert contexts[0].summarizer is not None
+        assert contexts[0].summarizer.model_policy == policy
+        assert (
+            contexts[0].summarizer.context_window_ratio
+            == spec.agent_template.summarizer.context_window_ratio
+        )
+        assert spec.agent_template.model_dump_json(by_alias=True, exclude_none=True) == original
+        await service.finalize(
+            FinalizeAllocationRequest(
+                apiVersion=API_VERSION,
+                allocationId=spec.allocation_id,
+                finalizationId="summary-model-final",
+                deadline=NOW + timedelta(seconds=30),
+            )
+        )
+        await service.release(
+            ReleaseAllocationRequest(apiVersion=API_VERSION, allocationId=spec.allocation_id)
+        )
+
+    asyncio.run(scenario())
 
 
 def test_prepare_is_single_slot_idempotent_and_constructs_only_selected_tools(

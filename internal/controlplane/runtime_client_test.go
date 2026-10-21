@@ -131,6 +131,9 @@ func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 	}
 	effectivePolicy.Model = "worker-strong-model"
 	effectivePolicy.MaxModelCalls++
+	summaryPolicy := template.Summarizer.ModelPolicy.Clone()
+	summaryPolicy.Model = "selected-summary-model"
+	summaryPolicy.Ref.PolicyID = "selected_summary"
 	settings := testRuntimeSettings()
 	lease := time.Date(2026, 8, 29, 13, 0, 0, 0, time.UTC)
 	var received control.PrepareAllocationRequest
@@ -193,7 +196,7 @@ func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 	handle, err := client.Prepare(
 		requestid.With(context.Background(), "scheduler-request-1"), reservation,
 		runtimesettings.WorkerExecutionSettings{
-			ModelPolicy: effectivePolicy, RuntimeSettings: settings,
+			ModelPolicy: effectivePolicy, SummarizerModelPolicy: &summaryPolicy, RuntimeSettings: settings,
 			ResolvedRuntimeConfigProvenance: testRuntimeProvenance(),
 		},
 	)
@@ -216,6 +219,8 @@ func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 		len(received.Spec.ResolvedSkills) != 1 ||
 		received.Spec.ResolvedSkills[0].Artifact.Revision == nil ||
 		*received.Spec.ResolvedSkills[0].Artifact.Revision != skillRevision ||
+		received.Spec.SummarizerModelPolicy == nil ||
+		!reflect.DeepEqual(*received.Spec.SummarizerModelPolicy, summaryPolicy) ||
 		received.Spec.ModelPolicy.Ref != effectivePolicy.Ref ||
 		received.Spec.ModelPolicy.Model != effectivePolicy.Model ||
 		received.Spec.Workspace == nil || len(received.Spec.Workspace.Sources) != 1 ||

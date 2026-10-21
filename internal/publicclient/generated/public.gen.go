@@ -3850,12 +3850,16 @@ type ConfigurationResource_Body struct {
 type ConsumerExecutionConfig struct {
 	Credential  *CredentialRef       `json:"credential,omitempty"`
 	LlmGateway  *LLMGatewayConfigRef `json:"llmGateway,omitempty"`
+	Model       *string              `json:"model,omitempty"`
 	ModelPolicy *ModelPolicyRef      `json:"modelPolicy,omitempty"`
 	Origins     *struct {
-		Credential  *string `json:"credential,omitempty"`
-		LlmGateway  *string `json:"llmGateway,omitempty"`
-		ModelPolicy *string `json:"modelPolicy,omitempty"`
+		Credential            *string `json:"credential,omitempty"`
+		LlmGateway            *string `json:"llmGateway,omitempty"`
+		ModelPolicy           *string `json:"modelPolicy,omitempty"`
+		SummarizerModelPolicy *string `json:"summarizerModelPolicy,omitempty"`
 	} `json:"origins,omitempty"`
+	SummarizerModel       *string         `json:"summarizerModel,omitempty"`
+	SummarizerModelPolicy *ModelPolicyRef `json:"summarizerModelPolicy,omitempty"`
 }
 
 // CreateAuditFindingReviewRequest defines model for CreateAuditFindingReviewRequest.
@@ -4067,6 +4071,21 @@ type DecideAuditFindingTruePositiveRequestVerdict string
 // DecideAuditReviewRequest defines model for DecideAuditReviewRequest.
 type DecideAuditReviewRequest struct {
 	union json.RawMessage
+}
+
+// DeployedModelChoice defines model for DeployedModelChoice.
+type DeployedModelChoice struct {
+	ContextWindowTokens int            `json:"contextWindowTokens"`
+	Digest              Digest         `json:"digest"`
+	Id                  ModelProfileId `json:"id"`
+	MaxOutputTokens     int            `json:"maxOutputTokens"`
+	Policies            struct {
+		AuditCompletionWorker *Selector `json:"audit_completion_worker,omitempty"`
+		Planner               *Selector `json:"planner,omitempty"`
+		Summarizer            *Selector `json:"summarizer,omitempty"`
+		Worker                *Selector `json:"worker,omitempty"`
+	} `json:"policies"`
+	UpstreamModel string `json:"upstreamModel"`
 }
 
 // Digest defines model for Digest.
@@ -4547,9 +4566,10 @@ type EvalExecutionRefKind string
 
 // EvalExecutionSelection defines model for EvalExecutionSelection.
 type EvalExecutionSelection struct {
-	Credential  nullable.Nullable[EvalOpaque] `json:"credential,omitempty"`
-	LlmGateway  *EvalSelector                 `json:"llmGateway,omitempty"`
-	ModelPolicy *EvalSelector                 `json:"modelPolicy,omitempty"`
+	Credential            nullable.Nullable[EvalOpaque] `json:"credential,omitempty"`
+	LlmGateway            *EvalSelector                 `json:"llmGateway,omitempty"`
+	ModelPolicy           *EvalSelector                 `json:"modelPolicy,omitempty"`
+	SummarizerModelPolicy *EvalSelector                 `json:"summarizerModelPolicy,omitempty"`
 }
 
 // EvalExperiment defines model for EvalExperiment.
@@ -5133,9 +5153,10 @@ type ExecutionConfigSelection struct {
 
 // ExecutionSelectionPatch defines model for ExecutionSelectionPatch.
 type ExecutionSelectionPatch struct {
-	Credential  nullable.Nullable[ConfigId] `json:"credential,omitempty"`
-	LlmGateway  *Selector                   `json:"llmGateway,omitempty"`
-	ModelPolicy *Selector                   `json:"modelPolicy,omitempty"`
+	Credential            nullable.Nullable[ConfigId] `json:"credential,omitempty"`
+	LlmGateway            *Selector                   `json:"llmGateway,omitempty"`
+	ModelPolicy           *Selector                   `json:"modelPolicy,omitempty"`
+	SummarizerModelPolicy *Selector                   `json:"summarizerModelPolicy,omitempty"`
 }
 
 // FindingAuditHold defines model for FindingAuditHold.
@@ -5519,6 +5540,30 @@ type ModelPolicyRef struct {
 	Digest   Digest            `json:"digest"`
 	PolicyId ConfigurationName `json:"policyId"`
 	Version  ConfigVersion     `json:"version"`
+}
+
+// ModelProfileId defines model for ModelProfileId.
+type ModelProfileId = string
+
+// ModelSelectionInfo defines model for ModelSelectionInfo.
+type ModelSelectionInfo struct {
+	CatalogDigest *Digest               `json:"catalogDigest,omitempty"`
+	Configured    bool                  `json:"configured"`
+	Models        []DeployedModelChoice `json:"models"`
+	Revision      *string               `json:"revision,omitempty"`
+	Selection     *ModelSelectionValue  `json:"selection,omitempty"`
+	UpdatedAt     *time.Time            `json:"updatedAt,omitempty"`
+}
+
+// ModelSelectionValue defines model for ModelSelectionValue.
+type ModelSelectionValue struct {
+	DefaultModel ModelProfileId `json:"defaultModel"`
+	Roles        struct {
+		AuditCompletionWorker *ModelProfileId `json:"audit_completion_worker,omitempty"`
+		Planner               *ModelProfileId `json:"planner,omitempty"`
+		Summarizer            *ModelProfileId `json:"summarizer,omitempty"`
+		Worker                *ModelProfileId `json:"worker,omitempty"`
+	} `json:"roles"`
 }
 
 // NonTerminalWorkflowRunState defines model for NonTerminalWorkflowRunState.
@@ -7162,6 +7207,9 @@ type ProjectId = ResourceId
 // RequiredIfMatch defines model for RequiredIfMatch.
 type RequiredIfMatch = string
 
+// RequiredModelSelectionIfMatch defines model for RequiredModelSelectionIfMatch.
+type RequiredModelSelectionIfMatch = string
+
 // RequiredQueueControlIfMatch defines model for RequiredQueueControlIfMatch.
 type RequiredQueueControlIfMatch = string
 
@@ -7912,6 +7960,17 @@ type PutRuntimeLabelParams struct {
 // PutRuntimeLabelParamsIfNoneMatch defines parameters for PutRuntimeLabel.
 type PutRuntimeLabelParamsIfNoneMatch string
 
+// PutModelSelectionParams defines parameters for PutModelSelection.
+type PutModelSelectionParams struct {
+	IfMatch RequiredModelSelectionIfMatch `json:"If-Match"`
+
+	// Origin Required with exact allowlist match when sessionCookie authenticates an unsafe request.
+	Origin *OptionalOrigin `json:"Origin,omitempty"`
+
+	// XCSRFToken Required for sessionCookie authentication; omitted for bearerAuth.
+	XCSRFToken *OptionalCSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
 // PutSchedulerSettingsParams defines parameters for PutSchedulerSettings.
 type PutSchedulerSettingsParams struct {
 	IfMatch RequiredIfMatch `json:"If-Match"`
@@ -8351,6 +8410,9 @@ type CreateRuntimeCredentialJSONRequestBody = CreateRuntimeCredentialRequest
 
 // PutRuntimeLabelJSONRequestBody defines body for PutRuntimeLabel for application/json ContentType.
 type PutRuntimeLabelJSONRequestBody = RuntimeLabelMutation
+
+// PutModelSelectionJSONRequestBody defines body for PutModelSelection for application/json ContentType.
+type PutModelSelectionJSONRequestBody = ModelSelectionValue
 
 // PutSchedulerSettingsJSONRequestBody defines body for PutSchedulerSettings for application/json ContentType.
 type PutSchedulerSettingsJSONRequestBody = UpdateSchedulerSettingsRequest
@@ -13432,6 +13494,31 @@ type ClientInterface interface {
 	// Corresponds with PUT /v1/operations/runtime-labels/{label} (the `PutRuntimeLabel` operationId).
 	PutRuntimeLabel(ctx context.Context, label RuntimeLabel, params *PutRuntimeLabelParams, body PutRuntimeLabelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetModelSelection Get deployed model choices and durable model defaults
+	//
+	// Returns deployed immutable model routes and the saved default/per-role selection. An absent compiled catalog returns configured=false and an empty models array. The strong ETag binds both selection revision and catalog digest. Transient storage conflicts return 503 storage_transaction_conflict.
+	//
+	// Corresponds with GET /v1/operations/settings/models (the `GetModelSelection` operationId).
+	GetModelSelection(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PutModelSelectionWithBody Replace model defaults for new Runs and Audits
+	//
+	// Changes model defaults for newly resolved executions. Explicit Run/Eval policy selections win; active Runs and prepared Eval model selections remain pinned. Unknown or incompatible models reject the whole change. Replacing equal values at the current ETag is a no-op. Revision or catalog mismatch returns 412. Transient storage conflicts return 503 storage_transaction_conflict.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PUT /v1/operations/settings/models (the `PutModelSelection` operationId).
+	PutModelSelectionWithBody(ctx context.Context, params *PutModelSelectionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PutModelSelection Replace model defaults for new Runs and Audits
+	//
+	// Changes model defaults for newly resolved executions. Explicit Run/Eval policy selections win; active Runs and prepared Eval model selections remain pinned. Unknown or incompatible models reject the whole change. Replacing equal values at the current ETag is a no-op. Revision or catalog mismatch returns 412. Transient storage conflicts return 503 storage_transaction_conflict.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PUT /v1/operations/settings/models (the `PutModelSelection` operationId).
+	PutModelSelection(ctx context.Context, params *PutModelSelectionParams, body PutModelSelectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetSchedulerSettings Get the durable global Scheduler admission settings
 	//
 	// Returns the singleton desired admission limit used by every Scheduler process. The resource is never a live allocation or Runtime capacity projection.
@@ -15646,6 +15733,61 @@ func (c *Client) PutRuntimeLabelWithBody(ctx context.Context, label RuntimeLabel
 // Corresponds with PUT /v1/operations/runtime-labels/{label} (the `PutRuntimeLabel` operationId).
 func (c *Client) PutRuntimeLabel(ctx context.Context, label RuntimeLabel, params *PutRuntimeLabelParams, body PutRuntimeLabelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPutRuntimeLabelRequest(c.Server, label, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetModelSelection Get deployed model choices and durable model defaults
+//
+// Returns deployed immutable model routes and the saved default/per-role selection. An absent compiled catalog returns configured=false and an empty models array. The strong ETag binds both selection revision and catalog digest. Transient storage conflicts return 503 storage_transaction_conflict.
+//
+// Corresponds with GET /v1/operations/settings/models (the `GetModelSelection` operationId).
+func (c *Client) GetModelSelection(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetModelSelectionRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PutModelSelectionWithBody Replace model defaults for new Runs and Audits
+//
+// Changes model defaults for newly resolved executions. Explicit Run/Eval policy selections win; active Runs and prepared Eval model selections remain pinned. Unknown or incompatible models reject the whole change. Replacing equal values at the current ETag is a no-op. Revision or catalog mismatch returns 412. Transient storage conflicts return 503 storage_transaction_conflict.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PUT /v1/operations/settings/models (the `PutModelSelection` operationId).
+func (c *Client) PutModelSelectionWithBody(ctx context.Context, params *PutModelSelectionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutModelSelectionRequestWithBody(c.Server, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PutModelSelection Replace model defaults for new Runs and Audits
+//
+// Changes model defaults for newly resolved executions. Explicit Run/Eval policy selections win; active Runs and prepared Eval model selections remain pinned. Unknown or incompatible models reject the whole change. Replacing equal values at the current ETag is a no-op. Revision or catalog mismatch returns 412. Transient storage conflicts return 503 storage_transaction_conflict.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PUT /v1/operations/settings/models (the `PutModelSelection` operationId).
+func (c *Client) PutModelSelection(ctx context.Context, params *PutModelSelectionParams, body PutModelSelectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutModelSelectionRequest(c.Server, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -22975,6 +23117,108 @@ func NewPutRuntimeLabelRequestWithBody(server string, label RuntimeLabel, params
 	return req, nil
 }
 
+// NewGetModelSelectionRequest constructs an http.Request for the GetModelSelection method
+func NewGetModelSelectionRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/operations/settings/models")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPutModelSelectionRequest calls the generic PutModelSelection builder with application/json body
+func NewPutModelSelectionRequest(server string, params *PutModelSelectionParams, body PutModelSelectionJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPutModelSelectionRequestWithBody(server, params, "application/json", bodyReader)
+}
+
+// NewPutModelSelectionRequestWithBody constructs an http.Request for the PutModelSelection method, with any body, and a specified content type
+func NewPutModelSelectionRequestWithBody(server string, params *PutModelSelectionParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/operations/settings/models")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "If-Match", params.IfMatch, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("If-Match", headerParam0)
+
+		if params.Origin != nil {
+			var headerParam1 string
+
+			headerParam1, err = runtime.StyleParamWithOptions("simple", false, "Origin", *params.Origin, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uri"})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Origin", headerParam1)
+		}
+
+		if params.XCSRFToken != nil {
+			var headerParam2 string
+
+			headerParam2, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam2)
+		}
+
+	}
+
+	return req, nil
+}
+
 // NewGetSchedulerSettingsRequest constructs an http.Request for the GetSchedulerSettings method
 func NewGetSchedulerSettingsRequest(server string) (*http.Request, error) {
 	var err error
@@ -27513,6 +27757,33 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with PUT /v1/operations/runtime-labels/{label} (the `PutRuntimeLabel` operationId).
 	PutRuntimeLabelWithResponse(ctx context.Context, label RuntimeLabel, params *PutRuntimeLabelParams, body PutRuntimeLabelJSONRequestBody, reqEditors ...RequestEditorFn) (*PutRuntimeLabelResponse, error)
+
+	// GetModelSelectionWithResponse Get deployed model choices and durable model defaults
+	//
+	// Returns deployed immutable model routes and the saved default/per-role selection. An absent compiled catalog returns configured=false and an empty models array. The strong ETag binds both selection revision and catalog digest. Transient storage conflicts return 503 storage_transaction_conflict.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /v1/operations/settings/models (the `GetModelSelection` operationId).
+	GetModelSelectionWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetModelSelectionResponse, error)
+
+	// PutModelSelectionWithBodyWithResponse Replace model defaults for new Runs and Audits
+	//
+	// Changes model defaults for newly resolved executions. Explicit Run/Eval policy selections win; active Runs and prepared Eval model selections remain pinned. Unknown or incompatible models reject the whole change. Replacing equal values at the current ETag is a no-op. Revision or catalog mismatch returns 412. Transient storage conflicts return 503 storage_transaction_conflict.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /v1/operations/settings/models (the `PutModelSelection` operationId).
+	PutModelSelectionWithBodyWithResponse(ctx context.Context, params *PutModelSelectionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutModelSelectionResponse, error)
+
+	// PutModelSelectionWithResponse Replace model defaults for new Runs and Audits
+	//
+	// Changes model defaults for newly resolved executions. Explicit Run/Eval policy selections win; active Runs and prepared Eval model selections remain pinned. Unknown or incompatible models reject the whole change. Replacing equal values at the current ETag is a no-op. Revision or catalog mismatch returns 412. Transient storage conflicts return 503 storage_transaction_conflict.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /v1/operations/settings/models (the `PutModelSelection` operationId).
+	PutModelSelectionWithResponse(ctx context.Context, params *PutModelSelectionParams, body PutModelSelectionJSONRequestBody, reqEditors ...RequestEditorFn) (*PutModelSelectionResponse, error)
 
 	// GetSchedulerSettingsWithResponse Get the durable global Scheduler admission settings
 	//
@@ -40580,6 +40851,292 @@ func (r PutRuntimeLabelResponse) ContentType() string {
 	return ""
 }
 
+// GetModelSelectionResponse200Headers the declared response headers of an HTTP 200 response for GetModelSelection
+type GetModelSelectionResponse200Headers struct {
+	CacheControl string
+	ETag         string
+	XRequestID   RequestId
+}
+
+// GetModelSelectionResponse400Headers the declared response headers of an HTTP 400 response for GetModelSelection
+type GetModelSelectionResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// GetModelSelectionResponse401Headers the declared response headers of an HTTP 401 response for GetModelSelection
+type GetModelSelectionResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// GetModelSelectionResponse403Headers the declared response headers of an HTTP 403 response for GetModelSelection
+type GetModelSelectionResponse403Headers struct {
+	XRequestID RequestId
+}
+
+// GetModelSelectionResponse500Headers the declared response headers of an HTTP 500 response for GetModelSelection
+type GetModelSelectionResponse500Headers struct {
+	XRequestID RequestId
+}
+
+// GetModelSelectionResponse503Headers the declared response headers of an HTTP 503 response for GetModelSelection
+type GetModelSelectionResponse503Headers struct {
+	XRequestID RequestId
+}
+
+type GetModelSelectionResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *ModelSelectionInfo
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *GetModelSelectionResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *GetModelSelectionResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *GetModelSelectionResponse401Headers
+	// Headers403 the parsed response headers for an HTTP 403 response
+	Headers403 *GetModelSelectionResponse403Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *GetModelSelectionResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *GetModelSelectionResponse503Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetModelSelectionResponse) GetJSON200() *ModelSelectionInfo {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r GetModelSelectionResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetModelSelectionResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r GetModelSelectionResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r GetModelSelectionResponse) GetJSON500() *InternalError {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetModelSelectionResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r GetModelSelectionResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetModelSelectionResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetModelSelectionResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetModelSelectionResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// PutModelSelectionResponse200Headers the declared response headers of an HTTP 200 response for PutModelSelection
+type PutModelSelectionResponse200Headers struct {
+	CacheControl string
+	ETag         string
+	XRequestID   RequestId
+}
+
+// PutModelSelectionResponse400Headers the declared response headers of an HTTP 400 response for PutModelSelection
+type PutModelSelectionResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// PutModelSelectionResponse401Headers the declared response headers of an HTTP 401 response for PutModelSelection
+type PutModelSelectionResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// PutModelSelectionResponse403Headers the declared response headers of an HTTP 403 response for PutModelSelection
+type PutModelSelectionResponse403Headers struct {
+	XRequestID RequestId
+}
+
+// PutModelSelectionResponse412Headers the declared response headers of an HTTP 412 response for PutModelSelection
+type PutModelSelectionResponse412Headers struct {
+	XRequestID RequestId
+}
+
+// PutModelSelectionResponse413Headers the declared response headers of an HTTP 413 response for PutModelSelection
+type PutModelSelectionResponse413Headers struct {
+	XRequestID RequestId
+}
+
+// PutModelSelectionResponse415Headers the declared response headers of an HTTP 415 response for PutModelSelection
+type PutModelSelectionResponse415Headers struct {
+	XRequestID RequestId
+}
+
+// PutModelSelectionResponse500Headers the declared response headers of an HTTP 500 response for PutModelSelection
+type PutModelSelectionResponse500Headers struct {
+	XRequestID RequestId
+}
+
+// PutModelSelectionResponse503Headers the declared response headers of an HTTP 503 response for PutModelSelection
+type PutModelSelectionResponse503Headers struct {
+	XRequestID RequestId
+}
+
+type PutModelSelectionResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *ModelSelectionInfo
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON412 the response for an HTTP 412 `application/json` response
+	JSON412 *PreconditionFailed
+	// JSON413 the response for an HTTP 413 `application/json` response
+	JSON413 *PayloadTooLarge
+	// JSON415 the response for an HTTP 415 `application/json` response
+	JSON415 *UnsupportedMediaType
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *PutModelSelectionResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *PutModelSelectionResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *PutModelSelectionResponse401Headers
+	// Headers403 the parsed response headers for an HTTP 403 response
+	Headers403 *PutModelSelectionResponse403Headers
+	// Headers412 the parsed response headers for an HTTP 412 response
+	Headers412 *PutModelSelectionResponse412Headers
+	// Headers413 the parsed response headers for an HTTP 413 response
+	Headers413 *PutModelSelectionResponse413Headers
+	// Headers415 the parsed response headers for an HTTP 415 response
+	Headers415 *PutModelSelectionResponse415Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *PutModelSelectionResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *PutModelSelectionResponse503Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PutModelSelectionResponse) GetJSON200() *ModelSelectionInfo {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r PutModelSelectionResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r PutModelSelectionResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r PutModelSelectionResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON412 returns the response for an HTTP 412 `application/json` response
+func (r PutModelSelectionResponse) GetJSON412() *PreconditionFailed {
+	return r.JSON412
+}
+
+// GetJSON413 returns the response for an HTTP 413 `application/json` response
+func (r PutModelSelectionResponse) GetJSON413() *PayloadTooLarge {
+	return r.JSON413
+}
+
+// GetJSON415 returns the response for an HTTP 415 `application/json` response
+func (r PutModelSelectionResponse) GetJSON415() *UnsupportedMediaType {
+	return r.JSON415
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r PutModelSelectionResponse) GetJSON500() *InternalError {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r PutModelSelectionResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r PutModelSelectionResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PutModelSelectionResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PutModelSelectionResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PutModelSelectionResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 // GetSchedulerSettingsResponse200Headers the declared response headers of an HTTP 200 response for GetSchedulerSettings
 type GetSchedulerSettingsResponse200Headers struct {
 	CacheControl string
@@ -49125,6 +49682,51 @@ func (c *ClientWithResponses) PutRuntimeLabelWithResponse(ctx context.Context, l
 		return nil, err
 	}
 	return ParsePutRuntimeLabelResponse(rsp)
+}
+
+// GetModelSelectionWithResponse Get deployed model choices and durable model defaults
+//
+// Returns deployed immutable model routes and the saved default/per-role selection. An absent compiled catalog returns configured=false and an empty models array. The strong ETag binds both selection revision and catalog digest. Transient storage conflicts return 503 storage_transaction_conflict.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /v1/operations/settings/models (the `GetModelSelection` operationId).
+func (c *ClientWithResponses) GetModelSelectionWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetModelSelectionResponse, error) {
+	rsp, err := c.GetModelSelection(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetModelSelectionResponse(rsp)
+}
+
+// PutModelSelectionWithBodyWithResponse Replace model defaults for new Runs and Audits
+//
+// Changes model defaults for newly resolved executions. Explicit Run/Eval policy selections win; active Runs and prepared Eval model selections remain pinned. Unknown or incompatible models reject the whole change. Replacing equal values at the current ETag is a no-op. Revision or catalog mismatch returns 412. Transient storage conflicts return 503 storage_transaction_conflict.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /v1/operations/settings/models (the `PutModelSelection` operationId).
+func (c *ClientWithResponses) PutModelSelectionWithBodyWithResponse(ctx context.Context, params *PutModelSelectionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutModelSelectionResponse, error) {
+	rsp, err := c.PutModelSelectionWithBody(ctx, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutModelSelectionResponse(rsp)
+}
+
+// PutModelSelectionWithResponse Replace model defaults for new Runs and Audits
+//
+// Changes model defaults for newly resolved executions. Explicit Run/Eval policy selections win; active Runs and prepared Eval model selections remain pinned. Unknown or incompatible models reject the whole change. Replacing equal values at the current ETag is a no-op. Revision or catalog mismatch returns 412. Transient storage conflicts return 503 storage_transaction_conflict.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /v1/operations/settings/models (the `PutModelSelection` operationId).
+func (c *ClientWithResponses) PutModelSelectionWithResponse(ctx context.Context, params *PutModelSelectionParams, body PutModelSelectionJSONRequestBody, reqEditors ...RequestEditorFn) (*PutModelSelectionResponse, error) {
+	rsp, err := c.PutModelSelection(ctx, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutModelSelectionResponse(rsp)
 }
 
 // GetSchedulerSettingsWithResponse Get the durable global Scheduler admission settings
@@ -65455,6 +66057,361 @@ func ParsePutRuntimeLabelResponse(rsp *http.Response) (*PutRuntimeLabelResponse,
 		response.Headers500 = &headers
 	case rsp.StatusCode == 503:
 		var headers PutRuntimeLabelResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseGetModelSelectionResponse parses an HTTP response from a GetModelSelectionWithResponse call
+func ParseGetModelSelectionResponse(rsp *http.Response) (*GetModelSelectionResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetModelSelectionResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ModelSelectionInfo
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers GetModelSelectionResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("ETag"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "ETag", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.ETag = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers GetModelSelectionResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers GetModelSelectionResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 403:
+		var headers GetModelSelectionResponse403Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers403 = &headers
+	case rsp.StatusCode == 500:
+		var headers GetModelSelectionResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers GetModelSelectionResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
+	}
+
+	return response, nil
+}
+
+// ParsePutModelSelectionResponse parses an HTTP response from a PutModelSelectionWithResponse call
+func ParsePutModelSelectionResponse(rsp *http.Response) (*PutModelSelectionResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PutModelSelectionResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ModelSelectionInfo
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest PreconditionFailed
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
+		var dest PayloadTooLarge
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON413 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 415:
+		var dest UnsupportedMediaType
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON415 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers PutModelSelectionResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("ETag"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "ETag", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.ETag = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers PutModelSelectionResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers PutModelSelectionResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 403:
+		var headers PutModelSelectionResponse403Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers403 = &headers
+	case rsp.StatusCode == 412:
+		var headers PutModelSelectionResponse412Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers412 = &headers
+	case rsp.StatusCode == 413:
+		var headers PutModelSelectionResponse413Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers413 = &headers
+	case rsp.StatusCode == 415:
+		var headers PutModelSelectionResponse415Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers415 = &headers
+	case rsp.StatusCode == 500:
+		var headers PutModelSelectionResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers PutModelSelectionResponse503Headers
 		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
 			var value RequestId
 			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {

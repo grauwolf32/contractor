@@ -5912,6 +5912,70 @@ paths:
         '503': {$ref: '#/components/responses/CredentialRecoveryRequired'}
         '500': {$ref: '#/components/responses/InternalError'}
 
+  /v1/operations/settings/models:
+    get:
+      operationId: getModelSelection
+      tags: [Operations]
+      summary: Get deployed model choices and durable model defaults
+      description: >-
+        Returns deployed immutable model routes and the saved default/per-role
+        selection. An absent compiled catalog returns configured=false and an
+        empty models array. The strong ETag binds both selection revision and
+        catalog digest. Transient storage conflicts return 503 storage_transaction_conflict.
+      responses:
+        '200':
+          description: Current model defaults and deployed choices
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            ETag: {$ref: '#/components/headers/ETag'}
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ModelSelectionInfo'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
+    put:
+      operationId: putModelSelection
+      tags: [Operations]
+      summary: Replace model defaults for new Runs and Audits
+      description: >-
+        Changes model defaults for newly resolved executions. Explicit Run/Eval
+        policy selections win; active Runs and prepared Eval model selections
+        remain pinned. Unknown or incompatible models reject the whole change.
+        Replacing equal values at the current ETag is a no-op. Revision or catalog
+        mismatch returns 412. Transient storage conflicts return 503 storage_transaction_conflict.
+      x-max-request-body-bytes: 1048576
+      parameters:
+        - $ref: '#/components/parameters/RequiredModelSelectionIfMatch'
+        - $ref: '#/components/parameters/OptionalOrigin'
+        - $ref: '#/components/parameters/OptionalCSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ModelSelectionValue'}
+      responses:
+        '200':
+          description: Current model defaults and deployed choices after replacement or exact no-op
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            ETag: {$ref: '#/components/headers/ETag'}
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ModelSelectionInfo'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '412': {$ref: '#/components/responses/PreconditionFailed'}
+        '413': {$ref: '#/components/responses/PayloadTooLarge'}
+        '415': {$ref: '#/components/responses/UnsupportedMediaType'}
+        '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
+
   /v1/operations/settings/scheduler:
     get:
       operationId: getSchedulerSettings
@@ -6287,6 +6351,11 @@ components:
       required: false
       description: One strong quoted Artifact revision in the `Revision` grammar. A malformed revision is 400 `invalid_request`, never a CAS conflict.
       schema: {type: string, minLength: 3, maxLength: 258, pattern: '^"[A-Za-z0-9][A-Za-z0-9_.:-]*"$'}
+    RequiredModelSelectionIfMatch:
+      name: If-Match
+      in: header
+      required: true
+      schema: {type: string, pattern: '^"[1-9][0-9]{0,19}:[0-9a-f]{64}"$'}
     RequiredIfMatch:
       name: If-Match
       in: header
@@ -6956,6 +7025,9 @@ components:
               "type": "null"
             }
           ]
+        },
+        "summarizerModelPolicy": {
+          "$ref": "#/components/schemas/EvalSelector"
         }
       },
       "required": [],
@@ -10818,6 +10890,57 @@ components:
       required: [paused]
       properties:
         paused: {type: boolean}
+    ModelProfileId:
+      type: string
+      minLength: 1
+      maxLength: 75
+      pattern: '^[a-z0-9][a-z0-9.-]{0,74}$'
+    ModelSelectionValue:
+      type: object
+      additionalProperties: false
+      required: [defaultModel, roles]
+      properties:
+        defaultModel: {$ref: '#/components/schemas/ModelProfileId'}
+        roles:
+          type: object
+          additionalProperties: false
+          maxProperties: 4
+          properties:
+            planner: {$ref: '#/components/schemas/ModelProfileId'}
+            worker: {$ref: '#/components/schemas/ModelProfileId'}
+            summarizer: {$ref: '#/components/schemas/ModelProfileId'}
+            audit_completion_worker: {$ref: '#/components/schemas/ModelProfileId'}
+    DeployedModelChoice:
+      type: object
+      additionalProperties: false
+      required: [id, digest, upstreamModel, contextWindowTokens, maxOutputTokens, policies]
+      properties:
+        id: {$ref: '#/components/schemas/ModelProfileId'}
+        digest: {$ref: '#/components/schemas/Digest'}
+        upstreamModel: {type: string, minLength: 1, maxLength: 160}
+        contextWindowTokens: {type: integer, minimum: 1, maximum: 100000000}
+        maxOutputTokens: {type: integer, minimum: 1, maximum: 100000000}
+        policies:
+          type: object
+          additionalProperties: false
+          minProperties: 1
+          maxProperties: 4
+          properties:
+            planner: {$ref: '#/components/schemas/Selector'}
+            worker: {$ref: '#/components/schemas/Selector'}
+            summarizer: {$ref: '#/components/schemas/Selector'}
+            audit_completion_worker: {$ref: '#/components/schemas/Selector'}
+    ModelSelectionInfo:
+      type: object
+      additionalProperties: false
+      required: [configured, models]
+      properties:
+        configured: {type: boolean}
+        models: {type: array, maxItems: 32, items: {$ref: '#/components/schemas/DeployedModelChoice'}}
+        selection: {$ref: '#/components/schemas/ModelSelectionValue'}
+        revision: {type: string, pattern: '^[1-9][0-9]{0,19}$'}
+        catalogDigest: {$ref: '#/components/schemas/Digest'}
+        updatedAt: {type: string, format: date-time}
     SchedulerSettings:
       type: object
       additionalProperties: false
@@ -13164,6 +13287,9 @@ components:
       additionalProperties: false
       properties:
         modelPolicy: {$ref: '#/components/schemas/ModelPolicyRef'}
+        model: {type: string, minLength: 1}
+        summarizerModelPolicy: {$ref: '#/components/schemas/ModelPolicyRef'}
+        summarizerModel: {type: string, minLength: 1}
         llmGateway: {$ref: '#/components/schemas/LLMGatewayConfigRef'}
         credential: {$ref: '#/components/schemas/CredentialRef'}
         origins:
@@ -13171,6 +13297,7 @@ components:
           additionalProperties: false
           properties:
             modelPolicy: {type: string, minLength: 1, maxLength: 256}
+            summarizerModelPolicy: {type: string, minLength: 1, maxLength: 256}
             llmGateway: {type: string, minLength: 1, maxLength: 256}
             credential: {type: string, minLength: 1, maxLength: 256}
     ResolvedStageExecutionConfig:
@@ -13465,6 +13592,7 @@ components:
       minProperties: 1
       properties:
         modelPolicy: {$ref: '#/components/schemas/Selector'}
+        summarizerModelPolicy: {$ref: '#/components/schemas/Selector'}
         llmGateway: {$ref: '#/components/schemas/Selector'}
         credential:
           oneOf:

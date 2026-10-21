@@ -1,4 +1,5 @@
 import "./settings.css";
+import { ModelSettings } from "./models";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, type ReactNode, useState } from "react";
 import { Link } from "react-router";
@@ -280,9 +281,15 @@ function SettingsDirectory({ scheduler }: { scheduler: boolean }) {
   return (
     <nav className="ops-settings-directory" aria-label="Settings on this page">
       {scheduler ? (
-        <a href="#workflow-scheduling">
-          Workflow scheduling <small>Server-wide policy</small>
-        </a>
+        <>
+          {" "}
+          <a href="#model-selection">
+            Models <small>Defaults for new executions</small>
+          </a>
+          <a href="#workflow-scheduling">
+            Workflow scheduling <small>Server-wide policy</small>
+          </a>
+        </>
       ) : null}
       <a href="#repository-access">
         Repository access <small>Personal credential</small>
@@ -326,7 +333,12 @@ export function OperationsSettingsRoute() {
   const sections = (
     <div className="ops-settings">
       <SettingsDirectory scheduler={canManageScheduler} />
-      {canManageScheduler ? <SchedulerSettings /> : null}
+      {canManageScheduler ? (
+        <>
+          <SchedulerSettings />
+          <ModelSettings />
+        </>
+      ) : null}
       <GitKeySettings titleAs={titleAs} />
       <AppearanceSettings titleAs={titleAs} />
     </div>

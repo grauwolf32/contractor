@@ -86,8 +86,20 @@ func (s *Service) CreateDraft(
 		return replay, false, err
 	}
 	selector, _ := normalizeProfileSelector(params.Profile)
-	profile, err := s.profiles.AuditProfile(selector)
+	var profile auditprofile.ResolvedAuditProfile
+	var err error
+	if params.PinnedProfile != nil {
+		if !contentdigest.Valid(params.ExpectedProfileSHA256) || params.PinnedProfile.Ref.Name+"@"+params.PinnedProfile.Ref.Version != selector {
+			return auditstore.Audit{}, false, ErrInvalid
+		}
+		profile, err = s.profiles.ResolvePinnedAuditProfile(ctx, *params.PinnedProfile)
+	} else {
+		profile, err = s.profiles.ResolveAuditProfile(ctx, selector)
+	}
 	if err != nil {
+		if errors.Is(err, contentdigest.ErrPinnedSelectionChanged) {
+			return auditstore.Audit{}, false, err
+		}
 		return auditstore.Audit{}, false, ErrProfileNotFound
 	}
 	if err := contentdigest.CheckPinnedSelection(params.ExpectedProfileSHA256, profile); err != nil {

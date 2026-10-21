@@ -11,6 +11,7 @@ import type { CreateRunRequest, WorkflowResource } from "../api/workflows";
 export const NO_CREDENTIAL_OVERRIDE = "__none__";
 
 export interface ConsumerOverrideDraft {
+  summarizerModelPolicy?: string;
   modelPolicy: string;
   llmGateway: string;
   credential: string;
@@ -55,6 +56,9 @@ function selectionPatch(
   const result: ExecutionSelectionPatch = {};
   if (draft.modelPolicy !== "") {
     result.modelPolicy = draft.modelPolicy;
+  }
+  if (draft.summarizerModelPolicy) {
+    result.summarizerModelPolicy = draft.summarizerModelPolicy;
   }
   if (draft.llmGateway !== "") {
     result.llmGateway = draft.llmGateway;

@@ -112,8 +112,9 @@ type unswappedPublication struct {
 // serializes managed publications. Filesystem locking across Server processes
 // is deliberately outside the single-Server first slice.
 type Manager struct {
-	publicationMu sync.Mutex
-	current       atomic.Pointer[Snapshot]
+	modelSelection *deploymentModelSelection
+	publicationMu  sync.Mutex
+	current        atomic.Pointer[Snapshot]
 
 	operatorRoot string
 	managedRoot  string
@@ -300,7 +301,11 @@ func (m *Manager) ResolveRunWorkflow(
 	patch resolved.ExecutionConfigPatch,
 	credentials resolved.CredentialLookup,
 ) (resolved.ResolvedWorkflow, error) {
-	return m.Snapshot().ResolveRunWorkflow(ctx, raw, patch, credentials)
+	defaults, err := m.modelDefaults(ctx)
+	if err != nil {
+		return resolved.ResolvedWorkflow{}, err
+	}
+	return m.Snapshot().resolveRunWorkflow(ctx, raw, patch, credentials, defaults)
 }
 
 func (m *Manager) ConfigurationDiscovery(kind ConfigurationKind) (ConfigurationDiscovery, error) {

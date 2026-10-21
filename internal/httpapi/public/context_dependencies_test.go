@@ -42,7 +42,7 @@ var contextFiles = map[string][]string{
 		"eval_handlers.go", "eval_helpers.go", "eval_records.go", "eval_comparison.go", "eval_bins.go",
 		"eval_types.go",
 	},
-	"operationsHandlers":           {"operations_handlers.go", "performance_handlers.go", "scheduler_settings_handlers.go"},
+	"operationsHandlers":           {"operations_handlers.go", "performance_handlers.go", "scheduler_settings_handlers.go", "model_selection_handlers.go"},
 	"credentialHandlers":           {"credential_handlers.go"},
 	"runtimeConfigurationHandlers": {"runtime_configuration_handlers.go", "runtime_agent_principal_handlers.go"},
 	"gitKeyHandlers":               {"git_key_handlers.go"},

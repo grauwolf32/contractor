@@ -55,12 +55,15 @@ export function validateAdvanced(draft: Draft): Problem[] {
     if (!map(value, path)) return;
     const row = record(value);
     if (
-      !["modelPolicy", "llmGateway", "credential"].some((key) =>
-        Object.hasOwn(row, key),
-      )
+      ![
+        "modelPolicy",
+        "summarizerModelPolicy",
+        "llmGateway",
+        "credential",
+      ].some((key) => Object.hasOwn(row, key))
     )
       error(path, "Select at least one execution field.");
-    for (const key of ["modelPolicy", "llmGateway"]) {
+    for (const key of ["modelPolicy", "summarizerModelPolicy", "llmGateway"]) {
       const value = row[key];
       if (
         Object.hasOwn(row, key) &&

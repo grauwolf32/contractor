@@ -5,7 +5,7 @@ milestone: model-policy-runtime-correctness
 epic: planner-worker
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on: [V387-002]
 languages: [go, python, typescript, yaml]
 goal: >-
@@ -28,10 +28,11 @@ scope:
     - Durable server-wide model defaults initialized once from the compiled deployment selection.
     - Operations read/replace API with revision preconditions and model-choice catalog.
     - UI default-model and role-override selectors with clear saved and conflict states.
+    - Collapsible role choices, inherited model labels and a concrete unsaved change preview before saving.
     - Resolve defaults before explicit Run or Eval overrides and pin complete model-specific policies.
     - Separate effective summarizer policy selection without changing template instructions or trigger.
     - Carry the selected model into Allocations and historical views; keep known versus unknown provider revisions honest.
-    - Preserve prepared Eval and started Audit model choices across later default changes.
+    - Preserve prepared Eval and drafted Audit model choices across later default changes.
   out:
     - Provisioning provider credentials, discovering model capabilities or editing remote Gateway routes from the UI.
     - Changing active Run snapshots, guessing provider weight revisions or rewriting old results.
@@ -94,6 +95,10 @@ acceptance_criteria:
 tests:
   - command: make test-config
     covers: [A1, A3, A4]
+  - command: go test -tags=integration ./internal/settingsstore
+    covers: [A1, A2]
+  - command: make test-go
+    covers: [A1, A2, A3, A4]
   - command: make test-postgres
     covers: [A1, A2, A3]
   - command: make verify-public-api
@@ -110,7 +115,9 @@ decisions:
   guarantee: >-
     Selection is a new-run default, never a late allocation-time model lookup.
     Model-specific routes remain immutable, Run/Eval overrides remain explicit,
-    and provider weight revisions require observed evidence.
+    and provider weight revisions require observed evidence. Per-Stage captured
+    defaults resolve even late summary Planners without changing immutable
+    ExecutionConfig profile bodies or reading new global settings at a transition.
   alternatives: >-
     Rewriting role aliases in LiteLLM would change active Runs and make history
     ambiguous. Browser-only selection would not affect server-created Runs.
