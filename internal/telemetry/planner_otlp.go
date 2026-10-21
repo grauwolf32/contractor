@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -136,7 +135,9 @@ func (s *otlpPlannerSpan) setContent(field, value string) {
 	if s.content == nil {
 		s.content = map[string]string{}
 	}
-	s.content[field] = value
+	for key, encoded := range genAIContent(field, value, s.name == PlannerSpanModel) {
+		s.content[key] = encoded
+	}
 }
 
 func (o *otlpHTTPPlannerTelemetry) Instrumentation() PlannerInstrumentation {
@@ -196,14 +197,26 @@ func (o *otlpHTTPPlannerTelemetry) enqueue(
 	o.mu.Unlock()
 	values := plannerAttributeValues(attributes, secrets)
 	if name == PlannerSpanModel {
-		values["langfuse.observation.type"] = "generation"
+		values["gen_ai.operation.name"] = "chat"
+		values["gen_ai.provider.name"] = "contractor.gateway"
+		if usage := attributes.ModelUsage; usage != nil {
+			if usage.InputTokens >= 0 {
+				values["gen_ai.usage.input_tokens"] = usage.InputTokens
+			}
+			if usage.OutputTokens >= 0 {
+				values["gen_ai.usage.output_tokens"] = usage.OutputTokens
+			}
+			if usage.CachedInputTokens >= 0 {
+				values["gen_ai.usage.cache_read.input_tokens"] = usage.CachedInputTokens
+			}
+		}
 		if model, ok := values["model.alias"]; ok {
 			values["gen_ai.request.model"] = model
 		}
 	}
 	if o.captureContent {
 		for key, value := range content {
-			if (key == "langfuse.observation.input" || key == "langfuse.observation.output") && len(value) <= MaxContentBytes {
+			if len(value) <= MaxContentBytes {
 				values[key] = value
 			}
 		}
@@ -225,6 +238,9 @@ func (o *otlpHTTPPlannerTelemetry) enqueue(
 		StartTimeUnixNano: uint64(startedAt.UnixNano()),
 		EndTimeUnixNano:   uint64(finishedAt.UnixNano()),
 		Attributes:        keyValues(values), Status: &tracev1.Status{Code: status},
+	}
+	if name == PlannerSpanModel {
+		span.Kind = tracev1.Span_SPAN_KIND_CLIENT
 	}
 	size := proto.Size(span)
 	o.mu.Lock()
@@ -314,16 +330,7 @@ func (o *otlpHTTPPlannerTelemetry) Flush(ctx context.Context) PlannerExportResul
 		var decoded collectortracev1.ExportTraceServiceResponse
 		var decodeErr error
 		if strings.Contains(response.Header.Get("Content-Type"), "application/json") {
-			// Langfuse v3 returns its queue acknowledgement for protobuf requests.
-			var job struct {
-				Name string `json:"name"`
-				ID   string `json:"id"`
-			}
-			if json.Unmarshal(body, &job) == nil && job.Name == "otel-ingestion-job" && job.ID != "" {
-				decodeErr = nil
-			} else {
-				decodeErr = protojson.Unmarshal(body, &decoded)
-			}
+			decodeErr = protojson.Unmarshal(body, &decoded)
 		} else {
 			decodeErr = proto.Unmarshal(body, &decoded)
 		}

@@ -17,7 +17,10 @@ mkdir -p "$fixture_dir/deploy/phoenix"
 cp "$script_dir/run.sh" "$fixture_dir/deploy/phoenix/run.sh"
 run() { sh "$fixture_dir/deploy/phoenix/run.sh" "$@"; }
 run up
-podman exec --interactive "$CONTRACTOR_PHOENIX_CONTAINER" python - send < "$script_dir/smoke.py"
+address=$(podman port "$CONTRACTOR_PHOENIX_CONTAINER" 6006/tcp)
+CONTRACTOR_TEST_OTLP_ENDPOINT="http://$address/v1/traces" \
+  go test -count=1 ./internal/telemetry -run '^TestPlannerOTLPCollectorProjection$'
+"$repo_dir/runtime/.venv/bin/python" "$script_dir/smoke.py" runtime "http://$address/v1/traces"
 podman exec --interactive "$CONTRACTOR_PHOENIX_CONTAINER" python - check < "$script_dir/smoke.py"
 run up >/dev/null
 run down

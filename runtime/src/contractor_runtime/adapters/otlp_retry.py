@@ -73,11 +73,6 @@ async def classify_response(response: httpx.Response, *, span_count: int) -> Del
             value = json.loads(body)
             if not isinstance(value, dict):
                 return DeliveryResponse()
-            # Retain the explicit Langfuse durable-ingestion acknowledgement.
-            if value.get("name") == "otel-ingestion-job":
-                return DeliveryResponse(
-                    accepted=isinstance(value.get("id"), str) and bool(value["id"])
-                )
             if response.status_code != 200 or set(value) - {"partialSuccess"}:
                 return DeliveryResponse()
             partial = value.get("partialSuccess", {})

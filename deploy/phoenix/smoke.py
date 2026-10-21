@@ -1,93 +1,134 @@
-"""Synthetic OTLP check, executed inside the disposable Phoenix test container."""
+"""Real-exporter OTLP check against the disposable Phoenix test container."""
 
+import asyncio
 import json
 import sys
 import time
+from types import SimpleNamespace
 from urllib.error import HTTPError
-from urllib.request import Request, urlopen
-
-from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
-    ExportTraceServiceRequest,
-    ExportTraceServiceResponse,
-)
-from opentelemetry.proto.trace.v1.trace_pb2 import Span, Status
-
-TRACE_ID = bytes.fromhex("1234567890abcdef1234567890abcdef")
-INPUT = '{"messages":[{"role":"user","content":"synthetic smoke input"}]}'
-OUTPUT = '{"text":"synthetic smoke output"}'
+from urllib.request import urlopen
 
 
-def send():
-    request = ExportTraceServiceRequest()
-    resource = request.resource_spans.add()
-    resource.resource.attributes.add(key="service.name").value.string_value = "contractor.runtime"
-    scope = resource.scope_spans.add()
-    scope.scope.name = "contractor.runtime.worker"
-    span = scope.spans.add(
-        trace_id=TRACE_ID,
-        span_id=bytes.fromhex("1234567890abcdef"),
-        name="contractor.worker.model",
-        kind=Span.SPAN_KIND_INTERNAL,
-        start_time_unix_nano=time.time_ns() - 1_000_000,
-        end_time_unix_nano=time.time_ns(),
-        status=Status(code=Status.STATUS_CODE_OK),
+async def emit_runtime(endpoint):
+    from contractor_runtime.adapters.content import capture_span_content
+    from contractor_runtime.adapters.genai import usage_attributes
+    from contractor_runtime.adapters.host import RuntimeAdapterBuildContext
+    from contractor_runtime.adapters.otlp_http import OTLPHTTPAdapterFactory
+    from contractor_runtime.contracts import TelemetrySettings
+
+    context = RuntimeAdapterBuildContext(
+        allocation_id="runtime-allocation",
+        run_id="runtime-smoke",
+        stage_execution_id="runtime-stage",
+        logical_agent_name="builder",
+        request_timeout_seconds=10,
+        runtime_config_refs=(),
+        runtime_config_digests=(),
+        run_labels=(),
+        agent_labels=(),
+        run_metadata_labels={},
+        runtime_adapter_refs=("otlp-http@1",),
+        private_bypass_hosts=(),
     )
-    for key, value in {
-        "outcome": "succeeded",
-        "model.alias": "smoke-model",
-        "gen_ai.request.model": "smoke-model",
-        "langfuse.observation.type": "generation",
-        "langfuse.observation.input": INPUT,
-        "langfuse.observation.output": OUTPUT,
-    }.items():
-        span.attributes.add(key=key).value.string_value = value
-    span.attributes.add(key="tokens.input").value.int_value = 2
-    span.attributes.add(key="tokens.output").value.int_value = 3
-    with urlopen(
-        Request(
-            "http://127.0.0.1:6006/v1/traces",
-            data=request.SerializeToString(),
-            headers={"Content-Type": "application/x-protobuf"},
-        ),
-        timeout=10,
-    ) as response:
-        receipt = ExportTraceServiceResponse.FromString(response.read())
-        if response.status != 200 or receipt.partial_success.rejected_spans:
-            raise RuntimeError("Phoenix rejected the OTLP spans")
+    settings = TelemetrySettings(
+        adapter="otlp-http@1",
+        endpoint=endpoint,
+        captureContent=True,
+        headers={},
+        flushTimeoutSeconds=10,
+        export={
+            "batchSizeBytes": 1048576,
+            "maxAttempts": 1,
+            "maxPendingSpans": 4,
+            "maxPendingBytes": 1048576,
+            "retry": {"initialBackoffMilliseconds": 1, "maxBackoffMilliseconds": 1},
+        },
+    )
+    adapter = await OTLPHTTPAdapterFactory().create(context, settings)
+    try:
+        span = adapter.handles.instrumentation.start_span(
+            "contractor.worker.model", attributes={"model.alias": "smoke-model"}
+        )
+        capture_span_content(
+            span,
+            input=lambda: {
+                "systemInstruction": "Runtime system instruction",
+                "contents": [
+                    {"role": "user", "parts": [{"text": "synthetic Runtime input"}]}
+                ],
+            },
+            output=lambda: {
+                "role": "model",
+                "parts": [{"text": "synthetic Runtime output"}],
+            },
+        )
+        span.end(
+            outcome="succeeded",
+            attributes=usage_attributes(
+                SimpleNamespace(
+                    prompt_token_count=13,
+                    candidates_token_count=17,
+                    cached_content_token_count=3,
+                )
+            ),
+        )
+        await adapter.flush()
+    finally:
+        await adapter.close()
 
 
 def check():
+    expected = {
+        "contractor.planner.model": ("Go", 2, 3, 1),
+        "contractor.worker.model": ("Runtime", 13, 17, 3),
+    }
     for _ in range(30):
         try:
             with urlopen(
                 "http://127.0.0.1:6006/v1/projects/default/spans?limit=10", timeout=5
             ) as response:
-                spans = json.load(response)["data"]
+                spans = {span["name"]: span for span in json.load(response)["data"]}
         except HTTPError as error:
             if error.code != 404:
                 raise
-            spans = []
-        for span in spans:
-            if span["context"]["trace_id"] != TRACE_ID.hex():
-                continue
-            values = span["attributes"]
-            if (
-                values.get("langfuse.observation.input") != INPUT
-                or values.get("langfuse.observation.output") != OUTPUT
-            ):
-                raise RuntimeError("Phoenix did not preserve the raw content attributes")
-            if values.get("tokens.input") != 2 or span["name"] != "contractor.worker.model":
-                raise RuntimeError("Phoenix did not preserve the span metadata")
-            print("OTLP span and raw Contractor attributes verified")
+            spans = {}
+        if set(expected) <= set(spans):
+            for name, (source, inputs, outputs, cached) in expected.items():
+                span = spans[name]
+                values = span["attributes"]
+                checks = {
+                    "llm.token_count.prompt": inputs,
+                    "llm.token_count.completion": outputs,
+                    "llm.token_count.total": inputs + outputs,
+                    "llm.token_count.prompt_details.cache_read": cached,
+                    "llm.input_messages.0.message.role": "system",
+                    "llm.input_messages.0.message.content": f"{source} system instruction",
+                    "llm.input_messages.1.message.role": "user",
+                    "llm.input_messages.1.message.content": f"synthetic {source} input",
+                    "llm.output_messages.0.message.role": "assistant",
+                    "llm.output_messages.0.message.content": f"synthetic {source} output",
+                }
+                if span["span_kind"] != "LLM":
+                    raise RuntimeError(f"{name} was not classified as an LLM span")
+                for key, value in checks.items():
+                    if values.get(key) != value:
+                        raise RuntimeError(
+                            f"{name}: native Phoenix projection mismatch for {key}: {values.get(key)!r}"
+                        )
+                if any(key.startswith("langfuse.") for key in values):
+                    raise RuntimeError("Collector received vendor-specific attributes")
+            print(
+                "Real Go/Runtime exporters: native LLM prompts, responses and token projections verified"
+            )
             return
         time.sleep(1)
-    raise RuntimeError("The ingested OTLP span did not appear within the probe budget")
+    raise RuntimeError("The ingested spans did not appear within the probe budget")
 
 
 if __name__ == "__main__":
-    if sys.argv[1:] == ["send"]:
-        send()
+    if len(sys.argv) == 3 and sys.argv[1] == "runtime":
+        asyncio.run(emit_runtime(sys.argv[2]))
     elif sys.argv[1:] == ["check"]:
         check()
     else:
-        raise SystemExit("Usage: smoke.py send|check")
+        raise SystemExit("Usage: smoke.py runtime ENDPOINT | check")

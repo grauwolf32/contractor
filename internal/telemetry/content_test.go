@@ -22,7 +22,7 @@ func TestPlannerTrustedContentOptIn(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				payload, _ = io.ReadAll(r.Body)
 				w.Header().Set("Content-Type", "application/json")
-				_, _ = w.Write([]byte(`{"name":"otel-ingestion-job","id":"1"}`))
+				_, _ = w.Write([]byte(`{}`))
 			}))
 			defer server.Close()
 			registry, _ := NewBuiltinPlannerAdapterRegistry()
@@ -53,12 +53,12 @@ func TestPlannerTrustedContentOptIn(t *testing.T) {
 			for _, a := range decoded.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes {
 				attrs[a.Key] = a.Value.GetStringValue()
 			}
-			if !strings.Contains(attrs["langfuse.observation.input"], "raw-secret-canary") || attrs["langfuse.observation.type"] != "generation" {
+			if !strings.Contains(attrs["gen_ai.input.messages"], "raw-secret-canary") || attrs["gen_ai.operation.name"] != "chat" {
 				t.Fatal("missing captured input/generation")
 			}
-			output := attrs["langfuse.observation.output"]
-			var value map[string]any
-			if len(output) > MaxContentBytes || json.Unmarshal([]byte(output), &value) != nil || value["truncated"] != true {
+			output := attrs["gen_ai.output.messages"]
+			var value []map[string]any
+			if len(output) > MaxContentBytes || json.Unmarshal([]byte(output), &value) != nil || !strings.Contains(output, `"truncated":true`) {
 				t.Fatal("invalid bounded output")
 			}
 		})

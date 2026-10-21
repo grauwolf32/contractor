@@ -528,8 +528,8 @@ telemetry.
 
 **OBS-R54.** Setting `captureContent=true`, independently on Worker
 telemetry, Planner telemetry or both, explicitly trusts the configured sink with
-unredacted content. Langfuse is treated as a trusted sink: no secret-content
-filter is applied. With capture enabled, content may itself contain secrets and
+unredacted content. No secret-content filter is applied to captured content.
+With capture enabled, content may itself contain secrets and
 is not filtered, so secrets included in messages or tool results can be
 exported.
 
@@ -557,13 +557,29 @@ and passthrough dispatch spans include their semantic input and output. Worker
 result-finalizer and terminal-summarizer model calls also capture input and
 output.
 
-**OBS-R59.** Captured content is serialized as JSON into
-`langfuse.observation.input` and `langfuse.observation.output`. Model spans
-carry `langfuse.observation.type=generation` and the model alias.
+**OBS-R59.** Model spans use OpenTelemetry GenAI semantic conventions
+v1.41.1: `gen_ai.operation.name=chat`, `gen_ai.provider.name=contractor.gateway`
+(the client-visible proxy, without guessing the upstream provider), and
+`gen_ai.request.model` containing the requested model alias. Captured content
+uses JSON-serialized `gen_ai.input.messages`, `gen_ai.output.messages`,
+`gen_ai.system_instructions` and `gen_ai.tool.definitions`, preserving roles,
+text, reasoning and function calls/results. A missing output finish reason is
+explicitly `unknown`. Per-call reported counts use integer
+`gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens` and
+`gen_ai.usage.cache_read.input_tokens`; unavailable counts are absent and no
+duplicate total attribute is emitted. Non-model content uses
+`contractor.input` and `contractor.output`. Neither exporter emits collector
+vendor attributes or requires a collector SDK. Go and Python validate
+[`telemetry-genai-cases.json`](../../../api/testdata/telemetry-genai-cases.json).
+
+The content shapes and their JSON-string encoding follow the
+[pinned GenAI conventions](https://github.com/open-telemetry/semantic-conventions/blob/v1.41.1/docs/gen-ai/gen-ai-spans.md).
 
 **OBS-R60.** Each captured content field is bounded to 256 KiB of
 UTF-8 (LIM-OBS-13), separately from the metadata-string bound. Oversized content
-becomes a valid JSON object with `truncated: true` and a preview.
+uses a valid schema-shaped array with a bounded text preview marked
+`truncated: true` for GenAI fields; generic Contractor content uses a valid
+JSON object with `truncated: true` and a preview.
 
 **OBS-R61.** The 64 MiB pending-queue bound (LIM-OBS-12) still applies
 to captured content, so content-heavy spans may be dropped. The bound is per
@@ -627,10 +643,10 @@ jitter selects a delay between half that ceiling and the ceiling.
 **OBS-R76.** If the delay cannot fit the remaining batch budget, the
 batch expires without another attempt (FAIL-OBS-5).
 
-**OBS-R77.** Worker export accepts bounded OTLP protobuf or JSON
-acknowledgements and the Langfuse v3 JSON ingestion-job acknowledgement
-(`name=otel-ingestion-job` with a non-empty string `id`). Malformed or oversized
-acknowledgements are terminal (FAIL-OBS-5).
+**OBS-R77.** Exporters accept bounded standard OTLP protobuf or JSON
+acknowledgements. Collector-specific receipt formats, malformed and oversized
+acknowledgements are rejected. Worker delivery treats them as terminal
+(FAIL-OBS-5); Planner delivery reports its existing export failure.
 
 **OBS-R78.** OTLP partial success is never retried: only the
 `rejectedSpans` are discarded. A warning with zero rejected spans counts as
@@ -794,8 +810,7 @@ correlation IDs and trace attributes are sufficient for detailed drill-down.
 - Execution report shapes: [Report shapes](#report-shapes).
 - OTLP/HTTP protobuf trace export to the configured complete traces endpoint
   (OBS-R45); accepted acknowledgements (OBS-R77); the content attributes
-  `langfuse.observation.input`, `langfuse.observation.output` and
-  `langfuse.observation.type` (OBS-R59); the label attribute
+  `gen_ai.*`, `contractor.input` and `contractor.output` (OBS-R59); the label attribute
   namespace `contractor.run.label.*` (OBS-R107).
 - Configuration consumed here and specified in
   [Runtime configuration](../configuration/runtime-config.md):

@@ -58,10 +58,11 @@ into `captureContent: true` for the relevant exporter; Contractor's sensitive
 tool rules still apply. Traces can then contain secrets and remain on local
 disk until explicitly removed. The viewer does not change live Run settings.
 
-Contractor emits standard OTLP spans with custom `langfuse.observation.*`
-content attributes. Phoenix can retain them as raw span attributes. Its
-specialized OpenInference LLM input/output and token views require the matching
-semantic attributes; this deployment does not rewrite Contractor's exporter.
+Contractor emits standard OTLP with OpenTelemetry GenAI messages, instructions,
+model and usage attributes. Phoenix converts these into its native LLM message
+and token views. No Phoenix or OpenInference attributes are needed in the
+production exporters. Both content capture and sensitive-tool suppression keep
+their existing rules.
 
 ## Verify
 
@@ -70,8 +71,9 @@ sh deploy/phoenix/test-run.sh
 CONTAINER_CONNECTION=podman-machine-default-root sh deploy/phoenix/test-smoke.sh
 ```
 
-The smoke test uses a temporary checkout and container, sends synthetic OTLP
-spans and verifies retained content after replacing the container. It never
+The smoke test uses a temporary checkout and container, sends synthetic model
+calls through the real Go and Python exporters, checks Phoenix's native LLM
+message/token projection and verifies retention after replacing the container. It never
 reads the live `.local/phoenix`, modifies RuntimeConfig bindings or calls a
 model. The test container and temporary data are removed on exit.
 

@@ -1291,8 +1291,9 @@ Phoenix container with SQLite state bind-mounted below `.local/phoenix` and
 its HTTP UI/OTLP port published only on loopback. Explicit startup reuses its
 named container and bounds readiness probes; stop removes only that container
 and retains the data directory. The profile does not modify PostgreSQL, live
-RuntimeConfig bindings or exporter semantics. It retains Contractor's custom
-span attributes without promising Phoenix-specific LLM projections. See the
+RuntimeConfig bindings or exporter semantics. The collector projects the
+standard GenAI attributes of [OBS-R59](../platform/observability.md) into its
+native LLM views; the exporters contain no collector-specific mapping. See the
 [operator guide](../../../deploy/phoenix/README.md).
 
 ## Interfaces

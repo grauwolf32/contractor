@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import httpx
 import pytest
 from fakes.model import json_result, scripted_model
+from google.genai import types
 from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceRequest
 from test_instrumentation import FakeContext, FakeOwner, FakeTool
 from test_otlp_adapter import HEADER_SECRET, adapter_context, telemetry_settings
@@ -21,7 +22,7 @@ from contractor_runtime.adapters.otlp_http import OTLPHTTPAdapterFactory
 from contractor_runtime.adapters.otlp_retry import classify_response
 from contractor_runtime.worker.instrumentation import WorkerInstrumentationPlugin
 from contractor_runtime.worker.state import WorkerStateStore
-from contractor_runtime.worker.summarizer import TerminalSummarizer
+from contractor_runtime.worker.summarizer import SummarizerFailure, TerminalSummarizer
 
 
 @pytest.mark.parametrize("enabled", [False, True])
@@ -30,7 +31,7 @@ def test_model_tool_and_finalizer_capture_opt_in(enabled: bool) -> None:
 
     async def collector(request: httpx.Request) -> httpx.Response:
         payloads.append(await request.aread())
-        return httpx.Response(200, json={"name": "otel-ingestion-job", "id": "1"})
+        return httpx.Response(200, json={})
 
     async def scenario() -> None:
         settings = telemetry_settings().model_copy(update={"capture_content": enabled})
@@ -96,8 +97,13 @@ def test_model_tool_and_finalizer_capture_opt_in(enabled: bool) -> None:
     for span in spans:
         attrs = {attr.key: attr.value.string_value for attr in span.attributes}
         if span.name == "contractor.worker.model":
-            assert attrs["langfuse.observation.type"] == "generation"
-        for key in ("langfuse.observation.input", "langfuse.observation.output"):
+            assert attrs["gen_ai.operation.name"] == "chat"
+        for key in (
+            "gen_ai.input.messages",
+            "gen_ai.output.messages",
+            "contractor.input",
+            "contractor.output",
+        ):
             if key in attrs:
                 json.loads(attrs[key])
 
@@ -120,7 +126,8 @@ def test_content_serialization_failure_is_optional() -> None:
     capture_span_content(span, input=lambda: object())
 
 
-def test_terminal_summarizer_captures_actual_adk_request_and_response() -> None:
+@pytest.mark.parametrize("limited", [False, True])
+def test_terminal_summarizer_captures_actual_adk_request_and_response(limited: bool) -> None:
     payloads: list[bytes] = []
 
     async def collector(request: httpx.Request) -> httpx.Response:
@@ -132,22 +139,40 @@ def test_terminal_summarizer_captures_actual_adk_request_and_response() -> None:
         adapter = await OTLPHTTPAdapterFactory(httpx.MockTransport(collector)).create(
             adapter_context(), settings
         )
+        response = json_result({"subtaskId": "1", "result": "summary-output-canary"})
+        if limited:
+            response.finish_reason = types.FinishReason.MAX_TOKENS
+            response.error_code = "MAX_TOKENS"
         summarizer = TerminalSummarizer(
             model=scripted_model(
-                [json_result({"subtaskId": "1", "result": "summary-output-canary"})],
+                [response],
                 auto_result_finalizer=False,
             ),
             policy=policy(),
             instrumentation=adapter.handles.instrumentation,
         )
-        await summarizer.run(prompt="summary-input-canary", invocation_id="summary-test")
+        if limited:
+            with pytest.raises(SummarizerFailure):
+                await summarizer.run(prompt="summary-input-canary", invocation_id="summary-test")
+        else:
+            await summarizer.run(prompt="summary-input-canary", invocation_id="summary-test")
         await adapter.flush()
         await adapter.close()
 
     asyncio.run(scenario())
     assert b"summary-input-canary" in payloads[0]
-    assert b"summary-output-canary" in payloads[0]
-    assert b"systemInstruction" in payloads[0]
+    assert (b"summary-output-canary" in payloads[0]) is not limited
+    assert b"gen_ai.system_instructions" in payloads[0]
+    span = (
+        ExportTraceServiceRequest.FromString(payloads[0]).resource_spans[0].scope_spans[0].spans[0]
+    )
+    usage = {
+        attribute.key: attribute.value.int_value
+        for attribute in span.attributes
+        if attribute.key.startswith("gen_ai.usage.")
+    }
+    assert usage["gen_ai.usage.input_tokens"] == 7
+    assert usage["gen_ai.usage.output_tokens"] == 3
 
 
 @pytest.mark.parametrize(
@@ -156,7 +181,7 @@ def test_terminal_summarizer_captures_actual_adk_request_and_response() -> None:
         ({}, True),
         ({"partialSuccess": {"rejectedSpans": "0"}}, True),
         ({"partialSuccess": {"rejectedSpans": "1"}}, False),
-        ({"name": "otel-ingestion-job", "id": "1"}, True),
+        ({"name": "otel-ingestion-job", "id": "1"}, False),
         ({"name": "otel-ingestion-job"}, False),
         ({"error": "failed"}, False),
         ([], False),
