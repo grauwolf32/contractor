@@ -29,7 +29,7 @@ func DecodeResolvedAuditProfileSnapshot(data []byte) (ResolvedAuditProfile, erro
 	if err := strictjson.Decode(data, &profile); err != nil {
 		return ResolvedAuditProfile{}, err
 	}
-	selector, err := resolved.ParseSelector(profile.Ref.Name + "@" + profile.Ref.Version)
+	_, err := resolved.ParseSelector(profile.Ref.Name + "@" + profile.Ref.Version)
 	if err != nil || profile.Ref.Digest == "" || !profile.Mode.valid() ||
 		len(profile.Inputs) == 0 || len(profile.Workflows) == 0 {
 		return ResolvedAuditProfile{}, fmt.Errorf("persisted AuditProfile identity or shape is invalid")
@@ -59,7 +59,7 @@ func DecodeResolvedAuditProfileSnapshot(data []byte) (ResolvedAuditProfile, erro
 	if err := ValidateAuditTaskProfile(profile); err != nil {
 		return ResolvedAuditProfile{}, err
 	}
-	expected, err := auditProfileDigest(selector, profile)
+	expected, err := Digest(profile)
 	if err != nil || expected != profile.Ref.Digest {
 		return ResolvedAuditProfile{}, fmt.Errorf("persisted AuditProfile digest is invalid")
 	}

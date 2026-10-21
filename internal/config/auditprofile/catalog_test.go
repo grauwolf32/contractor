@@ -80,7 +80,7 @@ func sharedAuditProfileYAML(t *testing.T, name string) string {
 // redigest pins profile's current content under a valid digest.
 func redigest(t *testing.T, profile *auditprofile.ResolvedAuditProfile) {
 	t.Helper()
-	digest, err := auditprofile.ProfileDigest(*profile)
+	digest, err := auditprofile.Digest(*profile)
 	if err != nil {
 		t.Fatal(err)
 	}

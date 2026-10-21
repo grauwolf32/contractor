@@ -404,6 +404,11 @@ referenced Workflows are dependency-resolved.
 
 **AUD-R20.** An Audit persists the full resolved profile snapshot and its
 canonical digest; later catalog reloads do not affect that Audit.
+Draft creation applies captured deployment model defaults before computing
+that digest, so it identifies the effective Workflow closures rather than the
+unmodified catalog profile. Prepared Eval reuse validates those captured
+policies and the remaining catalog-owned profile content without consulting
+the current deployment model selection.
 
 **AUD-R21.** A persisted profile snapshot requires an explicit valid `kind` for
 every Workflow role. Its canonical digest includes each role kind, the complete

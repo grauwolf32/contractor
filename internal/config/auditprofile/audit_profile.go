@@ -350,7 +350,7 @@ func Resolve(
 	if err := ValidateAuditTaskProfile(profile); err != nil {
 		return ResolvedAuditProfile{}, err
 	}
-	digest, err := auditProfileDigest(selector, profile)
+	digest, err := Digest(profile)
 	if err != nil {
 		return ResolvedAuditProfile{}, err
 	}
@@ -876,7 +876,10 @@ func resolveAuditInteractionPolicy(source *auditInteractionPolicySource) (AuditI
 	return result, nil
 }
 
-func auditProfileDigest(selector resolved.Selector, profile ResolvedAuditProfile) (string, error) {
+// Digest identifies the complete effective profile, including the resolved
+// Workflow closures after captured deployment model defaults have been applied.
+// Ref.Digest itself is excluded from the canonical content.
+func Digest(profile ResolvedAuditProfile) (string, error) {
 	workflows := make(map[string]any, len(profile.Workflows))
 	for role, binding := range profile.Workflows {
 		value := map[string]any{
@@ -895,7 +898,7 @@ func auditProfileDigest(selector resolved.Selector, profile ResolvedAuditProfile
 	return contentdigest.CanonicalJSON(map[string]any{
 		"apiVersion": contracts.APIVersion,
 		"kind":       Kind,
-		"metadata":   map[string]any{"name": selector.ID, "version": selector.Version},
+		"metadata":   map[string]any{"name": profile.Ref.Name, "version": profile.Ref.Version},
 		"spec": map[string]any{
 			"mode": profile.Mode, "standards": profile.Standards,
 			"inputs": profile.Inputs, "inventory": profile.Inventory,
