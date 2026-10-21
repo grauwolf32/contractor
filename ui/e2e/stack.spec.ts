@@ -32,6 +32,18 @@ interface BrowserEvidence {
 const enabled = process.env.CONTRACTOR_UI_STACK === "1";
 test.skip(!enabled, "CONTRACTOR_UI_STACK=1 is required for the real stack");
 
+async function expectNativeResources(card: Locator): Promise<void> {
+  // This harness starts Node and the native Python Runtime on the same host.
+  // OPS-R73 keeps unsupported hosts explicit, rather than inventing readings.
+  const supported = process.platform === "linux";
+  await expect(
+    card.getByText(supported ? "available" : "unavailable", { exact: true }),
+  ).toBeVisible();
+  await expect(card.getByText("requested", { exact: true })).toBeVisible();
+  await expect(card.getByText(/Runtime process scope/)).toBeVisible();
+  if (!supported) await expect(card).toContainText("unsupported platform");
+}
+
 function requiredEnvironment(name: string): string {
   const value = process.env[name];
   if (value === undefined || value === "") {
@@ -683,10 +695,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
     "article.allocation-resource-card",
   );
   await expect(runResource).toHaveCount(1);
-  await expect(
-    runResource.getByText("requested", { exact: true }),
-  ).toBeVisible();
-  await expect(runResource.getByText(/Runtime process scope/)).toBeVisible();
+  await expectNativeResources(runResource);
 
   await page.goto("/operations/performance");
   await expect(
@@ -711,15 +720,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
     .getByRole("region", { name: /^Metrics for / })
     .locator("article.allocation-resource-card");
   await expect(retainedResource).toHaveCount(1);
-  await expect(
-    retainedResource.getByText("available", { exact: true }),
-  ).toBeVisible();
-  await expect(
-    retainedResource.getByText("requested", { exact: true }),
-  ).toBeVisible();
-  await expect(
-    retainedResource.getByText(/Runtime process scope/),
-  ).toBeVisible();
+  await expectNativeResources(retainedResource);
 
   await page.goto(`/runs/${streamlineRunID}`);
   const streamlineOutput = page

@@ -7,7 +7,7 @@ kind: feature
 priority: P1
 status: in_progress
 implementation_commit: null
-depends_on: [V62-011]
+depends_on: [V62-011, V389-001]
 languages: [go, python, typescript, yaml, markdown]
 goal: Prove supplied and generated OpenAPI scan journeys with mandatory persistence, process, browser and current-schema regression evidence.
 context:
