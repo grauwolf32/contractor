@@ -5,7 +5,7 @@ milestone: http-session-continuation-2026-10
 epic: http-tools
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on: [V376-002]
 languages: [go, python, markdown]
 goal: >-
