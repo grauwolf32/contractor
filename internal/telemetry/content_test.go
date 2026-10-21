@@ -113,7 +113,9 @@ func TestPlannerOTLPJSONAndPartialAcknowledgements(t *testing.T) {
 	}{
 		{`{}`, true}, {`{"partialSuccess":{"rejectedSpans":"0"}}`, true},
 		{`{"partialSuccess":{"rejectedSpans":"1"}}`, false},
-		{`{"error":"failed"}`, false}, {`{"name":"otel-ingestion-job"}`, false},
+		{`{"error":"failed"}`, true}, {`{"name":"otel-ingestion-job"}`, true},
+		{`{"partialSuccess":{"rejectedSpans":"0","errorMessage":"warning"}}`, true},
+		{`{"partialSuccess":{"rejectedSpans":true},"receipt":"accepted"}`, false},
 	} {
 		t.Run(tc.body, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

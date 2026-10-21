@@ -330,11 +330,12 @@ func (o *otlpHTTPPlannerTelemetry) Flush(ctx context.Context) PlannerExportResul
 		var decoded collectortracev1.ExportTraceServiceResponse
 		var decodeErr error
 		if strings.Contains(response.Header.Get("Content-Type"), "application/json") {
-			decodeErr = protojson.Unmarshal(body, &decoded)
+			// OTLP/JSON, like binary protobuf, ignores unknown message fields.
+			decodeErr = (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(body, &decoded)
 		} else {
 			decodeErr = proto.Unmarshal(body, &decoded)
 		}
-		if decodeErr != nil || decoded.GetPartialSuccess().GetRejectedSpans() != 0 || decoded.GetPartialSuccess().GetErrorMessage() != "" {
+		if decodeErr != nil || decoded.GetPartialSuccess().GetRejectedSpans() != 0 {
 			return PlannerExportResult{Attempted: true, ErrorCode: "delivery_failed"}
 		}
 	}

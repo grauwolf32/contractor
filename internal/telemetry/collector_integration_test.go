@@ -1,10 +1,12 @@
 package telemetry
 
 import (
+	"encoding/json"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 )
 
@@ -14,9 +16,15 @@ func TestPlannerOTLPCollectorProjection(t *testing.T) {
 	if endpoint == "" {
 		t.Skip("CONTRACTOR_TEST_OTLP_ENDPOINT is unset")
 	}
+	var headers map[string]contracts.SecretString
+	if encoded := os.Getenv("CONTRACTOR_TEST_OTLP_HEADERS"); encoded != "" {
+		if err := json.Unmarshal([]byte(encoded), &headers); err != nil {
+			t.Fatal("CONTRACTOR_TEST_OTLP_HEADERS must be a JSON string map")
+		}
+	}
 	registry, _ := NewBuiltinPlannerAdapterRegistry()
 	adapter, err := registry.Create(PlannerAdapterOTLPHTTP, PlannerAdapterSettings{
-		Endpoint: endpoint, FlushTimeout: 10 * time.Second, CaptureContent: true,
+		Endpoint: endpoint, Headers: headers, FlushTimeout: 10 * time.Second, CaptureContent: true,
 		RunMetadataLabels: runlabels.RunMetadataLabels{},
 		Resource:          PlannerResource{RunID: "go-smoke", StageExecutionID: "go-stage", PlannerRef: "streamline@1"},
 	})

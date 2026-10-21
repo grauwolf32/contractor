@@ -64,6 +64,10 @@ and token views. No Phoenix or OpenInference attributes are needed in the
 production exporters. Both content capture and sensitive-tool suppression keep
 their existing rules.
 
+The same exporters can send directly to [Langfuse](../langfuse/README.md) by
+changing the endpoint and credential. Both backends have real-exporter smoke
+checks for their native message and usage projections.
+
 ## Verify
 
 ```sh

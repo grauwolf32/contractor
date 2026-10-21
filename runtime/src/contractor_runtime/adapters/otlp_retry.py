@@ -73,10 +73,11 @@ async def classify_response(response: httpx.Response, *, span_count: int) -> Del
             value = json.loads(body)
             if not isinstance(value, dict):
                 return DeliveryResponse()
-            if response.status_code != 200 or set(value) - {"partialSuccess"}:
+            # OTLP/JSON ignores unknown fields, just like binary protobuf.
+            if response.status_code != 200:
                 return DeliveryResponse()
             partial = value.get("partialSuccess", {})
-            if not isinstance(partial, dict) or set(partial) - {"rejectedSpans", "errorMessage"}:
+            if not isinstance(partial, dict):
                 return DeliveryResponse()
             rejected = partial.get("rejectedSpans", 0)
             if isinstance(rejected, str) and rejected.isascii() and rejected.isdigit():

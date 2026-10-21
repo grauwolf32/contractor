@@ -181,9 +181,9 @@ def test_terminal_summarizer_captures_actual_adk_request_and_response(limited: b
         ({}, True),
         ({"partialSuccess": {"rejectedSpans": "0"}}, True),
         ({"partialSuccess": {"rejectedSpans": "1"}}, False),
-        ({"name": "otel-ingestion-job", "id": "1"}, False),
-        ({"name": "otel-ingestion-job"}, False),
-        ({"error": "failed"}, False),
+        ({"name": "otel-ingestion-job", "id": "1"}, True),
+        ({"name": "otel-ingestion-job"}, True),
+        ({"error": "failed"}, True),
         ([], False),
     ],
 )

@@ -644,8 +644,11 @@ jitter selects a delay between half that ceiling and the ceiling.
 batch expires without another attempt (FAIL-OBS-5).
 
 **OBS-R77.** Exporters accept bounded standard OTLP protobuf or JSON
-acknowledgements. Collector-specific receipt formats, malformed and oversized
-acknowledgements are rejected. Worker delivery treats them as terminal
+acknowledgements. JSON decoding ignores unknown message fields, including
+additional receipt metadata, as required by OTLP/JSON and consistent with binary
+protobuf. Known fields such as `partialSuccess.rejectedSpans` retain their
+validation; malformed and oversized acknowledgements are rejected. Worker
+delivery treats them as terminal
 (FAIL-OBS-5); Planner delivery reports its existing export failure.
 
 **OBS-R78.** OTLP partial success is never retried: only the

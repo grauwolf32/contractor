@@ -1,0 +1,77 @@
+schema_version: "1.0"
+id: V388-003
+title: Preserve OTLP backend interoperability without vendor-specific exporters
+milestone: server-ui-and-operations
+epic: operations
+kind: defect
+introduced_by: V388-002
+priority: P1
+status: in_progress
+depends_on: [V388-002]
+languages: [go, python]
+goal: >-
+  Preserve direct Langfuse and Phoenix interoperability through the same
+  vendor-neutral OTLP exporters and prove backend content and usage projections.
+context:
+  specification: docs/spec/platform/observability.md#OBS-R77
+  severity: medium
+  finding: >-
+    internal/telemetry/planner_otlp.go:335 and
+    runtime/src/contractor_runtime/adapters/otlp_retry.py:75 reject unknown
+    JSON response fields. A successful HTTP 200 queue receipt from Langfuse is
+    therefore counted as failed despite accepted telemetry. OTLP/JSON requires
+    ignoring unknown message fields, consistently with protobuf decoding.
+  siblings: >-
+    Planner and Runtime JSON acknowledgements require the same rule. Binary
+    protobuf already preserves unknown fields without rejecting them. Status,
+    partial-success and bounded-response handling remain independently enforced.
+scope:
+  in:
+    - Apply standard OTLP unknown-field handling in Go and Python without vendor names or switches in production.
+    - Shared response fixtures covering queue receipts, future fields, malformed known fields, partial success and limits.
+    - Run actual exporters against disposable pinned Langfuse and Phoenix and verify prompts, replies and token projections through backend APIs.
+    - Document direct generic endpoint and header configuration and the tested backend versions.
+  out:
+    - Backend SDKs, vendor-specific production attributes, legacy payload aliases and additional collector services.
+    - Persistent Langfuse deployment, live project configuration, business data and configured model changes.
+acceptance_criteria:
+  - id: A1
+    text: Given HTTP 200 JSON with unknown receipt or future fields, both exporters accept the response without matching backend names; known malformed partial-success values still fail and rejected spans remain failures.
+  - id: A2
+    text: Given real pinned Langfuse, both production exporters deliver synthetic model spans successfully and its API exposes system/user input, assistant output, model and input/output/cache usage.
+  - id: A3
+    text: Given pinned Phoenix, both exporters retain native prompt, response and token projections and persistence across replacement.
+  - id: A4
+    text: Backend tests use bounded polling, isolated disposable resources and cleanup; existing retry, timeout, cancellation and telemetry consent behaviour remains unchanged.
+tests:
+  - command: go test -count=1 ./internal/telemetry
+    covers: [A1, A4]
+  - command: uv run --project runtime pytest runtime/tests/test_otlp_adapter.py runtime/tests/test_otlp_retries.py runtime/tests/test_otlp_streaming.py runtime/tests/test_shared_genai_telemetry.py runtime/tests/test_adapter_host.py runtime/tests/test_caido_adapter.py runtime/tests/test_http_proxy_adapter.py runtime/tests/test_telemetry_content.py
+    covers: [A1, A4]
+  - command: sh deploy/langfuse/test-smoke.sh
+    covers: [A2, A4]
+  - command: sh deploy/phoenix/test-smoke.sh
+    covers: [A3, A4]
+  - command: make test-wire-cross-language
+    covers: [A1, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+decisions:
+  - guarantee: Both exporters apply OTLP/JSON unknown-field semantics; neither interprets queue receipt names, and zero-rejection warnings remain successful acknowledgements.
+    alternatives: A dedicated backend receipt parser would couple exporters to that backend; an intermediate collector would add a service without addressing the underlying JSON decoding defect.
+    evidence: OTLP requires ignoring unknown JSON message fields, matching binary protobuf; real Langfuse 4.67.0 and Phoenix accept the same production GenAI spans and expose native content and usage projections.
+    reversal: Revisit only for an explicit OTLP protocol or pinned GenAI convention change, with shared fixtures and both real-backend checks.
+verification:
+  date: "2026-10-21"
+  passed:
+    - "go test -count=1 ./internal/telemetry: full package passed; the optional real-collector case also ran in both backend smoke tests."
+    - "Runtime adapter, retry, streaming, host, proxy, Caido and content suites: 151 passed."
+    - "sh deploy/langfuse/test-smoke.sh: pinned Langfuse 4.67.0 accepted both exporters and its Observations API v2 confirmed model, system/user/assistant content, input/output and cache-read usage."
+    - "sh deploy/phoenix/test-smoke.sh: native content and token projections from both exporters survived container replacement."
+    - "make test-wire-cross-language with disposable PostgreSQL: 232 fixtures, 210 Go and 164 Python shared tests; 295 base and 1076 shared Python test cases passed."
+    - "make lint, explicit Ruff checks of the deployment probes and git diff --check passed."
+    - "New response fixture failed on prior commit 5fe860bf in isolated Go and Python regression probes, then passed on the fixed implementations."
+  operations: >-
+    Probes used only synthetic content and temporary containers/databases/data.
+    All temporary backend state was removed. Existing containers, models,
+    RuntimeConfig bindings and project database configuration were not changed.

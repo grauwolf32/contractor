@@ -46,6 +46,13 @@
   "acknowledgements": [
     {"body": {}, "accepted": true},
     {"body": {"partialSuccess": {"rejectedSpans": "0"}}, "accepted": true},
-    {"body": {"name": "otel-ingestion-job", "id": "job-1"}, "accepted": false}
+    {"body": {"name": "otel-ingestion-job", "id": "job-1"}, "accepted": true},
+    {"body": {"futureReceipt": {"sequence": 8, "details": [true, null]}}, "accepted": true},
+    {"body": {"partialSuccess": {"rejectedSpans": "0", "errorMessage": "warning", "futureDetail": [1]}, "futureReceipt": "accepted"}, "accepted": true},
+    {"body": {"partialSuccess": "invalid", "futureReceipt": "accepted"}, "accepted": false},
+    {"body": {"partialSuccess": {"rejectedSpans": true}}, "accepted": false},
+    {"body": {"partialSuccess": {"rejectedSpans": "invalid"}}, "accepted": false},
+    {"body": {"partialSuccess": {"errorMessage": 8}}, "accepted": false},
+    {"body": [], "accepted": false}
   ]
 }
