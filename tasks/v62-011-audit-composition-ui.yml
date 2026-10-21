@@ -11,6 +11,7 @@ depends_on: [V62-009, V62-010]
 languages: [typescript]
 goal: Let a user start the generated-OpenAPI profile, follow preparation and scans, and trace results back to exact inputs without understanding internal storage scopes.
 context:
+  design_decision: User accepted A for the Check overview and B for endpoint details on 2026-10-21; implement a connected journey, keep C unselected and do not add a generic graph editor.
   delivery_selection: User selected this chain after V377-001 on 2026-10-21; finish the existing preparation-to-scan journey without expanding into V64 or generic graph editing.
   authority: User-requested V62 Audit Workflow composition task series.
   design:

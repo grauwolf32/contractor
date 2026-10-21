@@ -43,8 +43,8 @@ The next delivery is V377-001 target-cookie continuity, followed by
 V62-010 → V62-011 → V62-012. These are delivery priorities; cookies are not a
 new technical dependency of preparation. Keep this slice focused on the
 existing source-to-OpenAPI-to-check journey. Fresh UI alternatives are in
-[the V62 preparation exploration](../design/ui/v62-preparation.md); no
-alternative is accepted yet. Generic graph editing, prioritization and
+[the V62 preparation exploration](../design/ui/v62-preparation.md); A is accepted for the overview and B for endpoint details
+(user decision on 2026-10-21). Generic graph editing, prioritization and
 cross-round routing are outside this UI increment.
 
 ## Intended user outcome

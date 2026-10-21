@@ -1,6 +1,6 @@
 # V62 preparation and scan journey: fresh UI alternatives
 
-Date: 2026-10-21. Status: **exploration; no alternative selected**.
+Date: 2026-10-21. Status: **A overview + B endpoint detail accepted by the user on 2026-10-21; implementation pending**.
 
 [UI design index](README.md) · [V62 plan](../../plans/2026-09-20-audit-workflow-composition.md)
 · [UI implementation task](../../../tasks/v62-011-audit-composition-ui.yml)
@@ -116,9 +116,9 @@ and browser boundaries. Existing active-check policy remains authoritative;
 approval counts here illustrate a policy that requires decisions.
 
 This exploration accepts neither a universal workflow editor nor V64 ranking,
-cross-round dependencies or a new diagnostics/storage subsystem. A is a design
-recommendation, not a user acceptance. Selection may combine A's summary with
-B's endpoint detail without introducing two independent Check experiences.
+cross-round dependencies or a new diagnostics/storage subsystem. The user accepted A for the Check overview and B for endpoint details on
+2026-10-21. Implement one connected Check experience using those two views;
+C remains an unselected exploration.
 
 ## Reproduce the renders
 
