@@ -212,6 +212,20 @@ changing the upstream model does not require rewriting Workflow or Run
 snapshots. Restart the proxy to apply this profile. Existing named PostgreSQL
 containers and volumes must be retained so managed Gateway credentials survive.
 
+## Local trace viewer
+
+For local OTLP trace inspection, use the single-container
+[Phoenix profile](../deploy/phoenix/README.md):
+
+```shell
+deploy/phoenix/run.sh up
+```
+
+Its UI is at `http://127.0.0.1:6006`, and its SQLite data is bind-mounted in
+`.local/phoenix`. No additional PostgreSQL, ClickHouse, Redis or S3 service is
+required. The profile includes a RuntimeConfig example for the existing
+`otlp-http@1` exporters; enabling it for a Run remains an explicit choice.
+
 ## Start and verify
 
 Supply the database DSN and, for CLI access, a bearer token through the service

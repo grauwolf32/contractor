@@ -1284,6 +1284,17 @@ Rationale: [Go HTTP profiling](https://pkg.go.dev/net/http/pprof) defines the
 standard diagnostic transport and on-demand profiles;
 [Go diagnostics](https://go.dev/doc/diagnostics) describes profiling overhead.
 
+### Optional local trace viewer
+
+**OPS-R219.** The optional local trace-viewer profile uses one digest-pinned
+Phoenix container with SQLite state bind-mounted below `.local/phoenix` and
+its HTTP UI/OTLP port published only on loopback. Explicit startup reuses its
+named container and bounds readiness probes; stop removes only that container
+and retains the data directory. The profile does not modify PostgreSQL, live
+RuntimeConfig bindings or exporter semantics. It retains Contractor's custom
+span attributes without promising Phoenix-specific LLM projections. See the
+[operator guide](../../../deploy/phoenix/README.md).
+
 ## Interfaces
 
 ### Operations API

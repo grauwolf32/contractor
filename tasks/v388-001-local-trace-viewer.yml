@@ -1,0 +1,95 @@
+schema_version: "1.0"
+id: V388-001
+title: Add a single-container local Phoenix trace viewer
+milestone: server-ui-and-operations
+epic: operations
+kind: feature
+priority: P2
+status: in_progress
+depends_on: []
+languages: [shell, python, yaml]
+goal: >-
+  View local Contractor OTLP traces with one Phoenix container and persistent
+  SQLite storage in .local/phoenix, without the full Langfuse storage stack.
+context:
+  specification: docs/spec/operations/operations.md#OPS-R219
+  design: docs/deployment.md
+scope:
+  in:
+    - Manual Podman startup, status and stop commands for a digest-pinned Phoenix image.
+    - Bind-mount all persistent Phoenix state into ignored .local/phoenix.
+    - Document loopback UI/OTLP endpoints and a RuntimeConfig example.
+    - Verify real OTLP ingestion and persistence across container replacement.
+  out:
+    - PostgreSQL changes, automatic startup and remote or production hosting.
+    - Changing Contractor exporter attributes, model settings or active RuntimeConfig bindings.
+requirements:
+  - id: R1
+    text: One Phoenix container owns the local viewer; its SQLite data uses .local/phoenix and only its HTTP port is published on loopback.
+  - id: R2
+    text: Repeated startup reuses the named container; stop removes the container while retaining its bind mount and trace history.
+  - id: R3
+    text: Startup probes have finite attempts and surface errors without deleting stored data or modifying other services.
+  - id: R4
+    text: The existing OTLP adapter can send traces to Phoenix; docs distinguish preserved raw Langfuse attributes from Phoenix-specific LLM projections.
+failure_outcomes:
+  - operation: Launch the local Phoenix container
+    permanent: Invalid options, invalid ports, symlinked data paths and Podman errors fail nonzero without replacing state.
+    retryable: Operator retries after fixing image or engine availability; readiness uses a finite probe budget.
+    ambiguous: The fixed container name reconciles an uncertain launch; retained SQLite remains authoritative.
+    cancelled: Already started containers and bind mounts remain inspectable; no purge is performed.
+    timeout: Each health probe has its own timeout; the launcher bounds probe attempts.
+cardinality:
+  - collection: Local trace viewer containers
+    expected: 1
+    maximum: 1
+    bound: One named container, one published HTTP port, one data directory and a finite readiness loop.
+lifecycle:
+  - entity: Local Phoenix state
+    delete: Operator explicitly deletes .local/phoenix after stopping the viewer.
+    cascade: Stop removes the one named container; no database service or other container is changed.
+    retention: SQLite traces survive stop/start and container replacement until explicitly deleted.
+acceptance_criteria:
+  - id: A1
+    given: Empty and existing local viewer storage
+    when: Startup, repeat startup and stop are requested
+    then: Only one container is used, its published port binds loopback and persisted data is retained.
+  - id: A2
+    given: Invalid options, failed engine operations and unhealthy startup
+    when: The launcher runs
+    then: It fails nonzero within its probe budget without deleting stored data.
+  - id: A3
+    given: The real pinned Phoenix image and synthetic Contractor-shaped OTLP spans
+    when: Traces are ingested and the container is replaced
+    then: The trace API returns the spans and their raw content attributes before and after replacement.
+tests:
+  - command: sh deploy/phoenix/test-run.sh
+    covers: [A1, A2]
+  - command: sh deploy/phoenix/test-smoke.sh
+    covers: [A1, A3]
+  - command: python3 scripts/check_spec.py
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+decisions:
+  - date: "2026-10-21"
+    guarantee: Local viewing needs one container with SQLite and keeps Contractor's exporter unchanged.
+    alternatives: Modern Langfuse needs ClickHouse, Redis and S3; Langfuse v2 is no longer maintained.
+    evidence: Phoenix's official Docker guide supports SQLite volume mounts and HTTP OTLP on port 6006.
+    reversal: Revisit if indexed LLM content, evaluations or multi-user hosting becomes a requirement.
+verification:
+  date: "2026-10-21"
+  passed:
+    - "sh deploy/phoenix/test-run.sh: launch/reuse/stop, loopback binding, retained data, invalid arguments, engine errors, symlinks and bounded health failures."
+    - "CONTAINER_CONNECTION=podman-machine-default-root sh deploy/phoenix/test-smoke.sh: real digest-pinned image accepted protobuf OTLP; raw content and token attributes survived container replacement with the same SQLite bind mount."
+    - "python3 scripts/check_spec.py: 46 specification documents are consistent."
+    - "Ruff check and format check for deploy/phoenix/smoke.py."
+    - "python -m unittest discover -s scripts -p 'test_*.py': all 96 tests passed in a temporary PyYAML environment."
+    - "scripts/check_tasks.py: 991 task records and generated BACKLOG.md are consistent; git diff --check passed."
+  blocked:
+    - "make lint stops at generate-public-client-check: go is not installed in the execution environment. Task remains in_progress until the required gate passes."
+  environment: >-
+    Existing podman-machine-default-root connection; selected per command without
+    changing the configured default. Smoke test used only synthetic spans and a
+    temporary checkout. Test containers and data were removed. The actual viewer
+    was not started and no live RuntimeConfig was changed.
