@@ -5,8 +5,8 @@ milestone: audit-workflow-composition
 epic: audits
 kind: feature
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 233b94a52b9a611be77d5c7ce14a532ac700973c
 depends_on: [V62-004]
 languages: [go, openapi, typescript]
 goal: Expose preparation outputs, generated inventory and scan provenance through existing owner-scoped Audit APIs after minimal lifecycle handlers ship in V62-003.
