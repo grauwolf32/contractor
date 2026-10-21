@@ -54,12 +54,12 @@ spec:
   artifactBlobInlineMaxBytes: 1048576
   # Whole-import and source-reader budgets; bytes are literal byte counts.
   gitImport:
-    timeout: 120s
-    maxReceivedBytes: 134217728
-    maxDecodedBytes: 268435456
+    timeout: 10m
+    maxReceivedBytes: 268435456
+    maxDecodedBytes: 536870912
     maxExpandedBytes: 134217728
     maxFileBytes: 16777216
-    maxEntries: 10000
+    maxEntries: 20000
   gitAllowedRemotes:
     - github.com:443
     - github.com:22

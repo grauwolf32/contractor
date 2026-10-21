@@ -3041,15 +3041,29 @@ export interface components {
             /** Format: date-time */
             updatedAt?: string;
         };
+        GitAnalysis: {
+            /** @constant */
+            policy: "source-analysis-v1";
+            /** @constant */
+            reportPath: ".contractor-import-report.json";
+            includedFiles: number;
+            excludedEntries: number;
+        };
         GitSource: {
             repositoryUrl: string;
             requestedRef: string | null;
             resolvedCommit: string;
             /** Format: date-time */
             importedAt: string;
+            analysis?: components["schemas"]["GitAnalysis"];
         };
         GitImportRequest: {
             repositoryUrl: string;
+            /**
+             * @default snapshot
+             * @enum {string}
+             */
+            mode: "snapshot" | "analysis";
             ref?: string;
         };
         GitImportResult: {

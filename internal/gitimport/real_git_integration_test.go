@@ -13,6 +13,7 @@ import (
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -149,7 +150,7 @@ func TestRealHTTPSPinnedCommitAndTags(t *testing.T) {
 	client.tlsConfig = server.Client().Transport.(*http.Transport).TLSClientConfig.Clone()
 	var before, after runtime.MemStats
 	runtime.ReadMemStats(&before)
-	snapshot, err := client.Fetch(context.Background(), remote, "", nil)
+	snapshot, err := client.Fetch(context.Background(), remote, "", ModeSnapshot, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +158,7 @@ func TestRealHTTPSPinnedCommitAndTags(t *testing.T) {
 	runtime.ReadMemStats(&after)
 	t.Logf("real HTTPS fixture: ZIP=%d bytes, allocated=%d bytes, heap=%d bytes", len(snapshot.Data), after.TotalAlloc-before.TotalAlloc, after.HeapAlloc)
 	for _, ref := range []string{"v1", "refs/tags/v1"} {
-		tag, err := client.Fetch(context.Background(), remote, ref, nil)
+		tag, err := client.Fetch(context.Background(), remote, ref, ModeSnapshot, nil)
 		if err != nil {
 			t.Fatalf("tag %s: %v", ref, err)
 		}
@@ -168,7 +169,7 @@ func TestRealHTTPSPinnedCommitAndTags(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := client.Fetch(ctx, remote, "", nil); !errors.Is(err, context.Canceled) {
+	if _, err := client.Fetch(ctx, remote, "", ModeSnapshot, nil); !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancel: %v", err)
 	}
 }
@@ -217,7 +218,7 @@ func TestRealHTTPSInterruptedPackIsRemote(t *testing.T) {
 	}
 	client.allowLoopback = true
 	client.tlsConfig = server.Client().Transport.(*http.Transport).TLSClientConfig.Clone()
-	if _, err := client.Fetch(t.Context(), remote, "", nil); !errors.Is(err, ErrRemote) {
+	if _, err := client.Fetch(t.Context(), remote, "", ModeSnapshot, nil); !errors.Is(err, ErrRemote) {
 		t.Fatalf("interrupted pack = %v, want ErrRemote", err)
 	}
 }
@@ -344,7 +345,7 @@ func TestRealSSHOwnerKeyAndStrictHostTrust(t *testing.T) {
 	remote, _ := ParseRemote("ssh://git@" + address + "/repo.git")
 	client, _ := NewClient(Config{AllowedRemotes: []string{address}, KnownHostsFile: known}, nil)
 	client.allowLoopback = true
-	snapshot, err := client.Fetch(context.Background(), remote, "main", owner)
+	snapshot, err := client.Fetch(context.Background(), remote, "main", ModeSnapshot, owner)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -353,18 +354,18 @@ func TestRealSSHOwnerKeyAndStrictHostTrust(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	relativeSnapshot, err := client.Fetch(context.Background(), relative, "main", owner)
+	relativeSnapshot, err := client.Fetch(context.Background(), relative, "main", ModeSnapshot, owner)
 	if err != nil {
 		t.Fatal(err)
 	}
 	assertSnapshot(t, relativeSnapshot, commit)
-	if _, err := client.Fetch(context.Background(), remote, "main", newSigner(t)); !errors.Is(err, ErrRemote) {
+	if _, err := client.Fetch(context.Background(), remote, "main", ModeSnapshot, newSigner(t)); !errors.Is(err, ErrRemote) {
 		t.Fatalf("wrong owner: %v", err)
 	}
 	if err := os.WriteFile(known, []byte(knownhosts.Line([]string{address}, newSigner(t).PublicKey())+"\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := client.Fetch(context.Background(), remote, "main", owner); !errors.Is(err, ErrTrust) {
+	if _, err := client.Fetch(context.Background(), remote, "main", ModeSnapshot, owner); !errors.Is(err, ErrTrust) {
 		t.Fatalf("changed host: %v", err)
 	}
 }
@@ -424,7 +425,7 @@ func TestRealSSHSingleTypePinsOnMultiKeyHost(t *testing.T) {
 			if err := os.WriteFile(known, []byte(knownhosts.Line([]string{test.host}, test.key)+"\n"), 0600); err != nil {
 				t.Fatal(err)
 			}
-			snapshot, err := client.Fetch(context.Background(), remote, "main", owner)
+			snapshot, err := client.Fetch(context.Background(), remote, "main", ModeSnapshot, owner)
 			if test.wantTrust {
 				if !errors.Is(err, ErrTrust) {
 					t.Fatalf("untrusted host error = %v", err)
@@ -536,7 +537,7 @@ func TestReadOnlyGitProbe(t *testing.T) {
 		client, _ := NewClient(Config{AllowedRemotes: []string{remote.Address}, KnownHostsFile: "/fixture/known_hosts"}, nil)
 		client.allowLoopback = true
 		client.tlsConfig = &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
-		snapshot, err := client.Fetch(context.Background(), remote, "", signer)
+		snapshot, err := client.Fetch(context.Background(), remote, "", ModeSnapshot, signer)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -581,7 +582,7 @@ func TestRealHTTPSConfiguredSourceBudgets(t *testing.T) {
 			}
 			client.allowLoopback = true
 			client.tlsConfig = server.Client().Transport.(*http.Transport).TLSClientConfig.Clone()
-			snapshot, err := client.Fetch(t.Context(), remote, "main", nil)
+			snapshot, err := client.Fetch(t.Context(), remote, "main", ModeSnapshot, nil)
 			if !test.accepted {
 				if !errors.Is(err, ErrBudget) {
 					t.Fatalf("expected budget rejection: %v", err)
@@ -598,6 +599,100 @@ func TestRealHTTPSConfiguredSourceBudgets(t *testing.T) {
 			if len(archive.File) != 27 {
 				t.Fatalf("source ZIP files=%d", len(archive.File))
 			}
+		})
+	}
+}
+
+func TestRealGitAnalysisSourcesOverHTTPSAndSSH(t *testing.T) {
+	repo, _ := realRepository(t)
+	if err := os.Mkdir(filepath.Join(repo, "dist"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	for name, data := range map[string][]byte{
+		"dist/generated.py": []byte("generated source\n"), "image.png": []byte("binary by extension"),
+		"invalid.py": {0xff}, "large.bin": []byte("version https://git-lfs.github.com/spec/v1\noid sha256:x\n"),
+	} {
+		if err := os.WriteFile(filepath.Join(repo, name), data, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Symlink("/must-not-follow", filepath.Join(repo, "link")); err != nil {
+		t.Fatal(err)
+	}
+	nativeGit(t, repo, "add", "--all")
+	previous := strings.TrimSpace(string(nativeGit(t, repo, "rev-parse", "HEAD")))
+	nativeGit(t, repo, "update-index", "--add", "--cacheinfo", "160000,"+previous+",module")
+	nativeGit(t, repo, "commit", "-m", "mixed source fixture")
+	commit := strings.TrimSpace(string(nativeGit(t, repo, "rev-parse", "HEAD")))
+	https := serveGitHTTP(t, repo, nil)
+	defer https.Close()
+	httpRemote, _ := ParseRemote(https.URL + "/repo.git")
+	httpClient, _ := NewClient(Config{AllowedRemotes: []string{httpRemote.Address}}, nil)
+	httpClient.allowLoopback = true
+	httpClient.tlsConfig = https.Client().Transport.(*http.Transport).TLSClientConfig.Clone()
+	owner := newSigner(t)
+	address, host := serveGitSSH(t, repo, owner)
+	known := filepath.Join(t.TempDir(), "known_hosts")
+	if err := os.WriteFile(known, []byte(knownhosts.Line([]string{address}, host.PublicKey())+"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	sshClient, err := NewClient(Config{AllowedRemotes: []string{address}, KnownHostsFile: known}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sshClient.allowLoopback = true
+	sshRemote, err := ParseRemote("ssh://git@" + address + "/repo.git")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var previousZIP []byte
+	for _, test := range []struct {
+		name   string
+		client *Client
+		remote Remote
+		signer ssh.Signer
+	}{
+		{"https", httpClient, httpRemote, nil}, {"ssh", sshClient, sshRemote, owner},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if _, err := test.client.Fetch(t.Context(), test.remote, "main", ModeSnapshot, test.signer); !errors.Is(err, ErrContent) {
+				t.Fatalf("strict snapshot: %v", err)
+			}
+			result, err := test.client.Fetch(t.Context(), test.remote, "main", ModeAnalysis, test.signer)
+			if err != nil || result.Commit != commit || result.Analysis == nil {
+				t.Fatalf("analysis: %+v %v", result.Analysis, err)
+			}
+			if result.Analysis.IncludedFiles != 13 || result.Analysis.ExcludedEntries != 6 {
+				t.Fatalf("summary: %+v", result.Analysis)
+			}
+			z, err := zip.NewReader(bytes.NewReader(result.Data), int64(len(result.Data)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(z.File) != 14 {
+				t.Fatalf("ZIP files: %d", len(z.File))
+			}
+			var report analysisReport
+			for _, f := range z.File {
+				if f.Name == result.Analysis.ReportPath {
+					r, err := f.Open()
+					if err != nil {
+						t.Fatal(err)
+					}
+					err = json.NewDecoder(r).Decode(&report)
+					r.Close()
+					if err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			if len(report.Excluded) != 6 || report.ResolvedCommit != commit {
+				t.Fatalf("report: %+v", report)
+			}
+			if previousZIP != nil && !bytes.Equal(previousZIP, result.Data) {
+				t.Fatal("transport changed source ZIP")
+			}
+			previousZIP = result.Data
 		})
 	}
 }

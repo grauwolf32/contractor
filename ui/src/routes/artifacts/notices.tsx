@@ -23,6 +23,13 @@ function GitSourceLine({ source }: { source: GitSource }) {
       <span>{source.requestedRef ?? "default branch"}</span>
       <span aria-hidden="true">·</span>
       <GitCommitChip commit={source.resolvedCommit} />
+      {source.analysis === undefined ? null : (
+        <span>
+          Sources for analysis · {source.analysis.excludedEntries} entries
+          excluded. Full list in {source.analysis.reportPath} inside the source
+          ZIP.
+        </span>
+      )}
     </p>
   );
 }

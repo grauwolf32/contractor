@@ -89,7 +89,7 @@ func TestHTTPSRejectsRedirectAndUntrustedTLS(t *testing.T) {
 	var logs bytes.Buffer
 	client, _ := NewClient(Config{AllowedRemotes: []string{remote.Address}}, slog.New(slog.NewTextHandler(&logs, nil)))
 	client.allowLoopback = true
-	_, err := client.Fetch(context.Background(), remote, "", nil)
+	_, err := client.Fetch(context.Background(), remote, "", ModeSnapshot, nil)
 	if err != ErrRemote {
 		t.Fatalf("untrusted TLS: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestHTTPSRejectsRedirectAndUntrustedTLS(t *testing.T) {
 		t.Fatal("private repository URL appeared in transport log")
 	}
 	client.tlsConfig = server.Client().Transport.(*http.Transport).TLSClientConfig.Clone()
-	if _, err := client.Fetch(context.Background(), remote, "", nil); !errors.Is(err, ErrRemote) {
+	if _, err := client.Fetch(context.Background(), remote, "", ModeSnapshot, nil); !errors.Is(err, ErrRemote) {
 		t.Fatalf("redirect: %v", err)
 	}
 	if redirected {
@@ -311,7 +311,7 @@ func TestNetworkCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go func() { <-started; cancel() }()
-	if _, err := client.Fetch(ctx, remote, "", nil); !errors.Is(err, context.Canceled) {
+	if _, err := client.Fetch(ctx, remote, "", ModeSnapshot, nil); !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancel in-flight: %v", err)
 	}
 }
@@ -338,7 +338,7 @@ func TestSnapshotRejectsContentTheRuntimeCannotOpen(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			objects, commit := snapshotObjects("100644", tc.name, tc.data)
-			if _, _, err := archiveSnapshot(context.Background(), objects, commit, sourcezip.DefaultLimits()); !errors.Is(err, ErrContent) {
+			if _, _, _, err := archiveSnapshot(context.Background(), objects, commit, sourcezip.DefaultLimits(), ModeSnapshot); !errors.Is(err, ErrContent) {
 				t.Fatalf("Runtime-unopenable snapshot error = %v", err)
 			}
 		})
@@ -347,11 +347,11 @@ func TestSnapshotRejectsContentTheRuntimeCannotOpen(t *testing.T) {
 
 func TestSnapshotContentAndDeterminism(t *testing.T) {
 	objects, commit := snapshotObjects("100755", "hello.txt", []byte("hello\n"))
-	first, resolved, err := archiveSnapshot(context.Background(), objects, commit, sourcezip.DefaultLimits())
+	first, resolved, _, err := archiveSnapshot(context.Background(), objects, commit, sourcezip.DefaultLimits(), ModeSnapshot)
 	if err != nil || resolved != commit {
 		t.Fatal(err)
 	}
-	second, _, err := archiveSnapshot(context.Background(), objects, commit, sourcezip.DefaultLimits())
+	second, _, _, err := archiveSnapshot(context.Background(), objects, commit, sourcezip.DefaultLimits(), ModeSnapshot)
 	if err != nil || !bytes.Equal(first, second) {
 		t.Fatalf("not deterministic: %v", err)
 	}
@@ -377,7 +377,7 @@ func TestSnapshotContentAndDeterminism(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("%s-%s", tc.mode, tc.name[:min(len(tc.name), 20)]), func(t *testing.T) {
 			objects, commit := snapshotObjects(tc.mode, tc.name, tc.data)
-			if _, _, err := archiveSnapshot(context.Background(), objects, commit, sourcezip.DefaultLimits()); !errors.Is(err, tc.want) {
+			if _, _, _, err := archiveSnapshot(context.Background(), objects, commit, sourcezip.DefaultLimits(), ModeSnapshot); !errors.Is(err, tc.want) {
 				t.Fatalf("got %v", err)
 			}
 		})
@@ -395,7 +395,7 @@ func TestSnapshotNamesUnsupportedEntries(t *testing.T) {
 	} {
 		t.Run(tc.kind, func(t *testing.T) {
 			objects, commit := snapshotObjects(tc.mode, tc.name, tc.data)
-			_, _, err := archiveSnapshot(context.Background(), objects, commit, sourcezip.DefaultLimits())
+			_, _, _, err := archiveSnapshot(context.Background(), objects, commit, sourcezip.DefaultLimits(), ModeSnapshot)
 			var unsupported *UnsupportedEntryError
 			if !errors.As(err, &unsupported) || !errors.Is(err, ErrContent) {
 				t.Fatalf("error = %v, want an UnsupportedEntryError matching ErrContent", err)
@@ -428,7 +428,7 @@ func TestSnapshotEntryAndExpandedLimits(t *testing.T) {
 			commit := &gitObject{kind: plumbing.CommitObject, data: []byte("tree " + treeHash.String() + "\n\nfixture\n")}
 			commitHash := objectHash(commit)
 			objects := map[plumbing.Hash]*gitObject{blobHash: blob, treeHash: tree, commitHash: commit}
-			if _, _, err := archiveSnapshot(context.Background(), objects, commitHash, sourcezip.DefaultLimits()); !errors.Is(err, ErrBudget) {
+			if _, _, _, err := archiveSnapshot(context.Background(), objects, commitHash, sourcezip.DefaultLimits(), ModeSnapshot); !errors.Is(err, ErrBudget) {
 				t.Fatalf("snapshot limit: %v", err)
 			}
 		})

@@ -141,6 +141,16 @@ async function fixture(
           requestedRef: request.postDataJSON().ref ?? null,
           resolvedCommit: commit,
           importedAt: timestamp,
+          ...(request.postDataJSON().mode === "analysis"
+            ? {
+                analysis: {
+                  policy: "source-analysis-v1",
+                  reportPath: ".contractor-import-report.json",
+                  includedFiles: 11895,
+                  excludedEntries: 2310,
+                },
+              }
+            : {}),
         };
         const item = {
           artifact: { namespace, name, revision: "rev-imported" },
@@ -280,6 +290,7 @@ for (const project of [false, true]) {
     );
     expect(writes[0]?.headers["if-none-match"]).toBe("*");
     expect(writes[0]?.body).toEqual({
+      mode: "snapshot",
       repositoryUrl: "https://example.test/repo.git",
       ref: "release",
     });
@@ -349,3 +360,48 @@ test("cancelling a pending Git import keeps the Project Workflow form open", asy
   );
   expect(writes).toHaveLength(1);
 });
+
+for (const theme of ["light", "dark", "black"]) {
+  test(`analysis import reports excluded coverage at 390px in ${theme}`, async ({
+    page,
+  }, info) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.addInitScript(
+      (value) => localStorage.setItem("contractor.theme", value),
+      theme,
+    );
+    const writes = await fixture(page, uiOrigin(info));
+    await page.goto("/projects/git-project/artifacts?add=artifact");
+    await page
+      .getByRole("button", { name: "Import Git repository", exact: true })
+      .click();
+    const dialog = page.getByRole("dialog", { name: "Import Git repository" });
+    await dialog
+      .getByLabel("Repository URL")
+      .fill("git@github.com:nextcloud/server.git");
+    await expect(dialog.getByLabel("Import content")).toHaveValue("snapshot");
+    await dialog.getByLabel("Import content").selectOption("analysis");
+    await expect(
+      dialog.getByText(/Every excluded path and reason/),
+    ).toBeVisible();
+    expect(await dialog.evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(
+      true,
+    );
+    await page.screenshot({
+      path: `/private/tmp/contractor-git-analysis-${theme}.png`,
+    });
+    await dialog.getByRole("button", { name: "Import sources" }).click();
+    const notice = page.getByRole("status", {
+      name: "Git repository imported into this project",
+    });
+    await expect(notice).toContainText("2310 entries excluded");
+    await expect(notice).toContainText(".contractor-import-report.json");
+    expect(writes).toHaveLength(1);
+    expect(writes[0]?.body).toMatchObject({ mode: "analysis" });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+  });
+}

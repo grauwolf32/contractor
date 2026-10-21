@@ -1,3 +1,6 @@
+import cases from "../../../api/testdata/git-import-modes.json";
+import { conformsTo } from "./contract";
+
 import { describe, expect, it, vi } from "vitest";
 
 import { fakeServer } from "../test/fake-server";
@@ -35,3 +38,14 @@ describe("importGitArtifact", () => {
     },
   );
 });
+
+it.each(cases.cases)("validates shared Git import mode $name", (test) => {
+  expect(conformsTo("GitImportRequest", test.request)).toBe(test.valid);
+});
+
+it.each(cases.analysisSummaries)(
+  "validates shared analysis summary $name",
+  (test) => {
+    expect(conformsTo("GitAnalysis", test.value)).toBe(test.valid);
+  },
+);

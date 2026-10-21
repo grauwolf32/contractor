@@ -412,7 +412,7 @@ its owning requirement.
 | `LIM-GIT-7` | configurable `gitImport.maxReceivedBytes`, default 128 MiB, 1 byte to 1 GiB | Cumulative received Git protocol and pack bytes per import | Server Git reader | [GIT-R66](../artifacts/git-import.md) |
 | `LIM-GIT-8` | configurable `gitImport.maxDecodedBytes`, default 256 MiB, 1 byte to 2 GiB and at least the expanded-source budget | Cumulative decoded Git object bytes per import, including delta results, delta programs and intermediate results | Server Git reader | [GIT-R66](../artifacts/git-import.md) |
 | `LIM-GIT-9` | 4 MiB | One advertisement or ACK negotiation | Server Git reader protocol parser | [GIT-R66](../artifacts/git-import.md) |
-| `LIM-GIT-10` | 10,000 references | Advertised references, including peeled entries | Server Git reader protocol parser | [GIT-R66](../artifacts/git-import.md) |
+| `LIM-GIT-10` | 100,000 references | Advertised references, including peeled entries | Server Git reader protocol parser | [GIT-R66](../artifacts/git-import.md) |
 | `LIM-GIT-11` | 50,000 objects | Packed objects per import | Server Git reader pack scanner | [GIT-R66](../artifacts/git-import.md) |
 | `LIM-GIT-12` | 64 MiB | One decoded object or delta result | Server Git reader | [GIT-R66](../artifacts/git-import.md) |
 | `LIM-GIT-13` | 50 | Delta depth | Server Git reader | [GIT-R66](../artifacts/git-import.md) |
@@ -422,6 +422,7 @@ its owning requirement.
 | `LIM-GIT-17` | configurable `gitImport.maxExpandedBytes`, default 64 MiB, 1 byte to 1 GiB | Source ZIP expanded bytes | Server Git importer and allocation source archive reader | [GIT-R66](../artifacts/git-import.md) |
 | `LIM-GIT-18` | configurable `gitImport.maxFileBytes`, default 4 MiB, 1 byte to 64 MiB and not above the expanded-source budget | One source file in the source ZIP | Server Git importer and allocation source archive reader | [GIT-R66](../artifacts/git-import.md) |
 | `LIM-GIT-19` | 1 active import per Server process | Git import admission (the import also holds one shared Artifact transfer slot, BLB-R27) | Server Git import service | [GIT-R69](../artifacts/git-import.md) |
+| `LIM-GIT-20` | 4 MiB, also bounded by configured source file, expanded-byte and entry budgets | Complete analysis exclusion report JSON in the source ZIP | Server Git importer | [GIT-R96](../artifacts/git-import.md) |
 | `LIM-HTP-1` | 1..120 s; default: the allocation request timeout | `worker.caido` `requestTimeoutSeconds` for Caido GraphQL requests | caido-graphql@1 adapter (`worker.caido` configuration) | [HTP-R12](../tools/http-caido.md) |
 | `LIM-HTP-2` | 64 headers and query keys | headers and query keys of one `http_request` | http-tools@1 (`http_request`) | [HTP-R23](../tools/http-caido.md) |
 | `LIM-HTP-3` | 48 KiB | session default headers plus request headers of one request | http-tools@1 (`http_request`) | [HTP-R24](../tools/http-caido.md) |

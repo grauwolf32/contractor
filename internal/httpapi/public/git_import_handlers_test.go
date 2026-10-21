@@ -10,12 +10,15 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/gitimport"
 	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
@@ -25,12 +28,12 @@ import (
 )
 
 type snapshotClientFixture struct {
-	fetch func(context.Context, gitimport.Remote, string, ssh.Signer) (gitimport.Snapshot, error)
+	fetch func(context.Context, gitimport.Remote, string, gitimport.Mode, ssh.Signer) (gitimport.Snapshot, error)
 }
 
 func (c *snapshotClientFixture) Allowed(gitimport.Remote) bool { return true }
-func (c *snapshotClientFixture) Fetch(ctx context.Context, remote gitimport.Remote, ref string, key ssh.Signer) (gitimport.Snapshot, error) {
-	return c.fetch(ctx, remote, ref, key)
+func (c *snapshotClientFixture) Fetch(ctx context.Context, remote gitimport.Remote, ref string, mode gitimport.Mode, key ssh.Signer) (gitimport.Snapshot, error) {
+	return c.fetch(ctx, remote, ref, mode, key)
 }
 
 func TestGitImportErrorNamesUnsupportedEntry(t *testing.T) {
@@ -133,7 +136,7 @@ func TestGitImportPublicationAndAdmission(t *testing.T) {
 			cipher, _ := credentials.NewTokenCipher(bytes.Repeat([]byte{1}, 32))
 			keys := credentials.NewGitKeys(pool, cipher)
 			var count atomic.Int32
-			client := &snapshotClientFixture{fetch: func(ctx context.Context, remote gitimport.Remote, ref string, _ ssh.Signer) (gitimport.Snapshot, error) {
+			client := &snapshotClientFixture{fetch: func(ctx context.Context, remote gitimport.Remote, ref string, _ gitimport.Mode, _ ssh.Signer) (gitimport.Snapshot, error) {
 				count.Add(1)
 				if pool.Stat().AcquiredConns() != 0 {
 					t.Error("SQL connection held during fetch")
@@ -205,11 +208,11 @@ func TestGitImportPublicationAndAdmission(t *testing.T) {
 				t.Fatalf("foreign: %d %s", response.Code, response.Body)
 			}
 			originalFetch := client.fetch
-			client.fetch = func(fetchCtx context.Context, remote gitimport.Remote, ref string, signer ssh.Signer) (gitimport.Snapshot, error) {
+			client.fetch = func(fetchCtx context.Context, remote gitimport.Remote, ref string, mode gitimport.Mode, signer ssh.Signer) (gitimport.Snapshot, error) {
 				if _, _, err := projects.BeginDeletion(ctx, projectstore.BeginDeletionParams{ProjectID: project.ProjectID, OwnerID: "user-1", ExpectedRevision: project.Revision}); err != nil {
 					t.Fatal(err)
 				}
-				return originalFetch(fetchCtx, remote, ref, signer)
+				return originalFetch(fetchCtx, remote, ref, mode, signer)
 			}
 			if response := call(strings.Replace(projectPath, "/repository/", "/racing/", 1), "https://example.test/first.git", nil); response.Code != 409 {
 				t.Fatalf("deletion race: %d %s", response.Code, response.Body)
@@ -242,7 +245,7 @@ func TestGitImportPublicationAndAdmission(t *testing.T) {
 				t.Fatal(err)
 			}
 			// A failed fetch leaves no revision and releases admission for the next one.
-			client.fetch = func(context.Context, gitimport.Remote, string, ssh.Signer) (gitimport.Snapshot, error) {
+			client.fetch = func(context.Context, gitimport.Remote, string, gitimport.Mode, ssh.Signer) (gitimport.Snapshot, error) {
 				return gitimport.Snapshot{}, context.Canceled
 			}
 			response = call(strings.Replace(path, "/repository/", "/cancelled/", 1), "https://example.test/first.git", nil)
@@ -254,7 +257,7 @@ func TestGitImportPublicationAndAdmission(t *testing.T) {
 				t.Fatalf("partial artifact: %v", err)
 			}
 			// The importer classifies an expired import deadline as its timeout.
-			client.fetch = func(context.Context, gitimport.Remote, string, ssh.Signer) (gitimport.Snapshot, error) {
+			client.fetch = func(context.Context, gitimport.Remote, string, gitimport.Mode, ssh.Signer) (gitimport.Snapshot, error) {
 				return gitimport.Snapshot{}, context.DeadlineExceeded
 			}
 			response = call(strings.Replace(path, "/repository/", "/timed-out/", 1), "https://example.test/first.git", nil)
@@ -288,7 +291,7 @@ func TestConfiguredGitSnapshotPublishesExactFilesystemBlob(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	client := &snapshotClientFixture{fetch: func(context.Context, gitimport.Remote, string, ssh.Signer) (gitimport.Snapshot, error) {
+	client := &snapshotClientFixture{fetch: func(context.Context, gitimport.Remote, string, gitimport.Mode, ssh.Signer) (gitimport.Snapshot, error) {
 		return gitimport.Snapshot{Data: archive, RepositoryURL: "https://example.test:443/repo.git", Commit: strings.Repeat("a", 40)}, nil
 	}}
 	cipher, err := credentials.NewTokenCipher(bytes.Repeat([]byte{1}, 32))
@@ -315,5 +318,117 @@ func TestConfiguredGitSnapshotPublishesExactFilesystemBlob(t *testing.T) {
 	var noInline bool
 	if err := pool.QueryRow(ctx, `SELECT backend,payload IS NULL FROM artifact_blobs`).Scan(&backend, &noInline); err != nil || backend != "filesystem" || !noInline {
 		t.Fatalf("blob backend=%s, no inline=%t, %v", backend, noInline, err)
+	}
+}
+
+type modeGitImports struct {
+	calls int
+	mode  gitimport.Mode
+}
+
+func (s *modeGitImports) Timeout() time.Duration { return gitimport.Deadline }
+func (s *modeGitImports) DoImport(_ context.Context, r gitimport.ImportRequest, respond func(gitimport.ImportResult)) error {
+	s.calls++
+	s.mode = r.Mode
+	revision := "mode-revision"
+	r.Target.Revision = &revision
+	source := artifacts.GitSource{RepositoryURL: r.RepositoryURL, ResolvedCommit: strings.Repeat("a", 40), ImportedAt: time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)}
+	if r.Mode == gitimport.ModeAnalysis {
+		source.Analysis = &artifacts.GitAnalysis{Policy: artifacts.GitAnalysisPolicy, ReportPath: artifacts.GitAnalysisReportPath, IncludedFiles: 1, ExcludedEntries: 1}
+	}
+	respond(gitimport.ImportResult{Artifact: r.Target, MediaType: "application/zip", Size: 1, GitSource: source})
+	return nil
+}
+
+func TestSharedGitImportModes(t *testing.T) {
+	document := loadPublicOpenAPI(t)
+	var fixture struct {
+		Cases []struct {
+			Name         string
+			Request      json.RawMessage
+			Valid        bool
+			ResolvedMode gitimport.Mode
+		}
+	}
+	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "git-import-modes.json"), &fixture); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{"/v1/artifacts/source/repository/git-import", "/v1/projects/project-1/artifacts/source/repository/git-import"} {
+		for _, test := range fixture.Cases {
+			t.Run(path+"/"+test.Name, func(t *testing.T) {
+				var value any
+				if err := json.Unmarshal(test.Request, &value); err != nil {
+					t.Fatal(err)
+				}
+				schemaErr := document.Components.Schemas["GitImportRequest"].Value.VisitJSON(value, openapi3.EnableJSONSchema2020())
+				if (schemaErr == nil) != test.Valid {
+					t.Fatalf("OpenAPI mode %s: %v", test.Name, schemaErr)
+				}
+				service := &modeGitImports{}
+				h := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil, func(d *testServices) { d.GitImports = service })
+				request := authenticatedRequest(http.MethodPost, path, bytes.NewReader(test.Request))
+				request.Header.Set("Content-Type", "application/json")
+				request.Header.Set("If-None-Match", "*")
+				response := httptest.NewRecorder()
+				h.handler.ServeHTTP(response, request)
+				if test.Valid {
+					if response.Code != 201 || service.calls != 1 || service.mode != test.ResolvedMode {
+						t.Fatalf("mode %s: %d %s, calls=%d mode=%s", test.Name, response.Code, response.Body, service.calls, service.mode)
+					}
+				} else {
+					var body errorResponse
+					json.Unmarshal(response.Body.Bytes(), &body)
+					if response.Code != 400 || service.calls != 0 || body.Code != "invalid_request" {
+						t.Fatalf("invalid mode: %d %s calls=%d", response.Code, response.Body, service.calls)
+					}
+				}
+			})
+		}
+	}
+}
+
+func TestGitAnalysisPublicationRetainsCoverage(t *testing.T) {
+	pool := isolatedPublicPool(t, t.Context())
+	ctx := artifacts.WithBlobRuntime(t.Context(), artifacts.NewBlobRuntime(artifacts.PostgresBlobStore{}, nil))
+	summary := &artifacts.GitAnalysis{Policy: artifacts.GitAnalysisPolicy, ReportPath: artifacts.GitAnalysisReportPath, IncludedFiles: 1, ExcludedEntries: 1}
+	report := []byte(`{"policy":"source-analysis-v1","resolvedCommit":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","includedFiles":1,"excluded":[{"path":"module","reason":"submodule"}]}`)
+	content := []byte("source bytes\n")
+	archive, err := sourcezip.Encode(ctx, []sourcezip.Member{
+		{Name: summary.ReportPath, Size: int64(len(report)), Write: func(w io.Writer) error { _, err := w.Write(report); return err }},
+		{Name: "source.py", Size: int64(len(content)), Write: func(w io.Writer) error { _, err := w.Write(content); return err }},
+	}, sourcezip.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := &snapshotClientFixture{fetch: func(_ context.Context, remote gitimport.Remote, _ string, mode gitimport.Mode, _ ssh.Signer) (gitimport.Snapshot, error) {
+		if mode != gitimport.ModeAnalysis {
+			t.Fatalf("client mode=%s", mode)
+		}
+		return gitimport.Snapshot{Analysis: summary, Data: archive, RepositoryURL: remote.URL, Commit: strings.Repeat("a", 40)}, nil
+	}}
+	cipher, err := credentials.NewTokenCipher(bytes.Repeat([]byte{1}, 32))
+	if err != nil {
+		t.Fatal(err)
+	}
+	importer, err := gitimport.NewImporter(pool, client, credentials.NewGitKeys(pool, cipher), gitimport.Deadline)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var result gitimport.ImportResult
+	err = importer.DoImport(ctx, gitimport.ImportRequest{Mode: gitimport.ModeAnalysis, OwnerID: "user-1", Target: artifacts.ArtifactRef{Namespace: "sources", Name: "analysis"}, RepositoryURL: "https://example.test/repo.git"}, func(r gitimport.ImportResult) { result = r })
+	if err != nil {
+		t.Fatal(err)
+	}
+	user, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).User("user-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stored, err := user.Read(ctx, result.Artifact)
+	if err != nil || !bytes.Equal(stored.Payload.Data, archive) {
+		t.Fatalf("ZIP bytes: %v", err)
+	}
+	versions, err := user.ListVersions(ctx, artifacts.ArtifactRef{Namespace: "sources", Name: "analysis"}, artifacts.VersionPageQuery{Limit: 10})
+	if err != nil || len(versions) != 1 || versions[0].GitSource == nil || !reflect.DeepEqual(versions[0].GitSource.Analysis, summary) {
+		t.Fatalf("retained analysis: %+v %v", versions, err)
 	}
 }

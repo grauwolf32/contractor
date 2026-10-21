@@ -10,10 +10,11 @@ import (
 )
 
 type GitSource struct {
-	RepositoryURL  string    `json:"repositoryUrl"`
-	RequestedRef   *string   `json:"requestedRef"`
-	ResolvedCommit string    `json:"resolvedCommit"`
-	ImportedAt     time.Time `json:"importedAt"`
+	Analysis       *GitAnalysis `json:"analysis,omitempty"`
+	RepositoryURL  string       `json:"repositoryUrl"`
+	RequestedRef   *string      `json:"requestedRef"`
+	ResolvedCommit string       `json:"resolvedCommit"`
+	ImportedAt     time.Time    `json:"importedAt"`
 }
 
 var gitCommitPattern = regexp.MustCompile(`^[0-9a-f]{40}$`)
@@ -42,10 +43,13 @@ func (r *PostgresTxRepository) RecordGitSource(ctx context.Context, scope Scope,
 	if source.RequestedRef != nil && (len(*source.RequestedRef) == 0 || len(*source.RequestedRef) > 1024 || strings.ContainsAny(*source.RequestedRef, "\x00\r\n")) {
 		return ErrArtifactIntegrity
 	}
+	if source.Analysis != nil && !source.Analysis.valid() {
+		return ErrArtifactIntegrity
+	}
 	var revisionFound, recorded bool
 	err = r.tx.QueryRow(ctx, recordGitSourceSQL,
 		scope.kind, scope.id, ref.Namespace, ref.Name, *ref.Revision,
-		source.RepositoryURL, source.RequestedRef, source.ResolvedCommit, source.ImportedAt,
+		source.RepositoryURL, source.RequestedRef, source.ResolvedCommit, source.ImportedAt, source.Analysis,
 	).Scan(&revisionFound, &recorded)
 	if err != nil {
 		return fmt.Errorf("record immutable artifact Git source: %w", err)
@@ -63,4 +67,5 @@ const gitSourceProjection = `CASE WHEN version.git_resolved_commit IS NULL THEN 
 jsonb_build_object('repositoryUrl', version.git_repository_url,
                   'requestedRef', version.git_requested_ref,
                   'resolvedCommit', version.git_resolved_commit,
-                  'importedAt', version.git_imported_at) END`
+                  'importedAt', version.git_imported_at) ||
+CASE WHEN version.git_analysis IS NULL THEN '{}'::jsonb ELSE jsonb_build_object('analysis', version.git_analysis) END END`

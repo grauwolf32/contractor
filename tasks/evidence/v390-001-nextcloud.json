@@ -1,0 +1,46 @@
+{
+  "repository": "git@github.com:nextcloud/server.git",
+  "commit": "b9759221cbbed0c07edb06f834f508eb1d0fff8c",
+  "policy": "source-analysis-v1",
+  "zip_bytes": 27780158,
+  "sha256": "ebd6fe9036b2ffdd418bf57ad6cc01a54b8bcd196c6160aa5c0d95302c2eec25",
+  "included_source_files": 11895,
+  "excluded_entries": 2310,
+  "exclusion_counts": {
+    "not_source_path": 2062,
+    "submodule": 1,
+    "symbolic_link": 238,
+    "non_utf8": 9
+  },
+  "runtime_validation": {
+    "production_runtime_reader": "passed",
+    "files_including_report": 11896,
+    "expanded_bytes": 90438288,
+    "ignored": 0,
+    "exclusions_by_reason": {
+      "not_source_path": 2062,
+      "submodule": 1,
+      "symbolic_link": 238,
+      "non_utf8": 9
+    },
+    "limits": {
+      "maxExpandedBytes": 134217728,
+      "maxFileBytes": 16777216,
+      "maxEntries": 20000
+    }
+  },
+  "transport_validation": {
+    "https_seconds": 105.451700209,
+    "ssh_seconds": 79.92299025,
+    "same_archive": true
+  },
+  "limits": {
+    "timeout_seconds": 600,
+    "received_bytes": 268435456,
+    "decoded_bytes": 536870912,
+    "expanded_bytes": 134217728,
+    "file_bytes": 16777216,
+    "tree_entries": 20000
+  },
+  "publication": "Diagnostic fetches only; no demo Artifact, Run, model setting or database row was changed. The SSH signer was obtained inside a read-only transaction."
+}

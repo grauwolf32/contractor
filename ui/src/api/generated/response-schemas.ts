@@ -102,6 +102,7 @@ export type PublicSchemaName =
   | "EvalMediaRange"
   | "EvalErrorDetails"
   | "GitKeyState"
+  | "GitAnalysis"
   | "GitSource"
   | "GitImportRequest"
   | "GitImportResult"

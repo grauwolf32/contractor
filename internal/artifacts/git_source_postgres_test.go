@@ -2,6 +2,7 @@ package artifacts_test
 
 import (
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -21,7 +22,7 @@ func TestPostgresGitProvenanceRetainsExactRunInputAndRollsBack(t *testing.T) {
 	scope, _ := UserScope("user-1")
 	user, _ := service.User("user-1")
 	var first WriteResult
-	source := GitSource{RepositoryURL: "https://example.test:443/source.git", ResolvedCommit: strings.Repeat("a", 40), ImportedAt: time.Now().UTC().Truncate(time.Microsecond)}
+	source := GitSource{Analysis: &GitAnalysis{Policy: GitAnalysisPolicy, ReportPath: GitAnalysisReportPath, IncludedFiles: 1, ExcludedEntries: 3}, RepositoryURL: "https://example.test:443/source.git", ResolvedCommit: strings.Repeat("a", 40), ImportedAt: time.Now().UTC().Truncate(time.Microsecond)}
 	write := func(name string, source GitSource, abort bool) error {
 		payload, err := PreparePayload(ctx, Payload{MediaType: "application/zip", Data: []byte("same bytes")})
 		if err != nil {
@@ -43,6 +44,11 @@ func TestPostgresGitProvenanceRetainsExactRunInputAndRollsBack(t *testing.T) {
 			first = written
 			return nil
 		})
+	}
+	invalid := source
+	invalid.Analysis = &GitAnalysis{Policy: GitAnalysisPolicy, ReportPath: GitAnalysisReportPath, IncludedFiles: 0, ExcludedEntries: 3}
+	if err := write("invalid", invalid, false); !errors.Is(err, ErrArtifactIntegrity) {
+		t.Fatalf("invalid analysis: %v", err)
 	}
 	if err := write("cancelled", source, true); err == nil {
 		t.Fatal("expected rollback")
@@ -85,6 +91,11 @@ func TestPostgresGitProvenanceRetainsExactRunInputAndRollsBack(t *testing.T) {
 	if _, err := pool.Exec(ctx, `UPDATE artifact_versions SET media_type='text/plain' WHERE git_resolved_commit IS NOT NULL`); err == nil {
 		t.Fatal("version mutation accepted")
 	}
+	for _, value := range []string{`{"policy":"bad"}`, `{"policy":"source-analysis-v1","reportPath":".contractor-import-report.json","includedFiles":1,"excludedEntries":3}`} {
+		if _, err := pool.Exec(ctx, `UPDATE artifact_versions SET git_analysis=$1 WHERE git_resolved_commit IS NOT NULL`, value); err == nil {
+			t.Fatal("analysis provenance mutation accepted")
+		}
+	}
 	// Remove only the source binding. The Run revision still references the
 	// immutable version and keeps its origin.
 	if err := postgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
@@ -109,5 +120,5 @@ func TestPostgresGitProvenanceRetainsExactRunInputAndRollsBack(t *testing.T) {
 }
 
 func sameGitSource(got *GitSource, want GitSource) bool {
-	return got.RepositoryURL == want.RepositoryURL && got.ResolvedCommit == want.ResolvedCommit && got.RequestedRef == nil && want.RequestedRef == nil && got.ImportedAt.Equal(want.ImportedAt)
+	return reflect.DeepEqual(got.Analysis, want.Analysis) && got.RepositoryURL == want.RepositoryURL && got.ResolvedCommit == want.ResolvedCommit && got.RequestedRef == nil && want.RequestedRef == nil && got.ImportedAt.Equal(want.ImportedAt)
 }

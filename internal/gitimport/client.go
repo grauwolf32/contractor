@@ -24,13 +24,14 @@ import (
 	"golang.org/x/crypto/ssh/knownhosts"
 
 	"github.com/grauwolf32/contractor/internal/apierror"
+	"github.com/grauwolf32/contractor/internal/artifacts"
 )
 
 const Deadline = 120 * time.Second
 const MaxReceivedBytes = 128 << 20
 const MaxDecodedBytes = 256 << 20
 const maxAdvertisementBytes = 4 << 20
-const maxReferences = 10000
+const maxReferences = 100000
 
 var (
 	ErrURL         = apierror.New(apierror.GitURLInvalid, "invalid Git repository URL")
@@ -193,13 +194,17 @@ func (c *Client) dial(ctx context.Context, network, address string) (net.Conn, e
 }
 
 type Snapshot struct {
+	Analysis      *artifacts.GitAnalysis
 	Data          []byte
 	RepositoryURL string
 	RequestedRef  *string
 	Commit        string
 }
 
-func (c *Client) Fetch(ctx context.Context, remote Remote, ref string, signer ssh.Signer) (Snapshot, error) {
+func (c *Client) Fetch(ctx context.Context, remote Remote, ref string, mode Mode, signer ssh.Signer) (Snapshot, error) {
+	if mode != ModeSnapshot && mode != ModeAnalysis {
+		return Snapshot{}, ErrContent
+	}
 	ctx, cancel := context.WithTimeout(ctx, c.limits.Timeout)
 	defer cancel()
 	canonical, err := ParseRemote(remote.URL)
@@ -286,11 +291,11 @@ func (c *Client) Fetch(ctx context.Context, remote Remote, ref string, signer ss
 	if err != nil {
 		return Snapshot{}, safeError(err)
 	}
-	archive, commit, err := archiveSnapshot(ctx, objects, oid, c.limits.Source)
+	archive, commit, analysis, err := archiveSnapshot(ctx, objects, oid, c.limits.Source, mode)
 	if err != nil {
 		return Snapshot{}, err
 	}
-	result := Snapshot{Data: archive, RepositoryURL: remote.URL, Commit: commit.String()}
+	result := Snapshot{Analysis: analysis, Data: archive, RepositoryURL: remote.URL, Commit: commit.String()}
 	if ref != "" {
 		result.RequestedRef = &ref
 	}

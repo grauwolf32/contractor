@@ -1551,6 +1551,54 @@ func (e GatewayFailureSignatureStatus) Valid() bool {
 	}
 }
 
+// Defines values for GitAnalysisPolicy.
+const (
+	SourceAnalysisV1 GitAnalysisPolicy = "source-analysis-v1"
+)
+
+// Valid indicates whether the value is a known member of the GitAnalysisPolicy enum.
+func (e GitAnalysisPolicy) Valid() bool {
+	switch e {
+	case SourceAnalysisV1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GitAnalysisReportPath.
+const (
+	DotContractorImportReportJson GitAnalysisReportPath = ".contractor-import-report.json"
+)
+
+// Valid indicates whether the value is a known member of the GitAnalysisReportPath enum.
+func (e GitAnalysisReportPath) Valid() bool {
+	switch e {
+	case DotContractorImportReportJson:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GitImportRequestMode.
+const (
+	Analysis GitImportRequestMode = "analysis"
+	Snapshot GitImportRequestMode = "snapshot"
+)
+
+// Valid indicates whether the value is a known member of the GitImportRequestMode enum.
+func (e GitImportRequestMode) Valid() bool {
+	switch e {
+	case Analysis:
+		return true
+	case Snapshot:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GitImportResultMediaType.
 const (
 	Applicationzip GitImportResultMediaType = "application/zip"
@@ -5421,11 +5469,29 @@ type GatewayPolicy struct {
 	TpmLimit            *int             `json:"tpmLimit,omitempty"`
 }
 
+// GitAnalysis defines model for GitAnalysis.
+type GitAnalysis struct {
+	ExcludedEntries int                   `json:"excludedEntries"`
+	IncludedFiles   int                   `json:"includedFiles"`
+	Policy          GitAnalysisPolicy     `json:"policy"`
+	ReportPath      GitAnalysisReportPath `json:"reportPath"`
+}
+
+// GitAnalysisPolicy defines model for GitAnalysis.Policy.
+type GitAnalysisPolicy string
+
+// GitAnalysisReportPath defines model for GitAnalysis.ReportPath.
+type GitAnalysisReportPath string
+
 // GitImportRequest defines model for GitImportRequest.
 type GitImportRequest struct {
-	Ref           *string `json:"ref,omitempty"`
-	RepositoryUrl string  `json:"repositoryUrl"`
+	Mode          *GitImportRequestMode `json:"mode,omitempty"`
+	Ref           *string               `json:"ref,omitempty"`
+	RepositoryUrl string                `json:"repositoryUrl"`
 }
+
+// GitImportRequestMode defines model for GitImportRequest.Mode.
+type GitImportRequestMode string
 
 // GitImportResult defines model for GitImportResult.
 type GitImportResult struct {
@@ -5448,6 +5514,7 @@ type GitKeyState struct {
 
 // GitSource defines model for GitSource.
 type GitSource struct {
+	Analysis       *GitAnalysis              `json:"analysis,omitempty"`
 	ImportedAt     time.Time                 `json:"importedAt"`
 	RepositoryUrl  string                    `json:"repositoryUrl"`
 	RequestedRef   nullable.Nullable[string] `json:"requestedRef"`

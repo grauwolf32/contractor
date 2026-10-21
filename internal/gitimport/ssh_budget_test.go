@@ -146,7 +146,7 @@ func TestSSHOversizedWireAlwaysReturnsBudget(t *testing.T) {
 	client.sshWireBudget = 128 << 10
 	for iteration := range 20 {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		_, err := client.Fetch(ctx, remote, "", owner)
+		_, err := client.Fetch(ctx, remote, "", ModeSnapshot, owner)
 		cancel()
 		if !errors.Is(err, ErrBudget) {
 			t.Fatalf("iteration %d: got %v, want ErrBudget", iteration, err)
@@ -161,7 +161,7 @@ func TestSSHOversizedWireAlwaysReturnsBudget(t *testing.T) {
 	}
 	client.allowLoopback = true
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	_, err = client.Fetch(ctx, remote, "", owner)
+	_, err = client.Fetch(ctx, remote, "", ModeSnapshot, owner)
 	cancel()
 	if !errors.Is(err, ErrBudget) {
 		t.Fatalf("production wire limit: got %v, want ErrBudget", err)
@@ -176,10 +176,10 @@ func TestSSHInvalidPackAndAuthFailureKeepTheirErrors(t *testing.T) {
 		t.Fatal(err)
 	}
 	client.allowLoopback = true
-	if _, err := client.Fetch(context.Background(), remote, "", owner); !errors.Is(err, ErrContent) {
+	if _, err := client.Fetch(context.Background(), remote, "", ModeSnapshot, owner); !errors.Is(err, ErrContent) {
 		t.Fatalf("fitting invalid pack: %v", err)
 	}
-	if _, err := client.Fetch(context.Background(), remote, "", testSSHSigner(t)); !errors.Is(err, ErrRemote) {
+	if _, err := client.Fetch(context.Background(), remote, "", ModeSnapshot, testSSHSigner(t)); !errors.Is(err, ErrRemote) {
 		t.Fatalf("genuine authentication failure: %v", err)
 	}
 }
@@ -201,7 +201,7 @@ func TestSSHHostOfferingNoPinnedKeyTypeIsUntrusted(t *testing.T) {
 	}
 	client.allowLoopback = true
 	// The genuine ECDSA pin negotiates its own type and reaches the fake pack.
-	if _, err := client.Fetch(t.Context(), remote, "", owner); !errors.Is(err, ErrContent) {
+	if _, err := client.Fetch(t.Context(), remote, "", ModeSnapshot, owner); !errors.Is(err, ErrContent) {
 		t.Fatalf("pinned ECDSA host: got %v, want ErrContent from the fake pack", err)
 	}
 	// An Ed25519 pin restricts negotiation to a type this host never offers,
@@ -210,7 +210,7 @@ func TestSSHHostOfferingNoPinnedKeyTypeIsUntrusted(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, signer := range []ssh.Signer{owner, testSSHSigner(t)} {
-		if _, err := client.Fetch(t.Context(), remote, "", signer); !errors.Is(err, ErrTrust) {
+		if _, err := client.Fetch(t.Context(), remote, "", ModeSnapshot, signer); !errors.Is(err, ErrTrust) {
 			t.Fatalf("host without the pinned key type: got %v, want ErrTrust", err)
 		}
 	}
