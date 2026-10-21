@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"go.yaml.in/yaml/v4"
 )
@@ -61,10 +62,15 @@ func (s *Snapshot) ResolveRunWorkflow(
 	patch resolved.ExecutionConfigPatch,
 	credentials resolved.CredentialLookup,
 ) (resolved.ResolvedWorkflow, error) {
+	return s.resolveRunWorkflow(ctx, raw, patch, credentials, nil)
+}
+
+func (s *Snapshot) resolveRunWorkflow(ctx context.Context, raw string, patch resolved.ExecutionConfigPatch, credentials resolved.CredentialLookup, defaults map[string]contracts.ResolvedModelPolicy) (resolved.ResolvedWorkflow, error) {
 	workflow, err := s.Workflow(raw)
 	if err != nil {
 		return resolved.ResolvedWorkflow{}, err
 	}
+	applyModelDefaults(&workflow, defaults)
 	resolver := loader{policies: s.policies, gateways: s.gateways}
 	if err := resolver.applyExecutionConfigPatch(&workflow, patch, originRunPrefix); err != nil {
 		return resolved.ResolvedWorkflow{}, err
@@ -191,6 +197,22 @@ func (l *loader) applySelection(
 		selection.ModelPolicy = policy.Clone()
 		selection.Origins.ModelPolicy = origin
 	}
+	if patch.SummarizerModelPolicy.Present {
+		selector, err := resolved.ParseSelector(patch.SummarizerModelPolicy.Value)
+		if err != nil {
+			return fmt.Errorf("summarizerModelPolicy: %w", err)
+		}
+		policy, ok := l.policies[selector.String()]
+		if !ok {
+			return fmt.Errorf("summarizerModelPolicy selects unknown ModelPolicy %q", selector)
+		}
+		if err := policy.ValidateForWorkerSummarizer(); err != nil {
+			return err
+		}
+		pinned := policy.Clone()
+		selection.SummarizerModelPolicy = &pinned
+		selection.Origins.SummarizerModelPolicy = origin
+	}
 	if patch.LLMGateway.Present {
 		selector, err := resolved.ParseSelector(patch.LLMGateway.Value)
 		if err != nil {
@@ -278,6 +300,10 @@ func executionSelectionFromYAML(
 	if err != nil {
 		return resolved.ExecutionSelectionPatch{}, err
 	}
+	summaryPolicy, err := optionalStringFromYAML(source.SummarizerModelPolicy, false, field+".summarizerModelPolicy")
+	if err != nil {
+		return resolved.ExecutionSelectionPatch{}, err
+	}
 	llmGateway, err := optionalStringFromYAML(source.LLMGateway, false, field+".llmGateway")
 	if err != nil {
 		return resolved.ExecutionSelectionPatch{}, err
@@ -287,7 +313,7 @@ func executionSelectionFromYAML(
 		return resolved.ExecutionSelectionPatch{}, err
 	}
 	result := resolved.ExecutionSelectionPatch{
-		ModelPolicy: modelPolicy, LLMGateway: llmGateway, Credential: credential,
+		ModelPolicy: modelPolicy, SummarizerModelPolicy: summaryPolicy, LLMGateway: llmGateway, Credential: credential,
 	}
 	if !result.HasAny() {
 		return resolved.ExecutionSelectionPatch{}, fmt.Errorf("%s must select at least one field", field)

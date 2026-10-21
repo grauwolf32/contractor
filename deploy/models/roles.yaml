@@ -1,0 +1,31 @@
+# Portable role budgets. Context capacity belongs to catalog/, not here.
+planner:
+  policyVersion: "2"
+  gatewayAlias: planner-model
+  maxOutputTokens: 16384
+  maxModelCalls: 200
+  maxWorkerCalls: 200
+  maxTotalTokens: 2500000
+  temperature: 0.6
+worker:
+  policyVersion: "2"
+  gatewayAlias: worker-model
+  maxOutputTokens: 32768
+  maxModelCalls: 200
+  maxToolCalls: 200
+  maxTotalTokens: 25000000
+  temperature: 0.6
+summarizer:
+  policyVersion: "1"
+  gatewayAlias: summarizer-model
+  maxOutputTokens: 8192
+  maxModelCalls: 1
+  temperature: 0.6
+audit_completion_worker:
+  policyVersion: "1"
+  gatewayAlias: audit-completion-model
+  maxOutputTokens: 4096
+  maxModelCalls: 16
+  maxToolCalls: 32
+  maxTotalTokens: 25000000
+  temperature: 0.6

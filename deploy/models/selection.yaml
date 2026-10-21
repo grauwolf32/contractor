@@ -1,0 +1,5 @@
+# Change this to a filename (without .yaml) from catalog/.
+defaultModel: glm-5.3-flash
+# Optional overrides: planner, worker, summarizer, audit_completion_worker.
+# Example: {summarizer: another-model}
+roles: {}

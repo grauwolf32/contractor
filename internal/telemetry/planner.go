@@ -42,6 +42,14 @@ type PlannerSpanAttributes struct {
 	SubtaskID    string
 	ErrorCode    string
 	PlanRevision uint64
+	ModelUsage   *PlannerModelUsage
+}
+
+// PlannerModelUsage contains per-call counts reported by the Gateway.
+type PlannerModelUsage struct {
+	InputTokens       int64
+	OutputTokens      int64
+	CachedInputTokens int64
 }
 
 type PlannerSpan interface {
@@ -188,6 +196,10 @@ func sortedUnique(values []string) []string {
 }
 
 func mergePlannerSpanAttributes(target *PlannerSpanAttributes, source PlannerSpanAttributes) {
+	if source.ModelUsage != nil {
+		usage := *source.ModelUsage
+		target.ModelUsage = &usage
+	}
 	if source.Operation != "" {
 		target.Operation = source.Operation
 	}

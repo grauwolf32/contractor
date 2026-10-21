@@ -99,6 +99,11 @@ export function page<T>(
  * operation's schema rejects.
  */
 export function emptyPageOrNotFound(request: Request, url: URL): Response {
+  if (
+    request.method === "GET" &&
+    url.pathname === "/v1/operations/settings/models"
+  )
+    return json({ configured: false, models: [] });
   const matched = operationOf(request.method, url.pathname);
   const empty = page([]);
   return matched !== undefined &&

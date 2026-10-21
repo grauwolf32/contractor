@@ -111,6 +111,10 @@ export type PublicSchemaName =
   | "RunQueueMembership"
   | "OwnerQueueControl"
   | "UpdateOwnerQueueControlRequest"
+  | "ModelProfileId"
+  | "ModelSelectionValue"
+  | "DeployedModelChoice"
+  | "ModelSelectionInfo"
   | "SchedulerSettings"
   | "UpdateSchedulerSettingsRequest"
   | "AuditActor"
@@ -489,6 +493,7 @@ export type PublicSchemaName =
   | "resumeRunResponse202"
   | "IfMatchHeader"
   | "OptionalIdempotencyKeyHeader"
+  | "RequiredModelSelectionIfMatchHeader"
   | "connectEventsWebSocketSecWebSocketProtocolHeader";
 
 /** A schema under $defs of event-schemas.json. */
@@ -1808,6 +1813,25 @@ export const RESPONSE_SCHEMAS = {
     "502": "Error",
     "503": "Error",
   },
+  "GET /v1/operations/settings/models": {
+    "200": "ModelSelectionInfo",
+    "400": "Error",
+    "401": "Error",
+    "403": "Error",
+    "500": "Error",
+    "503": "Error",
+  },
+  "PUT /v1/operations/settings/models": {
+    "200": "ModelSelectionInfo",
+    "400": "Error",
+    "401": "Error",
+    "403": "Error",
+    "412": "Error",
+    "413": "Error",
+    "415": "Error",
+    "500": "Error",
+    "503": "Error",
+  },
   "GET /v1/operations/settings/scheduler": {
     "200": "SchedulerSettings",
     "400": "Error",
@@ -2106,6 +2130,11 @@ export const REQUEST_HEADER_SCHEMAS = {
   },
   "DELETE /v1/operations/credentials/{credentialId}": {
     "Idempotency-Key": "IdempotencyKeyHeader",
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
+  },
+  "PUT /v1/operations/settings/models": {
+    "If-Match": "RequiredModelSelectionIfMatchHeader",
     Origin: "OptionalOriginHeader",
     "X-CSRF-Token": "OptionalCSRFTokenHeader",
   },

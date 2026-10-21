@@ -199,6 +199,7 @@ AllocationSpec
   complete AgentTemplate + exact ref
   exact resolvedSkills refs and package digests selected by WorkflowRun
   effective ModelPolicy + exact ref
+  optional independently resolved summarizerModelPolicy + exact ref
   exact WorkerRuntimeRef
   RuntimeSettings supplied by Control Plane
   exact lease_expires_at, deadline and resource limits
@@ -1192,6 +1193,15 @@ define the registration field rejects it as unknown (CTL-R7), so Servers are
 upgraded before Runtimes that advertise it and a rollback is coordinated. There
 is no transparent bidirectional compatibility and no fallback that hides a
 protocol error.
+
+**CTL-R154.** AllocationSpec carries the already pinned main ModelPolicy and,
+when independently selected, the complete `summarizerModelPolicy`. The latter
+requires a summary-enabled model Worker and a compatible one-shot policy.
+Runtime verifies its digest and uses it only in a private copy of the Worker
+build context; it must not mutate the digest-bearing AgentTemplate. Neither
+Runtime nor Control Plane consults current deployment defaults. Effective
+summary policy participates in credential authorization and Gateway recovery
+route tracking, alongside the main policy.
 
 ## Interfaces
 

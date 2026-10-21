@@ -44,7 +44,7 @@ func (p workflowPins) addStage(key string, stage resolved.ResolvedStage) {
 		"instructions": stage.Instructions,
 		"objective":    stage.Objective,
 	}
-	p.models[key] = stage.ExecutionConfig
+	p.models[key] = map[string]any{"executionConfig": stage.ExecutionConfig, "modelDefaults": stage.ModelDefaults}
 	p.execution[key] = stage.On
 	for agent, binding := range stage.Agents {
 		agentKey := key + "/" + agent

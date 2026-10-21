@@ -1169,6 +1169,16 @@ invent a missing journal or resolve ambiguous receipt membership.
 
 **EVM-R234.** The managed Eval contract is producer-neutral.
 
+**EVM-R238.** Native Eval preparation resolves deployment model defaults and
+explicit variant Run overrides into retained execution bindings, including
+main, summary and late Planner policies. Dispatch uses that binding rather than
+resolving mutable defaults again. It verifies that exact Workflow, profile,
+template, model and Gateway dependencies still exist unchanged and rechecks
+credentials under the ordinary execution lifecycle guard. A default-setting
+change alone does not invalidate a prepared Eval; missing or changed pinned
+catalog dependencies still fail as changed pins. Workflow and Audit members
+share this rule, so explicit A/B model choices remain comparable.
+
 ## Interfaces
 
 The public API schema is

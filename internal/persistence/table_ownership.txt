@@ -47,6 +47,7 @@ mutation_receipts                    internal/persistence/postgres    projects
 owner_queue_controls                 internal/runstore                projects
 projects                             internal/projectstore            projects
 scheduler_settings                   internal/settingsstore           projects
+model_selection_settings             internal/settingsstore           projects
 
 credential_operations                internal/credentials             secrets
 git_ssh_keys                         internal/credentials             secrets

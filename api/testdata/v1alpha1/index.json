@@ -1,6 +1,7 @@
 {
   "description": "Every private wire fixture: the message type both languages decode it as, the JSON Schema that must accept or reject it, and for invalid fixtures whether the strict decoder rejects it and the private codec error class.",
   "valid": {
+    "allocation-spec-summary-model-selection.json": {"type": "AllocationSpec", "schema": "allocation.schema.json"},
     "abort-allocation.json": {"type": "AbortAllocationRequest", "schema": "allocation.schema.json"},
     "agent-heartbeat.json": {"type": "AgentHeartbeat", "schema": "agent-heartbeat.schema.json"},
     "agent-registration-response.json": {"type": "AgentRegistrationResponse", "schema": "agent-registration-response.schema.json"},
@@ -38,6 +39,9 @@
     "workspace-capabilities.json": {"type": "WorkspaceCapabilities", "schema": "agent-registration.schema.json#/$defs/WorkspaceCapabilities"}
   },
   "invalid": {
+    "allocation-spec-summary-selection-no-summary.json": {"type": "AllocationSpec", "schema": "allocation.schema.json", "strict": true},
+    "allocation-spec-summary-selection-two-calls.json": {"type": "AllocationSpec", "schema": "allocation.schema.json", "strict": true},
+    "allocation-spec-summary-selection-null.json": {"type": "AllocationSpec", "schema": "allocation.schema.json", "strict": true},
     "agent-heartbeat-missing-allocation.json": {"type": "AgentHeartbeat", "schema": "agent-heartbeat.schema.json", "strict": true},
     "agent-registration-idle-with-allocation.json": {"type": "AgentRegistration", "schema": "agent-registration.schema.json", "strict": true},
     "agent-registration-oversized-software-version.json": {"type": "AgentRegistration", "schema": "agent-registration.schema.json", "strict": true},

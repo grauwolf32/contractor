@@ -94,6 +94,7 @@ func validateLifecycleRequest(apiVersion, allocationID, idField, idValue string,
 }
 
 type AllocationSpec struct {
+	SummarizerModelPolicy           *contracts.ResolvedModelPolicy                  `json:"summarizerModelPolicy,omitempty"`
 	CompletionContract              *contracts.WorkerCompletionContract             `json:"completionContract,omitempty"`
 	APIVersion                      string                                          `json:"apiVersion" strictjson:"required"`
 	AllocationID                    string                                          `json:"allocationId" strictjson:"required"`
@@ -154,7 +155,7 @@ func (s AllocationSpec) Validate() error {
 		return err
 	}
 	if s.AgentTemplate.IsToolWorker() {
-		if !s.ModelPolicy.IsZero() || s.RuntimeSettings.LLMGatewayURL != "" || s.RuntimeSettings.LLMGatewayToken != nil ||
+		if !s.ModelPolicy.IsZero() || s.SummarizerModelPolicy != nil || s.RuntimeSettings.LLMGatewayURL != "" || s.RuntimeSettings.LLMGatewayToken != nil ||
 			s.ResolvedRuntimeConfigProvenance.LLMGatewayConfig != nil || s.ResolvedRuntimeConfigProvenance.LLMCredential != nil || s.Workspace != nil || s.CompletionContract != nil {
 			return contracts.Invalidf("tool@1 allocation forbids model access, project workspace and completion contracts")
 		}
@@ -163,6 +164,14 @@ func (s AllocationSpec) Validate() error {
 			return contracts.Invalidf("modeled allocation requires llmGatewayUrl")
 		}
 		if err := s.ModelPolicy.ValidateForWorker(len(s.AgentTemplate.Toolsets) > 0 || len(s.AgentTemplate.Skills) > 0); err != nil {
+			return err
+		}
+	}
+	if s.SummarizerModelPolicy != nil {
+		if s.AgentTemplate.Summarizer == nil {
+			return contracts.Invalidf("summarizerModelPolicy requires an enabled summarizer")
+		}
+		if err := s.SummarizerModelPolicy.ValidateForWorkerSummarizer(); err != nil {
 			return err
 		}
 	}

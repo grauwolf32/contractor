@@ -49,6 +49,16 @@ function ConsumerConfigView({
           </>
         ) : null}
       </span>
+      {config.model === undefined ? null : (
+        <span>
+          Requested model <code>{config.model}</code>
+        </span>
+      )}
+      {config.summarizerModel === undefined ? null : (
+        <span>
+          Summarizer <code>{config.summarizerModel}</code>
+        </span>
+      )}
       {config.llmGateway === undefined ? (
         <span>Gateway resolved during Runtime placement</span>
       ) : (

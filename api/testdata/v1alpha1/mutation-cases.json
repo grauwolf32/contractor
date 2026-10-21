@@ -825,6 +825,139 @@
         "/runtimeSettings"
       ]
     },
+    "allocation-spec-summary-model-selection.json": {
+      "enum": [
+        "/agentTemplate/summarizer/modelPolicy/maxModelCalls",
+        "/apiVersion",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/kind",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/kind",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/kind",
+        "/summarizerModelPolicy/maxModelCalls",
+        "/workerSessionMode"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/logicalAgentName",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/namespace",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/llmCredential/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/credentialId",
+          "maxLength": 128
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/logicalAgentName",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/namespace",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/llmCredential/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/agentTemplate",
+        "/agentTemplate/instructions",
+        "/agentTemplate/modelPolicy",
+        "/agentTemplate/modelPolicy/ref",
+        "/agentTemplate/ref",
+        "/agentTemplate/runtime",
+        "/agentTemplate/sandboxProfile",
+        "/agentTemplate/summarizer",
+        "/agentTemplate/summarizer/modelPolicy",
+        "/agentTemplate/summarizer/modelPolicy/ref",
+        "/agentTemplate/toolsets/0",
+        "/agentTemplate/toolsets/0/ref",
+        "/modelPolicy",
+        "/modelPolicy/ref",
+        "/resolvedRuntimeConfigProvenance",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/default",
+        "/resolvedRuntimeConfigProvenance/default/config",
+        "/resolvedRuntimeConfigProvenance/llmCredential",
+        "/resolvedRuntimeConfigProvenance/llmGatewayConfig",
+        "/resolvedRuntimeConfigProvenance/runLabels/0",
+        "/resolvedRuntimeConfigProvenance/runLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2",
+        "/runtimeSettings",
+        "/summarizerModelPolicy",
+        "/summarizerModelPolicy/ref"
+      ],
+      "duplicateKey": [
+        "",
+        "/agentTemplate",
+        "/agentTemplate/instructions",
+        "/agentTemplate/modelPolicy",
+        "/agentTemplate/modelPolicy/ref",
+        "/agentTemplate/ref",
+        "/agentTemplate/runtime",
+        "/agentTemplate/sandboxProfile",
+        "/agentTemplate/summarizer",
+        "/agentTemplate/summarizer/modelPolicy",
+        "/agentTemplate/summarizer/modelPolicy/ref",
+        "/agentTemplate/toolsets/0",
+        "/agentTemplate/toolsets/0/ref",
+        "/modelPolicy",
+        "/modelPolicy/ref",
+        "/resolvedRuntimeConfigProvenance",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/default",
+        "/resolvedRuntimeConfigProvenance/default/config",
+        "/resolvedRuntimeConfigProvenance/llmCredential",
+        "/resolvedRuntimeConfigProvenance/llmGatewayConfig",
+        "/resolvedRuntimeConfigProvenance/runLabels/0",
+        "/resolvedRuntimeConfigProvenance/runLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2",
+        "/runtimeSettings",
+        "/summarizerModelPolicy",
+        "/summarizerModelPolicy/ref"
+      ]
+    },
     "allocation-spec-tool.json": {
       "enum": [
         "/agentTemplate/execution/arguments/rate_limit/source",

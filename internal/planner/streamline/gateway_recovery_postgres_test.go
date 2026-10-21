@@ -226,6 +226,25 @@ func admittedPlannerParticipant(
 	if _, err := runs.TransitionRun(ctx, runID, runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "admitted"}); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := runs.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
+		StageExecutionID: "stage-1", RunID: runID, StageName: "review", Attempt: 1,
+		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: json.RawMessage(`{}`),
+		StageContextSchemaVersion: contracts.APIVersion,
+		StageContext:              runstore.StageContextSnapshot{Parameters: map[string]string{}, Artifacts: map[string]runstore.PinnedContextArtifact{}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := runs.StartPlanner(ctx, runstore.StartPlannerParams{
+		StageExecutionID: "stage-1", SessionID: "session-1", InvocationID: "invocation-1",
+		StateSchemaVersion: contracts.APIVersion, InitialState: json.RawMessage(`{}`),
+		Reason: runstore.Reason{Code: "planner_started"},
+		RunEvent: runstore.RunEventAppend{
+			EventID: "event-started", EventSchemaVersion: contracts.APIVersion, Kind: runstore.RunEventPlannerStarted,
+			Data: json.RawMessage(`{"stageExecutionId":"stage-1","sessionId":"session-1","invocationId":"invocation-1"}`),
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
 	return service.Planner(runID, "stage-1", route, llmgateway.DefaultGatewayFailureSignatures())
 }
 

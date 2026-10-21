@@ -333,6 +333,7 @@ export const queryKeys = {
         ] as const,
     },
     schedulerSettings: ["operations", "scheduler-settings"] as const,
+    modelSelection: ["operations", "model-selection"] as const,
     runtimeConfigs: {
       all: ["operations", "runtime-configs"] as const,
       list: (cursor?: string) =>

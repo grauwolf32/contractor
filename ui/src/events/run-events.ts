@@ -74,7 +74,8 @@ export interface OperationsEventData {
     | "allocation"
     | "configuration"
     | "credential"
-    | "schedulerSettings";
+    | "schedulerSettings"
+    | "modelSelection";
   resourceId?: string;
   revision: string;
 }

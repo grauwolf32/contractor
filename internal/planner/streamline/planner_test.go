@@ -26,9 +26,11 @@ import (
 	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
+	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	"google.golang.org/adk/model"
 	adksession "google.golang.org/adk/session"
 	"google.golang.org/genai"
+	"google.golang.org/protobuf/proto"
 )
 
 type streamlineMetadataReader func(context.Context, contracts.ArtifactRef) (artifacts.Metadata, error)
@@ -158,6 +160,29 @@ func TestStreamlineCallsSingleWorkerWithStoredSubtaskAndCompleteContext(t *testi
 		t.Fatalf("Streamline telemetry export = %+v", export)
 	}
 	payload := <-telemetryPayload
+	var trace collectortracev1.ExportTraceServiceRequest
+	if err := proto.Unmarshal(payload, &trace); err != nil {
+		t.Fatal(err)
+	}
+	modelSpans := 0
+	for _, span := range trace.ResourceSpans[0].ScopeSpans[0].Spans {
+		if span.Name != string(telemetry.PlannerSpanModel) {
+			continue
+		}
+		modelSpans++
+		usage := map[string]int64{}
+		for _, attr := range span.Attributes {
+			if strings.HasPrefix(attr.Key, "gen_ai.usage.") {
+				usage[attr.Key] = attr.Value.GetIntValue()
+			}
+		}
+		if usage["gen_ai.usage.input_tokens"] != 10 || usage["gen_ai.usage.output_tokens"] != 10 {
+			t.Fatalf("per-call Planner usage: %v", usage)
+		}
+	}
+	if modelSpans != 3 {
+		t.Fatalf("model spans: %d", modelSpans)
+	}
 	for _, expected := range []telemetry.PlannerSpanName{
 		telemetry.PlannerSpanSession, telemetry.PlannerSpanModel, telemetry.PlannerSpanWorker,
 		telemetry.PlannerSpanSubtask, telemetry.PlannerSpanFinish,
@@ -839,6 +864,44 @@ func TestStreamlineStopsWhenModelCallBudgetIsExhausted(t *testing.T) {
 		sessions.completion.Failure.Code != "planner_model_call_limit" {
 		t.Fatalf("calls=%d completion=%+v", model.callCount(), sessions.completion)
 	}
+}
+
+func TestStreamlineExportsUsageFromChargedRejectedModelResponse(t *testing.T) {
+	model := &scriptedModel{fallback: func(*model.LLMRequest) (*model.LLMResponse, error) {
+		return nil, &gatewayResponseRejected{reason: "invalid response", usage: &genai.GenerateContentResponseUsageMetadata{PromptTokenCount: 30, CandidatesTokenCount: 40, TotalTokenCount: 70}}
+	}}
+	factory := mustFactory(t, newFakeSessions(), &fakeWorkerInvoker{}, &fakeInspector{}, model, Limits{})
+	invocation := testInvocation("builder")
+	adapter, payloads := streamlineTestTelemetry(t, invocation)
+	invocation.Instrumentation = adapter.Instrumentation()
+	instance, err := factory.Create(invocation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := instance.Run(t.Context()); err == nil {
+		t.Fatal("rejected response succeeded")
+	}
+	if result := adapter.Flush(t.Context()); !result.Succeeded {
+		t.Fatalf("flush: %+v", result)
+	}
+	var trace collectortracev1.ExportTraceServiceRequest
+	if err := proto.Unmarshal(<-payloads, &trace); err != nil {
+		t.Fatal(err)
+	}
+	for _, span := range trace.ResourceSpans[0].ScopeSpans[0].Spans {
+		if span.Name != string(telemetry.PlannerSpanModel) {
+			continue
+		}
+		values := map[string]int64{}
+		for _, attribute := range span.Attributes {
+			values[attribute.Key] = attribute.Value.GetIntValue()
+		}
+		if values["gen_ai.usage.input_tokens"] != 30 || values["gen_ai.usage.output_tokens"] != 40 {
+			t.Fatalf("charged failure usage: %v", values)
+		}
+		return
+	}
+	t.Fatal("missing model span")
 }
 
 func TestStreamlineStopsWhenTokenBudgetIsExceeded(t *testing.T) {

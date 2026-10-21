@@ -794,7 +794,7 @@ describe("Workflow routes", () => {
     await user.click(screen.getByText("Execution overrides", { exact: true }));
     expect(
       await screen.findAllByRole("option", { name: /worker-strong@2/ }),
-    ).toHaveLength(2);
+    ).toHaveLength(3);
     expect(paths()).not.toContain("/v1/operations/runtime-labels");
   });
 

@@ -25,9 +25,10 @@ type StageExecutionConfigPatch struct {
 // ModelPolicy, LLMGatewayConfig and credential. The catalog loader builds it
 // from YAML and resolves the references against its configuration set.
 type ExecutionSelectionPatch struct {
-	ModelPolicy OptionalString
-	LLMGateway  OptionalString
-	Credential  OptionalString
+	ModelPolicy           OptionalString
+	SummarizerModelPolicy OptionalString
+	LLMGateway            OptionalString
+	Credential            OptionalString
 }
 
 // OptionalString is one member of a patch: absent, an explicit null (which
@@ -126,6 +127,8 @@ func (p *ExecutionSelectionPatch) unmarshalJSON(data []byte, field string) error
 		switch key {
 		case "modelPolicy":
 			p.ModelPolicy, err = decodeOptionalString(raw, false, field+".modelPolicy")
+		case "summarizerModelPolicy":
+			p.SummarizerModelPolicy, err = decodeOptionalString(raw, false, field+".summarizerModelPolicy")
 		case "llmGateway":
 			p.LLMGateway, err = decodeOptionalString(raw, false, field+".llmGateway")
 		case "credential":
@@ -172,7 +175,7 @@ func decodeOptionalString(data []byte, allowNull bool, field string) (OptionalSt
 
 // HasAny reports whether the patch selects at least one member.
 func (p ExecutionSelectionPatch) HasAny() bool {
-	return p.ModelPolicy.Present || p.LLMGateway.Present || p.Credential.Present
+	return p.ModelPolicy.Present || p.SummarizerModelPolicy.Present || p.LLMGateway.Present || p.Credential.Present
 }
 
 // canonicalValue is used by public request idempotency hashing. It preserves
@@ -223,7 +226,7 @@ func (p StageExecutionConfigPatch) CanonicalValue() map[string]any {
 func (p ExecutionSelectionPatch) canonicalValue() map[string]any {
 	result := make(map[string]any)
 	for name, value := range map[string]OptionalString{
-		"modelPolicy": p.ModelPolicy, "llmGateway": p.LLMGateway, "credential": p.Credential,
+		"modelPolicy": p.ModelPolicy, "summarizerModelPolicy": p.SummarizerModelPolicy, "llmGateway": p.LLMGateway, "credential": p.Credential,
 	} {
 		if !value.Present {
 			continue

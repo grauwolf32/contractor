@@ -6,6 +6,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -19,6 +20,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 )
 
 type compositionAuditWire struct {
@@ -157,7 +159,7 @@ func TestAuditCompositionAcrossProductionProcesses(t *testing.T) {
 		}
 		beforeStages := gateway.CompletedStages()
 		gateway.blockNextRequest()
-		removeFault := installScanFault(t, h, "composition_inventory", "artifact_bindings", "INSERT", `IF NEW.scope_kind = 'project' AND NEW.name LIKE 'initial-inventory%' THEN RAISE EXCEPTION USING ERRCODE = '40001', MESSAGE = 'controlled inventory publication hold'; END IF;`)
+		removeFault := installScanFault(t, h, "composition_inventory", "artifact_bindings", "INSERT", fmt.Sprintf(`IF NEW.scope_kind = 'project' AND NEW.name LIKE 'initial-inventory%%' THEN RAISE EXCEPTION USING ERRCODE = '%s', MESSAGE = 'controlled inventory publication hold'; END IF;`, persistencepostgres.SQLStateSerializationFailure))
 		token := randomHex(t, 24)
 		control := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method != http.MethodPost || r.Header.Get("Authorization") != "Bearer "+token {

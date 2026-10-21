@@ -442,7 +442,7 @@
       "additionalProperties": false,
       "required": ["resource", "revision"],
       "properties": {
-        "resource": { "enum": ["runtimeAgent", "allocation", "configuration", "credential", "schedulerSettings"] },
+        "resource": { "enum": ["runtimeAgent", "allocation", "configuration", "credential", "schedulerSettings", "modelSelection"] },
         "resourceId": { "$ref": "#/$defs/SafeIdentifier" },
         "revision": {
           "type": "string",
@@ -453,7 +453,7 @@
       },
       "allOf": [
         {
-          "if": { "properties": { "resource": { "const": "schedulerSettings" } } },
+          "if": { "properties": { "resource": { "enum": ["schedulerSettings", "modelSelection"] } } },
           "then": { "not": { "required": ["resourceId"] } }
         }
       ]

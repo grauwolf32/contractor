@@ -350,7 +350,8 @@ def test_adk_worker_emits_content_free_model_tool_and_a2a_hooks(tmp_path: Path) 
         model_spans = [
             span for span in instrumentation.spans if span.name == "contractor.worker.model"
         ]
-        assert [span.attributes["tokens.total"] for span in model_spans] == [10, 10, 10]
+        assert [span.attributes["gen_ai.usage.input_tokens"] for span in model_spans] == [7, 7, 7]
+        assert [span.attributes["gen_ai.usage.output_tokens"] for span in model_spans] == [3, 3, 3]
         assert model_spans[-1].attributes["model.phase"] == "result_finalizer"
         assert instrumentation.spans[2].attributes["tool.name"] == "read_artifact"
         assert instrumentation.spans[0].attributes["counts.model_calls"] == 3

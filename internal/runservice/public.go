@@ -47,13 +47,17 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 	created := false
 	createPinned := func() error {
 		return s.credentialGuard.WithRunCreation(ctx, func() error {
-			workflow, resolveErr := s.workflows.ResolveRunWorkflow(
-				ctx, normalized.Workflow, normalized.ExecutionConfig, s.llmCredentials,
-			)
+			var workflow resolved.ResolvedWorkflow
+			var resolveErr error
+			if normalized.PinnedWorkflow != nil {
+				workflow, resolveErr = s.workflows.ResolvePinnedRunWorkflow(ctx, *normalized.PinnedWorkflow, s.llmCredentials)
+			} else {
+				workflow, resolveErr = s.workflows.ResolveRunWorkflow(ctx, normalized.Workflow, normalized.ExecutionConfig, s.llmCredentials)
+			}
 			if resolveErr != nil {
 				// A credential lookup outage keeps its cause so the caller can
 				// answer the retryable recovery or storage outcome.
-				if errors.Is(resolveErr, resolved.ErrCredentialLookup) {
+				if errors.Is(resolveErr, resolved.ErrCredentialLookup) || errors.Is(resolveErr, contentdigest.ErrPinnedSelectionChanged) {
 					return resolveErr
 				}
 				return fmt.Errorf("%w: invalid Workflow or executionConfig selection: %v", ErrInvalid, resolveErr)
@@ -223,6 +227,13 @@ func normalizePublicCreate(params PublicCreateParams) (PublicCreateParams, error
 	if params.OwnerID == "" || params.Workflow == "" || params.IdempotencyKey == "" ||
 		params.RequestDigest == "" || params.NewRunID == nil {
 		return PublicCreateParams{}, fmt.Errorf("%w: required public Run field is missing", ErrInvalid)
+	}
+	if params.PinnedWorkflow != nil {
+		if !contentdigest.Valid(params.ExpectedWorkflowSHA256) || params.Workflow != params.PinnedWorkflow.Ref.Name+"@"+params.PinnedWorkflow.Ref.Version {
+			return PublicCreateParams{}, ErrInvalid
+		}
+		pinned := params.PinnedWorkflow.Clone()
+		params.PinnedWorkflow = &pinned
 	}
 	labels, err := runtimeconfig.NormalizeRunLabels(params.RuntimeLabels)
 	if err != nil {

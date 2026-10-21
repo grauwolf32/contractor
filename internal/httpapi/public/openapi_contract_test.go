@@ -436,6 +436,18 @@ func TestImplementedPublicHandlersConformToOpenAPI(t *testing.T) {
 			updatedSchedulerSettings.Code, updatedSchedulerSettings.Header(), updatedSchedulerSettings.Body.String(),
 		)
 	}
+	getModels := newPublicContractRequest(http.MethodGet, "/v1/operations/settings/models", nil)
+	models := serveAndValidatePublicContract(t, router, fixture.handler, getModels, true)
+	if models.Code != http.StatusOK {
+		t.Fatalf("GET models: %d %s", models.Code, models.Body.String())
+	}
+	putModels := newPublicContractRequest(http.MethodPut, "/v1/operations/settings/models", []byte(`{"defaultModel":"fixture-b","roles":{"summarizer":"fixture-a"}}`))
+	putModels.Header.Set("Content-Type", "application/json")
+	putModels.Header.Set("If-Match", models.Header().Get("ETag"))
+	modelReplacement := serveAndValidatePublicContract(t, router, fixture.handler, putModels, true)
+	if modelReplacement.Code != http.StatusOK {
+		t.Fatalf("PUT models: %d %s", modelReplacement.Code, modelReplacement.Body.String())
+	}
 	publishConfiguration := newPublicContractRequest(
 		http.MethodPost,
 		"/v1/configurations/model-policies",

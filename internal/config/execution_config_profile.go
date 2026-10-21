@@ -196,6 +196,21 @@ func (l *loader) resolveExecutionSelectionOverride(
 		pinned := policy.Clone()
 		result.ModelPolicy = &pinned
 	}
+	if patch.SummarizerModelPolicy.Present {
+		selector, err := resolved.ParseSelector(patch.SummarizerModelPolicy.Value)
+		if err != nil {
+			return result, fmt.Errorf("summarizerModelPolicy: %w", err)
+		}
+		policy, ok := l.policies[selector.String()]
+		if !ok {
+			return result, fmt.Errorf("summarizerModelPolicy selects unknown ModelPolicy %q", selector)
+		}
+		if err := policy.ValidateForWorkerSummarizer(); err != nil {
+			return result, err
+		}
+		pinned := policy.Clone()
+		result.SummarizerModelPolicy = &pinned
+	}
 	if patch.LLMGateway.Present {
 		selector, err := resolved.ParseSelector(patch.LLMGateway.Value)
 		if err != nil {

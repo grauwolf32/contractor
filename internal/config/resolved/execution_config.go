@@ -31,6 +31,7 @@ func ResolveEscalationVariants(workflow *ResolvedWorkflow) error {
 			); err != nil {
 				return fmt.Errorf("Stage %q on.%s.escalate.executionConfig: %w", stageName, item.Outcome, err)
 			}
+			ApplyStageModelDefaults(&variantStage)
 			if err := ValidateStageExecutionConfig(stageName, variantStage); err != nil {
 				return fmt.Errorf("Stage %q on.%s.escalate.executionConfig: %w", stageName, item.Outcome, err)
 			}
@@ -72,6 +73,7 @@ func ValidateStageEscalationVariant(
 	); err != nil {
 		return fmt.Errorf("Stage %q on.%s.escalate.executionConfig: %w", stageName, outcome, err)
 	}
+	ApplyStageModelDefaults(&variantStage)
 	if err := ValidateStageExecutionConfig(stageName, variantStage); err != nil {
 		return fmt.Errorf("Stage %q on.%s.escalate.executionConfig: %w", stageName, outcome, err)
 	}
@@ -145,6 +147,14 @@ func applyResolvedExecutionSelectionOverride(
 		selection.ModelPolicy = override.ModelPolicy.Clone()
 		selection.Origins.ModelPolicy = origin
 	}
+	if override.SummarizerModelPolicy != nil {
+		if err := override.SummarizerModelPolicy.ValidateForWorkerSummarizer(); err != nil {
+			return err
+		}
+		policy := override.SummarizerModelPolicy.Clone()
+		selection.SummarizerModelPolicy = &policy
+		selection.Origins.SummarizerModelPolicy = origin
+	}
 	if override.LLMGateway != nil {
 		if err := override.LLMGateway.Validate(); err != nil {
 			return fmt.Errorf("llmGateway is invalid: %w", err)
@@ -171,7 +181,7 @@ func applyResolvedExecutionSelectionOverride(
 }
 
 func resolvedExecutionSelectionOverrideHasAny(value ResolvedExecutionSelectionOverride) bool {
-	return value.ModelPolicy != nil || value.LLMGateway != nil || value.Credential != nil
+	return value.ModelPolicy != nil || value.SummarizerModelPolicy != nil || value.LLMGateway != nil || value.Credential != nil
 }
 
 func escalationExecutionConfigOrigin(
@@ -242,6 +252,9 @@ func ValidateWorkflowExecutionConfigs(workflow ResolvedWorkflow) error {
 // its consumer: none for a model-free Planner or a tool Worker, a complete
 // model selection for every other consumer.
 func ValidateStageExecutionConfig(stageName string, stage ResolvedStage) error {
+	if err := validateModelDefaults(stage.ModelDefaults); err != nil {
+		return err
+	}
 	plannerRef := stage.Planner.PlannerID + "@" + stage.Planner.Version
 	if IsModelFreePlanner(stage.Planner) {
 		if stage.ExecutionConfig.Planner != nil {
@@ -265,7 +278,7 @@ func ValidateStageExecutionConfig(stageName string, stage ResolvedStage) error {
 		}
 		hasTools := len(binding.Template.Toolsets) > 0 || len(binding.Template.Skills) > 0
 		if binding.Template.IsToolWorker() {
-			if !selection.ModelPolicy.IsZero() || selection.LLMGateway != nil || selection.Credential != nil || selection.Origins != (ExecutionConfigOrigins{}) {
+			if !selection.ModelPolicy.IsZero() || selection.SummarizerModelPolicy != nil || selection.LLMGateway != nil || selection.Credential != nil || selection.Origins != (ExecutionConfigOrigins{}) {
 				return fmt.Errorf("tool@1 does not accept model execution configuration")
 			}
 			if stage.Context.Workspace != nil {
@@ -275,6 +288,19 @@ func ValidateStageExecutionConfig(stageName string, stage ResolvedStage) error {
 		}
 		if err := validateConsumerExecutionConfig(selection, false, hasTools); err != nil {
 			return fmt.Errorf("Stage %q Agent %q executionConfig: %w", stageName, logicalName, err)
+		}
+		if selection.SummarizerModelPolicy != nil {
+			if binding.Template.Summarizer == nil {
+				return fmt.Errorf("summarizerModelPolicy requires an enabled summarizer")
+			}
+			if err := selection.SummarizerModelPolicy.ValidateForWorkerSummarizer(); err != nil {
+				return err
+			}
+			if strings.TrimSpace(selection.Origins.SummarizerModelPolicy) == "" {
+				return fmt.Errorf("summarizerModelPolicy origin is required")
+			}
+		} else if selection.Origins.SummarizerModelPolicy != "" {
+			return fmt.Errorf("absent summarizerModelPolicy must not have an origin")
 		}
 		if binding.Template.Summarizer != nil {
 			if err := binding.Template.Summarizer.Validate(selection.ModelPolicy); err != nil {
@@ -292,6 +318,9 @@ func validateConsumerExecutionConfig(
 ) error {
 	var err error
 	if planner {
+		if selection.SummarizerModelPolicy != nil {
+			return fmt.Errorf("Planner forbids summarizerModelPolicy")
+		}
 		err = ValidatePlannerModelPolicy(selection.ModelPolicy)
 	} else {
 		err = selection.ModelPolicy.ValidateForWorker(hasTools)

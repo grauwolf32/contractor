@@ -20,6 +20,7 @@ from google.adk.models.llm_response import LlmResponse
 from pydantic import PrivateAttr
 
 from contractor_runtime.adapters.content import capture_span_content, model_request_content
+from contractor_runtime.adapters.genai import usage_attributes
 from contractor_runtime.adapters.instrumentation import RuntimeInstrumentation
 from contractor_runtime.contracts import (
     ResolvedModelPolicy,
@@ -68,6 +69,11 @@ class _OneShotModel(OneShotModel):
     """Delegate exactly one model operation while retaining only numeric usage."""
 
     _usage: SummarizerUsage = PrivateAttr(default_factory=SummarizerUsage)
+    _telemetry_usage: dict[str, int] = PrivateAttr(default_factory=dict)
+
+    @property
+    def telemetry_usage(self) -> dict[str, int]:
+        return dict(self._telemetry_usage)
 
     @property
     def usage(self) -> SummarizerUsage:
@@ -80,6 +86,7 @@ class _OneShotModel(OneShotModel):
 
     def _record_usage(self, usage_metadata: Any | None) -> None:
         self._usage = _usage_projection(usage_metadata)
+        self._telemetry_usage = usage_attributes(usage_metadata)
 
     async def generate_content_async(
         self, llm_request: LlmRequest, stream: bool = False
@@ -90,7 +97,7 @@ class _OneShotModel(OneShotModel):
         except Exception as error:
             # A received response rejected by the Gateway adapter spent tokens.
             if getattr(error, "response_received", False) is True:
-                self._usage = _usage_projection(getattr(error, "usage_metadata", None))
+                self._record_usage(getattr(error, "usage_metadata", None))
             raise
 
 
@@ -268,7 +275,7 @@ class TerminalSummarizer:
             finally:
                 with contextlib.suppress(Exception):
                     if span is not None:
-                        span.end(outcome=outcome)
+                        span.end(outcome=outcome, attributes=self._model.telemetry_usage)
 
 
 def build_summarizer_prompt(

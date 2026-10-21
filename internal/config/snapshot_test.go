@@ -127,6 +127,8 @@ func TestSnapshotAccessorResultsShareNoMemoryWithSnapshot(t *testing.T) {
 		record("Workflow", selector, workflow, err)
 		runWorkflow, err := snapshot.ResolveRunWorkflow(t.Context(), selector, resolved.ExecutionConfigPatch{}, credentials)
 		record("ResolveRunWorkflow", selector, runWorkflow, err)
+		pinnedWorkflow, err := snapshot.ResolvePinnedRunWorkflow(t.Context(), runWorkflow, credentials)
+		record("ResolvePinnedRunWorkflow", selector, pinnedWorkflow, err)
 		for _, stage := range workflow.Stages {
 			instructionRefs[stage.Instructions.Ref] = struct{}{}
 		}
@@ -144,6 +146,10 @@ func TestSnapshotAccessorResultsShareNoMemoryWithSnapshot(t *testing.T) {
 		selector := listed.Ref.Name + "@" + listed.Ref.Version
 		profile, err := snapshot.AuditProfile(selector)
 		record("AuditProfile", selector, profile, err)
+		profile, err = snapshot.ResolveAuditProfile(t.Context(), selector)
+		record("ResolveAuditProfile", selector, profile, err)
+		profile, err = snapshot.ResolvePinnedAuditProfile(t.Context(), profile)
+		record("ResolvePinnedAuditProfile", selector, profile, err)
 	}
 
 	if len(profiles) == 0 || len(selectors[ConfigurationExecutionConfigs]) < 2 {

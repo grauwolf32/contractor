@@ -11,14 +11,15 @@ fmt:
 # tools/testonlyexports is its own module (it pins golang.org/x/tools), so the
 # root go vet does not reach it; it fails on an exported identifier that only
 # tests reference, beyond the entries of its baseline (AGENTS.md 3.7).
-lint: generate-public-client-check docs-dependencies-check ui-gates
+lint: generate-public-client-check docs-dependencies-check model-config-check ui-gates
 	test -z "$$(gofmt -l cmd internal tests tools)"
 	go vet ./...
 	go run honnef.co/go/tools/cmd/staticcheck@v0.8.1 -checks U1000 -tests -tags=e2e,integration ./...
 	go -C tools/testonlyexports vet ./...
 	go -C tools/testonlyexports test -count=1 ./...
 	go -C tools/testonlyexports run . -tags=integration,e2e -baseline tools/testonlyexports/baseline.txt "$(CURDIR)"
-	python3 -m unittest discover -s scripts -p 'test_*.py'
+	cd runtime && uv run python -m unittest discover -s ../scripts -p 'test_*.py'
+	sh deploy/phoenix/test-run.sh
 	python3 scripts/check_release_verify_graph.py
 	cd runtime && uv run python ../scripts/check_tasks.py
 	python3 scripts/check_spec.py
@@ -103,3 +104,12 @@ verify-public-api-postgres: require-database
 run-local:
 	go run ./cmd/contractor-server migrate
 	go run ./cmd/contractor-server serve --operator-config-root ./configs/e2e
+
+.PHONY: model-config model-config-check
+
+# Compile model selection once into both existing consumer contracts.
+model-config:
+	cd runtime && uv run python ../scripts/generate_model_config.py
+
+model-config-check:
+	cd runtime && uv run python ../scripts/generate_model_config.py --check

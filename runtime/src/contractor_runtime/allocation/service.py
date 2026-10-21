@@ -320,7 +320,14 @@ class AllocationService:
                         a2a_base_url=self._a2a_base_url,
                         runtime_settings=spec.runtime_settings,
                         sensitive_output_tools=self._factories.sensitive_output_tools,
-                        summarizer=spec.agent_template.summarizer,
+                        summarizer=(
+                            spec.agent_template.summarizer.model_copy(
+                                update={"model_policy": spec.summarizer_model_policy}
+                            )
+                            if spec.summarizer_model_policy is not None
+                            and spec.agent_template.summarizer is not None
+                            else spec.agent_template.summarizer
+                        ),
                         completion_contract=spec.completion_contract,
                         adapter_handles=adapter_host.handles.for_worker(),
                         resolved_skills=tuple(spec.resolved_skills),

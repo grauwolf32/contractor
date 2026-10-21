@@ -619,6 +619,44 @@ contains:
 How the independently deployed UI handles the setting without guessing an
 effective value is [SCH-R144](../execution/scheduler.md).
 
+### Model selection
+
+**OPS-R223.** The optional compiled deployment catalog exposes all deployed
+models and their compatible role policies. `GET /v1/operations/settings/models`
+returns whether the facility is configured, safe capabilities and policy
+selectors, and the saved selection, revision, catalog digest and update time.
+An absent catalog returns `configured: false` and an empty list. It does not
+invent model capabilities or call a provider. Collection and identifier bounds
+are [LIM-CAT-6](../platform/limits.md), [LIM-CAT-10](../platform/limits.md) and
+[LIM-CAT-11](../platform/limits.md).
+
+**OPS-R224.** PostgreSQL owns one current default model plus optional Planner,
+Worker, summarizer and Audit completion overrides. Startup initializes an absent
+row from `model-selection.json` once; restarting with changed bootstrap selection
+must not replace saved operator choices. Every selected effective role must have
+a deployed compatible policy. Unknown or incompatible saved selection rejects
+startup, rather than silently choosing another model. The singleton has no
+delete API and its database row cannot be deleted.
+
+**OPS-R225.** `PUT /v1/operations/settings/models` replaces the whole selection
+using one strong `If-Match` binding both revision and catalog digest. Missing or
+malformed preconditions and invalid choices return `400`; stale revision or
+catalog returns `412`. No-op replacement with the current precondition keeps
+revision and timestamp. One semantic change increments revision exactly once;
+concurrent replacements have one winner. Database conflicts follow the public
+`503 storage_transaction_conflict` contract. GET reconciles an ambiguous response;
+no retry performs inference, provisions credentials or edits Gateway routes.
+Successful changes invalidate the `modelSelection` Operations resource.
+
+**OPS-R226.** Operations Settings lets the operator choose a default and each
+role override from the complete bounded catalog. It displays server-confirmed
+saved selection and context capacity, collapses optional role overrides, shows
+a concrete unsaved-change preview, preserves unsaved edits during refresh,
+and reports stale conflicts with an explicit reload action. It never claims a
+save before the Server confirms it. Defaults apply at execution resolution under
+[TPL-R111](../configuration/agent-templates.md); existing Runs, Audit drafts and
+prepared Evals retain their pinned model choices.
+
 ### Performance metrics
 
 #### Scope and ownership
@@ -1284,6 +1322,18 @@ Rationale: [Go HTTP profiling](https://pkg.go.dev/net/http/pprof) defines the
 standard diagnostic transport and on-demand profiles;
 [Go diagnostics](https://go.dev/doc/diagnostics) describes profiling overhead.
 
+### Optional local trace viewer
+
+**OPS-R219.** The optional local trace-viewer profile uses one digest-pinned
+Phoenix container with SQLite state bind-mounted below `.local/phoenix` and
+its HTTP UI/OTLP port published only on loopback. Explicit startup reuses its
+named container and bounds readiness probes; stop removes only that container
+and retains the data directory. The profile does not modify PostgreSQL, live
+RuntimeConfig bindings or exporter semantics. The collector projects the
+standard GenAI attributes of [OBS-R59](../platform/observability.md) into its
+native LLM views; the exporters contain no collector-specific mapping. See the
+[operator guide](../../../deploy/phoenix/README.md).
+
 ## Interfaces
 
 ### Operations API
@@ -1294,6 +1344,7 @@ the conventions of [Public API](../api/public-api.md).
 
 | Resource | Methods | Rules |
 | --- | --- | --- |
+| `/v1/operations/settings/models` | `GET`, `PUT` | OPS-R223 to OPS-R226 |
 | `/v1/operations/settings/scheduler` | `GET`, `PUT` | OPS-R53 to OPS-R63 |
 | `/v1/operations/performance` | `GET` | OPS-R164 |
 | `/v1/operations/performance/history` | `GET` | OPS-R165 to OPS-R167 |

@@ -427,10 +427,13 @@ type stageExecutionConfigResponse struct {
 }
 
 type consumerExecutionConfigRefsResponse struct {
-	ModelPolicy contracts.ModelPolicyRef        `json:"modelPolicy,omitzero"`
-	LLMGateway  *llmgateway.LLMGatewayConfigRef `json:"llmGateway,omitempty"`
-	Credential  *llmgateway.LLMCredentialRef    `json:"credential,omitempty"`
-	Origins     resolved.ExecutionConfigOrigins `json:"origins"`
+	Model                 string                          `json:"model,omitempty"`
+	SummarizerModelPolicy *contracts.ModelPolicyRef       `json:"summarizerModelPolicy,omitempty"`
+	SummarizerModel       string                          `json:"summarizerModel,omitempty"`
+	ModelPolicy           contracts.ModelPolicyRef        `json:"modelPolicy,omitzero"`
+	LLMGateway            *llmgateway.LLMGatewayConfigRef `json:"llmGateway,omitempty"`
+	Credential            *llmgateway.LLMCredentialRef    `json:"credential,omitempty"`
+	Origins               resolved.ExecutionConfigOrigins `json:"origins"`
 }
 
 // consumerExecutionConfigRefs projects the execution configuration one
@@ -440,7 +443,13 @@ func consumerExecutionConfigRefs(
 ) consumerExecutionConfigRefsResponse {
 	result := consumerExecutionConfigRefsResponse{
 		ModelPolicy: selection.ModelPolicy.Ref,
+		Model:       selection.ModelPolicy.Model,
 		Origins:     selection.Origins,
+	}
+	if selection.SummarizerModelPolicy != nil {
+		ref := selection.SummarizerModelPolicy.Ref
+		result.SummarizerModelPolicy = &ref
+		result.SummarizerModel = selection.SummarizerModelPolicy.Model
 	}
 	if selection.LLMGateway != nil {
 		gateway := selection.LLMGateway.Ref

@@ -1,0 +1,7 @@
+# Operating capacity, kept below the smallest OpenRouter provider window.
+model: openrouter/z-ai/glm-5.3-flash
+apiBase: https://openrouter.ai/api/v1
+apiKeyEnv: OPENROUTER_API_KEY
+contextWindowTokens: 1000000
+# Conservative ceiling across OpenRouter endpoints; role limits are lower.
+maxOutputTokens: 128000

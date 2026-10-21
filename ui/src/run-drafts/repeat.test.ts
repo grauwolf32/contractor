@@ -24,7 +24,11 @@ const response: RunRepeatDraftResponse = {
       status: "available",
       value: {
         planner: { modelPolicy: "planner@2", credential: null },
-        workers: { llmGateway: "local@1", credential: "worker-budget" },
+        workers: {
+          llmGateway: "local@1",
+          credential: "worker-budget",
+          summarizerModelPolicy: "summary-fixture@1",
+        },
         stages: {
           inspect: {
             agents: { reviewer: { modelPolicy: "reviewer@3" } },
@@ -94,6 +98,7 @@ describe("repeat Run drafts", () => {
         credential: "__none__",
       },
       workers: {
+        summarizerModelPolicy: "summary-fixture@1",
         llmGateway: "local@1",
         credential: "worker-budget",
       },

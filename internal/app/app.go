@@ -20,6 +20,7 @@ import (
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/settingsstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
@@ -172,6 +173,9 @@ func runCLI(
 	configurationManager, bundles, err := loadServerConfiguration(cfg.OperatorConfigRoot, cfg.ManagedConfigRoot, logger)
 	if err != nil {
 		return fmt.Errorf("load configuration: %w", err)
+	}
+	if err := configurationManager.ConfigureModelSelection(ctx, settingsstore.NewPostgresStore(pool)); err != nil {
+		return fmt.Errorf("configure deployment model selection: %w", err)
 	}
 	credentialSet, err := configureCredentials(ctx, pool, configurationManager, cfg)
 	if err != nil {

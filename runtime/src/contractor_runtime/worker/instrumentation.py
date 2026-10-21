@@ -13,6 +13,7 @@ from google.adk.plugins import BasePlugin
 
 from contractor_runtime.adapters import RuntimeInstrumentation, RuntimeSpan, TelemetryAttribute
 from contractor_runtime.adapters.content import capture_span_content, model_request_content
+from contractor_runtime.adapters.genai import usage_attributes
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.llm.response import output_limit_reached
 from contractor_runtime.observations import WorkspaceToolObservation
@@ -224,7 +225,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
             capture_span_content(span, output=lambda: llm_response.content)
             self._metrics.record_model_usage(usage)
             self._require_reducer().record_model_usage(usage)
-            attributes = _usage_attributes(usage)
+            attributes = usage_attributes(usage)
             limited = output_limit_reached(llm_response)
             if limited:
                 attributes["error.type"] = "OutputTokenLimitExceeded"
@@ -255,7 +256,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
                     outcome="failed",
                     attributes={
                         "error.type": _safe_error_type(error),
-                        **_usage_attributes(usage),
+                        **usage_attributes(usage),
                     },
                 )
                 self._metrics.record_model_error(error)
@@ -301,7 +302,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
             _end_span(
                 span,
                 outcome="succeeded",
-                attributes={"model.phase": phase, **_usage_attributes(usage)},
+                attributes={"model.phase": phase, **usage_attributes(usage)},
             )
             try:
                 budget = self._budget()
@@ -343,7 +344,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
                         attributes={
                             "error.type": _safe_error_type(safe_error),
                             "model.phase": phase,
-                            **_usage_attributes(usage),
+                            **usage_attributes(usage),
                         },
                     )
                     self._metrics.record_model_error(safe_error)
@@ -777,19 +778,3 @@ def _rejected_response_usage(error: BaseException) -> tuple[bool, Any | None]:
     if getattr(error, "response_received", False) is not True:
         return False, None
     return True, getattr(error, "usage_metadata", None)
-
-
-def _usage_attributes(usage: Any | None) -> dict[str, int]:
-    if usage is None:
-        return {}
-    result: dict[str, int] = {}
-    for source, target in (
-        ("prompt_token_count", "tokens.input"),
-        ("candidates_token_count", "tokens.output"),
-        ("total_token_count", "tokens.total"),
-        ("cached_content_token_count", "tokens.cached_input"),
-    ):
-        value = getattr(usage, source, None)
-        if isinstance(value, int) and value >= 0:
-            result[target] = value
-    return result

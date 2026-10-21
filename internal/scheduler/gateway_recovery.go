@@ -28,8 +28,8 @@ func reservationModelRoutes(ownerID string, reservation controlplane.Reservation
 		route.TransportDigest = hex.EncodeToString(digest[:])
 	}
 	routes := []gatewayrecovery.Route{route}
-	if summarizer := reservation.AgentTemplate.Summarizer; summarizer != nil && summarizer.ModelPolicy.Model != route.Model {
-		route.Model = summarizer.ModelPolicy.Model
+	if summarizer := resolved.SummarizerModelPolicy; summarizer != nil && summarizer.Model != route.Model {
+		route.Model = summarizer.Model
 		routes = append(routes, route)
 	}
 	return routes

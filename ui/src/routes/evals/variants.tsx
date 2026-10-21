@@ -76,6 +76,15 @@ function ExecutionOverrides({
                 title: "Model policy",
                 choices: inventory.data?.models,
               },
+              ...(role === "workers"
+                ? [
+                    {
+                      field: "summarizerModelPolicy" as const,
+                      title: "Summarizer model policy",
+                      choices: inventory.data?.models,
+                    },
+                  ]
+                : []),
               {
                 field: "llmGateway",
                 title: "Gateway",
