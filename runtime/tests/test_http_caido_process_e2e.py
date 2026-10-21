@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+import pytest
 from fakes.model import scripted_model, text_result, tool_call
 from fakes.spec import allocation_spec
 from test_text_artifacts_toolset import MemoryArtifactClient
@@ -368,3 +369,107 @@ class MockCaidoAdapterFactory:
         )
         self.adapters.append(adapter)
         return adapter
+
+
+@pytest.mark.parametrize("proxy", [False, True])
+def test_cookie_login_survives_finalized_allocation_replacement(
+    tmp_path: Path, proxy: bool
+) -> None:
+    """Exercise prepare/ready/finalize/release/confirm/prepare with a fresh Worker."""
+
+    async def scenario() -> None:
+        artifacts = MemoryArtifactClient()
+        calls: list[httpx.Request] = []
+
+        def target(request: httpx.Request) -> httpx.Response:
+            calls.append(request)
+            if request.url.path == "/login":
+                return httpx.Response(201, headers={"set-cookie": "sid=target-session; Path=/"})
+            return httpx.Response(
+                200 if request.headers.get("cookie") == "sid=target-session" else 401
+            )
+
+        base = built_in_factories(
+            tmp_path / "work",
+            artifact_client_factory=lambda *_: artifacts,
+            model_factory=lambda _: scripted_model([text_result("ready")]),
+            enabled_runtime_adapters=[],
+        )
+        from contractor_runtime.toolsets.http.tools import HTTPToolsetFactory
+
+        base.toolsets["http-tools@1"] = HTTPToolsetFactory(
+            lambda: httpx.AsyncClient(transport=httpx.MockTransport(target), trust_env=False),
+            artifact_client_factory=lambda *_: artifacts,
+        )
+        adapter = MockHTTPProxyAdapterFactory(target)
+        factories = FactoryRegistry(
+            worker_runtimes=base.worker_runtimes,
+            toolsets=base.toolsets,
+            sandbox_profiles=base.sandbox_profiles,
+            runtime_adapters={adapter.ref: adapter},
+            artifact_client_factory=base.artifact_client_factory,
+        )
+        capabilities = CapabilitySnapshot.create(
+            runtimes=factories.worker_runtimes,
+            toolsets={ref: factory.exported_tools for ref, factory in factories.toolsets.items()},
+            sandbox_profiles=factories.sandbox_profiles,
+            runtime_adapters=factories.runtime_adapters,
+        )
+        state = RuntimeState(instance_id="runtime-cookie-replacement")
+        await state.mark_registered()
+        service = AllocationService(
+            state, factories, capabilities, a2a_base_url="https://runtime.example"
+        )
+        spec = http_caido_spec()
+        spec.agent_template.toolsets = [
+            ToolsetSelection(
+                ref=ToolsetRef(toolsetId="http-tools", version="1"),
+                tools=["http_request", "http_session_get"],
+            )
+        ]
+        spec.runtime_settings.caido = None
+        if not proxy:
+            spec.runtime_settings.http_proxy = None
+        spec.resolved_runtime_config_provenance.runtime_adapters = ["http-proxy@1"] if proxy else []
+        spec.agent_template.ref.digest = _agent_template_digest(spec.agent_template)
+
+        async def finish(allocation: str) -> None:
+            await service.finalize(
+                FinalizeAllocationRequest(
+                    apiVersion=API_VERSION,
+                    allocationId=allocation,
+                    finalizationId="finish-" + allocation,
+                    deadline=datetime.now(UTC) + timedelta(seconds=3),
+                )
+            )
+            await service.release(
+                ReleaseAllocationRequest(apiVersion=API_VERSION, allocationId=allocation)
+            )
+            await service.confirm_release(allocation)
+
+        await service.prepare(spec)
+        first = service._context
+        assert first is not None
+        assert (await first.tools["http_request"]("https://target.example/login", method="POST"))[
+            "status"
+        ] == 201
+        await finish(spec.allocation_id)
+        spec = spec.model_copy(
+            deep=True,
+            update={
+                "allocation_id": "allocation-cookie-replacement",
+                "stage_execution_id": "stage-cookie-replacement",
+            },
+        )
+        await service.prepare(spec)
+        second = service._context
+        assert second is not None and second is not first and second.worker is not first.worker
+        assert (await second.tools["http_session_get"]())["cookie_names"] == ["sid"]
+        assert (await second.tools["http_request"]("https://target.example/private"))[
+            "status"
+        ] == 200
+        assert len(calls) == 2
+        await finish(spec.allocation_id)
+        assert (await state.snapshot()).process_state is ProcessState.IDLE
+
+    asyncio.run(scenario())

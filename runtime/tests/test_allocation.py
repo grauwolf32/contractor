@@ -46,6 +46,7 @@ from contractor_runtime.factories import (
 )
 from contractor_runtime.state import ProcessState, RuntimeState
 from contractor_runtime.telemetry.resources import ProcessReading, ResourceCollector
+from contractor_runtime.toolsets.http.errors import HTTPToolError
 from contractor_runtime.toolsets.security_findings.collection import FindingsError
 from contractor_runtime.workspace import AllocationWorkspace, LocalWorkdirFactory
 
@@ -301,13 +302,15 @@ def test_prepare_failure_rolls_back_workspace_tools_and_slot(
     [
         (FindingsError("findings_document_conflict"), 422),
         (FindingsError("findings_collection_unavailable", retryable=True), 503),
+        (HTTPToolError("http_cookie_state_invalid"), 422),
+        (HTTPToolError("http_cookie_storage_unavailable"), 503),
     ],
-    ids=["conflict", "transient"],
+    ids=["conflict", "transient", "cookie-invalid", "cookie-storage"],
 )
 def test_prepare_keeps_findings_error_code_and_retryability(
     tmp_path: Path,
     runtime_capabilities: CapabilitySnapshot,
-    error: FindingsError,
+    error: FindingsError | HTTPToolError,
     status_code: int,
 ) -> None:
     class FindingsToolsetFactory(RunArtifactsToolsetFactory):
@@ -334,7 +337,11 @@ def test_prepare_keeps_findings_error_code_and_retryability(
             await service.prepare(make_spec())
         assert failure.value.payload() == {
             "code": error.code,
-            "message": f"allocation findings preparation failed ({error.code})",
+            "message": (
+                f"allocation findings preparation failed ({error.code})"
+                if isinstance(error, FindingsError)
+                else f"allocation HTTP preparation failed ({error.code})"
+            ),
             "retryable": error.retryable,
         }
         assert failure.value.status_code == status_code

@@ -8,6 +8,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from http_cookie_store import HTTPToolsetFactory
 from test_caido_read_tools import FakeArtifactClient, close_tools, create_tools, request_detail
 from test_http_toolset import close_tools as close_http_tools
 from test_http_toolset import make_tools
@@ -27,7 +28,7 @@ from contractor_runtime.core.target_policy import (
 )
 from contractor_runtime.factories import built_in_factories
 from contractor_runtime.toolsets.caido.tools import CaidoToolError, CaidoToolsetFactory
-from contractor_runtime.toolsets.http.tools import HTTPToolError, HTTPToolsetFactory
+from contractor_runtime.toolsets.http.tools import HTTPToolError
 
 
 async def _unresolved(_host: str, _port: int):

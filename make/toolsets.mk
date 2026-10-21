@@ -16,7 +16,7 @@
 	test-agent-skills-mvp test-agent-skills-hardening \
 	test-agent-skills-packaging test-shared-memory-matrix \
 	test-shared-memory-faults test-shared-memory-hardening \
-	test-http-caido-matrix test-http-caido-runtime \
+	test-http-caido-matrix test-http-caido-runtime test-http-cookie-store \
 	test-http-caido-architecture test-http-caido-hardening \
 	test-shared-memory-e2e test-production-memory-e2e test-http-caido-e2e \
 	test-scan-e2e
@@ -118,11 +118,14 @@ test-shared-memory-hardening: test-shared-memory-matrix test-memory-contracts te
 test-http-caido-matrix: test-hardening-matrices
 
 test-http-caido-runtime:
-	cd runtime && uv run pytest -W error tests/test_http_caido_security.py tests/test_http_caido_concurrency.py tests/test_http_caido_redaction.py tests/test_http_toolset.py tests/test_http_toolset_lifecycle.py tests/test_http_proxy_adapter.py tests/test_caido_adapter.py tests/test_caido_graphql_fixtures.py tests/test_caido_read_tools.py tests/test_caido_action_tools.py tests/test_adapter_host.py tests/test_sensitive_output_tools.py
+	cd runtime && uv run pytest -W error tests/test_http_caido_security.py tests/test_http_caido_concurrency.py tests/test_http_caido_redaction.py tests/test_http_toolset.py tests/test_http_toolset_lifecycle.py tests/test_http_cookie_session.py tests/test_http_caido_process_e2e.py tests/test_http_proxy_adapter.py tests/test_caido_adapter.py tests/test_caido_graphql_fixtures.py tests/test_caido_read_tools.py tests/test_caido_action_tools.py tests/test_adapter_host.py tests/test_sensitive_output_tools.py
 
 test-http-caido-architecture: verify-architecture
 
-test-http-caido-hardening: test-http-caido-matrix test-http-caido-runtime test-http-caido-architecture test-http-caido-e2e
+test-http-cookie-store: require-database runtime-venv
+	$(call run-family-test,go test -tags=integration -count=1 ./internal/httpapi/privateartifacts)
+
+test-http-caido-hardening: test-http-cookie-store test-http-caido-matrix test-http-caido-runtime test-http-caido-architecture test-http-caido-e2e
 
 test-shared-memory-e2e: require-database runtime-venv
 	$(call run-family-test,go test -tags=e2e -count=1 -timeout=5m ./tests/e2e -run '^TestMemoryMVPProcesses$$')

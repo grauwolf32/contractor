@@ -632,7 +632,7 @@ func putArtifactForAllocation(
 
 func newProductionGrantHandler(
 	t *testing.T,
-	repository *memoryRepository,
+	repository artifacts.Repository,
 ) (http.Handler, *controlplane.InMemoryRegistry, string, string, controlplane.BindingRequirement) {
 	t.Helper()
 	sequence := 0

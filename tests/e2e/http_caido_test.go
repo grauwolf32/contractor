@@ -249,7 +249,7 @@ func TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses(t *testing.T) {
 	assertHTTPCaidoReport(
 		t, operations, publicClient, publicBaseURL, httpInitialStatus, "report", httpCaidoHTTPReport,
 	)
-	assertHTTPInspectionHasNoAutomaticArtifacts(t, operations, httpInitial.RunID)
+	assertHTTPInspectionRetainsOnlyReportAndCookies(t, operations, httpInitial.RunID)
 
 	oldRun := createHTTPCaidoRun(
 		operations, "security-analysis@4", "http-caido-old-run", "target.example",
@@ -295,7 +295,7 @@ func TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses(t *testing.T) {
 	assertHTTPCaidoReport(
 		t, operations, publicClient, publicBaseURL, httpUnrelatedStatus, "report", httpCaidoHTTPReport,
 	)
-	assertHTTPInspectionHasNoAutomaticArtifacts(t, operations, httpUnrelated.RunID)
+	assertHTTPInspectionRetainsOnlyReportAndCookies(t, operations, httpUnrelated.RunID)
 
 	releaseProxy.allowReleaseAcknowledgement()
 	waitForObservedRuntimeAgents(
@@ -474,7 +474,7 @@ func assertHTTPCaidoReport(
 	operations.evidence = append(operations.evidence, append([]byte(nil), data...))
 }
 
-func assertHTTPInspectionHasNoAutomaticArtifacts(
+func assertHTTPInspectionRetainsOnlyReportAndCookies(
 	t *testing.T,
 	operations *runtimeOperations,
 	runID string,
@@ -494,11 +494,23 @@ func assertHTTPInspectionHasNoAutomaticArtifacts(
 	if err := json.Unmarshal(data, &page); err != nil {
 		t.Fatal(err)
 	}
-	if len(page.Items) != 1 || page.Items[0].Ref.Namespace != "http" ||
-		page.Items[0].Ref.Name != "report" || page.Items[0].Ref.Revision == nil ||
-		page.Items[0].MediaType != "text/markdown" {
-		t.Fatalf("Run %s retained unselected HTTP traffic instead of only its report: %+v", runID, page.Items)
+	if len(page.Items) != 2 {
+		t.Fatalf("Run retained %d bindings, want report and cleared cookie jar", len(page.Items))
 	}
+	expected := map[string]string{
+		"report":              "text/markdown",
+		"http-cookie-session": "application/vnd.contractor.http-cookie-session+json",
+	}
+	for _, item := range page.Items {
+		if item.Ref.Namespace != "http" || item.Ref.Revision == nil || expected[item.Ref.Name] != item.MediaType {
+			t.Fatalf("Run retained unexpected HTTP binding: %+v", item)
+		}
+		delete(expected, item.Ref.Name)
+	}
+	if len(expected) != 0 {
+		t.Fatal("missing expected HTTP artifact")
+	}
+
 }
 
 func assertHTTPCaidoRetainedExecutionSafe(

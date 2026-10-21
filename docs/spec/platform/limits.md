@@ -456,6 +456,7 @@ its owning requirement.
 | `LIM-HTP-34` | 100,000 JSON values and depth 32 | One decoded Caido GraphQL response | caido-graphql@1 structural validation | [HTP-R87](../tools/http-caido.md) |
 | `LIM-HTP-35` | 1 MiB of compact UTF-8 JSON | One model-visible Caido tool result | caido@1 result validation and sitemap page assembly | [HTP-R87](../tools/http-caido.md) |
 | `LIM-HTP-36` | One snapshot: 16 MiB encoded entries plus at most 100,001 eight-byte offsets | Retained sitemap selection of one allocation; row count also bounded by LIM-HTP-34 | caido@1 snapshot builder, replacement and teardown | [HTP-R126](../tools/http-caido.md) |
+| `LIM-HTP-37` | 128 cookies and 65536 encoded UTF-8 JSON bytes including metadata | One persisted target cookie jar | Runtime bounded read and strict encode/decode | [HTP-R128](../tools/http-caido.md) |
 | `LIM-MEM-1` | 32 KiB | Complete canonical JSON payload of one Memory note, including the schemaVersion, name and ordinal fields; for append_memory, the resulting note | MemoryTools adapters (Server-side Planner adapter and Python Worker adapter) | [MEM-R25](../tools/memory.md) |
 | `LIM-MEM-2` | 121 ASCII bytes | Memory note name (keeps the memory.-prefixed binding within the 128-character Artifact name limit LIM-ART-1) | MemoryTools adapters (Server-side Planner adapter and Python Worker adapter) | [MEM-R26](../tools/memory.md) |
 | `LIM-MEM-3` | 512 UTF-8 bytes | Memory note description | MemoryTools adapters (Server-side Planner adapter and Python Worker adapter) | [MEM-R27](../tools/memory.md) |

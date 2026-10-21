@@ -6,16 +6,17 @@ from typing import Any
 
 import httpx
 import pytest
+from http_cookie_store import CookieArtifactStore, HTTPToolsetFactory
 
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.http_proxy import ProxyHTTPClient
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.contracts import ArtifactRef, HTTPProxySettings, RuntimeSettings
-from contractor_runtime.toolsets.http.tools import HTTPToolError, HTTPToolsetFactory
+from contractor_runtime.toolsets.http.tools import HTTPToolError
 from contractor_runtime.workspace import AllocationWorkspace
 
 
-def test_close_erases_session_and_fresh_allocation_starts_empty(tmp_path: Path) -> None:
+def test_close_erases_ephemeral_auth_and_replacement_restores_cookies(tmp_path: Path) -> None:
     clients: list[httpx.AsyncClient] = []
 
     async def handler(request: httpx.Request) -> httpx.Response:
@@ -26,8 +27,10 @@ def test_close_erases_session_and_fresh_allocation_starts_empty(tmp_path: Path) 
         clients.append(client)
         return client
 
+    store = CookieArtifactStore()
+
     async def create(allocation_id: str) -> dict[str, Any]:
-        factory = HTTPToolsetFactory(direct)
+        factory = HTTPToolsetFactory(direct, artifact_client_factory=lambda *_: store)
         settings = RuntimeSettings(
             llmGatewayUrl="https://gateway.example/v1",
             llmGatewayToken="gateway-token",
@@ -61,8 +64,8 @@ def test_close_erases_session_and_fresh_allocation_starts_empty(tmp_path: Path) 
         assert await second["http_session_get"]() == {
             "auth_kind": "none",
             "default_headers": {},
-            "cookie_names": [],
-            "cookie_count": 0,
+            "cookie_names": ["sid"],
+            "cookie_count": 1,
             "history_count": 0,
         }
         for tool in second.values():

@@ -237,7 +237,9 @@ the retryability of the codes not classified here, are owned by
 **ERR-R13.** Stable HTTP and Caido tool errors include:
 
 - `http_request_invalid`, `http_target_denied`, `http_request_failed`,
-  `http_response_invalid`, `http_response_too_large`, `http_body_not_found`;
+  `http_response_invalid`, `http_response_too_large`, `http_body_not_found`,
+  `http_cookie_state_invalid`, `http_cookie_state_conflict`, `http_cookie_write_denied`
+  (non-retryable) and `http_cookie_storage_unavailable` (retryable);
 - `caido_not_configured`, `caido_request_invalid`, `caido_request_failed`,
   `caido_response_invalid`, `caido_response_too_large`.
 
@@ -452,6 +454,10 @@ Assembled from every document.
 | `findings_document_conflict` | — | no (for the recorded Run snapshot) | Reader preparation found different content at a document's create-only destination and failed without overwriting it; reported as the allocation error | [findings](../findings/findings.md) |
 | `findings_document_unavailable` | — | yes, only for a lost Artifact API transport or an Artifact API error marked retryable; otherwise no | Reader preparation failed because a collection document was unavailable; reported as the allocation error | [FND-R123](../findings/findings.md) |
 | `http_body_not_found` | — | no | `http_read_body` found the stored body missing, invalid or oversized (HTP-R69) | [ERR-R13](errors.md), [HTP-R69](../tools/http-caido.md) |
+| `http_cookie_state_invalid` | — | no | Cookie payload is malformed, incompatible with the target, or over its bounds | [ERR-R13](errors.md), [HTP-R127](../tools/http-caido.md) |
+| `http_cookie_state_conflict` | — | no | Different current cookie revision; explicit session inspection resolves it without repeating HTTP | [ERR-R13](errors.md), [HTP-R130](../tools/http-caido.md) |
+| `http_cookie_write_denied` | — | no | Permanent Artifact rejection, including fenced allocation or revision budget | [ERR-R13](errors.md), [HTP-R131](../tools/http-caido.md) |
+| `http_cookie_storage_unavailable` | — | yes | Cookie storage timeout or unconfirmed transient operation; retry storage through session inspection | [ERR-R13](errors.md), [HTP-R131](../tools/http-caido.md) |
 | `http_request_failed` | — | yes | HTTP tool request failed: expiry of the call deadline (HTP-R30), or a transient Artifact API or transport failure in `http_read_body`, after which the same request ID can be read again (HTP-R69) | [ERR-R13](errors.md), [HTP-R30](../tools/http-caido.md) |
 | `http_request_invalid` | — | no | Invalid HTTP tool request, rejected as invalid input before it is sent (SEC-R67, HTP-R25) | [ERR-R13](errors.md), [HTP-R25](../tools/http-caido.md) |
 | `http_response_invalid` | — | not specified | Invalid HTTP response | [ERR-R13](errors.md), [HTP-R58](../tools/http-caido.md) |
