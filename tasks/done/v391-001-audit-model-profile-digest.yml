@@ -6,7 +6,8 @@ epic: audits
 kind: defect
 introduced_by: V387-003
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 4025108ed39610816904ab0a6a24ed298b697486
 depends_on: []
 languages: [go]
 goal: Persist a self-consistent Audit profile after applying captured model defaults and preserve that exact profile through Audit start and Eval reuse.
@@ -55,3 +56,9 @@ tests:
     covers: [A1, A2, A3, A4]
   - command: make lint
     covers: [A1, A2, A3, A4]
+verification:
+  regression_before_fix: Both the strict snapshot test and real PostgreSQL draft/start test failed with the reported invalid profile digest.
+  postgres: All configuration, Audit service and Eval service package suites passed against contractor_v391_test, including retained Eval reuse, start replay and rejection of modified profile content.
+  lint: make lint passed with Go 1.26.9, Node 24.20.0 and Python 3.13 after integrating current main.
+  configuration: Shipped configuration validation passed before integration; the final deployment validates its exact released catalog again.
+  environment: TMPDIR=/private/tmp avoids the existing macOS symlink-sensitive root test. Checks use independent Runtime and UI dependency directories.
