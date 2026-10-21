@@ -5,7 +5,8 @@ milestone: server-ui-and-operations
 epic: operations
 kind: feature
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 3453d7dd8a9127ecaf1c051fa038f5e2cd1bf54d
 depends_on: []
 languages: [shell, python, yaml]
 goal: >-
@@ -86,8 +87,9 @@ verification:
     - "Ruff check and format check for deploy/phoenix/smoke.py."
     - "python -m unittest discover -s scripts -p 'test_*.py': all 96 tests passed in a temporary PyYAML environment."
     - "scripts/check_tasks.py: 991 task records and generated BACKLOG.md are consistent; git diff --check passed."
-  blocked:
-    - "make lint stops at generate-public-client-check: go is not installed in the execution environment. Task remains in_progress until the required gate passes."
+  follow_up_verification:
+    - "The missing Go/Node/Runtime toolchains were prepared temporarily on 2026-10-21; make lint passed in full."
+    - "Deployment launch fixtures and real-image persistence smoke passed again. V388-002 subsequently replaced raw collector-specific content with standard GenAI attributes and verified native Phoenix projections through both real exporters."
   environment: >-
     Existing podman-machine-default-root connection; selected per command without
     changing the configured default. Smoke test used only synthetic spans and a
