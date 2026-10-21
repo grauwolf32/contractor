@@ -5,7 +5,8 @@ milestone: server-ui-and-operations
 epic: operations
 kind: feature
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: aff045e92e0e844d1b82d8dff0052ef96f9b8314
 depends_on: []
 languages: [go, python]
 goal: >-
