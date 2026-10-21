@@ -6,7 +6,7 @@ epic: planner-worker
 kind: chore
 introduced_by: V372-012
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [go]
 goal: Restore real PostgreSQL recovery regressions by constructing the active Planner participant required by the Stage fence.
@@ -31,3 +31,7 @@ tests:
     covers: [A1, A2]
   - command: make lint
     covers: [A2]
+implementation_commit: 8abf49cfa00501bed9ee18d6947c769cf743528b
+verification:
+  postgres: go test -count=1 ./internal/planner/streamline passed against the disposable PostgreSQL database, including every Gateway recovery family.
+  lint: make lint passed with the active model-selection worktree and 111 script tests.
