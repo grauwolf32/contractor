@@ -5,7 +5,8 @@ milestone: git-artifact-import
 epic: projects-artifacts
 kind: feature
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 0ff53084b27807ac91bc1d72a921604be61518df
 depends_on: []
 languages: [go, typescript, yaml, markdown]
 goal: Admit Nextcloud-sized repositories through an explicit analysis mode, preserve a complete exclusion report and exact provenance, and keep strict complete snapshots available.
