@@ -11,7 +11,7 @@ depends_on: [V62-011]
 languages: [go, python, typescript, yaml, markdown]
 goal: Prove supplied and generated OpenAPI scan journeys with mandatory persistence, process, browser and current-schema regression evidence.
 context:
-  delivery_selection: User selected this chain after V377-001 on 2026-10-21; finish the existing preparation-to-scan journey without expanding into V64 or generic graph editing.
+  delivery_selection: User clarified on 2026-10-21 that this chain and the accepted A overview/B endpoint details must finish before V377-001; keep V64 and generic graph editing out of scope.
   authority: User requested a concrete task plan for extending Audit Workflow composition.
   design: docs/plans/2026-09-20-audit-workflow-composition.md
   specification:

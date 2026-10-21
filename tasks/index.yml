@@ -9,9 +9,9 @@ project:
 
 execution_policy:
   current_delivery_focus: >-
-    User decision on 2026-10-21: deliver target-cookie persistence (V377-001)
-    first, then finish the existing Audit preparation journey through
-    V62-010, V62-011 and V62-012. This is delivery order, not an additional
+    User clarification on 2026-10-21: finish the accepted A overview and B
+    endpoint-detail design through V62-010, V62-011 and V62-012 first, then
+    implement target-cookie persistence (V377-001). This is delivery order, not an additional
     technical dependency. Remaining V64 integration is deferred until an
     explicit user decision supported by representative audit evidence.
   task_files_are_self_contained: true
