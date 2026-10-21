@@ -111,6 +111,14 @@ func describeCoverageTask(payload []byte, row *auditstore.CoverageRow) error {
 	details := row.Details
 	details.TaskDocument = member.Data()
 	switch {
+	case task.Scan != nil:
+		scan := task.Scan
+		details.Objective = scan.Operation
+		details.Methods = []string{scan.CoverageRequirement()}
+		details.Scan = &auditstore.ScanProvenance{Scanner: scan.Scanner, Operation: scan.Operation,
+			Source: auditstore.ExactArtifact{Ref: task.SourceRef, Digest: task.SourceContentDigest}, Settings: scan.Settings.Exact(),
+			PreparationDigest: scan.PreparationDigest, RequestDigest: scan.RequestDigest, TargetURL: scan.TargetURL,
+			Runnable: scan.Runnable, TestParameters: append([]string{}, scan.TestParameters...), Gaps: append([]string{}, scan.Gaps...)}
 	case task.Finding != nil:
 		details.Objective = task.Finding.Objective
 		details.Methods = []string{task.Finding.Method}
@@ -144,7 +152,7 @@ func describeCoverageResult(pkg auditdomain.CheckResultPackage, row *auditstore.
 		for _, evidence := range pkg.Evidence.Evidence {
 			if ids[evidence.ID] {
 				row.Details.Evidence = append(row.Details.Evidence, auditstore.CoverageEvidence{
-					ID: evidence.ID, Kind: evidence.Kind, Summary: evidence.Summary,
+					ID: evidence.ID, Kind: evidence.Kind, Summary: evidence.Summary, ContentMemberID: evidence.ContentMemberID,
 				})
 			}
 		}

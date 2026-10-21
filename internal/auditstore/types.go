@@ -837,6 +837,7 @@ type CoverageRow struct {
 // CoverageDetails describes the exact retained task and its accepted result.
 // It is a read projection, never authority for assessment or execution.
 type CoverageDetails struct {
+	Scan          *ScanProvenance    `json:"scan,omitempty"`
 	Objective     string             `json:"objective"`
 	Methods       []string           `json:"methods"`
 	TaskDocument  json.RawMessage    `json:"taskDocument"`
@@ -844,10 +845,25 @@ type CoverageDetails struct {
 	Evidence      []CoverageEvidence `json:"evidence"`
 }
 
+// ScanProvenance projects only the accepted task, never raw requests or credentials.
+type ScanProvenance struct {
+	Scanner           string        `json:"scanner"`
+	Operation         string        `json:"operation"`
+	Source            ExactArtifact `json:"source"`
+	Settings          ExactArtifact `json:"settings"`
+	PreparationDigest string        `json:"preparationDigest"`
+	RequestDigest     string        `json:"requestDigest,omitempty"`
+	TargetURL         string        `json:"targetUrl,omitempty"`
+	Runnable          bool          `json:"runnable"`
+	TestParameters    []string      `json:"testParameters"`
+	Gaps              []string      `json:"gaps"`
+}
+
 type CoverageEvidence struct {
-	ID      string `json:"id"`
-	Kind    string `json:"kind"`
-	Summary string `json:"summary"`
+	ContentMemberID string `json:"contentMemberId,omitempty"`
+	ID              string `json:"id"`
+	Kind            string `json:"kind"`
+	Summary         string `json:"summary"`
 }
 
 type ReconcileSnapshot struct {

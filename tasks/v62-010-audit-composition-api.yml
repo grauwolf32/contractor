@@ -45,6 +45,8 @@ acceptance_criteria:
 tests:
   - command: go test -tags=integration -count=1 ./internal/httpapi/public ./internal/auditservice ./internal/auditstore/...
     covers: [A1, A2, A3, A4]
+  - command: go test -tags=integration -count=1 ./internal/auditcontroller
+    covers: [A1, A2, A3]
   - command: make verify-public-api verify-public-api-postgres ui-generate-check ui-typecheck
     covers: [A1, A2, A3, A4]
   - command: cd ui && corepack pnpm test --run src/api/audits.test.ts src/api/audit-report.test.ts
@@ -53,3 +55,11 @@ test_prerequisites:
   - Disposable PostgreSQL for mandatory lifecycle, ownership, retained-read and pagination cases.
 verification_requirements:
   - Cover source Run deletion and an analyst edit between pages; public errors must remain truthful without disclosing internal staging or credentials.
+
+verification:
+  date: 2026-10-21
+  result: All listed commands passed against the dedicated disposable PostgreSQL, with no database skips.
+  additional_checks:
+    - make lint
+    - cd ui && corepack pnpm test --run src/api/audits.test.ts src/api/audit-report.test.ts src/api/audit-composition.test.ts
+  evidence: Real-store regressions cover uncommitted staging, exact accepted source/settings, stale revisions, foreign owners and retained output reads after source Run deletion; public operation coverage includes the artifact endpoint.

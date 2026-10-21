@@ -13,9 +13,11 @@ describe("Audit composition public contracts", () => {
     it(test.name, () => {
       expect(
         conformsTo(
-          test.schema === "AuditInventory"
-            ? "AuditInventory"
-            : "AuditPreparation",
+          test.schema as
+            | "AuditInventory"
+            | "AuditPreparation"
+            | "AuditGeneratedInventory"
+            | "AuditScanProvenance",
           test.value,
         ),
       ).toBe(test.valid);

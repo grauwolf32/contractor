@@ -111,6 +111,7 @@ func (c contextHandlers) routes() []route {
 		{"GET", "/v1/audits/{auditId}/items", "listAuditItems", c.audits.listAuditItems},
 		{"GET", "/v1/audits/{auditId}/coverage", "listAuditCoverage", c.audits.listAuditCoverage},
 		{"GET", "/v1/audits/{auditId}/workspace", "getAuditWorkspace", c.audits.getAuditWorkspace},
+		{"GET", "/v1/audits/{auditId}/artifacts", "getAuditArtifact", c.audits.getAuditArtifact},
 		{"GET", "/v1/audits/{auditId}/report", "getAuditReport", c.audits.getAuditReport},
 		{"GET", "/v1/audits/{auditId}/findings", "listAuditFindings", c.audits.listAuditFindings},
 		{"GET", "/v1/audits/{auditId}/findings/{findingId}", "getAuditFinding", c.audits.getAuditFinding},
