@@ -14,6 +14,19 @@ export interface ItemOperation {
 export function itemOperation(
   row: Pick<AuditCoverageRow, "details">,
 ): ItemOperation | undefined {
+  const pointer = row.details?.scan?.operation;
+  if (pointer !== undefined) {
+    const match =
+      /^#\/paths\/((?:[^~/]|~[01])+)\/(get|put|post|delete|options|head|patch|trace)$/u.exec(
+        pointer,
+      );
+    if (match !== null) {
+      const path = match[1]!.replaceAll("~1", "/").replaceAll("~0", "~");
+      if (path.startsWith("/"))
+        return { method: match[2]!.toUpperCase(), path };
+    }
+    return undefined;
+  }
   const operation = row.details?.taskDocument.operation;
   if (operation === null || typeof operation !== "object") return undefined;
   const method: unknown = Object.getOwnPropertyDescriptor(
@@ -37,7 +50,7 @@ export function itemOperation(
 
 /** Internal operation keys ("op-<hex>") say nothing to a reader. */
 export function isOpaqueSubject(subjectKey: string): boolean {
-  return /^op-[a-f0-9]{16,}$/i.test(subjectKey);
+  return /^(?:op|scan)-[a-f0-9]{16,}$/i.test(subjectKey);
 }
 
 /**

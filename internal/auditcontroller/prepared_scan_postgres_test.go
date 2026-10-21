@@ -79,6 +79,19 @@ func testPreparedOpenAPIScanPolicy(t *testing.T, policy contracts.ActiveChecksPo
 			t.Fatalf("generated scan lost assigned task semantics: %+v %v", task, err)
 		}
 	}
+	audit, err := h.audits.Get(ctx, h.started.Audit.OwnerID, h.started.Audit.AuditID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err := h.service.ListCoverage(ctx, audit.OwnerID, audit.AuditID, *audit.CurrentRoundID, -1, 200, &audit.Revision)
+	if err != nil || len(page.Rows) != 3 {
+		t.Fatalf("scan coverage projection: %+v %v", page, err)
+	}
+	for _, row := range page.Rows {
+		if row.Details == nil || row.Details.Scan == nil || row.Details.Scan.Scanner != "sqlmap" || row.Details.Scan.RequestDigest == "" || row.Details.Scan.TargetURL != "" || row.Details.Scan.Source.Digest != auditdomain.DigestBytes(generated.Data) {
+			t.Fatalf("scan lost exact prepared provenance: %+v", row.Details)
+		}
+	}
 	reviews, err := h.service.ListReviews(ctx, auditstore.ReviewListParams{OwnerID: h.started.Audit.OwnerID, AuditID: h.started.Audit.AuditID, Limit: 10})
 	if err != nil || len(reviews) != wantReviews {
 		t.Fatalf("generated scan review ledger: %+v %v", reviews, err)

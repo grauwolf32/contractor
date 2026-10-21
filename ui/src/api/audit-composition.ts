@@ -11,8 +11,13 @@ type Audit = components["schemas"]["Audit"];
  */
 export function requireAuditComposition(audit: Audit, status: number): Audit {
   const roles = Object.values(audit.preparation?.roles ?? {});
+  const generated = audit.generatedInventory;
   const prepared = audit.phase === "inventory" || audit.phase === "rounds";
   if (
+    (generated !== undefined &&
+      (audit.phase !== "rounds" ||
+        audit.preparation === undefined ||
+        generated.sourceContentDigest !== generated.sources.source.digest)) ||
     roles.some(
       (role) =>
         role.attempts > role.maxAttempts ||

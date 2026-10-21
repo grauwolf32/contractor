@@ -38,7 +38,10 @@ type scanProcessHarness struct {
 	server, runtime                                    *childProcess
 	pool                                               *pgxpool.Pool
 	fixture                                            *scanHTTPFixture
-	restartServer                                      func()
+	gatewayToken, runtimePathPrefix                    string
+	workspaceStorageLocal                              bool
+
+	restartServer func()
 }
 
 type scanHTTPFixture struct {
@@ -253,6 +256,11 @@ func startScanStackForTools(t *testing.T, capacityWorkflow string, binaries ...s
 
 func startConfiguredScanStack(t *testing.T, capacityWorkflow string, configure func(*scanProcessHarness, string), binaries ...string) *scanProcessHarness {
 	t.Helper()
+	return startConfiguredScanStackWithBudget(t, 5*time.Minute, capacityWorkflow, configure, binaries...)
+}
+
+func startConfiguredScanStackWithBudget(t *testing.T, budget time.Duration, capacityWorkflow string, configure func(*scanProcessHarness, string), binaries ...string) *scanProcessHarness {
+	t.Helper()
 	for _, binary := range binaries {
 		if _, err := exec.LookPath(binary); err != nil {
 			t.Fatalf("real scanner %s is required on PATH for the scan release gate", binary)
@@ -262,16 +270,16 @@ func startConfiguredScanStack(t *testing.T, capacityWorkflow string, configure f
 	if databaseURL == "" {
 		t.Fatal("CONTRACTOR_TEST_DATABASE_URL is required")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), budget)
 	t.Cleanup(cancel)
 	h := &scanProcessHarness{ctx: ctx, repositoryRoot: repoRoot(t), temporaryRoot: t.TempDir(), client: &http.Client{Timeout: 10 * time.Second}, userID: "scan-e2e-" + randomHex(t, 8)}
 	t.Cleanup(func() {
 		if t.Failed() {
 			if h.server != nil {
-				t.Logf("scan Server diagnostics:\n%s", h.server.logs.redacted(publicToken))
+				t.Logf("scan Server diagnostics:\n%s", h.server.logs.redacted(publicToken, h.gatewayToken))
 			}
 			if h.runtime != nil {
-				t.Logf("scan Runtime diagnostics:\n%s", h.runtime.logs.redacted(publicToken))
+				t.Logf("scan Runtime diagnostics:\n%s", h.runtime.logs.redacted(publicToken, h.gatewayToken))
 			}
 		}
 	})
@@ -348,7 +356,7 @@ http:
 		"CONTRACTOR_CA_FILE": caPaths.Certificate, "CONTRACTOR_CONTROL_PLANE_CERT_FILE": controlPaths.Certificate, "CONTRACTOR_CONTROL_PLANE_KEY_FILE": controlPaths.PrivateKey,
 		"CONTRACTOR_PUBLIC_BEARER_TOKEN": publicToken,
 		"CONTRACTOR_LOCAL_AUTH_FILE":     writeE2ELocalAuth(t, h.temporaryRoot, h.userID), "CONTRACTOR_BROWSER_ORIGINS": h.browserBaseURL,
-		"CONTRACTOR_LLM_GATEWAY_TOKEN": "",
+		"CONTRACTOR_LLM_GATEWAY_TOKEN": h.gatewayToken,
 	}
 	h.restartServer = func() {
 		if h.server != nil {
@@ -373,14 +381,21 @@ http:
 		}
 		address := freeAddress(t)
 		baseURL := "https://" + address
-		process := startProcess(t, name, filepath.Join(h.repositoryRoot, "runtime"), map[string]string{
-			"PYTHONUNBUFFERED": "1", "PYTHONPATH": filepath.Join(h.repositoryRoot, "runtime", "src"), "PATH": path, "NUCLEI_TEMPLATES_DIR": templates,
-		}, python, "-m", "contractor_runtime", "--control-plane-url", privateURL,
+		runtimePath := path
+		if h.runtimePathPrefix != "" {
+			runtimePath = h.runtimePathPrefix + string(os.PathListSeparator) + runtimePath
+		}
+		arguments := []string{"-m", "contractor_runtime", "--control-plane-url", privateURL,
 			"--advertised-control-url", baseURL, "--advertised-a2a-url", baseURL,
 			"--ca-file", caPaths.Certificate, "--certificate-file", identity.Certificate, "--private-key-file", identity.PrivateKey,
 			"--listen", address, "--work-root", filepath.Join(h.temporaryRoot, name), "--request-timeout-seconds", "10", "--shutdown-grace-seconds", "5",
-			// Scanner fixtures listen on loopback, which the target policy denies unless allowed.
-			"--allowed-target-network", "127.0.0.0/8")
+			"--allowed-target-network", "127.0.0.0/8"}
+		if h.workspaceStorageLocal {
+			arguments = append(arguments, "--workspace-storage", "local", "--workspace-work-root", filepath.Join(h.temporaryRoot, name+"-workspaces"))
+		}
+		process := startProcess(t, name, filepath.Join(h.repositoryRoot, "runtime"), map[string]string{
+			"PYTHONUNBUFFERED": "1", "PYTHONPATH": filepath.Join(h.repositoryRoot, "runtime", "src"), "PATH": runtimePath, "NUCLEI_TEMPLATES_DIR": templates,
+		}, python, arguments...)
 		waitForHTTP(t, ctx, process, controlClient, baseURL+"/healthz", http.StatusOK)
 		waitForProcessLog(t, ctx, process, "runtime agent registered")
 		return process

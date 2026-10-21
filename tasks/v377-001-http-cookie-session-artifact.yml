@@ -14,7 +14,7 @@ goal: >-
   from the investigated target as an ordinary Run artifact in the same resolved
   Agent Namespace and restore them into the next HTTP toolset instance.
 context:
-  delivery_selection: User selected this as the first next-delivery task on 2026-10-21, followed by V62-010 through V62-012; technical dependencies remain unchanged.
+  delivery_selection: User clarified on 2026-10-21 that V62-010 through V62-012 and the accepted A/B design come first; start cookies after that delivery. Technical dependencies remain unchanged.
   request: >-
     On 2026-10-14 the user proposed passing the original task and summarizer
     summary from passthrough to streamline through Planner escalation. They

@@ -27,6 +27,7 @@ import type { AuditCollectionQuery } from "./collections";
 import { ItemTechnicalDetails } from "./executions";
 import { LoadMoreControl } from "./load-more";
 import { PathText } from "./path-text";
+import { ScanInputs } from "./scan-inputs";
 import { AuditMarkdown } from "./shared";
 import { formatShortDateTime, plural } from "../../../app/format";
 
@@ -331,6 +332,7 @@ export function CheckItemView({
           </div>
         ) : null}
       </header>
+      <ScanInputs audit={audit} entry={entry} />
       <Section title="Conclusion">
         {conclusion ? (
           <AuditMarkdown source={conclusion} />
@@ -392,7 +394,11 @@ export function CheckItemView({
       )}
       <div className="checks-item-columns">
         <Section
-          title="What the AI looked at"
+          title={
+            row.details?.scan === undefined
+              ? "What the AI looked at"
+              : "Scan evidence"
+          }
           aside={
             supporting.length === 0
               ? undefined
@@ -411,7 +417,15 @@ export function CheckItemView({
                   key={value}
                   data-collected={completed.has(value) ? "" : undefined}
                 >
-                  <StatusGlyph tone={completed.has(value) ? "done" : "idle"} />
+                  <StatusGlyph
+                    tone={
+                      completed.has(value)
+                        ? row.details?.scan === undefined
+                          ? "done"
+                          : "info"
+                        : "idle"
+                    }
+                  />
                   {readable(value)}{" "}
                   <span className="ui-caption">
                     · {completed.has(value) ? "collected" : "missing"}

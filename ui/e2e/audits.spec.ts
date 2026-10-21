@@ -9,6 +9,15 @@ import {
   mockedAPIOrigin,
 } from "./support/mock-api";
 
+import {
+  compositionAudit,
+  COMPOSITION_ROOT,
+} from "../src/test/audit-composition";
+import {
+  compositionScreenshot,
+  mockComposition,
+} from "./support/audit-composition";
+
 const PROJECT_ID = "project_audit_browser";
 const PROFILE_DIGEST = `sha256:${"2".repeat(64)}`;
 
@@ -1297,3 +1306,106 @@ for (const viewport of [
     ]);
   });
 }
+
+test("V62 applies A overview and B endpoint details across preparation", async ({
+  page,
+}, testInfo) => {
+  let current = compositionAudit("draft");
+  await mockComposition(
+    page,
+    () => current,
+    () => {
+      current = compositionAudit("preparing");
+    },
+  );
+  await page.goto(COMPOSITION_ROOT);
+  await page.getByRole("button", { name: "Start check", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "Start check" })
+    .getByRole("button", { name: "Start check", exact: true })
+    .click();
+  await expect(
+    page.getByRole("region", { name: "Check overview" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(
+      "Endpoint count and security coverage are not available yet.",
+    ),
+  ).toBeVisible();
+  await expect(page.getByText("No endpoints yet", { exact: true })).toHaveCount(
+    0,
+  );
+  await compositionScreenshot(page, testInfo, "preparing.png");
+  current = compositionAudit("inventory");
+  await expect(
+    page.getByRole("heading", { name: "Building the worklist" }),
+  ).toBeVisible();
+  current = compositionAudit("rounds");
+  await expect(
+    page.getByRole("heading", { name: "Endpoint checks", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("3 accepted items", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("Loading text…", { exact: true })).toHaveCount(0);
+  for (const theme of ["light", "dark", "black"]) {
+    await page.evaluate((theme) => {
+      document.documentElement.dataset.theme = theme;
+    }, theme);
+    await compositionScreenshot(page, testInfo, `overview-${theme}.png`);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => {
+    document.documentElement.dataset.theme = "light";
+  });
+  await expect(page.locator("body")).toHaveJSProperty("scrollWidth", 390);
+  await compositionScreenshot(page, testInfo, "overview-mobile.png");
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.getByRole("link", { name: "GET /orders", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "GET /orders", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Scan inputs and evidence" }),
+  ).toHaveText(/SQLMap/);
+  await expect(page.getByText("Loading text…", { exact: true })).toHaveCount(0);
+  for (const theme of ["light", "dark", "black"]) {
+    await page.evaluate((theme) => {
+      document.documentElement.dataset.theme = theme;
+    }, theme);
+    await compositionScreenshot(page, testInfo, `endpoint-${theme}.png`);
+  }
+  await page
+    .getByRole("button", { name: "Scanner report", exact: true })
+    .click();
+  await expect(
+    page.getByRole("dialog", { name: "Scanner report" }),
+  ).toContainText("Investigate this scanner observation");
+  await page.keyboard.press("Escape");
+  await expect(
+    page.getByRole("button", { name: "Scanner report", exact: true }),
+  ).toBeFocused();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => {
+    document.documentElement.dataset.theme = "light";
+  });
+  await expect(page.locator("body")).toHaveJSProperty("scrollWidth", 390);
+  await compositionScreenshot(page, testInfo, "endpoint-mobile.png");
+});
+
+test("V62 failed preparation exposes no accepted scope or automatic retry", async ({
+  page,
+}, testInfo) => {
+  await mockComposition(page, () => compositionAudit("failed"));
+  await page.goto(COMPOSITION_ROOT);
+  await expect(
+    page.getByRole("heading", { name: "Preparation stopped" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "API spec", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Continue check", exact: true }),
+  ).toHaveCount(0);
+  await compositionScreenshot(page, testInfo, "preparation-failed.png");
+});

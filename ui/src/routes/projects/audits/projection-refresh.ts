@@ -17,13 +17,17 @@ export function useAuditProjectionRefresh(
   useEffect(() => {
     const before = previous.current;
     previous.current = audit;
+    const phaseChanged =
+      before.phase !== audit.phase ||
+      before.currentRoundId !== audit.currentRoundId;
     if (
       !enabled ||
       before.auditId !== audit.auditId ||
-      (before.revision === audit.revision &&
+      (!phaseChanged &&
+        before.revision === audit.revision &&
         before.state === audit.state &&
         before.outstandingRunCount === audit.outstandingRunCount) ||
-      auditPollInterval([audit]) !== false
+      (!phaseChanged && auditPollInterval([audit]) !== false)
     ) {
       return;
     }

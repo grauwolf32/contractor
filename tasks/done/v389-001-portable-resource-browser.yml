@@ -1,0 +1,45 @@
+schema_version: "1.0"
+id: V389-001
+title: Verify native platform resource outcomes in the production browser
+milestone: ui-journey-usability
+epic: ui
+kind: defect
+introduced_by: V32-008
+priority: P2
+status: completed
+implementation_commit: a9aaa0791aee858040971dce641241ee74adaafb
+depends_on: []
+languages: [typescript]
+goal: Keep the real browser gate strict about available Linux measurements and truthful unsupported-host outcomes.
+context:
+  specification: docs/spec/operations/operations.md#OPS-R73
+  finding: >-
+    ui/e2e/stack.spec.ts:715 requires available retained resource measurements
+    on every host. The native Runtime process reader supports Linux and returns
+    unavailable/unsupported_platform on macOS, so TestBrowserOperationsStack
+    fails despite a valid retained report. git blame traces the unconditional
+    assertion to 62c28cafed8fdf840b831e90c4778df4d0ac6c6b (V32-008).
+  siblings: >-
+    Check both the Run attempt and retained Operations card. Runtime sampler
+    unit tests and V386-003 already cover unsupported hosts and deterministic
+    lifecycle resources; they do not need production changes.
+scope:
+  in:
+    - Assert available on Linux and unavailable with unsupported platform on other native hosts in both browser resource views.
+    - Execute the production browser journey without skipping resource assertions.
+  out:
+    - Production samplers, telemetry collection policy and API schemas.
+acceptance_criteria:
+  - {id: A1, text: The real browser accepts unavailable only with the explicit unsupported-platform outcome on a non-Linux native Runtime.}
+  - {id: A2, text: Linux still requires available and both views retain requested collection policy and Runtime-process scope checks.}
+  - {id: A3, text: The Operations browser journey reaches the following output and repeat-flow assertions on macOS.}
+tests:
+  - {command: make test-ui-stack-operations, covers: [A1, A2, A3]}
+  - {command: make lint, covers: [A1, A2]}
+verification:
+  date: "2026-10-21"
+  host: Native macOS with real Server, PostgreSQL, Runtime and Chromium.
+  passed:
+    - "make test-ui-stack-operations: TestBrowserOperationsStack passed in 113 seconds; both resource views and subsequent output/repeat flows executed."
+    - "make lint: passed."
+  limitation: The Linux branch retains the strict available assertion; Linux execution was not repeated on this macOS host.

@@ -72,6 +72,7 @@ export function CheckTechnicalDetails({
   open?: boolean;
 }) {
   const baseline = audit.baseline;
+  const inventory = baseline?.inventory ?? audit.generatedInventory;
   const stop = describeStopReason(audit);
   const inputs = Object.entries(audit.inputs);
   return (
@@ -257,8 +258,7 @@ export function CheckTechnicalDetails({
                   term: "Source content",
                   value: (
                     <code className="ui-mono">
-                      {baseline.inventory?.sourceContentDigest ??
-                        "Pending preparation"}
+                      {inventory?.sourceContentDigest ?? "Pending preparation"}
                     </code>
                   ),
                 },
@@ -266,7 +266,7 @@ export function CheckTechnicalDetails({
                   term: "Inventory",
                   value: (
                     <code className="ui-mono">
-                      {baseline.inventory?.canonicalInventoryDigest ??
+                      {inventory?.canonicalInventoryDigest ??
                         "Pending inventory"}
                     </code>
                   ),
@@ -274,12 +274,12 @@ export function CheckTechnicalDetails({
                 {
                   term: "Worklist",
                   value:
-                    baseline.inventory === undefined ? (
+                    inventory === undefined ? (
                       "Not created yet"
                     ) : (
                       <ExactArtifactLink
                         projectId={audit.projectId}
-                        artifact={baseline.inventory.worklist}
+                        artifact={inventory.worklist}
                       />
                     ),
                 },
@@ -344,11 +344,11 @@ export function CheckTechnicalDetails({
                 />
               </div>
             )}
-            {baseline.inventory === undefined ? null : (
+            {inventory === undefined ? null : (
               <div className="checks-tech-block">
                 <h4>Inventory gaps</h4>
                 <StringList
-                  values={baseline.inventory.gaps}
+                  values={inventory.gaps}
                   empty="No inventory gaps."
                 />
               </div>

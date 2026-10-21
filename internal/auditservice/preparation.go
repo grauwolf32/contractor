@@ -55,5 +55,8 @@ func (s *Service) Preparation(ctx context.Context, ownerID, auditID string) (map
 		}
 		result[role.WorkflowRole] = view
 	}
+	if err := s.checkPageRevision(ctx, ownerID, auditID, audit.Revision); err != nil {
+		return nil, err
+	}
 	return result, nil
 }

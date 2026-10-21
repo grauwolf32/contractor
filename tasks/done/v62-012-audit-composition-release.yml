@@ -5,20 +5,21 @@ milestone: audit-workflow-composition
 epic: audits
 kind: feature
 priority: P1
-status: pending
-implementation_commit: null
-depends_on: [V62-011]
+status: completed
+implementation_commit: 8c2441f0b3bd2643adb44ca8c70e30c5cdb38c74
+depends_on: [V62-011, V389-001]
 languages: [go, python, typescript, yaml, markdown]
 goal: Prove supplied and generated OpenAPI scan journeys with mandatory persistence, process, browser and current-schema regression evidence.
 context:
-  delivery_selection: User selected this chain after V377-001 on 2026-10-21; finish the existing preparation-to-scan journey without expanding into V64 or generic graph editing.
+  delivery_selection: User clarified on 2026-10-21 that this chain and the accepted A overview/B endpoint details must finish before V377-001; keep V64 and generic graph editing out of scope.
   authority: User requested a concrete task plan for extending Audit Workflow composition.
   design: docs/plans/2026-09-20-audit-workflow-composition.md
   specification:
     - docs/spec/audits/audits.md
     - docs/spec/audits/worker-completion.md
+    - docs/spec/audits/scans.md
     - docs/spec/tools/scanners.md
-    - docs/spec/tools/scanners.md
+  existing_gate_alignment: V380-001 changed the default Project policy to automatic and added activeChecks to Project reads; scanner acceptance fixtures must explicitly select approval-required when they assert review behavior, and strict Project response fixtures must accept the current field.
   boundary: Use disposable infrastructure and controlled local targets; these tests do not demonstrate autonomous pentest readiness or live-model quality.
 scope:
   in:
@@ -31,7 +32,7 @@ scope:
   out:
     - Deferred iterative snapshots/dependency routing, deploy production services, invoke external targets, run paid models or claim findings quality from scripted fixtures.
 deliverables:
-  - path: Makefile
+  - path: make/features.mk
     description: New test-audit-composition-e2e target with mandatory prerequisites and contract/regression selection.
   - path: scripts/test-audit-composition-e2e.py
     description: New fail-on-missing/skip orchestrator and actual case-count reporting.
@@ -70,3 +71,11 @@ test_prerequisites:
 verification_requirements:
   - Record exact revision, complete mandatory case list/counts, zero mandatory skips, production boundaries and retained browser evidence.
   - Keep pending/in_progress until all criteria and required checks pass; task planning never supplies implementation_commit or verification results.
+verification:
+  date: "2026-10-21"
+  evidence: tasks/evidence/v62-012.json
+  passed:
+    - "make test-audit-composition-e2e: 34 mandatory PostgreSQL cases, nine mandatory process cases and one real browser journey; zero skips."
+    - "make test-audits-e2e test-audit-program-library-e2e test-audit-completion-e2e: passed, including Operations, Native and External browser stacks; completion verified 198 Go and 412 Runtime cases without selected skips."
+    - "make verify-public-api ui-generate-check ui-typecheck ui-test ui-build test-config lint: passed; UI had 2173 passes and one existing expected-failure case."
+  scope: Selected preparation/source-to-scan delivery only; V62-005 through V62-008 and V64 remain deferred.

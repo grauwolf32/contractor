@@ -366,5 +366,150 @@
       "roles": {}
     },
     "valid": false
+  },
+  {
+    "name": "accepted generated inventory",
+    "schema": "AuditGeneratedInventory",
+    "value": {
+      "snapshot": {
+        "ref": {
+          "namespace": "audit-example",
+          "name": "openapi",
+          "revision": "r1"
+        },
+        "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "mediaType": "application/json",
+        "sizeBytes": 100
+      },
+      "sources": {
+        "source": {
+          "ref": {
+            "namespace": "audit-example",
+            "name": "openapi",
+            "revision": "r1"
+          },
+          "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "mediaType": "application/json",
+          "sizeBytes": 100
+        }
+      },
+      "sourceContentDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "canonicalInventoryDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "worklist": {
+        "ref": {
+          "namespace": "audit-example",
+          "name": "openapi",
+          "revision": "r1"
+        },
+        "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "mediaType": "application/json",
+        "sizeBytes": 100
+      },
+      "itemCount": 32,
+      "gaps": []
+    },
+    "valid": true
+  },
+  {
+    "name": "scan request provenance",
+    "schema": "AuditScanProvenance",
+    "value": {
+      "scanner": "sqlmap",
+      "operation": "#/paths/~1pets/get",
+      "source": {
+        "ref": {
+          "namespace": "audit-example",
+          "name": "openapi",
+          "revision": "r1"
+        },
+        "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "mediaType": "application/json",
+        "sizeBytes": 100
+      },
+      "settings": {
+        "ref": {
+          "namespace": "audit-example",
+          "name": "openapi",
+          "revision": "r1"
+        },
+        "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "mediaType": "application/json",
+        "sizeBytes": 100
+      },
+      "preparationDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "requestDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "runnable": true,
+      "testParameters": [
+        "q"
+      ],
+      "gaps": []
+    },
+    "valid": true
+  },
+  {
+    "name": "generated inventory without source",
+    "schema": "AuditGeneratedInventory",
+    "value": {
+      "snapshot": {
+        "ref": {
+          "namespace": "audit-example",
+          "name": "openapi",
+          "revision": "r1"
+        },
+        "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "mediaType": "application/json",
+        "sizeBytes": 100
+      },
+      "sourceContentDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "canonicalInventoryDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "worklist": {
+        "ref": {
+          "namespace": "audit-example",
+          "name": "openapi",
+          "revision": "r1"
+        },
+        "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "mediaType": "application/json",
+        "sizeBytes": 100
+      },
+      "itemCount": 32,
+      "gaps": []
+    },
+    "valid": false
+  },
+  {
+    "name": "scan without exact preparation",
+    "schema": "AuditScanProvenance",
+    "value": {
+      "scanner": "sqlmap",
+      "operation": "#/paths/~1pets/get",
+      "source": {
+        "ref": {
+          "namespace": "audit-example",
+          "name": "openapi",
+          "revision": "r1"
+        },
+        "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "mediaType": "application/json",
+        "sizeBytes": 100
+      },
+      "settings": {
+        "ref": {
+          "namespace": "audit-example",
+          "name": "openapi",
+          "revision": "r1"
+        },
+        "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "mediaType": "application/json",
+        "sizeBytes": 100
+      },
+      "requestDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "runnable": true,
+      "testParameters": [
+        "q"
+      ],
+      "gaps": []
+    },
+    "valid": false
   }
 ]

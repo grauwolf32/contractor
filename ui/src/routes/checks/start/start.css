@@ -611,3 +611,21 @@
     display: none;
   }
 }
+
+.start-preparation-plan {
+  padding: var(--space-4);
+  margin-block: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface-subtle);
+}
+.start-preparation-plan h3 {
+  margin-top: 0;
+  font-size: var(--text-md);
+}
+.start-preparation-plan ol {
+  padding-left: var(--space-5);
+}
+.start-preparation-plan li + li {
+  margin-top: var(--space-2);
+}
