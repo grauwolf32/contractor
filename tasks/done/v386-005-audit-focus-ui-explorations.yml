@@ -5,7 +5,8 @@ milestone: audit-workflow-composition
 epic: audits
 kind: chore
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: 631d6d514ee565ac74441ffe2f55b103d1c7430b
 depends_on: []
 languages: [yaml, markdown, html, css, javascript]
 goal: Record the user-selected cookies and V62 delivery order and provide current, comparable V62 UI renders without adding production behavior.
