@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import {
   Link,
   Navigate,
@@ -38,6 +38,7 @@ import {
   EmptyState,
   PaneLayout,
   TechnicalDetails,
+  StatusChip,
   useListNavigation,
 } from "../../../ui";
 import { AuditFindings } from "./audit-findings";
@@ -186,6 +187,14 @@ function CheckPage({
   const overview = section === "overview";
   const waiting = useWaitingDecisions(audit, overview);
   const report = useCheckReport(audit, overview);
+  const hasPreparation = audit.preparation !== undefined;
+  const previousPreparation = useRef(hasPreparation);
+  const overviewHeading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    const entering = hasPreparation && !previousPreparation.current;
+    previousPreparation.current = hasPreparation;
+    if (entering && overview) overviewHeading.current?.focus();
+  }, [hasPreparation, overview]);
   const fallbackKind = checkItemKind(audit);
   const entries = useMemo(
     () =>
@@ -318,6 +327,7 @@ function CheckPage({
           kind={kind}
           entries={entries}
           findings={findings}
+          coverage={coverage}
           workspace={workspace.data}
           waiting={waiting}
           report={report}
@@ -442,6 +452,66 @@ function CheckPage({
       : section === "overview"
         ? "All activity"
         : sectionLabel(section, kind);
+  const studioLink = (
+    <ButtonLink
+      to={`/catalog/studio?kind=AuditProfile&audit=${encodeURIComponent(audit.auditId)}`}
+    >
+      Open live Studio
+    </ButtonLink>
+  );
+  const detail = (
+    <DetailPane
+      header={
+        <div className="checks-detail-header">
+          <p className="checks-narrow-identity">
+            {auditProfileLabel(audit)} · {state.label}
+          </p>
+          <ReturnContext />
+          {projectError === null ? null : <ErrorNotice error={projectError} />}
+          <CheckProgress
+            audit={audit}
+            projectName={projectName}
+            projectId={audit.projectId}
+            kind={kind}
+            entries={entries}
+            partialList={coverage.truncated}
+            pin={pin}
+            workspace={workspace}
+            links={links}
+          />
+          <SectionTabs section={section} kind={kind} links={links} />
+          {hasPreparation ? (
+            <TechnicalDetails summary="Advanced view">
+              {studioLink}
+            </TechnicalDetails>
+          ) : (
+            studioLink
+          )}
+        </div>
+      }
+    >
+      {content}
+    </DetailPane>
+  );
+  if (overview && audit.preparation !== undefined)
+    return (
+      <section
+        className="checks-overview-frame"
+        aria-label="Check overview"
+        {...containerProps}
+      >
+        <header className="checks-overview-heading">
+          <Link to={`/projects/${encodeURIComponent(audit.projectId)}`}>
+            {projectName ?? "Project"}
+          </Link>
+          <h1 ref={overviewHeading} tabIndex={-1}>
+            {auditProfileLabel(audit)}
+          </h1>
+          <StatusChip tone={state.tone}>{state.label}</StatusChip>
+        </header>
+        {detail}
+      </section>
+    );
   return (
     <PaneLayout
       listLabel={`Check and ${plural}`}
@@ -469,40 +539,7 @@ function CheckPage({
           onRefresh={refreshList}
         />
       }
-      detail={
-        <DetailPane
-          header={
-            <div className="checks-detail-header">
-              <p className="checks-narrow-identity">
-                {auditProfileLabel(audit)} · {state.label}
-              </p>
-              <ReturnContext />
-              {projectError === null ? null : (
-                <ErrorNotice error={projectError} />
-              )}
-              <CheckProgress
-                audit={audit}
-                projectName={projectName}
-                projectId={audit.projectId}
-                kind={kind}
-                entries={entries}
-                partialList={coverage.truncated}
-                pin={pin}
-                workspace={workspace}
-                links={links}
-              />
-              <SectionTabs section={section} kind={kind} links={links} />
-              <ButtonLink
-                to={`/catalog/studio?kind=AuditProfile&audit=${encodeURIComponent(audit.auditId)}`}
-              >
-                Open live Studio
-              </ButtonLink>
-            </div>
-          }
-        >
-          {content}
-        </DetailPane>
-      }
+      detail={detail}
     />
   );
 }

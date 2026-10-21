@@ -327,6 +327,35 @@ its receipt, not in accepted outputs (LIFE-ASC-2).
 
 **ASC-R45.** `attempts` cannot exceed `maxAttempts`.
 
+**ASC-R146.** After generated inventory is accepted, public Audit reads include
+`generatedInventory`: the exact retained snapshot and worklist, source/settings
+Artifact descriptors, source-content and canonical inventory digests, accepted
+initial item count and gaps. It is absent before acceptance. Original baseline
+inputs remain unchanged. One committed `initial-inventory` link and one bounded
+exact snapshot read supply this projection; item pages are not scanned.
+
+**ASC-R147.** Coverage details for an OpenAPI scan include typed `scan`
+provenance: scanner, operation pointer, exact source and settings, preparation
+digest, runnable state, test parameters and gaps, and the accepted request digest
+or fixed target URL when available. These are read from the retained validated
+task. Raw request credentials are not included. Evidence may identify a validated
+`contentMemberId` in its retained result package.
+
+**ASC-R148.** `GET /v1/audits/{auditId}/artifacts` reads one committed Audit
+receipt link selected by `key` and mandatory exact `revision`. Optional `member`
+selects a validated package member by ID. It uses existing owner authentication,
+transfer admission and byte/time limits. Foreign, absent, uncommitted or
+revision-mismatched content returns the same safe 404. Invalid selectors return
+400, a changed Audit during the read returns 409, and storage conflicts return
+retryable 503. Cancellation ends the read without a mutation. It grants no
+Project-prefix browsing or current-binding resolution. Accepted outputs and
+results remain readable after source Run deletion and until Audit deletion.
+
+**ASC-R149.** Preparation, generated-inventory and retained-artifact reads check
+the Audit revision after hydration. A changed revision returns conflict rather
+than mixing an earlier phase or ETag with newer accepted output descriptors.
+Public coverage pagination retains its existing revision pin.
+
 ### Inventory phase and the first Round
 
 **ASC-R46.** After all prepare roles are accepted, `phase: inventory`

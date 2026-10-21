@@ -1,0 +1,18 @@
+apiVersion: contractor/v1alpha1
+kind: RuntimeConfig
+metadata:
+  name: local-phoenix
+  version: "1"
+spec:
+  worker:
+    telemetry:
+      adapter: otlp-http@1
+      endpoint: http://127.0.0.1:6006/v1/traces
+      captureContent: false
+      flushTimeoutSeconds: 10
+  planner:
+    telemetry:
+      adapter: otlp-http@1
+      endpoint: http://127.0.0.1:6006/v1/traces
+      captureContent: false
+      flushTimeoutSeconds: 10

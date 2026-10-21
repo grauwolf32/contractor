@@ -1,0 +1,58 @@
+{
+  "semconvVersion": "1.41.1",
+  "content": [
+    {
+      "name": "chat-request", "model": true, "field": "input",
+      "value": {
+        "systemInstruction": {"parts": [{"text": "Be precise."}]},
+        "contents": [
+          {"role": "user", "parts": [{"text": "Привет"}]},
+          {"role": "model", "parts": [{"functionCall": {"id": "call-1", "name": "lookup", "args": {"key": "value"}}}]},
+          {"role": "user", "parts": [{"functionResponse": {"id": "call-1", "name": "lookup", "response": {"found": true}}}]}
+        ],
+        "tools": [{"functionDeclarations": [{"name": "lookup", "description": "Find a value", "parametersJsonSchema": {"type": "object"}}]}]
+      },
+      "expected": {
+        "gen_ai.system_instructions": [{"type": "text", "content": "Be precise."}],
+        "gen_ai.input.messages": [
+          {"role": "user", "parts": [{"type": "text", "content": "Привет"}]},
+          {"role": "assistant", "parts": [{"type": "tool_call", "id": "call-1", "name": "lookup", "arguments": {"key": "value"}}]},
+          {"role": "tool", "parts": [{"type": "tool_call_response", "id": "call-1", "response": {"found": true}}]}
+        ],
+        "gen_ai.tool.definitions": [{"type": "function", "name": "lookup", "description": "Find a value", "parameters": {"type": "object"}}]
+      }
+    },
+    {
+      "name": "reasoning-response", "model": true, "field": "output",
+      "value": {"role": "model", "parts": [{"text": "Think", "thought": true}, {"text": "Answer"}]},
+      "expected": {"gen_ai.output.messages": [{"role": "assistant", "finish_reason": "unknown", "parts": [{"type": "reasoning", "content": "Think"}, {"type": "text", "content": "Answer"}]}]}
+    },
+    {
+      "name": "auxiliary-prompt", "model": true, "field": "input", "value": "Summarize this",
+      "expected": {"gen_ai.input.messages": [{"role": "user", "parts": [{"type": "text", "content": "Summarize this"}]}]}
+    },
+    {"name": "empty-request", "model": true, "field": "input", "value": {"contents": null}, "expected": {"gen_ai.input.messages": []}},
+    {"name": "invalid-request", "model": true, "field": "input", "value": {"contents": 12}, "expected": {}},
+    {"name": "no-response", "model": true, "field": "output", "value": null, "expected": {}},
+    {"name": "tool-input", "model": false, "field": "input", "value": {"path": "file.go"}, "expected": {"contractor.input": {"path": "file.go"}}},
+    {"name": "orchestration-output", "model": false, "field": "output", "value": {"result": "done"}, "expected": {"contractor.output": {"result": "done"}}}
+  ],
+  "usage": [
+    {"name": "reported", "input": 11, "output": 7, "cached": 3, "expected": {"gen_ai.usage.input_tokens": 11, "gen_ai.usage.output_tokens": 7, "gen_ai.usage.cache_read.input_tokens": 3}},
+    {"name": "zero", "input": 0, "output": 0, "cached": 0, "expected": {"gen_ai.usage.input_tokens": 0, "gen_ai.usage.output_tokens": 0, "gen_ai.usage.cache_read.input_tokens": 0}},
+    {"name": "missing", "expected": {}},
+    {"name": "invalid", "input": -1, "output": -1, "cached": -1, "expected": {}}
+  ],
+  "acknowledgements": [
+    {"body": {}, "accepted": true},
+    {"body": {"partialSuccess": {"rejectedSpans": "0"}}, "accepted": true},
+    {"body": {"name": "otel-ingestion-job", "id": "job-1"}, "accepted": true},
+    {"body": {"futureReceipt": {"sequence": 8, "details": [true, null]}}, "accepted": true},
+    {"body": {"partialSuccess": {"rejectedSpans": "0", "errorMessage": "warning", "futureDetail": [1]}, "futureReceipt": "accepted"}, "accepted": true},
+    {"body": {"partialSuccess": "invalid", "futureReceipt": "accepted"}, "accepted": false},
+    {"body": {"partialSuccess": {"rejectedSpans": true}}, "accepted": false},
+    {"body": {"partialSuccess": {"rejectedSpans": "invalid"}}, "accepted": false},
+    {"body": {"partialSuccess": {"errorMessage": 8}}, "accepted": false},
+    {"body": [], "accepted": false}
+  ]
+}

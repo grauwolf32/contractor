@@ -1,6 +1,6 @@
 # Audit preparation and Workflow composition
 
-Date: 2026-09-20. Series: **V62**. Status: **supplied-OpenAPI scans and preparation contracts accepted on 2026-09-21; preparation storage, controller and generated initial inventory implemented on 2026-10-09; V62-010–012 next**.
+Date: 2026-09-20. Series: **V62**. Status: **selected preparation/source-to-scan delivery implemented and verified on 2026-10-21; iterative extensions remain deferred**.
 
 After review, the user requested explicit deferral of disputed work and accepted
 the order supplied OpenAPI → useful scan results → source preparation. Nuclei
@@ -15,10 +15,14 @@ and V62-004 now supply controller dispatch, restart recovery, controls before a
 Round exists and fenced acceptance of the first generated inventory. Public
 preparation is enabled. The `source-openapi-sqlmap-scan@1` preset combines one
 existing source-to-OpenAPI Workflow with the delivered SQLMap scan adapter.
-Next are V62-010 richer provenance, V62-011 preparation UI and V62-012 the
-generated-flow process/browser gate. The current database tests exercise the
-complete prepared-checklist-to-report path and prepared OpenAPI scan inventory;
-they do not replace the V62-012 real-process acceptance gate. Results and exact
+V62-010 now exposes accepted provenance, V62-011 implements the accepted A
+overview/B endpoint workspace, and V62-012 verifies the generated-source path
+through real Server, PostgreSQL, Scheduler, Runtime, scanners and Chromium.
+The gate passed 34 mandatory database cases and nine process cases with zero
+skips, plus the real browser journey and existing Audit/completion regressions.
+Model responses and external validation are controlled fixtures; this proves
+orchestration contracts rather than model or finding quality. See the
+[release evidence](../../tasks/evidence/v62-012.json). Earlier results and exact
 checks are recorded in [V62-003 evidence](../../tasks/evidence/v62-003.json) and
 [V62-004 evidence](../../tasks/evidence/v62-004.json).
 
@@ -39,8 +43,9 @@ dependency completion nor broad instructions to continue V62 reactivate them.
 
 ## Current delivery decision (2026-10-21)
 
-The next delivery is V377-001 target-cookie continuity, followed by
-V62-010 → V62-011 → V62-012. These are delivery priorities; cookies are not a
+The user clarified the delivery order: finish V62-010 → V62-011 → V62-012
+and implement the accepted A overview/B endpoint details first, then start
+V377-001 target-cookie continuity. These are delivery priorities; cookies are not a
 new technical dependency of preparation. Keep this slice focused on the
 existing source-to-OpenAPI-to-check journey. Fresh UI alternatives are in
 [the V62 preparation exploration](../design/ui/v62-preparation.md); A is accepted for the overview and B for endpoint details
@@ -212,9 +217,9 @@ Minimal no-Round public lifecycle support ships in 003; 010 adds richer provenan
 | [006](../../tasks/v62-006-audit-retained-dependencies.yml) | **Deferred:** cross-round item dependencies | 004 |
 | [007](../../tasks/v62-007-audit-check-routing.yml) | **Deferred:** proposed-check routing | 005, 006 |
 | [008](../../tasks/v62-008-project-analysis-preparation.yml) | **Deferred:** standalone analysis and two-Workflow preparation | 004 |
-| [010](../../tasks/v62-010-audit-composition-api.yml) | Preparation provenance and scan coverage projections | 004 |
-| [011](../../tasks/v62-011-audit-composition-ui.yml) | Prepare/progress/results/dependencies and control journey | 009, 010 |
-| [012](../../tasks/v62-012-audit-composition-release.yml) | Mandatory database, process and browser release verification | 011 |
+| [010](../../tasks/done/v62-010-audit-composition-api.yml) | Preparation provenance and scan coverage projections | 004 |
+| [011](../../tasks/done/v62-011-audit-composition-ui.yml) | Prepare/progress/results/dependencies and control journey | 009, 010 |
+| [012](../../tasks/done/v62-012-audit-composition-release.yml) | Mandatory database, process and browser release verification | 011 |
 
 Deferred tasks retain their proposed scope but are excluded from eligible work.
 Existing in-progress tasks outside V62 retain their owners and scope.

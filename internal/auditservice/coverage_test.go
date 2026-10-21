@@ -3,6 +3,7 @@ package auditservice
 import (
 	"encoding/json"
 	"errors"
+	"os"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
@@ -68,5 +69,37 @@ func TestCoverageResultKeepsBatchMembersAndEvidenceSeparate(t *testing.T) {
 	row.ItemKey = "missing"
 	if err := describeCoverageResult(pkg, &row); !errors.Is(err, artifacts.ErrArtifactIntegrity) {
 		t.Fatalf("accepted unrelated result: %v", err)
+	}
+}
+
+func TestScanCoverageProjectsExactInputsWithoutRequestCredentials(t *testing.T) {
+	for _, scanner := range []string{"sqlmap", "nuclei"} {
+		t.Run(scanner, func(t *testing.T) {
+			source, err := os.ReadFile(openAPIScanInputFixture + "/openapi.json")
+			if err != nil {
+				t.Fatal(err)
+			}
+			settings, err := os.ReadFile(openAPIScanInputFixture + "/" + scanner + "-settings.json")
+			if err != nil {
+				t.Fatal(err)
+			}
+			sourceRevision, settingsRevision := "source-r1", "settings-r1"
+			sourceRef := contracts.ArtifactRef{Namespace: "inputs", Name: "openapi", Revision: &sourceRevision}
+			settingsRef := contracts.ArtifactRef{Namespace: "inputs", Name: "settings", Revision: &settingsRevision}
+			inventory, err := auditdomain.BuildOpenAPIScanInventory(source, "application/json", settings, auditdomain.ExactInput{Name: "settings", Ref: settingsRef, Digest: auditdomain.DigestBytes(settings)}, auditdomain.InventoryOptions{Round: 1, WorkflowRole: "scan", SourceInputName: "openapi", SourceRef: sourceRef, ApprovalRequirement: auditdomain.ApprovalNone})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, task := range inventory.Tasks {
+				row := auditstore.CoverageRow{ItemKey: task.Item.ItemKey, SubjectKey: task.Item.SubjectKey, Details: &auditstore.CoverageDetails{}}
+				if err := describeCoverageTask(task.Package, &row); err != nil {
+					t.Fatal(err)
+				}
+				scan := row.Details.Scan
+				if scan == nil || scan.Scanner != scanner || !scan.Source.Ref.SameExact(sourceRef) || scan.Source.Digest != auditdomain.DigestBytes(source) || !scan.Settings.Ref.SameExact(settingsRef) || scan.PreparationDigest != task.Document.Scan.PreparationDigest || len(row.Details.Methods) != 1 || row.Details.Methods[0] != task.Document.Scan.CoverageRequirement() {
+					t.Fatalf("lost exact %s provenance: %+v", scanner, row.Details)
+				}
+			}
+		})
 	}
 }

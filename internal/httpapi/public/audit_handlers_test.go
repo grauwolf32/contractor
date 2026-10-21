@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
@@ -571,6 +572,7 @@ type fakeAuditManagement struct {
 	coverage            auditservice.CoveragePage
 	preparation         map[string]auditservice.PreparationRoleProjection
 	preparationOwner    string
+	artifactRead        artifacts.ReadResult
 	created             auditservice.CreateDraftParams
 	start               auditservice.StartParams
 	mutation            auditservice.MutationParams
@@ -592,6 +594,14 @@ type fakeAuditManagement struct {
 func (f *fakeAuditManagement) Preparation(_ context.Context, ownerID, _ string) (map[string]auditservice.PreparationRoleProjection, error) {
 	f.preparationOwner = ownerID
 	return f.preparation, f.err
+}
+
+func (f *fakeAuditManagement) ReadArtifact(_ context.Context, _, _, _, _ string) (artifacts.ReadResult, error) {
+	return f.artifactRead, f.err
+}
+
+func (f *fakeAuditManagement) GeneratedInventory(_ context.Context, _, _ string, _ uint64) (*auditservice.GeneratedInventoryProjection, error) {
+	return nil, f.err
 }
 
 type fakeFindingProposalManagement struct {

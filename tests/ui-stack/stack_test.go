@@ -596,7 +596,7 @@ func (s *uiStack) restartServer() error {
 
 func (s *uiStack) startControlServer() {
 	s.t.Helper()
-	listener, err := net.Listen("tcp", freeAddress(s.t, "127.0.0.3"))
+	listener, err := net.Listen("tcp", freeAddress(s.t, "127.0.0.1"))
 	if err != nil {
 		s.t.Fatal(err)
 	}

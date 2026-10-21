@@ -1,0 +1,20 @@
+apiVersion: contractor/v1alpha1
+kind: RuntimeConfig
+metadata:
+  name: local-langfuse
+  version: "1"
+spec:
+  worker:
+    telemetry:
+      adapter: otlp-http@1
+      endpoint: http://127.0.0.1:3000/api/public/otel/v1/traces
+      credential: local-langfuse-otlp
+      captureContent: false
+      flushTimeoutSeconds: 10
+  planner:
+    telemetry:
+      adapter: otlp-http@1
+      endpoint: http://127.0.0.1:3000/api/public/otel/v1/traces
+      credential: local-langfuse-otlp
+      captureContent: false
+      flushTimeoutSeconds: 10

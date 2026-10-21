@@ -1,0 +1,549 @@
+{
+  "task": "V62-012",
+  "date": "2026-10-21",
+  "status": "passed",
+  "tested_revision": "8c2441f0b3bd2643adb44ca8c70e30c5cdb38c74",
+  "main_base": "8f1b239b9cc0321d34310caab47322015f751165",
+  "boundary": "Real Server, PostgreSQL, Scheduler, mTLS Runtime, SQLMap, Nuclei and Chromium; scripted model responses and an external-validator fixture. Built-in OpenAPI validation and Runtime tools execute normally.",
+  "checks": [
+    {
+      "command": "make test-audit-composition-e2e",
+      "result": "passed",
+      "reports": {
+        "integration": {
+          "mandatory_cases": 34,
+          "executed_tests_and_subtests": 74,
+          "mandatory_skips": 0,
+          "report_sha256": "84334d980b4a419d473f1dba94d58db9fc27ced942a9cf4a44c56e8b624bfed0",
+          "passed": [
+            {
+              "package": "github.com/grauwolf32/contractor/internal/httpapi/public",
+              "case": "TestAuditArtifactReadsExactReceiptAndValidatedMember"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/artifacts",
+              "case": "TestSharedPostgresAuditPreparationIdentityAndReplay"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+              "case": "TestPostgresCompositionReadsOnlyCommittedInventoryAndRetainedOutputs"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/artifacts",
+              "case": "TestSharedPostgresAuditPreparationConcurrentIntentAndReceipt"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+              "case": "TestPostgresInitialInventoryAtomicAcceptanceAndPackageReplay"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/artifacts",
+              "case": "TestSharedPostgresAuditPreparationDependenciesAndRetryBounds"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+              "case": "TestPostgresInitialInventoryFencesControlsAndStaleClaimsAfterPublication/pause"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/artifacts",
+              "case": "TestSharedPostgresAuditPreparationRetentionAndLifecycleWithoutRound"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+              "case": "TestPostgresInitialInventoryFencesControlsAndStaleClaimsAfterPublication/cancel"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/httpapi/public",
+              "case": "TestPublicAuditPaginationBoundary/findings/199"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/httpapi/public",
+              "case": "TestPublicAuditPaginationBoundary/findings/200"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/httpapi/public",
+              "case": "TestPublicAuditPaginationBoundary/findings"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/httpapi/public",
+              "case": "TestPublicAuditPaginationBoundary/reviews/199"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/artifacts",
+              "case": "TestSharedPostgresAuditPreparationDeleteFencesAnUndispatchedIntent"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/httpapi/public",
+              "case": "TestPublicAuditPaginationBoundary/reviews/200"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/httpapi/public",
+              "case": "TestPublicAuditPaginationBoundary/reviews"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/httpapi/public",
+              "case": "TestPublicAuditPaginationBoundary/provenance/199"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/httpapi/public",
+              "case": "TestPublicAuditPaginationBoundary/provenance/200"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/httpapi/public",
+              "case": "TestPublicAuditPaginationBoundary/provenance"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/httpapi/public",
+              "case": "TestPublicAuditPaginationBoundary/provenance_envelope_changes_before_service_read/audit"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/httpapi/public",
+              "case": "TestPublicAuditPaginationBoundary/provenance_envelope_changes_before_service_read/finding"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/httpapi/public",
+              "case": "TestPublicAuditPaginationBoundary"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+              "case": "TestPostgresInitialInventoryFencesControlsAndStaleClaimsAfterPublication/delete"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/artifacts",
+              "case": "TestSharedPostgresAuditPreparationRejectsObsoleteSnapshotsAndInventoryBaseline"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/httpapi/public",
+              "case": "TestSharedPublicAuditPreparationContracts/prepared_inventory"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/httpapi/public",
+              "case": "TestSharedPublicAuditPreparationContracts/missing_source"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/httpapi/public",
+              "case": "TestSharedPublicAuditPreparationContracts/obsolete_source"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/httpapi/public",
+              "case": "TestSharedPublicAuditPreparationContracts/source_role_missing"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/httpapi/public",
+              "case": "TestSharedPublicAuditPreparationContracts/settings_item_scope"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/httpapi/public",
+              "case": "TestSharedPublicAuditPreparationContracts/direct_inventory"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/httpapi/public",
+              "case": "TestSharedPublicAuditPreparationContracts/pending_preparation"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/httpapi/public",
+              "case": "TestSharedPublicAuditPreparationContracts/running_preparation"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/httpapi/public",
+              "case": "TestSharedPublicAuditPreparationContracts/failed_preparation"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/httpapi/public",
+              "case": "TestSharedPublicAuditPreparationContracts/accepted_preparation"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/httpapi/public",
+              "case": "TestSharedPublicAuditPreparationContracts/unknown_status"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/httpapi/public",
+              "case": "TestSharedPublicAuditPreparationContracts/too_many_attempts"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/httpapi/public",
+              "case": "TestSharedPublicAuditPreparationContracts/no_accepted_output"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/httpapi/public",
+              "case": "TestSharedPublicAuditPreparationContracts/unknown_field"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/httpapi/public",
+              "case": "TestSharedPublicAuditPreparationContracts/versionless_output"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/httpapi/public",
+              "case": "TestSharedPublicAuditPreparationContracts/missing_output_size"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/httpapi/public",
+              "case": "TestSharedPublicAuditPreparationContracts/empty_preparation"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/httpapi/public",
+              "case": "TestSharedPublicAuditPreparationContracts/accepted_generated_inventory"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/httpapi/public",
+              "case": "TestSharedPublicAuditPreparationContracts/scan_request_provenance"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/httpapi/public",
+              "case": "TestSharedPublicAuditPreparationContracts/generated_inventory_without_source"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/httpapi/public",
+              "case": "TestSharedPublicAuditPreparationContracts/scan_without_exact_preparation"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/httpapi/public",
+              "case": "TestSharedPublicAuditPreparationContracts"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/httpapi/public",
+              "case": "TestSharedAuditPreparationHandlersWithoutRound"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+              "case": "TestPostgresInitialInventoryFencesControlsAndStaleClaimsAfterPublication/stale-claim"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/httpapi/public",
+              "case": "TestPublicAuditSourceRunDeletionInvalidatesReadContexts"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+              "case": "TestPostgresInitialInventoryFencesControlsAndStaleClaimsAfterPublication/deadline"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+              "case": "TestPostgresInitialInventoryFencesControlsAndStaleClaimsAfterPublication"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+              "case": "TestPostgresInitialInventoryInvalidAndOverLimitFailBeforeRound/malformed"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+              "case": "TestPostgresInitialInventoryInvalidAndOverLimitFailBeforeRound/empty"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+              "case": "TestPostgresInitialInventoryInvalidAndOverLimitFailBeforeRound/over-limit"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+              "case": "TestPostgresInitialInventoryInvalidAndOverLimitFailBeforeRound"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+              "case": "TestPostgresPreparationDependentRunsRetainExactOutputs"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+              "case": "TestPostgresPreparationStaleClaimBeforeRunBindingRecoversSameIntent"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+              "case": "TestPostgresPreparationRecoversLostIntentAndRunResponses/intent"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+              "case": "TestPostgresPreparationRecoversLostIntentAndRunResponses/run"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+              "case": "TestPostgresPreparationRecoversLostIntentAndRunResponses"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+              "case": "TestPostgresPreparationRecoversLostCollectionResponse"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+              "case": "TestPostgresPreparationPauseAndDeadlineCollectWithoutAdvancing/pause"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+              "case": "TestPostgresPreparationPauseAndDeadlineCollectWithoutAdvancing/deadline"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+              "case": "TestPostgresPreparationPauseAndDeadlineCollectWithoutAdvancing"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+              "case": "TestPostgresPreparationMissingOutputRetriesThenFailsWithoutRound"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+              "case": "TestPostgresPreparationCancelAndDeleteDrainBeforeDependencies/cancel"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+              "case": "TestPostgresPreparationCancelAndDeleteDrainBeforeDependencies/delete"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+              "case": "TestPostgresPreparationCancelAndDeleteDrainBeforeDependencies"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+              "case": "TestPostgresPreparationSharedSubmissionAndEvidenceBudgets/submission"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+              "case": "TestPostgresPreparationSharedSubmissionAndEvidenceBudgets/evidence"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+              "case": "TestPostgresPreparationSharedSubmissionAndEvidenceBudgets"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+              "case": "TestPostgresPreparedOpenAPIScansKeepAssignedDenominatorAndApproval/automatic"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+              "case": "TestPostgresPreparedOpenAPIScansKeepAssignedDenominatorAndApproval/approval-required"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+              "case": "TestPostgresPreparedOpenAPIScansKeepAssignedDenominatorAndApproval"
+            }
+          ]
+        },
+        "process": {
+          "mandatory_cases": 9,
+          "executed_tests_and_subtests": 11,
+          "mandatory_skips": 0,
+          "report_sha256": "04bb66dc012d1bc8a3ef68d1b068c316860c5a22f29bb6d9ecada899f9bc9376",
+          "passed": [
+            {
+              "package": "github.com/grauwolf32/contractor/tests/e2e",
+              "case": "TestAuditCompositionAcrossProductionProcesses/generated_sqlmap_and_deleted_preparation_run"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/tests/e2e",
+              "case": "TestAuditCompositionAcrossProductionProcesses/browser_preparation_approval_retention_and_failure"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/tests/e2e",
+              "case": "TestAuditCompositionAcrossProductionProcesses"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/tests/e2e",
+              "case": "TestOpenAPIAuditScanAcrossProductionProcesses/sqlmap_exact_request_and_retained_package"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/tests/e2e",
+              "case": "TestOpenAPIAuditScanAcrossProductionProcesses/nuclei_url_coverage_and_pinned_template"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/tests/e2e",
+              "case": "TestOpenAPIAuditScanAcrossProductionProcesses/missing_concrete_input_never_dispatches"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/tests/e2e",
+              "case": "TestOpenAPIAuditScanAcrossProductionProcesses/lost_journal_ack_does_not_repeat_scan"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/tests/e2e",
+              "case": "TestOpenAPIAuditScanAcrossProductionProcesses/publication_and_collection_faults_survive_restart"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/tests/e2e",
+              "case": "TestOpenAPIAuditScanAcrossProductionProcesses/known_failure_has_bounded_cross_run_retries"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/tests/e2e",
+              "case": "TestOpenAPIAuditScanAcrossProductionProcesses/cancelled_scan_is_not_resubmitted"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/tests/e2e",
+              "case": "TestOpenAPIAuditScanAcrossProductionProcesses"
+            }
+          ]
+        }
+      },
+      "browser_stats": {
+        "startTime": "2026-10-21T17:28:45.245Z",
+        "duration": 128810.33899999999,
+        "expected": 1,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      }
+    },
+    {
+      "command": "make test-audits-e2e test-audit-program-library-e2e test-audit-completion-e2e",
+      "result": "passed",
+      "browser_stacks": [
+        "TestBrowserOperationsStack",
+        "TestManagedEvalsExternalStack",
+        "TestManagedEvalsNativeStack"
+      ],
+      "operations_browser_cases": 87,
+      "completion": {
+        "go": 198,
+        "runtime": 412,
+        "selected_skips": 0
+      },
+      "report_sha256": "4018b2c60c8307de694b7c5e63064f30a18104169f863012038c28b3cf1bd701"
+    },
+    {
+      "command": "make verify-public-api ui-generate-check ui-typecheck ui-test ui-build test-config lint",
+      "result": "passed",
+      "react_passed": 2173,
+      "react_expected_failure": 1,
+      "node_passed": 16,
+      "report_sha256": "74f8c9956866c57da1c90691a0e953c5de999d8e05d2fb4fd2a7b7f98cc48a61"
+    },
+    {
+      "command": "make lint",
+      "result": "passed",
+      "note": "Included in the final combined API/UI/config command."
+    }
+  ],
+  "browser_journey": {
+    "schemaVersion": 1,
+    "auditId": "audit_e0249b7bc1e4e9dd8a1f10eee8563cca",
+    "failedAuditId": "audit_fd24f6cb5e2ccf8719eca9467ef461c0",
+    "projectId": "project_eade4e795d40248e0c36284f946cc6d1",
+    "originalInputs": {
+      "settings": {
+        "ref": {
+          "namespace": "fixture",
+          "name": "settings",
+          "revision": "rev_0160424e59d79c26ea76e70cd8e6a43d"
+        },
+        "digest": "sha256:cb4bdabff3415505ca0410e48601dda93738e284d6ffd39a6736c48ca560abd8",
+        "mediaType": "application/json",
+        "sizeBytes": 214
+      },
+      "source": {
+        "ref": {
+          "namespace": "fixture",
+          "name": "source",
+          "revision": "rev_8cd7212c6dfe2fb4b595af915ec31756"
+        },
+        "digest": "sha256:38d51c35465873131feb1f39cb80cc69375c1d9b32c75e120a167c99d3336e33",
+        "mediaType": "application/zip",
+        "sizeBytes": 1347
+      }
+    },
+    "generatedInventory": {
+      "snapshot": {
+        "ref": {
+          "namespace": "audit-e44fdd81a3f6b49e8e0aead7cd00acc9aba5c49912c74b03ead243ff711a191a",
+          "name": "initial-inventory-9a4c6da70eee36b8b1a9fb1908b21830095c6aa73137050fe91f2079fcd259b8",
+          "revision": "rev_6a6fa6e3c066cfc7b7a906c5ff8466ba"
+        },
+        "digest": "sha256:5ef52412265508b41d3dd4698d41d7987df9312c28d375a3e2ff9ac8109834b3",
+        "mediaType": "application/json",
+        "sizeBytes": 2491
+      },
+      "sources": {
+        "settings": {
+          "ref": {
+            "namespace": "fixture",
+            "name": "settings",
+            "revision": "rev_0160424e59d79c26ea76e70cd8e6a43d"
+          },
+          "digest": "sha256:cb4bdabff3415505ca0410e48601dda93738e284d6ffd39a6736c48ca560abd8",
+          "mediaType": "application/json",
+          "sizeBytes": 214
+        },
+        "source": {
+          "ref": {
+            "namespace": "audit-e44fdd81a3f6b49e8e0aead7cd00acc9aba5c49912c74b03ead243ff711a191a",
+            "name": "role-output-e8636f17816038882ef4e7928dadd6aac53431ec293096b88566f71508da2d3d",
+            "revision": "rev_08df5db1b6b648c88d08cf7fc13f3329"
+          },
+          "digest": "sha256:27186ad8c5cb00afa45e1db9e4840688ece507d97982a437c4f045e6cbc4d192",
+          "mediaType": "application/yaml",
+          "sizeBytes": 1206
+        }
+      },
+      "sourceContentDigest": "sha256:27186ad8c5cb00afa45e1db9e4840688ece507d97982a437c4f045e6cbc4d192",
+      "canonicalInventoryDigest": "sha256:d7ae76f102dbe28ca4ad60c0b4ade6e7f48f51f144ffb006b4aab8af894aa10a",
+      "worklist": {
+        "ref": {
+          "namespace": "audit-e44fdd81a3f6b49e8e0aead7cd00acc9aba5c49912c74b03ead243ff711a191a",
+          "name": "round-worklist-77262bcc639f67e268640cde6ab09e714f5315371f5fda7a0675b7c0ef993195",
+          "revision": "rev_33983267682a9b7a0a6043344e961872"
+        },
+        "digest": "sha256:813aca200bc17386e3a10f0bc02fb950be5cce648b9754f2c7dca8e893185c69",
+        "mediaType": "application/zip",
+        "sizeBytes": 3991
+      },
+      "itemCount": 1,
+      "gaps": []
+    },
+    "retainedAfterDeletingRuns": [
+      "run_8027ad22044aa050e94a73e09cba74a0",
+      "run_9193c881979f7d9a4897adb5b41af224"
+    ],
+    "failedPhase": "preparing",
+    "browserAssertions": [
+      "setup",
+      "preparing",
+      "pause-resume",
+      "inventory-pending",
+      "approval",
+      "nuclei-url",
+      "exact-provenance",
+      "retained-evidence",
+      "failed-preparation"
+    ],
+    "passed": true
+  },
+  "screenshots": [
+    {
+      "path": "docs/design/ui/screenshots/v62/production/approval.png",
+      "sha256": "79af5e894119151bed92aaacd54b9f2ba9eefb1c527a4fc7616445cf42ed9a4d"
+    },
+    {
+      "path": "docs/design/ui/screenshots/v62/production/endpoint-completed.png",
+      "sha256": "ca3730d5ff4e222ee1639712a5cb5343ad26c3897ed5e08aeab422b5e10cd8f1"
+    },
+    {
+      "path": "docs/design/ui/screenshots/v62/production/inventory-pending.png",
+      "sha256": "2ad58bdd45c544c221e4dab2b25729bf9477b9671bc3b5e6a988e10d7e49ad51"
+    },
+    {
+      "path": "docs/design/ui/screenshots/v62/production/overview-completed.png",
+      "sha256": "650009d8e8aeb149ddc874329ab64863573341b930b965d4108093cf8b92a721"
+    },
+    {
+      "path": "docs/design/ui/screenshots/v62/production/preparation-failed.png",
+      "sha256": "44a47b68956c5198c36af1f717e1fa72f88fe5f48c4e63a3941972f2aa0b1da1"
+    },
+    {
+      "path": "docs/design/ui/screenshots/v62/production/preparing.png",
+      "sha256": "a0e86f1f806ea46d5d70fde843ed148350f947eac13231f49938bf01529e019c"
+    },
+    {
+      "path": "docs/design/ui/screenshots/v62/production/retained-after-run-deletion.png",
+      "sha256": "2212f08bc310ff13872029c57604a5a3404deddf31a692afd0c9546c61ba7db5"
+    }
+  ],
+  "limitations": [
+    "This proves orchestration and UI contracts, not autonomous audit or model/finding quality.",
+    "The generated Nuclei source profile is a test-only fixture; the shipped source profile selects SQLMap.",
+    "V62-005 through V62-008 and V64 remain deferred; cookie continuity V377-001 remains pending.",
+    "Host is macOS; V389-001 preserves Linux availability assertions but does not claim a Linux run."
+  ],
+  "tools": {
+    "go": "1.26.9 darwin/arm64",
+    "node": "24.20.0",
+    "python": "3.13.16",
+    "psql": "17.11",
+    "nuclei": "3.11.1",
+    "sqlmap": "1.10#stable",
+    "playwright": "1.62.1",
+    "chromium": "151.0.7922.34",
+    "ui": "0.7.0"
+  }
+}

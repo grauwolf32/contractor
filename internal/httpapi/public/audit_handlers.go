@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
@@ -35,6 +36,8 @@ type AuditManagement interface {
 	Delete(context.Context, auditservice.MutationParams) (auditservice.MutationResult, error)
 	Get(context.Context, string, string) (auditstore.Audit, error)
 	Preparation(context.Context, string, string) (map[string]auditservice.PreparationRoleProjection, error)
+	ReadArtifact(context.Context, string, string, string, string) (artifacts.ReadResult, error)
+	GeneratedInventory(context.Context, string, string, uint64) (*auditservice.GeneratedInventoryProjection, error)
 	List(context.Context, auditstore.ListParams) ([]auditstore.Audit, error)
 	ListItems(context.Context, auditstore.ListItemsParams) ([]auditstore.Item, error)
 	ListItemAttempts(context.Context, string, string, []string) (map[string][]auditstore.ItemAttempt, error)

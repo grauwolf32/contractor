@@ -65,6 +65,10 @@ EXPECTED_CONFIG_TESTS = {
 # opt-in target that selects it and why release-verify cannot run it; every
 # other e2e-tagged test must be selected by release-verify.
 OPT_IN_E2E_TESTS = {
+    "TestAuditCompositionAcrossProductionProcesses": (
+        "test-audit-composition-e2e",
+        "requires the real nuclei/sqlmap scanners and Chromium",
+    ),
     "TestArtifactBlobBackendsContainers": (
         "test-artifact-blob-backends",
         "requires Podman to run the production containers",
@@ -427,6 +431,9 @@ def script_go_tests(relative: str) -> list[GoTest]:
         return [GoTest(relative, frozenset({"e2e"}), ("./tests/e2e",), "^(" + "|".join(module.PROCESS_TESTS) + ")$")]
     if relative == "scripts/test-openapi-audit-scan-e2e.py":
         return [GoTest(relative, frozenset({"e2e"}), ("./tests/e2e",), f"^{module.TEST}$")]
+    if relative == "scripts/test-audit-composition-e2e.py":
+        selected = module.matrix()
+        return [GoTest(relative, frozenset({tag}), tuple("./" + package.removeprefix(MODULE) for package in selected[boundary]), module.pattern(case for cases in selected[boundary].values() for case in cases)) for boundary, tag in (("integration", "integration"), ("process", "e2e"))]
     if relative == "scripts/test-audit-completion-e2e.py":
         packages = tuple("./" + name.removeprefix(MODULE) for name in module.matrix()["go"])
         return [GoTest(relative, frozenset({"integration"}), packages, module.PATTERN, race=True)]

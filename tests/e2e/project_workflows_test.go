@@ -75,15 +75,16 @@ type projectRunEvidence struct {
 }
 
 type projectResourceResponse struct {
-	ProjectID   string    `json:"projectId"`
-	Kind        string    `json:"kind"`
-	Name        string    `json:"name"`
-	Description string    `json:"description"`
-	Lifecycle   string    `json:"lifecycle"`
-	Revision    string    `json:"revision"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
-	HTTPTarget  *struct {
+	ProjectID    string    `json:"projectId"`
+	Kind         string    `json:"kind"`
+	Name         string    `json:"name"`
+	Description  string    `json:"description"`
+	Lifecycle    string    `json:"lifecycle"`
+	ActiveChecks string    `json:"activeChecks"`
+	Revision     string    `json:"revision"`
+	CreatedAt    time.Time `json:"createdAt"`
+	UpdatedAt    time.Time `json:"updatedAt"`
+	HTTPTarget   *struct {
 		URL        string `json:"url"`
 		Credential *struct {
 			CredentialID string `json:"credentialId"`

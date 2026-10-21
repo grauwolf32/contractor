@@ -9,6 +9,9 @@ const profileLabels: Record<string, string> = {
   "owasp-wstg-4-2-fast-active-http": "WSTG 4.2 · Fast HTTP checks",
   "openapi-operation-trace": "OpenAPI · Operation trace",
   "source-checklist": "Source checklist",
+  "source-openapi-sqlmap-scan": "Source code → API spec → SQLMap",
+  "openapi-sqlmap-scan": "SQLMap · Request checks",
+  "openapi-nuclei-scan": "Nuclei · URL template checks",
 };
 
 export function auditPresetLabel(name: string): string {

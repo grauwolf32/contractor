@@ -252,7 +252,49 @@ durable attempt journal and available scanner reports. They and the Audit report
 remain readable after collected child Runs are deleted. Known failures have
 bounded retries; completed or unknown scans are recovered without automatic
 redispatch, including after cancellation, publication failure or Server restart.
-Source-to-OpenAPI preparation remains unavailable until V62-002–004 are delivered.
+
+## Generate an API spec before scanning
+
+Choose **Source code → API spec → SQLMap** (`source-openapi-sqlmap-scan@1`)
+when the Project has source code but no accepted API spec. Supply a source ZIP
+and JSON scan settings with the same concrete server, operation bindings,
+authentication and test parameters used by the supplied-OpenAPI profile.
+The Project's active-check policy controls whether scanning requires approval;
+select `approval-required` on the Project to require a human decision.
+
+The overview first shows **Preparing materials**. The ordinary
+`openapi-from-workspace@7` Run analyzes the sources, builds the API spec and
+validates it. Its accepted outputs become saved Audit materials. The next
+**Building the worklist** phase validates the generated operations and accepts
+the first worklist atomically. Before that acceptance there is no Round,
+endpoint denominator or security coverage to report. A failed preparation does
+not create an empty successful check. Inspect the preparation's Run and failure
+reason; failed checks are final, so correct the input and create a new check.
+
+This profile admits at most 16 operation items, two preparation attempts,
+three Run attempts per operation, 50 submitted Runs and 64 MiB of cumulative
+evidence. Missing concrete values produce explicit gaps rather than requests
+with invented values. Pause and time limits stop new work while already running
+work finishes and is collected. Continue reuses accepted preparation; it does
+not regenerate it.
+
+The endpoint workspace shows the exact API spec, settings, prepared-request or
+fixed-URL identity and saved scanner report. **Scan completed** describes scanner
+execution; coverage stays inconclusive until observations have been verified.
+Original Project inputs remain pinned independently of generated inputs.
+Saved preparation outputs and accepted scanner reports remain readable after
+their source Runs are deleted. The Audit itself owns these retained materials;
+deleting the Audit removes its holds and retained evidence.
+
+For diagnostics, inspect `phase`, `preparation.roles`, `generatedInventory`,
+the reviews and coverage endpoints. A role marked `accepted` must have exact
+output references; `generatedInventory` appears only after committed worklist
+acceptance. Read a retained material through
+`GET /v1/audits/{auditId}/artifacts?key=<receipt>&revision=<exact revision>`
+(and `member=<member ID>` for a validated package member). This endpoint checks
+Audit ownership and its committed receipts. An uncommitted receipt, wrong
+revision or unrelated material returns `404`; retry a failed read without
+repeating a scan or changing its inputs.
 
 ## Audit release verification
 
@@ -293,3 +335,24 @@ skipped cases and an empty Go test selection fail the gate. Its cases cover exac
 requests, truthful coverage, approval, missing input, lost result acknowledgement,
 publication/collection failure with restart, bounded cross-Run retries,
 cancellation and retained evidence after Run deletion.
+
+The composition gate also requires Node UI dependencies and Chromium:
+
+```sh
+make test-audit-composition-e2e
+```
+
+Its [mandatory matrix](../../tests/e2e/audit_composition_matrix.yml) includes
+real PostgreSQL controls/recovery/ownership cases, generated-source SQLMap,
+supplied-OpenAPI scanner regressions and a real browser preparation-to-Nuclei
+journey. The Nuclei source profile is a test-only fixture; the shipped generated
+profile uses SQLMap. The browser checks pending inventory, pause/continue,
+approval, exact provenance, retained materials after Run deletion and invalid
+source preparation. The model responses and external validator are controlled
+fixtures; the Server, Runtime tools, built-in validation, scanners and public
+API are real. This proves orchestration contracts, not model or finding quality.
+Set `CONTRACTOR_AUDIT_COMPOSITION_EVIDENCE_DIR` to retain JSON reports and browser
+screenshots. Missing prerequisites, skipped cases and empty selections fail.
+Run process gates sequentially, or give each concurrent gate a separate
+disposable database. Per-test schemas isolate data; the active Server session
+lease is database-wide.

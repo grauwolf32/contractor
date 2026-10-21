@@ -79,7 +79,7 @@ def test_otlp_protobuf_is_bounded_content_free_and_header_scoped() -> None:
         )
         model.end(
             outcome="succeeded",
-            attributes={"tokens.input": 11, "tokens.output": 7, "tokens.total": 18},
+            attributes={"gen_ai.usage.input_tokens": 11, "gen_ai.usage.output_tokens": 7},
         )
         tool = instrumentation.start_span(
             "contractor.worker.tool",
@@ -139,17 +139,18 @@ def test_otlp_protobuf_is_bounded_content_free_and_header_scoped() -> None:
     assert len({span.trace_id for span in spans}) == 1
     model_attributes = _attributes(spans[0].attributes)
     assert len(model_attributes["model.alias"].encode()) <= MAX_STRING_ATTRIBUTE_BYTES
-    assert model_attributes["tokens.total"] == 18
+    assert model_attributes["gen_ai.usage.input_tokens"] == 11
+    assert model_attributes["gen_ai.usage.output_tokens"] == 7
     assert set(model_attributes) <= {
-        "langfuse.observation.type",
+        "gen_ai.operation.name",
+        "gen_ai.provider.name",
         "gen_ai.request.model",
         "operation.kind",
         "model.alias",
         "outcome",
         "duration.ms",
-        "tokens.input",
-        "tokens.output",
-        "tokens.total",
+        "gen_ai.usage.input_tokens",
+        "gen_ai.usage.output_tokens",
     }
     assert all(len(span.attributes) <= MAX_SPAN_ATTRIBUTES for span in spans)
     task_attributes = _attributes(spans[2].attributes)

@@ -19,6 +19,7 @@ lint: generate-public-client-check docs-dependencies-check model-config-check ui
 	go -C tools/testonlyexports test -count=1 ./...
 	go -C tools/testonlyexports run . -tags=integration,e2e -baseline tools/testonlyexports/baseline.txt "$(CURDIR)"
 	cd runtime && uv run python -m unittest discover -s ../scripts -p 'test_*.py'
+	sh deploy/phoenix/test-run.sh
 	python3 scripts/check_release_verify_graph.py
 	cd runtime && uv run python ../scripts/check_tasks.py
 	python3 scripts/check_spec.py

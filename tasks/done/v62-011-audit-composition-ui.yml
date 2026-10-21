@@ -5,14 +5,14 @@ milestone: audit-workflow-composition
 epic: audits
 kind: feature
 priority: P1
-status: pending
-implementation_commit: null
+status: completed
+implementation_commit: a597d779a3832a57fc7b928ae7f6b106072f50d0
 depends_on: [V62-009, V62-010]
 languages: [typescript]
 goal: Let a user start the generated-OpenAPI profile, follow preparation and scans, and trace results back to exact inputs without understanding internal storage scopes.
 context:
   design_decision: User accepted A for the Check overview and B for endpoint details on 2026-10-21; implement a connected journey, keep C unselected and do not add a generic graph editor.
-  delivery_selection: User selected this chain after V377-001 on 2026-10-21; finish the existing preparation-to-scan journey without expanding into V64 or generic graph editing.
+  delivery_selection: User clarified on 2026-10-21 that this chain and the accepted A overview/B endpoint details must finish before V377-001; keep V64 and generic graph editing out of scope.
   authority: User-requested V62 Audit Workflow composition task series.
   design:
     - docs/plans/2026-09-20-audit-workflow-composition.md
@@ -56,3 +56,8 @@ test_prerequisites:
   - Existing Playwright browser/test environment; full real public API journey is additionally mandatory in V62-012.
 verification_requirements:
   - Record browser evidence of pending inventory, preparation failure, approval and retained result navigation at desktop and narrow viewport sizes.
+
+verification:
+  date: 2026-10-21
+  evidence: tasks/evidence/v62-011.json
+  result: All listed commands and make lint passed; 6 browser cases executed with no skips, with desktop/mobile evidence in all themes. The full UI suite has one pre-existing intentional expected-failure case.

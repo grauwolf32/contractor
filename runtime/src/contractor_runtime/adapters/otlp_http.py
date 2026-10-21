@@ -20,6 +20,7 @@ from opentelemetry.proto.trace.v1.trace_pb2 import ResourceSpans, ScopeSpans, Sp
 
 from contractor_runtime import __version__
 from contractor_runtime.adapters.content import MAX_CONTENT_BYTES
+from contractor_runtime.adapters.genai import content_attributes
 from contractor_runtime.adapters.host import (
     AdapterFactoryError,
     AdapterHandles,
@@ -73,10 +74,9 @@ _ALLOWED_SPAN_ATTRIBUTES = frozenset(
         "outcome",
         "duration.ms",
         "error.type",
-        "tokens.input",
-        "tokens.output",
-        "tokens.total",
-        "tokens.cached_input",
+        "gen_ai.usage.input_tokens",
+        "gen_ai.usage.output_tokens",
+        "gen_ai.usage.cache_read.input_tokens",
         "counts.model_calls",
         "counts.tool_calls",
     }
@@ -126,7 +126,9 @@ class _OTLPSpan(RuntimeSpan):
             and field in {"input", "output"}
             and len(value.encode("utf-8")) <= MAX_CONTENT_BYTES
         ):
-            self._content["langfuse.observation." + field] = value
+            self._content.update(
+                content_attributes(field, value, model=self._name == "contractor.worker.model")
+            )
 
     def end(
         self,
@@ -259,7 +261,11 @@ class OTLPInstrumentation(RuntimeInstrumentation):
             )
             if name == "contractor.worker.model":
                 span.attributes.add(
-                    key="langfuse.observation.type", value=AnyValue(string_value="generation")
+                    key="gen_ai.operation.name", value=AnyValue(string_value="chat")
+                )
+                span.kind = Span.SPAN_KIND_CLIENT
+                span.attributes.add(
+                    key="gen_ai.provider.name", value=AnyValue(string_value="contractor.gateway")
                 )
                 if "model.alias" in safe_attributes:
                     span.attributes.add(
@@ -269,7 +275,15 @@ class OTLPInstrumentation(RuntimeInstrumentation):
             if self.capture_content:
                 for key, value in (content or {}).items():
                     if (
-                        key in {"langfuse.observation.input", "langfuse.observation.output"}
+                        key
+                        in {
+                            "gen_ai.input.messages",
+                            "gen_ai.output.messages",
+                            "gen_ai.system_instructions",
+                            "gen_ai.tool.definitions",
+                            "contractor.input",
+                            "contractor.output",
+                        }
                         and len(value.encode("utf-8")) <= MAX_CONTENT_BYTES
                     ):
                         # Content goes directly to the explicitly trusted sink,

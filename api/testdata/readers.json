@@ -30,6 +30,7 @@
     "model-profile-id-cases.json": {"readers": ["go", "ui"]},
     "scan-host-syntax.json": {"readers": ["go", "python"]},
     "toolset-descriptors.json": {"readers": ["go", "python"]},
+    "telemetry-genai-cases.json": {"readers": ["go", "python"]},
     "v1alpha1/": {"readers": ["go", "python"]},
     "v1alpha1/artifact-name-cases.json": {"readers": ["go", "python", "ui"]},
     "v1alpha1/config-identity-cases.json": {"readers": ["go", "python", "ui"]},

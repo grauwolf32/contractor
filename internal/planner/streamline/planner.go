@@ -269,10 +269,16 @@ func (p *streamlinePlanner) newRootAgent(
 		modelSpan = nil
 		modelSpanMu.Unlock()
 		if current != nil {
+			attributes := telemetry.PlannerSpanAttributes{ErrorCode: code}
 			if response != nil {
-				telemetry.CapturePlannerOutput(current, func() any { return response.Content })
+				if response.Content != nil {
+					telemetry.CapturePlannerOutput(current, func() any { return response.Content })
+				}
+				if usage := response.UsageMetadata; usage != nil {
+					attributes.ModelUsage = &telemetry.PlannerModelUsage{InputTokens: int64(usage.PromptTokenCount), OutputTokens: int64(usage.CandidatesTokenCount), CachedInputTokens: int64(usage.CachedContentTokenCount)}
+				}
 			}
-			current.End(outcome, telemetry.PlannerSpanAttributes{ErrorCode: code})
+			current.End(outcome, attributes)
 		}
 	}
 	return llmagent.New(llmagent.Config{
@@ -321,7 +327,11 @@ func (p *streamlinePlanner) newRootAgent(
 				default:
 					failure = state.providerFailure()
 				}
-				endModelSpan("failed", planner.FailureFrom(failure).Code, nil)
+				var received *model.LLMResponse
+				if rejected != nil && rejected.usage != nil {
+					received = &model.LLMResponse{UsageMetadata: rejected.usage}
+				}
+				endModelSpan("failed", planner.FailureFrom(failure).Code, received)
 				return nil, failure
 			},
 		},

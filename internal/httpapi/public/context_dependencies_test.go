@@ -35,7 +35,7 @@ var contextFiles = map[string][]string{
 	},
 	"auditHandlers": {
 		"audit_handlers.go", "audit_models.go", "audit_preparation.go", "audit_review_handlers.go",
-		"audit_standard_handlers.go", "audit_event_handlers.go", "audit_types.go", "owner_audit_lists.go",
+		"audit_standard_handlers.go", "audit_event_handlers.go", "audit_types.go", "owner_audit_lists.go", "audit_artifact_handlers.go",
 	},
 	"findingHandlers": {"finding_handlers.go", "finding_collection_handlers.go"},
 	"evalHandlers": {
@@ -52,7 +52,7 @@ var contextFiles = map[string][]string{
 // the read models every context may use. Only the composition files among them
 // name context handler structs.
 var sharedFiles = []string{
-	"authorization.go", "error_diagnostics.go", "errors.go", "pagination.go", "request.go",
+	"artifact_response.go", "authorization.go", "error_diagnostics.go", "errors.go", "pagination.go", "request.go",
 	"types.go", "types_configuration.go", "types_operations.go", "types_run_project.go", "version.go",
 }
 

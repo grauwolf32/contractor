@@ -4164,6 +4164,26 @@ paths:
         '500': {$ref: '#/components/responses/InternalError'}
         '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
+  /v1/audits/{auditId}/artifacts:
+    parameters:
+      - $ref: '#/components/parameters/AuditId'
+    get:
+      operationId: getAuditArtifact
+      tags: [Audits]
+      summary: Download one exact committed Audit receipt artifact or package member
+      parameters:
+        - {name: key, in: query, required: true, schema: {type: string, minLength: 1, maxLength: 512}}
+        - {name: revision, in: query, required: true, schema: {type: string, minLength: 1, maxLength: 256}}
+        - {name: member, in: query, required: false, schema: {type: string, minLength: 1, maxLength: 128}}
+      responses:
+        '200': {$ref: '#/components/responses/ArtifactBytes'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/ArtifactUnavailable'}
+
   /v1/audits/{auditId}/report:
     parameters:
       - $ref: '#/components/parameters/AuditId'
@@ -11531,6 +11551,24 @@ components:
           items: {$ref: '#/components/schemas/AuditPinnedStandard'}
         projectHttpTarget: {$ref: '#/components/schemas/ProjectHTTPTarget'}
         inventory: {$ref: '#/components/schemas/AuditBaselineInventory'}
+    AuditGeneratedInventory:
+      type: object
+      additionalProperties: false
+      required: [snapshot, sources, sourceContentDigest, canonicalInventoryDigest, worklist, itemCount, gaps]
+      properties:
+        snapshot: {$ref: '#/components/schemas/AuditExactArtifact'}
+        sources:
+          type: object
+          additionalProperties: false
+          required: [source]
+          properties:
+            source: {$ref: '#/components/schemas/AuditExactArtifact'}
+            settings: {$ref: '#/components/schemas/AuditExactArtifact'}
+        sourceContentDigest: {$ref: '#/components/schemas/Digest'}
+        canonicalInventoryDigest: {$ref: '#/components/schemas/Digest'}
+        worklist: {$ref: '#/components/schemas/AuditExactArtifact'}
+        itemCount: {type: integer, minimum: 1, maximum: 10000}
+        gaps: {type: array, maxItems: 1024, items: {type: string, maxLength: 512}}
     AuditPhase:
       enum: [not-started, preparing, inventory, rounds]
     AuditPreparationOutput:
@@ -11631,6 +11669,7 @@ components:
         state: {$ref: '#/components/schemas/AuditState'}
         phase: {$ref: '#/components/schemas/AuditPhase'}
         preparation: {$ref: '#/components/schemas/AuditPreparation'}
+        generatedInventory: {$ref: '#/components/schemas/AuditGeneratedInventory'}
         revision: {type: integer, minimum: 1}
         currentRoundId: {$ref: '#/components/schemas/ResourceId'}
         dispatchState: {$ref: '#/components/schemas/AuditDispatchState'}
@@ -11864,11 +11903,27 @@ components:
         completed: {type: array, maxItems: 1024, items: {type: string, maxLength: 512}}
         gaps: {type: array, maxItems: 1024, items: {type: string, maxLength: 512}}
         rationale: {type: string, maxLength: 4096}
+    AuditScanProvenance:
+      type: object
+      additionalProperties: false
+      required: [scanner, operation, source, settings, preparationDigest, runnable, testParameters, gaps]
+      properties:
+        scanner: {enum: [sqlmap, nuclei]}
+        operation: {type: string, minLength: 1, maxLength: 8192}
+        source: {$ref: '#/components/schemas/AuditExactArtifact'}
+        settings: {$ref: '#/components/schemas/AuditExactArtifact'}
+        preparationDigest: {$ref: '#/components/schemas/Digest'}
+        requestDigest: {$ref: '#/components/schemas/Digest'}
+        targetUrl: {type: string, minLength: 1, maxLength: 8192}
+        runnable: {type: boolean}
+        testParameters: {type: array, maxItems: 64, uniqueItems: true, items: {type: string, minLength: 1, maxLength: 128}}
+        gaps: {type: array, maxItems: 1024, items: {type: string, maxLength: 512}}
     AuditCoverageDetails:
       type: object
       additionalProperties: false
       required: [objective, methods, taskDocument, evidence]
       properties:
+        scan: {$ref: '#/components/schemas/AuditScanProvenance'}
         objective: {type: string}
         methods: {type: array, items: {type: string}}
         taskDocument:
@@ -11886,6 +11941,7 @@ components:
               id: {type: string}
               kind: {type: string}
               summary: {type: string}
+              contentMemberId: {type: string, minLength: 1, maxLength: 128}
     AuditCoverageRow:
       type: object
       additionalProperties: false

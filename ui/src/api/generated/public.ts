@@ -1036,6 +1036,25 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/audits/{auditId}/artifacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+            };
+            cookie?: never;
+        };
+        /** Download one exact committed Audit receipt artifact or package member */
+        get: operations["getAuditArtifact"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/audits/{auditId}/report": {
         parameters: {
             query?: never;
@@ -3454,6 +3473,18 @@ export interface components {
             projectHttpTarget?: components["schemas"]["ProjectHTTPTarget"];
             inventory?: components["schemas"]["AuditBaselineInventory"];
         };
+        AuditGeneratedInventory: {
+            snapshot: components["schemas"]["AuditExactArtifact"];
+            sources: {
+                source: components["schemas"]["AuditExactArtifact"];
+                settings?: components["schemas"]["AuditExactArtifact"];
+            };
+            sourceContentDigest: components["schemas"]["Digest"];
+            canonicalInventoryDigest: components["schemas"]["Digest"];
+            worklist: components["schemas"]["AuditExactArtifact"];
+            itemCount: number;
+            gaps: string[];
+        };
         /** @enum {unknown} */
         AuditPhase: "not-started" | "preparing" | "inventory" | "rounds";
         AuditPreparationOutput: {
@@ -3526,6 +3557,7 @@ export interface components {
             state: components["schemas"]["AuditState"];
             phase: components["schemas"]["AuditPhase"];
             preparation?: components["schemas"]["AuditPreparation"];
+            generatedInventory?: components["schemas"]["AuditGeneratedInventory"];
             revision: number;
             currentRoundId?: components["schemas"]["ResourceId"];
             dispatchState: components["schemas"]["AuditDispatchState"];
@@ -3745,7 +3777,21 @@ export interface components {
             gaps: string[];
             rationale?: string;
         };
+        AuditScanProvenance: {
+            /** @enum {unknown} */
+            scanner: "sqlmap" | "nuclei";
+            operation: string;
+            source: components["schemas"]["AuditExactArtifact"];
+            settings: components["schemas"]["AuditExactArtifact"];
+            preparationDigest: components["schemas"]["Digest"];
+            requestDigest?: components["schemas"]["Digest"];
+            targetUrl?: string;
+            runnable: boolean;
+            testParameters: string[];
+            gaps: string[];
+        };
         AuditCoverageDetails: {
+            scan?: components["schemas"]["AuditScanProvenance"];
             objective: string;
             methods: string[];
             /** @description Exact retained item-task document given to the worker, independent of the selected checklist or profile. */
@@ -3757,6 +3803,7 @@ export interface components {
                 id: string;
                 kind: string;
                 summary: string;
+                contentMemberId?: string;
             }[];
         };
         AuditCoverageRow: {
@@ -9297,6 +9344,30 @@ export interface operations {
             409: components["responses"]["Conflict"];
             500: components["responses"]["InternalError"];
             503: components["responses"]["StorageTransactionConflict"];
+        };
+    };
+    getAuditArtifact: {
+        parameters: {
+            query: {
+                key: string;
+                revision: string;
+                member?: string;
+            };
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["ArtifactBytes"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["ArtifactUnavailable"];
         };
     };
     getAuditReport: {
