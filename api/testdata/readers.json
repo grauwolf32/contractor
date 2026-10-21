@@ -29,6 +29,7 @@
     "public/finding-decision-cases.json": {"readers": ["go"], "reason": "public review decision requests checked against the generated Go client, the Audit service and the HTTP handler; the UI builds these requests from its typed client"},
     "scan-host-syntax.json": {"readers": ["go", "python"]},
     "toolset-descriptors.json": {"readers": ["go", "python"]},
+    "telemetry-genai-cases.json": {"readers": ["go", "python"]},
     "v1alpha1/": {"readers": ["go", "python"]},
     "v1alpha1/artifact-name-cases.json": {"readers": ["go", "python", "ui"]},
     "v1alpha1/config-identity-cases.json": {"readers": ["go", "python", "ui"]},

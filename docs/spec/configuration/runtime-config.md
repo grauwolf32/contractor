@@ -744,9 +744,10 @@ The typed leaves of `spec` are:
 #### Telemetry adapter
 
 **RCF-R98.** The initial telemetry adapter is the backend-neutral
-`otlp-http@1`. It can target a compatible Langfuse deployment without adding
-LangChain to Contractor. A future backend receives another versioned adapter
-rather than a hard-coded meaning for `debug`.
+`otlp-http@1`. It targets standard OTLP/HTTP collectors without a collector SDK
+or collector-specific content attributes. Changing collectors changes the
+configured endpoint and optional headers; it does not change the adapter or
+give a hard-coded meaning to `debug`.
 
 What `otlp-http@1` exports, its span content and attribute bounds, its queue,
 batching, retry and flush behaviour and its failure counters are owned by

@@ -15,10 +15,10 @@ type contentSpan interface {
 // CapturePlannerInput/Output evaluate their payload only for an opted-in sink.
 // Content is deliberately unredacted. It never enters normal logs or metrics.
 func CapturePlannerInput(span PlannerSpan, value func() any) {
-	capturePlannerContent(span, "langfuse.observation.input", value)
+	capturePlannerContent(span, "input", value)
 }
 func CapturePlannerOutput(span PlannerSpan, value func() any) {
-	capturePlannerContent(span, "langfuse.observation.output", value)
+	capturePlannerContent(span, "output", value)
 }
 
 func capturePlannerContent(span PlannerSpan, field string, value func() any) {
