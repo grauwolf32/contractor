@@ -3,7 +3,7 @@
 Date: 2026-10-21. Status: **A overview + B endpoint detail accepted by the user on 2026-10-21; UI implemented; production-process release verification pending**.
 
 [UI design index](README.md) · [V62 plan](../../plans/2026-09-20-audit-workflow-composition.md)
-· [UI implementation task](../../../tasks/v62-011-audit-composition-ui.yml)
+· [UI implementation task](../../../tasks/done/v62-011-audit-composition-ui.yml)
 
 These alternatives refresh the older Studio sketches for the remaining V62
 delivery. They use current V3B fonts, neutral controls and theme tokens. This

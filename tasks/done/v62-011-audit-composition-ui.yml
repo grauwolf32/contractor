@@ -5,8 +5,8 @@ milestone: audit-workflow-composition
 epic: audits
 kind: feature
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: a597d779a3832a57fc7b928ae7f6b106072f50d0
 depends_on: [V62-009, V62-010]
 languages: [typescript]
 goal: Let a user start the generated-OpenAPI profile, follow preparation and scans, and trace results back to exact inputs without understanding internal storage scopes.

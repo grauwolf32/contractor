@@ -214,7 +214,7 @@ Minimal no-Round public lifecycle support ships in 003; 010 adds richer provenan
 | [007](../../tasks/v62-007-audit-check-routing.yml) | **Deferred:** proposed-check routing | 005, 006 |
 | [008](../../tasks/v62-008-project-analysis-preparation.yml) | **Deferred:** standalone analysis and two-Workflow preparation | 004 |
 | [010](../../tasks/done/v62-010-audit-composition-api.yml) | Preparation provenance and scan coverage projections | 004 |
-| [011](../../tasks/v62-011-audit-composition-ui.yml) | Prepare/progress/results/dependencies and control journey | 009, 010 |
+| [011](../../tasks/done/v62-011-audit-composition-ui.yml) | Prepare/progress/results/dependencies and control journey | 009, 010 |
 | [012](../../tasks/v62-012-audit-composition-release.yml) | Mandatory database, process and browser release verification | 011 |
 
 Deferred tasks retain their proposed scope but are excluded from eligible work.
