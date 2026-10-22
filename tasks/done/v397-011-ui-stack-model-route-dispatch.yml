@@ -1,5 +1,5 @@
 schema_version: '1.0'
-id: V392-011
+id: V397-011
 title: Repair configured-model browser routing and gate coverage
 milestone: finding-correlation-2026-10
 epic: ui

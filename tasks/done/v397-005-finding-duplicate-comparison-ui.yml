@@ -1,5 +1,5 @@
 schema_version: '1.0'
-id: V392-005
+id: V397-005
 title: Show retained duplicates in a finding-owned disclosure across Audits
 milestone: finding-correlation-2026-10
 epic: ui
@@ -7,8 +7,8 @@ kind: feature
 priority: P2
 status: completed
 depends_on:
-- V392-003
-- V392-004
+- V397-003
+- V397-004
 languages:
 - go
 - typescript
@@ -158,5 +158,5 @@ release_gate_follow_up:
   date: '2026-10-22'
   status: failed_fixture_then_locally_verified
   outcome: >-
-    make -k release-verify on the V392-005 implementation returned exit 2 because TestProductionMemoryTemplatesAcrossProcesses rejected the configured generated Worker model in its test Gateway. The other 18 release process tests passed; the UI, browser, Runtime, Go, PostgreSQL integration, race and build stages passed. V392-016 corrected the isolated fixture and passed its staging regression, both real Memory process modes and lint. The user explicitly declined a full-gate repeat; no complete green rerun is claimed.
+    make -k release-verify on the V397-005 implementation returned exit 2 because TestProductionMemoryTemplatesAcrossProcesses rejected the configured generated Worker model in its test Gateway. The other 18 release process tests passed; the UI, browser, Runtime, Go, PostgreSQL integration, race and build stages passed. V397-016 corrected the isolated fixture and passed its staging regression, both real Memory process modes and lint. The user explicitly declined a full-gate repeat; no complete green rerun is claimed.
 implementation_commit: e76d7162f688fdd9d9b7b257e497ab084be75171

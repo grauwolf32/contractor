@@ -1,5 +1,5 @@
 schema_version: '1.0'
-id: V392-003
+id: V397-003
 title: Automatically mark equal-key observations across Audits while preserving each finding
 milestone: finding-correlation-2026-10
 epic: findings
@@ -7,8 +7,8 @@ kind: feature
 priority: P2
 status: completed
 depends_on:
-- V392-001
-- V392-002
+- V397-001
+- V397-002
 languages:
 - go
 - yaml
@@ -44,7 +44,7 @@ scope:
   - Required analyst duplicate confirmation, changing human-owned state duplicate or copying/clearing TP/FP/severity under automatic marks.
   - Suppressing findings/evidence, cross-Project grouping, global issue/cluster/membership tables, another receipt/controller and transitive union
     of different keys.
-  - Project comparison/search endpoints and UI, owned by V392-004 and V392-005.
+  - Project comparison/search endpoints and UI, owned by V397-004 and V397-005.
 requirements:
 - id: R1
   text: Freeze the primary key from the admitted finding's first receipt using the proposal's priority of one qualified producer key then exactly
@@ -164,7 +164,7 @@ implementation_decisions:
 - Project revision updates happen once per affected Project per mutation statement, including bounded purge batches. The revision is an opaque fence, not an observation count; independent admissions and separate result/provenance writes can advance it separately.
 - Existing writers acquire Run/Audit authority before mutation. The Project fence acquires FOR NO KEY UPDATE NOWAIT after Run/Audit authority and before retained artifact admission (which takes FOR SHARE), and maps contested parent locks to the existing 40001 transaction-conflict class, avoiding a new blocking Audit-to-Project lock cycle or another claim/receipt mechanism.
 - Source imports require a non-null source Run Project matching the Audit (lockFindingImportAuthority). Retained-origin invalidation uses that immutable receipt Project without enumerating Project peers; projectless Run proposals are not admissible.
-- Detail/list correlation is presented in one statement snapshot through deduplicated requested groups and two indexed probes per group. Its explicit Project revision is separate from the Audit's own observation-page revision; paired comparison gets its own two-Audit fence in V392-004.
+- Detail/list correlation is presented in one statement snapshot through deduplicated requested groups and two indexed probes per group. Its explicit Project revision is separate from the Audit's own observation-page revision; paired comparison gets its own two-Audit fence in V397-004.
 
 verification:
   date: '2026-10-22'

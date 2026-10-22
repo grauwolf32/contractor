@@ -1,5 +1,5 @@
 schema_version: '1.0'
-id: V392-013
+id: V397-013
 title: Identify the Git directory-mode fixture in the SQLSTATE literal guard
 milestone: finding-correlation-2026-10
 epic: projects-artifacts

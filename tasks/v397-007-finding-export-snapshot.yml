@@ -1,13 +1,14 @@
 schema_version: '1.0'
-id: V392-009
-title: Publish and download generic SARIF through API CLI and UI
+id: V397-007
+title: Freeze explicit finding selections and independent Audit results
 milestone: finding-sarif-export-2026-10
 epic: findings
 kind: feature
 priority: P2
 status: pending
 depends_on:
-- V392-008
+- V397-003
+- V397-006
 languages:
 - go
 - python
@@ -18,7 +19,7 @@ goal: Deliver this proposal 0028 SARIF stage through production callers with det
 context:
   request: User requested SARIF work on 2026-10-22 alongside deterministic correlation.
   proposal:
-  - docs/proposals/0028-finding-analysis-and-sarif.md#service-and-publication-contract
+  - docs/proposals/0028-finding-analysis-and-sarif.md#frozen-selection-presentation-and-identity
   - docs/proposals/0028-finding-analysis-and-sarif.md#unchanged-worker-tool-contract
   specification:
   - docs/spec/findings/findings.md
@@ -29,19 +30,17 @@ context:
   - docs/spec/api/public-api.md
 scope:
   in:
-  - POST /v1/finding-exports and shared CLI/UI explicit selection/download with generated clients and UI patch bump.
-  - Atomic snapshot/SARIF/diagnostics/publication receipt using existing Artifact bindings, replay before live reads and strict changed/corrupt
-    publication failures.
+  - Explicit authorized receipt/finding/revision/contribution/presentation selection through existing collection boundaries.
+  - Immutable exact-input snapshot of resolved analysis, native keys, automatic correlation scope/policy and independent applicable decisions/ratings.
   out:
   - Model tool schema changes, automatic review mutations, dropping duplicate selected identities, global issue/receipt stores and model-authored
     export assembly.
   - GitHub upload/profile, source maps, suppression/fix sync, security-score classification and complete-scan/remediation inference.
 requirements:
 - id: R1
-  text: POST /v1/finding-exports and shared CLI/UI explicit selection/download with generated clients and UI patch bump.
+  text: Explicit authorized receipt/finding/revision/contribution/presentation selection through existing collection boundaries.
 - id: R2
-  text: Atomic snapshot/SARIF/diagnostics/publication receipt using existing Artifact bindings, replay before live reads and strict changed/corrupt
-    publication failures.
+  text: Immutable exact-input snapshot of resolved analysis, native keys, automatic correlation scope/policy and independent applicable decisions/ratings.
 - id: R3
   text: Preserve every selected typed result and independent Audit triage/rating/origin, keep all Worker tool declarations/results unchanged and
     use exact frozen evidence without guessed joins.
@@ -49,7 +48,7 @@ requirements:
   text: Update owning contracts/shared fixtures and add a production caller for every export in the same change; pure rendering never performs
     model/network/storage work.
 failure_outcomes:
-- operation: Publish and download generic SARIF through API CLI and UI
+- operation: Freeze explicit finding selections and independent Audit results
   permanent: Invalid/foreign input, stale selection, changed key and invalid evidence/profile/size use existing classified non-disclosure/conflict/validation
     errors with bounded diagnostics and no partial publication.
   retryable: Existing finite storage retry bounds and 503 storage_transaction_conflict with Retry-After; deterministic invalid content is permanent.

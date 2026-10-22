@@ -1,5 +1,5 @@
 schema_version: '1.0'
-id: V392-016
+id: V397-016
 title: Check the selected Worker model in the production Memory process fixture
 milestone: shared-memory-production-correctness
 epic: memory
@@ -16,7 +16,7 @@ context:
   verification_refinement: >-
     On 2026-10-22 the user explicitly declined repeating the full release gate after this local fixture failure. Verify the staging regression, both real Memory process modes and lint; retain the original failed full-gate result without claiming a complete green rerun.
   siblings: >-
-    Fix both ordinary Worker scenario dispatch and result finalization in the shared Memory Gateway. Non-production Memory still uses its exact fixture model policy. The UI Gateway was corrected in V392-011. Worker summarizer and session gateways stage fixed test-only policies and retain their explicit role-model assertions; the routing gate deliberately asserts configured model selection. Domain gateways already route through scenario context and tool contracts.
+    Fix both ordinary Worker scenario dispatch and result finalization in the shared Memory Gateway. Non-production Memory still uses its exact fixture model policy. The UI Gateway was corrected in V397-011. Worker summarizer and session gateways stage fixed test-only policies and retain their explicit role-model assertions; the routing gate deliberately asserts configured model selection. Domain gateways already route through scenario context and tool contracts.
   specification:
   - docs/spec/configuration/catalog.md#CAT-R80
   - docs/spec/tools/memory.md

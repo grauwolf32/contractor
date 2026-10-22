@@ -1,5 +1,5 @@
 schema_version: '1.0'
-id: V392-004
+id: V397-004
 title: Read bounded cross-Audit matches and comparisons without losing observations
 milestone: finding-correlation-2026-10
 epic: findings
@@ -7,9 +7,9 @@ kind: feature
 priority: P2
 status: completed
 depends_on:
-- V392-001
-- V392-002
-- V392-003
+- V397-001
+- V397-002
+- V397-003
 languages:
 - go
 - typescript
@@ -46,7 +46,7 @@ scope:
   - Mutation from GET, manual confirmation requirements, model ranking/embeddings, semantic text equality and cross-Project/owner discovery.
   - Complete-scan/remediation claims, hiding duplicate members, unbounded whole-comparison totals, another analytics/cluster store or reinterpreting
     weak matches as exact intersections.
-  - UI, owned by V392-005, and full SARIF snapshot/export implementation.
+  - UI, owned by V397-005, and full SARIF snapshot/export implementation.
 requirements:
 - id: R1
   text: Authorize every Project/Audit/source receipt/member through existing read ownership; default candidate scope is the source Project and

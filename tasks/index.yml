@@ -81,10 +81,10 @@ execution_policy:
 
 milestones:
   - id: finding-sarif-export-2026-10
-    exit_task: V392-009
+    exit_task: V397-009
     outcome: Exact-evidence analysis and frozen selections produce validated generic SARIF downloads through API CLI and UI while retaining all selected findings and independent Audit results without changing Worker tools.
   - id: finding-correlation-2026-10
-    exit_task: V392-005
+    exit_task: V397-005
     outcome: Deterministic producer keys and structural anchors automatically mark repeated observations without LLM or required confirmation, preserving every finding and independent Audit result for bounded comparison across Audits in one Project.
   - id: ui-consolidation-2026-10
     exit_task: V385-001

@@ -1,17 +1,17 @@
 schema_version: '1.0'
-id: V392-012
+id: V397-012
 title: Declare the bounded Project read used by finding correlation authorization
 milestone: finding-correlation-2026-10
 epic: findings
 kind: chore
-introduced_by: V392-004
+introduced_by: V397-004
 priority: P2
 status: completed
-depends_on: [V392-004]
+depends_on: [V397-004]
 languages: [go]
 goal: Keep the correlation Project ownership and revision reads explicit under the existing persistence table-ownership guard.
 context:
-  finding: internal/auditstore/internal/pgstore/finding_comparisons.go:102 reads projects to authorize bounded Project-scoped finding reads but V392-004 omitted the existing cross-owner read declaration, so TestSQLAccessFollowsTableOwnership fails.
+  finding: internal/auditstore/internal/pgstore/finding_comparisons.go:102 reads projects to authorize bounded Project-scoped finding reads but V397-004 omitted the existing cross-owner read declaration, so TestSQLAccessFollowsTableOwnership fails.
   siblings: Candidate source and correlation fence SQL also read the same Project owner/revision; all remain bounded reads without Project mutations from the Audit query store.
   specification: [docs/spec/platform/persistence.md#PER-R23]
 scope:

@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-78 open tasks: 3 in progress, 50 pending, 25 deferred. 938 finished: 935 completed, 3 archived.
+79 open tasks: 4 in progress, 50 pending, 25 deferred. 938 finished: 935 completed, 3 archived.
 
 ## In progress
 
@@ -14,6 +14,7 @@ the epics are in [epics.yml](epics.yml).
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
+| [V397-017](v397-017-main-integration.yml) | audits | chore | P1 | Reconcile finding correlation with the current main contracts |
 
 ## Pending
 
@@ -62,10 +63,10 @@ the epics are in [epics.yml](epics.yml).
 | [V371-011](v371-011-proposal-quota-limits.yml) | chore | P3 | — | Register the per-Run proposal and per-proposal evidence quotas in the specification |
 | [V372-018](v372-018-finding-proposal-namespace-constant.yml) | chore | P3 | — | Name the finding-proposals Namespace through artifactpolicy in finding intake |
 | [V372-023](v372-023-findings-tool-error-codes.yml) | chore | P3 | — | Name the findings error codes the open question lists and register the findings tool codes |
-| [V392-006](v392-006-finding-analysis-resolver.yml) | feature | P2 | — | Resolve optional finding analysis against exact retained evidence |
-| [V392-007](v392-007-finding-export-snapshot.yml) | feature | P2 | V392-006 | Freeze explicit finding selections and independent Audit results |
-| [V392-008](v392-008-generic-sarif-renderer.yml) | feature | P2 | V392-007 | Render deterministic validated generic SARIF from frozen snapshots |
-| [V392-009](v392-009-sarif-export-api-ui.yml) | feature | P2 | V392-008 | Publish and download generic SARIF through API CLI and UI |
+| [V397-006](v397-006-finding-analysis-resolver.yml) | feature | P2 | — | Resolve optional finding analysis against exact retained evidence |
+| [V397-007](v397-007-finding-export-snapshot.yml) | feature | P2 | V397-006 | Freeze explicit finding selections and independent Audit results |
+| [V397-008](v397-008-generic-sarif-renderer.yml) | feature | P2 | V397-007 | Render deterministic validated generic SARIF from frozen snapshots |
+| [V397-009](v397-009-sarif-export-api-ui.yml) | feature | P2 | V397-008 | Publish and download generic SARIF through API CLI and UI |
 
 ### Workflow catalog and document workflows (`workflows`)
 
@@ -186,7 +187,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 8 | 14 | 5 | 6 | 9 |
 | Workflow catalog and document workflows (`workflows`) | 3 | 14 | 13 | 12 | 12 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 30 | 32 | 5 | 35 |
-| Audits (`audits`) | 16 | 50 | 69 | 15 | 80 |
+| Audits (`audits`) | 17 | 50 | 69 | 16 | 81 |
 | Evaluations (`evals`) | 3 | 21 | 29 | 5 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 9 | 1 | 1 | 2 |
 | Web UI (`ui`) | 1 | 21 | 55 | 12 | 49 |

@@ -1,5 +1,5 @@
 schema_version: '1.0'
-id: V392-002
+id: V397-002
 title: Derive structural site and qualified snapshot issue anchors from exact source
 milestone: finding-correlation-2026-10
 epic: code-analysis
@@ -7,7 +7,7 @@ kind: feature
 priority: P2
 status: completed
 depends_on:
-- V392-001
+- V397-001
 languages:
 - go
 - python
@@ -36,7 +36,7 @@ scope:
   - Optional qualified snapshot issue key only with registered machine-derived rule and complete issue context, including a genuinely node-local
     deterministic check where applicable.
   - Deterministic code-finding publisher integration, bounded receipt-owned derivation, hidden closed derived_anchors private-submission field,
-    authenticated producer binding and Server projection validation using V392-001 boundaries.
+    authenticated producer binding and Server projection validation using V397-001 boundaries.
   - Per-language regression corpus, cross-language hash/provenance fixtures and owning source/finding/limits/error/producer contract updates.
   out:
   - LLM-authored context/discriminators, heuristic symbol/line remapping, a new generic taint engine and cross-snapshot structural automatic grouping.

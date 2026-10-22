@@ -1,5 +1,5 @@
 schema_version: '1.0'
-id: V392-001
+id: V397-001
 title: Derive qualified producer issue keys without model-authored components
 milestone: finding-correlation-2026-10
 epic: findings
@@ -40,7 +40,7 @@ scope:
   - Owning findings/producer/limits/error/lifecycle contracts, fixtures and relevant release-gate coverage in the same implementation.
   out:
   - LLM calls, embeddings, prose-derived correlation_key/context, guessed stable keys, full finding analysis and SARIF rendering.
-  - Structural parsing and group/mark/search behavior, owned by V392-002 through V392-004; unqualified HTTP/authentication equivalence and global
+  - Structural parsing and group/mark/search behavior, owned by V397-002 through V397-004; unqualified HTTP/authentication equivalence and global
     issue entities.
 requirements:
 - id: R1
@@ -179,8 +179,8 @@ verification:
     two-Audit holds, purge and sensitive-key discard.
   - 'Full Runtime recipe passed as an unprivileged Linux user with locked dependencies: 4139 passed, 53 optional environment checks skipped. The
     failed macOS run was not reported as a pass.'
-  - make test-findings-e2e passed all 14 mandatory process cases and 163 finding Runtime cases after the independent V392-010 repair.
+  - make test-findings-e2e passed all 14 mandatory process cases and 163 finding Runtime cases after the independent V397-010 repair.
   - make verify-public-api ui-verify passed; Worker declarations match the pinned full provider fixture.
   - Final make lint and test-wire-cross-language passed after the exact-native-binding regression; 239 shared fixtures, 215 Go and 165 Python shared tests, and 300 Runtime wire tests passed.
-  required_repair: V392-010 fixes Audit.start failure independently reproduced on base c52fb5d3e6bf593d96d6024593a11d6f237ab41c.
+  required_repair: V397-010 fixes Audit.start failure independently reproduced on base c52fb5d3e6bf593d96d6024593a11d6f237ab41c.
 implementation_commit: 77a59b669fd9d7877d1ea54ba3bc7112d8d8b772

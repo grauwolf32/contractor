@@ -1,5 +1,5 @@
 schema_version: '1.0'
-id: V392-010
+id: V397-010
 title: Preserve Audit profile identity when pinning deployment models
 milestone: finding-correlation-2026-10
 epic: audits
@@ -73,7 +73,7 @@ verification:
   - make lint and test-wire-cross-language passed after the final selection regression and snapshot fixture refresh.
   - Current-schema JSON fixture is sealed with the production codec; obsolete or missing-seal snapshots still fail. Full artifacts and persistence/postgres
     suites passed after the fixture refresh.
-  - Audit controller and audit store integration suites passed; auditimport passed after the fingerprint-discard assertion update owned by V392-001.
+  - Audit controller and audit store integration suites passed; auditimport passed after the fingerprint-discard assertion update owned by V397-001.
   boundary: Closure seals apply only to Server-retained AuditProfile snapshots. Worker tool and wire contracts, configured model choices and public
     profile projections stay unchanged.
 implementation_commit: 200aa9cb7815acf6d8b82a745a5c19a495d3333a

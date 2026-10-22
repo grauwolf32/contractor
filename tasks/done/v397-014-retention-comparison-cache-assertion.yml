@@ -1,13 +1,13 @@
 schema_version: '1.0'
-id: V392-014
+id: V397-014
 title: Separate the derived comparison cache from immutable receipt retention assertions
 milestone: finding-correlation-2026-10
 epic: findings
 kind: chore
-introduced_by: V392-004
+introduced_by: V397-004
 priority: P2
 status: completed
-depends_on: [V392-004]
+depends_on: [V397-004]
 languages: [go]
 goal: Test immutable receipt preservation across Run deletion while permitting the documented discard of derived comparison metadata.
 context:
