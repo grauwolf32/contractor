@@ -73,8 +73,6 @@ The selected evidence directory contains:
   screenshots at both viewports.
 
 Artifacts are local test output, not committed secrets or a hosted report.
-The [implementation record](../plans/2026-09-20-managed-evals-ui.md) records
-the completed run and optional Playground compatibility evidence.
 
 ## Optional Playground client
 

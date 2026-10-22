@@ -174,5 +174,4 @@ Operations settings, performance metrics, profiling, PKI, deployment and the com
 | Location | Contents |
 | --- | --- |
 | [`docs/proposals/`](../proposals/) | Designs of capabilities that are not implemented yet; folded into the specification once implemented |
-| [`docs/decisions/`](../decisions/README.md) | Settled architecture decisions, planning history, [open questions](../decisions/open-questions.md), the [specification history](../decisions/spec-history.md) and the [legacy-to-domain map](../decisions/spec-migration.md) |
 | `tasks/` | What is done, in progress or planned; tasks cite the specification, never the reverse |

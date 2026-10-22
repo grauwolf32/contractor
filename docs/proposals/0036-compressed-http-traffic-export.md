@@ -5,7 +5,7 @@ Proposal 0036 · Status: **Deferred idea; not approved for implementation.**
 On 2026-10-13 the user considered retaining every HTTP exchange in compressed
 storage, with a downloadable ZIP and individual artifacts for exchanges
 selected as evidence. The user then chose the smaller
-[finding evidence scope](../plans/2026-10-13-http-finding-evidence.md): retain
+[finding evidence scope](../spec/tools/http-caido.md): retain
 only finding evidence in ordinary artifacts and inspect other proxied traffic
 in Caido. This proposal preserves the complete-traffic export idea for a future
 decision. It creates no implementation commitment or new runtime capability.

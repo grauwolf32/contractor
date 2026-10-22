@@ -1312,6 +1312,5 @@ spec:
   - a model-visible refresh/materialize operation or silent shallow fallback.
 - An annotation participation registry. `target` is model-authored text, not a
   trusted Audit item identity. A structured index, snapshot reconciliation and
-  cross-Worker attribution remain a separate
-  [research proposal](../../research/annotation-index-proposal.md), not a
-  requirement for existing annotation or finding tools.
+  cross-Worker attribution are not specified and are not a requirement for
+  existing annotation or finding tools.

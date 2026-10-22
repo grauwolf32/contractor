@@ -1,13 +1,10 @@
 # V3B implementation plan
 
-[UI redesign explorations](README.md) · [V3B Panes](v3b-panes.md) ·
-[Coverage map](v3b-coverage.html)
+[UI design](README.md) · [V3B Panes](v3b-panes.md)
 
 V3B Panes is the implemented direction for the `ui/` redesign. This document
 records the decisions agreed on 2026-10-06, the constraints the redesign must
-keep, and the build order. The [coverage map](v3b-coverage.html) records the
-original UI inventory (118 rows) with its intended place in V3B, the API it
-uses, and its status. Open it in a browser.
+keep, and the build order.
 
 ## Implementation status (2026-10-07)
 
@@ -104,7 +101,7 @@ applicability, report acceptance) are served by
 
 ## Must keep
 
-- Every existing capability in the coverage map. Admin-only areas stay
+- Every existing capability. Admin-only areas stay
   observation-first: no force, release or reassign controls.
 - Repeat, Continue from failed stage and Retry model connection stay separate
   actions with their own confirmations (S06:332-379, spec 04:89-92).
@@ -187,5 +184,5 @@ Studio follow-ups are dedicated forms for advanced workspace and execution
 settings currently edited through YAML.
 
 Per-item retry and model-assisted suggestions remain conditional on a proven
-need. Borrowing V3A's quieter rail and typography or adding V3C's column view
+need. A quieter rail and typography, or a board view of a running check,
 still needs a design decision; neither is part of the completed V3B rollout.

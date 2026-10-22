@@ -1,46 +1,26 @@
-# UI redesign explorations
+# UI design
 
 [Documentation index](../../README.md) · [UI user stories](../../spec/ui/journeys.md)
 
-This directory records the 2026-10 exploration of a simpler Web UI: the main
-user journey redrawn in several directions, and a visual editor for
-Workflows, Audits and Agent templates. The static mockups remain design
-exploration; the chosen V3B journey is now implemented in `ui/` on `main`.
-Accepted behaviour belongs in the [specification](../../spec/README.md).
+This directory records the design of the current Web UI: the V3B Panes layout
+implemented in `ui/`, its themes and the Workflow, Audit and Agent editor
+("studio"). Accepted behaviour belongs in the
+[specification](../../spec/README.md); these documents are non-normative.
 
-The [2026-10-21 V62 preparation exploration](v62-preparation.md) adds three
-fresh alternatives for preparation, generated endpoint checks and exact evidence
-navigation. The user accepted A for the overview and B for endpoint details
-on 2026-10-21. The V62 UI now implements those views and has passed the real
-generated-source process/browser gate. See the exploration's implementation
-evidence for screenshots and the tested production boundaries.
+| Document | Contents |
+| --- | --- |
+| [V3B Panes](v3b-panes.md) | The chosen layout: rail, list pane and detail pane on every page |
+| [V3B build contract](v3b-build-contract.md) | How `ui/` is built: file ownership, building blocks, copy, keyboard, layout and checks |
+| [V3B implementation plan](v3b-implementation.md) | Decisions agreed on 2026-10-06, constraints to keep and remaining work |
+| [Themes](themes.md) | Neutral palette, light, dark and black themes, token set and typography |
+| [Editor studio](editor-studio.md) | The implemented node studio and the proposed composition and rounds view |
 
-## Decision status (2026-10-07)
+V3B was chosen on 2026-10-05 from six explored directions (guided wizards, a
+project workspace, an inbox and its focus, panes and board variations). The
+other explorations were removed once V3B was implemented; they remain in git
+history.
 
-| Track                           | Variants                                                                            | State                                                                                                                                                                              |
-| ------------------------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Main journey, first round       | [V1 Guided](v1-guided.md), [V2 Workspace](v2-workspace.md), [V3 Inbox](v3-inbox.md) | **V3 Inbox** chosen as the base                                                                                                                                                    |
-| Main journey, V3 variations     | [V3A Focus](v3a-focus.md), [V3B Panes](v3b-panes.md), [V3C Board](v3c-board.md)     | **V3B Panes** implemented on `main`                                                                                                                                                |
-| Palette and themes              | [Themes](themes.md)                                                                 | Accepted: neutral accent instead of lime; light, dark and black themes                                                                                                             |
-| Workflow / Audit / Agent editor | [Editor studio A, B, C](editor-studio.md)                                           | **B (node studio)** implemented: local YAML authoring, automatic graph layout, catalog selectors, workspace/execution forms and live Check view; composition/round design proposed |
-
-V3B Panes is the implemented direction for the `ui/` redesign. The
-[comparison](#variants-at-a-glance) gives the reasoning, and the [V3B
-implementation plan](v3b-implementation.md) records the agreed decisions and
-build order.
-
-## What is wrong today
-
-[Today's UI](original.md), captured from the demo stand, exposes the execution
-machinery on every page:
-
-- Run, Audit and revision IDs, artifact digests and `name@N` Workflow names appear as page titles and labels.
-- Home is an operator dashboard showing queue admission, runtime slots and published versions. It does not answer "what needs me, and what is running".
-- Starting a check means choosing a Workflow and filling string parameters, MIME artifact slots and runtime placement.
-- The Audit page shows six counters, semantic disclaimers and a limits table.
-- Run detail is about 5,000 px of scheduler and allocation diagnostics.
-
-## Principles shared by every variant
+## Principles
 
 1. **Plain language, outcome first.** Each page answers one question: what
    needs me, what is this project, what should I check, how is it going, is this
@@ -57,7 +37,7 @@ machinery on every page:
 6. **Themes through tokens.** Every colour in a page is a CSS custom property set
    on a root theme class; see [Themes](themes.md).
 
-### Vocabulary
+## Vocabulary
 
 | Internal term                     | User-facing term                                 |
 | --------------------------------- | ------------------------------------------------ |
@@ -71,7 +51,7 @@ machinery on every page:
 | Report acceptance                 | Report                                           |
 | Runtime, allocation, queue, slots | Operations area only (admins)                    |
 
-The review decisions in the mockups map onto `AuditFindingState`:
+The review decisions map onto `AuditFindingState`:
 
 | Button         | State            |
 | -------------- | ---------------- |
@@ -79,74 +59,17 @@ The review decisions in the mockups map onto `AuditFindingState`:
 | Not an issue   | `rejected`       |
 | Needs evidence | `needs-evidence` |
 
-## The journey every variant draws
+## Mockups
 
-Each variant draws the same five pages with the same real data from the demo
-stand: project `crapi-workshop`, a running _API endpoint trace_ over five
-endpoints, and one possible IDOR issue (CWE-639) on
-`GET /workshop/api/mechanic/mechanic_report`.
+`mockups/v3b/<page>.html` are the static V3B reference pages (home, project,
+start, check, issue). They need only Google Fonts and have no build step; open
+one in a browser and append `?theme=dark` or `?theme=black` to switch the
+theme. They are drawn for a 1440 px frame and reflow down to phone width.
+`screenshots/v3b-*.webp` are their light-theme renders and the dark and black
+renders of the check page.
 
-| Page                    | Question it answers                                            | Replaces                                |
-| ----------------------- | -------------------------------------------------------------- | --------------------------------------- |
-| Home                    | What needs me, and what is running?                            | Operator dashboard                      |
-| Project                 | What is this project, and what can I check with its materials? | Artifact, Run and Workflow lists        |
-| Start a check           | What should I check, and with what?                            | "Configure Run" form                    |
-| Check in progress       | How far along is it, and what is stuck?                        | Audit overview, coverage and Run detail |
-| Review a possible issue | Is this real, and how bad is it?                               | Audit findings page                     |
-
-## Variants at a glance
-
-| Variant                         | Idea                                               | Navigation                   | Type     | Strength                                         | Trade-off                                               |
-| ------------------------------- | -------------------------------------------------- | ---------------------------- | -------- | ------------------------------------------------ | ------------------------------------------------------- |
-| [V1 Guided](v1-guided.md)       | Task-first, wizards, generous spacing              | Top bar                      | Geist    | Easiest first journey                            | Low density; power users click more                     |
-| [V2 Workspace](v2-workspace.md) | Project-centric workspace                          | Project sidebar, split panes | IBM Plex | Calm, dense triage inside one project            | Assumes one project at a time; dense shell              |
-| [V3 Inbox](v3-inbox.md)         | Decisions first, act in place, intent-driven start | Icon rail and command bar    | Manrope  | Fastest path to decisions                        | Browsing is second-class                                |
-| [V3A Focus](v3a-focus.md)       | V3 without containers; typographic, keyboard-first | Rail; rows expand inline     | Manrope  | Calmest, fastest to scan from the keyboard       | Less self-explanatory for occasional mouse users        |
-| [V3B Panes](v3b-panes.md)       | Rail · list · detail on every page                 | Rail and list pane           | Manrope  | Triage without navigation; one layout everywhere | Narrower detail column; sparse lists look empty         |
-| [V3C Board](v3c-board.md)       | Lanes of cards; detail as a sheet                  | Rail; board lanes            | Manrope  | Whole state in one glance                        | Narrow lanes wrap long paths; sideways scroll on phones |
-
-The V3 variations all keep V3's core: an inbox of decisions, acting in place,
-an intent-driven start, a plain-language live narrative, a focused review with
-keyboard decisions (C confirm, R not an issue, E needs evidence, J next), a
-command bar, and Operations visible only to admins.
-
-## Viewing the mockups
-
-`mockups/<variant>/<page>.html` are static, self-contained pages. They need only
-Google Fonts and have no build step. Open one in a browser. For V1–V3C, append
-`?theme=dark` or `?theme=black` to switch the theme; light is the default. The
-editor studio mockups are dark-only. Pages are drawn for a 1440 px frame and
-reflow down to phone width.
-
-`screenshots/` holds the light-theme renders used in these documents. They were
-rendered at 1440 px with Playwright as full-page captures and stored as lossless
-WebP. `original-*.webp` are screenshots of the demo stand UI as of 2026-10-04.
-
-The mockups were authored on a design canvas, which remains the interactive
-source with a per-board theme switch:
-
-- Contractor UX Redesign: <https://claude.ai/artifact/7zVAWUFEEeHSS3ftEEuBx1> (private to the owner).
-- Workflow & Audit Visualizer: <https://claude.ai/artifact/7tLrop53SQTf73dZS9cWWi> (private to the owner).
-
-The files here are a frozen copy as of 2026-10-05.
-
-## Data and placeholders
-
-All names, counts, times, file:line references and texts come from the demo
-stand, either from the brief or from read-only API reads. Where a fact was
-missing, the mockups show a visible placeholder (`[TEAM NAME]`, `[USER NAME]`).
-They do not invent a value. V2 labels two project rows "Nothing running" and
-"No checks yet" without a source. V1's collapsed _Technical details_ keeps the
-demo stand's run and Audit IDs to show where that information moves.
-
-## Implementation
-
-The decisions on navigation, vocabulary, visible identifiers and API gaps were
-agreed on 2026-10-06 and are recorded in the [V3B implementation
-plan](v3b-implementation.md). The plan also lists the constraints to keep and
-the original build order and remaining work. The [coverage map](v3b-coverage.html)
-is the original inventory of 118 capabilities and their intended place in V3B;
-it is a design inventory rather than a current verification report.
-
-Still open: whether V3B borrows V3A's quieter rail and typography, and V3C's
-lanes as a second view of a running check.
+The mockups use data from the demo stand: project `crapi-workshop`, a running
+_API endpoint trace_ over five endpoints and one possible IDOR issue (CWE-639)
+on `GET /workshop/api/mechanic/mechanic_report`. Where a fact was missing they
+show a visible placeholder (`[TEAM NAME]`, `[USER NAME]`) instead of an
+invented value.

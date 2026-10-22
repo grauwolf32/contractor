@@ -14,7 +14,6 @@ each other.
 | Current intended behaviour, contracts, invariants, limits, errors | `docs/spec/<domain>/` |
 | Cross-domain registries (limits, error codes, failure outcomes, entity lifecycle, security, observability) | `docs/spec/platform/` |
 | Design of a capability that is not implemented yet | `docs/proposals/NNNN-slug.md` |
-| Settled architecture decisions and planning history | `docs/decisions/` |
 | What is done, in progress or planned, and verification evidence | `tasks/` |
 | How to use the system | `docs/guides/`, `docs/operations/` |
 

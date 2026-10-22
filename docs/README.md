@@ -15,54 +15,31 @@ The [configuration catalog](../configs/README.md) lists shipped Workflows and
 policies. [Operations](operations/README.md) contains focused references used by
 the deployment guide.
 
-[Decisions](decisions/README.md) holds the settled architecture decisions,
-the planning history of past epics, open specification questions and the
-history and legacy-to-domain map of the specification.
-
 [Proposals](proposals/) hold designs of capabilities that are not implemented
 yet; each is folded into the specification once implemented.
 [Compressed HTTP traffic export](proposals/0036-compressed-http-traffic-export.md)
-is a deferred idea. The selected
-[HTTP finding evidence scope](plans/2026-10-13-http-finding-evidence.md) keeps
-ordinary HTTP materials limited to finding evidence and uses Caido for other
-proxied traffic; its Runtime and UI implementation tasks are pending.
-[Research](research/README.md) holds hypotheses and exploratory reports.
-Accepted contracts belong in the specification; implementation status belongs in
-[task files](../tasks/) governed by [tasks/index.yml](../tasks/index.yml). A historical test report does not establish
-current readiness.
-
-[UI redesign explorations](design/ui/README.md) record the 2026-10 Web UI
-directions (V1–V3, the V3 variations, themes and the Workflow/Audit/Agent
-editor studio) with static mockups and screenshots. V3B Panes is chosen for
-implementation; the documents are non-normative.
-
-[Evals experience design](evals-experience-design.md) records the selected full
-browser journey and independent producer boundary. V38-001–010 are delivered,
-including collection, comparison, the native UI and the release gate.
-The [open-task review](plans/2026-09-20-open-task-review.md) records the dated
-main/worktree status, remaining scope and parallel work at the time of that review.
-
-[Legacy compatibility removal](plans/2026-09-20-legacy-removal.md) records
-confirmed implementation shims, 41 superseded catalog entries and a staged
-removal plan. Python shims, deprecated process settings and obsolete UI
-redirects have been removed. The project does not require backward compatibility;
-remaining readers will move to strict current formats in subsequent increments.
-
-[Autonomous pentest Audit proposal](proposals/0033-autonomous-pentest-audits.md)
+is a deferred idea. The
+[autonomous pentest Audit proposal](proposals/0033-autonomous-pentest-audits.md)
 defines source-optional web/API auditing, enforced scope, isolated identities,
-typed evidence, independent replay, recovery, budgets and acceptance gates.
-It maps existing work to delivery stages; the new capabilities are not yet
-implemented.
+typed evidence, independent replay, recovery, budgets and acceptance gates; it
+is not yet implemented.
 
-[Audit preparation and Workflow composition](plans/2026-09-20-audit-workflow-composition.md)
-tracks V62: first supplied-OpenAPI SQLMap and pinned-URL Nuclei checks, then
-preparation before initial inventory. The scan adapter is in progress;
-assessment snapshots, cross-round routing and standalone analysis are explicitly
-deferred. Candidate Audit scan profiles are present; their production-process
-acceptance remains open in V62-009.
+Accepted contracts belong in the specification; implementation status belongs
+in [task files](../tasks/) governed by [tasks/index.yml](../tasks/index.yml).
+The following are non-normative, and a historical report does not establish
+current readiness:
 
-[Architecture evolution review — 2026-09-19](research/2026-09-19-architecture-evolution-review.md)
-rechecks all 19 recommendations against original decisions and current contracts.
-The [follow-up plan](plans/2026-09-19-architecture-review-followups.md) separates
-confirmed corrections, a completion decision, an optional refactor and a transport
-experiment. Both documents are non-normative.
+- [UI design](design/ui/README.md) records the implemented V3B layout, its
+  themes, vocabulary and the Workflow/Audit/Agent editor studio.
+- [Plans](plans/) hold the plans of open or deferred task series:
+  [ScanTools](plans/2026-09-19-scan-tools.md) (V55),
+  [run-scoped toolset configuration](plans/2026-09-19-toolset-runtime-configuration.md) (V61),
+  [Audit preparation and Workflow composition](plans/2026-09-20-audit-workflow-composition.md) (V62),
+  [contextual checklist prioritization](plans/2026-09-20-audit-check-prioritization.md) (V64)
+  and [schema reduction](plans/2026-10-04-schema-reduction.md) (V365).
+- [Research](research/README.md) holds dated reviews that open or deferred
+  tasks still cite.
+- [Evals experience design](evals-experience-design.md) records the selected
+  full browser journey and independent producer boundary. V38-001–010 are
+  delivered, including collection, comparison, the native UI and the release
+  gate.

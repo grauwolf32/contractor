@@ -1,21 +1,20 @@
 # V3B Panes
 
-[UI redesign explorations](README.md) · Base: [V3 Inbox](v3-inbox.md) ·
-Mockups: [`mockups/v3b/`](mockups/v3b/)
+[UI design](README.md) · Mockups: [`mockups/v3b/`](mockups/v3b/)
 
 **Variation axis:** every page is the same three-part layout: rail, list pane
 and detail pane. The user moves through a list with J/K and decides in the
 detail pane without changing pages.
 
-**Status:** chosen on 2026-10-05 as the target for the `ui/` redesign. Two
-borrowings remain open: V3A's quieter rail and typography, and V3C's lanes as
-an alternative view of a running check.
+**Status:** chosen on 2026-10-05 as the target for the `ui/` redesign and
+implemented on `main`. A quieter rail and typography, and a board of lanes as
+an alternative view of a running check, remain open ideas.
 
 | | |
 | --- | --- |
 | Navigation | Icon rail (Inbox · Projects · Checks · **Issues** · Reports; Operations and account at the bottom), command bar (Ctrl K) |
 | Layout | Rail · list pane (about 360 px) · detail pane; the panes wrap into one column on narrow screens |
-| Type | Manrope and JetBrains Mono, as V3 |
+| Type | Manrope and JetBrains Mono |
 | Palette | Cool grey ground `#eceff3`, white panes, graphite primary, steel-blue selection bar `--sel-bar`; dark and black themes ([tokens](themes.md)) |
 | Keyboard | J/K move in the list, C/R/E decide, J next item; hints pinned at the bottom of the list pane |
 

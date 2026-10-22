@@ -303,8 +303,8 @@ change an existing frozen Playground experiment.
 
 ### Implementation verification — 2026-09-20
 
-V38-002–010 are complete. The [implementation record](plans/2026-09-20-managed-evals-ui.md)
-contains exact commits, commands, environment and evidence. Real native and
+V38-002–010 are complete; their task files record the exact commits and
+verification commands. Real native and
 independent external Workflow/Audit journeys each retain eight members, with
 restart, response-loss replay, review, comparison and owner isolation. The
 required PostgreSQL and process gates pass without skips; mocked browser and

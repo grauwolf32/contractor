@@ -1,6 +1,6 @@
 # Themes and palette
 
-[UI redesign explorations](README.md)
+[UI design](README.md)
 
 **Status:** accepted on 2026-10-05. The redesign replaces today's lime accent
 (`#d8ff72`) with a neutral system and ships three themes: light (default),
@@ -38,9 +38,8 @@ emphasis colour for links, focus and selection.
 
 ## V3B token set
 
-V3B Panes is the variant chosen for implementation, and its five pages share
-one token block. All V3 variants use the same token roles; V3A and V3C differ
-mainly in ground and surface values.
+V3B Panes is the implemented variant, and its five pages share one token
+block.
 
 | Token | Light | Dark | Black |
 | --- | --- | --- | --- |
@@ -101,11 +100,5 @@ white). Hairlines (`--line-strong`) are decorative and not held to 3:1.
 
 ## Typography
 
-| Variant | Text | Mono |
-| --- | --- | --- |
-| V1 Guided | Geist | Geist Mono |
-| V2 Workspace | IBM Plex Sans | IBM Plex Mono |
-| V3, V3A, V3B, V3C | Manrope | JetBrains Mono |
-
-Mono is used for endpoints, file:line references, code and key hints only,
+Text is set in Manrope and mono in JetBrains Mono. Mono is used for endpoints, file:line references, code and key hints only,
 never for titles.

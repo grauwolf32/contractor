@@ -1,7 +1,7 @@
 # V3B build contract
 
-[V3B implementation plan](v3b-implementation.md) · [Coverage map](v3b-coverage.html) ·
-[V3B Panes](v3b-panes.md) · [Themes](themes.md)
+[V3B implementation plan](v3b-implementation.md) · [V3B Panes](v3b-panes.md) ·
+[Themes](themes.md)
 
 This is the working agreement for everyone (people and agents) building the V3B
 redesign of `ui/`, developed on `feat/ui-v3b` and now integrated into `main`.
@@ -15,7 +15,6 @@ disagree, fix one of them in the same commit.
 | Question | Read |
 | --- | --- |
 | Agreed decisions, constraints, build order | [v3b-implementation.md](v3b-implementation.md) |
-| Every capability today and where it lands | [v3b-coverage.html](v3b-coverage.html) (open in a browser; the data is the `ROWS` array in the page source) |
 | Visual reference | `docs/design/ui/mockups/v3b/{home,project,start,check,issue}.html` (open in a browser; `?theme=dark` / `?theme=black`) and [v3b-panes.md](v3b-panes.md) |
 | Tokens and palette | `ui/src/app/theme.css`, [themes.md](themes.md) |
 | Building blocks, style scale and breakpoints | `ui/src/ui/README.md` (Button, AlertDialog, Facts, Field, Icon, formatters, polling; spacing, radius, font-size and control tokens; breakpoints 480, 640, 820 and 1100 px) |
@@ -24,7 +23,7 @@ disagree, fix one of them in the same commit.
 
 ## 2. Ground rules
 
-1. **Lose nothing.** Every row of the coverage map stays reachable. A
+1. **Lose nothing.** Every existing capability stays reachable. A
    capability may move (behind *Technical details*, into a menu, to another
    page) but never disappears. If you remove a control, name where it went in
    your report.
@@ -281,8 +280,8 @@ you changed so it can update them.
 
 Return: worktree branch and commit; one-paragraph summary; files added and
 deleted; accessible names and visible labels changed (old → new, where);
-routes changed; e2e specs likely affected; shared-file requests; coverage-map
-rows you implemented and any row you could not; open questions.
+routes changed; e2e specs likely affected; shared-file requests; capabilities
+you moved and any you could not place; open questions.
 
 ## 11. As built
 

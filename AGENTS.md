@@ -46,16 +46,15 @@ or legacy data to protect.
 | Public HTTP/WebSocket contract | `api/openapi/contractor-public-v1.yaml`, `api/events/` |
 | Server ↔ Runtime wire contract | `api/v1alpha1/` plus shared golden fixtures |
 | What is done, in progress or deferred? | `tasks/BACKLOG.md` (generated), `tasks/*.yml` (open), `tasks/done/*.yml` (finished), policy in `tasks/index.yml` |
-| Settled architecture decisions | `docs/decisions/fixed-decisions.yml` |
-| Why past epics were shaped as they were | `docs/decisions/planning-history.yml` (non-normative) |
 | Shipped Workflows, templates, policies, Skills | `configs/` (see `configs/README.md`) |
 | Architecture model | `docs/spec/artitecture.likec4` (`make verify-architecture`) |
 | Database schema picture | `docs/spec/database-erd.html` (`make docs-erd`) |
 | UI language and layout | `docs/design/ui/README.md`, `ui/src/ui/README.md` |
 
-`docs/research/` and `docs/plans/` are non-normative. A historical report does
-not prove current behaviour. If code and spec disagree, find out which one is
-wrong and fix that one in the same change; do not leave them disagreeing.
+`docs/design/`, `docs/research/` and `docs/plans/` are non-normative. A
+historical report does not prove current behaviour. If code and spec disagree,
+find out which one is wrong and fix that one in the same change; do not leave
+them disagreeing.
 
 The specification is organised by domain (`docs/spec/conventions.md` has the
 rules): `platform/` (limits, errors, failure model, lifecycle, security,
@@ -68,10 +67,7 @@ code analysis, HTTP/Caido, scanners, code execution) · `audits/` · `findings/`
 document; requirements are numbered `PREFIX-Rn` and never renumbered. A spec
 never cites tasks; a task cites the spec as
 `docs/spec/<domain>/<document>.md#PREFIX-Rn`. `make lint` runs
-`scripts/check_spec.py`. Legacy `NN-*.md` names in old task records map to
-their new owners in `docs/decisions/spec-migration.md`; unresolved
-contradictions found during the migration are in
-`docs/decisions/open-questions.md`.
+`scripts/check_spec.py`.
 
 ## 2. Ground rules
 
