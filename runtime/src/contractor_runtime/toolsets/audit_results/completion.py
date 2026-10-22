@@ -6,6 +6,7 @@ from dataclasses import replace
 
 from contractor_runtime.artifacts import ArtifactValue
 from contractor_runtime.contracts import (
+    AUDIT_COMPLETION_TOOLS,
     ArtifactRef,
     StageContentRequest,
     WorkerCompletionContract,
@@ -44,7 +45,7 @@ from contractor_runtime.toolsets.audit_results.publication import (
 class PreparedAuditCompletion(PreparedWorkerCompletion):
     """Allocation-owned exact assignment; only the active invocation owns drafts."""
 
-    required_tools = frozenset({"read_audit_task", "submit_check_result"})
+    required_tools = AUDIT_COMPLETION_TOOLS
 
     def __init__(
         self,

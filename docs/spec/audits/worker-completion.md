@@ -293,6 +293,11 @@ foreign-scope artifact authority.
 
 **AWC-R24.** Runtime advertises `capabilities.completionContracts` containing
 the supported contract IDs. Omission means no new contracts are supported.
+`audit-check-results@1` is supported when at least one probed WorkerRuntime
+implements the strategy and the probed `audit-results@2` capability exposes
+both `read_audit_task` and `submit_check_result`. Only `adk@1` implements it;
+`tool@1` never carries a completion contract
+([SCN-R2](../tools/scanners.md)).
 
 **AWC-R25.** Placement requires both the contract and the selected toolset
 capability. Unlike resource diagnostics, completion-contract support constrains

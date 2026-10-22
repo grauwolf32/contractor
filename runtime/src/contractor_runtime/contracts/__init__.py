@@ -1,5 +1,8 @@
 """Public import surface for strict private Runtime protocol contracts."""
 
+from contractor_runtime.contracts.allocation import (
+    AUDIT_COMPLETION_TOOLS as AUDIT_COMPLETION_TOOLS,
+)
 from contractor_runtime.contracts.allocation import AbortAllocationRequest as AbortAllocationRequest
 from contractor_runtime.contracts.allocation import AllocationSpec as AllocationSpec
 from contractor_runtime.contracts.allocation import (
