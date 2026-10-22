@@ -88,7 +88,8 @@ def _metrics(tool: str, calls: int = 0, failed: bool = False) -> dict:
 class ToolWorkerRuntimeFactory:
     ref = "tool@1"
     supports_agent_skills = False
-    supports_worker_completion = True
+    # SCN-R2: a tool@1 AllocationSpec never carries a completion contract.
+    supports_worker_completion = False
 
     def __init__(self, artifact_client_factory: ArtifactClientFactory | None = None):
         self._clients = artifact_client_factory

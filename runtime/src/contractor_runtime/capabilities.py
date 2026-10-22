@@ -12,7 +12,11 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from contractor_runtime.contracts import RUNTIME_ADAPTER_REFS, ToolsetCapability
+from contractor_runtime.contracts import (
+    AUDIT_COMPLETION_TOOLS,
+    RUNTIME_ADAPTER_REFS,
+    ToolsetCapability,
+)
 from contractor_runtime.factories import FactoryRegistry
 from contractor_runtime.projectfs import WorkspaceCapabilitySnapshot
 from contractor_runtime.sandbox.contracts import EXECUTION_TOOLSET, PODMAN_PROFILE
@@ -63,15 +67,6 @@ class CapabilitySnapshot:
         normalized_sandboxes = tuple(sorted(set(sandbox_profiles)))
         normalized_adapters = tuple(sorted(set(runtime_adapters)))
         completion = tuple(sorted(set(completion_contracts)))
-        if set(completion) - {"audit-check-results@1"} or (
-            completion
-            and (
-                "adk@1" not in normalized_runtimes
-                or not {"read_audit_task", "submit_check_result"}
-                <= set(toolsets.get("audit-results@2", ()))
-            )
-        ):
-            raise CapabilityDiscoveryError("invalid Worker completion capability snapshot")
         if len(normalized_adapters) > 64 or any(
             ref not in RUNTIME_ADAPTER_REFS for ref in normalized_adapters
         ):
@@ -237,20 +232,24 @@ async def discover_capabilities(
         sandboxes.remove(PODMAN_PROFILE)
         toolsets.pop(EXECUTION_TOOLSET, None)
 
+    # AWC-R24: advertise the contract only when a probed WorkerRuntime
+    # implements it and audit-results@2 exposes every tool it collects through.
+    # Allocation validation reads the same flag for the selected runtime.
+    completes = (
+        any(
+            getattr(factories.worker_runtimes[ref], "supports_worker_completion", False)
+            for ref in runtimes
+        )
+        and toolsets.get("audit-results@2", frozenset()) >= AUDIT_COMPLETION_TOOLS
+    )
+
     return CapabilitySnapshot.create(
         runtimes=runtimes,
         toolsets=toolsets,
         sandbox_profiles=sandboxes,
         runtime_adapters=runtime_adapters,
         workspace=workspace,
-        completion_contracts=(
-            ("audit-check-results@1",)
-            if "adk@1" in runtimes
-            and getattr(factories.worker_runtimes.get("adk@1"), "supports_worker_completion", False)
-            and {"read_audit_task", "submit_check_result"}
-            <= set(toolsets.get("audit-results@2", ()))
-            else ()
-        ),
+        completion_contracts=("audit-check-results@1",) if completes else (),
     )
 
 

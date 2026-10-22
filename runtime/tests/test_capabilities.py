@@ -37,6 +37,7 @@ from contractor_runtime.toolsets.code_analysis.tools import (
     dependency_versions_match,
 )
 from contractor_runtime.toolsets.code_execution.tools import CodeExecutionToolsetFactory
+from contractor_runtime.worker.tool_runtime import ToolWorkerRuntimeFactory
 from contractor_runtime.workspace import LocalWorkdirFactory
 
 SHARED_DESCRIPTOR_FIELDS = frozenset(
@@ -435,6 +436,57 @@ def test_runtime_adapter_probe_timeout_is_omitted(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+COMPLETION_TOOLS = frozenset({"read_audit_task", "submit_check_result"})
+
+
+@pytest.mark.parametrize(
+    ("runtime", "audit_tools", "expected"),
+    [
+        # The factory's declaration decides support, not the runtime's name.
+        ("completing", COMPLETION_TOOLS, ("audit-check-results@1",)),
+        # tool@1 never carries a completion contract (SCN-R2).
+        ("tool", COMPLETION_TOOLS, ()),
+        # A runtime that declares no support advertises nothing.
+        ("stub-adk", COMPLETION_TOOLS, ()),
+        # A declaring runtime whose probe fails is not available.
+        ("unavailable", COMPLETION_TOOLS, ()),
+        # Every collection tool must be probed, and the Toolset must exist.
+        ("completing", frozenset({"read_audit_task"}), ()),
+        ("completing", None, ()),
+    ],
+)
+def test_completion_contract_follows_worker_runtime_support(
+    tmp_path: Path, runtime: str, audit_tools: frozenset[str] | None, expected: tuple[str, ...]
+) -> None:
+    worker_runtimes = {
+        "completing": {"completing@1": CompletingRuntime()},
+        "tool": {"tool@1": ToolWorkerRuntimeFactory()},
+        "stub-adk": {"adk@1": StubADKWorkerRuntimeFactory()},
+        "unavailable": {
+            "adk@1": StubADKWorkerRuntimeFactory(),
+            "completing@1": CompletingRuntime(available=False),
+        },
+    }[runtime]
+    factories = FactoryRegistry(
+        worker_runtimes=worker_runtimes,
+        sandbox_profiles={"local-workdir@1": PassingSandbox()},
+        toolsets={"empty@1": EmptyToolset()}
+        if audit_tools is None
+        else {"audit-results@2": AuditResultsToolset(audit_tools)},
+    )
+
+    async def scenario() -> None:
+        snapshot = await discover_capabilities(factories)
+        assert snapshot.completion_contracts == expected
+        registration = await RuntimeState(capabilities=snapshot).registration(
+            make_settings(tmp_path)
+        )
+        advertised = registration.capabilities
+        assert (advertised.completion_contracts if advertised else []) == list(expected)
+
+    asyncio.run(scenario())
+
+
 def test_snapshot_normalizes_and_rejects_replacement_for_one_instance() -> None:
     async def scenario() -> None:
         original = CapabilitySnapshot.create(
@@ -551,6 +603,34 @@ class WorkspaceRequiredToolset:
     async def probe(self) -> frozenset[str]:
         self.probes += 1
         return self.exported_tools
+
+    async def create_selected(self, **_: object) -> dict[str, object]:
+        raise AssertionError("probe must not construct tools")
+
+
+class CompletingRuntime(StubADKWorkerRuntimeFactory):
+    """A WorkerRuntime other than adk@1 that implements Worker completion."""
+
+    ref = "completing@1"
+    supports_worker_completion = True
+
+    def __init__(self, *, available: bool = True) -> None:
+        self._available = available
+
+    async def probe(self) -> bool:
+        return self._available
+
+
+class AuditResultsToolset:
+    ref = "audit-results@2"
+    exported_tools = COMPLETION_TOOLS
+    infrastructure_channels = MappingProxyType({})
+
+    def __init__(self, available: frozenset[str]) -> None:
+        self._available = available
+
+    async def probe(self) -> frozenset[str]:
+        return self._available
 
     async def create_selected(self, **_: object) -> dict[str, object]:
         raise AssertionError("probe must not construct tools")

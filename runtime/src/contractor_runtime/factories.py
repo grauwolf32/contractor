@@ -135,6 +135,8 @@ class WorkerBuildContext:
 class WorkerRuntimeFactory(Protocol):
     ref: str
     supports_agent_skills: bool
+    # Implements the Runtime's Worker completion contracts (audit-check-results@1).
+    supports_worker_completion: bool
 
     async def probe(self) -> bool: ...
 

@@ -37,6 +37,9 @@ from contractor_runtime.contracts.settings import (
 )
 from contractor_runtime.contracts.workspace import AllocationWorkspaceSpec
 
+# audit-check-results@1 collects through exactly these audit-results@2 tools.
+AUDIT_COMPLETION_TOOLS = frozenset({"read_audit_task", "submit_check_result"})
+
 
 class WorkerCompletionContract(WireModel):
     kind: Literal["audit-check-results@1"]
@@ -70,7 +73,7 @@ class WorkerCompletionContract(WireModel):
             template.summarizer is not None
             or len(selections) != 1
             or selections[0].ref.version != "2"
-            or sorted(selections[0].tools) != ["read_audit_task", "submit_check_result"]
+            or sorted(selections[0].tools) != sorted(AUDIT_COMPLETION_TOOLS)
         ):
             raise ValueError(
                 "Audit completion needs audit-results@2 with both tools and no summarizer"

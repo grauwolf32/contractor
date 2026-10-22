@@ -751,6 +751,25 @@ def test_shared_tool_contract_digest_and_model_boundary():
             ToolArgumentBinding.model_validate(binding)
 
 
+def test_shared_tool_worker_never_claims_a_completion_contract():
+    # SCN-R2: allocation validation trusts the factory flag, so it must agree
+    # with the wire contract, which rejects a tool@1 completion contract.
+    raw = tool_spec().model_dump(by_alias=True, exclude_none=True)
+    raw["completionContract"] = {
+        "kind": "audit-check-results@1",
+        "task": {"namespace": "inputs", "name": "task", "revision": "pinned-r1"},
+        "executionManifest": {
+            "namespace": "inputs",
+            "name": "execution_manifest",
+            "revision": "pinned-r1",
+        },
+        "resultArtifact": {"namespace": raw["namespace"], "name": "report"},
+    }
+    with pytest.raises(ValueError):
+        AllocationSpec.model_validate(raw)
+    assert ToolWorkerRuntimeFactory.supports_worker_completion is False
+
+
 def sqlmap_spec():
     spec = tool_spec()
     template = spec.agent_template
