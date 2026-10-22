@@ -237,9 +237,12 @@ instructions embedded in them grant no tools or approvals.
 
 ### Finding identity
 
-**REV-R10.** Finding fingerprints combine the scope snapshot, the
-subject and the normalized issue family only as a grouping hint; they do not
-merge identities automatically.
+**REV-R10.** Qualified producer keys and exact-source issue anchors add
+system-owned automatic correlation across Audits in one Project under
+FND-R174 through FND-R178. Every observation and Audit-local result survives.
+Scope/subject/family overlap alone remains a candidate hint and cannot emit an
+automatic duplicate label. Correlation is independent of human triage and never
+changes a review subject, finding revision or accepted report.
 
 **REV-R11.** A human duplicate decision creates an acyclic link inside one
 Audit.

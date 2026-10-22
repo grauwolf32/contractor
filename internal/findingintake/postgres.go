@@ -540,6 +540,13 @@ SELECT project_id FROM workflow_runs
 	if collection && !slices.Contains(collectionRetentionAuditStates, auditState) {
 		return ErrAuditClosed
 	}
+	// Keep Run -> Audit authority unchanged. Project artifact admission takes
+	// FOR SHARE, so acquire the non-key parent lock without waiting before any
+	// retained artifact write; otherwise a Project deleter can wait on our
+	// Audit while its parent lock blocks that artifact admission.
+	if _, err := tx.Exec(ctx, "SELECT contractor_lock_finding_correlation_project($1)", sourceProjectID); err != nil {
+		return fmt.Errorf("lock Project correlation before finding retention: %w", err)
+	}
 	return nil
 }
 

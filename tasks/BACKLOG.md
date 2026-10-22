@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-81 open tasks: 3 in progress, 53 pending, 25 deferred. 929 finished: 926 completed, 3 archived.
+81 open tasks: 4 in progress, 52 pending, 25 deferred. 929 finished: 926 completed, 3 archived.
 
 ## In progress
 
@@ -14,6 +14,7 @@ the epics are in [epics.yml](epics.yml).
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
+| [V392-003](v392-003-automatic-finding-duplicate-marks.yml) | findings | feature | P2 | Automatically mark equal-key observations across Audits while preserving each finding |
 
 ## Pending
 
@@ -62,7 +63,6 @@ the epics are in [epics.yml](epics.yml).
 | [V371-011](v371-011-proposal-quota-limits.yml) | chore | P3 | — | Register the per-Run proposal and per-proposal evidence quotas in the specification |
 | [V372-018](v372-018-finding-proposal-namespace-constant.yml) | chore | P3 | — | Name the finding-proposals Namespace through artifactpolicy in finding intake |
 | [V372-023](v372-023-findings-tool-error-codes.yml) | chore | P3 | — | Name the findings error codes the open question lists and register the findings tool codes |
-| [V392-003](v392-003-automatic-finding-duplicate-marks.yml) | feature | P2 | — | Automatically mark equal-key observations across Audits while preserving each finding |
 | [V392-004](v392-004-cross-audit-finding-comparison-api.yml) | feature | P2 | V392-003 | Read bounded cross-Audit matches and comparisons without losing observations |
 | [V392-006](v392-006-finding-analysis-resolver.yml) | feature | P2 | — | Resolve optional finding analysis against exact retained evidence |
 | [V392-007](v392-007-finding-export-snapshot.yml) | feature | P2 | V392-003, V392-006 | Freeze explicit finding selections and independent Audit results |

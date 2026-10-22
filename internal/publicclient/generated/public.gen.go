@@ -3067,12 +3067,15 @@ type AuditFinding struct {
 	AnalystVerdict  *AuditAnalystVerdict  `json:"analystVerdict,omitempty"`
 
 	// Anchors Immutable exact-source correlation evidence. Sites alone are candidates; qualified issue keys require the same source snapshot and never set analyst verdicts.
-	Anchors           *FindingAnchorProjection `json:"anchors,omitempty"`
-	AuditId           ResourceId               `json:"auditId"`
-	CreatedAt         time.Time                `json:"createdAt"`
-	CurrentAssessment *AuditFindingAssessment  `json:"currentAssessment,omitempty"`
-	DuplicateTargetId *ResourceId              `json:"duplicateTargetId,omitempty"`
-	FindingId         ResourceId               `json:"findingId"`
+	Anchors *FindingAnchorProjection `json:"anchors,omitempty"`
+	AuditId ResourceId               `json:"auditId"`
+
+	// Correlation System-owned Project equality presentation at projectRevision, separate from every Audit-local verdict, severity and manual duplicate decision. The representative is the smallest retained finding ID in byte order and conveys no truth or discovery priority.
+	Correlation       *FindingCorrelation     `json:"correlation,omitempty"`
+	CreatedAt         time.Time               `json:"createdAt"`
+	CurrentAssessment *AuditFindingAssessment `json:"currentAssessment,omitempty"`
+	DuplicateTargetId *ResourceId             `json:"duplicateTargetId,omitempty"`
+	FindingId         ResourceId              `json:"findingId"`
 
 	// Fingerprint Immutable deterministic key evidence; independent of analyst triage. Snapshot keys apply only to the exact Git commit and source digest.
 	Fingerprint     *FindingFingerprintProjection `json:"fingerprint,omitempty"`
@@ -5337,6 +5340,56 @@ type FindingCollectionSourceSelection struct {
 
 // FindingCollectionSourceSelectionKind defines model for FindingCollectionSourceSelection.Kind.
 type FindingCollectionSourceSelectionKind string
+
+// FindingCorrelation System-owned Project equality presentation at projectRevision, separate from every Audit-local verdict, severity and manual duplicate decision. The representative is the smallest retained finding ID in byte order and conveys no truth or discovery priority.
+type FindingCorrelation struct {
+	union json.RawMessage
+}
+
+// FindingCorrelation0 defines model for FindingCorrelation.0.
+type FindingCorrelation0 struct {
+	AutomaticDuplicate   interface{}             `json:"automaticDuplicate"`
+	Availability         interface{}             `json:"availability"`
+	HasOtherObservations interface{}             `json:"hasOtherObservations"`
+	PolicyVersion        interface{}             `json:"policyVersion"`
+	ProjectRevision      int                     `json:"projectRevision"`
+	Reason               interface{}             `json:"reason"`
+	Schema               interface{}             `json:"schema"`
+	Scope                FindingCorrelationScope `json:"scope"`
+}
+
+// FindingCorrelation1 defines model for FindingCorrelation.1.
+type FindingCorrelation1 struct {
+	AutomaticDuplicate   bool                        `json:"automaticDuplicate"`
+	Availability         interface{}                 `json:"availability"`
+	Basis                FindingCorrelationBasis     `json:"basis"`
+	GroupKey             string                      `json:"groupKey"`
+	HasOtherObservations bool                        `json:"hasOtherObservations"`
+	MatchedDomain        interface{}                 `json:"matchedDomain"`
+	PolicyVersion        interface{}                 `json:"policyVersion"`
+	ProjectRevision      int                         `json:"projectRevision"`
+	Representative       FindingCorrelationReference `json:"representative"`
+	Schema               interface{}                 `json:"schema"`
+	Scope                FindingCorrelationScope     `json:"scope"`
+}
+
+// FindingCorrelationBasis defines model for FindingCorrelationBasis.
+type FindingCorrelationBasis struct {
+	Algorithm interface{} `json:"algorithm"`
+	Value     string      `json:"value"`
+}
+
+// FindingCorrelationReference defines model for FindingCorrelationReference.
+type FindingCorrelationReference struct {
+	AuditId   ResourceId `json:"auditId"`
+	FindingId ResourceId `json:"findingId"`
+}
+
+// FindingCorrelationScope defines model for FindingCorrelationScope.
+type FindingCorrelationScope struct {
+	Kind      interface{} `json:"kind"`
+	ProjectId ResourceId  `json:"projectId"`
+}
 
 // FindingExactArtifact defines model for FindingExactArtifact.
 type FindingExactArtifact struct {
@@ -11505,6 +11558,68 @@ func (t FindingAnchorProjection) MarshalJSON() ([]byte, error) {
 }
 
 func (t *FindingAnchorProjection) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsFindingCorrelation0 returns the union data inside the FindingCorrelation as a FindingCorrelation0
+func (t FindingCorrelation) AsFindingCorrelation0() (FindingCorrelation0, error) {
+	var body FindingCorrelation0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromFindingCorrelation0 overwrites any union data inside the FindingCorrelation as the provided FindingCorrelation0
+func (t *FindingCorrelation) FromFindingCorrelation0(v FindingCorrelation0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeFindingCorrelation0 performs a merge with any union data inside the FindingCorrelation, using the provided FindingCorrelation0
+func (t *FindingCorrelation) MergeFindingCorrelation0(v FindingCorrelation0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsFindingCorrelation1 returns the union data inside the FindingCorrelation as a FindingCorrelation1
+func (t FindingCorrelation) AsFindingCorrelation1() (FindingCorrelation1, error) {
+	var body FindingCorrelation1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromFindingCorrelation1 overwrites any union data inside the FindingCorrelation as the provided FindingCorrelation1
+func (t *FindingCorrelation) FromFindingCorrelation1(v FindingCorrelation1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeFindingCorrelation1 performs a merge with any union data inside the FindingCorrelation, using the provided FindingCorrelation1
+func (t *FindingCorrelation) MergeFindingCorrelation1(v FindingCorrelation1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t FindingCorrelation) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *FindingCorrelation) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }

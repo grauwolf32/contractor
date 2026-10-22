@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
+	"github.com/grauwolf32/contractor/internal/auditstore/querystore"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -138,6 +139,17 @@ func TestPostgresFindingAnchorRuntimeIntakeReplayAndRetention(t *testing.T) {
 		if _, _, err := service.ImportIntoAudit(ctx, request); err != nil {
 			t.Fatal(err)
 		}
+	}
+	var group string
+	for _, auditID := range []string{"anchor-audit-a", "anchor-audit-b"} {
+		rows, err := querystore.New(pool).ListFindings(ctx, auditstore.FindingListParams{OwnerID: owner, AuditID: auditID, Limit: 10})
+		if err != nil || len(rows) != 1 || rows[0].Correlation == nil || rows[0].Correlation.Basis == nil || rows[0].Correlation.Basis.Algorithm != "contractor/snapshot-issue-anchor/v1" || rows[0].Correlation.Basis.Value != fixture.Keys[0].IssueKey || !rows[0].Correlation.HasOtherObservations {
+			t.Fatalf("structural primary: %+v %v", rows, err)
+		}
+		if group != "" && rows[0].Correlation.GroupKey != group {
+			t.Fatal("qualified structural observations did not group")
+		}
+		group = rows[0].Correlation.GroupKey
 	}
 	runs := runstore.NewPostgresStore(pool)
 	if err := runs.MarkStageAllocationReleased(ctx, grant.AllocationID); err != nil {

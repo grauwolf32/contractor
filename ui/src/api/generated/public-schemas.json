@@ -5644,6 +5644,134 @@
         }
       ]
     },
+    "FindingCorrelationScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "projectId"],
+      "properties": {
+        "kind": { "const": "project" },
+        "projectId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        }
+      }
+    },
+    "FindingCorrelationReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["auditId", "findingId"],
+      "properties": {
+        "auditId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        },
+        "findingId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        }
+      }
+    },
+    "FindingCorrelationBasis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "value"],
+      "properties": {
+        "algorithm": {
+          "enum": [
+            "contractor/producer-issue/v1",
+            "contractor/snapshot-issue-anchor/v1"
+          ]
+        },
+        "value": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "FindingCorrelation": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "schema",
+            "policyVersion",
+            "scope",
+            "projectRevision",
+            "availability",
+            "reason",
+            "automaticDuplicate",
+            "hasOtherObservations"
+          ],
+          "properties": {
+            "schema": { "const": "contractor.finding.correlation.v1" },
+            "policyVersion": { "const": "qualified-snapshot/v1" },
+            "scope": {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingCorrelationScope"
+            },
+            "projectRevision": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "availability": { "const": "unavailable" },
+            "reason": {
+              "enum": [
+                "not_recorded",
+                "no_qualified_key",
+                "primary_key_ambiguous"
+              ]
+            },
+            "automaticDuplicate": { "const": false },
+            "hasOtherObservations": { "const": false }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "schema",
+            "policyVersion",
+            "scope",
+            "projectRevision",
+            "availability",
+            "groupKey",
+            "basis",
+            "matchedDomain",
+            "representative",
+            "automaticDuplicate",
+            "hasOtherObservations"
+          ],
+          "properties": {
+            "schema": { "const": "contractor.finding.correlation.v1" },
+            "policyVersion": { "const": "qualified-snapshot/v1" },
+            "scope": {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingCorrelationScope"
+            },
+            "projectRevision": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "availability": { "const": "available" },
+            "groupKey": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+            "basis": {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingCorrelationBasis"
+            },
+            "matchedDomain": { "const": "snapshot" },
+            "representative": {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingCorrelationReference"
+            },
+            "automaticDuplicate": { "type": "boolean" },
+            "hasOtherObservations": { "type": "boolean" }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": { "automaticDuplicate": { "const": true } }
+              },
+              "then": {
+                "properties": { "hasOtherObservations": { "const": true } }
+              }
+            }
+          ]
+        }
+      ]
+    },
     "FindingSubject": {
       "type": "object",
       "additionalProperties": false,
@@ -6372,6 +6500,9 @@
         },
         "anchors": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingAnchorProjection"
+        },
+        "correlation": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingCorrelation"
         },
         "currentAssessment": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditFindingAssessment"

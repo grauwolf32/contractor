@@ -5,7 +5,7 @@ milestone: finding-correlation-2026-10
 epic: findings
 kind: feature
 priority: P2
-status: pending
+status: in_progress
 depends_on:
 - V392-001
 - V392-002
@@ -22,6 +22,8 @@ context:
   - docs/proposals/0028-finding-analysis-and-sarif.md#unchanged-worker-tool-contract
   specification:
   - docs/spec/findings/findings.md#FND-R28
+  - docs/spec/findings/findings.md#FND-R174
+  - docs/spec/findings/findings.md#FND-R178
   - docs/spec/audits/review-and-reports.md#REV-R10
   - docs/spec/audits/review-and-reports.md#REV-R11
   - docs/spec/audits/review-and-reports.md#REV-R99
@@ -156,3 +158,24 @@ tests:
   covers:
   - A1
   - A5
+
+implementation_decisions:
+- Keep the existing admission/event trigger and natural receipt identity. A before-insert finding trigger derives only its first receipt's already validated keys and freezes row-owned membership; SQL owns primary selection, with shared Go/SQL hash fixtures.
+- Project revision updates happen once per affected Project per mutation statement, including bounded purge batches. The revision is an opaque fence, not an observation count; independent admissions and separate result/provenance writes can advance it separately.
+- Existing writers acquire Run/Audit authority before mutation. The Project fence acquires FOR NO KEY UPDATE NOWAIT after Run/Audit authority and before retained artifact admission (which takes FOR SHARE), and maps contested parent locks to the existing 40001 transaction-conflict class, avoiding a new blocking Audit-to-Project lock cycle or another claim/receipt mechanism.
+- Source imports require a non-null source Run Project matching the Audit (lockFindingImportAuthority). Retained-origin invalidation uses that immutable receipt Project without enumerating Project peers; projectless Run proposals are not admissible.
+- Detail/list correlation is presented in one statement snapshot through deduplicated requested groups and two indexed probes per group. Its explicit Project revision is separate from the Audit's own observation-page revision; paired comparison gets its own two-Audit fence in V392-004.
+
+verification:
+  date: '2026-10-22'
+  status: passed
+  checks:
+  - Full Go suites in the task passed with the disposable PostgreSQL URL, followed by all listed integration-tag suites including persistence/postgres; database tests did not skip for a missing URL.
+  - Real intake proves independent native and structural equal-key observations, shared-receipt import, deterministic representatives, byte-identical replay without a fence advance, simultaneous admissions, classified parent-lock contention, released locks after rollback, retained source deletion and representative Audit purge without peer writes.
+  - Real review services preserve opposite TP/FP, independent severity and manual duplicate links; admitting a peer does not expire a pending review. Later contributions preserve the frozen primary group and independently advance the Project fence; foreign owners and different Projects never share a group.
+  - The production detail query over 10001 retained equal-key observations uses exactly two scoped covering-index probes with one actual row and one loop each, verified with EXPLAIN ANALYZE; no group count or membership hydration is introduced.
+  - Migration from version 23 preserves complete receipt bytes, freezes qualified structural keys and leaves weak/not-recorded observations unmatched. Scope, first-receipt/Audit identity and monotonic revision protections reject mutation.
+  - make verify-public-api, verify-public-api-postgres, ui-verify and lint passed; UI reports 188 test files and 2231 passed tests plus one expected failure.
+  - Final make test-wire-cross-language passed 241 fixtures, 219 Go and 167 Python shared tests, and 300 Runtime wire tests; make test-findings-e2e passed all 14 required process cases and 163 Runtime finding tests.
+  earlier_failure: The initial cross-language pass overlapped other broad PostgreSQL suites and reported five existing shared PostgreSQL test failures; its standalone rerun passed without code changes. Earlier new-test failures exposed and corrected Project artifact-retention lock ordering, missing scale-fixture fields and shared-fixture test naming. No failed run is counted as a pass.
+  boundary: Worker tool declarations, private receipt responses, configured models, human decisions and frozen reports remain unchanged. Current system-owned correlation is additive on owner finding reads. This task does not complete comparison APIs, UI or the full release gate.

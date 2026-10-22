@@ -12136,6 +12136,60 @@ components:
             source: {$ref: '#/components/schemas/FindingExactArtifact'}
             basis: {$ref: '#/components/schemas/FindingAnchorBasis'}
             keys: {type: array, minItems: 1, maxItems: 32, items: {$ref: '#/components/schemas/FindingAnchorKeys'}}
+    FindingCorrelationScope:
+      type: object
+      additionalProperties: false
+      required: [kind, projectId]
+      properties:
+        kind: {const: project}
+        projectId: {$ref: '#/components/schemas/ResourceId'}
+    FindingCorrelationReference:
+      type: object
+      additionalProperties: false
+      required: [auditId, findingId]
+      properties:
+        auditId: {$ref: '#/components/schemas/ResourceId'}
+        findingId: {$ref: '#/components/schemas/ResourceId'}
+    FindingCorrelationBasis:
+      type: object
+      additionalProperties: false
+      required: [algorithm, value]
+      properties:
+        algorithm: {enum: [contractor/producer-issue/v1, contractor/snapshot-issue-anchor/v1]}
+        value: {type: string, pattern: '^[0-9a-f]{64}$'}
+    FindingCorrelation:
+      description: System-owned Project equality presentation at projectRevision, separate from every Audit-local verdict, severity and manual duplicate decision. The representative is the smallest retained finding ID in byte order and conveys no truth or discovery priority.
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [schema, policyVersion, scope, projectRevision, availability, reason, automaticDuplicate, hasOtherObservations]
+          properties:
+            schema: {const: contractor.finding.correlation.v1}
+            policyVersion: {const: qualified-snapshot/v1}
+            scope: {$ref: '#/components/schemas/FindingCorrelationScope'}
+            projectRevision: {type: integer, minimum: 1, maximum: 9007199254740991}
+            availability: {const: unavailable}
+            reason: {enum: [not_recorded, no_qualified_key, primary_key_ambiguous]}
+            automaticDuplicate: {const: false}
+            hasOtherObservations: {const: false}
+        - type: object
+          additionalProperties: false
+          required: [schema, policyVersion, scope, projectRevision, availability, groupKey, basis, matchedDomain, representative, automaticDuplicate, hasOtherObservations]
+          properties:
+            schema: {const: contractor.finding.correlation.v1}
+            policyVersion: {const: qualified-snapshot/v1}
+            scope: {$ref: '#/components/schemas/FindingCorrelationScope'}
+            projectRevision: {type: integer, minimum: 1, maximum: 9007199254740991}
+            availability: {const: available}
+            groupKey: {type: string, pattern: '^[0-9a-f]{64}$'}
+            basis: {$ref: '#/components/schemas/FindingCorrelationBasis'}
+            matchedDomain: {const: snapshot}
+            representative: {$ref: '#/components/schemas/FindingCorrelationReference'}
+            automaticDuplicate: {type: boolean}
+            hasOtherObservations: {type: boolean}
+          allOf:
+            - if: {properties: {automaticDuplicate: {const: true}}}
+              then: {properties: {hasOtherObservations: {const: true}}}
     FindingSubject:
       type: object
       additionalProperties: false
@@ -12466,6 +12520,7 @@ components:
         firstProposal: {$ref: '#/components/schemas/FindingProposalReceipt'}
         fingerprint: {$ref: '#/components/schemas/FindingFingerprintProjection'}
         anchors: {$ref: '#/components/schemas/FindingAnchorProjection'}
+        correlation: {$ref: '#/components/schemas/FindingCorrelation'}
         currentAssessment: {$ref: '#/components/schemas/AuditFindingAssessment'}
         analystDecision: {$ref: '#/components/schemas/AuditReviewDecision'}
         analystVerdict: {$ref: '#/components/schemas/AuditAnalystVerdict'}

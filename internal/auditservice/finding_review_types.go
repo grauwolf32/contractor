@@ -15,6 +15,7 @@ const (
 )
 
 type Finding struct {
+	Correlation       *auditdomain.FindingCorrelation      `json:"correlation,omitempty"`
 	Anchors           *auditdomain.FindingAnchorProjection `json:"anchors,omitempty"`
 	Fingerprint       *auditdomain.FindingFingerprint      `json:"fingerprint,omitempty"`
 	FindingID         string                               `json:"findingId"`

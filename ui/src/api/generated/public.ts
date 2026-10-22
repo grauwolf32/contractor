@@ -3973,6 +3973,53 @@ export interface components {
             basis: components["schemas"]["FindingAnchorBasis"];
             keys: components["schemas"]["FindingAnchorKeys"][];
         };
+        FindingCorrelationScope: {
+            /** @constant */
+            kind: "project";
+            projectId: components["schemas"]["ResourceId"];
+        };
+        FindingCorrelationReference: {
+            auditId: components["schemas"]["ResourceId"];
+            findingId: components["schemas"]["ResourceId"];
+        };
+        FindingCorrelationBasis: {
+            /** @enum {unknown} */
+            algorithm: "contractor/producer-issue/v1" | "contractor/snapshot-issue-anchor/v1";
+            value: string;
+        };
+        /** @description System-owned Project equality presentation at projectRevision, separate from every Audit-local verdict, severity and manual duplicate decision. The representative is the smallest retained finding ID in byte order and conveys no truth or discovery priority. */
+        FindingCorrelation: {
+            /** @constant */
+            schema: "contractor.finding.correlation.v1";
+            /** @constant */
+            policyVersion: "qualified-snapshot/v1";
+            scope: components["schemas"]["FindingCorrelationScope"];
+            projectRevision: number;
+            /** @constant */
+            availability: "unavailable";
+            /** @enum {unknown} */
+            reason: "not_recorded" | "no_qualified_key" | "primary_key_ambiguous";
+            /** @constant */
+            automaticDuplicate: false;
+            /** @constant */
+            hasOtherObservations: false;
+        } | ({
+            /** @constant */
+            schema: "contractor.finding.correlation.v1";
+            /** @constant */
+            policyVersion: "qualified-snapshot/v1";
+            scope: components["schemas"]["FindingCorrelationScope"];
+            projectRevision: number;
+            /** @constant */
+            availability: "available";
+            groupKey: string;
+            basis: components["schemas"]["FindingCorrelationBasis"];
+            /** @constant */
+            matchedDomain: "snapshot";
+            representative: components["schemas"]["FindingCorrelationReference"];
+            automaticDuplicate: boolean;
+            hasOtherObservations: boolean;
+        } & unknown);
         FindingSubject: {
             kind: string;
             key: string;
@@ -4205,6 +4252,7 @@ export interface components {
             firstProposal: components["schemas"]["FindingProposalReceipt"];
             fingerprint?: components["schemas"]["FindingFingerprintProjection"];
             anchors?: components["schemas"]["FindingAnchorProjection"];
+            correlation?: components["schemas"]["FindingCorrelation"];
             currentAssessment?: components["schemas"]["AuditFindingAssessment"];
             analystDecision?: components["schemas"]["AuditReviewDecision"];
             analystVerdict?: components["schemas"]["AuditAnalystVerdict"];

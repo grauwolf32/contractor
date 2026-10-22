@@ -1423,7 +1423,7 @@ func auditFindingDocument(suffix string, proposedChecks ...auditdomain.ProposedC
 
 func seedAuditFindingDocument(
 	t *testing.T, ctx context.Context, pool *pgxpool.Pool,
-	projectID, ownerID, auditID, suffix string, document auditdomain.FindingProposal,
+	projectID, ownerID, auditID, suffix string, document auditdomain.FindingProposal, fingerprints ...auditdomain.FindingFingerprint,
 ) string {
 	t.Helper()
 	payload, err := auditdomain.EncodeFindingProposal(document)
@@ -1445,6 +1445,14 @@ func seedAuditFindingDocument(
 	}
 	proposalJSON, _ := json.Marshal(proposal)
 	proposalRefJSON, _ := json.Marshal(proposal.Ref)
+	fingerprint := auditdomain.UnavailableFindingFingerprint("not_recorded")
+	if len(fingerprints) == 1 {
+		fingerprint = fingerprints[0]
+	}
+	fingerprintJSON, err := auditdomain.EncodeFindingFingerprint(fingerprint)
+	if err != nil {
+		t.Fatal(err)
+	}
 	receiptID := "receipt-" + suffix
 	if _, err := pool.Exec(ctx, `
 INSERT INTO finding_proposal_receipts (
@@ -1455,17 +1463,17 @@ INSERT INTO finding_proposal_receipts (
     workflow_name, workflow_version, workflow_schema_version,
     workflow_configuration_ref, workflow_closure_digest,
     proposal_ref, proposal_digest, proposal_media_type,
-    proposal_size_bytes, evidence, report_projection
+    proposal_size_bytes, evidence, report_projection, fingerprint_projection
 ) VALUES ($1, $2, $3, 'runtime-review', 'instance-review', 'stage-review', 'worker',
           $4, $5, $6, $7, $8, $9, $10,
           'finding-source', '1', 'contractor/v1alpha1',
           '{"name":"finding-source","version":"1"}'::jsonb, $11,
-          $12::jsonb, $13, 'application/json', $14, '[]'::jsonb, $15)`,
+          $12::jsonb, $13, 'application/json', $14, '[]'::jsonb, $15, $16)`,
 		receiptID, "proposal-"+suffix, "allocation-"+suffix,
 		"invocation-"+suffix, "submission-"+suffix, document.ClientKey,
 		serviceTestDigest("request-"+suffix), "deleted-run-"+suffix, ownerID, projectID,
 		serviceTestDigest("workflow-"+suffix), proposalRefJSON, proposal.Digest, proposal.SizeBytes,
-		string(projection),
+		string(projection), string(fingerprintJSON),
 	); err != nil {
 		t.Fatal(err)
 	}

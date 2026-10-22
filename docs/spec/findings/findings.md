@@ -309,8 +309,9 @@ call identity fails before submission (FAIL-FND-1).
 `submit_check_result(proposal_keys=...)`
 ([worker completion](../audits/worker-completion.md)).
 
-**FND-R28.** Finding creation introduces no content-based deduplication and
-no guessed subject.
+**FND-R28.** Finding creation never suppresses or merges proposals by content
+and never guesses a subject. Qualified deterministic equality adds only the
+system-owned correlation projection (FND-R174 through FND-R178).
 
 ### CWE classification
 
@@ -695,6 +696,71 @@ exact sources and derivations after source Run deletion, another Audit's purge
 does not remove them, and discard clears every derived field to the unavailable
 `discarded` marker. Existing Project purge owns final deletion. Limits are
 LIM-FND-38 through LIM-FND-41; failures/lifecycle reuse FAIL-FND-1 and LIFE-FND-1.
+
+### Automatic correlation across Audits
+
+**FND-R174.** Every admitted Audit finding retains its own observation identity,
+first receipt, evidence, assessments and human results. Freeze the primary key
+from that first receipt: a qualified `contractor/producer-issue/v1` key under
+`pinned-sarif-native/v1` first, otherwise exactly one distinct qualified
+`contractor/snapshot-issue-anchor/v1` issue key. Several distinct issue keys are
+`primary_key_ambiguous`; site-only, unsupported or missing keys are
+`no_qualified_key`; both original projections marked `not_recorded` remain
+`not_recorded`. Later contributions never change the primary key or bridge
+separate schemes. No LLM, embedding, prose similarity or human confirmation
+participates in automatic equality.
+
+**FND-R175.** Persist only immutable primary algorithm/value, unavailable reason,
+actual Audit Project and group hash on the existing finding row. The group hash
+is SHA-256 hex of RFC 8785 JSON
+`["contractor/finding-group/v1", project_id, algorithm, value]`.
+The database derives scope from the Audit, enforces its composite foreign key,
+validates the group shape and rejects primary/first-receipt mutation. Migration
+freezes already retained projections without changing receipts or reparsing
+source. There is no global identity, membership table, extra receipt or
+background controller.
+
+**FND-R176.** Authorized finding detail/list responses include the closed
+`contractor.finding.correlation.v1` projection under policy
+`qualified-snapshot/v1`. It returns Project scope/revision, availability and
+reason, or group/basis, `matchedDomain: snapshot`, representative Audit/finding,
+`automaticDuplicate` and `hasOtherObservations`. Choose the bytewise smallest
+retained finding ID in that Project group. Only other members have
+`automaticDuplicate: true`; the representative reports whether another member
+exists. Unavailable keys have neither group nor representative and both flags
+are false. Representative choice confers no truth, severity or discovery credit.
+The read uses one PostgreSQL statement snapshot, deduplicated requested page
+groups and two indexed first/next probes per group, with no peer count or
+per-peer hydration (LIM-FND-42). Ownership is checked before group presentation.
+Model/private finding tools and collection contents remain unchanged.
+
+**FND-R177.** An opaque `finding_correlation_revision` on the existing Project
+row fences current membership, triage/assessment, additional contributions and
+retained source availability. Advance it within the existing transaction once
+per affected Project per mutation statement; natural-key replay advances
+neither membership nor revision/events. Keep Run then Audit authority order;
+import acquires a nonblocking Project `FOR NO KEY UPDATE NOWAIT` before any
+retained artifact admission. Other child mutations also acquire this fence
+without waiting; contention becomes the existing retryable SQLSTATE `40001`,
+finite transaction retries and HTTP `503 storage_transaction_conflict` with
+`Retry-After`. No new claim or advisory lock is introduced. The revision is an
+exact integer in 1..9007199254740991 and cannot decrease or skip an increment.
+A finding page's Audit revision still fences its own observations; the explicit
+Project revision fences current correlation, which may change when another
+Audit admits or removes a peer. Existing events invalidate the affected Audit;
+there is no synthetic human decision/event or fanout write to peer Audits.
+
+**FND-R178.** Automatic marks never change analyst state, TP/FP, severity,
+manual duplicate targets, finding revision, pending review subject or frozen
+accepted reports. Current correlation remains readable alongside independently
+confirmed/rejected/manual-duplicate results. Source Run deletion retains exact
+Audit-held keys/evidence and advances the provenance fence. Audit purge removes
+only its own memberships in existing bounded batches, advances affected Audit
+and Project fences and deterministically promotes any surviving representative
+without peer writes. Project purge removes all memberships under existing
+lifecycle authority. Rejection/cancellation rolls back; uncertain commits
+reconcile existing receipt/natural keys before another mutation (FAIL-FND-6,
+LIFE-FND-4).
 
 ### Proposals of ordinary Runs
 
@@ -1353,8 +1419,8 @@ The end-to-end path of a proposal from an ordinary Run to an Audit is shown in
   through adapters or migrations (FND-R1, FND-R145).
 - A separate findings database or second finding store (FND-R100,
   FND-R113).
-- Implicit or content-based deduplication of findings (FND-R14,
-  FND-R28, FND-R66).
+- Suppression or merging of findings by implicit content similarity (FND-R14,
+  FND-R28, FND-R66); qualified automatic labels retain every observation.
 - Collection-specific recursive input handling (FND-R119).
 - Live CWE taxonomy lookup (FND-R31).
 - SARIF export, which remains a separate draft

@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 )
 
 // The review journal: finding triage, item action and report acceptance
@@ -136,17 +138,23 @@ func (s ReviewState) Valid() bool {
 // FindingRecord is one stored finding: its triage state and the current
 // assessment and analyst decision it points to.
 type FindingRecord struct {
-	FindingID           string
-	AuditID             string
-	FirstReceiptID      string
-	State               FindingState
-	RejectionReason     *string
-	DuplicateTargetID   *string
-	CurrentAssessmentID *string
-	CurrentDecisionID   *string
-	Revision            uint64
-	CreatedAt           time.Time
-	UpdatedAt           time.Time
+	CorrelationProjectID string                          `json:"-"`
+	CorrelationAlgorithm string                          `json:"-"`
+	CorrelationValue     string                          `json:"-"`
+	CorrelationGroupKey  string                          `json:"-"`
+	CorrelationReason    string                          `json:"-"`
+	Correlation          *auditdomain.FindingCorrelation `json:"-"`
+	FindingID            string
+	AuditID              string
+	FirstReceiptID       string
+	State                FindingState
+	RejectionReason      *string
+	DuplicateTargetID    *string
+	CurrentAssessmentID  *string
+	CurrentDecisionID    *string
+	Revision             uint64
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
 }
 
 type FindingAssessment struct {

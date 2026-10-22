@@ -790,7 +790,12 @@ and member APIs. In particular, triage/assessment and source-retention changes
 must advance it even when keys stay unchanged, so pages cannot mix ratings or
 origins. It is separate from analyst finding revisions. Parse and
 resolve evidence before this short lifecycle transaction; retain existing
-lock order and event/retry mechanisms. Use existing admission/purge event
+lock order and event/retry mechanisms. The implemented `qualified-snapshot/v1` policy presents these fields in one
+statement snapshot with two scoped index probes per distinct page group.
+Statement triggers advance the opaque Project fence once per affected Project;
+imports keep Run then Audit authority and acquire the Project with
+`FOR NO KEY UPDATE NOWAIT` before artifact retention. Contention uses the
+existing finite `40001` retry/503 class. Use existing admission/purge event
 invalidation without emitting a decision or fanning out mutations to peers.
 Audit finalization/accepted reports retain their frozen content; current
 Project correlation may change as other Audits discover or remove peers.
