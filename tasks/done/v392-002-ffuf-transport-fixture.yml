@@ -6,7 +6,8 @@ epic: scan-tools
 kind: chore
 introduced_by: V55-005
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: 90d01334980c8f59f9d4eb68335ac7bdafe1f93f
 depends_on: [V55-005]
 languages: [python]
 goal: Exercise a real immediate transport failure without racing the scanner's request timeout against its total budget.
