@@ -1,20 +1,25 @@
 # Structured finding analysis, correlation and SARIF export
 
-Proposal 0028 · Status: **Draft; specified target; not implemented.**
+Proposal 0028 · Status: **Partially folded: correlation backend; UI and export remain draft.**
 
-Nothing in this proposal is implemented: the typed finding analysis document,
-its resolver, producer fingerprints, structural anchors, automatic duplicate
-marks, cross-Audit comparison, duplicate-candidate search, the export
-snapshot service, the SARIF exporter, the `github-code-scanning` profile and
-`POST /v1/finding-exports` are all target design. The finding proposal schema,
-the `security-findings@1` Toolset and the collection format stay unchanged,
-and existing findings, collections, code-analysis, annotation and HTTP tools
-retain their published contracts;
-capability/version changes are explicit amendments to owning specs. The
-correlation slice can ship independently of structured analysis and SARIF.
-Upload, source maps, fixes, suppression sync, native security-score
-classification and complete-scan replacement are deferred beyond the stages in
-[Delivery and conformance](#delivery-and-conformance).
+Versioned producer fingerprints, exact-source structural anchors, automatic
+retained duplicate marks, bounded duplicate-candidate search and cross-Audit
+comparison/member APIs are folded into the owning
+[findings specification](../spec/findings/findings.md#automatic-correlation-across-audits)
+(FND-R163 through FND-R183). These use deterministic code without matching LLM
+calls and preserve every independent Audit result. Correlation UI remains a
+target of this proposal until its owning UI contracts are amended.
+
+Typed finding analysis, its resolver, export snapshots, SARIF rendering, the
+`github-code-scanning` profile and `POST /v1/finding-exports` remain target
+design. The finding proposal schema, complete model-visible
+`security-findings@1` tool declarations and finding collection format stay
+unchanged; hidden publisher metadata and owner API projections implement the
+correlation slice. Existing code-analysis, annotation and HTTP tools retain
+their published contracts. Capability/version changes are explicit amendments
+to owning specs. Upload, source maps, fixes, suppression sync, native
+security-score classification and complete-scan replacement remain deferred
+beyond [Delivery and conformance](#delivery-and-conformance).
 
 ## Ownership and decisions
 
@@ -500,8 +505,8 @@ The requested target is deterministic fingerprinting/search and automatic
 marking of repeated findings, including discoveries in different Audits of one
 Project. No LLM call, embedding, model ranking or model-authored discriminator
 participates in these operations. A finding may originate from a model; its
-prose is not a matching input. The new behavior is target design, not a claim
-about today's implementation.
+prose is not a matching input. The backend contract is now owned by FND-R163 through FND-R183; the UI and
+export sections below remain target design.
 
 | Fact | Authority and effect |
 | --- | --- |
@@ -854,6 +859,13 @@ confirmed findings are distinct metrics. Exact whole-comparison totals are
 not required on page reads; any UI running totals are visibly partial until
 all pages are consumed. Summary/complete-scan claims need their own bounded
 snapshot contract before being added.
+
+Candidate matching compares the explicitly selected source contribution with
+each target's immutable first receipt, while retaining existing primary-group
+equality independently. Other supporting receipts remain selectable sources;
+there is no unbounded target-contribution fanout. Exact tiers seek their group
+directly. Weaker tiers examine at most 897 compact matching-input rows per
+request and retain examined-row/tier progress, including empty pages.
 
 Default page size is 20, maximum 100 and JSON at most 256 KiB. One request
 examines at most 1,000 matching/index contribution rows; candidate/member

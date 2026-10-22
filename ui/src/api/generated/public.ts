@@ -2292,10 +2292,227 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/audits/{auditId}/findings/{findingId}/duplicate-candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+                findingId: components["parameters"]["FindingId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Find exact automatic matches and separate weaker candidates
+         * @description Read-only deterministic correlation. The page is bounded to 256 KiB; stale scoped revisions require restarting. An empty work-progress page may still have hasMore. Every retained observation remains reachable.
+         */
+        get: operations["listFindingDuplicateCandidates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/projects/{projectId}/finding-comparisons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Compare exact groups and unmatched observations of two owned Audits
+         * @description Read-only deterministic correlation. The page is bounded to 256 KiB; stale scoped revisions require restarting. An empty work-progress page may still have hasMore. Every retained observation remains reachable.
+         */
+        get: operations["listProjectFindingComparisons"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/projects/{projectId}/finding-correlations/{groupKey}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                groupKey: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Page every retained group member in a Project or selected Audit scope
+         * @description Read-only deterministic correlation. The page is bounded to 256 KiB; stale scoped revisions require restarting. An empty work-progress page may still have hasMore. Every retained observation remains reachable.
+         */
+        get: operations["listFindingCorrelationMembers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        FindingCorrelationReadScope: {
+            /** @constant */
+            kind: "project";
+            projectId: components["schemas"]["ResourceId"];
+            auditIds: components["schemas"]["ResourceId"][];
+        } | {
+            /** @constant */
+            kind: "audit";
+            projectId: components["schemas"]["ResourceId"];
+            auditIds: components["schemas"]["ResourceId"][];
+        } | {
+            /** @constant */
+            kind: "audit-pair";
+            projectId: components["schemas"]["ResourceId"];
+            auditIds: components["schemas"]["ResourceId"][];
+        };
+        FindingComparisonProfile: {
+            name: components["schemas"]["ConfigId"];
+            version: string;
+            digest: string;
+        };
+        FindingComparisonAudit: {
+            auditId: components["schemas"]["ResourceId"];
+            revision: number;
+            state: components["schemas"]["AuditState"];
+            profile: components["schemas"]["FindingComparisonProfile"];
+            baselineDigest?: string;
+            /** @constant */
+            baselineDigestEncoding: "postgres-jsonb-text/v1";
+            /** @constant */
+            coverage: "not-compared";
+        };
+        FindingCorrelationFence: {
+            projectId: components["schemas"]["ResourceId"];
+            projectRevision?: number;
+            audits: components["schemas"]["FindingComparisonAudit"][];
+        };
+        FindingComparisonOrigin: {
+            receiptId: components["schemas"]["ResourceId"];
+            runId: components["schemas"]["ResourceId"];
+            runDeleted: boolean;
+            logicalAgentName: components["schemas"]["ConfigId"];
+            workflowName: components["schemas"]["ConfigId"];
+            workflowVersion: string;
+            workflowClosureDigest: string;
+        };
+        FindingComparisonPreview: {
+            findingId: components["schemas"]["ResourceId"];
+            auditId: components["schemas"]["ResourceId"];
+            revision: number;
+            /** @constant */
+            preview: true;
+            title: string;
+            titleTruncated: boolean;
+            state: components["schemas"]["AuditFindingState"];
+            /** @enum {unknown} */
+            severitySuggestion: "" | "critical" | "high" | "medium" | "low" | "informational";
+            analystVerdict?: components["schemas"]["AuditAnalystVerdict"];
+            analystSeverity?: components["schemas"]["AuditFindingSeverity"];
+            semanticAssessment?: string;
+            origin: components["schemas"]["FindingComparisonOrigin"];
+            /** @enum {unknown} */
+            correlationRole?: "representative" | "automatic-duplicate";
+            assessmentId?: components["schemas"]["ResourceId"];
+            decisionId?: components["schemas"]["ResourceId"];
+        };
+        FindingCorrelationPageInfo: {
+            /** @constant */
+            hasMore: false;
+        } | {
+            /** @constant */
+            hasMore: true;
+            nextCursor: string;
+        };
+        FindingCandidateReason: {
+            /** @enum {unknown} */
+            kind: "primary-equality" | "selected-producer-equality" | "structural-site" | "project-subject-family";
+            key: string;
+            sourceReceiptId: components["schemas"]["ResourceId"];
+            targetReceiptId: components["schemas"]["ResourceId"];
+            sourceSelector?: number;
+            targetSelector?: number;
+            limitations: string[];
+        };
+        FindingCandidate: {
+            tier: number;
+            automaticallyCorrelated: boolean;
+            finding: components["schemas"]["FindingComparisonPreview"];
+            reasons: components["schemas"]["FindingCandidateReason"][];
+            reasonsTruncated: boolean;
+        };
+        FindingCandidateSource: {
+            auditId: components["schemas"]["ResourceId"];
+            findingId: components["schemas"]["ResourceId"];
+            receiptId: components["schemas"]["ResourceId"];
+            firstReceiptId: components["schemas"]["ResourceId"];
+            /** @enum {unknown} */
+            hintsAvailability: "available" | "unavailable";
+            /** @enum {unknown} */
+            hintsReason?: "not_recorded" | "discarded";
+            familiesAvailable: boolean;
+        };
+        FindingCandidatesPage: {
+            /** @constant */
+            policyVersion: "qualified-snapshot/v1";
+            scope: components["schemas"]["FindingCorrelationReadScope"];
+            fence: components["schemas"]["FindingCorrelationFence"];
+            source: components["schemas"]["FindingCandidateSource"];
+            /** @constant */
+            targetBasis: "immutable-first-receipt";
+            items: components["schemas"]["FindingCandidate"][];
+            rowsExamined: number;
+            workLimited: boolean;
+            page: components["schemas"]["FindingCorrelationPageInfo"];
+        };
+        FindingComparisonRow: {
+            /** @enum {unknown} */
+            kind: "both" | "left-only" | "right-only" | "unmatched";
+            rowKey: string;
+            groupKey?: string;
+            basis?: components["schemas"]["FindingCorrelationBasis"];
+            /** @enum {unknown} */
+            unavailableReason?: "not_recorded" | "no_qualified_key" | "primary_key_ambiguous";
+            representative: components["schemas"]["FindingCorrelationReference"];
+            left?: components["schemas"]["FindingComparisonPreview"];
+            right?: components["schemas"]["FindingComparisonPreview"];
+            previewsShareReceipt: boolean;
+        };
+        FindingComparisonPage: {
+            /** @constant */
+            policyVersion: "qualified-snapshot/v1";
+            scope: components["schemas"]["FindingCorrelationReadScope"];
+            fence: components["schemas"]["FindingCorrelationFence"];
+            leftAuditId: components["schemas"]["ResourceId"];
+            rightAuditId: components["schemas"]["ResourceId"];
+            limitations: string[];
+            items: components["schemas"]["FindingComparisonRow"][];
+            page: components["schemas"]["FindingCorrelationPageInfo"];
+        };
+        FindingMembersPage: {
+            /** @constant */
+            policyVersion: "qualified-snapshot/v1";
+            scope: components["schemas"]["FindingCorrelationReadScope"];
+            fence: components["schemas"]["FindingCorrelationFence"];
+            groupKey: string;
+            representative: components["schemas"]["FindingCorrelationReference"];
+            items: components["schemas"]["FindingComparisonPreview"][];
+            page: components["schemas"]["FindingCorrelationPageInfo"];
+        };
         EvalId: string;
         /** @description Evaluator-defined parameter key, including camelCase names such as mediaType. */
         EvalCheckParameterName: string;
@@ -6108,6 +6325,42 @@ export interface components {
         };
     };
     responses: {
+        /** @description Restart the changed traversal. */
+        FindingCorrelationStale: {
+            headers: {
+                "X-Request-ID": components["headers"]["RequestId"];
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "code": "finding_correlation_stale",
+                 *       "message": "finding correlation read could not complete",
+                 *       "retryable": false,
+                 *       "requestId": "request-correlation"
+                 *     }
+                 */
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description A mandatory item cannot fit its bounded representation. */
+        FindingCorrelationItemTooLarge: {
+            headers: {
+                "X-Request-ID": components["headers"]["RequestId"];
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "code": "finding_correlation_item_too_large",
+                 *       "message": "finding correlation read could not complete",
+                 *       "retryable": false,
+                 *       "requestId": "request-correlation"
+                 *     }
+                 */
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description Non-secret configured state; private key is never returned */
         GitKeyState: {
             headers: {
@@ -12042,6 +12295,118 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             429: components["responses"]["RateLimited"];
             500: components["responses"]["InternalError"];
+        };
+    };
+    listFindingDuplicateCandidates: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string;
+                scope?: "project" | "audit";
+                targetAuditId?: components["schemas"]["ResourceId"];
+                sourceReceiptId?: components["schemas"]["ResourceId"];
+            };
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+                findingId: components["parameters"]["FindingId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revision-bound bounded preview page */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FindingCandidatesPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["FindingCorrelationStale"];
+            422: components["responses"]["FindingCorrelationItemTooLarge"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
+        };
+    };
+    listProjectFindingComparisons: {
+        parameters: {
+            query: {
+                limit?: number;
+                cursor?: string;
+                leftAuditId: components["schemas"]["ResourceId"];
+                rightAuditId: components["schemas"]["ResourceId"];
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revision-bound bounded preview page */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FindingComparisonPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["FindingCorrelationStale"];
+            422: components["responses"]["FindingCorrelationItemTooLarge"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
+        };
+    };
+    listFindingCorrelationMembers: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string;
+                auditId?: components["schemas"]["ResourceId"];
+                leftAuditId?: components["schemas"]["ResourceId"];
+                rightAuditId?: components["schemas"]["ResourceId"];
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                groupKey: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revision-bound bounded preview page */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FindingMembersPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["FindingCorrelationStale"];
+            422: components["responses"]["FindingCorrelationItemTooLarge"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
 }

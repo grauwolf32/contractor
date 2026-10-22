@@ -12,3 +12,16 @@ describe("finding correlation wire contract", () => {
     });
   }
 });
+
+describe("finding correlation read pages", () => {
+  for (const entry of fixture.readPages) {
+    it(entry.name, () => {
+      expect(
+        conformsTo(
+          entry.schema as Parameters<typeof conformsTo>[0],
+          entry.document,
+        ),
+      ).toBe(entry.valid);
+    });
+  }
+});

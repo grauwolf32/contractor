@@ -922,3 +922,13 @@ func (f *fakeAuditManagement) ListOwnerReviews(_ context.Context, params auditst
 	f.ownerReviews = params
 	return f.reviews, f.err
 }
+
+func (f *fakeAuditManagement) FindingCandidates(context.Context, auditservice.FindingCandidatesParams) (auditservice.FindingCandidatesPage, error) {
+	return auditservice.FindingCandidatesPage{}, f.err
+}
+func (f *fakeAuditManagement) CompareFindings(context.Context, auditservice.FindingComparisonParams) (auditservice.FindingComparisonPage, error) {
+	return auditservice.FindingComparisonPage{}, f.err
+}
+func (f *fakeAuditManagement) FindingGroupMembers(context.Context, auditservice.FindingMembersParams) (auditservice.FindingMembersPage, error) {
+	return auditservice.FindingMembersPage{}, f.err
+}

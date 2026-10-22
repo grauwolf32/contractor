@@ -17,8 +17,10 @@ import (
 )
 
 var (
-	ErrInvalid  = apierror.New(apierror.InvalidRequest, "auditstore invalid argument")
-	ErrNotFound = apierror.New(apierror.NotFound, "auditstore resource not found")
+	ErrCorrelationStale        = apierror.New(apierror.FindingCorrelationStale, "finding correlation traversal is stale")
+	ErrCorrelationItemTooLarge = apierror.New(apierror.FindingCorrelationItemTooLarge, "finding correlation item exceeds preview bound")
+	ErrInvalid                 = apierror.New(apierror.InvalidRequest, "auditstore invalid argument")
+	ErrNotFound                = apierror.New(apierror.NotFound, "auditstore resource not found")
 	// ErrConflict is an identity, state or internal submission-replay conflict;
 	// a reused public Idempotency-Key is contracts.ErrIdempotencyConflict.
 	ErrConflict        = apierror.New(apierror.Conflict, "auditstore identity or submission conflict")

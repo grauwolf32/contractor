@@ -24,7 +24,7 @@ func TestPostgresFindingFingerprintMigrationPreservesReceipts(t *testing.T) {
 	if _, err := ApplyMigrations(ctx, pool, MigrationBudgets{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := pool.QueryRow(ctx, "SELECT (to_jsonb(r)-ARRAY['fingerprint_projection','anchor_projection'])::text,fingerprint_projection FROM finding_proposal_receipts r").Scan(&after, &projection); err != nil {
+	if err := pool.QueryRow(ctx, "SELECT (to_jsonb(r)-ARRAY['fingerprint_projection','anchor_projection','comparison_projection'])::text,fingerprint_projection FROM finding_proposal_receipts r").Scan(&after, &projection); err != nil {
 		t.Fatal(err)
 	}
 	if before != after || projection != `{"schema":"contractor.finding.fingerprint-projection.v1","availability":"unavailable","reason":"not_recorded"}` {
@@ -63,7 +63,7 @@ func TestPostgresFindingAnchorMigrationPreservesReceipts(t *testing.T) {
 	if _, err := ApplyMigrations(ctx, pool, MigrationBudgets{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := pool.QueryRow(ctx, "SELECT (to_jsonb(r)-'anchor_projection')::text,anchor_projection FROM finding_proposal_receipts r").Scan(&after, &projection); err != nil {
+	if err := pool.QueryRow(ctx, "SELECT (to_jsonb(r)-ARRAY['anchor_projection','comparison_projection'])::text,anchor_projection FROM finding_proposal_receipts r").Scan(&after, &projection); err != nil {
 		t.Fatal(err)
 	}
 	if before != after || projection != `{"schema":"contractor.finding.anchors-projection.v1","availability":"unavailable","reason":"not_recorded"}` {

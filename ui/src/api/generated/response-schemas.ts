@@ -8,6 +8,20 @@ export const EVENT_SCHEMA_ID =
 
 /** A schema under $defs of public-schemas.json. */
 export type PublicSchemaName =
+  | "FindingCorrelationReadScope"
+  | "FindingComparisonProfile"
+  | "FindingComparisonAudit"
+  | "FindingCorrelationFence"
+  | "FindingComparisonOrigin"
+  | "FindingComparisonPreview"
+  | "FindingCorrelationPageInfo"
+  | "FindingCandidateReason"
+  | "FindingCandidate"
+  | "FindingCandidateSource"
+  | "FindingCandidatesPage"
+  | "FindingComparisonRow"
+  | "FindingComparisonPage"
+  | "FindingMembersPage"
   | "EvalId"
   | "EvalCheckParameterName"
   | "EvalOpaque"
@@ -1913,6 +1927,36 @@ export const RESPONSE_SCHEMAS = {
     "403": "Error",
     "429": "Error",
     "500": "Error",
+  },
+  "GET /v1/audits/{auditId}/findings/{findingId}/duplicate-candidates": {
+    "200": "FindingCandidatesPage",
+    "400": "Error",
+    "401": "Error",
+    "404": "Error",
+    "409": "Error",
+    "422": "Error",
+    "500": "Error",
+    "503": "Error",
+  },
+  "GET /v1/projects/{projectId}/finding-comparisons": {
+    "200": "FindingComparisonPage",
+    "400": "Error",
+    "401": "Error",
+    "404": "Error",
+    "409": "Error",
+    "422": "Error",
+    "500": "Error",
+    "503": "Error",
+  },
+  "GET /v1/projects/{projectId}/finding-correlations/{groupKey}/members": {
+    "200": "FindingMembersPage",
+    "400": "Error",
+    "401": "Error",
+    "404": "Error",
+    "409": "Error",
+    "422": "Error",
+    "500": "Error",
+    "503": "Error",
   },
 } as const satisfies Record<string, Record<string, PublicSchemaName | null>>;
 

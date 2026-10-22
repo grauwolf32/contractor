@@ -544,5 +544,591 @@
         "hasOtherObservations": false
       }
     }
+  ],
+  "readPages": [
+    {
+      "name": "empty-work-progress",
+      "schema": "FindingCandidatesPage",
+      "valid": true,
+      "document": {
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "project",
+          "projectId": "project-a",
+          "auditIds": []
+        },
+        "fence": {
+          "projectId": "project-a",
+          "projectRevision": 3,
+          "audits": [
+            {
+              "auditId": "audit-a",
+              "revision": 3,
+              "state": "draft",
+              "profile": {
+                "name": "example",
+                "version": "1",
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "baselineDigestEncoding": "postgres-jsonb-text/v1",
+              "coverage": "not-compared"
+            }
+          ]
+        },
+        "source": {
+          "auditId": "audit-a",
+          "findingId": "finding-a",
+          "receiptId": "receipt-a",
+          "firstReceiptId": "receipt-a",
+          "hintsAvailability": "unavailable",
+          "hintsReason": "not_recorded",
+          "familiesAvailable": false
+        },
+        "targetBasis": "immutable-first-receipt",
+        "items": [],
+        "rowsExamined": 897,
+        "workLimited": true,
+        "page": {
+          "hasMore": true,
+          "nextCursor": "cursor-a"
+        }
+      }
+    },
+    {
+      "name": "pair-context-without-project-fence",
+      "schema": "FindingComparisonPage",
+      "valid": true,
+      "document": {
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "audit-pair",
+          "projectId": "project-a",
+          "auditIds": [
+            "audit-a",
+            "audit-b"
+          ]
+        },
+        "fence": {
+          "projectId": "project-a",
+          "audits": [
+            {
+              "auditId": "audit-a",
+              "revision": 3,
+              "state": "draft",
+              "profile": {
+                "name": "example",
+                "version": "1",
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "baselineDigestEncoding": "postgres-jsonb-text/v1",
+              "coverage": "not-compared"
+            },
+            {
+              "auditId": "audit-b",
+              "revision": 3,
+              "state": "draft",
+              "profile": {
+                "name": "example",
+                "version": "1",
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "baselineDigestEncoding": "postgres-jsonb-text/v1",
+              "coverage": "not-compared"
+            }
+          ]
+        },
+        "leftAuditId": "audit-a",
+        "rightAuditId": "audit-b",
+        "limitations": [
+          "absence-is-not-remediation"
+        ],
+        "items": [],
+        "page": {
+          "hasMore": false
+        }
+      }
+    },
+    {
+      "name": "project-member-context",
+      "schema": "FindingMembersPage",
+      "valid": true,
+      "document": {
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "project",
+          "projectId": "project-a",
+          "auditIds": []
+        },
+        "fence": {
+          "projectId": "project-a",
+          "projectRevision": 3,
+          "audits": []
+        },
+        "groupKey": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "representative": {
+          "auditId": "audit-a",
+          "findingId": "finding-a"
+        },
+        "items": [],
+        "page": {
+          "hasMore": false
+        }
+      }
+    },
+    {
+      "name": "candidate-work-overflow",
+      "schema": "FindingCandidatesPage",
+      "valid": false,
+      "document": {
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "project",
+          "projectId": "project-a",
+          "auditIds": []
+        },
+        "fence": {
+          "projectId": "project-a",
+          "projectRevision": 3,
+          "audits": [
+            {
+              "auditId": "audit-a",
+              "revision": 3,
+              "state": "draft",
+              "profile": {
+                "name": "example",
+                "version": "1",
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "baselineDigestEncoding": "postgres-jsonb-text/v1",
+              "coverage": "not-compared"
+            }
+          ]
+        },
+        "source": {
+          "auditId": "audit-a",
+          "findingId": "finding-a",
+          "receiptId": "receipt-a",
+          "firstReceiptId": "receipt-a",
+          "hintsAvailability": "unavailable",
+          "hintsReason": "not_recorded",
+          "familiesAvailable": false
+        },
+        "targetBasis": "immutable-first-receipt",
+        "items": [],
+        "rowsExamined": 898,
+        "workLimited": true,
+        "page": {
+          "hasMore": true,
+          "nextCursor": "cursor-a"
+        }
+      }
+    },
+    {
+      "name": "continuation-cursor-required",
+      "schema": "FindingCandidatesPage",
+      "valid": false,
+      "document": {
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "project",
+          "projectId": "project-a",
+          "auditIds": []
+        },
+        "fence": {
+          "projectId": "project-a",
+          "projectRevision": 3,
+          "audits": [
+            {
+              "auditId": "audit-a",
+              "revision": 3,
+              "state": "draft",
+              "profile": {
+                "name": "example",
+                "version": "1",
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "baselineDigestEncoding": "postgres-jsonb-text/v1",
+              "coverage": "not-compared"
+            }
+          ]
+        },
+        "source": {
+          "auditId": "audit-a",
+          "findingId": "finding-a",
+          "receiptId": "receipt-a",
+          "firstReceiptId": "receipt-a",
+          "hintsAvailability": "unavailable",
+          "hintsReason": "not_recorded",
+          "familiesAvailable": false
+        },
+        "targetBasis": "immutable-first-receipt",
+        "items": [],
+        "rowsExamined": 897,
+        "workLimited": true,
+        "page": {
+          "hasMore": true
+        }
+      }
+    },
+    {
+      "name": "terminal-page-has-no-cursor",
+      "schema": "FindingMembersPage",
+      "valid": false,
+      "document": {
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "project",
+          "projectId": "project-a",
+          "auditIds": []
+        },
+        "fence": {
+          "projectId": "project-a",
+          "projectRevision": 3,
+          "audits": []
+        },
+        "groupKey": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "representative": {
+          "auditId": "audit-a",
+          "findingId": "finding-a"
+        },
+        "items": [],
+        "page": {
+          "hasMore": false,
+          "nextCursor": "unexpected"
+        }
+      }
+    },
+    {
+      "name": "pair-requires-two-audits",
+      "schema": "FindingComparisonPage",
+      "valid": false,
+      "document": {
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "audit-pair",
+          "projectId": "project-a",
+          "auditIds": [
+            "audit-a"
+          ]
+        },
+        "fence": {
+          "projectId": "project-a",
+          "audits": [
+            {
+              "auditId": "audit-a",
+              "revision": 3,
+              "state": "draft",
+              "profile": {
+                "name": "example",
+                "version": "1",
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "baselineDigestEncoding": "postgres-jsonb-text/v1",
+              "coverage": "not-compared"
+            },
+            {
+              "auditId": "audit-b",
+              "revision": 3,
+              "state": "draft",
+              "profile": {
+                "name": "example",
+                "version": "1",
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "baselineDigestEncoding": "postgres-jsonb-text/v1",
+              "coverage": "not-compared"
+            }
+          ]
+        },
+        "leftAuditId": "audit-a",
+        "rightAuditId": "audit-b",
+        "limitations": [
+          "absence-is-not-remediation"
+        ],
+        "items": [],
+        "page": {
+          "hasMore": false
+        }
+      }
+    },
+    {
+      "name": "pair-requires-distinct-audits",
+      "schema": "FindingComparisonPage",
+      "valid": false,
+      "document": {
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "audit-pair",
+          "projectId": "project-a",
+          "auditIds": [
+            "audit-a",
+            "audit-a"
+          ]
+        },
+        "fence": {
+          "projectId": "project-a",
+          "audits": [
+            {
+              "auditId": "audit-a",
+              "revision": 3,
+              "state": "draft",
+              "profile": {
+                "name": "example",
+                "version": "1",
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "baselineDigestEncoding": "postgres-jsonb-text/v1",
+              "coverage": "not-compared"
+            },
+            {
+              "auditId": "audit-b",
+              "revision": 3,
+              "state": "draft",
+              "profile": {
+                "name": "example",
+                "version": "1",
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "baselineDigestEncoding": "postgres-jsonb-text/v1",
+              "coverage": "not-compared"
+            }
+          ]
+        },
+        "leftAuditId": "audit-a",
+        "rightAuditId": "audit-b",
+        "limitations": [
+          "absence-is-not-remediation"
+        ],
+        "items": [],
+        "page": {
+          "hasMore": false
+        }
+      }
+    },
+    {
+      "name": "unknown-read-policy",
+      "schema": "FindingMembersPage",
+      "valid": false,
+      "document": {
+        "policyVersion": "semantic/v1",
+        "scope": {
+          "kind": "project",
+          "projectId": "project-a",
+          "auditIds": []
+        },
+        "fence": {
+          "projectId": "project-a",
+          "projectRevision": 3,
+          "audits": []
+        },
+        "groupKey": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "representative": {
+          "auditId": "audit-a",
+          "findingId": "finding-a"
+        },
+        "items": [],
+        "page": {
+          "hasMore": false
+        }
+      }
+    },
+    {
+      "name": "cursor-bound",
+      "schema": "FindingCandidatesPage",
+      "valid": false,
+      "document": {
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "project",
+          "projectId": "project-a",
+          "auditIds": []
+        },
+        "fence": {
+          "projectId": "project-a",
+          "projectRevision": 3,
+          "audits": [
+            {
+              "auditId": "audit-a",
+              "revision": 3,
+              "state": "draft",
+              "profile": {
+                "name": "example",
+                "version": "1",
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "baselineDigestEncoding": "postgres-jsonb-text/v1",
+              "coverage": "not-compared"
+            }
+          ]
+        },
+        "source": {
+          "auditId": "audit-a",
+          "findingId": "finding-a",
+          "receiptId": "receipt-a",
+          "firstReceiptId": "receipt-a",
+          "hintsAvailability": "unavailable",
+          "hintsReason": "not_recorded",
+          "familiesAvailable": false
+        },
+        "targetBasis": "immutable-first-receipt",
+        "items": [],
+        "rowsExamined": 897,
+        "workLimited": true,
+        "page": {
+          "hasMore": true,
+          "nextCursor": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      }
+    },
+    {
+      "name": "candidate-page-bound",
+      "schema": "FindingCandidatesPage",
+      "valid": false,
+      "document": {
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "project",
+          "projectId": "project-a",
+          "auditIds": []
+        },
+        "fence": {
+          "projectId": "project-a",
+          "projectRevision": 3,
+          "audits": [
+            {
+              "auditId": "audit-a",
+              "revision": 3,
+              "state": "draft",
+              "profile": {
+                "name": "example",
+                "version": "1",
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "baselineDigestEncoding": "postgres-jsonb-text/v1",
+              "coverage": "not-compared"
+            }
+          ]
+        },
+        "source": {
+          "auditId": "audit-a",
+          "findingId": "finding-a",
+          "receiptId": "receipt-a",
+          "firstReceiptId": "receipt-a",
+          "hintsAvailability": "unavailable",
+          "hintsReason": "not_recorded",
+          "familiesAvailable": false
+        },
+        "targetBasis": "immutable-first-receipt",
+        "items": [
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {}
+        ],
+        "rowsExamined": 897,
+        "workLimited": true,
+        "page": {
+          "hasMore": true,
+          "nextCursor": "cursor-a"
+        }
+      }
+    }
   ]
 }

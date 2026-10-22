@@ -762,6 +762,72 @@ lifecycle authority. Rejection/cancellation rolls back; uncertain commits
 reconcile existing receipt/natural keys before another mutation (FAIL-FND-6,
 LIFE-FND-4).
 
+### Bounded candidate, comparison and member reads
+
+**FND-R179.** Owner-authorized read-only candidate, two-Audit comparison and
+all-member endpoints expose current correlation without changing receipt,
+triage, review or evidence state. They use default 20/max 100 rows, at most
+256 KiB JSON, a 1024-byte signed cursor and the registered
+`finding_correlation_stale` (409) and
+`finding_correlation_item_too_large` (422) errors. Cursors bind owner, Project,
+source finding/receipt, exact selection, limit and policy. Project-wide reads
+fence the dedicated Project revision; Audit and pair restrictions fence only
+their selected Audit revisions. Recheck around bounded hydration; a changed
+fence requires restarting. Missing or foreign sources use the same 404.
+Existing classified storage conflicts retain retryable 503/Retry-After.
+
+**FND-R180.** Candidate scope defaults to Project; `scope=audit` restricts to
+the source Audit. A selected target Audit belongs to the same owned Project.
+An optional source receipt must actually contribute to the source finding;
+otherwise use its first receipt. Match that selected source against each
+target's immutable first receipt, while always retaining the source finding's
+existing primary equality. Supporting receipts are searchable as explicitly
+selected sources, with no unbounded target-contribution fanout. Fixed tiers
+are primary equality, selected qualified producer equality, structural site,
+and exact Project/nonnull-subject/tagged-family hints. Each target appears
+only at its strongest tier. Site/family and secondary matches never regroup
+findings. Return at most eight reason pairs with explicit truncation and
+limitations; no title/description/LLM similarity participates.
+
+**FND-R181.** Strong tiers seek their exact Project/Audit group directly.
+Weaker tiers examine an indexed work window of at most 897 matching-input
+rows, plus at most 100 result summaries and up to three source lookup/exclusion rows, within
+the 1000-row work budget. Cursors retain examined-row and tier progress;
+empty progress pages may have `hasMore`. A compact comparison projection on
+the existing immutable receipt bounds each matching/display read to 32 KiB.
+Its display title is an explicitly truncated 256-character preview; full
+material remains on finding detail. Optional family hints are unavailable
+when more than 32 refs or a version over 160 UTF-8 bytes exceeds that hint
+contract. Never truncate a key into guessed equality. Structural and qualified
+producer keys retain their owning exact projections. Discard clears this
+comparison projection; no new table, receipt or Artifact hold is introduced.
+
+**FND-R182.** Compare exactly two distinct owned Audits in one Project into
+exact primary groups (`both`, `left-only`, `right-only`) and individually
+identified `unmatched` observations. Recursive next-group index seeks skip
+high-multiplicity groups; unmatched rows have their own keyset phase. Return
+one bounded preview per side, pair-relative smallest-ID representative and
+all-member navigation. Every selected observation is reachable exactly once
+through its group or unmatched row. Previews preserve first receipt, source
+Workflow/digest, retained Run availability, current triage, proposal/analyst
+severity and semantic assessment. Receipt equality identifies shared import;
+`previewsShareReceipt` describes only the shown previews, never whole-group
+independent-discovery totals. Profile and baseline digest (explicitly
+`postgres-jsonb-text/v1`) give context; coverage is `not-compared`. One-sided
+or unmatched observations never imply a fixed/new vulnerability or clean scan.
+No whole-comparison totals or complete-coverage claims are inferred.
+
+**FND-R183.** Member pages select Project, one Audit or an exact Audit pair,
+return every retained observation through signed keyset cursors and choose the
+representative within that same explicit scope. Pair traversal uses separate
+bounded probes of each selected Audit rather than scanning and filtering a
+Project-wide group. An unrelated third Audit's update cannot stale a pair
+comparison/member traversal. Current Project membership and independent
+results continue to follow FND-R178; the read adds no lifecycle resource. The
+Server supplies each scoped preview role (`representative` or
+`automatic-duplicate`) separately from human triage; the browser computes no
+finding equality.
+
 ### Proposals of ordinary Runs
 
 **FND-R63.** A proposal of an ordinary, non-Audit Run stays readable in

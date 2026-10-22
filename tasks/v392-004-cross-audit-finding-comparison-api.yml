@@ -5,13 +5,14 @@ milestone: finding-correlation-2026-10
 epic: findings
 kind: feature
 priority: P2
-status: pending
+status: in_progress
 depends_on:
 - V392-001
 - V392-002
 - V392-003
 languages:
 - go
+- typescript
 - yaml
 - markdown
 goal: Compare two Audits of an owned Project through exact automatic groups, separate weaker candidates and all retained members, exposing independent
@@ -28,6 +29,8 @@ context:
   - docs/spec/audits/review-and-reports.md#REV-R138
   - docs/spec/audits/review-and-reports.md#REV-R191
   - docs/spec/findings/findings.md#FND-R66
+  - docs/spec/findings/findings.md#FND-R179
+  - docs/spec/findings/findings.md#FND-R183
   - docs/spec/platform/limits.md
   - docs/spec/platform/errors.md
   - docs/spec/api/public-api.md
@@ -153,3 +156,24 @@ tests:
 - command: make lint
   covers:
   - A5
+
+implementation_decisions:
+- Comparison walks distinct primary groups through recursive indexed next-group seeks for the two selected Audits, then pages unmatched observations separately. Each row has one bounded preview per side; group expansion keeps every member reachable.
+- Candidate search uses a bounded keyset work window of 897 matching-input rows plus at most 100 summaries and up to three source lookup/exclusion rows in a Project/Audit index for each fixed tier. Its cursor records examined-row progress, including empty pages, so popular weak hints cannot force an unbounded bitmap/sort or group scan in one request.
+- Candidate matching uses the explicitly selected source contribution and each target's immutable first receipt; existing primary equality is always included independently. Supporting receipts can be selected as sources without changing either finding's primary group. This avoids unbounded target contribution fanout and is stated in the public response and owning contract.
+- A compact immutable comparison projection on the existing receipt caches bounded display and matching fields from the already validated report/fingerprint/anchor projections. It introduces no table, receipt, Worker argument or Artifact fetch; discard clears it. Oversized optional family hints are explicitly unavailable rather than truncated into guessed equality.
+
+verification:
+  date: '2026-10-22'
+  status: passed
+  checks:
+  - Every listed full Go and integration package suite passed with the disposable PostgreSQL URL, including the real public handlers, generated client and persistence migrations.
+  - The real PostgreSQL fixture has exactly 100 Audits and 1000000 findings with a 100000-finding Audit. Production comparison, pair-member, exact-candidate, deep-cursor and empty weak-progress reads obey indexed row budgets; generic-plan queries seek from the cursor instead of filtering the earlier parent rows. No wall-clock performance assertion is used.
+  - Traversal accounts for both/left-only/right-only groups and every unmatched observation; shared receipts remain two Audit-local results. Project reads stale after another Audit's rating changes, while pair comparison/member cursors remain valid. Source deletion between source lookup and fence capture is rejected as stale.
+  - Supporting-receipt search exposes qualified secondary candidates without bridging primary groups; exact structural sites across snapshots remain possible matches and never become exact intersections.
+  - A 60-observation fixture with large escaped titles and family reasons crosses the 256 KiB response bound; complete cursor traversal preserves every omitted observation without repeats, and previews are explicitly marked/truncated.
+  - The compact projection migration preserves prior receipt fields, bounds Unicode titles/family preparation, rejects forged cache updates and clears cached matching/display data on discard.
+  - make verify-public-api, verify-public-api-postgres and ui-verify passed. UI has 188 test files, 2242 passed tests and one expected failure. All three new operations have validated mocked and production PostgreSQL responses, strict query/cursor cases and classified stale errors.
+  - make lint and final test-wire-cross-language passed; 241 fixtures, 221 Go and 167 Python shared tests, plus 300 Runtime wire tests. Worker tools and private finding responses are unchanged.
+  earlier_failure: Implementation review and new tests exposed an off-by-one work budget, nullable-cursor predicates that could prevent generic-plan seeks, a nullable cached subject incorrectly tagged required, and unsupported conditional-schema enforcement by the Go validator. The final implementation reserves source work, uses unconditional tuple seeks, preserves nullable subjects and uses closed oneOf branches shared by Go and UI validators. Earlier failed runs are not counted as passes.
+  boundary: Candidate target reasons use first receipts and explicit supporting sources; coverage is not compared, one-sided rows do not imply remediation, and preview/source counts are not whole-group totals. UI and the aggregate release gate remain separate work.

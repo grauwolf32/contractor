@@ -35,6 +35,7 @@ func TestPublicOperationsConformToOpenAPI(t *testing.T) {
 		t.Fatalf("build contract router: %v", err)
 	}
 	t.Run("audits and findings", func(t *testing.T) { conformAuditOperations(t, router) })
+	t.Run("finding correlation", func(t *testing.T) { conformFindingCorrelationOperations(t, router) })
 	t.Run("projects and queue", func(t *testing.T) { conformProjectAndQueueOperations(t, router) })
 	t.Run("runs", func(t *testing.T) { conformRunOperations(t, router) })
 	t.Run("catalog and operations", func(t *testing.T) { conformCatalogAndOperations(t, router) })

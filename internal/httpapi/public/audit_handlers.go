@@ -18,6 +18,9 @@ import (
 )
 
 type AuditManagement interface {
+	FindingCandidates(context.Context, auditservice.FindingCandidatesParams) (auditservice.FindingCandidatesPage, error)
+	CompareFindings(context.Context, auditservice.FindingComparisonParams) (auditservice.FindingComparisonPage, error)
+	FindingGroupMembers(context.Context, auditservice.FindingMembersParams) (auditservice.FindingMembersPage, error)
 	ListEventsPage(context.Context, auditstore.EventListParams) (auditservice.EventPage, error)
 	ListOwnerFindings(context.Context, auditstore.OwnerFindingListParams) ([]auditservice.Finding, error)
 	ListOwnerReviews(context.Context, auditstore.OwnerReviewListParams) ([]auditstore.ReviewRequest, error)

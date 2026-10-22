@@ -6241,6 +6241,183 @@ paths:
         '429': {$ref: '#/components/responses/RateLimited'}
         '500': {$ref: '#/components/responses/InternalError'}
 
+  /v1/audits/{auditId}/findings/{findingId}/duplicate-candidates:
+    parameters:
+    - $ref: '#/components/parameters/AuditId'
+    - $ref: '#/components/parameters/FindingId'
+    get:
+      operationId: listFindingDuplicateCandidates
+      tags:
+      - Audits
+      summary: Find exact automatic matches and separate weaker candidates
+      description: Read-only deterministic correlation. The page is bounded to 256 KiB; stale scoped revisions require restarting.
+        An empty work-progress page may still have hasMore. Every retained observation remains reachable.
+      parameters:
+      - &id002
+        name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      - &id003
+        name: cursor
+        in: query
+        required: false
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 1024
+      - name: scope
+        in: query
+        required: false
+        schema:
+          enum:
+          - project
+          - audit
+          default: project
+      - name: targetAuditId
+        in: query
+        required: false
+        schema: &id001
+          $ref: '#/components/schemas/ResourceId'
+      - name: sourceReceiptId
+        in: query
+        required: false
+        schema: *id001
+      responses:
+        '200':
+          description: Revision-bound bounded preview page
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FindingCandidatesPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/FindingCorrelationStale'
+        '422':
+          $ref: '#/components/responses/FindingCorrelationItemTooLarge'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/StorageTransactionConflict'
+  /v1/projects/{projectId}/finding-comparisons:
+    parameters:
+    - $ref: '#/components/parameters/ProjectId'
+    get:
+      operationId: listProjectFindingComparisons
+      tags:
+      - Audits
+      summary: Compare exact groups and unmatched observations of two owned Audits
+      description: Read-only deterministic correlation. The page is bounded to 256 KiB; stale scoped revisions require restarting.
+        An empty work-progress page may still have hasMore. Every retained observation remains reachable.
+      parameters:
+      - *id002
+      - *id003
+      - name: leftAuditId
+        in: query
+        required: true
+        schema: *id001
+      - name: rightAuditId
+        in: query
+        required: true
+        schema: *id001
+      responses:
+        '200':
+          description: Revision-bound bounded preview page
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FindingComparisonPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/FindingCorrelationStale'
+        '422':
+          $ref: '#/components/responses/FindingCorrelationItemTooLarge'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/StorageTransactionConflict'
+  /v1/projects/{projectId}/finding-correlations/{groupKey}/members:
+    parameters:
+    - $ref: '#/components/parameters/ProjectId'
+    - name: groupKey
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: ^[0-9a-f]{64}$
+    get:
+      operationId: listFindingCorrelationMembers
+      tags:
+      - Audits
+      summary: Page every retained group member in a Project or selected Audit scope
+      description: Read-only deterministic correlation. The page is bounded to 256 KiB; stale scoped revisions require restarting.
+        An empty work-progress page may still have hasMore. Every retained observation remains reachable.
+      parameters:
+      - *id002
+      - *id003
+      - name: auditId
+        in: query
+        required: false
+        schema: *id001
+      - name: leftAuditId
+        in: query
+        required: false
+        schema: *id001
+      - name: rightAuditId
+        in: query
+        required: false
+        schema: *id001
+      responses:
+        '200':
+          description: Revision-bound bounded preview page
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FindingMembersPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/FindingCorrelationStale'
+        '422':
+          $ref: '#/components/responses/FindingCorrelationItemTooLarge'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/StorageTransactionConflict'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -6456,6 +6633,34 @@ components:
       required: true
       schema: {type: string, const: no-store}
   responses:
+    FindingCorrelationStale:
+      description: Restart the changed traversal.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: finding_correlation_stale
+            message: finding correlation read could not complete
+            retryable: false
+            requestId: request-correlation
+    FindingCorrelationItemTooLarge:
+      description: A mandatory item cannot fit its bounded representation.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: finding_correlation_item_too_large
+            message: finding correlation read could not complete
+            retryable: false
+            requestId: request-correlation
     GitKeyState:
       description: Non-secret configured state; private key is never returned
       headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
@@ -6647,6 +6852,436 @@ components:
       content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
 
   schemas:
+    FindingCorrelationReadScope:
+      oneOf:
+      - type: object
+        additionalProperties: false
+        required:
+        - kind
+        - projectId
+        - auditIds
+        properties:
+          kind:
+            const: project
+          projectId: &id001
+            $ref: '#/components/schemas/ResourceId'
+          auditIds:
+            type: array
+            items: *id001
+            maxItems: 0
+            minItems: 0
+            uniqueItems: true
+      - type: object
+        additionalProperties: false
+        required:
+        - kind
+        - projectId
+        - auditIds
+        properties:
+          kind:
+            const: audit
+          projectId: *id001
+          auditIds:
+            type: array
+            items: *id001
+            maxItems: 1
+            minItems: 1
+            uniqueItems: true
+      - type: object
+        additionalProperties: false
+        required:
+        - kind
+        - projectId
+        - auditIds
+        properties:
+          kind:
+            const: audit-pair
+          projectId: *id001
+          auditIds:
+            type: array
+            items: *id001
+            maxItems: 2
+            minItems: 2
+            uniqueItems: true
+    FindingComparisonProfile:
+      type: object
+      additionalProperties: false
+      required:
+      - name
+      - version
+      - digest
+      properties:
+        name:
+          $ref: '#/components/schemas/ConfigId'
+        version:
+          type: string
+          minLength: 1
+          maxLength: 256
+        digest:
+          type: string
+          pattern: ^sha256:[0-9a-f]{64}$
+    FindingComparisonAudit:
+      type: object
+      additionalProperties: false
+      required:
+      - auditId
+      - revision
+      - state
+      - profile
+      - baselineDigestEncoding
+      - coverage
+      properties:
+        auditId: *id001
+        revision: &id002
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+        state:
+          $ref: '#/components/schemas/AuditState'
+        profile:
+          $ref: '#/components/schemas/FindingComparisonProfile'
+        baselineDigest: &id003
+          type: string
+          pattern: ^sha256:[0-9a-f]{64}$
+        baselineDigestEncoding:
+          const: postgres-jsonb-text/v1
+        coverage:
+          const: not-compared
+    FindingCorrelationFence:
+      type: object
+      additionalProperties: false
+      required:
+      - projectId
+      - audits
+      properties:
+        projectId: *id001
+        projectRevision: *id002
+        audits:
+          type: array
+          items:
+            $ref: '#/components/schemas/FindingComparisonAudit'
+          maxItems: 2
+    FindingComparisonOrigin:
+      type: object
+      additionalProperties: false
+      required:
+      - receiptId
+      - runId
+      - runDeleted
+      - logicalAgentName
+      - workflowName
+      - workflowVersion
+      - workflowClosureDigest
+      properties:
+        receiptId: *id001
+        runId: *id001
+        runDeleted:
+          type: boolean
+        logicalAgentName:
+          $ref: '#/components/schemas/ConfigId'
+        workflowName:
+          $ref: '#/components/schemas/ConfigId'
+        workflowVersion:
+          type: string
+          minLength: 1
+          maxLength: 256
+        workflowClosureDigest: *id003
+    FindingComparisonPreview:
+      type: object
+      additionalProperties: false
+      required:
+      - findingId
+      - auditId
+      - revision
+      - preview
+      - title
+      - titleTruncated
+      - state
+      - severitySuggestion
+      - origin
+      properties:
+        findingId: *id001
+        auditId: *id001
+        revision: *id002
+        preview:
+          const: true
+        title:
+          type: string
+          minLength: 1
+          maxLength: 256
+        titleTruncated:
+          type: boolean
+        state:
+          $ref: '#/components/schemas/AuditFindingState'
+        severitySuggestion:
+          enum:
+          - ''
+          - critical
+          - high
+          - medium
+          - low
+          - informational
+        analystVerdict:
+          $ref: '#/components/schemas/AuditAnalystVerdict'
+        analystSeverity:
+          $ref: '#/components/schemas/AuditFindingSeverity'
+        semanticAssessment:
+          type: string
+          minLength: 1
+          maxLength: 64
+        origin:
+          $ref: '#/components/schemas/FindingComparisonOrigin'
+        correlationRole:
+          enum:
+          - representative
+          - automatic-duplicate
+        assessmentId: *id001
+        decisionId: *id001
+    FindingCorrelationPageInfo:
+      oneOf:
+      - type: object
+        additionalProperties: false
+        required:
+        - hasMore
+        properties:
+          hasMore:
+            const: false
+      - type: object
+        additionalProperties: false
+        required:
+        - hasMore
+        - nextCursor
+        properties:
+          hasMore:
+            const: true
+          nextCursor:
+            type: string
+            minLength: 1
+            maxLength: 1024
+    FindingCandidateReason:
+      type: object
+      additionalProperties: false
+      required:
+      - kind
+      - key
+      - sourceReceiptId
+      - targetReceiptId
+      - limitations
+      properties:
+        kind:
+          enum:
+          - primary-equality
+          - selected-producer-equality
+          - structural-site
+          - project-subject-family
+        key:
+          type: string
+          minLength: 1
+          maxLength: 2048
+        sourceReceiptId: *id001
+        targetReceiptId: *id001
+        sourceSelector:
+          type: integer
+          minimum: 0
+          maximum: 31
+        targetSelector:
+          type: integer
+          minimum: 0
+          maximum: 31
+        limitations:
+          type: array
+          items:
+            type: string
+            minLength: 1
+            maxLength: 128
+          maxItems: 4
+    FindingCandidate:
+      type: object
+      additionalProperties: false
+      required:
+      - tier
+      - automaticallyCorrelated
+      - finding
+      - reasons
+      - reasonsTruncated
+      properties:
+        tier:
+          type: integer
+          minimum: 1
+          maximum: 4
+        automaticallyCorrelated:
+          type: boolean
+        finding:
+          $ref: '#/components/schemas/FindingComparisonPreview'
+        reasons:
+          type: array
+          items:
+            $ref: '#/components/schemas/FindingCandidateReason'
+          maxItems: 8
+        reasonsTruncated:
+          type: boolean
+    FindingCandidateSource:
+      type: object
+      additionalProperties: false
+      required:
+      - auditId
+      - findingId
+      - receiptId
+      - firstReceiptId
+      - hintsAvailability
+      - familiesAvailable
+      properties:
+        auditId: *id001
+        findingId: *id001
+        receiptId: *id001
+        firstReceiptId: *id001
+        hintsAvailability:
+          enum:
+          - available
+          - unavailable
+        hintsReason:
+          enum:
+          - not_recorded
+          - discarded
+        familiesAvailable:
+          type: boolean
+    FindingCandidatesPage:
+      type: object
+      additionalProperties: false
+      required:
+      - policyVersion
+      - scope
+      - fence
+      - source
+      - targetBasis
+      - items
+      - rowsExamined
+      - workLimited
+      - page
+      properties:
+        policyVersion:
+          const: qualified-snapshot/v1
+        scope:
+          $ref: '#/components/schemas/FindingCorrelationReadScope'
+        fence:
+          $ref: '#/components/schemas/FindingCorrelationFence'
+        source:
+          $ref: '#/components/schemas/FindingCandidateSource'
+        targetBasis:
+          const: immutable-first-receipt
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/FindingCandidate'
+          maxItems: 100
+        rowsExamined:
+          type: integer
+          minimum: 0
+          maximum: 897
+        workLimited:
+          type: boolean
+        page:
+          $ref: '#/components/schemas/FindingCorrelationPageInfo'
+    FindingComparisonRow:
+      type: object
+      additionalProperties: false
+      required:
+      - kind
+      - rowKey
+      - representative
+      - previewsShareReceipt
+      properties:
+        kind:
+          enum:
+          - both
+          - left-only
+          - right-only
+          - unmatched
+        rowKey:
+          type: string
+          minLength: 1
+          maxLength: 266
+        groupKey: &id004
+          type: string
+          pattern: ^[0-9a-f]{64}$
+        basis:
+          $ref: '#/components/schemas/FindingCorrelationBasis'
+        unavailableReason:
+          enum:
+          - not_recorded
+          - no_qualified_key
+          - primary_key_ambiguous
+        representative:
+          $ref: '#/components/schemas/FindingCorrelationReference'
+        left:
+          $ref: '#/components/schemas/FindingComparisonPreview'
+        right:
+          $ref: '#/components/schemas/FindingComparisonPreview'
+        previewsShareReceipt:
+          type: boolean
+    FindingComparisonPage:
+      type: object
+      additionalProperties: false
+      required:
+      - policyVersion
+      - scope
+      - fence
+      - leftAuditId
+      - rightAuditId
+      - limitations
+      - items
+      - page
+      properties:
+        policyVersion:
+          const: qualified-snapshot/v1
+        scope:
+          $ref: '#/components/schemas/FindingCorrelationReadScope'
+        fence:
+          $ref: '#/components/schemas/FindingCorrelationFence'
+        leftAuditId: *id001
+        rightAuditId: *id001
+        limitations:
+          type: array
+          items:
+            type: string
+            minLength: 1
+            maxLength: 128
+          maxItems: 4
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/FindingComparisonRow'
+          maxItems: 100
+        page:
+          $ref: '#/components/schemas/FindingCorrelationPageInfo'
+    FindingMembersPage:
+      type: object
+      additionalProperties: false
+      required:
+      - policyVersion
+      - scope
+      - fence
+      - groupKey
+      - representative
+      - items
+      - page
+      properties:
+        policyVersion:
+          const: qualified-snapshot/v1
+        scope:
+          $ref: '#/components/schemas/FindingCorrelationReadScope'
+        fence:
+          $ref: '#/components/schemas/FindingCorrelationFence'
+        groupKey: *id004
+        representative:
+          $ref: '#/components/schemas/FindingCorrelationReference'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/FindingComparisonPreview'
+          maxItems: 100
+        page:
+          $ref: '#/components/schemas/FindingCorrelationPageInfo'
     # BEGIN GENERATED MANAGED EVAL SCHEMAS
     EvalId: {
       "type": "string",
