@@ -172,13 +172,16 @@ RETURNING `
 // none. Neither sorts the candidates (SCH-R164). FOR UPDATE SKIP LOCKED keeps
 // concurrent Schedulers off the same row. Sets claim $1 with a $2 µs lease;
 // the caller appends the RETURNING columns.
-// Used by PostgresStore.ClaimRunnableRun.
+// $4 excludes Runs still owned by live lanes of this Server, even if a host
+// suspension expired their SQL lease before renewal resumed. The list is bounded
+// by the Scheduler lane limit. Used by PostgresStore.ClaimRunnableRun.
 var claimRunnableRunSQL = `
 WITH ready AS (
     SELECT run.run_id
     FROM workflow_runs AS run
     WHERE run.scheduler_claim_tier IS NOT NULL
       AND (run.scheduler_claim_id IS NULL OR run.scheduler_claim_expires_at <= clock_timestamp())
+      AND NOT (run.run_id = ANY(COALESCE($4::text[], '{}'::text[])))
       AND NOT (run.scheduler_claim_tier > 0 AND run.scheduler_deferred
                AND run.updated_at > statement_timestamp() - ($3::bigint * interval '1 microsecond'))
       AND NOT (run.state = 'pending'
@@ -202,6 +205,7 @@ WITH ready AS (
     WHERE run.scheduler_deferred AND run.scheduler_claim_tier > 0
       AND run.updated_at > statement_timestamp() - ($3::bigint * interval '1 microsecond')
       AND (run.scheduler_claim_id IS NULL OR run.scheduler_claim_expires_at <= clock_timestamp())
+      AND NOT (run.run_id = ANY(COALESCE($4::text[], '{}'::text[])))
       AND NOT (run.state = 'pending'
                AND run.owner_id IN (SELECT owner_id FROM owner_queue_controls WHERE paused)
                AND NOT EXISTS (

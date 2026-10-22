@@ -451,6 +451,7 @@ func (s *PostgresStore) ClaimRunnableRun(
 	ctx context.Context,
 	claimID string,
 	duration time.Duration,
+	excludedRunIDs []string,
 ) (WorkflowRun, error) {
 	if err := validateOpaque("claimID", claimID); err != nil {
 		return WorkflowRun{}, err
@@ -462,7 +463,7 @@ func (s *PostgresStore) ClaimRunnableRun(
 	if microseconds <= 0 {
 		return WorkflowRun{}, invalidf("claim duration must be at least one microsecond")
 	}
-	result, err := scanWorkflowRun(s.db.QueryRow(ctx, claimRunnableRunSQL+prefixedWorkflowRunColumns("run"), claimID, microseconds, deferredClaimYield.Microseconds()))
+	result, err := scanWorkflowRun(s.db.QueryRow(ctx, claimRunnableRunSQL+prefixedWorkflowRunColumns("run"), claimID, microseconds, deferredClaimYield.Microseconds(), excludedRunIDs))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return WorkflowRun{}, ErrNoWork
 	}

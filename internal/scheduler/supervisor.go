@@ -118,9 +118,14 @@ func (s *Scheduler) progressOneClaim(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("generate Scheduler claim ID: %w", err)
 	}
+	ownershipContext, cancelOwnership := context.WithCancelCause(ctx)
+	defer cancelOwnership(nil)
+	ownershipContext = context.WithValue(ownershipContext, runOwnershipContextKey{}, ownershipContext)
+	executionContext, cancelExecution := context.WithCancelCause(ownershipContext)
+	defer cancelExecution(nil)
 	claimContext, cancelClaim := context.WithTimeout(ctx, s.options.OperationTimeout)
 	leaseExpiresAt := s.now().Add(s.options.ClaimDuration)
-	run, err := s.store.ClaimRunnableRun(claimContext, claimID, s.options.ClaimDuration)
+	run, err := s.claimRun(claimContext, claimID, cancelExecution)
 	cancelClaim()
 	if errors.Is(err, runstore.ErrNoWork) {
 		return false, nil
@@ -132,11 +137,6 @@ func (s *Scheduler) progressOneClaim(ctx context.Context) (bool, error) {
 	// Cancelling Planner work does not release ownership of the Run. Keep its
 	// claim renewable through cancellation/lease-loss cleanup, which can exceed
 	// the original lease when remote teardown or report persistence is slow.
-	ownershipContext, cancelOwnership := context.WithCancelCause(ctx)
-	defer cancelOwnership(nil)
-	ownershipContext = context.WithValue(ownershipContext, runOwnershipContextKey{}, ownershipContext)
-	executionContext, cancelExecution := context.WithCancelCause(ownershipContext)
-	s.registerActiveRun(run.RunID, claimID, cancelExecution)
 	defer s.unregisterActiveRun(run.RunID, claimID)
 	stopRenewal := make(chan struct{})
 	renewalContext, cancelRenewal := context.WithCancel(ownershipContext)
@@ -196,6 +196,30 @@ func (s *Scheduler) progressOneClaim(ctx context.Context) (bool, error) {
 		err = cause
 	}
 	return true, err
+}
+
+// claimRun excludes every lane that has not joined its work yet. A host pause
+// may expire SQL leases while those lanes still have live Planner invocations.
+// Serialize selection through registration so a second claim cannot miss a
+// returned-but-not-yet-registered owner. Cancellation and renewal never take
+// claimMu, and activeMu is held only while copying the bounded lane registry.
+func (s *Scheduler) claimRun(ctx context.Context, claimID string, cancel context.CancelCauseFunc) (runstore.WorkflowRun, error) {
+	s.claimMu.Lock()
+	defer s.claimMu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return runstore.WorkflowRun{}, err
+	}
+	s.activeMu.Lock()
+	excluded := make([]string, 0, len(s.active))
+	for runID := range s.active {
+		excluded = append(excluded, runID)
+	}
+	s.activeMu.Unlock()
+	run, err := s.store.ClaimRunnableRun(ctx, claimID, s.options.ClaimDuration, excluded)
+	if err == nil {
+		s.registerActiveRun(run.RunID, claimID, cancel)
+	}
+	return run, err
 }
 
 func (s *Scheduler) readConcurrentRunLimit(ctx context.Context) (int, error) {

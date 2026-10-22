@@ -2078,13 +2078,13 @@ func (i *memoryRunSkillInitializer) InitializeRunSkills(
 }
 
 func (s *memorySchedulerStore) ClaimRunnableRun(
-	_ context.Context, claimID string, duration time.Duration,
+	_ context.Context, claimID string, duration time.Duration, excludedRunIDs []string,
 ) (runstore.WorkflowRun, error) {
 	s.claimCalls++
 	pendingSkills := s.run.State == runstore.RunInitializing &&
 		s.run.StateReason.Code == runstore.SkillInitializationPendingReason
 	if s.run.State != runstore.RunRunning && s.run.State != runstore.RunPending && s.run.State != runstore.RunWaiting && s.run.State != runstore.RunCancelling && !pendingSkills ||
-		s.claimID != "" || duration <= 0 {
+		s.claimID != "" || duration <= 0 || slices.Contains(excludedRunIDs, s.run.RunID) {
 		return runstore.WorkflowRun{}, runstore.ErrNoWork
 	}
 	s.claimID = claimID

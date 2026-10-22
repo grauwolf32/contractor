@@ -113,8 +113,8 @@ type scanClaimStore struct {
 	lastClaim string
 }
 
-func (s *scanClaimStore) ClaimRunnableRun(ctx context.Context, id string, duration time.Duration) (runstore.WorkflowRun, error) {
-	run, err := s.memorySchedulerStore.ClaimRunnableRun(ctx, id, duration)
+func (s *scanClaimStore) ClaimRunnableRun(ctx context.Context, id string, duration time.Duration, excludedRunIDs []string) (runstore.WorkflowRun, error) {
+	run, err := s.memorySchedulerStore.ClaimRunnableRun(ctx, id, duration, excludedRunIDs)
 	if err != nil {
 		return run, err
 	}

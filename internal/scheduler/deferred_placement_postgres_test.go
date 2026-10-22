@@ -76,7 +76,7 @@ func TestPostgresDeferredRunningRunYieldsToPendingOtherOwner(t *testing.T) {
 				runstore.Reason{Code: "awaiting_admission"}); err != nil {
 				t.Fatal(err)
 			}
-			claimed, err := h.store.ClaimRunnableRun(ctx, "next-poll", time.Minute)
+			claimed, err := h.store.ClaimRunnableRun(ctx, "next-poll", time.Minute, nil)
 			if err != nil || claimed.RunID != other.RunID {
 				t.Fatalf("next lane claim = (%+v, %v), want other owner's pending Run", claimed, err)
 			}
@@ -282,7 +282,7 @@ func TestPostgresPausedFinalizingRunYieldsToPendingOtherOwner(t *testing.T) {
 		runstore.Reason{Code: "awaiting_admission"}); err != nil {
 		t.Fatal(err)
 	}
-	claimed, err := h.store.ClaimRunnableRun(ctx, "next-poll", time.Minute)
+	claimed, err := h.store.ClaimRunnableRun(ctx, "next-poll", time.Minute, nil)
 	if err != nil || claimed.RunID != other.RunID {
 		t.Fatalf("next claim = (%+v, %v), want other owner's pending Run", claimed, err)
 	}

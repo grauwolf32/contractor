@@ -858,7 +858,7 @@ func TestPostgresIntegrationClaimsConflictsAndExplicitTransactions(t *testing.T)
 		wait.Add(1)
 		go func(claimID string) {
 			defer wait.Done()
-			run, err := store.ClaimRunnableRun(ctx, claimID, time.Minute)
+			run, err := store.ClaimRunnableRun(ctx, claimID, time.Minute, nil)
 			claimResults <- claimResult{run: run, err: err}
 		}(claimID)
 	}
@@ -1136,7 +1136,7 @@ func TestPostgresClaimRunnableRunRotatesAfterDeferredRelease(t *testing.T) {
 	if _, err := admitTestRun(ctx, store, first.RunID); err != nil {
 		t.Fatal(err)
 	}
-	claimed, err := store.ClaimRunnableRun(ctx, "claim-capacity-first", time.Minute)
+	claimed, err := store.ClaimRunnableRun(ctx, "claim-capacity-first", time.Minute, nil)
 	if err != nil || claimed.RunID != first.RunID {
 		t.Fatalf("initial claim = (%+v, %v), want first Run", claimed, err)
 	}
@@ -1153,7 +1153,7 @@ func TestPostgresClaimRunnableRunRotatesAfterDeferredRelease(t *testing.T) {
 	if _, err := store.TransitionRun(ctx, second.RunID, RunInitializing, RunPending, Reason{Code: "awaiting_admission"}); err != nil {
 		t.Fatal(err)
 	}
-	claimed, err = store.ClaimRunnableRun(ctx, "claim-other-owner", time.Minute)
+	claimed, err = store.ClaimRunnableRun(ctx, "claim-other-owner", time.Minute, nil)
 	if err != nil || claimed.RunID != second.RunID {
 		t.Fatalf("pending Run after older deferred running Run = (%+v, %v)", claimed, err)
 	}
@@ -1163,7 +1163,7 @@ func TestPostgresClaimRunnableRunRotatesAfterDeferredRelease(t *testing.T) {
 	if _, err := store.TransitionRun(ctx, second.RunID, RunPending, RunRunning, Reason{Code: "admitted"}); err != nil {
 		t.Fatal(err)
 	}
-	claimed, err = store.ClaimRunnableRun(ctx, "claim-nondeferred-running", time.Minute)
+	claimed, err = store.ClaimRunnableRun(ctx, "claim-nondeferred-running", time.Minute, nil)
 	if err != nil || claimed.RunID != second.RunID {
 		t.Fatalf("non-deferred running Run lost priority = (%+v, %v)", claimed, err)
 	}
@@ -1180,7 +1180,7 @@ func TestPostgresClaimRunnableRunRotatesAfterDeferredRelease(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	claimed, err = store.ClaimRunnableRun(ctx, "claim-cancelling", time.Minute)
+	claimed, err = store.ClaimRunnableRun(ctx, "claim-cancelling", time.Minute, nil)
 	if err != nil || claimed.RunID != cancelling.RunID {
 		t.Fatalf("cancelling Run lost priority = (%+v, %v)", claimed, err)
 	}
@@ -1191,7 +1191,7 @@ func TestPostgresClaimRunnableRunRotatesAfterDeferredRelease(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	claimed, err = store.ClaimRunnableRun(ctx, "claim-recovered", time.Minute)
+	claimed, err = store.ClaimRunnableRun(ctx, "claim-recovered", time.Minute, nil)
 	if err != nil || claimed.RunID != first.RunID {
 		t.Fatalf("deferred Run was not retried = (%+v, %v)", claimed, err)
 	}
@@ -1202,7 +1202,7 @@ func TestPostgresClaimRunnableRunRotatesAfterDeferredRelease(t *testing.T) {
 	if _, err := store.TransitionRun(ctx, third.RunID, RunInitializing, RunPending, Reason{Code: "awaiting_admission"}); err != nil {
 		t.Fatal(err)
 	}
-	claimed, err = store.ClaimRunnableRun(ctx, "claim-recovered-priority", time.Minute)
+	claimed, err = store.ClaimRunnableRun(ctx, "claim-recovered-priority", time.Minute, nil)
 	if err != nil || claimed.RunID != first.RunID {
 		t.Fatalf("successful release did not restore running priority = (%+v, %v)", claimed, err)
 	}
@@ -1215,7 +1215,7 @@ func TestPostgresDeferredClaimAgesBackIntoItsStateTier(t *testing.T) {
 	store := NewPostgresStore(pool)
 	claimAndDefer := func(claimID, wantRunID string) {
 		t.Helper()
-		claimed, err := store.ClaimRunnableRun(ctx, claimID, time.Minute)
+		claimed, err := store.ClaimRunnableRun(ctx, claimID, time.Minute, nil)
 		if err != nil || claimed.RunID != wantRunID {
 			t.Fatalf("claim %s = (%+v, %v), want %s", claimID, claimed, err, wantRunID)
 		}
@@ -1244,7 +1244,7 @@ WHERE run_id = $1`, runID, deferredClaimYield.Microseconds()); err != nil {
 	}
 
 	// A fresh deferral yields to pending work, including newer pending Runs.
-	claimed, err := store.ClaimRunnableRun(ctx, "claim-waiting-1", time.Minute)
+	claimed, err := store.ClaimRunnableRun(ctx, "claim-waiting-1", time.Minute, nil)
 	if err != nil || claimed.RunID != waiting.RunID {
 		t.Fatalf("pending Run after fresh deferral = (%+v, %v)", claimed, err)
 	}
@@ -1290,7 +1290,7 @@ func TestPostgresIntegrationRunSkillSnapshotGatesRunnableClaim(t *testing.T) {
 		len(pending.SkillSnapshot) != 1 {
 		t.Fatalf("pending Run = (%+v, %v)", pending, err)
 	}
-	claimed, err := store.ClaimRunnableRun(ctx, "skill-claim", time.Minute)
+	claimed, err := store.ClaimRunnableRun(ctx, "skill-claim", time.Minute, nil)
 	if err != nil || claimed.RunID != run.RunID || claimed.State != RunInitializing {
 		t.Fatalf("claim pending Skill Run = (%+v, %v)", claimed, err)
 	}
@@ -1436,7 +1436,7 @@ func TestPostgresIntegrationRunCancellationIsDurableAndIdempotent(t *testing.T) 
 		t.Fatalf("repeated cancellation replaced the first payload: %+v", repeated.Cancellation)
 	}
 
-	claimed, err := store.ClaimRunnableRun(ctx, "cancel-claim", time.Minute)
+	claimed, err := store.ClaimRunnableRun(ctx, "cancel-claim", time.Minute, nil)
 	if err != nil || claimed.RunID != first.RunID || claimed.State != RunCancelling {
 		t.Fatalf("claim cancelling Run = (%+v, %v)", claimed, err)
 	}

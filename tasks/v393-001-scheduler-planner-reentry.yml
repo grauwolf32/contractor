@@ -1,0 +1,95 @@
+schema_version: "1.0"
+id: V393-001
+title: "Keep Scheduler ownership exclusive until Planner work has joined"
+milestone: hub-audit-defects-2026-10
+epic: execution-core
+kind: defect
+introduced_by: V27-002
+priority: P1
+status: in_progress
+depends_on: []
+languages: [go]
+goal: >-
+  Prevent overlapping Scheduler progression from re-entering a live Planner or
+  aborting a healthy Audit check as planner_invocation_in_progress.
+context:
+  specification:
+    - docs/spec/execution/scheduler.md#SCH-R8
+    - docs/spec/execution/scheduler.md#SCH-R119
+    - docs/spec/execution/scheduler.md#SCH-R120
+    - docs/spec/execution/scheduler.md#SCH-R166
+    - docs/spec/execution/planners.md#PLN-R107
+    - docs/spec/platform/persistence.md#PER-R1
+  severity: high
+  finding: >-
+    internal/scheduler/supervisor.go:114 and
+    internal/scheduler/planner_invocation.go:65: local Audit child
+    run_214f654e2f15f2ed6d2fb377609ab576 started its Planner at 09:27:35
+    on 2026-10-22 and was interrupted at 09:40:49 with
+    planner_invocation_in_progress while the original invocation was still
+    alive. Its late completion then failed with cannot abort StageExecution
+    from interrupted. Determine and reproduce the exact ownership interleaving
+    before changing the production path.
+  root_cause: >-
+    V27-002 introduced concurrent lanes without excluding their still-live
+    local owners from SQL claims. macOS sleep advanced PostgreSQL wall time
+    beyond a lease while Go renewal and Planner goroutines remained alive.
+    Wake at 09:40:48 was followed at 09:40:49 by a new claim of the same Run;
+    registerActiveRun replaced the original cancellation registration, then
+    Planner Begin rejected the unfinished durable session. The old Planner
+    returned only after the replacement lane had aborted its Stage.
+  boundary_decision: >-
+    Reuse the existing bounded active-lane registry as SQL exclusions. Serialize
+    claim selection through local registration, without holding activeMu during
+    I/O and without blocking cancellation or renewal on the claim-selection
+    mutex. Rejecting a duplicate only after stealing its SQL lease would still
+    invalidate healthy work; increasing lease length merely moves the race.
+    PostgreSQL and the single-active-Server lease remain durable authority.
+    Revisit the local exclusion design only if multiple active Servers become
+    supported. No new table, receipt, model budget or public contract is needed.
+  evidence: tasks/evidence/v393-001-scheduler-reentry.json
+  siblings: >-
+    Cover concurrent lanes, claim renewal and replacement, cancellation and
+    allocation-loss cleanup, delayed Planner return, terminal transitions,
+    and process-loss recovery. Preserve model-free scan resumptions and
+    completed Planner result replay; never resume an unfinished model session.
+scope:
+  in:
+    - Identify the exact repeated-entry trigger from production code and durable evidence.
+    - Fix the shared Scheduler ownership boundary without adding a new receipt or lease.
+    - Add a deterministic PostgreSQL regression for the failing interleaving.
+    - Keep the Scheduler ownership specification consistent with the implementation.
+  out:
+    - Changing model selection, Worker budgets or Audit baseline snapshots.
+    - Rewriting completed live results or resetting business data.
+acceptance_criteria:
+  - id: A1
+    text: >-
+      Given a live Planner invocation, competing lane progress and maintenance
+      cannot invoke or abort that same Stage as planner_invocation_in_progress.
+  - id: A2
+    text: >-
+      Cancellation, allocation loss, expired ownership and delayed completion
+      drain or fence the original work before replacement progression; genuine
+      process loss keeps the documented interrupted/retry outcome.
+  - id: A3
+    text: >-
+      A deterministic regression on the real PostgreSQL path fails before the
+      fix and passes afterward, and the complete touched package suites pass.
+tests:
+  - command: TMPDIR=/private/tmp CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -race -count=1 ./internal/scheduler ./internal/runstore ./internal/planner/...
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+verification:
+  regression_before_fix: >-
+    TestPostgresLivePlannerSurvivesExpiredClaimBeforeRenewal failed on the
+    original code with competing lane re-entered the live Planner.
+  regression_after_fix: Passed with the race detector and real PostgreSQL.
+  package_suites: >-
+    Passed the full Scheduler, RunStore and every Planner package with -race
+    and a dedicated PostgreSQL database; no database suites were skipped.
+  lint: Passed make lint, including staticcheck with e2e/integration tags.
+  environment: >-
+    Use canonical TMPDIR=/private/tmp on macOS: filesystem ArtifactStore tests
+    intentionally reject paths traversing the default /var symlink.
