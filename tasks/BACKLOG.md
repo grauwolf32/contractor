@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-79 open tasks: 4 in progress, 50 pending, 25 deferred. 937 finished: 934 completed, 3 archived.
+78 open tasks: 3 in progress, 50 pending, 25 deferred. 938 finished: 935 completed, 3 archived.
 
 ## In progress
 
@@ -14,7 +14,6 @@ the epics are in [epics.yml](epics.yml).
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
-| [V392-016](v392-016-memory-gateway-selected-model.yml) | memory | defect | P1 | Check the selected Worker model in the production Memory process fixture |
 
 ## Pending
 
@@ -178,7 +177,7 @@ tasks in `introduced_by`.
 | Run execution core (`execution-core`) | 3 | 36 | 49 | 11 | 64 |
 | Planners and the Worker model boundary (`planner-worker`) | 3 | 27 | 37 | 14 | 54 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 11 | 25 | 12 | 3 | 37 |
-| Shared Memory tools (`memory`) | 1 | 6 | 9 | 1 | 11 |
+| Shared Memory tools (`memory`) | 0 | 6 | 9 | 1 | 11 |
 | Agent Skills (`agent-skills`) | 0 | 10 | 2 | 1 | 1 |
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 12 | 4 | 15 |
 | Code analysis and taint annotations (`code-analysis`) | 0 | 14 | 13 | 2 | 18 |

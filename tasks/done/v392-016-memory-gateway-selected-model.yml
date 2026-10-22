@@ -6,7 +6,7 @@ epic: memory
 kind: defect
 introduced_by: V387-002
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [go]
 goal: Let the production Memory process gate exercise the exact staged Worker model policy without rewriting the selected model or weakening role and tool checks.
@@ -40,3 +40,12 @@ tests:
   covers: [A1, A2, A3]
 - command: make lint
   covers: [A1, A2, A3]
+verification:
+  date: '2026-10-22'
+  status: passed
+  checks:
+  - "The original make -k release-verify returned exit 2 with one failing process test, TestProductionMemoryTemplatesAcrossProcesses; all other 18 release process tests passed. Its fixture rejected the exact selected Worker model."
+  - "The focused command listed under tests passed all three selected staging and real PostgreSQL/Server/Runtime Memory tests in 208.732 seconds, including production and test-only policies."
+  - "Both ordinary Worker calls and result finalization accept only the staged selected model; incorrect identities and finalizer tools remain rejected. Staged production template and model policy bytes remain unchanged."
+  - "Full make lint passed. The full release gate was not repeated, as explicitly requested by the user after the local failure."
+implementation_commit: 873248f0223f8b8aaf2889923b7e9115cd7d85d3
