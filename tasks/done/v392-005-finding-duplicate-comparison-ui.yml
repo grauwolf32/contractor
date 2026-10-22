@@ -151,7 +151,12 @@ verification:
   checks:
   - "make ui-verify ui-browser-mocked passed on Linux: 189 UI test files, 2251 passing tests plus one declared expected failure, and 65 passing browser cases with no skipped, unexpected or flaky attempts."
   - "make test-ui-stack test-findings-e2e passed against a separate real PostgreSQL database, including all 87 production browser cases, native/external managed Evals and finding process boundaries."
-  - "The real browser journey retained three independent Audit findings from two producer receipts, distinguished a repeated import of one receipt, and followed exact Evidence links without a matching LLM call."
+  - "The real browser journey retained three distinct Audit finding IDs from two producer receipts, distinguished a repeated import of one receipt, and followed exact Evidence links without a matching LLM call."
   - "make verify-public-api and full make lint passed. The complete Worker-facing provider fixture remains unchanged."
   - "Inspected 390 px and 1440 px screenshots in light, dark and black themes; long labels wrap, keyboard disclosures and all continuations remain reachable."
+release_gate_follow_up:
+  date: '2026-10-22'
+  status: failed_fixture_then_locally_verified
+  outcome: >-
+    make -k release-verify on the V392-005 implementation returned exit 2 because TestProductionMemoryTemplatesAcrossProcesses rejected the configured generated Worker model in its test Gateway. The other 18 release process tests passed; the UI, browser, Runtime, Go, PostgreSQL integration, race and build stages passed. V392-016 corrected the isolated fixture and passed its staging regression, both real Memory process modes and lint. The user explicitly declined a full-gate repeat; no complete green rerun is claimed.
 implementation_commit: e76d7162f688fdd9d9b7b257e497ab084be75171
