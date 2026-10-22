@@ -65,6 +65,7 @@ from contractor_runtime.sandbox.contracts import PODMAN_PROFILES
 from contractor_runtime.sandbox.lifecycle import PreparedExecution
 from contractor_runtime.state import ProcessState, RuntimeState
 from contractor_runtime.telemetry.resources import ProcessReading, ResourceCollector
+from contractor_runtime.toolsets.http.errors import HTTPToolError
 from contractor_runtime.toolsets.security_findings.collection import FindingsError
 from contractor_runtime.worker.state import WorkerStateStore
 from contractor_runtime.workspace import AllocationWorkspace
@@ -287,15 +288,19 @@ class AllocationService:
                 worker_state = WorkerStateStore()
                 if execution is not None:
                     execution.bind_failure(worker_state.execution.fail)
-                await self._create_tools(
-                    spec,
-                    workspace,
-                    project_workspace,
-                    worker_state,
-                    adapter_host.handles,
-                    execution,
-                    tools,
-                )
+                async with asyncio.timeout(
+                    max(0.0, (adapter_deadline - self._now()).total_seconds())
+                ):
+                    await self._create_tools(
+                        spec,
+                        workspace,
+                        project_workspace,
+                        worker_state,
+                        adapter_host.handles,
+                        execution,
+                        tools,
+                        adapter_deadline,
+                    )
                 worker = await runtime_factory.create(
                     WorkerBuildContext(
                         allocation_id=spec.allocation_id,
@@ -454,7 +459,7 @@ class AllocationService:
                     execution,
                 )
                 raise
-            except FindingsError as error:
+            except (FindingsError, HTTPToolError) as error:
                 await self._rollback_prepare(
                     spec,
                     sandbox,
@@ -467,7 +472,11 @@ class AllocationService:
                 )
                 raise AllocationError(
                     error.code,
-                    f"allocation findings preparation failed ({error.code})",
+                    (
+                        f"allocation findings preparation failed ({error.code})"
+                        if isinstance(error, FindingsError)
+                        else f"allocation HTTP preparation failed ({error.code})"
+                    ),
                     retryable=error.retryable,
                     status_code=503 if error.retryable else 422,
                 ) from None
@@ -722,6 +731,7 @@ class AllocationService:
         adapter_handles: AdapterHandles,
         execution: PreparedExecution | None,
         result: dict[str, ToolInstance],
+        preparation_deadline: datetime,
     ) -> None:
         for selection in spec.agent_template.toolsets:
             ref = f"{selection.ref.toolset_id}@{selection.ref.version}"
@@ -746,6 +756,14 @@ class AllocationService:
                 for channel in factory.infrastructure_channels.get(name, frozenset())
             )
             created = await factory.create_selected(
+                **(
+                    {
+                        "preparation_deadline": asyncio.get_running_loop().time()
+                        + max(0.0, (preparation_deadline - self._now()).total_seconds())
+                    }
+                    if ref == "http-tools@1"
+                    else {}
+                ),
                 **(
                     {"completion_contract": spec.completion_contract}
                     if ref == "audit-results@2"

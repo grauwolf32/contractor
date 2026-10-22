@@ -4,6 +4,7 @@
     "public/finding-correlation-cases.json": {"readers": ["go", "ui"]},
     "finding-anchor-cases.json": {"readers": ["go", "python"]},
     "finding-fingerprint-cases.json": {"readers": ["go", "python"]},
+    "http-cookie-session.json": {"readers":["go","python"],"reason":"Runtime owns the strict cookie document. Go stores opaque ordinary Artifact bytes and tests transport, CAS, grants and retention without a second cookie parser."},
     "git-import-modes.json": {"readers": ["go", "ui"]},
     "planner-subtask-cases.json": {"readers":["go","ui"],"reason":"The Server owns Workflow plan limits and complete plan projections. Runtime consumes one bounded current subtask with the unchanged generic subtask ID wire contract."},
     "public/project-active-check-policy.json": {"readers":["go","ui"]},

@@ -293,7 +293,7 @@ func TestTypedConflictAndNoWorkResults(t *testing.T) {
 	if !errors.As(err, &conflict) || conflict.Expected != string(RunInitializing) {
 		t.Fatalf("TransitionRun conflict = %#v", conflict)
 	}
-	_, err = store.ClaimRunnableRun(context.Background(), "claim-1", time.Second)
+	_, err = store.ClaimRunnableRun(context.Background(), "claim-1", time.Second, nil)
 	if !errors.Is(err, ErrNoWork) {
 		t.Fatalf("ClaimRunnableRun error = %v, want ErrNoWork", err)
 	}

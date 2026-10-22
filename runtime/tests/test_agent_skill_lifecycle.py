@@ -35,6 +35,7 @@ def test_skill_state_is_erased_before_slot_can_return_idle(
         workspace = Path(snapshot.workspace)
         extraction = workspace / ".agent-skills"
         assert extraction.is_dir()
+        assert (extraction / "demo" / "scripts" / "check.py").is_file()
 
         if termination == "finalize":
             await service.finalize(
@@ -150,7 +151,7 @@ def test_skill_deletion_failure_fences_and_forces_process_exit(tmp_path: Path) -
 async def skilled_service(
     tmp_path: Path, *, exit_codes: list[int] | None = None
 ) -> tuple[AllocationService, RuntimeState, object]:
-    payload = skill_package()
+    payload = skill_package(script=b"raise RuntimeError('must not execute')\n")
     selected, value = resolved_value(payload)
     assert selected.package_digest == f"sha256:{hashlib.sha256(payload).hexdigest()}"
     client = FakeSkillClient({"demo": value})

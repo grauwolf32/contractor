@@ -41,6 +41,10 @@ from contractor_runtime.core.target_policy import (
 from contractor_runtime.core.tool_metrics import RecordedToolCall, ToolMetrics, elapsed_ms
 from contractor_runtime.http_body import BodyTooLarge, read_limited_body
 from contractor_runtime.redaction import runtime_secrets
+from contractor_runtime.toolsets.common.artifacts import (
+    ArtifactClientFactory,
+    _reject_unconfigured_client,
+)
 from contractor_runtime.toolsets.common.credentials import target_authorization
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
 from contractor_runtime.toolsets.common.finding_locations import validate_web_url
@@ -68,6 +72,8 @@ from contractor_runtime.toolsets.common.http_limits import (
     header_block_bytes,
 )
 from contractor_runtime.toolsets.http.capture import CapturedAttempt, CapturedExchange
+from contractor_runtime.toolsets.http.cookies import CookieCheckpoint, matching_cookies
+from contractor_runtime.toolsets.http.errors import HTTPToolError
 from contractor_runtime.toolsets.http.transport import PolicyHTTPTransport
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -116,26 +122,6 @@ _TEXTUAL_CONTENT_TYPES = (
     "application/x-www-form-urlencoded",
     "application/graphql",
 )
-_ERROR_RETRYABILITY = MappingProxyType(
-    {
-        "http_request_invalid": False,
-        "http_target_denied": False,
-        "http_request_failed": True,
-        "http_response_invalid": False,
-        "http_response_too_large": False,
-        "http_body_not_found": False,
-    }
-)
-
-
-class HTTPToolError(RuntimeError):
-    """Stable content-free model-facing HTTP failure."""
-
-    def __init__(self, code: str) -> None:
-        normalized = code if code in _ERROR_RETRYABILITY else "http_request_failed"
-        self.code = normalized
-        self.retryable = _ERROR_RETRYABILITY[normalized]
-        super().__init__(f"HTTP operation failed ({normalized})")
 
 
 class HTTPToolsetFactory:
@@ -160,11 +146,15 @@ class HTTPToolsetFactory:
         direct_client_factory: Callable[[], httpx.AsyncClient] | None = None,
         *,
         target_policy: TargetPolicyConfig | None = None,
+        artifact_client_factory: ArtifactClientFactory = _reject_unconfigured_client,
+        now: Callable[[], float] = time.time,
     ) -> None:
         # Tests may inject a fixed client; production clients enforce the
         # allocation's target policy on every TCP connection.
         self._direct_client_factory = direct_client_factory
         self._target_policy = target_policy or TargetPolicyConfig()
+        self._client_factory = artifact_client_factory
+        self._now = now
 
     async def probe(self) -> frozenset[str]:
         client: httpx.AsyncClient | None = None
@@ -189,8 +179,9 @@ class HTTPToolsetFactory:
         state: Any,
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
         project_workspace: Any = None,
+        preparation_deadline: float | None = None,
     ) -> Mapping[str, Any]:
-        del run_id, workspace, project_workspace, allocation_id, namespace
+        del run_id, workspace, project_workspace
         require_selected_tools(selected, self.exported_tools)
         metrics = require_metrics(state, "http-tools@1")
 
@@ -202,6 +193,13 @@ class HTTPToolsetFactory:
         if proxy_required and proxy is None:
             raise RuntimeError("http-tools@1 requires the resolved tool-http proxy route")
 
+        checkpoint = CookieCheckpoint(
+            self._client_factory(allocation_id, runtime_settings),
+            namespace,
+            _target_origin(runtime_settings),
+            self._now,
+            runtime_settings.request_timeout_seconds,
+        )
         policy = await self._target_policy.build(runtime_settings)
         direct_client = (
             self._new_direct_client(policy) if request_selected and proxy is None else None
@@ -215,7 +213,13 @@ class HTTPToolsetFactory:
             target_origin=_target_origin(runtime_settings),
             target_authorization=target_authorization(runtime_settings),
             captures=allocation_http_captures(state),
+            checkpoint=checkpoint,
         )
+        try:
+            await session.restore(deadline=preparation_deadline)
+        except BaseException:
+            await session.close()
+            raise
         state.http_session = session
         builders: dict[str, Callable[[], _HTTPTool]] = {
             "http_request": lambda: HTTPRequestTool(session, metrics),
@@ -300,6 +304,7 @@ class _HTTPSession:
         target_origin: tuple[str, str, int] | None,
         target_authorization: str | None,
         captures: RecentHTTPCaptures,
+        checkpoint: CookieCheckpoint,
     ) -> None:
         self._timeout_cap_seconds = timeout_cap_seconds
         self._target_policy = target_policy
@@ -320,6 +325,10 @@ class _HTTPSession:
         self._next_request_id = 1
         self._nonce = secrets.token_hex(8)
         self._closed = False
+        self._checkpoint = checkpoint
+
+    async def restore(self, *, deadline: float | None = None) -> None:
+        self._cookies = await self._checkpoint.restore(deadline=deadline)
 
     @property
     def metric_secrets(self) -> tuple[str, ...]:
@@ -345,6 +354,7 @@ class _HTTPSession:
     ) -> dict[str, Any]:
         async with self._lock:
             self._require_open()
+            self._checkpoint.require_confirmed()
             request_id = self._next_request_id
             self._next_request_id += 1
             started_ns = time.perf_counter_ns()
@@ -410,6 +420,14 @@ class _HTTPSession:
                 await self._captures.put(evidence, invocation_id)
                 published = True
                 self._cookies = candidate_cookies
+                checkpoint_error = None
+                try:
+                    await self._save_cookies(candidate_cookies, deadline=deadline)
+                except HTTPToolError as error:
+                    # The target already completed. Keep its actual outcome;
+                    # retrying a POST to repair Artifact storage is unsafe.
+                    self._checkpoint.reject(error)
+                    checkpoint_error = error.code
                 record = _RequestRecord(
                     request_id=request_id,
                     tag=tag,
@@ -427,7 +445,17 @@ class _HTTPSession:
                     headers_truncated=headers_truncated,
                 )
                 self._history.append(record)
-                return record.projection(include_preview=True)
+                result = record.projection(include_preview=True)
+                if checkpoint_error is not None:
+                    result["cookie_checkpoint"] = {
+                        "state": "unconfirmed",
+                        "code": checkpoint_error,
+                        "recovery": (
+                            "Do not repeat this HTTP request. Call http_session_get if selected; "
+                            "otherwise report unconfirmed cookie storage and stop HTTP requests."
+                        ),
+                    }
+                return result
             except TimeoutError:
                 captured.error = "timeout"
                 raise HTTPToolError("http_request_failed") from None
@@ -535,10 +563,6 @@ class _HTTPSession:
             handoff = False
             try:
                 candidate_cookies.extract_cookies(response)
-                if len(candidate_cookies) > MAX_COOKIES:
-                    self._cookies.clear()
-                    self._clear_transport_cookies()
-                    raise HTTPToolError("http_request_failed")
                 if (
                     response.status_code in _RETRYABLE_STATUS
                     and current_method in _IDEMPOTENT_METHODS
@@ -636,7 +660,7 @@ class _HTTPSession:
                 headers["Authorization"] = f"Basic {base64.b64encode(raw).decode('ascii')}"
         kwargs["headers"] = headers
         if allow_session_cookies:
-            kwargs["cookies"] = request_cookies
+            kwargs["cookies"] = matching_cookies(request_cookies, url)
 
         def observe(request: httpx.Request) -> None:
             nonlocal attempt
@@ -798,6 +822,7 @@ class _HTTPSession:
         selected_auth = _auth(auth)
         async with self._lock:
             self._require_open()
+            self._checkpoint.require_confirmed()
             candidate_headers = self._default_headers
             if selected_headers is not None:
                 candidate_headers = _merge_headers(
@@ -810,9 +835,19 @@ class _HTTPSession:
                 if not replace_cookies:
                     candidate_cookies.update(self._cookies)
                 for name, value in selected_cookies.items():
-                    candidate_cookies.set(name, value)
+                    if self._target_origin is None:
+                        candidate_cookies.set(name, value)
+                    else:
+                        host = self._target_origin[1]
+                        candidate_cookies.set(name, value, domain=host)
+                        # Explicit Project cookies have an exact host scope.
+                        for cookie in candidate_cookies.jar:
+                            if (cookie.name, cookie.domain, cookie.path) == (name, host, "/"):
+                                cookie.domain_specified = False
                 if len(candidate_cookies) > MAX_COOKIES:
                     raise HTTPToolError("http_request_invalid")
+            if selected_cookies is not None:
+                await self._save_cookies(candidate_cookies)
             # Commit only after every sparse component has passed validation.
             # One invalid cookie update must not partially replace headers.
             if selected_cookies is not None and replace_cookies:
@@ -829,13 +864,38 @@ class _HTTPSession:
     async def get_session(self) -> dict[str, Any]:
         async with self._lock:
             self._require_open()
+            if self._checkpoint.unconfirmed:
+                try:
+                    self._cookies = await self._checkpoint.recover()
+                finally:
+                    if not self._checkpoint.unconfirmed:
+                        self._cookies = self._checkpoint.confirmed_cookies()
             return self._session_projection()
 
     async def clear_session(self) -> dict[str, Any]:
         async with self._lock:
             self._require_open()
+            self._checkpoint.require_confirmed()
+            try:
+                await self._save_cookies(httpx.Cookies(), force=True)
+            except asyncio.CancelledError:
+                if not self._checkpoint.unconfirmed and not len(self._cookies):
+                    self._clear_mutable_session()
+                raise
             self._clear_mutable_session()
             return self._session_projection()
+
+    async def _save_cookies(
+        self, cookies: httpx.Cookies, *, deadline: float | None = None, force: bool = False
+    ) -> None:
+        try:
+            await self._checkpoint.save(cookies, deadline=deadline, force=force)
+        finally:
+            # A cancelled waiter may have joined a successful PUT. Mirror that
+            # accepted revision before releasing the session lock; otherwise a
+            # later request could resurrect a durably cleared cookie jar.
+            if not self._checkpoint.unconfirmed:
+                self._cookies = self._checkpoint.confirmed_cookies()
 
     async def close(self) -> None:
         async with self._lock:
@@ -847,6 +907,7 @@ class _HTTPSession:
             # allocation-local state.  The adapter already closed its client;
             # clear the session-owned copy independently here.
             self._clear_local_session()
+            self._checkpoint.close()
             self._cached_body = None
             self._nonce = ""
             self._secrets_for_metrics = ()
@@ -939,7 +1000,10 @@ class HTTPRequestTool(_HTTPTool):
     Only a bounded text preview is returned inline. Use http_read_body to inspect
     more text or binary content. Use finding with request_id to save evidence.
     Request bodies are limited to 1 MiB and response
-    bodies to 16 MiB.
+    bodies to 16 MiB. Target cookies persist within the same Run and Namespace.
+    If cookie_checkpoint is unconfirmed, keep this HTTP outcome and call
+    http_session_get to repair storage when selected; otherwise report the
+    unconfirmed checkpoint. Do not repeat the HTTP request.
 
     Metadata and Runtime service destinations fail with http_target_denied, as
     do loopback and link-local ones unless they are the project target or an
@@ -1074,6 +1138,8 @@ class HTTPSessionSetTool(_HTTPTool):
 
     Omitted fields keep their current values. Supplied cookies and headers merge
     by default; replacement flags clear their collections before applying values.
+    Cookies are saved for continuation in this Run and Namespace. Headers and
+    basic/bearer auth remain local to this allocation.
 
     Args:
         cookies: Cookie name-to-string-value mapping.
@@ -1124,6 +1190,9 @@ class HTTPSessionGetTool(_HTTPTool):
     name = "http_session_get"
     description = """Read the current HTTP session settings.
 
+    Also reconcile an unconfirmed cookie checkpoint without sending another
+    request to the target. Call this after cookie_checkpoint reports a failure.
+
     Returns:
         A redacted view of cookies, default headers and auth_kind.
     """
@@ -1138,6 +1207,8 @@ class HTTPSessionGetTool(_HTTPTool):
 class HTTPSessionClearTool(_HTTPTool):
     name = "http_session_clear"
     description = """Clear HTTP session cookies, default headers, authentication and history.
+
+    Commits the empty cookie jar before returning, so continuation stays cleared.
 
     Returns:
         The cleared session view. Previously saved finding evidence remains stored.

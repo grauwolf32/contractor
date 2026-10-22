@@ -38,6 +38,16 @@ still readable until expiry.
 start CPU or trace recording. See [Go profiling](go-profiling.md) for its exact
 routes, capture bounds and SSH-tunnel use.
 
+## Process measurements across platforms
+
+Server and Runtime process CPU and RSS collection supports Linux and macOS.
+The Server uses gopsutil, including with `CGO_ENABLED=0`; the Runtime uses psutil.
+CPU is measured from cumulative user/system process time and displayed as used
+cores over the observed monotonic interval. Memory is current RSS in bytes.
+Go heap measurements remain distinct from RSS. The allocation peak is the
+maximum RSS observed within that allocation, never the process-lifetime peak.
+A failed CPU or memory read preserves the other available measurements.
+
 ## What Operations shows
 
 Authenticated operators can open `/operations/performance` for current Server,

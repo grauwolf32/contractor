@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -368,7 +369,7 @@ func newLaneTestStore(runIDs ...string) *laneTestStore {
 }
 
 func (s *laneTestStore) ClaimRunnableRun(
-	ctx context.Context, claimID string, _ time.Duration,
+	ctx context.Context, claimID string, _ time.Duration, excludedRunIDs []string,
 ) (runstore.WorkflowRun, error) {
 	if err := ctx.Err(); err != nil {
 		return runstore.WorkflowRun{}, err
@@ -390,7 +391,7 @@ func (s *laneTestStore) ClaimRunnableRun(
 	}
 	chosen, rank := "", 4
 	for _, runID := range s.runs {
-		if !s.started[runID] && priority(runID) < rank {
+		if !s.started[runID] && !slices.Contains(excludedRunIDs, runID) && priority(runID) < rank {
 			chosen, rank = runID, priority(runID)
 		}
 	}

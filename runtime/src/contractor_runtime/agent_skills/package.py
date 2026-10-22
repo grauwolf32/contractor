@@ -152,7 +152,7 @@ def validate_package(payload: bytes, expected_name: str = "") -> SkillPackage:
             declared_expanded += entry.file_size
             data = _read_bounded(archive, entry, min(limit, MAXIMUM_EXPANDED_BYTES - expanded))
             expanded += len(data)
-            if path == "SKILL.md" or path.startswith("references/"):
+            if path == "SKILL.md" or path.startswith(("references/", "scripts/")):
                 try:
                     data.decode("utf-8")
                 except UnicodeDecodeError:
@@ -372,8 +372,10 @@ def _optional_bounded_string(values: Mapping[str, Node], key: str, limit: int) -
 
 
 def _allowed_directory(path: str) -> bool:
-    return path in {"references", "assets"} or path.startswith(("references/", "assets/"))
+    return path in {"references", "assets", "scripts"} or path.startswith(
+        ("references/", "assets/", "scripts/")
+    )
 
 
 def _allowed_file(path: str) -> bool:
-    return path == "SKILL.md" or path.startswith(("references/", "assets/"))
+    return path == "SKILL.md" or path.startswith(("references/", "assets/", "scripts/"))

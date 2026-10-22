@@ -8,6 +8,7 @@ from typing import Any
 
 import httpx
 import pytest
+from http_cookie_store import HTTPToolsetFactory
 from test_http_toolset import FakeArtifactClient, close_tools, create_tools, make_tools
 
 import contractor_runtime.adapters.caido_graphql as caido_graphql
@@ -63,10 +64,9 @@ def test_session_header_and_cookie_limits_apply_to_atomic_merged_state(
     asyncio.run(scenario())
 
 
-def test_response_cookie_overflow_erases_cookie_state_before_reuse(
+def test_response_cookie_overflow_preserves_http_outcome_and_prior_checkpoint(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(http_tools, "MAX_COOKIES", 2)
     observed: list[httpx.Request] = []
 
     async def handler(request: httpx.Request) -> httpx.Response:
@@ -77,9 +77,7 @@ def test_response_cookie_overflow_erases_cookie_state_before_reuse(
                 content=b"must-not-be-selected",
                 headers=[
                     ("content-type", "text/plain"),
-                    ("set-cookie", "one=1; Path=/"),
-                    ("set-cookie", "two=2; Path=/"),
-                    ("set-cookie", "three=3; Path=/"),
+                    *[("set-cookie", f"cookie{i}=x; Path=/") for i in range(129)],
                 ],
                 request=request,
             )
@@ -89,18 +87,14 @@ def test_response_cookie_overflow_erases_cookie_state_before_reuse(
         artifacts = FakeArtifactClient()
         tools, _state = await create_tools(tmp_path, handler, artifacts=artifacts)
         await tools["http_session_set"](cookies={"existing": "secret"})
-        with pytest.raises(HTTPToolError) as overflow:
-            await tools["http_request"]("https://target.example/overflow")
-        assert overflow.value.code == "http_request_failed"
-        assert artifacts.writes == 0
-        with pytest.raises(HTTPToolError) as missing:
-            await tools["http_read_body"](1)
-        assert missing.value.code == "http_body_not_found"
-        assert (await tools["http_session_get"]())["cookie_count"] == 0
-
+        response = await tools["http_request"]("https://target.example/overflow")
+        assert response["status"] == 200
+        assert response["cookie_checkpoint"]["code"] == "http_cookie_state_invalid"
+        assert (await tools["http_read_body"](1))["data"] == "must-not-be-selected"
+        assert (await tools["http_session_get"]())["cookie_names"] == ["existing"]
         result = await tools["http_request"]("https://target.example/after")
         assert result["request_id"] == 2
-        assert "cookie" not in observed[-1].headers
+        assert observed[-1].headers["cookie"] == "existing=secret"
         await close_tools(tools)
 
     asyncio.run(scenario())
@@ -191,7 +185,7 @@ def test_omitted_http_timeout_is_bounded_when_allocation_timeout_exceeds_tool_li
         def direct() -> httpx.AsyncClient:
             return httpx.AsyncClient(transport=httpx.MockTransport(handler), trust_env=False)
 
-        factory = http_tools.HTTPToolsetFactory(
+        factory = HTTPToolsetFactory(
             direct,
         )
         settings = RuntimeSettings(

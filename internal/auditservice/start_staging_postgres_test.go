@@ -300,7 +300,7 @@ func (c deploymentBoundCatalog) ResolveAuditProfile(ctx context.Context, selecto
 		}
 		profile.Workflows[role] = binding
 	}
-	profile.ClosureDigest, err = auditprofile.ProfileClosureDigest(profile)
+	profile.Ref.Digest, err = auditprofile.Digest(profile)
 	return profile, err
 }
 
@@ -323,7 +323,7 @@ func TestAuditDraftCatalogSelectionPrecedesDeploymentBinding(t *testing.T) {
 	service.profiles = deploymentBoundCatalog{ProfileCatalog: service.profiles}
 	project, draft := createStartStagingDraftWithSelection(t, ctx, pool, service, "bound-selection", 1, selected)
 	restored, err := auditprofile.DecodeResolvedAuditProfileSnapshot(draft.ProfileSnapshot)
-	if err != nil || restored.Ref != catalog.Ref || restored.ClosureDigest == catalog.ClosureDigest {
+	if err != nil || restored.Ref.Name != catalog.Ref.Name || restored.Ref.Version != catalog.Ref.Version || restored.Ref.Digest == catalog.Ref.Digest {
 		t.Fatalf("stored bound selection=%+v: %v", restored.Ref, err)
 	}
 	started, err := service.Start(ctx, StartParams{OwnerID: project.OwnerID, AuditID: draft.AuditID, ExpectedRevision: draft.Revision, IdempotencyKey: "start-bound-selection", RequestDigest: serviceTestDigest("start-bound-selection")})

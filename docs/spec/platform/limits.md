@@ -470,6 +470,7 @@ its owning requirement.
 | `LIM-HTP-34` | 100,000 JSON values and depth 32 | One decoded Caido GraphQL response | caido-graphql@1 structural validation | [HTP-R87](../tools/http-caido.md) |
 | `LIM-HTP-35` | 1 MiB of compact UTF-8 JSON | One model-visible Caido tool result | caido@1 result validation and sitemap page assembly | [HTP-R87](../tools/http-caido.md) |
 | `LIM-HTP-36` | One snapshot: 16 MiB encoded entries plus at most 100,001 eight-byte offsets | Retained sitemap selection of one allocation; row count also bounded by LIM-HTP-34 | caido@1 snapshot builder, replacement and teardown | [HTP-R126](../tools/http-caido.md) |
+| `LIM-HTP-37` | 128 cookies and 65536 encoded UTF-8 JSON bytes including metadata | One persisted target cookie jar | Runtime bounded read and strict encode/decode | [HTP-R128](../tools/http-caido.md) |
 | `LIM-MEM-1` | 32 KiB | Complete canonical JSON payload of one Memory note, including the schemaVersion, name and ordinal fields; for append_memory, the resulting note | MemoryTools adapters (Server-side Planner adapter and Python Worker adapter) | [MEM-R25](../tools/memory.md) |
 | `LIM-MEM-2` | 121 ASCII bytes | Memory note name (keeps the memory.-prefixed binding within the 128-character Artifact name limit LIM-ART-1) | MemoryTools adapters (Server-side Planner adapter and Python Worker adapter) | [MEM-R26](../tools/memory.md) |
 | `LIM-MEM-3` | 512 UTF-8 bytes | Memory note description | MemoryTools adapters (Server-side Planner adapter and Python Worker adapter) | [MEM-R27](../tools/memory.md) |
@@ -609,7 +610,7 @@ its owning requirement.
 | `LIM-SCH-4` | exactly 1 accepted StageResult or StageTermination, never both | terminal StageExecution | Workflow Scheduler (finalizing/aborting compare-and-set from running) | [scheduler](../execution/scheduler.md) |
 | `LIM-SCH-5` | integer >= 1 | escalation action maxAttempts (counts only new escalated executions) | Workflow validation; Workflow Scheduler escalation counter | [SCH-R84](../execution/scheduler.md) |
 | `LIM-SCH-6` | at most maxConcurrentRuns lanes (setting range and default owned by operations/operations.md, LIM-OPS-7) | Scheduler execution lanes per Server process; distinct WorkflowRuns holding lanes outside the decrease-drain interval | Scheduler supervisor | [SCH-R115](../execution/scheduler.md) |
-| `LIM-SCH-7` | at most 1 Run claim per lane; at most 1 lane per Run | execution lane and WorkflowRun | PostgreSQL FOR UPDATE SKIP LOCKED claim boundary | [SCH-R116](../execution/scheduler.md) |
+| `LIM-SCH-7` | at most 1 Run claim per lane; at most 1 lane per Run | execution lane and WorkflowRun | PostgreSQL FOR UPDATE SKIP LOCKED claim boundary and serialized exclusion of locally active lanes (SCH-R120) | [SCH-R116](../execution/scheduler.md) |
 | `LIM-SCH-8` | 30 seconds; at most 1 claim per window for a Run that stays blocked | time a deferred Run (paused or capacity-ineligible, SCH-R122) ranks behind pending work after it defers | Scheduler claim ordering query | [SCH-R123](../execution/scheduler.md) |
 | `LIM-SCH-11` | at most 1 leased probe | blocked model-availability route (recovery gate) | Server recovery gate | [SCH-R106](../execution/scheduler.md) |
 | `LIM-SCH-12` | exactly 1 immutable transition decision | source StageExecution whose StageResult is accepted, or whose interrupted StageTermination is committed, while the Run is running | Workflow Scheduler progression transaction (keyed by source stage_execution_id) | [SCH-R77](../execution/scheduler.md) |
@@ -715,7 +716,7 @@ its owning requirement.
 | `LIM-SKL-13` | 128 YAML nodes | Bounded YAML tokenization of the frontmatter | Package validators | [SKL-R30](../tools/skills.md) |
 | `LIM-SKL-14` | nesting depth 3 | Bounded YAML tokenization of the frontmatter | Package validators | [SKL-R30](../tools/skills.md) |
 | `LIM-SKL-15` | 256 KiB | Complete `SKILL.md` | Package validators | [SKL-R33](../tools/skills.md) |
-| `LIM-SKL-16` | 1 MiB | One regular reference or asset member | Package validators | [SKL-R33](../tools/skills.md) |
+| `LIM-SKL-16` | 1 MiB | One regular reference, asset or script member | Package validators | [SKL-R33](../tools/skills.md) |
 | `LIM-SKL-17` | 16 MiB | Stored Skill ZIP payload (below the generic 64 MiB ArtifactStore limit LIM-ART-4) | Package validators | [SKL-R34](../tools/skills.md) |
 | `LIM-SKL-18` | 2,000 entries including directories | Entries of one Skill ZIP | Package validators; the Server counts actual central-directory records before parsing any member | [SKL-R34](../tools/skills.md) |
 | `LIM-SKL-19` | 32 MiB | Total declared and actually streamed decompressed bytes of one package | Package validators, enforced while streaming | [SKL-R34](../tools/skills.md) |

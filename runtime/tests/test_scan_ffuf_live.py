@@ -124,15 +124,22 @@ def test_installed_ffuf_preserves_payloads_and_filters_local_responses(
 
 def test_installed_ffuf_transport_errors_are_not_success(tmp_path):
     async def scenario():
-        # Reserve a loopback port without listening: requests deterministically fail.
-        import socket
+        connections = 0
 
-        with socket.socket() as reservation:
-            reservation.bind(("127.0.0.1", 0))
-            port = reservation.getsockname()[1]
+        async def close_without_response(_reader, writer):
+            nonlocal connections
+            connections += 1
+            writer.close()
+            with suppress(ConnectionError):
+                await writer.wait_closed()
+
+        # Immediate EOF exercises transport errors without waiting for a network timeout.
+        async with await asyncio.start_server(close_without_response, "127.0.0.1", 0) as server:
+            port = server.sockets[0].getsockname()[1]
             tool, state = await make_live_ffuf(tmp_path, b"probe\n")
             try:
                 result = await tool(f"http://127.0.0.1:{port}/FUZZ", REF, timeout_seconds=10)
+                assert connections > 0
                 assert result["exitCode"] == 0
                 assert result["status"] == "failed"
                 assert result["errorCode"] == "scan_request_failed"

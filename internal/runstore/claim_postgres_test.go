@@ -12,6 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
+	"github.com/grauwolf32/contractor/internal/settingsstore"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -114,8 +115,12 @@ func TestPostgresClaimReadsTenThousandRunsInClaimOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	excluded := make([]string, settingsstore.MaximumConcurrentRuns)
+	for index := range excluded {
+		excluded[index] = fmt.Sprintf("run-claim-%05d", index+1)
+	}
 	claim := captureStatement(t, func(store *PostgresStore) error {
-		_, err := store.ClaimRunnableRun(ctx, "claim-plan", time.Minute)
+		_, err := store.ClaimRunnableRun(ctx, "claim-plan", time.Minute, excluded)
 		return err
 	})
 	assertPlanUsesIndexes(t, ctx, pool, "Scheduler claim over the queue", claim,
@@ -135,10 +140,44 @@ func TestPostgresClaimReadsTenThousandRunsInClaimOrder(t *testing.T) {
 	// run-claim-00001 is the oldest admitted Run (waiting) and neither
 	// deferred nor claimed.
 	for _, want := range []string{cancelling.RunID, "run-claim-00001"} {
-		claimed, err := store.ClaimRunnableRun(ctx, "claim-"+want, time.Minute)
+		claimed, err := store.ClaimRunnableRun(ctx, "claim-"+want, time.Minute, nil)
 		if err != nil || claimed.RunID != want {
 			t.Fatalf("claim = (%s, %v), want %s", claimed.RunID, err, want)
 		}
+	}
+}
+
+func TestPostgresClaimExcludesLocallyActiveRuns(t *testing.T) {
+	for _, deferred := range []bool{false, true} {
+		t.Run(fmt.Sprintf("deferred=%v", deferred), func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
+			defer cancel()
+			pool := isolatedRunStorePool(t, ctx)
+			store := NewPostgresStore(pool)
+			for _, id := range []string{"run-live", "run-peer"} {
+				createTestRun(t, ctx, store, id)
+				if _, err := admitTestRun(ctx, store, id); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := pool.Exec(ctx, `UPDATE workflow_runs
+SET scheduler_deferred = $1, updated_at = clock_timestamp(),
+    scheduler_claim_id = CASE WHEN run_id = 'run-live' THEN 'original-lane' END,
+    scheduler_claimed_at = CASE WHEN run_id = 'run-live' THEN clock_timestamp() - interval '3 minutes' END,
+    scheduler_claim_expires_at = CASE WHEN run_id = 'run-live' THEN clock_timestamp() - interval '1 minute' END`, deferred); err != nil {
+				t.Fatal(err)
+			}
+			claimed, err := store.ClaimRunnableRun(ctx, "peer-lane", time.Minute, []string{"run-live"})
+			if err != nil || claimed.RunID != "run-peer" {
+				t.Fatalf("claim excluding live owner = %s, %v", claimed.RunID, err)
+			}
+			if _, err := store.ClaimRunnableRun(ctx, "no-work", time.Minute, []string{"run-live"}); !errors.Is(err, ErrNoWork) {
+				t.Fatalf("remaining locally active Run was claimed: %v", err)
+			}
+			if _, err := store.RenewRunClaim(ctx, "run-live", "original-lane", time.Minute); err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }
 
@@ -184,7 +223,7 @@ func TestPostgresClaimSkipsPendingRunsOfPausedOwners(t *testing.T) {
 	}
 	claim := func(want string) {
 		t.Helper()
-		claimed, err := store.ClaimRunnableRun(ctx, "claim-"+want, time.Minute)
+		claimed, err := store.ClaimRunnableRun(ctx, "claim-"+want, time.Minute, nil)
 		if err != nil || claimed.RunID != want {
 			t.Fatalf("claim = (%s, %v), want %s", claimed.RunID, err, want)
 		}
@@ -237,7 +276,7 @@ func TestPostgresClaimSkipsPendingRunsOfPausedOwners(t *testing.T) {
 	claim(placed.RunID)
 	claim(aborting.RunID)
 	claim(other.RunID)
-	if run, err := store.ClaimRunnableRun(ctx, "claim-paused", time.Minute); !errors.Is(err, ErrNoWork) {
+	if run, err := store.ClaimRunnableRun(ctx, "claim-paused", time.Minute, nil); !errors.Is(err, ErrNoWork) {
 		t.Fatalf("claim while the owner's Queue is paused = (%s, %v), want no work", run.RunID, err)
 	}
 

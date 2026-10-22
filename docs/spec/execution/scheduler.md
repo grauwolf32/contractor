@@ -810,8 +810,9 @@ lineage preserve that context and the
 `summary_escalation` variant/ordinal; only its first automatic root consumes
 the strategy slot. Missing exact pins or changed source authority are permanent
 invalid state. Existing Artifact and selected Memory tools access the same
-Run/Namespace through fresh allocations; allocation-local HTTP buffers,
-cookies, ADK sessions and in-flight calls are not inherited.
+Run/Namespace through fresh allocations. Target cookies restore through the
+ordinary Artifact contract (HTP-R37 in [HTTP tools](../tools/http-caido.md));
+allocation-local HTTP buffers, ADK sessions and in-flight calls are not inherited.
 
 **SCH-R174.** Summary publication retries only known transient context,
 blob-I/O and classified PostgreSQL failures, with each operation bounded by
@@ -1097,6 +1098,16 @@ it as completion (FAIL-SCH-16).
 **SCH-R120.** The `FOR UPDATE SKIP LOCKED` claim boundary is authoritative:
 different lanes cannot claim the same Run, and a claim cannot be silently
 stolen before expiry (FAIL-SCH-16).
+Within the active Server, claim selection also excludes every Run whose lane
+has not finished its work and cleanup. The exclusion set is bounded by the
+maximum lane count (LIM-OPS-7), including lanes draining after a decrease.
+Copying that set, selecting a SQL claim and registering
+its local owner are serialized against other claim selections, without
+blocking cancellation or renewal on the claim-selection lock. A host
+suspension or delayed renewal may expire a SQL lease while its Planner is
+still alive; expiry alone never authorizes another lane of the same Server
+to replace that owner or re-enter its Planner. The existing lane may renew
+the same claim, and actual claim loss retains SCH-R119's fencing behavior.
 
 **SCH-R166.** A lane renews its claim every third of `scheduler.claimDuration`
 (LIM-SCH-15). A failed renewal is retried every `scheduler.pollInterval` while

@@ -72,7 +72,7 @@ following ones.
   tool requires.
 - **Direct transport.** The Runtime-owned HTTP transport that `http-tools@1`
   uses when no `tool-http` route is resolved.
-- **HTTP session.** The allocation-memory cookies, default headers,
+- **HTTP session.** The target cookie jar, allocation-memory default headers,
   authentication and history of `http-tools@1`.
 - **Redacted session view.** The model-visible projection of the HTTP session
   that `http_session_get` returns.
@@ -132,7 +132,7 @@ Each allocation of `http-tools@1` holds this state in memory:
 
 | State | Holds | Model-visible as |
 | --- | --- | --- |
-| Cookies | The authoritative allocation-owned cookies | Cookie names and count |
+| Cookies | The authoritative jar restored from the same Run/Namespace artifact | Cookie names and count |
 | Default headers | Session default request headers | Non-sensitive values; redaction markers for sensitive headers |
 | Authentication | `none`, `bearer` or `basic` | `auth_kind` |
 | History | Recent request summaries and explicit failed outcomes | `http_history`; the history count |
@@ -202,7 +202,7 @@ flowchart TD
     AG --> PR["Prepare, repeating the adapter check:<br/>adapter host, then selected Toolsets, then Worker"]
     PR -->|"caido@1 without its typed handle"| NC["caido_not_configured, no ready Worker"]
     PR --> ACT["Sequential A2A tasks share the allocation-memory HTTP session"]
-    ACT -->|"finalize, release, abort or lease loss"| TD["Teardown<br/>close HTTP clients and Caido sessions<br/>erase session cookies, default headers and authentication<br/>clear the Project target URL, derived Authorization header and source secret<br/>overwrite or dereference secrets"]
+    ACT -->|"finalize, release, abort or lease loss"| TD["Teardown<br/>close HTTP clients and Caido sessions<br/>erase local cookies, default headers and authentication<br/>clear the Project target URL, derived Authorization header and source secret<br/>overwrite or dereference secrets"]
     TD --> IDLE["Slot idle"]
 ```
 
@@ -310,7 +310,7 @@ or introspect an infrastructure instance during Runtime Agent registration.
 | `http_request` | Send one bounded HTTP or HTTPS request and return metadata plus a small preview. |
 | `http_read_body` | Read a bounded slice of a response body retained in allocation memory. |
 | `http_history` | Return bounded allocation-session request summaries, oldest first. |
-| `http_session_set` | Set allocation-memory cookies, default headers and authentication. |
+| `http_session_set` | Set persisted target cookies and allocation-memory headers and authentication. |
 | `http_session_get` | Return the redacted session view. |
 | `http_session_clear` | Erase cookies, headers, authentication, HTTP history and buffered HTTP exchanges; selected finding evidence remains immutable. |
 
@@ -385,16 +385,85 @@ prospective state before mutation.
 **HTP-R36.** The redacted session view that `http_session_get` returns contains
 only `auth_kind`, non-sensitive default-header values, redaction markers for
 sensitive headers, cookie names and count, and the history count. Cookie values
-are not model-visible after being set.
+are not included in session projections. Explicit authorized artifact reads
+remain available. An HTTP response may additionally report `cookie_checkpoint`
+with `state="unconfirmed"`, a safe error code and recovery instruction (HTP-R130).
 
-**HTP-R37.** Session cookies, default headers and authentication live only in
-allocation memory. They are available to sequential A2A tasks on the same
-allocation and are erased on release, abort or lease loss (LIFE-HTP-1). Ambient
-session authentication is not serialized to an artifact.
+**HTP-R37.** Target cookies persist as the ordinary `http-cookie-session`
+Artifact binding in the allocation's Run and resolved Agent Namespace. A fresh
+HTTP toolset restores this binding before readiness, including retry and
+escalation in the same Namespace. No new table or credential store is involved;
+ordinary authorized Artifact tools can read it. Headers, basic/bearer session
+auth, injected Project authorization, infrastructure/proxy/Caido credentials,
+HTTP history and captures remain allocation memory and are never included.
+Release, abort and lease loss erase local copies; Run purge owns all persisted
+revisions (LIFE-HTP-1).
 
-**HTP-R38.** `http_session_clear` erases cookies, headers, authentication,
+**HTP-R38.** `http_session_clear` commits the empty cookie jar before claiming
+success, then erases local cookies, headers, authentication,
 history and buffered HTTP captures (LIFE-HTP-2). Caido captures have their own
 session lifetime. Selected finding evidence remains immutable (LIFE-HTP-3).
+
+### Cookie continuation
+
+**HTP-R127.** The cookie payload is compact UTF-8 JSON with exactly
+`schema_version` (integer `1`), `target_origin` (the resolved Project target's
+canonical `[scheme, host, port]`, or null without a Project target), and
+`cookies`. Each cookie has exactly the Python CookieJar attributes `version`,
+`name`, `value`, `port`, `port_specified`, `domain`, `domain_specified`,
+`domain_initial_dot`, `path`, `path_specified`, `secure`, `expires`, `discard`,
+`comment`, `comment_url`, `rest` and `rfc2109`. Nullable values remain null;
+`rest` retains HttpOnly/SameSite extensions. Cookie identity is domain/path/name,
+ordered by that identity. Duplicate keys/identities, unknown members, coercions,
+incompatible schema/origin, and invalid matching attributes fail permanently
+with `http_cookie_state_invalid`. Runtime owns the format; Go Artifact readers
+and writers transport opaque bytes without a second cookie parser. Media type
+is `application/vnd.contractor.http-cookie-session+json`.
+
+**HTP-R128.** A jar is bounded to 128 cookies and 65536 encoded UTF-8 bytes
+including metadata (LIM-HTP-37). Restore reads the direct binding with this byte
+cap and never scans other artifacts. Absence starts empty; corrupt or oversized
+state prevents readiness. Expired cookies are dropped against an injectable
+clock. Session cookies survive only within this Run's retention. CookieJar
+attributes preserve domain/path/Secure matching on both transports; host-only
+cookies never reach subdomains. Without a Project target, ordinary RFC cookie
+scope applies; explicit unscoped `http_session_set` cookies keep their existing
+scope. With a Project target, explicit cookies are scoped to that host.
+
+**HTP-R129.** The existing HTTP session lock serializes changes and Artifact
+CAS uses the restored revision. Canonical unchanged bytes create no revision.
+Cookie deletion and explicit clear publish an updated/empty jar. A cancelled or
+incomplete response cannot publish prospective cookies. Checkpoint work starts
+only after the full response and its exchange are accepted. Cancellation at this
+later boundary joins the bounded checkpoint before releasing ownership; a
+completed checkpoint may already be durable. Allocation teardown never writes
+cookies. The existing allocation write fence and Stage terminal barrier finish
+old mutations before replacement restore; no new receipt or lease is added.
+
+**HTP-R130.** A completed target request retains its actual status and body
+when cookie checkpointing fails. Its response includes `cookie_checkpoint` with
+`state="unconfirmed"`, a classified code, and an instruction to call
+`http_session_get` without repeating the HTTP request. Further requests and
+updates are blocked until that recovery succeeds. If the template did not select
+`http_session_get`, the Worker reports the unconfirmed checkpoint and stops HTTP
+requests; a fresh allocation restores only committed state. Recovery reconciles exact
+bytes; it retries only the pending Artifact PUT under the same CAS when the
+original revision is still current. A different newer revision raises permanent
+`http_cookie_state_conflict` and discards the pending write; another explicit
+`http_session_get` can adopt that authoritative state. No target request is
+replayed. Invalid local response cookies recover the last durable state.
+
+**HTP-R131.** A checkpoint uses the existing exact-document helper: at most
+two PUTs with identical bytes/precondition and one exact-value reconciliation
+read. A definite denial is permanent `http_cookie_write_denied`; a divergent
+CAS is `http_cookie_state_conflict`; unresolved transient storage/timeout is
+retryable `http_cookie_storage_unavailable`. Restore makes at most two reads.
+Restore is inside preparation's remaining deadline; checkpoint's own deadline
+is capped by the current HTTP deadline or, for session controls, the configured
+request timeout. Cancelled operations join their bounded Artifact task before
+cleanup (FAIL-HTP-8). Sparse session updates and clear claim durable success only
+after confirmed writes. No secret payload is added to errors, prompts,
+summaries or telemetry.
 
 ### Project target authorization
 
@@ -421,8 +490,9 @@ cookies are the authoritative copy, and transport cookies are cleared before
 every hop, including redirects and retries on direct and proxied requests.
 
 **HTP-R44.** Prospective response cookies become session state only after
-the full request succeeds and its exchange is buffered. An error or cancellation
-does not commit the prospective cookie jar (FAIL-HTP-2).
+the full request succeeds and its exchange is buffered. An error or cancellation before that acceptance boundary does not commit the
+prospective cookie jar (FAIL-HTP-2); a later cancelled checkpoint follows the
+joined mutation rule in HTP-R129.
 
 **HTP-R45.** Each redirect hop is compared with the originally requested
 origin. A hop on another origin receives no session cookies, no session
@@ -841,7 +911,7 @@ Worker last.
 finalize or release through their owning Toolset or adapter, and secrets are
 overwritten or dereferenced before the slot becomes idle (LIFE-HTP-4).
 
-**HTP-R125.** Allocation teardown erases all session credentials and client
+**HTP-R125.** Allocation teardown erases all local session credentials and client
 handles (LIFE-HTP-4).
 
 ### Checked-in templates and the Caido Skill
@@ -881,7 +951,9 @@ Toolset call counters and Runtime adapter metrics remain the only ones.
 **HTP-R122.** The stable error codes of the two Toolsets include:
 
 - `http_request_invalid`, `http_request_failed`, `http_response_invalid`,
-  `http_response_too_large` and `http_body_not_found`, together with
+  `http_response_too_large`, `http_body_not_found`, `http_cookie_state_invalid`,
+  `http_cookie_state_conflict`, `http_cookie_write_denied` (all non-retryable),
+  and `http_cookie_storage_unavailable` (retryable), together with
   `http_target_denied`, which the [target policy](../platform/security.md)
   owns;
 - `caido_not_configured`, `caido_request_invalid`, `caido_request_failed`,
@@ -939,6 +1011,7 @@ Limits ([registry](../platform/limits.md)):
 - LIM-HTP-33 — 64 MiB serialized capture buffer, with oldest-first eviction (HTP-R71).
 - LIM-HTP-34 — at most 100,000 JSON values and depth 32 in a Caido response (HTP-R87).
 - LIM-HTP-35 — at most 1 MiB of compact UTF-8 JSON per Caido tool result (HTP-R87).
+- LIM-HTP-37 — 128 cookies and 65536 encoded cookie-session bytes (HTP-R128).
 - LIM-HTP-36 — one bounded indexed sitemap snapshot per allocation (HTP-R87, HTP-R126).
 - The generic Artifact payload limit (LIM-ART-4) belongs to
   [Artifact store](../artifacts/artifact-store.md); the host-name bounds and
@@ -958,6 +1031,7 @@ Failure outcomes ([failure model](../platform/failure-model.md)):
 - FAIL-HTP-4 — Caido read-only queries and polling (HTP-R82, HTP-R109).
 - FAIL-HTP-5 — storing a Caido request-detail exchange (HTP-R89, HTP-R91).
 - FAIL-HTP-6 — Caido GraphQL mutations (HTP-R102, HTP-R103, HTP-R108).
+- FAIL-HTP-8 — cookie restore and checkpoint (HTP-R131).
 - FAIL-HTP-7 — creating `caido@1` during prepare (HTP-R114).
 
 Entity lifecycle ([lifecycle](../platform/lifecycle.md)):

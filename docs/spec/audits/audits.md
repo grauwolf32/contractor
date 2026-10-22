@@ -404,6 +404,11 @@ referenced Workflows are dependency-resolved.
 
 **AUD-R20.** An Audit persists the full resolved profile snapshot and its
 canonical digest; later catalog reloads do not affect that Audit.
+Draft creation applies captured deployment model defaults before computing
+that digest, so it identifies the effective Workflow closures rather than the
+unmodified catalog profile. Prepared Eval reuse validates those captured
+policies and the remaining catalog-owned profile content without consulting
+the current deployment model selection.
 
 **AUD-R21.** A persisted profile snapshot requires an explicit valid `kind` for
 every Workflow role. Its canonical digest includes each role kind, the complete
@@ -1245,21 +1250,13 @@ response, package content or model transcript.
 **AUD-R205.** Start and resume require `If-Match` and `Idempotency-Key` and
 accept an optional JSON object with only `deadlineSeconds`.
 
-**AUD-R228.** A retained effective AuditProfile snapshot has a required
-`closureDigest` separate from its catalog `ref.digest`. The catalog identity
-remains stable when deployment model defaults are frozen into Workflow bodies.
-The closure seal is SHA-256 of RFC 8785 canonical JSON of
-`["contractor/audit-profile-closure/v1", profile.ref, effectiveBodyDigest]`,
-where `effectiveBodyDigest` uses the complete profile-content digest algorithm
-over the effective Workflows and policies. Strict snapshot reads require this
-seal and reject changed content or a changed catalog identity; no mutable
-model setting or catalog lookup repairs a stored snapshot. Initial catalog
-profiles also carry the seal. Deployment binding recomputes it, and prepared
-Eval profiles retain their exact seal and model choices when defaults change.
-Owner selection digest checks compare the catalog selection before deployment
-binding, or the supplied exact prepared profile for an Eval. This keeps
-selection drift and frozen execution content as distinct checks without
-changing the configured model or relaxing immutable reads.
+**AUD-R228.** Owner selection digest checks compare the catalog selection
+before deployment model binding, or the supplied exact prepared profile for an
+Eval. The retained effective profile follows the digest contract in AUD-R20;
+prepared Evals preserve their captured policies and effective digest when
+model defaults change. Selection drift and frozen execution content remain
+separate checks without changing the configured model or relaxing immutable
+reads.
 
 **AUD-R226.** A start response, first or replayed, carries the Audit, its
 current Round and only that Round's items, so it holds at most LIM-AUD-26

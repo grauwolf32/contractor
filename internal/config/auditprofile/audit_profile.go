@@ -202,15 +202,14 @@ type AuditInteractionPolicy struct {
 // ResolvedAuditProfile is the immutable Server-side authority retained when an
 // Audit starts. Workers never receive this value and cannot select a profile.
 type ResolvedAuditProfile struct {
-	ClosureDigest string                                  `json:"closureDigest"`
-	Ref           AuditProfileRef                         `json:"ref"`
-	Mode          AuditProfileMode                        `json:"mode"`
-	Standards     []AuditStandardRef                      `json:"standards"`
-	Inputs        map[string]AuditProfileInput            `json:"inputs"`
-	Inventory     AuditInventory                          `json:"inventory"`
-	Workflows     map[string]ResolvedAuditWorkflowBinding `json:"workflows"`
-	Execution     AuditExecutionPolicy                    `json:"execution"`
-	Interaction   AuditInteractionPolicy                  `json:"interaction"`
+	Ref         AuditProfileRef                         `json:"ref"`
+	Mode        AuditProfileMode                        `json:"mode"`
+	Standards   []AuditStandardRef                      `json:"standards"`
+	Inputs      map[string]AuditProfileInput            `json:"inputs"`
+	Inventory   AuditInventory                          `json:"inventory"`
+	Workflows   map[string]ResolvedAuditWorkflowBinding `json:"workflows"`
+	Execution   AuditExecutionPolicy                    `json:"execution"`
+	Interaction AuditInteractionPolicy                  `json:"interaction"`
 }
 
 // Spec is the authored spec of an AuditProfile manifest. The catalog loader
@@ -351,13 +350,12 @@ func Resolve(
 	if err := ValidateAuditTaskProfile(profile); err != nil {
 		return ResolvedAuditProfile{}, err
 	}
-	digest, err := auditProfileDigest(selector, profile)
+	digest, err := Digest(profile)
 	if err != nil {
 		return ResolvedAuditProfile{}, err
 	}
 	profile.Ref.Digest = digest
-	profile.ClosureDigest, err = ProfileClosureDigest(profile)
-	return profile, err
+	return profile, nil
 }
 
 func resolveAuditStandards(source []auditStandardRefSource) ([]AuditStandardRef, error) {
@@ -878,7 +876,10 @@ func resolveAuditInteractionPolicy(source *auditInteractionPolicySource) (AuditI
 	return result, nil
 }
 
-func auditProfileDigest(selector resolved.Selector, profile ResolvedAuditProfile) (string, error) {
+// Digest identifies the complete effective profile, including the resolved
+// Workflow closures after captured deployment model defaults have been applied.
+// Ref.Digest itself is excluded from the canonical content.
+func Digest(profile ResolvedAuditProfile) (string, error) {
 	workflows := make(map[string]any, len(profile.Workflows))
 	for role, binding := range profile.Workflows {
 		value := map[string]any{
@@ -897,7 +898,7 @@ func auditProfileDigest(selector resolved.Selector, profile ResolvedAuditProfile
 	return contentdigest.CanonicalJSON(map[string]any{
 		"apiVersion": contracts.APIVersion,
 		"kind":       Kind,
-		"metadata":   map[string]any{"name": selector.ID, "version": selector.Version},
+		"metadata":   map[string]any{"name": profile.Ref.Name, "version": profile.Ref.Version},
 		"spec": map[string]any{
 			"mode": profile.Mode, "standards": profile.Standards,
 			"inputs": profile.Inputs, "inventory": profile.Inventory,

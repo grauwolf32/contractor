@@ -8,11 +8,12 @@ from typing import Any
 
 import httpx
 import pytest
+from http_cookie_store import HTTPToolsetFactory
 from test_http_toolset import close_tools, make_tools, proxy_runtime_settings
 
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.http_proxy import ProxyHTTPClient
-from contractor_runtime.toolsets.http.tools import HTTPToolError, HTTPToolsetFactory
+from contractor_runtime.toolsets.http.tools import HTTPToolError
 
 
 async def redirect_tools(

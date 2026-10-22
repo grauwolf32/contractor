@@ -11,6 +11,7 @@ import httpx
 import pytest
 from google.adk.tools import FunctionTool
 from google.genai import types
+from http_cookie_store import HTTPToolsetFactory
 from test_audit_result_collector import CONTEXT, fixture_assignment, tool_for
 from test_http_toolset import FakeArtifactClient, close_tools, create_tools, make_tools
 from test_security_findings_toolset import FakeFindingClient, _settings, _workspace
@@ -28,7 +29,7 @@ from contractor_runtime.toolsets.common.finding_locations import (
 )
 from contractor_runtime.toolsets.common.http_evidence import HTTPAttempt
 from contractor_runtime.toolsets.common.http_limits import MAX_HISTORY, MAX_REQUEST_HEADER_BYTES
-from contractor_runtime.toolsets.http.tools import HTTPToolError, HTTPToolsetFactory
+from contractor_runtime.toolsets.http.tools import HTTPToolError
 from contractor_runtime.toolsets.security_findings.collection import _proposal
 from contractor_runtime.toolsets.security_findings.facades import (
     CodeFindingsToolsetFactory,

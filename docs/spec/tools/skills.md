@@ -81,7 +81,7 @@ flowchart LR
     P -->|"pinned source ref; Scheduler: read, validate, record package digest, fork exact version"| R["RunScope(run) skills/{name}: exact revision"]
     P -->|"missing-source result"| F["Run initialization fails: skill_artifact_not_found"]
     R -->|"AllocationSpec.resolvedSkills"| RT["Runtime Agent: read, verify digest, validate, extract, load"]
-    RT --> T["native ADK SkillToolset through the script-free adapter"]
+    RT --> T["native ADK SkillToolset through the non-executing adapter"]
     T --> W["Worker: list_skills, load_skill, load_skill_resource"]
 ```
 
@@ -298,14 +298,16 @@ assets/
 
 - one root `SKILL.md` encoded as UTF-8;
 - zero or more regular UTF-8 files below `references/`;
+- zero or more regular UTF-8 script source files below `scripts/`;
 - zero or more regular UTF-8 or binary files below `assets/`;
 - directory entries needed for those paths.
 
-**SKL-R21.** Accepted packages contain no scripts and no ADK
-metadata capable of extending the tool surface (SKL-R22,
-SKL-R31).
+**SKL-R21.** Script members are inert source resources. Package validation,
+extraction and disclosure never execute them. Accepted packages contain no ADK
+metadata capable of extending the tool surface (SKL-R31). Execution is governed
+by SKL-R116, independently of package acceptance.
 
-**SKL-R22.** The profile rejects `scripts/`, every other root entry,
+**SKL-R22.** The profile rejects every other root entry,
 symlinks, hard links, device or special files, duplicate normalized paths,
 backslash paths, absolute paths, empty, dot or dot-dot path components,
 encrypted ZIP members and malformed ZIP metadata.
@@ -375,8 +377,8 @@ data; Runtime does not interpret them as a capability, placement predicate or
 dependency resolver. They contain no secret.
 
 **SKL-R33.** The complete `SKILL.md` is at most 256 KiB
-(LIM-SKL-15); one regular reference or asset is at most 1 MiB (LIM-SKL-16).
-Text members are valid UTF-8 and contain no NUL.
+(LIM-SKL-15); one regular reference, asset or script is at most 1 MiB (LIM-SKL-16).
+Text members, including scripts, are valid UTF-8 and contain no NUL.
 
 **SKL-R34.** In addition:
 
@@ -680,7 +682,7 @@ workspace exist but before the Worker is ready, Runtime Agent:
    validated skill name, without following links or overwriting paths;
 5. loads through the pinned Google ADK Agent Skills loader;
 6. attaches one native ADK SkillToolset to the Worker through Contractor's
-   script-free filter and instruction adapter.
+   non-executing filter and instruction adapter.
 
 **SKL-R88.** Runtime passes `registry=None`, no `environment`,
 `code_executor`, `skills_folder`, `additional_tools` or `tool_name_prefix`, and
@@ -700,11 +702,11 @@ the exact Run-selected ones.
 `run_skill_script` and injects generic script guidance even without an
 executor; Contractor exposes neither: it deliberately filters
 `run_skill_script` and replaces ADK's stock script-bearing system instruction
-with an equivalent script-free progressive-disclosure instruction. Its adapter
+with a non-executing progressive-disclosure instruction. Its adapter
 reuses the native list, load and resource tools and the native Skill models,
 but injects a bounded instruction that describes only `SKILL.md`,
-`references/` and `assets/` plus the three available functions. Runtime
-creates no skill executor.
+`references/`, `assets/` and inert `scripts/` source plus the three available
+functions. Runtime creates no skill executor.
 
 **SKL-R92.** Runtime's `adk@1` startup probe proves that the pinned
 ADK build contains the package models, loader and native SkillToolset before
@@ -712,8 +714,9 @@ Runtime advertises `adk@1`. The probe also requires the pinned native
 SkillToolset plus Contractor's filter and instruction adapter to expose exactly
 `list_skills`, `load_skill` and `load_skill_resource`, with neither
 `run_skill_script` nor `search_skills`; it fails if filtering no longer hides
-`run_skill_script` or the generated instruction contains `run_skill_script`,
-`search_skills` or `scripts/` guidance.
+`run_skill_script` or the generated instruction contains `run_skill_script`
+or `search_skills`. The instruction explicitly says that script disclosure
+returns source without executing code.
 
 **SKL-R93.** Runtime does not advertise installed skill names,
 because packages are allocation data, not immutable environment
@@ -721,15 +724,15 @@ capabilities.
 
 **SKL-R94.** Runtime callbacks validate a tool-supplied skill name
 against the exact selected set before native dispatch. Resource paths must be
-portable validated `references/...` or `assets/...` paths. Oversize, absolute,
-backslash or dot-segment arguments return bounded `INVALID_ARGUMENTS` and are
+portable validated `references/...`, `assets/...` or `scripts/...` paths.
+Oversize, absolute, backslash or dot-segment arguments return bounded `INVALID_ARGUMENTS` and are
 never retained as a safe metric path.
 
 **SKL-R95.** ADK injects generic skill-use instructions and
 function declarations while forming an LLM request. `list_skills` discloses
 names and descriptions; `load_skill` returns the selected `SKILL.md`
 instructions as a tool response; `load_skill_resource` returns one selected
-reference or asset.
+reference, asset or script source.
 
 **SKL-R96.** Contractor does not copy every body into system
 instructions, synthesize activation calls or automatically activate a skill.
@@ -829,8 +832,8 @@ automatically upload complete package ZIPs.
 
 **SKL-R114.** Existing Worker metrics record the native Skill
 functions like every tool. The retained projection contains only the
-validated skill name, the bounded normalized `references/...` or `assets/...`
-path, outcome, duration, result byte count and stable ADK error code. It never
+validated skill name, the bounded normalized `references/...`, `assets/...`
+or `scripts/...` path, outcome, duration, result byte count and stable ADK error code. It never
 retains instructions, resource or archive bytes, owner refs, revisions,
 extracted paths or generated context.
 
@@ -838,6 +841,19 @@ extracted paths or generated context.
 `ExecutionReport`; no Skill telemetry service exists. The content-free
 retained projection is distinct from opt-in external model and tool content
 capture (SKL-R113), which may include disclosed skill text.
+
+**SKL-R116.** Script execution uses only independently selected existing
+capabilities: a Worker may materialize disclosed source and its required assets
+through an available workspace writer, then invoke the existing sandbox
+`exec_command` if selected. The Skill toolset neither writes those files nor
+executes them. It provides no host executor, interpreter installation,
+dependency resolution or `/skills` mount. Missing writing, interpreter or
+sandbox execution capabilities remain an explicit task blocker; guidance must
+not claim successful validation without a successful execution result. All
+workspace grants, sandbox limits, cancellation and cleanup rules of
+[Code execution](code-execution.md) remain authoritative. This choice reuses
+the existing execution boundary instead of adding an ADK executor; reconsider
+only if exact deterministic resource materialization needs a dedicated operation.
 
 ## Interfaces
 
@@ -876,7 +892,7 @@ Limits ([registry](../platform/limits.md)):
   ASCII characters, values of at most 1,024 bytes (SKL-R29).
 - LIM-SKL-12 to LIM-SKL-14 — frontmatter: at most 32 KiB, 128 YAML nodes,
   nesting depth 3 (SKL-R30).
-- LIM-SKL-15, LIM-SKL-16 — `SKILL.md` at most 256 KiB; one reference or asset
+- LIM-SKL-15, LIM-SKL-16 — `SKILL.md` at most 256 KiB; one reference, asset or script
   at most 1 MiB (SKL-R33).
 - LIM-SKL-17 to LIM-SKL-19 — stored ZIP at most 16 MiB, at most 2,000 entries,
   at most 32 MiB decompressed (SKL-R34).
@@ -969,8 +985,8 @@ These properties follow from the cited requirements, which are authoritative.
    adapter (SKL-R3, SKL-R4).
 5. Skill content cannot add tools, broaden grants, change labels or escape the
    selected sandbox or tool authority (SKL-R44).
-6. Packages contain no scripts and no executable ADK metadata
-   (SKL-R21).
+6. Scripts are inert resources and packages contain no executable ADK metadata;
+   execution requires independently selected capabilities (SKL-R21, SKL-R116).
 7. Planner and A2A Agent Card contracts remain independent of Agent Skills
    (SKL-R2, SKL-R104).
 8. `configs/skills` seeds `SkillCatalog` create-only; the database current
@@ -987,7 +1003,7 @@ Provisioning shared or operator skills for future multiple owners is deferred
 
 Deliberately not supported:
 
-- scripts and `run_skill_script` execution;
+- native `run_skill_script` execution;
 - a Skill-owned executor, shell, Environment or SandboxProfile extension;
 - executable dependency probing, script limits or script-specific placement;
 - `allowed-tools`, `adk_additional_tools`, `adk_inject_state` or
@@ -1006,15 +1022,15 @@ Deliberately not supported:
 - delete or retire, and garbage collection of unreferenced retained
   historical packages.
 
-Enabling scripts later requires an explicit working agreement, as a separate
-amendment to this specification, covering script members, validation,
-disclosure, interpreter requirements, invocation, capability checks, executor
-and sandbox authority, Runtime capability matching, limits, metrics and
-migration.
+Scripts follow the ordinary resource validation, disclosure, metrics and
+allocation cleanup rules. Their source is accepted independently of interpreter
+availability; execution is conditional on SKL-R116. The public artifact shape
+and private allocation wire format do not change. Server and Runtime must both
+support the script-member profile before publishing such packages; mixed
+versions may reject them and are unsupported.
 
 [Code execution](code-execution.md) reserves a future read-only
 `/skills/<name>` mount of selected Run-pinned packages in the Podman sandbox.
-Its first version does not enable script members, script disclosure or script
-execution; the package and authority rules of this document continue to
-apply, and selection and pinning of the mounted packages remain governed by
-this document.
+No mount is currently provided. Script source disclosure and conditional
+execution follow the package and authority rules above; future mounts remain
+subject to this document's selection and pinning rules.

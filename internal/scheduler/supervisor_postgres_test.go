@@ -240,8 +240,9 @@ func (s *postgresLaneBlockingStore) ClaimRunnableRun(
 	ctx context.Context,
 	claimID string,
 	lease time.Duration,
+	excludedRunIDs []string,
 ) (runstore.WorkflowRun, error) {
-	run, err := s.PostgresStore.ClaimRunnableRun(ctx, claimID, lease)
+	run, err := s.PostgresStore.ClaimRunnableRun(ctx, claimID, lease, excludedRunIDs)
 	if err != nil {
 		return run, err
 	}

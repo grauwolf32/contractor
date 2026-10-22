@@ -94,7 +94,6 @@ def test_worker_uses_exact_native_script_free_skill_surface(tmp_path: Path) -> N
                 for forbidden in (
                     "run_skill_script",
                     "search_skills",
-                    "scripts/",
                     "AgentTemplate",
                     "agent template",
                 )
@@ -129,6 +128,59 @@ def test_worker_uses_exact_native_script_free_skill_surface(tmp_path: Path) -> N
         assert not extraction_root.exists()
         assert runtime._agent_skills is None
         assert runtime._context is None
+
+    asyncio.run(scenario())
+
+
+def test_script_source_disclosure_is_exact_bounded_and_never_executes(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        marker = tmp_path / "executed"
+        source = f"from pathlib import Path\nPath({str(marker)!r}).touch()\n".encode()
+        selected, value = resolved_value(skill_package(script=source))
+        prepared = await prepare_agent_skills(
+            [selected],
+            allocation_id="allocation-1",
+            runtime_settings=runtime_settings(),
+            workspace=allocation_workspace(tmp_path),
+            artifact_client_factory=lambda _allocation, _settings: FakeSkillClient({"demo": value}),
+        )
+        assert prepared is not None
+        state = WorkerState()
+        adapter = prepared.build_adapter(metrics=state.metrics)
+        tools = {tool.name: tool for tool in await adapter.get_tools()}
+        assert tuple(tools) == EXACT_SKILL_TOOL_NAMES
+        assert prepared.native_toolset._code_executor is None
+        assert prepared.native_toolset._env is None
+        context = FakeToolContext()
+        loaded = await tools["load_skill"].run_async(
+            args={"skill_name": "demo"}, tool_context=context
+        )
+        assert loaded["skill_name"] == "demo"
+        charge = prepared.charge_for("load_skill_resource", "demo", "scripts/check.py")
+        prepared.disclosure = DisclosureBudget(limit=charge)
+        result = await tools["load_skill_resource"].run_async(
+            args={"skill_name": "demo", "file_path": "scripts/check.py"},
+            tool_context=context,
+        )
+        assert result == {
+            "skill_name": "demo",
+            "file_path": "scripts/check.py",
+            "content": source.decode(),
+        }
+        assert prepared.disclosure.used == charge
+        blocked = await tools["load_skill_resource"].run_async(
+            args={"skill_name": "demo", "file_path": "scripts/check.py"},
+            tool_context=context,
+        )
+        assert blocked["error_code"] == "SKILL_DISCLOSURE_LIMIT"
+        assert not marker.exists()
+        assert source.decode() not in json.dumps(state.metrics.snapshot())
+        assert (prepared.extraction_root / "demo/scripts/check.py").read_bytes() == source
+        native_skill = prepared.skills[0]
+        await prepared.close()
+        assert not native_skill.resources.scripts
+        assert not prepared.extraction_root.exists()
+        assert not marker.exists()
 
     asyncio.run(scenario())
 
@@ -309,8 +361,7 @@ def test_disclosure_reservation_is_exact_non_refunding_and_pre_dispatch(
             sort_keys=True,
         )
         assert all(
-            forbidden not in declarations
-            for forbidden in ("run_skill_script", "search_skills", "scripts/")
+            forbidden not in declarations for forbidden in ("run_skill_script", "search_skills")
         )
         context = FakeToolContext()
 
@@ -621,7 +672,7 @@ class OversizedBinaryNativeTool(BaseTool):
         }
 
 
-def skill_package() -> bytes:
+def skill_package(*, script: bytes | None = None) -> bytes:
     entries = [
         (
             "SKILL.md",
@@ -631,6 +682,8 @@ def skill_package() -> bytes:
         ("references/guide.md", b"Reference contents."),
         ("assets/pixel.bin", b"\xff\x00\xfe"),
     ]
+    if script is not None:
+        entries.append(("scripts/check.py", script))
     output = io.BytesIO()
     with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_STORED) as archive:
         for name, content in entries:

@@ -29,7 +29,7 @@ func TestSharedAuditPreparationAttemptBudgetChangesDigestAndInvalidatesSnapshot(
 		binding := candidate.Workflows["generate-api"]
 		binding.MaxRunAttempts = attempts
 		candidate.Workflows["generate-api"] = binding
-		digest, err := auditprofile.ProfileDigest(candidate)
+		digest, err := auditprofile.Digest(candidate)
 		if err != nil {
 			t.Fatal(err)
 		}

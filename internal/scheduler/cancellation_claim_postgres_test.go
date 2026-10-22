@@ -99,7 +99,7 @@ func TestPostgresCancellationCleanupRetainsRunClaim(t *testing.T) {
 				t.Fatal(ctx.Err())
 			case <-timer.C:
 			}
-			if run, err := postgresStore.ClaimRunnableRun(ctx, "competing-lane", time.Minute); !errors.Is(err, runstore.ErrNoWork) {
+			if run, err := postgresStore.ClaimRunnableRun(ctx, "competing-lane", time.Minute, nil); !errors.Is(err, runstore.ErrNoWork) {
 				t.Fatalf("cleanup lost exclusive ownership: competing claim = %s, %v", run.RunID, err)
 			}
 			close(store.finish)

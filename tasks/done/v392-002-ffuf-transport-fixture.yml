@@ -1,0 +1,45 @@
+schema_version: "1.0"
+id: V392-002
+title: Make scanner subprocess fixtures deterministic
+milestone: scan-tools-followups
+epic: scan-tools
+kind: chore
+introduced_by: V55-005
+priority: P3
+status: completed
+implementation_commit: 90d01334980c8f59f9d4eb68335ac7bdafe1f93f
+depends_on: [V55-005]
+languages: [python]
+goal: Exercise a real immediate transport failure without racing the scanner's request timeout against its total budget.
+context:
+  specification: docs/spec/tools/scanners.md#SCN-R108
+  finding: >-
+    runtime/tests/test_scan_ffuf_live.py:135 gives FFUF a total 10-second budget,
+    equal to its per-request timeout, against a bound non-listening macOS socket.
+    FFUF 2.3.0 can exhaust that budget before its transport-error progress report;
+    a diagnostic 30-second test budget passes. Use an accepting loopback fixture
+    that closes without an HTTP response instead of increasing a timeout.
+    The independent capability fixture also started five Python interpreters
+    within a 200 ms per-child budget; use minimal shell stubs for version/exit
+    commands while retaining the real hung subprocess and unchanged deadline.
+scope:
+  in:
+    - Use a controlled immediate EOF transport failure and prove the fixture was contacted.
+    - Preserve native exit-code, error classification, counters and scratch-cleanup assertions.
+    - Use minimal POSIX probe fixtures so the existing 200 ms hang budget does not measure Python interpreter startup.
+  out:
+    - Production scanner flags, request/total timeouts and failure semantics.
+acceptance_criteria:
+  - id: A1
+    text: Installed FFUF completes against the immediate EOF fixture with exit zero but scan_request_failed, nonzero requestErrors and scanComplete false, with no scratch remaining.
+  - id: A2
+    text: All real FFUF tests, deterministic scanner tests and repository lint pass without weakening transport assertions or increasing a deadline.
+tests:
+  - command: runtime/.venv/bin/pytest -W error runtime/tests/test_scan_ffuf.py runtime/tests/test_scan_ffuf_live.py runtime/tests/test_scan_toolset.py
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A2]
+verification:
+  - Real FFUF and complete FFUF/scanner-registry files passed 137 tests.
+  - Complete scanner/capability/tool-Worker files passed 469 tests with all five real binaries present.
+  - make lint passed, including Ruff, import contracts and Go/UI/spec/task gates.

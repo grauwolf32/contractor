@@ -23,6 +23,7 @@ type Scheduler struct {
 	planners    PlannerRegistry
 	options     Options
 	wake        chan struct{}
+	claimMu     sync.Mutex
 	activeMu    sync.Mutex
 	active      map[string]activeRunClaim
 	idMu        sync.Mutex

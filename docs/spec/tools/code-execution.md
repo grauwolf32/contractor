@@ -900,12 +900,11 @@ spec:
 - A multi-container Podman pod: `podman@1` uses a single container.
 - Remote engines, Daytona, sidecars, interactive terminals and background
   services.
-- Execution of skill scripts. Packages contain no scripts
-  ([SKL-R21](skills.md)); selecting `podman@1`, installing ADK or loading
-  `SKILL.md` never enables script execution ([SKL-R45](skills.md)); a skill
-  cannot add tools, images, mounts, privileges or network authority
-  ([SKL-R44](skills.md)); enabling scripts needs a separate amendment to
-  [Skills](skills.md).
+- A Skill-owned executor. Script resources are inert source
+  ([SKL-R21](skills.md)). A Worker may materialize them through an available
+  workspace writer and invoke a preinstalled interpreter through independently
+  selected `exec_command` ([SKL-R116](skills.md)); loading a Skill adds no tool,
+  image, mount, privilege or network authority ([SKL-R44](skills.md)).
 - Host networking, model-selected network modes and transparent proxy or
   target-scope enforcement for arbitrary executed code.
 - Skill mounts. No `/skills/<name>` mount is provided. A read-only

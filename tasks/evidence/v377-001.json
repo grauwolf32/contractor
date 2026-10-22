@@ -1,0 +1,128 @@
+{
+  "task": "V377-001",
+  "date": "2026-10-21",
+  "status": "passed",
+  "tested_revision": "c50d6ab058c1ff3104f137c1ce1eb96358b676e3",
+  "main_base": "a7c9a4f12256ba8ba8b0071f1822d6139ab56d9e",
+  "boundary": {
+    "production": [
+      "Python HTTP toolset and allocation lifecycle",
+      "allocation-bound Python ArtifactClient over mTLS",
+      "Go private Artifact handler",
+      "PostgreSQL Artifact repository",
+      "PostgreSQL and filesystem blob storage",
+      "production allocation write gate and fence",
+      "Server/Scheduler/Runtime HTTP-Caido process E2E"
+    ],
+    "fixtures": [
+      "Scripted model Gateway and disposable target/proxy/Caido fixtures in the process gate",
+      "Mock target responses and injected transport/storage faults in focused tests",
+      "Strict single-Run Artifact CAS in Runtime unit tests; real storage in cross-language integration tests"
+    ],
+    "scheduler": "Retry/escalation decisions are unchanged. Existing scheduler tests, fresh allocation lifecycle tests, exact artifact continuation and the production terminal write fence cover the composed replacement boundary."
+  },
+  "checks": [
+    {
+      "command": "GOFLAGS=-p=2 make lint",
+      "result": "passed"
+    },
+    {
+      "command": "GOFLAGS=-p=2 make test-wire-cross-language",
+      "result": "passed",
+      "contracts_python_passed": 300,
+      "shared_python_passed": 1082,
+      "shared_go_tests": 213,
+      "shared_python_tests": 165,
+      "shared_fixtures": 238
+    },
+    {
+      "command": "GOFLAGS=-p=2 make test-http-caido-hardening",
+      "result": "passed",
+      "runtime_passed": 159,
+      "runtime_skipped": 0,
+      "store": "Full integration-tagged private Artifact package, including both cookie blob backends and terminal write barrier",
+      "process": "TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses passed"
+    },
+    {
+      "command": "GOFLAGS=-p=2 make test-postgres",
+      "result": "passed",
+      "packages": [
+        "persistence/postgres",
+        "credentials",
+        "agentprincipal",
+        "runtimeconfig",
+        "runstore",
+        "artifacts",
+        "httpapi/public",
+        "planner/session",
+        "scheduler",
+        "telemetry"
+      ]
+    },
+    {
+      "command": "cd runtime && uv run pytest -q tests/test_http_cookie_session.py tests/test_openapi_toolset.py tests/test_likec4_toolset.py tests/test_unconfigured_artifact_clients.py tests/test_allocation.py tests/test_finding_facades.py tests/test_http_redirects.py tests/test_http_target_policy.py tests/test_caido_target_policy.py tests/test_host_syntax.py tests/test_text_artifacts_toolset.py",
+      "result": "passed_with_skips",
+      "skips": [
+        "test_minimal_openapi_30_shape_is_clean_with_real_vacuum: vacuum executable unavailable",
+        "test_openapi_30_path_item_ref_guidance_holds_against_real_vacuum: vacuum executable unavailable"
+      ]
+    },
+    {
+      "command": "cd runtime && uv run pytest -q tests/test_http_cookie_session.py tests/test_http_toolset.py tests/test_http_toolset_lifecycle.py tests/test_http_caido_process_e2e.py",
+      "result": "passed",
+      "cases": 51
+    }
+  ],
+  "acceptance": {
+    "A1": [
+      "test_cookie_login_survives_finalized_allocation_replacement[direct/proxy]: real prepare/finalize/release/confirm/prepare creates a different Worker",
+      "TestPostgresHTTPCookieContinuation[postgresql/filesystem][direct/proxy]: restored login succeeds with no second login"
+    ],
+    "A2": [
+      "Cross-Run read through allocation-bound API starts empty",
+      "Namespace isolation and incompatible origin before readiness",
+      "Ordinary authorized Artifact read returns exact cookie bytes",
+      "Existing cross-origin redirect and target policy suites passed"
+    ],
+    "A3": [
+      "CookieJar attribute roundtrip",
+      "Host-only/domain/path/Secure matching",
+      "Injected-clock expiry pruning and session cookie continuation"
+    ],
+    "A4": [
+      "Durable clear and server deletion on both blob backends",
+      "Cancelled incomplete responses retain the previous durable jar on both transports",
+      "Cancelled committed clear updates the local mirror before any next request"
+    ],
+    "A5": [
+      "Lost post-commit acknowledgement reconciles exact bytes, no duplicate revision",
+      "Stale CAS never overwrites current state",
+      "Transient storage recovery replays only Artifact PUT, never target POST",
+      "Cancelled checkpoint joins a real mTLS Artifact PUT on both blob backends",
+      "Production write fence joins in-flight PostgreSQL commits and rejects old allocation writes"
+    ],
+    "A6": [
+      "128 cookies succeed; 129 fail",
+      "65536 encoded bytes succeed; one over fails, including multibyte UTF-8",
+      "Unchanged cookie jar creates no revision"
+    ],
+    "A7": [
+      "Only target cookie fields are serialized",
+      "Project authorization, Gateway token, default secret headers and bearer session auth are absent from the payload",
+      "Cookie/credential values are absent from session/request projections and tool metrics",
+      "No encryption/table/prompt/summary mechanism was introduced"
+    ]
+  },
+  "environment": {
+    "platform": "macOS arm64",
+    "postgresql": "disposable test cluster, max_locks_per_transaction=1024",
+    "go_package_parallelism": 2,
+    "database_skips": 0
+  },
+  "limitations": [
+    "The initial broad Runtime run failed, including unrelated Linux/macOS platform assumptions and intermediate fixture failures repaired in the focused HTTP suites. It is not claimed as a passing gate.",
+    "Two unchanged failures were reproduced separately on main: test_podman_supervisor::test_pidfd_is_real_close_on_exec_and_detects_live_process (pidfd_open unavailable on Darwin), and test_projectfs_local_io::test_limits_deadline_names_and_binary_classification (macOS Unicode filename normalization).",
+    "Two additional real-Vacuum OpenAPI tests were skipped because vacuum is absent. Cookie gates and real PostgreSQL tests had no selected skips.",
+    "A template without http_session_get reports an unconfirmed checkpoint and stops HTTP work; replacement restores only the committed jar. Completed target HTTP outcomes are never replayed for storage repair."
+  ]
+}

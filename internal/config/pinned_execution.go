@@ -6,7 +6,6 @@ import (
 	"reflect"
 
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
-
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -114,21 +113,44 @@ func (s *Snapshot) ResolvePinnedRunWorkflow(ctx context.Context, pinned resolved
 // bindings while rejecting catalog dependency drift. Credential use is checked
 // by the ordinary Audit start transaction, just as for a newly selected draft.
 func (s *Snapshot) ResolvePinnedAuditProfile(_ context.Context, pinned auditprofile.ResolvedAuditProfile) (auditprofile.ResolvedAuditProfile, error) {
-	seal, err := auditprofile.ProfileClosureDigest(pinned)
-	if err != nil || seal != pinned.ClosureDigest {
-		return auditprofile.ResolvedAuditProfile{}, contentdigest.ErrPinnedSelectionChanged
-	}
 	current, err := s.AuditProfile(pinned.Ref.Name + "@" + pinned.Ref.Version)
-	if err != nil || current.Ref != pinned.Ref || len(current.Workflows) != len(pinned.Workflows) {
+	if err != nil || len(current.Workflows) != len(pinned.Workflows) {
 		return auditprofile.ResolvedAuditProfile{}, contentdigest.ErrPinnedSelectionChanged
 	}
+	// Compare catalog-owned profile content with the retained effective closure.
+	// Its digest includes the captured models and may differ from the catalog's
+	// digest even while every catalog dependency remains unchanged.
 	for role, binding := range pinned.Workflows {
-		if _, ok := current.Workflows[role]; !ok {
+		catalogBinding, ok := current.Workflows[role]
+		if !ok {
 			return auditprofile.ResolvedAuditProfile{}, contentdigest.ErrPinnedSelectionChanged
 		}
 		if err := s.validatePinnedWorkflow(binding.Workflow); err != nil {
 			return auditprofile.ResolvedAuditProfile{}, err
 		}
+		// Rebuild only the captured model layer over the current immutable
+		// Workflow. Comparing the full result also detects catalog instruction,
+		// transition or input drift under an unchanged Workflow selector.
+		for name, stage := range catalogBinding.Workflow.Stages {
+			retained, ok := binding.Workflow.Stages[name]
+			if !ok {
+				return auditprofile.ResolvedAuditProfile{}, contentdigest.ErrPinnedSelectionChanged
+			}
+			stage.ModelDefaults = retained.ModelDefaults
+			resolved.ApplyStageModelDefaults(&stage)
+			catalogBinding.Workflow.Stages[name] = stage
+		}
+		if err := resolved.ResolveEscalationVariants(&catalogBinding.Workflow); err != nil {
+			return auditprofile.ResolvedAuditProfile{}, err
+		}
+		if !reflect.DeepEqual(catalogBinding.Workflow, binding.Workflow) {
+			return auditprofile.ResolvedAuditProfile{}, contentdigest.ErrPinnedSelectionChanged
+		}
+		current.Workflows[role] = catalogBinding
+	}
+	current.Ref.Digest, err = auditprofile.Digest(current)
+	if err != nil || !reflect.DeepEqual(current, pinned) {
+		return auditprofile.ResolvedAuditProfile{}, contentdigest.ErrPinnedSelectionChanged
 	}
 	return pinned.Clone(), nil
 }

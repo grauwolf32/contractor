@@ -23,6 +23,7 @@ func TestSharedPackageCorpusCoversHardeningClasses(t *testing.T) {
 		"path-backslash", "path-unicode", "path-duplicate",
 		"path-prefix-collision", "path-prefix-collision-reverse",
 		"path-duplicate-manifest", "member-scripts", "member-symlink",
+		"script-invalid-utf8", "script-nul", "script-symlink", "script-traversal",
 		"member-special-fifo", "manifest-alias", "manifest-custom-tag",
 		"manifest-malformed-yaml", "manifest-nul", "archive-forged-size",
 		"archive-crc-mismatch", "archive-truncated-payload",

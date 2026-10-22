@@ -269,7 +269,7 @@ func TestPostgresActiveRunReadsUseActiveStateIndexes(t *testing.T) {
 		return err
 	}), "workflow_runs_runtime_llm_credentials_idx", "workflow_runs_workflow_credentials_idx")
 	assertPlanUsesIndexes(t, ctx, pool, "Scheduler claim", captureStatement(t, func(store *PostgresStore) error {
-		_, err := store.ClaimRunnableRun(ctx, "claim-plan", time.Minute)
+		_, err := store.ClaimRunnableRun(ctx, "claim-plan", time.Minute, nil)
 		return err
 	}), "workflow_runs_claim_idx", "workflow_runs_deferred_claim_idx")
 }
@@ -457,7 +457,7 @@ func TestPostgresClaimRenewalIsHeapOnlyUpdate(t *testing.T) {
 	if _, err := admitTestRun(ctx, store, run.RunID); err != nil {
 		t.Fatal(err)
 	}
-	claimed, err := store.ClaimRunnableRun(ctx, "claim-hot", time.Minute)
+	claimed, err := store.ClaimRunnableRun(ctx, "claim-hot", time.Minute, nil)
 	if err != nil || claimed.RunID != run.RunID {
 		t.Fatalf("claim = (%s, %v)", claimed.RunID, err)
 	}

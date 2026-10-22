@@ -11,6 +11,15 @@ from contractor_runtime.artifacts import (
 from contractor_runtime.contracts import ArtifactRef, ArtifactWriteResult
 from contractor_runtime.core.input_errors import ToolInputError
 
+
+class DocumentWriteUnconfirmed(ToolInputError):
+    """A CAS conflict is distinct from unresolved storage acknowledgement loss."""
+
+    def __init__(self, message: str, *, conflict: bool) -> None:
+        super().__init__(message, code="document_changed")
+        self.conflict = conflict
+
+
 _DEFINITE_DENIALS = frozenset({"allocation_write_fenced", "artifact_access_denied"})
 
 
@@ -27,11 +36,11 @@ async def write_document_exact(
 ) -> ArtifactWriteResult | ArtifactValue:
     """Replay an ambiguous PUT once, then adopt only byte-identical current state."""
 
-    def changed() -> ToolInputError:
-        return ToolInputError(
+    def changed(*, conflict: bool = False) -> DocumentWriteUnconfirmed:
+        return DocumentWriteUnconfirmed(
             f"Document revision needs reconciliation; call {reload_tool}, then "
             f"{read_tool}, before changing it",
-            code="document_changed",
+            conflict=conflict,
         )
 
     async def put() -> ArtifactWriteResult:
@@ -46,7 +55,7 @@ async def write_document_exact(
         return await put()
     except ArtifactAPIError as error:
         if error.code == "artifact_conflict":
-            raise changed() from None
+            raise changed(conflict=True) from None
         if _definite_rejection(error):
             raise
     except ArtifactTransportError:
@@ -72,7 +81,7 @@ async def write_document_exact(
         raise changed() from None
     if current.media_type == media_type and current.data == data:
         return current
-    raise changed()
+    raise changed(conflict=current.artifact.revision != expected_revision)
 
 
 def _definite_rejection(error: ArtifactAPIError) -> bool:

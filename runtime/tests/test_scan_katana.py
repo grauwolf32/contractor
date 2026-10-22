@@ -319,12 +319,33 @@ def test_publication_failure_preserves_primary_process_error(tmp_path, monkeypat
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize("stream", ["stdout", "stderr"])
 @pytest.mark.parametrize(
-    "version,accepted", [("1.5.0", False), ("1.6.1", False), ("1.7.0", True), ("1.8.0", False)]
+    "version,exit_code,accepted",
+    [
+        ("1.5.0", 0, False),
+        ("1.6.1", 0, False),
+        ("1.7.0", 0, True),
+        ("1.7.12", 0, True),
+        ("1.8.0", 0, True),
+        ("1.8.12", 0, True),
+        ("1.9.0", 0, False),
+        ("2.0.0", 0, False),
+        ("1.8.0-rc.1", 0, False),
+        ("1.8.0.1", 0, False),
+        ("1.8", 0, False),
+        ("1.8.x", 0, False),
+        ("1.8.0", 1, False),
+    ],
 )
-def test_unsupported_binary_version_only_disables_katana(tmp_path, monkeypatch, version, accepted):
+def test_binary_version_probe_only_disables_unsupported_katana(
+    tmp_path, monkeypatch, version, exit_code, accepted, stream
+):
     executable(
-        tmp_path, "katana", f"import sys; print('Current version: v{version}', file=sys.stderr)"
+        tmp_path,
+        "katana",
+        f"import sys; print('Current version: v{version}', file=sys.{stream}); "
+        f"raise SystemExit({exit_code})",
     )
     executable(tmp_path, "naabu", "print('fixture')")
     monkeypatch.setenv("PATH", str(tmp_path))

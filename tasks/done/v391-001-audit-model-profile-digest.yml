@@ -1,0 +1,64 @@
+schema_version: "1.0"
+id: V391-001
+title: Pin Audit profile digests after deployment model selection
+milestone: model-policy-runtime-correctness
+epic: audits
+kind: defect
+introduced_by: V387-003
+priority: P1
+status: completed
+implementation_commit: 4025108ed39610816904ab0a6a24ed298b697486
+depends_on: []
+languages: [go]
+goal: Persist a self-consistent Audit profile after applying captured model defaults and preserve that exact profile through Audit start and Eval reuse.
+context:
+  specification:
+    - docs/spec/configuration/catalog.md#CAT-R80
+    - docs/spec/audits/audits.md#AUD-R20
+    - docs/spec/configuration/agent-templates.md#TPL-R79
+    - docs/spec/evals/managed-evals.md#EVM-R61
+  severity: high
+  finding: >-
+    internal/config/model_selection.go:304-323 mutates the resolved Workflow
+    closures without updating the AuditProfile digest. A new draft is persisted
+    successfully but internal/auditservice/start.go:149-153 rejects its own
+    snapshot with an unclassified error, returning internal_error/500. Local
+    request request_68fc48856e01ae23b52df7cdbe873d55 reproduced this on
+    audit_59b4b4dd348d533e91b82a14d47aca8d. The saved snapshot fails
+    DecodeResolvedAuditProfileSnapshot with persisted AuditProfile digest is invalid.
+  siblings: >-
+    ResolvePinnedAuditProfile currently equates the catalog profile digest with
+    the effective profile digest; it must validate catalog content and captured
+    model closures separately. Offline profiles, model-free workflows, ordinary
+    Run resolution, prepared Audit Evals and later model-setting changes must
+    retain their existing semantics. Persisted invalid profiles remain rejected;
+    no legacy reader or automatic rewrite of retained business data is added.
+scope:
+  in:
+    - Recompute the effective profile digest using the owning AuditProfile algorithm.
+    - Validate retained effective profiles against the immutable catalog and captured Workflow policies.
+    - Add a real PostgreSQL draft/start regression with configured deployment models.
+    - Test setting changes, Eval profile reuse and rejected profile or dependency drift.
+  out:
+    - Rewriting existing draft snapshots, changing selected models or starting live model work.
+    - Raising inventory limits, changing OpenAPI handling or deploying unrelated changes.
+acceptance_criteria:
+  - id: A1
+    text: A newly resolved profile with deployment defaults has a matching digest, survives strict JSON and PostgreSQL round trips, and starts successfully through the real Audit service.
+  - id: A2
+    text: A later model-default change affects new profiles only; the existing draft and a reused Eval profile preserve their captured policy content and effective digest.
+  - id: A3
+    text: Missing roles, changed profile content, invalid digests and catalog dependency drift reject pinned reuse without writes; offline profiles still round-trip unchanged.
+  - id: A4
+    text: The real-store regression fails before the fix and all touched Go packages and lint pass afterward.
+tests:
+  - command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/config/... ./internal/auditservice ./internal/evalservice/...
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+verification:
+  regression_before_fix: Both the strict snapshot test and real PostgreSQL draft/start test failed with the reported invalid profile digest.
+  postgres: All configuration, Audit service and Eval service package suites passed against contractor_v391_test, including retained Eval reuse, start replay and rejection of modified profile content.
+  lint: make lint passed with Go 1.26.9, Node 24.20.0 and Python 3.13 after integrating current main.
+  configuration: Shipped configuration validation passed before integration; the final deployment validates its exact released catalog again.
+  environment: TMPDIR=/private/tmp avoids the existing macOS symlink-sensitive root test. Checks use independent Runtime and UI dependency directories.

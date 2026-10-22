@@ -13,6 +13,8 @@ languages:
 goal: Freeze effective model bindings under a verified profile closure digest while retaining catalog identity, so valid Audits start and prepared
   Evals keep their exact selection.
 context:
+  integration_note: >-
+    During V397-017 main integration, this independently developed closure-seal implementation was superseded by the already accepted V391-001 single effective-profile digest. Historical verification and implementation commits are retained; current readers and model binding follow V391-001 and AUD-R20.
   severity: medium
   finding: internal/config/model_selection.go:304-323 applies deployment model defaults to Workflow bodies while preserving the catalog profile
     digest; internal/config/auditprofile/persisted.go:62 then recomputes that digest over changed bodies and rejects Audit start. Both finding

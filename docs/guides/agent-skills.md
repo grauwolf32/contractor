@@ -17,12 +17,32 @@ download. See the [UI archive limits](../../ui/README.md) for supported archives
 
 Reviewable built-in Agent Skill sources live only below
 `configs/skills/<name>`. Validate a source tree and create its deterministic,
-script-free package with:
+canonical package with:
 
 ```shell
 contractor-skill validate configs/skills/likec4
 contractor-skill package configs/skills/likec4 /tmp/likec4.zip
 ```
+
+Packages may include regular UTF-8 script source under `scripts/`, with the same
+portable paths and 1 MiB per-resource bound as references. The native
+`load_skill_resource` function reads those exact paths as text; it never runs
+them. There is no `run_skill_script` operation. When workspace writing and
+sandbox `exec_command` are independently selected, a Worker may materialize a
+script and its assets in scratch and invoke a preinstalled interpreter there.
+Missing capabilities must be reported as blockers. Skills install no dependencies
+and do not expose a host shell or `/skills` mount.
+
+The bundled `security-audit` package imports Cloudflare's MIT-licensed audit
+methodology, fourteen topic references, report schema and two Node.js validators.
+Its `assets/provenance.md` records the pinned source revision and adaptations.
+Select the logical `skills/security-audit` ref in a Worker template to make it
+available for future Runs. Existing workflows are not changed by this import.
+Focused source review works with the available read/report operations; the full
+upstream audit additionally needs independent agent roles and its documented
+isolation controls. A Worker lacking them must report partial or incomplete
+coverage. Validator execution requires a sandbox image with Node.js already
+installed; the default Python-only image does not provide it.
 
 `AgentTemplate` is a Server-side configuration term, not Worker guidance.
 Never refer to it from bundled `SKILL.md` or reference content. Conditional

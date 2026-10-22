@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-79 open tasks: 4 in progress, 50 pending, 25 deferred. 938 finished: 935 completed, 3 archived.
+78 open tasks: 4 in progress, 49 pending, 25 deferred. 945 finished: 942 completed, 3 archived.
 
 ## In progress
 
@@ -45,7 +45,6 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V377-001](v377-001-http-cookie-session-artifact.yml) | feature | P1 | — | Preserve target cookies as an ordinary artifact across Run continuation |
 | [V382-001](v382-001-interactsh-worker-tools.yml) | feature | P1 | — | Add configurable Interactsh tools for Worker callback evidence |
 | [V386-004](v386-004-caido-catalog-cardinality.yml) | defect | P2 | — | Keep Caido catalog selection usable above one hundred entries |
 
@@ -175,23 +174,23 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 3 | 36 | 49 | 11 | 64 |
-| Planners and the Worker model boundary (`planner-worker`) | 3 | 27 | 37 | 14 | 54 |
+| Run execution core (`execution-core`) | 3 | 36 | 50 | 11 | 65 |
+| Planners and the Worker model boundary (`planner-worker`) | 3 | 27 | 37 | 14 | 55 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 11 | 25 | 12 | 3 | 37 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 1 | 11 |
-| Agent Skills (`agent-skills`) | 0 | 10 | 2 | 1 | 1 |
+| Agent Skills (`agent-skills`) | 0 | 11 | 2 | 1 | 1 |
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 12 | 4 | 15 |
 | Code analysis and taint annotations (`code-analysis`) | 0 | 14 | 13 | 2 | 18 |
-| HTTP and Caido tools (`http-tools`) | 3 | 11 | 14 | 4 | 15 |
-| Scanner tool Workers and scan planning (`scan-tools`) | 1 | 10 | 4 | 1 | 7 |
+| HTTP and Caido tools (`http-tools`) | 2 | 11 | 14 | 4 | 15 |
+| Scanner tool Workers and scan planning (`scan-tools`) | 1 | 11 | 4 | 2 | 8 |
 | Findings tools and collections (`findings`) | 8 | 14 | 5 | 6 | 9 |
 | Workflow catalog and document workflows (`workflows`) | 3 | 14 | 13 | 12 | 12 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 30 | 32 | 5 | 35 |
-| Audits (`audits`) | 17 | 50 | 69 | 16 | 81 |
+| Audits (`audits`) | 17 | 50 | 70 | 16 | 81 |
 | Evaluations (`evals`) | 3 | 21 | 29 | 5 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 9 | 1 | 1 | 2 |
 | Web UI (`ui`) | 1 | 21 | 55 | 12 | 49 |
-| Operations, authentication, CLI and deployment (`operations`) | 0 | 11 | 32 | 5 | 9 |
+| Operations, authentication, CLI and deployment (`operations`) | 0 | 12 | 32 | 5 | 9 |
 | Public API and wire contracts (`api-contracts`) | 7 | 1 | 29 | 20 | 8 |
 | PostgreSQL persistence and schema (`persistence`) | 4 | 0 | 19 | 33 | 8 |
 | Quality, CI and process (`quality`) | 14 | 1 | 20 | 78 | 16 |

@@ -1,4 +1,4 @@
-"""Allocation-local loading and script-free ADK exposure of Agent Skills."""
+"""Allocation-local loading and non-executing ADK disclosure of Agent Skills."""
 
 from __future__ import annotations
 
@@ -61,12 +61,13 @@ SKILL_SYSTEM_INSTRUCTION = (
     "functions. Use list_skills to see their names and descriptions. When one is "
     "relevant, call load_skill with its exact name to read its SKILL.md guidance, "
     "then continue the task in the same turn. Use load_skill_resource only for an "
-    "exact references/... or assets/... path named by that guidance. These resources "
+    "exact references/..., assets/... or scripts/... path named by that guidance. "
+    "Script resources are source text only; reading them never executes code. These resources "
     "belong to the selected skill and are not user-provided Run artifacts. If a skill "
     "or resource call returns an error, do not guess alternate names or paths."
 )
 
-_FORBIDDEN_ADK_SURFACE = ("run_skill_script", "search_skills", "scripts/")
+_FORBIDDEN_ADK_SURFACE = ("run_skill_script", "search_skills")
 _PORTABLE_COMPONENT = re.compile(r"^[a-z0-9][a-z0-9._-]{0,127}$")
 
 
@@ -271,11 +272,11 @@ class ContractorSkillTool(BaseTool):
                 "    The skill instructions and resource guidance for the current task."
             ),
             "load_skill_resource": (
-                "Read a reference or asset from a selected Agent Skill.\n\n"
+                "Read a reference, asset or script source from a selected Agent Skill.\n\n"
                 "Load the skill first and use a resource path named in its guidance.\n\n"
                 "Args:\n"
                 "    skill_name: Exact skill name returned by list_skills.\n"
-                "    file_path: Exact skill-relative references/... or assets/... path.\n\n"
+                "    file_path: Exact path under references/, assets/ or scripts/.\n\n"
                 "Returns:\n"
                 "    Resource text, or a status that binary content is unavailable to this model."
             ),
@@ -297,7 +298,7 @@ class ContractorSkillTool(BaseTool):
         if self.name == "load_skill_resource":
             properties["file_path"] = {
                 "type": "string",
-                "description": "Exact skill-relative references/... or assets/... path.",
+                "description": "Exact skill-relative path under references/, assets/ or scripts/.",
             }
             required.append("file_path")
         schema: dict[str, Any] = {
@@ -506,7 +507,12 @@ async def prepare_agent_skills(
                 ) from None
             if (
                 skill.name != selected.name
-                or skill.resources.scripts
+                or set(skill.resources.scripts)
+                != {
+                    resource.path.removeprefix("scripts/")
+                    for resource in package.resources
+                    if resource.path.startswith("scripts/")
+                }
                 or set(skill.resources.references)
                 != {
                     resource.path.removeprefix("references/")
@@ -560,7 +566,7 @@ async def prepare_agent_skills(
 
 
 async def probe_native_agent_skills() -> bool:
-    """Prove the pinned ADK loader and exact script-free adapter assumptions."""
+    """Prove the pinned ADK loader and exact non-executing adapter assumptions."""
 
     if any(value in SKILL_SYSTEM_INSTRUCTION for value in _FORBIDDEN_ADK_SURFACE):
         return False
@@ -572,7 +578,14 @@ async def probe_native_agent_skills() -> bool:
             "Follow the supplied task.\n",
             encoding="utf-8",
         )
+        (directory / "scripts").mkdir()
+        source = "throw new Error('source disclosure must not execute');\n"
+        (directory / "scripts" / "check.cjs").write_text(source, encoding="utf-8")
         skill = load_skill_from_dir(directory)
+        if set(skill.resources.scripts) != {"check.cjs"}:
+            return False
+        if skill.resources.scripts["check.cjs"].src != source:
+            return False
         skill._uri = None
         native = SkillToolset(
             skills=[skill],
@@ -614,6 +627,7 @@ def _build_disclosure_plan(
         for prefix, resources in (
             ("references", skill.resources.references),
             ("assets", skill.resources.assets),
+            ("scripts", {name: script.src for name, script in skill.resources.scripts.items()}),
         ):
             for relative_path, content in resources.items():
                 file_path = f"{prefix}/{relative_path}"
@@ -679,7 +693,7 @@ def _valid_resource_path(value: str) -> bool:
     components = value.split("/")
     return (
         2 <= len(components) <= MAXIMUM_PATH_COMPONENTS
-        and components[0] in {"references", "assets"}
+        and components[0] in {"references", "assets", "scripts"}
         and all(
             component not in {"", ".", ".."} and _PORTABLE_COMPONENT.fullmatch(component)
             for component in components
