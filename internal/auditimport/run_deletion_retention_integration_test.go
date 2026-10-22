@@ -158,7 +158,7 @@ INSERT INTO finding_proposal_receipts (
 	}
 	var original []byte
 	mustCompletion(t, f.pool.QueryRow(f.ctx, `
-SELECT jsonb_agg(to_jsonb(receipt) - ARRAY['retention_state', 'source_run_deleted_at', 'discarded_at', 'retention_updated_at', 'fingerprint_projection', 'anchor_projection']
+SELECT jsonb_agg(to_jsonb(receipt) - ARRAY['retention_state', 'source_run_deleted_at', 'discarded_at', 'retention_updated_at', 'fingerprint_projection', 'anchor_projection', 'comparison_projection']
                  ORDER BY receipt_id)
 FROM finding_proposal_receipts AS receipt WHERE run_id = $1`, f.run.RunID).Scan(&original))
 	mustCompletion(t, rundeletion.New(f.pool).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
@@ -169,8 +169,17 @@ FROM finding_proposal_receipts AS receipt WHERE run_id = $1`, f.run.RunID).Scan(
 	}
 	var retained []byte
 	var discarded int
+	var incorrectDiscardCache int
 	mustCompletion(t, f.pool.QueryRow(f.ctx, `
-SELECT jsonb_agg(to_jsonb(receipt) - ARRAY['retention_state', 'source_run_deleted_at', 'discarded_at', 'retention_updated_at', 'fingerprint_projection', 'anchor_projection']
+SELECT count(*) FROM finding_proposal_receipts
+WHERE run_id=$1 AND retention_state='discarded'
+AND (comparison_projection->>'availability' IS DISTINCT FROM 'unavailable'
+ OR comparison_projection->>'reason' IS DISTINCT FROM 'discarded')`, f.run.RunID).Scan(&incorrectDiscardCache))
+	if incorrectDiscardCache != 0 {
+		t.Fatal("discarded receipts retained comparison matching hints")
+	}
+	mustCompletion(t, f.pool.QueryRow(f.ctx, `
+SELECT jsonb_agg(to_jsonb(receipt) - ARRAY['retention_state', 'source_run_deleted_at', 'discarded_at', 'retention_updated_at', 'fingerprint_projection', 'anchor_projection', 'comparison_projection']
                  ORDER BY receipt_id)
 FROM finding_proposal_receipts AS receipt WHERE run_id = $1`, f.run.RunID).Scan(&retained))
 	// jsonb has a canonical encoding, including the original exact refs.
