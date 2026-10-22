@@ -71,5 +71,8 @@ verification:
   - make test-findings-e2e passed all 14 mandatory process cases and 163 Runtime finding cases.
   - make verify-public-api, generate-public-client-check and ui-generate-check passed.
   - make lint passed; final repeat includes the added real-store selection regression.
+  - Current-schema JSON fixture is sealed with the production codec; obsolete or missing-seal snapshots still fail. Full artifacts and persistence/postgres
+    suites passed after the fixture refresh.
+  - Audit controller and audit store integration suites passed; auditimport passed after the fingerprint-discard assertion update owned by V392-001.
   boundary: Closure seals apply only to Server-retained AuditProfile snapshots. Worker tool and wire contracts, configured model choices and public
     profile projections stay unchanged.
