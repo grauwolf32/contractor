@@ -5,7 +5,8 @@ milestone: scan-tools-followups
 epic: scan-tools
 kind: feature
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 94505618c2673f86dfbd2c3c76b8552a59bb6910
 depends_on: [V55-010]
 languages: [python, markdown]
 goal: >-
