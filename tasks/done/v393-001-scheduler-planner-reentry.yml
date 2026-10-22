@@ -6,7 +6,8 @@ epic: execution-core
 kind: defect
 introduced_by: V27-002
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 526f604d653ed5b522474d8a8e19ac267296ce17
 depends_on: []
 languages: [go]
 goal: >-
