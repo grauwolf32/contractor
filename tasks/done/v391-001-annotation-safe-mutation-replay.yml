@@ -6,7 +6,8 @@ epic: code-analysis
 kind: defect
 introduced_by: V16-002
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 3b7d63d383d9f769f5e851ce4f125b52cc1aafc3
 depends_on: [V16-002, V16-003]
 languages: [python, go, yaml]
 goal: >-
@@ -75,9 +76,10 @@ verification:
     - "make test-taint-annotations-e2e: passed, including the expanded hardening matrix, 312 Runtime/capability checks, 59 hardening/lifecycle checks and the real Server/Runtime process test."
     - "make lint: passed, including Go vet/staticcheck, task/spec checks, UI gates, Ruff and Python import-layer checks."
   regression_proof: >-
-    Loaded the original HEAD languages/tools modules from git into a temporary
-    package and ran the same regression file: 222 failed and 32 positive cases
-    passed. The corrected implementation passes all 254 regression cases.
+    Loaded the pre-fix languages/tools modules from the parent of
+    implementation_commit into a temporary package and ran the same regression
+    file: 222 failed and 32 positive cases passed. The corrected implementation
+    passes all 254 regression cases.
   environment: >-
     Used the repository's pinned Go 1.26.9 and Node 24.20 tools, locked Python
     3.13 dependencies, a temporary build cache and an independent PostgreSQL 17
