@@ -27,6 +27,7 @@ var postgresSQLStateClasses = strings.Fields(`00 01 02 03 08 09 0A 0B 0F 0L 0P 0
 // nonSQLStateLiterals are values that only look like SQLSTATE codes, keyed by
 // file and value, each with the reason it is not one.
 var nonSQLStateLiterals = map[string]string{
+	"internal/gitimport/analysis_test.go:40000":               "Git directory tree mode in the exact archive-selection fixture",
 	"internal/gitimport/archive.go:40000":                     "Git tree mode of a directory entry",
 	"internal/artifacts/query_indexes_postgres_test.go:25000": "payload bytes hashed by an index probe",
 	"internal/persistence/sqlstate_literal_test.go:P0001":     "sample SQL that this scanner's own test must report",
