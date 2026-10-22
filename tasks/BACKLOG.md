@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-82 open tasks: 3 in progress, 54 pending, 25 deferred. 928 finished: 925 completed, 3 archived.
+82 open tasks: 4 in progress, 53 pending, 25 deferred. 928 finished: 925 completed, 3 archived.
 
 ## In progress
 
@@ -14,6 +14,7 @@ the epics are in [epics.yml](epics.yml).
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
+| [V392-002](v392-002-finding-structural-anchors.yml) | code-analysis | feature | P2 | Derive structural site and qualified snapshot issue anchors from exact source |
 
 ## Pending
 
@@ -39,12 +40,6 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V372-006](v372-006-runtime-label-set-rule.yml) | chore | P3 | — | Give the Runtime label set rule one Go definition and hold the UI and the Runtime to it |
 | [V372-021](v372-021-credential-master-key-unavailable.yml) | defect | P2 | — | Answer an LLM or Runtime credential operation without the master key with a registered non-retryable code |
-
-### Code analysis and taint annotations (`code-analysis`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V392-002](v392-002-finding-structural-anchors.yml) | feature | P2 | — | Derive structural site and qualified snapshot issue anchors from exact source |
 
 ### HTTP and Caido tools (`http-tools`)
 

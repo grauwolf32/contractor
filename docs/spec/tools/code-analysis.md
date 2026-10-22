@@ -1064,6 +1064,15 @@ selects overlay export, the resulting cumulative state can be applied by a
 later Stage and the text diff can be analyzed as an ordinary artifact, as
 defined in [Workspace](workspace.md).
 
+**CAN-R151.** Finding structural correlation uses the same pinned parser
+library through a lower common helper, without importing another concrete
+Toolset or relying on workspace graph IDs. Its exact retained ZIP evidence,
+three statement profiles, candidate-only site semantics, node-local issue
+qualification and independent budgets are owned by
+[Findings](../findings/findings.md#FND-R168). It does not expose another model
+tool or add a generic taint analyzer. Common source line boundaries are shared
+by finding anchors and annotation placement.
+
 ## Interfaces
 
 Both Toolsets are model-visible Worker tool surfaces. The Server descriptor

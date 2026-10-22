@@ -3913,6 +3913,66 @@ export interface components {
             source: components["schemas"]["FindingExactArtifact"];
             recordLocator: string;
         };
+        FindingAnchorContext: {
+            /** @constant */
+            scheme: "node-local/v1";
+            /** @constant */
+            ruleId: "source.private-key-literal.ed25519/v1";
+            literalDigest: components["schemas"]["Digest"];
+            contextDigest: components["schemas"]["Digest"];
+        };
+        FindingStructuralAnchor: {
+            file: string;
+            startLine: number;
+            endLine: number;
+            /** @enum {unknown} */
+            language: "python" | "javascript" | "typescript";
+            /** @enum {unknown} */
+            profile: "python/statement-v1" | "javascript/statement-v1" | "typescript/statement-v1";
+            /** @constant */
+            grammar: "tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2";
+            fileDigest: components["schemas"]["Digest"];
+            signatureDigest: components["schemas"]["Digest"];
+            nodeDigest: components["schemas"]["Digest"];
+            path: number[];
+            context?: components["schemas"]["FindingAnchorContext"];
+        };
+        FindingAnchorBasis: {
+            /** @constant */
+            schema: "contractor.finding.anchors-derived.v1";
+            /** @constant */
+            availability: "available";
+            sourceRef: components["schemas"]["ExactArtifactRef"];
+            sourceDigest: components["schemas"]["Digest"];
+            anchors: components["schemas"]["FindingStructuralAnchor"][];
+        };
+        FindingAnchorKeys: {
+            siteKey: string;
+            issueKey: string;
+        } | {
+            siteKey: string;
+            /** @constant */
+            issueReason: "issue_context_unavailable";
+        };
+        /** @description Immutable exact-source correlation evidence. Sites alone are candidates; qualified issue keys require the same source snapshot and never set analyst verdicts. */
+        FindingAnchorProjection: {
+            /** @constant */
+            schema: "contractor.finding.anchors-projection.v1";
+            /** @constant */
+            availability: "unavailable";
+            /** @enum {unknown} */
+            reason: "not_recorded" | "not_provided" | "input_limit" | "asset_unavailable" | "selector_unavailable" | "anchor_language_unsupported" | "anchor_parser_unavailable" | "source_invalid" | "source_missing" | "parse_error" | "anchor_ambiguous" | "discarded";
+        } | {
+            /** @constant */
+            schema: "contractor.finding.anchors-projection.v1";
+            /** @constant */
+            availability: "available";
+            repository: string;
+            commit: string;
+            source: components["schemas"]["FindingExactArtifact"];
+            basis: components["schemas"]["FindingAnchorBasis"];
+            keys: components["schemas"]["FindingAnchorKeys"][];
+        };
         FindingSubject: {
             kind: string;
             key: string;
@@ -4144,6 +4204,7 @@ export interface components {
             duplicateTargetId?: components["schemas"]["ResourceId"];
             firstProposal: components["schemas"]["FindingProposalReceipt"];
             fingerprint?: components["schemas"]["FindingFingerprintProjection"];
+            anchors?: components["schemas"]["FindingAnchorProjection"];
             currentAssessment?: components["schemas"]["AuditFindingAssessment"];
             analystDecision?: components["schemas"]["AuditReviewDecision"];
             analystVerdict?: components["schemas"]["AuditAnalystVerdict"];

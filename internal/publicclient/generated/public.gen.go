@@ -3062,14 +3062,17 @@ type AuditFinalDisposition = interface{}
 
 // AuditFinding defines model for AuditFinding.
 type AuditFinding struct {
-	AnalystDecision   *AuditReviewDecision    `json:"analystDecision,omitempty"`
-	AnalystSeverity   *AuditFindingSeverity   `json:"analystSeverity,omitempty"`
-	AnalystVerdict    *AuditAnalystVerdict    `json:"analystVerdict,omitempty"`
-	AuditId           ResourceId              `json:"auditId"`
-	CreatedAt         time.Time               `json:"createdAt"`
-	CurrentAssessment *AuditFindingAssessment `json:"currentAssessment,omitempty"`
-	DuplicateTargetId *ResourceId             `json:"duplicateTargetId,omitempty"`
-	FindingId         ResourceId              `json:"findingId"`
+	AnalystDecision *AuditReviewDecision  `json:"analystDecision,omitempty"`
+	AnalystSeverity *AuditFindingSeverity `json:"analystSeverity,omitempty"`
+	AnalystVerdict  *AuditAnalystVerdict  `json:"analystVerdict,omitempty"`
+
+	// Anchors Immutable exact-source correlation evidence. Sites alone are candidates; qualified issue keys require the same source snapshot and never set analyst verdicts.
+	Anchors           *FindingAnchorProjection `json:"anchors,omitempty"`
+	AuditId           ResourceId               `json:"auditId"`
+	CreatedAt         time.Time                `json:"createdAt"`
+	CurrentAssessment *AuditFindingAssessment  `json:"currentAssessment,omitempty"`
+	DuplicateTargetId *ResourceId              `json:"duplicateTargetId,omitempty"`
+	FindingId         ResourceId               `json:"findingId"`
 
 	// Fingerprint Immutable deterministic key evidence; independent of analyst triage. Snapshot keys apply only to the exact Git commit and source digest.
 	Fingerprint     *FindingFingerprintProjection `json:"fingerprint,omitempty"`
@@ -5241,6 +5244,63 @@ type ExecutionSelectionPatch struct {
 	SummarizerModelPolicy *Selector                   `json:"summarizerModelPolicy,omitempty"`
 }
 
+// FindingAnchorBasis defines model for FindingAnchorBasis.
+type FindingAnchorBasis struct {
+	Anchors      []FindingStructuralAnchor `json:"anchors"`
+	Availability interface{}               `json:"availability"`
+	Schema       interface{}               `json:"schema"`
+	SourceDigest Digest                    `json:"sourceDigest"`
+	SourceRef    ExactArtifactRef          `json:"sourceRef"`
+}
+
+// FindingAnchorContext defines model for FindingAnchorContext.
+type FindingAnchorContext struct {
+	ContextDigest Digest      `json:"contextDigest"`
+	LiteralDigest Digest      `json:"literalDigest"`
+	RuleId        interface{} `json:"ruleId"`
+	Scheme        interface{} `json:"scheme"`
+}
+
+// FindingAnchorKeys defines model for FindingAnchorKeys.
+type FindingAnchorKeys struct {
+	union json.RawMessage
+}
+
+// FindingAnchorKeys0 defines model for FindingAnchorKeys.0.
+type FindingAnchorKeys0 struct {
+	IssueKey string `json:"issueKey"`
+	SiteKey  string `json:"siteKey"`
+}
+
+// FindingAnchorKeys1 defines model for FindingAnchorKeys.1.
+type FindingAnchorKeys1 struct {
+	IssueReason interface{} `json:"issueReason"`
+	SiteKey     string      `json:"siteKey"`
+}
+
+// FindingAnchorProjection Immutable exact-source correlation evidence. Sites alone are candidates; qualified issue keys require the same source snapshot and never set analyst verdicts.
+type FindingAnchorProjection struct {
+	union json.RawMessage
+}
+
+// FindingAnchorProjection0 defines model for FindingAnchorProjection.0.
+type FindingAnchorProjection0 struct {
+	Availability interface{} `json:"availability"`
+	Reason       interface{} `json:"reason"`
+	Schema       interface{} `json:"schema"`
+}
+
+// FindingAnchorProjection1 defines model for FindingAnchorProjection.1.
+type FindingAnchorProjection1 struct {
+	Availability interface{}          `json:"availability"`
+	Basis        FindingAnchorBasis   `json:"basis"`
+	Commit       string               `json:"commit"`
+	Keys         []FindingAnchorKeys  `json:"keys"`
+	Repository   string               `json:"repository"`
+	Schema       interface{}          `json:"schema"`
+	Source       FindingExactArtifact `json:"source"`
+}
+
 // FindingAuditHold defines model for FindingAuditHold.
 type FindingAuditHold struct {
 	AuditId   ResourceId             `json:"auditId"`
@@ -5444,6 +5504,21 @@ type FindingStandardReference struct {
 	RequirementId string `json:"requirement_id"`
 	Scheme        string `json:"scheme"`
 	Version       string `json:"version"`
+}
+
+// FindingStructuralAnchor defines model for FindingStructuralAnchor.
+type FindingStructuralAnchor struct {
+	Context         *FindingAnchorContext `json:"context,omitempty"`
+	EndLine         int                   `json:"endLine"`
+	File            string                `json:"file"`
+	FileDigest      Digest                `json:"fileDigest"`
+	Grammar         interface{}           `json:"grammar"`
+	Language        interface{}           `json:"language"`
+	NodeDigest      Digest                `json:"nodeDigest"`
+	Path            []int                 `json:"path"`
+	Profile         interface{}           `json:"profile"`
+	SignatureDigest Digest                `json:"signatureDigest"`
+	StartLine       int                   `json:"startLine"`
 }
 
 // FindingSubject defines model for FindingSubject.
@@ -11306,6 +11381,130 @@ func (t EvalMediaRange) MarshalJSON() ([]byte, error) {
 }
 
 func (t *EvalMediaRange) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsFindingAnchorKeys0 returns the union data inside the FindingAnchorKeys as a FindingAnchorKeys0
+func (t FindingAnchorKeys) AsFindingAnchorKeys0() (FindingAnchorKeys0, error) {
+	var body FindingAnchorKeys0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromFindingAnchorKeys0 overwrites any union data inside the FindingAnchorKeys as the provided FindingAnchorKeys0
+func (t *FindingAnchorKeys) FromFindingAnchorKeys0(v FindingAnchorKeys0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeFindingAnchorKeys0 performs a merge with any union data inside the FindingAnchorKeys, using the provided FindingAnchorKeys0
+func (t *FindingAnchorKeys) MergeFindingAnchorKeys0(v FindingAnchorKeys0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsFindingAnchorKeys1 returns the union data inside the FindingAnchorKeys as a FindingAnchorKeys1
+func (t FindingAnchorKeys) AsFindingAnchorKeys1() (FindingAnchorKeys1, error) {
+	var body FindingAnchorKeys1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromFindingAnchorKeys1 overwrites any union data inside the FindingAnchorKeys as the provided FindingAnchorKeys1
+func (t *FindingAnchorKeys) FromFindingAnchorKeys1(v FindingAnchorKeys1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeFindingAnchorKeys1 performs a merge with any union data inside the FindingAnchorKeys, using the provided FindingAnchorKeys1
+func (t *FindingAnchorKeys) MergeFindingAnchorKeys1(v FindingAnchorKeys1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t FindingAnchorKeys) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *FindingAnchorKeys) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsFindingAnchorProjection0 returns the union data inside the FindingAnchorProjection as a FindingAnchorProjection0
+func (t FindingAnchorProjection) AsFindingAnchorProjection0() (FindingAnchorProjection0, error) {
+	var body FindingAnchorProjection0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromFindingAnchorProjection0 overwrites any union data inside the FindingAnchorProjection as the provided FindingAnchorProjection0
+func (t *FindingAnchorProjection) FromFindingAnchorProjection0(v FindingAnchorProjection0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeFindingAnchorProjection0 performs a merge with any union data inside the FindingAnchorProjection, using the provided FindingAnchorProjection0
+func (t *FindingAnchorProjection) MergeFindingAnchorProjection0(v FindingAnchorProjection0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsFindingAnchorProjection1 returns the union data inside the FindingAnchorProjection as a FindingAnchorProjection1
+func (t FindingAnchorProjection) AsFindingAnchorProjection1() (FindingAnchorProjection1, error) {
+	var body FindingAnchorProjection1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromFindingAnchorProjection1 overwrites any union data inside the FindingAnchorProjection as the provided FindingAnchorProjection1
+func (t *FindingAnchorProjection) FromFindingAnchorProjection1(v FindingAnchorProjection1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeFindingAnchorProjection1 performs a merge with any union data inside the FindingAnchorProjection, using the provided FindingAnchorProjection1
+func (t *FindingAnchorProjection) MergeFindingAnchorProjection1(v FindingAnchorProjection1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t FindingAnchorProjection) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *FindingAnchorProjection) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }

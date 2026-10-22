@@ -1,0 +1,78 @@
+{
+  "name": "python-local-key",
+  "source": "key = '-----BEGIN PRIVATE KEY-----\\nMC4CAQAwBQYDK2VwBCIEIAABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4f\\n-----END PRIVATE KEY-----\\n'\n",
+  "file": "src/a.py",
+  "line": 1,
+  "qualifyLocal": true,
+  "zipBase64": "UEsDBBQAAAAAAAAAIQCjsk6BgwAAAIMAAAAIAAAAc3JjL2EucHlrZXkgPSAnLS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tXG5NQzRDQVFBd0JRWURLMlZ3QkNJRUlBQUJBZ01FQlFZSENBa0tDd3dORGc4UUVSSVRGQlVXRnhnWkdoc2NIUjRmXG4tLS0tLUVORCBQUklWQVRFIEtFWS0tLS0tXG4nClBLAQIUAxQAAAAAAAAAIQCjsk6BgwAAAIMAAAAIAAAAAAAAAAAAAACAAQAAAABzcmMvYS5weVBLBQYAAAAAAQABADYAAACpAAAAAAA=",
+  "derived": {
+    "schema": "contractor.finding.anchors-derived.v1",
+    "availability": "available",
+    "sourceRef": {
+      "namespace": "evidence",
+      "name": "source",
+      "revision": "1"
+    },
+    "sourceDigest": "sha256:e4dbe5a2828dc9b6b7246b6f4a75028533bcc395a454c92d768a6a200cda3d1d",
+    "anchors": [
+      {
+        "file": "src/a.py",
+        "startLine": 1,
+        "endLine": 1,
+        "language": "python",
+        "profile": "python/statement-v1",
+        "grammar": "tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2",
+        "fileDigest": "sha256:fe4ec8559e9b1a8af7a9a46491af81e57aef91d262b1f729c4e44c4d87d4f0d2",
+        "signatureDigest": "sha256:c405e2c677a946f18af9f1f446ca45072222fb5792173f05006f0c3b04a9df34",
+        "path": [
+          0
+        ],
+        "nodeDigest": "sha256:4cbcc86056465b6466362802377705f618fdcb25aea2951fc2e9dcd4de09de87",
+        "context": {
+          "scheme": "node-local/v1",
+          "ruleId": "source.private-key-literal.ed25519/v1",
+          "literalDigest": "sha256:b859bbad04b8b7cfb16533d1e3bfb1ae091adefddad8c7272b59380bae231841",
+          "contextDigest": "sha256:60a8402ec2a7926c4ff2cfebb6a6e8f7403ba29004175922315d2b5eb3f9ea91"
+        }
+      }
+    ]
+  },
+  "keys": [
+    {
+      "siteKey": "b2ef697cb20b00ae91d35940a1b54665c1208720784b35c1abc4218f99fbe68e",
+      "issueKey": "979b75eccd15abbe8bd0cfd4d91499eb1e11e2012f6c31c0b4662b3c45954902"
+    }
+  ],
+  "vectors": [
+    [
+      "contractor/structural-site/v1",
+      [
+        "git",
+        "https://example.test:443/repo.git"
+      ],
+      "src/a.py",
+      "python/statement-v1",
+      "tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2",
+      "sha256:c405e2c677a946f18af9f1f446ca45072222fb5792173f05006f0c3b04a9df34",
+      [
+        0
+      ],
+      "sha256:4cbcc86056465b6466362802377705f618fdcb25aea2951fc2e9dcd4de09de87"
+    ],
+    [
+      "contractor/snapshot-issue-anchor/v1",
+      [
+        "git",
+        "https://example.test:443/repo.git"
+      ],
+      [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sha256:e4dbe5a2828dc9b6b7246b6f4a75028533bcc395a454c92d768a6a200cda3d1d"
+      ],
+      "source.private-key-literal.ed25519/v1",
+      "b2ef697cb20b00ae91d35940a1b54665c1208720784b35c1abc4218f99fbe68e",
+      "node-local/v1",
+      "sha256:60a8402ec2a7926c4ff2cfebb6a6e8f7403ba29004175922315d2b5eb3f9ea91"
+    ]
+  ]
+}

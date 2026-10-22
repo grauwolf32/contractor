@@ -193,3 +193,13 @@ Shared Go/Python cases also verify cross-field invariants beyond JSON Schema.
 frozen selected evidence, whose finding association is supplied by Server
 intake. Go and Runtime validate `api/testdata/http-capture-cases.json`; the
 Runtime schema check also pins the closed object structure.
+
+The finding publisher may attach hidden `derived_anchors` (schema
+`contractor.finding.anchors-derived.v1`) to the existing allocation-bound
+finding submission. This is Runtime-owned private metadata, absent from all
+Worker tool declarations and receipt/collection responses. The available basis
+is the closed `FindingAnchorBasis`/`FindingStructuralAnchor` contract in the
+public schema; unavailable values contain only schema, availability and reason
+from FND-R173. Shared `finding-anchor-cases.json` exercises actual Runtime
+parsing and strict Go validation, including unknown/null/missing members and
+source/provenance mismatch. Generic Artifact writes have no producer authority.

@@ -602,6 +602,100 @@ Audit-held projections survive source deletion and one destination's purge;
 when their receipt becomes discarded, erase all derived key content and
 record only `discarded` (LIFE-FND-1). Project purge owns final row deletion.
 
+### Exact-source structural correlation evidence
+
+**FND-R168.** The Runtime publisher may prepare a closed optional
+`derived_anchors` value from existing source locations and explicitly selected
+exact evidence. This field belongs only to the authenticated private publisher;
+all model-visible finding facades, descriptions, arguments and response shapes,
+and `list_findings`, stay unchanged. No model emits a hash, parser profile or
+issue-context claim. Generic Artifact writes cannot stamp a trusted derivation.
+Missing source, unknown coordinates or optional preparation limits preserve the
+ordinary finding with an unavailable projection. No extra artifact or receipt is
+created, and evidence order/count and analyst triage remain independent.
+
+**FND-R169.** Derive only from one unambiguous selected ZIP, at most 32
+selected locations, 8 MiB compressed input and distinct parsed source, 4 MiB per
+file, and 20000 archive entries with 128 MiB declared expansion. Use only exact
+case-sensitive relative paths, at most 512 UTF-8 bytes and 32 components; reject
+unsafe, duplicate, encrypted, link/special or conflicting archive entries.
+Parse each selected UTF-8 file once outside the event loop with pinned
+Tree-sitter 0.25.2 and language-pack 1.14.3. Discard its AST before the next
+file. Profiles `python/statement-v1`, `javascript/statement-v1` and
+`typescript/statement-v1` support `.py`, `.js/.mjs/.cjs` and `.ts`, respectively;
+other languages, including TSX, are explicitly unsupported.
+Use only already cached versioned grammars during publication; missing or
+unloadable grammars yield `anchor_parser_unavailable`, without a lazy download.
+Runtime installation/test preparation owns prefetching pinned parser assets.
+
+**FND-R170.** Resolve an exact inclusive line/range to one supported
+statement. Python statements must be direct children of a module/block;
+JavaScript/TypeScript support lexical/variable declarations, expression,
+return and throw statements. A definition's complete range, several statements
+on a line, missing nodes and parser errors never select an arbitrary node.
+Use the common CRLF/CR/LF coordinate scheme; parser rows alone are insufficient.
+Canonical ordered AST kinds/fields/leaves preserve exact identifiers, literals,
+punctuation and block structure. Ignore ordinary comments and inter-token trivia;
+retain directive comments (`#!`, `//#`, `//!`, `/*!`, `/**`, type/noqa/nosec,
+pragma, coding, pyright/mypy/fmt/pylint/eslint/tslint, coverage, prettier, source
+mapping and `@` directives), hashbangs and standalone string directives.
+Enclosing headers, callable binding names, decorators and retained directives
+produce a signature digest. Ordered named-child paths distinguish repeated
+statements; no renaming, fuzzy mapping or inferred symbol identity occurs.
+A parse/derivation visits at most 100000 nodes/steps, retains at most 256 KiB of
+canonical token bytes, limits structural path depth to 128 and canonical depth
+to 64, and cooperatively checks a 10-second budget. The whole optional Runtime
+preparation has its separate 30-second deadline and joins cancelled parsing.
+
+**FND-R171.** The Server strictly validates the closed
+`contractor.finding.anchors-derived.v1` record, at most 16 KiB. Available records
+contain exact source ref/digest and 1–32 anchors, each with file/range,
+language/profile/grammar, exact file digest, signature digest, named-child path
+and node digest; optional context has a closed scheme/rule/proof. It verifies
+that the source is selected evidence and an immutable Stage input, checks its
+trusted Git repository/commit and exact archive/member digests before mutation
+locks, then revalidates allocation/evidence authority in the intake transaction.
+Unknown/missing/null members, forged refs, changed selectors, wrong hashes or
+unsupported declared schemes are permanent validation failures under existing
+intake codes. Infrastructure/read errors retain their class. An admissible
+source without trusted Git identity yields `asset_unavailable`; ownership is
+still enforced by ordinary intake. Go validates authenticated derivations and
+exact bytes; it does not implement a second AST normalizer.
+
+**FND-R172.** Site keys hash RFC 8785 JSON
+`["contractor/structural-site/v1", ["git", repository], file, profile, grammar,
+signatureDigest, path, nodeDigest]`. They are candidate evidence only. A shared
+sink or CWE does not establish issue equivalence. The initial machine-local
+scheme recognizes one simple literal assignment/declaration of an unencrypted
+Ed25519 PKCS8 private key, validates it with the pinned cryptographic parser,
+and requires sole CWE-321 classification, one source location and no additional
+issue claims or HTTP evidence. Its rule is
+`source.private-key-literal.ed25519/v1`, context `node-local/v1`, and context
+digest hashes `["node-local-private-key/v1", "ed25519", literalDigest]`.
+The literal is bounded to 512 decoded bytes and never copied into metadata or
+logs. This check establishes the local issue instance, not exploitability or
+an analyst verdict. Other languages, key formats and flow-sensitive problems
+have no qualified local context. Snapshot issue keys hash
+`["contractor/snapshot-issue-anchor/v1", ["git", repository],
+[commit, sourceDigest], ruleId, siteKey, contextScheme, contextDigest]`.
+Keys are lowercase SHA-256 hex. Cross-snapshot automatic matching is forbidden;
+site-only records expose `issue_context_unavailable`.
+
+**FND-R173.** Retain `contractor.finding.anchors-projection.v1` inline on
+the immutable receipt, bounded to 32 KiB, with the authenticated source/basis and
+Server-computed keys, or one unavailable reason. The owner finding view exposes
+`anchors` from its first receipt; private/model reader responses do not change.
+Reasons are `not_recorded`, `not_provided`, `input_limit`, `asset_unavailable`,
+`selector_unavailable`, `anchor_language_unsupported`, `anchor_parser_unavailable`, `source_invalid`,
+`source_missing`, `parse_error`, `anchor_ambiguous` and `discarded`.
+Migration marks existing rows `not_recorded` without reparsing. Existing receipt
+replay precedes source reads; transport retries use byte-identical prepared
+submissions. Independent calls remain separate observations. Audit holds retain
+exact sources and derivations after source Run deletion, another Audit's purge
+does not remove them, and discard clears every derived field to the unavailable
+`discarded` marker. Existing Project purge owns final deletion. Limits are
+LIM-FND-38 through LIM-FND-41; failures/lifecycle reuse FAIL-FND-1 and LIFE-FND-1.
+
 ### Proposals of ordinary Runs
 
 **FND-R63.** A proposal of an ordinary, non-Audit Run stays readable in

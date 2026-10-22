@@ -29,7 +29,7 @@ Run commands from the repository root unless a block explicitly changes director
 ## Install dependencies
 
 ```shell
-uv sync --project runtime --locked
+make runtime-venv
 npm install --global corepack@0.36.0
 make ui-install
 ```

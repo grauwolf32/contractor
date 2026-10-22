@@ -169,10 +169,14 @@ func writeFingerprintInputs(t *testing.T, ctx context.Context, pool *pgxpool.Poo
 	return writeFingerprintReportInputs(t, ctx, pool, run, []byte(report))
 }
 
-func writeFingerprintReportInputs(t *testing.T, ctx context.Context, pool *pgxpool.Pool, run string, report []byte) []contracts.ArtifactRef {
+func writeFingerprintReportInputs(t *testing.T, ctx context.Context, pool *pgxpool.Pool, run string, report []byte, sourceData ...[]byte) []contracts.ArtifactRef {
 	t.Helper()
 	var refs []contracts.ArtifactRef
-	for index, payload := range []artifacts.Payload{{MediaType: "application/zip", Data: []byte("exact source")}, {MediaType: "application/sarif+json", Data: report}} {
+	source := []byte("exact source")
+	if len(sourceData) == 1 {
+		source = sourceData[0]
+	}
+	for index, payload := range []artifacts.Payload{{MediaType: "application/zip", Data: source}, {MediaType: "application/sarif+json", Data: report}} {
 		prepared, err := artifacts.PreparePayload(ctx, payload)
 		if err != nil {
 			t.Fatal(err)

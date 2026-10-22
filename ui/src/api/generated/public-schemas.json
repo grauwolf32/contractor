@@ -5449,6 +5449,201 @@
         }
       ]
     },
+    "FindingAnchorContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scheme", "ruleId", "literalDigest", "contextDigest"],
+      "properties": {
+        "scheme": { "const": "node-local/v1" },
+        "ruleId": { "const": "source.private-key-literal.ed25519/v1" },
+        "literalDigest": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Digest"
+        },
+        "contextDigest": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Digest"
+        }
+      }
+    },
+    "FindingStructuralAnchor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "file",
+        "startLine",
+        "endLine",
+        "language",
+        "profile",
+        "grammar",
+        "fileDigest",
+        "signatureDigest",
+        "path",
+        "nodeDigest"
+      ],
+      "properties": {
+        "file": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "x-maxBytes": 512
+        },
+        "startLine": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "endLine": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "language": { "enum": ["python", "javascript", "typescript"] },
+        "profile": {
+          "enum": [
+            "python/statement-v1",
+            "javascript/statement-v1",
+            "typescript/statement-v1"
+          ]
+        },
+        "grammar": {
+          "const": "tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2"
+        },
+        "fileDigest": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Digest"
+        },
+        "signatureDigest": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Digest"
+        },
+        "nodeDigest": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Digest"
+        },
+        "path": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 128,
+          "items": { "type": "integer", "minimum": 0, "maximum": 100000 }
+        },
+        "context": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingAnchorContext"
+        }
+      }
+    },
+    "FindingAnchorBasis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "availability",
+        "sourceRef",
+        "sourceDigest",
+        "anchors"
+      ],
+      "properties": {
+        "schema": { "const": "contractor.finding.anchors-derived.v1" },
+        "availability": { "const": "available" },
+        "sourceRef": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ExactArtifactRef"
+        },
+        "sourceDigest": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Digest"
+        },
+        "anchors": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingStructuralAnchor"
+          }
+        }
+      }
+    },
+    "FindingAnchorKeys": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["siteKey", "issueKey"],
+          "properties": {
+            "siteKey": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+            "issueKey": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["siteKey", "issueReason"],
+          "properties": {
+            "siteKey": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+            "issueReason": { "const": "issue_context_unavailable" }
+          }
+        }
+      ]
+    },
+    "FindingAnchorProjection": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["schema", "availability", "reason"],
+          "properties": {
+            "schema": { "const": "contractor.finding.anchors-projection.v1" },
+            "availability": { "const": "unavailable" },
+            "reason": {
+              "enum": [
+                "not_recorded",
+                "not_provided",
+                "input_limit",
+                "asset_unavailable",
+                "selector_unavailable",
+                "anchor_language_unsupported",
+                "anchor_parser_unavailable",
+                "source_invalid",
+                "source_missing",
+                "parse_error",
+                "anchor_ambiguous",
+                "discarded"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "schema",
+            "availability",
+            "repository",
+            "commit",
+            "source",
+            "basis",
+            "keys"
+          ],
+          "properties": {
+            "schema": { "const": "contractor.finding.anchors-projection.v1" },
+            "availability": { "const": "available" },
+            "repository": {
+              "type": "string",
+              "maxLength": 4096,
+              "pattern": "^(https|ssh)://"
+            },
+            "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+            "source": {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingExactArtifact"
+            },
+            "basis": {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingAnchorBasis"
+            },
+            "keys": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 32,
+              "items": {
+                "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingAnchorKeys"
+              }
+            }
+          }
+        }
+      ]
+    },
     "FindingSubject": {
       "type": "object",
       "additionalProperties": false,
@@ -6174,6 +6369,9 @@
         },
         "fingerprint": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingFingerprintProjection"
+        },
+        "anchors": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingAnchorProjection"
         },
         "currentAssessment": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditFindingAssessment"

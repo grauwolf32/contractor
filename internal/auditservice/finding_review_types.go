@@ -15,20 +15,21 @@ const (
 )
 
 type Finding struct {
-	Fingerprint       *auditdomain.FindingFingerprint `json:"fingerprint,omitempty"`
-	FindingID         string                          `json:"findingId"`
-	AuditID           string                          `json:"auditId"`
-	State             auditstore.FindingState         `json:"state"`
-	RejectionReason   *string                         `json:"rejectionReason,omitempty"`
-	DuplicateTargetID *string                         `json:"duplicateTargetId,omitempty"`
-	FirstProposal     findingintake.Receipt           `json:"firstProposal"`
-	CurrentAssessment *auditstore.FindingAssessment   `json:"currentAssessment,omitempty"`
-	AnalystDecision   *auditstore.ReviewDecision      `json:"analystDecision,omitempty"`
-	AnalystVerdict    *auditstore.AnalystVerdict      `json:"analystVerdict,omitempty"`
-	AnalystSeverity   *auditstore.FindingSeverity     `json:"analystSeverity,omitempty"`
-	Revision          uint64                          `json:"revision"`
-	CreatedAt         time.Time                       `json:"createdAt"`
-	UpdatedAt         time.Time                       `json:"updatedAt"`
+	Anchors           *auditdomain.FindingAnchorProjection `json:"anchors,omitempty"`
+	Fingerprint       *auditdomain.FindingFingerprint      `json:"fingerprint,omitempty"`
+	FindingID         string                               `json:"findingId"`
+	AuditID           string                               `json:"auditId"`
+	State             auditstore.FindingState              `json:"state"`
+	RejectionReason   *string                              `json:"rejectionReason,omitempty"`
+	DuplicateTargetID *string                              `json:"duplicateTargetId,omitempty"`
+	FirstProposal     findingintake.Receipt                `json:"firstProposal"`
+	CurrentAssessment *auditstore.FindingAssessment        `json:"currentAssessment,omitempty"`
+	AnalystDecision   *auditstore.ReviewDecision           `json:"analystDecision,omitempty"`
+	AnalystVerdict    *auditstore.AnalystVerdict           `json:"analystVerdict,omitempty"`
+	AnalystSeverity   *auditstore.FindingSeverity          `json:"analystSeverity,omitempty"`
+	Revision          uint64                               `json:"revision"`
+	CreatedAt         time.Time                            `json:"createdAt"`
+	UpdatedAt         time.Time                            `json:"updatedAt"`
 }
 
 type CreateFindingReviewParams struct {

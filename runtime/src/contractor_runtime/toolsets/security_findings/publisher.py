@@ -8,6 +8,7 @@ from typing import Any
 from google.adk.tools.tool_context import ToolContext
 from pydantic import ValidationError
 
+from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import ArtifactRef
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.core.tool_metrics import RecordedToolCall, ToolMetrics
@@ -21,6 +22,7 @@ from contractor_runtime.toolsets.common.finding_locations import (
     normalize_locations,
 )
 from contractor_runtime.toolsets.common.http_capture import RecentHTTPCaptures
+from contractor_runtime.toolsets.security_findings.anchors import prepare_anchors
 from contractor_runtime.toolsets.security_findings.submission import build_submission
 
 
@@ -40,11 +42,13 @@ class FindingPublisher:
         metrics: ToolMetrics,
         secrets: tuple[str, ...],
         state: Any,
+        artifacts: ArtifactClient | None = None,
     ):
         self.client = client
         self.metrics = metrics
         self.secrets = secrets
         self.state = state
+        self.artifacts = artifacts
 
     async def submit(
         self,
@@ -103,6 +107,8 @@ class FindingPublisher:
             # same problem as its own field error.
             for reference in proposal["standard_refs"]:
                 check_cwe_reference(reference)
+            if self.artifacts is not None:
+                request["derived_anchors"] = await prepare_anchors(self.artifacts, request)
             receipt = await self.client.submit(request)
             if audit_collector is not None:
                 await audit_collector.register_proposal(

@@ -5,7 +5,7 @@ milestone: finding-correlation-2026-10
 epic: code-analysis
 kind: feature
 priority: P2
-status: pending
+status: in_progress
 depends_on:
 - V392-001
 languages:
@@ -23,6 +23,8 @@ context:
   specification:
   - docs/spec/findings/findings.md#FND-R14
   - docs/spec/findings/findings.md#FND-R41
+  - docs/spec/findings/findings.md#FND-R168
+  - docs/spec/findings/findings.md#FND-R173
   - docs/spec/tools/code-analysis.md
   - docs/spec/tools/workspace.md
   - docs/spec/execution/worker.md
@@ -33,7 +35,7 @@ scope:
     diagnostics.
   - Optional qualified snapshot issue key only with registered machine-derived rule and complete issue context, including a genuinely node-local
     deterministic check where applicable.
-  - Deterministic code-finding publisher integration, small derived evidence artifact, hidden closed derived_anchors private-submission field,
+  - Deterministic code-finding publisher integration, bounded receipt-owned derivation, hidden closed derived_anchors private-submission field,
     authenticated producer binding and Server projection validation using V392-001 boundaries.
   - Per-language regression corpus, cross-language hash/provenance fixtures and owning source/finding/limits/error/producer contract updates.
   out:
@@ -155,3 +157,23 @@ tests:
 - command: make test-runtime test-findings-e2e
   covers:
   - A5
+
+implementation_decisions:
+- Retain the compact derivation inline on the existing receipt, referencing already selected exact evidence. A separate prewritten Artifact would change evidence counts and replay/lifecycle behavior; export can materialize the retained projection later. No new receipt mechanism or model-visible argument is introduced.
+- Qualify only an explicit node-local private-key literal check with sole CWE-321 classification, one source location and no extra issue claims. Other structural matches remain candidate sites.
+- The optional publisher uses cached parser assets only. The shared runtime-venv prerequisite prefetches the existing pinned language registry during dependency preparation, avoiding a cold downloader inside either publication or capability tests.
+
+verification:
+  date: '2026-10-22'
+  status: passed
+  checks:
+  - Full Go suites of auditdomain, findingintake, auditservice, auditimport, persistence/postgres, privateartifacts and public passed with integration tags and the disposable PostgreSQL URL; database checks were not skipped.
+  - Real PostgreSQL proves equal-key independent observations, foreign/changed source rejection, immutable projection writes, unchanged receipt wire, byte-identical replay, retained keys after source deletion, independent Audit holds, representative-independent purge and sensitive discard after the last hold.
+  - Migration from version 22 preserves existing receipt contents and fingerprints, marks anchors not_recorded, and keeps strict immutability/discard behavior.
+  - Python/JavaScript/TypeScript corpus and shared Go/Runtime canonical vectors passed; structural sites alone expose issue_context_unavailable, and qualified local issue keys change with the exact snapshot.
+  - The actual code facade prepares hidden metadata, preserves its provider declaration and visible response, reads exact source once, and retries a lost intake response with identical bytes.
+  - Final make test-runtime passed under an unprivileged Linux user with locked dependencies and prefetched pinned grammars; 4175 passed and 53 optional environment checks skipped.
+  - make test-findings-e2e passed all 14 mandatory process cases; make verify-public-api and ui-verify passed.
+  - Final make lint and test-wire-cross-language passed; 240 fixtures, 216 Go and 167 Python shared tests, and 300 Runtime wire tests passed.
+  earlier_failure: A cold-cache Linux run failed one code-analysis capability assertion (4173 passed, 1 failed). Parser preparation is now explicit in runtime-venv; publication tests prove a missing cache never initiates grammar loading. The final full Linux target passed.
+  boundary: All source parsing and canonicalization stay in Runtime common code; Server verifies closed metadata, exact evidence and authenticated intake authority. No Worker tool or configured model change, LLM call, new receipt or global issue entity is introduced.

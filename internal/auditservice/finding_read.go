@@ -82,6 +82,7 @@ func (s *Service) hydrateFindings(ctx context.Context, ownerID string, rows []au
 	for index, row := range rows {
 		finding := Finding{
 			Fingerprint: &receipts[index].Fingerprint,
+			Anchors:     &receipts[index].Anchors,
 			FindingID:   row.FindingID, AuditID: row.AuditID, State: row.State,
 			RejectionReason: row.RejectionReason, DuplicateTargetID: row.DuplicateTargetID,
 			FirstProposal: receipts[index], Revision: row.Revision,

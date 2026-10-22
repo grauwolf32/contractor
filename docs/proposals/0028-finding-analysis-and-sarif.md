@@ -711,9 +711,11 @@ may reduce recall, which must be reported rather than guessed away.
 
 Runtime performs parsing/canonicalization off the event loop under existing
 file/archive limits, at most 32 selected anchors and 8 MiB of distinct source
-per proposal. Retain a small versioned derived evidence artifact containing
+per proposal. Retain a small versioned derivation inline on the existing receipt containing
 selector, exact digests, adapter/grammar versions, canonical components,
-availability and optional context proof. The Server verifies the artifact's
+availability and optional context proof. Its source is already selected exact
+evidence. This keeps publication counts and receipt replay unchanged; export
+can materialize the projection later. The Server verifies its
 trusted deterministic producer binding before using a structural auto-key;
 an owner-authored imitation can be evidence but cannot mint that binding.
 The authenticated Runtime publisher carries this derivation in a hidden,

@@ -34,7 +34,7 @@ receipt.workflow_configuration_ref, receipt.workflow_closure_digest,
 receipt.audit_id, receipt.audit_execution_id, receipt.audit_role,
 receipt.proposal_ref, receipt.proposal_digest, receipt.proposal_media_type,
 receipt.proposal_size_bytes, receipt.evidence,
-receipt.retention_state, receipt.source_run_deleted_at, receipt.created_at, receipt.fingerprint_projection`
+receipt.retention_state, receipt.source_run_deleted_at, receipt.created_at, receipt.fingerprint_projection, receipt.anchor_projection`
 
 func readReceiptBySubmission(
 	ctx context.Context,
@@ -63,7 +63,7 @@ func scanReceipt(ctx context.Context, db querier, row pgx.Row) (Receipt, error) 
 
 func scanReceiptRow(row pgx.Row) (Receipt, error) {
 	var result Receipt
-	var configurationRef, proposalRef, evidenceJSON, fingerprintJSON []byte
+	var configurationRef, proposalRef, evidenceJSON, fingerprintJSON, anchorJSON []byte
 	var auditID, auditExecutionID, auditRole *string
 	var sourceDeletedAt *time.Time
 	err := row.Scan(
@@ -77,7 +77,7 @@ func scanReceiptRow(row pgx.Row) (Receipt, error) {
 		&auditID, &auditExecutionID, &auditRole,
 		&proposalRef, &result.Proposal.Digest, &result.Proposal.MediaType,
 		&result.Proposal.SizeBytes, &evidenceJSON,
-		&result.Retention, &sourceDeletedAt, &result.CreatedAt, &fingerprintJSON,
+		&result.Retention, &sourceDeletedAt, &result.CreatedAt, &fingerprintJSON, &anchorJSON,
 	)
 	if err != nil {
 		return Receipt{}, err
@@ -95,6 +95,10 @@ func scanReceiptRow(row pgx.Row) (Receipt, error) {
 	result.Fingerprint, err = auditdomain.DecodeFindingFingerprint(fingerprintJSON)
 	if err != nil {
 		return Receipt{}, fmt.Errorf("decode stored finding fingerprint: %w", err)
+	}
+	result.Anchors, err = auditdomain.DecodeFindingAnchors(anchorJSON)
+	if err != nil {
+		return Receipt{}, fmt.Errorf("decode stored finding anchors: %w", err)
 	}
 	result.Origin.RunDeleted = sourceDeletedAt != nil
 	if auditID != nil {

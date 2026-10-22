@@ -48,3 +48,13 @@ def newline_style(text: str) -> str:
         if character == "\r":
             return "\r\n" if index + 1 < len(text) and text[index + 1] == "\n" else "\r"
     return "\n"
+
+
+def line_byte_starts(source: bytes) -> list[int]:
+    """Byte offsets for the shared CRLF, CR and LF source coordinate scheme."""
+    starts = [0]
+    offset = 0
+    for line in split_lines(source.decode("utf-8", errors="strict"), keepends=True):
+        offset += len(line.encode("utf-8"))
+        starts.append(offset)
+    return starts

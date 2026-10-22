@@ -87,6 +87,192 @@
       ],
       "canonical": "[\"contractor/producer-issue/v1\",[\"git\",\"https://example.test:443/repo.git\"],\"contractor/pinned-sarif\",\"snapshot/v2\",\"rule/sql\",[\"snapshot\",[\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sha256:4d4823794cbed3c4ee0bbc684c8f66e1dfd5afa6f078d494ce254ec5a4671753\"]],[\"scanner\",\"1\",{\"native/v1\":\"issue-a\"}]]",
       "digest": "sha256:e734b50050938551a150406f9ca27d1ef4e08078e9bc37700dd74aae2b4f3cd8"
+    },
+    {
+      "name": "python-site-0",
+      "tuple": [
+        "contractor/structural-site/v1",
+        [
+          "git",
+          "https://example.test:443/repo.git"
+        ],
+        "src/a.py",
+        "python/statement-v1",
+        "tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2",
+        "sha256:df969bef2e1b50111554c603b3bd41ab579177f6d20c30a411b77fc10d92c3b0",
+        [
+          0,
+          2,
+          0
+        ],
+        "sha256:8ae78c240958b28682b34002ed2a6bcd3f830ebf4cf7b11864b3e8ce639e902d"
+      ],
+      "canonical": "[\"contractor/structural-site/v1\",[\"git\",\"https://example.test:443/repo.git\"],\"src/a.py\",\"python/statement-v1\",\"tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2\",\"sha256:df969bef2e1b50111554c603b3bd41ab579177f6d20c30a411b77fc10d92c3b0\",[0,2,0],\"sha256:8ae78c240958b28682b34002ed2a6bcd3f830ebf4cf7b11864b3e8ce639e902d\"]",
+      "digest": "sha256:542e18664241980eedbe8b15d32874b2f513de31151c3185ad1aacc8895502b6"
+    },
+    {
+      "name": "javascript-site-0",
+      "tuple": [
+        "contractor/structural-site/v1",
+        [
+          "git",
+          "https://example.test:443/repo.git"
+        ],
+        "src/a.js",
+        "javascript/statement-v1",
+        "tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2",
+        "sha256:b700112e1cc73370f772bf05dae2eb1f587a1cdad84cc2d030d02157fc5df998",
+        [
+          0,
+          2,
+          0
+        ],
+        "sha256:d2a3fe5e4814bef28752e486881311c45f80962e312151e6643548c5d38ec044"
+      ],
+      "canonical": "[\"contractor/structural-site/v1\",[\"git\",\"https://example.test:443/repo.git\"],\"src/a.js\",\"javascript/statement-v1\",\"tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2\",\"sha256:b700112e1cc73370f772bf05dae2eb1f587a1cdad84cc2d030d02157fc5df998\",[0,2,0],\"sha256:d2a3fe5e4814bef28752e486881311c45f80962e312151e6643548c5d38ec044\"]",
+      "digest": "sha256:df4f46ab50de0174b6c8e2bfb961e5edb96b01e2427138512e4bd7f04b6b7fc1"
+    },
+    {
+      "name": "typescript-site-0",
+      "tuple": [
+        "contractor/structural-site/v1",
+        [
+          "git",
+          "https://example.test:443/repo.git"
+        ],
+        "src/a.ts",
+        "typescript/statement-v1",
+        "tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2",
+        "sha256:828b924cad72dc0213a225571eadfc012a3374bd69fae028a5de2834214338c7",
+        [
+          0,
+          2,
+          0
+        ],
+        "sha256:d2a3fe5e4814bef28752e486881311c45f80962e312151e6643548c5d38ec044"
+      ],
+      "canonical": "[\"contractor/structural-site/v1\",[\"git\",\"https://example.test:443/repo.git\"],\"src/a.ts\",\"typescript/statement-v1\",\"tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2\",\"sha256:828b924cad72dc0213a225571eadfc012a3374bd69fae028a5de2834214338c7\",[0,2,0],\"sha256:d2a3fe5e4814bef28752e486881311c45f80962e312151e6643548c5d38ec044\"]",
+      "digest": "sha256:f21c700651565e1a08bcda47fc51f3dc92048017bf67250f69f363bfaedaa7cc"
+    },
+    {
+      "name": "python-local-key-0",
+      "tuple": [
+        "contractor/structural-site/v1",
+        [
+          "git",
+          "https://example.test:443/repo.git"
+        ],
+        "src/a.py",
+        "python/statement-v1",
+        "tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2",
+        "sha256:c405e2c677a946f18af9f1f446ca45072222fb5792173f05006f0c3b04a9df34",
+        [
+          0
+        ],
+        "sha256:4cbcc86056465b6466362802377705f618fdcb25aea2951fc2e9dcd4de09de87"
+      ],
+      "canonical": "[\"contractor/structural-site/v1\",[\"git\",\"https://example.test:443/repo.git\"],\"src/a.py\",\"python/statement-v1\",\"tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2\",\"sha256:c405e2c677a946f18af9f1f446ca45072222fb5792173f05006f0c3b04a9df34\",[0],\"sha256:4cbcc86056465b6466362802377705f618fdcb25aea2951fc2e9dcd4de09de87\"]",
+      "digest": "sha256:b2ef697cb20b00ae91d35940a1b54665c1208720784b35c1abc4218f99fbe68e"
+    },
+    {
+      "name": "python-local-key-1",
+      "tuple": [
+        "contractor/snapshot-issue-anchor/v1",
+        [
+          "git",
+          "https://example.test:443/repo.git"
+        ],
+        [
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sha256:e4dbe5a2828dc9b6b7246b6f4a75028533bcc395a454c92d768a6a200cda3d1d"
+        ],
+        "source.private-key-literal.ed25519/v1",
+        "b2ef697cb20b00ae91d35940a1b54665c1208720784b35c1abc4218f99fbe68e",
+        "node-local/v1",
+        "sha256:60a8402ec2a7926c4ff2cfebb6a6e8f7403ba29004175922315d2b5eb3f9ea91"
+      ],
+      "canonical": "[\"contractor/snapshot-issue-anchor/v1\",[\"git\",\"https://example.test:443/repo.git\"],[\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sha256:e4dbe5a2828dc9b6b7246b6f4a75028533bcc395a454c92d768a6a200cda3d1d\"],\"source.private-key-literal.ed25519/v1\",\"b2ef697cb20b00ae91d35940a1b54665c1208720784b35c1abc4218f99fbe68e\",\"node-local/v1\",\"sha256:60a8402ec2a7926c4ff2cfebb6a6e8f7403ba29004175922315d2b5eb3f9ea91\"]",
+      "digest": "sha256:979b75eccd15abbe8bd0cfd4d91499eb1e11e2012f6c31c0b4662b3c45954902"
+    },
+    {
+      "name": "javascript-local-key-0",
+      "tuple": [
+        "contractor/structural-site/v1",
+        [
+          "git",
+          "https://example.test:443/repo.git"
+        ],
+        "src/a.js",
+        "javascript/statement-v1",
+        "tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2",
+        "sha256:c405e2c677a946f18af9f1f446ca45072222fb5792173f05006f0c3b04a9df34",
+        [
+          0
+        ],
+        "sha256:dabcc7dd37d76911bb024342d83e6511ce674a05aee4baa05c40feb2306dbc4c"
+      ],
+      "canonical": "[\"contractor/structural-site/v1\",[\"git\",\"https://example.test:443/repo.git\"],\"src/a.js\",\"javascript/statement-v1\",\"tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2\",\"sha256:c405e2c677a946f18af9f1f446ca45072222fb5792173f05006f0c3b04a9df34\",[0],\"sha256:dabcc7dd37d76911bb024342d83e6511ce674a05aee4baa05c40feb2306dbc4c\"]",
+      "digest": "sha256:681229f3ed5c71de4b41de409327c9a5330dd7123b1e8f4037ad3ddda266430e"
+    },
+    {
+      "name": "javascript-local-key-1",
+      "tuple": [
+        "contractor/snapshot-issue-anchor/v1",
+        [
+          "git",
+          "https://example.test:443/repo.git"
+        ],
+        [
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sha256:6e1bcabd34f47f1b4eecd05cace6bb0638a294a28d8f694ff0fb1879a750d870"
+        ],
+        "source.private-key-literal.ed25519/v1",
+        "681229f3ed5c71de4b41de409327c9a5330dd7123b1e8f4037ad3ddda266430e",
+        "node-local/v1",
+        "sha256:60a8402ec2a7926c4ff2cfebb6a6e8f7403ba29004175922315d2b5eb3f9ea91"
+      ],
+      "canonical": "[\"contractor/snapshot-issue-anchor/v1\",[\"git\",\"https://example.test:443/repo.git\"],[\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sha256:6e1bcabd34f47f1b4eecd05cace6bb0638a294a28d8f694ff0fb1879a750d870\"],\"source.private-key-literal.ed25519/v1\",\"681229f3ed5c71de4b41de409327c9a5330dd7123b1e8f4037ad3ddda266430e\",\"node-local/v1\",\"sha256:60a8402ec2a7926c4ff2cfebb6a6e8f7403ba29004175922315d2b5eb3f9ea91\"]",
+      "digest": "sha256:344ef3293186efa6cec6dff438506fa795f85d990c0ad1b64a68b3a49f1d7c35"
+    },
+    {
+      "name": "typescript-local-key-0",
+      "tuple": [
+        "contractor/structural-site/v1",
+        [
+          "git",
+          "https://example.test:443/repo.git"
+        ],
+        "src/a.ts",
+        "typescript/statement-v1",
+        "tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2",
+        "sha256:c405e2c677a946f18af9f1f446ca45072222fb5792173f05006f0c3b04a9df34",
+        [
+          0
+        ],
+        "sha256:2401fcbe730ed05126ee2fbc11c3c0f3afc50c33bd46be671ba56cf8da012d30"
+      ],
+      "canonical": "[\"contractor/structural-site/v1\",[\"git\",\"https://example.test:443/repo.git\"],\"src/a.ts\",\"typescript/statement-v1\",\"tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2\",\"sha256:c405e2c677a946f18af9f1f446ca45072222fb5792173f05006f0c3b04a9df34\",[0],\"sha256:2401fcbe730ed05126ee2fbc11c3c0f3afc50c33bd46be671ba56cf8da012d30\"]",
+      "digest": "sha256:846324123ba8966d2b49635c544928da4e9e217afd8c5b06ed466d5709b662d0"
+    },
+    {
+      "name": "typescript-local-key-1",
+      "tuple": [
+        "contractor/snapshot-issue-anchor/v1",
+        [
+          "git",
+          "https://example.test:443/repo.git"
+        ],
+        [
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sha256:2be0195e822aa2d68ad852c03d322630be914f17dad306bbddae852ee9180772"
+        ],
+        "source.private-key-literal.ed25519/v1",
+        "846324123ba8966d2b49635c544928da4e9e217afd8c5b06ed466d5709b662d0",
+        "node-local/v1",
+        "sha256:60a8402ec2a7926c4ff2cfebb6a6e8f7403ba29004175922315d2b5eb3f9ea91"
+      ],
+      "canonical": "[\"contractor/snapshot-issue-anchor/v1\",[\"git\",\"https://example.test:443/repo.git\"],[\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sha256:2be0195e822aa2d68ad852c03d322630be914f17dad306bbddae852ee9180772\"],\"source.private-key-literal.ed25519/v1\",\"846324123ba8966d2b49635c544928da4e9e217afd8c5b06ed466d5709b662d0\",\"node-local/v1\",\"sha256:60a8402ec2a7926c4ff2cfebb6a6e8f7403ba29004175922315d2b5eb3f9ea91\"]",
+      "digest": "sha256:9212c8a84715f77973cabf272af4096e00ce00aed123005109a50a59da954bc7"
     }
   ],
   "adapterCases": [

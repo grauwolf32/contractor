@@ -4,7 +4,7 @@
 # prerequisites are shared by many of them:
 #
 #   require-database  fails fast when CONTRACTOR_TEST_DATABASE_URL is unset
-#   runtime-venv      prepares runtime/.venv from the lock file
+#   runtime-venv      prepares locked Runtime dependencies and cached parsers
 #
 # Both are phony, so make runs each at most once per invocation however many
 # targets in the chain ask for it. Declare them as prerequisites rather than
@@ -21,6 +21,7 @@ require-database:
 # every suite reaching Python depends on this, test-go included.
 runtime-venv:
 	cd runtime && uv sync --locked
+	cd runtime && uv run python -c 'from contractor_runtime.toolsets.code_analysis.languages import PARSER_NAMES; from tree_sitter_language_pack import prefetch; prefetch(sorted(set(PARSER_NAMES.values())))'
 
 # Family targets retain their focused Go suites when invoked directly. The
 # release gate runs their union once through dedicated aggregate targets.

@@ -1,0 +1,748 @@
+{
+  "cases": [
+    {
+      "name": "python-site",
+      "source": "def f(x):\n    sink(x)\n",
+      "file": "src/a.py",
+      "line": 2,
+      "qualifyLocal": false,
+      "zipBase64": "UEsDBBQAAAAAAAAAIQCIOZPNFgAAABYAAAAIAAAAc3JjL2EucHlkZWYgZih4KToKICAgIHNpbmsoeCkKUEsBAhQDFAAAAAAAAAAhAIg5k80WAAAAFgAAAAgAAAAAAAAAAAAAAIABAAAAAHNyYy9hLnB5UEsFBgAAAAABAAEANgAAADwAAAAAAA==",
+      "derived": {
+        "schema": "contractor.finding.anchors-derived.v1",
+        "availability": "available",
+        "sourceRef": {
+          "namespace": "evidence",
+          "name": "source",
+          "revision": "1"
+        },
+        "sourceDigest": "sha256:01e84a270d06a160873cf189776be16ea610ff925f1235096d1a9622bc483117",
+        "anchors": [
+          {
+            "file": "src/a.py",
+            "startLine": 2,
+            "endLine": 2,
+            "language": "python",
+            "profile": "python/statement-v1",
+            "grammar": "tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2",
+            "fileDigest": "sha256:dde94a3fff4cda213d8f9b92f3693856042ccd9d7c9a05f2baa794f669d6e4ef",
+            "signatureDigest": "sha256:df969bef2e1b50111554c603b3bd41ab579177f6d20c30a411b77fc10d92c3b0",
+            "path": [
+              0,
+              2,
+              0
+            ],
+            "nodeDigest": "sha256:8ae78c240958b28682b34002ed2a6bcd3f830ebf4cf7b11864b3e8ce639e902d"
+          }
+        ]
+      },
+      "keys": [
+        {
+          "siteKey": "542e18664241980eedbe8b15d32874b2f513de31151c3185ad1aacc8895502b6",
+          "issueReason": "issue_context_unavailable"
+        }
+      ],
+      "vectors": [
+        [
+          "contractor/structural-site/v1",
+          [
+            "git",
+            "https://example.test:443/repo.git"
+          ],
+          "src/a.py",
+          "python/statement-v1",
+          "tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2",
+          "sha256:df969bef2e1b50111554c603b3bd41ab579177f6d20c30a411b77fc10d92c3b0",
+          [
+            0,
+            2,
+            0
+          ],
+          "sha256:8ae78c240958b28682b34002ed2a6bcd3f830ebf4cf7b11864b3e8ce639e902d"
+        ]
+      ]
+    },
+    {
+      "name": "javascript-site",
+      "source": "function f(x) {\n  sink(x);\n}\n",
+      "file": "src/a.js",
+      "line": 2,
+      "qualifyLocal": false,
+      "zipBase64": "UEsDBBQAAAAAAAAAIQCZH4efHQAAAB0AAAAIAAAAc3JjL2EuanNmdW5jdGlvbiBmKHgpIHsKICBzaW5rKHgpOwp9ClBLAQIUAxQAAAAAAAAAIQCZH4efHQAAAB0AAAAIAAAAAAAAAAAAAACAAQAAAABzcmMvYS5qc1BLBQYAAAAAAQABADYAAABDAAAAAAA=",
+      "derived": {
+        "schema": "contractor.finding.anchors-derived.v1",
+        "availability": "available",
+        "sourceRef": {
+          "namespace": "evidence",
+          "name": "source",
+          "revision": "1"
+        },
+        "sourceDigest": "sha256:8c4393502ee1679bb0b0661fd039c6d054d9ea4eca97918cf4e1ee8169b5c597",
+        "anchors": [
+          {
+            "file": "src/a.js",
+            "startLine": 2,
+            "endLine": 2,
+            "language": "javascript",
+            "profile": "javascript/statement-v1",
+            "grammar": "tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2",
+            "fileDigest": "sha256:01cadebef33882e4c4f55c57c284fc361ea47bf28ddeccf724e2bcd59858b5f3",
+            "signatureDigest": "sha256:b700112e1cc73370f772bf05dae2eb1f587a1cdad84cc2d030d02157fc5df998",
+            "path": [
+              0,
+              2,
+              0
+            ],
+            "nodeDigest": "sha256:d2a3fe5e4814bef28752e486881311c45f80962e312151e6643548c5d38ec044"
+          }
+        ]
+      },
+      "keys": [
+        {
+          "siteKey": "df4f46ab50de0174b6c8e2bfb961e5edb96b01e2427138512e4bd7f04b6b7fc1",
+          "issueReason": "issue_context_unavailable"
+        }
+      ],
+      "vectors": [
+        [
+          "contractor/structural-site/v1",
+          [
+            "git",
+            "https://example.test:443/repo.git"
+          ],
+          "src/a.js",
+          "javascript/statement-v1",
+          "tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2",
+          "sha256:b700112e1cc73370f772bf05dae2eb1f587a1cdad84cc2d030d02157fc5df998",
+          [
+            0,
+            2,
+            0
+          ],
+          "sha256:d2a3fe5e4814bef28752e486881311c45f80962e312151e6643548c5d38ec044"
+        ]
+      ]
+    },
+    {
+      "name": "typescript-site",
+      "source": "function f(x: string) {\n  sink(x);\n}\n",
+      "file": "src/a.ts",
+      "line": 2,
+      "qualifyLocal": false,
+      "zipBase64": "UEsDBBQAAAAAAAAAIQDECSq1JQAAACUAAAAIAAAAc3JjL2EudHNmdW5jdGlvbiBmKHg6IHN0cmluZykgewogIHNpbmsoeCk7Cn0KUEsBAhQDFAAAAAAAAAAhAMQJKrUlAAAAJQAAAAgAAAAAAAAAAAAAAIABAAAAAHNyYy9hLnRzUEsFBgAAAAABAAEANgAAAEsAAAAAAA==",
+      "derived": {
+        "schema": "contractor.finding.anchors-derived.v1",
+        "availability": "available",
+        "sourceRef": {
+          "namespace": "evidence",
+          "name": "source",
+          "revision": "1"
+        },
+        "sourceDigest": "sha256:f5a6e86150dc47225ce487abcc40f1dde7a0e0b681ccf94e623f98096c6a95d0",
+        "anchors": [
+          {
+            "file": "src/a.ts",
+            "startLine": 2,
+            "endLine": 2,
+            "language": "typescript",
+            "profile": "typescript/statement-v1",
+            "grammar": "tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2",
+            "fileDigest": "sha256:4f0f83ccd5ecba0f1897d643800d61bc5734635e5573c3f74bb4acf7ad6e23cf",
+            "signatureDigest": "sha256:828b924cad72dc0213a225571eadfc012a3374bd69fae028a5de2834214338c7",
+            "path": [
+              0,
+              2,
+              0
+            ],
+            "nodeDigest": "sha256:d2a3fe5e4814bef28752e486881311c45f80962e312151e6643548c5d38ec044"
+          }
+        ]
+      },
+      "keys": [
+        {
+          "siteKey": "f21c700651565e1a08bcda47fc51f3dc92048017bf67250f69f363bfaedaa7cc",
+          "issueReason": "issue_context_unavailable"
+        }
+      ],
+      "vectors": [
+        [
+          "contractor/structural-site/v1",
+          [
+            "git",
+            "https://example.test:443/repo.git"
+          ],
+          "src/a.ts",
+          "typescript/statement-v1",
+          "tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2",
+          "sha256:828b924cad72dc0213a225571eadfc012a3374bd69fae028a5de2834214338c7",
+          [
+            0,
+            2,
+            0
+          ],
+          "sha256:d2a3fe5e4814bef28752e486881311c45f80962e312151e6643548c5d38ec044"
+        ]
+      ]
+    },
+    {
+      "name": "python-local-key",
+      "source": "key = '-----BEGIN PRIVATE KEY-----\\nMC4CAQAwBQYDK2VwBCIEIAABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4f\\n-----END PRIVATE KEY-----\\n'\n",
+      "file": "src/a.py",
+      "line": 1,
+      "qualifyLocal": true,
+      "zipBase64": "UEsDBBQAAAAAAAAAIQCjsk6BgwAAAIMAAAAIAAAAc3JjL2EucHlrZXkgPSAnLS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tXG5NQzRDQVFBd0JRWURLMlZ3QkNJRUlBQUJBZ01FQlFZSENBa0tDd3dORGc4UUVSSVRGQlVXRnhnWkdoc2NIUjRmXG4tLS0tLUVORCBQUklWQVRFIEtFWS0tLS0tXG4nClBLAQIUAxQAAAAAAAAAIQCjsk6BgwAAAIMAAAAIAAAAAAAAAAAAAACAAQAAAABzcmMvYS5weVBLBQYAAAAAAQABADYAAACpAAAAAAA=",
+      "derived": {
+        "schema": "contractor.finding.anchors-derived.v1",
+        "availability": "available",
+        "sourceRef": {
+          "namespace": "evidence",
+          "name": "source",
+          "revision": "1"
+        },
+        "sourceDigest": "sha256:e4dbe5a2828dc9b6b7246b6f4a75028533bcc395a454c92d768a6a200cda3d1d",
+        "anchors": [
+          {
+            "file": "src/a.py",
+            "startLine": 1,
+            "endLine": 1,
+            "language": "python",
+            "profile": "python/statement-v1",
+            "grammar": "tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2",
+            "fileDigest": "sha256:fe4ec8559e9b1a8af7a9a46491af81e57aef91d262b1f729c4e44c4d87d4f0d2",
+            "signatureDigest": "sha256:c405e2c677a946f18af9f1f446ca45072222fb5792173f05006f0c3b04a9df34",
+            "path": [
+              0
+            ],
+            "nodeDigest": "sha256:4cbcc86056465b6466362802377705f618fdcb25aea2951fc2e9dcd4de09de87",
+            "context": {
+              "scheme": "node-local/v1",
+              "ruleId": "source.private-key-literal.ed25519/v1",
+              "literalDigest": "sha256:b859bbad04b8b7cfb16533d1e3bfb1ae091adefddad8c7272b59380bae231841",
+              "contextDigest": "sha256:60a8402ec2a7926c4ff2cfebb6a6e8f7403ba29004175922315d2b5eb3f9ea91"
+            }
+          }
+        ]
+      },
+      "keys": [
+        {
+          "siteKey": "b2ef697cb20b00ae91d35940a1b54665c1208720784b35c1abc4218f99fbe68e",
+          "issueKey": "979b75eccd15abbe8bd0cfd4d91499eb1e11e2012f6c31c0b4662b3c45954902"
+        }
+      ],
+      "vectors": [
+        [
+          "contractor/structural-site/v1",
+          [
+            "git",
+            "https://example.test:443/repo.git"
+          ],
+          "src/a.py",
+          "python/statement-v1",
+          "tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2",
+          "sha256:c405e2c677a946f18af9f1f446ca45072222fb5792173f05006f0c3b04a9df34",
+          [
+            0
+          ],
+          "sha256:4cbcc86056465b6466362802377705f618fdcb25aea2951fc2e9dcd4de09de87"
+        ],
+        [
+          "contractor/snapshot-issue-anchor/v1",
+          [
+            "git",
+            "https://example.test:443/repo.git"
+          ],
+          [
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sha256:e4dbe5a2828dc9b6b7246b6f4a75028533bcc395a454c92d768a6a200cda3d1d"
+          ],
+          "source.private-key-literal.ed25519/v1",
+          "b2ef697cb20b00ae91d35940a1b54665c1208720784b35c1abc4218f99fbe68e",
+          "node-local/v1",
+          "sha256:60a8402ec2a7926c4ff2cfebb6a6e8f7403ba29004175922315d2b5eb3f9ea91"
+        ]
+      ]
+    },
+    {
+      "name": "javascript-local-key",
+      "source": "const key = \"-----BEGIN PRIVATE KEY-----\\nMC4CAQAwBQYDK2VwBCIEIAABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4f\\n-----END PRIVATE KEY-----\\n\";\n",
+      "file": "src/a.js",
+      "line": 1,
+      "qualifyLocal": true,
+      "zipBase64": "UEsDBBQAAAAAAAAAIQBbbQsMigAAAIoAAAAIAAAAc3JjL2EuanNjb25zdCBrZXkgPSAiLS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tXG5NQzRDQVFBd0JRWURLMlZ3QkNJRUlBQUJBZ01FQlFZSENBa0tDd3dORGc4UUVSSVRGQlVXRnhnWkdoc2NIUjRmXG4tLS0tLUVORCBQUklWQVRFIEtFWS0tLS0tXG4iOwpQSwECFAMUAAAAAAAAACEAW20LDIoAAACKAAAACAAAAAAAAAAAAAAAgAEAAAAAc3JjL2EuanNQSwUGAAAAAAEAAQA2AAAAsAAAAAAA",
+      "derived": {
+        "schema": "contractor.finding.anchors-derived.v1",
+        "availability": "available",
+        "sourceRef": {
+          "namespace": "evidence",
+          "name": "source",
+          "revision": "1"
+        },
+        "sourceDigest": "sha256:6e1bcabd34f47f1b4eecd05cace6bb0638a294a28d8f694ff0fb1879a750d870",
+        "anchors": [
+          {
+            "file": "src/a.js",
+            "startLine": 1,
+            "endLine": 1,
+            "language": "javascript",
+            "profile": "javascript/statement-v1",
+            "grammar": "tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2",
+            "fileDigest": "sha256:c2089d5eb98844ec9e722be83870a08dff5d05a4603ec0cd3ec318c0b5bb28b2",
+            "signatureDigest": "sha256:c405e2c677a946f18af9f1f446ca45072222fb5792173f05006f0c3b04a9df34",
+            "path": [
+              0
+            ],
+            "nodeDigest": "sha256:dabcc7dd37d76911bb024342d83e6511ce674a05aee4baa05c40feb2306dbc4c",
+            "context": {
+              "scheme": "node-local/v1",
+              "ruleId": "source.private-key-literal.ed25519/v1",
+              "literalDigest": "sha256:b859bbad04b8b7cfb16533d1e3bfb1ae091adefddad8c7272b59380bae231841",
+              "contextDigest": "sha256:60a8402ec2a7926c4ff2cfebb6a6e8f7403ba29004175922315d2b5eb3f9ea91"
+            }
+          }
+        ]
+      },
+      "keys": [
+        {
+          "siteKey": "681229f3ed5c71de4b41de409327c9a5330dd7123b1e8f4037ad3ddda266430e",
+          "issueKey": "344ef3293186efa6cec6dff438506fa795f85d990c0ad1b64a68b3a49f1d7c35"
+        }
+      ],
+      "vectors": [
+        [
+          "contractor/structural-site/v1",
+          [
+            "git",
+            "https://example.test:443/repo.git"
+          ],
+          "src/a.js",
+          "javascript/statement-v1",
+          "tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2",
+          "sha256:c405e2c677a946f18af9f1f446ca45072222fb5792173f05006f0c3b04a9df34",
+          [
+            0
+          ],
+          "sha256:dabcc7dd37d76911bb024342d83e6511ce674a05aee4baa05c40feb2306dbc4c"
+        ],
+        [
+          "contractor/snapshot-issue-anchor/v1",
+          [
+            "git",
+            "https://example.test:443/repo.git"
+          ],
+          [
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sha256:6e1bcabd34f47f1b4eecd05cace6bb0638a294a28d8f694ff0fb1879a750d870"
+          ],
+          "source.private-key-literal.ed25519/v1",
+          "681229f3ed5c71de4b41de409327c9a5330dd7123b1e8f4037ad3ddda266430e",
+          "node-local/v1",
+          "sha256:60a8402ec2a7926c4ff2cfebb6a6e8f7403ba29004175922315d2b5eb3f9ea91"
+        ]
+      ]
+    },
+    {
+      "name": "typescript-local-key",
+      "source": "const key: string = \"-----BEGIN PRIVATE KEY-----\\nMC4CAQAwBQYDK2VwBCIEIAABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4f\\n-----END PRIVATE KEY-----\\n\";\n",
+      "file": "src/a.ts",
+      "line": 1,
+      "qualifyLocal": true,
+      "zipBase64": "UEsDBBQAAAAAAAAAIQABOmP1kgAAAJIAAAAIAAAAc3JjL2EudHNjb25zdCBrZXk6IHN0cmluZyA9ICItLS0tLUJFR0lOIFBSSVZBVEUgS0VZLS0tLS1cbk1DNENBUUF3QlFZREsyVndCQ0lFSUFBQkFnTUVCUVlIQ0FrS0N3d05EZzhRRVJJVEZCVVdGeGdaR2hzY0hSNGZcbi0tLS0tRU5EIFBSSVZBVEUgS0VZLS0tLS1cbiI7ClBLAQIUAxQAAAAAAAAAIQABOmP1kgAAAJIAAAAIAAAAAAAAAAAAAACAAQAAAABzcmMvYS50c1BLBQYAAAAAAQABADYAAAC4AAAAAAA=",
+      "derived": {
+        "schema": "contractor.finding.anchors-derived.v1",
+        "availability": "available",
+        "sourceRef": {
+          "namespace": "evidence",
+          "name": "source",
+          "revision": "1"
+        },
+        "sourceDigest": "sha256:2be0195e822aa2d68ad852c03d322630be914f17dad306bbddae852ee9180772",
+        "anchors": [
+          {
+            "file": "src/a.ts",
+            "startLine": 1,
+            "endLine": 1,
+            "language": "typescript",
+            "profile": "typescript/statement-v1",
+            "grammar": "tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2",
+            "fileDigest": "sha256:8f7c54fe950261b8aecdf0270dd680fd8224e795c59c0973a0db4dc33ae71fb6",
+            "signatureDigest": "sha256:c405e2c677a946f18af9f1f446ca45072222fb5792173f05006f0c3b04a9df34",
+            "path": [
+              0
+            ],
+            "nodeDigest": "sha256:2401fcbe730ed05126ee2fbc11c3c0f3afc50c33bd46be671ba56cf8da012d30",
+            "context": {
+              "scheme": "node-local/v1",
+              "ruleId": "source.private-key-literal.ed25519/v1",
+              "literalDigest": "sha256:b859bbad04b8b7cfb16533d1e3bfb1ae091adefddad8c7272b59380bae231841",
+              "contextDigest": "sha256:60a8402ec2a7926c4ff2cfebb6a6e8f7403ba29004175922315d2b5eb3f9ea91"
+            }
+          }
+        ]
+      },
+      "keys": [
+        {
+          "siteKey": "846324123ba8966d2b49635c544928da4e9e217afd8c5b06ed466d5709b662d0",
+          "issueKey": "9212c8a84715f77973cabf272af4096e00ce00aed123005109a50a59da954bc7"
+        }
+      ],
+      "vectors": [
+        [
+          "contractor/structural-site/v1",
+          [
+            "git",
+            "https://example.test:443/repo.git"
+          ],
+          "src/a.ts",
+          "typescript/statement-v1",
+          "tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2",
+          "sha256:c405e2c677a946f18af9f1f446ca45072222fb5792173f05006f0c3b04a9df34",
+          [
+            0
+          ],
+          "sha256:2401fcbe730ed05126ee2fbc11c3c0f3afc50c33bd46be671ba56cf8da012d30"
+        ],
+        [
+          "contractor/snapshot-issue-anchor/v1",
+          [
+            "git",
+            "https://example.test:443/repo.git"
+          ],
+          [
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sha256:2be0195e822aa2d68ad852c03d322630be914f17dad306bbddae852ee9180772"
+          ],
+          "source.private-key-literal.ed25519/v1",
+          "846324123ba8966d2b49635c544928da4e9e217afd8c5b06ed466d5709b662d0",
+          "node-local/v1",
+          "sha256:60a8402ec2a7926c4ff2cfebb6a6e8f7403ba29004175922315d2b5eb3f9ea91"
+        ]
+      ]
+    }
+  ],
+  "invalid": [
+    {
+      "name": "unknown",
+      "derived": {
+        "schema": "contractor.finding.anchors-derived.v1",
+        "availability": "available",
+        "sourceRef": {
+          "namespace": "evidence",
+          "name": "source",
+          "revision": "1"
+        },
+        "sourceDigest": "sha256:01e84a270d06a160873cf189776be16ea610ff925f1235096d1a9622bc483117",
+        "anchors": [
+          {
+            "file": "src/a.py",
+            "startLine": 2,
+            "endLine": 2,
+            "language": "python",
+            "profile": "python/statement-v1",
+            "grammar": "tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2",
+            "fileDigest": "sha256:dde94a3fff4cda213d8f9b92f3693856042ccd9d7c9a05f2baa794f669d6e4ef",
+            "signatureDigest": "sha256:df969bef2e1b50111554c603b3bd41ab579177f6d20c30a411b77fc10d92c3b0",
+            "path": [
+              0,
+              2,
+              0
+            ],
+            "nodeDigest": "sha256:8ae78c240958b28682b34002ed2a6bcd3f830ebf4cf7b11864b3e8ce639e902d"
+          }
+        ],
+        "extra": 1
+      }
+    },
+    {
+      "name": "wrong-schema",
+      "derived": {
+        "schema": "unknown",
+        "availability": "available",
+        "sourceRef": {
+          "namespace": "evidence",
+          "name": "source",
+          "revision": "1"
+        },
+        "sourceDigest": "sha256:01e84a270d06a160873cf189776be16ea610ff925f1235096d1a9622bc483117",
+        "anchors": [
+          {
+            "file": "src/a.py",
+            "startLine": 2,
+            "endLine": 2,
+            "language": "python",
+            "profile": "python/statement-v1",
+            "grammar": "tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2",
+            "fileDigest": "sha256:dde94a3fff4cda213d8f9b92f3693856042ccd9d7c9a05f2baa794f669d6e4ef",
+            "signatureDigest": "sha256:df969bef2e1b50111554c603b3bd41ab579177f6d20c30a411b77fc10d92c3b0",
+            "path": [
+              0,
+              2,
+              0
+            ],
+            "nodeDigest": "sha256:8ae78c240958b28682b34002ed2a6bcd3f830ebf4cf7b11864b3e8ce639e902d"
+          }
+        ]
+      }
+    },
+    {
+      "name": "missing-source",
+      "derived": {
+        "schema": "contractor.finding.anchors-derived.v1",
+        "availability": "available",
+        "sourceDigest": "sha256:01e84a270d06a160873cf189776be16ea610ff925f1235096d1a9622bc483117",
+        "anchors": [
+          {
+            "file": "src/a.py",
+            "startLine": 2,
+            "endLine": 2,
+            "language": "python",
+            "profile": "python/statement-v1",
+            "grammar": "tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2",
+            "fileDigest": "sha256:dde94a3fff4cda213d8f9b92f3693856042ccd9d7c9a05f2baa794f669d6e4ef",
+            "signatureDigest": "sha256:df969bef2e1b50111554c603b3bd41ab579177f6d20c30a411b77fc10d92c3b0",
+            "path": [
+              0,
+              2,
+              0
+            ],
+            "nodeDigest": "sha256:8ae78c240958b28682b34002ed2a6bcd3f830ebf4cf7b11864b3e8ce639e902d"
+          }
+        ]
+      }
+    },
+    {
+      "name": "null-source",
+      "derived": {
+        "schema": "contractor.finding.anchors-derived.v1",
+        "availability": "available",
+        "sourceRef": null,
+        "sourceDigest": "sha256:01e84a270d06a160873cf189776be16ea610ff925f1235096d1a9622bc483117",
+        "anchors": [
+          {
+            "file": "src/a.py",
+            "startLine": 2,
+            "endLine": 2,
+            "language": "python",
+            "profile": "python/statement-v1",
+            "grammar": "tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2",
+            "fileDigest": "sha256:dde94a3fff4cda213d8f9b92f3693856042ccd9d7c9a05f2baa794f669d6e4ef",
+            "signatureDigest": "sha256:df969bef2e1b50111554c603b3bd41ab579177f6d20c30a411b77fc10d92c3b0",
+            "path": [
+              0,
+              2,
+              0
+            ],
+            "nodeDigest": "sha256:8ae78c240958b28682b34002ed2a6bcd3f830ebf4cf7b11864b3e8ce639e902d"
+          }
+        ]
+      }
+    },
+    {
+      "name": "bad-profile",
+      "derived": {
+        "schema": "contractor.finding.anchors-derived.v1",
+        "availability": "available",
+        "sourceRef": {
+          "namespace": "evidence",
+          "name": "source",
+          "revision": "1"
+        },
+        "sourceDigest": "sha256:01e84a270d06a160873cf189776be16ea610ff925f1235096d1a9622bc483117",
+        "anchors": [
+          {
+            "file": "src/a.py",
+            "startLine": 2,
+            "endLine": 2,
+            "language": "python",
+            "profile": "python/statement-v2",
+            "grammar": "tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2",
+            "fileDigest": "sha256:dde94a3fff4cda213d8f9b92f3693856042ccd9d7c9a05f2baa794f669d6e4ef",
+            "signatureDigest": "sha256:df969bef2e1b50111554c603b3bd41ab579177f6d20c30a411b77fc10d92c3b0",
+            "path": [
+              0,
+              2,
+              0
+            ],
+            "nodeDigest": "sha256:8ae78c240958b28682b34002ed2a6bcd3f830ebf4cf7b11864b3e8ce639e902d"
+          }
+        ]
+      }
+    },
+    {
+      "name": "bad-grammar",
+      "derived": {
+        "schema": "contractor.finding.anchors-derived.v1",
+        "availability": "available",
+        "sourceRef": {
+          "namespace": "evidence",
+          "name": "source",
+          "revision": "1"
+        },
+        "sourceDigest": "sha256:01e84a270d06a160873cf189776be16ea610ff925f1235096d1a9622bc483117",
+        "anchors": [
+          {
+            "file": "src/a.py",
+            "startLine": 2,
+            "endLine": 2,
+            "language": "python",
+            "profile": "python/statement-v1",
+            "grammar": "unknown",
+            "fileDigest": "sha256:dde94a3fff4cda213d8f9b92f3693856042ccd9d7c9a05f2baa794f669d6e4ef",
+            "signatureDigest": "sha256:df969bef2e1b50111554c603b3bd41ab579177f6d20c30a411b77fc10d92c3b0",
+            "path": [
+              0,
+              2,
+              0
+            ],
+            "nodeDigest": "sha256:8ae78c240958b28682b34002ed2a6bcd3f830ebf4cf7b11864b3e8ce639e902d"
+          }
+        ]
+      }
+    },
+    {
+      "name": "bad-line",
+      "derived": {
+        "schema": "contractor.finding.anchors-derived.v1",
+        "availability": "available",
+        "sourceRef": {
+          "namespace": "evidence",
+          "name": "source",
+          "revision": "1"
+        },
+        "sourceDigest": "sha256:01e84a270d06a160873cf189776be16ea610ff925f1235096d1a9622bc483117",
+        "anchors": [
+          {
+            "file": "src/a.py",
+            "startLine": true,
+            "endLine": 2,
+            "language": "python",
+            "profile": "python/statement-v1",
+            "grammar": "tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2",
+            "fileDigest": "sha256:dde94a3fff4cda213d8f9b92f3693856042ccd9d7c9a05f2baa794f669d6e4ef",
+            "signatureDigest": "sha256:df969bef2e1b50111554c603b3bd41ab579177f6d20c30a411b77fc10d92c3b0",
+            "path": [
+              0,
+              2,
+              0
+            ],
+            "nodeDigest": "sha256:8ae78c240958b28682b34002ed2a6bcd3f830ebf4cf7b11864b3e8ce639e902d"
+          }
+        ]
+      }
+    },
+    {
+      "name": "path-bool",
+      "derived": {
+        "schema": "contractor.finding.anchors-derived.v1",
+        "availability": "available",
+        "sourceRef": {
+          "namespace": "evidence",
+          "name": "source",
+          "revision": "1"
+        },
+        "sourceDigest": "sha256:01e84a270d06a160873cf189776be16ea610ff925f1235096d1a9622bc483117",
+        "anchors": [
+          {
+            "file": "src/a.py",
+            "startLine": 2,
+            "endLine": 2,
+            "language": "python",
+            "profile": "python/statement-v1",
+            "grammar": "tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2",
+            "fileDigest": "sha256:dde94a3fff4cda213d8f9b92f3693856042ccd9d7c9a05f2baa794f669d6e4ef",
+            "signatureDigest": "sha256:df969bef2e1b50111554c603b3bd41ab579177f6d20c30a411b77fc10d92c3b0",
+            "path": [
+              true
+            ],
+            "nodeDigest": "sha256:8ae78c240958b28682b34002ed2a6bcd3f830ebf4cf7b11864b3e8ce639e902d"
+          }
+        ]
+      }
+    },
+    {
+      "name": "unknown-node-field",
+      "derived": {
+        "schema": "contractor.finding.anchors-derived.v1",
+        "availability": "available",
+        "sourceRef": {
+          "namespace": "evidence",
+          "name": "source",
+          "revision": "1"
+        },
+        "sourceDigest": "sha256:01e84a270d06a160873cf189776be16ea610ff925f1235096d1a9622bc483117",
+        "anchors": [
+          {
+            "file": "src/a.py",
+            "startLine": 2,
+            "endLine": 2,
+            "language": "python",
+            "profile": "python/statement-v1",
+            "grammar": "tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2",
+            "fileDigest": "sha256:dde94a3fff4cda213d8f9b92f3693856042ccd9d7c9a05f2baa794f669d6e4ef",
+            "signatureDigest": "sha256:df969bef2e1b50111554c603b3bd41ab579177f6d20c30a411b77fc10d92c3b0",
+            "path": [
+              0,
+              2,
+              0
+            ],
+            "nodeDigest": "sha256:8ae78c240958b28682b34002ed2a6bcd3f830ebf4cf7b11864b3e8ce639e902d",
+            "extra": "x"
+          }
+        ]
+      }
+    },
+    {
+      "name": "null-context",
+      "derived": {
+        "schema": "contractor.finding.anchors-derived.v1",
+        "availability": "available",
+        "sourceRef": {
+          "namespace": "evidence",
+          "name": "source",
+          "revision": "1"
+        },
+        "sourceDigest": "sha256:01e84a270d06a160873cf189776be16ea610ff925f1235096d1a9622bc483117",
+        "anchors": [
+          {
+            "file": "src/a.py",
+            "startLine": 2,
+            "endLine": 2,
+            "language": "python",
+            "profile": "python/statement-v1",
+            "grammar": "tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2",
+            "fileDigest": "sha256:dde94a3fff4cda213d8f9b92f3693856042ccd9d7c9a05f2baa794f669d6e4ef",
+            "signatureDigest": "sha256:df969bef2e1b50111554c603b3bd41ab579177f6d20c30a411b77fc10d92c3b0",
+            "path": [
+              0,
+              2,
+              0
+            ],
+            "nodeDigest": "sha256:8ae78c240958b28682b34002ed2a6bcd3f830ebf4cf7b11864b3e8ce639e902d",
+            "context": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "reserved-runtime-reason-discarded",
+      "derived": {
+        "schema": "contractor.finding.anchors-derived.v1",
+        "availability": "unavailable",
+        "reason": "discarded"
+      }
+    },
+    {
+      "name": "reserved-runtime-reason-not_recorded",
+      "derived": {
+        "schema": "contractor.finding.anchors-derived.v1",
+        "availability": "unavailable",
+        "reason": "not_recorded"
+      }
+    }
+  ],
+  "unavailable": [
+    {
+      "schema": "contractor.finding.anchors-derived.v1",
+      "availability": "unavailable",
+      "reason": "anchor_parser_unavailable"
+    }
+  ]
+}

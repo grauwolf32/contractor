@@ -91,6 +91,14 @@ func (s *Service) Submit(
 	} else if found {
 		return previous, true, nil
 	}
+	anchors, err := s.prepareAnchors(ctx, grant, canonical.request)
+	if err != nil {
+		return Receipt{}, false, err
+	}
+	canonical.anchorProjection, err = auditdomain.EncodeFindingAnchors(anchors)
+	if err != nil {
+		return Receipt{}, false, err
+	}
 	fingerprint, err := s.prepareFingerprint(ctx, grant, canonical.request)
 	if err != nil {
 		return Receipt{}, false, err
@@ -382,7 +390,7 @@ func insertReceipt(
 		auditExecutionID, auditID, auditRole, origin.Workflow.Name, origin.Workflow.Version,
 		origin.Workflow.SchemaVersion, configurationRef, origin.Workflow.ClosureDigest,
 		proposalRef, proposal.Digest, proposal.MediaType, proposal.SizeBytes,
-		evidenceJSON, string(canonical.reportProjection), string(fingerprintJSON),
+		evidenceJSON, string(canonical.reportProjection), string(fingerprintJSON), string(canonical.anchorProjection),
 	)
 	if err != nil {
 		if persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate {

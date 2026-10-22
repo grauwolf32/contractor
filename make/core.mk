@@ -12,10 +12,10 @@
 test-go: test-hardening-matrices runtime-venv
 	go test $$(go list ./... | grep -v '/tests/e2e$$')
 
-test-runtime:
+test-runtime: runtime-venv
 	cd runtime && uv run pytest
 
-test-runtime-hardening:
+test-runtime-hardening: runtime-venv
 	cd runtime && uv run pytest -W error tests
 
 test-hardening-matrices: runtime-venv
