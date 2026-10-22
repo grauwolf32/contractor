@@ -1,3 +1,6 @@
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { expect, test, type Page, type Route } from "@playwright/test";
 
 import { project } from "../src/test/builders";
@@ -388,7 +391,7 @@ for (const theme of ["light", "dark", "black"]) {
       true,
     );
     await page.screenshot({
-      path: `/private/tmp/contractor-git-analysis-${theme}.png`,
+      path: join(tmpdir(), `contractor-git-analysis-${theme}.png`),
     });
     await dialog.getByRole("button", { name: "Import sources" }).click();
     const notice = page.getByRole("status", {
