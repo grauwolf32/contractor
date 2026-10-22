@@ -6,7 +6,7 @@ epic: ui
 kind: chore
 introduced_by: V387-002
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [typescript]
 goal: Let the existing model-selection and source-import browser QA save their screenshots in the host temporary directory on every supported test host.
@@ -29,3 +29,11 @@ tests:
   covers: [A1, A2]
 - command: make lint
   covers: [A3]
+
+verification:
+  date: "2026-10-22"
+  status: passed
+  checks:
+  - "make ui-browser-mocked passed all 65 cases on Linux, including the existing model-selection and Git-import screenshots, without missing-directory errors."
+  - "The same screenshot names use node os.tmpdir and path.join; existing browser assertions are retained. Full make lint passed."
+implementation_commit: 05634711318fae95a0eed31cbf6386e340755954
