@@ -702,7 +702,7 @@ its owning requirement.
 | `LIM-SKL-13` | 128 YAML nodes | Bounded YAML tokenization of the frontmatter | Package validators | [SKL-R30](../tools/skills.md) |
 | `LIM-SKL-14` | nesting depth 3 | Bounded YAML tokenization of the frontmatter | Package validators | [SKL-R30](../tools/skills.md) |
 | `LIM-SKL-15` | 256 KiB | Complete `SKILL.md` | Package validators | [SKL-R33](../tools/skills.md) |
-| `LIM-SKL-16` | 1 MiB | One regular reference or asset member | Package validators | [SKL-R33](../tools/skills.md) |
+| `LIM-SKL-16` | 1 MiB | One regular reference, asset or script member | Package validators | [SKL-R33](../tools/skills.md) |
 | `LIM-SKL-17` | 16 MiB | Stored Skill ZIP payload (below the generic 64 MiB ArtifactStore limit LIM-ART-4) | Package validators | [SKL-R34](../tools/skills.md) |
 | `LIM-SKL-18` | 2,000 entries including directories | Entries of one Skill ZIP | Package validators; the Server counts actual central-directory records before parsing any member | [SKL-R34](../tools/skills.md) |
 | `LIM-SKL-19` | 32 MiB | Total declared and actually streamed decompressed bytes of one package | Package validators, enforced while streaming | [SKL-R34](../tools/skills.md) |

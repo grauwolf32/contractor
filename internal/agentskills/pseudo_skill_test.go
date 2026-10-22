@@ -212,12 +212,12 @@ func TestPseudoSkillSourceViolationsAreRejected(t *testing.T) {
 			code: CodeNameMismatch,
 		},
 		{
-			name: "scripts member",
+			name: "invalid script text",
 			mutate: func(t *testing.T, source string) string {
-				writePseudoSkillFile(t, source, "scripts/run.sh", []byte("#!/bin/sh\n"))
+				writePseudoSkillFile(t, source, "scripts/run.sh", []byte{0xff})
 				return source
 			},
-			code: CodeMemberForbidden,
+			code: CodeManifestInvalid,
 		},
 		{
 			name: "top-level member beside SKILL.md",

@@ -15,6 +15,10 @@ policy:
     telemetry retain only bounded names, paths, counts, outcomes and codes.
 
 cases:
+  - id: script_source_disclosure
+    covers: [A1, A4]
+    expected: Script text is disclosed exactly within the existing budget, never executed by native Skill tools and erased on close.
+    test: {source: runtime/tests/test_agent_skill_toolset.py, symbol: test_script_source_disclosure_is_exact_bounded_and_never_executes}
   - id: dual_validator_corpus
     covers: [A1]
     faults: [F01]

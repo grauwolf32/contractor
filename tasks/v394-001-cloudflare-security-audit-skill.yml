@@ -1,0 +1,91 @@
+schema_version: "1.0"
+id: V394-001
+title: "Import Cloudflare security-audit with inspectable script resources"
+milestone: agent-skills-port-and-hardening
+epic: agent-skills
+kind: feature
+priority: P2
+status: in_progress
+depends_on: []
+languages: [go, python, javascript]
+goal: >-
+  Make Cloudflare's source-first audit methodology and deterministic report
+  validators available as a bundled Skill. Permit bounded UTF-8 scripts as
+  inspectable resources without adding a Skill executor or host authority.
+context:
+  specification: docs/spec/tools/skills.md#SKL-R20
+  source: https://github.com/cloudflare/security-audit-skill/tree/c1c8a8c1471069fb0e188eeaff69b8e8db6564a8/skills/security-audit
+scope:
+  in:
+    - Accept scripts/ under the existing portable-path and resource-size limits in Go and Python.
+    - Disclose exact script source through the existing native load_skill_resource function.
+    - Import the pinned methodology, companions, schema, validators and MIT license with Contractor guidance.
+    - Document materialization through available workspace tools and execution through explicitly selected sandbox tools.
+  out:
+    - Automatic script execution, run_skill_script, host execution, dependency installation and new sandbox mounts.
+    - Changing existing Workflow selections, model policies or running an audit during import.
+requirements:
+  - id: R1
+    text: Scripts are regular UTF-8 files without NUL; all existing path, ZIP and byte bounds still apply.
+  - id: R2
+    text: Go, Python and native ADK disclosure agree on script paths and exact bytes using shared fixtures.
+  - id: R3
+    text: Loading or reading a script never executes it and exposes only the existing three Skill tools.
+  - id: R4
+    text: Preserve upstream provenance and license; describe missing execution or independent-review capabilities truthfully.
+failure_outcomes:
+  - operation: Package validation and disclosure
+    permanent: Invalid paths and text retain existing skill_path_invalid and skill_manifest_invalid classifications.
+    retryable: No new external operation; existing pinned Artifact reads retain their bounded preparation retry policy.
+    ambiguous: No new store mutations or script executor; existing Artifact CAS and Run pinning remain authoritative.
+    cancelled: Existing disclosure cancellation metrics and allocation cleanup own all loaded script resources.
+    timeout: Reading scripts uses existing preparation and disclosure budgets; execution uses the selected sandbox timeout.
+cardinality:
+  - collection: Skill package members
+    expected: One imported package with fewer than 32 regular files.
+    maximum: Existing 2000 entries, 16 MiB stored, 32 MiB expanded, 1 MiB per resource.
+    bound: Existing 16 MiB allocation disclosure budget includes script source.
+lifecycle:
+  - entity: Script-bearing Skill packages
+    delete: Existing owner Artifact and Run retention rules apply.
+    cascade: Allocation release closes native resources and erases extracted scripts with the package.
+    retention: Startup seeds missing bindings only; existing Runs retain their pinned exact package revision.
+acceptance_criteria:
+  - id: A1
+    given: A valid script-bearing pseudo-Skill or a malformed script resource.
+    when: Go and Python validate the shared corpus and canonical authoring output.
+    then: Valid script bytes survive packaging and invalid UTF-8, NUL, paths and special members are rejected consistently.
+  - id: A2
+    given: A selected pseudo-Skill with script source that would create a marker if executed.
+    when: Runtime prepares it, loads the script and releases the allocation.
+    then: Exact source is disclosed within budget, no marker is created, no executor is exposed and extracted state is removed.
+  - id: A3
+    given: The pinned Cloudflare package and Contractor catalog.
+    when: The authoring helper and shipped configuration validator run.
+    then: The adapted package validates, resources resolve and provenance and license are present.
+tests:
+  - command: go test ./internal/agentskills/... ./cmd/contractor-skill/...
+    covers: [A1, A3]
+  - command: make test-agent-skill-contract
+    covers: [A1, A2]
+  - command: make test-agent-skills-runtime-hardening
+    covers: [A2]
+  - command: make test-agent-skills-packaging
+    covers: [A1, A3]
+  - command: go run ./cmd/contractor-skill validate configs/skills/security-audit
+    covers: [A3]
+  - command: go run ./cmd/contractor-server config validate --root ./configs
+    covers: [A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+verification:
+  date: "2026-10-22"
+  results:
+    - All listed commands passed; Runtime hardening ran 52 tests with warnings treated as errors.
+    - The pinned upstream validator tests ran from a temporary source copy; all 65 tests passed with no skips.
+    - All 20 imported package members and every local Markdown resource link were checked.
+    - The canonical upload ZIP was built at /private/tmp/contractor-security-audit.zip.
+  limits:
+    - No live model audit or deployment was requested or performed.
+    - Full upstream audit coordination requires independently supplied agent roles and isolation controls.
+    - Validator execution requires an explicitly selected sandbox with preinstalled Node.js; the default Python image is unchanged.
