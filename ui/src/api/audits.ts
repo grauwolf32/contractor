@@ -316,10 +316,12 @@ export async function listProjectAudits(
 export async function getAudit(
   api: PublicAPI,
   auditId: string,
+  signal?: AbortSignal,
 ): Promise<Audit> {
   requireAuditID(auditId);
   const result = await api.request((client) =>
     client.GET("/v1/audits/{auditId}", {
+      ...(signal === undefined ? {} : { signal }),
       params: { path: { auditId } },
     }),
   );
@@ -682,6 +684,7 @@ export async function listAuditFindingProvenance(
   auditId: string,
   findingId: string,
   request: PageRequest & { auditRevision: number; findingRevision: number },
+  signal?: AbortSignal,
 ): Promise<AuditFindingProvenancePage> {
   requireAuditID(auditId);
   requireAuditID(findingId);
@@ -689,6 +692,7 @@ export async function listAuditFindingProvenance(
   requireAuditRevision(request.findingRevision);
   const result = await api.request((client) =>
     client.GET("/v1/audits/{auditId}/findings/{findingId}/provenance", {
+      ...(signal === undefined ? {} : { signal }),
       params: {
         path: { auditId, findingId },
         query: {

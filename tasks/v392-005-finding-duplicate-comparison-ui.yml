@@ -18,7 +18,7 @@ goal: Let an owner inspect intersections across Audits from an existing finding 
   while preserving independent analyst results and truthful comparison limitations.
 context:
   request: User requested automatic duplicate labels with retained findings for comparison across different Audits on 2026-10-22.
-  refinement: User clarified on 2026-10-22 that no separate comparison UI is wanted; use a collapsed Duplicates section in the existing finding card, with links to independent Audit-owned findings.
+  refinement: User clarified on 2026-10-22 that no separate comparison UI is wanted; use a collapsed Duplicates section in the existing finding card, with compact observation cards, direct Evidence links and search controls behind a disclosure.
   proposal:
   - docs/proposals/0028-finding-analysis-and-sarif.md#identity-automatic-marks-and-analyst-decisions
   - docs/proposals/0028-finding-analysis-and-sarif.md#bounded-search-and-comparison-across-audits
@@ -50,7 +50,7 @@ scope:
 requirements:
 - id: R1
   text: Render the Server's automatic system mark without a confirmation dialog or client-generated equality. Keep it visually distinct from existing
-    manual duplicate/TP/FP triage, independent severity and verification; Technical details contains hashes, algorithm/parser versions and complete
+    manual duplicate/TP/FP triage, independent severity and verification. Every peer uses the same Automatic match label without a visible winning observation; Technical details contains hashes, algorithm/parser versions and complete
     basis.
 - id: R2
   text: Open the collapsed Duplicates section from an existing finding, without a separate comparison route or parent inventory download. Show exact related observations and weaker suggestions separately with on-demand baseline/coverage/profile/configuration context.

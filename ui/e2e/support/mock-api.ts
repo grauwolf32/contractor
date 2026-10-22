@@ -31,7 +31,7 @@ export const CSRF_TOKEN = "a".repeat(43);
 
 // The Server's CORS policy (internal/httpapi/public/auth_handlers.go).
 const EXPOSED_HEADERS =
-  "X-Request-ID, X-Contractor-API-Version, ETag, Content-Disposition";
+  "X-Request-ID, X-Contractor-API-Version, ETag, Content-Disposition, Retry-After";
 const ALLOWED_METHODS = "GET, POST, PUT, PATCH, DELETE";
 const ALLOWED_HEADERS =
   "Authorization, Content-Type, Idempotency-Key, If-Match, If-None-Match, X-CSRF-Token";

@@ -7,6 +7,8 @@ import { findingStateLabel, severityLabel } from "../../app/vocabulary";
 import { ListRow, MethodChip, StatusGlyph } from "../../ui";
 import { httpOperation, weaknessReferences } from "../decisions/text";
 
+import { CorrelationMark } from "./correlation-mark";
+
 import "./issues.css";
 
 /** "Oct 4, 23:56", with the full timestamp on hover. */
@@ -131,6 +133,7 @@ export function IssueRow({
           <span className="issues-row-line">
             {separated([
               <span className="issues-row-state">{state.label}</span>,
+              <CorrelationMark finding={finding} />,
               ...severityParts(finding),
             ])}
           </span>

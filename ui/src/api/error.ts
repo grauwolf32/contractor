@@ -77,6 +77,7 @@ export class PublicAPIError extends Error {
   readonly requestId?: string;
   readonly inUse?: InUseDetails;
   readonly status: number;
+  readonly retryAfterMs?: number;
 
   constructor(options: {
     status: number;
@@ -85,12 +86,15 @@ export class PublicAPIError extends Error {
     retryable?: boolean;
     requestId?: string;
     inUse?: InUseDetails;
+    retryAfterMs?: number;
   }) {
     super(boundedText(options.message, "Public API request failed"));
     this.name = "PublicAPIError";
     this.status = options.status;
     this.code = boundedText(options.code, "request_failed");
     this.retryable = options.retryable ?? false;
+    if (options.retryAfterMs !== undefined)
+      this.retryAfterMs = options.retryAfterMs;
     if (options.requestId !== undefined) {
       this.requestId = boundedText(options.requestId, "unknown");
     }
@@ -117,10 +121,24 @@ export class APICompatibilityError extends PublicAPIError {
   }
 }
 
-export function publicAPIError(status: number, value: unknown): PublicAPIError {
+export function publicAPIError(
+  status: number,
+  value: unknown,
+  retryAfter?: string | null,
+): PublicAPIError {
   const envelope = value as Partial<ErrorEnvelope> | null;
   const details = envelope?.details;
   const inUse = parseInUseDetails(details);
+  const seconds =
+    retryAfter !== undefined && retryAfter !== null && /^\d+$/.test(retryAfter)
+      ? Number(retryAfter)
+      : undefined;
+  const date =
+    retryAfter === undefined || retryAfter === null
+      ? NaN
+      : Date.parse(retryAfter);
+  const delay = seconds === undefined ? date - Date.now() : seconds * 1000;
+
   return new PublicAPIError({
     status,
     code: boundedText(envelope?.code, "request_failed"),
@@ -130,6 +148,7 @@ export function publicAPIError(status: number, value: unknown): PublicAPIError {
       ? { requestId: envelope.requestId }
       : {}),
     ...(inUse === undefined ? {} : { inUse }),
+    ...(Number.isFinite(delay) && delay >= 0 ? { retryAfterMs: delay } : {}),
   });
 }
 
@@ -140,7 +159,11 @@ export function requireData<T>(result: {
   response: Response;
 }): T {
   if (result.data === undefined) {
-    throw publicAPIError(result.response.status, result.error);
+    throw publicAPIError(
+      result.response.status,
+      result.error,
+      result.response.headers.get("Retry-After"),
+    );
   }
   return result.data;
 }

@@ -363,8 +363,8 @@ func runBrowserStack(t *testing.T, evalMode string) {
 	stack.assertCredentialLifecycle()
 	stack.assertSecretBoundaries(evidencePath, tracePaths, screenshotPath)
 	calls, completedStages, gatewayFailures := modelGateway.snapshot()
-	if completedStages != 4 || len(gatewayFailures) != 0 {
-		t.Fatalf("model Gateway stages/failures = %d/%v, want 4/none (calls=%d)",
+	if completedStages != 6 || len(gatewayFailures) != 0 {
+		t.Fatalf("model Gateway stages/failures = %d/%v, want 6/none (calls=%d)",
 			completedStages, gatewayFailures, calls)
 	}
 	creates, deletes, managerFailures := credentialManager.snapshot()
@@ -426,8 +426,8 @@ func (s *uiStack) assertRunOwnerBoundaries(ownerID string) {
 	if err := rows.Err(); err != nil {
 		s.t.Fatal(err)
 	}
-	if count != 2 {
-		s.t.Fatalf("created %d Runs, want 2 (idempotent replay and repeat draft must not create Runs)", count)
+	if count != 4 {
+		s.t.Fatalf("created %d Runs, want 4 (two original and two source observations; replay must not create Runs)", count)
 	}
 	var list struct {
 		Items []json.RawMessage `json:"items"`
@@ -602,6 +602,7 @@ func (s *uiStack) startControlServer() {
 	}
 	s.controlURL = "http://" + listener.Addr().String()
 	mux := http.NewServeMux()
+	mux.HandleFunc("POST /correlation-source/{projectId}", s.correlationSourceHandler)
 	mux.HandleFunc("POST /{action}", func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer "+s.controlToken || r.ContentLength > 0 {
 			http.Error(w, "forbidden", http.StatusForbidden)

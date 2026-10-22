@@ -227,7 +227,7 @@ func (h *sessionHandlers) cors(next http.Handler, routes *http.ServeMux) http.Ha
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 		w.Header().Set(
 			"Access-Control-Expose-Headers",
-			"X-Request-ID, X-Contractor-API-Version, ETag, Content-Disposition",
+			"X-Request-ID, X-Contractor-API-Version, ETag, Content-Disposition, Retry-After",
 		)
 		if r.Method != http.MethodOptions {
 			next.ServeHTTP(w, r)

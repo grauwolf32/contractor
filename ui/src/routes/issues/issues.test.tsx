@@ -81,6 +81,20 @@ function pageStatus(): HTMLElement {
   return outside[0]!;
 }
 
+it("opens a finding's existing Evidence tab from a direct duplicate link", async () => {
+  const view = renderIssues(
+    twoProjects(),
+    "/issues/audit_shop/finding_orders?tab=evidence",
+  );
+  expect(await screen.findByRole("tab", { name: /^Evidence/ })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await view.user.click(screen.getByRole("tab", { name: "Summary" }));
+  await screen.findByText("What the AI found");
+  expect(view.location()).not.toContain("tab=evidence");
+});
+
 describe("Issues", () => {
   it("lists possible issues across projects, newest first, with filters in the URL", async () => {
     const server = twoProjects();

@@ -20,6 +20,9 @@ Build links with `links.ts`: `issuePath(auditId, findingId)`,
 one project's possible issues), `issueHref(finding, filters)` and
 `checkIssuePath(projectId, auditId, findingId?)`.
 
+`?tab=evidence` opens the existing Evidence tab directly; `?tab=history`
+opens History. These preserve the finding identity and independent review.
+
 ## Building blocks
 
 - `IssueRow({ finding, to, selected?, context?, id? })`: one possible issue in
@@ -65,3 +68,10 @@ never swallows it; the shown pane repeats it as text) and moves to the next
 one, focusing the detail's header bar. After the last one it returns to the
 list and focuses the list's title, since the decision and the decided row
 both go away.
+
+The full finding summary includes a collapsed **Duplicates** section. It reads
+Project members only when opened and links each observation to its finding or
+exact Evidence tab. **Possible matches** stays separate, with **Search options**
+for scope/source selection. Cursors never survive a source/finding switch; a
+stale cursor hides its old traversal and offers a restart. System equality does
+not copy analyst decisions, and a representative is not presented as a winner.

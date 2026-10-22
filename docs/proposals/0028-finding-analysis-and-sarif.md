@@ -1,14 +1,16 @@
 # Structured finding analysis, correlation and SARIF export
 
-Proposal 0028 · Status: **Partially folded: correlation backend; UI and export remain draft.**
+Proposal 0028 · Status: **Partially folded: correlation and finding UI; export remains draft.**
 
 Versioned producer fingerprints, exact-source structural anchors, automatic
 retained duplicate marks, bounded duplicate-candidate search and cross-Audit
 comparison/member APIs are folded into the owning
 [findings specification](../spec/findings/findings.md#automatic-correlation-across-audits)
 (FND-R163 through FND-R183). These use deterministic code without matching LLM
-calls and preserve every independent Audit result. Correlation UI remains a
-target of this proposal until its owning UI contracts are amended.
+calls and preserve every independent Audit result. The finding-owned Duplicates
+disclosure is owned by UI-R198 through UI-R201
+and UIJ-R117. There is no separate pair-comparison UI; the pair API remains
+available to authorized API clients.
 
 Typed finding analysis, its resolver, export snapshots, SARIF rendering, the
 `github-code-scanning` profile and `POST /v1/finding-exports` remain target
@@ -505,8 +507,8 @@ The requested target is deterministic fingerprinting/search and automatic
 marking of repeated findings, including discoveries in different Audits of one
 Project. No LLM call, embedding, model ranking or model-authored discriminator
 participates in these operations. A finding may originate from a model; its
-prose is not a matching input. The backend contract is now owned by FND-R163 through FND-R183; the UI and
-export sections below remain target design.
+prose is not a matching input. The backend contract is now owned by FND-R163
+through FND-R183; the export sections below remain target design.
 
 | Fact | Authority and effect |
 | --- | --- |

@@ -8,6 +8,21 @@ import {
 } from "./error";
 
 describe("response helpers", () => {
+  it("carries Server Retry-After seconds into finite read retries", () => {
+    expect(() =>
+      requireData({
+        response: new Response(null, {
+          status: 503,
+          headers: { "Retry-After": "7" },
+        }),
+        error: {
+          code: "storage_transaction_conflict",
+          message: "Retry",
+          retryable: true,
+        },
+      }),
+    ).toThrow(expect.objectContaining({ retryAfterMs: 7000, retryable: true }));
+  });
   it("returns data and throws the carried error envelope", () => {
     const response = new Response(null, { status: 409 });
 

@@ -99,7 +99,7 @@ func TestModelGatewayFindsNamedInputAfterParameterBlock(t *testing.T) {
 
 func newModelGateway(token string) *modelGateway {
 	gateway := &modelGateway{
-		token: token, domainStages: openAPIGatewayStages(),
+		token: token, domainStages: append(openAPIGatewayStages(), correlationProducerStage(), correlationProducerStage()),
 		streamlineSteps: make(map[string]int),
 		workerEntered:   make(chan struct{}),
 		releaseWorker:   make(chan struct{}),
@@ -638,7 +638,8 @@ func expectedResultFinalizerCandidate(result string) bool {
 		"Dependency inventory published",
 		"Project inventory published",
 		"OpenAPI candidate built and validated",
-		"OpenAPI candidate is clean":
+		"OpenAPI candidate is clean",
+		"Source observation recorded":
 		return true
 	default:
 		return false

@@ -1049,6 +1049,41 @@ Client routes owned here:
 | `/operations`, `/operations/settings` | Operations; Settings with Repository access | UI-R41, UI-R136 |
 | `#workflow-run-setup` | Run setup drawer | UI-R78 |
 
+### Retained duplicate observations
+
+**UI-R198.** Existing finding lists and full summaries display Server-owned
+automatic correlation separately from the human state, verdict and severity.
+Every member with peers uses the same **Automatic match** label; the internal
+representative never changes the visible priority. The existing finding card
+contains a collapsed **Duplicates** disclosure;
+there is no separate Audit comparison destination. Each row opens its own
+Audit-owned finding and exact retained Evidence tab (`?tab=evidence`). Source/scope
+controls stay under Search options. The presentation representative
+has no priority or correctness meaning and is not shown as a winning finding.
+
+**UI-R199.** Opening Duplicates reads bounded Project member pages on demand.
+Every continuation remains reachable; displayed observation counts are partial
+until traversal ends and never stand for unique or confirmed issue counts.
+Repeated import of the same first receipt is distinguished from a different
+source proposal without claiming independence from a different receipt alone.
+Per-observation check context exposes profile, date and baseline/configuration
+on demand and explicitly states that coverage has not been compared.
+
+**UI-R200.** A separate **Possible matches** disclosure uses Server candidate
+reasons and never promotes a weak site/subject/family match to a duplicate.
+Original and contributing source proposals are selectable through all retained
+provenance pages. Empty work-bound pages with a continuation are not the end
+of search. Unavailable keys and truncated reasons are explained; absent matches
+never imply fixed/new vulnerabilities or a clean check.
+
+**UI-R201.** Switching findings/source proposals/scope and closing disclosures
+abort dependent reads and discard their bound cursors. Invalid or stale
+correlation cursors stop traversal and require a restart from the current head,
+with old rows removed before the new snapshot is displayed. Retryable reads
+use finite exponential backoff and Server Retry-After; no GET emits a duplicate
+or analyst mutation. Machine keys and parser/configuration versions remain in
+Technical details. These live projections do not rewrite frozen reports.
+
 ## Limits, failures and errors
 
 Limits ([registry](../platform/limits.md)):

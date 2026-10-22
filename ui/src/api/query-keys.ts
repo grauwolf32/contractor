@@ -122,6 +122,33 @@ export const queryKeys = {
         ] as const,
     },
   },
+  findingCorrelations: {
+    members: (projectId: string, groupKey: string, revision: number) =>
+      [
+        "finding-correlations",
+        "members",
+        projectId,
+        groupKey,
+        revision,
+      ] as const,
+    candidates: (
+      auditId: string,
+      findingId: string,
+      receiptId: string,
+      scope: string,
+      revision: number,
+    ) =>
+      [
+        "audits",
+        "detail",
+        auditId,
+        "finding-correlations",
+        findingId,
+        receiptId,
+        scope,
+        revision,
+      ] as const,
+  },
   auditProfiles: {
     all: ["audit-profiles"] as const,
     detail: (name: string, version: string) =>

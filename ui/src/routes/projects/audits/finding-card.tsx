@@ -26,6 +26,7 @@ import {
   checkSources,
   provenanceKindLabel,
 } from "../../issues/evidence";
+import { FindingDuplicates } from "../../issues/duplicates";
 import { exactArtifactLink } from "./artifact-links";
 import { ExactArtifactLink } from "./shared";
 
@@ -408,6 +409,11 @@ export function AuditFindingCard({
           </div>
         )}
       </div>
+      <FindingDuplicates
+        key={`${audit.auditId}:${finding.findingId}`}
+        audit={audit}
+        finding={finding}
+      />
       <FindingSources audit={audit} heading="h4" returnLabel="Possible issue" />
       <FindingTechnicalDetails
         audit={audit}
