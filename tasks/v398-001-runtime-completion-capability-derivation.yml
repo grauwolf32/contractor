@@ -1,0 +1,81 @@
+schema_version: "1.0"
+id: V398-001
+title: "Derive the Runtime's completion-contract capability from one rule"
+milestone: audit-worker-completion
+epic: audits
+kind: chore
+introduced_by: V39-005
+priority: P3
+status: in_progress
+depends_on: []
+languages: [python]
+goal: >-
+  The Runtime advertises audit-check-results@1 from one derivation that reads
+  each WorkerRuntime factory's own declaration, with no unreachable second copy
+  of the rule and no factory claiming support its wire contract forbids.
+context:
+  specification:
+    - docs/spec/audits/worker-completion.md#AWC-R24
+    - docs/spec/audits/worker-completion.md#AWC-R25
+    - docs/spec/tools/scanners.md#SCN-R2
+  review: "User code review of runtime/src/contractor_runtime/capabilities.py on 2026-10-22."
+  finding: >-
+    The rule "audit-check-results@1 needs adk@1 and audit-results@2 exposing
+    read_audit_task and submit_check_result" is written twice in
+    runtime/src/contractor_runtime/capabilities.py. CapabilitySnapshot.create
+    (lines 66-74) re-checks what its only production caller,
+    discover_capabilities (lines 246-253), has just computed, so its
+    CapabilityDiscoveryError cannot be raised in production, and no test
+    passes completion_contracts to create. discover_capabilities hard-codes
+    "adk@1" instead of reading the supports_worker_completion flag that
+    allocation validation (runtime/src/contractor_runtime/allocation/validation.py:53-56)
+    trusts per allocation. That hard-code hides a false flag:
+    ToolWorkerRuntimeFactory (runtime/src/contractor_runtime/worker/tool_runtime.py:91,
+    added by V55-003) declares supports_worker_completion = True although
+    SCN-R2 and the AllocationSpec wire model
+    (runtime/src/contractor_runtime/contracts/allocation.py:164-179,
+    api/v1alpha1/allocation.schema.json) forbid a tool@1 completion contract,
+    and its constructor rejects one. The required tool pair is spelled out
+    four times in the Runtime (capabilities.py twice,
+    contracts/allocation.py:73, toolsets/audit_results/completion.py:47).
+  siblings: >-
+    Allocation validation (allocation/validation.py:53-56) already reads the
+    factory flag and stays as is. The wire Literal types for the contract kind
+    (contracts/allocation.py:42, contracts/registration.py:100,
+    contracts/reports.py:112) must stay literals and are covered by the shared
+    v1alpha1 fixtures. AuditResultsToolsetFactory.exported_tools
+    (toolsets/audit_results/v2.py:330) is the Toolset's export list, held to
+    api/testdata/toolset-descriptors.json, not the completion requirement, and
+    stays. The Server side (internal/contracts/audit_completion.go) validates
+    the advertised kind only and needs no change.
+scope:
+  in:
+    - "Remove the duplicate completion check from CapabilitySnapshot.create."
+    - "Advertise audit-check-results@1 when at least one probed WorkerRuntime factory declares supports_worker_completion and audit-results@2 exposes every required tool, instead of naming adk@1."
+    - "Set ToolWorkerRuntimeFactory.supports_worker_completion to False and declare the flag on the WorkerRuntimeFactory protocol."
+    - "Define the completion tool pair once as contractor_runtime.contracts.AUDIT_COMPLETION_TOOLS and use it in capabilities, WorkerCompletionContract.validate_allocation and PreparedAuditCompletion; the audit-results@2 ref stays a literal like every other Toolset ref."
+    - "State the advertisement rule in AWC-R24."
+  out:
+    - "The advertised capability set of the shipped Runtime: adk@1 with a probed audit-results@2 still advertises audit-check-results@1, and every other process advertises none."
+    - "Allocation validation, the wire models and the Server's placement rule."
+acceptance_criteria:
+  - id: A1
+    text: "Given probed WorkerRuntimes and Toolsets, discover_capabilities advertises audit-check-results@1 exactly when a probed WorkerRuntime factory declares supports_worker_completion and audit-results@2 exposes both read_audit_task and submit_check_result; a process with only tool@1 advertises none."
+  - id: A2
+    text: "ToolWorkerRuntimeFactory declares supports_worker_completion = False, and a tool@1 AllocationSpec carrying a completion contract is rejected."
+  - id: A3
+    text: "CapabilitySnapshot.create no longer re-derives completion support, and the tool pair has one Runtime definition."
+  - id: A4
+    text: "The new capability case for a non-adk@1 WorkerRuntime that implements completion fails on the unfixed code; existing completion and capability tests pass unchanged."
+tests:
+  - command: "cd runtime && uv run pytest -q tests/test_capabilities.py tests/test_tool_worker.py tests/test_audit_completion_runtime.py tests/test_audit_completion_contracts.py"
+    covers: [A1, A2, A3, A4]
+  - command: make test-runtime
+    covers: [A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+verification:
+  focused: "cd runtime && uv run pytest tests/test_capabilities.py tests/test_tool_worker.py tests/test_audit_completion_runtime.py tests/test_audit_completion_contracts.py: 135 passed."
+  regression: "Against main's runtime/src the new completing@1 capability case and the tool@1 flag test fail; the other five capability cases pass on both."
+  runtime_suite: "make test-runtime on the 2026-10-22 workstation: 4133 passed, 106 failed, 6 errors. The same 111 Podman, mTLS, Trailmark address-space and process tests fail identically against main's runtime/src (no podman, go or node on that machine); test_scan_toolset's nuclei probe timed out once under full-suite load and the module passes alone (47 passed)."
+  lint: "Ran ruff check and format, lint-imports (5 kept), check_tasks, check_spec, shared_fixture_gate, check_database_erd, build_graph --check, generate_model_config --check, the scripts unittest suite and deploy/phoenix/test-run.sh: all passed. Not run: the Go steps (gofmt, go vet, staticcheck, testonlyexports, oapi-codegen check, check_release_verify_graph) and the UI steps, because neither go nor node is installed there. Both need a full make lint before completion."
