@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-84 open tasks: 9 in progress, 50 pending, 25 deferred. 931 finished: 928 completed, 3 archived.
+83 open tasks: 8 in progress, 50 pending, 25 deferred. 932 finished: 929 completed, 3 archived.
 
 ## In progress
 
@@ -16,7 +16,6 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V392-005](v392-005-finding-duplicate-comparison-ui.yml) | ui | feature | P2 | Show retained duplicates in a finding-owned disclosure across Audits |
 | [V392-011](v392-011-ui-stack-model-route-dispatch.yml) | ui | defect | P1 | Repair configured-model browser routing and gate coverage |
-| [V392-012](v392-012-correlation-project-read-ownership.yml) | findings | chore | P2 | Declare the bounded Project read used by finding correlation authorization |
 | [V392-013](v392-013-git-mode-literal-guard.yml) | projects-artifacts | chore | P2 | Identify the Git directory-mode fixture in the SQLSTATE literal guard |
 | [V392-014](v392-014-retention-comparison-cache-assertion.yml) | findings | chore | P2 | Separate the derived comparison cache from immutable receipt retention assertions |
 | [V392-015](v392-015-portable-browser-evidence.yml) | ui | chore | P2 | Keep browser evidence paths portable across Linux and macOS |
@@ -189,7 +188,7 @@ tasks in `introduced_by`.
 | Code analysis and taint annotations (`code-analysis`) | 0 | 14 | 13 | 2 | 18 |
 | HTTP and Caido tools (`http-tools`) | 3 | 11 | 14 | 4 | 15 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 1 | 10 | 4 | 1 | 7 |
-| Findings tools and collections (`findings`) | 10 | 14 | 5 | 6 | 9 |
+| Findings tools and collections (`findings`) | 9 | 14 | 5 | 6 | 9 |
 | Workflow catalog and document workflows (`workflows`) | 3 | 14 | 13 | 12 | 12 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 2 | 30 | 32 | 5 | 35 |
 | Audits (`audits`) | 16 | 50 | 69 | 15 | 80 |

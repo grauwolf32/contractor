@@ -6,7 +6,7 @@ epic: findings
 kind: chore
 introduced_by: V392-004
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V392-004]
 languages: [go]
 goal: Keep the correlation Project ownership and revision reads explicit under the existing persistence table-ownership guard.
@@ -29,3 +29,10 @@ tests:
   covers: [A1, A2]
 - command: make lint
   covers: [A3]
+
+verification:
+  date: '2026-10-22'
+  status: passed
+  checks:
+  - Full persistence and Git-import packages passed; the Project declaration preserves authorization and revision-fence reads. Full make lint passed.
+implementation_commit: 952b348962bbe0201505ffb79300ec41b313fe0c
