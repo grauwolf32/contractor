@@ -3887,6 +3887,32 @@ export interface components {
             mediaType: components["schemas"]["MediaType"];
             sizeBytes: number;
         };
+        /** @description Immutable deterministic key evidence; independent of analyst triage. Snapshot keys apply only to the exact Git commit and source digest. */
+        FindingFingerprintProjection: {
+            /** @constant */
+            schema: "contractor.finding.fingerprint-projection.v1";
+            /** @constant */
+            availability: "unavailable";
+            /** @enum {unknown} */
+            reason: "not_recorded" | "not_provided" | "input_limit" | "producer_key_unavailable" | "producer_report_invalid" | "producer_record_ambiguous" | "asset_unavailable" | "discarded";
+        } | {
+            /** @constant */
+            schema: "contractor.finding.fingerprint-projection.v1";
+            /** @constant */
+            availability: "available";
+            /** @constant */
+            algorithm: "contractor/producer-issue/v1";
+            value: string;
+            /** @constant */
+            adapter: "pinned-sarif-native/v1";
+            ruleId: string;
+            repository: string;
+            commit: string;
+            sourceDigest: components["schemas"]["Digest"];
+            report: components["schemas"]["FindingExactArtifact"];
+            source: components["schemas"]["FindingExactArtifact"];
+            recordLocator: string;
+        };
         FindingSubject: {
             kind: string;
             key: string;
@@ -4117,6 +4143,7 @@ export interface components {
             rejectionReason?: "false-positive" | "policy" | "out-of-scope";
             duplicateTargetId?: components["schemas"]["ResourceId"];
             firstProposal: components["schemas"]["FindingProposalReceipt"];
+            fingerprint?: components["schemas"]["FindingFingerprintProjection"];
             currentAssessment?: components["schemas"]["AuditFindingAssessment"];
             analystDecision?: components["schemas"]["AuditReviewDecision"];
             analystVerdict?: components["schemas"]["AuditAnalystVerdict"];

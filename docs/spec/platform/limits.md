@@ -403,6 +403,11 @@ its owning requirement.
 | `LIM-FND-30` | 1024 bytes | Decoded cursor JSON of `list_findings` | Runtime `list_findings` reader | [FND-R138](../findings/findings.md) |
 | `LIM-FND-31` | 1366 ASCII bytes | Encoded `list_findings` cursor (unpadded base64url) | Runtime `list_findings` reader | [FND-R138](../findings/findings.md) |
 | `LIM-FND-32` | 64 MiB | Complete private finding submission, including selected HTTP capture | Runtime FindingProposalClient and bounded Server intake decoder; existing transfer admission bounds concurrent buffers | [FND-R55](../findings/findings.md) |
+| `LIM-FND-33` | 8 MiB, 32 runs, 10000 relevant results | Optional pinned SARIF fingerprint input | Server checks report metadata before read, total bytes before decode, and bounded result processing; exceedance preserves the finding with unavailable key | [FND-R166](../findings/findings.md) |
+| `LIM-FND-34` | 32 exact refs | Selected owner-pinned inputs inspected for a fingerprint | Intersection with immutable Stage input bindings; no Run artifact enumeration | [FND-R164](../findings/findings.md) |
+| `LIM-FND-35` | 16 KiB | Immutable fingerprint projection | Strict codec on write/read and PostgreSQL octet constraint | [FND-R166](../findings/findings.md) |
+| `LIM-FND-36` | 160 bytes for driver name/version and native field names; 16 native fields; 1024 bytes per native value; 4096 canonical native tuple bytes | Qualified native fingerprint components | Closed deterministic adapter, unavailable on invalid or oversized optional material | [FND-R165](../findings/findings.md) |
+| `LIM-FND-37` | 1024 bytes for record locator; 4096 bytes for repository URL; 256 locations in the selected report result | Exact key evidence and selector | Projection codec and bounded primary source-location selection | [FND-R165](../findings/findings.md) |
 | `LIM-GIT-1` | 512 UTF-8 bytes | Path length of one entry in the imported source tree | Server Git importer | [GIT-R26](../artifacts/git-import.md) |
 | `LIM-GIT-2` | 1 key per owner | Optional Git SSH private keys per owner | Server Git key settings (/v1/settings/git-key) | [GIT-R37](../artifacts/git-import.md) |
 | `LIM-GIT-3` | 32 KiB | SSH private-key input | Server Git key settings (PUT /v1/settings/git-key) | [GIT-R40](../artifacts/git-import.md) |

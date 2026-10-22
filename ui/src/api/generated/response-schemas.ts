@@ -213,6 +213,7 @@ export type PublicSchemaName =
   | "AuditTimeLimitRequest"
   | "AuditStartResponse"
   | "FindingExactArtifact"
+  | "FindingFingerprintProjection"
   | "FindingSubject"
   | "FindingStandardReference"
   | "FindingProposedCheck"

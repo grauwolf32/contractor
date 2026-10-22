@@ -3070,11 +3070,14 @@ type AuditFinding struct {
 	CurrentAssessment *AuditFindingAssessment `json:"currentAssessment,omitempty"`
 	DuplicateTargetId *ResourceId             `json:"duplicateTargetId,omitempty"`
 	FindingId         ResourceId              `json:"findingId"`
-	FirstProposal     FindingProposalReceipt  `json:"firstProposal"`
-	RejectionReason   interface{}             `json:"rejectionReason,omitempty"`
-	Revision          int                     `json:"revision"`
-	State             AuditFindingState       `json:"state"`
-	UpdatedAt         time.Time               `json:"updatedAt"`
+
+	// Fingerprint Immutable deterministic key evidence; independent of analyst triage. Snapshot keys apply only to the exact Git commit and source digest.
+	Fingerprint     *FindingFingerprintProjection `json:"fingerprint,omitempty"`
+	FirstProposal   FindingProposalReceipt        `json:"firstProposal"`
+	RejectionReason interface{}                   `json:"rejectionReason,omitempty"`
+	Revision        int                           `json:"revision"`
+	State           AuditFindingState             `json:"state"`
+	UpdatedAt       time.Time                     `json:"updatedAt"`
 }
 
 // AuditFindingAssessment defines model for AuditFindingAssessment.
@@ -5281,6 +5284,34 @@ type FindingExactArtifact struct {
 	MediaType MediaType        `json:"mediaType"`
 	Ref       ExactArtifactRef `json:"ref"`
 	SizeBytes int              `json:"sizeBytes"`
+}
+
+// FindingFingerprintProjection Immutable deterministic key evidence; independent of analyst triage. Snapshot keys apply only to the exact Git commit and source digest.
+type FindingFingerprintProjection struct {
+	union json.RawMessage
+}
+
+// FindingFingerprintProjection0 defines model for FindingFingerprintProjection.0.
+type FindingFingerprintProjection0 struct {
+	Availability interface{} `json:"availability"`
+	Reason       interface{} `json:"reason"`
+	Schema       interface{} `json:"schema"`
+}
+
+// FindingFingerprintProjection1 defines model for FindingFingerprintProjection.1.
+type FindingFingerprintProjection1 struct {
+	Adapter       interface{}          `json:"adapter"`
+	Algorithm     interface{}          `json:"algorithm"`
+	Availability  interface{}          `json:"availability"`
+	Commit        string               `json:"commit"`
+	RecordLocator string               `json:"recordLocator"`
+	Report        FindingExactArtifact `json:"report"`
+	Repository    string               `json:"repository"`
+	RuleId        string               `json:"ruleId"`
+	Schema        interface{}          `json:"schema"`
+	Source        FindingExactArtifact `json:"source"`
+	SourceDigest  Digest               `json:"sourceDigest"`
+	Value         string               `json:"value"`
 }
 
 // FindingHTTPAttempt Exactly one of status or error; each header block is at most 64 KiB.
@@ -11275,6 +11306,68 @@ func (t EvalMediaRange) MarshalJSON() ([]byte, error) {
 }
 
 func (t *EvalMediaRange) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsFindingFingerprintProjection0 returns the union data inside the FindingFingerprintProjection as a FindingFingerprintProjection0
+func (t FindingFingerprintProjection) AsFindingFingerprintProjection0() (FindingFingerprintProjection0, error) {
+	var body FindingFingerprintProjection0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromFindingFingerprintProjection0 overwrites any union data inside the FindingFingerprintProjection as the provided FindingFingerprintProjection0
+func (t *FindingFingerprintProjection) FromFindingFingerprintProjection0(v FindingFingerprintProjection0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeFindingFingerprintProjection0 performs a merge with any union data inside the FindingFingerprintProjection, using the provided FindingFingerprintProjection0
+func (t *FindingFingerprintProjection) MergeFindingFingerprintProjection0(v FindingFingerprintProjection0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsFindingFingerprintProjection1 returns the union data inside the FindingFingerprintProjection as a FindingFingerprintProjection1
+func (t FindingFingerprintProjection) AsFindingFingerprintProjection1() (FindingFingerprintProjection1, error) {
+	var body FindingFingerprintProjection1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromFindingFingerprintProjection1 overwrites any union data inside the FindingFingerprintProjection as the provided FindingFingerprintProjection1
+func (t *FindingFingerprintProjection) FromFindingFingerprintProjection1(v FindingFingerprintProjection1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeFindingFingerprintProjection1 performs a merge with any union data inside the FindingFingerprintProjection, using the provided FindingFingerprintProjection1
+func (t *FindingFingerprintProjection) MergeFindingFingerprintProjection1(v FindingFingerprintProjection1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t FindingFingerprintProjection) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *FindingFingerprintProjection) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }

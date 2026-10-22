@@ -131,17 +131,18 @@ type AuditHold struct {
 }
 
 type Receipt struct {
-	ReceiptID     string                      `json:"receiptId"`
-	ProposalID    string                      `json:"proposalId"`
-	RequestDigest string                      `json:"requestDigest"`
-	ClientKey     string                      `json:"clientKey"`
-	Proposal      ExactArtifact               `json:"proposal"`
-	Document      auditdomain.FindingProposal `json:"document"`
-	Evidence      []ExactArtifact             `json:"evidence"`
-	Origin        Origin                      `json:"origin"`
-	Retention     RetentionState              `json:"retention"`
-	AuditHolds    []AuditHold                 `json:"auditHolds"`
-	CreatedAt     time.Time                   `json:"createdAt"`
+	Fingerprint   auditdomain.FindingFingerprint `json:"-"`
+	ReceiptID     string                         `json:"receiptId"`
+	ProposalID    string                         `json:"proposalId"`
+	RequestDigest string                         `json:"requestDigest"`
+	ClientKey     string                         `json:"clientKey"`
+	Proposal      ExactArtifact                  `json:"proposal"`
+	Document      auditdomain.FindingProposal    `json:"document"`
+	Evidence      []ExactArtifact                `json:"evidence"`
+	Origin        Origin                         `json:"origin"`
+	Retention     RetentionState                 `json:"retention"`
+	AuditHolds    []AuditHold                    `json:"auditHolds"`
+	CreatedAt     time.Time                      `json:"createdAt"`
 }
 
 type SubmissionResponse struct {

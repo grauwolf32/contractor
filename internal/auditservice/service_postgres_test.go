@@ -1061,7 +1061,8 @@ func TestAuditFindingReviewHistoryAndDeletedRunProvenance(t *testing.T) {
 
 	listed, err := service.ListFindings(ctx, auditstore.FindingListParams{OwnerID: ownerID, AuditID: auditID, Limit: 10})
 	if err != nil || len(listed) != 2 || listed[0].AnalystVerdict != nil ||
-		listed[0].FirstProposal.Origin.RunDeleted != true {
+		listed[0].FirstProposal.Origin.RunDeleted != true || listed[0].Fingerprint == nil ||
+		listed[0].Fingerprint.Reason != "not_recorded" {
 		t.Fatalf("initial findings = (%+v, %v)", listed, err)
 	}
 	request, err := service.CreateFindingReview(ctx, CreateFindingReviewParams{

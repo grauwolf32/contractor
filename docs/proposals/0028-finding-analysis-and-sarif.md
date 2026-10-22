@@ -545,6 +545,18 @@ Runtime/Server outcomes against those fixtures, not self-derived expectations.
 
 ### Versioned producer keys
 
+The initial code-backed adapter is `pinned-sarif-native/v1`: an owner-pinned
+SARIF 2.1.0 Stage input and one exact Git source must both be selected as
+ordinary finding evidence. The Server derives an internal descriptor from
+those existing inputs; no new Worker arguments or responses are introduced.
+Full native `fingerprints` and exact rule/source-location selection qualify
+only within the identical imported commit and source digest. Partial keys or
+unproven runtime scanner reports stay unavailable. This adapter records a
+report claim, not verified scanner execution or vulnerability confirmation.
+The owning implemented contract is FND-R163 through FND-R167 in
+[findings](../spec/findings/findings.md).
+
+
 Use one versioned code-backed adapter registry. Each producer adapter declares
 its namespace, stable rule identity, native key semantics, supported asset
 kinds, comparison domain, implementation version and fixtures. Its key must

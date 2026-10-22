@@ -162,3 +162,17 @@ tests:
 - command: make test-runtime test-findings-e2e
   covers:
   - A6
+verification:
+  date: '2026-10-22'
+  status: implementation committed; mandatory verification still in progress
+  checks:
+  - Full auditdomain, findingintake, auditservice, artifacts, privateartifacts and public Go suites passed with disposable PostgreSQL and TMPDIR=/private/tmp.
+  - Full integration-tag suites of findingintake, auditservice and persistence/postgres passed without database skips.
+  - make verify-public-api ui-verify and make lint passed before the independent V392-010 repair.
+  - 'Shared fixture gate passed: 239 fixtures, 215 Go and 165 Python shared tests; 300 wire contract tests passed.'
+  - Complete actual Worker declarations match the pinned fixture; native key, independent observations, replay, migration, owner isolation and
+    retention/discard regressions passed.
+  remaining:
+  - Finish Linux Runtime suite; macOS full suite reported 108 failures, 4044 passes and 40 skips, including unsupported Linux facilities.
+  - Finish finding process gate after V392-010. Its Audit.start HTTP 500 reproduces on unchanged c52fb5d3e6bf593d96d6024593a11d6f237ab41c and
+    is independent of fingerprints.

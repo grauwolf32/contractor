@@ -1,0 +1,150 @@
+{
+  "vectors": [
+    {
+      "name": "qualified",
+      "tuple": [
+        "contractor/producer-issue/v1",
+        [
+          "git",
+          "https://example.test:443/repo.git"
+        ],
+        "contractor/pinned-sarif",
+        "snapshot/v1",
+        "rule/sql",
+        [
+          "snapshot",
+          [
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sha256:4d4823794cbed3c4ee0bbc684c8f66e1dfd5afa6f078d494ce254ec5a4671753"
+          ]
+        ],
+        [
+          "scanner",
+          "1",
+          {
+            "native/v1": "issue-a"
+          }
+        ]
+      ],
+      "canonical": "[\"contractor/producer-issue/v1\",[\"git\",\"https://example.test:443/repo.git\"],\"contractor/pinned-sarif\",\"snapshot/v1\",\"rule/sql\",[\"snapshot\",[\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sha256:4d4823794cbed3c4ee0bbc684c8f66e1dfd5afa6f078d494ce254ec5a4671753\"]],[\"scanner\",\"1\",{\"native/v1\":\"issue-a\"}]]",
+      "digest": "sha256:e847c24bebf949a450ae3a78b48eeaafc0912a0219b0d71af90f29cc2d84b191"
+    },
+    {
+      "name": "separator-left",
+      "tuple": [
+        "a",
+        "bc"
+      ],
+      "canonical": "[\"a\",\"bc\"]",
+      "digest": "sha256:42a6f3f44be0aaf23c936b1547dd5e41d2d25ff25f36a31474eb1851639f6751"
+    },
+    {
+      "name": "separator-right",
+      "tuple": [
+        "ab",
+        "c"
+      ],
+      "canonical": "[\"ab\",\"c\"]",
+      "digest": "sha256:825825018f58e795ae2d3d8df6a879567555c77654e9ca3071df2fe127aa9ebd"
+    },
+    {
+      "name": "map-order",
+      "tuple": [
+        "v1",
+        {
+          "b": 2,
+          "a": 1
+        }
+      ],
+      "canonical": "[\"v1\",{\"a\":1,\"b\":2}]",
+      "digest": "sha256:24743885b79ca8016503b704b378f36b4c4ea43a9a456a4529bef651258c8d01"
+    },
+    {
+      "name": "other-domain",
+      "tuple": [
+        "contractor/producer-issue/v1",
+        [
+          "git",
+          "https://example.test:443/repo.git"
+        ],
+        "contractor/pinned-sarif",
+        "snapshot/v2",
+        "rule/sql",
+        [
+          "snapshot",
+          [
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sha256:4d4823794cbed3c4ee0bbc684c8f66e1dfd5afa6f078d494ce254ec5a4671753"
+          ]
+        ],
+        [
+          "scanner",
+          "1",
+          {
+            "native/v1": "issue-a"
+          }
+        ]
+      ],
+      "canonical": "[\"contractor/producer-issue/v1\",[\"git\",\"https://example.test:443/repo.git\"],\"contractor/pinned-sarif\",\"snapshot/v2\",\"rule/sql\",[\"snapshot\",[\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sha256:4d4823794cbed3c4ee0bbc684c8f66e1dfd5afa6f078d494ce254ec5a4671753\"]],[\"scanner\",\"1\",{\"native/v1\":\"issue-a\"}]]",
+      "digest": "sha256:e734b50050938551a150406f9ca27d1ef4e08078e9bc37700dd74aae2b4f3cd8"
+    }
+  ],
+  "adapterCases": [
+    {
+      "name": "native",
+      "report": "{\"version\":\"2.1.0\",\"runs\":[{\"tool\":{\"driver\":{\"name\":\"scanner\",\"version\":\"1\"}},\"versionControlProvenance\":[{\"repositoryUri\":\"https://example.test:443/repo.git\",\"revisionId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}],\"results\":[{\"ruleId\":\"rule/sql\",\"fingerprints\":{\"native/v1\":\"issue-a\"},\"locations\":[{\"physicalLocation\":{\"artifactLocation\":{\"uri\":\"src/a.py\"},\"region\":{\"startLine\":3}}}]}]}]}",
+      "availability": "available",
+      "reason": "",
+      "value": "e847c24bebf949a450ae3a78b48eeaafc0912a0219b0d71af90f29cc2d84b191"
+    },
+    {
+      "name": "severity-and-prose",
+      "report": "{\"version\":\"2.1.0\",\"runs\":[{\"tool\":{\"driver\":{\"name\":\"scanner\",\"version\":\"1\"}},\"versionControlProvenance\":[{\"repositoryUri\":\"https://example.test:443/repo.git\",\"revisionId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}],\"results\":[{\"ruleId\":\"rule/sql\",\"fingerprints\":{\"native/v1\":\"issue-a\"},\"locations\":[{\"physicalLocation\":{\"artifactLocation\":{\"uri\":\"src/a.py\"},\"region\":{\"startLine\":3}}}],\"level\":\"error\",\"message\":{\"text\":\"different prose\"}}]}]}",
+      "availability": "available",
+      "reason": "",
+      "value": "e847c24bebf949a450ae3a78b48eeaafc0912a0219b0d71af90f29cc2d84b191"
+    },
+    {
+      "name": "record-order",
+      "report": "{\"version\":\"2.1.0\",\"runs\":[{\"tool\":{\"driver\":{\"name\":\"scanner\",\"version\":\"1\"}},\"versionControlProvenance\":[{\"repositoryUri\":\"https://example.test:443/repo.git\",\"revisionId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}],\"results\":[{\"ruleId\":\"unrelated\",\"locations\":[]},{\"ruleId\":\"rule/sql\",\"fingerprints\":{\"native/v1\":\"issue-a\"},\"locations\":[{\"physicalLocation\":{\"artifactLocation\":{\"uri\":\"src/a.py\"},\"region\":{\"startLine\":3}}}]}]}]}",
+      "availability": "available",
+      "reason": "",
+      "value": "e847c24bebf949a450ae3a78b48eeaafc0912a0219b0d71af90f29cc2d84b191"
+    },
+    {
+      "name": "ambiguous",
+      "report": "{\"version\":\"2.1.0\",\"runs\":[{\"tool\":{\"driver\":{\"name\":\"scanner\",\"version\":\"1\"}},\"versionControlProvenance\":[{\"repositoryUri\":\"https://example.test:443/repo.git\",\"revisionId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}],\"results\":[{\"ruleId\":\"rule/sql\",\"fingerprints\":{\"native/v1\":\"issue-a\"},\"locations\":[{\"physicalLocation\":{\"artifactLocation\":{\"uri\":\"src/a.py\"},\"region\":{\"startLine\":3}}}]},{\"ruleId\":\"rule/sql\",\"fingerprints\":{\"native/v1\":\"issue-a\"},\"locations\":[{\"physicalLocation\":{\"artifactLocation\":{\"uri\":\"src/a.py\"},\"region\":{\"startLine\":3}}}]}]}]}",
+      "availability": "unavailable",
+      "reason": "producer_record_ambiguous",
+      "value": ""
+    },
+    {
+      "name": "partial-is-not-full",
+      "report": "{\"version\":\"2.1.0\",\"runs\":[{\"tool\":{\"driver\":{\"name\":\"scanner\",\"version\":\"1\"}},\"versionControlProvenance\":[{\"repositoryUri\":\"https://example.test:443/repo.git\",\"revisionId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}],\"results\":[{\"ruleId\":\"rule/sql\",\"locations\":[{\"physicalLocation\":{\"artifactLocation\":{\"uri\":\"src/a.py\"},\"region\":{\"startLine\":3}}}],\"partialFingerprints\":{\"native/v1\":\"issue-a\"}}]}]}",
+      "availability": "unavailable",
+      "reason": "producer_key_unavailable",
+      "value": ""
+    },
+    {
+      "name": "snapshot-mismatch",
+      "report": "{\"version\":\"2.1.0\",\"runs\":[{\"tool\":{\"driver\":{\"name\":\"scanner\",\"version\":\"1\"}},\"versionControlProvenance\":[{\"repositoryUri\":\"https://example.test:443/repo.git\",\"revisionId\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}],\"results\":[{\"ruleId\":\"rule/sql\",\"fingerprints\":{\"native/v1\":\"issue-a\"},\"locations\":[{\"physicalLocation\":{\"artifactLocation\":{\"uri\":\"src/a.py\"},\"region\":{\"startLine\":3}}}]}]}]}",
+      "availability": "unavailable",
+      "reason": "producer_key_unavailable",
+      "value": ""
+    },
+    {
+      "name": "path-traversal",
+      "report": "{\"version\":\"2.1.0\",\"runs\":[{\"tool\":{\"driver\":{\"name\":\"scanner\",\"version\":\"1\"}},\"versionControlProvenance\":[{\"repositoryUri\":\"https://example.test:443/repo.git\",\"revisionId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}],\"results\":[{\"ruleId\":\"rule/sql\",\"fingerprints\":{\"native/v1\":\"issue-a\"},\"locations\":[{\"physicalLocation\":{\"artifactLocation\":{\"uri\":\"../src/a.py\"},\"region\":{\"startLine\":3}}}]}]}]}",
+      "availability": "unavailable",
+      "reason": "producer_key_unavailable",
+      "value": ""
+    },
+    {
+      "name": "duplicate-json",
+      "report": "{\"version\":\"2.1.0\",\"version\":\"2.1.0\",\"runs\":[]}",
+      "availability": "unavailable",
+      "reason": "producer_report_invalid",
+      "value": ""
+    }
+  ]
+}

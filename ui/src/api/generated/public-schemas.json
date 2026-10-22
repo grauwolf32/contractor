@@ -5372,6 +5372,83 @@
         "sizeBytes": { "type": "integer", "minimum": 0, "maximum": 67108864 }
       }
     },
+    "FindingFingerprintProjection": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["schema", "availability", "reason"],
+          "properties": {
+            "schema": {
+              "const": "contractor.finding.fingerprint-projection.v1"
+            },
+            "availability": { "const": "unavailable" },
+            "reason": {
+              "enum": [
+                "not_recorded",
+                "not_provided",
+                "input_limit",
+                "producer_key_unavailable",
+                "producer_report_invalid",
+                "producer_record_ambiguous",
+                "asset_unavailable",
+                "discarded"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "schema",
+            "availability",
+            "algorithm",
+            "value",
+            "adapter",
+            "ruleId",
+            "repository",
+            "commit",
+            "sourceDigest",
+            "report",
+            "source",
+            "recordLocator"
+          ],
+          "properties": {
+            "schema": {
+              "const": "contractor.finding.fingerprint-projection.v1"
+            },
+            "availability": { "const": "available" },
+            "algorithm": { "const": "contractor/producer-issue/v1" },
+            "value": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+            "adapter": { "const": "pinned-sarif-native/v1" },
+            "ruleId": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,159}$"
+            },
+            "repository": {
+              "type": "string",
+              "maxLength": 4096,
+              "pattern": "^(https|ssh)://"
+            },
+            "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+            "sourceDigest": {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Digest"
+            },
+            "report": {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingExactArtifact"
+            },
+            "source": {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingExactArtifact"
+            },
+            "recordLocator": {
+              "type": "string",
+              "pattern": "^/runs/[0-9]+/results/[0-9]+$"
+            }
+          }
+        }
+      ]
+    },
     "FindingSubject": {
       "type": "object",
       "additionalProperties": false,
@@ -6094,6 +6171,9 @@
         },
         "firstProposal": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingProposalReceipt"
+        },
+        "fingerprint": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingFingerprintProjection"
         },
         "currentAssessment": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditFindingAssessment"

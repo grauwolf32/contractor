@@ -539,6 +539,61 @@ sequenceDiagram
     R-->>M: proposal_id, receipt_id, client_key, exact evidence_refs when capture was selected
 ```
 
+### Deterministic producer fingerprint evidence
+
+**FND-R163.** Intake derives an immutable optional fingerprint projection on
+its existing receipt. Neither the proposal nor the private receipt response,
+model-visible `finding` facades or `list_findings` contract changes. The model
+supplies no matching descriptor, hash, producer identity or stability claim.
+The owner finding view exposes `fingerprint` from its first receipt; this is
+correlation evidence and does not set an analyst verdict or severity.
+
+**FND-R164.** The closed initial adapter `pinned-sarif-native/v1` consumes
+only exact Stage input artifacts also selected as finding evidence: one Git
+source with immutable import provenance and one `application/sarif+json`
+report. It reads no other Run artifacts and performs no fetch or model call.
+The report must use SARIF 2.1.0, one matching Git provenance entry per relevant
+run, an explicit driver name and version, and a full nonempty `fingerprints`
+map. `partialFingerprints` alone, prose, CWE or a rule ID do not qualify.
+This binding proves the owner's selected report and source basis, not that a
+scanner actually executed or that a vulnerability is confirmed. Runtime
+scanner output without this owner-pinned provenance remains unavailable.
+
+**FND-R165.** A qualifying result uniquely matches the finding's exact
+relative source path and primary start line, or complete range. Absolute paths,
+base URI remapping, traversal, ambiguous result selection and mismatched Git
+provenance do not qualify. Record position selects evidence only and is not
+part of equality. Hash lowercase SHA-256 over RFC 8785 canonical JSON of
+`["contractor/producer-issue/v1", ["git", repository],
+"contractor/pinned-sarif", "snapshot/v1", ruleId,
+["snapshot", [commit, sourceDigest]], [driverName, driverVersion, fingerprints]]`.
+The repository and commit come from trusted Git import metadata. Native keys
+are scoped to this exact snapshot; cross-commit stability is not inferred.
+Severity, prose, Run identity and record order do not affect equality.
+
+**FND-R166.** Strictly validate projection writes and reads. The schema is
+`contractor.finding.fingerprint-projection.v1`; availability is `available`
+with algorithm, value, adapter, rule, Git repository/commit, source digest,
+exact report/source descriptors and record locator, or `unavailable` with
+one closed reason and no key fields. Reasons are `not_recorded`,
+`not_provided`, `input_limit`, `producer_key_unavailable`,
+`producer_report_invalid`, `producer_record_ambiguous`, `asset_unavailable`
+and `discarded`. Absent, unsupported, malformed optional reports or optional
+preparation bounds preserve a valid ordinary finding. Foreign exact refs,
+integrity and storage errors retain their existing permanent/retryable class
+and never commit a partial receipt (FAIL-FND-1). Limits are LIM-FND-33 through
+LIM-FND-37. No permissive legacy decoder or historical reparse exists.
+
+**FND-R167.** Resolve optional exact inputs before the short intake
+transaction. The transaction revalidates selected evidence and stores the
+projection atomically with the receipt. Reconcile replay from the receipt
+before reading optional sources, including after source Run deletion; equal
+keys from independent calls retain independent receipts. Migration marks
+existing rows explicitly `not_recorded` without changing their existing data.
+Audit-held projections survive source deletion and one destination's purge;
+when their receipt becomes discarded, erase all derived key content and
+record only `discarded` (LIFE-FND-1). Project purge owns final row deletion.
+
 ### Proposals of ordinary Runs
 
 **FND-R63.** A proposal of an ordinary, non-Audit Run stays readable in
@@ -1064,7 +1119,7 @@ evidence membership.
   revisions LIM-FND-13; collection bounds LIM-FND-14 to LIM-FND-23;
   publication selectors LIM-FND-24 and LIM-FND-25; reader page size
   LIM-FND-26, previews LIM-FND-27 and LIM-FND-28, response LIM-FND-29 and
-  cursor LIM-FND-30 and LIM-FND-31. Bounds cited here but owned elsewhere: the
+  cursor LIM-FND-30 and LIM-FND-31; producer fingerprints LIM-FND-33 to LIM-FND-37. Bounds cited here but owned elsewhere: the
   `contractor.audit.package.v1` transport bounds by
   [audits](../audits/audits.md) (AUD-R128); the Artifact name bound of
   `clientKey` (LIM-ART-1) by [artifact store](../artifacts/artifact-store.md)

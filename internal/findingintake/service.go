@@ -84,6 +84,21 @@ func (s *Service) Submit(
 		return Receipt{}, false, err
 	}
 	defer releaseTransfer()
+	// Replay precedes derived evidence reads: source deletion or a later
+	// adapter version must not prevent reconciliation of a committed call.
+	if previous, found, replayErr := s.FindReplay(ctx, grant, input); replayErr != nil {
+		return Receipt{}, false, replayErr
+	} else if found {
+		return previous, true, nil
+	}
+	fingerprint, err := s.prepareFingerprint(ctx, grant, canonical.request)
+	if err != nil {
+		return Receipt{}, false, err
+	}
+	fingerprintJSON, err := auditdomain.EncodeFindingFingerprint(fingerprint)
+	if err != nil {
+		return Receipt{}, false, err
+	}
 	receiptID := deterministicID("receipt", grant.AllocationID, input.InvocationID, input.SubmissionID)
 	proposalID := deterministicID("proposal", grant.AllocationID, input.InvocationID, input.SubmissionID)
 	var httpPayload *artifacts.Payload
@@ -234,7 +249,7 @@ SELECT count(*) FROM finding_proposal_receipts WHERE run_id = $1`, grant.RunID).
 		}
 		origin.RunDeleted = false
 		if err := insertReceipt(
-			ctx, tx, receiptID, proposalID, canonical, proposal, evidence,
+			ctx, tx, receiptID, proposalID, canonical, fingerprintJSON, proposal, evidence,
 			origin, ownerID, projectID, grant,
 		); err != nil {
 			return err
@@ -344,6 +359,7 @@ func insertReceipt(
 	tx pgx.Tx,
 	receiptID, proposalID string,
 	canonical canonicalSubmission,
+	fingerprintJSON []byte,
 	proposal ExactArtifact,
 	evidence []ExactArtifact,
 	origin Origin,
@@ -366,7 +382,7 @@ func insertReceipt(
 		auditExecutionID, auditID, auditRole, origin.Workflow.Name, origin.Workflow.Version,
 		origin.Workflow.SchemaVersion, configurationRef, origin.Workflow.ClosureDigest,
 		proposalRef, proposal.Digest, proposal.MediaType, proposal.SizeBytes,
-		evidenceJSON, string(canonical.reportProjection),
+		evidenceJSON, string(canonical.reportProjection), string(fingerprintJSON),
 	)
 	if err != nil {
 		if persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate {
