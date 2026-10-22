@@ -13224,7 +13224,7 @@ components:
         recordId: {$ref: '#/components/schemas/ResourceId'}
         kind: {enum: [source-proposal, check-attempt, direct-verification]}
         receiptId: {$ref: '#/components/schemas/ResourceId'}
-        relation: {enum: [first, contributing]}
+        relation: {enum: [first, contributing, verification]}
         proposal: {$ref: '#/components/schemas/AuditExactArtifact'}
         origin: {$ref: '#/components/schemas/FindingOrigin'}
         assessment: {$ref: '#/components/schemas/AuditFindingAssessment'}

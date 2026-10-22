@@ -9,10 +9,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/getkin/kin-openapi/openapi3"
+
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 )
@@ -183,6 +186,23 @@ UPDATE audit_items SET last_execution_item_id = $2 WHERE item_id = $1`, itemID, 
 	}
 	if records[0].Kind != auditstore.ProvenanceSourceProposal || records[0].RecordID != "proposal:receipt-unassessed" {
 		t.Fatalf("proposal provenance = %+v", records[0])
+	}
+	document, err := openapi3.NewLoader().LoadFromData(contractstest.ReadFile(t, "api", "openapi", "contractor-public-v1.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, record := range records {
+		encoded, err := json.Marshal(record)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var body any
+		if err := json.Unmarshal(encoded, &body); err != nil {
+			t.Fatal(err)
+		}
+		if err := document.Components.Schemas["AuditFindingProvenance"].Value.VisitJSON(body, openapi3.EnableJSONSchema2020()); err != nil {
+			t.Fatalf("retained provenance kind=%s relation=%s violates the public contract: %v", record.Kind, record.Relation, err)
+		}
 	}
 	expected := make(map[string]attemptCase, len(attempts))
 	for _, attempt := range attempts {

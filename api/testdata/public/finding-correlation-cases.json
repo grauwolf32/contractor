@@ -1129,6 +1129,200 @@
           "nextCursor": "cursor-a"
         }
       }
+    },
+    {
+      "name": "provenance relation first",
+      "schema": "AuditFindingProvenance",
+      "valid": true,
+      "document": {
+        "recordId": "record-source",
+        "kind": "source-proposal",
+        "receiptId": "receipt-source",
+        "proposal": {
+          "ref": {
+            "namespace": "findings",
+            "name": "source",
+            "revision": "r1"
+          },
+          "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "origin": {
+          "runId": "run-source",
+          "stageExecutionId": "stage-source",
+          "allocationId": "allocation-source",
+          "invocationId": "invocation-source",
+          "logicalAgentName": "reviewer",
+          "runDeleted": false,
+          "workflow": {
+            "name": "source-review",
+            "version": "1",
+            "schemaVersion": "contractor/v1alpha1",
+            "configurationRef": {
+              "name": "source-review",
+              "version": "1"
+            },
+            "closureDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        },
+        "supportsCurrentAssessment": false,
+        "createdAt": "2026-10-22T12:00:00Z",
+        "relation": "first"
+      }
+    },
+    {
+      "name": "provenance relation contributing",
+      "schema": "AuditFindingProvenance",
+      "valid": true,
+      "document": {
+        "recordId": "record-source",
+        "kind": "source-proposal",
+        "receiptId": "receipt-source",
+        "proposal": {
+          "ref": {
+            "namespace": "findings",
+            "name": "source",
+            "revision": "r1"
+          },
+          "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "origin": {
+          "runId": "run-source",
+          "stageExecutionId": "stage-source",
+          "allocationId": "allocation-source",
+          "invocationId": "invocation-source",
+          "logicalAgentName": "reviewer",
+          "runDeleted": false,
+          "workflow": {
+            "name": "source-review",
+            "version": "1",
+            "schemaVersion": "contractor/v1alpha1",
+            "configurationRef": {
+              "name": "source-review",
+              "version": "1"
+            },
+            "closureDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        },
+        "supportsCurrentAssessment": false,
+        "createdAt": "2026-10-22T12:00:00Z",
+        "relation": "contributing"
+      }
+    },
+    {
+      "name": "provenance relation verification",
+      "schema": "AuditFindingProvenance",
+      "valid": true,
+      "document": {
+        "recordId": "record-source",
+        "kind": "check-attempt",
+        "receiptId": "receipt-source",
+        "proposal": {
+          "ref": {
+            "namespace": "findings",
+            "name": "source",
+            "revision": "r1"
+          },
+          "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "origin": {
+          "runId": "run-source",
+          "stageExecutionId": "stage-source",
+          "allocationId": "allocation-source",
+          "invocationId": "invocation-source",
+          "logicalAgentName": "reviewer",
+          "runDeleted": false,
+          "workflow": {
+            "name": "source-review",
+            "version": "1",
+            "schemaVersion": "contractor/v1alpha1",
+            "configurationRef": {
+              "name": "source-review",
+              "version": "1"
+            },
+            "closureDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        },
+        "supportsCurrentAssessment": false,
+        "createdAt": "2026-10-22T12:00:00Z",
+        "relation": "verification"
+      }
+    },
+    {
+      "name": "provenance relation omitted",
+      "schema": "AuditFindingProvenance",
+      "valid": true,
+      "document": {
+        "recordId": "record-source",
+        "kind": "direct-verification",
+        "receiptId": "receipt-source",
+        "proposal": {
+          "ref": {
+            "namespace": "findings",
+            "name": "source",
+            "revision": "r1"
+          },
+          "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "origin": {
+          "runId": "run-source",
+          "stageExecutionId": "stage-source",
+          "allocationId": "allocation-source",
+          "invocationId": "invocation-source",
+          "logicalAgentName": "reviewer",
+          "runDeleted": false,
+          "workflow": {
+            "name": "source-review",
+            "version": "1",
+            "schemaVersion": "contractor/v1alpha1",
+            "configurationRef": {
+              "name": "source-review",
+              "version": "1"
+            },
+            "closureDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        },
+        "supportsCurrentAssessment": false,
+        "createdAt": "2026-10-22T12:00:00Z"
+      }
+    },
+    {
+      "name": "provenance relation unknown",
+      "schema": "AuditFindingProvenance",
+      "valid": false,
+      "document": {
+        "recordId": "record-source",
+        "kind": "source-proposal",
+        "receiptId": "receipt-source",
+        "proposal": {
+          "ref": {
+            "namespace": "findings",
+            "name": "source",
+            "revision": "r1"
+          },
+          "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "origin": {
+          "runId": "run-source",
+          "stageExecutionId": "stage-source",
+          "allocationId": "allocation-source",
+          "invocationId": "invocation-source",
+          "logicalAgentName": "reviewer",
+          "runDeleted": false,
+          "workflow": {
+            "name": "source-review",
+            "version": "1",
+            "schemaVersion": "contractor/v1alpha1",
+            "configurationRef": {
+              "name": "source-review",
+              "version": "1"
+            },
+            "closureDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        },
+        "supportsCurrentAssessment": false,
+        "createdAt": "2026-10-22T12:00:00Z",
+        "relation": "unknown"
+      }
     }
   ]
 }

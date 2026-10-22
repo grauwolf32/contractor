@@ -1,0 +1,44 @@
+schema_version: '1.0'
+id: V397-018
+title: Accept verification provenance in the public finding contract
+milestone: finding-correlation-2026-10
+epic: api-contracts
+kind: defect
+introduced_by: V25-011
+priority: P1
+status: in_progress
+depends_on: [V397-005]
+languages: [go, openapi, typescript]
+goal: Let strict API clients read retained verification attempts and reach finding candidate search without changing stored provenance or analyst state.
+context:
+  finding: >-
+    api/openapi/contractor-public-v1.yaml AuditFindingProvenance.relation accepts first and contributing, while internal/auditstore/internal/pgstore/provenance_reads_sql.go:48 emits verification for check-attempt records. The live demo returns HTTP 200 with a valid retained attempt, but the UI rejects items/0/relation as invalid_api_response before mounting candidate search.
+  siblings: >-
+    Source-proposal first/contributing and direct-verification records must remain readable; unknown relations remain invalid. Go generated clients, generated UI validators, shared read fixtures, existing real PostgreSQL unassessed-attempt coverage and the Duplicates source picker consume the same contract. Runtime tool and private receipt contracts do not consume this owner-only relation.
+  specification:
+  - docs/spec/audits/review-and-reports.md#REV-R84
+  - docs/spec/audits/review-and-reports.md#REV-R85
+  - docs/spec/api/public-api.md#API-R11
+scope:
+  in:
+  - Declare verification in the public relation enum and regenerate both clients and UI validators.
+  - State the relation projection in the owning backtrace requirement and add shared valid/invalid relation fixtures.
+  - Validate real retained PostgreSQL attempt projections against the public schema and bump the UI patch version.
+  out:
+  - Changing stored rows, verification meaning, triage, Worker tools, LLM calls or duplicate equality policy.
+acceptance_criteria:
+- id: A1
+  text: Real failed, missing-output, invalid-result and cancelled check attempts conform to the same public schema used by the UI; the regression fails before the enum repair.
+- id: A2
+  text: Shared Go and UI fixtures accept first, contributing, verification and omitted direct-verification relations while rejecting unknown values.
+- id: A3
+  text: Generated clients agree, the UI patch version advances, affected package and UI suites and lint pass, and live Duplicates candidate search becomes reachable after deployment.
+tests:
+- command: go test -count=1 ./internal/auditservice ./internal/httpapi/public ./internal/apierror
+  covers: [A1, A2, A3]
+- command: make verify-public-api
+  covers: [A1, A2, A3]
+- command: make ui-verify
+  covers: [A2, A3]
+- command: make lint
+  covers: [A1, A2, A3]

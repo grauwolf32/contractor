@@ -4529,7 +4529,7 @@ export interface components {
             kind: "source-proposal" | "check-attempt" | "direct-verification";
             receiptId: components["schemas"]["ResourceId"];
             /** @enum {unknown} */
-            relation?: "first" | "contributing";
+            relation?: "first" | "contributing" | "verification";
             proposal: components["schemas"]["AuditExactArtifact"];
             origin: components["schemas"]["FindingOrigin"];
             assessment?: components["schemas"]["AuditFindingAssessment"];

@@ -7146,7 +7146,7 @@
         "receiptId": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
         },
-        "relation": { "enum": ["first", "contributing"] },
+        "relation": { "enum": ["first", "contributing", "verification"] },
         "proposal": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditExactArtifact"
         },
