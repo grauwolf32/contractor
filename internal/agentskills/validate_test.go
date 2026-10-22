@@ -133,6 +133,33 @@ func TestDigitLeadingResourceValidatesFromZIPAndDirectory(t *testing.T) {
 	}
 }
 
+func TestScriptSourceDirectoryIsCanonical(t *testing.T) {
+	source := filepath.Join(t.TempDir(), "demo")
+	if err := os.MkdirAll(filepath.Join(source, "scripts"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	script := []byte("// UTF-8 source: café\nthrow new Error('must not execute');\n")
+	for path, data := range map[string][]byte{
+		"SKILL.md": skillDocument("demo", "Demo.", ""), "scripts/check.cjs": script,
+	} {
+		if err := os.WriteFile(filepath.Join(source, path), data, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	first, pkg, err := PackageDirectory(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	member, ok := pkg.Member("scripts/check.cjs")
+	if !ok || !bytes.Equal(member.Data(), script) {
+		t.Fatal("script source bytes changed during packaging")
+	}
+	second, _, err := PackageDirectory(source)
+	if err != nil || !bytes.Equal(first, second) {
+		t.Fatalf("script package is not deterministic: %v", err)
+	}
+}
+
 func TestPackageLimitsAreStreamedAndExact(t *testing.T) {
 	manifest := []byte("---\nname: limits\ndescription: Limits.\n---\n# Limits\n")
 	tests := []struct {

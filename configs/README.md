@@ -267,6 +267,13 @@ is packaged and published into the owner-scoped `skills/likec4` artifact by the
 Skill Catalog path; configuration refers to the logical binding, not a
 checked-in digest.
 
+`skills/security-audit/` bundles Cloudflare's MIT-licensed source-first security
+review methodology with fourteen on-demand references, its JSON report schema
+and two inert Node.js validator sources. Provenance and Contractor-specific
+capability requirements are recorded in its `assets/provenance.md`. It is seeded
+into the owner Skill catalog without changing existing Workflow selections.
+See [the Skill guide](../docs/guides/agent-skills.md) for selection and execution.
+
 `security-analysis@4` is an opt-in single-Stage workflow for authorized HTTP
 and Caido analysis. It requires the caller to provide `objective`, `target` and
 `authorization_scope` string parameters, accepts one optional text context

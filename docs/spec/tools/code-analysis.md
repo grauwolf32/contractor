@@ -827,6 +827,15 @@ result.
 exported declaration are deduplicated and accepted as selectors for that one
 declaration.
 
+An exact canonical annotation in the adjacent block also identifies its
+replay selectors: each current selector may be shifted back by zero through
+the difference between the current insertion line and that annotation's line.
+These selectors reconcile an identical call whose response was lost after
+insertion or a no-op, including after allocation replacement or subsequent
+annotations on the same declaration. They never authorize a new annotation
+at a stale line. Current and replay matches participate in the same ambiguity check;
+Runtime never picks the first matching declaration.
+
 ```text
 annotate_trace(
   path,
@@ -890,6 +899,9 @@ declarations in the same nineteen languages as the shallow code-analysis
 surface. Classes, interfaces, types, imports, call sites and non-callable
 variables never qualify. Named arrow or closure assignments supported by the
 pinned grammar qualify under their assigned variable name.
+In Lua, an assignment qualifies only when its value is directly a function,
+optionally parenthesized. A table or call containing a function is not itself
+a callable target.
 
 **CAN-R111.** The resolver parses only the named current UTF-8
 managed-text file. It finds all exact structural matches, folds parser wrapper
@@ -926,6 +938,10 @@ comment past a lone CR, so the comment would swallow the declaration.
 prefix, so it lands above Python and TypeScript decorators, Rust and PHP
 attributes, Java and C# annotations, JavaScript exports and C++ templates
 rather than splitting those constructs.
+The prefix must start after indentation only on its physical source line.
+A declaration embedded after other expression content on that line, including
+`${function ...}` in a JavaScript/TypeScript/TSX template string, returns
+non-retryable `taint_annotation_input_invalid` without mutation.
 
 **CAN-R117.** Existing immediately adjacent canonical taint annotations
 remain one contiguous block, and new lines append to that block so
@@ -954,6 +970,11 @@ additionally exclude `:` because it separates state.
 **CAN-R120.** Empty entries, duplicates, whitespace, control
 characters, `=`, comma, comment introducers and newline injection are
 rejected.
+The complete emitted line must also be inert in its language: PHP `?>` is
+rejected in every emitted field because it terminates even a line comment;
+an inserted Python comment in physical line one or two must not match an
+encoding cookie (`coding[:=]` followed by an encoding name). These conditions
+return non-retryable `taint_annotation_input_invalid` without mutation.
 
 **CAN-R121.** Runtime canonicalizes comma-separated lists without
 spaces and preserves their declared order.
@@ -966,9 +987,10 @@ spaces and preserves their declared order.
 **CAN-R123.** A mutation follows this sequence:
 
 1. read one current file snapshot through `WorkspaceWriter`;
-2. parse and resolve it off the asyncio event loop;
+2. parse, resolve and prepare the complete candidate insertion and response
+   off the asyncio event loop;
 3. enter `WorkspaceWriter.update_text`, compare the locked current bytes with
-   the parsed bytes, and apply the already-computed single-line insertion only
+   the parsed bytes, and commit the already-computed single-line insertion only
    if they still match.
 
 **CAN-R124.** Any Edit tool or other writer that wins between steps 1
@@ -983,6 +1005,9 @@ guard.
 **CAN-R126.** An exact canonical annotation already in the target's
 adjacent annotation block is a successful idempotent replay (`changed=false`).
 This covers a lost tool response after a committed write.
+Exact replay uses CAN-R103's current and replay selectors and returns
+current coordinates. Resulting-file growth is checked only for an actual
+insertion, so replay of a file at LIM-CAN-24 remains a successful no-op.
 
 **CAN-R127.** For `@trace`, a second line for the same target with a
 different canonical body, that is different arguments or callees, returns
@@ -1092,8 +1117,8 @@ exceptions.
 **CAN-R139.** The closed model-visible error vocabulary of
 `taint-annotations@1`, including which codes are retryable, is
 [ERR-R12](../platform/errors.md); this document owns the conditions that
-raise each code (CAN-R102, CAN-R110, CAN-R111, CAN-R118, CAN-R124, CAN-R127,
-CAN-R128, CAN-R129, CAN-R140).
+raise each code (CAN-R102, CAN-R110, CAN-R111, CAN-R116, CAN-R118, CAN-R120,
+CAN-R124, CAN-R127, CAN-R128, CAN-R129, CAN-R140).
 
 **CAN-R140.** Annotation errors never include source,
 annotation text, input values, logical or physical paths, parser diagnostics or

@@ -85,7 +85,7 @@ func Validate(payload []byte, expectedName string) (*Package, error) {
 			return nil, validationError(CodeArchiveInvalid, path)
 		}
 		expanded += int64(len(data))
-		if path == "SKILL.md" || strings.HasPrefix(path, "references/") {
+		if path == "SKILL.md" || strings.HasPrefix(path, "references/") || strings.HasPrefix(path, "scripts/") {
 			if !utf8.Valid(data) || bytes.IndexByte(data, 0) >= 0 {
 				return nil, validationError(CodeManifestInvalid, path)
 			}
@@ -143,11 +143,11 @@ func readBoundedMember(file *zip.File, memberLimit, aggregateRemaining int64) ([
 }
 
 func allowedDirectory(path string) bool {
-	return path == "references" || path == "assets" || strings.HasPrefix(path, "references/") || strings.HasPrefix(path, "assets/")
+	return path == "references" || path == "assets" || path == "scripts" || strings.HasPrefix(path, "references/") || strings.HasPrefix(path, "assets/") || strings.HasPrefix(path, "scripts/")
 }
 
 func allowedFile(path string) bool {
-	return path == "SKILL.md" || strings.HasPrefix(path, "references/") || strings.HasPrefix(path, "assets/")
+	return path == "SKILL.md" || strings.HasPrefix(path, "references/") || strings.HasPrefix(path, "assets/") || strings.HasPrefix(path, "scripts/")
 }
 
 func hasPathCollision(paths map[string]bool, path string, directory bool) bool {

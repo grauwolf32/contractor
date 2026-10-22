@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-73 open tasks: 3 in progress, 45 pending, 25 deferred. 930 finished: 927 completed, 3 archived.
+73 open tasks: 3 in progress, 45 pending, 25 deferred. 932 finished: 929 completed, 3 archived.
 
 ## In progress
 
@@ -173,9 +173,9 @@ tasks in `introduced_by`.
 | Planners and the Worker model boundary (`planner-worker`) | 3 | 27 | 37 | 14 | 51 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 11 | 25 | 12 | 3 | 37 |
 | Shared Memory tools (`memory`) | 0 | 6 | 8 | 1 | 11 |
-| Agent Skills (`agent-skills`) | 0 | 10 | 2 | 1 | 1 |
+| Agent Skills (`agent-skills`) | 0 | 11 | 2 | 1 | 1 |
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 12 | 4 | 15 |
-| Code analysis and taint annotations (`code-analysis`) | 0 | 13 | 12 | 2 | 17 |
+| Code analysis and taint annotations (`code-analysis`) | 0 | 13 | 13 | 2 | 18 |
 | HTTP and Caido tools (`http-tools`) | 2 | 11 | 14 | 4 | 15 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 1 | 11 | 4 | 2 | 8 |
 | Findings tools and collections (`findings`) | 4 | 7 | 5 | 4 | 7 |

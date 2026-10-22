@@ -112,7 +112,7 @@ The note limits and the operations that raise these codes are owned by
 
 - `skill_archive_invalid` for malformed/encrypted/unsupported ZIP structure;
 - `skill_path_invalid` for a non-portable, duplicate or escaping member path;
-- `skill_member_forbidden` for a script, unknown root, link or special member;
+- `skill_member_forbidden` for an unknown root, link or special member;
 - `skill_manifest_invalid` for encoding, frontmatter or body violations;
 - `skill_name_mismatch` when directory/artifact/frontmatter names differ;
 - `skill_limit_exceeded` for any per-member, count or aggregate bound.
@@ -525,7 +525,7 @@ Assembled from every document.
 | `skill_limit_exceeded` | — | no | Any per-member, count or aggregate Skill package bound exceeded; a terminal Run initialization code and non-retryable for the recorded Run snapshot | [ERR-R4](errors.md) |
 | `skill_manifest_invalid` | — | no | Skill manifest encoding, frontmatter or body violation; a terminal Run initialization code and non-retryable for the recorded Run snapshot | [ERR-R4](errors.md) |
 | `skill_media_type_invalid` | — | no | Terminal WorkflowRun initialization code: invalid Skill media type | [ERR-R5](errors.md) |
-| `skill_member_forbidden` | — | no | Script, unknown root, link or special member in a Skill package; a terminal Run initialization code and non-retryable for the recorded Run snapshot | [ERR-R4](errors.md) |
+| `skill_member_forbidden` | — | no | Unknown root, link or special member in a Skill package; a terminal Run initialization code and non-retryable for the recorded Run snapshot | [ERR-R4](errors.md) |
 | `skill_name_mismatch` | — | no | Skill directory, artifact and frontmatter names differ; a terminal Run initialization code and non-retryable for the recorded Run snapshot | [ERR-R4](errors.md) |
 | `skill_path_invalid` | — | no | Non-portable, duplicate or escaping Skill package member path; a terminal Run initialization code and non-retryable for the recorded Run snapshot | [ERR-R4](errors.md) |
 | `skill_runtime_unsupported` | — | no | Skill placement/configuration failure in allocation preparation | [ERR-R9](errors.md) |

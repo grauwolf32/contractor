@@ -41,7 +41,7 @@ test-code-analysis-e2e: test-code-analysis-hardening require-database runtime-ve
 test-taint-annotations-matrix: test-hardening-matrices
 
 test-taint-annotations-runtime:
-	cd runtime && uv run pytest -W error tests/test_taint_annotations.py tests/test_capabilities.py
+	cd runtime && uv run pytest -W error tests/test_taint_annotations.py tests/test_taint_annotations_regressions.py tests/test_capabilities.py
 
 test-taint-annotations-hardening: test-taint-annotations-matrix test-taint-annotations-runtime
 	cd runtime && uv run pytest -W error tests/test_taint_annotations_hardening.py tests/test_allocation.py tests/test_abort.py tests/test_lease_watchdog.py
