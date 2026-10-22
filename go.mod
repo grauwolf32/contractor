@@ -15,6 +15,7 @@ require (
 	github.com/oapi-codegen/nullable v1.1.0
 	github.com/oapi-codegen/runtime v1.6.0
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
+	github.com/shirou/gopsutil/v4 v4.26.9
 	github.com/ucarion/jcs v0.1.2
 	go.opentelemetry.io/proto/otlp v1.10.0
 	go.yaml.in/yaml/v4 v4.0.0-rc.6
@@ -30,11 +31,18 @@ require (
 
 require (
 	github.com/cyphar/filepath-securejoin v0.6.1 // indirect
+	github.com/ebitengine/purego v0.11.1 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.9.0 // indirect
+	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
+	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/pjbgf/sha1cd v0.6.0 // indirect
+	github.com/power-devops/perfstat v0.0.0-20260805114148-88456608a4f6 // indirect
+	github.com/tklauser/go-sysconf v0.4.0 // indirect
+	github.com/tklauser/numcpus v0.12.0 // indirect
+	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 )
 

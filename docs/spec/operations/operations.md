@@ -694,9 +694,15 @@ compatibility rules are defined in
 otherwise valid execution reports
 ([FAIL-CTL-10](../platform/failure-model.md)).
 
-**OPS-R73.** Performance collection targets Linux, including the
-single-host deployment. Unsupported process measurements are unknown with a
-bounded reason and never prevent startup or execution (FAIL-OPS-5).
+**OPS-R73.** Server and Runtime process performance collection supports
+Linux and macOS. The Server uses gopsutil and the Runtime uses psutil to read
+cumulative user/system CPU seconds and current RSS bytes for their own process.
+Server collection and command builds work with cgo disabled, including on macOS
+Intel and ARM. Other library-supported hosts may provide the same measurements;
+unsupported process measurements are unknown with a bounded reason and never
+prevent startup or execution (FAIL-OPS-5). A failed CPU or RSS read preserves
+independently available measurements and retries only at the next scheduled
+observation. Collection does not enumerate processes or launch subprocesses.
 
 #### Startup switches
 

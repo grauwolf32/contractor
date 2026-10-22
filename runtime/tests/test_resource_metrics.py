@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import asyncio
-import io
 import math
-import sys
 from types import SimpleNamespace
 
+import psutil
 import pytest
 
 import contractor_runtime.telemetry.resources as resource_metrics
@@ -213,7 +212,7 @@ def test_invalid_fields_are_omitted_and_valid_cpu_is_preserved(bad: float) -> No
 
 
 def test_unsupported_platform_is_unavailable_without_reads(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(resource_metrics.sys, "platform", "unsupported")
+    monkeypatch.setattr(resource_metrics, "psutil", None)
 
     def forbidden(*args: object, **kwargs: object) -> None:
         pytest.fail("unsupported platform must not open a process resource")
@@ -253,35 +252,65 @@ def test_close_and_owner_cancellation_do_not_invent_recovered_resources() -> Non
     asyncio.run(scenario())
 
 
-@pytest.mark.skipif(sys.platform != "linux", reason="Linux process reader")
-def test_linux_reader_uses_current_rss_and_only_boundary_cpu(
+def test_process_reader_uses_current_rss_and_only_boundary_cpu(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import resource
-
     cpu_calls = []
 
-    def usage(who: int) -> SimpleNamespace:
-        cpu_calls.append(who)
-        return SimpleNamespace(ru_utime=2.5, ru_stime=1.5, ru_maxrss=999999999)
+    def usage() -> SimpleNamespace:
+        cpu_calls.append(True)
+        return SimpleNamespace(user=2.5, system=1.5, children_user=999, children_system=999)
 
-    monkeypatch.setattr(resource, "getrusage", usage)
-    monkeypatch.setattr(resource_metrics.os, "sysconf", lambda _: 4096)
-    monkeypatch.setattr("builtins.open", lambda *args, **kwargs: io.BytesIO(b"999999 3 0 0 0\n"))
+    current = SimpleNamespace(
+        cpu_times=usage,
+        memory_info=lambda: SimpleNamespace(rss=12288, peak_rss=999999999, vms=888888888),
+    )
+    monkeypatch.setattr(psutil, "Process", lambda: current)
     assert read_process(True) == ProcessReading(2.5, 1.5, 12288)
     assert read_process(False) == ProcessReading(rss_bytes=12288)
-    assert cpu_calls == [resource.RUSAGE_SELF]
-    monkeypatch.setattr("builtins.open", lambda *args, **kwargs: io.BytesIO(b"9" * 257))
-    assert read_process(True) == ProcessReading(2.5, 1.5, reason="read_failed")
+    assert cpu_calls == [True]
 
 
-@pytest.mark.skipif(sys.platform != "linux", reason="Linux process reader")
-def test_real_linux_process_reading() -> None:
+@pytest.mark.parametrize("operation", ["process", "cpu", "rss"])
+@pytest.mark.parametrize("failure", ["permission", "os", "unsupported"])
+def test_process_reader_preserves_independent_fields_on_failure(
+    monkeypatch: pytest.MonkeyPatch, operation: str, failure: str
+) -> None:
+    error = {
+        "permission": psutil.AccessDenied(pid=123),
+        "os": OSError("secret-canary"),
+        "unsupported": NotImplementedError("secret-canary"),
+    }[failure]
+
+    def fail() -> None:
+        raise error
+
+    current = SimpleNamespace(
+        cpu_times=fail if operation == "cpu" else lambda: SimpleNamespace(user=2.5, system=1.5),
+        memory_info=fail if operation == "rss" else lambda: SimpleNamespace(rss=12288),
+    )
+    monkeypatch.setattr(psutil, "Process", fail if operation == "process" else lambda: current)
+    value = read_process(True)
+    assert value.reason == ("unsupported_platform" if failure == "unsupported" else "read_failed")
+    assert value.cpu_user_seconds == (2.5 if operation == "rss" else None)
+    assert value.cpu_system_seconds == (1.5 if operation == "rss" else None)
+    assert value.rss_bytes == (12288 if operation == "cpu" else None)
+    assert "secret-canary" not in repr(value)
+    if operation == "cpu":
+        # Periodic observations never call an unavailable CPU reader.
+        assert read_process(False) == ProcessReading(rss_bytes=12288)
+
+
+def test_real_process_reading() -> None:
     value = read_process(True)
     assert value.reason is None
     assert value.cpu_user_seconds is not None and value.cpu_user_seconds >= 0
     assert value.cpu_system_seconds is not None and value.cpu_system_seconds >= 0
     assert value.rss_bytes is not None and value.rss_bytes > 0
+    periodic = read_process(False)
+    assert periodic.reason is None
+    assert periodic.cpu_user_seconds is None and periodic.cpu_system_seconds is None
+    assert periodic.rss_bytes is not None and periodic.rss_bytes > 0
 
 
 @pytest.mark.parametrize("bad", [math.nan, math.inf, -1, True])

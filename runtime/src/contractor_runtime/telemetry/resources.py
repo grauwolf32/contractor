@@ -9,13 +9,17 @@ from __future__ import annotations
 
 import asyncio
 import math
-import os
-import sys
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 from contractor_runtime.contracts import ResourceReason, RuntimeResources
+
+try:
+    import psutil
+except NotImplementedError:
+    # psutil explicitly rejects unsupported hosts when its module is imported.
+    psutil = None
 
 SUPPORTED_PERFORMANCE_METRICS_VERSIONS = (1,)
 INTERVAL_SECONDS = 15
@@ -31,31 +35,34 @@ class ProcessReading:
 
 
 def read_process(boundary: bool) -> ProcessReading:
-    """Linux current RSS; only boundaries need process CPU counters.
+    """Read current process RSS; only allocation boundaries read CPU counters.
 
-    /proc/self/statm is a small kernel-generated record, not an operator path.
-    Failure of one measurement does not erase independently readable fields.
-    Unsupported hosts can still implement the protocol with an unavailable result.
+    Each call observes only this process, without enumerating children. Failures
+    preserve independently available fields; lifetime peak RSS is never sampled.
     """
-    if sys.platform != "linux":
+    if psutil is None:
         return ProcessReading(reason="unsupported_platform")
+    try:
+        current = psutil.Process()
+    except NotImplementedError:
+        return ProcessReading(reason="unsupported_platform")
+    except (psutil.Error, OSError, ValueError):
+        return ProcessReading(reason="read_failed")
     user = system = rss = None
     reason: ResourceReason | None = None
     if boundary:
         try:
-            import resource
-
-            usage = resource.getrusage(resource.RUSAGE_SELF)
-            user, system = usage.ru_utime, usage.ru_stime
-        except (OSError, ValueError):
+            usage = current.cpu_times()
+            user, system = usage.user, usage.system
+        except NotImplementedError:
+            reason = "unsupported_platform"
+        except (psutil.Error, OSError, ValueError):
             reason = "read_failed"
     try:
-        with open("/proc/self/statm", "rb", buffering=0) as source:
-            raw = source.read(257)
-        if len(raw) > 256:
-            raise ValueError("oversized process record")
-        rss = int(raw.split()[1]) * os.sysconf("SC_PAGE_SIZE")
-    except (OSError, ValueError, IndexError):
+        rss = current.memory_info().rss
+    except NotImplementedError:
+        reason = reason or "unsupported_platform"
+    except (psutil.Error, OSError, ValueError):
         reason = "read_failed"
     return ProcessReading(user, system, rss, reason)
 
