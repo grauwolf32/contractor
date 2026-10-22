@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-82 open tasks: 4 in progress, 53 pending, 25 deferred. 928 finished: 925 completed, 3 archived.
+81 open tasks: 3 in progress, 53 pending, 25 deferred. 929 finished: 926 completed, 3 archived.
 
 ## In progress
 
@@ -14,7 +14,6 @@ the epics are in [epics.yml](epics.yml).
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
-| [V392-002](v392-002-finding-structural-anchors.yml) | code-analysis | feature | P2 | Derive structural site and qualified snapshot issue anchors from exact source |
 
 ## Pending
 
@@ -63,9 +62,9 @@ the epics are in [epics.yml](epics.yml).
 | [V371-011](v371-011-proposal-quota-limits.yml) | chore | P3 | — | Register the per-Run proposal and per-proposal evidence quotas in the specification |
 | [V372-018](v372-018-finding-proposal-namespace-constant.yml) | chore | P3 | — | Name the finding-proposals Namespace through artifactpolicy in finding intake |
 | [V372-023](v372-023-findings-tool-error-codes.yml) | chore | P3 | — | Name the findings error codes the open question lists and register the findings tool codes |
-| [V392-003](v392-003-automatic-finding-duplicate-marks.yml) | feature | P2 | V392-002 | Automatically mark equal-key observations across Audits while preserving each finding |
-| [V392-004](v392-004-cross-audit-finding-comparison-api.yml) | feature | P2 | V392-002, V392-003 | Read bounded cross-Audit matches and comparisons without losing observations |
-| [V392-006](v392-006-finding-analysis-resolver.yml) | feature | P2 | V392-002 | Resolve optional finding analysis against exact retained evidence |
+| [V392-003](v392-003-automatic-finding-duplicate-marks.yml) | feature | P2 | — | Automatically mark equal-key observations across Audits while preserving each finding |
+| [V392-004](v392-004-cross-audit-finding-comparison-api.yml) | feature | P2 | V392-003 | Read bounded cross-Audit matches and comparisons without losing observations |
+| [V392-006](v392-006-finding-analysis-resolver.yml) | feature | P2 | — | Resolve optional finding analysis against exact retained evidence |
 | [V392-007](v392-007-finding-export-snapshot.yml) | feature | P2 | V392-003, V392-006 | Freeze explicit finding selections and independent Audit results |
 | [V392-008](v392-008-generic-sarif-renderer.yml) | feature | P2 | V392-007 | Render deterministic validated generic SARIF from frozen snapshots |
 | [V392-009](v392-009-sarif-export-api-ui.yml) | feature | P2 | V392-008 | Publish and download generic SARIF through API CLI and UI |
@@ -184,7 +183,7 @@ tasks in `introduced_by`.
 | Shared Memory tools (`memory`) | 0 | 6 | 8 | 1 | 11 |
 | Agent Skills (`agent-skills`) | 0 | 10 | 2 | 1 | 1 |
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 12 | 4 | 15 |
-| Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 13 | 2 | 18 |
+| Code analysis and taint annotations (`code-analysis`) | 0 | 14 | 13 | 2 | 18 |
 | HTTP and Caido tools (`http-tools`) | 3 | 11 | 14 | 4 | 15 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 1 | 10 | 4 | 1 | 7 |
 | Findings tools and collections (`findings`) | 10 | 14 | 5 | 4 | 7 |

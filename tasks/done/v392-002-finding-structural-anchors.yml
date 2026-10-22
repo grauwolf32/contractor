@@ -5,7 +5,7 @@ milestone: finding-correlation-2026-10
 epic: code-analysis
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V392-001
 languages:
@@ -167,8 +167,8 @@ verification:
   date: '2026-10-22'
   status: passed
   checks:
-  - Full Go suites of auditdomain, findingintake, auditservice, auditimport, persistence/postgres, privateartifacts and public passed with integration tags and the disposable PostgreSQL URL; database checks were not skipped.
-  - Real PostgreSQL proves equal-key independent observations, foreign/changed source rejection, immutable projection writes, unchanged receipt wire, byte-identical replay, retained keys after source deletion, independent Audit holds, representative-independent purge and sensitive discard after the last hold.
+  - Full Go suites of auditdomain, findingintake, auditservice, auditimport, persistence/postgres, privateartifacts and public passed with integration tags and the disposable PostgreSQL URL; new database checks ran without database-URL skips.
+  - Real PostgreSQL proves equal-key independent observations, foreign/changed source rejection, immutable projection writes, unchanged receipt wire, byte-identical replay, retained keys after source deletion, independent Audit holds, one-Audit purge without affecting the remaining hold and sensitive discard after the last hold.
   - Migration from version 22 preserves existing receipt contents and fingerprints, marks anchors not_recorded, and keeps strict immutability/discard behavior.
   - Python/JavaScript/TypeScript corpus and shared Go/Runtime canonical vectors passed; structural sites alone expose issue_context_unavailable, and qualified local issue keys change with the exact snapshot.
   - The actual code facade prepares hidden metadata, preserves its provider declaration and visible response, reads exact source once, and retries a lost intake response with identical bytes.
@@ -177,3 +177,4 @@ verification:
   - Final make lint and test-wire-cross-language passed; 240 fixtures, 216 Go and 167 Python shared tests, and 300 Runtime wire tests passed.
   earlier_failure: A cold-cache Linux run failed one code-analysis capability assertion (4173 passed, 1 failed). Parser preparation is now explicit in runtime-venv; publication tests prove a missing cache never initiates grammar loading. The final full Linux target passed.
   boundary: All source parsing and canonicalization stay in Runtime common code; Server verifies closed metadata, exact evidence and authenticated intake authority. No Worker tool or configured model change, LLM call, new receipt or global issue entity is introduced.
+implementation_commit: d7095774dc906da2651aa084cd9d77c654ff1f9b
