@@ -6,7 +6,7 @@ epic: audits
 kind: chore
 introduced_by: V397-010
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V397-005]
 languages: [go, yaml, markdown]
 goal: Merge retained finding correlation without replacing the effective Audit profile digest contract already accepted on main.
@@ -39,3 +39,13 @@ tests:
   covers: [A1, A2]
 - command: make lint
   covers: [A1, A3]
+verification:
+  date: '2026-10-22'
+  status: passed
+  checks:
+  - "All configuration, configload, Audit service, Eval service and persistence/postgres package suites listed under tests passed against the disposable PostgreSQL database."
+  - "make test-findings-e2e passed all 14 mandatory real Server/Runtime process cases and finding Runtime contracts; the process suite completed in 207.530 seconds."
+  - "Full make lint passed on the merged source tree. No full release gate was repeated."
+  - "The merged configuration package and current persisted profile fixture are identical to main's V391-001 implementation. The additional catalog-selection regression passes with its effective digest."
+  - "Both cookie and finding shared-fixture reader registrations remain present. The tracker has unique V392 scanner IDs and V397 correlation IDs, preserving historical implementation hashes."
+implementation_commit: 59397589a4e74a0d31ce9769e024aedd7f8bc23e
