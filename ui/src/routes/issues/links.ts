@@ -62,6 +62,11 @@ export function issuePath(auditId: string, findingId: string): string {
   return `/issues/${encodeURIComponent(auditId)}/${encodeURIComponent(findingId)}`;
 }
 
+/** The finding's exact retained evidence, in the existing Evidence tab. */
+export function issueEvidencePath(auditId: string, findingId: string): string {
+  return `${issuePath(auditId, findingId)}?tab=evidence`;
+}
+
 /** A possible issue on the Issues destination with the list's filters. */
 export function issueHref(
   finding: Pick<AuditFinding, "auditId" | "findingId">,

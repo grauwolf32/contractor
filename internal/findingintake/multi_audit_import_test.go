@@ -406,8 +406,12 @@ func insertAuditChildReceiptWithEvidence(
 	grant := controlplane.AllocationGrant{RunID: f.request.RunID, AllocationID: "allocation", StageExecutionID: "stage",
 		RuntimeAgentID: "runtime", RuntimeInstanceID: "instance", LogicalAgentName: "worker"}
 	receiptID := clientKey + "-receipt"
+	fingerprint, err := auditdomain.EncodeFindingFingerprint(auditdomain.UnavailableFindingFingerprint("not_provided"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := persistencepostgres.InTx(f.ctx, f.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		return insertReceipt(f.ctx, tx, receiptID, clientKey+"-proposal", canonical, proposal, evidence, origin, f.request.OwnerID, &project, grant)
+		return insertReceipt(f.ctx, tx, receiptID, clientKey+"-proposal", canonical, fingerprint, proposal, evidence, origin, f.request.OwnerID, &project, grant)
 	}); err != nil {
 		t.Fatal(err)
 	}

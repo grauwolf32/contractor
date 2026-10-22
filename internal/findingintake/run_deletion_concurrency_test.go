@@ -299,8 +299,12 @@ func newFindingImportFixture(t *testing.T, direct bool) deletionImportFixture {
 	origin.Workflow.ConfigurationRef.Name, origin.Workflow.ConfigurationRef.Version = workflow.Ref.Name, workflow.Ref.Version
 	grant := controlplane.AllocationGrant{RunID: runID, AllocationID: "allocation", StageExecutionID: "stage",
 		RuntimeAgentID: "runtime", RuntimeInstanceID: "instance", LogicalAgentName: "worker"}
+	fingerprint, err := auditdomain.EncodeFindingFingerprint(auditdomain.UnavailableFindingFingerprint("not_provided"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		return insertReceipt(ctx, tx, receiptID, "proposal", canonical, proposal, []ExactArtifact{}, origin, owner, &project, grant)
+		return insertReceipt(ctx, tx, receiptID, "proposal", canonical, fingerprint, proposal, []ExactArtifact{}, origin, owner, &project, grant)
 	}); err != nil {
 		t.Fatal(err)
 	}

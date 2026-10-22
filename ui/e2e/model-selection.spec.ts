@@ -1,3 +1,6 @@
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { expect, test } from "@playwright/test";
 import { operationsSnapshot } from "../src/test/builders-execution";
 import {
@@ -108,7 +111,7 @@ for (const theme of ["light", "dark", "black"]) {
       .getByRole("combobox", { name: "Default model", exact: true })
       .focus();
     await section.screenshot({
-      path: `/private/tmp/contractor-model-selection-${theme}.png`,
+      path: join(tmpdir(), `contractor-model-selection-${theme}.png`),
     });
   });
 }

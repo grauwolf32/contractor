@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef } from "react";
+import { useSearchParams } from "react-router";
 
 import {
   getAudit,
@@ -33,6 +34,8 @@ import { EvidencePanel } from "./evidence-panel";
 import { DecisionHistory } from "./history";
 import { checkIssuePath } from "./links";
 import { TabPanel, Tabs } from "./tabs";
+
+import { FindingDuplicates } from "./duplicates";
 
 import "./issues.css";
 
@@ -102,7 +105,18 @@ export function IssueDetail({
   const idBase = useId();
   const provenanceHeading = useId();
   const header = useRef<HTMLElement>(null);
-  const [tab, setTab] = useState<IssueTab>("summary");
+  const [params, setParams] = useSearchParams();
+  const selectedTab = params.get("tab");
+  const tab: IssueTab =
+    selectedTab === "evidence" || selectedTab === "history"
+      ? selectedTab
+      : "summary";
+  const setTab = (value: IssueTab) => {
+    const next = new URLSearchParams(params);
+    if (value === "summary") next.delete("tab");
+    else next.set("tab", value);
+    void setParams(next, { replace: true });
+  };
 
   const finding = useQuery({
     queryKey: queryKeys.issues.finding(auditId, findingId),
@@ -339,6 +353,11 @@ export function IssueDetail({
                   <FindingSummary auditId={auditId} finding={shown} />
                   {auditShown === undefined ? null : (
                     <>
+                      <FindingDuplicates
+                        key={`${auditId}:${findingId}`}
+                        audit={auditShown}
+                        finding={shown}
+                      />
                       <FindingSources
                         audit={auditShown}
                         returnLabel="Possible issue"

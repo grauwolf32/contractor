@@ -908,3 +908,69 @@ code.issues-attempt-request {
   gap: var(--space-1);
   min-width: 0;
 }
+
+/* Retained observations inside the existing finding card. */
+.issues-duplicates {
+  border-block-start: 1px solid var(--line);
+  padding-block: var(--space-4);
+  min-width: 0;
+}
+.issues-duplicates summary {
+  cursor: pointer;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.issues-duplicates-body {
+  display: grid;
+  gap: var(--space-3);
+  padding-block-start: var(--space-3);
+  min-width: 0;
+}
+.issues-duplicates-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: var(--space-4);
+}
+.issues-duplicates-list > li {
+  min-width: 0;
+}
+.issues-duplicate-observation {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-subtle);
+  padding: var(--space-3);
+}
+.issues-duplicates-head,
+.issues-duplicates-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.issues-duplicates-head a {
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+.issues-duplicates-code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: var(--text-2xs);
+  max-height: 24rem;
+  overflow: auto;
+}
+
+.issues-duplicate-rating {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  font-size: var(--text-xs);
+}
+.issues-duplicate-options {
+  padding-block: var(--space-2);
+}

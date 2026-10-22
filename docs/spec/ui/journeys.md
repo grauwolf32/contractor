@@ -617,6 +617,17 @@ disabling metrics and independent Go profiling, including the absence of a
 browser pprof toggle, are specified in
 [Operations](../operations/operations.md).
 
+### Inspect related observations from a finding
+
+**UIJ-R117.** The owner opens an existing possible issue and expands
+**Duplicates** to inspect matching observations across checks in the same
+Project. Every observation retains its own check, evidence, verification and
+analyst rating; a link opens that finding directly. There is no duplicate
+confirmation action or separate pair-comparison page. Weak matches are reached
+through **Possible matches**, with separately selectable retained source
+proposals. Pagination, stale-state recovery and matching limitations are owned
+by [UI](ui.md#UI-R198).
+
 ## Limits, failures and errors
 
 Limits ([registry](../platform/limits.md)):

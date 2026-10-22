@@ -259,7 +259,7 @@ func (s *provenanceInterleavingService) ListFindingProvenance(ctx context.Contex
 // admission trigger used after import. Each finding has its own receipt, so
 // the 201st row cannot be hidden by a deduplicated hydration request.
 func seedPublicPaginationFinding(t *testing.T, ctx context.Context, pool *pgxpool.Pool,
-	ownerID, projectID, auditID, suffix string,
+	ownerID, projectID, auditID, suffix string, fingerprints ...auditdomain.FindingFingerprint,
 ) string {
 	t.Helper()
 	document := auditdomain.FindingProposal{
@@ -288,6 +288,14 @@ func seedPublicPaginationFinding(t *testing.T, ctx context.Context, pool *pgxpoo
 		MediaType: written.MediaType, SizeBytes: written.Size}
 	proposalJSON, _ := json.Marshal(proposal)
 	refJSON, _ := json.Marshal(proposal.Ref)
+	fingerprint := auditdomain.UnavailableFindingFingerprint("not_recorded")
+	if len(fingerprints) == 1 {
+		fingerprint = fingerprints[0]
+	}
+	fingerprintJSON, err := auditdomain.EncodeFindingFingerprint(fingerprint)
+	if err != nil {
+		t.Fatal(err)
+	}
 	receiptID := "receipt-" + suffix
 	_, err = pool.Exec(ctx, `
 INSERT INTO finding_proposal_receipts (
@@ -296,14 +304,14 @@ INSERT INTO finding_proposal_receipts (
     request_digest, run_id, owner_id, project_id, workflow_name, workflow_version,
     workflow_schema_version, workflow_configuration_ref, workflow_closure_digest,
     proposal_ref, proposal_digest, proposal_media_type, proposal_size_bytes, evidence,
-    report_projection
+    report_projection, fingerprint_projection
 ) VALUES ($1, $2, $3, 'runtime-pages', 'instance-pages', 'stage-pages', 'worker', $4, $5, $6,
     $7, $8, $9, $10, 'finding-source', '1', 'contractor/v1alpha1',
-    '{"name":"finding-source","version":"1"}'::jsonb, $11, $12::jsonb, $13, 'application/json', $14, '[]'::jsonb, $15)`,
+    '{"name":"finding-source","version":"1"}'::jsonb, $11, $12::jsonb, $13, 'application/json', $14, '[]'::jsonb, $15,$16)`,
 		receiptID, "proposal-"+suffix, "allocation-"+suffix, "invocation-"+suffix, "submission-"+suffix,
 		document.ClientKey, auditHandlerDigest("request-"+suffix), "deleted-run-"+suffix,
 		ownerID, projectID, auditHandlerDigest("workflow"), refJSON, proposal.Digest, proposal.SizeBytes,
-		string(projection))
+		string(projection), string(fingerprintJSON))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1250,6 +1250,14 @@ response, package content or model transcript.
 **AUD-R205.** Start and resume require `If-Match` and `Idempotency-Key` and
 accept an optional JSON object with only `deadlineSeconds`.
 
+**AUD-R228.** Owner selection digest checks compare the catalog selection
+before deployment model binding, or the supplied exact prepared profile for an
+Eval. The retained effective profile follows the digest contract in AUD-R20;
+prepared Evals preserve their captured policies and effective digest when
+model defaults change. Selection drift and frozen execution content remain
+separate checks without changing the configured model or relaxing immutable
+reads.
+
 **AUD-R226.** A start response, first or replayed, carries the Audit, its
 current Round and only that Round's items, so it holds at most LIM-AUD-26
 items however many items earlier Rounds hold.

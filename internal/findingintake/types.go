@@ -49,12 +49,13 @@ var (
 var identityPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
 
 type Submission struct {
-	APIVersion   string                            `json:"apiVersion"`
-	InvocationID string                            `json:"invocationId"`
-	SubmissionID string                            `json:"submissionId"`
-	Proposal     auditdomain.FindingProposal       `json:"proposal"`
-	EvidenceRefs []contracts.ArtifactRef           `json:"evidenceRefs"`
-	HTTPEvidence *auditdomain.CapturedHTTPExchange `json:"httpEvidence,omitempty"`
+	DerivedAnchors json.RawMessage                   `json:"derived_anchors,omitempty"`
+	APIVersion     string                            `json:"apiVersion"`
+	InvocationID   string                            `json:"invocationId"`
+	SubmissionID   string                            `json:"submissionId"`
+	Proposal       auditdomain.FindingProposal       `json:"proposal"`
+	EvidenceRefs   []contracts.ArtifactRef           `json:"evidenceRefs"`
+	HTTPEvidence   *auditdomain.CapturedHTTPExchange `json:"httpEvidence,omitempty"`
 }
 
 func (input *Submission) UnmarshalJSON(data []byte) error {
@@ -131,17 +132,19 @@ type AuditHold struct {
 }
 
 type Receipt struct {
-	ReceiptID     string                      `json:"receiptId"`
-	ProposalID    string                      `json:"proposalId"`
-	RequestDigest string                      `json:"requestDigest"`
-	ClientKey     string                      `json:"clientKey"`
-	Proposal      ExactArtifact               `json:"proposal"`
-	Document      auditdomain.FindingProposal `json:"document"`
-	Evidence      []ExactArtifact             `json:"evidence"`
-	Origin        Origin                      `json:"origin"`
-	Retention     RetentionState              `json:"retention"`
-	AuditHolds    []AuditHold                 `json:"auditHolds"`
-	CreatedAt     time.Time                   `json:"createdAt"`
+	Anchors       auditdomain.FindingAnchorProjection `json:"-"`
+	Fingerprint   auditdomain.FindingFingerprint      `json:"-"`
+	ReceiptID     string                              `json:"receiptId"`
+	ProposalID    string                              `json:"proposalId"`
+	RequestDigest string                              `json:"requestDigest"`
+	ClientKey     string                              `json:"clientKey"`
+	Proposal      ExactArtifact                       `json:"proposal"`
+	Document      auditdomain.FindingProposal         `json:"document"`
+	Evidence      []ExactArtifact                     `json:"evidence"`
+	Origin        Origin                              `json:"origin"`
+	Retention     RetentionState                      `json:"retention"`
+	AuditHolds    []AuditHold                         `json:"auditHolds"`
+	CreatedAt     time.Time                           `json:"createdAt"`
 }
 
 type SubmissionResponse struct {
@@ -179,8 +182,9 @@ type ResolvedProposal struct {
 }
 
 type canonicalSubmission struct {
-	request       Submission
-	proposalBytes []byte
+	anchorProjection []byte
+	request          Submission
+	proposalBytes    []byte
 	// reportProjection is the canonical report projection of the proposal,
 	// stored with the receipt so Audit reports never read the proposal back.
 	reportProjection []byte
@@ -188,6 +192,16 @@ type canonicalSubmission struct {
 }
 
 func canonicalize(input Submission) (canonicalSubmission, error) {
+	if len(input.DerivedAnchors) != 0 {
+		derived, err := auditdomain.DecodeFindingAnchorDerivation(input.DerivedAnchors)
+		if err != nil {
+			return canonicalSubmission{}, fmt.Errorf("%w: derived anchors", ErrInvalid)
+		}
+		input.DerivedAnchors, err = strictjson.Canonical(derived)
+		if err != nil {
+			return canonicalSubmission{}, err
+		}
+	}
 	if input.APIVersion != APIVersion || !validIdentity(input.InvocationID) ||
 		!validIdentity(input.SubmissionID) || len(input.EvidenceRefs) > MaxEvidenceRefs {
 		return canonicalSubmission{}, ErrInvalid
@@ -264,16 +278,19 @@ func canonicalize(input Submission) (canonicalSubmission, error) {
 		}
 	}
 	digestValue := struct {
-		Proposal     json.RawMessage                   `json:"proposal"`
-		EvidenceRefs []contracts.ArtifactRef           `json:"evidenceRefs"`
-		HTTPEvidence *auditdomain.CapturedHTTPExchange `json:"httpEvidence,omitempty"`
-	}{Proposal: proposalBytes, EvidenceRefs: refs, HTTPEvidence: input.HTTPEvidence}
+		DerivedAnchors json.RawMessage                   `json:"derived_anchors,omitempty"`
+		Proposal       json.RawMessage                   `json:"proposal"`
+		EvidenceRefs   []contracts.ArtifactRef           `json:"evidenceRefs"`
+		HTTPEvidence   *auditdomain.CapturedHTTPExchange `json:"httpEvidence,omitempty"`
+	}{DerivedAnchors: input.DerivedAnchors, Proposal: proposalBytes, EvidenceRefs: refs, HTTPEvidence: input.HTTPEvidence}
 	encoded, err := json.Marshal(digestValue)
 	if err != nil {
 		return canonicalSubmission{}, fmt.Errorf("canonicalize finding submission: %w", err)
 	}
+	anchorProjection, _ := auditdomain.EncodeFindingAnchors(auditdomain.UnavailableFindingAnchors("not_provided"))
 	return canonicalSubmission{
-		request: input, proposalBytes: proposalBytes, reportProjection: reportProjection,
+		anchorProjection: anchorProjection,
+		request:          input, proposalBytes: proposalBytes, reportProjection: reportProjection,
 		digest: auditdomain.DigestBytes(encoded),
 	}, nil
 }

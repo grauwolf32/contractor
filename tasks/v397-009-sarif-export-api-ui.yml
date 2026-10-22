@@ -1,0 +1,100 @@
+schema_version: '1.0'
+id: V397-009
+title: Publish and download generic SARIF through API CLI and UI
+milestone: finding-sarif-export-2026-10
+epic: findings
+kind: feature
+priority: P2
+status: pending
+depends_on:
+- V397-008
+languages:
+- go
+- python
+- typescript
+- markdown
+goal: Deliver this proposal 0028 SARIF stage through production callers with deterministic bounded work, exact evidence and every selected finding
+  retained.
+context:
+  request: User requested SARIF work on 2026-10-22 alongside deterministic correlation.
+  proposal:
+  - docs/proposals/0028-finding-analysis-and-sarif.md#service-and-publication-contract
+  - docs/proposals/0028-finding-analysis-and-sarif.md#unchanged-worker-tool-contract
+  specification:
+  - docs/spec/findings/findings.md
+  - docs/spec/audits/review-and-reports.md
+  - docs/spec/artifacts/artifact-store.md
+  - docs/spec/platform/failure-model.md
+  - docs/spec/platform/limits.md
+  - docs/spec/api/public-api.md
+scope:
+  in:
+  - POST /v1/finding-exports and shared CLI/UI explicit selection/download with generated clients and UI patch bump.
+  - Atomic snapshot/SARIF/diagnostics/publication receipt using existing Artifact bindings, replay before live reads and strict changed/corrupt
+    publication failures.
+  out:
+  - Model tool schema changes, automatic review mutations, dropping duplicate selected identities, global issue/receipt stores and model-authored
+    export assembly.
+  - GitHub upload/profile, source maps, suppression/fix sync, security-score classification and complete-scan/remediation inference.
+requirements:
+- id: R1
+  text: POST /v1/finding-exports and shared CLI/UI explicit selection/download with generated clients and UI patch bump.
+- id: R2
+  text: Atomic snapshot/SARIF/diagnostics/publication receipt using existing Artifact bindings, replay before live reads and strict changed/corrupt
+    publication failures.
+- id: R3
+  text: Preserve every selected typed result and independent Audit triage/rating/origin, keep all Worker tool declarations/results unchanged and
+    use exact frozen evidence without guessed joins.
+- id: R4
+  text: Update owning contracts/shared fixtures and add a production caller for every export in the same change; pure rendering never performs
+    model/network/storage work.
+failure_outcomes:
+- operation: Publish and download generic SARIF through API CLI and UI
+  permanent: Invalid/foreign input, stale selection, changed key and invalid evidence/profile/size use existing classified non-disclosure/conflict/validation
+    errors with bounded diagnostics and no partial publication.
+  retryable: Existing finite storage retry bounds and 503 storage_transaction_conflict with Retry-After; deterministic invalid content is permanent.
+  ambiguous: Reconcile the same existing Artifact publication key/receipt before retry; reads/rendering repeat from the same frozen inputs.
+  cancelled: Cancel and join resolution/render/transaction work before cleanup; roll back uncommitted writes and reconcile uncertain commits.
+  timeout: Independent existing finite read/publication budgets and proposal aggregate caps, without model or external lookup.
+cardinality:
+- collection: Explicit selected findings, exact evidence and analysis/export bytes
+  expected: Small explicit selections with several contributions per finding.
+  maximum: Proposal collection/analysis per-object limits and 16 MiB snapshot/SARIF caps; no Cartesian-product assumption.
+  bound: Page/batch explicit reads, validate archive/document/flow and aggregate bytes, and never scan an entire parent or fetch unselected evidence.
+lifecycle:
+- entity: Ordinary analysis/snapshot/export artifacts and existing publication bindings
+  delete: Existing owner Artifact/Run/Project lifecycle authority; no new delete blocker.
+  cascade: Existing parent purge and blob GC; failed publication leaves no partial success.
+  retention: Frozen versions/decisions/correlation remain historical, with replay preserving original output after later triage/source deletion.
+acceptance_criteria:
+- id: A1
+  given: Authorized code/HTTP/no-analysis findings, duplicate observations and independent Audit results.
+  when: The production stage resolves, freezes, renders or publishes its specified inputs.
+  then: Every selected typed identity survives with exact evidence and separate ratings; no LLM or Worker schema/result change occurs.
+- id: A2
+  given: Invalid/foreign/stale inputs, maximum sizes, concurrent changes, cancellation and lost publication responses.
+  when: Real store/process paths handle each outcome.
+  then: Classified bounded diagnostics, no partial success and exact existing-key reconciliation hold without guessed inputs.
+- id: A3
+  given: Golden fixtures, reproducible frozen inputs and complete touched-package/shared/public/UI consumers.
+  when: All required gates run with a disposable PostgreSQL URL.
+  then: Deterministic output, production callers and public operation coverage are proved, without skipped database tests.
+tests:
+- command: go test -count=1 ./internal/auditdomain ./internal/findingintake ./internal/auditservice ./internal/httpapi/public ./internal/publicclient/...
+    ./internal/cli
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-runtime test-wire-cross-language test-findings-e2e verify-public-api
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make ui-verify test-ui-stack
+  covers:
+  - A1
+  - A3
+- command: make lint
+  covers:
+  - A3

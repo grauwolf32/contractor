@@ -220,6 +220,7 @@ class GeneralFindingsToolsetFactory:
             metrics,
             runtime_secrets(runtime_settings),
             state,
+            artifacts=client,
         )
         result = {}
         if "finding" in selected:

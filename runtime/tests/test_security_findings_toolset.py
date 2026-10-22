@@ -128,6 +128,7 @@ def test_finding_uses_runtime_identity_and_exact_evidence() -> None:
             "submissionId",
             "proposal",
             "evidenceRefs",
+            "derived_anchors",
         }
         assert "runId" not in repr(request) and "allocation" not in repr(request)
         assert request["invocationId"] == "worker-invocation-1"
@@ -228,6 +229,27 @@ class FakeFindingClient:
         max_response_bytes: int,
     ) -> ArtifactHTTPResponse:
         del headers, max_response_bytes
+        if method == "GET" and "/artifacts/" in path and "/metadata?revision=" in path:
+            from urllib.parse import unquote
+
+            resource, revision = path.split("/artifacts/", 1)[1].split("/metadata?revision=", 1)
+            namespace, name = resource.split("/", 1)
+            return ArtifactHTTPResponse(
+                200,
+                {"content-type": "application/json"},
+                json.dumps(
+                    {
+                        "apiVersion": "contractor/v1alpha1",
+                        "artifact": {
+                            "namespace": unquote(namespace),
+                            "name": unquote(name),
+                            "revision": unquote(revision),
+                        },
+                        "mediaType": "text/plain",
+                        "size": 0,
+                    }
+                ).encode(),
+            )
         assert method == "POST"
         assert path.startswith("/allocations/") and path.endswith("/finding-proposals")
         self.requests.append(json.loads(body))

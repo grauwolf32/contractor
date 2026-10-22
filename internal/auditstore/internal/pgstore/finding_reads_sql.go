@@ -10,7 +10,9 @@ const findingRecordColumns = `
 finding.finding_id, finding.audit_id, finding.first_receipt_id, finding.state,
 finding.rejection_reason, finding.duplicate_target_id,
 finding.current_assessment_id, finding.current_decision_id,
-finding.revision, finding.created_at, finding.updated_at`
+finding.revision, finding.created_at, finding.updated_at,
+finding.correlation_project_id, finding.correlation_algorithm, finding.correlation_value,
+finding.correlation_group_key, finding.correlation_reason`
 
 // findingFilterSQL is the FROM and WHERE of a finding page of owner $1: the
 // Audit $2 or, when NULL, every Audit of the owner; state $3; the current
@@ -31,13 +33,13 @@ const findingFilterSQL = `
 // listFindingsSQL is a finding page of owner $1's Audit $2 in creation order:
 // the findingFilterSQL filters, after the cursor ($7, $8), at most $9 rows.
 // Used by QueryStore.ListFindings.
-const listFindingsSQL = `
-SELECT ` + findingRecordColumns + `
-` + findingFilterSQL + `
+var listFindingsSQL = correlateFindingSelection(`
+SELECT `+findingRecordColumns+`
+`+findingFilterSQL+`
    AND ($7::timestamptz IS NULL OR
         (finding.created_at, finding.finding_id) > ($7, $8))
  ORDER BY finding.created_at, finding.finding_id
- LIMIT $9`
+ LIMIT $9`, false)
 
 // findingPageBasisSQL reads the revision of owner $1's Audit $2, the
 // statement time and the number of its findings that match the
@@ -73,10 +75,10 @@ var visibleAuditProjectSQL = `
 // findingFilterSQL filters over every Audit ($2 is NULL), Audits of listed
 // Projects only, before the cursor ($7, $8), in the Audit states $10, at most
 // $9 rows. Used by QueryStore.ListOwnerFindings.
-var listOwnerFindingsSQL = `SELECT ` + findingRecordColumns + findingFilterSQL + visibleAuditProjectSQL + `
+var listOwnerFindingsSQL = correlateFindingSelection(`SELECT `+findingRecordColumns+findingFilterSQL+visibleAuditProjectSQL+`
    AND ($7::timestamptz IS NULL OR (finding.created_at, finding.finding_id) < ($7, $8))
    AND ($10::text[] IS NULL OR audit.state = ANY($10))
- ORDER BY finding.created_at DESC, finding.finding_id DESC LIMIT $9`
+ ORDER BY finding.created_at DESC, finding.finding_id DESC LIMIT $9`, true)
 
 // decisionSelect selects analyst decisions in scanDecision order. Callers
 // append the joins and WHERE clause, which filters on audit.owner_id.
@@ -184,3 +186,46 @@ WITH RECURSIVE chain(finding_id, duplicate_target_id) AS (
 )
 SELECT EXISTS (SELECT 1 FROM audit_findings WHERE audit_id = $1 AND finding_id = $2),
        EXISTS (SELECT 1 FROM chain WHERE finding_id = $3)`
+
+// correlateFindingSelection presents one already bounded page in the same
+// statement snapshot. Distinct page groups each cost two indexed probes,
+// independently of their total membership; the query never counts peers.
+func correlateFindingSelection(selection string, newestFirst bool) string {
+	order := " ORDER BY selected.created_at, selected.finding_id"
+	if newestFirst {
+		order = " ORDER BY selected.created_at DESC, selected.finding_id DESC"
+	}
+	return `WITH selected AS MATERIALIZED (` + selection + `),
+ requested_groups AS MATERIALIZED (
+  SELECT DISTINCT correlation_project_id, correlation_group_key FROM selected
+ ), presentations AS MATERIALIZED (
+  SELECT requested.correlation_project_id, requested.correlation_group_key,
+         project.finding_correlation_revision,
+         representative.finding_id AS representative_id, representative.audit_id AS representative_audit,
+         next_peer.finding_id IS NOT NULL AS has_other_observations
+    FROM requested_groups AS requested
+    JOIN projects AS project ON project.project_id=requested.correlation_project_id AND project.owner_id=$1
+    LEFT JOIN LATERAL (
+     SELECT peer.finding_id, peer.audit_id FROM audit_findings AS peer
+      WHERE peer.correlation_project_id=requested.correlation_project_id
+        AND peer.correlation_group_key=requested.correlation_group_key
+        AND peer.correlation_group_key<>'' ORDER BY peer.finding_id COLLATE "C" LIMIT 1
+    ) AS representative ON true
+    LEFT JOIN LATERAL (
+     SELECT peer.finding_id FROM audit_findings AS peer
+      WHERE peer.correlation_project_id=requested.correlation_project_id
+        AND peer.correlation_group_key=requested.correlation_group_key
+        AND peer.correlation_group_key<>'' AND peer.finding_id COLLATE "C">representative.finding_id COLLATE "C"
+      ORDER BY peer.finding_id COLLATE "C" LIMIT 1
+    ) AS next_peer ON true
+ )
+ SELECT selected.*, presentations.finding_correlation_revision, presentations.representative_id,
+        presentations.representative_audit, presentations.has_other_observations
+ FROM selected JOIN presentations USING(correlation_project_id,correlation_group_key)` + order
+}
+
+// getCorrelatedFindingSQL selects one authorized observation before probing its
+// own Project group; presentation never grants access to a foreign Project.
+var getCorrelatedFindingSQL = correlateFindingSelection(`
+SELECT `+findingRecordColumns+` FROM audit_findings AS finding JOIN audits AS audit USING(audit_id)
+ WHERE audit.owner_id=$1 AND finding.audit_id=$2 AND finding.finding_id=$3`, false)

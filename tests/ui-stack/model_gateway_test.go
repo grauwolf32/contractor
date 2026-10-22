@@ -99,7 +99,7 @@ func TestModelGatewayFindsNamedInputAfterParameterBlock(t *testing.T) {
 
 func newModelGateway(token string) *modelGateway {
 	gateway := &modelGateway{
-		token: token, domainStages: openAPIGatewayStages(),
+		token: token, domainStages: append(openAPIGatewayStages(), correlationProducerStage(), correlationProducerStage()),
 		streamlineSteps: make(map[string]int),
 		workerEntered:   make(chan struct{}),
 		releaseWorker:   make(chan struct{}),
@@ -195,25 +195,33 @@ func (g *modelGateway) nextStreamline(
 	ctx context.Context, request map[string]any, payload string,
 ) (map[string]any, string, string, error) {
 	model, ok := request["model"].(string)
-	if !ok {
+	if !ok || model == "" {
 		return nil, "", "", errors.New("streamline request has no model")
+	}
+	tools, err := requestToolNames(request)
+	if err != nil {
+		return nil, "", "", err
+	}
+	hasTool := func(name string) bool {
+		for _, tool := range tools {
+			if tool == name {
+				return true
+			}
+		}
+		return false
 	}
 	scenario := ""
 	wantTools := []string{
 		"add_subtask", "execute_current_subtask", "finish", "get_worker_tool_usage", "list_subtasks",
 	}
-	if model == "planner-model" && strings.Contains(payload, streamlineGlobalMarker) {
+	if hasTool("add_subtask") && strings.Contains(payload, streamlineGlobalMarker) {
 		scenario = "streamline-planner"
 		wantTools = withMemoryTools(wantTools)
-	} else if model == "worker-model" && strings.Contains(payload, streamlineWorkerMarker) {
+	} else if hasTool("read_artifact") && strings.Contains(payload, streamlineWorkerMarker) {
 		scenario = "streamline-worker"
 		wantTools = withMemoryTools([]string{"list_artifacts", "read_artifact", "write_artifact"})
 	} else {
 		return nil, "", "", fmt.Errorf("unexpected streamline model/context %q", model)
-	}
-	tools, err := requestToolNames(request)
-	if err != nil {
-		return nil, "", "", err
 	}
 	sort.Strings(wantTools)
 	if !equalStrings(tools, wantTools) {
@@ -630,7 +638,8 @@ func expectedResultFinalizerCandidate(result string) bool {
 		"Dependency inventory published",
 		"Project inventory published",
 		"OpenAPI candidate built and validated",
-		"OpenAPI candidate is clean":
+		"OpenAPI candidate is clean",
+		"Source observation recorded":
 		return true
 	default:
 		return false

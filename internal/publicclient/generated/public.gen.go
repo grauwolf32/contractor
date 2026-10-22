@@ -3062,19 +3062,28 @@ type AuditFinalDisposition = interface{}
 
 // AuditFinding defines model for AuditFinding.
 type AuditFinding struct {
-	AnalystDecision   *AuditReviewDecision    `json:"analystDecision,omitempty"`
-	AnalystSeverity   *AuditFindingSeverity   `json:"analystSeverity,omitempty"`
-	AnalystVerdict    *AuditAnalystVerdict    `json:"analystVerdict,omitempty"`
-	AuditId           ResourceId              `json:"auditId"`
+	AnalystDecision *AuditReviewDecision  `json:"analystDecision,omitempty"`
+	AnalystSeverity *AuditFindingSeverity `json:"analystSeverity,omitempty"`
+	AnalystVerdict  *AuditAnalystVerdict  `json:"analystVerdict,omitempty"`
+
+	// Anchors Immutable exact-source correlation evidence. Sites alone are candidates; qualified issue keys require the same source snapshot and never set analyst verdicts.
+	Anchors *FindingAnchorProjection `json:"anchors,omitempty"`
+	AuditId ResourceId               `json:"auditId"`
+
+	// Correlation System-owned Project equality presentation at projectRevision, separate from every Audit-local verdict, severity and manual duplicate decision. The representative is the smallest retained finding ID in byte order and conveys no truth or discovery priority.
+	Correlation       *FindingCorrelation     `json:"correlation,omitempty"`
 	CreatedAt         time.Time               `json:"createdAt"`
 	CurrentAssessment *AuditFindingAssessment `json:"currentAssessment,omitempty"`
 	DuplicateTargetId *ResourceId             `json:"duplicateTargetId,omitempty"`
 	FindingId         ResourceId              `json:"findingId"`
-	FirstProposal     FindingProposalReceipt  `json:"firstProposal"`
-	RejectionReason   interface{}             `json:"rejectionReason,omitempty"`
-	Revision          int                     `json:"revision"`
-	State             AuditFindingState       `json:"state"`
-	UpdatedAt         time.Time               `json:"updatedAt"`
+
+	// Fingerprint Immutable deterministic key evidence; independent of analyst triage. Snapshot keys apply only to the exact Git commit and source digest.
+	Fingerprint     *FindingFingerprintProjection `json:"fingerprint,omitempty"`
+	FirstProposal   FindingProposalReceipt        `json:"firstProposal"`
+	RejectionReason interface{}                   `json:"rejectionReason,omitempty"`
+	Revision        int                           `json:"revision"`
+	State           AuditFindingState             `json:"state"`
+	UpdatedAt       time.Time                     `json:"updatedAt"`
 }
 
 // AuditFindingAssessment defines model for AuditFindingAssessment.
@@ -5238,6 +5247,63 @@ type ExecutionSelectionPatch struct {
 	SummarizerModelPolicy *Selector                   `json:"summarizerModelPolicy,omitempty"`
 }
 
+// FindingAnchorBasis defines model for FindingAnchorBasis.
+type FindingAnchorBasis struct {
+	Anchors      []FindingStructuralAnchor `json:"anchors"`
+	Availability interface{}               `json:"availability"`
+	Schema       interface{}               `json:"schema"`
+	SourceDigest Digest                    `json:"sourceDigest"`
+	SourceRef    ExactArtifactRef          `json:"sourceRef"`
+}
+
+// FindingAnchorContext defines model for FindingAnchorContext.
+type FindingAnchorContext struct {
+	ContextDigest Digest      `json:"contextDigest"`
+	LiteralDigest Digest      `json:"literalDigest"`
+	RuleId        interface{} `json:"ruleId"`
+	Scheme        interface{} `json:"scheme"`
+}
+
+// FindingAnchorKeys defines model for FindingAnchorKeys.
+type FindingAnchorKeys struct {
+	union json.RawMessage
+}
+
+// FindingAnchorKeys0 defines model for FindingAnchorKeys.0.
+type FindingAnchorKeys0 struct {
+	IssueKey string `json:"issueKey"`
+	SiteKey  string `json:"siteKey"`
+}
+
+// FindingAnchorKeys1 defines model for FindingAnchorKeys.1.
+type FindingAnchorKeys1 struct {
+	IssueReason interface{} `json:"issueReason"`
+	SiteKey     string      `json:"siteKey"`
+}
+
+// FindingAnchorProjection Immutable exact-source correlation evidence. Sites alone are candidates; qualified issue keys require the same source snapshot and never set analyst verdicts.
+type FindingAnchorProjection struct {
+	union json.RawMessage
+}
+
+// FindingAnchorProjection0 defines model for FindingAnchorProjection.0.
+type FindingAnchorProjection0 struct {
+	Availability interface{} `json:"availability"`
+	Reason       interface{} `json:"reason"`
+	Schema       interface{} `json:"schema"`
+}
+
+// FindingAnchorProjection1 defines model for FindingAnchorProjection.1.
+type FindingAnchorProjection1 struct {
+	Availability interface{}          `json:"availability"`
+	Basis        FindingAnchorBasis   `json:"basis"`
+	Commit       string               `json:"commit"`
+	Keys         []FindingAnchorKeys  `json:"keys"`
+	Repository   string               `json:"repository"`
+	Schema       interface{}          `json:"schema"`
+	Source       FindingExactArtifact `json:"source"`
+}
+
 // FindingAuditHold defines model for FindingAuditHold.
 type FindingAuditHold struct {
 	AuditId   ResourceId             `json:"auditId"`
@@ -5252,6 +5318,50 @@ type FindingAuditOrigin struct {
 	AuditId     ResourceId         `json:"auditId"`
 	ExecutionId ResourceId         `json:"executionId"`
 	Role        AuditExecutionRole `json:"role"`
+}
+
+// FindingCandidate defines model for FindingCandidate.
+type FindingCandidate struct {
+	AutomaticallyCorrelated bool                     `json:"automaticallyCorrelated"`
+	Finding                 FindingComparisonPreview `json:"finding"`
+	Reasons                 []FindingCandidateReason `json:"reasons"`
+	ReasonsTruncated        bool                     `json:"reasonsTruncated"`
+	Tier                    int                      `json:"tier"`
+}
+
+// FindingCandidateReason defines model for FindingCandidateReason.
+type FindingCandidateReason struct {
+	Key             string      `json:"key"`
+	Kind            interface{} `json:"kind"`
+	Limitations     []string    `json:"limitations"`
+	SourceReceiptId ResourceId  `json:"sourceReceiptId"`
+	SourceSelector  *int        `json:"sourceSelector,omitempty"`
+	TargetReceiptId ResourceId  `json:"targetReceiptId"`
+	TargetSelector  *int        `json:"targetSelector,omitempty"`
+}
+
+// FindingCandidateSource defines model for FindingCandidateSource.
+type FindingCandidateSource struct {
+	AuditId           ResourceId  `json:"auditId"`
+	FamiliesAvailable bool        `json:"familiesAvailable"`
+	FindingId         ResourceId  `json:"findingId"`
+	FirstReceiptId    ResourceId  `json:"firstReceiptId"`
+	HintsAvailability interface{} `json:"hintsAvailability"`
+	HintsReason       interface{} `json:"hintsReason,omitempty"`
+	ReceiptId         ResourceId  `json:"receiptId"`
+}
+
+// FindingCandidatesPage defines model for FindingCandidatesPage.
+type FindingCandidatesPage struct {
+	Fence         FindingCorrelationFence     `json:"fence"`
+	Items         []FindingCandidate          `json:"items"`
+	Page          FindingCorrelationPageInfo  `json:"page"`
+	PolicyVersion interface{}                 `json:"policyVersion"`
+	RowsExamined  int                         `json:"rowsExamined"`
+	Scope         FindingCorrelationReadScope `json:"scope"`
+	Source        FindingCandidateSource      `json:"source"`
+	TargetBasis   interface{}                 `json:"targetBasis"`
+	WorkLimited   bool                        `json:"workLimited"`
 }
 
 // FindingCollectionFindingSelection defines model for FindingCollectionFindingSelection.
@@ -5275,12 +5385,212 @@ type FindingCollectionSourceSelection struct {
 // FindingCollectionSourceSelectionKind defines model for FindingCollectionSourceSelection.Kind.
 type FindingCollectionSourceSelectionKind string
 
+// FindingComparisonAudit defines model for FindingComparisonAudit.
+type FindingComparisonAudit struct {
+	AuditId                ResourceId               `json:"auditId"`
+	BaselineDigest         *string                  `json:"baselineDigest,omitempty"`
+	BaselineDigestEncoding interface{}              `json:"baselineDigestEncoding"`
+	Coverage               interface{}              `json:"coverage"`
+	Profile                FindingComparisonProfile `json:"profile"`
+	Revision               int                      `json:"revision"`
+	State                  AuditState               `json:"state"`
+}
+
+// FindingComparisonOrigin defines model for FindingComparisonOrigin.
+type FindingComparisonOrigin struct {
+	LogicalAgentName      ConfigId   `json:"logicalAgentName"`
+	ReceiptId             ResourceId `json:"receiptId"`
+	RunDeleted            bool       `json:"runDeleted"`
+	RunId                 ResourceId `json:"runId"`
+	WorkflowClosureDigest string     `json:"workflowClosureDigest"`
+	WorkflowName          ConfigId   `json:"workflowName"`
+	WorkflowVersion       string     `json:"workflowVersion"`
+}
+
+// FindingComparisonPage defines model for FindingComparisonPage.
+type FindingComparisonPage struct {
+	Fence         FindingCorrelationFence     `json:"fence"`
+	Items         []FindingComparisonRow      `json:"items"`
+	LeftAuditId   ResourceId                  `json:"leftAuditId"`
+	Limitations   []string                    `json:"limitations"`
+	Page          FindingCorrelationPageInfo  `json:"page"`
+	PolicyVersion interface{}                 `json:"policyVersion"`
+	RightAuditId  ResourceId                  `json:"rightAuditId"`
+	Scope         FindingCorrelationReadScope `json:"scope"`
+}
+
+// FindingComparisonPreview defines model for FindingComparisonPreview.
+type FindingComparisonPreview struct {
+	AnalystSeverity    *AuditFindingSeverity   `json:"analystSeverity,omitempty"`
+	AnalystVerdict     *AuditAnalystVerdict    `json:"analystVerdict,omitempty"`
+	AssessmentId       *ResourceId             `json:"assessmentId,omitempty"`
+	AuditId            ResourceId              `json:"auditId"`
+	CorrelationRole    interface{}             `json:"correlationRole,omitempty"`
+	DecisionId         *ResourceId             `json:"decisionId,omitempty"`
+	FindingId          ResourceId              `json:"findingId"`
+	Origin             FindingComparisonOrigin `json:"origin"`
+	Preview            interface{}             `json:"preview"`
+	Revision           int                     `json:"revision"`
+	SemanticAssessment *string                 `json:"semanticAssessment,omitempty"`
+	SeveritySuggestion interface{}             `json:"severitySuggestion"`
+	State              AuditFindingState       `json:"state"`
+	Title              string                  `json:"title"`
+	TitleTruncated     bool                    `json:"titleTruncated"`
+}
+
+// FindingComparisonProfile defines model for FindingComparisonProfile.
+type FindingComparisonProfile struct {
+	Digest  string   `json:"digest"`
+	Name    ConfigId `json:"name"`
+	Version string   `json:"version"`
+}
+
+// FindingComparisonRow defines model for FindingComparisonRow.
+type FindingComparisonRow struct {
+	Basis                *FindingCorrelationBasis    `json:"basis,omitempty"`
+	GroupKey             *string                     `json:"groupKey,omitempty"`
+	Kind                 interface{}                 `json:"kind"`
+	Left                 *FindingComparisonPreview   `json:"left,omitempty"`
+	PreviewsShareReceipt bool                        `json:"previewsShareReceipt"`
+	Representative       FindingCorrelationReference `json:"representative"`
+	Right                *FindingComparisonPreview   `json:"right,omitempty"`
+	RowKey               string                      `json:"rowKey"`
+	UnavailableReason    interface{}                 `json:"unavailableReason,omitempty"`
+}
+
+// FindingCorrelation System-owned Project equality presentation at projectRevision, separate from every Audit-local verdict, severity and manual duplicate decision. The representative is the smallest retained finding ID in byte order and conveys no truth or discovery priority.
+type FindingCorrelation struct {
+	union json.RawMessage
+}
+
+// FindingCorrelation0 defines model for FindingCorrelation.0.
+type FindingCorrelation0 struct {
+	AutomaticDuplicate   interface{}             `json:"automaticDuplicate"`
+	Availability         interface{}             `json:"availability"`
+	HasOtherObservations interface{}             `json:"hasOtherObservations"`
+	PolicyVersion        interface{}             `json:"policyVersion"`
+	ProjectRevision      int                     `json:"projectRevision"`
+	Reason               interface{}             `json:"reason"`
+	Schema               interface{}             `json:"schema"`
+	Scope                FindingCorrelationScope `json:"scope"`
+}
+
+// FindingCorrelation1 defines model for FindingCorrelation.1.
+type FindingCorrelation1 struct {
+	AutomaticDuplicate   bool                        `json:"automaticDuplicate"`
+	Availability         interface{}                 `json:"availability"`
+	Basis                FindingCorrelationBasis     `json:"basis"`
+	GroupKey             string                      `json:"groupKey"`
+	HasOtherObservations bool                        `json:"hasOtherObservations"`
+	MatchedDomain        interface{}                 `json:"matchedDomain"`
+	PolicyVersion        interface{}                 `json:"policyVersion"`
+	ProjectRevision      int                         `json:"projectRevision"`
+	Representative       FindingCorrelationReference `json:"representative"`
+	Schema               interface{}                 `json:"schema"`
+	Scope                FindingCorrelationScope     `json:"scope"`
+}
+
+// FindingCorrelationBasis defines model for FindingCorrelationBasis.
+type FindingCorrelationBasis struct {
+	Algorithm interface{} `json:"algorithm"`
+	Value     string      `json:"value"`
+}
+
+// FindingCorrelationFence defines model for FindingCorrelationFence.
+type FindingCorrelationFence struct {
+	Audits          []FindingComparisonAudit `json:"audits"`
+	ProjectId       ResourceId               `json:"projectId"`
+	ProjectRevision *int                     `json:"projectRevision,omitempty"`
+}
+
+// FindingCorrelationPageInfo defines model for FindingCorrelationPageInfo.
+type FindingCorrelationPageInfo struct {
+	union json.RawMessage
+}
+
+// FindingCorrelationPageInfo0 defines model for FindingCorrelationPageInfo.0.
+type FindingCorrelationPageInfo0 struct {
+	HasMore interface{} `json:"hasMore"`
+}
+
+// FindingCorrelationPageInfo1 defines model for FindingCorrelationPageInfo.1.
+type FindingCorrelationPageInfo1 struct {
+	HasMore    interface{} `json:"hasMore"`
+	NextCursor string      `json:"nextCursor"`
+}
+
+// FindingCorrelationReadScope defines model for FindingCorrelationReadScope.
+type FindingCorrelationReadScope struct {
+	union json.RawMessage
+}
+
+// FindingCorrelationReadScope0 defines model for FindingCorrelationReadScope.0.
+type FindingCorrelationReadScope0 struct {
+	AuditIds  []ResourceId `json:"auditIds"`
+	Kind      interface{}  `json:"kind"`
+	ProjectId ResourceId   `json:"projectId"`
+}
+
+// FindingCorrelationReadScope1 defines model for FindingCorrelationReadScope.1.
+type FindingCorrelationReadScope1 struct {
+	AuditIds  []ResourceId `json:"auditIds"`
+	Kind      interface{}  `json:"kind"`
+	ProjectId ResourceId   `json:"projectId"`
+}
+
+// FindingCorrelationReadScope2 defines model for FindingCorrelationReadScope.2.
+type FindingCorrelationReadScope2 struct {
+	AuditIds  []ResourceId `json:"auditIds"`
+	Kind      interface{}  `json:"kind"`
+	ProjectId ResourceId   `json:"projectId"`
+}
+
+// FindingCorrelationReference defines model for FindingCorrelationReference.
+type FindingCorrelationReference struct {
+	AuditId   ResourceId `json:"auditId"`
+	FindingId ResourceId `json:"findingId"`
+}
+
+// FindingCorrelationScope defines model for FindingCorrelationScope.
+type FindingCorrelationScope struct {
+	Kind      interface{} `json:"kind"`
+	ProjectId ResourceId  `json:"projectId"`
+}
+
 // FindingExactArtifact defines model for FindingExactArtifact.
 type FindingExactArtifact struct {
 	Digest    Digest           `json:"digest"`
 	MediaType MediaType        `json:"mediaType"`
 	Ref       ExactArtifactRef `json:"ref"`
 	SizeBytes int              `json:"sizeBytes"`
+}
+
+// FindingFingerprintProjection Immutable deterministic key evidence; independent of analyst triage. Snapshot keys apply only to the exact Git commit and source digest.
+type FindingFingerprintProjection struct {
+	union json.RawMessage
+}
+
+// FindingFingerprintProjection0 defines model for FindingFingerprintProjection.0.
+type FindingFingerprintProjection0 struct {
+	Availability interface{} `json:"availability"`
+	Reason       interface{} `json:"reason"`
+	Schema       interface{} `json:"schema"`
+}
+
+// FindingFingerprintProjection1 defines model for FindingFingerprintProjection.1.
+type FindingFingerprintProjection1 struct {
+	Adapter       interface{}          `json:"adapter"`
+	Algorithm     interface{}          `json:"algorithm"`
+	Availability  interface{}          `json:"availability"`
+	Commit        string               `json:"commit"`
+	RecordLocator string               `json:"recordLocator"`
+	Report        FindingExactArtifact `json:"report"`
+	Repository    string               `json:"repository"`
+	RuleId        string               `json:"ruleId"`
+	Schema        interface{}          `json:"schema"`
+	Source        FindingExactArtifact `json:"source"`
+	SourceDigest  Digest               `json:"sourceDigest"`
+	Value         string               `json:"value"`
 }
 
 // FindingHTTPAttempt Exactly one of status or error; each header block is at most 64 KiB.
@@ -5331,6 +5641,17 @@ type FindingLineRange struct {
 // FindingLocation defines model for FindingLocation.
 type FindingLocation struct {
 	union json.RawMessage
+}
+
+// FindingMembersPage defines model for FindingMembersPage.
+type FindingMembersPage struct {
+	Fence          FindingCorrelationFence     `json:"fence"`
+	GroupKey       string                      `json:"groupKey"`
+	Items          []FindingComparisonPreview  `json:"items"`
+	Page           FindingCorrelationPageInfo  `json:"page"`
+	PolicyVersion  interface{}                 `json:"policyVersion"`
+	Representative FindingCorrelationReference `json:"representative"`
+	Scope          FindingCorrelationReadScope `json:"scope"`
 }
 
 // FindingOrigin defines model for FindingOrigin.
@@ -5413,6 +5734,21 @@ type FindingStandardReference struct {
 	RequirementId string `json:"requirement_id"`
 	Scheme        string `json:"scheme"`
 	Version       string `json:"version"`
+}
+
+// FindingStructuralAnchor defines model for FindingStructuralAnchor.
+type FindingStructuralAnchor struct {
+	Context         *FindingAnchorContext `json:"context,omitempty"`
+	EndLine         int                   `json:"endLine"`
+	File            string                `json:"file"`
+	FileDigest      Digest                `json:"fileDigest"`
+	Grammar         interface{}           `json:"grammar"`
+	Language        interface{}           `json:"language"`
+	NodeDigest      Digest                `json:"nodeDigest"`
+	Path            []int                 `json:"path"`
+	Profile         interface{}           `json:"profile"`
+	SignatureDigest Digest                `json:"signatureDigest"`
+	StartLine       int                   `json:"startLine"`
 }
 
 // FindingSubject defines model for FindingSubject.
@@ -7380,6 +7716,12 @@ type Error422 = Error
 // Error500 defines model for Error500.
 type Error500 = Error
 
+// FindingCorrelationItemTooLarge defines model for FindingCorrelationItemTooLarge.
+type FindingCorrelationItemTooLarge = Error
+
+// FindingCorrelationStale defines model for FindingCorrelationStale.
+type FindingCorrelationStale = Error
+
 // GatewayUnavailable defines model for GatewayUnavailable.
 type GatewayUnavailable = Error
 
@@ -7570,6 +7912,15 @@ type ListAuditFindingsParams struct {
 	State         *AuditFindingState    `form:"state,omitempty" json:"state,omitempty"`
 	Verdict       interface{}           `form:"verdict,omitempty" json:"verdict,omitempty"`
 	Severity      *AuditFindingSeverity `form:"severity,omitempty" json:"severity,omitempty"`
+}
+
+// ListFindingDuplicateCandidatesParams defines parameters for ListFindingDuplicateCandidates.
+type ListFindingDuplicateCandidatesParams struct {
+	Limit           *int        `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor          *string     `form:"cursor,omitempty" json:"cursor,omitempty"`
+	Scope           interface{} `form:"scope,omitempty" json:"scope,omitempty"`
+	TargetAuditId   *ResourceId `form:"targetAuditId,omitempty" json:"targetAuditId,omitempty"`
+	SourceReceiptId *ResourceId `form:"sourceReceiptId,omitempty" json:"sourceReceiptId,omitempty"`
 }
 
 // ListAuditFindingProvenanceParams defines parameters for ListAuditFindingProvenance.
@@ -8243,6 +8594,23 @@ type ListEvalCasesParams struct {
 type CreateEvalExperimentParams struct {
 	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// ListProjectFindingComparisonsParams defines parameters for ListProjectFindingComparisons.
+type ListProjectFindingComparisonsParams struct {
+	Limit        *int       `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor       *string    `form:"cursor,omitempty" json:"cursor,omitempty"`
+	LeftAuditId  ResourceId `form:"leftAuditId" json:"leftAuditId"`
+	RightAuditId ResourceId `form:"rightAuditId" json:"rightAuditId"`
+}
+
+// ListFindingCorrelationMembersParams defines parameters for ListFindingCorrelationMembers.
+type ListFindingCorrelationMembersParams struct {
+	Limit        *int        `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor       *string     `form:"cursor,omitempty" json:"cursor,omitempty"`
+	AuditId      *ResourceId `form:"auditId,omitempty" json:"auditId,omitempty"`
+	LeftAuditId  *ResourceId `form:"leftAuditId,omitempty" json:"leftAuditId,omitempty"`
+	RightAuditId *ResourceId `form:"rightAuditId,omitempty" json:"rightAuditId,omitempty"`
 }
 
 // ListProjectRunsParams defines parameters for ListProjectRuns.
@@ -11279,6 +11647,404 @@ func (t *EvalMediaRange) UnmarshalJSON(b []byte) error {
 	return err
 }
 
+// AsFindingAnchorKeys0 returns the union data inside the FindingAnchorKeys as a FindingAnchorKeys0
+func (t FindingAnchorKeys) AsFindingAnchorKeys0() (FindingAnchorKeys0, error) {
+	var body FindingAnchorKeys0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromFindingAnchorKeys0 overwrites any union data inside the FindingAnchorKeys as the provided FindingAnchorKeys0
+func (t *FindingAnchorKeys) FromFindingAnchorKeys0(v FindingAnchorKeys0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeFindingAnchorKeys0 performs a merge with any union data inside the FindingAnchorKeys, using the provided FindingAnchorKeys0
+func (t *FindingAnchorKeys) MergeFindingAnchorKeys0(v FindingAnchorKeys0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsFindingAnchorKeys1 returns the union data inside the FindingAnchorKeys as a FindingAnchorKeys1
+func (t FindingAnchorKeys) AsFindingAnchorKeys1() (FindingAnchorKeys1, error) {
+	var body FindingAnchorKeys1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromFindingAnchorKeys1 overwrites any union data inside the FindingAnchorKeys as the provided FindingAnchorKeys1
+func (t *FindingAnchorKeys) FromFindingAnchorKeys1(v FindingAnchorKeys1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeFindingAnchorKeys1 performs a merge with any union data inside the FindingAnchorKeys, using the provided FindingAnchorKeys1
+func (t *FindingAnchorKeys) MergeFindingAnchorKeys1(v FindingAnchorKeys1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t FindingAnchorKeys) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *FindingAnchorKeys) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsFindingAnchorProjection0 returns the union data inside the FindingAnchorProjection as a FindingAnchorProjection0
+func (t FindingAnchorProjection) AsFindingAnchorProjection0() (FindingAnchorProjection0, error) {
+	var body FindingAnchorProjection0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromFindingAnchorProjection0 overwrites any union data inside the FindingAnchorProjection as the provided FindingAnchorProjection0
+func (t *FindingAnchorProjection) FromFindingAnchorProjection0(v FindingAnchorProjection0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeFindingAnchorProjection0 performs a merge with any union data inside the FindingAnchorProjection, using the provided FindingAnchorProjection0
+func (t *FindingAnchorProjection) MergeFindingAnchorProjection0(v FindingAnchorProjection0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsFindingAnchorProjection1 returns the union data inside the FindingAnchorProjection as a FindingAnchorProjection1
+func (t FindingAnchorProjection) AsFindingAnchorProjection1() (FindingAnchorProjection1, error) {
+	var body FindingAnchorProjection1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromFindingAnchorProjection1 overwrites any union data inside the FindingAnchorProjection as the provided FindingAnchorProjection1
+func (t *FindingAnchorProjection) FromFindingAnchorProjection1(v FindingAnchorProjection1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeFindingAnchorProjection1 performs a merge with any union data inside the FindingAnchorProjection, using the provided FindingAnchorProjection1
+func (t *FindingAnchorProjection) MergeFindingAnchorProjection1(v FindingAnchorProjection1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t FindingAnchorProjection) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *FindingAnchorProjection) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsFindingCorrelation0 returns the union data inside the FindingCorrelation as a FindingCorrelation0
+func (t FindingCorrelation) AsFindingCorrelation0() (FindingCorrelation0, error) {
+	var body FindingCorrelation0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromFindingCorrelation0 overwrites any union data inside the FindingCorrelation as the provided FindingCorrelation0
+func (t *FindingCorrelation) FromFindingCorrelation0(v FindingCorrelation0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeFindingCorrelation0 performs a merge with any union data inside the FindingCorrelation, using the provided FindingCorrelation0
+func (t *FindingCorrelation) MergeFindingCorrelation0(v FindingCorrelation0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsFindingCorrelation1 returns the union data inside the FindingCorrelation as a FindingCorrelation1
+func (t FindingCorrelation) AsFindingCorrelation1() (FindingCorrelation1, error) {
+	var body FindingCorrelation1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromFindingCorrelation1 overwrites any union data inside the FindingCorrelation as the provided FindingCorrelation1
+func (t *FindingCorrelation) FromFindingCorrelation1(v FindingCorrelation1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeFindingCorrelation1 performs a merge with any union data inside the FindingCorrelation, using the provided FindingCorrelation1
+func (t *FindingCorrelation) MergeFindingCorrelation1(v FindingCorrelation1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t FindingCorrelation) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *FindingCorrelation) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsFindingCorrelationPageInfo0 returns the union data inside the FindingCorrelationPageInfo as a FindingCorrelationPageInfo0
+func (t FindingCorrelationPageInfo) AsFindingCorrelationPageInfo0() (FindingCorrelationPageInfo0, error) {
+	var body FindingCorrelationPageInfo0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromFindingCorrelationPageInfo0 overwrites any union data inside the FindingCorrelationPageInfo as the provided FindingCorrelationPageInfo0
+func (t *FindingCorrelationPageInfo) FromFindingCorrelationPageInfo0(v FindingCorrelationPageInfo0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeFindingCorrelationPageInfo0 performs a merge with any union data inside the FindingCorrelationPageInfo, using the provided FindingCorrelationPageInfo0
+func (t *FindingCorrelationPageInfo) MergeFindingCorrelationPageInfo0(v FindingCorrelationPageInfo0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsFindingCorrelationPageInfo1 returns the union data inside the FindingCorrelationPageInfo as a FindingCorrelationPageInfo1
+func (t FindingCorrelationPageInfo) AsFindingCorrelationPageInfo1() (FindingCorrelationPageInfo1, error) {
+	var body FindingCorrelationPageInfo1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromFindingCorrelationPageInfo1 overwrites any union data inside the FindingCorrelationPageInfo as the provided FindingCorrelationPageInfo1
+func (t *FindingCorrelationPageInfo) FromFindingCorrelationPageInfo1(v FindingCorrelationPageInfo1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeFindingCorrelationPageInfo1 performs a merge with any union data inside the FindingCorrelationPageInfo, using the provided FindingCorrelationPageInfo1
+func (t *FindingCorrelationPageInfo) MergeFindingCorrelationPageInfo1(v FindingCorrelationPageInfo1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t FindingCorrelationPageInfo) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *FindingCorrelationPageInfo) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsFindingCorrelationReadScope0 returns the union data inside the FindingCorrelationReadScope as a FindingCorrelationReadScope0
+func (t FindingCorrelationReadScope) AsFindingCorrelationReadScope0() (FindingCorrelationReadScope0, error) {
+	var body FindingCorrelationReadScope0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromFindingCorrelationReadScope0 overwrites any union data inside the FindingCorrelationReadScope as the provided FindingCorrelationReadScope0
+func (t *FindingCorrelationReadScope) FromFindingCorrelationReadScope0(v FindingCorrelationReadScope0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeFindingCorrelationReadScope0 performs a merge with any union data inside the FindingCorrelationReadScope, using the provided FindingCorrelationReadScope0
+func (t *FindingCorrelationReadScope) MergeFindingCorrelationReadScope0(v FindingCorrelationReadScope0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsFindingCorrelationReadScope1 returns the union data inside the FindingCorrelationReadScope as a FindingCorrelationReadScope1
+func (t FindingCorrelationReadScope) AsFindingCorrelationReadScope1() (FindingCorrelationReadScope1, error) {
+	var body FindingCorrelationReadScope1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromFindingCorrelationReadScope1 overwrites any union data inside the FindingCorrelationReadScope as the provided FindingCorrelationReadScope1
+func (t *FindingCorrelationReadScope) FromFindingCorrelationReadScope1(v FindingCorrelationReadScope1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeFindingCorrelationReadScope1 performs a merge with any union data inside the FindingCorrelationReadScope, using the provided FindingCorrelationReadScope1
+func (t *FindingCorrelationReadScope) MergeFindingCorrelationReadScope1(v FindingCorrelationReadScope1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsFindingCorrelationReadScope2 returns the union data inside the FindingCorrelationReadScope as a FindingCorrelationReadScope2
+func (t FindingCorrelationReadScope) AsFindingCorrelationReadScope2() (FindingCorrelationReadScope2, error) {
+	var body FindingCorrelationReadScope2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromFindingCorrelationReadScope2 overwrites any union data inside the FindingCorrelationReadScope as the provided FindingCorrelationReadScope2
+func (t *FindingCorrelationReadScope) FromFindingCorrelationReadScope2(v FindingCorrelationReadScope2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeFindingCorrelationReadScope2 performs a merge with any union data inside the FindingCorrelationReadScope, using the provided FindingCorrelationReadScope2
+func (t *FindingCorrelationReadScope) MergeFindingCorrelationReadScope2(v FindingCorrelationReadScope2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t FindingCorrelationReadScope) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *FindingCorrelationReadScope) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsFindingFingerprintProjection0 returns the union data inside the FindingFingerprintProjection as a FindingFingerprintProjection0
+func (t FindingFingerprintProjection) AsFindingFingerprintProjection0() (FindingFingerprintProjection0, error) {
+	var body FindingFingerprintProjection0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromFindingFingerprintProjection0 overwrites any union data inside the FindingFingerprintProjection as the provided FindingFingerprintProjection0
+func (t *FindingFingerprintProjection) FromFindingFingerprintProjection0(v FindingFingerprintProjection0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeFindingFingerprintProjection0 performs a merge with any union data inside the FindingFingerprintProjection, using the provided FindingFingerprintProjection0
+func (t *FindingFingerprintProjection) MergeFindingFingerprintProjection0(v FindingFingerprintProjection0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsFindingFingerprintProjection1 returns the union data inside the FindingFingerprintProjection as a FindingFingerprintProjection1
+func (t FindingFingerprintProjection) AsFindingFingerprintProjection1() (FindingFingerprintProjection1, error) {
+	var body FindingFingerprintProjection1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromFindingFingerprintProjection1 overwrites any union data inside the FindingFingerprintProjection as the provided FindingFingerprintProjection1
+func (t *FindingFingerprintProjection) FromFindingFingerprintProjection1(v FindingFingerprintProjection1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeFindingFingerprintProjection1 performs a merge with any union data inside the FindingFingerprintProjection, using the provided FindingFingerprintProjection1
+func (t *FindingFingerprintProjection) MergeFindingFingerprintProjection1(v FindingFingerprintProjection1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t FindingFingerprintProjection) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *FindingFingerprintProjection) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
 // AsFindingHTTPAttempt0 returns the union data inside the FindingHTTPAttempt as a FindingHTTPAttempt0
 func (t FindingHTTPAttempt) AsFindingHTTPAttempt0() (FindingHTTPAttempt0, error) {
 	var body FindingHTTPAttempt0
@@ -13084,6 +13850,13 @@ type ClientInterface interface {
 	// Corresponds with GET /v1/audits/{auditId}/findings/{findingId} (the `GetAuditFinding` operationId).
 	GetAuditFinding(ctx context.Context, auditId AuditId, findingId FindingId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListFindingDuplicateCandidates Find exact automatic matches and separate weaker candidates
+	//
+	// Read-only deterministic correlation. The page is bounded to 256 KiB; stale scoped revisions require restarting. An empty work-progress page may still have hasMore. Every retained observation remains reachable.
+	//
+	// Corresponds with GET /v1/audits/{auditId}/findings/{findingId}/duplicate-candidates (the `ListFindingDuplicateCandidates` operationId).
+	ListFindingDuplicateCandidates(ctx context.Context, auditId AuditId, findingId FindingId, params *ListFindingDuplicateCandidatesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListAuditFindingProvenance List revision-bound exact proposal and verification provenance
 	//
 	// Corresponds with GET /v1/audits/{auditId}/findings/{findingId}/provenance (the `ListAuditFindingProvenance` operationId).
@@ -13855,6 +14628,20 @@ type ClientInterface interface {
 	// Corresponds with POST /v1/projects/{projectId}/eval-experiments (the `CreateEvalExperiment` operationId).
 	CreateEvalExperiment(ctx context.Context, projectId EvalOpaque, params *CreateEvalExperimentParams, body CreateEvalExperimentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListProjectFindingComparisons Compare exact groups and unmatched observations of two owned Audits
+	//
+	// Read-only deterministic correlation. The page is bounded to 256 KiB; stale scoped revisions require restarting. An empty work-progress page may still have hasMore. Every retained observation remains reachable.
+	//
+	// Corresponds with GET /v1/projects/{projectId}/finding-comparisons (the `ListProjectFindingComparisons` operationId).
+	ListProjectFindingComparisons(ctx context.Context, projectId ProjectId, params *ListProjectFindingComparisonsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListFindingCorrelationMembers Page every retained group member in a Project or selected Audit scope
+	//
+	// Read-only deterministic correlation. The page is bounded to 256 KiB; stale scoped revisions require restarting. An empty work-progress page may still have hasMore. Every retained observation remains reachable.
+	//
+	// Corresponds with GET /v1/projects/{projectId}/finding-correlations/{groupKey}/members (the `ListFindingCorrelationMembers` operationId).
+	ListFindingCorrelationMembers(ctx context.Context, projectId ProjectId, groupKey string, params *ListFindingCorrelationMembersParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListProjectRuns List Runs that were launched from one owned Project
 	//
 	// Corresponds with GET /v1/projects/{projectId}/runs (the `ListProjectRuns` operationId).
@@ -14508,6 +15295,23 @@ func (c *Client) ListAuditFindings(ctx context.Context, auditId AuditId, params 
 // Corresponds with GET /v1/audits/{auditId}/findings/{findingId} (the `GetAuditFinding` operationId).
 func (c *Client) GetAuditFinding(ctx context.Context, auditId AuditId, findingId FindingId, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetAuditFindingRequest(c.Server, auditId, findingId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListFindingDuplicateCandidates Find exact automatic matches and separate weaker candidates
+//
+// Read-only deterministic correlation. The page is bounded to 256 KiB; stale scoped revisions require restarting. An empty work-progress page may still have hasMore. Every retained observation remains reachable.
+//
+// Corresponds with GET /v1/audits/{auditId}/findings/{findingId}/duplicate-candidates (the `ListFindingDuplicateCandidates` operationId).
+func (c *Client) ListFindingDuplicateCandidates(ctx context.Context, auditId AuditId, findingId FindingId, params *ListFindingDuplicateCandidatesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListFindingDuplicateCandidatesRequest(c.Server, auditId, findingId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -16439,6 +17243,40 @@ func (c *Client) CreateEvalExperimentWithBody(ctx context.Context, projectId Eva
 // Corresponds with POST /v1/projects/{projectId}/eval-experiments (the `CreateEvalExperiment` operationId).
 func (c *Client) CreateEvalExperiment(ctx context.Context, projectId EvalOpaque, params *CreateEvalExperimentParams, body CreateEvalExperimentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCreateEvalExperimentRequest(c.Server, projectId, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListProjectFindingComparisons Compare exact groups and unmatched observations of two owned Audits
+//
+// Read-only deterministic correlation. The page is bounded to 256 KiB; stale scoped revisions require restarting. An empty work-progress page may still have hasMore. Every retained observation remains reachable.
+//
+// Corresponds with GET /v1/projects/{projectId}/finding-comparisons (the `ListProjectFindingComparisons` operationId).
+func (c *Client) ListProjectFindingComparisons(ctx context.Context, projectId ProjectId, params *ListProjectFindingComparisonsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListProjectFindingComparisonsRequest(c.Server, projectId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListFindingCorrelationMembers Page every retained group member in a Project or selected Audit scope
+//
+// Read-only deterministic correlation. The page is bounded to 256 KiB; stale scoped revisions require restarting. An empty work-progress page may still have hasMore. Every retained observation remains reachable.
+//
+// Corresponds with GET /v1/projects/{projectId}/finding-correlations/{groupKey}/members (the `ListFindingCorrelationMembers` operationId).
+func (c *Client) ListFindingCorrelationMembers(ctx context.Context, projectId ProjectId, groupKey string, params *ListFindingCorrelationMembersParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListFindingCorrelationMembersRequest(c.Server, projectId, groupKey, params)
 	if err != nil {
 		return nil, err
 	}
@@ -18751,6 +19589,118 @@ func NewGetAuditFindingRequest(server string, auditId AuditId, findingId Finding
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListFindingDuplicateCandidatesRequest constructs an http.Request for the ListFindingDuplicateCandidates method
+func NewListFindingDuplicateCandidatesRequest(server string, auditId AuditId, findingId FindingId, params *ListFindingDuplicateCandidatesParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "auditId", auditId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "findingId", findingId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/audits/%s/findings/%s/duplicate-candidates", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "scope", params.Scope, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if params.TargetAuditId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "targetAuditId", *params.TargetAuditId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.SourceReceiptId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "sourceReceiptId", *params.SourceReceiptId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
 	}
 
 	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
@@ -25139,6 +26089,211 @@ func NewCreateEvalExperimentRequestWithBody(server string, projectId EvalOpaque,
 	return req, nil
 }
 
+// NewListProjectFindingComparisonsRequest constructs an http.Request for the ListProjectFindingComparisons method
+func NewListProjectFindingComparisonsRequest(server string, projectId ProjectId, params *ListProjectFindingComparisonsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "projectId", projectId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/projects/%s/finding-comparisons", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "leftAuditId", params.LeftAuditId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "rightAuditId", params.RightAuditId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListFindingCorrelationMembersRequest constructs an http.Request for the ListFindingCorrelationMembers method
+func NewListFindingCorrelationMembersRequest(server string, projectId ProjectId, groupKey string, params *ListFindingCorrelationMembersParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "projectId", projectId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "groupKey", groupKey, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/projects/%s/finding-correlations/%s/members", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.AuditId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "auditId", *params.AuditId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.LeftAuditId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "leftAuditId", *params.LeftAuditId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.RightAuditId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "rightAuditId", *params.RightAuditId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewListProjectRunsRequest constructs an http.Request for the ListProjectRuns method
 func NewListProjectRunsRequest(server string, projectId ProjectId, params *ListProjectRunsParams) (*http.Request, error) {
 	var err error
@@ -27357,6 +28512,15 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /v1/audits/{auditId}/findings/{findingId} (the `GetAuditFinding` operationId).
 	GetAuditFindingWithResponse(ctx context.Context, auditId AuditId, findingId FindingId, reqEditors ...RequestEditorFn) (*GetAuditFindingResponse, error)
 
+	// ListFindingDuplicateCandidatesWithResponse Find exact automatic matches and separate weaker candidates
+	//
+	// Read-only deterministic correlation. The page is bounded to 256 KiB; stale scoped revisions require restarting. An empty work-progress page may still have hasMore. Every retained observation remains reachable.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /v1/audits/{auditId}/findings/{findingId}/duplicate-candidates (the `ListFindingDuplicateCandidates` operationId).
+	ListFindingDuplicateCandidatesWithResponse(ctx context.Context, auditId AuditId, findingId FindingId, params *ListFindingDuplicateCandidatesParams, reqEditors ...RequestEditorFn) (*ListFindingDuplicateCandidatesResponse, error)
+
 	// ListAuditFindingProvenanceWithResponse List revision-bound exact proposal and verification provenance
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -28249,6 +29413,24 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /v1/projects/{projectId}/eval-experiments (the `CreateEvalExperiment` operationId).
 	CreateEvalExperimentWithResponse(ctx context.Context, projectId EvalOpaque, params *CreateEvalExperimentParams, body CreateEvalExperimentJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateEvalExperimentResponse, error)
+
+	// ListProjectFindingComparisonsWithResponse Compare exact groups and unmatched observations of two owned Audits
+	//
+	// Read-only deterministic correlation. The page is bounded to 256 KiB; stale scoped revisions require restarting. An empty work-progress page may still have hasMore. Every retained observation remains reachable.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /v1/projects/{projectId}/finding-comparisons (the `ListProjectFindingComparisons` operationId).
+	ListProjectFindingComparisonsWithResponse(ctx context.Context, projectId ProjectId, params *ListProjectFindingComparisonsParams, reqEditors ...RequestEditorFn) (*ListProjectFindingComparisonsResponse, error)
+
+	// ListFindingCorrelationMembersWithResponse Page every retained group member in a Project or selected Audit scope
+	//
+	// Read-only deterministic correlation. The page is bounded to 256 KiB; stale scoped revisions require restarting. An empty work-progress page may still have hasMore. Every retained observation remains reachable.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /v1/projects/{projectId}/finding-correlations/{groupKey}/members (the `ListFindingCorrelationMembers` operationId).
+	ListFindingCorrelationMembersWithResponse(ctx context.Context, projectId ProjectId, groupKey string, params *ListFindingCorrelationMembersParams, reqEditors ...RequestEditorFn) (*ListFindingCorrelationMembersResponse, error)
 
 	// ListProjectRunsWithResponse List Runs that were launched from one owned Project
 	//
@@ -31722,6 +32904,155 @@ func (r GetAuditFindingResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r GetAuditFindingResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// ListFindingDuplicateCandidatesResponse200Headers the declared response headers of an HTTP 200 response for ListFindingDuplicateCandidates
+type ListFindingDuplicateCandidatesResponse200Headers struct {
+	CacheControl string
+	XRequestID   RequestId
+}
+
+// ListFindingDuplicateCandidatesResponse400Headers the declared response headers of an HTTP 400 response for ListFindingDuplicateCandidates
+type ListFindingDuplicateCandidatesResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// ListFindingDuplicateCandidatesResponse401Headers the declared response headers of an HTTP 401 response for ListFindingDuplicateCandidates
+type ListFindingDuplicateCandidatesResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// ListFindingDuplicateCandidatesResponse404Headers the declared response headers of an HTTP 404 response for ListFindingDuplicateCandidates
+type ListFindingDuplicateCandidatesResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// ListFindingDuplicateCandidatesResponse409Headers the declared response headers of an HTTP 409 response for ListFindingDuplicateCandidates
+type ListFindingDuplicateCandidatesResponse409Headers struct {
+	XRequestID RequestId
+}
+
+// ListFindingDuplicateCandidatesResponse422Headers the declared response headers of an HTTP 422 response for ListFindingDuplicateCandidates
+type ListFindingDuplicateCandidatesResponse422Headers struct {
+	XRequestID RequestId
+}
+
+// ListFindingDuplicateCandidatesResponse500Headers the declared response headers of an HTTP 500 response for ListFindingDuplicateCandidates
+type ListFindingDuplicateCandidatesResponse500Headers struct {
+	XRequestID RequestId
+}
+
+// ListFindingDuplicateCandidatesResponse503Headers the declared response headers of an HTTP 503 response for ListFindingDuplicateCandidates
+type ListFindingDuplicateCandidatesResponse503Headers struct {
+	XRequestID RequestId
+}
+
+type ListFindingDuplicateCandidatesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *FindingCandidatesPage
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *FindingCorrelationStale
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *FindingCorrelationItemTooLarge
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *ListFindingDuplicateCandidatesResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *ListFindingDuplicateCandidatesResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *ListFindingDuplicateCandidatesResponse401Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *ListFindingDuplicateCandidatesResponse404Headers
+	// Headers409 the parsed response headers for an HTTP 409 response
+	Headers409 *ListFindingDuplicateCandidatesResponse409Headers
+	// Headers422 the parsed response headers for an HTTP 422 response
+	Headers422 *ListFindingDuplicateCandidatesResponse422Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *ListFindingDuplicateCandidatesResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *ListFindingDuplicateCandidatesResponse503Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListFindingDuplicateCandidatesResponse) GetJSON200() *FindingCandidatesPage {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r ListFindingDuplicateCandidatesResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ListFindingDuplicateCandidatesResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r ListFindingDuplicateCandidatesResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r ListFindingDuplicateCandidatesResponse) GetJSON409() *FindingCorrelationStale {
+	return r.JSON409
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r ListFindingDuplicateCandidatesResponse) GetJSON422() *FindingCorrelationItemTooLarge {
+	return r.JSON422
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r ListFindingDuplicateCandidatesResponse) GetJSON500() *InternalError {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListFindingDuplicateCandidatesResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r ListFindingDuplicateCandidatesResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListFindingDuplicateCandidatesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListFindingDuplicateCandidatesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListFindingDuplicateCandidatesResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -44929,6 +46260,304 @@ func (r CreateEvalExperimentResponse) ContentType() string {
 	return ""
 }
 
+// ListProjectFindingComparisonsResponse200Headers the declared response headers of an HTTP 200 response for ListProjectFindingComparisons
+type ListProjectFindingComparisonsResponse200Headers struct {
+	CacheControl string
+	XRequestID   RequestId
+}
+
+// ListProjectFindingComparisonsResponse400Headers the declared response headers of an HTTP 400 response for ListProjectFindingComparisons
+type ListProjectFindingComparisonsResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// ListProjectFindingComparisonsResponse401Headers the declared response headers of an HTTP 401 response for ListProjectFindingComparisons
+type ListProjectFindingComparisonsResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// ListProjectFindingComparisonsResponse404Headers the declared response headers of an HTTP 404 response for ListProjectFindingComparisons
+type ListProjectFindingComparisonsResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// ListProjectFindingComparisonsResponse409Headers the declared response headers of an HTTP 409 response for ListProjectFindingComparisons
+type ListProjectFindingComparisonsResponse409Headers struct {
+	XRequestID RequestId
+}
+
+// ListProjectFindingComparisonsResponse422Headers the declared response headers of an HTTP 422 response for ListProjectFindingComparisons
+type ListProjectFindingComparisonsResponse422Headers struct {
+	XRequestID RequestId
+}
+
+// ListProjectFindingComparisonsResponse500Headers the declared response headers of an HTTP 500 response for ListProjectFindingComparisons
+type ListProjectFindingComparisonsResponse500Headers struct {
+	XRequestID RequestId
+}
+
+// ListProjectFindingComparisonsResponse503Headers the declared response headers of an HTTP 503 response for ListProjectFindingComparisons
+type ListProjectFindingComparisonsResponse503Headers struct {
+	XRequestID RequestId
+}
+
+type ListProjectFindingComparisonsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *FindingComparisonPage
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *FindingCorrelationStale
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *FindingCorrelationItemTooLarge
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *ListProjectFindingComparisonsResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *ListProjectFindingComparisonsResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *ListProjectFindingComparisonsResponse401Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *ListProjectFindingComparisonsResponse404Headers
+	// Headers409 the parsed response headers for an HTTP 409 response
+	Headers409 *ListProjectFindingComparisonsResponse409Headers
+	// Headers422 the parsed response headers for an HTTP 422 response
+	Headers422 *ListProjectFindingComparisonsResponse422Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *ListProjectFindingComparisonsResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *ListProjectFindingComparisonsResponse503Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListProjectFindingComparisonsResponse) GetJSON200() *FindingComparisonPage {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r ListProjectFindingComparisonsResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ListProjectFindingComparisonsResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r ListProjectFindingComparisonsResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r ListProjectFindingComparisonsResponse) GetJSON409() *FindingCorrelationStale {
+	return r.JSON409
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r ListProjectFindingComparisonsResponse) GetJSON422() *FindingCorrelationItemTooLarge {
+	return r.JSON422
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r ListProjectFindingComparisonsResponse) GetJSON500() *InternalError {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListProjectFindingComparisonsResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r ListProjectFindingComparisonsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListProjectFindingComparisonsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListProjectFindingComparisonsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListProjectFindingComparisonsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// ListFindingCorrelationMembersResponse200Headers the declared response headers of an HTTP 200 response for ListFindingCorrelationMembers
+type ListFindingCorrelationMembersResponse200Headers struct {
+	CacheControl string
+	XRequestID   RequestId
+}
+
+// ListFindingCorrelationMembersResponse400Headers the declared response headers of an HTTP 400 response for ListFindingCorrelationMembers
+type ListFindingCorrelationMembersResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// ListFindingCorrelationMembersResponse401Headers the declared response headers of an HTTP 401 response for ListFindingCorrelationMembers
+type ListFindingCorrelationMembersResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// ListFindingCorrelationMembersResponse404Headers the declared response headers of an HTTP 404 response for ListFindingCorrelationMembers
+type ListFindingCorrelationMembersResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// ListFindingCorrelationMembersResponse409Headers the declared response headers of an HTTP 409 response for ListFindingCorrelationMembers
+type ListFindingCorrelationMembersResponse409Headers struct {
+	XRequestID RequestId
+}
+
+// ListFindingCorrelationMembersResponse422Headers the declared response headers of an HTTP 422 response for ListFindingCorrelationMembers
+type ListFindingCorrelationMembersResponse422Headers struct {
+	XRequestID RequestId
+}
+
+// ListFindingCorrelationMembersResponse500Headers the declared response headers of an HTTP 500 response for ListFindingCorrelationMembers
+type ListFindingCorrelationMembersResponse500Headers struct {
+	XRequestID RequestId
+}
+
+// ListFindingCorrelationMembersResponse503Headers the declared response headers of an HTTP 503 response for ListFindingCorrelationMembers
+type ListFindingCorrelationMembersResponse503Headers struct {
+	XRequestID RequestId
+}
+
+type ListFindingCorrelationMembersResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *FindingMembersPage
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *FindingCorrelationStale
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *FindingCorrelationItemTooLarge
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *ListFindingCorrelationMembersResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *ListFindingCorrelationMembersResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *ListFindingCorrelationMembersResponse401Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *ListFindingCorrelationMembersResponse404Headers
+	// Headers409 the parsed response headers for an HTTP 409 response
+	Headers409 *ListFindingCorrelationMembersResponse409Headers
+	// Headers422 the parsed response headers for an HTTP 422 response
+	Headers422 *ListFindingCorrelationMembersResponse422Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *ListFindingCorrelationMembersResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *ListFindingCorrelationMembersResponse503Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListFindingCorrelationMembersResponse) GetJSON200() *FindingMembersPage {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r ListFindingCorrelationMembersResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ListFindingCorrelationMembersResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r ListFindingCorrelationMembersResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r ListFindingCorrelationMembersResponse) GetJSON409() *FindingCorrelationStale {
+	return r.JSON409
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r ListFindingCorrelationMembersResponse) GetJSON422() *FindingCorrelationItemTooLarge {
+	return r.JSON422
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r ListFindingCorrelationMembersResponse) GetJSON500() *InternalError {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListFindingCorrelationMembersResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r ListFindingCorrelationMembersResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListFindingCorrelationMembersResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListFindingCorrelationMembersResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListFindingCorrelationMembersResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 // ListProjectRunsResponse200Headers the declared response headers of an HTTP 200 response for ListProjectRuns
 type ListProjectRunsResponse200Headers struct {
 	XRequestID RequestId
@@ -48929,6 +50558,21 @@ func (c *ClientWithResponses) GetAuditFindingWithResponse(ctx context.Context, a
 	return ParseGetAuditFindingResponse(rsp)
 }
 
+// ListFindingDuplicateCandidatesWithResponse Find exact automatic matches and separate weaker candidates
+//
+// Read-only deterministic correlation. The page is bounded to 256 KiB; stale scoped revisions require restarting. An empty work-progress page may still have hasMore. Every retained observation remains reachable.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /v1/audits/{auditId}/findings/{findingId}/duplicate-candidates (the `ListFindingDuplicateCandidates` operationId).
+func (c *ClientWithResponses) ListFindingDuplicateCandidatesWithResponse(ctx context.Context, auditId AuditId, findingId FindingId, params *ListFindingDuplicateCandidatesParams, reqEditors ...RequestEditorFn) (*ListFindingDuplicateCandidatesResponse, error) {
+	rsp, err := c.ListFindingDuplicateCandidates(ctx, auditId, findingId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListFindingDuplicateCandidatesResponse(rsp)
+}
+
 // ListAuditFindingProvenanceWithResponse List revision-bound exact proposal and verification provenance
 //
 // Returns a wrapper object for the known response body format(s).
@@ -50516,6 +52160,36 @@ func (c *ClientWithResponses) CreateEvalExperimentWithResponse(ctx context.Conte
 		return nil, err
 	}
 	return ParseCreateEvalExperimentResponse(rsp)
+}
+
+// ListProjectFindingComparisonsWithResponse Compare exact groups and unmatched observations of two owned Audits
+//
+// Read-only deterministic correlation. The page is bounded to 256 KiB; stale scoped revisions require restarting. An empty work-progress page may still have hasMore. Every retained observation remains reachable.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /v1/projects/{projectId}/finding-comparisons (the `ListProjectFindingComparisons` operationId).
+func (c *ClientWithResponses) ListProjectFindingComparisonsWithResponse(ctx context.Context, projectId ProjectId, params *ListProjectFindingComparisonsParams, reqEditors ...RequestEditorFn) (*ListProjectFindingComparisonsResponse, error) {
+	rsp, err := c.ListProjectFindingComparisons(ctx, projectId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListProjectFindingComparisonsResponse(rsp)
+}
+
+// ListFindingCorrelationMembersWithResponse Page every retained group member in a Project or selected Audit scope
+//
+// Read-only deterministic correlation. The page is bounded to 256 KiB; stale scoped revisions require restarting. An empty work-progress page may still have hasMore. Every retained observation remains reachable.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /v1/projects/{projectId}/finding-correlations/{groupKey}/members (the `ListFindingCorrelationMembers` operationId).
+func (c *ClientWithResponses) ListFindingCorrelationMembersWithResponse(ctx context.Context, projectId ProjectId, groupKey string, params *ListFindingCorrelationMembersParams, reqEditors ...RequestEditorFn) (*ListFindingCorrelationMembersResponse, error) {
+	rsp, err := c.ListFindingCorrelationMembers(ctx, projectId, groupKey, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListFindingCorrelationMembersResponse(rsp)
 }
 
 // ListProjectRunsWithResponse List Runs that were launched from one owned Project
@@ -54879,6 +56553,185 @@ func ParseGetAuditFindingResponse(rsp *http.Response) (*GetAuditFindingResponse,
 		response.Headers500 = &headers
 	case rsp.StatusCode == 503:
 		var headers GetAuditFindingResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseListFindingDuplicateCandidatesResponse parses an HTTP response from a ListFindingDuplicateCandidatesWithResponse call
+func ParseListFindingDuplicateCandidatesResponse(rsp *http.Response) (*ListFindingDuplicateCandidatesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListFindingDuplicateCandidatesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FindingCandidatesPage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest FindingCorrelationStale
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest FindingCorrelationItemTooLarge
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers ListFindingDuplicateCandidatesResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers ListFindingDuplicateCandidatesResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers ListFindingDuplicateCandidatesResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 404:
+		var headers ListFindingDuplicateCandidatesResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 409:
+		var headers ListFindingDuplicateCandidatesResponse409Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers409 = &headers
+	case rsp.StatusCode == 422:
+		var headers ListFindingDuplicateCandidatesResponse422Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers422 = &headers
+	case rsp.StatusCode == 500:
+		var headers ListFindingDuplicateCandidatesResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers ListFindingDuplicateCandidatesResponse503Headers
 		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
 			var value RequestId
 			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
@@ -71178,6 +73031,364 @@ func ParseCreateEvalExperimentResponse(rsp *http.Response) (*CreateEvalExperimen
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseListProjectFindingComparisonsResponse parses an HTTP response from a ListProjectFindingComparisonsWithResponse call
+func ParseListProjectFindingComparisonsResponse(rsp *http.Response) (*ListProjectFindingComparisonsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListProjectFindingComparisonsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FindingComparisonPage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest FindingCorrelationStale
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest FindingCorrelationItemTooLarge
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers ListProjectFindingComparisonsResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers ListProjectFindingComparisonsResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers ListProjectFindingComparisonsResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 404:
+		var headers ListProjectFindingComparisonsResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 409:
+		var headers ListProjectFindingComparisonsResponse409Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers409 = &headers
+	case rsp.StatusCode == 422:
+		var headers ListProjectFindingComparisonsResponse422Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers422 = &headers
+	case rsp.StatusCode == 500:
+		var headers ListProjectFindingComparisonsResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers ListProjectFindingComparisonsResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseListFindingCorrelationMembersResponse parses an HTTP response from a ListFindingCorrelationMembersWithResponse call
+func ParseListFindingCorrelationMembersResponse(rsp *http.Response) (*ListFindingCorrelationMembersResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListFindingCorrelationMembersResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FindingMembersPage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest FindingCorrelationStale
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest FindingCorrelationItemTooLarge
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers ListFindingCorrelationMembersResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers ListFindingCorrelationMembersResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers ListFindingCorrelationMembersResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 404:
+		var headers ListFindingCorrelationMembersResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 409:
+		var headers ListFindingCorrelationMembersResponse409Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers409 = &headers
+	case rsp.StatusCode == 422:
+		var headers ListFindingCorrelationMembersResponse422Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers422 = &headers
+	case rsp.StatusCode == 500:
+		var headers ListFindingCorrelationMembersResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers ListFindingCorrelationMembersResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil

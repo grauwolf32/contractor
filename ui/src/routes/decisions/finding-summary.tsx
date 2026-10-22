@@ -15,6 +15,7 @@ import {
   TERMS,
 } from "../../app/vocabulary";
 import { Facts, IdChip, MethodChip, StatusChip } from "../../ui";
+import { CorrelationMark } from "../issues/correlation-mark";
 import { FindingLocations } from "../projects/audits/finding-locations";
 import { DecisionMarkdown } from "./markdown";
 import {
@@ -293,6 +294,7 @@ export function FindingSummary({
       <header className="decisions-summary-head">
         <p className="decisions-summary-kicker">
           <StatusChip tone={state.tone}>{state.label}</StatusChip>
+          <CorrelationMark finding={finding} />
           <span>
             <span className="decisions-summary-kind">{kind}</span>
             {" · Found "}

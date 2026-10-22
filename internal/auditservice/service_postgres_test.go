@@ -1061,7 +1061,8 @@ func TestAuditFindingReviewHistoryAndDeletedRunProvenance(t *testing.T) {
 
 	listed, err := service.ListFindings(ctx, auditstore.FindingListParams{OwnerID: ownerID, AuditID: auditID, Limit: 10})
 	if err != nil || len(listed) != 2 || listed[0].AnalystVerdict != nil ||
-		listed[0].FirstProposal.Origin.RunDeleted != true {
+		listed[0].FirstProposal.Origin.RunDeleted != true || listed[0].Fingerprint == nil ||
+		listed[0].Fingerprint.Reason != "not_recorded" {
 		t.Fatalf("initial findings = (%+v, %v)", listed, err)
 	}
 	request, err := service.CreateFindingReview(ctx, CreateFindingReviewParams{
@@ -1422,7 +1423,19 @@ func auditFindingDocument(suffix string, proposedChecks ...auditdomain.ProposedC
 
 func seedAuditFindingDocument(
 	t *testing.T, ctx context.Context, pool *pgxpool.Pool,
-	projectID, ownerID, auditID, suffix string, document auditdomain.FindingProposal,
+	projectID, ownerID, auditID, suffix string, document auditdomain.FindingProposal, fingerprints ...auditdomain.FindingFingerprint,
+) string {
+	t.Helper()
+	fingerprint := auditdomain.UnavailableFindingFingerprint("not_recorded")
+	if len(fingerprints) == 1 {
+		fingerprint = fingerprints[0]
+	}
+	return seedAuditFindingProjected(t, ctx, pool, projectID, ownerID, auditID, suffix, document, fingerprint, auditdomain.UnavailableFindingAnchors("not_recorded"))
+}
+
+func seedAuditFindingProjected(
+	t *testing.T, ctx context.Context, pool *pgxpool.Pool,
+	projectID, ownerID, auditID, suffix string, document auditdomain.FindingProposal, fingerprint auditdomain.FindingFingerprint, anchors auditdomain.FindingAnchorProjection,
 ) string {
 	t.Helper()
 	payload, err := auditdomain.EncodeFindingProposal(document)
@@ -1444,6 +1457,14 @@ func seedAuditFindingDocument(
 	}
 	proposalJSON, _ := json.Marshal(proposal)
 	proposalRefJSON, _ := json.Marshal(proposal.Ref)
+	fingerprintJSON, err := auditdomain.EncodeFindingFingerprint(fingerprint)
+	if err != nil {
+		t.Fatal(err)
+	}
+	anchorJSON, err := auditdomain.EncodeFindingAnchors(anchors)
+	if err != nil {
+		t.Fatal(err)
+	}
 	receiptID := "receipt-" + suffix
 	if _, err := pool.Exec(ctx, `
 INSERT INTO finding_proposal_receipts (
@@ -1454,17 +1475,17 @@ INSERT INTO finding_proposal_receipts (
     workflow_name, workflow_version, workflow_schema_version,
     workflow_configuration_ref, workflow_closure_digest,
     proposal_ref, proposal_digest, proposal_media_type,
-    proposal_size_bytes, evidence, report_projection
+    proposal_size_bytes, evidence, report_projection, fingerprint_projection, anchor_projection
 ) VALUES ($1, $2, $3, 'runtime-review', 'instance-review', 'stage-review', 'worker',
           $4, $5, $6, $7, $8, $9, $10,
           'finding-source', '1', 'contractor/v1alpha1',
           '{"name":"finding-source","version":"1"}'::jsonb, $11,
-          $12::jsonb, $13, 'application/json', $14, '[]'::jsonb, $15)`,
+          $12::jsonb, $13, 'application/json', $14, '[]'::jsonb, $15, $16,$17)`,
 		receiptID, "proposal-"+suffix, "allocation-"+suffix,
 		"invocation-"+suffix, "submission-"+suffix, document.ClientKey,
 		serviceTestDigest("request-"+suffix), "deleted-run-"+suffix, ownerID, projectID,
 		serviceTestDigest("workflow-"+suffix), proposalRefJSON, proposal.Digest, proposal.SizeBytes,
-		string(projection),
+		string(projection), string(fingerprintJSON), string(anchorJSON),
 	); err != nil {
 		t.Fatal(err)
 	}

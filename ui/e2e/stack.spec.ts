@@ -14,6 +14,7 @@ import {
   type WebSocket,
 } from "@playwright/test";
 
+import { exerciseFindingDuplicates } from "./support/finding-duplicates";
 import { routeRuntimeConfig } from "./support/mock-api";
 
 interface BrowserEvidence {
@@ -922,6 +923,14 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   await page.getByLabel("New version").fill("ui-stack-1");
   await page.getByRole("button", { name: "Publish version" }).click();
   await expect(page.getByText("Published worker@ui-stack-1")).toBeVisible();
+
+  await exerciseFindingDuplicates(
+    page,
+    request,
+    apiURL,
+    controlURL,
+    controlToken,
+  );
 
   await page.goto("/operations/configurations");
   await expect(page.getByText("must-not-exist@1", { exact: true })).toHaveCount(

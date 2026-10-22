@@ -233,8 +233,8 @@ origins and the opaque `null` origin are invalid.
 Server supports and the required headers, including `Content-Type`,
 `Idempotency-Key`, `If-Match` and `X-CSRF-Token`.
 
-**API-R11.** Browser-readable response headers include `X-Request-ID`, `ETag`
-and `Content-Disposition`.
+**API-R11.** Browser-readable response headers include `X-Request-ID`, `ETag`,
+`Content-Disposition` and `Retry-After`.
 
 **API-R12.** Credentialed CORS is enabled only for an exact allowed origin.
 
@@ -576,7 +576,7 @@ jitter: UI reconnect starts at 500 ms (LIM-API-16) and doubles up to 30 seconds
 | `POST /v1/auth/login`, `GET /v1/auth/session`, `POST /v1/auth/logout` | Browser authentication | API-R14 to API-R24 |
 | `GET /v1/events/ws`, subprotocol `contractor.events.v1` | Live event WebSocket | API-R30 to API-R66, API-R72 |
 | Request headers `Content-Type`, `Idempotency-Key`, `If-Match`, `X-CSRF-Token`, `Origin` | Mutation headers and browser checks | API-R10, API-R23, API-R27 |
-| Response headers `X-Request-ID`, `ETag`, `Content-Disposition` | Browser-readable response headers | API-R11 |
+| Response headers `X-Request-ID`, `ETag`, `Content-Disposition`, `Retry-After` | Browser-readable response headers | API-R11 |
 
 The error envelope is the `Error` schema of the OpenAPI document; its
 `requestId` repeats `X-Request-ID`

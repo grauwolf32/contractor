@@ -1,0 +1,51 @@
+schema_version: '1.0'
+id: V397-017
+title: Reconcile finding correlation with the current main contracts
+milestone: finding-correlation-2026-10
+epic: audits
+kind: chore
+introduced_by: V397-010
+priority: P1
+status: completed
+depends_on: [V397-005]
+languages: [go, yaml, markdown]
+goal: Merge retained finding correlation without replacing the effective Audit profile digest contract already accepted on main.
+context:
+  request: User requested merging the completed finding correlation branch into main on 2026-10-22 and explicitly declined another full release gate.
+  finding: >-
+    main implements V391-001 with a single effective profile digest, while V397-010 independently added a separate closure seal for the same underlying failure. Their merged readers and model binding code must use one contract. The original V392 correlation IDs also collide with scanner tasks already on main, so this branch's series is renamed to V397 without changing implementation commit hashes.
+  specification:
+  - docs/spec/audits/audits.md#AUD-R20
+  - docs/spec/configuration/catalog.md#CAT-R80
+scope:
+  in:
+  - Preserve main's effective Audit profile digest implementation, retained-profile drift validation and regression tests.
+  - Adapt the additional real-store selection regression to that contract and remove the superseded seal-only fixture assertions.
+  - Preserve both fixture reader registrations, regenerate derived documentation and task backlog, and retain both task histories under unique IDs.
+  - Run affected configuration, Audit, persistence and finding integration tests, the finding process gate and lint.
+  out:
+  - Repeating the full release gate, changing the selected model, rewriting retained business data or altering correlation identity and Worker tool contracts.
+acceptance_criteria:
+- id: A1
+  text: Merged code uses the single effective Audit profile digest already on main; exact prepared selections survive default changes and modified profile content remains rejected.
+- id: A2
+  text: Finding producer and collection process journeys pass with retained automatic duplicates; current persistence fixtures and additional source-selection regression pass against real PostgreSQL.
+- id: A3
+  text: Task IDs are unique, both shared fixture registries are present, derived documents are regenerated and lint passes without a full-gate repeat.
+tests:
+- command: go test -count=1 ./internal/config/... ./internal/configload/... ./internal/auditservice ./internal/evalservice/... ./internal/persistence/postgres
+  covers: [A1, A2]
+- command: make test-findings-e2e
+  covers: [A1, A2]
+- command: make lint
+  covers: [A1, A3]
+verification:
+  date: '2026-10-22'
+  status: passed
+  checks:
+  - "All configuration, configload, Audit service, Eval service and persistence/postgres package suites listed under tests passed against the disposable PostgreSQL database."
+  - "make test-findings-e2e passed all 14 mandatory real Server/Runtime process cases and finding Runtime contracts; the process suite completed in 207.530 seconds."
+  - "Full make lint passed on the merged source tree. No full release gate was repeated."
+  - "The merged configuration package and current persisted profile fixture are identical to main's V391-001 implementation. The additional catalog-selection regression passes with its effective digest."
+  - "Both cookie and finding shared-fixture reader registrations remain present. The tracker has unique V392 scanner IDs and V397 correlation IDs, preserving historical implementation hashes."
+implementation_commit: 59397589a4e74a0d31ce9769e024aedd7f8bc23e

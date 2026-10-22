@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-73 open tasks: 3 in progress, 45 pending, 25 deferred. 933 finished: 930 completed, 3 archived.
+77 open tasks: 3 in progress, 49 pending, 25 deferred. 946 finished: 943 completed, 3 archived.
 
 ## In progress
 
@@ -61,6 +61,10 @@ the epics are in [epics.yml](epics.yml).
 | [V371-011](v371-011-proposal-quota-limits.yml) | chore | P3 | — | Register the per-Run proposal and per-proposal evidence quotas in the specification |
 | [V372-018](v372-018-finding-proposal-namespace-constant.yml) | chore | P3 | — | Name the finding-proposals Namespace through artifactpolicy in finding intake |
 | [V372-023](v372-023-findings-tool-error-codes.yml) | chore | P3 | — | Name the findings error codes the open question lists and register the findings tool codes |
+| [V397-006](v397-006-finding-analysis-resolver.yml) | feature | P2 | — | Resolve optional finding analysis against exact retained evidence |
+| [V397-007](v397-007-finding-export-snapshot.yml) | feature | P2 | V397-006 | Freeze explicit finding selections and independent Audit results |
+| [V397-008](v397-008-generic-sarif-renderer.yml) | feature | P2 | V397-007 | Render deterministic validated generic SARIF from frozen snapshots |
+| [V397-009](v397-009-sarif-export-api-ui.yml) | feature | P2 | V397-008 | Publish and download generic SARIF through API CLI and UI |
 
 ### Workflow catalog and document workflows (`workflows`)
 
@@ -170,21 +174,21 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 3 | 36 | 50 | 11 | 65 |
-| Planners and the Worker model boundary (`planner-worker`) | 3 | 27 | 37 | 14 | 51 |
+| Planners and the Worker model boundary (`planner-worker`) | 3 | 27 | 37 | 14 | 55 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 11 | 25 | 12 | 3 | 37 |
-| Shared Memory tools (`memory`) | 0 | 6 | 8 | 1 | 11 |
+| Shared Memory tools (`memory`) | 0 | 6 | 9 | 1 | 11 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 2 | 1 | 1 |
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 12 | 4 | 15 |
-| Code analysis and taint annotations (`code-analysis`) | 0 | 13 | 13 | 2 | 18 |
+| Code analysis and taint annotations (`code-analysis`) | 0 | 14 | 13 | 2 | 18 |
 | HTTP and Caido tools (`http-tools`) | 2 | 11 | 14 | 4 | 15 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 1 | 11 | 4 | 2 | 8 |
-| Findings tools and collections (`findings`) | 4 | 7 | 5 | 4 | 7 |
+| Findings tools and collections (`findings`) | 8 | 14 | 5 | 6 | 9 |
 | Workflow catalog and document workflows (`workflows`) | 3 | 14 | 13 | 12 | 12 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 30 | 32 | 4 | 34 |
-| Audits (`audits`) | 16 | 50 | 69 | 15 | 80 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 30 | 32 | 5 | 35 |
+| Audits (`audits`) | 16 | 50 | 70 | 16 | 81 |
 | Evaluations (`evals`) | 3 | 21 | 29 | 5 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 9 | 1 | 1 | 2 |
-| Web UI (`ui`) | 1 | 20 | 54 | 11 | 49 |
+| Web UI (`ui`) | 1 | 21 | 55 | 12 | 49 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 12 | 32 | 5 | 9 |
 | Public API and wire contracts (`api-contracts`) | 7 | 1 | 29 | 20 | 8 |
 | PostgreSQL persistence and schema (`persistence`) | 4 | 0 | 19 | 33 | 8 |

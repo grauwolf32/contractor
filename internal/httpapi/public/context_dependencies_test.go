@@ -34,7 +34,7 @@ var contextFiles = map[string][]string{
 		"git_import_handlers.go",
 	},
 	"auditHandlers": {
-		"audit_handlers.go", "audit_models.go", "audit_preparation.go", "audit_review_handlers.go",
+		"audit_handlers.go", "finding_correlation_handlers.go", "audit_models.go", "audit_preparation.go", "audit_review_handlers.go",
 		"audit_standard_handlers.go", "audit_event_handlers.go", "audit_types.go", "owner_audit_lists.go", "audit_artifact_handlers.go",
 	},
 	"findingHandlers": {"finding_handlers.go", "finding_collection_handlers.go"},

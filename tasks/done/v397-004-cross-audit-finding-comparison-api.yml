@@ -1,0 +1,180 @@
+schema_version: '1.0'
+id: V397-004
+title: Read bounded cross-Audit matches and comparisons without losing observations
+milestone: finding-correlation-2026-10
+epic: findings
+kind: feature
+priority: P2
+status: completed
+depends_on:
+- V397-001
+- V397-002
+- V397-003
+languages:
+- go
+- typescript
+- yaml
+- markdown
+goal: Compare two Audits of an owned Project through exact automatic groups, separate weaker candidates and all retained members, exposing independent
+  results and explicit coverage/baseline limits with bounded indexed reads.
+context:
+  request: User requested automatic duplicates with retained findings specifically for comparing results across different Audits on 2026-10-22.
+  proposal:
+  - docs/proposals/0028-finding-analysis-and-sarif.md#bounded-search-and-comparison-across-audits
+  - docs/proposals/0028-finding-analysis-and-sarif.md#unchanged-worker-tool-contract
+  specification:
+  - docs/spec/audits/review-and-reports.md#REV-R95
+  - docs/spec/audits/review-and-reports.md#REV-R99
+  - docs/spec/audits/review-and-reports.md#REV-R102
+  - docs/spec/audits/review-and-reports.md#REV-R138
+  - docs/spec/audits/review-and-reports.md#REV-R191
+  - docs/spec/findings/findings.md#FND-R66
+  - docs/spec/findings/findings.md#FND-R179
+  - docs/spec/findings/findings.md#FND-R183
+  - docs/spec/platform/limits.md
+  - docs/spec/platform/errors.md
+  - docs/spec/api/public-api.md
+scope:
+  in:
+  - Project-default duplicate-candidate reads with optional Audit restriction/source receipt and deterministic reason tiers.
+  - Exact two-Audit finding-comparison and group-member public read endpoints as specified by the proposal, using existing service/client boundaries.
+  - Exact overlap/one-sided groups, separate unmatched observations, all-member navigation, scope-relative representatives and independent per-Audit
+    provenance/triage/rating/coverage context.
+  - Revision-bound indexed pagination, generated public/UI clients, operation coverage, real PostgreSQL scale/lifecycle/race tests and owning
+    contracts.
+  out:
+  - Mutation from GET, manual confirmation requirements, model ranking/embeddings, semantic text equality and cross-Project/owner discovery.
+  - Complete-scan/remediation claims, hiding duplicate members, unbounded whole-comparison totals, another analytics/cluster store or reinterpreting
+    weak matches as exact intersections.
+  - UI, owned by V397-005, and full SARIF snapshot/export implementation.
+requirements:
+- id: R1
+  text: Authorize every Project/Audit/source receipt/member through existing read ownership; default candidate scope is the source Project and
+    optional target Audit must belong to it. Selecting another source contribution changes candidate reasons only, never frozen membership.
+- id: R2
+  text: Use fixed tiers for primary automatic equality, secondary qualified producer equality, structural-site candidates and exact scoped/tagged
+    family hints. Return each target once with explicit basis/limitations; no weak/secondary key silently joins primary groups and no LLM is called.
+- id: R3
+  text: Compare exactly two distinct Audits into both/left-only/right-only exact primary-key groups plus individual unmatched identities. Preserve
+    every selected observation through member pages, distinguish shared receipt import from independent discovery and expose baseline/profile/coverage/configuration
+    and independent current results.
+- id: R4
+  text: Keyset cursors bind owner/Project, selection/source receipt/filter/policy and scoped revisions. Project-wide reads fence Project correlation
+    revision, while Audit/pair-limited reads fence relevant Audit revisions and pair-relative membership; unrelated Audits must not invalidate
+    a pair comparison. Recheck fences around hydration and return registered 409 finding_correlation_stale on change. A one-sided group is not
+    proof of a new/fixed vulnerability.
+- id: R5
+  text: Enforce default 20/max 100 and 256 KiB page limits, at most 1000 matched/index rows per request, at most 100 candidate/member summaries
+    or 200 comparison previews and 8 reason pairs per candidate. Expose hasMore/reasonsTruncated and group-member cursors; skip no observation
+    and report partial running totals truthfully.
+- id: R6
+  text: Index/seeks and batched hydration bound work independently of parent cardinality; no all-pairs matrix, whole-parent evidence decode, per-row
+    network/Artifact read or group-size scan is added. Use existing receipt/group projections and register api/testdata/public/finding-correlation-cases.json
+    plus every new operation in contract gates.
+- id: R7
+  text: Keep complete model-visible finding/list_findings declarations and required/optional arguments and response shapes unchanged. Publisher
+    code builds all private matching metadata from existing inputs; the Worker authors no descriptors and duplicate collection entries remain
+    readable.
+failure_outcomes:
+- operation: Read candidate, two-Audit comparison or group-member page
+  permanent: Invalid limits/cursors/selections use 400 invalid_request, foreign/missing sources use existing 404 non-disclosure, changed fences
+    use 409 finding_correlation_stale and individually unrepresentable mandatory content uses registered 422 finding_correlation_item_too_large
+    without dropping it.
+  retryable: Existing finite read/storage retry rules and 503 storage_transaction_conflict with Retry-After apply; stale cursors require restart
+    rather than blind retry.
+  ambiguous: Reads are replayable under the same cursor/revision pins and never append a mark, receipt, decision or evidence hold.
+  cancelled: Request context cancels and joins PostgreSQL/summary hydration before completion; no background decode or comparison survives the
+    request.
+  timeout: Existing finite finding/Project read budgets own pages independently from intake and lifecycle writes; no scanner, model or external
+    fetch is invoked.
+cardinality:
+- collection: Project Audits, findings and equality-group members
+  expected: Multiple Audits with thousands of findings and a smaller set of overlapping groups.
+  maximum: Existing 100000-report-finding bound per Audit; test 100 Audits and 1000000 Project findings plus high-multiplicity groups without
+    assuming a small parent.
+  bound: Indexed seeks inspect at most 1000 relevant rows per page and a bounded metadata/hydration batch, with no whole-Audit/Project/group scan
+    or eager evidence expansion.
+- collection: Candidate/comparison/member output
+  expected: A page of 20 entries and one representative preview per selected Audit/group.
+  maximum: 100 entries and 256 KiB; up to 100 candidate/member summaries or 200 comparison previews; 8 matched reason pairs per candidate.
+  bound: Explicit cursor progress and reason truncation keep all observations reachable; group expansion is independently paged and complete global
+    totals are not required for a page read.
+lifecycle:
+- entity: Ephemeral comparison/candidate pages and existing group membership
+  delete: Existing Audit/Project owner lifecycle removes source rows; pages create no resource or delete blocker.
+  cascade: Membership deletion invalidates Project correlation fences and missing selected Audits fail safely, while another Audit's held evidence
+    remains independent.
+  retention: Reads add no holds or discovery credit, use retained exact source provenance after Run deletion and expose only authorized surviving
+    results.
+acceptance_criteria:
+- id: A1
+  given: Two Audits with exact shared groups, one-sided groups, unmatched/structural-only observations, equal keys under different triage and
+    a receipt imported into both.
+  when: Production candidate/comparison/member endpoints are fully traversed.
+  then: Every selected Audit-local finding is reachable exactly once through group/unmatched membership, exact versus possible overlap is distinct,
+    ratings/coverage remain independent and no observation is suppressed or inferred fixed/new.
+- id: A2
+  given: A real PostgreSQL 100000-finding Audit, a 100-Audit/1000000-finding Project, unrelated rows and large groups/many contributions.
+  when: Pages traverse every row/byte/reason/work boundary.
+  then: Deterministic work counters and query plans prove scoped indexed bounds and batched hydration, including empty progress pages and all
+    group members, without N+1 reads, parent scans or group-wide counting; updates outside a selected Audit pair do not invalidate that pair traversal.
+- id: A3
+  given: Foreign Projects/owners/Audits/receipts, malformed cursors and concurrent membership/triage/purge changes.
+  when: Real handlers seek and hydrate pages.
+  then: Ownership/non-disclosure and strict cursor rules hold, stale inputs return the specific conflict and no page mixes revisions or changes
+    durable state.
+- id: A4
+  given: Source Run deletion with holds, a deleted representative, storage conflicts, request cancellation and output overflow.
+  when: The read paths overlap those outcomes.
+  then: Retained results remain readable, representatives update within declared scope, work joins cancellation, retry/error classes match OpenAPI
+    and no oversized member is silently omitted.
+- id: A5
+  given: Implemented endpoints, shared/generated consumers and new public operations.
+  when: Full package/integration/API/shared/lint suites run with a disposable database.
+  then: Every new operation has production contract proof, all field/limit/error versions agree and database tests do not skip.
+tests:
+- command: go test -count=1 ./internal/auditstore/... ./internal/auditservice ./internal/findingintake ./internal/projectstore ./internal/httpapi/public
+    ./internal/publicclient/... ./internal/apierror
+  covers:
+  - A1
+  - A3
+  - A4
+  - A5
+- command: go test -count=1 -tags=integration ./internal/auditstore/... ./internal/auditservice ./internal/httpapi/public ./internal/persistence/postgres
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make verify-public-api verify-public-api-postgres ui-verify test-wire-cross-language
+  covers:
+  - A1
+  - A3
+  - A4
+  - A5
+- command: make lint
+  covers:
+  - A5
+
+implementation_decisions:
+- Comparison walks distinct primary groups through recursive indexed next-group seeks for the two selected Audits, then pages unmatched observations separately. Each row has one bounded preview per side; group expansion keeps every member reachable.
+- Candidate search uses a bounded keyset work window of 897 matching-input rows plus at most 100 summaries and up to three source lookup/exclusion rows in a Project/Audit index for each fixed tier. Its cursor records examined-row progress, including empty pages, so popular weak hints cannot force an unbounded bitmap/sort or group scan in one request.
+- Candidate matching uses the explicitly selected source contribution and each target's immutable first receipt; existing primary equality is always included independently. Supporting receipts can be selected as sources without changing either finding's primary group. This avoids unbounded target contribution fanout and is stated in the public response and owning contract.
+- A compact immutable comparison projection on the existing receipt caches bounded display and matching fields from the already validated report/fingerprint/anchor projections. It introduces no table, receipt, Worker argument or Artifact fetch; discard clears it. Oversized optional family hints are explicitly unavailable rather than truncated into guessed equality.
+
+verification:
+  date: '2026-10-22'
+  status: passed
+  checks:
+  - Every listed full Go and integration package suite passed with the disposable PostgreSQL URL, including the real public handlers, generated client and persistence migrations.
+  - The real PostgreSQL fixture has exactly 100 Audits and 1000000 findings with a 100000-finding Audit. Production comparison, pair-member, exact-candidate, deep-cursor and empty weak-progress reads obey indexed row budgets; generic-plan queries seek from the cursor instead of filtering the earlier parent rows. No wall-clock performance assertion is used.
+  - Traversal accounts for both/left-only/right-only groups and every unmatched observation; shared receipts remain two Audit-local results. Project reads stale after another Audit's rating changes, while pair comparison/member cursors remain valid. Source deletion between source lookup and fence capture is rejected as stale.
+  - Supporting-receipt search exposes qualified secondary candidates without bridging primary groups; exact structural sites across snapshots remain possible matches and never become exact intersections.
+  - A 60-observation fixture with large escaped titles and family reasons crosses the 256 KiB response bound; complete cursor traversal preserves every omitted observation without repeats, and previews are explicitly marked/truncated.
+  - The compact projection migration preserves prior receipt fields, bounds Unicode titles/family preparation, rejects forged cache updates and clears cached matching/display data on discard.
+  - make verify-public-api, verify-public-api-postgres and ui-verify passed. UI has 188 test files, 2242 passed tests and one expected failure. All three new operations have validated mocked and production PostgreSQL responses, strict query/cursor cases and classified stale errors.
+  - make lint and final test-wire-cross-language passed; 241 fixtures, 221 Go and 167 Python shared tests, plus 300 Runtime wire tests. Worker tools and private finding responses are unchanged.
+  earlier_failure: Implementation review and new tests exposed an off-by-one work budget, nullable-cursor predicates that could prevent generic-plan seeks, a nullable cached subject incorrectly tagged required, and unsupported conditional-schema enforcement by the Go validator. The final implementation reserves source work, uses unconditional tuple seeks, preserves nullable subjects and uses closed oneOf branches shared by Go and UI validators. Earlier failed runs are not counted as passes.
+  boundary: Candidate target reasons use first receipts and explicit supporting sources; coverage is not compared, one-sided rows do not imply remediation, and preview/source counts are not whole-group totals. UI and the aggregate release gate remain separate work.
+implementation_commit: 539badc380e2f4154cedc87eb538e83236b5a4f6

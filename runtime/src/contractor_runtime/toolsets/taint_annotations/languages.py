@@ -8,7 +8,7 @@ from types import MappingProxyType
 
 from tree_sitter import Node, Parser
 
-from contractor_runtime.core.lines import split_lines
+from contractor_runtime.core.lines import line_byte_starts
 from contractor_runtime.toolsets.code_analysis.languages import Language, extract_node_name
 
 
@@ -140,7 +140,7 @@ def parse_annotation_targets(
 ) -> AnnotationParseResult:
     tree = parser.parse(source)
     root = tree.root_node
-    line_starts = _line_starts(source)
+    line_starts = line_byte_starts(source)
     targets: list[AnnotationTarget] = []
     stack: list[Node] = [root]
     while stack:
@@ -177,22 +177,6 @@ def parse_annotation_targets(
             stack.append(node.children[index])
     targets.sort(key=lambda item: (item.insertion_line, item.definition_line, item.name))
     return AnnotationParseResult(tuple(targets), root.has_error)
-
-
-def _line_starts(source: bytes) -> list[int]:
-    """Return the byte offset of every line as read_file numbers them.
-
-    Tree-sitter rows advance only at LF, while read_file, edits and the
-    inserted annotation also end a line at a lone CR. Numbering from byte
-    offsets keeps model-supplied and returned line numbers in one scheme.
-    """
-
-    starts = [0]
-    offset = 0
-    for line in split_lines(source.decode("utf-8", errors="strict"), keepends=True):
-        offset += len(line.encode("utf-8"))
-        starts.append(offset)
-    return starts
 
 
 def _candidate(

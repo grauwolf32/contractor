@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 	"github.com/jackc/pgx/v5"
@@ -42,7 +43,7 @@ func (s *QueryStore) ListFindings(
 	defer rows.Close()
 	result := make([]auditstore.FindingRecord, 0, params.Limit)
 	for rows.Next() {
-		row, scanErr := scanFindingRecord(rows)
+		row, scanErr := scanCorrelatedFindingRecord(rows)
 		if scanErr != nil {
 			return nil, scanErr
 		}
@@ -82,7 +83,7 @@ func (s *QueryStore) ListOwnerFindings(
 	defer rows.Close()
 	result := make([]auditstore.FindingRecord, 0, params.Limit)
 	for rows.Next() {
-		row, err := scanFindingRecord(rows)
+		row, err := scanCorrelatedFindingRecord(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -99,12 +100,7 @@ func (s *QueryStore) GetFinding(
 		!auditstore.ValidReviewIdentity(findingID, 256) {
 		return auditstore.FindingRecord{}, auditstore.ErrInvalid
 	}
-	row, err := scanFindingRecord(s.db.QueryRow(ctx, `
-SELECT `+findingRecordColumns+`
-  FROM audit_findings AS finding
-  JOIN audits AS audit USING (audit_id)
- WHERE audit.owner_id = $1 AND finding.audit_id = $2 AND finding.finding_id = $3`,
-		ownerID, auditID, findingID))
+	row, err := scanCorrelatedFindingRecord(s.db.QueryRow(ctx, getCorrelatedFindingSQL, ownerID, auditID, findingID))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return auditstore.FindingRecord{}, auditstore.ErrNotFound
 	}
@@ -203,6 +199,7 @@ func scanFindingRecord(row scanner) (auditstore.FindingRecord, error) {
 		&result.FindingID, &result.AuditID, &result.FirstReceiptID, &result.State,
 		&result.RejectionReason, &result.DuplicateTargetID, &result.CurrentAssessmentID,
 		&result.CurrentDecisionID, &revision, &result.CreatedAt, &result.UpdatedAt,
+		&result.CorrelationProjectID, &result.CorrelationAlgorithm, &result.CorrelationValue, &result.CorrelationGroupKey, &result.CorrelationReason,
 	)
 	if err != nil {
 		return auditstore.FindingRecord{}, err
@@ -211,6 +208,15 @@ func scanFindingRecord(row scanner) (auditstore.FindingRecord, error) {
 		return auditstore.FindingRecord{}, errors.New("stored Audit finding is invalid")
 	}
 	result.Revision = uint64(revision)
+	if result.CorrelationGroupKey != "" {
+		expected, keyErr := auditdomain.FindingGroupKey(result.CorrelationProjectID, result.CorrelationAlgorithm, result.CorrelationValue)
+		if keyErr != nil || expected != result.CorrelationGroupKey || result.CorrelationReason != "" {
+			return auditstore.FindingRecord{}, errors.New("stored finding primary key is invalid")
+		}
+	} else if result.CorrelationAlgorithm != "" || result.CorrelationValue != "" ||
+		result.CorrelationReason != "not_recorded" && result.CorrelationReason != "no_qualified_key" && result.CorrelationReason != "primary_key_ambiguous" {
+		return auditstore.FindingRecord{}, errors.New("stored finding primary unavailability is invalid")
+	}
 	return result, nil
 }
 
@@ -315,4 +321,38 @@ func validateOwnerPage(ownerID string, limit int, before *time.Time, id string, 
 		}
 	}
 	return nil
+}
+
+func scanCorrelatedFindingRecord(row scanner) (auditstore.FindingRecord, error) {
+	var revision int64
+	var representativeID, representativeAudit *string
+	var hasOthers bool
+	result, err := scanFindingRecord(withColumns{row: row, after: []any{&revision, &representativeID, &representativeAudit, &hasOthers}})
+	if err != nil {
+		return auditstore.FindingRecord{}, err
+	}
+	projection := auditdomain.FindingCorrelation{
+		Schema: auditdomain.FindingCorrelationSchema, PolicyVersion: auditdomain.FindingCorrelationPolicy,
+		Scope:           auditdomain.FindingCorrelationScope{Kind: "project", ProjectID: result.CorrelationProjectID},
+		ProjectRevision: uint64(revision), Availability: "unavailable", Reason: result.CorrelationReason,
+	}
+	if result.CorrelationGroupKey != "" {
+		if representativeID == nil || representativeAudit == nil {
+			return auditstore.FindingRecord{}, errors.New("stored finding group has no representative")
+		}
+		projection.Availability = "available"
+		projection.GroupKey = result.CorrelationGroupKey
+		projection.Basis = &auditdomain.FindingCorrelationBasis{Algorithm: result.CorrelationAlgorithm, Value: result.CorrelationValue}
+		projection.MatchedDomain = "snapshot"
+		projection.Representative = &auditdomain.FindingCorrelationReference{AuditID: *representativeAudit, FindingID: *representativeID}
+		projection.AutomaticDuplicate = *representativeID != result.FindingID
+		projection.HasOtherObservations = hasOthers
+	} else if representativeID != nil || representativeAudit != nil || hasOthers {
+		return auditstore.FindingRecord{}, errors.New("unqualified finding has group presentation")
+	}
+	if revision < 1 || auditdomain.ValidateFindingCorrelation(projection, result.AuditID, result.FindingID) != nil {
+		return auditstore.FindingRecord{}, errors.New("stored finding correlation presentation is invalid")
+	}
+	result.Correlation = &projection
+	return result, nil
 }

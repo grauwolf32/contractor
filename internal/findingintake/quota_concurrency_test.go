@@ -144,6 +144,13 @@ SELECT EXISTS (
 func quotaSubmissionGrant(
 	t *testing.T, ctx context.Context, pool *pgxpool.Pool, ownerID, projectID, runID string,
 ) controlplane.AllocationGrant {
+	return quotaSubmissionGrantWithInputs(t, ctx, pool, ownerID, projectID, runID, nil)
+}
+
+func quotaSubmissionGrantWithInputs(
+	t *testing.T, ctx context.Context, pool *pgxpool.Pool, ownerID, projectID, runID string,
+	prepare func() map[string]runstore.PinnedContextArtifact,
+) controlplane.AllocationGrant {
 	t.Helper()
 	snapshot, err := configload.Load("../config/testdata/valid")
 	if err != nil {
@@ -189,13 +196,17 @@ func quotaSubmissionGrant(
 	); err != nil {
 		t.Fatal(err)
 	}
+	inputs := map[string]runstore.PinnedContextArtifact{}
+	if prepare != nil {
+		inputs = prepare()
+	}
 	stageID, allocationID := runID+"-stage", runID+"-allocation"
 	if _, err := runs.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
 		StageExecutionID: stageID, RunID: runID, StageName: workflow.EntryStage, Attempt: 1,
 		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: stageJSON,
 		StageContextSchemaVersion: contracts.APIVersion,
 		StageContext: runstore.StageContextSnapshot{
-			Parameters: map[string]string{}, Artifacts: map[string]runstore.PinnedContextArtifact{},
+			Parameters: map[string]string{}, Artifacts: inputs,
 		},
 	}); err != nil {
 		t.Fatal(err)

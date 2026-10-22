@@ -44,6 +44,7 @@ var sharedMemoryToolNames = map[string]bool{
 
 type sharedMemoryGateway struct {
 	productionTemplates bool
+	workerModel         string
 	server              *httptest.Server
 	token               string
 
@@ -164,7 +165,7 @@ func (g *sharedMemoryGateway) next(
 		return nil, "", "", "", 0, "", finalizerErr
 	}
 	if isFinalizer {
-		if modelName != "worker-model" {
+		if modelName != g.workerModel {
 			return nil, "", "", "", 0, "", fmt.Errorf(
 				"unexpected shared-memory result-finalizer model %q", modelName,
 			)
@@ -194,7 +195,7 @@ func (g *sharedMemoryGateway) next(
 		g.mu.Unlock()
 		return message, "stop", modelName, scenario, 1, "<result-finalizer>", nil
 	}
-	scenario, worker, detectErr := sharedMemoryScenario(modelName, string(encoded))
+	scenario, worker, detectErr := g.sharedMemoryScenario(modelName, string(encoded))
 	if detectErr != nil {
 		return nil, "", "", "", 0, "", detectErr
 	}
@@ -243,7 +244,7 @@ func sharedMemoryFinalizerScenario(result string) (string, error) {
 	return "", errors.New("unexpected shared-memory result-finalizer candidate")
 }
 
-func sharedMemoryScenario(modelName, payload string) (string, bool, error) {
+func (g *sharedMemoryGateway) sharedMemoryScenario(modelName, payload string) (string, bool, error) {
 	if modelName == "planner-model" {
 		switch {
 		case strings.Contains(payload, memoryCoordinateObjective):
@@ -254,7 +255,7 @@ func sharedMemoryScenario(modelName, payload string) (string, bool, error) {
 			return "router-planner", false, nil
 		}
 	}
-	if modelName == "worker-model" {
+	if g.workerModel != "" && modelName == g.workerModel {
 		if strings.Contains(payload, "Copy the source artifact into the declared result artifact") {
 			return "production-copy-worker", true, nil
 		}

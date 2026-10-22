@@ -6,8 +6,11 @@ confirmed sequenced heartbeats, and exposes one private mTLS listener. Worker,
 Google ADK, A2A 1.0 JSON-RPC, and artifact tools run together in that process;
 each Runtime Agent has exactly one allocation slot.
 
+From the repository root:
+
 ```shell
-uv sync
+make runtime-venv
+cd runtime
 CONTRACTOR_CONTROL_PLANE_URL=https://localhost:8443 \
 CONTRACTOR_ADVERTISED_CONTROL_URL=https://localhost:9443 \
 CONTRACTOR_ADVERTISED_A2A_URL=https://localhost:9443 \

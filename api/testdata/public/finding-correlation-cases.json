@@ -1,0 +1,1134 @@
+{
+  "vectors": [
+    {
+      "projectId": "project-a",
+      "algorithm": "contractor/producer-issue/v1",
+      "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "canonical": "[\"contractor/finding-group/v1\",\"project-a\",\"contractor/producer-issue/v1\",\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"]",
+      "groupKey": "a4402cbba3dc4bbf3a6991f221e2b4771984a130b759bafec2a9c9b13dfd97f0"
+    },
+    {
+      "projectId": "project-b",
+      "algorithm": "contractor/producer-issue/v1",
+      "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "canonical": "[\"contractor/finding-group/v1\",\"project-b\",\"contractor/producer-issue/v1\",\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"]",
+      "groupKey": "3f3183cb0448d9e2ed67ce4d783c85b52769cc7744c6a577a1c331257ba942da"
+    },
+    {
+      "projectId": "project-a",
+      "algorithm": "contractor/snapshot-issue-anchor/v1",
+      "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "canonical": "[\"contractor/finding-group/v1\",\"project-a\",\"contractor/snapshot-issue-anchor/v1\",\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"]",
+      "groupKey": "16a71d10c23b7c7fb239681825856620e3cd9b1298be91a625dbe6a751260e0f"
+    }
+  ],
+  "projections": [
+    {
+      "name": "unique",
+      "valid": true,
+      "schemaValid": true,
+      "auditId": "audit-a",
+      "findingId": "finding-a",
+      "document": {
+        "schema": "contractor.finding.correlation.v1",
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "project",
+          "projectId": "project-a"
+        },
+        "projectRevision": 3,
+        "availability": "available",
+        "groupKey": "a4402cbba3dc4bbf3a6991f221e2b4771984a130b759bafec2a9c9b13dfd97f0",
+        "basis": {
+          "algorithm": "contractor/producer-issue/v1",
+          "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "matchedDomain": "snapshot",
+        "representative": {
+          "auditId": "audit-a",
+          "findingId": "finding-a"
+        },
+        "automaticDuplicate": false,
+        "hasOtherObservations": false
+      }
+    },
+    {
+      "name": "representative-with-peers",
+      "valid": true,
+      "schemaValid": true,
+      "auditId": "audit-a",
+      "findingId": "finding-a",
+      "document": {
+        "schema": "contractor.finding.correlation.v1",
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "project",
+          "projectId": "project-a"
+        },
+        "projectRevision": 3,
+        "availability": "available",
+        "groupKey": "a4402cbba3dc4bbf3a6991f221e2b4771984a130b759bafec2a9c9b13dfd97f0",
+        "basis": {
+          "algorithm": "contractor/producer-issue/v1",
+          "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "matchedDomain": "snapshot",
+        "representative": {
+          "auditId": "audit-a",
+          "findingId": "finding-a"
+        },
+        "automaticDuplicate": false,
+        "hasOtherObservations": true
+      }
+    },
+    {
+      "name": "independent-duplicate",
+      "valid": true,
+      "schemaValid": true,
+      "auditId": "audit-b",
+      "findingId": "finding-b",
+      "document": {
+        "schema": "contractor.finding.correlation.v1",
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "project",
+          "projectId": "project-a"
+        },
+        "projectRevision": 3,
+        "availability": "available",
+        "groupKey": "a4402cbba3dc4bbf3a6991f221e2b4771984a130b759bafec2a9c9b13dfd97f0",
+        "basis": {
+          "algorithm": "contractor/producer-issue/v1",
+          "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "matchedDomain": "snapshot",
+        "representative": {
+          "auditId": "audit-a",
+          "findingId": "finding-a"
+        },
+        "automaticDuplicate": true,
+        "hasOtherObservations": true
+      }
+    },
+    {
+      "name": "not_recorded",
+      "valid": true,
+      "schemaValid": true,
+      "auditId": "audit-a",
+      "findingId": "finding-a",
+      "document": {
+        "schema": "contractor.finding.correlation.v1",
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "project",
+          "projectId": "project-a"
+        },
+        "projectRevision": 1,
+        "availability": "unavailable",
+        "reason": "not_recorded",
+        "automaticDuplicate": false,
+        "hasOtherObservations": false
+      }
+    },
+    {
+      "name": "no_qualified_key",
+      "valid": true,
+      "schemaValid": true,
+      "auditId": "audit-a",
+      "findingId": "finding-a",
+      "document": {
+        "schema": "contractor.finding.correlation.v1",
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "project",
+          "projectId": "project-a"
+        },
+        "projectRevision": 1,
+        "availability": "unavailable",
+        "reason": "no_qualified_key",
+        "automaticDuplicate": false,
+        "hasOtherObservations": false
+      }
+    },
+    {
+      "name": "primary_key_ambiguous",
+      "valid": true,
+      "schemaValid": true,
+      "auditId": "audit-a",
+      "findingId": "finding-a",
+      "document": {
+        "schema": "contractor.finding.correlation.v1",
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "project",
+          "projectId": "project-a"
+        },
+        "projectRevision": 1,
+        "availability": "unavailable",
+        "reason": "primary_key_ambiguous",
+        "automaticDuplicate": false,
+        "hasOtherObservations": false
+      }
+    },
+    {
+      "name": "maximum-revision",
+      "valid": true,
+      "schemaValid": true,
+      "auditId": "audit-a",
+      "findingId": "finding-a",
+      "document": {
+        "schema": "contractor.finding.correlation.v1",
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "project",
+          "projectId": "project-a"
+        },
+        "projectRevision": 9007199254740991,
+        "availability": "available",
+        "groupKey": "a4402cbba3dc4bbf3a6991f221e2b4771984a130b759bafec2a9c9b13dfd97f0",
+        "basis": {
+          "algorithm": "contractor/producer-issue/v1",
+          "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "matchedDomain": "snapshot",
+        "representative": {
+          "auditId": "audit-a",
+          "findingId": "finding-a"
+        },
+        "automaticDuplicate": false,
+        "hasOtherObservations": false
+      }
+    },
+    {
+      "name": "unknown-schema",
+      "valid": false,
+      "schemaValid": false,
+      "auditId": "audit-a",
+      "findingId": "finding-a",
+      "document": {
+        "schema": "v2",
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "project",
+          "projectId": "project-a"
+        },
+        "projectRevision": 3,
+        "availability": "available",
+        "groupKey": "a4402cbba3dc4bbf3a6991f221e2b4771984a130b759bafec2a9c9b13dfd97f0",
+        "basis": {
+          "algorithm": "contractor/producer-issue/v1",
+          "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "matchedDomain": "snapshot",
+        "representative": {
+          "auditId": "audit-a",
+          "findingId": "finding-a"
+        },
+        "automaticDuplicate": false,
+        "hasOtherObservations": false
+      }
+    },
+    {
+      "name": "unknown-policy",
+      "valid": false,
+      "schemaValid": false,
+      "auditId": "audit-a",
+      "findingId": "finding-a",
+      "document": {
+        "schema": "contractor.finding.correlation.v1",
+        "policyVersion": "other/v1",
+        "scope": {
+          "kind": "project",
+          "projectId": "project-a"
+        },
+        "projectRevision": 3,
+        "availability": "available",
+        "groupKey": "a4402cbba3dc4bbf3a6991f221e2b4771984a130b759bafec2a9c9b13dfd97f0",
+        "basis": {
+          "algorithm": "contractor/producer-issue/v1",
+          "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "matchedDomain": "snapshot",
+        "representative": {
+          "auditId": "audit-a",
+          "findingId": "finding-a"
+        },
+        "automaticDuplicate": false,
+        "hasOtherObservations": false
+      }
+    },
+    {
+      "name": "zero-revision",
+      "valid": false,
+      "schemaValid": false,
+      "auditId": "audit-a",
+      "findingId": "finding-a",
+      "document": {
+        "schema": "contractor.finding.correlation.v1",
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "project",
+          "projectId": "project-a"
+        },
+        "projectRevision": 0,
+        "availability": "available",
+        "groupKey": "a4402cbba3dc4bbf3a6991f221e2b4771984a130b759bafec2a9c9b13dfd97f0",
+        "basis": {
+          "algorithm": "contractor/producer-issue/v1",
+          "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "matchedDomain": "snapshot",
+        "representative": {
+          "auditId": "audit-a",
+          "findingId": "finding-a"
+        },
+        "automaticDuplicate": false,
+        "hasOtherObservations": false
+      }
+    },
+    {
+      "name": "oversized-revision",
+      "valid": false,
+      "schemaValid": false,
+      "auditId": "audit-a",
+      "findingId": "finding-a",
+      "document": {
+        "schema": "contractor.finding.correlation.v1",
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "project",
+          "projectId": "project-a"
+        },
+        "projectRevision": 9007199254740992,
+        "availability": "available",
+        "groupKey": "a4402cbba3dc4bbf3a6991f221e2b4771984a130b759bafec2a9c9b13dfd97f0",
+        "basis": {
+          "algorithm": "contractor/producer-issue/v1",
+          "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "matchedDomain": "snapshot",
+        "representative": {
+          "auditId": "audit-a",
+          "findingId": "finding-a"
+        },
+        "automaticDuplicate": false,
+        "hasOtherObservations": false
+      }
+    },
+    {
+      "name": "missing-flag",
+      "valid": false,
+      "schemaValid": false,
+      "auditId": "audit-a",
+      "findingId": "finding-a",
+      "document": {
+        "schema": "contractor.finding.correlation.v1",
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "project",
+          "projectId": "project-a"
+        },
+        "projectRevision": 3,
+        "availability": "available",
+        "groupKey": "a4402cbba3dc4bbf3a6991f221e2b4771984a130b759bafec2a9c9b13dfd97f0",
+        "basis": {
+          "algorithm": "contractor/producer-issue/v1",
+          "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "matchedDomain": "snapshot",
+        "representative": {
+          "auditId": "audit-a",
+          "findingId": "finding-a"
+        },
+        "hasOtherObservations": false
+      }
+    },
+    {
+      "name": "null-scope",
+      "valid": false,
+      "schemaValid": false,
+      "auditId": "audit-a",
+      "findingId": "finding-a",
+      "document": {
+        "schema": "contractor.finding.correlation.v1",
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": null,
+        "projectRevision": 3,
+        "availability": "available",
+        "groupKey": "a4402cbba3dc4bbf3a6991f221e2b4771984a130b759bafec2a9c9b13dfd97f0",
+        "basis": {
+          "algorithm": "contractor/producer-issue/v1",
+          "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "matchedDomain": "snapshot",
+        "representative": {
+          "auditId": "audit-a",
+          "findingId": "finding-a"
+        },
+        "automaticDuplicate": false,
+        "hasOtherObservations": false
+      }
+    },
+    {
+      "name": "unknown-member",
+      "valid": false,
+      "schemaValid": false,
+      "auditId": "audit-a",
+      "findingId": "finding-a",
+      "document": {
+        "schema": "contractor.finding.correlation.v1",
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "project",
+          "projectId": "project-a"
+        },
+        "projectRevision": 3,
+        "availability": "available",
+        "groupKey": "a4402cbba3dc4bbf3a6991f221e2b4771984a130b759bafec2a9c9b13dfd97f0",
+        "basis": {
+          "algorithm": "contractor/producer-issue/v1",
+          "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "matchedDomain": "snapshot",
+        "representative": {
+          "auditId": "audit-a",
+          "findingId": "finding-a"
+        },
+        "automaticDuplicate": false,
+        "hasOtherObservations": false,
+        "state": "duplicate"
+      }
+    },
+    {
+      "name": "unqualified-algorithm",
+      "valid": false,
+      "schemaValid": false,
+      "auditId": "audit-a",
+      "findingId": "finding-a",
+      "document": {
+        "schema": "contractor.finding.correlation.v1",
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "project",
+          "projectId": "project-a"
+        },
+        "projectRevision": 3,
+        "availability": "available",
+        "groupKey": "a4402cbba3dc4bbf3a6991f221e2b4771984a130b759bafec2a9c9b13dfd97f0",
+        "basis": {
+          "algorithm": "site/v1",
+          "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "matchedDomain": "snapshot",
+        "representative": {
+          "auditId": "audit-a",
+          "findingId": "finding-a"
+        },
+        "automaticDuplicate": false,
+        "hasOtherObservations": false
+      }
+    },
+    {
+      "name": "bad-group-shape",
+      "valid": false,
+      "schemaValid": false,
+      "auditId": "audit-a",
+      "findingId": "finding-a",
+      "document": {
+        "schema": "contractor.finding.correlation.v1",
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "project",
+          "projectId": "project-a"
+        },
+        "projectRevision": 3,
+        "availability": "available",
+        "groupKey": "bad",
+        "basis": {
+          "algorithm": "contractor/producer-issue/v1",
+          "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "matchedDomain": "snapshot",
+        "representative": {
+          "auditId": "audit-a",
+          "findingId": "finding-a"
+        },
+        "automaticDuplicate": false,
+        "hasOtherObservations": false
+      }
+    },
+    {
+      "name": "duplicate-without-peers",
+      "valid": false,
+      "schemaValid": false,
+      "auditId": "audit-a",
+      "findingId": "finding-a",
+      "document": {
+        "schema": "contractor.finding.correlation.v1",
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "project",
+          "projectId": "project-a"
+        },
+        "projectRevision": 3,
+        "availability": "available",
+        "groupKey": "a4402cbba3dc4bbf3a6991f221e2b4771984a130b759bafec2a9c9b13dfd97f0",
+        "basis": {
+          "algorithm": "contractor/producer-issue/v1",
+          "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "matchedDomain": "snapshot",
+        "representative": {
+          "auditId": "audit-a",
+          "findingId": "finding-a"
+        },
+        "automaticDuplicate": true,
+        "hasOtherObservations": false
+      }
+    },
+    {
+      "name": "forged-group-value",
+      "valid": false,
+      "schemaValid": true,
+      "auditId": "audit-a",
+      "findingId": "finding-a",
+      "document": {
+        "schema": "contractor.finding.correlation.v1",
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "project",
+          "projectId": "project-a"
+        },
+        "projectRevision": 3,
+        "availability": "available",
+        "groupKey": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "basis": {
+          "algorithm": "contractor/producer-issue/v1",
+          "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "matchedDomain": "snapshot",
+        "representative": {
+          "auditId": "audit-a",
+          "findingId": "finding-a"
+        },
+        "automaticDuplicate": false,
+        "hasOtherObservations": false
+      }
+    },
+    {
+      "name": "cross-project-group",
+      "valid": false,
+      "schemaValid": true,
+      "auditId": "audit-a",
+      "findingId": "finding-a",
+      "document": {
+        "schema": "contractor.finding.correlation.v1",
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "project",
+          "projectId": "project-b"
+        },
+        "projectRevision": 3,
+        "availability": "available",
+        "groupKey": "a4402cbba3dc4bbf3a6991f221e2b4771984a130b759bafec2a9c9b13dfd97f0",
+        "basis": {
+          "algorithm": "contractor/producer-issue/v1",
+          "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "matchedDomain": "snapshot",
+        "representative": {
+          "auditId": "audit-a",
+          "findingId": "finding-a"
+        },
+        "automaticDuplicate": false,
+        "hasOtherObservations": false
+      }
+    }
+  ],
+  "readPages": [
+    {
+      "name": "empty-work-progress",
+      "schema": "FindingCandidatesPage",
+      "valid": true,
+      "document": {
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "project",
+          "projectId": "project-a",
+          "auditIds": []
+        },
+        "fence": {
+          "projectId": "project-a",
+          "projectRevision": 3,
+          "audits": [
+            {
+              "auditId": "audit-a",
+              "revision": 3,
+              "state": "draft",
+              "profile": {
+                "name": "example",
+                "version": "1",
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "baselineDigestEncoding": "postgres-jsonb-text/v1",
+              "coverage": "not-compared"
+            }
+          ]
+        },
+        "source": {
+          "auditId": "audit-a",
+          "findingId": "finding-a",
+          "receiptId": "receipt-a",
+          "firstReceiptId": "receipt-a",
+          "hintsAvailability": "unavailable",
+          "hintsReason": "not_recorded",
+          "familiesAvailable": false
+        },
+        "targetBasis": "immutable-first-receipt",
+        "items": [],
+        "rowsExamined": 897,
+        "workLimited": true,
+        "page": {
+          "hasMore": true,
+          "nextCursor": "cursor-a"
+        }
+      }
+    },
+    {
+      "name": "pair-context-without-project-fence",
+      "schema": "FindingComparisonPage",
+      "valid": true,
+      "document": {
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "audit-pair",
+          "projectId": "project-a",
+          "auditIds": [
+            "audit-a",
+            "audit-b"
+          ]
+        },
+        "fence": {
+          "projectId": "project-a",
+          "audits": [
+            {
+              "auditId": "audit-a",
+              "revision": 3,
+              "state": "draft",
+              "profile": {
+                "name": "example",
+                "version": "1",
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "baselineDigestEncoding": "postgres-jsonb-text/v1",
+              "coverage": "not-compared"
+            },
+            {
+              "auditId": "audit-b",
+              "revision": 3,
+              "state": "draft",
+              "profile": {
+                "name": "example",
+                "version": "1",
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "baselineDigestEncoding": "postgres-jsonb-text/v1",
+              "coverage": "not-compared"
+            }
+          ]
+        },
+        "leftAuditId": "audit-a",
+        "rightAuditId": "audit-b",
+        "limitations": [
+          "absence-is-not-remediation"
+        ],
+        "items": [],
+        "page": {
+          "hasMore": false
+        }
+      }
+    },
+    {
+      "name": "project-member-context",
+      "schema": "FindingMembersPage",
+      "valid": true,
+      "document": {
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "project",
+          "projectId": "project-a",
+          "auditIds": []
+        },
+        "fence": {
+          "projectId": "project-a",
+          "projectRevision": 3,
+          "audits": []
+        },
+        "groupKey": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "representative": {
+          "auditId": "audit-a",
+          "findingId": "finding-a"
+        },
+        "items": [],
+        "page": {
+          "hasMore": false
+        }
+      }
+    },
+    {
+      "name": "candidate-work-overflow",
+      "schema": "FindingCandidatesPage",
+      "valid": false,
+      "document": {
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "project",
+          "projectId": "project-a",
+          "auditIds": []
+        },
+        "fence": {
+          "projectId": "project-a",
+          "projectRevision": 3,
+          "audits": [
+            {
+              "auditId": "audit-a",
+              "revision": 3,
+              "state": "draft",
+              "profile": {
+                "name": "example",
+                "version": "1",
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "baselineDigestEncoding": "postgres-jsonb-text/v1",
+              "coverage": "not-compared"
+            }
+          ]
+        },
+        "source": {
+          "auditId": "audit-a",
+          "findingId": "finding-a",
+          "receiptId": "receipt-a",
+          "firstReceiptId": "receipt-a",
+          "hintsAvailability": "unavailable",
+          "hintsReason": "not_recorded",
+          "familiesAvailable": false
+        },
+        "targetBasis": "immutable-first-receipt",
+        "items": [],
+        "rowsExamined": 898,
+        "workLimited": true,
+        "page": {
+          "hasMore": true,
+          "nextCursor": "cursor-a"
+        }
+      }
+    },
+    {
+      "name": "continuation-cursor-required",
+      "schema": "FindingCandidatesPage",
+      "valid": false,
+      "document": {
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "project",
+          "projectId": "project-a",
+          "auditIds": []
+        },
+        "fence": {
+          "projectId": "project-a",
+          "projectRevision": 3,
+          "audits": [
+            {
+              "auditId": "audit-a",
+              "revision": 3,
+              "state": "draft",
+              "profile": {
+                "name": "example",
+                "version": "1",
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "baselineDigestEncoding": "postgres-jsonb-text/v1",
+              "coverage": "not-compared"
+            }
+          ]
+        },
+        "source": {
+          "auditId": "audit-a",
+          "findingId": "finding-a",
+          "receiptId": "receipt-a",
+          "firstReceiptId": "receipt-a",
+          "hintsAvailability": "unavailable",
+          "hintsReason": "not_recorded",
+          "familiesAvailable": false
+        },
+        "targetBasis": "immutable-first-receipt",
+        "items": [],
+        "rowsExamined": 897,
+        "workLimited": true,
+        "page": {
+          "hasMore": true
+        }
+      }
+    },
+    {
+      "name": "terminal-page-has-no-cursor",
+      "schema": "FindingMembersPage",
+      "valid": false,
+      "document": {
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "project",
+          "projectId": "project-a",
+          "auditIds": []
+        },
+        "fence": {
+          "projectId": "project-a",
+          "projectRevision": 3,
+          "audits": []
+        },
+        "groupKey": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "representative": {
+          "auditId": "audit-a",
+          "findingId": "finding-a"
+        },
+        "items": [],
+        "page": {
+          "hasMore": false,
+          "nextCursor": "unexpected"
+        }
+      }
+    },
+    {
+      "name": "pair-requires-two-audits",
+      "schema": "FindingComparisonPage",
+      "valid": false,
+      "document": {
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "audit-pair",
+          "projectId": "project-a",
+          "auditIds": [
+            "audit-a"
+          ]
+        },
+        "fence": {
+          "projectId": "project-a",
+          "audits": [
+            {
+              "auditId": "audit-a",
+              "revision": 3,
+              "state": "draft",
+              "profile": {
+                "name": "example",
+                "version": "1",
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "baselineDigestEncoding": "postgres-jsonb-text/v1",
+              "coverage": "not-compared"
+            },
+            {
+              "auditId": "audit-b",
+              "revision": 3,
+              "state": "draft",
+              "profile": {
+                "name": "example",
+                "version": "1",
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "baselineDigestEncoding": "postgres-jsonb-text/v1",
+              "coverage": "not-compared"
+            }
+          ]
+        },
+        "leftAuditId": "audit-a",
+        "rightAuditId": "audit-b",
+        "limitations": [
+          "absence-is-not-remediation"
+        ],
+        "items": [],
+        "page": {
+          "hasMore": false
+        }
+      }
+    },
+    {
+      "name": "pair-requires-distinct-audits",
+      "schema": "FindingComparisonPage",
+      "valid": false,
+      "document": {
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "audit-pair",
+          "projectId": "project-a",
+          "auditIds": [
+            "audit-a",
+            "audit-a"
+          ]
+        },
+        "fence": {
+          "projectId": "project-a",
+          "audits": [
+            {
+              "auditId": "audit-a",
+              "revision": 3,
+              "state": "draft",
+              "profile": {
+                "name": "example",
+                "version": "1",
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "baselineDigestEncoding": "postgres-jsonb-text/v1",
+              "coverage": "not-compared"
+            },
+            {
+              "auditId": "audit-b",
+              "revision": 3,
+              "state": "draft",
+              "profile": {
+                "name": "example",
+                "version": "1",
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "baselineDigestEncoding": "postgres-jsonb-text/v1",
+              "coverage": "not-compared"
+            }
+          ]
+        },
+        "leftAuditId": "audit-a",
+        "rightAuditId": "audit-b",
+        "limitations": [
+          "absence-is-not-remediation"
+        ],
+        "items": [],
+        "page": {
+          "hasMore": false
+        }
+      }
+    },
+    {
+      "name": "unknown-read-policy",
+      "schema": "FindingMembersPage",
+      "valid": false,
+      "document": {
+        "policyVersion": "semantic/v1",
+        "scope": {
+          "kind": "project",
+          "projectId": "project-a",
+          "auditIds": []
+        },
+        "fence": {
+          "projectId": "project-a",
+          "projectRevision": 3,
+          "audits": []
+        },
+        "groupKey": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "representative": {
+          "auditId": "audit-a",
+          "findingId": "finding-a"
+        },
+        "items": [],
+        "page": {
+          "hasMore": false
+        }
+      }
+    },
+    {
+      "name": "cursor-bound",
+      "schema": "FindingCandidatesPage",
+      "valid": false,
+      "document": {
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "project",
+          "projectId": "project-a",
+          "auditIds": []
+        },
+        "fence": {
+          "projectId": "project-a",
+          "projectRevision": 3,
+          "audits": [
+            {
+              "auditId": "audit-a",
+              "revision": 3,
+              "state": "draft",
+              "profile": {
+                "name": "example",
+                "version": "1",
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "baselineDigestEncoding": "postgres-jsonb-text/v1",
+              "coverage": "not-compared"
+            }
+          ]
+        },
+        "source": {
+          "auditId": "audit-a",
+          "findingId": "finding-a",
+          "receiptId": "receipt-a",
+          "firstReceiptId": "receipt-a",
+          "hintsAvailability": "unavailable",
+          "hintsReason": "not_recorded",
+          "familiesAvailable": false
+        },
+        "targetBasis": "immutable-first-receipt",
+        "items": [],
+        "rowsExamined": 897,
+        "workLimited": true,
+        "page": {
+          "hasMore": true,
+          "nextCursor": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      }
+    },
+    {
+      "name": "candidate-page-bound",
+      "schema": "FindingCandidatesPage",
+      "valid": false,
+      "document": {
+        "policyVersion": "qualified-snapshot/v1",
+        "scope": {
+          "kind": "project",
+          "projectId": "project-a",
+          "auditIds": []
+        },
+        "fence": {
+          "projectId": "project-a",
+          "projectRevision": 3,
+          "audits": [
+            {
+              "auditId": "audit-a",
+              "revision": 3,
+              "state": "draft",
+              "profile": {
+                "name": "example",
+                "version": "1",
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "baselineDigestEncoding": "postgres-jsonb-text/v1",
+              "coverage": "not-compared"
+            }
+          ]
+        },
+        "source": {
+          "auditId": "audit-a",
+          "findingId": "finding-a",
+          "receiptId": "receipt-a",
+          "firstReceiptId": "receipt-a",
+          "hintsAvailability": "unavailable",
+          "hintsReason": "not_recorded",
+          "familiesAvailable": false
+        },
+        "targetBasis": "immutable-first-receipt",
+        "items": [
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {}
+        ],
+        "rowsExamined": 897,
+        "workLimited": true,
+        "page": {
+          "hasMore": true,
+          "nextCursor": "cursor-a"
+        }
+      }
+    }
+  ]
+}

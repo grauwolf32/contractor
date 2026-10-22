@@ -309,8 +309,9 @@ call identity fails before submission (FAIL-FND-1).
 `submit_check_result(proposal_keys=...)`
 ([worker completion](../audits/worker-completion.md)).
 
-**FND-R28.** Finding creation introduces no content-based deduplication and
-no guessed subject.
+**FND-R28.** Finding creation never suppresses or merges proposals by content
+and never guesses a subject. Qualified deterministic equality adds only the
+system-owned correlation projection (FND-R174 through FND-R178).
 
 ### CWE classification
 
@@ -538,6 +539,294 @@ sequenceDiagram
     S-->>R: Receipt (the original receipt on a replay with the same digest)
     R-->>M: proposal_id, receipt_id, client_key, exact evidence_refs when capture was selected
 ```
+
+### Deterministic producer fingerprint evidence
+
+**FND-R163.** Intake derives an immutable optional fingerprint projection on
+its existing receipt. Neither the proposal nor the private receipt response,
+model-visible `finding` facades or `list_findings` contract changes. The model
+supplies no matching descriptor, hash, producer identity or stability claim.
+The owner finding view exposes `fingerprint` from its first receipt; this is
+correlation evidence and does not set an analyst verdict or severity.
+
+**FND-R164.** The closed initial adapter `pinned-sarif-native/v1` consumes
+only exact Stage input artifacts also selected as finding evidence: one Git
+source with immutable import provenance and one `application/sarif+json`
+report. It reads no other Run artifacts and performs no fetch or model call.
+The report must use SARIF 2.1.0, one matching Git provenance entry per relevant
+run, an explicit driver name and version, and a full nonempty `fingerprints`
+map. `partialFingerprints` alone, prose, CWE or a rule ID do not qualify.
+This binding proves the owner's selected report and source basis, not that a
+scanner actually executed or that a vulnerability is confirmed. Runtime
+scanner output without this owner-pinned provenance remains unavailable.
+
+**FND-R165.** A qualifying result binds the finding to the machine observation:
+its title equals the exact `ruleId`, its description equals literal
+`message.text` with no formatting arguments, and it has one primary source
+location and no subject, hypothesis, extra classification, preconditions,
+checks, limitations or HTTP exchange. Severity is independent. A different
+issue at the same coordinate does not inherit a native key. Rephrased or
+enriched findings remain ordinary observations with an unavailable native
+key. This is deterministic validation of the supported native projection;
+report prose never enters the key. The qualifying record must uniquely match
+the finding's exact relative source path and primary start line, or complete range. Absolute paths,
+base URI remapping, traversal, ambiguous result selection and mismatched Git
+provenance do not qualify. Record position selects evidence only and is not
+part of equality. Hash lowercase SHA-256 over RFC 8785 canonical JSON of
+`["contractor/producer-issue/v1", ["git", repository],
+"contractor/pinned-sarif", "snapshot/v1", ruleId,
+["snapshot", [commit, sourceDigest]], [driverName, driverVersion, fingerprints]]`.
+The repository and commit come from trusted Git import metadata. Native keys
+are scoped to this exact snapshot; cross-commit stability is not inferred.
+Severity, prose, Run identity and record order do not affect equality.
+
+**FND-R166.** Strictly validate projection writes and reads. The schema is
+`contractor.finding.fingerprint-projection.v1`; availability is `available`
+with algorithm, value, adapter, rule, Git repository/commit, source digest,
+exact report/source descriptors and record locator, or `unavailable` with
+one closed reason and no key fields. Reasons are `not_recorded`,
+`not_provided`, `input_limit`, `producer_key_unavailable`,
+`producer_report_invalid`, `producer_record_ambiguous`, `asset_unavailable`
+and `discarded`. Absent, unsupported, malformed optional reports or optional
+preparation bounds preserve a valid ordinary finding. Foreign exact refs,
+integrity and storage errors retain their existing permanent/retryable class
+and never commit a partial receipt (FAIL-FND-1). Limits are LIM-FND-33 through
+LIM-FND-37. No permissive legacy decoder or historical reparse exists.
+
+**FND-R167.** Resolve optional exact inputs before the short intake
+transaction. The transaction revalidates selected evidence and stores the
+projection atomically with the receipt. Reconcile replay from the receipt
+before reading optional sources, including after source Run deletion; equal
+keys from independent calls retain independent receipts. Migration marks
+existing rows explicitly `not_recorded` without changing their existing data.
+Audit-held projections survive source deletion and one destination's purge;
+when their receipt becomes discarded, erase all derived key content and
+record only `discarded` (LIFE-FND-1). Project purge owns final row deletion.
+
+### Exact-source structural correlation evidence
+
+**FND-R168.** The Runtime publisher may prepare a closed optional
+`derived_anchors` value from existing source locations and explicitly selected
+exact evidence. This field belongs only to the authenticated private publisher;
+all model-visible finding facades, descriptions, arguments and response shapes,
+and `list_findings`, stay unchanged. No model emits a hash, parser profile or
+issue-context claim. Generic Artifact writes cannot stamp a trusted derivation.
+Missing source, unknown coordinates or optional preparation limits preserve the
+ordinary finding with an unavailable projection. No extra artifact or receipt is
+created, and evidence order/count and analyst triage remain independent.
+
+**FND-R169.** Derive only from one unambiguous selected ZIP, at most 32
+selected locations, 8 MiB compressed input and distinct parsed source, 4 MiB per
+file, and 20000 archive entries with 128 MiB declared expansion. Use only exact
+case-sensitive relative paths, at most 512 UTF-8 bytes and 32 components; reject
+unsafe, duplicate, encrypted, link/special or conflicting archive entries.
+Parse each selected UTF-8 file once outside the event loop with pinned
+Tree-sitter 0.25.2 and language-pack 1.14.3. Discard its AST before the next
+file. Profiles `python/statement-v1`, `javascript/statement-v1` and
+`typescript/statement-v1` support `.py`, `.js/.mjs/.cjs` and `.ts`, respectively;
+other languages, including TSX, are explicitly unsupported.
+Use only already cached versioned grammars during publication; missing or
+unloadable grammars yield `anchor_parser_unavailable`, without a lazy download.
+Runtime installation/test preparation owns prefetching pinned parser assets.
+
+**FND-R170.** Resolve an exact inclusive line/range to one supported
+statement. Python statements must be direct children of a module/block;
+JavaScript/TypeScript support lexical/variable declarations, expression,
+return and throw statements. A definition's complete range, several statements
+on a line, missing nodes and parser errors never select an arbitrary node.
+Use the common CRLF/CR/LF coordinate scheme; parser rows alone are insufficient.
+Canonical ordered AST kinds/fields/leaves preserve exact identifiers, literals,
+punctuation and block structure. Ignore ordinary comments and inter-token trivia;
+retain directive comments (`#!`, `//#`, `//!`, `/*!`, `/**`, type/noqa/nosec,
+pragma, coding, pyright/mypy/fmt/pylint/eslint/tslint, coverage, prettier, source
+mapping and `@` directives), hashbangs and standalone string directives.
+Enclosing headers, callable binding names, decorators and retained directives
+produce a signature digest. Ordered named-child paths distinguish repeated
+statements; no renaming, fuzzy mapping or inferred symbol identity occurs.
+A parse/derivation visits at most 100000 nodes/steps, retains at most 256 KiB of
+canonical token bytes, limits structural path depth to 128 and canonical depth
+to 64, and cooperatively checks a 10-second budget. The whole optional Runtime
+preparation has its separate 30-second deadline and joins cancelled parsing.
+
+**FND-R171.** The Server strictly validates the closed
+`contractor.finding.anchors-derived.v1` record, at most 16 KiB. Available records
+contain exact source ref/digest and 1–32 anchors, each with file/range,
+language/profile/grammar, exact file digest, signature digest, named-child path
+and node digest; optional context has a closed scheme/rule/proof. It verifies
+that the source is selected evidence and an immutable Stage input, checks its
+trusted Git repository/commit and exact archive/member digests before mutation
+locks, then revalidates allocation/evidence authority in the intake transaction.
+Unknown/missing/null members, forged refs, changed selectors, wrong hashes or
+unsupported declared schemes are permanent validation failures under existing
+intake codes. Infrastructure/read errors retain their class. An admissible
+source without trusted Git identity yields `asset_unavailable`; ownership is
+still enforced by ordinary intake. Go validates authenticated derivations and
+exact bytes; it does not implement a second AST normalizer.
+
+**FND-R172.** Site keys hash RFC 8785 JSON
+`["contractor/structural-site/v1", ["git", repository], file, profile, grammar,
+signatureDigest, path, nodeDigest]`. They are candidate evidence only. A shared
+sink or CWE does not establish issue equivalence. The initial machine-local
+scheme recognizes one simple literal assignment/declaration of an unencrypted
+Ed25519 PKCS8 private key, validates it with the pinned cryptographic parser,
+and requires sole CWE-321 classification, one source location and no additional
+issue claims or HTTP evidence. Its rule is
+`source.private-key-literal.ed25519/v1`, context `node-local/v1`, and context
+digest hashes `["node-local-private-key/v1", "ed25519", literalDigest]`.
+The literal is bounded to 512 decoded bytes and never copied into metadata or
+logs. This check establishes the local issue instance, not exploitability or
+an analyst verdict. Other languages, key formats and flow-sensitive problems
+have no qualified local context. Snapshot issue keys hash
+`["contractor/snapshot-issue-anchor/v1", ["git", repository],
+[commit, sourceDigest], ruleId, siteKey, contextScheme, contextDigest]`.
+Keys are lowercase SHA-256 hex. Cross-snapshot automatic matching is forbidden;
+site-only records expose `issue_context_unavailable`.
+
+**FND-R173.** Retain `contractor.finding.anchors-projection.v1` inline on
+the immutable receipt, bounded to 32 KiB, with the authenticated source/basis and
+Server-computed keys, or one unavailable reason. The owner finding view exposes
+`anchors` from its first receipt; private/model reader responses do not change.
+Reasons are `not_recorded`, `not_provided`, `input_limit`, `asset_unavailable`,
+`selector_unavailable`, `anchor_language_unsupported`, `anchor_parser_unavailable`, `source_invalid`,
+`source_missing`, `parse_error`, `anchor_ambiguous` and `discarded`.
+Migration marks existing rows `not_recorded` without reparsing. Existing receipt
+replay precedes source reads; transport retries use byte-identical prepared
+submissions. Independent calls remain separate observations. Audit holds retain
+exact sources and derivations after source Run deletion, another Audit's purge
+does not remove them, and discard clears every derived field to the unavailable
+`discarded` marker. Existing Project purge owns final deletion. Limits are
+LIM-FND-38 through LIM-FND-41; failures/lifecycle reuse FAIL-FND-1 and LIFE-FND-1.
+
+### Automatic correlation across Audits
+
+**FND-R174.** Every admitted Audit finding retains its own observation identity,
+first receipt, evidence, assessments and human results. Freeze the primary key
+from that first receipt: a qualified `contractor/producer-issue/v1` key under
+`pinned-sarif-native/v1` first, otherwise exactly one distinct qualified
+`contractor/snapshot-issue-anchor/v1` issue key. Several distinct issue keys are
+`primary_key_ambiguous`; site-only, unsupported or missing keys are
+`no_qualified_key`; both original projections marked `not_recorded` remain
+`not_recorded`. Later contributions never change the primary key or bridge
+separate schemes. No LLM, embedding, prose similarity or human confirmation
+participates in automatic equality.
+
+**FND-R175.** Persist only immutable primary algorithm/value, unavailable reason,
+actual Audit Project and group hash on the existing finding row. The group hash
+is SHA-256 hex of RFC 8785 JSON
+`["contractor/finding-group/v1", project_id, algorithm, value]`.
+The database derives scope from the Audit, enforces its composite foreign key,
+validates the group shape and rejects primary/first-receipt mutation. Migration
+freezes already retained projections without changing receipts or reparsing
+source. There is no global identity, membership table, extra receipt or
+background controller.
+
+**FND-R176.** Authorized finding detail/list responses include the closed
+`contractor.finding.correlation.v1` projection under policy
+`qualified-snapshot/v1`. It returns Project scope/revision, availability and
+reason, or group/basis, `matchedDomain: snapshot`, representative Audit/finding,
+`automaticDuplicate` and `hasOtherObservations`. Choose the bytewise smallest
+retained finding ID in that Project group. Only other members have
+`automaticDuplicate: true`; the representative reports whether another member
+exists. Unavailable keys have neither group nor representative and both flags
+are false. Representative choice confers no truth, severity or discovery credit.
+The read uses one PostgreSQL statement snapshot, deduplicated requested page
+groups and two indexed first/next probes per group, with no peer count or
+per-peer hydration (LIM-FND-42). Ownership is checked before group presentation.
+Model/private finding tools and collection contents remain unchanged.
+
+**FND-R177.** An opaque `finding_correlation_revision` on the existing Project
+row fences current membership, triage/assessment, additional contributions and
+retained source availability. Advance it within the existing transaction once
+per affected Project per mutation statement; natural-key replay advances
+neither membership nor revision/events. Keep Run then Audit authority order;
+import acquires a nonblocking Project `FOR NO KEY UPDATE NOWAIT` before any
+retained artifact admission. Other child mutations also acquire this fence
+without waiting; contention becomes the existing retryable SQLSTATE `40001`,
+finite transaction retries and HTTP `503 storage_transaction_conflict` with
+`Retry-After`. No new claim or advisory lock is introduced. The revision is an
+exact integer in 1..9007199254740991 and cannot decrease or skip an increment.
+A finding page's Audit revision still fences its own observations; the explicit
+Project revision fences current correlation, which may change when another
+Audit admits or removes a peer. Existing events invalidate the affected Audit;
+there is no synthetic human decision/event or fanout write to peer Audits.
+
+**FND-R178.** Automatic marks never change analyst state, TP/FP, severity,
+manual duplicate targets, finding revision, pending review subject or frozen
+accepted reports. Current correlation remains readable alongside independently
+confirmed/rejected/manual-duplicate results. Source Run deletion retains exact
+Audit-held keys/evidence and advances the provenance fence. Audit purge removes
+only its own memberships in existing bounded batches, advances affected Audit
+and Project fences and deterministically promotes any surviving representative
+without peer writes. Project purge removes all memberships under existing
+lifecycle authority. Rejection/cancellation rolls back; uncertain commits
+reconcile existing receipt/natural keys before another mutation (FAIL-FND-6,
+LIFE-FND-4).
+
+### Bounded candidate, comparison and member reads
+
+**FND-R179.** Owner-authorized read-only candidate, two-Audit comparison and
+all-member endpoints expose current correlation without changing receipt,
+triage, review or evidence state. They use default 20/max 100 rows, at most
+256 KiB JSON, a 1024-byte signed cursor and the registered
+`finding_correlation_stale` (409) and
+`finding_correlation_item_too_large` (422) errors. Cursors bind owner, Project,
+source finding/receipt, exact selection, limit and policy. Project-wide reads
+fence the dedicated Project revision; Audit and pair restrictions fence only
+their selected Audit revisions. Recheck around bounded hydration; a changed
+fence requires restarting. Missing or foreign sources use the same 404.
+Existing classified storage conflicts retain retryable 503/Retry-After.
+
+**FND-R180.** Candidate scope defaults to Project; `scope=audit` restricts to
+the source Audit. A selected target Audit belongs to the same owned Project.
+An optional source receipt must actually contribute to the source finding;
+otherwise use its first receipt. Match that selected source against each
+target's immutable first receipt, while always retaining the source finding's
+existing primary equality. Supporting receipts are searchable as explicitly
+selected sources, with no unbounded target-contribution fanout. Fixed tiers
+are primary equality, selected qualified producer equality, structural site,
+and exact Project/nonnull-subject/tagged-family hints. Each target appears
+only at its strongest tier. Site/family and secondary matches never regroup
+findings. Return at most eight reason pairs with explicit truncation and
+limitations; no title/description/LLM similarity participates.
+
+**FND-R181.** Strong tiers seek their exact Project/Audit group directly.
+Weaker tiers examine an indexed work window of at most 897 matching-input
+rows, plus at most 100 result summaries and up to three source lookup/exclusion rows, within
+the 1000-row work budget. Cursors retain examined-row and tier progress;
+empty progress pages may have `hasMore`. A compact comparison projection on
+the existing immutable receipt bounds each matching/display read to 32 KiB.
+Its display title is an explicitly truncated 256-character preview; full
+material remains on finding detail. Optional family hints are unavailable
+when more than 32 refs or a version over 160 UTF-8 bytes exceeds that hint
+contract. Never truncate a key into guessed equality. Structural and qualified
+producer keys retain their owning exact projections. Discard clears this
+comparison projection; no new table, receipt or Artifact hold is introduced.
+
+**FND-R182.** Compare exactly two distinct owned Audits in one Project into
+exact primary groups (`both`, `left-only`, `right-only`) and individually
+identified `unmatched` observations. Recursive next-group index seeks skip
+high-multiplicity groups; unmatched rows have their own keyset phase. Return
+one bounded preview per side, pair-relative smallest-ID representative and
+all-member navigation. Every selected observation is reachable exactly once
+through its group or unmatched row. Previews preserve first receipt, source
+Workflow/digest, retained Run availability, current triage, proposal/analyst
+severity and semantic assessment. Receipt equality identifies shared import;
+`previewsShareReceipt` describes only the shown previews, never whole-group
+independent-discovery totals. Profile and baseline digest (explicitly
+`postgres-jsonb-text/v1`) give context; coverage is `not-compared`. One-sided
+or unmatched observations never imply a fixed/new vulnerability or clean scan.
+No whole-comparison totals or complete-coverage claims are inferred.
+
+**FND-R183.** Member pages select Project, one Audit or an exact Audit pair,
+return every retained observation through signed keyset cursors and choose the
+representative within that same explicit scope. Pair traversal uses separate
+bounded probes of each selected Audit rather than scanning and filtering a
+Project-wide group. An unrelated third Audit's update cannot stale a pair
+comparison/member traversal. Current Project membership and independent
+results continue to follow FND-R178; the read adds no lifecycle resource. The
+Server supplies each scoped preview role (`representative` or
+`automatic-duplicate`) separately from human triage; the browser computes no
+finding equality.
 
 ### Proposals of ordinary Runs
 
@@ -1064,7 +1353,7 @@ evidence membership.
   revisions LIM-FND-13; collection bounds LIM-FND-14 to LIM-FND-23;
   publication selectors LIM-FND-24 and LIM-FND-25; reader page size
   LIM-FND-26, previews LIM-FND-27 and LIM-FND-28, response LIM-FND-29 and
-  cursor LIM-FND-30 and LIM-FND-31. Bounds cited here but owned elsewhere: the
+  cursor LIM-FND-30 and LIM-FND-31; producer fingerprints LIM-FND-33 to LIM-FND-37. Bounds cited here but owned elsewhere: the
   `contractor.audit.package.v1` transport bounds by
   [audits](../audits/audits.md) (AUD-R128); the Artifact name bound of
   `clientKey` (LIM-ART-1) by [artifact store](../artifacts/artifact-store.md)
@@ -1196,8 +1485,8 @@ The end-to-end path of a proposal from an ordinary Run to an Audit is shown in
   through adapters or migrations (FND-R1, FND-R145).
 - A separate findings database or second finding store (FND-R100,
   FND-R113).
-- Implicit or content-based deduplication of findings (FND-R14,
-  FND-R28, FND-R66).
+- Suppression or merging of findings by implicit content similarity (FND-R14,
+  FND-R28, FND-R66); qualified automatic labels retain every observation.
 - Collection-specific recursive input handling (FND-R119).
 - Live CWE taxonomy lookup (FND-R31).
 - SARIF export, which remains a separate draft

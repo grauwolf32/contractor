@@ -34,7 +34,7 @@ receipt.workflow_configuration_ref, receipt.workflow_closure_digest,
 receipt.audit_id, receipt.audit_execution_id, receipt.audit_role,
 receipt.proposal_ref, receipt.proposal_digest, receipt.proposal_media_type,
 receipt.proposal_size_bytes, receipt.evidence,
-receipt.retention_state, receipt.source_run_deleted_at, receipt.created_at`
+receipt.retention_state, receipt.source_run_deleted_at, receipt.created_at, receipt.fingerprint_projection, receipt.anchor_projection`
 
 func readReceiptBySubmission(
 	ctx context.Context,
@@ -63,7 +63,7 @@ func scanReceipt(ctx context.Context, db querier, row pgx.Row) (Receipt, error) 
 
 func scanReceiptRow(row pgx.Row) (Receipt, error) {
 	var result Receipt
-	var configurationRef, proposalRef, evidenceJSON []byte
+	var configurationRef, proposalRef, evidenceJSON, fingerprintJSON, anchorJSON []byte
 	var auditID, auditExecutionID, auditRole *string
 	var sourceDeletedAt *time.Time
 	err := row.Scan(
@@ -77,7 +77,7 @@ func scanReceiptRow(row pgx.Row) (Receipt, error) {
 		&auditID, &auditExecutionID, &auditRole,
 		&proposalRef, &result.Proposal.Digest, &result.Proposal.MediaType,
 		&result.Proposal.SizeBytes, &evidenceJSON,
-		&result.Retention, &sourceDeletedAt, &result.CreatedAt,
+		&result.Retention, &sourceDeletedAt, &result.CreatedAt, &fingerprintJSON, &anchorJSON,
 	)
 	if err != nil {
 		return Receipt{}, err
@@ -91,6 +91,14 @@ func scanReceiptRow(row pgx.Row) (Receipt, error) {
 		result.Proposal.MediaType != proposalMediaType ||
 		result.Proposal.Digest == "" || result.Proposal.SizeBytes < 0 || !result.Retention.valid() {
 		return Receipt{}, errors.New("validate stored finding proposal receipt")
+	}
+	result.Fingerprint, err = auditdomain.DecodeFindingFingerprint(fingerprintJSON)
+	if err != nil {
+		return Receipt{}, fmt.Errorf("decode stored finding fingerprint: %w", err)
+	}
+	result.Anchors, err = auditdomain.DecodeFindingAnchors(anchorJSON)
+	if err != nil {
+		return Receipt{}, fmt.Errorf("decode stored finding anchors: %w", err)
 	}
 	result.Origin.RunDeleted = sourceDeletedAt != nil
 	if auditID != nil {
@@ -531,6 +539,13 @@ SELECT project_id FROM workflow_runs
 	}
 	if collection && !slices.Contains(collectionRetentionAuditStates, auditState) {
 		return ErrAuditClosed
+	}
+	// Keep Run -> Audit authority unchanged. Project artifact admission takes
+	// FOR SHARE, so acquire the non-key parent lock without waiting before any
+	// retained artifact write; otherwise a Project deleter can wait on our
+	// Audit while its parent lock blocks that artifact admission.
+	if _, err := tx.Exec(ctx, "SELECT contractor_lock_finding_correlation_project($1)", sourceProjectID); err != nil {
+		return fmt.Errorf("lock Project correlation before finding retention: %w", err)
 	}
 	return nil
 }

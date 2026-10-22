@@ -20,8 +20,11 @@ UI dependencies. Choose a check by the boundary you changed:
 The aggregate targets and their exact dependencies are defined in the
 [Makefile](../../Makefile), which includes the grouped target files under
 [`make/`](../../make). Targets needing a test database declare
-`require-database`, and those reaching Python declare `runtime-venv`; both are
-prerequisites, so make prepares each at most once per invocation.
+`require-database`, and those reaching Python declare `runtime-venv`; the
+latter prepares locked Python dependencies and prefetched
+versioned parser assets, so capability probes and finding publication do not
+rely on a cold grammar download. Both are prerequisites, so make prepares each
+at most once per invocation.
 Gate definitions describe what a command checks; completed results are
 recorded in the corresponding task files.
 

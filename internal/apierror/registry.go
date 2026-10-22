@@ -436,3 +436,15 @@ func evalCode(code string, status int, message, meaning, owner string) Kind {
 	return define(code, status, false, message, meaning+" Retryable false: the recovery action in the details "+
 		"says what to do.", owner)
 }
+
+// Finding correlation reads use explicit stale traversal and bounded-content errors.
+var (
+	FindingCorrelationStale = define("finding_correlation_stale", http.StatusConflict, false,
+		"finding comparison changed; restart from the first page",
+		"A selected Project or Audit revision changed during a candidate, comparison or member traversal; restart without mixing revisions.",
+		link("FND-R179", "../findings/findings.md"))
+	FindingCorrelationItemTooLarge = define("finding_correlation_item_too_large", http.StatusUnprocessableEntity, false,
+		"finding comparison item cannot fit its bounded preview",
+		"One mandatory comparison item cannot fit the bounded page representation; no observation is silently omitted.",
+		link("FND-R179", "../findings/findings.md"))
+)
