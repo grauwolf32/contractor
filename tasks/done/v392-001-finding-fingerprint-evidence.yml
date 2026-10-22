@@ -5,7 +5,7 @@ milestone: finding-correlation-2026-10
 epic: findings
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - go
@@ -165,7 +165,7 @@ tests:
   - A6
 verification:
   date: '2026-10-22'
-  status: final verification before completion metadata
+  status: passed
   checks:
   - Full auditdomain, findingintake, auditservice, artifacts, privateartifacts and public Go suites passed with disposable PostgreSQL and physical
     TMPDIR.
@@ -181,5 +181,6 @@ verification:
     failed macOS run was not reported as a pass.'
   - make test-findings-e2e passed all 14 mandatory process cases and 163 finding Runtime cases after the independent V392-010 repair.
   - make verify-public-api ui-verify passed; Worker declarations match the pinned full provider fixture.
-  - Shared fixture gate and final lint are repeated after the exact-native-binding regression.
+  - Final make lint and test-wire-cross-language passed after the exact-native-binding regression; 239 shared fixtures, 215 Go and 165 Python shared tests, and 300 Runtime wire tests passed.
   required_repair: V392-010 fixes Audit.start failure independently reproduced on base c52fb5d3e6bf593d96d6024593a11d6f237ab41c.
+implementation_commit: 77a59b669fd9d7877d1ea54ba3bc7112d8d8b772
