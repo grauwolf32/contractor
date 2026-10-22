@@ -12,6 +12,7 @@ dependencies = [
   "idna>=3,<4",
   "jcs>=0.2,<1",
   "opentelemetry-proto==1.42.1",
+  "psutil>=7.2.2,<8",
   "pydantic>=2.11,<3",
   "pyyaml>=6.0,<7",
   "regex>=2026.7,<2027",

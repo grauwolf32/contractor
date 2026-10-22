@@ -1,0 +1,116 @@
+schema_version: "1.0"
+id: V393-001
+title: Collect portable Server and Runtime process CPU and RSS
+milestone: operations-performance-and-profiling
+epic: operations
+kind: feature
+priority: P1
+status: in_progress
+depends_on: [V32-002, V32-004]
+languages: [go, python]
+goal: >-
+  Show current process CPU and resident memory on macOS and Linux through the
+  existing performance API and allocation reports, preserving collection scope,
+  failure isolation and builds without cgo.
+context:
+  specification: docs/spec/operations/operations.md#OPS-R73
+  siblings: >-
+    internal/performance/process_linux.go and process_other.go implement Linux-only
+    Server readings; runtime/src/contractor_runtime/telemetry/resources.py:40
+    rejects every non-Linux host. Both readers change together. Existing API,
+    aggregation and UI already support the fields and remain unchanged.
+scope:
+  in:
+    - Replace OS-specific Server process reads with gopsutil v4.
+    - Replace Runtime process reads with psutil and update dependency locks.
+    - Specify Linux and macOS support and preserve explicit unavailable readings.
+    - Test real processes and independent read failures on macOS and Linux, including cgo-disabled builds.
+  out:
+    - Host-wide, child-process, container, GPU or Python object-allocation measurements.
+    - Changes to public or private wire fields, retention, allocation ownership or sampling intervals.
+requirements:
+  - id: R1
+    text: >-
+      Read only the current process. Preserve cumulative user/system CPU seconds,
+      current RSS bytes, monotonic CPU deltas, Go runtime counters and sampled
+      allocation-local RSS peaks. Never substitute a lifetime high-water mark.
+  - id: R2
+    text: >-
+      Preserve independently readable CPU or RSS on failure, report read_failed
+      or unsupported_platform without raw errors, and never affect execution.
+  - id: R3
+    text: >-
+      Runtime periodic samples read RSS only; boundaries also read CPU. Reads are
+      serialized and retain constant-size collector state without subprocesses.
+failure_outcomes:
+  - operation: Read current process CPU and RSS through gopsutil or psutil
+    permanent: Unsupported measurements remain absent with unsupported_platform; other failures use read_failed.
+    retryable: No immediate retry; the existing next scheduled sample attempts collection again.
+    ambiguous: Read-only kernel observations have no committed mutation to reconcile.
+    cancelled: Existing sampler ownership and shutdown remain unchanged; no background reads are introduced.
+    timeout: No subprocess or network calls; retain bounded current-process observations.
+cardinality:
+  - collection: Processes and resource counters per sample
+    expected: One current process and three OS counters.
+    maximum: One current process and three OS counters, plus the existing fixed Go runtime counter set.
+    bound: No process enumeration or time-series accumulation; sampling remains every 15 seconds.
+lifecycle:
+  - entity: Performance observations and allocation accumulator
+    delete: Existing Server lifecycle and allocation teardown own collection.
+    cascade: No new durable entity, sampler or cleanup path.
+    retention: Existing live-frame, minute-history and terminal-report retention remain unchanged.
+acceptance_criteria:
+  - id: A1
+    given: A real process on macOS or Linux.
+    when: Server and Runtime process readers run.
+    then: Both return nonnegative CPU counters and positive current RSS; periodic Runtime reads omit CPU.
+  - id: A2
+    given: Independent CPU/RSS failures, unsupported operations, missing baselines and sequential allocations.
+    when: Samples and final reports are assembled.
+    then: Available measurements survive, missing values stay absent, reasons are bounded and peaks/baselines stay allocation-local.
+  - id: A3
+    given: macOS and Linux toolchains with cgo disabled.
+    when: The production commands build and the process-reader packages run.
+    then: Builds and real-process checks pass without cgo and without starting external monitoring services.
+tests:
+  - command: go test -race -count=1 ./internal/performance
+    covers: [A1, A2]
+  - name: linux-runtime-suite
+    command: cd runtime && uv run pytest -W error
+    covers: [A1, A2]
+  - name: macos-runtime-resources-and-lifecycle
+    command: cd runtime && uv run pytest -W error tests/test_resource_metrics.py tests/test_performance_contracts.py tests/test_allocation.py tests/test_capabilities.py tests/test_metrics.py
+    covers: [A1, A2]
+  - command: CGO_ENABLED=0 go test -count=1 ./internal/performance && CGO_ENABLED=0 go build ./cmd/...
+    covers: [A1, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+
+verification:
+  verified_on: "2026-10-22"
+  environment: >-
+    Isolated codex/portable-performance-metrics worktree; Go 1.26.9,
+    gopsutil v4.26.9, psutil 7.2.2. Native macOS arm64 uses Python 3.13.16;
+    native Linux aarch64 runs directly inside the existing Podman VM with
+    Python 3.13.14 and a separate Runtime environment/cache. No VM restart,
+    deployment or primary-checkout mutation. Disposable local PostgreSQL 17
+    provides the real-store performance checks.
+  results:
+    - macOS go test -race -count=1 ./internal/performance passed.
+    - macOS go test -race -tags=integration -count=1 ./internal/performance passed against disposable PostgreSQL.
+    - macOS and Linux CGO_ENABLED=0 go test -count=1 ./internal/performance and CGO_ENABLED=0 go build ./cmd/... passed.
+    - CGO_ENABLED=0 command cross-builds for darwin/amd64 and linux/amd64 passed; native arm64 execution is covered on both OSes.
+    - Full Linux Runtime suite passed, 4146 passed and 53 skipped; skips are not counted as passes.
+    - macOS resource, contract, allocation, capability and metrics suites passed, 150 passed.
+    - make lint passed, including Go vet/staticcheck, task/spec/fixture gates, UI checks, Ruff and all five Python import-layer contracts.
+    - make test-performance-go passed across performance, profiling, app, controlplane, public API and performancebench consumers.
+    - make test-wire-cross-language passed, including 238 fixtures, 214 Go shared tests and 164 Python shared tests.
+  limitations: >-
+    The full macOS Runtime suite was also attempted with Go on PATH:
+    4049 passed, 38 skipped, 111 failed and one error in unrelated Podman,
+    workspace, scanner and process tests. An unchanged-baseline comparison
+    reproduces the Podman allocation, trailmark limit and local-I/O failures
+    (18 failed, 40 passed). These failures do not occur in the full Linux run.
+    The initial Runtime attempts omitted Go from PATH and were superseded
+    by the toolchain-corrected runs above. Intel targets were cross-built,
+    not executed on Intel hardware. No public/private wire shape changed.

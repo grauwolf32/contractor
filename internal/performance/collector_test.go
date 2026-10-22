@@ -332,8 +332,8 @@ func TestPerformanceFirstHTTPWindowIncludesStartupRequests(t *testing.T) {
 func TestPerformanceRealProcessAndWorkingPoolDoNotQuery(t *testing.T) {
 	reader := NewProcessReader()
 	p, reason := reader()
-	if runtime.GOOS == "linux" && (reason != "" || p.RSSBytes == nil || *p.RSSBytes == 0 || p.CPUUserSeconds == nil) {
-		t.Fatalf("Linux process readings unavailable: %s", reason)
+	if (runtime.GOOS == "linux" || runtime.GOOS == "darwin") && (reason != "" || p.RSSBytes == nil || *p.RSSBytes == 0 || p.CPUUserSeconds == nil || p.CPUSystemSeconds == nil) {
+		t.Fatalf("%s process readings unavailable: %s", runtime.GOOS, reason)
 	}
 	if p.GCPauses == nil || len(p.GCPauses.BoundsSeconds) > MaxGCPauseBounds || len(p.GCPauses.Counts) != len(p.GCPauses.BoundsSeconds)+1 {
 		t.Fatal("GC histogram missing/bounds")
