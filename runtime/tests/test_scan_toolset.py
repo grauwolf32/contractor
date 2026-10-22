@@ -38,14 +38,17 @@ def executable(tmp_path: Path, name: str, source: str) -> Path:
 
 @pytest.mark.parametrize("available_scanner", scan.SCANNERS, ids=lambda scanner: scanner.name)
 def test_capabilities_check_each_binary_independently(tmp_path, monkeypatch, available_scanner):
-    failures = iter(
-        ["import time; time.sleep(60)", "import sys; sys.exit(2)", "exit(3)", "exit(4)"]
-    )
+    failures = iter(["exec /bin/sleep 60", "exit 2", "exit 3", "exit 4"])
     for scanner in scan.SCANNERS:
+        # These probes test scanner independence, not Python interpreter startup time.
         source = (
-            "print('Current version: v1.7.0')" if scanner is available_scanner else next(failures)
+            "printf '%s\\n' 'Current version: v1.7.0'"
+            if scanner is available_scanner
+            else next(failures)
         )
-        executable(tmp_path, scanner.binary, source)
+        path = tmp_path / scanner.binary
+        path.write_text(f"#!/bin/sh\n{source}\n")
+        path.chmod(0o700)
     monkeypatch.setenv("PATH", str(tmp_path))
     monkeypatch.setattr(scan, "PROBE_TIMEOUT_SECONDS", 0.2)
 
