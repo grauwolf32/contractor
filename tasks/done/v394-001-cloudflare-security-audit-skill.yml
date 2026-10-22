@@ -5,7 +5,8 @@ milestone: agent-skills-port-and-hardening
 epic: agent-skills
 kind: feature
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 2670708771e8d63b6e73c4378118d3e882cea551
 depends_on: []
 languages: [go, python, javascript]
 goal: >-

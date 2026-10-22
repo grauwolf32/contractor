@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-76 open tasks: 5 in progress, 46 pending, 25 deferred. 925 finished: 922 completed, 3 archived.
+75 open tasks: 4 in progress, 46 pending, 25 deferred. 926 finished: 923 completed, 3 archived.
 
 ## In progress
 
@@ -15,7 +15,6 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V391-001](v391-001-annotation-safe-mutation-replay.yml) | code-analysis | defect | P1 | Preserve source semantics and exact replay in annotation tools |
-| [V394-001](v394-001-cloudflare-security-audit-skill.yml) | agent-skills | feature | P2 | Import Cloudflare security-audit with inspectable script resources |
 
 ## Pending
 
@@ -176,7 +175,7 @@ tasks in `introduced_by`.
 | Planners and the Worker model boundary (`planner-worker`) | 3 | 27 | 37 | 14 | 50 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 11 | 25 | 12 | 3 | 37 |
 | Shared Memory tools (`memory`) | 0 | 6 | 8 | 1 | 11 |
-| Agent Skills (`agent-skills`) | 1 | 11 | 2 | 1 | 1 |
+| Agent Skills (`agent-skills`) | 0 | 11 | 2 | 1 | 1 |
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 12 | 4 | 15 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 13 | 13 | 2 | 18 |
 | HTTP and Caido tools (`http-tools`) | 3 | 11 | 14 | 4 | 15 |
