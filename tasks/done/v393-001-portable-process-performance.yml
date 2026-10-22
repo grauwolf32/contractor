@@ -5,7 +5,8 @@ milestone: operations-performance-and-profiling
 epic: operations
 kind: feature
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: c3053cf87a2feb96e20055ee99a0ee19efbfd5b3
 depends_on: [V32-002, V32-004]
 languages: [go, python]
 goal: >-
@@ -107,10 +108,14 @@ verification:
     - make test-wire-cross-language passed, including 238 fixtures, 214 Go shared tests and 164 Python shared tests.
   limitations: >-
     The full macOS Runtime suite was also attempted with Go on PATH:
-    4049 passed, 38 skipped, 111 failed and one error in unrelated Podman,
-    workspace, scanner and process tests. An unchanged-baseline comparison
-    reproduces the Podman allocation, trailmark limit and local-I/O failures
-    (18 failed, 40 passed). These failures do not occur in the full Linux run.
+    4049 passed, 38 skipped, 111 failed and one error in Podman, workspace,
+    scanner and process tests outside this change. The full unchanged baseline
+    reproduces 110 failures (4040 passed, 40 skipped). Differences in the failing
+    test names are delayed unclosed-socket warnings from failed Podman tests;
+    the same unsupported macOS socket operations fail on both revisions.
+    A focused baseline probe also reproduces the Podman allocation, trailmark
+    limit and local-I/O failures (18 failed, 40 passed). These failures do not
+    occur in the full Linux run. All new process-resource tests pass on both OSes.
     The initial Runtime attempts omitted Go from PATH and were superseded
     by the toolchain-corrected runs above. Intel targets were cross-built,
     not executed on Intel hardware. No public/private wire shape changed.
