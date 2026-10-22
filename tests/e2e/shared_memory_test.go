@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	contractormemory "github.com/grauwolf32/contractor/internal/memory"
 	"github.com/grauwolf32/contractor/internal/planner/stageresult"
@@ -86,9 +87,20 @@ func runSharedMemoryProcesses(t *testing.T, production bool) {
 		filepath.Join(temporaryRoot, "configs"), gateway.URL(),
 	)
 	productionWorkflow := ""
+	workerTemplate := "shared_memory_worker@1"
 	if production {
 		productionWorkflow = stageProductionMemoryConfiguration(t, repositoryRoot, configRoot)
+		workerTemplate = "artifact_builder@2"
 	}
+	catalog, err := configload.Load(configRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	template, err := catalog.AgentTemplate(workerTemplate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gateway.workerModel = template.ModelPolicy.Model
 	publicAddress := freeAddress(t)
 	privateAddress := freeAddress(t)
 	publicBaseURL := "http://" + publicAddress
