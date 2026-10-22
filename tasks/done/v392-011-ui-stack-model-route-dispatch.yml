@@ -6,7 +6,7 @@ epic: ui
 kind: defect
 introduced_by: V387-002
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [go]
 goal: Let the real browser stack exercise the configured generated model routes without changing model configuration.
@@ -46,3 +46,11 @@ tests:
   covers: [A1, A2, A3]
 - command: make lint
   covers: [A1, A2, A3]
+
+verification:
+  date: "2026-10-22"
+  status: passed
+  checks:
+  - "make test-ui-stack passed the complete package, including 87 real browser cases and both native/external managed Evals, on a separate PostgreSQL database."
+  - "make ui-browser-mocked passed all 65 cases on Linux with no skipped, unexpected or flaky attempts; full make lint passed."
+implementation_commit: cac227950f315198ef0c842573ae5de3a7425ad8

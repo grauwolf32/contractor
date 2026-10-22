@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-81 open tasks: 6 in progress, 50 pending, 25 deferred. 934 finished: 931 completed, 3 archived.
+80 open tasks: 5 in progress, 50 pending, 25 deferred. 935 finished: 932 completed, 3 archived.
 
 ## In progress
 
@@ -15,7 +15,6 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V392-005](v392-005-finding-duplicate-comparison-ui.yml) | ui | feature | P2 | Show retained duplicates in a finding-owned disclosure across Audits |
-| [V392-011](v392-011-ui-stack-model-route-dispatch.yml) | ui | defect | P1 | Repair configured-model browser routing and gate coverage |
 | [V392-015](v392-015-portable-browser-evidence.yml) | ui | chore | P2 | Keep browser evidence paths portable across Linux and macOS |
 
 ## Pending
@@ -192,7 +191,7 @@ tasks in `introduced_by`.
 | Audits (`audits`) | 16 | 50 | 69 | 15 | 80 |
 | Evaluations (`evals`) | 3 | 21 | 29 | 5 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 9 | 1 | 1 | 2 |
-| Web UI (`ui`) | 4 | 21 | 55 | 12 | 49 |
+| Web UI (`ui`) | 3 | 21 | 55 | 12 | 49 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 11 | 32 | 5 | 9 |
 | Public API and wire contracts (`api-contracts`) | 7 | 1 | 29 | 20 | 8 |
 | PostgreSQL persistence and schema (`persistence`) | 4 | 0 | 19 | 33 | 8 |
