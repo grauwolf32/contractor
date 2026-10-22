@@ -584,6 +584,9 @@ and originating Run.
 **REV-R84.** A proposal links to its verifying AuditItems, including
 items in later rounds; each item links to all its AuditExecutionItem attempts,
 exact results and evidence, execution and verification Run.
+The public provenance projection uses `relation: verification` for a
+`check-attempt`, `first` or `contributing` for source proposals, and omits
+`relation` for a direct verification.
 
 **REV-R85.** Failed, inconclusive and superseded attempts remain
 visible.

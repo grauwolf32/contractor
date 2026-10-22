@@ -110,6 +110,16 @@ export function provenance(
       ? []
       : [
           {
+            recordId: "record-verification",
+            kind: "check-attempt",
+            receiptId: correlationFinding.firstProposal.receiptId,
+            relation: "verification",
+            proposal: correlationFinding.firstProposal.proposal,
+            origin: correlationFinding.firstProposal.origin,
+            supportsCurrentAssessment: false,
+            createdAt: correlationFinding.createdAt,
+          },
+          {
             recordId: "record-supporting",
             kind: "source-proposal",
             receiptId: "receipt-supporting",

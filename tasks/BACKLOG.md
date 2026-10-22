@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-78 open tasks: 4 in progress, 49 pending, 25 deferred. 946 finished: 943 completed, 3 archived.
+79 open tasks: 5 in progress, 49 pending, 25 deferred. 946 finished: 943 completed, 3 archived.
 
 ## In progress
 
@@ -14,6 +14,7 @@ the epics are in [epics.yml](epics.yml).
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
+| [V397-018](v397-018-provenance-verification-contract.yml) | api-contracts | defect | P1 | Accept verification provenance in the public finding contract |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
 
 ## Pending
@@ -186,11 +187,11 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 8 | 14 | 5 | 6 | 9 |
 | Workflow catalog and document workflows (`workflows`) | 3 | 14 | 13 | 12 | 12 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 30 | 32 | 5 | 35 |
-| Audits (`audits`) | 17 | 50 | 70 | 17 | 82 |
+| Audits (`audits`) | 17 | 50 | 70 | 17 | 83 |
 | Evaluations (`evals`) | 3 | 21 | 29 | 5 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 9 | 1 | 1 | 2 |
 | Web UI (`ui`) | 1 | 21 | 55 | 12 | 49 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 12 | 32 | 5 | 9 |
-| Public API and wire contracts (`api-contracts`) | 7 | 1 | 29 | 20 | 8 |
+| Public API and wire contracts (`api-contracts`) | 8 | 1 | 30 | 20 | 8 |
 | PostgreSQL persistence and schema (`persistence`) | 4 | 0 | 19 | 33 | 8 |
 | Quality, CI and process (`quality`) | 14 | 1 | 20 | 78 | 16 |
