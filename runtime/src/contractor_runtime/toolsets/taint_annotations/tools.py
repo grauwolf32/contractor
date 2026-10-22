@@ -204,13 +204,14 @@ class _TaintAnnotationSession:
             if language is None:
                 raise TaintAnnotationError("taint_annotation_language_unsupported")
             try:
-                parsed = await to_thread_until_done(
-                    _parse_target_file,
+                plan, updated, result = await to_thread_until_done(
+                    _prepare_mutation,
+                    source,
                     encoded,
                     language,
+                    request,
                     name="taint-annotation-cpu",
                 )
-                plan = _plan_mutation(source, language, parsed, request)
             except asyncio.CancelledError:
                 raise
             except TaintAnnotationError:
@@ -218,13 +219,9 @@ class _TaintAnnotationSession:
             except Exception:
                 raise TaintAnnotationError("taint_annotation_unavailable", retryable=True) from None
 
-            result: dict[str, Any] | None = None
-
             def transform(current: str) -> str:
-                nonlocal result
                 if current != plan.source:
                     raise _WorkspaceChanged
-                updated, result = _apply_plan(current, plan, request)
                 return updated
 
             try:
@@ -241,8 +238,6 @@ class _TaintAnnotationSession:
                 raise _map_workspace_error(error) from None
             except Exception:
                 raise TaintAnnotationError("taint_annotation_unavailable", retryable=True) from None
-            if result is None:
-                raise TaintAnnotationError("taint_annotation_unavailable", retryable=True)
             return result
 
 
@@ -409,7 +404,8 @@ class AnnotateSinkTool(_BaseAnnotationTool):
         symbol: Exact name in the definition: "get" for Python/Java methods,
             "Handler::get" for an out-of-line C++ method, or "Handler.get"
             for a Lua dotted function.
-        kind: Sink category, such as "sql", "shell", "ssrf" or "deserialize".
+        kind: Exact sink label from the selected trace Skill, such as
+            "db.query", "shell.exec" or "http.request".
         arg: Argument reaching the sink; defaults to "unknown".
         definition_line: 1-based definition line to disambiguate the symbol;
             0 requires resolution by name alone.
@@ -462,35 +458,73 @@ def _request(
     return _AnnotationRequest(path, symbol, kind, body, logical_key, definition_line)
 
 
+def _prepare_mutation(
+    source: str,
+    encoded: bytes,
+    language: Language,
+    request: _AnnotationRequest,
+) -> tuple[_MutationPlan, str, dict[str, Any]]:
+    parsed = _parse_target_file(encoded, language)
+    plan = _plan_mutation(source, language, parsed, request)
+    updated, result = _apply_plan(source, plan, request)
+    return plan, updated, result
+
+
 def _plan_mutation(
     source: str,
     language: Language,
     parsed: AnnotationParseResult,
     request: _AnnotationRequest,
 ) -> _MutationPlan:
-    matches = [target for target in parsed.targets if target.name == request.symbol]
-    if request.definition_line:
-        matches = [target for target in matches if request.definition_line in target.selector_lines]
-    if not matches:
-        raise TaintAnnotationError("taint_annotation_target_not_found")
-    if len(matches) != 1:
-        raise TaintAnnotationError("taint_annotation_target_ambiguous")
-    target = matches[0]
     lines = split_lines(source, keepends=True)
-    if target.insertion_line < 1 or target.insertion_line > len(lines):
-        raise TaintAnnotationError("taint_annotation_unavailable", retryable=True)
-    source_line = _without_newline(lines[target.insertion_line - 1])
-    indent = source_line[: len(source_line) - len(source_line.lstrip(" \t"))]
     marker = _COMMENT_MARKERS.get(language, "//")
-    line = f"{indent}{marker} @{request.kind} {request.body}"
-    encoded_line = line.encode("utf-8")
-    newline = _comment_newline(source).encode("ascii")
+    selected: _MutationPlan | None = None
+    for target in parsed.targets:
+        if target.name != request.symbol:
+            continue
+        source_line = _without_newline(lines[target.insertion_line - 1])
+        indent = source_line[: len(source_line) - len(source_line.lstrip(" \t"))]
+        line = f"{indent}{marker} @{request.kind} {request.body}"
+        plan = _MutationPlan(target, source, line, marker, indent)
+        if _matches_selector(lines, plan, request.definition_line):
+            if selected is not None:
+                raise TaintAnnotationError("taint_annotation_target_ambiguous")
+            selected = plan
+    if selected is None:
+        raise TaintAnnotationError("taint_annotation_target_not_found")
+    plan = selected
+    # A declaration can begin inside an expression on a line whose beginning
+    # is still literal text (for example, `${function ...}` in a JS template).
+    # Adding a whole line there is not a source comment.
+    if not plan.target.insertion_is_line_start:
+        raise TaintAnnotationError("taint_annotation_input_invalid")
+    if language is Language.PHP and "?>" in plan.line:
+        raise TaintAnnotationError("taint_annotation_input_invalid")
     if (
-        len(encoded_line) > MAX_ANNOTATION_BYTES
-        or len(source.encode("utf-8")) + len(encoded_line) + len(newline) > MAX_SOURCE_FILE_BYTES
+        language is Language.PYTHON
+        and plan.target.insertion_line <= 2
+        and re.search(r"coding[:=][ \t]*[-\w.]+", plan.line, flags=re.ASCII)
     ):
+        raise TaintAnnotationError("taint_annotation_input_invalid")
+    if len(plan.line.encode("utf-8")) > MAX_ANNOTATION_BYTES:
         raise TaintAnnotationError("taint_annotation_capacity_exceeded")
-    return _MutationPlan(target, source, line, marker, indent)
+    return plan
+
+
+def _matches_selector(lines: Sequence[str], plan: _MutationPlan, definition_line: int) -> bool:
+    if not definition_line or definition_line in plan.target.selector_lines:
+        return True
+    block = _annotation_block(lines, plan.target.insertion_line - 1, plan.indent, plan.marker)
+    for index, value in block:
+        if value == plan.line:
+            # The existing line is the natural receipt. Reconstruct the
+            # selectors before that line or later block lines were inserted.
+            # This also reconciles a lost response from an earlier no-op.
+            shift = plan.target.insertion_line - (index + 1)
+            return any(
+                line - shift <= definition_line <= line for line in plan.target.selector_lines
+            )
+    return False
 
 
 def _apply_plan(
@@ -518,6 +552,11 @@ def _apply_plan(
     ):
         raise TaintAnnotationError("taint_annotation_conflict")
     newline = _comment_newline(source)
+    if (
+        len(source.encode("utf-8")) + len(plan.line.encode("utf-8")) + len(newline.encode("ascii"))
+        > MAX_SOURCE_FILE_BYTES
+    ):
+        raise TaintAnnotationError("taint_annotation_capacity_exceeded")
     lines.insert(insertion_index, plan.line + newline)
     return "".join(lines), _result(
         request,

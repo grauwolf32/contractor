@@ -19,6 +19,7 @@ class AnnotationTarget:
     insertion_line: int
     selector_lines: tuple[int, ...]
     node_type: str
+    insertion_is_line_start: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -167,6 +168,9 @@ def parse_annotation_targets(
                     insertion_line=insertion_line,
                     selector_lines=selector_lines,
                     node_type=node.type,
+                    insertion_is_line_start=not source[
+                        line_starts[insertion_line - 1] : outer.start_byte
+                    ].strip(b" \t"),
                 )
             )
         for index in range(node.child_count - 1, -1, -1):
@@ -212,7 +216,7 @@ def _candidate(
 
     if language is Language.LUA and node.type == "assignment_statement":
         value = node.child_by_field_name("value")
-        if value is None or not _has_callable_child(value):
+        if value is None or not _is_callable_value(value):
             return None
         name_node = node.child_by_field_name("name")
         if name_node is None:
@@ -274,14 +278,13 @@ def _is_assignment_value(node: Node, language: Language) -> bool:
     return False
 
 
-def _has_callable_child(node: Node) -> bool:
-    stack = [node]
-    while stack:
-        current = stack.pop()
-        if current.type in _CALLABLE_VALUE_TYPES | {"function_definition"}:
-            return True
-        stack.extend(current.named_children)
-    return False
+def _is_callable_value(node: Node) -> bool:
+    current = node
+    while current.type in {"expression_list", "parenthesized_expression"}:
+        if current.named_child_count != 1:
+            return False
+        current = current.named_children[0]
+    return current.type in _CALLABLE_VALUE_TYPES | {"function_definition"}
 
 
 def _elixir_function(node: Node, source: bytes) -> bool:

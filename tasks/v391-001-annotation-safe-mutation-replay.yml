@@ -1,0 +1,87 @@
+schema_version: "1.0"
+id: V391-001
+title: Preserve source semantics and exact replay in annotation tools
+milestone: workspace-taint-annotations-port
+epic: code-analysis
+kind: defect
+introduced_by: V16-002
+priority: P1
+status: in_progress
+depends_on: [V16-002, V16-003]
+languages: [python, go, yaml]
+goal: >-
+  Annotation tools reject unsafe comment placement and content, resolve only
+  callable declarations, and reconcile exact response-loss retries without
+  changing source behavior or exceeding existing limits.
+context:
+  specification:
+    - docs/spec/tools/code-analysis.md#CAN-R103
+    - docs/spec/tools/code-analysis.md#CAN-R110
+    - docs/spec/tools/code-analysis.md#CAN-R116
+    - docs/spec/tools/code-analysis.md#CAN-R120
+    - docs/spec/tools/code-analysis.md#CAN-R126
+    - docs/spec/platform/failure-model.md
+  severity: high
+  finding: >-
+    tools.py:471 loses an explicit definition_line after its own insertion;
+    tools.py:488 rejects exact replay at the 4 MiB file limit before detecting
+    the no-op. languages.py:153 permits insertion into JavaScript template
+    string content. tools.py:485 accepts PHP close tags and Python encoding
+    cookies in emitted comments, changing program behavior. languages.py:213
+    resolves a Lua table containing a closure as a callable. tools.py:412
+    advertises sink examples that contradict the trace Skill vocabulary.
+    Paths are relative to runtime/src/contractor_runtime/toolsets/taint_annotations/.
+  siblings: >-
+    Cover all three annotation operations, JavaScript/TypeScript/TSX expression
+    placement, every emitted scalar/list field, Python first/second-line encoding
+    cookies, PHP comment termination, direct and parenthesized Lua closures versus
+    table/call containers, decorated and duplicate-name declaration selectors,
+    LF/CRLF, allocation replacement, local/memory and direct/overlay workspaces.
+    V16-003 introduced the pre-replay resulting-file limit check; V16-002
+    introduced the other affected paths (git blame e2e59da4 and 1bf7bf00).
+scope:
+  in:
+    - Add real-workspace regression tests for every reproduced failure and its sibling paths.
+    - Reject unsafe single-line comment insertion with a classified permanent error and no mutation.
+    - Reconcile exact canonical annotation replay using current and insertion-time selectors without first-match resolution.
+    - Apply resulting-file growth limits only to actual insertions.
+    - Restrict Lua assignment resolution to directly assigned callable values.
+    - Align model-visible sink examples and the normative annotation contract.
+  out:
+    - Cross-Run reuse, persistent annotation indexes, new public APIs, replacement/deletion operations and model changes.
+acceptance_criteria:
+  - id: A1
+    text: Unsafe JS/TS/TSX expression placement, PHP close tags and Python encoding-cookie insertion fail permanently without changing any workspace bytes; safe language fixtures still annotate.
+  - id: A2
+    text: Exact repeats with explicit line selectors, decorators, duplicate names, a new allocation and a file at the exact size limit return changed=false with current coordinates; ambiguous matches fail closed.
+  - id: A3
+    text: Lua tables and calls containing closures are not callable targets, while direct and parenthesized closure assignments remain annotatable.
+  - id: A4
+    text: The ADK model-facing sink declaration uses the trace vocabulary and regression tests fail against the unfixed implementation.
+  - id: A5
+    text: Existing annotation concurrency, cancellation, redaction, workspace-provider and capability checks and repository lint pass.
+tests:
+  - command: "cd runtime && uv run pytest -W error tests/test_taint_annotations.py tests/test_taint_annotations_hardening.py tests/test_taint_annotations_regressions.py tests/test_capabilities.py tests/test_allocation.py tests/test_abort.py tests/test_lease_watchdog.py"
+    covers: [A1, A2, A3, A4, A5]
+  - command: make test-taint-annotations-e2e
+    covers: [A1, A2, A3, A5]
+  - command: make lint
+    covers: [A4, A5]
+verification:
+  date: "2026-10-22"
+  results:
+    - "uv sync --locked --offline: passed with the existing locked dependencies."
+    - "Focused annotation, regression, capability, allocation, abort and lease-watchdog modules: 371 passed with warnings treated as errors."
+    - "make test-taint-annotations-e2e: passed, including the expanded hardening matrix, 312 Runtime/capability checks, 59 hardening/lifecycle checks and the real Server/Runtime process test."
+    - "make lint: passed, including Go vet/staticcheck, task/spec checks, UI gates, Ruff and Python import-layer checks."
+  regression_proof: >-
+    Loaded the original HEAD languages/tools modules from git into a temporary
+    package and ran the same regression file: 222 failed and 32 positive cases
+    passed. The corrected implementation passes all 254 regression cases.
+  environment: >-
+    Used the repository's pinned Go 1.26.9 and Node 24.20 tools, locked Python
+    3.13 dependencies, a temporary build cache and an independent PostgreSQL 17
+    test cluster on port 35432. The UI lint ran against existing dependencies
+    with pnpm's automatic dependency-install preflight disabled; ESLint and
+    every UI source gate still ran. The demo database and configured models
+    were unchanged.

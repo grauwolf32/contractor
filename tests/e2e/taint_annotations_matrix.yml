@@ -78,6 +78,48 @@ cases:
     faults: []
     expected: Strict decoding and completeness checks reject missing acceptance fault gate and test-owner coverage.
     test: {source: tests/e2e/taint_annotations_matrix_test.go, symbol: TestTaintAnnotationHardeningMatrixIsComplete}
+  - id: expression_placement
+    category: validation
+    acceptance: [A3]
+    faults: [F15]
+    expected: Template expression declarations never receive an annotation inside literal content and rejected calls preserve every source byte.
+    test: {source: runtime/tests/test_taint_annotations_regressions.py, symbol: test_template_expression_annotation_never_changes_literal_content}
+  - id: php_comment_termination
+    category: validation
+    acceptance: [A3]
+    faults: [F16]
+    expected: PHP close tags are rejected in every emitted annotation field without changing the workspace.
+    test: {source: runtime/tests/test_taint_annotations_regressions.py, symbol: test_php_close_tags_are_rejected_in_every_emitted_field}
+  - id: python_encoding_cookie
+    category: validation
+    acceptance: [A3]
+    faults: [F17]
+    expected: An annotation cannot introduce an encoding cookie in either of Python's first two physical lines.
+    test: {source: runtime/tests/test_taint_annotations_regressions.py, symbol: test_python_annotation_cannot_introduce_an_encoding_cookie}
+  - id: selector_response_loss
+    category: concurrency
+    acceptance: [A2]
+    faults: [F18]
+    expected: Exact replay reconciles insertion-time selectors after allocation replacement and later adjacent annotations without a second mutation.
+    test: {source: runtime/tests/test_taint_annotations_regressions.py, symbol: test_explicit_selector_replay_survives_insertion_and_allocation_replacement}
+  - id: capacity_noop
+    category: capacity
+    acceptance: [A2, A3]
+    faults: [F19]
+    expected: An exact replay at the file-size boundary succeeds while any actual growth is rejected.
+    test: {source: runtime/tests/test_taint_annotations_regressions.py, symbol: test_exact_replay_at_file_limit_does_not_reserve_another_line}
+  - id: lua_callable_value
+    category: resolution
+    acceptance: [A3]
+    faults: [F20]
+    expected: Direct and parenthesized closures qualify as Lua targets while tables and calls containing closures do not.
+    test: {source: runtime/tests/test_taint_annotations_regressions.py, symbol: test_lua_only_direct_callable_assignments_are_annotation_targets}
+  - id: model_sink_vocabulary
+    category: validation
+    acceptance: [A3]
+    faults: [F21]
+    expected: The ADK sink tool description uses the canonical trace labels rather than conflicting generic examples.
+    test: {source: runtime/tests/test_taint_annotations_regressions.py, symbol: test_sink_tool_adk_description_uses_the_trace_sink_vocabulary}
 
 gates:
   - {id: matrix, command: make test-taint-annotations-matrix}
