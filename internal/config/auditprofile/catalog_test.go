@@ -85,4 +85,8 @@ func redigest(t *testing.T, profile *auditprofile.ResolvedAuditProfile) {
 		t.Fatal(err)
 	}
 	profile.Ref.Digest = digest
+	profile.ClosureDigest, err = auditprofile.ProfileClosureDigest(*profile)
+	if err != nil {
+		t.Fatal(err)
+	}
 }

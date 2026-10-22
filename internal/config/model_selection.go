@@ -320,7 +320,8 @@ func (m *Manager) ResolveAuditProfile(ctx context.Context, raw string) (auditpro
 		}
 		profile.Workflows[role] = binding
 	}
-	return profile, nil
+	profile.ClosureDigest, err = auditprofile.ProfileClosureDigest(profile)
+	return profile, err
 }
 
 // ResolveAuditProfile on an offline Snapshot has no deployment setting.

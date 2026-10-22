@@ -114,6 +114,10 @@ func (s *Snapshot) ResolvePinnedRunWorkflow(ctx context.Context, pinned resolved
 // bindings while rejecting catalog dependency drift. Credential use is checked
 // by the ordinary Audit start transaction, just as for a newly selected draft.
 func (s *Snapshot) ResolvePinnedAuditProfile(_ context.Context, pinned auditprofile.ResolvedAuditProfile) (auditprofile.ResolvedAuditProfile, error) {
+	seal, err := auditprofile.ProfileClosureDigest(pinned)
+	if err != nil || seal != pinned.ClosureDigest {
+		return auditprofile.ResolvedAuditProfile{}, contentdigest.ErrPinnedSelectionChanged
+	}
 	current, err := s.AuditProfile(pinned.Ref.Name + "@" + pinned.Ref.Version)
 	if err != nil || current.Ref != pinned.Ref || len(current.Workflows) != len(pinned.Workflows) {
 		return auditprofile.ResolvedAuditProfile{}, contentdigest.ErrPinnedSelectionChanged

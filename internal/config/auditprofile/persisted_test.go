@@ -32,6 +32,8 @@ func TestDecodeResolvedAuditProfileSnapshotRequiresCurrentRolesAndDigest(t *test
 		wantError string
 	}{
 		{"current", func(map[string]any) {}, ""},
+		{"missing closure seal", func(body map[string]any) { delete(body, "closureDigest") }, "digest is invalid"},
+		{"unknown closure seal", func(body map[string]any) { body["closureDigest"] = "sha256:" + strings.Repeat("f", 64) }, "digest is invalid"},
 		{"legacy roles and digest", func(body map[string]any) {
 			delete(body["workflows"].(map[string]any)["check"].(map[string]any), "kind")
 			body["ref"].(map[string]any)["digest"] = legacyDigest

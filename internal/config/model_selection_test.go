@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
@@ -246,5 +247,63 @@ func TestDeploymentModelSelectionRejectsStaleUnknownAndIncompatibleChoices(t *te
 	}
 	if _, err := partial.ReplaceModelSelection(t.Context(), settingsstore.ModelSelectionValue{DefaultModel: "fixture-b", Roles: map[string]string{}}, 2, partialInfo.CatalogDigest); !errors.Is(err, settingsstore.ErrModelSelectionInvalid) {
 		t.Fatalf("unsupported Worker default accepted: %v", err)
+	}
+}
+
+func TestDeploymentModelSelectionSealsAuditProfileClosure(t *testing.T) {
+	root, _ := modelSelectionFixture(t)
+	profileYAML := validAuditProfileYAML(t, "model-bound")
+	profileYAML = strings.ReplaceAll(profileYAML, "ref: taint-trace-from-workspace@4", "ref: artifact-copy@1")
+	profileYAML = strings.ReplaceAll(profileYAML, "source: {required: true, mediaTypes: [application/zip]}", "source: {required: true, mediaTypes: [text/plain]}")
+	profileYAML = strings.ReplaceAll(profileYAML, "        target: {source: item-field, name: subjectKey}\n", "        objective: {source: item-field, name: subjectKey}\n")
+	profileYAML = strings.ReplaceAll(profileYAML, "result: taint_report", "result: result")
+	writeAuditProfile(t, root, "model-bound", profileYAML)
+	store := &memoryModelSettings{}
+	manager := configuredModelManager(t, root, store)
+	catalog, err := manager.AuditProfile("model-bound@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := manager.ResolveAuditProfile(t.Context(), "model-bound@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Ref != catalog.Ref || first.ClosureDigest == catalog.ClosureDigest {
+		t.Fatal("deployment binding changed catalog identity or kept an obsolete closure seal")
+	}
+	encoded, err := json.Marshal(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := auditprofile.DecodeResolvedAuditProfileSnapshot(encoded)
+	if err != nil || !reflect.DeepEqual(first, decoded) {
+		t.Fatalf("effective Audit profile does not round-trip: %v", err)
+	}
+	selection, err := manager.GetModelSelection(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.ReplaceModelSelection(t.Context(), settingsstore.ModelSelectionValue{DefaultModel: "fixture-b", Roles: map[string]string{}}, 1, selection.CatalogDigest); err != nil {
+		t.Fatal(err)
+	}
+	second, err := manager.ResolveAuditProfile(t.Context(), "model-bound@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Ref != second.Ref || first.ClosureDigest == second.ClosureDigest {
+		t.Fatal("a new deployment binding did not change its closure seal")
+	}
+	pinned, err := manager.ResolvePinnedAuditProfile(t.Context(), first)
+	if err != nil || !reflect.DeepEqual(pinned, first) {
+		t.Fatalf("retained profile changed after defaults: %v", err)
+	}
+	tampered := first.Clone()
+	tampered.ClosureDigest = second.ClosureDigest
+	if _, err := manager.ResolvePinnedAuditProfile(t.Context(), tampered); !errors.Is(err, contentdigest.ErrPinnedSelectionChanged) {
+		t.Fatalf("prepared profile accepted a mismatched seal: %v", err)
+	}
+	raw, _ := json.Marshal(tampered)
+	if _, err := auditprofile.DecodeResolvedAuditProfileSnapshot(raw); err == nil {
+		t.Fatal("accepted another closure's seal")
 	}
 }

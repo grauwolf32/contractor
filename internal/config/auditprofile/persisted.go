@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
@@ -20,8 +21,8 @@ const (
 )
 
 // DecodeResolvedAuditProfileSnapshot strictly decodes and validates the
-// complete immutable profile closure retained by an Audit draft. The embedded
-// digest must still match the effective workflows and policies in the body;
+// complete immutable profile closure retained by an Audit draft. The closure
+// digest binds the catalog identity and effective workflows and policies;
 // every Workflow role must retain its explicit kind. No role inference or
 // current catalog lookup participates in recovery or start replay.
 func DecodeResolvedAuditProfileSnapshot(data []byte) (ResolvedAuditProfile, error) {
@@ -29,8 +30,8 @@ func DecodeResolvedAuditProfileSnapshot(data []byte) (ResolvedAuditProfile, erro
 	if err := strictjson.Decode(data, &profile); err != nil {
 		return ResolvedAuditProfile{}, err
 	}
-	selector, err := resolved.ParseSelector(profile.Ref.Name + "@" + profile.Ref.Version)
-	if err != nil || profile.Ref.Digest == "" || !profile.Mode.valid() ||
+	_, err := resolved.ParseSelector(profile.Ref.Name + "@" + profile.Ref.Version)
+	if err != nil || !contentdigest.Valid(profile.Ref.Digest) || !profile.Mode.valid() ||
 		len(profile.Inputs) == 0 || len(profile.Workflows) == 0 {
 		return ResolvedAuditProfile{}, fmt.Errorf("persisted AuditProfile identity or shape is invalid")
 	}
@@ -59,9 +60,24 @@ func DecodeResolvedAuditProfileSnapshot(data []byte) (ResolvedAuditProfile, erro
 	if err := ValidateAuditTaskProfile(profile); err != nil {
 		return ResolvedAuditProfile{}, err
 	}
-	expected, err := auditProfileDigest(selector, profile)
-	if err != nil || expected != profile.Ref.Digest {
+	expected, err := ProfileClosureDigest(profile)
+	if err != nil || expected != profile.ClosureDigest {
 		return ResolvedAuditProfile{}, fmt.Errorf("persisted AuditProfile digest is invalid")
 	}
 	return cloneAuditProfile(profile), nil
+}
+
+// ProfileClosureDigest binds the immutable catalog identity to the complete
+// effective profile body. Deployment model bindings change this seal while
+// preserving the catalog ref used for owner selection and drift checks.
+func ProfileClosureDigest(profile ResolvedAuditProfile) (string, error) {
+	selector, err := resolved.ParseSelector(profile.Ref.Name + "@" + profile.Ref.Version)
+	if err != nil || !contentdigest.Valid(profile.Ref.Digest) {
+		return "", fmt.Errorf("profile identity is invalid")
+	}
+	body, err := auditProfileDigest(selector, profile)
+	if err != nil {
+		return "", err
+	}
+	return contentdigest.CanonicalJSON([]any{"contractor/audit-profile-closure/v1", profile.Ref, body})
 }

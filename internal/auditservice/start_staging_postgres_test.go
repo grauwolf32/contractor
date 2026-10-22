@@ -12,7 +12,9 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	managedcredentials "github.com/grauwolf32/contractor/internal/credentials"
@@ -157,6 +159,13 @@ func newStartStagingService(t *testing.T, pool *pgxpool.Pool, guard CredentialRe
 func createStartStagingDraft(
 	t *testing.T, ctx context.Context, pool *pgxpool.Pool, service *Service, name string, items int,
 ) (projectstore.Project, auditstore.Audit) {
+	return createStartStagingDraftWithSelection(t, ctx, pool, service, name, items, "")
+}
+
+func createStartStagingDraftWithSelection(
+	t *testing.T, ctx context.Context, pool *pgxpool.Pool, service *Service, name string, items int,
+	expectedProfileSHA256 string,
+) (projectstore.Project, auditstore.Audit) {
 	t.Helper()
 	project, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
 		ProjectID: "project-staging-" + name, OwnerID: "owner-staging-" + name,
@@ -183,10 +192,11 @@ func createStartStagingDraft(
 	}
 	draft, _, err := service.CreateDraft(ctx, CreateDraftParams{
 		AuditID: "audit-staging-" + name, OwnerID: project.OwnerID, ProjectID: project.ProjectID,
-		Profile:        ProfileSelector{Name: "test-checklist", Version: "1"},
-		Inputs:         map[string]contracts.ArtifactRef{"checklist": checklist.Ref},
-		Scope:          Scope{Objective: "Exercise Audit start staging"},
-		IdempotencyKey: "create-staging-" + name, RequestDigest: serviceTestDigest("create-staging-" + name),
+		ExpectedProfileSHA256: expectedProfileSHA256,
+		Profile:               ProfileSelector{Name: "test-checklist", Version: "1"},
+		Inputs:                map[string]contracts.ArtifactRef{"checklist": checklist.Ref},
+		Scope:                 Scope{Objective: "Exercise Audit start staging"},
+		IdempotencyKey:        "create-staging-" + name, RequestDigest: serviceTestDigest("create-staging-" + name),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -269,4 +279,55 @@ func (g *failingCredentialGuard) WithRunCreation(ctx context.Context, fn func() 
 		return err
 	}
 	return fn()
+}
+
+// deploymentBoundCatalog models the Manager boundary using an already valid
+// fixture policy, retaining the same model while freezing its default binding.
+type deploymentBoundCatalog struct{ ProfileCatalog }
+
+func (c deploymentBoundCatalog) ResolveAuditProfile(ctx context.Context, selector string) (auditprofile.ResolvedAuditProfile, error) {
+	profile, err := c.ProfileCatalog.ResolveAuditProfile(ctx, selector)
+	if err != nil {
+		return profile, err
+	}
+	for role, binding := range profile.Workflows {
+		for name, stage := range binding.Workflow.Stages {
+			for _, consumer := range stage.ExecutionConfig.Agents {
+				stage.ModelDefaults = map[string]contracts.ResolvedModelPolicy{"worker": consumer.ModelPolicy.Clone()}
+				break
+			}
+			binding.Workflow.Stages[name] = stage
+		}
+		profile.Workflows[role] = binding
+	}
+	profile.ClosureDigest, err = auditprofile.ProfileClosureDigest(profile)
+	return profile, err
+}
+
+func TestAuditDraftCatalogSelectionPrecedesDeploymentBinding(t *testing.T) {
+	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
+	}
+	ctx := t.Context()
+	pool := isolatedAuditServicePool(t, ctx, databaseURL)
+	service := newStartStagingService(t, pool, &failingCredentialGuard{})
+	catalog, err := service.profiles.AuditProfile("test-checklist@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected, err := contentdigest.JSON(catalog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service.profiles = deploymentBoundCatalog{ProfileCatalog: service.profiles}
+	project, draft := createStartStagingDraftWithSelection(t, ctx, pool, service, "bound-selection", 1, selected)
+	restored, err := auditprofile.DecodeResolvedAuditProfileSnapshot(draft.ProfileSnapshot)
+	if err != nil || restored.Ref != catalog.Ref || restored.ClosureDigest == catalog.ClosureDigest {
+		t.Fatalf("stored bound selection=%+v: %v", restored.Ref, err)
+	}
+	started, err := service.Start(ctx, StartParams{OwnerID: project.OwnerID, AuditID: draft.AuditID, ExpectedRevision: draft.Revision, IdempotencyKey: "start-bound-selection", RequestDigest: serviceTestDigest("start-bound-selection")})
+	if err != nil || started.Audit.State != auditstore.AuditActive {
+		t.Fatalf("bound Audit start=%s: %v", started.Audit.State, err)
+	}
 }

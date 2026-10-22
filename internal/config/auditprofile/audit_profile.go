@@ -202,14 +202,15 @@ type AuditInteractionPolicy struct {
 // ResolvedAuditProfile is the immutable Server-side authority retained when an
 // Audit starts. Workers never receive this value and cannot select a profile.
 type ResolvedAuditProfile struct {
-	Ref         AuditProfileRef                         `json:"ref"`
-	Mode        AuditProfileMode                        `json:"mode"`
-	Standards   []AuditStandardRef                      `json:"standards"`
-	Inputs      map[string]AuditProfileInput            `json:"inputs"`
-	Inventory   AuditInventory                          `json:"inventory"`
-	Workflows   map[string]ResolvedAuditWorkflowBinding `json:"workflows"`
-	Execution   AuditExecutionPolicy                    `json:"execution"`
-	Interaction AuditInteractionPolicy                  `json:"interaction"`
+	ClosureDigest string                                  `json:"closureDigest"`
+	Ref           AuditProfileRef                         `json:"ref"`
+	Mode          AuditProfileMode                        `json:"mode"`
+	Standards     []AuditStandardRef                      `json:"standards"`
+	Inputs        map[string]AuditProfileInput            `json:"inputs"`
+	Inventory     AuditInventory                          `json:"inventory"`
+	Workflows     map[string]ResolvedAuditWorkflowBinding `json:"workflows"`
+	Execution     AuditExecutionPolicy                    `json:"execution"`
+	Interaction   AuditInteractionPolicy                  `json:"interaction"`
 }
 
 // Spec is the authored spec of an AuditProfile manifest. The catalog loader
@@ -355,7 +356,8 @@ func Resolve(
 		return ResolvedAuditProfile{}, err
 	}
 	profile.Ref.Digest = digest
-	return profile, nil
+	profile.ClosureDigest, err = ProfileClosureDigest(profile)
+	return profile, err
 }
 
 func resolveAuditStandards(source []auditStandardRefSource) ([]AuditStandardRef, error) {
