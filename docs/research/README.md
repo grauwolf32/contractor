@@ -8,6 +8,10 @@ and implementation status in the [task files](../../tasks/). A historical report
 does not establish current behaviour. Reports of finished work are removed once
 no open task needs them; they remain in git history.
 
+Each report starts with its date, the revision it reviewed, its scope and
+outcome, then a dated *Status* section that says what is still open and which
+task owns it. The findings below that section describe the reviewed revision.
+
 | Report | Cited by |
 | --- | --- |
 | [Audit checklist prioritization review — 2026-09-20](2026-09-20-audit-check-prioritization-review.md) | The deferred [V64 plan](../plans/2026-09-20-audit-check-prioritization.md) |
