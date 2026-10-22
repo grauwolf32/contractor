@@ -1,0 +1,164 @@
+schema_version: '1.0'
+id: V392-001
+title: Derive qualified producer issue keys without model-authored components
+milestone: finding-correlation-2026-10
+epic: findings
+kind: feature
+priority: P2
+status: in_progress
+depends_on: []
+languages:
+- go
+- python
+- yaml
+- markdown
+goal: Compute reproducible producer fingerprints from exact structured reports and trusted producer/asset provenance, preserving every observation
+  and exposing key availability and comparison-domain guarantees through a production reader.
+context:
+  request: On 2026-10-22 the user requested no-LLM producer keys and structural anchors, automatic duplicate labels and preservation of findings
+    for comparison across Audits.
+  proposal:
+  - docs/proposals/0028-finding-analysis-and-sarif.md#versioned-producer-keys
+  - docs/proposals/0028-finding-analysis-and-sarif.md#unchanged-worker-tool-contract
+  specification:
+  - docs/spec/findings/findings.md#FND-R28
+  - docs/spec/findings/findings.md#FND-R60
+  - docs/spec/findings/findings.md#FND-R158
+  - docs/spec/audits/review-and-reports.md#REV-R138
+  - docs/spec/artifacts/git-import.md
+  - docs/spec/tools/scanners.md
+  - docs/spec/platform/failure-model.md
+  - docs/spec/platform/lifecycle.md
+scope:
+  in:
+  - Closed optional fingerprint descriptor and derived receipt projection, one code-backed producer registry, canonical hashing and shared Go/Python
+    vectors.
+  - Exact report/record/asset resolution and a real deterministic producer-adapter caller with documented native issue key and snapshot or cross-snapshot
+    semantics.
+  - Atomic existing intake integration, strict migration of existing rows to not_recorded and an authorized additive finding-detail reader using
+    generated consumers.
+  - Owning findings/producer/limits/error/lifecycle contracts, fixtures and relevant release-gate coverage in the same implementation.
+  out:
+  - LLM calls, embeddings, prose-derived correlation_key/context, guessed stable keys, full finding analysis and SARIF rendering.
+  - Structural parsing and group/mark/search behavior, owned by V392-002 through V392-004; unqualified HTTP/authentication equivalence and global
+    issue entities.
+requirements:
+- id: R1
+  text: Implement the proposal's producer-issue canonical array, descriptor and closed adapter registry. Derive namespace, rule, native issue
+    key and comparison domain from exact machine report and trusted invocation/configuration metadata; a caller/model cannot supply an authoritative
+    hash or stability claim.
+- id: R2
+  text: An adapter explicitly qualifies snapshot-bound or cross-snapshot equality and includes required asset/instance/context distinctions. Rule
+    ID, CWE, title, sink and report record order alone are insufficient. Changed semantic meaning requires a new scheme with strict reads and
+    fixtures.
+- id: R3
+  text: Wire a supported producer/report path and the finding-detail reader in the same change. If an existing report lacks a usable native issue
+    key, return producer_key_unavailable until a real deterministic adapter is implemented; do not introduce an otherwise unused registry or manufacture
+    a key from descriptions.
+- id: R4
+  text: Resolve trusted Git repository/snapshot identity through exact selected evidence and provenance. Foreign/forged refs fail atomically;
+    supported but unavailable evidence preserves a usable proposal. Source/HTTP/model assertions do not mint trusted producer bindings or vulnerability
+    confirmation.
+- id: R5
+  text: Persist and strictly validate the immutable projection in the existing receipt row with intake; reuse existing receipt replay, report/evidence
+    budgets and authoritative ownership. Migrate existing rows explicitly without reparsing or enriching immutable receipts, and add no fallback
+    reader, side table or second receipt mechanism.
+- id: R6
+  text: Keep key computation independent of severity, prose, result order, Run identity and model output. Equal keys preserve all independent
+    calls and Audit-local results; current analyst decisions and ratings remain untouched. Use api/testdata/finding-fingerprint-cases.json through
+    the shared fixture gate and classify any new pure codec package in the domain layer.
+- id: R7
+  text: Keep complete model-visible finding/list_findings declarations and required/optional arguments and response shapes unchanged. Publisher
+    code builds all private matching metadata from existing inputs; the Worker authors no descriptors and duplicate collection entries remain
+    readable.
+failure_outcomes:
+- operation: Resolve producer evidence and commit the existing finding intake
+  permanent: Invalid descriptor/adapter data uses the existing 422 audit_document_invalid or audit_reference_invalid and existing ownership/non-disclosure
+    classes; changed replay content conflicts. No partial receipt/projection commits.
+  retryable: Existing finite intake/storage retries and 503 storage_transaction_conflict with Retry-After apply; deterministic validation is permanent,
+    while absent or unsupported admissible key material is successful intake with an explicit unavailable reason.
+  ambiguous: Reconcile original allocation/invocation/submission identity and exact bytes through the existing receipt before retrying, without
+    a new key or regenerated report evidence.
+  cancelled: Cancel and join Runtime preparation and Server evidence/transaction work before allocation cleanup, preserving already committed
+    ordinary artifacts under their existing lifecycle.
+  timeout: Existing finite preparation/read/intake budgets remain separate; no live Git fetch, model or other new external call is introduced.
+cardinality:
+- collection: Producer descriptor and structured report selected by a receipt
+  expected: Zero or one descriptor and one selected report record with its asset provenance.
+  maximum: Descriptor 16 KiB, locator 1024 UTF-8 bytes and canonical native key 4096 bytes; existing selected-evidence/report/Run limits remain
+    authoritative.
+  bound: Resolve explicitly selected refs only, enforce complete input/report byte budgets before decoding, and never enumerate all Run artifacts
+    or reports.
+- collection: Immutable receipt key projections
+  expected: One small optional-key projection per existing receipt and one selected receipt per detail read.
+  maximum: Existing receipt/containing Run and Project limits; new fields use the proposal's finite component caps.
+  bound: Atomic row-owned write and bounded authorized reader; no background backfill or whole-repository scan.
+lifecycle:
+- entity: Producer fingerprint evidence and receipt projection
+  delete: Existing owner Run/Artifact/Audit/Project lifecycle authority applies, without a standalone fingerprint delete API.
+  cascade: Source-held discard clears sensitive projection content; Audit purge removes only its reachability/holds and Project purge removes
+    owned rows/artifacts.
+  retention: Exact Audit-held evidence and keys survive source Run deletion, while another Audit's independent result/decision remains intact
+    and tombstones retain provenance only.
+acceptance_criteria:
+- id: A1
+  given: Canonical tuples, separator collisions, reordered JSON, valid/invalid adapter records and keys with different declared comparison domains.
+  when: Production Go/Python codecs/adapters validate and hash the shared vectors.
+  then: Exact outputs agree without a model, order/severity/prose changes do not affect key components, unsupported/forged inputs never create
+    a guessed key and domain/version distinctions remain explicit.
+- id: A2
+  given: A real producer-report path, trusted source, an ordinary finding without a supported key and the production Runtime/Server intake.
+  when: Findings are submitted, read and retried after a lost response.
+  then: A qualified key is reproducible and exposed with its exact basis, unavailability remains usable, replay returns the original receipt and
+    an independent call with equal key remains a separate observation.
+- id: A3
+  given: Malformed/foreign evidence, snapshot mismatch, changed idempotent bytes, storage aborts and cancellation.
+  when: Real PostgreSQL/Artifact intake handles each case.
+  then: Permanent rejection commits nothing, retryable failure keeps its class and ambiguous/cancelled work uses existing bounded receipt reconciliation
+    without partial projections.
+- id: A4
+  given: Existing rows, two Audits holding one receipt, an unimported receipt and a fully populated parent.
+  when: Migration, source deletion, discard, one-Audit purge and Project purge run.
+  then: Strict projections remain valid, no historical key is fabricated, held copies remain independent and sensitive discarded content or orphan
+    projection does not remain.
+- id: A5
+  given: Producer caller, authorized reader, fixtures, generated consumers and owning contracts.
+  when: Full touched-package and shared/API/lint suites run with a disposable PostgreSQL URL.
+  then: Every new export has a production caller, all shared rules agree and required database proof runs without skips.
+- id: A6
+  given: Provider/schema and success/error/reader fixtures pinned before publisher changes.
+  when: The actual provider builder and Runtime/Server publisher/reader handle equal keys, unavailable optional inputs and replay.
+  then: Complete model-visible contracts match pinned fixtures; optional preparation limits preserve valid ordinary findings and every independent
+    observation survives.
+tests:
+- command: go test -count=1 ./internal/auditdomain ./internal/findingintake ./internal/auditservice ./internal/artifacts ./internal/httpapi/privateartifacts
+    ./internal/httpapi/public
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: go test -count=1 -tags=integration ./internal/findingintake ./internal/auditservice ./internal/persistence/postgres
+  covers:
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make test-runtime test-wire-cross-language test-findings-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A5
+- command: make verify-public-api ui-verify
+  covers:
+  - A2
+  - A5
+- command: make lint
+  covers:
+  - A1
+  - A5
+- command: make test-runtime test-findings-e2e
+  covers:
+  - A6

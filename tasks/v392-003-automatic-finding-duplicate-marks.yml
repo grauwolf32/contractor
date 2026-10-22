@@ -1,0 +1,158 @@
+schema_version: '1.0'
+id: V392-003
+title: Automatically mark equal-key observations across Audits while preserving each finding
+milestone: finding-correlation-2026-10
+epic: findings
+kind: feature
+priority: P2
+status: pending
+depends_on:
+- V392-001
+- V392-002
+languages:
+- go
+- yaml
+- markdown
+goal: Automatically label repeated observations in the same Project using qualified primary keys, retaining every finding and its independent
+  Audit decisions so correlation supports comparison without suppressing or rewriting results.
+context:
+  request: On 2026-10-22 the user explicitly requested automatic duplicate marking and retention of findings for comparison across different Audits.
+  proposal:
+  - docs/proposals/0028-finding-analysis-and-sarif.md#intake-group-membership-and-automatic-marking
+  - docs/proposals/0028-finding-analysis-and-sarif.md#unchanged-worker-tool-contract
+  specification:
+  - docs/spec/findings/findings.md#FND-R28
+  - docs/spec/audits/review-and-reports.md#REV-R10
+  - docs/spec/audits/review-and-reports.md#REV-R11
+  - docs/spec/audits/review-and-reports.md#REV-R99
+  - docs/spec/audits/review-and-reports.md#REV-R138
+  - docs/spec/platform/persistence.md
+  - docs/spec/platform/lifecycle.md
+  - docs/spec/platform/failure-model.md
+scope:
+  in:
+  - Frozen first-receipt primary automatic key, Project-scoped equality group attributes/index on existing Audit finding rows and strict migration/validation.
+  - System-owned automaticDuplicate/group/basis/representative projection in authorized finding detail/list reads, separate from manual triage
+    and ratings.
+  - Dedicated Project correlation revision on the existing Project row, atomic admission/purge and summarized result/provenance mutation integration,
+    and bounded batched representative/peer probes.
+  - Real-store concurrency/replay/retention/deletion proof, additive API/event/generated-client contracts and owning findings/review/lifecycle/limits
+    updates.
+  out:
+  - Required analyst duplicate confirmation, changing human-owned state duplicate or copying/clearing TP/FP/severity under automatic marks.
+  - Suppressing findings/evidence, cross-Project grouping, global issue/cluster/membership tables, another receipt/controller and transitive union
+    of different keys.
+  - Project comparison/search endpoints and UI, owned by V392-004 and V392-005.
+requirements:
+- id: R1
+  text: Freeze the primary key from the admitted finding's first receipt using the proposal's priority of one qualified producer key then exactly
+    one distinct qualified snapshot issue anchor; ambiguous multiple anchors remain candidates; other hints/contributions remain separately readable
+    and cannot silently regroup or bridge independent issues.
+- id: R2
+  text: Persist group attributes on existing finding rows and enforce actual Audit/Project ownership in the database. A matching new admission
+    retains its own finding/receipt/evidence and automatically participates in the group with no human or LLM action.
+- id: R3
+  text: Expose system-owned correlation separately from manual triage and enforce current explicit policy qualification without rewriting retained
+    observations. Deterministic smallest-ID representatives and duplicate labels are derived over retained authorized members in an explicit scope;
+    indexed first/next probes, batched per page, avoid group-size scans and stale stored flags. Representative choice conveys no truth, severity
+    or discovery credit.
+- id: R4
+  text: Advance the dedicated Project correlation revision on unique membership insert/remove and every summarized triage/assessment/retained-origin
+    change in existing short transactions; maintain affected Audit revision fences as well; natural-key replay advances neither membership, revision
+    nor events. Preserve established lock order and receipts, resolve evidence before locks and use existing event invalidation without per-peer
+    writes.
+- id: R5
+  text: Automatic matching never changes analyst state/verdict/severity, expires reviews, skips verification or rewrites accepted reports. Same
+    receipt imported into different Audits and independent observations with equal keys remain distinguishable, with every Audit-local result
+    independently readable.
+- id: R6
+  text: Update owning contracts to distinguish automatic marks from existing human same-Audit duplicate links. Add api/testdata/public/finding-correlation-cases.json
+    for projection/version/ownership cases and extend complete public operation/shared fixtures; retain strict reads and classify any new package.
+- id: R7
+  text: Keep complete model-visible finding/list_findings declarations and required/optional arguments and response shapes unchanged. Publisher
+    code builds all private matching metadata from existing inputs; the Worker authors no descriptors and duplicate collection entries remain
+    readable.
+failure_outcomes:
+- operation: Admit/remove group membership and read automatic marks through existing services
+  permanent: Invalid/foreign group attributes or mismatched Audit/Project ownership use existing validation/non-disclosure classes and commit
+    nothing; missing qualified keys preserve unmatched ordinary findings.
+  retryable: Existing finite transaction retries and 503 storage_transaction_conflict with Retry-After apply, including contested admission/purge
+    locks; deterministic validation is never retried indefinitely.
+  ambiguous: Reconcile the existing admission receipt/natural key before repeating, proving one finding/contribution/revision/event set; no second
+    receipt or new idempotency identity is created.
+  cancelled: Cancel/join the existing transaction/read work; rollback before commit and reconcile any uncertain commit before cleanup or retry.
+  timeout: Existing finite admission/read/purge-batch budgets own their operations independently; parsing and peer-wide updates are absent from
+    the locked mutation.
+cardinality:
+- collection: Findings and equal-key peers in one Project
+  expected: Multiple independent Audit results per issue, with occasional high-multiplicity groups.
+  maximum: Existing 100000-report-finding limit per Audit; a Project can contain many Audits and groups without a new full-parent scan assumption.
+  bound: One row-owned membership per finding, one primary key and indexed bounded first/next probes per requested group, batched for the current
+    page; no group-wide rewrite or count on admission/detail.
+- collection: Parent purge and correlation revision changes
+  expected: Existing bounded lifecycle batches, with one Project revision update per committed membership-changing batch.
+  maximum: Existing parent lifecycle row/byte batch bounds; each admitted membership changes correlation revision once.
+  bound: No transaction locks/hydrates all group peers; map and test existing parent/child lock order before changing writes.
+lifecycle:
+- entity: Existing finding-owned group fields and Project correlation revision
+  delete: Existing owner Audit/Project lifecycle authority remains sufficient; membership adds no cross-Audit deletion blocker.
+  cascade: Audit purge removes its rows/index reachability and advances correlation revision in bounded batches; another Audit's rows/holds/decisions
+    remain intact.
+  retention: Source Run deletion preserves Audit-held exact keys/evidence; deleting a representative promotes a retained peer in the read projection,
+    and Project purge removes all owned membership without dangling cross-Audit FKs.
+acceptance_criteria:
+- id: A1
+  given: Independent observations with qualified equal keys in one or different Audits of the same Project and unmatched/weak-only observations.
+  when: Production admission and authorized finding reads run without a model or analyst confirmation.
+  then: Equal-key peers receive correct automatic labels and representative/basis, every observation survives, weak matches remain unmarked and
+    all analyst decisions/ratings remain unchanged.
+- id: A2
+  given: Reordered/concurrent equal-key admissions, repeated exact receipt import and an admission whose commit response was lost.
+  when: Real PostgreSQL transactions commit/reconcile through the existing receipt/natural keys.
+  then: Membership is unique, representative selection depends on retained member set, replay adds no finding/revision/event and imported shared
+    receipts remain distinguishable from independent discoveries.
+- id: A3
+  given: Different Projects/owners, several candidate keys on a receipt, later contributions and partial contexts sharing a sink.
+  when: Group membership is selected and queried.
+  then: No cross-scope equality or transitive bridge occurs, the first-receipt primary key remains frozen and unsupported/secondary/site matches
+    do not automatically regroup findings.
+- id: A4
+  given: Source deletion, representative deletion, populated Audit/Project purge, cancellation and contested lifecycle locks.
+  when: Real stores mutate and read memberships in deterministic race scenarios.
+  then: Surviving results/evidence remain independent, labels/representatives update without peer rewrites, Audit/Project revision fences cover
+    membership and visible result/provenance changes, cleanup is bounded and no deadlock/retry loop or dangling ownership remains.
+- id: A5
+  given: Many unrelated Project findings and a large equal-key group, plus frozen reports and existing manual duplicate decisions.
+  when: Batched detail/list projections and full relevant suites run.
+  then: Index probes/hydration remain bounded, current automatic marks never rewrite historical/manual results and OpenAPI/generated/shared contracts
+    agree.
+tests:
+- command: go test -count=1 ./internal/auditstore/... ./internal/auditservice ./internal/findingintake ./internal/projectstore ./internal/projectlifecycle
+    ./internal/httpapi/public ./internal/publicclient/... ./internal/apierror
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: go test -count=1 -tags=integration ./internal/auditstore/... ./internal/auditservice ./internal/findingintake ./internal/projectlifecycle
+    ./internal/persistence/postgres
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make verify-public-api verify-public-api-postgres test-wire-cross-language test-findings-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A5
+- command: make ui-verify
+  covers:
+  - A5
+- command: make lint
+  covers:
+  - A1
+  - A5

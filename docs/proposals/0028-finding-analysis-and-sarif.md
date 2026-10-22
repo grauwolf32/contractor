@@ -1,22 +1,28 @@
-# Structured finding analysis and SARIF export
+# Structured finding analysis, correlation and SARIF export
 
 Proposal 0028 · Status: **Draft; specified target; not implemented.**
 
 Nothing in this proposal is implemented: the typed finding analysis document,
-its resolver, the export snapshot service, the SARIF exporter, the
-`github-code-scanning` profile and `POST /v1/finding-exports` are all target
-design. The finding proposal schema, the `security-findings@1` Toolset and the
-collection format stay unchanged, and existing findings, collections,
-code-analysis, annotation and HTTP tools retain their published contracts;
-capability/version changes are explicit amendments to owning specs. Upload, source maps, fixes, suppression sync, native security-score
+its resolver, producer fingerprints, structural anchors, automatic duplicate
+marks, cross-Audit comparison, duplicate-candidate search, the export
+snapshot service, the SARIF exporter, the `github-code-scanning` profile and
+`POST /v1/finding-exports` are all target design. The finding proposal schema,
+the `security-findings@1` Toolset and the collection format stay unchanged,
+and existing findings, collections, code-analysis, annotation and HTTP tools
+retain their published contracts;
+capability/version changes are explicit amendments to owning specs. The
+correlation slice can ship independently of structured analysis and SARIF.
+Upload, source maps, fixes, suppression sync, native security-score
 classification and complete-scan replacement are deferred beyond the stages in
 [Delivery and conformance](#delivery-and-conformance).
 
 ## Ownership and decisions
 
 This proposal owns portable structured analysis attached to a finding,
-resolution against exact evidence, and deterministic SARIF 2.1.0 export.
-Audit admission, review, duplicate decisions, coverage, Workflow execution and
+resolution against exact evidence, versioned correlation fingerprints,
+automatic duplicate marks, cross-Audit comparison and deterministic SARIF
+2.1.0 export. Audit admission, human duplicate decisions, review, coverage,
+Workflow execution and
 Runtime placement remain owned by their existing contracts
 ([Audits](../spec/audits/audits.md),
 [Review and reports](../spec/audits/review-and-reports.md),
@@ -38,6 +44,12 @@ The design has three boundaries:
 3. A pure Go exporter transforms the frozen snapshot into SARIF. It performs no
    model reasoning, source discovery, tool execution, network access or review
    mutations. API, CLI and UI share this service.
+
+A separate deterministic correlation path derives producer keys and structural
+anchors, automatically marks exact repeated observations and compares Audits
+within one Project. It preserves each finding and its independent analyst
+triage. Weaker matches remain candidates. This slice has no LLM or required
+manual confirmation and can ship before the analysis resolver/SARIF exporter.
 
 ```mermaid
 flowchart LR
@@ -105,7 +117,7 @@ then analysis, then call `finding(...)` with all refs. The resolver maps refs
 through the containing receipt's evidence table. The document cannot choose
 another scope, grant access or cause recursive external fetches.
 
-Existing immutable receipts are never enriched in place. A legacy proposal can
+Existing immutable receipts are never enriched in place. A proposal without analysis can
 be exported as it is, or a new proposal can carry structured evidence and become
 an explicit contribution/presentation choice under the existing Audit contract.
 
@@ -124,7 +136,7 @@ Persist new analysis documents as RFC 8785 canonical JSON.
 
 | Object | Fields |
 | --- | --- |
-| Analysis | `schema`, `client_key`, `sources`, `locations`, `flows`, `http_exchanges`; optional `rule`, `primary_location_id`, `primary_http_exchange_id`, `correlation_key` |
+| Analysis | `schema`, `client_key`, `sources`, `locations`, `flows`, `http_exchanges`; optional `rule`, `primary_location_id`, `primary_http_exchange_id` |
 | Rule | `id`, `version`, `name`, `description`; optional `help_uri` |
 | Source | `id`, `kind: archive\|file`, exact `artifact_ref` |
 | Location | `id`, `source_id`, `path`, `file_digest`; optional `region`, `symbol` |
@@ -161,9 +173,11 @@ flowchart LR
 
 `client_key` equals the containing proposal's client key; the receipt supplies
 authoritative invocation identity. Array IDs are unique within their containing
-object. Both primary IDs must resolve when present. `correlation_key` is an
-optional stable producer-defined issue discriminator, at most 160 bytes; it
-does not authorize deduplication.
+object. Both primary IDs must resolve when present. Correlation components
+live only in the optional fingerprint evidence defined in
+[Versioned producer keys](#versioned-producer-keys) and
+[structural anchors](#structural-anchors-from-exact-source); analysis does not
+maintain a second discriminator or fingerprint formula.
 
 `Rule.id` denotes the check/issue family, for example
 `contractor/sql-injection`. It is stable across Runs; finding ID, Workflow
@@ -470,16 +484,452 @@ equal by guessing. Any future alias mapping must be explicit and versioned.
 
 Native result IDs, grouping hints and consumer fingerprints have distinct jobs.
 Finding/receipt IDs and revisions stay in Contractor properties. Run/allocation
-IDs never identify issues across scans, and fingerprints never mutate Audit
-duplicate relations.
+IDs never identify issues across scans. Automatic correlation is separate
+from the human Audit duplicate relation and never rewrites analyst decisions.
 
-Emit generic fingerprint `contractor/issue/v1` only when the producer supplies
-`correlation_key` and there is a stable repository and rule identity. Hash the
-RFC 8785 array `["contractor/issue/v1", repository_identity, rule_id,
-correlation_key]` with SHA-256. The key must distinguish independent issues
-sharing subject, CWE or sink. Without it, omit this fingerprint and report
-`fingerprint_unavailable`. Commit, source digest and line numbers are excluded
-from this cross-scan key. It remains a correlation hint, not proof of identity.
+SARIF consumes the qualified registered producer/issue-anchor key from the
+fingerprint projection defined below. It does not recompute another rule or
+infer a key from analysis prose. Missing qualified evidence remains an ordinary
+finding; omit the SARIF issue fingerprint and report `fingerprint_unavailable`.
+
+## Deterministic fingerprints and automatic duplicate marks
+
+### Identity, automatic marks and analyst decisions
+
+The requested target is deterministic fingerprinting/search and automatic
+marking of repeated findings, including discoveries in different Audits of one
+Project. No LLM call, embedding, model ranking or model-authored discriminator
+participates in these operations. A finding may originate from a model; its
+prose is not a matching input. The new behavior is target design, not a claim
+about today's implementation.
+
+| Fact | Authority and effect |
+| --- | --- |
+| Delivery replay | Existing allocation/invocation/submission identity and canonical digest return the original receipt; changed bytes conflict. |
+| Observation | Each independent proposal/receipt and destination Audit finding keeps its own ID, source, evidence, assessment, triage and rating. |
+| Automatic duplicate mark | Server equality under a registered deterministic key contract groups matching observations and automatically projects a duplicate label, including across Audits in the same Project. No analyst confirmation is required. |
+| Weaker candidate | A structural site or scope/family overlap lacking a complete issue key is shown as a possible match, without an automatic duplicate label. |
+| Analyst triage | Existing human TP/FP/severity/reopen and same-Audit manual duplicate decisions remain independent of automatic marks. |
+
+Automatic duplication is a first-class system-owned `correlation` projection,
+not the existing human-owned `state: duplicate`/`duplicateTargetId`. The latter
+continues to mean the existing same-Audit analyst decision. A finding can be
+`confirmed` in one Audit, `rejected` in another, and automatically correlated
+with both observations retained. Automatic marks never clear or copy ratings,
+expire reviews, skip verification, choose the first proposal as truth or turn
+an unreviewed observation into a confirmed vulnerability.
+
+This distinction preserves independent Audit results for comparison. It is
+not a second approval flow: automatic labels appear without a human mutation.
+The new projection needs explicit amendments to owning findings/review/UI
+specs during implementation; existing contracts stay normative until then.
+
+### Unchanged Worker tool contract
+
+Keep complete model-visible declarations of all finding facades and
+`list_findings` unchanged: names, descriptions, required/optional arguments,
+defaults, constraints, tool selection and success/error result shapes. No new
+preparation call, descriptor-authoring instruction, fingerprint or search tool
+is required from the model. Deterministic producer/publisher code builds
+private descriptors and anchors from existing inputs/evidence and trusted
+bindings. Hidden Runtime/Server metadata and owner API/UI projections may
+extend. If optional matching inputs are missing, ambiguous or exceed their
+own finite preparation budget, preserve the valid ordinary finding and record
+an internal unavailable reason; genuine integrity/storage failures retain their
+normal error class. Independent calls keep their own receipt, replay keeps its
+original receipt and model-visible evidence/result fields remain unchanged.
+`list_findings` retains every selected collection entry, including duplicates.
+Pin provider declarations and representative result/reader/error fixtures
+before publisher changes; compare the actual provider builder and production
+Runtime/Server outcomes against those fixtures, not self-derived expectations.
+
+### Versioned producer keys
+
+Use one versioned code-backed adapter registry. Each producer adapter declares
+its namespace, stable rule identity, native key semantics, supported asset
+kinds, comparison domain, implementation version and fixtures. Its key must
+identify a particular issue instance; a rule ID, CWE, title, sink or an item
+ordinal alone is insufficient. Obtain components from an exact retained
+machine report and trusted invocation/configuration binding. Accept no key,
+producer identity or cross-version stability claim invented by a model.
+
+A receipt selects zero or one optional producer descriptor. This ordinary
+evidence document selects the deterministic extraction:
+
+```text
+media type: application/vnd.contractor.finding-fingerprint+json
+schema: contractor.finding.fingerprint.v1
+required: schema, adapter_id, report_ref, record_locator, asset_ref
+```
+
+`report_ref` and `asset_ref` are exact selected evidence ArtifactRefs;
+`record_locator` is a validated JSON Pointer into that report whose permitted
+record shape is fixed by the adapter. A locator's ordinal may locate the
+record but never becomes the issue key. The descriptor contains neither a
+supplied hash nor authored `correlation_key`, `input`, `context`, title or
+precondition summary. It grants no access or authority. Reuse the existing
+proposal/collection schemas and `evidence_refs`; no required model tool
+argument or alternate intake is introduced.
+
+The Server verifies the evidence closure, decodes the report with the pinned
+adapter, checks producer provenance and extracts its rule/key components.
+The first implementation must wire a real supported producer/report path and
+the authorized detail reader in the same change, rather than introducing a
+registry with only test callers. If no existing report has an admissible native
+key, that report is explicitly unavailable until a deterministic adapter and
+its semantics are implemented; there is no synthetic key from report prose.
+Adapters qualify a native key for either an exact source/target snapshot or
+cross-snapshot matching. That qualification is part of the registered scheme,
+not a caller option.
+
+The first asset kind is a repository resolved through trusted Git provenance
+of the exact selected source. HTTP/native target keys require an independently
+specified stable target and authentication-context identity before automatic
+use; shared URLs do not qualify. Do not guess repository aliases or lineage
+for edited or uploaded source. For Git sources, exact snapshot identity is the trusted resolved commit plus
+the exact selected source content digest, retaining exclusion/coverage metadata
+in provenance. Snapshot-limited schemes retain that identity in the key; cross-snapshot schemes may omit it only under their
+explicit tested contract.
+
+Compute lowercase hex SHA-256 of RFC 8785 arrays. The producer formula is:
+
+```text
+["contractor/producer-issue/v1", asset_identity, adapter_namespace,
+ key_scheme, rule_id, comparison_domain, native_issue_key]
+```
+
+`comparison_domain` is either `["snapshot", exact_snapshot_identity]` or
+`["cross-snapshot", scheme_version]`. The adapter validates the complete native
+key; unrelated fields never silently disappear. Namespace, scheme and rule IDs
+use the existing Rule ID grammar and 160-byte bound. The descriptor is at most
+16 KiB, its locator at most 1024 UTF-8 bytes and the canonical native key at
+most 4096 bytes; all are strict closed values with duplicate-key rejection.
+Unknown schemas/schemes fail, rather than invoking a legacy/fallback reader.
+
+Severity, title, prose, result order, Run IDs and parser/model judgments do not
+enter a producer issue key. Coordinates are report provenance unless the
+registered native scheme explicitly has snapshot-bound position semantics;
+such a scheme must not claim cross-snapshot stability. Semantic key changes
+need a new scheme, rather than silently comparing old/new versions.
+
+### Structural anchors from exact source
+
+A separate adapter parses exact retained source with pinned Tree-sitter
+language/grammar and a versioned normalizer. It has no dependency on a live
+workspace, allocation-local graph IDs, finding-analysis export or a model.
+The first parser profiles cover Python, JavaScript and TypeScript, using the
+already pinned Runtime parsers; unsupported languages report unavailability
+and remain ordinary findings. Each supported profile needs its own fixtures.
+
+An optional ordinary selector contains only factual source selection:
+
+```text
+media type: application/vnd.contractor.finding-anchor+json
+schema: contractor.finding.anchor.v1
+required: schema, source_ref, file, region
+```
+
+The source must be in the exact receipt evidence closure. File/path and region
+follow this proposal's source/coordinate contract; selectors are at most
+16 KiB. Code-finding publication can deterministically build one from an
+explicit file/region and unambiguous exact source binding; ambiguous sources,
+whole-function locations or several possible actionable nodes yield an
+unavailable reason. A model does not choose an AST hash, parser version,
+qualified symbol or control-context identity. Raw supplied coordinates remain
+producer claims; structural validation proves source consistency only.
+
+Locate the precise actionable node through a documented language profile;
+retain enclosing qualified symbol/signature and its structural child path.
+Serialize ordered node kinds, field names, meaningful punctuation and exact
+identifier/literal values. Drop source offsets and syntax-insignificant trivia
+only. Preserve spaces inside literals, significant indentation/tokens,
+preprocessor/compiler directives and semantically relevant comments. Do not
+rename variables, rewrite expressions, simplify conditions, remap edited lines
+or resolve symbols by fuzzy names. Parser errors in the selected context,
+ambiguous nodes, malformed source or unsupported constructs fail availability
+explicitly; they never select a convenient first node.
+
+Compute the structural site key:
+
+```text
+["contractor/structural-site/v1", repository_identity, file,
+ language_profile_version, grammar_version, qualified_symbol_signature,
+ structural_child_path, canonical_node_digest]
+```
+
+The node digest is SHA-256 of the profile's canonical AST bytes, so retained
+derivations need not embed full source trees. AST child positions describe the
+exact parsed tree, not scanner-result rank.
+Keep exact source/file digests and coordinates as provenance. Record whether a
+site key can be compared across snapshots; even identical normalized nodes
+in different snapshots are only candidate matches initially, because caller,
+control, dependency or deployment context may have changed.
+
+A site match alone cannot automatically duplicate findings: independent inputs
+or paths may share the same sink. Automatic structural matching requires an
+additional registered machine-derived issue-context scheme. Its inputs are
+exact node/input/operation/control selectors extracted from retained source
+and structured producer/check metadata, not free text or inferred CWE
+semantics. A node-local check can use a registered `node-local/v1` context only
+when its deterministic check contract establishes that the issue instance is
+local to that node. A flow-sensitive check needs its complete available
+machine-derived input/control/operation context; absent or ambiguous context
+leaves a site candidate. Do not implement an incomplete generic taint analyzer
+just to manufacture this context.
+
+For qualified structural issues compute:
+
+```text
+["contractor/snapshot-issue-anchor/v1", repository_identity,
+ exact_snapshot_identity, stable_rule_id, structural_site_key,
+ issue_context_scheme, machine_issue_context_digest]
+```
+
+This exact-snapshot key automatically matches different Audits of the same
+baseline when all components agree. Structural cross-snapshot automatic
+matching is deferred; matching sites remain visible as candidates. Line shifts
+or formatting may preserve the site key, but a changed snapshot intentionally
+changes the snapshot-qualified issue key. File renames or changed AST paths
+may reduce recall, which must be reported rather than guessed away.
+
+Runtime performs parsing/canonicalization off the event loop under existing
+file/archive limits, at most 32 selected anchors and 8 MiB of distinct source
+per proposal. Retain a small versioned derived evidence artifact containing
+selector, exact digests, adapter/grammar versions, canonical components,
+availability and optional context proof. The Server verifies the artifact's
+trusted deterministic producer binding before using a structural auto-key;
+an owner-authored imitation can be evidence but cannot mint that binding.
+The authenticated Runtime publisher carries this derivation in a hidden,
+closed `derived_anchors` private-submission field produced only by the helper;
+it is not a model-visible tool argument. The Server verifies exact refs,
+digests, adapter/version and the allocation/invocation binding and stamps the
+trusted provenance in the existing intake transaction. Generic Artifact writes
+cannot mint this binding. Add the private Go/Python wire extension and shared
+negative fixtures in the same change; do not create another receipt or
+signature/key-distribution subsystem. Go validates the closed derived record
+and authenticated provenance rather than reimplementing AST canonicalization.
+Parsing never occurs while holding intake/group locks.
+
+### Intake, group membership and automatic marking
+
+Keep computed keys and their basis in an immutable receipt-owned projection,
+committed atomically with the existing intake receipt/report projection.
+Missing optional evidence and unsupported/ambiguous cases preserve a usable
+proposal with reasons such as `producer_key_unavailable`,
+`anchor_ambiguous`, `anchor_language_unsupported` or
+`issue_context_unavailable`. Malformed selectors, forged refs or a declared
+adapter/derived record that disagrees with its exact evidence are permanent
+validation errors and commit nothing. Existing rows receive an explicit
+`not_recorded` projection in a strict migration; historical receipts are not
+reparsed or enriched in place.
+
+A destination Audit finding derives its primary automatic key from its first
+receipt: the single qualified producer issue key first, otherwise exactly one
+distinct qualified snapshot structural issue key, otherwise none. Multiple
+structural issue keys yield `primary_key_ambiguous` and candidate evidence;
+never pick an arbitrary first anchor or combine independent issue keys.
+Freeze that choice on admission;
+later supporting contributions cannot silently regroup it. Retain all other
+keys as candidate reasons. There is no transitive union of different schemes
+or keys: a finding with two hints must not bridge two independent issues.
+
+The Project-scoped group key is SHA-256 of:
+
+```text
+["contractor/finding-group/v1", project_id, primary_key_algorithm,
+ primary_key_value]
+```
+
+Store the small immutable group attributes on the existing Audit finding row,
+with a scoped `(project_id, group_key, finding_id)` index; no global issue,
+cluster/membership table, second receipt or background dedup controller is
+needed. Existing admission and source/parent lifecycle transactions own those
+fields; result/provenance mutation paths also maintain their revision fences. A matching admission automatically joins the equality group without
+suppressing the new finding. The system-owned finding-detail/list projection
+exposes `groupKey`, `basis`, `automaticDuplicate`, representative identity,
+`hasOtherObservations`, matched domain and policy version, independently of
+manual triage. Membership is durable; the automatic label is derived from it,
+so it cannot remain stale after a peer is removed.
+
+Choose the lexicographically smallest retained finding ID as representative
+inside the declared comparison scope. Its selection is deterministic for the
+same member set, carries no priority or truth claim and is never a global
+finding ID. Other members are automatically marked duplicates; the
+representative exposes that other observations exist. Disabled/unqualified
+schemes under the current explicit policy cannot emit an automatic label; their
+retained observations and diagnostic basis remain readable. No group-size count or
+unbounded peer hydration is needed for a detail read: indexed first/next
+probes suffice. Deleting a representative deterministically promotes another
+retained member without rewriting its triage, identity or evidence. Scope and
+representative are always returned together; a representative chosen for two
+selected Audits can differ from the Project-wide presentation representative.
+
+Membership insertion/removal and any summarized finding-result or retained
+provenance change advance a dedicated Project correlation revision on the
+existing Project row. It has production readers in Project-scoped candidate
+and member APIs. In particular, triage/assessment and source-retention changes
+must advance it even when keys stay unchanged, so pages cannot mix ratings or
+origins. It is separate from analyst finding revisions. Parse and
+resolve evidence before this short lifecycle transaction; retain existing
+lock order and event/retry mechanisms. Use existing admission/purge event
+invalidation without emitting a decision or fanning out mutations to peers.
+Audit finalization/accepted reports retain their frozen content; current
+Project correlation may change as other Audits discover or remove peers.
+
+### Bounded search and comparison across Audits
+
+Expose owner-authorized reads through the existing service/client boundaries:
+
+```text
+GET /v1/audits/{auditId}/findings/{findingId}/duplicate-candidates
+    ?scope=project&targetAuditId=...&sourceReceiptId=...&limit=20&cursor=...
+GET /v1/projects/{projectId}/finding-comparisons
+    ?leftAuditId=...&rightAuditId=...&limit=20&cursor=...
+GET /v1/projects/{projectId}/finding-correlations/{groupKey}/members
+    ?auditId=...&limit=20&cursor=...
+```
+
+Candidate scope defaults to `project`; `scope=audit` restricts it to the
+source Audit. An optional target Audit must belong to the same owned Project.
+`sourceReceiptId` selects an actual contributing receipt, defaulting to the
+immutable first receipt. Selecting another contribution can reveal candidates
+but does not change the finding's frozen primary group key. Never search
+another Project/owner, import proposals, invoke a model/scanner or write marks
+from a GET; admission already persisted matching membership automatically.
+
+Order candidate reasons by fixed tier, then creation time and finding ID:
+primary automatic-key equality; other qualified producer-key equality;
+structural-site equality with explicit snapshot/context limitations; exact
+scope/non-null subject/tagged rule or CWE-family overlap. Each target appears
+once at its strongest tier. The response distinguishes already automatic
+marks from weaker candidates. A secondary/site/family match never silently
+joins primary groups or copies analyst decisions. Direct cross-producer
+matches need an explicit versioned common rule/context mapping; no mapping is
+guessed from similar names or descriptions.
+
+Comparison selects exactly two distinct owned Audits in one Project. Rows
+represent exact primary-key groups present in both sides, only the left side,
+or only the right side; findings without usable auto-keys remain separate
+`unmatched` observation rows with unavailability reasons. Preserve every
+member and its Audit, Workflow/configuration digest, baseline, receipt,
+current triage/assessment, separate analyst/proposal severity and origin.
+Distinguish independent discoveries from the same receipt imported twice.
+Structural-only or cross-snapshot suggestions are separate candidate links,
+never exact intersection rows. Do not label absent matches as fixed/new
+vulnerabilities or a clean scan. Different coverage, profiles and baselines
+remain visible comparison limitations.
+
+Groups have stable key identities without depending on presentation order.
+Rows contain at most one preview per side and links/cursors to all members;
+never keep only the first finding or lose additional discoveries. Successful
+pagination accounts for every selected observation exactly once through its
+group membership or unmatched identity. If the same receipt occurs in two
+Audits it is one source observation with two Audit-local results, both shown.
+Unique-group counts, raw finding counts, independent discovery counts and
+confirmed findings are distinct metrics. Exact whole-comparison totals are
+not required on page reads; any UI running totals are visibly partial until
+all pages are consumed. Summary/complete-scan claims need their own bounded
+snapshot contract before being added.
+
+Default page size is 20, maximum 100 and JSON at most 256 KiB. One request
+examines at most 1,000 matching/index contribution rows; candidate/member
+pages hydrate at most 100 summaries, comparison pages at most 200 one-per-side
+previews. A summary is an explicitly labeled bounded preview, not the full
+proposal/evidence. Keep at most 8 reason pairs per candidate with
+`reasonsTruncated`; cursors retain work progress, and empty work-bound pages
+can still have `hasMore`. Advance past a represented group's extra reasons
+using indexed group seeks; do not scan its entire membership to move forward.
+Return explicit errors for individual mandatory content that cannot fit,
+rather than dropping observations. No list builds the entire parent Audit,
+Project, equality group or pairwise matrix in memory.
+
+Cursors bind owner/Project, selection/filter/policy and source finding/receipt
+where relevant. Project-wide candidate/member pages fence Project correlation
+revision; Audit-limited pages fence the affected Audit revisions. Two-Audit
+comparison/member traversal fences both selected Audit revisions and uses only
+that pair's membership/representatives, so an unrelated Audit's update does not
+invalidate it. All visible selected finding/result/provenance mutations must
+advance the relevant existing Audit revisions. Read and recheck fences around
+batched hydration. A change returns `409 finding_correlation_stale` and requires
+restarting; pages never mix membership, triage or ratings from different
+revisions. Missing or foreign sources use existing 404/non-disclosure rules.
+Use generated clients/validators and register limits/errors once during
+implementation.
+
+Prove indexed bounded work against a 100,000-finding Audit, a Project fixture
+with 100 Audits/1,000,000 findings, high-multiplicity groups and many unrelated
+rows. Test deterministic row/hydration budgets and query plans rather than
+wall-clock speed assertions. Parent cardinalities never multiply request work.
+
+### UI, export and independent Audit results
+
+Show automatic duplicates and their machine basis directly in finding and
+comparison views, without a confirmation dialog. The UI reflects the Server's
+system mark, allows expanding every retained member and keeps manual triage
+visible as a separate fact. Hashes, parser/adapter details and exact components
+belong under Technical details. Weaker rows say “Possible match” and explain
+why they are not automatically marked. Loading, unavailable, partial, empty,
+stale and failed reads remain distinct; no match does not prove independence.
+
+The comparison chooses two Audits and displays shared groups, one-sided groups
+and unmatched observations with baseline/profile/coverage context. It follows
+every group/member/candidate page, including empty progress pages. Switching
+Audits or source receipts cancels old reads and clears their cursors. Stop
+retrying stale cursors, preserve honest stale data on read failures and use
+existing backoff. Existing human triage may still be used independently; this
+slice introduces neither required manual duplicate confirmation nor a new
+review endpoint/target-revision mutation.
+
+FindingCollection v1 remains unchanged and preserves its selected receipts
+and review observations. Exports preserve all explicitly selected identities.
+Freeze
+applicable automatic-key/membership basis, comparison scope/policy/revision
+and system marks in new export snapshots. Later group changes never rewrite
+accepted reports or prior snapshots. Generic SARIF fingerprints reuse the
+resolved registered key; a structural-site hint must not masquerade as a
+qualified issue fingerprint. Keep automatic correlation in namespaced
+properties separately from manual duplicate targets and ratings. Automatic
+duplication does not suppress a selected result, change its SARIF kind/level,
+copy severity or imply `baselineState`, suppression or remediation.
+
+### Failure, lifecycle and reversal conditions
+
+| Operation/outcome | Required behavior |
+| --- | --- |
+| Intake/admission success | Persist every observation, its computed projection and primary group membership atomically with existing receipts/admission; matching observations are automatically labeled by the Server read projection. |
+| Identical submission replay | Return the same exact receipt/projection/membership without another observation, group revision advance or event. |
+| Unsupported/ambiguous key or anchor | Save an ordinary finding with an explicit unavailable/candidate-only reason, never ask a model to fill components. |
+| Malformed, foreign or forged evidence | Permanent document/reference/non-disclosure class; no partial receipt/group fields. |
+| Storage conflict | Existing bounded transaction retry and retryable 503 storage_transaction_conflict with Retry-After; deterministic rejection is permanent. |
+| Ambiguous commit | Reconcile the existing submission/admission receipt or natural key before retry; no second append/receipt mechanism. |
+| Candidate/comparison read | No mutation; bounded complete page or explicit work progress, revision conflict, unavailable or error. |
+| Changed comparison inputs | 409 finding_correlation_stale; restart without claiming new/fixed issues or mixing histories. |
+| Cancellation/deadline | Cancel and join parser/read/transaction work before cleanup; parsing and intake/read deadlines are independent, and an uncertain commit is reconciled. |
+
+Receipt projections follow source-held/audit-held/discarded retention and exact
+Artifact access rules. Source Run deletion preserves evidence and derived keys
+held by an Audit; discard clears sensitive projection data and leaves only
+existing tombstone provenance. Audit purge removes its group membership and
+advances affected Audit/Project correlation revisions in bounded batches, preserves other Audits and
+releases only its own holds/decisions. Project purge removes all owned keys,
+rows and artifacts through existing lifecycle authority. Group membership
+creates no new cross-Audit evidence hold or deletion dependency. A missing
+peer cannot leave a dangling FK or stale stored automatic label; representatives
+are presentation projections over remaining authorized observations.
+
+Producer adapters own native-key precision and declared stability; parser
+profiles own structural reproducibility/ambiguity; the correlation service
+owns policy/version, membership/read bounds and truthful comparison metrics.
+Revisit qualification only with representative repeat/miss/false-match
+fixtures and a deterministic contract. Known limits are renamed/moved code,
+unsupported parsers, missing issue context and cross-snapshot structural
+changes. No LLM fallback, semantic text matching, transitive heuristic merging,
+notification suppression or automatic remediation inference is in scope.
+A demonstrated false automatic match blocks qualification of that scheme in
+the next explicit policy version until regression fixtures and deterministic
+semantics justify it; historical snapshots and original observations remain
+readable. Policy/version changes must invalidate current comparison cursors
+and cannot silently rewrite frozen results.
 
 ## Rule, rating and SARIF mapping
 
@@ -696,8 +1146,8 @@ field/document locator, without raw source, credentials or decoder exceptions.
 
 | Condition | Outcome |
 | --- | --- |
-| Legacy proposal without analysis | Generic output; `analysis_missing` warning |
-| Absent primary location, correlation key or classification mapping | Generic output with specific warnings |
+| Proposal without analysis | Generic output; `analysis_missing` warning |
+| Absent primary location, qualified fingerprint or classification mapping | Generic output with specific warnings |
 | Partial path / original tool truncation | Preserve gaps/limitations; warning |
 | Missing evidence, digest mismatch, duplicate analysis, invalid coordinates/refs/edges | Entire export fails |
 | Conflicting definitions of one rule | Entire export fails; `rule_definition_conflict` |
@@ -750,13 +1200,23 @@ enriches the result but does not automatically resolve its implementation.
 
 ## Delivery and conformance
 
+The independent correlation delivery is: producer-key codecs/adapters and an
+authorized detail reader; deterministic structural anchors; primary membership
+and automatic system marks; indexed cross-Audit candidates/comparison/member
+reads; then the comparison UI. Each stage has a production consumer. It can
+finish before SARIF and requires no LLM or manual duplicate confirmation.
+Existing human triage remains independent. Owning specs and API/event/fixture
+contracts are amended with each implementation, not silently reinterpreted.
+
+The analysis/export delivery remains:
+
 1. **Native analysis/resolver:** schema and semantic validation, source/region
    checks, paths/gaps and shared Go/Python fixtures. Existing
    proposal/collection fixtures stay byte-identical. Add Artifact-based
    producer instructions and examples without requiring a new tool.
 2. **Generic service/export:** frozen review/contribution/presentation
    selection, rendering, atomic replay, OpenAPI, CLI/UI download. Include
-   legacy and HTTP-only findings from this stage.
+   findings without analysis and HTTP-only findings from this stage.
 3. **Structured producers:** optional snapshot-bound Runtime capture for code,
    annotations and HTTP. Capability/version changes are explicit amendments to
    owning specs. Trusted capture claims require exact snapshot provenance.
@@ -766,10 +1226,28 @@ enriches the result but does not automatically resolve its implementation.
 
 Implementation acceptance includes:
 
+- qualified producer-key fixtures and pinned per-language structural vectors,
+  significant syntax/literal preservation, trivia/offset invariance,
+  ambiguity/unavailable diagnostics and no model-generated key components;
+- distinct independent inputs/paths sharing a sink stay separate without a
+  complete machine issue context; cross-snapshot structural matches remain
+  candidates, while qualified native stability follows its registered scheme;
+- real-store repeated delivery, concurrent equal-key admissions, automatic
+  labels across independent Audits, imported receipt versus independent
+  discovery and unchanged native IDs, analyst verdicts and severity;
+- representative deletion/promotion, source retention/discard, populated
+  Audit/Project purge and no foreign-key/evidence dependency across Audits;
+- indexed 100,000-finding Audit and 1,000,000-finding Project fixtures,
+  high-multiplicity groups, full bounded traversal and no N+1/parent scans;
+- exact two-Audit group intersection, one-sided/unmatched observations,
+  comparison of different baselines/profiles and revision-fenced concurrent
+  membership/triage changes, without interpreting non-observation as a fix;
+- automatic marks without confirmation, separate human triage, independent
+  per-Audit results, all-member navigation and 390 px light/dark/black themes;
 - generated files validated against the locally pinned official
   [SARIF schema][sarif-schema] and semantic rules, without schema downloads
   during export;
-- golden data-flow, call-path, partial-flow, legacy and HTTP-only examples;
+- golden data-flow, call-path, partial-flow, no-analysis and HTTP-only examples;
 - identical output after selector/map reorder and on Linux/macOS;
 - contribution/presentation choices, overlapping selections, multiple Audit
   reviews of one receipt and replay after triage/source deletion;
