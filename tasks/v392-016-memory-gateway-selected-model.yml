@@ -1,0 +1,41 @@
+schema_version: '1.0'
+id: V392-016
+title: Check the selected Worker model in the production Memory process fixture
+milestone: shared-memory-production-correctness
+epic: memory
+kind: defect
+introduced_by: V387-002
+priority: P1
+status: in_progress
+depends_on: []
+languages: [go]
+goal: Let the production Memory process gate exercise the exact staged Worker model policy without rewriting the selected model or weakening role and tool checks.
+context:
+  finding: >-
+    tests/e2e/shared_memory_gateway_test.go:167,257 expect the literal worker-model in both ordinary Worker and result-finalizer requests. TestProductionMemoryTemplatesAcrossProcesses now stages the exact generated Worker policy selected by artifact_builder@2, so the real configured digest-qualified route is rejected with HTTP 400 before the first append. Full release-verify reaches this failure in process shard C.
+  siblings: >-
+    Fix both ordinary Worker scenario dispatch and result finalization in the shared Memory Gateway. Non-production Memory still uses its exact fixture model policy. The UI Gateway was corrected in V392-011. Worker summarizer and session gateways stage fixed test-only policies and retain their explicit role-model assertions; the routing gate deliberately asserts configured model selection. Domain gateways already route through scenario context and tool contracts.
+  specification:
+  - docs/spec/configuration/catalog.md#CAT-R80
+  - docs/spec/tools/memory.md
+scope:
+  in:
+  - Resolve the expected Worker model from the staged catalog and use the same exact model check for ordinary calls and result finalization.
+  - Extend the existing staging regression to verify qualified selected models and rejection of incorrect model identities.
+  - Run both real Memory process modes, their staging regression, lint and the complete deterministic release gate.
+  out:
+  - Any shipped model policy, production code, live Gateway call, prefix/suffix fallback or relaxation of tool schemas and transcript checks.
+acceptance_criteria:
+- id: A1
+  text: Production Memory completes its retained-note, retry, Router and domain-output journeys with the exact configured generated Worker model.
+- id: A2
+  text: Both ordinary calls and result finalization enforce the same selected Worker identity, while fixed non-production policies and existing closed tool contracts remain strict.
+- id: A3
+  text: The staging regression validates the selected route without editing model policy bytes, and all changed fixture consumers and the full release gate pass.
+tests:
+- command: go test -tags=e2e -count=1 -timeout=12m ./tests/e2e -run '^(TestProductionMemoryConfigurationStaging|TestMemoryMVPProcesses|TestProductionMemoryTemplatesAcrossProcesses)$'
+  covers: [A1, A2, A3]
+- command: make lint
+  covers: [A1, A2, A3]
+- command: make -k release-verify
+  covers: [A1, A2, A3]
