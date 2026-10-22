@@ -20,11 +20,13 @@ func TestSharedFindingFingerprintCases(t *testing.T) {
 			Digest    string
 		}
 		AdapterCases []struct {
-			Name         string
-			Report       string
-			Availability string
-			Reason       string
-			Value        string
+			Name                string
+			Report              string
+			Availability        string
+			Reason              string
+			Value               string
+			ProposalTitle       string
+			ProposalDescription string
 		}
 	}
 	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "finding-fingerprint-cases.json"), &fixture); err != nil {
@@ -46,7 +48,7 @@ func TestSharedFindingFingerprintCases(t *testing.T) {
 		t.Run(c.Name, func(t *testing.T) {
 			source, report := fingerprintDescriptors([]byte(c.Report))
 			line := int64(3)
-			got := FingerprintPinnedSARIF([]byte(c.Report), "https://example.test:443/repo.git", strings.Repeat("a", 40), source, report, []FindingLocation{{File: "src/a.py", Line: &line}})
+			got := FingerprintPinnedSARIF([]byte(c.Report), "https://example.test:443/repo.git", strings.Repeat("a", 40), source, report, FindingProposal{Title: c.ProposalTitle, Description: c.ProposalDescription, Locations: []FindingLocation{{File: "src/a.py", Line: &line}}})
 			if got.Availability != c.Availability || got.Reason != c.Reason || got.Value != c.Value {
 				t.Fatalf("projection=%+v", got)
 			}
@@ -86,7 +88,25 @@ func TestFindingFingerprintStrictProjection(t *testing.T) {
 	}
 	large := make([]byte, MaximumFingerprintReportBytes+1)
 	source, report := fingerprintDescriptors(large)
-	if got := FingerprintPinnedSARIF(large, "", "", source, report, nil); got.Reason != "input_limit" {
+	if got := FingerprintPinnedSARIF(large, "", "", source, report, FindingProposal{}); got.Reason != "input_limit" {
 		t.Fatal(got)
+	}
+}
+
+func TestFindingFingerprintReportResultBound(t *testing.T) {
+	const prefix = `{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"scanner","version":"1"}},"versionControlProvenance":[{"repositoryUri":"https://example.test:443/repo.git","revisionId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}],"results":[`
+	const match = `{"ruleId":"rule/sql","message":{"text":"Native issue message"},"fingerprints":{"native/v1":"issue-a"},"locations":[{"physicalLocation":{"artifactLocation":{"uri":"src/a.py"},"region":{"startLine":3}}}]}]}]}`
+	line := int64(3)
+	proposal := FindingProposal{Title: "rule/sql", Description: "Native issue message", Locations: []FindingLocation{{File: "src/a.py", Line: &line}}}
+	for _, count := range []int{MaximumFingerprintResults, MaximumFingerprintResults + 1} {
+		data := []byte(prefix + strings.Repeat(`{"ruleId":"unrelated"},`, count-1) + match)
+		source, report := fingerprintDescriptors(data)
+		got := FingerprintPinnedSARIF(data, "https://example.test:443/repo.git", strings.Repeat("a", 40), source, report, proposal)
+		if count == MaximumFingerprintResults && got.Availability != "available" {
+			t.Fatalf("maximum report=%+v", got)
+		}
+		if count > MaximumFingerprintResults && got.Reason != "input_limit" {
+			t.Fatalf("over-budget report=%+v", got)
+		}
 	}
 }

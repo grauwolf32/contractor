@@ -89,5 +89,5 @@ func (s *Service) prepareFingerprint(ctx context.Context, grant controlplane.All
 	if err != nil {
 		return absent("producer_key_unavailable"), err
 	}
-	return auditdomain.FingerprintPinnedSARIF(read.Payload.Data, source.GitSource.RepositoryURL, source.GitSource.ResolvedCommit, source.Exact(), report.Exact(), input.Proposal.Locations), nil
+	return auditdomain.FingerprintPinnedSARIF(read.Payload.Data, source.GitSource.RepositoryURL, source.GitSource.ResolvedCommit, source.Exact(), report.Exact(), input.Proposal), nil
 }

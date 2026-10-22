@@ -92,59 +92,93 @@
   "adapterCases": [
     {
       "name": "native",
-      "report": "{\"version\":\"2.1.0\",\"runs\":[{\"tool\":{\"driver\":{\"name\":\"scanner\",\"version\":\"1\"}},\"versionControlProvenance\":[{\"repositoryUri\":\"https://example.test:443/repo.git\",\"revisionId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}],\"results\":[{\"ruleId\":\"rule/sql\",\"fingerprints\":{\"native/v1\":\"issue-a\"},\"locations\":[{\"physicalLocation\":{\"artifactLocation\":{\"uri\":\"src/a.py\"},\"region\":{\"startLine\":3}}}]}]}]}",
+      "report": "{\"version\":\"2.1.0\",\"runs\":[{\"tool\":{\"driver\":{\"name\":\"scanner\",\"version\":\"1\"}},\"versionControlProvenance\":[{\"repositoryUri\":\"https://example.test:443/repo.git\",\"revisionId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}],\"results\":[{\"ruleId\":\"rule/sql\",\"fingerprints\":{\"native/v1\":\"issue-a\"},\"locations\":[{\"physicalLocation\":{\"artifactLocation\":{\"uri\":\"src/a.py\"},\"region\":{\"startLine\":3}}}],\"message\":{\"text\":\"Native issue message\"}}]}]}",
       "availability": "available",
       "reason": "",
-      "value": "e847c24bebf949a450ae3a78b48eeaafc0912a0219b0d71af90f29cc2d84b191"
+      "value": "e847c24bebf949a450ae3a78b48eeaafc0912a0219b0d71af90f29cc2d84b191",
+      "proposalTitle": "rule/sql",
+      "proposalDescription": "Native issue message"
     },
     {
       "name": "severity-and-prose",
       "report": "{\"version\":\"2.1.0\",\"runs\":[{\"tool\":{\"driver\":{\"name\":\"scanner\",\"version\":\"1\"}},\"versionControlProvenance\":[{\"repositoryUri\":\"https://example.test:443/repo.git\",\"revisionId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}],\"results\":[{\"ruleId\":\"rule/sql\",\"fingerprints\":{\"native/v1\":\"issue-a\"},\"locations\":[{\"physicalLocation\":{\"artifactLocation\":{\"uri\":\"src/a.py\"},\"region\":{\"startLine\":3}}}],\"level\":\"error\",\"message\":{\"text\":\"different prose\"}}]}]}",
       "availability": "available",
       "reason": "",
-      "value": "e847c24bebf949a450ae3a78b48eeaafc0912a0219b0d71af90f29cc2d84b191"
+      "value": "e847c24bebf949a450ae3a78b48eeaafc0912a0219b0d71af90f29cc2d84b191",
+      "proposalTitle": "rule/sql",
+      "proposalDescription": "different prose"
     },
     {
       "name": "record-order",
-      "report": "{\"version\":\"2.1.0\",\"runs\":[{\"tool\":{\"driver\":{\"name\":\"scanner\",\"version\":\"1\"}},\"versionControlProvenance\":[{\"repositoryUri\":\"https://example.test:443/repo.git\",\"revisionId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}],\"results\":[{\"ruleId\":\"unrelated\",\"locations\":[]},{\"ruleId\":\"rule/sql\",\"fingerprints\":{\"native/v1\":\"issue-a\"},\"locations\":[{\"physicalLocation\":{\"artifactLocation\":{\"uri\":\"src/a.py\"},\"region\":{\"startLine\":3}}}]}]}]}",
+      "report": "{\"version\":\"2.1.0\",\"runs\":[{\"tool\":{\"driver\":{\"name\":\"scanner\",\"version\":\"1\"}},\"versionControlProvenance\":[{\"repositoryUri\":\"https://example.test:443/repo.git\",\"revisionId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}],\"results\":[{\"ruleId\":\"unrelated\",\"locations\":[]},{\"ruleId\":\"rule/sql\",\"fingerprints\":{\"native/v1\":\"issue-a\"},\"locations\":[{\"physicalLocation\":{\"artifactLocation\":{\"uri\":\"src/a.py\"},\"region\":{\"startLine\":3}}}],\"message\":{\"text\":\"Native issue message\"}}]}]}",
       "availability": "available",
       "reason": "",
-      "value": "e847c24bebf949a450ae3a78b48eeaafc0912a0219b0d71af90f29cc2d84b191"
+      "value": "e847c24bebf949a450ae3a78b48eeaafc0912a0219b0d71af90f29cc2d84b191",
+      "proposalTitle": "rule/sql",
+      "proposalDescription": "Native issue message"
     },
     {
       "name": "ambiguous",
-      "report": "{\"version\":\"2.1.0\",\"runs\":[{\"tool\":{\"driver\":{\"name\":\"scanner\",\"version\":\"1\"}},\"versionControlProvenance\":[{\"repositoryUri\":\"https://example.test:443/repo.git\",\"revisionId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}],\"results\":[{\"ruleId\":\"rule/sql\",\"fingerprints\":{\"native/v1\":\"issue-a\"},\"locations\":[{\"physicalLocation\":{\"artifactLocation\":{\"uri\":\"src/a.py\"},\"region\":{\"startLine\":3}}}]},{\"ruleId\":\"rule/sql\",\"fingerprints\":{\"native/v1\":\"issue-a\"},\"locations\":[{\"physicalLocation\":{\"artifactLocation\":{\"uri\":\"src/a.py\"},\"region\":{\"startLine\":3}}}]}]}]}",
+      "report": "{\"version\":\"2.1.0\",\"runs\":[{\"tool\":{\"driver\":{\"name\":\"scanner\",\"version\":\"1\"}},\"versionControlProvenance\":[{\"repositoryUri\":\"https://example.test:443/repo.git\",\"revisionId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}],\"results\":[{\"ruleId\":\"rule/sql\",\"fingerprints\":{\"native/v1\":\"issue-a\"},\"locations\":[{\"physicalLocation\":{\"artifactLocation\":{\"uri\":\"src/a.py\"},\"region\":{\"startLine\":3}}}],\"message\":{\"text\":\"Native issue message\"}},{\"ruleId\":\"rule/sql\",\"fingerprints\":{\"native/v1\":\"issue-a\"},\"locations\":[{\"physicalLocation\":{\"artifactLocation\":{\"uri\":\"src/a.py\"},\"region\":{\"startLine\":3}}}],\"message\":{\"text\":\"Native issue message\"}}]}]}",
       "availability": "unavailable",
       "reason": "producer_record_ambiguous",
-      "value": ""
+      "value": "",
+      "proposalTitle": "rule/sql",
+      "proposalDescription": "Native issue message"
     },
     {
       "name": "partial-is-not-full",
-      "report": "{\"version\":\"2.1.0\",\"runs\":[{\"tool\":{\"driver\":{\"name\":\"scanner\",\"version\":\"1\"}},\"versionControlProvenance\":[{\"repositoryUri\":\"https://example.test:443/repo.git\",\"revisionId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}],\"results\":[{\"ruleId\":\"rule/sql\",\"locations\":[{\"physicalLocation\":{\"artifactLocation\":{\"uri\":\"src/a.py\"},\"region\":{\"startLine\":3}}}],\"partialFingerprints\":{\"native/v1\":\"issue-a\"}}]}]}",
+      "report": "{\"version\":\"2.1.0\",\"runs\":[{\"tool\":{\"driver\":{\"name\":\"scanner\",\"version\":\"1\"}},\"versionControlProvenance\":[{\"repositoryUri\":\"https://example.test:443/repo.git\",\"revisionId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}],\"results\":[{\"ruleId\":\"rule/sql\",\"locations\":[{\"physicalLocation\":{\"artifactLocation\":{\"uri\":\"src/a.py\"},\"region\":{\"startLine\":3}}}],\"partialFingerprints\":{\"native/v1\":\"issue-a\"},\"message\":{\"text\":\"Native issue message\"}}]}]}",
       "availability": "unavailable",
       "reason": "producer_key_unavailable",
-      "value": ""
+      "value": "",
+      "proposalTitle": "rule/sql",
+      "proposalDescription": "Native issue message"
     },
     {
       "name": "snapshot-mismatch",
-      "report": "{\"version\":\"2.1.0\",\"runs\":[{\"tool\":{\"driver\":{\"name\":\"scanner\",\"version\":\"1\"}},\"versionControlProvenance\":[{\"repositoryUri\":\"https://example.test:443/repo.git\",\"revisionId\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}],\"results\":[{\"ruleId\":\"rule/sql\",\"fingerprints\":{\"native/v1\":\"issue-a\"},\"locations\":[{\"physicalLocation\":{\"artifactLocation\":{\"uri\":\"src/a.py\"},\"region\":{\"startLine\":3}}}]}]}]}",
+      "report": "{\"version\":\"2.1.0\",\"runs\":[{\"tool\":{\"driver\":{\"name\":\"scanner\",\"version\":\"1\"}},\"versionControlProvenance\":[{\"repositoryUri\":\"https://example.test:443/repo.git\",\"revisionId\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}],\"results\":[{\"ruleId\":\"rule/sql\",\"fingerprints\":{\"native/v1\":\"issue-a\"},\"locations\":[{\"physicalLocation\":{\"artifactLocation\":{\"uri\":\"src/a.py\"},\"region\":{\"startLine\":3}}}],\"message\":{\"text\":\"Native issue message\"}}]}]}",
       "availability": "unavailable",
       "reason": "producer_key_unavailable",
-      "value": ""
+      "value": "",
+      "proposalTitle": "rule/sql",
+      "proposalDescription": "Native issue message"
     },
     {
       "name": "path-traversal",
-      "report": "{\"version\":\"2.1.0\",\"runs\":[{\"tool\":{\"driver\":{\"name\":\"scanner\",\"version\":\"1\"}},\"versionControlProvenance\":[{\"repositoryUri\":\"https://example.test:443/repo.git\",\"revisionId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}],\"results\":[{\"ruleId\":\"rule/sql\",\"fingerprints\":{\"native/v1\":\"issue-a\"},\"locations\":[{\"physicalLocation\":{\"artifactLocation\":{\"uri\":\"../src/a.py\"},\"region\":{\"startLine\":3}}}]}]}]}",
+      "report": "{\"version\":\"2.1.0\",\"runs\":[{\"tool\":{\"driver\":{\"name\":\"scanner\",\"version\":\"1\"}},\"versionControlProvenance\":[{\"repositoryUri\":\"https://example.test:443/repo.git\",\"revisionId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}],\"results\":[{\"ruleId\":\"rule/sql\",\"fingerprints\":{\"native/v1\":\"issue-a\"},\"locations\":[{\"physicalLocation\":{\"artifactLocation\":{\"uri\":\"../src/a.py\"},\"region\":{\"startLine\":3}}}],\"message\":{\"text\":\"Native issue message\"}}]}]}",
       "availability": "unavailable",
       "reason": "producer_key_unavailable",
-      "value": ""
+      "value": "",
+      "proposalTitle": "rule/sql",
+      "proposalDescription": "Native issue message"
     },
     {
       "name": "duplicate-json",
       "report": "{\"version\":\"2.1.0\",\"version\":\"2.1.0\",\"runs\":[]}",
       "availability": "unavailable",
       "reason": "producer_report_invalid",
-      "value": ""
+      "value": "",
+      "proposalTitle": "rule/sql",
+      "proposalDescription": "Native issue message"
+    },
+    {
+      "name": "different-issue-same-coordinate",
+      "report": "{\"version\":\"2.1.0\",\"runs\":[{\"tool\":{\"driver\":{\"name\":\"scanner\",\"version\":\"1\"}},\"versionControlProvenance\":[{\"repositoryUri\":\"https://example.test:443/repo.git\",\"revisionId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}],\"results\":[{\"ruleId\":\"rule/sql\",\"fingerprints\":{\"native/v1\":\"issue-a\"},\"locations\":[{\"physicalLocation\":{\"artifactLocation\":{\"uri\":\"src/a.py\"},\"region\":{\"startLine\":3}}}],\"message\":{\"text\":\"Native issue message\"}}]}]}",
+      "availability": "unavailable",
+      "reason": "producer_key_unavailable",
+      "value": "",
+      "proposalTitle": "rule/sql",
+      "proposalDescription": "An independent different issue"
+    },
+    {
+      "name": "different-rule-same-coordinate",
+      "report": "{\"version\":\"2.1.0\",\"runs\":[{\"tool\":{\"driver\":{\"name\":\"scanner\",\"version\":\"1\"}},\"versionControlProvenance\":[{\"repositoryUri\":\"https://example.test:443/repo.git\",\"revisionId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}],\"results\":[{\"ruleId\":\"rule/sql\",\"fingerprints\":{\"native/v1\":\"issue-a\"},\"locations\":[{\"physicalLocation\":{\"artifactLocation\":{\"uri\":\"src/a.py\"},\"region\":{\"startLine\":3}}}],\"message\":{\"text\":\"Native issue message\"}}]}]}",
+      "availability": "unavailable",
+      "reason": "producer_key_unavailable",
+      "value": "",
+      "proposalTitle": "rule/path",
+      "proposalDescription": "Native issue message"
     }
   ]
 }

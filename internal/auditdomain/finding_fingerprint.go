@@ -124,10 +124,17 @@ func validFingerprintRepository(repository string) bool {
 // FingerprintPinnedSARIF derives only snapshot-qualified full native keys from
 // an owner-pinned report. The caller establishes pinned-input/Git authority;
 // neither report prose nor model-authored descriptors supply that authority.
-func FingerprintPinnedSARIF(data []byte, repository, commit string, source, report contracts.ExactArtifact, locations []FindingLocation) FindingFingerprint {
+func FingerprintPinnedSARIF(data []byte, repository, commit string, source, report contracts.ExactArtifact, proposal FindingProposal) FindingFingerprint {
 	unavailable := UnavailableFindingFingerprint
 	if len(data) > MaximumFingerprintReportBytes {
 		return unavailable("input_limit")
+	}
+	// A location alone can name several different issues. Only the exact
+	// supported machine projection binds this proposal to a native record.
+	if proposal.Subject != nil || proposal.Hypothesis != "" || len(proposal.Preconditions) != 0 ||
+		len(proposal.StandardRefs) != 0 || len(proposal.ProposedChecks) != 0 || len(proposal.Limitations) != 0 ||
+		proposal.HTTPExchange != nil || len(proposal.Locations) != 1 {
+		return unavailable("producer_key_unavailable")
 	}
 	var document map[string]json.RawMessage
 	if strictjson.Decode(data, &document) != nil || stringField(document, "version") != "2.1.0" {
@@ -185,8 +192,18 @@ func FingerprintPinnedSARIF(data []byte, repository, commit string, source, repo
 		}
 		for index, result := range results {
 			rule := stringField(result, "ruleId")
-			if !fingerprintID.MatchString(rule) || !sarifLocationMatches(result["locations"], locations) {
+			if !fingerprintID.MatchString(rule) || rule != proposal.Title || !sarifLocationMatches(result["locations"], proposal.Locations) {
 				continue
+			}
+			var message map[string]json.RawMessage
+			if strictjson.Decode(result["message"], &message) != nil || proposal.Description == "" || stringField(message, "text") != proposal.Description {
+				continue
+			}
+			if raw, present := message["arguments"]; present {
+				var arguments []string
+				if string(raw) == "null" || strictjson.Decode(raw, &arguments) != nil || len(arguments) != 0 {
+					continue
+				}
 			}
 			var fingerprints map[string]string
 			if strictjson.Decode(result["fingerprints"], &fingerprints) != nil || len(fingerprints) == 0 || len(fingerprints) > 16 {

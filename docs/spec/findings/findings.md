@@ -559,8 +559,16 @@ This binding proves the owner's selected report and source basis, not that a
 scanner actually executed or that a vulnerability is confirmed. Runtime
 scanner output without this owner-pinned provenance remains unavailable.
 
-**FND-R165.** A qualifying result uniquely matches the finding's exact
-relative source path and primary start line, or complete range. Absolute paths,
+**FND-R165.** A qualifying result binds the finding to the machine observation:
+its title equals the exact `ruleId`, its description equals literal
+`message.text` with no formatting arguments, and it has one primary source
+location and no subject, hypothesis, extra classification, preconditions,
+checks, limitations or HTTP exchange. Severity is independent. A different
+issue at the same coordinate does not inherit a native key. Rephrased or
+enriched findings remain ordinary observations with an unavailable native
+key. This is deterministic validation of the supported native projection;
+report prose never enters the key. The qualifying record must uniquely match
+the finding's exact relative source path and primary start line, or complete range. Absolute paths,
 base URI remapping, traversal, ambiguous result selection and mismatched Git
 provenance do not qualify. Record position selects evidence only and is not
 part of equality. Hash lowercase SHA-256 over RFC 8785 canonical JSON of

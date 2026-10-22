@@ -549,7 +549,12 @@ The initial code-backed adapter is `pinned-sarif-native/v1`: an owner-pinned
 SARIF 2.1.0 Stage input and one exact Git source must both be selected as
 ordinary finding evidence. The Server derives an internal descriptor from
 those existing inputs; no new Worker arguments or responses are introduced.
-Full native `fingerprints` and exact rule/source-location selection qualify
+The supported native projection requires the exact rule ID as title, literal
+report message as description, one source location and no additional issue
+claims; path/line coincidence never binds an unrelated model finding to a
+producer record. Rephrased or enriched observations stay unavailable for this
+native adapter. The message is validated against the selected record and is
+never hashed. Full native `fingerprints` and exact record selection qualify
 only within the identical imported commit and source digest. Partial keys or
 unproven runtime scanner reports stay unavailable. This adapter records a
 report claim, not verified scanner execution or vulnerability confirmation.

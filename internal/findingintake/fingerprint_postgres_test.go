@@ -48,6 +48,9 @@ func TestPostgresFindingFingerprintIntakeReplayAndRetention(t *testing.T) {
 	}
 	input := testSubmission("invocation-a", "finding-a", refs)
 	line := int64(3)
+	input.Proposal.Title = "rule/sql"
+	input.Proposal.Description = "Native issue message"
+	input.Proposal.Subject = nil
 	input.Proposal.Locations = []auditdomain.FindingLocation{{File: "src/a.py", Line: &line}}
 	first, replayed, err := service.Submit(ctx, grant, input)
 	if err != nil || replayed || first.Fingerprint.Availability != "available" {
@@ -56,10 +59,20 @@ func TestPostgresFindingFingerprintIntakeReplayAndRetention(t *testing.T) {
 	// An independent call remains a separate observation, including its prose.
 	secondInput := testSubmission("invocation-b", "finding-b", refs)
 	secondInput.Proposal.Locations = input.Proposal.Locations
-	secondInput.Proposal.Title = "Independent audit observation"
+	secondInput.Proposal.Title = input.Proposal.Title
+	secondInput.Proposal.Description = input.Proposal.Description
+	secondInput.Proposal.Subject = nil
+	secondInput.Proposal.SeveritySuggestion = "high"
 	second, _, err := service.Submit(ctx, grant, secondInput)
 	if err != nil || second.ReceiptID == first.ReceiptID || second.Fingerprint.Value != first.Fingerprint.Value {
 		t.Fatalf("independent observation=%+v: %v", second, err)
+	}
+	otherInput := testSubmission("invocation-other", "finding-other", refs)
+	otherInput.Proposal.Locations = input.Proposal.Locations
+	otherInput.Proposal.Subject = nil
+	other, _, err := service.Submit(ctx, grant, otherInput)
+	if err != nil || other.Fingerprint.Availability != "unavailable" {
+		t.Fatalf("a different issue at the same coordinate acquired a native key: %+v %v", other, err)
 	}
 	wire, err := json.Marshal(first)
 	if err != nil {
@@ -89,7 +102,7 @@ func TestPostgresFindingFingerprintIntakeReplayAndRetention(t *testing.T) {
 		t.Fatalf("cancelled=%v", err)
 	}
 	var count int
-	if err := pool.QueryRow(ctx, "SELECT count(*) FROM finding_proposal_receipts").Scan(&count); err != nil || count != 2 {
+	if err := pool.QueryRow(ctx, "SELECT count(*) FROM finding_proposal_receipts").Scan(&count); err != nil || count != 3 {
 		t.Fatalf("receipts=%d: %v", count, err)
 	}
 	f := deletionImportFixture{ctx: ctx, pool: pool, intake: service, receiptID: first.ReceiptID, request: ImportRequest{OwnerID: owner, RunID: run, Proposal: first.Proposal.Ref}}
@@ -152,9 +165,14 @@ func TestPostgresFindingFingerprintIntakeReplayAndRetention(t *testing.T) {
 
 func writeFingerprintInputs(t *testing.T, ctx context.Context, pool *pgxpool.Pool, run string) []contracts.ArtifactRef {
 	t.Helper()
-	const report = `{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"scanner","version":"1"}},"versionControlProvenance":[{"repositoryUri":"https://example.test:443/repo.git","revisionId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}],"results":[{"ruleId":"rule/sql","fingerprints":{"native/v1":"issue-a"},"locations":[{"physicalLocation":{"artifactLocation":{"uri":"src/a.py"},"region":{"startLine":3}}}]}]}]}`
+	const report = `{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"scanner","version":"1"}},"versionControlProvenance":[{"repositoryUri":"https://example.test:443/repo.git","revisionId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}],"results":[{"ruleId":"rule/sql","message":{"text":"Native issue message"},"fingerprints":{"native/v1":"issue-a"},"locations":[{"physicalLocation":{"artifactLocation":{"uri":"src/a.py"},"region":{"startLine":3}}}]}]}]}`
+	return writeFingerprintReportInputs(t, ctx, pool, run, []byte(report))
+}
+
+func writeFingerprintReportInputs(t *testing.T, ctx context.Context, pool *pgxpool.Pool, run string, report []byte) []contracts.ArtifactRef {
+	t.Helper()
 	var refs []contracts.ArtifactRef
-	for index, payload := range []artifacts.Payload{{MediaType: "application/zip", Data: []byte("exact source")}, {MediaType: "application/sarif+json", Data: []byte(report)}} {
+	for index, payload := range []artifacts.Payload{{MediaType: "application/zip", Data: []byte("exact source")}, {MediaType: "application/sarif+json", Data: report}} {
 		prepared, err := artifacts.PreparePayload(ctx, payload)
 		if err != nil {
 			t.Fatal(err)
@@ -188,4 +206,29 @@ func writeFingerprintInputs(t *testing.T, ctx context.Context, pool *pgxpool.Poo
 		}
 	}
 	return refs
+}
+
+func TestPostgresFindingFingerprintOptionalBudgetKeepsOrdinaryProposal(t *testing.T) {
+	ctx := t.Context()
+	pool := isolatedFindingPool(t, ctx)
+	const owner, project, run = "budget-owner", "budget-project", "budget-run"
+	if _, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{ProjectID: project, OwnerID: owner, Kind: projectstore.KindProject, Name: "Budget", IdempotencyKey: "budget", RequestDigest: auditdomain.DigestBytes([]byte("budget"))}); err != nil {
+		t.Fatal(err)
+	}
+	var refs []contracts.ArtifactRef
+	grant := quotaSubmissionGrantWithInputs(t, ctx, pool, owner, project, run, func() map[string]runstore.PinnedContextArtifact {
+		refs = writeFingerprintReportInputs(t, ctx, pool, run, []byte(strings.Repeat(" ", auditdomain.MaximumFingerprintReportBytes+1)))
+		return map[string]runstore.PinnedContextArtifact{"source": {Artifact: &refs[0]}, "report": {Artifact: &refs[1]}}
+	})
+	service, err := New(pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := testSubmission("budget", "budget", refs)
+	line := int64(3)
+	input.Proposal.Locations = []auditdomain.FindingLocation{{File: "src/a.py", Line: &line}}
+	receipt, replayed, err := service.Submit(ctx, grant, input)
+	if err != nil || replayed || receipt.Fingerprint.Reason != "input_limit" {
+		t.Fatalf("optional report budget rejected ordinary finding: %+v %v %v", receipt.Fingerprint, replayed, err)
+	}
 }

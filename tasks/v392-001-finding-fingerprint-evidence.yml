@@ -58,7 +58,8 @@ requirements:
 - id: R4
   text: Resolve trusted Git repository/snapshot identity through exact selected evidence and provenance. Foreign/forged refs fail atomically;
     supported but unavailable evidence preserves a usable proposal. Source/HTTP/model assertions do not mint trusted producer bindings or vulnerability
-    confirmation.
+    confirmation. A native key requires the exact supported machine projection (rule ID title, literal report description and one source location
+    without additional issue claims); coordinate overlap alone never establishes a producer binding.
 - id: R5
   text: Persist and strictly validate the immutable projection in the existing receipt row with intake; reuse existing receipt replay, report/evidence
     budgets and authoritative ownership. Migrate existing rows explicitly without reparsing or enriching immutable receipts, and add no fallback
@@ -139,7 +140,7 @@ tests:
   - A3
   - A4
   - A5
-- command: go test -count=1 -tags=integration ./internal/findingintake ./internal/auditservice ./internal/persistence/postgres
+- command: go test -count=1 -tags=integration ./internal/findingintake ./internal/auditservice ./internal/auditimport ./internal/persistence/postgres
   covers:
   - A2
   - A3
@@ -164,15 +165,21 @@ tests:
   - A6
 verification:
   date: '2026-10-22'
-  status: implementation committed; mandatory verification still in progress
+  status: final verification before completion metadata
   checks:
-  - Full auditdomain, findingintake, auditservice, artifacts, privateartifacts and public Go suites passed with disposable PostgreSQL and TMPDIR=/private/tmp.
-  - Full integration-tag suites of findingintake, auditservice and persistence/postgres passed without database skips.
-  - make verify-public-api ui-verify and make lint passed before the independent V392-010 repair.
-  - 'Shared fixture gate passed: 239 fixtures, 215 Go and 165 Python shared tests; 300 wire contract tests passed.'
-  - Complete actual Worker declarations match the pinned fixture; native key, independent observations, replay, migration, owner isolation and
-    retention/discard regressions passed.
-  remaining:
-  - Finish Linux Runtime suite; macOS full suite reported 108 failures, 4044 passes and 40 skips, including unsupported Linux facilities.
-  - Finish finding process gate after V392-010. Its Audit.start HTTP 500 reproduces on unchanged c52fb5d3e6bf593d96d6024593a11d6f237ab41c and
-    is independent of fingerprints.
+  - Full auditdomain, findingintake, auditservice, artifacts, privateartifacts and public Go suites passed with disposable PostgreSQL and physical
+    TMPDIR.
+  - Full integration suites of findingintake, auditservice, persistence/postgres and auditimport passed; all database checks ran against the isolated
+    database.
+  - Native-binding regressions preserve a different issue at the same coordinate without assigning the producer key. Report prose/severity changes
+    with a matching machine projection keep the same key.
+  - A 10000-result report qualifies; 10001 results hit the bounded preparation outcome. A real oversized optional report preserves a successful
+    ordinary intake with input_limit.
+  - Real-store tests cover equal-key independent observations, unchanged receipt wire, replay after source deletion, foreign-owner isolation,
+    two-Audit holds, purge and sensitive-key discard.
+  - 'Full Runtime recipe passed as an unprivileged Linux user with locked dependencies: 4139 passed, 53 optional environment checks skipped. The
+    failed macOS run was not reported as a pass.'
+  - make test-findings-e2e passed all 14 mandatory process cases and 163 finding Runtime cases after the independent V392-010 repair.
+  - make verify-public-api ui-verify passed; Worker declarations match the pinned full provider fixture.
+  - Shared fixture gate and final lint are repeated after the exact-native-binding regression.
+  required_repair: V392-010 fixes Audit.start failure independently reproduced on base c52fb5d3e6bf593d96d6024593a11d6f237ab41c.

@@ -158,7 +158,7 @@ INSERT INTO finding_proposal_receipts (
 	}
 	var original []byte
 	mustCompletion(t, f.pool.QueryRow(f.ctx, `
-SELECT jsonb_agg(to_jsonb(receipt) - ARRAY['retention_state', 'source_run_deleted_at', 'discarded_at', 'retention_updated_at']
+SELECT jsonb_agg(to_jsonb(receipt) - ARRAY['retention_state', 'source_run_deleted_at', 'discarded_at', 'retention_updated_at', 'fingerprint_projection']
                  ORDER BY receipt_id)
 FROM finding_proposal_receipts AS receipt WHERE run_id = $1`, f.run.RunID).Scan(&original))
 	mustCompletion(t, rundeletion.New(f.pool).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
@@ -170,7 +170,7 @@ FROM finding_proposal_receipts AS receipt WHERE run_id = $1`, f.run.RunID).Scan(
 	var retained []byte
 	var discarded int
 	mustCompletion(t, f.pool.QueryRow(f.ctx, `
-SELECT jsonb_agg(to_jsonb(receipt) - ARRAY['retention_state', 'source_run_deleted_at', 'discarded_at', 'retention_updated_at']
+SELECT jsonb_agg(to_jsonb(receipt) - ARRAY['retention_state', 'source_run_deleted_at', 'discarded_at', 'retention_updated_at', 'fingerprint_projection']
                  ORDER BY receipt_id)
 FROM finding_proposal_receipts AS receipt WHERE run_id = $1`, f.run.RunID).Scan(&retained))
 	// jsonb has a canonical encoding, including the original exact refs.
@@ -181,7 +181,8 @@ FROM finding_proposal_receipts AS receipt WHERE run_id = $1`, f.run.RunID).Scan(
 SELECT count(*) FROM finding_proposal_receipts AS receipt
 WHERE receipt.run_id = $1 AND receipt.retention_state = 'discarded'
   AND receipt.source_run_deleted_at IS NOT NULL
-  AND receipt.discarded_at IS NOT NULL`, f.run.RunID).Scan(&discarded))
+  AND receipt.discarded_at IS NOT NULL
+  AND receipt.fingerprint_projection::jsonb = '{"schema":"contractor.finding.fingerprint-projection.v1","availability":"unavailable","reason":"discarded"}'::jsonb`, f.run.RunID).Scan(&discarded))
 	if discarded != 2 {
 		t.Fatalf("unheld native tombstones = %d, want 2", discarded)
 	}
