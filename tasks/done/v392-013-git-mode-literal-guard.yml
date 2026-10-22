@@ -6,7 +6,7 @@ epic: projects-artifacts
 kind: chore
 introduced_by: V390-001
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [go]
 goal: Keep the SQLSTATE guard strict while identifying a real Git tree-mode literal in its existing non-SQLSTATE registry.
@@ -29,3 +29,10 @@ tests:
   covers: [A1, A2]
 - command: make lint
   covers: [A3]
+
+verification:
+  date: '2026-10-22'
+  status: passed
+  checks:
+  - Full persistence and Git-import packages passed, including strict SQLSTATE rejection and unused-exception detection. Full make lint passed.
+implementation_commit: 5c0620b4ea4de6ea8026f244542bb6f9d44713cf
