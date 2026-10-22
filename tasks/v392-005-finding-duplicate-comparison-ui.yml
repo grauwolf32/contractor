@@ -1,22 +1,24 @@
 schema_version: '1.0'
 id: V392-005
-title: Show automatic duplicates and compare every retained result across two Audits
+title: Show retained duplicates in a finding-owned disclosure across Audits
 milestone: finding-correlation-2026-10
 epic: ui
 kind: feature
 priority: P2
-status: pending
+status: in_progress
 depends_on:
 - V392-003
 - V392-004
 languages:
+- go
 - typescript
 - css
 - markdown
-goal: Let an owner compare different Audits using automatically marked exact duplicates, separate possible matches and all retained observations,
+goal: Let an owner inspect intersections across Audits from an existing finding using automatically marked exact duplicates, separate possible matches and all retained observations,
   while preserving independent analyst results and truthful comparison limitations.
 context:
   request: User requested automatic duplicate labels with retained findings for comparison across different Audits on 2026-10-22.
+  refinement: User clarified on 2026-10-22 that no separate comparison UI is wanted; use a collapsed Duplicates section in the existing finding card, with links to independent Audit-owned findings.
   proposal:
   - docs/proposals/0028-finding-analysis-and-sarif.md#identity-automatic-marks-and-analyst-decisions
   - docs/proposals/0028-finding-analysis-and-sarif.md#bounded-search-and-comparison-across-audits
@@ -29,39 +31,38 @@ context:
   - docs/spec/audits/review-and-reports.md#REV-R138
   - docs/spec/ui/ui.md
   - docs/spec/ui/journeys.md
+  - docs/spec/api/public-api.md#API-R11
   design:
   - docs/design/ui/README.md
   - ui/src/ui/README.md
 scope:
   in:
-  - Automatic duplicate/basis/representative display on existing finding/list surfaces, with manual analyst triage/rating shown independently
+  - Automatic duplicate and basis display on existing finding/list surfaces, with manual analyst triage/rating shown independently
     and no required confirmation.
-  - Project comparison of two Audits with shared and one-sided groups, unmatched observations, weaker possible matches, baseline/profile/coverage
-    context and separate discovery/result metrics.
-  - All-member and candidate pagination, exact evidence/origin navigation, scope-relative representatives, generated response validators and truthful
+  - Finding-owned collapsed Duplicates section across the Project, with separate weaker possible matches, baseline/profile/coverage context and independent results.
+  - All-member and candidate pagination, exact evidence/origin navigation, scope-relative matching basis, generated response validators and truthful
     unavailable/partial/stale states.
   - UI patch release bump, owning journey/spec wording and unit/mocked/real browser-stack acceptance with inspected 390 px/theme screenshots.
   out:
   - New manual approval flows, target-revision review mutation, model ranking, user-authored key/context input and automatic vulnerability confirmation
     or severity propagation.
-  - Hiding/collapsing away source observations, cross-Project comparison, claims that unmatched means fixed/new and full SARIF/download redesign.
+  - Separate two-Audit comparison destination or Audit selection inventory, hiding source observations, cross-Project comparison, claims that unmatched means fixed/new and full SARIF/download redesign.
 requirements:
 - id: R1
   text: Render the Server's automatic system mark without a confirmation dialog or client-generated equality. Keep it visually distinct from existing
     manual duplicate/TP/FP triage, independent severity and verification; Technical details contains hashes, algorithm/parser versions and complete
     basis.
 - id: R2
-  text: Two owned Audits can be selected without downloading all parents; existing paginated pickers follow every page. Display exact both/left-only/right-only
-    groups, individual unmatched observations and weaker suggestions as different facts with baseline/coverage/profile/configuration context.
+  text: Open the collapsed Duplicates section from an existing finding, without a separate comparison route or parent inventory download. Show exact related observations and weaker suggestions separately with on-demand baseline/coverage/profile/configuration context.
 - id: R3
   text: Every retained finding/member and exact evidence/receipt origin remains reachable, including later member pages and multiple observations
     per Audit. Distinguish repeated import of one receipt from independent discoveries; representative choice conveys no winner or truth and group/raw/confirmed/independent-discovery
     metrics stay separate.
 - id: R4
-  text: Follow all candidate/comparison/member cursors, including empty progress pages, and explain unavailable keys, context ambiguity and truncated
+  text: Follow all candidate/member cursors, including empty progress pages, and explain unavailable keys, context ambiguity and truncated
     reasons. Running totals remain partial until complete traversal; absence of an exact match never becomes a fixed/new/clean-scan claim.
 - id: R5
-  text: Switching Audits/source receipts cancels old reads and clears bound cursors; finding_correlation_stale refreshes without mixing old/new
+  text: Switching findings/source receipts cancels old reads and clears bound cursors; finding_correlation_stale refreshes without mixing old/new
     rows or auto-retrying an invalid cursor. Existing backoff and safe navigation apply; no GET-side mark/triage mutation or required duplicate
     confirmation is introduced.
 - id: R6
@@ -72,23 +73,23 @@ requirements:
     code builds all private matching metadata from existing inputs; the Worker authors no descriptors and duplicate collection entries remain
     readable.
 failure_outcomes:
-- operation: Load finding marks, Audit pickers, comparison/candidate/member pages
+- operation: Load finding marks, source-receipt choices and candidate/member pages
   permanent: Missing/foreign selections use the existing safe unavailable state; invalid cursors fail explicitly and 409 finding_correlation_stale
-    resets the affected traversal before presenting a new comparison.
+    resets the affected traversal before presenting a new snapshot.
   retryable: Read failures back off and honor Retry-After while previous data is visibly stale; unavailable keys remain a normal explained outcome
     rather than an infrastructure retry loop.
   ambiguous: All new operations are read-only; repeat with the same valid pins or restart after a revision change, without issuing a new receipt,
     approval or duplicate mutation.
-  cancelled: Navigation/unmount aborts reads and prevents late responses from replacing another Audit pair/finding's state.
+  cancelled: Navigation/unmount aborts reads and prevents late responses from replacing another finding/source's state.
   timeout: Existing finite read budgets show a truthful failure/stale state and never fabricate a mark, complete metric or successful decision.
 cardinality:
-- collection: Audit selection and current comparison/candidate/member pages
-  expected: Two Audits, one page of 20 group/candidate rows and one expanded member page.
+- collection: Source-receipt selection and current candidate/member pages
+  expected: One finding, one page of 20 candidates and one expanded member page.
   maximum: Server max 100 rows and 256 KiB per page with bounded previews; parent Project can have many Audits and 1000000 findings.
-  bound: Page all pickers/groups/members, load selected detail/evidence only and never fetch the complete Project to compute equality or totals
+  bound: Page all source-receipt choices/candidates/members, load selected detail/evidence only and never fetch the complete Project to compute equality or totals
     in the browser.
 lifecycle:
-- entity: Local comparison state and existing retained findings
+- entity: Local related-observation state and existing retained findings
   delete: Server Audit/Project deletion invalidates local selections safely; UI creates no candidate/group lifecycle entity.
   cascade: Membership/representative changes trigger refetch through current revisions, while navigation clears old cursor/selection state and
     joins reads.
@@ -98,7 +99,7 @@ acceptance_criteria:
 - id: A1
   given: Equal-key findings across two Audits with different TP/FP/severity, an automatic representative, weak matches, unsupported anchors and
     multiple members/pages.
-  when: The owner opens detail and comparison without taking any confirmation action.
+  when: The owner opens the Duplicates disclosure in finding detail without taking any confirmation action.
   then: Server automatic labels appear directly, analyst results remain independent and every finding/evidence/member is reachable with accurate
     machine basis and limitations.
 - id: A2
@@ -107,10 +108,10 @@ acceptance_criteria:
   then: Automatic duplicates, scope-relative representatives and exact overlap are correct, all original IDs/evidence survive and imported participation
     is distinguished from independent discovery without a manual approval step.
 - id: A3
-  given: Large paginated Audit pickers, empty progress pages, membership/triage/representative changes, read failures and navigation during requests.
-  when: The comparison is traversed or switched.
-  then: No parent/candidate/member is hidden by first-page assumptions, stale state is truthful, cursors restart safely and late responses cannot
-    mix Audit pairs or claim fixed/new issues.
+  given: Paginated source receipts and related observations, empty progress pages, membership/triage/representative changes, read failures and navigation during requests.
+  when: Related observations are traversed or the finding/source selection is switched.
+  then: No source receipt/candidate/member is hidden by first-page assumptions, stale state is truthful, cursors restart safely and late responses cannot
+    mix findings or source selections or claim fixed/new issues.
 - id: A4
   given: 390 px and desktop layouts in light/dark/black themes, long labels and keyboard navigation.
   when: Automatic labels, group expansion, exact evidence links and comparison journeys run.

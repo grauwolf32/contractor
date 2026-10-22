@@ -1,0 +1,31 @@
+schema_version: '1.0'
+id: V392-015
+title: Keep browser evidence paths portable across Linux and macOS
+milestone: finding-correlation-2026-10
+epic: ui
+kind: chore
+introduced_by: V387-002
+priority: P2
+status: in_progress
+depends_on: []
+languages: [typescript]
+goal: Let the existing model-selection and source-import browser QA save their screenshots in the host temporary directory on every supported test host.
+context:
+  finding: ui/e2e/model-selection.spec.ts:111 and ui/e2e/git-artifacts.spec.ts:391 write screenshots into macOS-only /private/tmp; full Linux release-verify executes their otherwise passing journeys and fails with ENOENT.
+  siblings: The model-selection journey came from V387-002 and Git analysis-import screenshots from V390-001. New finding-correlation screenshots already use node os.tmpdir. These are the only two remaining hardcoded private/tmp occurrences in ui/e2e.
+  specification: [docs/spec/ui/ui.md#UI-R196]
+scope:
+  in: [Resolve both existing screenshot destinations through node os.tmpdir and path.join while retaining their names and assertions.]
+  out: [Creating a fake macOS filesystem on Linux, changing browser behavior or weakening the no-skip browser gate.]
+acceptance_criteria:
+- id: A1
+  text: Full mocked-browser gate runs every registered case without missing screenshot-directory errors on Linux.
+- id: A2
+  text: Existing screenshot names remain available in the platform temporary directory and all theme/viewport assertions remain unchanged.
+- id: A3
+  text: Lint and task metadata checks pass.
+tests:
+- command: make ui-browser-mocked
+  covers: [A1, A2]
+- command: make lint
+  covers: [A3]

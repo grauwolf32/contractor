@@ -1,0 +1,48 @@
+schema_version: '1.0'
+id: V392-011
+title: Repair configured-model browser routing and gate coverage
+milestone: finding-correlation-2026-10
+epic: ui
+kind: defect
+introduced_by: V387-002
+priority: P1
+status: in_progress
+depends_on: []
+languages: [go]
+goal: Let the real browser stack exercise the configured generated model routes without changing model configuration.
+context:
+  finding: >-
+    tests/ui-stack/model_gateway_test.go:205 compares the configured Gateway model
+    to planner-model or worker-model. Generated model profiles now qualify those
+    routes, so TestBrowserOperationsStack fails before its first Worker with
+    unexpected streamline model/context. The regression predates the duplicate UI. The model-profile work also added e2e/model-selection.spec.ts without registering it in the mocked-browser inventory; ui-browser-mocked stops before running any cases.
+  siblings: >-
+    Both Streamline planner and Worker branches must dispatch through the exact
+    declared tool set and scenario marker. Domain and managed-Eval fixture routes
+    already use request tools/context and do not compare these literal model IDs.
+    tests/e2e role fixtures stage their own explicit model policies and retain
+    their exact model-routing assertions.
+  specification:
+  - docs/spec/configuration/catalog.md#CAT-R80
+  - docs/spec/ui/ui.md#UI-R13
+scope:
+  in:
+  - Select the scripted planner or Worker by scenario context plus its existing closed tool contract; keep the actual model value in responses.
+  - Register the existing model-selection browser spec in the closed mocked-browser gate inventory.
+  - Reject absent model names and incompatible tool sets; add generated-route regression cases and run the production browser stack.
+  out:
+  - Any shipped model change, live Gateway call or relaxation of the exact tool-set checks.
+acceptance_criteria:
+- id: A1
+  text: TestBrowserOperationsStack executes its real configured planner and Worker routes without a model-context rejection.
+- id: A2
+  text: Both role branches accept generated qualified model names and reject incompatible tools or missing model identity.
+- id: A3
+  text: Regression tests fail against the old literal-name dispatch; the full UI-stack package and lint pass.
+tests:
+- command: make test-ui-stack
+  covers: [A1, A2, A3]
+- command: make ui-browser-mocked
+  covers: [A1, A2, A3]
+- command: make lint
+  covers: [A1, A2, A3]

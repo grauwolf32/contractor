@@ -1,0 +1,35 @@
+schema_version: '1.0'
+id: V392-014
+title: Separate the derived comparison cache from immutable receipt retention assertions
+milestone: finding-correlation-2026-10
+epic: findings
+kind: chore
+introduced_by: V392-004
+priority: P2
+status: in_progress
+depends_on: [V392-004]
+languages: [go]
+goal: Test immutable receipt preservation across Run deletion while permitting the documented discard of derived comparison metadata.
+context:
+  finding: internal/auditimport/run_deletion_retention_integration_test.go:161 compares whole receipt JSON across source deletion but excludes only the older derived caches; migration 25 legitimately clears comparison_projection when a receipt is discarded and makes the real-store test fail.
+  siblings: Migration preservation assertions already exclude comparison_projection; this remaining Audit-import receipt assertion must follow the same cache lifecycle. Immutable identity, evidence and source-origin members remain compared exactly.
+  specification:
+  - docs/spec/findings/findings.md#FND-R179
+  - docs/spec/platform/lifecycle.md#LIFE-FND-4
+scope:
+  in:
+  - Exclude only the derived comparison cache from both sides of the existing immutable receipt JSON comparison.
+  - Explicitly verify unavailable discarded cache shape for discarded receipts in the same real-PostgreSQL lifecycle scenario.
+  out: [Changing receipt retention, immutable source fields, Run deletion or cache production logic.]
+acceptance_criteria:
+- id: A1
+  text: Full integration Audit-import suite preserves exact receipt identity/source evidence and advances the terminal Audit's revision once.
+- id: A2
+  text: Discarded receipt caches are unavailable with discarded reason; retained observations and all immutable metadata remain protected.
+- id: A3
+  text: Lint and task metadata checks pass.
+tests:
+- command: go test -tags=integration -count=1 ./internal/auditimport
+  covers: [A1, A2]
+- command: make lint
+  covers: [A3]

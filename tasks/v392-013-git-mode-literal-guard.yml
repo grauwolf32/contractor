@@ -1,0 +1,31 @@
+schema_version: '1.0'
+id: V392-013
+title: Identify the Git directory-mode fixture in the SQLSTATE literal guard
+milestone: finding-correlation-2026-10
+epic: projects-artifacts
+kind: chore
+introduced_by: V390-001
+priority: P2
+status: in_progress
+depends_on: []
+languages: [go]
+goal: Keep the SQLSTATE guard strict while identifying a real Git tree-mode literal in its existing non-SQLSTATE registry.
+context:
+  finding: internal/gitimport/analysis_test.go:38 uses Git directory mode 40000 in a raw tree fixture; TestSQLStateLiteralsLiveOnlyInTheClassifier mistakes it for an SQLSTATE because the fixture was not listed alongside the production Git tree mode.
+  siblings: internal/gitimport/archive.go already declares the same Git mode in the existing nonSQLStateLiterals map; no SQLSTATE classifier or production SQL changes apply.
+  specification: [docs/spec/platform/persistence.md#PER-R13]
+scope:
+  in: [Add the exact fixture file/value and Git-mode reason to the existing narrowly keyed registry.]
+  out: [Changing raw Git fixture bytes, weakening SQLSTATE detection or adding SQLSTATE spellings to production code.]
+acceptance_criteria:
+- id: A1
+  text: Full persistence and Git-import package suites pass and the guard still rejects unlisted SQLSTATE spellings.
+- id: A2
+  text: Both actual Git tree-mode occurrences have explicit file-specific reasons; the unused-entry guard remains enabled.
+- id: A3
+  text: Lint and task metadata checks pass.
+tests:
+- command: go test -count=1 ./internal/persistence ./internal/gitimport
+  covers: [A1, A2]
+- command: make lint
+  covers: [A3]

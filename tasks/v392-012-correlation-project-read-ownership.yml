@@ -1,0 +1,31 @@
+schema_version: '1.0'
+id: V392-012
+title: Declare the bounded Project read used by finding correlation authorization
+milestone: finding-correlation-2026-10
+epic: findings
+kind: chore
+introduced_by: V392-004
+priority: P2
+status: in_progress
+depends_on: [V392-004]
+languages: [go]
+goal: Keep the correlation Project ownership and revision reads explicit under the existing persistence table-ownership guard.
+context:
+  finding: internal/auditstore/internal/pgstore/finding_comparisons.go:102 reads projects to authorize bounded Project-scoped finding reads but V392-004 omitted the existing cross-owner read declaration, so TestSQLAccessFollowsTableOwnership fails.
+  siblings: Candidate source and correlation fence SQL also read the same Project owner/revision; all remain bounded reads without Project mutations from the Audit query store.
+  specification: [docs/spec/platform/persistence.md#PER-R23]
+scope:
+  in: [Declare the Project correlation read with its authorization and revision-fence reason in the existing ownership registry.]
+  out: [New database authority, changed queries, new tables or relaxed guard logic.]
+acceptance_criteria:
+- id: A1
+  text: The whole persistence package passes its ownership guard and the declaration names the actual read purpose.
+- id: A2
+  text: Correlation authorization and cursor fences retain their existing real-store behavior without new writes.
+- id: A3
+  text: Lint accepts the registry and task metadata.
+tests:
+- command: go test -count=1 ./internal/persistence
+  covers: [A1, A2]
+- command: make lint
+  covers: [A3]

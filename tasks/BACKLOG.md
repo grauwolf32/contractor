@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-79 open tasks: 3 in progress, 51 pending, 25 deferred. 931 finished: 928 completed, 3 archived.
+84 open tasks: 9 in progress, 50 pending, 25 deferred. 931 finished: 928 completed, 3 archived.
 
 ## In progress
 
@@ -14,6 +14,12 @@ the epics are in [epics.yml](epics.yml).
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
+| [V392-005](v392-005-finding-duplicate-comparison-ui.yml) | ui | feature | P2 | Show retained duplicates in a finding-owned disclosure across Audits |
+| [V392-011](v392-011-ui-stack-model-route-dispatch.yml) | ui | defect | P1 | Repair configured-model browser routing and gate coverage |
+| [V392-012](v392-012-correlation-project-read-ownership.yml) | findings | chore | P2 | Declare the bounded Project read used by finding correlation authorization |
+| [V392-013](v392-013-git-mode-literal-guard.yml) | projects-artifacts | chore | P2 | Identify the Git directory-mode fixture in the SQLSTATE literal guard |
+| [V392-014](v392-014-retention-comparison-cache-assertion.yml) | findings | chore | P2 | Separate the derived comparison cache from immutable receipt retention assertions |
+| [V392-015](v392-015-portable-browser-evidence.yml) | ui | chore | P2 | Keep browser evidence paths portable across Linux and macOS |
 
 ## Pending
 
@@ -99,7 +105,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V372-005](v372-005-issues-decision-focus-race.yml) | defect | P2 | — | Move focus to the next possible issue reliably after a decision |
-| [V392-005](v392-005-finding-duplicate-comparison-ui.yml) | feature | P2 | — | Show automatic duplicates and compare every retained result across two Audits |
 
 ### Public API and wire contracts (`api-contracts`)
 
@@ -176,7 +181,7 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 3 | 36 | 49 | 11 | 64 |
-| Planners and the Worker model boundary (`planner-worker`) | 3 | 27 | 37 | 14 | 51 |
+| Planners and the Worker model boundary (`planner-worker`) | 3 | 27 | 37 | 14 | 53 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 11 | 25 | 12 | 3 | 37 |
 | Shared Memory tools (`memory`) | 0 | 6 | 8 | 1 | 11 |
 | Agent Skills (`agent-skills`) | 0 | 10 | 2 | 1 | 1 |
@@ -184,13 +189,13 @@ tasks in `introduced_by`.
 | Code analysis and taint annotations (`code-analysis`) | 0 | 14 | 13 | 2 | 18 |
 | HTTP and Caido tools (`http-tools`) | 3 | 11 | 14 | 4 | 15 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 1 | 10 | 4 | 1 | 7 |
-| Findings tools and collections (`findings`) | 8 | 14 | 5 | 4 | 7 |
+| Findings tools and collections (`findings`) | 10 | 14 | 5 | 6 | 9 |
 | Workflow catalog and document workflows (`workflows`) | 3 | 14 | 13 | 12 | 12 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 30 | 32 | 4 | 34 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 2 | 30 | 32 | 5 | 35 |
 | Audits (`audits`) | 16 | 50 | 69 | 15 | 80 |
 | Evaluations (`evals`) | 3 | 21 | 29 | 5 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 9 | 1 | 1 | 2 |
-| Web UI (`ui`) | 2 | 21 | 54 | 11 | 49 |
+| Web UI (`ui`) | 4 | 21 | 55 | 12 | 49 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 11 | 32 | 5 | 9 |
 | Public API and wire contracts (`api-contracts`) | 7 | 1 | 29 | 20 | 8 |
 | PostgreSQL persistence and schema (`persistence`) | 4 | 0 | 19 | 33 | 8 |
