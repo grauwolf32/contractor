@@ -6,7 +6,7 @@ epic: findings
 kind: chore
 introduced_by: V392-004
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V392-004]
 languages: [go]
 goal: Test immutable receipt preservation across Run deletion while permitting the documented discard of derived comparison metadata.
@@ -33,3 +33,10 @@ tests:
   covers: [A1, A2]
 - command: make lint
   covers: [A3]
+
+verification:
+  date: '2026-10-22'
+  status: passed
+  checks:
+  - Full integration Audit-import package passed against disposable PostgreSQL. Immutable receipt identity/source fields remain compared exactly and discarded cache availability/reason are checked. Full make lint passed.
+implementation_commit: 668b27515c3a4fddd351a3b9a4c0acb2abf6d687
