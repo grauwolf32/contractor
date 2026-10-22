@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-80 open tasks: 4 in progress, 51 pending, 25 deferred. 930 finished: 927 completed, 3 archived.
+79 open tasks: 3 in progress, 51 pending, 25 deferred. 931 finished: 928 completed, 3 archived.
 
 ## In progress
 
@@ -14,7 +14,6 @@ the epics are in [epics.yml](epics.yml).
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
-| [V392-004](v392-004-cross-audit-finding-comparison-api.yml) | findings | feature | P2 | Read bounded cross-Audit matches and comparisons without losing observations |
 
 ## Pending
 
@@ -100,7 +99,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V372-005](v372-005-issues-decision-focus-race.yml) | defect | P2 | — | Move focus to the next possible issue reliably after a decision |
-| [V392-005](v392-005-finding-duplicate-comparison-ui.yml) | feature | P2 | V392-004 | Show automatic duplicates and compare every retained result across two Audits |
+| [V392-005](v392-005-finding-duplicate-comparison-ui.yml) | feature | P2 | — | Show automatic duplicates and compare every retained result across two Audits |
 
 ### Public API and wire contracts (`api-contracts`)
 
@@ -185,7 +184,7 @@ tasks in `introduced_by`.
 | Code analysis and taint annotations (`code-analysis`) | 0 | 14 | 13 | 2 | 18 |
 | HTTP and Caido tools (`http-tools`) | 3 | 11 | 14 | 4 | 15 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 1 | 10 | 4 | 1 | 7 |
-| Findings tools and collections (`findings`) | 9 | 14 | 5 | 4 | 7 |
+| Findings tools and collections (`findings`) | 8 | 14 | 5 | 4 | 7 |
 | Workflow catalog and document workflows (`workflows`) | 3 | 14 | 13 | 12 | 12 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 30 | 32 | 4 | 34 |
 | Audits (`audits`) | 16 | 50 | 69 | 15 | 80 |

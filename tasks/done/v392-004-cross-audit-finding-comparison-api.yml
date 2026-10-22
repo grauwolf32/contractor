@@ -5,7 +5,7 @@ milestone: finding-correlation-2026-10
 epic: findings
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V392-001
 - V392-002
@@ -177,3 +177,4 @@ verification:
   - make lint and final test-wire-cross-language passed; 241 fixtures, 221 Go and 167 Python shared tests, plus 300 Runtime wire tests. Worker tools and private finding responses are unchanged.
   earlier_failure: Implementation review and new tests exposed an off-by-one work budget, nullable-cursor predicates that could prevent generic-plan seeks, a nullable cached subject incorrectly tagged required, and unsupported conditional-schema enforcement by the Go validator. The final implementation reserves source work, uses unconditional tuple seeks, preserves nullable subjects and uses closed oneOf branches shared by Go and UI validators. Earlier failed runs are not counted as passes.
   boundary: Candidate target reasons use first receipts and explicit supporting sources; coverage is not compared, one-sided rows do not imply remediation, and preview/source counts are not whole-group totals. UI and the aggregate release gate remain separate work.
+implementation_commit: 539badc380e2f4154cedc87eb538e83236b5a4f6
