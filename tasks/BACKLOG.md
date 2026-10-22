@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-73 open tasks: 3 in progress, 45 pending, 25 deferred. 929 finished: 926 completed, 3 archived.
+73 open tasks: 3 in progress, 45 pending, 25 deferred. 930 finished: 927 completed, 3 archived.
 
 ## In progress
 
@@ -169,7 +169,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 3 | 36 | 49 | 11 | 64 |
+| Run execution core (`execution-core`) | 3 | 36 | 50 | 11 | 65 |
 | Planners and the Worker model boundary (`planner-worker`) | 3 | 27 | 37 | 14 | 51 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 11 | 25 | 12 | 3 | 37 |
 | Shared Memory tools (`memory`) | 0 | 6 | 8 | 1 | 11 |

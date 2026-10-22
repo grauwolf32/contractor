@@ -54,7 +54,7 @@ func (*AllocationLeaseLossError) Unwrap() error { return ErrAllocationLeaseLost 
 // transactions used at lifecycle commit points; the Scheduler's WorkflowRun
 // transitions are among them, so Store moves no Run.
 type Store interface {
-	ClaimRunnableRun(context.Context, string, time.Duration) (runstore.WorkflowRun, error)
+	ClaimRunnableRun(context.Context, string, time.Duration, []string) (runstore.WorkflowRun, error)
 	RenewRunClaim(context.Context, string, string, time.Duration) (runstore.WorkflowRunState, error)
 	ReleaseRunClaim(context.Context, string, string) error
 	DeferRunClaim(context.Context, string, string) error

@@ -96,7 +96,7 @@ SET scheduler_claimed_at = clock_timestamp() - interval '2 minutes',
 WHERE run_id = $1`, runID); err != nil {
 		t.Fatal(err)
 	}
-	claimed, err := runstore.NewPostgresStore(tx).ClaimRunnableRun(ctx, "competing-lane", time.Minute)
+	claimed, err := runstore.NewPostgresStore(tx).ClaimRunnableRun(ctx, "competing-lane", time.Minute, nil)
 	if err != nil || claimed.RunID != runID {
 		t.Fatalf("replacement claim = %+v, %v", claimed, err)
 	}
