@@ -5,7 +5,7 @@ milestone: finding-correlation-2026-10
 epic: findings
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V392-001
 - V392-002
@@ -179,3 +179,4 @@ verification:
   - Final make test-wire-cross-language passed 241 fixtures, 219 Go and 167 Python shared tests, and 300 Runtime wire tests; make test-findings-e2e passed all 14 required process cases and 163 Runtime finding tests.
   earlier_failure: The initial cross-language pass overlapped other broad PostgreSQL suites and reported five existing shared PostgreSQL test failures; its standalone rerun passed without code changes. Earlier new-test failures exposed and corrected Project artifact-retention lock ordering, missing scale-fixture fields and shared-fixture test naming. No failed run is counted as a pass.
   boundary: Worker tool declarations, private receipt responses, configured models, human decisions and frozen reports remain unchanged. Current system-owned correlation is additive on owner finding reads. This task does not complete comparison APIs, UI or the full release gate.
+implementation_commit: 6b5cc04e07a1c76f2eb8df3cd42f9222171cc98a
