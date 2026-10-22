@@ -42,6 +42,7 @@ EXPECTED_PROCESS_TESTS = {
 }
 
 EXPECTED_BROWSER_STACK_TESTS = {
+    "TestBrowserGatewayGeneratedModelRoutes",
     "TestBrowserOperationsStack",
     "TestManagedEvalsNativeStack",
     "TestManagedEvalsExternalStack",

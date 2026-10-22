@@ -108,7 +108,7 @@ test-release-process-e2e-c: require-database runtime-venv
 
 # The two browser stages run independently in CI. Each tagged stack test runs
 # once. Keep the small helper tests in the first shard too.
-RELEASE_UI_STACK_TESTS_A := TestBrowserOperationsStack|TestManagedEvalsNativeStack|TestBrowserReportRequiresExecutedSelection|TestManagedEvalGatewayHasIndependentHistories|TestUIStackConfigurationClosure|TestModelGatewayFindsNamedInputAfterParameterBlock
+RELEASE_UI_STACK_TESTS_A := TestBrowserOperationsStack|TestManagedEvalsNativeStack|TestBrowserReportRequiresExecutedSelection|TestManagedEvalGatewayHasIndependentHistories|TestUIStackConfigurationClosure|TestModelGatewayFindsNamedInputAfterParameterBlock|TestBrowserGatewayGeneratedModelRoutes
 test-release-ui-stack-a: ui-install ui-browser-install require-database runtime-venv
 	$(UI_STACK_TEST_FLAGS) ./tests/ui-stack -run '^($(RELEASE_UI_STACK_TESTS_A))$$'
 
