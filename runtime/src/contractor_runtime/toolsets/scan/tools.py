@@ -725,16 +725,16 @@ class KatanaTool(ScanTool):
 
     @staticmethod
     def accepts_probe(result: ProcessResult) -> bool:
-        # The page-budget/scope contract is verified against the 1.7 series.
+        # The page-budget/scope contract is verified against these release families.
         return (
             result.error_code is None
             and re.search(
-                rb"\bCurrent version: v1\.7\.[0-9]+(?:\s|$)", result.stdout + result.stderr
+                rb"\bCurrent version: v1\.(?:7|8)\.[0-9]+(?:\s|$)", result.stdout + result.stderr
             )
             is not None
         )
 
-    description = """Discover bounded same-origin HTTP targets using installed Katana 1.7.
+    description = """Discover bounded same-origin HTTP targets using installed Katana 1.7 or 1.8.
 
     Uses standard crawling with redirects and retries disabled, no browser, form
     filling, JavaScript crawling or external lookups. Publishes a create-only

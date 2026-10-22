@@ -1,0 +1,73 @@
+schema_version: "1.0"
+id: V392-001
+title: Advertise Katana 1.8 after verifying bounded discovery
+milestone: scan-tools-followups
+epic: scan-tools
+kind: feature
+priority: P1
+status: in_progress
+depends_on: [V55-010]
+languages: [python, markdown]
+goal: >-
+  Let Runtime Agents use installed Katana 1.8 without losing scan_katana,
+  while retaining the adapter's verified scope, request bounds and failure semantics.
+context:
+  authority: User requested testing Katana 1.8 compatibility and correcting the version probe on 2026-10-22.
+  specification: docs/spec/tools/scanners.md#SCN-R54
+scope:
+  in:
+    - Verify official Katana 1.7.0 and 1.8.0 with real loopback adapter tests.
+    - Accept verified 1.7.x and 1.8.x release families and document provisioning.
+    - Reject unsupported or malformed versions independently of other scanners.
+  out:
+    - New scanner inputs, public API fields, crawling modes or automatic upgrades.
+    - Missing-capability Run notification design, which is a separate user concern.
+requirements:
+  - id: R1
+    text: The independent startup probe advertises Katana 1.7.x and 1.8.x only after a successful version command; malformed, prerelease and unverified families remain unavailable.
+  - id: R2
+    text: Both verified binaries must preserve exact origin, no redirects/forms, depth and page bounds, comma-safe seeds, explicit incomplete results, timeout and transport failure reporting.
+failure_outcomes:
+  - operation: Optional Katana version command and bounded crawl
+    permanent: Missing executable, unsuccessful probe or unsupported version omits only scan_katana; invocation failures retain existing scanner error codes.
+    retryable: Existing Runtime restart discovery and Scheduler capacity deferral apply; no new retry loop is added.
+    ambiguous: Existing create-only exact artifact publication and receipts remain the authority; never replay a crawl to reconcile publication.
+    cancelled: Existing subprocess and publication cleanup joins remain unchanged and are covered by lifecycle tests.
+    timeout: Existing probe and per-invocation deadlines apply without extension.
+cardinality:
+  - collection: Supported Katana release families
+    expected: Two verified families
+    maximum: Two families; each discovery retains existing SCN bounds
+    bound: One bounded version command per scanner during startup; existing bounded crawl/report and artifact limits remain unchanged.
+lifecycle:
+  - entity: Runtime capability snapshot
+    delete: Process shutdown withdraws the live instance through the existing lease lifecycle.
+    cascade: No new durable entity or retention path.
+    retention: Installed versions are operational metadata; capability snapshots remain immutable per process.
+acceptance_criteria:
+  - id: A1
+    given: Successful Katana 1.7.x or 1.8.x version output on stdout or stderr
+    when: Runtime probes scan capabilities
+    then: scan_katana is advertised, while unsupported or malformed versions disable only Katana.
+  - id: A2
+    given: Official Katana 1.7.0 and 1.8.0 binaries
+    when: Each runs the real loopback suite
+    then: Every scope, request/page/depth bound, timeout and transport assertion passes without skips.
+  - id: A3
+    given: All scan adapter and shared capability/Worker paths
+    when: Their complete regression files and repository lint run
+    then: They pass and provisioning documentation agrees with the probe.
+tests:
+  - command: cd runtime && uv run pytest -W error tests/test_scan_*.py tests/test_capabilities.py tests/test_tool_worker.py
+    covers: [A1, A3]
+  - command: KATANA_TEST_BINARY=/path/to/katana-1.7.0 runtime/.venv/bin/pytest -W error runtime/tests/test_scan_katana_live.py
+    covers: [A2]
+  - command: KATANA_TEST_BINARY=/path/to/katana-1.8.0 runtime/.venv/bin/pytest -W error runtime/tests/test_scan_katana_live.py
+    covers: [A2]
+  - command: make lint
+    covers: [A1, A3]
+verification:
+  - Official macOS ARM64 Katana 1.7.0 and 1.8.0 each passed all five real loopback adapter tests without skips.
+  - The complete scanner/capability/tool-Worker suite passed 469 tests with Katana 1.8.0, real FFUF/Nuclei/Naabu and GitHub SQLMap under Python 3.15.
+  - make lint passed; the generated dependency graph fingerprint was refreshed with make docs-dependencies.
+  - Shared public API and Go descriptors carry no scanner-binary version field; no generated API or wire contract changed.

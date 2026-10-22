@@ -384,11 +384,12 @@ without model configuration or credentials.
 
 ### Katana discovery
 
-Provision [Katana v1.7.0](https://github.com/projectdiscovery/katana/releases/tag/v1.7.0)
+Provision [Katana v1.8.0](https://github.com/projectdiscovery/katana/releases/tag/v1.8.0)
 on the Runtime service's `PATH` before startup. This version provides the native
 maximum-pages control used by the adapter; older versions without that control
-are unsupported. The capability probe accepts the 1.7.x family, tested with 1.7.0, and
-omits `scan_katana` for other versions until their command contract is checked.
+are unsupported. The capability probe accepts the 1.7.x and 1.8.x families,
+tested with 1.7.0 and 1.8.0, and omits `scan_katana` for other versions until
+their command contract is checked.
 Provisioning remains an operator action: Runtime neither
 downloads Katana nor installs a browser. Confirm `katana -version` under the
 service environment, then restart Runtime to refresh its advertised capability.
