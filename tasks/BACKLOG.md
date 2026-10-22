@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-73 open tasks: 3 in progress, 45 pending, 25 deferred. 927 finished: 924 completed, 3 archived.
+73 open tasks: 3 in progress, 45 pending, 25 deferred. 929 finished: 926 completed, 3 archived.
 
 ## In progress
 
@@ -177,7 +177,7 @@ tasks in `introduced_by`.
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 12 | 4 | 15 |
 | Code analysis and taint annotations (`code-analysis`) | 0 | 13 | 12 | 2 | 17 |
 | HTTP and Caido tools (`http-tools`) | 2 | 11 | 14 | 4 | 15 |
-| Scanner tool Workers and scan planning (`scan-tools`) | 1 | 10 | 4 | 1 | 7 |
+| Scanner tool Workers and scan planning (`scan-tools`) | 1 | 11 | 4 | 2 | 8 |
 | Findings tools and collections (`findings`) | 4 | 7 | 5 | 4 | 7 |
 | Workflow catalog and document workflows (`workflows`) | 3 | 14 | 13 | 12 | 12 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 30 | 32 | 4 | 34 |

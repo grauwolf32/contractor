@@ -373,7 +373,12 @@ infrastructure channel.
 **SCN-R54.** Runtime startup probes each optional scanner executable
 separately, and only tools whose version commands succeed are advertised.
 Missing scanners do not prevent Runtime registration, and an empty ScanToolset
-is omitted.
+is omitted. The Katana adapter advertises `scan_katana` only for successful
+version probes in the verified 1.7.x and 1.8.x release families; prereleases,
+malformed versions and unverified families are omitted independently of other
+scanners. Before admitting another release family, its real loopback adapter
+suite must verify origin isolation, redirect/form suppression, depth and page
+bounds, exact target export, timeout and transport-failure outcomes.
 
 **SCN-R55.** All four scanner operations are active checks for Audit
 compatibility.
