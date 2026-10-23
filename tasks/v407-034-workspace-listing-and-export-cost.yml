@@ -1,0 +1,63 @@
+schema_version: "1.0"
+id: V407-034
+title: "List and glob the workspace without reading file contents, compare exports by metadata, and narrow filesystem tool exception handling"
+milestone: server-runtime-review-2026-10
+epic: workspaces
+kind: defect
+introduced_by: V11-007
+priority: P2
+status: pending
+depends_on: []
+languages: [python]
+goal: "ls and glob cost a metadata walk, overlay export does not download the previous payload, and only workspace faults become workspace_unavailable."
+context:
+  review: "docs/research/2026-10-23-server-runtime-review.md, findings G5, F7, G8 (filesystem); file:line as of 39d89438, re-verify on main"
+  specification: docs/spec/tools/workspace.md
+  severity: medium
+  finding: >-
+    runtime/src/contractor_runtime/toolsets/filesystem/tools.py:143,169 (ls,
+    glob) call self._snapshot(); in local direct mode that is
+    LocalDirectWorkspace.snapshot() -> fs.scan(contents=True)
+    (projectfs/local_direct.py:73, local_io.py:347-380), which reads every
+    text file up to max_managed_text_bytes and computes workspace_digest over
+    all of it, although ls and glob need only paths, kinds and sizes and the
+    content digest only binds the cursor. WSP-R94 allows scope-limited reads
+    without a complete snapshot and scan(contents=False) already exists
+    (local_direct.py _mutate). glob also runs _scan_page with
+    project_glob_matches on the event loop: measured 88 ms per call over 20k
+    paths (each call re-normalises the glob and NFC-normalises every path).
+    The openapi provenance check (openapi/tools.py about 520-527,
+    _project_evidence_paths) pays the same full snapshot per upsert;
+    tests/test_openapi_toolset.py:187 pins snapshot_calls == 2.
+    projectfs/exporter.py:124-131 _write_binding downloads the current
+    artifact payload (up to 64 MiB) only to compare it byte-for-byte before
+    writing. filesystem/tools.py:321-322,331-332 map any Exception to
+    workspace_unavailable (retryable), masking defects.
+  siblings: >-
+    grep already runs its scan in a thread (model to follow); workspace_changes
+    and edit_files use the same reader interface.
+plan:
+  - "Add a content-free listing on WorkspaceReader (metadata digest over path, kind, size, mtime for the cursor) and use it in ls, glob and the openapi provenance check; keep the content snapshot for read tools that need it."
+  - "Run the glob scan in a thread like grep, hoisting normalize_project_glob out of the per-path loop and NFC-normalising paths once per listing."
+  - "In the exporter compare size and digest from read_artifact_metadata (or write with If-Match) instead of downloading the payload."
+  - "Catch only the workspace fault family (OSError subclasses the projectfs layer raises, WorkspaceUnavailable) in filesystem tools; let other exceptions reach _safe_tool_response."
+  - "Tests: ls over a 20k-file fixture performs no file reads (hook) and glob keeps loop gaps under 100 ms; export with an unchanged payload performs no read_artifact; a TypeError in the reader yields a non-retryable failure; update the openapi snapshot-count test deliberately."
+scope:
+  in:
+    - "Content-free listing, threaded glob, metadata compare on export, exception narrowing."
+  out:
+    - "Cursor binding semantics beyond the digest basis; edit and change tools."
+acceptance_criteria:
+  - id: A1
+    text: "ls and glob over 20k files read no file contents and keep loop gaps under 100 ms."
+  - id: A2
+    text: "An export whose payload is unchanged performs no artifact payload read."
+  - id: A3
+    text: "A non-workspace exception inside a filesystem tool is reported as a non-retryable tool failure."
+  - id: A4
+    text: "The no-read and gap tests fail on the unfixed code."
+tests:
+  - command: "cd runtime && uv run --locked pytest -q tests/test_filesystem_toolset.py tests/test_projectfs_local_direct.py tests/test_workspace_auto_export.py tests/test_openapi_toolset.py"
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A3]

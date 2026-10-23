@@ -1,0 +1,40 @@
+schema_version: "1.0"
+id: V408-001
+title: "Record the baseline duration of every release stage and local test target"
+milestone: test-gate-cost-2026-10
+epic: quality
+kind: chore
+priority: P2
+status: pending
+depends_on: []
+languages: [go, python]
+goal: "Each stage and each local target has a recorded wall-clock and per-package duration so the later tasks prove their savings against numbers, not impressions."
+context:
+  review: "docs/research/2026-10-23-test-gate-cost-review.md"
+  finding: >-
+    No stage duration is recorded anywhere in the repository; CI
+    reports-<stage> artifacts hold the logs, and the only numbers in git are
+    the 204 s at -p 2 noted by V340-001 and the CI timeouts in
+    scripts/select_ci_stages.py (unit 45 min, families 60, race 45,
+    race-discovered 50, integration 45, process 80 x 3, browser 60 x 2).
+    Without a baseline the optimisation tasks cannot show what they saved.
+plan:
+  - "Trigger one manual full-gate CI run on main (workflow_dispatch) and download every reports-<stage> artifact; extract per-stage wall time and, from go test -json output where present, per-package and per-test durations."
+  - "Locally, with a test database: time make test, make test-postgres and one race stage with -p 1; run go test -json for the PostgreSQL packages and compute the share of time spent in ApplyMigrations by timing the isolated*Pool helpers (a temporary t.Log or a benchmark that applies the migration set 20 times)."
+  - "Record the numbers in a Baseline section of docs/research/2026-10-23-test-gate-cost-review.md: per stage, per package (top 15), per e2e test, and the cost of one schema+migration; keep the raw logs out of git."
+  - "Add scripts/test_durations.py that turns a go test -json log into a per-package and per-test table so V408-007 and future runs reuse it."
+scope:
+  in:
+    - "Measurement, the report section and the duration script."
+  out:
+    - "Any change to the gates themselves."
+acceptance_criteria:
+  - id: A1
+    text: "The report's Baseline section lists the wall time of all twelve stages, the top 15 Go packages, every process e2e test and the measured cost of one isolated schema with migrations."
+  - id: A2
+    text: "scripts/test_durations.py reproduces the package table from a go test -json log and has a unit test on a small fixture log."
+tests:
+  - command: "python3 -m pytest -q scripts/test_test_durations.py"
+    covers: [A2]
+  - command: make lint
+    covers: [A2]

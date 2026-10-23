@@ -1,0 +1,40 @@
+schema_version: "1.0"
+id: V408-006
+title: "Let pure Go packages use the test cache: -count=1 only for database and process tests"
+milestone: test-gate-cost-2026-10
+epic: quality
+kind: chore
+priority: P3
+status: pending
+depends_on: []
+languages: [go]
+goal: "A local make test reruns only packages whose inputs changed; packages that touch PostgreSQL or processes still rerun every time."
+context:
+  review: "docs/research/2026-10-23-test-gate-cost-review.md, finding T5"
+  finding: >-
+    84 of 93 go test invocations in make/*.mk pass -count=1, including pure
+    packages such as internal/config (163 tests), internal/scanplan (84) and
+    internal/contracts; make/core.mk:22 runs the untagged tests/e2e matrix
+    (35 tests) with -count=1 on every make test. Go's test cache keys on the
+    binary, flags, environment variables and files read, so pure packages
+    are safe to cache; database tests must keep -count=1 because the cache
+    does not see the database.
+plan:
+  - "Classify packages: a package whose tests read CONTRACTOR_TEST_DATABASE_URL, start processes or use network listeners keeps -count=1 (derive the list with grep in a script so it stays current); everything else drops the flag in local targets (test-go, test-config, test-hardening-matrices, test-wire-cross-language)."
+  - "Keep -count=1 in every release-verify stage (CI runs cold anyway) so the gate semantics do not change."
+  - "Document the rule in docs/testing/README.md."
+scope:
+  in:
+    - "Local targets only; classification script; docs."
+  out:
+    - "Release stages."
+acceptance_criteria:
+  - id: A1
+    text: "A second consecutive make test-config with no changes reports cached results for its packages."
+  - id: A2
+    text: "Every package that reads the database URL or starts a process still runs with -count=1 (asserted by the classification script run in make lint)."
+tests:
+  - command: make test-config
+    covers: [A1]
+  - command: make lint
+    covers: [A2]

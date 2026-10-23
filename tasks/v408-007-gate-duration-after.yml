@@ -1,0 +1,34 @@
+schema_version: "1.0"
+id: V408-007
+title: "Record the release gate durations after the optimisations and close the test gate cost review"
+milestone: test-gate-cost-2026-10
+epic: quality
+kind: chore
+priority: P3
+status: pending
+depends_on: [V408-001, V408-002, V408-003, V408-004, V408-005, V408-006]
+languages: [go, python]
+goal: "The report shows before and after numbers per stage and the CI timeouts match the new durations."
+context:
+  review: "docs/research/2026-10-23-test-gate-cost-review.md"
+  finding: >-
+    The review's recommendations are only worth keeping if the measured
+    gain is recorded; the CI timeouts in scripts/select_ci_stages.py and the
+    stage table in docs/testing/README.md must follow the new durations.
+plan:
+  - "Trigger one manual full-gate CI run, collect reports-<stage>, run scripts/test_durations.py and add an After section to the report next to the Baseline."
+  - "Lower RELEASE_STAGE_TIMEOUTS to about twice the measured stage time; update docs/testing/README.md; run make lint."
+  - "Record in the report's Status section which finding each task closed and anything declined with its reason."
+scope:
+  in:
+    - "Measurement, timeouts, docs, status."
+  out:
+    - "Further optimisation."
+acceptance_criteria:
+  - id: A1
+    text: "The report has Baseline and After tables for all twelve stages and names the closing task per finding."
+  - id: A2
+    text: "CI timeouts are lowered to match and the full gate passes on a manual run."
+tests:
+  - command: make lint
+    covers: [A1, A2]

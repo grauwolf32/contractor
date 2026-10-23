@@ -1,0 +1,49 @@
+schema_version: "1.0"
+id: V407-035
+title: "Page large text and Run artifacts from a cached decoded view instead of re-decoding the payload per page"
+milestone: server-runtime-review-2026-10
+epic: projects-artifacts
+kind: defect
+priority: P3
+status: pending
+depends_on: []
+languages: [python]
+goal: "Reading page k of a 64 MiB artifact costs the page, not the whole payload."
+context:
+  review: "docs/research/2026-10-23-server-runtime-review.md, finding G7; file:line as of 39d89438, re-verify on main"
+  specification: docs/spec/artifacts/artifact-store.md
+  severity: low
+  finding: >-
+    runtime/src/contractor_runtime/toolsets/common/artifact_read_cache.py:14
+    caches one ArtifactValue up to 64 MiB, but text_artifacts/tools.py:156-160
+    decodes the full payload and runs split_lines (a regex over the whole
+    text) on every 400-line page, and run_artifacts/tools.py:208 decodes the
+    full payload per 256 KiB page only to prove UTF-8. Paging is O(size) per
+    call and quadratic overall, on the event loop. The line-window logic is
+    also duplicated in text_artifacts/tools.py:272-328 and
+    likec4/tools.py:725-729 next to common/line_window.py, whose helper lacks
+    line_offset so read_likec4 cannot continue a line longer than 128 KiB
+    (its docstring at likec4/tools.py:394-396 admits it).
+  siblings: >-
+    Any other caller of artifact_read_cache (grep) that re-decodes per page.
+plan:
+  - "Extend the read cache entry with lazily computed decoded text and line offsets, computed once per exact revision in a thread; page from the offsets."
+  - "Add line_offset to common/line_window.py and use it from text_artifacts and likec4; delete the two local copies."
+  - "Tests: paging a 32 MiB artifact ten times decodes once (hook) with loop gaps under 100 ms; read_likec4 continues a 200 KiB line across calls."
+scope:
+  in:
+    - "Cached decoded view, one line-window helper."
+  out:
+    - "Page sizes and tool signatures (except the new continuation parameter if needed)."
+acceptance_criteria:
+  - id: A1
+    text: "Ten pages of a 32 MiB artifact decode the payload once and keep loop gaps under 100 ms."
+  - id: A2
+    text: "Line-window logic has one definition and read_likec4 can continue an over-long line."
+  - id: A3
+    text: "The decode-count test fails on the unfixed code."
+tests:
+  - command: "cd runtime && uv run --locked pytest -q tests/test_text_artifacts_toolset.py tests/test_run_artifacts_toolset.py tests/test_likec4_toolset.py tests/test_common_line_window.py"
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A2]

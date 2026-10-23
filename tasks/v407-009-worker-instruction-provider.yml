@@ -1,0 +1,58 @@
+schema_version: "1.0"
+id: V407-009
+title: "Pass Worker and finalizer instructions to ADK through a provider and reject bare braces at validation"
+milestone: server-runtime-review-2026-10
+epic: planner-worker
+kind: defect
+introduced_by: V13-001
+priority: P1
+status: pending
+depends_on: []
+languages: [python]
+goal: "An instruction containing a bare {identifier} can neither break a Worker invocation at run time nor reach the Runtime unvalidated."
+context:
+  review: "docs/research/2026-10-23-server-runtime-review.md, finding F3; file:line as of 39d89438, re-verify on main"
+  specification: docs/spec/execution/worker.md
+  severity: medium
+  finding: >-
+    runtime/src/contractor_runtime/worker/runtime.py:215 passes
+    instruction=context.instruction to LlmAgent as a plain string, so ADK
+    inject_session_state (google/adk/utils/instructions_utils.py:174 in
+    ADK 2.8.0) expands any bare {identifier} from session state and raises
+    KeyError when it is absent; the invocation then fails as
+    worker_execution_failed on every attempt. worker/finalizer.py:96 has the
+    same shape. worker/summarizer.py:232-234 already guards this with
+    instruction=lambda _: text (TPL-R51). The shipped
+    configs/instructions/*.md contain no bare {word} today, and nothing in
+    contracts/settings.py:117-120 validate_spec rejects one, so a future
+    instruction with a JSON example such as {path} breaks the Worker with no
+    validation error.
+  siblings: >-
+    Every LlmAgent construction in runtime/src: grep for 'instruction=' under
+    worker/ and agent_skills/; the Server-side streamline planner
+    (internal/planner/streamline) uses ADK Go and must be checked for the
+    same template expansion.
+plan:
+  - "Use instruction=lambda _, text=context.instruction: text in AdkWorkerRuntime and the finalizer (same pattern as the summarizer); add a shared helper in worker/ so the three sites use one definition."
+  - "Decide and record in docs/spec/configuration/agent-templates.md whether bare braces are allowed in instruction text; if session-state templating is never used, validate_spec rejects a bare {identifier} (regex for an unescaped single brace pair not preceded by another brace), and the Server-side AgentTemplate validation (internal/config) applies the same rule with a shared fixture under api/testdata."
+  - "Tests: a Worker instruction containing {path} runs through the ADK runner fake without KeyError; validate_spec rejects it if the rule is adopted; the Go config validator agrees via the shared fixture."
+scope:
+  in:
+    - "Provider-based instruction passing at every ADK agent construction in the Runtime."
+    - "One validation rule for bare braces, shared between Server and Runtime if adopted."
+  out:
+    - "Changing instruction content in configs/."
+acceptance_criteria:
+  - id: A1
+    text: "An instruction containing {path} produces a successful Worker invocation in the ADK runner test."
+  - id: A2
+    text: "If validation is adopted: the Runtime and the Server reject the same fixture cases and accept the shipped catalog (contractor server config validate --root ./configs passes)."
+  - id: A3
+    text: "The Runtime test fails on the unfixed code."
+tests:
+  - command: "cd runtime && uv run --locked pytest -q tests/test_adk_runtime.py tests/test_worker_summarizer.py tests/test_settings.py"
+    covers: [A1, A2, A3]
+  - command: "go test -count=1 ./internal/config/..."
+    covers: [A2]
+  - command: make lint
+    covers: [A2]

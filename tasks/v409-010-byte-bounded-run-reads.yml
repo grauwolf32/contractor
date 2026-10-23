@@ -1,0 +1,60 @@
+schema_version: "1.0"
+id: V409-010
+title: "Bound Run event pages and Planner session reads by bytes, and bound the Run purge transaction"
+milestone: sql-review-2026-10
+epic: execution-core
+kind: defect
+introduced_by: V3-009
+priority: P2
+status: pending
+depends_on: []
+languages: [go, sql]
+goal: "No Run read returns more bytes than its budget, and Run deletion holds locks and memory proportional to a batch, not to the Run's history."
+context:
+  review: "docs/research/2026-10-23-sql-review.md, section D (ListRunEvents bytes, GetPlannerSessions, PurgeRun transaction)"
+  specification: docs/spec/execution/runs.md
+  severity: medium
+  finding: >-
+    (1) internal/runstore/run_event_store.go:444-449 ListRunEvents bounds
+    rows (1000) but not bytes; workflow_run_events.data is CHECKed at 2
+    MiB (baseline:2222), so one page can be 2 GiB; readExactBatchSQL
+    already uses sum(size_bytes) OVER () to withhold payloads above a
+    budget. The number of events per Run has no schema or spec bound. (2)
+    internal/runstore/planner_batch.go:10-30 GetPlannerSessions reads
+    planner_sessions.state (2 MiB) for every session of a Run (up to 1024
+    attempts, LIM-RUN-2) in one ANY($1) statement, while
+    internal/planner/session/plans_batch.go:27-45 uses only state->'plan'
+    and scan_history.go:67 only the scan part. (3)
+    internal/artifacts/postgres_purge.go:77-102 PurgeRun -> purgeAllRevisions
+    (:186-201) loops 1000-row batches inside one transaction for up to
+    50,000 revisions (000008 trigger limit), accumulates every version ID
+    in memory, then collectUnreferencedVersions (:274) locks every version
+    and blob FOR UPDATE in chunks in the same transaction, followed by
+    DELETE FROM workflow_runs cascading events, stages, allocations and
+    reports; the batch size bounds statements, not the transaction, lock
+    count or memory. Run deletion as one transaction is by design
+    (internal/rundeletion/deleter.go:60-130).
+  siblings: >-
+    Audit purge and the Project receipt purge bound rows and bytes per
+    pass; V407-026 covers ListRunEvents re-validation.
+plan:
+  - "ListRunEvents: add a byte budget in SQL (sum(octet_length(data::text)) OVER (ORDER BY sequence_number) <= budget, always at least one row) while keeping limit+1 semantics; register the page byte bound in docs/spec/platform/limits.md and decide a per-Run event count bound (LIM entry plus a statement-level trigger like 000008) or record why none is needed."
+  - "GetPlannerSessions: project state->'plan' and the scan member in SQL for the batch readers; keep the full read for the single-session path."
+  - "PurgeRun: record the transaction bound (revisions + events) in docs/spec/artifacts/retention-and-deletion.md, and move version and blob deletion to the existing post-commit sweep (deletePhysicalAfterCommit) so the transaction holds Run-scoped rows only; test deleting a Run with 50,000 revisions within the statement and query budgets."
+scope:
+  in:
+    - "Byte budgets, projections, purge transaction scope, limits registry, size tests."
+  out:
+    - "Event and session formats."
+acceptance_criteria:
+  - id: A1
+    text: "A Run with 1000 events of 2 MiB pages within the byte budget and the client can continue from the cursor; the bound is in limits.md."
+  - id: A2
+    text: "Run detail for a Run with 1024 Planner sessions reads only the plan and scan members (statement text assertion)."
+  - id: A3
+    text: "Deleting a Run with 50,000 revisions completes within the query budget, holds no version or blob locks after commit of the Run transaction, and the test fails on the unfixed code."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/runstore/... ./internal/artifacts/... ./internal/rundeletion/... ./internal/planner/session/..."
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1]

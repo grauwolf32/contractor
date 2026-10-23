@@ -1,0 +1,58 @@
+schema_version: "1.0"
+id: V409-012
+title: "Migration and SQL hygiene: fold redefined functions, test the backfills, document the single-transaction runner, one updated_at rule, SQL placement"
+milestone: sql-review-2026-10
+epic: persistence
+kind: chore
+priority: P3
+status: pending
+depends_on: []
+languages: [sql, go]
+goal: "Each function has one current definition, every data-moving migration has a test, the runner's constraints are written down, and the monotonic updated_at rule has one definition."
+context:
+  review: "docs/research/2026-10-23-sql-review.md, sections B (migrations hygiene) and C (advanceUpdatedAt, SQL placement)"
+  specification: docs/spec/platform/persistence.md
+  finding: >-
+    contractor_protect_finding_proposal_receipt_retention is defined five
+    times (baseline:924, 000010:15, 000022:13, 000023:11, 000025:46) and
+    eight more functions are redefined once (contractor_eval_dirty,
+    _eval_members_inserted, _eval_metrics_changed,
+    _eval_retain_deleted_execution, _valid_stage_result,
+    _protect_scheduler_settings, _protect_project, _admit_audit_finding).
+    The 000008 backfill of artifact_scopes.revision_count (000008:25-33)
+    and the 000014 lease release (000014:14-16) have no
+    *_migration_test.go. The runner (internal/persistence/postgres/migrate.go:63-100)
+    applies every pending file in one transaction, so CREATE INDEX
+    CONCURRENTLY can never be used and a large backfill runs under the 120
+    s migration statement_timeout; undocumented. GREATEST(clock_timestamp(),
+    x.updated_at + interval '1 microsecond') is inlined about 40 times in
+    pgstore (also review_write.go, item_review_renewal.go, run_deletion.go)
+    while evalstore/store.go:196-197 has observe/advance constants.
+    Statements of 10 or more lines are inline in pgstore/read.go:145-153,
+    230-236, item_review_renewal.go:203-207, execution.go:156-163,
+    evalstore/projections.go:198-205, 283-289, submissions.go:91-105,
+    while 3-8 line statements live in *_sql.go
+    (round_sql.go:258-261, finding_collection_sql.go, observed_usage_sql.go:6-10).
+plan:
+  - "Decide with the user whether to cut a new baseline now (pre-production allows recreating databases, AGENTS 6) or at the first release; if now, regenerate 000001 from the current schema and delete 000002-000031 with the ledger rule documented."
+  - "Add migration tests for the 000008 and 000014 backfills (seed pre-migration rows, apply, assert) or record in the migration header why none is needed."
+  - "Document in persistence.md: migrations run in one transaction, no CONCURRENTLY, backfills must fit the migration statement budget or be split into application-side sweeps."
+  - "One advanceUpdatedAt(alias) helper next to auditEventBatch.advance() used by every pgstore statement; one definition shared with evalstore."
+  - "Check sql_placement_test.go's counting rule against the listed inline statements and either move them or record the rule it applies."
+scope:
+  in:
+    - "Baseline decision, backfill tests, documentation, updated_at helper, placement check."
+  out:
+    - "Schema changes beyond the baseline fold."
+acceptance_criteria:
+  - id: A1
+    text: "Each function has one definition in the migration set (or the baseline is regenerated); the two backfills have tests or a recorded reason."
+  - id: A2
+    text: "persistence.md states the runner constraints; the updated_at rule has one definition (grep)."
+  - id: A3
+    text: "sql_placement_test.go accepts the tree and its rule covers the listed statements."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/persistence/... ./internal/auditstore/... ./internal/evalstore/..."
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A2, A3]

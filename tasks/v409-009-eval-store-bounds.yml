@@ -1,0 +1,67 @@
+schema_version: "1.0"
+id: V409-009
+title: "Bound Eval store work: batched purge, projected view publication, single-pass comparison pages, cursor-based member reconcile"
+milestone: sql-review-2026-10
+epic: evals
+kind: defect
+introduced_by: V38-006
+priority: P2
+status: pending
+depends_on: []
+languages: [go, sql]
+goal: "Eval purge, view publication, comparison pages and member reconciliation cost work proportional to the page or batch, never to the whole experiment's documents."
+context:
+  review: "docs/research/2026-10-23-sql-review.md, finding A10 and section C (PublishView, comparison pages, nextMembers, recovery per member)"
+  specification: docs/spec/evals/managed-evals.md
+  severity: medium
+  finding: >-
+    (1) internal/evalstore/deletion.go:71-75 Purge and :111-125
+    PurgeProject run DELETE FROM eval_experiments cascading through
+    eval_frozen_plans -> eval_members (10,000) -> eval_records (unbounded),
+    eval_evidence_refs, eval_member_projections (1 MB each),
+    eval_submissions -> eval_suboperations, eval_view_pairs/charts in one
+    statement and, for PurgeProject, for every experiment of the Project
+    in one transaction under projects FOR SHARE; the Audit purge
+    (pgstore/lifecycle.go:150-175, purge_sql.go) batches at
+    CleanupBatchRows = 1000 per pass. (2) projections.go:198-205
+    PublishView reads p.document of every member (10,000 x 1 MB) on every
+    republish; each dirty member triggers one. (3)
+    comparison_pages_sql.go:11-27,37-70 and comparison_pages.go:76-115
+    readSelectedPage runs the filtered AS MATERIALIZED CTE (all pair
+    documents of the generation) twice per page (count, then page);
+    selectedMemberPageSQL parses convert_from(document)::jsonb twice per
+    pair and joins eval_members on a JSON path. (4) reconcile_sql.go:8-20
+    nextMembersSQL anti-joins eval_submissions across up to 10,000 members
+    per tick once most are submitted. (5) ResolveSuboperation,
+    BindExecution, Settle, ObserveTokens and PutSuboperation each call
+    recovery() (projects FOR SHARE + eval_experiments FOR UPDATE + claim
+    check) and 2-5 more reads; evalservice/driver.go:87,116 and
+    execution_operations.go:101 call them per member in a loop of up to
+    100, about 8 round trips and a re-lock per member.
+  siblings: >-
+    Audit purge batching is the model; V407-028 covers the member insert
+    loop and V407-029 the FrozenPlan reads.
+plan:
+  - "Purge: delete members, records, projections, submissions and view pairs in ctid batches of CleanupBatchRows per pass (reuse purgeAuditDomainSQL's shape), committing per pass and returning 'more' until empty; delete the experiment row last; PurgeProject iterates experiments."
+  - "PublishView: project the fields the comparison needs into columns at ProjectMember time (or a side projection table) and read those; keep a total octet_length cap with fail-closed behaviour for any remaining document read."
+  - "Comparison pages: one statement with count(*) OVER (), the materialised CTE without document, documents fetched only for the limited ordinals; store member_id_a/member_id_b and the filter flags as columns on eval_view_pairs (migration with backfill test)."
+  - "nextMembers: keep next_ordinal on eval_experiments (members admitted in ordinal order) or add WHERE m.ordinal > $4 from the last admitted ordinal."
+  - "Take the project share lock and experiment lock once per tick transaction and pass the locked state to the per-member operations."
+  - "Realistic-size PostgreSQL tests: purge of a 10,000-member experiment commits in bounded passes; republish of a view with 1,000 members reads no document column (statement text assertion through a tracer); a member page issues one statement; a tick over 100 members issues a bounded statement count."
+scope:
+  in:
+    - "Batched purge, projected columns, single-pass pages, reconcile cursor, per-tick locking, size tests."
+  out:
+    - "Comparison semantics and the public Eval API shapes."
+acceptance_criteria:
+  - id: A1
+    text: "Purging a 10,000-member experiment with records and projections completes in passes bounded by CleanupBatchRows rows each, with no pass holding the Project lock across more than one batch."
+  - id: A2
+    text: "View publication and member pages read no full projection or pair document; comparison pages issue one statement per page."
+  - id: A3
+    text: "A coordinator tick over 100 members locks the experiment once; the statement-count tests fail on the unfixed code."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/evalstore/... ./internal/evalservice/... ./internal/evalcoordinator/..."
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1]

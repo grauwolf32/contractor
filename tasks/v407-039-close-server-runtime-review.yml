@@ -1,0 +1,43 @@
+schema_version: "1.0"
+id: V407-039
+title: "Close the 2026-10-23 Server and Runtime review: every finding fixed or declined with a recorded reason"
+milestone: server-runtime-review-2026-10
+epic: quality
+kind: chore
+priority: P3
+status: pending
+depends_on: [V407-001, V407-002, V407-003, V407-004, V407-005, V407-006, V407-007, V407-008, V407-009, V407-010, V407-011, V407-012, V407-013, V407-014, V407-015, V407-016, V407-017, V407-018, V407-019, V407-020, V407-021, V407-022, V407-023, V407-024, V407-025, V407-026, V407-027, V407-028, V407-029, V407-030, V407-031, V407-032, V407-033, V407-034, V407-035, V407-036, V407-037, V407-038]
+languages: [go, python]
+goal: "The review report's Status section names, for every finding, the task that fixed it or the decision that declined it, and the open questions are answered."
+context:
+  review: "docs/research/2026-10-23-server-runtime-review.md"
+  finding: >-
+    The review lists about 75 findings across sections B to G and seven open
+    questions in section I that needed running code or a product decision:
+    listProjectAudits query count, Runtime-side deadline enforcement, ADK
+    session state readers, Audit openapi-operations@1 bounds, long lock holds
+    in document and analysis sessions, renewClaim clock skew, and three
+    projectfs test failures on macOS. Lesson 3.6: 28 of 127 completed fix
+    tasks in the 2026-10-04 review were partial.
+plan:
+  - "Answer each open question in section I by running the named test or reading the code on current main; file a follow-up task for anything that turns out to be a defect."
+  - "Walk sections B to G and for every finding record in the report's Status section the closing task, or 'declined' with the reason and the detection signal if a risk is accepted (AGENTS 3.9)."
+  - "Run make release-verify (make -k) on the branch that lands the last task and record the outcome in the report."
+  - "Remove the report's row from docs/research/README.md only if no open task cites it (README rule)."
+scope:
+  in:
+    - "Status section, open-question answers, follow-up tasks, release gate run."
+  out:
+    - "New fixes beyond follow-up task creation."
+acceptance_criteria:
+  - id: A1
+    text: "Every finding in the report has a closing task ID or a recorded decision in the Status section."
+  - id: A2
+    text: "Every open question has an answer with evidence (command and output, or file:line)."
+  - id: A3
+    text: "make release-verify passes on the landing revision and the result is recorded."
+tests:
+  - command: make release-verify
+    covers: [A3]
+  - command: make lint
+    covers: [A1]

@@ -1,0 +1,74 @@
+schema_version: "1.0"
+id: V407-011
+title: "Make Worker State publication cost proportional to the change, not to the invocation history"
+milestone: server-runtime-review-2026-10
+epic: planner-worker
+kind: defect
+introduced_by: V17-002
+priority: P1
+status: pending
+depends_on: []
+languages: [python]
+goal: "Each tool or model callback publishes a bounded, cached projection; transcript recording and the ADK session mirror do no work nobody reads."
+context:
+  review: "docs/research/2026-10-23-server-runtime-review.md, findings F1, F2, F4; file:line as of 39d89438, re-verify on main"
+  specification: docs/spec/execution/worker.md
+  severity: high
+  finding: >-
+    (1) runtime/src/contractor_runtime/worker/state.py:236-252
+    WorkerStateStore._mutate with worker/instrumentation.py:665-682
+    _publish_locked (nine call sites: before and after every model call,
+    before and after every tool call, finalizer, errors) and
+    telemetry/metrics.py:425-450 MetricsState.snapshot: every callback
+    republishes the whole Worker State. snapshot() runs model_dump on up to
+    1000 ToolCallRecords (each up to 4 KiB of arguments) plus 100 errors on
+    the event loop, then copy.deepcopy of a dict up to 4 MiB
+    (MAX_AGENT_STATE_SNAPSHOT_BYTES), then _fit_snapshot (another deepcopy
+    plus repeated JSON encodes and a binary search) in a thread, then a third
+    deepcopy on return. Cost per publish is O(history), so an invocation with
+    N tool calls costs O(N^2): at the 1000-call cap about 2000 publishes x
+    (1000 model_dumps + 2 x 4 MiB deepcopies) on the loop, and the plugin
+    lock is held across each publish so parallel ADK tool callbacks serialize
+    behind it. tests/test_worker_state.py:158 measures the 1000-record case
+    once, not per call. (2) instrumentation.py:706-714 writes the full snapshot
+    into session.state["contractor"] after every callback and
+    runtime.py:1169-1192 _sync_worker_state appends an ADK Event whose
+    stateDelta carries the whole snapshot once per invocation; ADK 2.8.0
+    InMemorySessionService._copy_session is copy.deepcopy(session) and the
+    Runner calls get_session at the start of every run_async, so in shared
+    session mode every new invocation deep-copies all retained snapshots.
+    (3) runtime.py:616-650 constructs a TranscriptRecorder and records every
+    ADK event (projection, redaction, json.dumps up to 64 KiB per part) even
+    when context.summarizer is None, its only consumer.
+  siblings: >-
+    The Server reads State through /agent-state; verify nothing reads
+    session.state["contractor"] (grep runtime/src and internal/). The
+    finalizer and summarizer publish through the same store.
+plan:
+  - "Cache the metrics projection in MetricsState: keep a serialized list of tool-call rows updated incrementally in record_* (append one dumped row, evict one), so snapshot() is O(1) copy of references rather than O(N) model_dump."
+  - "Change _mutate to apply transform to a shallow copy plus the changed subtree instead of deep-copying the whole state; run _fit_snapshot only when the estimated size (tracked incrementally) exceeds the bound; return the stored snapshot without a third copy (document that callers must not mutate it, or return a frozen view)."
+  - "Publish on phase changes and after each tool/model call, but drop the before-call publish if the Server does not need it (check docs/spec/execution/worker.md WRK state requirements; if before-call state is required, publish only the small currentInvocation delta)."
+  - "Remove the session.state mirror and the per-invocation stateDelta Event if nothing reads them; otherwise store only stateRevision and invocation id."
+  - "Construct TranscriptRecorder only when a summarizer is configured."
+  - "Add a test that measures per-call cost at 1000 tool calls (count model_dump calls and deepcopy sizes through a hook, or assert total loop time under a deterministic budget with the fake clock pattern used in test_performance_contracts.py) and a test that session events do not grow with snapshots."
+scope:
+  in:
+    - "Incremental metrics projection and bounded publish cost."
+    - "Removal of unread session mirror work."
+    - "Summarizer-gated transcript recording."
+  out:
+    - "The /agent-state wire shape and the Worker State spec fields."
+acceptance_criteria:
+  - id: A1
+    text: "At 1000 tool calls the number of ToolCallRecord serializations is at most 1000 (one per record) rather than about 2,000,000, asserted by the hook test."
+  - id: A2
+    text: "The published State is byte-identical to the current output for the existing fixtures (snapshot tests unchanged)."
+  - id: A3
+    text: "With no summarizer, no transcript record call happens; ADK session events carry no State snapshot."
+  - id: A4
+    text: "The cost test fails on the unfixed code."
+tests:
+  - command: "cd runtime && uv run --locked pytest -q tests/test_worker_state.py tests/test_instrumentation.py tests/test_adk_runtime.py tests/test_performance_contracts.py"
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A2]

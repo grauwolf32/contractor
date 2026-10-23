@@ -1,0 +1,73 @@
+schema_version: "1.0"
+id: V409-007
+title: "Drop indexes without readers, merge the collation twins on audit_findings and align keyset orders with their indexes"
+milestone: sql-review-2026-10
+epic: persistence
+kind: chore
+introduced_by: V397-004
+priority: P2
+status: pending
+depends_on: [V409-013]
+languages: [sql, go]
+goal: "Every index has a named reader or a recorded reason, and every keyset page orders by the columns of the index that serves it."
+context:
+  review: "docs/research/2026-10-23-sql-review.md, findings A8, A9 and section B (dead and redundant indexes, keyset mismatches, audit_findings collation)"
+  specification: docs/spec/platform/persistence.md
+  finding: >-
+    Candidate dead indexes (no non-test Go statement uses their
+    distinguishing predicate): workflow_run_events_event_id_key UNIQUE
+    (event_id) and workflow_run_events_time_idx (run_id, occurred_at,
+    sequence_number) (baseline:2231, 2236; the only reader ListRunEvents
+    uses the PK; event IDs are random), workflow_runs_runtime_labels_idx GIN
+    (baseline:2333; placement moved to required_placement_labels in
+    000031), workflow_runs_publication_mode_idx (baseline:2329; every
+    predicate also carries run_id), stage_executions_recovery_idx (state,
+    updated_at) (baseline:2156; every read carries run_id), five
+    eval_experiments_*_page_idx (baseline:3833-3845; summaryPageSQL orders by
+    created_at DESC, experiment_id DESC). Redundant:
+    eval_records_native_recent (partial copy of eval_records_recent,
+    baseline:4039/4041), audit_findings_correlation_audit_scan_idx
+    (000025:82) vs audit_findings_list_idx (baseline:3483) differing only in
+    the COLLATE "C" tiebreaker because two readers chose different
+    collations, audit_executions_audit_identity (baseline:3119),
+    audits_project_owner_identity (baseline:3372), one of
+    projects_owner_identity / projects_project_owner_key (baseline:2602,
+    2608; a FK matches a unique target by column set in any order).
+    audit_findings carries 18 btree indexes; audit_findings_correlation_scope_idx
+    (000024:89) exists only to satisfy the FK-probe rule where an allowance
+    naming audit_findings_list_idx would do. Keyset/index mismatches:
+    internal/telemetry/allocation_resources_sql.go:13-29 orders (terminal_at
+    DESC, allocation_id DESC) but stage_executions_terminal_history_idx ends
+    in stage_execution_id DESC and is not owner-led;
+    internal/telemetry/repository.go:340-358 cleanups order (expires_at,
+    report_id) against indexes (expires_at, stage_execution_id)
+    (baseline:1926, 1977); internal/projectstore/deletion_claim_sql.go:10
+    orders (deletion_requested_at, project_id) against
+    projects_deletion_claim_idx led by deletion_claim_expires_at.
+  siblings: >-
+    TestPostgresRunStateSetsMatchSchema lists
+    workflow_runs_publication_mode_idx in wantPredicates
+    (internal/runstore/run_states_postgres_test.go:360); the FK probe-index
+    allowlist in internal/persistence/postgres/foreign_key_indexes_postgres_test.go.
+plan:
+  - "After V409-013 confirms zero scans in pg_stat_user_indexes on a representative database, drop the ten dead and five redundant indexes in one migration; update the two tests that name them."
+  - "Pick COLLATE \"C\" for every audit_findings ordering (keyset readers need it), change finding_reads_sql.go to match, keep one index; replace the correlation_scope FK+unique pair with the trigger check and an allowance entry."
+  - "Fix the three keyset mismatches by changing the ORDER BY to the index columns (reports: (expires_at, stage_execution_id, report_id); projects claim: new index (deletion_requested_at, project_id) WHERE deleting) or the index to the order (telemetry history)."
+  - "Add a schema test that every non-constraint index is named by at least one statement constant or an allowance file with a reason, so dead indexes are caught at review time."
+scope:
+  in:
+    - "Index drop migration, collation unification, keyset alignment, index-reader test."
+  out:
+    - "Indexes V409-013 shows in use."
+acceptance_criteria:
+  - id: A1
+    text: "The listed indexes are gone or have a recorded reader; the index-reader test passes and fails on an index added without a reader."
+  - id: A2
+    text: "audit_findings has one ordering collation; EXPLAIN of the three keyset statements shows an index scan without a sort."
+  - id: A3
+    text: "All existing PostgreSQL tests pass; the ERD is regenerated (make docs-erd)."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/persistence/postgres/... ./internal/runstore/... ./internal/auditstore/... ./internal/telemetry/... ./internal/projectstore/... ./internal/evalstore/..."
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A3]

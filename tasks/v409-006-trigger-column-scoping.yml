@@ -1,0 +1,68 @@
+schema_version: "1.0"
+id: V409-006
+title: "Scope hot-table triggers to the columns they guard and extend the trigger-column test to every guarded table"
+milestone: sql-review-2026-10
+epic: persistence
+kind: defect
+introduced_by: V404-002
+priority: P2
+status: pending
+depends_on: []
+languages: [sql, go]
+goal: "A trigger on stage_allocations, audits, artifact_bindings, audit_executions or workflow_runs fires only for an update of a column it compares, and a test proves it for every guarded table."
+context:
+  review: "docs/research/2026-10-23-sql-review.md, findings A6, A7 and section B (triggers)"
+  specification: docs/spec/platform/persistence.md
+  severity: medium
+  finding: >-
+    Same class migration 000012 fixed for workflow_runs (PER-R22). (1)
+    000001_baseline.sql:2084-2088 stage_allocations_protect_identity,
+    _protect_performance_policy and _require_completion are BEFORE UPDATE
+    without UPDATE OF; _require_completion (functions baseline:1148-1183,
+    1390-1411) runs SELECT ... FROM stage_executions JOIN workflow_runs on
+    every update, including the release path that touches only
+    release_attempted_at/release_completed_at
+    (internal/runstore/allocation_store.go:314-337) and 000030's
+    per-report AFTER INSERT update of execution_report_received. (2)
+    baseline:3386 audits_protect_preparation_baseline (function
+    baseline:850-884) is BEFORE UPDATE on audits without UPDATE OF; outside
+    preparing/inventory it runs EXISTS over audit_executions before
+    comparing columns, and the audits row is updated on every event append
+    (contractor_admit_audit_finding baseline:66-72, 000003:102-106, every
+    revision bump in 000024). (3) baseline:2403-2407 artifact_bindings:
+    eval_outputs_projection fires for every binding change and filters
+    scope_kind='run' AND namespace='outputs' inside plpgsql;
+    artifact_bindings_project_admission is BEFORE INSERT OR UPDATE and for
+    project scope takes projects FOR SHARE plus an EXISTS over audits on
+    every current_revision bump. (4) baseline:3150-3156 audit_executions:
+    protect_collection BEFORE UPDATE, require_matching_run as a deferred
+    constraint trigger AFTER INSERT OR UPDATE (queues a commit-time probe
+    per update), eval_audit_children_projection AFTER INSERT OR DELETE OR
+    UPDATE probing eval_submissions. (5) 000013:146-178
+    contractor_eval_retain_deleted_execution runs a 4-table join on every
+    workflow_runs or audits DELETE.
+  siblings: >-
+    stage_executions triggers (V407-025). Grep the baseline and
+    increments for every CREATE TRIGGER ... UPDATE ON without OF, list each
+    with its decision (scoped or left as is with reason).
+plan:
+  - "New migration: recreate the listed triggers with UPDATE OF <compared columns> and WHEN (OLD.col IS DISTINCT FROM NEW.col) where only one column matters; keep require_completion's join on INSERT only; add WHEN (COALESCE(NEW.scope_kind, OLD.scope_kind)='run' AND ...) to the projection trigger; make project admission INSERT-only (the scope insert already fences the Project); add WHEN (OLD.request_idempotency_key IS NOT NULL) to the Eval retention trigger on workflow_runs."
+  - "Reorder audits_protect_preparation_baseline to compare columns before the EXISTS."
+  - "Generalise TestWorkflowRunGuardsFireOnTheColumnsTheyCompare (internal/persistence/postgres/workflow_run_triggers_postgres_test.go) into a table over pg_trigger for stage_allocations, audits, artifact_bindings, audit_executions and stage_executions: every UPDATE trigger must declare a column list or a WHEN clause, and each listed column must be one the function reads (parse the function source for NEW.<col>/OLD.<col>)."
+scope:
+  in:
+    - "Trigger scoping migration, function reorder, generalised test."
+  out:
+    - "What each trigger enforces."
+acceptance_criteria:
+  - id: A1
+    text: "Updating release_attempted_at on stage_allocations, appending an Audit event, bumping an artifact binding revision and marking a collection on audit_executions fire none of the scoped triggers (assertion through a counting replacement function in the test or pg_stat_user_functions)."
+  - id: A2
+    text: "The guarded behaviour still holds: identity, performance policy, completion contract, preparation baseline, project admission and run matching are rejected as before (existing tests pass)."
+  - id: A3
+    text: "The generalised trigger-column test covers the five tables and fails on the unfixed baseline."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/persistence/postgres/... ./internal/runstore/... ./internal/artifacts/... ./internal/auditstore/..."
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A3]
