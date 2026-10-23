@@ -6,7 +6,8 @@ epic: sandbox
 kind: defect
 introduced_by: V381-001
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: "ed56370753d43558e50707ea454dbd5af2adc370"
 depends_on: []
 languages: [python]
 goal: >-
@@ -57,3 +58,18 @@ tests:
     covers: [A1, A2]
   - command: make lint
     covers: [A1, A2, A3]
+verification:
+  date: "2026-10-23"
+  revision: "c12d35f0435c583ae11a2e495b1b6965eff47f9f"
+  environment: >-
+    Debian 13 (systemd 257) in a privileged rootful Podman container on the
+    macOS Podman machine (arm64), as an unprivileged user, with the locked
+    Runtime environment (uv 0.13.1, CPython 3.13.16), rootless Podman and
+    pasta. The Podman owner tests do not run on macOS on main either
+    (V401-007), so they ran there.
+  task_commands:
+    - "uv run pytest tests/test_podman_network.py tests/test_podman_capabilities.py: all passed (2 skipped need the real supervisor image); the new discovery case failed for enabled with an available network probe on the unfixed capabilities.py and passed after the fix."
+    - "uv run pytest (the body of make test-runtime) over the whole tree: 4272 passed, 56 skipped, 3 failed and 6 errors; all nine build mTLS fixtures with go, which the container lacks (FileNotFoundError: 'go'), and none touches discovery."
+    - "make lint passed on macOS (ruff, ruff format, import-linter, check_tasks)."
+  live_check:
+    - "A Runtime started by the V402-001 role with --podman-network-enabled true logged podman-network@1 unavailable after 0 ms before the fix and registered with podman@1, podman-network@1 and code-execution@1 after it."

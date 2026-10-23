@@ -5,7 +5,8 @@ milestone: runtime-host-provisioning-2026-10
 epic: operations
 kind: feature
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: "c12d35f0435c583ae11a2e495b1b6965eff47f9f"
 depends_on: [V402-002]
 languages: [yaml, markdown]
 goal: >-
@@ -103,3 +104,22 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A3]
+verification:
+  date: "2026-10-23"
+  revision: "c12d35f0435c583ae11a2e495b1b6965eff47f9f"
+  environment: >-
+    Controller on macOS arm64 with ansible-core 2.21.5 (uvx); target Debian 13
+    (systemd 257, cgroup v2) in a privileged rootful Podman container reached
+    over SSH, with PostgreSQL 17 and a contractor-server built from this
+    branch listening on its Control Plane at https://127.0.0.1:8443, and a
+    throwaway deployment CA issued by contractor pki on the controller.
+  task_commands:
+    - "make test-ansible: syntax check, ansible-lint 26.10.1 (production profile, strict), the resolution tests (3 positive plays, 23 single-host rejections and one cross-host rejection) and the tool probe smoke test passed."
+    - "make lint passed, including sh deploy/ansible/tests/run.sh."
+  live_check:
+    - "Two instances (full set; memory workspace with nuclei and ffuf only) were provisioned from an empty host: packages, account, subordinate IDs, delegation, pinned tools, likec4 by npm ci, release venv, parser prefetch, offline supervisor image build, certificates and user units."
+    - "The verification caught podman-network@1 unavailable, which was the Runtime defect V402-002; after it, the full instance registered with code-analysis@1, code-execution@1, edit-files@1, filesystem@1, podman-network@1, podman@1, scan@1, taint-annotations@1, workspace-changes@1 and workspace-storage, and the narrow one with its own subset; contractor ops agents listed both idle with heartbeats."
+    - "A startup label not bound on the Server failed registration with invalid_runtime_labels and the run failed at once with the Runtime's message; the README now says to bind labels first."
+    - "An unchanged second run reported changed=0; a new release restarted the running instance and verified it; state absent stopped, disabled and removed one unit and kept its data; keep_releases 1 pruned the older release."
+    - "contractor_runtime_restart false as an extra-vars string wrote the unit, kept the process, recorded the deferral and skipped pruning; the next plain run restarted and verified exactly that instance and cleared the record."
+    - "An unsupported adapter failed the preflight with the Runtime's own parse_settings error before the unit changed; the running instance stayed active."
