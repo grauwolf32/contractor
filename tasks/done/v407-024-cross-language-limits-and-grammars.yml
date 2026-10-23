@@ -6,7 +6,8 @@ epic: api-contracts
 kind: defect
 introduced_by: V2-003
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 6d0467c001c01f64bb0494f427f9d3bc3fdd47b0
 depends_on: []
 languages:
 - go
@@ -125,3 +126,39 @@ tests:
   - A1
   - A3
   - A4
+verification:
+  date: '2026-10-23'
+  revision: 6d0467c001c01f64bb0494f427f9d3bc3fdd47b0
+  environment: >-
+    Worktree branch claude/rv-r2 on base ac982d28, macOS arm64, Go 1.26.9 (GOTOOLCHAIN=local), Python
+    3.13 with the locked Runtime venv, Node 24.20, local PostgreSQL 17.11 database contractor_test_r2
+    (CONTRACTOR_TEST_DATABASE_URL set).
+  database_tests_configured: true
+  results:
+  - 'make test-wire-cross-language: passed (exit 0); the shared fixture gate ran 232 Go and 185 Python shared
+    tests over 250 fixtures, including TestSharedOpenAPIDocumentBoundsMatchRuntimeAuthoring (internal/scanplan)
+    and test_shared_openapi_document_bounds_match_scan_preparation, with api/testdata/openapi-document-bounds.json
+    read by both declared sides (A1, A4).'
+  - 'cd runtime && uv run --locked pytest -q tests/test_openapi_toolset.py tests/test_audit_completion_contracts.py
+    tests/test_security_findings_toolset.py: 127 passed (A1, A2, A3).'
+  - 'go test -count=1 ./internal/scanplan/... ./internal/auditimport/...: both ok; TestBundledCWEClassificationMatchesRuntime
+    passes unchanged (A3).'
+  - 'make lint: passed after make docs-dependencies regenerated docs/spec/audit-workflow-dependencies.html,
+    whose input fingerprint covers the edited spec, and make tasks-backlog.'
+  - 'A1: all 26 generated documents (13 cases, JSON and YAML) give identical verdicts in Go parseDocument
+    and Runtime load_openapi: 2,097,152 bytes accepted and 2,097,153 and 3,145,826 rejected (also with a
+    two-byte UTF-8 fill), depth 64 accepted and 65 rejected for nested mappings and arrays, 100,000 nodes
+    accepted and 100,001 rejected for values and for member names. The Go side also checks the declared
+    node count and depth of every accepted document.'
+  - 'A2: test_document_beyond_the_bounds_is_rejected_before_vacuum (3,145,826 bytes, depth 65, 50,000 members)
+    rejects load with tool_input_invalid, writes nothing and never awaits Vacuum;
+    test_validation_checks_the_bounds_before_vacuum_and_keeps_semantic_checks shows an in-bounds document
+    still gets its provenance error beside one Vacuum run, and a document beyond any bound fails before
+    Vacuum; test_mutation_beyond_the_byte_bound_preserves_the_published_document covers the write bound.'
+  - 'A4: the shared cases run through the base ac982d28 Runtime (temporary worktree, same generator and load
+    path) accepted all 14 over-limit documents: bytes, multibyte bytes, mapping and array depth, value and
+    member-name node counts; the fixed Runtime gives 0 mismatches.'
+  - 'make test-runtime: 4293 passed, 39 skipped, 106 failed. The failures are the macOS-only podman (96),
+    tool_process (2) and trailmark_child (2) set named in the brief, plus test_code_analysis_graph
+    encoded-ceiling, the 100 ms event-loop-gap test, test_local_direct_faults[socket] and three projectfs
+    local tests, all of which fail identically on base ac982d28 in this environment; no OpenAPI test failed.'
