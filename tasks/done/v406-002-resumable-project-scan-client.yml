@@ -1,5 +1,5 @@
 schema_version: '1.0'
-id: V403-002
+id: V406-002
 title: Launch resumable Project scan sweeps through ordinary Run creation
 milestone: web-nuclei-rule-sweeps-2026-10
 epic: operations
@@ -7,7 +7,7 @@ kind: feature
 priority: P2
 status: completed
 depends_on:
-- V403-001
+- V406-001
 languages:
 - go
 - python
@@ -32,8 +32,8 @@ scope:
   - Add a real Server/Runtime process gate for the shipped web Workflow and include it in deterministic
     release verification without requiring host scanners; retain an explicit installed-Nuclei smoke test.
   out:
-  - 'Server-owned sweep persistence/controller: V403-004.'
-  - 'Custom rulepack transport: V403-003.'
+  - 'Server-owned sweep persistence/controller: V406-004.'
+  - 'Custom rulepack transport: V406-003.'
   - Project credential injection into Nuclei and implicit target defaults on ordinary Run endpoints.
 requirements:
 - id: R1

@@ -15,7 +15,7 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
-| [V403-004](v403-004-durable-scope-sweeps.yml) | scan-tools | feature | P2 | Coordinate durable bounded Nuclei sweeps over Project scopes |
+| [V406-004](v406-004-durable-scope-sweeps.yml) | scan-tools | feature | P2 | Coordinate durable bounded Nuclei sweeps over Project scopes |
 
 ## Pending
 
@@ -52,7 +52,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V55-009](v55-009-scan-candidate-ranking.yml) | feature | P2 | — | Optionally rank existing scan candidates with an LLM |
-| [V403-007](v403-007-web-scan-release-gate.yml) | chore | P2 | V403-004, V403-005, V403-006 | Gate the complete web scan and rule sweep journeys |
+| [V406-007](v406-007-web-scan-release-gate.yml) | chore | P2 | V406-004, V406-005, V406-006 | Gate the complete web scan and rule sweep journeys |
 
 ### Findings tools and collections (`findings`)
 
@@ -90,8 +90,8 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V403-005](v403-005-web-scan-settings-ui.yml) | feature | P2 | — | Launch a web scan with rule settings and owner rulepack selection |
-| [V403-006](v403-006-scope-sweep-ui-cli.yml) | feature | P2 | V403-004, V403-005 | Launch and follow durable rule sweeps from UI and CLI |
+| [V406-005](v406-005-web-scan-settings-ui.yml) | feature | P2 | — | Launch a web scan with rule settings and owner rulepack selection |
+| [V406-006](v406-006-scope-sweep-ui-cli.yml) | feature | P2 | V406-004, V406-005 | Launch and follow durable rule sweeps from UI and CLI |
 
 ### Public API and wire contracts (`api-contracts`)
 

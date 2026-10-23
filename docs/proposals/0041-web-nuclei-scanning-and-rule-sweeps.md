@@ -513,20 +513,22 @@ Project URL explicitly.
 ## Implementation tracking
 
 The user authorized task creation and implementation on 2026-10-23. Milestone
-`web-nuclei-rule-sweeps-2026-10` is tracked by:
+`web-nuclei-rule-sweeps-2026-10` is tracked by the V406 series. The branch-local
+V403 task IDs were reassigned during main integration because V403 already
+identifies the artifact-preview work on main:
 
-- [V403-001](../../tasks/done/v403-001-nuclei-web-parameter-bindings.yml): Phase 1
+- [V406-001](../../tasks/done/v406-001-nuclei-web-parameter-bindings.yml): Phase 1
   bindings, web Workflow and pinned installed-rule execution (completed).
-- [V403-002](../../tasks/done/v403-002-resumable-project-scan-client.yml): resumable
+- [V406-002](../../tasks/done/v406-002-resumable-project-scan-client.yml): resumable
   Phase 1 client fan-out and real-process gate.
-- [V403-003](../../tasks/done/v403-003-user-rulepack-inputs.yml): optional UserScope
+- [V406-003](../../tasks/done/v406-003-user-rulepack-inputs.yml): optional UserScope
   rulepacks and exact authorized input forks.
-- [V403-004](../../tasks/v403-004-durable-scope-sweeps.yml): durable bounded
+- [V406-004](../../tasks/v406-004-durable-scope-sweeps.yml): durable bounded
   server sweep and recovery/cancellation/purge.
-- [V403-005](../../tasks/v403-005-web-scan-settings-ui.yml): single-scan form
+- [V406-005](../../tasks/v406-005-web-scan-settings-ui.yml): single-scan form
   and owner rulepack selection/upload.
-- [V403-006](../../tasks/v403-006-scope-sweep-ui-cli.yml): sweep UI/CLI.
-- [V403-007](../../tasks/v403-007-web-scan-release-gate.yml): milestone exit
+- [V406-006](../../tasks/v406-006-scope-sweep-ui-cli.yml): sweep UI/CLI.
+- [V406-007](../../tasks/v406-007-web-scan-release-gate.yml): milestone exit
   and complete process/browser/release evidence.
 
 The implementation defaults are a 1,000-Project maximum scope, a resumable

@@ -1,5 +1,5 @@
 schema_version: '1.0'
-id: V403-001
+id: V406-001
 title: Run parameterized web Nuclei scans with pinned installed rules
 milestone: web-nuclei-rule-sweeps-2026-10
 epic: scan-tools
@@ -38,9 +38,9 @@ scope:
   - Update owning normative specs, error/limit/lifecycle registries, generated clients through their generators
     and appropriate real-process tests.
   out:
-  - 'Optional custom rulepacks and UserScope input exceptions: V403-003.'
-  - 'Cross-Project fan-out: V403-002 and V403-004.'
-  - 'UI scan launch forms: V403-005.'
+  - 'Optional custom rulepacks and UserScope input exceptions: V406-003.'
+  - 'Cross-Project fan-out: V406-002 and V406-004.'
+  - 'UI scan launch forms: V406-005.'
   - Changing Audit fixtures, model choice, per-host pacing or template-controlled custom-pack egress.
 requirements:
 - id: R1
@@ -161,7 +161,7 @@ progress:
   remaining_work: []
 verification:
   date: '2026-10-23'
-  scope: All acceptance criteria and listed checks passed; V403-001 is completed.
+  scope: All acceptance criteria and listed checks passed; V406-001 is completed.
   environment: Isolated codex/web-nuclei-sweeps worktree from main 9a5083ffd73e06ea577048bcec2ed89997f22b83;
     macOS arm64, Go 1.26.9, Node 24.20.0, locked Python 3.13 Runtime and a separate disposable PostgreSQL
     17 instance.

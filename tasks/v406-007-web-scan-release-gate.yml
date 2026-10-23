@@ -1,5 +1,5 @@
 schema_version: '1.0'
-id: V403-007
+id: V406-007
 title: Gate the complete web scan and rule sweep journeys
 milestone: web-nuclei-rule-sweeps-2026-10
 epic: scan-tools
@@ -7,12 +7,12 @@ kind: chore
 priority: P2
 status: pending
 depends_on:
-- V403-001
-- V403-002
-- V403-003
-- V403-004
-- V403-005
-- V403-006
+- V406-001
+- V406-002
+- V406-003
+- V406-004
+- V406-005
+- V406-006
 languages:
 - go
 - python

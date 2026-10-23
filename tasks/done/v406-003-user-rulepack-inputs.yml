@@ -1,5 +1,5 @@
 schema_version: '1.0'
-id: V403-003
+id: V406-003
 title: Run optional custom Nuclei rulepacks from the owner UserScope
 milestone: web-nuclei-rule-sweeps-2026-10
 epic: scan-tools
@@ -7,7 +7,7 @@ kind: feature
 priority: P2
 status: completed
 depends_on:
-- V403-001
+- V406-001
 languages:
 - go
 - python

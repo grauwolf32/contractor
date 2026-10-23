@@ -1,5 +1,5 @@
 schema_version: '1.0'
-id: V403-005
+id: V406-005
 title: Launch a web scan with rule settings and owner rulepack selection
 milestone: web-nuclei-rule-sweeps-2026-10
 epic: ui
@@ -7,7 +7,7 @@ kind: feature
 priority: P2
 status: pending
 depends_on:
-- V403-003
+- V406-003
 languages:
 - typescript
 - css
@@ -33,7 +33,7 @@ scope:
   - Refetch terminal Run/result state, stop settled polling and back off failed reads; bump UI
     package version.
   out:
-  - 'Sweep orchestration views: V403-006.'
+  - 'Sweep orchestration views: V406-006.'
   - Secrets in params, browser storage or model-visible state; implicit target defaulting on ordinary
     Run APIs.
 requirements:

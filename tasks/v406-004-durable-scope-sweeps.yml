@@ -1,5 +1,5 @@
 schema_version: '1.0'
-id: V403-004
+id: V406-004
 title: Coordinate durable bounded Nuclei sweeps over Project scopes
 milestone: web-nuclei-rule-sweeps-2026-10
 epic: scan-tools
@@ -7,8 +7,8 @@ kind: feature
 priority: P2
 status: in_progress
 depends_on:
-- V403-002
-- V403-003
+- V406-002
+- V406-003
 languages:
 - go
 - sql
@@ -41,7 +41,7 @@ scope:
   out:
   - New Scheduler lane paths, receipt/lease families, model decisions or per-host pacing.
   - Ordinary Run endpoint implicit target defaulting and arbitrary cross-scope request authority.
-  - 'UI/CLI sweep surfaces: V403-006.'
+  - 'UI/CLI sweep surfaces: V406-006.'
 requirements:
 - id: R1
   text: At most 1000 unique Projects and an 8 MiB total canonical snapshot; child request bytes are at
@@ -79,7 +79,7 @@ cardinality:
   bound: 25 members/4 MiB per tick; keyset-paged result reads; no whole-sweep rescan on polling.
 - collection: Retained sweep source inputs
   expected: 0 or 1 rulepack and one installed-package pin
-  maximum: The selected exact source bytes within V403-001/V403-003 limits, retained once per sweep
+  maximum: The selected exact source bytes within V406-001/V406-003 limits, retained once per sweep
   bound: Share immutable blob content through ordinary forks; no per-Project copies or new scope kind.
 lifecycle:
 - entity: Sweep, members, existing mutation receipts/controller claims and input snapshots
@@ -132,7 +132,7 @@ tests:
   covers: *id001
 progress:
   completed_work:
-  - Confirmed V403-002 and V403-003 are completed. Read sweep proposal and existing Run admission, ArtifactStore
+  - Confirmed V406-002 and V406-003 are completed. Read sweep proposal and existing Run admission, ArtifactStore
     fork, keyed-mutation, controller-claim and active Server boundaries.
   - Identified the existing runservice.PublicCreateParams.PinnedWorkflow/ExpectedWorkflowSHA256 path as
     the child admission boundary; no second scanner execution or Scheduler path is needed.

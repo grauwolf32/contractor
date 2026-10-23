@@ -81,7 +81,7 @@ execution_policy:
 
 milestones:
   - id: web-nuclei-rule-sweeps-2026-10
-    exit_task: V403-007
+    exit_task: V406-007
     outcome: Parameterized model-free Nuclei web scans pin rule content, custom packs are uploaded once to UserScope and forked into standalone or Project Runs, and bounded Project sweeps resume and cancel through ordinary Runs with UI and CLI controls.
   - id: runtime-host-provisioning-2026-10
     exit_task: V402-001
