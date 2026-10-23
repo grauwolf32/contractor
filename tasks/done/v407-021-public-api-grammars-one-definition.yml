@@ -100,7 +100,7 @@ tests:
   covers:
   - A1
   - A4
-implementation_commit: ec6aacbd00e8a63e6730095333ee7f1df8e889e5
+implementation_commit: cb975a8fc72e90173ba771156354968bf3acae01
 verification:
   date: '2026-10-24'
   environment: macOS arm64; Go 1.26.9, Node 24.20.0, pnpm 11.24.0 and the locked Runtime venv; isolated PostgreSQL
@@ -118,8 +118,14 @@ verification:
     selection.
   - 'make ui-verify passed: generated checks, lint, typecheck, 192 files with 2371 tests passed and one existing expected
     failure, 17 server tests, and build.'
-  - 'make test-wire-cross-language passed: 251 fixtures, 247 Go and 184 Python shared tests.'
+  - 'make test-wire-cross-language passed: 251 fixtures, 247 Go and 184 Python shared tests; after the merge of claude/review-v407-v409
+    (V409-010), 252 fixtures, 249 Go and 185 Python shared tests.'
   - make lint passed (after make docs-dependencies regenerated the dependency graph for the spec changes).
+  - 'After review: claude/review-v407-v409 merged (V409-010 owns LIM-API-24 and LIM-API-25, so the Idempotency-Key limit
+    is LIM-API-26), cancelScanSweep declares OptionalIdempotencyKey and the clients are regenerated. Then both task go test
+    commands, the touched-package suites (same base failure only), make verify-public-api, make verify-public-api-postgres,
+    make test-wire-cross-language, make ui-verify (192 files, 2371 tests and one expected failure, 17 server tests, build)
+    and make lint passed again on 2026-10-24.'
   - V371-016 commands also passed (its go test packages above, cd ui && corepack pnpm test --run src/mutations, make lint).
   - 'A5 on a temporary worktree at ac982d28 with the new tests and fixtures copied in: TestSharedIdempotencyKeyCasesGateEvalMutations
     (a!b, a/b, -a and duplicate headers reached the Eval service), TestPublicRequestBodyBoundsMatchHandlers, TestSharedUTF8ByteBoundsAreDeclared,
@@ -132,8 +138,9 @@ verification:
   - A1 status. An invalid Eval key answers the route's documented 422 eval_invalid before any receipt is read or written,
     not 400; API-R70 and the Eval error enum fix that status, and scope.out excludes forcing one status on JSON handlers.
     API-R69 states both.
-  - Sibling found and fixed. cancelScanSweep takes OptionalIdempotencyKey but ignored the header; it now validates a supplied
-    key like RuntimeCredential deletion, and API-R28 names both operations.
+  - Sibling found and fixed. cancelScanSweep ignored the Idempotency-Key header and did not declare OptionalIdempotencyKey;
+    it now declares the parameter and validates a supplied key like RuntimeCredential deletion, API-R28 names both operations,
+    and the CLI sends no key because cancellation binds none. The generated Go client's CancelScanSweep takes a params argument.
   - 'New limits: LIM-API-26 (Idempotency-Key), LIM-AUD-28 (Audit start/resume body), LIM-AUD-29 (Audit scope field bytes),
     LIM-GIT-21 (Git key body), LIM-PRJ-5 (Project description bytes), LIM-REV-11 (rationale bytes), LIM-RUN-10 (cancellation
     reason bytes); LIM-PRJ-3 now states its 160-byte bound. No migration and no new error code.'
@@ -144,7 +151,7 @@ verification:
   - 'x-max-utf8-bytes is declared for the reviewed human free-text fields only. Machine values bounded in bytes (credential
     material, OTLP header values, caBundlePem, Git ref, repositoryUrl and privateKey, scan sweep parameter values, Gateway
     failure signature, archive paths, Audit artifact key/revision/member, query parameters, cursors) are ASCII or opaque
-    and not edited as text in the UI; a follow-up task should decide them.'
+    and not edited as text in the UI; a follow-up task should decide them, which the integrator creates and tracks.'
   - The Audit start form does not pre-check scope field bytes; the Server's 400 is shown. UI Run label key and count literals
     are a separate rule and were left.
   v371_016:
