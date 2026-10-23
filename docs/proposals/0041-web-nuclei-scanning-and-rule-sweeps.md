@@ -516,10 +516,10 @@ The user authorized task creation and implementation on 2026-10-23. Milestone
 `web-nuclei-rule-sweeps-2026-10` is tracked by:
 
 - [V403-001](../../tasks/done/v403-001-nuclei-web-parameter-bindings.yml): Phase 1
-  bindings, web Workflow and pinned installed-rule execution (in progress).
+  bindings, web Workflow and pinned installed-rule execution (completed).
 - [V403-002](../../tasks/done/v403-002-resumable-project-scan-client.yml): resumable
   Phase 1 client fan-out and real-process gate.
-- [V403-003](../../tasks/v403-003-user-rulepack-inputs.yml): optional UserScope
+- [V403-003](../../tasks/done/v403-003-user-rulepack-inputs.yml): optional UserScope
   rulepacks and exact authorized input forks.
 - [V403-004](../../tasks/v403-004-durable-scope-sweeps.yml): durable bounded
   server sweep and recovery/cancellation/purge.

@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-71 open tasks: 5 in progress, 41 pending, 25 deferred. 974 finished: 971 completed, 3 archived.
+70 open tasks: 4 in progress, 41 pending, 25 deferred. 975 finished: 972 completed, 3 archived.
 
 ## In progress
 
@@ -15,7 +15,6 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
-| [V403-003](v403-003-user-rulepack-inputs.yml) | scan-tools | feature | P2 | Run optional custom Nuclei rulepacks from the owner UserScope |
 
 ## Pending
 
@@ -52,8 +51,8 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V55-009](v55-009-scan-candidate-ranking.yml) | feature | P2 | — | Optionally rank existing scan candidates with an LLM |
-| [V403-004](v403-004-durable-scope-sweeps.yml) | feature | P2 | V403-003 | Coordinate durable bounded Nuclei sweeps over Project scopes |
-| [V403-007](v403-007-web-scan-release-gate.yml) | chore | P2 | V403-003, V403-004, V403-005, V403-006 | Gate the complete web scan and rule sweep journeys |
+| [V403-004](v403-004-durable-scope-sweeps.yml) | feature | P2 | — | Coordinate durable bounded Nuclei sweeps over Project scopes |
+| [V403-007](v403-007-web-scan-release-gate.yml) | chore | P2 | V403-004, V403-005, V403-006 | Gate the complete web scan and rule sweep journeys |
 
 ### Findings tools and collections (`findings`)
 
@@ -91,7 +90,7 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V403-005](v403-005-web-scan-settings-ui.yml) | feature | P2 | V403-003 | Launch a web scan with rule settings and owner rulepack selection |
+| [V403-005](v403-005-web-scan-settings-ui.yml) | feature | P2 | — | Launch a web scan with rule settings and owner rulepack selection |
 | [V403-006](v403-006-scope-sweep-ui-cli.yml) | feature | P2 | V403-004, V403-005 | Launch and follow durable rule sweeps from UI and CLI |
 
 ### Public API and wire contracts (`api-contracts`)
@@ -170,7 +169,7 @@ tasks in `introduced_by`.
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 12 | 4 | 15 |
 | Code analysis and taint annotations (`code-analysis`) | 0 | 14 | 13 | 2 | 18 |
 | HTTP and Caido tools (`http-tools`) | 1 | 11 | 14 | 4 | 15 |
-| Scanner tool Workers and scan planning (`scan-tools`) | 4 | 14 | 4 | 3 | 8 |
+| Scanner tool Workers and scan planning (`scan-tools`) | 3 | 14 | 4 | 3 | 8 |
 | Findings tools and collections (`findings`) | 7 | 14 | 5 | 6 | 9 |
 | Workflow catalog and document workflows (`workflows`) | 3 | 14 | 13 | 12 | 12 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 30 | 33 | 5 | 36 |

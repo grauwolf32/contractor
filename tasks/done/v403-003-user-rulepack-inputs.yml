@@ -5,7 +5,7 @@ milestone: web-nuclei-rule-sweeps-2026-10
 epic: scan-tools
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V403-001
 languages:
@@ -185,3 +185,4 @@ verification:
   - 'Process gates must run serially on one database: an overlapping attempt waited on the database-wide
     active Server lease and exceeded its harness budget; its independent final rerun passed. No production
     change was needed.'
+implementation_commit: 188940fd036dc7c4df92f4e5e2820d1647f54222
