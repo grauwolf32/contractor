@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: ui
 kind: defect
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [typescript]
 goal: "After a recorded decision, focus lands on the next possible issue's detail header whatever order the navigation, the list refetch and the detail reads complete in, and the component test checks that without depending on timing."

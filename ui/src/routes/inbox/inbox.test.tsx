@@ -1,6 +1,6 @@
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 
 import type {
   Audit,
@@ -610,6 +610,33 @@ function detailWhere(): HTMLElement {
   return where;
 }
 
+/**
+ * Where focus is when `find` first returns an element. It is read in the
+ * MutationObserver callback of the DOM change that showed the element, so
+ * before any later task (a passive effect, a timer, the next poll of a
+ * findBy query) could move focus.
+ */
+function focusWhenShown(find: () => Element | null | undefined): {
+  element?: Element;
+  focused?: Element | null;
+} {
+  const seen: { element?: Element; focused?: Element | null } = {};
+  const observer = new MutationObserver(() => {
+    const element = find();
+    if (element === null || element === undefined) return;
+    seen.element = element;
+    seen.focused = document.activeElement;
+    observer.disconnect();
+  });
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    characterData: true,
+  });
+  onTestFinished(() => observer.disconnect());
+  return seen;
+}
+
 type User = ReturnType<typeof userEvent.setup>;
 
 /** Records "Not an issue" on the possible issue shown in the detail pane. */
@@ -920,6 +947,12 @@ describe("Inbox", () => {
     await waitFor(() => expect(reason).toHaveFocus());
     expect(reject).toHaveAttribute("aria-pressed", "true");
     await user.keyboard("Only administrators reach this view.");
+    const nextShown = focusWhenShown(() => {
+      const detail = document.querySelector(".ui-panes-detail");
+      return detail?.textContent?.includes("Order search builds raw SQL")
+        ? detail.querySelector(".inbox-detail-where")
+        : undefined;
+    });
     await user.keyboard("{Control>}{Enter}{/Control}");
 
     await waitFor(() =>
@@ -932,10 +965,13 @@ describe("Inbox", () => {
         "Decision recorded: Not an issue.",
       ),
     );
-    // Focus follows to the next item, so the keyboard flow continues there.
+    // Focus follows to the next item, so the keyboard flow continues there,
+    // from the change that shows it on.
     await waitFor(() =>
       expect(document.activeElement).toHaveClass("inbox-detail-where"),
     );
+    expect(nextShown.element).toBeDefined();
+    expect(nextShown.focused).toBe(nextShown.element);
     expect(sent("POST", "/findings/finding_idor/reviews")).toHaveLength(1);
     const decisions = sent("POST", "/reviews/review_finding_idor/decisions");
     expect(decisions).toHaveLength(1);

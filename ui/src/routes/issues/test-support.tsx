@@ -7,9 +7,15 @@ import type {
   AuditReviewRequest,
   AuditState,
 } from "../../api/audits";
+import type { ResponseOperation } from "../../api/contract";
 import type { Project } from "../../api/projects";
 import * as build from "../../test/builders";
-import { fakeServer, type FakeCall } from "../../test/fake-server";
+import {
+  fakeServer,
+  type FakeCall,
+  type Route,
+  type Routes,
+} from "../../test/fake-server";
 import { failure, json, page } from "../../test/responses";
 import { ownerListRoutes } from "../../test/owner-lists";
 import { renderWithAPI } from "../../test/render";
@@ -71,6 +77,11 @@ export interface IssuesServer {
   gate?: Promise<void> | undefined;
   /** Recording a decision waits for this. */
   decisionGate?: Promise<void> | undefined;
+  /**
+   * Every request waits for the promise this returns, if any: tests that
+   * answer reads in a chosen order.
+   */
+  hold?: ((call: FakeCall) => Promise<void> | undefined) | undefined;
 }
 
 function bump(server: IssuesServer, auditId: string) {
@@ -310,11 +321,25 @@ function routes(server: IssuesServer) {
   };
 }
 
+/** `table` with every route answering once `server.hold` lets it. */
+function held(server: IssuesServer, table: Routes): Routes {
+  const answers: Routes = {};
+  for (const [operation, route] of Object.entries(table) as [
+    ResponseOperation,
+    Route,
+  ][])
+    answers[operation] = async (call) => {
+      await server.hold?.(call);
+      return route(call);
+    };
+  return answers;
+}
+
 /** Renders the Issues route at `path` against `server`. */
 export function renderIssues(server: IssuesServer, path: string) {
   return renderWithAPI(null, {
     path,
-    server: fakeServer(routes(server)),
+    server: fakeServer(held(server, routes(server))),
     routes: [
       { path: "/issues", element: <IssuesRoute /> },
       { path: "/issues/:auditId/:findingId", element: <IssuesRoute /> },

@@ -100,6 +100,10 @@ function RequestDecision({
         rationale: choice.rationale,
       }),
     onSuccess: async (result, choice) => {
+      // The bar goes away; keep keyboard and screen reader users here. Before
+      // the refetch: the refetched request can show the decision, and take
+      // the bar and its focus away, while slower reads keep it waiting.
+      focusIfLost(root.current);
       await refreshAfterDecision(queryClient, auditId);
       setRecordedRevision(choice.revision);
       announcement.announce(
@@ -107,7 +111,7 @@ function RequestDecision({
       );
       setAction(undefined);
       setRationale("");
-      // The bar goes away; keep keyboard and screen reader users here.
+      // Focus lost to the page body meanwhile comes back here.
       focusIfLost(root.current);
       onDecided?.(result);
     },

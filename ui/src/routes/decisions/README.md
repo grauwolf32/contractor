@@ -138,7 +138,13 @@ FindingDecision(props: {
 - **Recorded.** "Decision recorded: …" goes to a polite live region and
   stays there for 8 s or until the next edit, also after the refetched
   finding replaced the bar. Focus moves to the decision itself, a group named
-  "Decision on <title>". A page that unmounts the component on success (for
+  "Decision on <title>", as soon as the Server answers: before the refetch,
+  which can take the bar away while slower reads still run, so focus never
+  falls back to the page body. A page that moves focus on in `onDecided`
+  does it in a layout effect of the render that shows the target (the
+  Issues detail header, the Inbox detail bar): a navigation commits in a
+  transition, whose passive effects run a task later, with focus on the
+  page body until then. A page that unmounts the component on success (for
   example by moving to the next item in `onDecided`) loses that message and
   should announce the outcome itself.
 - **Decided** possible issues show the current decision (outcome, severity,

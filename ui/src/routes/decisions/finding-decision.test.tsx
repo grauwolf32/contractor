@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 import {
   getAuditFinding,
@@ -25,6 +25,29 @@ import {
 import { fakeServer, type Routes } from "../../test/fake-server";
 import { failure, json } from "../../test/responses";
 import { renderWithAPI } from "../../test/render";
+
+/**
+ * document.activeElement after every DOM change from now on, until `stop`
+ * (or the end of the test): whether focus ever sat on <body> in between.
+ */
+function focusTrail(): { stop: () => (Element | null)[] } {
+  const trail: (Element | null)[] = [];
+  const observer = new MutationObserver(() =>
+    trail.push(document.activeElement),
+  );
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    characterData: true,
+  });
+  onTestFinished(() => observer.disconnect());
+  return {
+    stop: () => {
+      observer.disconnect();
+      return trail;
+    },
+  };
+}
 
 type FindingDecisionProps = ComponentProps<typeof FindingDecision>;
 
@@ -487,6 +510,7 @@ describe("FindingDecision", () => {
     await readyBar();
     await user.click(screen.getByRole("button", { name: "Not an issue" }));
     await user.type(reasonField(), "Guarded by the gateway.");
+    const trail = focusTrail();
     await user.click(recordButton());
 
     const region = await screen.findByRole("region", {
@@ -503,6 +527,8 @@ describe("FindingDecision", () => {
         name: "Decision on Missing object authorization",
       }),
     ).toHaveFocus();
+    // Not even while the bar went away and the refetch was on its way.
+    expect(trail.stop()).not.toContain(document.body);
     await user.click(
       within(region).getByRole("button", { name: "Change decision" }),
     );
