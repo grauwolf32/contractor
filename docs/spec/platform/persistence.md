@@ -70,7 +70,7 @@ stateDiagram-v2
     [*] --> Starting: Server process starts
     Starting --> Active: the first acquisition probe acquires the advisory lease
     Starting --> Standby: the lease is held elsewhere
-    Starting --> Stopped: a startup lease step other than the holder lookup fails or ends at its database budget (PER-R26)
+    Starting --> Stopped: a startup lease step other than the holder lookup fails or ends at its database budget (PER-R27)
     Standby --> Standby: lease not acquired, or an acquisition probe stalls and the lock-free session reconnects
     Standby --> Active: advisory lease acquired on the lease session
     Active --> Stopped: lease-session loss, a single liveness probe fails within the 10 s tolerance window
@@ -239,7 +239,7 @@ process (FAIL-PER-2).
 
 ### Budgets of the lease session
 
-**PER-R26.** The lease session is opened from a copy of the working pool's
+**PER-R27.** The lease session is opened from a copy of the working pool's
 connection settings, so it carries the `database` budgets of the process
 settings ([OPS-R15](../operations/operations.md), values and defaults in the
 [operational timeout reference](../../operations/timeout-configuration.md)).
@@ -255,17 +255,17 @@ An earlier caller deadline or a cancellation, such as Server shutdown, ends a
 step sooner, and no budget extends the caller's deadline. A step other than
 the holder lookup that fails or ends at its budget closes the session and
 stops startup with an error; the Server neither stands by nor retries the
-step (FAIL-PER-3). A failed holder lookup only leaves the logged holder
+step (FAIL-PER-4). A failed holder lookup only leaves the logged holder
 unknown, and the Server stands by; its next acquisition probe reconnects a
 session the lookup left unusable (PER-R8). Opening the working pool and
 verifying its migrations come before these steps and are bounded by the
 working pool's own budgets: `database.queryTimeout` for its first ping, and
 the acquisition and query budgets for each statement of the migration check.
 
-**PER-R27.** Once the Server stands by or is active, the tolerance window
+**PER-R28.** Once the Server stands by or is active, the tolerance window
 (LIM-PER-3) bounds each lease-session probe instead. It bounds each standby
 acquisition probe and each reconnect of the lock-free session (PER-R8); the
-inherited budgets of PER-R26 still apply inside them, so whichever ends first
+inherited budgets of PER-R27 still apply inside them, so whichever ends first
 ends the probe or reconnect. It alone bounds each liveness probe of the
 active Server (PER-R5): that probe is a protocol-level ping that the client
 query budget does not shorten, so a query budget configured below the
@@ -535,7 +535,7 @@ Limits ([registry](limits.md)):
   LIM-SYS-2 ([Overview](../overview.md)).
 - LIM-PER-2 — a single failed liveness probe is lease-session loss (PER-R5).
 - LIM-PER-3 — tolerance window of a liveness probe, a standby acquisition
-  probe and a standby reconnect: ten seconds (PER-R5, PER-R27).
+  probe and a standby reconnect: ten seconds (PER-R5, PER-R28).
 - LIM-PER-4 — lease-session TCP keepalive idle time: 10 s (PER-R6).
 - LIM-PER-5 — lease-session TCP keepalive interval: 5 s (PER-R6).
 - LIM-PER-6 — lease-session TCP keepalive probes: 3 (PER-R6).
@@ -552,8 +552,8 @@ Failure outcomes ([failure model](failure-model.md)):
 - FAIL-PER-1 — the active Server's lease session (PER-R4, PER-R5, PER-R6,
   PER-R7, PER-R10).
 - FAIL-PER-2 — a standby's lease acquisition probe (PER-R3, PER-R8,
-  PER-R27).
-- FAIL-PER-3 — the startup lease steps of a starting Server (PER-R26).
+  PER-R28).
+- FAIL-PER-4 — the startup lease steps of a starting Server (PER-R27).
 
 Lifecycle ([lifecycle](lifecycle.md)):
 
@@ -720,12 +720,12 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
     are lost, and a release accepts its holder's ended lease (PER-R25); test
     `TestPostgresControllerClaimsLeaseProveAndRelease` in
     [`internal/persistence/postgres/receipts_postgres_test.go`](../../../internal/persistence/postgres/receipts_postgres_test.go).
-22. The lease session carries the working pool's connect timeout, query
+23. The lease session carries the working pool's connect timeout, query
     budget tracer and server-side timeouts; each startup lease step runs under
     its configured budget, or exactly under an earlier caller deadline; a
     standby acquisition probe and a standby reconnect run under the tolerance
     window when that ends first; and the liveness probe runs outside the
-    client query budget (PER-R26, PER-R27); test
+    client query budget (PER-R27, PER-R28); test
     `TestPostgresControlPlaneLeaseSessionInheritsStartupBudgets` in
     [`internal/app/single_active_budget_postgres_test.go`](../../../internal/app/single_active_budget_postgres_test.go).
     A stalled handshake, keepalive configuration, first acquisition or holder
@@ -734,7 +734,7 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
     cancels the stalled statement with the session's backend key and closes
     the session; only after a stalled holder lookup does it stand by, logging
     an unknown holder, and its next acquisition probe reconnects the session
-    (PER-R26, FAIL-PER-3); test
+    (PER-R27, FAIL-PER-4); test
     `TestControlPlaneLeaseStartupStallEndsAtItsBudgetOwner` in
     [`internal/app/single_active_budget_test.go`](../../../internal/app/single_active_budget_test.go).
 

@@ -32,9 +32,9 @@ resolved durations and the Audit claim batch; it excludes URLs, paths and secret
 | `auditController.claimLease` | `30s` | Audit controller ownership lease, 1s..5m and at least twice its operation timeout |
 | `auditController.operationTimeout` | `10s` | Claim, reconcile or release operation; includes work inside reconciliation |
 | `auditController.claimBatch` | `8` | Concurrently claimed Audits, 1..100; separate from child Run batches in AuditProfile |
-| `database.connectTimeout` | `5s` | Establish one PostgreSQL connection, including the Control Plane lease session ([PER-R26](../spec/platform/persistence.md)) |
+| `database.connectTimeout` | `5s` | Establish one PostgreSQL connection, including the Control Plane lease session ([PER-R27](../spec/platform/persistence.md)) |
 | `database.acquireTimeout` | `2s` | Wait for a pooled connection |
-| `database.queryTimeout` | `20s` | Client database operation budget, including each startup statement of the Control Plane lease session ([PER-R26](../spec/platform/persistence.md)) |
+| `database.queryTimeout` | `20s` | Client database operation budget, including each startup statement of the Control Plane lease session ([PER-R27](../spec/platform/persistence.md)) |
 | `database.statementTimeout` | `15s` | PostgreSQL statement execution |
 | `database.lockTimeout` | `2s` | PostgreSQL lock acquisition |
 | `database.idleTransactionTimeout` | `30s` | PostgreSQL idle transaction lifetime |

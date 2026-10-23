@@ -18,8 +18,8 @@ import (
 // configured database budgets, or under an earlier caller deadline, and the
 // session carries the configured server-side timeouts. After startup the
 // tolerance window bounds a standby acquisition probe when it ends first,
-// and the liveness probe runs outside the client query budget (PER-R26,
-// PER-R27).
+// and the liveness probe runs outside the client query budget (PER-R27,
+// PER-R28).
 func TestPostgresControlPlaneLeaseSessionInheritsStartupBudgets(t *testing.T) {
 	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
 	if databaseURL == "" {

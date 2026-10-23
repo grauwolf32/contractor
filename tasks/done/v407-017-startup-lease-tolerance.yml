@@ -91,15 +91,16 @@ verification:
     allegation is recorded only here and in docs/research/2026-10-23-server-runtime-review.md (D11), not in
     the normative requirements.
   - Startup keeps the configured database budgets as its owner; no mandatory 10 s startup tolerance and no
-    standby-and-retry after a failed startup step. PER-R27's rationale records that a different startup
+    standby-and-retry after a failed startup step. PER-R28's rationale records that a different startup
     availability target is a separate decision that would replace the requirement.
   - The tolerance window is documented as the owner of standby acquisition probes and reconnects (nested
     with the inherited budgets, whichever ends first) and, alone, of the active liveness probe, which pgx
     sends as a protocol-level ping outside the query tracer. LIM-PER-3, the Tolerance window concept and its
     glossary entry now say so; this is existing behaviour, not a new policy.
-  - 'Spec IDs added: PER-R26 (startup lease step budgets), PER-R27 (tolerance window contrast), FAIL-PER-3
-    (startup lease step outcomes), invariant 22 in docs/spec/platform/persistence.md, concept and glossary
-    entry Startup lease steps. No migration, limit or error code added.'
+  - 'Spec IDs added: PER-R27 (startup lease step budgets), PER-R28 (tolerance window contrast), FAIL-PER-4
+    (startup lease step outcomes), invariant 23 in docs/spec/platform/persistence.md, concept and glossary
+    entry Startup lease steps. No migration, limit or error code added. Renumbered after closing (first
+    PER-R26, PER-R27, FAIL-PER-3 and invariant 22) because the unmerged V407-027 already takes those numbers.'
   - 'Out of scope, found while testing: a standby that is shut down can race its own readiness listener in
     awaitControlPlaneLease (single_active.go select on ctx.Done() versus done, both ready after
     cancellation) and return "standby readiness listener stopped: listener exited before lease
