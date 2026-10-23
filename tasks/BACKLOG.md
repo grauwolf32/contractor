@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-67 open tasks: 4 in progress, 38 pending, 25 deferred. 974 finished: 971 completed, 3 archived.
+66 open tasks: 4 in progress, 37 pending, 25 deferred. 975 finished: 972 completed, 3 archived.
 
 ## In progress
 
@@ -83,12 +83,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V40-003](v40-003-agent-instruction-eval-decision.yml) | feature | P1 | V40-002 | Evaluate instruction candidates and record evidence-based adoption decisions |
-
-### Operations, authentication, CLI and deployment (`operations`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V404-002](v404-002-allocation-report-expired-reason.yml) | defect | P3 | — | Tell an expired allocation report apart from one that never arrived |
 
 ### Public API and wire contracts (`api-contracts`)
 
@@ -174,7 +168,7 @@ tasks in `introduced_by`.
 | Evaluations (`evals`) | 2 | 21 | 32 | 5 | 35 |
 | Podman sandbox (`sandbox`) | 0 | 9 | 2 | 1 | 3 |
 | Web UI (`ui`) | 0 | 22 | 56 | 12 | 50 |
-| Operations, authentication, CLI and deployment (`operations`) | 1 | 14 | 33 | 5 | 10 |
+| Operations, authentication, CLI and deployment (`operations`) | 0 | 14 | 33 | 5 | 10 |
 | Public API and wire contracts (`api-contracts`) | 4 | 1 | 30 | 20 | 8 |
 | PostgreSQL persistence and schema (`persistence`) | 4 | 0 | 20 | 33 | 8 |
 | Quality, CI and process (`quality`) | 11 | 1 | 21 | 79 | 16 |

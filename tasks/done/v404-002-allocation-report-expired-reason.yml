@@ -6,7 +6,8 @@ epic: operations
 kind: defect
 introduced_by: V32-005
 priority: P3
-status: pending
+status: completed
+implementation_commit: "34629c7f45fde1e18cd1ecaa2a4b903da10e79ec"
 depends_on: []
 languages: [go, sql, typescript, yaml, markdown]
 goal: "Allocation resource summaries report `report_expired` when the allocation's report was received and has since expired under LIM-OBS-8, and keep `report_missing` for an allocation whose Runtime never delivered one."
@@ -65,3 +66,29 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3, A4]
+verification:
+  date: "2026-10-23"
+  revision: "34629c7f45fde1e18cd1ecaa2a4b903da10e79ec"
+  environment: >-
+    Branch fix/telemetry-retention on macOS arm64 with Go 1.26.9, Node
+    24.20.0 and disposable PostgreSQL 17.11 (CONTRACTOR_TEST_DATABASE_URL set).
+    First verified, mutations included, as V403-002 at
+    f91df06add49983f8607afac2b4c61147c3d0b7e. After the branch was rebased
+    onto main 99964a6c and renumbered V404-002 with migration 000030 and UI
+    version 0.7.8, the task commands passed again.
+  reproduction: >-
+    Before the fix, the expired, expired-cleaned and expired-unreleased cases
+    of TestAllocationResourceProjectionPreservesOptionalResourceStates
+    returned report_missing or pending instead of report_expired.
+  task_commands:
+    - "go test -count=1 ./internal/telemetry ./internal/persistence/postgres passed (A1-A3)."
+    - "make test-go passed (94 packages ok), including internal/runservice and internal/httpapi/public against PostgreSQL."
+    - "make test-postgres passed."
+    - "make verify-public-api passed (A4)."
+    - "make ui-verify passed: 189 test files, 2,282 tests and 1 expected failure (A4)."
+    - "make lint passed after make tasks-backlog regenerated the backlog for this status change."
+  mutations:
+    - "A trigger that leaves the flag unchanged failed the expired-cleaned case and the migration test."
+    - "A migration without the backfill failed the migration test."
+    - "A mapping that ignores the flag, or checks release before it, failed the expired cases."
+    - "Either reader reading false for the flag failed the status test."
