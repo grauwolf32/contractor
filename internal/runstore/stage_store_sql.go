@@ -17,9 +17,12 @@ SELECT EXISTS (
 // Stage $3 after previous execution $5, with execution configuration variant
 // $6, escalation ordinal $7 and resume source $8, StageSpec $10 of schema
 // version $9 and StageContext $12 of schema version $11, in state preparing
-// with reason created, and returns it.
-// Used by PostgresStore.CreateStageExecution.
+// with reason created, and returns it. The same statement sets the Run's
+// scheduler_lane_class to $13, the class of the new StageExecution, which is
+// the one the Scheduler progresses next (SCH-R175); a failed insert changes
+// neither row. Used by PostgresStore.CreateStageExecution.
 var createStageExecutionSQL = `
+WITH inserted AS (
 INSERT INTO stage_executions (
     stage_execution_id, run_id, stage_name, attempt, previous_execution_id,
     execution_config_variant, escalation_ordinal, resume_source_execution_id,
@@ -27,7 +30,15 @@ INSERT INTO stage_executions (
     stage_context_schema_version, stage_context_snapshot,
     state, state_reason_code, state_reason_message
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12::jsonb, 'preparing', 'created', '')
-RETURNING ` + stageExecutionColumns
+RETURNING *
+), lane AS (
+UPDATE workflow_runs AS run
+   SET scheduler_lane_class = $13
+  FROM inserted
+ WHERE run.run_id = inserted.run_id
+   AND run.scheduler_lane_class IS DISTINCT FROM $13
+)
+SELECT ` + stageExecutionColumns + ` FROM inserted`
 
 // getStageExecutionSQL reads StageExecution $1.
 // Used by PostgresStore.GetStageExecution.

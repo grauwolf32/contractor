@@ -17,7 +17,7 @@ runtime_labels, runtime_config_snapshot, project_http_target_snapshot, skill_sna
 publication_mode, audit_execution_id, audit_submission_key, audit_completion,
 state, state_reason_code, state_reason_message,
 cancellation_schema_version, run_cancellation,
-scheduler_claim_id, scheduler_claimed_at, scheduler_claim_expires_at,
+scheduler_claim_id, scheduler_claimed_at, scheduler_claim_expires_at, scheduler_lane_class,
 created_at, updated_at, started_at, finished_at, metadata_labels`
 
 type rowScanner interface {
@@ -45,7 +45,7 @@ func scanWorkflowRun(row rowScanner) (WorkflowRun, error) {
 		&result.PublicationMode, &result.AuditExecutionID, &result.AuditSubmissionKey, &auditCompletion,
 		&state, &result.StateReason.Code, &result.StateReason.Message,
 		&result.CancellationSchemaVersion, &cancellation,
-		&claimID, &claimedAt, &claimExpiresAt,
+		&claimID, &claimedAt, &claimExpiresAt, &result.SchedulerLaneClass,
 		&result.CreatedAt, &result.UpdatedAt, &result.StartedAt, &result.FinishedAt, &metadataLabels,
 	); err != nil {
 		return WorkflowRun{}, err
@@ -59,6 +59,9 @@ func scanWorkflowRun(row rowScanner) (WorkflowRun, error) {
 		}
 	}
 	result.State = WorkflowRunState(state)
+	if !result.SchedulerLaneClass.Valid() {
+		return WorkflowRun{}, fmt.Errorf("validate WorkflowRun Scheduler lane class: invalid value")
+	}
 	if !result.PublicationMode.Valid() {
 		return WorkflowRun{}, fmt.Errorf("validate WorkflowRun publication mode: invalid value")
 	}

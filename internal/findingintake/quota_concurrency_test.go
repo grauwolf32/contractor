@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"strings"
 	"sync"
 	"testing"
@@ -179,7 +180,8 @@ func quotaSubmissionGrantWithInputs(
 	runs := runstore.NewPostgresStore(pool)
 	project := projectID
 	if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{
-		RunID: runID, OwnerID: ownerID, ProjectID: &project,
+		LaneClass: resolved.LaneClassModel,
+		RunID:     runID, OwnerID: ownerID, ProjectID: &project,
 		WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
 		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: workflowJSON,
 		Parameters: map[string]string{}, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
@@ -202,6 +204,7 @@ func quotaSubmissionGrantWithInputs(
 	}
 	stageID, allocationID := runID+"-stage", runID+"-allocation"
 	if _, err := runs.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
+		LaneClass:        resolved.LaneClassModel,
 		StageExecutionID: stageID, RunID: runID, StageName: workflow.EntryStage, Attempt: 1,
 		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: stageJSON,
 		StageContextSchemaVersion: contracts.APIVersion,

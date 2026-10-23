@@ -82,7 +82,8 @@ func TestPostgresRunRepeatRequiresRetainedAuthorityWithoutMutation(t *testing.T)
 				t.Run(variant, func(t *testing.T) {
 					runID := "repeat-" + scope + "-" + variant
 					if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{
-						RunID: runID, OwnerID: "user-1", ProjectID: projectID, WorkflowName: "artifact-copy", WorkflowVersion: "1",
+						LaneClass: resolved.LaneClassModel,
+						RunID:     runID, OwnerID: "user-1", ProjectID: projectID, WorkflowName: "artifact-copy", WorkflowVersion: "1",
 						WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`),
 						Parameters: map[string]string{"objective": "original objective"}, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 					}); err != nil {

@@ -914,6 +914,7 @@ func TestPostgresRetryProgressionAtomicallyCreatesFreshAttempt(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = persistence.CreateStageWithContext(ctx, runstore.CreateStageExecutionParams{
+		LaneClass:        resolved.LaneClassModel,
 		StageExecutionID: sourceID, RunID: "run-1", StageName: workflow.EntryStage, Attempt: 1,
 		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: stageJSON,
 		StageContextSchemaVersion: contracts.APIVersion,
@@ -937,6 +938,7 @@ func TestPostgresRetryProgressionAtomicallyCreatesFreshAttempt(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = persistence.CreateStageWithContext(ctx, runstore.CreateStageExecutionParams{
+		LaneClass:        resolved.LaneClassModel,
 		StageExecutionID: sourceID, RunID: "run-1", StageName: workflow.EntryStage, Attempt: 1,
 		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: stageJSON,
 		StageContextSchemaVersion: contracts.APIVersion,
@@ -983,6 +985,7 @@ func TestPostgresRetryProgressionAtomicallyCreatesFreshAttempt(t *testing.T) {
 			},
 			NextStage: &NextStageCreation{
 				Params: runstore.CreateStageExecutionParams{
+					LaneClass:        resolved.LaneClassModel,
 					StageExecutionID: targetID, RunID: "run-1", StageName: targetStage,
 					Attempt: 2, PreviousExecutionID: &previous,
 					ExecutionConfigVariant: runstore.StageExecutionConfigBase,
@@ -1074,6 +1077,7 @@ func TestPostgresEscalationProgressionIsAtomicAndOrdinalIsUnique(t *testing.T) {
 	}
 	sourceID := "stage-escalation-1"
 	_, err = persistence.CreateStageWithContext(ctx, runstore.CreateStageExecutionParams{
+		LaneClass:        resolved.LaneClassModel,
 		StageExecutionID: sourceID, RunID: "run-1", StageName: workflow.EntryStage, Attempt: 1,
 		ExecutionConfigVariant: runstore.StageExecutionConfigBase,
 		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: stageJSON,
@@ -1114,6 +1118,7 @@ func TestPostgresEscalationProgressionIsAtomicAndOrdinalIsUnique(t *testing.T) {
 			},
 			NextStage: &NextStageCreation{
 				Params: runstore.CreateStageExecutionParams{
+					LaneClass:        resolved.LaneClassModel,
 					StageExecutionID: targetID, RunID: "run-1", StageName: targetStage,
 					Attempt: 2, PreviousExecutionID: &previous,
 					ExecutionConfigVariant: runstore.StageExecutionConfigInterruptedEscalation,
@@ -1157,6 +1162,7 @@ WHERE stage_execution_id = 'stage-escalation-2'`); persistencepostgres.SQLState(
 	}
 	duplicateID, duplicatePrevious := "stage-escalation-duplicate", targetID
 	_, err = store.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
+		LaneClass:        resolved.LaneClassModel,
 		StageExecutionID: duplicateID, RunID: "run-1", StageName: targetStage,
 		Attempt: 3, PreviousExecutionID: &duplicatePrevious,
 		ExecutionConfigVariant: runstore.StageExecutionConfigInterruptedEscalation,
@@ -1249,6 +1255,7 @@ func createRunningStageFixture(t *testing.T, ctx context.Context, pool *pgxpool.
 	stageJSON, _ := json.Marshal(stage)
 	executionID := "stage-finalizing"
 	_, err = persistence.CreateStageWithContext(ctx, runstore.CreateStageExecutionParams{
+		LaneClass:        resolved.LaneClassModel,
 		StageExecutionID: executionID, RunID: "run-1", StageName: "copy", Attempt: 1,
 		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: stageJSON,
 		StageContextSchemaVersion: contracts.APIVersion,
@@ -1312,7 +1319,8 @@ func createSchedulerRunInProject(
 	t.Helper()
 	workflowJSON, _ := json.Marshal(workflow)
 	if _, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
-		RunID: "run-1", OwnerID: "user-1", WorkflowName: workflow.Ref.Name,
+		LaneClass: resolved.EntryLaneClass(workflow),
+		RunID:     "run-1", OwnerID: "user-1", WorkflowName: workflow.Ref.Name,
 		ProjectID:       projectID,
 		WorkflowVersion: workflow.Ref.Version, WorkflowSchemaVersion: contracts.APIVersion,
 		WorkflowSnapshot: workflowJSON, Parameters: map[string]string{"objective": "copy exactly"},
@@ -1395,7 +1403,8 @@ func createBoundProjectRunOutput(
 	}
 	store := runstore.NewPostgresStore(pool)
 	if _, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
-		RunID: runID, OwnerID: "user-1", ProjectID: &projectID,
+		LaneClass: resolved.LaneClassModel,
+		RunID:     runID, OwnerID: "user-1", ProjectID: &projectID,
 		WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
 		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: workflowJSON,
 		Parameters:    map[string]string{"objective": "copy exactly"},

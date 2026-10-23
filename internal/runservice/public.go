@@ -118,13 +118,9 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 				if catalogErr != nil {
 					return catalogErr
 				}
-				modelFree := true
-				for _, stage := range workflow.Stages {
-					for _, binding := range stage.Agents {
-						modelFree = modelFree && binding.Template.IsToolWorker()
-					}
-				}
-				runtimeSnapshot, pinErr := runs.PinRuntimeLabels(ctx, normalized.RuntimeLabels, modelFree)
+				runtimeSnapshot, pinErr := runs.PinRuntimeLabels(
+					ctx, normalized.RuntimeLabels, resolved.WorkflowToolWorkersOnly(workflow),
+				)
 				if pinErr != nil {
 					return pinErr
 				}
@@ -153,6 +149,7 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 						WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: workflowSnapshot,
 						Parameters: clone.Map(normalized.Parameters), MetadataLabels: normalized.MetadataLabels,
 						RuntimeConfig: runtimeSnapshot, ProjectHTTPTarget: projectTarget,
+						LaneClass: resolved.EntryLaneClass(workflow),
 					},
 					IdempotencyKey: normalized.IdempotencyKey, RequestDigest: normalized.RequestDigest,
 				})

@@ -11,11 +11,11 @@ import (
 )
 
 // LIM-SCH-16 bounds the decoded Workflow snapshots one Scheduler keeps: two
-// Runs per possible lane (LIM-OPS-7) and the stored snapshot text of every
-// lane at the largest snapshot (LIM-CAT-4).
+// Runs per possible lane of both pools (LIM-OPS-7, LIM-OPS-34) and the stored
+// snapshot text of every lane at the largest snapshot (LIM-CAT-4).
 const (
-	workflowSnapshotCacheRuns  = 2 * settingsstore.MaximumConcurrentRuns
-	workflowSnapshotCacheBytes = settingsstore.MaximumConcurrentRuns * resolved.MaxWorkflowSnapshotBytes
+	workflowSnapshotCacheRuns  = 2 * settingsstore.MaximumLanes
+	workflowSnapshotCacheBytes = settingsstore.MaximumLanes * resolved.MaxWorkflowSnapshotBytes
 )
 
 // workflowSnapshotCache keeps decoded and validated Workflow snapshots by Run

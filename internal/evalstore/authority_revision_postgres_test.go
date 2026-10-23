@@ -171,9 +171,9 @@ func TestSharedPostgresEvalExecutionTombstoneKeepsAuthorityRevision(t *testing.T
 	const runtimeSnapshot = `{"default":{"label":"default","explicit":false,"bindingRevision":1,"config":{"name":"contractor-empty","version":"1","digest":"sha256:80a1754c01f8443c29fdc8f650a2254b2461694819918b204a55a7ad3425dc5f"}},"labels":[],"llmCredentialIds":[],"runtimeCredentialIds":[]}`
 	_, err = pool.Exec(ctx, `
 INSERT INTO workflow_runs (run_id,owner_id,project_id,workflow_name,workflow_version,
-    workflow_schema_version,workflow_snapshot,runtime_labels,runtime_config_snapshot,
+    workflow_schema_version,workflow_snapshot,runtime_labels,runtime_config_snapshot,scheduler_lane_class,
     state,state_reason_code,finished_at,request_idempotency_key,request_digest)
-VALUES ('run-to-delete',$1,$2,'trace','1','1','{}','{}',$3,'failed','test_failure',clock_timestamp(),$4,$5)
+VALUES ('run-to-delete',$1,$2,'trace','1','1','{}','{}',$3,'model','failed','test_failure',clock_timestamp(),$4,$5)
 `, scope.OwnerID, scope.ProjectID, runtimeSnapshot, operation.Key, evaldomain.Digest(operation.Request))
 	if err != nil {
 		t.Fatal(err)

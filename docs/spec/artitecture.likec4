@@ -188,7 +188,7 @@ model {
       #contractor
     }
 
-    schedulerSettings = storage 'scheduler_settings — global maxConcurrentRuns 1..32, default 1 / revision / updatedAt' {
+    schedulerSettings = storage 'scheduler_settings — global maxConcurrentRuns 1..32, default 1 / maxConcurrentToolRuns 1..32, default 2 / revision / updatedAt' {
       #contractor
     }
 
@@ -656,7 +656,7 @@ model {
     runtimeOperations.schedulerSettingsService -> orchestration.schedulerSupervisor 'Post-commit wake hint; increase promptly, decrease drains'
     orchestration.schedulerSupervisor -> runtimeOperations.schedulerSettingsService 'Load before admission; periodically reconcile durable desired limit'
     orchestration.schedulerSupervisor -> workspaceLifecycle.runStore 'Distinct renewable Run claims via FOR UPDATE SKIP LOCKED; priority cancellation and defer rotation'
-    orchestration.schedulerSupervisor -> orchestration.workflowScheduler 'At most maxConcurrentRuns bounded progression attempts; one claim and at most one active Stage per Run'
+    orchestration.schedulerSupervisor -> orchestration.workflowScheduler 'At most maxConcurrentRuns model and maxConcurrentToolRuns tool progression attempts; one claim and at most one active Stage per Run'
     orchestration.schedulerSupervisor -> orchestration.schedulerMaintenance 'Own dedicated bounded maintenance loops outside execution lanes'
     orchestration.schedulerMaintenance -> runtimeOperations.controlPlane 'Poll allocation loss and recover terminal releases independently of pause or lane capacity'
     orchestration.runService -> orchestration.workflowScheduler 'Commit ordinary Run creation through existing lifecycle and wake runnable work'
@@ -3200,7 +3200,7 @@ views {
 
   view schedulerConcurrency {
     title '28 / Execution / Global Concurrency and Audit Backpressure'
-    description 'Scheduler spec / V27 implemented. One active Server; maxConcurrentRuns 1..32 (default 1) bounds Run lanes. Decreases drain; owner pause and compatible single-slot Runtime capacity constrain admission separately.'
+    description 'Scheduler spec / V27 implemented. One active Server; maxConcurrentRuns 1..32 (default 1) bounds model Run lanes and maxConcurrentToolRuns 1..32 (default 2) bounds lanes of Stages without a model. Decreases drain; owner pause and compatible single-slot Runtime capacity constrain admission separately.'
 
     include browser with {
       title 'Operations / Settings UI'

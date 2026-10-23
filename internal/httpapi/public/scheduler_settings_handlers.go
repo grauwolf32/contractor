@@ -52,14 +52,18 @@ func (h *operationsHandlers) putSchedulerSettings(w http.ResponseWriter, r *http
 		return
 	}
 	if request.MaxConcurrentRuns < settingsstore.MinimumConcurrentRuns ||
-		request.MaxConcurrentRuns > settingsstore.MaximumConcurrentRuns {
+		request.MaxConcurrentRuns > settingsstore.MaximumConcurrentRuns ||
+		(request.MaxConcurrentToolRuns != nil &&
+			(*request.MaxConcurrentToolRuns < settingsstore.MinimumConcurrentToolRuns ||
+				*request.MaxConcurrentToolRuns > settingsstore.MaximumConcurrentToolRuns)) {
 		handleError(w, settingsstore.ErrInvalid)
 		return
 	}
 	settings, err := h.SchedulerSettings.UpdateSchedulerSettings(
 		r.Context(), settingsstore.UpdateSchedulerSettingsParams{
-			MaxConcurrentRuns: request.MaxConcurrentRuns,
-			ExpectedRevision:  expectedRevision,
+			MaxConcurrentRuns:     request.MaxConcurrentRuns,
+			MaxConcurrentToolRuns: request.MaxConcurrentToolRuns,
+			ExpectedRevision:      expectedRevision,
 		},
 	)
 	if err != nil {
@@ -84,9 +88,10 @@ func (h *operationsHandlers) writeSchedulerSettings(w http.ResponseWriter, setti
 	revision := strconv.FormatUint(settings.Revision, 10)
 	w.Header().Set("ETag", strconv.Quote(revision))
 	writeJSON(w, http.StatusOK, schedulerSettingsResponse{
-		MaxConcurrentRuns: settings.MaxConcurrentRuns,
-		Revision:          revision,
-		UpdatedAt:         settings.UpdatedAt.UTC(),
+		MaxConcurrentRuns:     settings.MaxConcurrentRuns,
+		MaxConcurrentToolRuns: settings.MaxConcurrentToolRuns,
+		Revision:              revision,
+		UpdatedAt:             settings.UpdatedAt.UTC(),
 	})
 }
 
@@ -107,6 +112,7 @@ func (h *operationsHandlers) auditSchedulerSettingsMutation(
 		"actor_id", principalUserID(r.Context()),
 		"request_id", requestid.From(r.Context()),
 		"max_concurrent_runs", settings.MaxConcurrentRuns,
+		"max_concurrent_tool_runs", settings.MaxConcurrentToolRuns,
 		"revision", settings.Revision,
 	)
 }

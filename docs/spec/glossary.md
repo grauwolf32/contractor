@@ -508,6 +508,8 @@ Terms used across the specification. Each entry names the document that owns the
 
 **`lean@1`** — The fixed, Runtime-authored compact observation projection carried in WorkerResult.observations. Owner: [Worker](execution/worker.md).
 
+**Lane class** — The Scheduler lane pool, `model` or `tool`, that progresses a Run's next StageExecution; `tool` when the Stage's Planner is model-free and every Worker it binds runs on `tool@1`. Owner: [Scheduler](execution/scheduler.md).
+
 **Lease session** — The dedicated PostgreSQL connection that holds the advisory lease and requires direct PostgreSQL or session pooling. Owner: [Persistence](platform/persistence.md).
 
 **Lease-session loss** — A single liveness probe of the lease session that fails within the tolerance window, upon which the active Server closes its listeners and cancels the Scheduler. Owner: [Persistence](platform/persistence.md).
@@ -969,7 +971,7 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Scheduler** — see **Workflow Scheduler**.
 
-**Scheduler settings** — The singleton deployment setting that holds maxConcurrentRuns, its revision and its update time. Owner: [Operations](operations/operations.md).
+**Scheduler settings** — The singleton deployment setting that holds maxConcurrentRuns, maxConcurrentToolRuns, its revision and its update time. Owner: [Operations](operations/operations.md).
 
 **Seal** — The atomic freeze of a full valid collection at a normal completion, after which submissions and updates are rejected. Owner: [Audit Worker completion](audits/worker-completion.md).
 

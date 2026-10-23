@@ -1,7 +1,10 @@
 # Separate lanes for model-free Stages
 
-Proposal 0040 · Status: **Draft; design decisions taken on 2026-10-23
-([Decisions](#decisions)); implementation not scheduled.**
+Proposal 0040 · Status: **Accepted on 2026-10-23
+([Decisions](#decisions)); in progress. V400-001 implements sections 1 to 3
+and the `maxConcurrentToolRuns` setting; V400-002 to V400-004 remain
+([Proposed tasks](#proposed-tasks)). The specification already states the
+implemented part (SCH-R175).**
 
 Recorded on 2026-10-23 and checked against `main @ 63aa62b4`. Scanner Stages
 make no model calls, yet each one holds one of the `maxConcurrentRuns`

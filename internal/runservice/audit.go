@@ -79,6 +79,7 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 					Parameters:            clone.Map(normalized.Parameters), MetadataLabels: labels,
 					RuntimeConfig:     normalized.RuntimeConfig,
 					ProjectHTTPTarget: normalized.ProjectHTTPTarget.Clone(),
+					LaneClass:         resolved.EntryLaneClass(normalized.Workflow),
 				},
 				AuditExecutionID:   intent.Execution.ExecutionID,
 				AuditSubmissionKey: intent.Execution.SubmissionKey,

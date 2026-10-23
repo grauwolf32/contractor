@@ -3,6 +3,7 @@ package public
 import (
 	"context"
 	"encoding/json"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -59,7 +60,8 @@ func TestPostgresRunDetailResponseKeepsStateWithItsCursor(t *testing.T) {
 	runs := runstore.NewPostgresStore(pool)
 	const runID = "run-detail-snapshot"
 	if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{
-		RunID: runID, OwnerID: "user-1", WorkflowName: "artifact-copy", WorkflowVersion: "1",
+		LaneClass: resolved.LaneClassModel,
+		RunID:     runID, OwnerID: "user-1", WorkflowName: "artifact-copy", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`),
 		RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 	}); err != nil {

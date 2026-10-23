@@ -51,7 +51,7 @@ const populateUsageHistorySQL = `
 INSERT INTO workflow_runs (
     run_id, owner_id, project_id, workflow_name, workflow_version, workflow_schema_version,
     workflow_snapshot, parameters, runtime_labels, runtime_config_snapshot,
-    project_http_target_snapshot, state, state_reason_code,
+    project_http_target_snapshot, scheduler_lane_class, state, state_reason_code,
     created_at, updated_at, started_at, finished_at
 )
 SELECT 'run-usage-' || lpad(i::text, 5, '0'), 'owner-' || (i % $2),
@@ -61,7 +61,7 @@ SELECT 'run-usage-' || lpad(i::text, 5, '0'), 'owner-' || (i % $2),
        CASE WHEN i % 3 = 0 THEN jsonb_build_object(
            'url', 'https://target.example.test/',
            'credential', jsonb_build_object('kind', 'http-origin-bearer@1', 'credentialId', 'runtime-' || ((i + 10) % $3))
-       ) END,
+       ) END, 'model',
        run.state, 'history', run.created_at, run.created_at,
        CASE WHEN run.state NOT IN ('initializing', 'pending') THEN run.created_at END,
        CASE WHEN run.state IN ('succeeded', 'failed') THEN run.created_at + interval '1 minute' END

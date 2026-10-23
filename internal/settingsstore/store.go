@@ -37,7 +37,7 @@ func (s *PostgresStore) GetSchedulerSettings(ctx context.Context) (SchedulerSett
 		return SchedulerSettings{}, ErrInvariant
 	}
 	settings, err := scanSchedulerSettings(s.db.QueryRow(ctx, `
-SELECT max_concurrent_runs, revision::text, updated_at
+SELECT max_concurrent_runs, max_concurrent_tool_runs, revision::text, updated_at
 FROM scheduler_settings
 WHERE singleton = true`))
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -59,7 +59,7 @@ func (s *PostgresTxStore) LockSchedulerSettings(ctx context.Context) (SchedulerS
 		return SchedulerSettings{}, ErrInvariant
 	}
 	settings, err := scanSchedulerSettings(s.tx.QueryRow(ctx, `
-SELECT max_concurrent_runs, revision::text, updated_at
+SELECT max_concurrent_runs, max_concurrent_tool_runs, revision::text, updated_at
 FROM scheduler_settings
 WHERE singleton = true
 FOR UPDATE`))
@@ -76,14 +76,16 @@ func (s *PostgresStore) UpdateSchedulerSettings(
 	ctx context.Context,
 	params UpdateSchedulerSettingsParams,
 ) (SchedulerSettings, error) {
-	if !validConcurrentRuns(params.MaxConcurrentRuns) || params.ExpectedRevision == 0 ||
-		params.ExpectedRevision == math.MaxUint64 {
+	if !validConcurrentRuns(params.MaxConcurrentRuns) ||
+		(params.MaxConcurrentToolRuns != nil && !validConcurrentToolRuns(*params.MaxConcurrentToolRuns)) ||
+		params.ExpectedRevision == 0 || params.ExpectedRevision == math.MaxUint64 {
 		return SchedulerSettings{}, ErrInvalid
 	}
 	if s == nil || s.db == nil {
 		return SchedulerSettings{}, ErrInvariant
 	}
-	settings, err := scanSchedulerSettings(s.db.QueryRow(ctx, updateSchedulerSettingsSQL, params.MaxConcurrentRuns, strconv.FormatUint(params.ExpectedRevision, 10)))
+	settings, err := scanSchedulerSettings(s.db.QueryRow(ctx, updateSchedulerSettingsSQL,
+		params.MaxConcurrentRuns, strconv.FormatUint(params.ExpectedRevision, 10), params.MaxConcurrentToolRuns))
 	if err == nil {
 		return settings, nil
 	}
@@ -94,7 +96,8 @@ func (s *PostgresStore) UpdateSchedulerSettings(
 	if getErr != nil {
 		return SchedulerSettings{}, getErr
 	}
-	if current.Revision != params.ExpectedRevision || current.MaxConcurrentRuns != params.MaxConcurrentRuns {
+	if current.Revision != params.ExpectedRevision || current.MaxConcurrentRuns != params.MaxConcurrentRuns ||
+		(params.MaxConcurrentToolRuns != nil && current.MaxConcurrentToolRuns != *params.MaxConcurrentToolRuns) {
 		return SchedulerSettings{}, ErrPrecondition
 	}
 	return SchedulerSettings{}, fmt.Errorf("%w: current row was not returned by exact update", ErrInvariant)
@@ -107,11 +110,12 @@ type rowScanner interface {
 func scanSchedulerSettings(row rowScanner) (SchedulerSettings, error) {
 	var result SchedulerSettings
 	var revision string
-	if err := row.Scan(&result.MaxConcurrentRuns, &revision, &result.UpdatedAt); err != nil {
+	if err := row.Scan(&result.MaxConcurrentRuns, &result.MaxConcurrentToolRuns, &revision, &result.UpdatedAt); err != nil {
 		return SchedulerSettings{}, err
 	}
 	parsedRevision, err := strconv.ParseUint(revision, 10, 64)
-	if err != nil || parsedRevision == 0 || !validConcurrentRuns(result.MaxConcurrentRuns) || result.UpdatedAt.IsZero() {
+	if err != nil || parsedRevision == 0 || !validConcurrentRuns(result.MaxConcurrentRuns) ||
+		!validConcurrentToolRuns(result.MaxConcurrentToolRuns) || result.UpdatedAt.IsZero() {
 		return SchedulerSettings{}, ErrInvariant
 	}
 	result.Revision = parsedRevision
@@ -121,4 +125,8 @@ func scanSchedulerSettings(row rowScanner) (SchedulerSettings, error) {
 
 func validConcurrentRuns(value int) bool {
 	return value >= MinimumConcurrentRuns && value <= MaximumConcurrentRuns
+}
+
+func validConcurrentToolRuns(value int) bool {
+	return value >= MinimumConcurrentToolRuns && value <= MaximumConcurrentToolRuns
 }

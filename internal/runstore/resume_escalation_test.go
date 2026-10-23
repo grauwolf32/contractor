@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"reflect"
 	"testing"
 	"time"
@@ -32,6 +33,7 @@ func TestPostgresResumeEscalatedStage(t *testing.T) {
 			}
 			stageID := "review-stage"
 			_, err := store.CreateStageExecution(ctx, CreateStageExecutionParams{
+				LaneClass:        resolved.LaneClassModel,
 				StageExecutionID: stageID, RunID: runID, StageName: "build", Attempt: 1,
 				ExecutionConfigVariant: variant, EscalationOrdinal: ordinal,
 				StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: json.RawMessage(`{"objective":"build"}`),
@@ -56,6 +58,7 @@ func TestPostgresResumeEscalatedStage(t *testing.T) {
 				t.Fatal(err)
 			}
 			_, err = NewPostgresStore(tx).CreateStageExecution(ctx, CreateStageExecutionParams{
+				LaneClass:        resolved.LaneClassModel,
 				StageExecutionID: "forged-manual", RunID: runID, StageName: previous.StageName,
 				Attempt: previous.Attempt + 1, PreviousExecutionID: &stageID, ResumeSourceExecutionID: &stageID,
 				ExecutionConfigVariant: variant, EscalationOrdinal: ordinal,

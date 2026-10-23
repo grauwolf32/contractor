@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"strings"
 	"testing"
 	"time"
@@ -192,7 +193,7 @@ func storageReviewProject(t *testing.T, ctx context.Context, pool *pgxpool.Pool)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = runstoretest.CreateRun(ctx, runstore.NewPostgresStore(pool), runstore.CreateRunParams{RunID: "review-run", OwnerID: p.OwnerID, ProjectID: &p.ProjectID, WorkflowName: "copy", WorkflowVersion: "1", WorkflowSchemaVersion: "contractor/v1alpha1", WorkflowSnapshot: json.RawMessage(`{}`), RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot()})
+	_, err = runstoretest.CreateRun(ctx, runstore.NewPostgresStore(pool), runstore.CreateRunParams{LaneClass: resolved.LaneClassModel, RunID: "review-run", OwnerID: p.OwnerID, ProjectID: &p.ProjectID, WorkflowName: "copy", WorkflowVersion: "1", WorkflowSchemaVersion: "contractor/v1alpha1", WorkflowSnapshot: json.RawMessage(`{}`), RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot()})
 	if err != nil {
 		t.Fatal(err)
 	}

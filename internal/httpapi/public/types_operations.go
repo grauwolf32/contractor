@@ -1,6 +1,7 @@
 package public
 
 import (
+	"errors"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditservice"
@@ -18,13 +19,34 @@ type operationsCursorResponse struct {
 }
 
 type schedulerSettingsResponse struct {
-	MaxConcurrentRuns int       `json:"maxConcurrentRuns"`
-	Revision          string    `json:"revision"`
-	UpdatedAt         time.Time `json:"updatedAt"`
+	MaxConcurrentRuns     int       `json:"maxConcurrentRuns"`
+	MaxConcurrentToolRuns int       `json:"maxConcurrentToolRuns"`
+	Revision              string    `json:"revision"`
+	UpdatedAt             time.Time `json:"updatedAt"`
 }
 
+// updateSchedulerSettingsRequest requires maxConcurrentRuns; an absent
+// maxConcurrentToolRuns keeps the stored value, and neither may be null.
 type updateSchedulerSettingsRequest struct {
-	MaxConcurrentRuns int `json:"maxConcurrentRuns"`
+	MaxConcurrentRuns     int  `json:"maxConcurrentRuns"`
+	MaxConcurrentToolRuns *int `json:"maxConcurrentToolRuns,omitempty"`
+}
+
+func (r *updateSchedulerSettingsRequest) UnmarshalJSON(data []byte) error {
+	type wire updateSchedulerSettingsRequest
+	var decoded wire
+	fields, err := decodeStrictWithPresence(data, &decoded)
+	if err != nil {
+		return err
+	}
+	if fields.missingOrNull("maxConcurrentRuns") {
+		return errors.New("maxConcurrentRuns is required")
+	}
+	if fields.null("maxConcurrentToolRuns") {
+		return errors.New("maxConcurrentToolRuns cannot be null")
+	}
+	*r = updateSchedulerSettingsRequest(decoded)
+	return nil
 }
 
 type loginRequest struct {

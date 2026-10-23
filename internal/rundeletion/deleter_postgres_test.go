@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"os"
 	"reflect"
 	"strings"
@@ -35,6 +36,7 @@ func TestPostgresRunDeletionGatesMatchDeletion(t *testing.T) {
 	createDeletionRun(t, ctx, pool, "user-1", "run-released", runstore.RunSucceeded)
 	createDeletionRun(t, ctx, pool, "user-2", "run-foreign", runstore.RunSucceeded)
 	execution, err := runs.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
+		LaneClass:        resolved.LaneClassModel,
 		StageExecutionID: "stage-release-pending", RunID: "run-release-pending", StageName: "copy", Attempt: 1,
 		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: json.RawMessage(`{}`),
 		StageContextSchemaVersion: contracts.APIVersion, StageContext: runstore.StageContextSnapshot{},
@@ -148,7 +150,8 @@ func createDeletionRun(
 	}
 	runs := runstore.NewPostgresStore(pool)
 	if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{
-		RunID: runID, OwnerID: ownerID, ProjectID: &projectID,
+		LaneClass: resolved.LaneClassModel,
+		RunID:     runID, OwnerID: ownerID, ProjectID: &projectID,
 		WorkflowName: "artifact-copy", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion,
 		WorkflowSnapshot:      json.RawMessage(`{"ref":{"name":"artifact-copy","version":"1"}}`),

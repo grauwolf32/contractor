@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"testing"
 	"time"
 
@@ -25,6 +26,7 @@ func TestPostgresStageOutputPublicationFailuresCountOnlyWhileFinalizing(t *testi
 	}
 	other := createTestRun(t, ctx, store, "run-publication-failures-other")
 	execution, err := store.CreateStageExecution(ctx, CreateStageExecutionParams{
+		LaneClass:        resolved.LaneClassModel,
 		StageExecutionID: "stage-publication-failures", RunID: run.RunID, StageName: "copy", Attempt: 1,
 		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: json.RawMessage(`{"objective":"copy"}`),
 		StageContextSchemaVersion: contracts.APIVersion,

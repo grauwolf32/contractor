@@ -81,7 +81,8 @@ following ones.
 - **Deployment setting.** A durable, explicitly editable Operations resource
   that applies to the whole deployment rather than to an owner, Project or Run.
 - **Scheduler settings.** The singleton deployment setting that holds
-  `maxConcurrentRuns`, its revision and its update time.
+  `maxConcurrentRuns`, `maxConcurrentToolRuns`, its revision and its update
+  time.
 - **Performance metrics.** Contractor's own collection, storage and
   presentation of Server, HTTP, connection-pool, PostgreSQL and host GPU
   measurements and of completed-allocation resource summaries.
@@ -145,9 +146,10 @@ allocation whose Runtime is observed `allocated` reports `observedPhase`
 The authoritative singleton setting is:
 
 ```text
-maxConcurrentRuns: integer, 1..32, default 1
-revision:          positive monotonic integer
-updatedAt:         UTC timestamp
+maxConcurrentRuns:     integer, 1..32, default 1
+maxConcurrentToolRuns: integer, 1..32, default 2
+revision:              positive monotonic integer
+updatedAt:             UTC timestamp
 ```
 
 ### Collection schedule
@@ -486,18 +488,22 @@ normal admission, and the concurrency invariants it drives are defined in
 
 **OPS-R45.** Besides observation, Operations contains
 durable, explicitly editable deployment settings. The global Workflow
-Scheduler concurrency setting is one of them, edited at
+Scheduler concurrency settings are among them, edited at
 `/operations/settings`.
 
-**OPS-R46.** Editing the Scheduler concurrency setting changes
+**OPS-R46.** Editing the Scheduler concurrency settings changes
 future Run admission only. It cannot manufacture Run state, force an
 allocation, or bypass Queue Pause, cancellation and cleanup contracts.
 
 **OPS-R47.** The setting is an authoritative singleton with the
-fields in [Scheduler settings](#scheduler-settings): `maxConcurrentRuns` is an
-integer from 1 to 32 with default 1 (LIM-OPS-7), `revision` is a positive
+fields in [Scheduler settings](#scheduler-settings): `maxConcurrentRuns`, the
+size of the `model` lane pool, is an integer from 1 to 32 with default 1
+(LIM-OPS-7); `maxConcurrentToolRuns`, the size of the `tool` lane pool for
+Stages that call no model ([SCH-R175](../execution/scheduler.md)), is an
+integer from 1 to 32 with default 2 (LIM-OPS-34); `revision` is a positive
 monotonic integer carried on the wire as a decimal string (see
-[Examples](#examples)) and `updatedAt` is a UTC timestamp.
+[Examples](#examples)) and `updatedAt` is a UTC timestamp. Both values share
+the one revision.
 
 **OPS-R48.** The setting is persisted as a dedicated typed
 `scheduler_settings` singleton, not a generic string or JSON settings bag.
@@ -506,11 +512,14 @@ typed validation, storage and API resource.
 
 **OPS-R49.** A forward-only PostgreSQL migration creates and seeds
 exactly one `scheduler_settings` row with `maxConcurrentRuns = 1` and
-`revision = 1`. Upgrade and restart therefore preserve effective serial
-behaviour until an operator changes the seeded value from one.
+`revision = 1`; the migration that adds `maxConcurrentToolRuns` sets it to 2
+on that row without advancing the revision. Upgrade and restart therefore
+preserve effective serial behaviour of model work until an operator changes
+the seeded value from one.
 
-**OPS-R50.** A database check enforces the 1..32 range
-(LIM-OPS-7). A missing or invalid singleton is a storage invariant
+**OPS-R50.** Database checks enforce the 1..32 ranges
+(LIM-OPS-7, LIM-OPS-34), and a stored update must change at least one value
+and advance the revision by one. A missing or invalid singleton is a storage invariant
 failure, not an invitation to guess a default at runtime
 (LIFE-OPS-5).
 
@@ -525,7 +534,7 @@ Project, Run or Audit snapshots, so a Run does not pin the value that existed
 when it was created.
 
 **OPS-R52.** Changing the setting affects future Scheduler
-admission for every owner and every nonterminal Run.
+admission for every owner and every nonterminal Run of the changed pool.
 
 #### Settings API
 
@@ -563,14 +572,17 @@ identifier, `force` query parameter, `POST` or `DELETE` form of this resource.
 `Cache-Control: no-store` and a strong ETag containing the decimal revision
 (see [Examples](#examples)).
 
-**OPS-R55.** `PUT` is a complete idempotent replacement of the
-editable settings resource. It requires `Content-Type: application/json`, the
-Operations capability, normal browser CSRF protection and exactly one strong
-`If-Match` revision (see [Examples](#examples)).
+**OPS-R55.** `PUT` is an idempotent replacement of the
+editable settings resource. `maxConcurrentRuns` is required;
+`maxConcurrentToolRuns` may be omitted, which keeps its stored value, so a
+client that predates it replaces only the model pool size. It requires
+`Content-Type: application/json`, the Operations capability, normal browser
+CSRF protection and exactly one strong `If-Match` revision (see
+[Examples](#examples)).
 
-**OPS-R56.** Unknown or missing fields, a value outside 1..32
-(LIM-OPS-7), a weak, multiple or malformed ETag, or an unsupported media
-type fail without mutation (FAIL-OPS-4).
+**OPS-R56.** Unknown fields, a missing `maxConcurrentRuns`, a `null` value, a
+value outside 1..32 (LIM-OPS-7, LIM-OPS-34), a weak, multiple or malformed
+ETag, or an unsupported media type fail without mutation (FAIL-OPS-4).
 
 **OPS-R57.** A well-formed stale revision returns
 `412 Precondition Failed`.
@@ -1398,6 +1410,7 @@ Limits ([registry](../platform/limits.md)):
 - LIM-OPS-6 — 7-day minute history retention (OPS-R86,
   OPS-R145);
 - LIM-OPS-7 — `maxConcurrentRuns` 1..32, default 1 (OPS-R47);
+- LIM-OPS-34 — `maxConcurrentToolRuns` 1..32, default 2 (OPS-R47);
 - LIM-OPS-8 — two missed intervals mark a group stale
   (OPS-R93);
 - LIM-OPS-9, LIM-OPS-10, LIM-OPS-11 — live frame bounds
@@ -1545,6 +1558,7 @@ Reading the Scheduler settings returns:
 ```json
 {
   "maxConcurrentRuns": 2,
+  "maxConcurrentToolRuns": 4,
   "revision": "4",
   "updatedAt": "2026-09-05T12:00:00Z"
 }
@@ -1557,7 +1571,7 @@ PUT /v1/operations/settings/scheduler
 If-Match: "4"
 Content-Type: application/json
 
-{"maxConcurrentRuns": 3}
+{"maxConcurrentRuns": 3, "maxConcurrentToolRuns": 6}
 ```
 
 Running the Server with only the diagnostic listener and taking a bounded CPU

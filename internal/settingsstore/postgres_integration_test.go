@@ -25,7 +25,7 @@ func TestPostgresSchedulerSettingsSeedCASRestartAndFailClosed(t *testing.T) {
 	store := NewPostgresStore(pool)
 
 	initial, err := store.GetSchedulerSettings(ctx)
-	if err != nil || initial.MaxConcurrentRuns != 1 || initial.Revision != 1 ||
+	if err != nil || initial.MaxConcurrentRuns != 1 || initial.MaxConcurrentToolRuns != 2 || initial.Revision != 1 ||
 		initial.UpdatedAt.IsZero() || initial.UpdatedAt.Location() != time.UTC {
 		t.Fatalf("initial Scheduler settings = (%+v, %v)", initial, err)
 	}
@@ -38,6 +38,9 @@ func TestPostgresSchedulerSettingsSeedCASRestartAndFailClosed(t *testing.T) {
 
 	for _, statement := range []string{
 		`UPDATE scheduler_settings SET max_concurrent_runs = 0, revision = 2 WHERE singleton = true`,
+		`UPDATE scheduler_settings SET max_concurrent_tool_runs = 0, revision = 2 WHERE singleton = true`,
+		`UPDATE scheduler_settings SET max_concurrent_tool_runs = 33, revision = 2 WHERE singleton = true`,
+		`UPDATE scheduler_settings SET revision = 2, updated_at = clock_timestamp() WHERE singleton = true`,
 		`UPDATE scheduler_settings SET revision = 18446744073709551616 WHERE singleton = true`,
 		`DELETE FROM scheduler_settings WHERE singleton = true`,
 	} {
@@ -106,6 +109,68 @@ func TestPostgresSchedulerSettingsSeedCASRestartAndFailClosed(t *testing.T) {
 		return err
 	}); !errors.Is(err, ErrInvariant) {
 		t.Fatalf("missing singleton lock error = %v", err)
+	}
+}
+
+// TestPostgresSchedulerSettingsToolLanes checks that an update without
+// maxConcurrentToolRuns keeps it, that changing only it is one revision, that
+// a stale revision is a precondition failure for it too, and that a restart
+// reads both values (LIM-OPS-34, SCH-R137).
+func TestPostgresSchedulerSettingsToolLanes(t *testing.T) {
+	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool, reopen := isolatedSettingsPool(t, ctx, databaseURL)
+	store := NewPostgresStore(pool)
+	five, six := 5, 6
+
+	kept, err := store.UpdateSchedulerSettings(ctx, UpdateSchedulerSettingsParams{
+		MaxConcurrentRuns: 3, ExpectedRevision: 1,
+	})
+	if err != nil || kept.MaxConcurrentRuns != 3 || kept.MaxConcurrentToolRuns != 2 || kept.Revision != 2 {
+		t.Fatalf("update without tool lanes = (%+v, %v)", kept, err)
+	}
+	changed, err := store.UpdateSchedulerSettings(ctx, UpdateSchedulerSettingsParams{
+		MaxConcurrentRuns: 3, MaxConcurrentToolRuns: &five, ExpectedRevision: kept.Revision,
+	})
+	if err != nil || changed.MaxConcurrentRuns != 3 || changed.MaxConcurrentToolRuns != 5 || changed.Revision != 3 ||
+		!changed.UpdatedAt.After(kept.UpdatedAt) {
+		t.Fatalf("update of only tool lanes = (%+v, %v)", changed, err)
+	}
+	unchanged, err := store.UpdateSchedulerSettings(ctx, UpdateSchedulerSettingsParams{
+		MaxConcurrentRuns: 3, MaxConcurrentToolRuns: &five, ExpectedRevision: changed.Revision,
+	})
+	if err != nil || unchanged != changed {
+		t.Fatalf("no-op update = (%+v, %v), want %+v", unchanged, err, changed)
+	}
+	if _, err := store.UpdateSchedulerSettings(ctx, UpdateSchedulerSettingsParams{
+		MaxConcurrentRuns: 3, MaxConcurrentToolRuns: &six, ExpectedRevision: kept.Revision,
+	}); !errors.Is(err, ErrPrecondition) {
+		t.Fatalf("stale tool-lane update error = %v", err)
+	}
+	if _, err := store.UpdateSchedulerSettings(ctx, UpdateSchedulerSettingsParams{
+		MaxConcurrentRuns: 3, MaxConcurrentToolRuns: &five, ExpectedRevision: kept.Revision,
+	}); !errors.Is(err, ErrPrecondition) {
+		t.Fatalf("stale update repeating the stored values: error = %v", err)
+	}
+
+	restartedPool := reopen(t, ctx)
+	defer restartedPool.Close()
+	restarted, err := NewPostgresStore(restartedPool).GetSchedulerSettings(ctx)
+	if err != nil || restarted != changed {
+		t.Fatalf("restarted Scheduler settings = (%+v, %v), want %+v", restarted, err, changed)
+	}
+	if err := pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
+		locked, err := NewPostgresTxStore(tx).LockSchedulerSettings(ctx)
+		if err == nil && locked != changed {
+			t.Errorf("locked Scheduler settings = %+v, want %+v", locked, changed)
+		}
+		return err
+	}); err != nil {
+		t.Fatal(err)
 	}
 }
 

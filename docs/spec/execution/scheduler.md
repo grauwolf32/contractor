@@ -72,13 +72,15 @@ document owns are:
 | Capacity deferral | Keeping a StageExecution `preparing`, with no slot reserved, while compatible Runtime capacity is missing. |
 | Run claim | The durable PostgreSQL claim through which one execution lane owns one WorkflowRun. |
 | Execution lane | One Scheduler loop that holds at most one Run claim while it performs one bounded progression attempt. |
+| Lane class | The pool, `model` or `tool`, whose execution lanes progress a Run's next StageExecution; `tool` for a Stage that calls no model (SCH-R175). |
 | Maintenance loop | A bounded, dedicated loop for safety and recovery maintenance that consumes no execution lane. |
 | Owner queue pause | The owner-scoped durable admission gate stored as `OwnerQueueControl`. |
 | Terminal release recovery | Recovery that retries the incomplete allocation releases of terminal StageExecutions. |
 | Recovery gate | Persisted model-availability state for one owner, resolved gateway digest, model, credential identity and model HTTP proxy route. |
 
 The write fence is defined in [Artifact store](../artifacts/artifact-store.md);
-`maxConcurrentRuns` as a stored setting in [Operations](../operations/operations.md).
+`maxConcurrentRuns` and `maxConcurrentToolRuns` as stored settings in
+[Operations](../operations/operations.md).
 
 ## Model
 
@@ -162,8 +164,11 @@ flowchart TD
     A[ordinary Run creation] --> Q[ordinary WorkflowRun queue]
     B[Project Run creation] --> Q
     C[Audit child Run creation] --> Q
-    Q --> L[Workflow Scheduler execution lanes]
-    L -->|bounded by maxConcurrentRuns| P[Runtime Agent placement/capacity]
+    Q --> K{lane class of the next StageExecution}
+    K -->|model| M[model lanes]
+    K -->|tool| T[tool lanes]
+    M -->|bounded by maxConcurrentRuns| P[Runtime Agent placement/capacity]
+    T -->|bounded by maxConcurrentToolRuns| P
 ```
 
 ## Requirements
@@ -1063,14 +1068,41 @@ it permits neither concurrent Stages inside one Run nor concurrent Tasks inside
 one Runtime Agent. The production Scheduler admits bounded execution lanes
 across different Runs without changing this rule.
 
-**SCH-R115.** At startup the Scheduler reads the durable concurrency setting
-before admitting work. Its production loop is a supervisor with at most
-`maxConcurrentRuns` execution lanes (LIM-SCH-6).
+**SCH-R115.** At startup the Scheduler reads both durable pool sizes before
+admitting work. Its production loop is a supervisor of two lane pools
+(SCH-R175): at most `maxConcurrentRuns` execution lanes progress `model` Runs
+and at most `maxConcurrentToolRuns` lanes progress `tool` Runs (LIM-SCH-6).
+
+**SCH-R175.** Every StageExecution has a lane class derived from its pinned
+Stage spec by one rule: `tool` when its Planner is model-free (`passthrough@1`
+or `scan-plan@1`) and every Worker it binds runs on `tool@1`, otherwise
+`model`. Retries and escalations change only model selections, never the
+Planner or the Worker templates, so every attempt of a Stage has its Stage's
+class. A WorkflowRun stores the class of the StageExecution it progresses or
+will create next: Run creation writes its entry Stage's class, and the
+statement that creates a StageExecution, including a manual resume, writes
+that execution's class in the same transaction. A lane claims only Runs of its
+pool's class. A lane whose attempt reaches a Stage of the other class releases
+the claim without deferral, and a lane of the other pool claims the Run in
+that pool's claim order; a Run is in one pool at a time. A stored class that
+differs from the class recomputed from the Stage an attempt progresses is a
+storage invariant failure that ends the Run as unprogressable (SCH-R102); the
+Scheduler never corrects it. Cancellation, finalization, abort,
+allocation-loss handling and recovery of a Stage run in the pool of that
+Stage's class, and owner queue pause applies to both pools (SCH-R148).
+
+Rationale: a scan Stage calls no model, so the limit that protects model
+capacity must not hold it back; a separate pool also keeps a burst of scans
+from occupying the lanes of model Stages. The class lives on the Run row so a
+claim filters it through an index (SCH-R164) instead of decoding snapshots.
+The alternative of a model-free claim with no limit was rejected because
+scans still consume Runtime Agent slots and load the scanned target.
 
 **SCH-R116.** Each lane owns at most one durable Run claim while it performs
 one bounded progression attempt (LIM-SCH-7), and repeatedly:
 
-1. claims at most one runnable WorkflowRun through PostgreSQL;
+1. claims at most one runnable WorkflowRun of its pool's lane class through
+   PostgreSQL (SCH-R175);
 2. registers that Run for in-process cancellation;
 3. renews the exact claim while progressing it;
 4. executes one bounded Run/Stage lifecycle attempt;
@@ -1100,7 +1132,8 @@ different lanes cannot claim the same Run, and a claim cannot be silently
 stolen before expiry (FAIL-SCH-16).
 Within the active Server, claim selection also excludes every Run whose lane
 has not finished its work and cleanup. The exclusion set is bounded by the
-maximum lane count (LIM-OPS-7), including lanes draining after a decrease.
+sum of both pool maxima (LIM-OPS-7, LIM-OPS-34), including lanes draining
+after a decrease.
 Copying that set, selecting a SQL claim and registering
 its local owner are serialized against other claim selections, without
 blocking cancellation or renewal on the claim-selection lock. A host
@@ -1120,13 +1153,14 @@ the in-process cancellation of SCH-R117 normally does first. Only a renewal
 that finds the claim gone reads the Run state again, to tell a terminal
 transition (SCH-R119) from a lost claim.
 
-**SCH-R121.** Claim ordering prioritizes cancellation and rotates
-capacity-deferred work: cancelling Runs retain priority over ordinary running
-and initialization work, and releasing the claim after an
+**SCH-R121.** Claim ordering within each lane pool prioritizes cancellation
+and rotates capacity-deferred work: cancelling Runs retain priority over
+ordinary running and initialization work of their class, and releasing the claim after an
 `insufficient capacity` result moves that Run behind already-runnable peers of
 the same priority. Capacity deferral is therefore fair across Runs: an older
 graph Stage cannot monopolize polling while a newer shallow Stage could use an
-otherwise idle memory Runtime.
+otherwise idle memory Runtime. A cancelling Run waits for a lane of its own
+class (SCH-R175), however idle the other pool is.
 
 **SCH-R122.** A paused or capacity-ineligible Run releases its lane after a
 bounded admission or placement attempt, so it cannot indefinitely occupy all
@@ -1141,11 +1175,12 @@ starve it.
 query; the Queue read model and its lack of position guarantees are specified
 in [PRJ-R90 to PRJ-R92](../artifacts/projects.md).
 
-**SCH-R164.** The claim reads candidates in claim order from indexes and locks
-the first one it can claim; it never sorts the candidates. Its work grows only
-with the Runs it skips ahead of that one: Runs claimed by a lane (at most
-`maxConcurrentRuns`), Runs deferred within their window and pending Runs of
-paused owners (SCH-R163). A progression attempt reads the Run's lifecycle
+**SCH-R164.** The claim reads candidates of its pool's lane class in claim
+order from indexes that lead with the class, and locks the first one it can
+claim; it never sorts the candidates. Its work grows only with the Runs of
+that class it skips ahead of that one: Runs claimed by a lane (at most that
+pool's size), Runs deferred within their window and pending Runs of paused
+owners (SCH-R163). A progression attempt reads the Run's lifecycle
 state and its one active StageExecution (SCH-R114), not the Run's Stage
 history of up to 1,024 attempts (LIM-RUN-2); it reads the whole Run again only
 when its state changed since the claim. Only a Run without an active
@@ -1170,31 +1205,36 @@ The durable Scheduler claim also fences Planner-side journals such as the
 scan-planning journal, which only the claim owner may mutate
 ([Scanners](../tools/scanners.md)).
 
-### Global concurrency limit
+### Global concurrency limits
 
-**SCH-R127.** Contractor exposes one durable Operations setting,
-`maxConcurrentRuns`, that limits how many different WorkflowRuns the supported
-Server process may actively progress at the same time. The setting is global
-because Runtime Agent capacity and the Workflow Scheduler are deployment
-resources, not owner- or Project-local resources. Its stored form, range,
-default and API are specified in [Operations](../operations/operations.md).
+**SCH-R127.** Contractor exposes two durable Operations settings that limit how
+many different WorkflowRuns the supported Server process may actively progress
+at the same time: `maxConcurrentRuns` for the `model` lane pool and
+`maxConcurrentToolRuns` for the `tool` lane pool (SCH-R175). The settings are
+global because Runtime Agent capacity, model capacity and the Workflow
+Scheduler are deployment resources, not owner- or Project-local resources.
+Their stored form, ranges, defaults and API are specified in
+[Operations](../operations/operations.md).
 
-**SCH-R128.** `maxConcurrentRuns` is the only Contractor setting for concurrent
-WorkflowRun execution. It applies identically to standalone, Project,
-Evaluation and Audit child Runs, and it introduces no second queue, no Audit
-execution pool and no special scheduling based on Run labels.
+**SCH-R128.** `maxConcurrentRuns` and `maxConcurrentToolRuns` are the only
+Contractor settings for concurrent WorkflowRun execution. They apply
+identically to standalone, Project, Evaluation and Audit child Runs by the
+lane class of the Stage each Run progresses, and they introduce no other
+queue, no Audit execution pool and no special scheduling based on Run labels
+or Workflow names.
 
-**SCH-R129.** The limit is not the number of records whose durable state is
-`running`; it bounds concurrent Scheduler execution lanes. A `running` Run
-remains `running` while it lacks Scheduler or compatible Runtime capacity.
+**SCH-R129.** The limits are not the number of records whose durable state is
+`running`; they bound concurrent Scheduler execution lanes of each pool. A
+`running` Run remains `running` while it lacks Scheduler or compatible Runtime
+capacity.
 
-**SCH-R130.** Reaching the limit never rejects ordinary Run creation. Newly
+**SCH-R130.** Reaching a limit never rejects ordinary Run creation. Newly
 created Runs remain in the existing Queue read model until a lane and
 compatible Runtime capacity are available; the setting is execution control,
 not a queue-length quota.
 
-**SCH-R131.** `0` is deliberately invalid for `maxConcurrentRuns`
-([LIM-OPS-7](../platform/limits.md)).
+**SCH-R131.** `0` is deliberately invalid for `maxConcurrentRuns` and
+`maxConcurrentToolRuns` ([LIM-OPS-7, LIM-OPS-34](../platform/limits.md)).
 Owner Queue Pause is the explicit way to stop new normal Stage admission for
 one owner, and it never stops cancellation, recovery, finalization or release
 (SCH-R148).
@@ -1202,31 +1242,34 @@ one owner, and it never stops cancellation, recovery, finalization or release
 That a Run does not pin the setting, and what editing it can and cannot change,
 is specified in [OPS-R46, OPS-R51 and OPS-R52](../operations/operations.md).
 
-**SCH-R133.** The database value is the desired limit. The Server applies a
-committed update to its in-process supervisor and sends a wake hint; a bounded
-periodic refresh also reconciles the value, so correctness never depends on
-delivery of that hint. Restart reads the same durable row before new work is
-admitted (FAIL-SCH-17).
+**SCH-R133.** The database values are the desired pool sizes. The Server
+applies a committed update to its in-process supervisor and sends a wake hint;
+a bounded periodic refresh also reconciles the values, so correctness never
+depends on delivery of that hint. Restart reads the same durable row, both
+values, before new work is admitted (FAIL-SCH-17).
 
-**SCH-R134.** An increase starts additional lanes promptly and admits waiting
-work without restart.
+**SCH-R134.** An increase of either setting starts additional lanes of that
+pool promptly and admits waiting work of its class without restart.
 
-**SCH-R135.** A decrease is a drain operation:
+**SCH-R135.** A decrease of either setting is a drain operation of that pool;
+the other pool is unaffected:
 
 - no active Run or Planner call is cancelled merely because the limit fell;
 - current lanes finish their bounded claim attempt and release it normally;
-- the supervisor starts no replacement attempt while active lanes exceed the
-  new limit, and no new claim starts at or above the lower desired value;
-- once drained, concurrency remains at or below the new value.
+- the supervisor starts no replacement attempt in that pool while its active
+  lanes exceed the new limit, and no new claim of its class starts at or above
+  the lower desired value;
+- once drained, the pool's concurrency remains at or below the new value.
 
-**SCH-R136.** Outside the decrease-drain interval, no more than the configured
-`N` distinct WorkflowRuns hold Scheduler execution lanes, including
-initialization and cancellation work, and no Run ever has two lanes (LIM-SCH-6,
-LIM-SCH-7).
+**SCH-R136.** Outside a pool's decrease-drain interval, no more than its
+configured size of distinct WorkflowRuns hold lanes of that pool, including
+initialization and cancellation work. A Run is in one pool at a time and never
+has two lanes (LIM-SCH-6, LIM-SCH-7).
 
-**SCH-R137.** Upgrade and restart preserve effective serial behaviour until an
-operator changes the seeded value from one
-([LIM-OPS-7](../platform/limits.md)).
+**SCH-R137.** Upgrade and restart preserve effective serial behaviour of the
+`model` pool until an operator changes the seeded value from one
+([LIM-OPS-7](../platform/limits.md)); the `tool` pool is seeded with two lanes
+([LIM-OPS-34](../platform/limits.md)).
 
 **SCH-R138.** A settings update that commits immediately before process failure
 is still observed by the restarted Server. The HTTP response does not promise
@@ -1240,18 +1283,19 @@ several Runtime Agent slots. The setting is consequently an upper bound, not a
 promise of utilization:
 
 ```text
-actual concurrent Runs <= maxConcurrentRuns
-actual concurrent Runs is additionally constrained by compatible Agent slots
+actual concurrent model Runs <= maxConcurrentRuns
+actual concurrent tool Runs  <= maxConcurrentToolRuns
+both are additionally constrained by compatible Agent slots
 ```
 
 **SCH-R140.** Runtime incompatibility or insufficient slots can lower actual
-concurrency but cannot make a deferred Run monopolize all lanes.
+concurrency but cannot make a deferred Run monopolize all lanes of its pool.
 
 **SCH-R141.** Adding or removing Runtime Agents does not automatically rewrite
-the configured limit.
+either configured limit.
 
-**SCH-R142.** Audit child Runs consume the same global lanes as every other
-Run. AuditProfile contains no concurrency knob; its internal dispatch
+**SCH-R142.** Audit child Runs consume the same lane pools as every other
+Run, by the lane class of the Stage each progresses (SCH-R175). AuditProfile contains no concurrency knob; its internal dispatch
 look-ahead follows the current global setting, and its total submitted-Run
 budget remains independent ([Audit execution](../audits/execution.md)).
 
@@ -1340,7 +1384,8 @@ queue position.
 
 **SCH-R157.** Owner Queue Pause, the global concurrency setting and Runtime
 placement solve different problems: Queue Pause controls normal Stage admission
-for one owner; `maxConcurrentRuns` bounds Scheduler work across all owners;
+for one owner; `maxConcurrentRuns` and `maxConcurrentToolRuns` bound
+Scheduler work of each lane pool across all owners;
 Runtime placement decides whether the selected Stage's exact allocation set can
 run on currently eligible agents.
 
@@ -1394,7 +1439,8 @@ Limits ([registry](../platform/limits.md)):
   SCH-R44).
 - LIM-SCH-5 — escalation `maxAttempts`: integer of at least 1 (SCH-R84).
 - LIM-SCH-6 — execution lanes per Server process: at most `maxConcurrentRuns`
-  (SCH-R115, SCH-R136).
+  `model` lanes and at most `maxConcurrentToolRuns` `tool` lanes (SCH-R115,
+  SCH-R136).
 - LIM-SCH-7 — Run claims per lane and lanes per Run: at most 1 (SCH-R116,
   SCH-R136, SCH-R139).
 - LIM-SCH-8 — deferred (paused or capacity-ineligible) Run ranked behind
@@ -1408,13 +1454,13 @@ Limits ([registry](../platform/limits.md)):
   `next` or `fail` (SCH-R81).
 - LIM-SCH-14 — terminal facts per `aborting` StageExecution: exactly 1
   StageTermination and no accepted StageResult (SCH-R43).
-- LIM-SCH-16 — decoded Workflow snapshots kept per Server process: at most 64
-  Runs and 64 MiB of stored snapshot text (SCH-R167).
+- LIM-SCH-16 — decoded Workflow snapshots kept per Server process: at most 128
+  Runs and 128 MiB of stored snapshot text (SCH-R167).
 - Used here, owned elsewhere: concurrent A2A Tasks per Worker
   ([LIM-CTL-6](../platform/limits.md), SCH-R10), slots per Runtime Agent
   process ([LIM-CTL-4](../platform/limits.md), SCH-R139), the
-  `maxConcurrentRuns` range and default ([LIM-OPS-7](../platform/limits.md),
-  SCH-R131, SCH-R137), retry `maxAttempts`
+  `maxConcurrentRuns` and `maxConcurrentToolRuns` ranges and defaults
+  ([LIM-OPS-7, LIM-OPS-34](../platform/limits.md), SCH-R131, SCH-R137), retry `maxAttempts`
   ([LIM-WFL-5](../platform/limits.md), SCH-R80) and the bound of the logged
   cause of an unprogressable Run ([LIM-OBS-6](../platform/limits.md),
   SCH-R170).
@@ -1449,7 +1495,8 @@ Failure outcomes ([failure model](../platform/failure-model.md)):
 - FAIL-SCH-10 — progression transaction (SCH-R78).
 - FAIL-SCH-11 — allocation loss (SCH-R93, SCH-R118).
 - FAIL-SCH-12 — Server restart (SCH-R96).
-- FAIL-SCH-13 — unprogressable durable state (SCH-R102).
+- FAIL-SCH-13 — unprogressable durable state (SCH-R102), including a stored
+  lane class that disagrees with its Stage (SCH-R175).
 - FAIL-SCH-14 — model call under the recovery gate (SCH-R108, SCH-R109).
 - FAIL-SCH-15 — recording an observed model outcome (SCH-R111).
 - FAIL-SCH-16 — Run claim renewal (SCH-R119, SCH-R120, SCH-R166).
@@ -1522,11 +1569,12 @@ These properties follow from the cited requirements, which are authoritative.
    Queue Pause defers atomic next, retry or escalation admission (SCH-R67,
    SCH-R68).
 10. Planner never receives a partial WorkerHandle map (SCH-R14).
-11. No Run ever has two lanes or two active StageExecutions (SCH-R114,
-    SCH-R136).
-12. Increasing the limit admits waiting work without restart; decreasing it
-    drains without cancelling active Runs or starting replacement work above
-    the new limit (SCH-R134, SCH-R135).
+11. No Run ever has two lanes or two active StageExecutions, and a Run is in
+    the lane pool of the StageExecution it progresses next (SCH-R114,
+    SCH-R136, SCH-R175).
+12. Increasing a pool's limit admits waiting work of its class without
+    restart; decreasing it drains that pool without cancelling active Runs or
+    starting replacement work above the new limit (SCH-R134, SCH-R135).
 13. Pause is owner-scoped and durable and blocks only new normal semantic work;
     cancellation, recovery, finalization and release cannot be paused
     (SCH-R145, SCH-R148).
@@ -1543,6 +1591,12 @@ With two compatible idle agents and `maxConcurrentRuns = 2`, two independent
 one-Worker Runs may execute together. A single two-Worker Stage may instead
 use both agents while consuming one Run lane.
 
+With `maxConcurrentRuns = 1` and `maxConcurrentToolRuns = 2`, one Run with a
+`streamline@1` Stage and two Runs with `scan-plan@1` Stages over `tool@1`
+Workers progress at once. A Run whose scan Stage is followed by a triage Stage
+with a model leaves the `tool` pool when the scan Stage's result commit
+creates the triage StageExecution, and a `model` lane claims it next.
+
 ## Non-goals
 
 The Scheduler does not provide:
@@ -1558,7 +1612,7 @@ The Scheduler does not provide:
 - resuming a Planner invocation from its persisted ADK Session or private
   plan;
 - active-active Server replicas: two independently active Schedulers would
-  each apply their local lane count; the supported topology is specified in
+  each apply their local lane counts; the supported topology is specified in
   [Operations](../operations/operations.md).
 
 Other non-goals of Planner and Control Plane execution, such as dynamic

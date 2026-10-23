@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"errors"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -18,7 +19,7 @@ func TestPostgresScanClaimsFenceTakeoverAndConcurrentDispatch(t *testing.T) {
 	pool := isolatedPlannerPool(t, ctx)
 	store := runstore.NewPostgresStore(pool)
 	createPlannerStage(t, ctx, store)
-	if _, err := store.ClaimRunnableRun(ctx, "scan-claim-1", time.Minute, nil); err != nil {
+	if _, err := store.ClaimRunnableRun(ctx, "scan-claim-1", time.Minute, nil, resolved.LaneClassModel); err != nil {
 		t.Fatal(err)
 	}
 	service, _ := New(store, Options{})
@@ -61,7 +62,7 @@ func TestPostgresScanClaimsFenceTakeoverAndConcurrentDispatch(t *testing.T) {
 	if won, err := service.ClaimScanJob(ctx, started.Identity, "pending"); won || !errors.Is(err, runstore.ErrConflict) {
 		t.Fatalf("expired claim = (%t, %v)", won, err)
 	}
-	if _, err := store.ClaimRunnableRun(ctx, "scan-claim-2", time.Minute, nil); err != nil {
+	if _, err := store.ClaimRunnableRun(ctx, "scan-claim-2", time.Minute, nil, resolved.LaneClassModel); err != nil {
 		t.Fatal(err)
 	}
 	restarted, _ := New(store, Options{})

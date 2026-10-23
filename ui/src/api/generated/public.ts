@@ -3338,13 +3338,18 @@ export interface components {
             updatedAt?: string;
         };
         SchedulerSettings: {
+            /** @description Runs that may progress a Stage using a model at the same time. */
             maxConcurrentRuns: number;
+            /** @description Runs that may progress a Stage without a model, such as a scanner Stage, at the same time. */
+            maxConcurrentToolRuns: number;
             revision: string;
             /** Format: date-time */
             updatedAt: string;
         };
         UpdateSchedulerSettingsRequest: {
             maxConcurrentRuns: number;
+            /** @description Omit to keep the stored value. */
+            maxConcurrentToolRuns?: number;
         };
         AuditActor: string;
         ConfigId: string;

@@ -274,7 +274,8 @@ func newFindingImportFixture(t *testing.T, direct bool) deletionImportFixture {
 	project := projectID
 	runs := runstore.NewPostgresStore(pool)
 	if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{
-		RunID: runID, OwnerID: owner, ProjectID: &project, WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
+		LaneClass: resolved.LaneClassModel,
+		RunID:     runID, OwnerID: owner, ProjectID: &project, WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
 		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: encoded, Parameters: map[string]string{}, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 	}); err != nil {
 		t.Fatal(err)

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"regexp"
 	"slices"
 	"strings"
@@ -92,7 +93,7 @@ func runHistoryEntry(i int) historyRun {
 const populateRunHistorySQL = `
 INSERT INTO workflow_runs (
     run_id, owner_id, workflow_name, workflow_version, workflow_schema_version,
-    workflow_snapshot, parameters, runtime_labels, runtime_config_snapshot,
+    workflow_snapshot, parameters, runtime_labels, runtime_config_snapshot, scheduler_lane_class,
     state, state_reason_code, created_at, updated_at, started_at, finished_at
 )
 SELECT 'run-history-' || lpad(i::text, 5, '0'), 'owner-' || (i % $2),
@@ -101,7 +102,7 @@ SELECT 'run-history-' || lpad(i::text, 5, '0'), 'owner-' || (i % $2),
            'model', jsonb_build_object('credentialId', 'workflow-' || (i % $3))
        ))),
        '{}'::jsonb, '{}'::text[],
-       jsonb_set($1::jsonb, '{llmCredentialIds}', jsonb_build_array('llm-' || (i % $3))),
+       jsonb_set($1::jsonb, '{llmCredentialIds}', jsonb_build_array('llm-' || (i % $3))), 'model',
        run.state, 'history', run.created_at, run.created_at,
        CASE WHEN run.state NOT IN ('initializing', 'pending') THEN run.created_at END,
        CASE WHEN run.state IN ('succeeded', 'failed') THEN run.created_at + interval '1 minute' END
@@ -269,7 +270,7 @@ func TestPostgresActiveRunReadsUseActiveStateIndexes(t *testing.T) {
 		return err
 	}), "workflow_runs_runtime_llm_credentials_idx", "workflow_runs_workflow_credentials_idx")
 	assertPlanUsesIndexes(t, ctx, pool, "Scheduler claim", captureStatement(t, func(store *PostgresStore) error {
-		_, err := store.ClaimRunnableRun(ctx, "claim-plan", time.Minute, nil)
+		_, err := store.ClaimRunnableRun(ctx, "claim-plan", time.Minute, nil, resolved.LaneClassModel)
 		return err
 	}), "workflow_runs_claim_idx", "workflow_runs_deferred_claim_idx")
 }
@@ -457,7 +458,7 @@ func TestPostgresClaimRenewalIsHeapOnlyUpdate(t *testing.T) {
 	if _, err := admitTestRun(ctx, store, run.RunID); err != nil {
 		t.Fatal(err)
 	}
-	claimed, err := store.ClaimRunnableRun(ctx, "claim-hot", time.Minute, nil)
+	claimed, err := store.ClaimRunnableRun(ctx, "claim-hot", time.Minute, nil, resolved.LaneClassModel)
 	if err != nil || claimed.RunID != run.RunID {
 		t.Fatalf("claim = (%s, %v)", claimed.RunID, err)
 	}

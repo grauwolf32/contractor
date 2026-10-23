@@ -61,7 +61,7 @@ func TestFindingCollectionHTTPPublicationAndOrdinaryRunInput(t *testing.T) {
 		t.Fatal(err)
 	}
 	snapshot, _ := json.Marshal(workflow)
-	if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{RunID: "source-run", OwnerID: "user-1", WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
+	if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{LaneClass: resolved.LaneClassModel, RunID: "source-run", OwnerID: "user-1", WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
 		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: snapshot, Parameters: map[string]string{}, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot()}); err != nil {
 		t.Fatal(err)
 	}

@@ -13,6 +13,12 @@ import (
 const (
 	MinimumConcurrentRuns = 1
 	MaximumConcurrentRuns = 32
+	// The model-free lane pool has its own setting with the same range
+	// (LIM-OPS-34).
+	MinimumConcurrentToolRuns = 1
+	MaximumConcurrentToolRuns = 32
+	// MaximumLanes bounds the lanes of both Scheduler pools together.
+	MaximumLanes = MaximumConcurrentRuns + MaximumConcurrentToolRuns
 )
 
 var (
@@ -22,14 +28,20 @@ var (
 )
 
 // SchedulerSettings is the single PostgreSQL-authoritative Workflow Scheduler
-// configuration. Revision is never zero and UpdatedAt is normalized to UTC.
+// configuration. MaxConcurrentRuns sizes the lane pool of model Stages and
+// MaxConcurrentToolRuns the pool of model-free Stages. Revision is never zero
+// and UpdatedAt is normalized to UTC.
 type SchedulerSettings struct {
-	MaxConcurrentRuns int
-	Revision          uint64
-	UpdatedAt         time.Time
+	MaxConcurrentRuns     int
+	MaxConcurrentToolRuns int
+	Revision              uint64
+	UpdatedAt             time.Time
 }
 
+// UpdateSchedulerSettingsParams replaces MaxConcurrentRuns and, when it is not
+// nil, MaxConcurrentToolRuns; nil keeps the stored value.
 type UpdateSchedulerSettingsParams struct {
-	MaxConcurrentRuns int
-	ExpectedRevision  uint64
+	MaxConcurrentRuns     int
+	MaxConcurrentToolRuns *int
+	ExpectedRevision      uint64
 }

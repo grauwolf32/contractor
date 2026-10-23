@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -115,7 +116,7 @@ func TestPostgresRunDetailFixedBatchQueries(t *testing.T) {
 	for _, n := range []int{1, 5, 30} {
 		t.Run(fmt.Sprintf("stages-%d", n), func(t *testing.T) {
 			runID := fmt.Sprintf("batch-run-%d", n)
-			if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{RunID: runID, OwnerID: "user-1", WorkflowName: "artifact-copy", WorkflowVersion: "1", WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`), RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot()}); err != nil {
+			if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{LaneClass: resolved.LaneClassModel, RunID: runID, OwnerID: "user-1", WorkflowName: "artifact-copy", WorkflowVersion: "1", WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`), RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot()}); err != nil {
 				t.Fatal(err)
 			}
 			if _, err := runs.TransitionRun(
@@ -143,7 +144,7 @@ func TestPostgresRunDetailFixedBatchQueries(t *testing.T) {
 			}
 			for i := 0; i < n; i++ {
 				id := fmt.Sprintf("%s-stage-%02d", runID, i)
-				if _, err := runs.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{StageExecutionID: id, RunID: runID, StageName: id, Attempt: 1, StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: stageJSON, StageContextSchemaVersion: contracts.APIVersion}); err != nil {
+				if _, err := runs.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{LaneClass: resolved.LaneClassModel, StageExecutionID: id, RunID: runID, StageName: id, Attempt: 1, StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: stageJSON, StageContextSchemaVersion: contracts.APIVersion}); err != nil {
 					t.Fatal(err)
 				}
 				start, err := plans.Begin(ctx, id)

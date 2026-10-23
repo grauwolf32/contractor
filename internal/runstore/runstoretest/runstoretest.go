@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
@@ -39,6 +40,7 @@ func CreateRun(
 // RunStore paths. The caller has already admitted runID as running.
 func CreateRunningStage(ctx context.Context, store *runstore.PostgresStore, runID, stageID, schemaVersion string) error {
 	if _, err := store.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
+		LaneClass:        resolved.LaneClassModel,
 		StageExecutionID: stageID, RunID: runID, StageName: "test", Attempt: 1,
 		StageSpecSchemaVersion: schemaVersion, StageSpecSnapshot: json.RawMessage(`{"objective":"test"}`),
 		StageContextSchemaVersion: schemaVersion,

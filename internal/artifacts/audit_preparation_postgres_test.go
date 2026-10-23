@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"os"
 	"path/filepath"
@@ -159,7 +160,7 @@ func (f preparationFixture) collecting(t *testing.T, intent auditstore.CreateExe
 		binding := f.profile.Workflows[intent.WorkflowRole]
 		workflow, _ := json.Marshal(binding.Workflow)
 		_, err := runstore.NewPostgresStore(tx).CreateAuditRun(f.ctx, runstore.CreateAuditRunParams{
-			CreateRunParams: runstore.CreateRunParams{RunID: runID, OwnerID: f.audit.OwnerID, ProjectID: &f.audit.ProjectID,
+			CreateRunParams: runstore.CreateRunParams{LaneClass: resolved.LaneClassModel, RunID: runID, OwnerID: f.audit.OwnerID, ProjectID: &f.audit.ProjectID,
 				WorkflowName: binding.Workflow.Ref.Name, WorkflowVersion: binding.Workflow.Ref.Version, WorkflowSchemaVersion: "contractor/v1alpha1",
 				WorkflowSnapshot: workflow, Parameters: intent.Preparation.Parameters, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot()},
 			AuditExecutionID: execution.ExecutionID, AuditSubmissionKey: execution.SubmissionKey,

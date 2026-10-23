@@ -169,7 +169,8 @@ func TestTransactionLookupPinsRuntimeConfigWithoutAnotherPoolConnection(t *testi
 		t.Fatalf("pinned LLM credential IDs = %v", pinned.LLMCredentialIDs)
 	}
 	if _, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
-		RunID: "run-transaction-lookup", OwnerID: "owner-transaction-lookup",
+		LaneClass: resolved.LaneClassModel,
+		RunID:     "run-transaction-lookup", OwnerID: "owner-transaction-lookup",
 		WorkflowName: "test", WorkflowVersion: "1", WorkflowSchemaVersion: contracts.APIVersion,
 		WorkflowSnapshot: json.RawMessage(`{"ref":{"name":"test","version":"1"}}`),
 		Parameters:       map[string]string{}, RuntimeConfig: pinned,

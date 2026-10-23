@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"testing"
 	"time"
 
@@ -29,7 +30,7 @@ func TestPostgresLivePlannerSurvivesExpiredClaimBeforeRenewal(t *testing.T) {
 	joined := make(chan struct{})
 	go func() {
 		defer close(joined)
-		_, err := h.scheduler.progressOneClaim(ctx)
+		_, err := h.scheduler.progressOneClaim(ctx, resolved.LaneClassModel)
 		done <- err
 	}()
 	finished := false
@@ -59,7 +60,7 @@ SET scheduler_claimed_at = clock_timestamp() - interval '3 minutes',
 WHERE run_id = 'run-1'`); err != nil {
 		t.Fatal(err)
 	}
-	if worked, err := h.scheduler.progressOneClaim(ctx); worked || err != nil {
+	if worked, err := h.scheduler.progressOneClaim(ctx, resolved.LaneClassModel); worked || err != nil {
 		t.Fatalf("competing lane re-entered the live Planner: worked=%v err=%v", worked, err)
 	}
 	current, err := h.store.GetRun(ctx, "run-1")

@@ -103,7 +103,8 @@ func TestAuditManagedRunSkipsGenericProjectOutputPublication(t *testing.T) {
 		runs := runstore.NewPostgresStore(tx)
 		if _, err := runs.CreateAuditRun(ctx, runstore.CreateAuditRunParams{
 			CreateRunParams: runstore.CreateRunParams{
-				RunID: runID, OwnerID: project.OwnerID, ProjectID: &project.ProjectID,
+				LaneClass: resolved.LaneClassModel,
+				RunID:     runID, OwnerID: project.OwnerID, ProjectID: &project.ProjectID,
 				WorkflowName: "audit-check", WorkflowVersion: "1",
 				WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`),
 				Parameters: map[string]string{}, MetadataLabels: runstore.RunMetadataLabels{},

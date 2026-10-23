@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"strings"
 	"testing"
 	"time"
@@ -60,6 +61,7 @@ func TestPostgresStoreRejectsIdentitiesOutsideThePublicGrammars(t *testing.T) {
 	}
 	stageParams := func(mutate func(*CreateStageExecutionParams)) CreateStageExecutionParams {
 		params := CreateStageExecutionParams{
+			LaneClass:        resolved.LaneClassModel,
 			StageExecutionID: "stage-grammar", RunID: run.RunID,
 			StageName: "copy", Attempt: 1, StageSpecSchemaVersion: contracts.APIVersion,
 			StageSpecSnapshot: json.RawMessage(`{}`), StageContextSchemaVersion: contracts.APIVersion,

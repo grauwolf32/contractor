@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
@@ -62,8 +63,10 @@ func (s *PostgresStore) ResumeFailedRun(ctx context.Context, ownerID, runID, sou
 				return ErrConflict
 			}
 		}
-		var locked string
-		err = tx.QueryRow(ctx, `SELECT run_id FROM workflow_runs WHERE run_id=$1 AND owner_id=$2 FOR UPDATE`, runID, ownerID).Scan(&locked)
+		// The source is the Run's latest StageExecution, whose lane class the
+		// Run still carries; the new attempt repeats its spec and so its class.
+		var laneClass resolved.LaneClass
+		err = tx.QueryRow(ctx, `SELECT scheduler_lane_class FROM workflow_runs WHERE run_id=$1 AND owner_id=$2 FOR UPDATE`, runID, ownerID).Scan(&laneClass)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
 		}
@@ -102,7 +105,7 @@ func (s *PostgresStore) ResumeFailedRun(ctx context.Context, ownerID, runID, sou
 			PreviousExecutionID: &sourceID, ResumeSourceExecutionID: &sourceID, ExecutionConfigVariant: previous.ExecutionConfigVariant,
 			EscalationOrdinal: previous.EscalationOrdinal, StageSpecSchemaVersion: previous.StageSpecSchemaVersion,
 			StageSpecSnapshot: previous.StageSpecSnapshot, StageContextSchemaVersion: previous.StageContextSchemaVersion,
-			StageContext: previous.StageContext,
+			StageContext: previous.StageContext, LaneClass: laneClass,
 		})
 		if err != nil {
 			return err

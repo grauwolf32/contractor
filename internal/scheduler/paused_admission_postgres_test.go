@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"errors"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"testing"
 	"time"
 
@@ -141,7 +142,8 @@ VALUES($1,$2,true,'model_unavailable',clock_timestamp()-interval '1 second',cloc
 	pending := func(runID string) {
 		t.Helper()
 		if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{
-			RunID: runID, OwnerID: "user-1", WorkflowName: "test", WorkflowVersion: "1",
+			LaneClass: resolved.LaneClassModel,
+			RunID:     runID, OwnerID: "user-1", WorkflowName: "test", WorkflowVersion: "1",
 			WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: []byte(`{}`),
 			RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 		}); err != nil {

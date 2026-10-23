@@ -56,6 +56,7 @@ func TestPostgresIntegrationStageLifecycleAndSessions(t *testing.T) {
 
 	revision := "revision-1"
 	execution, err := store.CreateStageExecution(ctx, CreateStageExecutionParams{
+		LaneClass:        resolved.LaneClassModel,
 		StageExecutionID: "stage-lifecycle", RunID: run.RunID, StageName: "copy", Attempt: 1,
 		StageSpecSchemaVersion:    "contractor/v1alpha1",
 		StageSpecSnapshot:         json.RawMessage(`{"objective":"copy"}`),
@@ -349,6 +350,7 @@ WHERE allocation_id = 'allocation-1'`); persistencepostgres.SQLState(err) != per
 	}
 
 	_, err = store.CreateStageExecution(ctx, CreateStageExecutionParams{
+		LaneClass:        resolved.LaneClassModel,
 		StageExecutionID: "stage-aborted", RunID: run.RunID, StageName: "precheck", Attempt: 1,
 		StageSpecSchemaVersion: "contractor/v1alpha1", StageSpecSnapshot: json.RawMessage(`{"objective":"check"}`),
 		StageContextSchemaVersion: "contractor/v1alpha1", StageContext: StageContextSnapshot{},
@@ -858,7 +860,7 @@ func TestPostgresIntegrationClaimsConflictsAndExplicitTransactions(t *testing.T)
 		wait.Add(1)
 		go func(claimID string) {
 			defer wait.Done()
-			run, err := store.ClaimRunnableRun(ctx, claimID, time.Minute, nil)
+			run, err := store.ClaimRunnableRun(ctx, claimID, time.Minute, nil, resolved.LaneClassModel)
 			claimResults <- claimResult{run: run, err: err}
 		}(claimID)
 	}
@@ -949,6 +951,7 @@ func TestPostgresStageAdmissionPreservesInitialQueueControlRevision(t *testing.T
 					return err
 				}
 				_, err := admission.CreateStageExecution(ctx, CreateStageExecutionParams{
+					LaneClass:        resolved.LaneClassModel,
 					StageExecutionID: "stage-initial-control-" + test.name,
 					RunID:            runID, StageName: "copy", Attempt: 1,
 					StageSpecSchemaVersion:    contracts.APIVersion,
@@ -1103,6 +1106,7 @@ WHERE owner_id = 'user-1'`); persistencepostgres.SQLState(err) != persistencepos
 	case <-time.After(50 * time.Millisecond):
 	}
 	if _, err := admissionStore.CreateStageExecution(ctx, CreateStageExecutionParams{
+		LaneClass:        resolved.LaneClassModel,
 		StageExecutionID: "stage-admitted-before-pause", RunID: run.RunID,
 		StageName: "copy", Attempt: 1, StageSpecSchemaVersion: contracts.APIVersion,
 		StageSpecSnapshot: json.RawMessage(`{}`), StageContextSchemaVersion: contracts.APIVersion,
@@ -1136,7 +1140,7 @@ func TestPostgresClaimRunnableRunRotatesAfterDeferredRelease(t *testing.T) {
 	if _, err := admitTestRun(ctx, store, first.RunID); err != nil {
 		t.Fatal(err)
 	}
-	claimed, err := store.ClaimRunnableRun(ctx, "claim-capacity-first", time.Minute, nil)
+	claimed, err := store.ClaimRunnableRun(ctx, "claim-capacity-first", time.Minute, nil, resolved.LaneClassModel)
 	if err != nil || claimed.RunID != first.RunID {
 		t.Fatalf("initial claim = (%+v, %v), want first Run", claimed, err)
 	}
@@ -1153,7 +1157,7 @@ func TestPostgresClaimRunnableRunRotatesAfterDeferredRelease(t *testing.T) {
 	if _, err := store.TransitionRun(ctx, second.RunID, RunInitializing, RunPending, Reason{Code: "awaiting_admission"}); err != nil {
 		t.Fatal(err)
 	}
-	claimed, err = store.ClaimRunnableRun(ctx, "claim-other-owner", time.Minute, nil)
+	claimed, err = store.ClaimRunnableRun(ctx, "claim-other-owner", time.Minute, nil, resolved.LaneClassModel)
 	if err != nil || claimed.RunID != second.RunID {
 		t.Fatalf("pending Run after older deferred running Run = (%+v, %v)", claimed, err)
 	}
@@ -1163,7 +1167,7 @@ func TestPostgresClaimRunnableRunRotatesAfterDeferredRelease(t *testing.T) {
 	if _, err := store.TransitionRun(ctx, second.RunID, RunPending, RunRunning, Reason{Code: "admitted"}); err != nil {
 		t.Fatal(err)
 	}
-	claimed, err = store.ClaimRunnableRun(ctx, "claim-nondeferred-running", time.Minute, nil)
+	claimed, err = store.ClaimRunnableRun(ctx, "claim-nondeferred-running", time.Minute, nil, resolved.LaneClassModel)
 	if err != nil || claimed.RunID != second.RunID {
 		t.Fatalf("non-deferred running Run lost priority = (%+v, %v)", claimed, err)
 	}
@@ -1180,7 +1184,7 @@ func TestPostgresClaimRunnableRunRotatesAfterDeferredRelease(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	claimed, err = store.ClaimRunnableRun(ctx, "claim-cancelling", time.Minute, nil)
+	claimed, err = store.ClaimRunnableRun(ctx, "claim-cancelling", time.Minute, nil, resolved.LaneClassModel)
 	if err != nil || claimed.RunID != cancelling.RunID {
 		t.Fatalf("cancelling Run lost priority = (%+v, %v)", claimed, err)
 	}
@@ -1191,7 +1195,7 @@ func TestPostgresClaimRunnableRunRotatesAfterDeferredRelease(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	claimed, err = store.ClaimRunnableRun(ctx, "claim-recovered", time.Minute, nil)
+	claimed, err = store.ClaimRunnableRun(ctx, "claim-recovered", time.Minute, nil, resolved.LaneClassModel)
 	if err != nil || claimed.RunID != first.RunID {
 		t.Fatalf("deferred Run was not retried = (%+v, %v)", claimed, err)
 	}
@@ -1202,7 +1206,7 @@ func TestPostgresClaimRunnableRunRotatesAfterDeferredRelease(t *testing.T) {
 	if _, err := store.TransitionRun(ctx, third.RunID, RunInitializing, RunPending, Reason{Code: "awaiting_admission"}); err != nil {
 		t.Fatal(err)
 	}
-	claimed, err = store.ClaimRunnableRun(ctx, "claim-recovered-priority", time.Minute, nil)
+	claimed, err = store.ClaimRunnableRun(ctx, "claim-recovered-priority", time.Minute, nil, resolved.LaneClassModel)
 	if err != nil || claimed.RunID != first.RunID {
 		t.Fatalf("successful release did not restore running priority = (%+v, %v)", claimed, err)
 	}
@@ -1215,7 +1219,7 @@ func TestPostgresDeferredClaimAgesBackIntoItsStateTier(t *testing.T) {
 	store := NewPostgresStore(pool)
 	claimAndDefer := func(claimID, wantRunID string) {
 		t.Helper()
-		claimed, err := store.ClaimRunnableRun(ctx, claimID, time.Minute, nil)
+		claimed, err := store.ClaimRunnableRun(ctx, claimID, time.Minute, nil, resolved.LaneClassModel)
 		if err != nil || claimed.RunID != wantRunID {
 			t.Fatalf("claim %s = (%+v, %v), want %s", claimID, claimed, err, wantRunID)
 		}
@@ -1244,7 +1248,7 @@ WHERE run_id = $1`, runID, deferredClaimYield.Microseconds()); err != nil {
 	}
 
 	// A fresh deferral yields to pending work, including newer pending Runs.
-	claimed, err := store.ClaimRunnableRun(ctx, "claim-waiting-1", time.Minute, nil)
+	claimed, err := store.ClaimRunnableRun(ctx, "claim-waiting-1", time.Minute, nil, resolved.LaneClassModel)
 	if err != nil || claimed.RunID != waiting.RunID {
 		t.Fatalf("pending Run after fresh deferral = (%+v, %v)", claimed, err)
 	}
@@ -1290,7 +1294,7 @@ func TestPostgresIntegrationRunSkillSnapshotGatesRunnableClaim(t *testing.T) {
 		len(pending.SkillSnapshot) != 1 {
 		t.Fatalf("pending Run = (%+v, %v)", pending, err)
 	}
-	claimed, err := store.ClaimRunnableRun(ctx, "skill-claim", time.Minute, nil)
+	claimed, err := store.ClaimRunnableRun(ctx, "skill-claim", time.Minute, nil, resolved.LaneClassModel)
 	if err != nil || claimed.RunID != run.RunID || claimed.State != RunInitializing {
 		t.Fatalf("claim pending Skill Run = (%+v, %v)", claimed, err)
 	}
@@ -1364,7 +1368,8 @@ func TestWorkflowRunEventNotificationIsVisibleOnlyAfterCommit(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = createRun(ctx, NewPostgresStore(tx), CreateRunParams{
-		RunID: runID, OwnerID: "user", WorkflowName: "workflow", WorkflowVersion: "1",
+		LaneClass: resolved.LaneClassModel,
+		RunID:     runID, OwnerID: "user", WorkflowName: "workflow", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion,
 		WorkflowSnapshot:      json.RawMessage(`{"name":"workflow"}`),
 		Parameters:            map[string]string{},
@@ -1436,7 +1441,7 @@ func TestPostgresIntegrationRunCancellationIsDurableAndIdempotent(t *testing.T) 
 		t.Fatalf("repeated cancellation replaced the first payload: %+v", repeated.Cancellation)
 	}
 
-	claimed, err := store.ClaimRunnableRun(ctx, "cancel-claim", time.Minute, nil)
+	claimed, err := store.ClaimRunnableRun(ctx, "cancel-claim", time.Minute, nil, resolved.LaneClassModel)
 	if err != nil || claimed.RunID != first.RunID || claimed.State != RunCancelling {
 		t.Fatalf("claim cancelling Run = (%+v, %v)", claimed, err)
 	}
@@ -1537,7 +1542,8 @@ func TestPostgresRunRuntimeLabelsPinExactBindingsAcrossConcurrentRebind(t *testi
 	case <-time.After(50 * time.Millisecond):
 	}
 	if _, err := createRun(ctx, txStore, CreateRunParams{
-		RunID: "run-runtime-label-old", OwnerID: "user", WorkflowName: "workflow", WorkflowVersion: "1",
+		LaneClass: resolved.LaneClassModel,
+		RunID:     "run-runtime-label-old", OwnerID: "user", WorkflowName: "workflow", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion,
 		WorkflowSnapshot:      json.RawMessage(`{"name":"workflow"}`),
 		Parameters:            map[string]string{}, RuntimeConfig: pinned,
@@ -1584,7 +1590,8 @@ func TestPostgresNonTerminalCredentialUsageIncludesRuntimeConfigSnapshot(t *test
 	snapshot := runtimeconfigtest.BuiltInRunSnapshot()
 	snapshot.LLMCredentialIDs = []string{"runtime-route"}
 	if _, err := createRun(ctx, store, CreateRunParams{
-		RunID: "run-runtime-route", OwnerID: "user", WorkflowName: "workflow", WorkflowVersion: "1",
+		LaneClass: resolved.LaneClassModel,
+		RunID:     "run-runtime-route", OwnerID: "user", WorkflowName: "workflow", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`),
 		Parameters: map[string]string{}, RuntimeConfig: snapshot,
 	}); err != nil {
@@ -1615,6 +1622,7 @@ func TestPostgresCredentialUsageIncludesLiveAllocationProvenance(t *testing.T) {
 		t.Fatal(err)
 	}
 	execution, err := store.CreateStageExecution(ctx, CreateStageExecutionParams{
+		LaneClass:        resolved.LaneClassModel,
 		StageExecutionID: "stage-live-allocation-credential", RunID: run.RunID,
 		StageName: "copy", Attempt: 1, StageSpecSchemaVersion: contracts.APIVersion,
 		StageSpecSnapshot: json.RawMessage(`{}`), StageContextSchemaVersion: contracts.APIVersion,
@@ -1730,7 +1738,8 @@ func admitTestRun(ctx context.Context, store *PostgresStore, runID string) (Work
 
 func testRunParams(runID string) CreateRunParams {
 	return CreateRunParams{
-		RunID: runID, OwnerID: "user-1", WorkflowName: "artifact-copy", WorkflowVersion: "1",
+		LaneClass: resolved.LaneClassModel,
+		RunID:     runID, OwnerID: "user-1", WorkflowName: "artifact-copy", WorkflowVersion: "1",
 		WorkflowSchemaVersion: "contractor/v1alpha1",
 		WorkflowSnapshot:      json.RawMessage(`{"ref":{"name":"artifact-copy","version":"1"}}`),
 		Parameters:            map[string]string{"mode": "strict"},

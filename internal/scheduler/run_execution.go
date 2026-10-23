@@ -5,16 +5,20 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
-// executeRun performs one progression attempt of the claimed run. It reads
-// the Run's state and its active StageExecution, not its Stage history
-// (SCH-R164).
-func (s *Scheduler) executeRun(ctx context.Context, run runstore.WorkflowRun, claimID string) error {
+// executeRun performs one progression attempt of the claimed run by a lane of
+// class laneClass. It reads the Run's state and its active StageExecution,
+// not its Stage history (SCH-R164), and progresses only a Stage of the lane's
+// class (SCH-R175).
+func (s *Scheduler) executeRun(
+	ctx context.Context, run runstore.WorkflowRun, claimID string, laneClass resolved.LaneClass,
+) error {
 	// The claim returned the whole Run, and what a progression attempt uses
 	// of it changes only with its state (cancellation, a model-route wait;
 	// Skill initialization reads its own copy), so only a changed state
@@ -68,6 +72,9 @@ func (s *Scheduler) executeRun(ctx context.Context, run runstore.WorkflowRun, cl
 				ctx, run.RunID, fmt.Errorf("running WorkflowRun has no active StageExecution"),
 			)
 		}
+		if handOff, classErr := s.checkLaneClass(ctx, run, workflow, laneClass); handOff || classErr != nil {
+			return classErr
+		}
 		execution, err = s.createStageExecution(ctx, run, workflow)
 		if err != nil {
 			return err
@@ -83,6 +90,9 @@ func (s *Scheduler) executeRun(ctx context.Context, run runstore.WorkflowRun, cl
 	}
 	if err := validatePersistedExecution(execution, run, workflow); err != nil {
 		return s.failInvalidRunState(ctx, run.RunID, err)
+	}
+	if handOff, err := s.checkLaneClass(ctx, run, workflow, laneClass); handOff || err != nil {
+		return err
 	}
 	if err := s.validateSummarySource(ctx, run, execution); err != nil {
 		if errors.Is(err, errInvalidRunState) {
@@ -118,6 +128,25 @@ func (s *Scheduler) executeRun(ctx context.Context, run runstore.WorkflowRun, cl
 	default:
 		return s.failInvalidRunState(ctx, run.RunID, fmt.Errorf("unknown StageExecution state %q", execution.State))
 	}
+}
+
+// checkLaneClass compares the Run's stored lane class with the class of the
+// effective Stage spec the attempt is about to progress. A disagreement is a
+// storage invariant failure that ends the Run, never a value to correct
+// (SCH-R175). A Stage of the other class is not this lane's work: handOff
+// reports that the lane releases the claim without deferral, so the other
+// pool claims the Run in its own order.
+func (s *Scheduler) checkLaneClass(
+	ctx context.Context, run runstore.WorkflowRun, workflow executableWorkflow, laneClass resolved.LaneClass,
+) (handOff bool, err error) {
+	class := resolved.StageLaneClass(workflow.stage)
+	if class != run.SchedulerLaneClass {
+		return true, s.failInvalidRunState(ctx, run.RunID, fmt.Errorf(
+			"stored Scheduler lane class %q differs from class %q of Stage %q",
+			run.SchedulerLaneClass, class, workflow.stageName,
+		))
+	}
+	return class != laneClass, nil
 }
 
 func (s *Scheduler) executeCancelling(ctx context.Context, run runstore.WorkflowRun, claimID string) error {

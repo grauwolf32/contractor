@@ -577,7 +577,8 @@ func newPlacementFixture(
 	store := runstore.NewPostgresStore(tx)
 	runID := "run-placement"
 	if _, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
-		RunID: runID, OwnerID: "user-placement", WorkflowName: workflow.Ref.Name,
+		LaneClass: resolved.LaneClassModel,
+		RunID:     runID, OwnerID: "user-placement", WorkflowName: workflow.Ref.Name,
 		WorkflowVersion: workflow.Ref.Version, WorkflowSchemaVersion: contracts.APIVersion,
 		WorkflowSnapshot: json.RawMessage(`{}`), Parameters: map[string]string{}, RuntimeConfig: pinned,
 	}); err != nil {
@@ -599,6 +600,7 @@ func newPlacementFixture(
 	store = runstore.NewPostgresStore(pool)
 	stageExecutionID := "stage-placement"
 	if _, err := store.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
+		LaneClass:        resolved.LaneClassModel,
 		StageExecutionID: stageExecutionID, RunID: runID, StageName: workflow.EntryStage, Attempt: 1,
 		ExecutionConfigVariant: runstore.StageExecutionConfigBase,
 		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: json.RawMessage(`{}`),

@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"os"
 	"strings"
 	"testing"
@@ -304,7 +305,8 @@ func plannerEnvelope(
 func createTelemetryRun(t *testing.T, ctx context.Context, store *runstore.PostgresStore) {
 	t.Helper()
 	_, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
-		RunID: "run-telemetry", OwnerID: "user", WorkflowName: "workflow", WorkflowVersion: "1",
+		LaneClass: resolved.LaneClassModel,
+		RunID:     "run-telemetry", OwnerID: "user", WorkflowName: "workflow", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion,
 		WorkflowSnapshot:      json.RawMessage(`{"name":"workflow"}`),
 		Parameters:            map[string]string{},
@@ -351,6 +353,7 @@ func createTelemetryStageWithPolicy(
 ) string {
 	t.Helper()
 	_, err := store.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
+		LaneClass:        resolved.LaneClassModel,
 		StageExecutionID: stageExecutionID, RunID: "run-telemetry", StageName: stageExecutionID,
 		Attempt: 1, StageSpecSchemaVersion: contracts.APIVersion,
 		StageSpecSnapshot:         json.RawMessage(`{"objective":"test"}`),

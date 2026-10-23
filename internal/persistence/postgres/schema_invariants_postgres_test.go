@@ -90,9 +90,9 @@ WHERE table_schema = current_schema()`)
 }
 
 // TestPostgresSchemaSeedsOneProtectedSchedulerSetting checks the row every
-// database starts with: one Scheduler settings singleton that allows one Run
-// at a time and that direct SQL can neither delete nor duplicate, so the
-// Server never has to guess a process-local fallback.
+// database starts with: one Scheduler settings singleton that allows one model
+// Run and two tool Runs at a time and that direct SQL can neither delete nor
+// duplicate, so the Server never has to guess a process-local fallback.
 func TestPostgresSchemaSeedsOneProtectedSchedulerSetting(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 	defer cancel()
@@ -100,22 +100,23 @@ func TestPostgresSchemaSeedsOneProtectedSchedulerSetting(t *testing.T) {
 	if _, err := ApplyMigrations(ctx, pool, MigrationBudgets{}); err != nil {
 		t.Fatal(err)
 	}
-	var rows, maxConcurrentRuns int
+	var rows, maxConcurrentRuns, maxConcurrentToolRuns int
 	var revision string
 	if err := pool.QueryRow(ctx, `
-SELECT count(*), min(max_concurrent_runs), min(revision)::text FROM scheduler_settings WHERE singleton`,
-	).Scan(&rows, &maxConcurrentRuns, &revision); err != nil {
+SELECT count(*), min(max_concurrent_runs), min(max_concurrent_tool_runs), min(revision)::text
+FROM scheduler_settings WHERE singleton`,
+	).Scan(&rows, &maxConcurrentRuns, &maxConcurrentToolRuns, &revision); err != nil {
 		t.Fatal(err)
 	}
-	if rows != 1 || maxConcurrentRuns != 1 || revision != "1" {
-		t.Fatalf("seeded Scheduler settings = %d rows, max %d, revision %s; want 1 row, max 1, revision 1",
-			rows, maxConcurrentRuns, revision)
+	if rows != 1 || maxConcurrentRuns != 1 || maxConcurrentToolRuns != 2 || revision != "1" {
+		t.Fatalf("seeded Scheduler settings = %d rows, max %d, tool max %d, revision %s; want 1 row, max 1, tool max 2, revision 1",
+			rows, maxConcurrentRuns, maxConcurrentToolRuns, revision)
 	}
 	_, err := pool.Exec(ctx, `DELETE FROM scheduler_settings`)
 	assertSQLState(t, err, SQLStateCheckViolation)
-	_, err = pool.Exec(ctx, `INSERT INTO scheduler_settings (singleton, max_concurrent_runs, revision) VALUES (true, 2, 1)`)
+	_, err = pool.Exec(ctx, `INSERT INTO scheduler_settings (singleton, max_concurrent_runs, max_concurrent_tool_runs, revision) VALUES (true, 2, 2, 1)`)
 	assertSQLState(t, err, SQLStateUniqueViolation)
-	_, err = pool.Exec(ctx, `INSERT INTO scheduler_settings (singleton, max_concurrent_runs, revision) VALUES (false, 2, 1)`)
+	_, err = pool.Exec(ctx, `INSERT INTO scheduler_settings (singleton, max_concurrent_runs, max_concurrent_tool_runs, revision) VALUES (false, 2, 2, 1)`)
 	assertSQLState(t, err, SQLStateCheckViolation)
 }
 
@@ -134,9 +135,9 @@ func TestPostgresRunMetadataLabelsAreBoundedIndexedAndImmutable(t *testing.T) {
 INSERT INTO workflow_runs (
     run_id, owner_id, workflow_name, workflow_version,
     workflow_schema_version, workflow_snapshot, parameters,
-    runtime_labels, runtime_config_snapshot, metadata_labels,
+    runtime_labels, runtime_config_snapshot, metadata_labels, scheduler_lane_class,
     state, state_reason_code
-) VALUES ($1, 'user', 'workflow', '1', 'v1', '{}', '{}', '{}', $2::jsonb, $3::jsonb, 'initializing', 'test')`,
+) VALUES ($1, 'user', 'workflow', '1', 'v1', '{}', '{}', '{}', $2::jsonb, $3::jsonb, 'model', 'initializing', 'test')`,
 			runID, builtInRunRuntimeSnapshot, labels)
 		return err
 	}

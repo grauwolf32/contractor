@@ -276,6 +276,7 @@ func childFindingGrant(
 	}
 	stageID, allocationID := runID+"-stage", runID+"-allocation"
 	if _, err := harness.runs.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
+		LaneClass:        resolved.LaneClassModel,
 		StageExecutionID: stageID, RunID: runID, StageName: workflow.EntryStage, Attempt: 1,
 		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: stageJSON,
 		StageContextSchemaVersion: contracts.APIVersion,

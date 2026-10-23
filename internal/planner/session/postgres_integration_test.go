@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"os"
 	"reflect"
 	"strings"
@@ -314,7 +315,8 @@ func createPlannerStageWithLimit(
 		t.Fatal(err)
 	}
 	_, err = runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
-		RunID: "run-planner", OwnerID: "user", WorkflowName: "workflow", WorkflowVersion: "1",
+		LaneClass: resolved.LaneClassModel,
+		RunID:     "run-planner", OwnerID: "user", WorkflowName: "workflow", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion,
 		WorkflowSnapshot:      json.RawMessage(`{"name":"workflow"}`),
 		Parameters:            map[string]string{"mode": "strict"},
@@ -335,6 +337,7 @@ func createPlannerStageWithLimit(
 		t.Fatal(err)
 	}
 	_, err = store.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
+		LaneClass:        resolved.LaneClassModel,
 		StageExecutionID: "stage-planner", RunID: "run-planner", StageName: "build", Attempt: 1,
 		StageSpecSchemaVersion:    contracts.APIVersion,
 		StageSpecSnapshot:         stageSnapshot,

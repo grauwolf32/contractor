@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"os"
 	"strings"
 	"sync"
@@ -400,7 +401,8 @@ func TestRuntimeCredentialDeleteSerializesWithRuntimeConfigBindings(t *testing.T
 			return pinErr
 		}
 		if _, createErr := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
-			RunID: "run-runtime-credential", OwnerID: "user", WorkflowName: "workflow", WorkflowVersion: "1",
+			LaneClass: resolved.LaneClassModel,
+			RunID:     "run-runtime-credential", OwnerID: "user", WorkflowName: "workflow", WorkflowVersion: "1",
 			WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`),
 			Parameters: map[string]string{}, RuntimeConfig: pinned,
 		}); createErr != nil {
@@ -438,7 +440,8 @@ func TestRuntimeCredentialDeleteSerializesWithRuntimeConfigBindings(t *testing.T
 	allocationRef := publishConfig("allocation-debug", "allocation-debug")
 	allocationStore := runstore.NewPostgresStore(pool)
 	allocationRun, err := runstoretest.CreateRun(ctx, allocationStore, runstore.CreateRunParams{
-		RunID: "run-allocation-credential", OwnerID: "user", WorkflowName: "workflow", WorkflowVersion: "1",
+		LaneClass: resolved.LaneClassModel,
+		RunID:     "run-allocation-credential", OwnerID: "user", WorkflowName: "workflow", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`),
 		Parameters: map[string]string{}, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 	})
@@ -457,6 +460,7 @@ func TestRuntimeCredentialDeleteSerializesWithRuntimeConfigBindings(t *testing.T
 		t.Fatal(err)
 	}
 	allocationStage, err := allocationStore.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
+		LaneClass:        resolved.LaneClassModel,
 		StageExecutionID: "stage-allocation-credential", RunID: allocationRun.RunID,
 		StageName: "allocation", Attempt: 1,
 		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: json.RawMessage(`{}`),

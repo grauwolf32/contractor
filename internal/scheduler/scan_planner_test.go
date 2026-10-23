@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"reflect"
 	"testing"
 	"time"
@@ -41,6 +42,11 @@ func TestSchedulerDispatchesFixedScanWorkersWithDurableClaimAndNoModelAccess(t *
 			h.store.run.WorkflowSnapshot, err = json.Marshal(workflow)
 			if err != nil {
 				t.Fatal(err)
+			}
+			// A scan-plan@1 Stage of tool Workers waits in the tool pool.
+			h.store.run.SchedulerLaneClass = resolved.EntryLaneClass(workflow)
+			if h.store.run.SchedulerLaneClass != resolved.LaneClassTool {
+				t.Fatalf("scan Workflow lane class = %q", h.store.run.SchedulerLaneClass)
 			}
 			h.store.run.Parameters = map[string]string{}
 			for _, binding := range stage.Context.Artifacts {
@@ -113,8 +119,10 @@ type scanClaimStore struct {
 	lastClaim string
 }
 
-func (s *scanClaimStore) ClaimRunnableRun(ctx context.Context, id string, duration time.Duration, excludedRunIDs []string) (runstore.WorkflowRun, error) {
-	run, err := s.memorySchedulerStore.ClaimRunnableRun(ctx, id, duration, excludedRunIDs)
+func (s *scanClaimStore) ClaimRunnableRun(
+	ctx context.Context, id string, duration time.Duration, excludedRunIDs []string, laneClass resolved.LaneClass,
+) (runstore.WorkflowRun, error) {
+	run, err := s.memorySchedulerStore.ClaimRunnableRun(ctx, id, duration, excludedRunIDs, laneClass)
 	if err != nil {
 		return run, err
 	}

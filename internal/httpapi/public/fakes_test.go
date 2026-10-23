@@ -260,9 +260,10 @@ type fakeSchedulerSettings struct {
 
 func newFakeSchedulerSettings() *fakeSchedulerSettings {
 	return &fakeSchedulerSettings{value: settingsstore.SchedulerSettings{
-		MaxConcurrentRuns: 1,
-		Revision:          1,
-		UpdatedAt:         time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC),
+		MaxConcurrentRuns:     1,
+		MaxConcurrentToolRuns: 2,
+		Revision:              1,
+		UpdatedAt:             time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC),
 	}}
 }
 
@@ -281,16 +282,24 @@ func (f *fakeSchedulerSettings) UpdateSchedulerSettings(
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if params.MaxConcurrentRuns < settingsstore.MinimumConcurrentRuns ||
-		params.MaxConcurrentRuns > settingsstore.MaximumConcurrentRuns || params.ExpectedRevision == 0 {
+		params.MaxConcurrentRuns > settingsstore.MaximumConcurrentRuns || params.ExpectedRevision == 0 ||
+		(params.MaxConcurrentToolRuns != nil &&
+			(*params.MaxConcurrentToolRuns < settingsstore.MinimumConcurrentToolRuns ||
+				*params.MaxConcurrentToolRuns > settingsstore.MaximumConcurrentToolRuns)) {
 		return settingsstore.SchedulerSettings{}, settingsstore.ErrInvalid
 	}
 	if params.ExpectedRevision != f.value.Revision {
 		return settingsstore.SchedulerSettings{}, settingsstore.ErrPrecondition
 	}
-	if params.MaxConcurrentRuns == f.value.MaxConcurrentRuns {
+	toolRuns := f.value.MaxConcurrentToolRuns
+	if params.MaxConcurrentToolRuns != nil {
+		toolRuns = *params.MaxConcurrentToolRuns
+	}
+	if params.MaxConcurrentRuns == f.value.MaxConcurrentRuns && toolRuns == f.value.MaxConcurrentToolRuns {
 		return f.value, nil
 	}
 	f.value.MaxConcurrentRuns = params.MaxConcurrentRuns
+	f.value.MaxConcurrentToolRuns = toolRuns
 	f.value.Revision++
 	f.value.UpdatedAt = f.value.UpdatedAt.Add(time.Microsecond)
 	f.updates++

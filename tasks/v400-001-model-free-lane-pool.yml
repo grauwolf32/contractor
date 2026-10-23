@@ -5,7 +5,7 @@ milestone: model-free-stage-lanes-2026-10
 epic: execution-core
 kind: feature
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, sql]
 goal: >-

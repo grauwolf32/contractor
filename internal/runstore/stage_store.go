@@ -58,7 +58,7 @@ func (s *PostgresStore) CreateStageExecution(
 		params.PreviousExecutionID, params.ExecutionConfigVariant, params.EscalationOrdinal,
 		params.ResumeSourceExecutionID,
 		params.StageSpecSchemaVersion, []byte(params.StageSpecSnapshot),
-		params.StageContextSchemaVersion, encodedContext,
+		params.StageContextSchemaVersion, encodedContext, string(params.LaneClass),
 	))
 	if err != nil {
 		failure := persistencepostgres.Classify(err)
@@ -343,6 +343,9 @@ func transitionResult(operation, id string, expected StageExecutionState, rows i
 }
 
 func validateCreateStageExecution(params CreateStageExecutionParams) error {
+	if !params.LaneClass.Valid() {
+		return invalidf("laneClass is invalid")
+	}
 	for field, value := range map[string]string{
 		"stageExecutionID": params.StageExecutionID, "runID": params.RunID,
 	} {

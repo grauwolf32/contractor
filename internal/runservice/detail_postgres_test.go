@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"os"
 	"strings"
 	"sync"
@@ -72,7 +73,8 @@ func newRunDetailReaderPool(t *testing.T, ctx context.Context, pool *pgxpool.Poo
 func createRunningDetailRun(t *testing.T, ctx context.Context, runs *runstore.PostgresStore, owner, runID string) {
 	t.Helper()
 	if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{
-		RunID: runID, OwnerID: owner, WorkflowName: "detail", WorkflowVersion: "1",
+		LaneClass: resolved.LaneClassModel,
+		RunID:     runID, OwnerID: owner, WorkflowName: "detail", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`),
 		RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 	}); err != nil {
@@ -179,6 +181,7 @@ func TestPostgresRunDetailSurvivesFailedOptionalMetricsRead(t *testing.T) {
 	const owner, runID = "owner-metrics", "run-metrics"
 	createRunningDetailRun(t, ctx, runs, owner, runID)
 	if _, err := runs.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
+		LaneClass:        resolved.LaneClassModel,
 		StageExecutionID: "stage-metrics", RunID: runID, StageName: "copy", Attempt: 1,
 		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: json.RawMessage(`{}`),
 		StageContextSchemaVersion: contracts.APIVersion,

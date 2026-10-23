@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"errors"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"testing"
 	"time"
 
@@ -74,7 +75,7 @@ func TestCompletedRunCancelsInflightRenewalWithoutClaimLoss(t *testing.T) {
 	done := make(chan error, 1)
 	go func() {
 		defer close(done)
-		_, err := s.progressOneClaim(ctx)
+		_, err := s.progressOneClaim(ctx, resolved.LaneClassModel)
 		done <- err
 	}()
 	defer func() {

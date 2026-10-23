@@ -116,6 +116,7 @@ func (s *Scheduler) buildStageCreation(
 		EscalationOrdinal:      configuration.ordinal,
 		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: encodedStage,
 		StageContextSchemaVersion: contracts.APIVersion, StageContext: contextSnapshot,
+		LaneClass: resolved.StageLaneClass(stage),
 	}, ContextPins: pins}, nil
 }
 

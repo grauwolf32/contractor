@@ -33,7 +33,8 @@ func TestSchedulerSettingsGetReplaceAndNoOp(t *testing.T) {
 	}
 	var initial schedulerSettingsResponse
 	if err := json.Unmarshal(got.Body.Bytes(), &initial); err != nil ||
-		initial.MaxConcurrentRuns != 1 || initial.Revision != "1" || initial.UpdatedAt.IsZero() {
+		initial.MaxConcurrentRuns != 1 || initial.MaxConcurrentToolRuns != 2 || initial.Revision != "1" ||
+		initial.UpdatedAt.IsZero() {
 		t.Fatalf("initial Scheduler settings = (%+v, %v)", initial, err)
 	}
 
@@ -95,6 +96,37 @@ func TestSchedulerSettingsGetReplaceAndNoOp(t *testing.T) {
 	}
 }
 
+// A replacement that omits maxConcurrentToolRuns keeps the stored value; one
+// that sends it changes it, and changing only it is a new revision (LIM-OPS-34).
+func TestSchedulerSettingsReplaceKeepsOrChangesToolLanes(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	put := func(body, ifMatch string) schedulerSettingsResponse {
+		t.Helper()
+		response := httptest.NewRecorder()
+		fixture.handler.ServeHTTP(response, schedulerSettingsRequest(http.MethodPut, body, ifMatch))
+		if response.Code != http.StatusOK {
+			t.Fatalf("PUT %s = %d %s", body, response.Code, response.Body.String())
+		}
+		var decoded schedulerSettingsResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &decoded); err != nil {
+			t.Fatal(err)
+		}
+		return decoded
+	}
+	kept := put(`{"maxConcurrentRuns":3}`, `"1"`)
+	if kept.MaxConcurrentRuns != 3 || kept.MaxConcurrentToolRuns != 2 || kept.Revision != "2" {
+		t.Fatalf("omitted tool lanes = %+v, want 3/2 at revision 2", kept)
+	}
+	changed := put(`{"maxConcurrentRuns":3,"maxConcurrentToolRuns":5}`, `"2"`)
+	if changed.MaxConcurrentRuns != 3 || changed.MaxConcurrentToolRuns != 5 || changed.Revision != "3" {
+		t.Fatalf("changed tool lanes = %+v, want 3/5 at revision 3", changed)
+	}
+	unchanged := put(`{"maxConcurrentRuns":3,"maxConcurrentToolRuns":5}`, `"3"`)
+	if unchanged != changed || fixture.settings.updates != 2 || fixture.notifier.calls != 2 {
+		t.Fatalf("repeated replacement = %+v, updates %d, wakes %d", unchanged, fixture.settings.updates, fixture.notifier.calls)
+	}
+}
+
 func TestSchedulerSettingsReplaceRejectsInvalidRequestsWithoutMutation(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -121,6 +153,12 @@ func TestSchedulerSettingsReplaceRejectsInvalidRequestsWithoutMutation(t *testin
 		{name: "null", body: `{"maxConcurrentRuns":null}`, contentType: "application/json", ifMatch: []string{`"1"`}, wantStatus: http.StatusBadRequest},
 		{name: "too small", body: `{"maxConcurrentRuns":0}`, contentType: "application/json", ifMatch: []string{`"1"`}, wantStatus: http.StatusBadRequest},
 		{name: "too large", body: `{"maxConcurrentRuns":33}`, contentType: "application/json", ifMatch: []string{`"1"`}, wantStatus: http.StatusBadRequest},
+		{name: "tool lanes only", body: `{"maxConcurrentToolRuns":2}`, contentType: "application/json", ifMatch: []string{`"1"`}, wantStatus: http.StatusBadRequest},
+		{name: "tool lanes null", body: `{"maxConcurrentRuns":2,"maxConcurrentToolRuns":null}`, contentType: "application/json", ifMatch: []string{`"1"`}, wantStatus: http.StatusBadRequest},
+		{name: "tool lanes fraction", body: `{"maxConcurrentRuns":2,"maxConcurrentToolRuns":1.5}`, contentType: "application/json", ifMatch: []string{`"1"`}, wantStatus: http.StatusBadRequest},
+		{name: "tool lanes too small", body: `{"maxConcurrentRuns":2,"maxConcurrentToolRuns":0}`, contentType: "application/json", ifMatch: []string{`"1"`}, wantStatus: http.StatusBadRequest},
+		{name: "tool lanes too large", body: `{"maxConcurrentRuns":2,"maxConcurrentToolRuns":33}`, contentType: "application/json", ifMatch: []string{`"1"`}, wantStatus: http.StatusBadRequest},
+		{name: "tool lanes case alias", body: `{"maxConcurrentRuns":2,"MaxConcurrentToolRuns":3}`, contentType: "application/json", ifMatch: []string{`"1"`}, wantStatus: http.StatusBadRequest},
 		{name: "unexpected query", body: `{"maxConcurrentRuns":2}`, contentType: "application/json", ifMatch: []string{`"1"`}, target: "?force=true", wantStatus: http.StatusBadRequest},
 	}
 

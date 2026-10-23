@@ -3579,9 +3579,19 @@
     "SchedulerSettings": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["maxConcurrentRuns", "revision", "updatedAt"],
+      "required": [
+        "maxConcurrentRuns",
+        "maxConcurrentToolRuns",
+        "revision",
+        "updatedAt"
+      ],
       "properties": {
         "maxConcurrentRuns": { "type": "integer", "minimum": 1, "maximum": 32 },
+        "maxConcurrentToolRuns": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32
+        },
         "revision": { "type": "string", "pattern": "^[1-9][0-9]{0,19}$" },
         "updatedAt": { "type": "string", "format": "date-time" }
       }
@@ -3591,7 +3601,12 @@
       "additionalProperties": false,
       "required": ["maxConcurrentRuns"],
       "properties": {
-        "maxConcurrentRuns": { "type": "integer", "minimum": 1, "maximum": 32 }
+        "maxConcurrentRuns": { "type": "integer", "minimum": 1, "maximum": 32 },
+        "maxConcurrentToolRuns": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32
+        }
       }
     },
     "AuditActor": { "type": "string", "minLength": 1, "maxLength": 256 },
