@@ -431,6 +431,21 @@ a candidate that fails them. It may replace an invalid claimed success with a
 failed `result_contract_violation`. Final report collection may update
 StageMetrics but never rewrites this semantic result.
 
+**SCH-R177.** When its revalidation cannot confirm a result artifact or the
+saved summary artifact of a candidate, Workflow Scheduler classifies the
+failure as the Planners do ([PLN-R118](planners.md)) and ends the Stage through
+bounded `aborting` with an interrupted StageTermination. A rejected exact
+reference — malformed, naming no revision the RunScope holds, or answered with
+metadata of another revision — records the non-retryable
+`result_contract_violation`, like every other contract violation of the
+candidate. A failure that leaves the reference unverified, such as an
+unavailable store, records the retryable `result_verification_unavailable`.
+Result artifacts are verified in result-name order, so the same candidate
+always ends with the same code. The StageContext pins of the next
+StageExecution are checked with the same classification when a progression
+commits: a rejected pin is durable state the Scheduler cannot progress
+(SCH-R102).
+
 **SCH-R36.** Scheduler-driven cancellation or interruption is never represented
 as a StageResult; it uses the distinct `StageTermination` contract.
 
@@ -1498,7 +1513,10 @@ Errors ([registry](../platform/errors.md)):
 - `context_artifact_missing` — a required Stage context binding is missing
   (SCH-R17).
 - `result_contract_violation` — Scheduler replaced an invalid claimed success
-  with a failed result (SCH-R35).
+  with a failed result (SCH-R35), including a rejected result or summary
+  artifact reference (SCH-R177); non-retryable.
+- `result_verification_unavailable` — a candidate artifact could not be
+  verified because the store did not answer; retryable (SCH-R177).
 - `scheduler_state_invalid`, `unsupported_workflow_shape` — durable state the
   Scheduler cannot progress (SCH-R102).
 - `control_lease_expired`, `runtime_state_mismatch` — allocation-loss reasons

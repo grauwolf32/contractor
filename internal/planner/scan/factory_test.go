@@ -444,7 +444,7 @@ func (s *factoryArtifacts) Create(ctx context.Context, _ string, target contract
 func (s *factoryArtifacts) Inspect(_ context.Context, _ string, ref contracts.ArtifactRef) (planner.ArtifactMetadata, error) {
 	payload, exists := s.values[factoryRefKey(ref)]
 	if !exists || ref.ValidateExact() != nil {
-		return planner.ArtifactMetadata{}, errors.New("exact report unavailable")
+		return planner.ArtifactMetadata{}, artifacts.ErrArtifactNotFound
 	}
 	return planner.ArtifactMetadata{MediaType: payload.MediaType}, nil
 }

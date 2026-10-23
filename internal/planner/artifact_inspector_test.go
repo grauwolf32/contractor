@@ -93,16 +93,16 @@ func TestArtifactInspectorsUseExactMetadataWithTransferSlotsSaturated(t *testing
 		t.Fatalf("metadata query count = %d, want 4", repository.queries)
 	}
 	for _, inspector := range []ArtifactInspector{serviceInspector, runInspector} {
-		if _, err := inspector.Inspect(ctx, "run-2", ref); err == nil {
-			t.Fatal("inspector accepted foreign RunScope")
+		if _, err := inspector.Inspect(ctx, "run-2", ref); !artifacts.IsExactReferenceRejection(err) {
+			t.Fatalf("foreign RunScope inspection = %v, want a rejected reference", err)
 		}
 		missing := ref
 		missing.Name = "missing"
 		if _, err := inspector.Inspect(ctx, "run-1", missing); !errors.Is(err, artifacts.ErrArtifactNotFound) {
 			t.Fatalf("missing artifact = %v", err)
 		}
-		if _, err := inspector.Inspect(ctx, "run-1", contracts.ArtifactRef{Namespace: ref.Namespace, Name: ref.Name}); err == nil {
-			t.Fatal("inspector accepted a binding head without exact revision")
+		if _, err := inspector.Inspect(ctx, "run-1", contracts.ArtifactRef{Namespace: ref.Namespace, Name: ref.Name}); !artifacts.IsExactReferenceRejection(err) {
+			t.Fatalf("binding head inspection = %v, want a rejected reference", err)
 		}
 	}
 	wrong := "rev-2"
@@ -111,8 +111,8 @@ func TestArtifactInspectorsUseExactMetadataWithTransferSlotsSaturated(t *testing
 		MediaType: "application/json",
 	}
 	for _, inspector := range []ArtifactInspector{serviceInspector, runInspector} {
-		if _, err := inspector.Inspect(ctx, "run-1", ref); err == nil {
-			t.Fatal("inspector accepted metadata for another revision")
+		if _, err := inspector.Inspect(ctx, "run-1", ref); !errors.Is(err, artifacts.ErrArtifactIntegrity) {
+			t.Fatalf("metadata for another revision = %v, want ErrArtifactIntegrity", err)
 		}
 	}
 }
