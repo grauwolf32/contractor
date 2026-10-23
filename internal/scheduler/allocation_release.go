@@ -13,6 +13,10 @@ func (s *Scheduler) releaseTerminal(
 	stageExecutionID string,
 	reservations []controlplane.Reservation,
 ) error {
+	// Every caller has committed the Stage's terminal outcome (or its Queue
+	// Pause exception, SCH-R68) after persisting its reports, so the Stage's
+	// preparation secrets have no further reader (SCH-R178).
+	s.preparedSecrets.forget(stageExecutionID)
 	if len(reservations) == 0 {
 		return nil
 	}
@@ -121,6 +125,9 @@ func (s *Scheduler) recoverTerminalExecution(
 	ctx context.Context,
 	execution runstore.StageExecution,
 ) (bool, error) {
+	// A terminal Stage persists no further report, including one that ended
+	// without reaching its own release (SCH-R102, SCH-R178).
+	s.preparedSecrets.forget(execution.StageExecutionID)
 	allocationContext, cancelAllocations := context.WithTimeout(ctx, s.options.OperationTimeout)
 	allocations, err := s.store.ListStageAllocations(
 		allocationContext, execution.StageExecutionID,
