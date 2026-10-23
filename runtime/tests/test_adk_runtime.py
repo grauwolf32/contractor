@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import asyncio
 import base64
+import copy
 import json
 from collections.abc import AsyncGenerator
 from dataclasses import replace
@@ -30,6 +31,7 @@ from google.genai import types
 from pydantic import Field
 
 import contractor_runtime
+import contractor_runtime.worker.runtime as worker_runtime_module
 from contractor_runtime.adapters import (
     AdapterHandles,
     RuntimeInstrumentation,
@@ -81,6 +83,7 @@ from contractor_runtime.worker.runtime import (
     _summarizer_secrets,
 )
 from contractor_runtime.worker.sessions import WorkerSessionLifecycleError
+from contractor_runtime.worker.summarizer import TranscriptRecorder
 from contractor_runtime.workspace import AllocationWorkspace
 
 SECRET = "recognizable-adk-gateway-token"
@@ -310,6 +313,78 @@ def test_adk_worker_rejects_oversized_stage_content_before_creating_session(
                 app_name=runtime._app_name, user_id=runtime._user_id
             )
         ).sessions == []
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("mode", [WorkerSessionMode.SHARED, WorkerSessionMode.ISOLATED])
+def test_adk_worker_sessions_mirror_the_canonical_contractor_state(
+    tmp_path: Path, mode: WorkerSessionMode
+) -> None:
+    async def scenario() -> None:
+        client = FakeArtifactClient()
+        state = WorkerState()
+        tools = await selected_tools(tmp_path, client, state)
+        read = {"namespace": "inputs", "name": "source", "revision": "input-r1"}
+        model = scripted_model(
+            [
+                tool_call("read_artifact", read, call_id="read-1"),
+                terminal_text("FIRST"),
+                tool_call("read_artifact", read, call_id="read-2"),
+                terminal_text("SECOND"),
+            ]
+        )
+        runtime = await create_runtime(tmp_path, state, tools, model, session_mode=mode)
+        service = runtime._session_service
+        created: list[dict[str, Any]] = []
+        delivered: list[dict[str, Any]] = []
+        create_session = service.create_session
+        append_event = service.append_event
+
+        async def recording_create(**kwargs: Any) -> Any:
+            created.append(copy.deepcopy(kwargs["state"]["contractor"]))
+            return await create_session(**kwargs)
+
+        async def recording_append(*args: Any, **kwargs: Any) -> Any:
+            event = kwargs["event"] if "event" in kwargs else args[1]
+            delta = event.actions.state_delta if event.actions is not None else {}
+            if "contractor" in delta:
+                delivered.append(copy.deepcopy(delta["contractor"]))
+            return await append_event(*args, **kwargs)
+
+        service.create_session = recording_create  # type: ignore[method-assign]
+        service.append_event = recording_append  # type: ignore[method-assign]
+
+        initial = await state.snapshot()
+        first = await runtime.invoke(stage_request())
+        after_first = await state.snapshot()
+        second = await runtime.invoke(stage_request().model_copy(update={"subtask_id": "1"}))
+        after_second = await state.snapshot()
+
+        assert first.result is not None and second.result is not None
+        assert first.state_revision == after_first["stateRevision"]
+        assert second.state_revision == after_second["stateRevision"]
+        assert [call["callId"] for call in after_second["metrics"]["toolCalls"]] == [
+            "tool-00000001",
+            "tool-00000002",
+        ]
+        # Every session carries the canonical subtree (WRK-R105): created from
+        # it, and handed each terminal revision.
+        assert created[0] == initial
+        assert after_first in delivered
+        assert delivered[-1] == after_second
+        if mode == WorkerSessionMode.ISOLATED:
+            assert created == [initial, after_first]
+        else:
+            assert created == [initial]
+            session_id = runtime._session_lifecycle.shared_session_id
+            assert session_id is not None
+            session = await service.get_session(
+                app_name=runtime._app_name, user_id=runtime._user_id, session_id=session_id
+            )
+            assert session is not None
+            assert session.state["contractor"] == after_second
         await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
     asyncio.run(scenario())
@@ -2136,6 +2211,130 @@ def test_adk_worker_closes_ephemeral_gateway_summarizer_client(tmp_path: Path) -
         assert not summary_http.is_closed
         await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
         await summary_http.aclose()
+
+    asyncio.run(scenario())
+
+
+def spy_transcripts(monkeypatch: pytest.MonkeyPatch) -> dict[str, list[Any]]:
+    """Observe every TranscriptRecorder construction and record call."""
+
+    observed: dict[str, list[Any]] = {"created": [], "recorded": [], "secrets": []}
+    original_init = TranscriptRecorder.__init__
+    original_record = TranscriptRecorder.record
+
+    def init(self: TranscriptRecorder, *, secrets: Any = ()) -> None:
+        observed["created"].append(tuple(secrets))
+        original_init(self, secrets=secrets)
+
+    def record(self: TranscriptRecorder, event: Any) -> None:
+        observed["recorded"].append(event)
+        original_record(self, event)
+
+    def summarizer_secrets(context: WorkerBuildContext) -> tuple[str, ...]:
+        secrets = _summarizer_secrets(context)
+        observed["secrets"].append(secrets)
+        return secrets
+
+    monkeypatch.setattr(TranscriptRecorder, "__init__", init)
+    monkeypatch.setattr(TranscriptRecorder, "record", record)
+    monkeypatch.setattr(worker_runtime_module, "_summarizer_secrets", summarizer_secrets)
+    return observed
+
+
+def test_adk_worker_without_a_summarizer_records_no_transcript(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    observed = spy_transcripts(monkeypatch)
+
+    async def scenario() -> None:
+        client = FakeArtifactClient()
+        state = WorkerState()
+        tools = await selected_tools(tmp_path, client, state)
+        model = scripted_model(
+            [
+                tool_call(
+                    "read_artifact",
+                    {"namespace": "inputs", "name": "source", "revision": "input-r1"},
+                    call_id="read-1",
+                ),
+                terminal_text("Source read"),
+            ]
+        )
+        runtime = await create_runtime(tmp_path, state, tools, model)
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.result is not None
+        assert completion.result.result == "Source read"
+        assert completion.result.summarized is False
+        assert client.calls == ["read_artifact"]
+        assert observed == {"created": [], "recorded": [], "secrets": []}
+        finished = (await state.snapshot())["lastCompletedInvocation"]
+        assert finished["summarizer"]["phase"] == "disabled"
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_summarizer_receives_the_recorded_redacted_transcript(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    observed = spy_transcripts(monkeypatch)
+
+    async def scenario() -> None:
+        client = FakeArtifactClient()
+        state = WorkerState()
+        tools = await selected_tools(tmp_path, client, state)
+        first_response = tool_call(
+            "read_artifact",
+            {"namespace": "inputs", "name": "source", "revision": "input-r1"},
+            call_id="read-before-summary",
+        )
+        assert first_response.content is not None and first_response.content.parts is not None
+        first_response.content.parts.insert(
+            0, types.Part(text=f"Reading with {SECRET} under {tmp_path}")
+        )
+        normal_model = scripted_model([first_response])
+        summary_model = scripted_model(
+            [structured_result("Bounded terminal summary")],
+            model="worker-summary-model",
+        )
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            tools,
+            normal_model,
+            summary_model=summary_model,
+            cumulative_budget=10,
+        )
+        expected_secrets = _summarizer_secrets(runtime._context)
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.result is not None
+        assert completion.result.result == "Bounded terminal summary"
+        assert completion.result.summarized is True
+        assert observed["secrets"] == [expected_secrets]
+        assert observed["created"] == [expected_secrets]
+        events = list(observed["recorded"])
+        assert len(events) >= 2
+        # The summarizer receives exactly the bounded, redacted projection of
+        # the recorded normal-loop events (WRK-R146, WRK-R147).
+        replay = TranscriptRecorder(secrets=expected_secrets)
+        for event in events:
+            replay.record(event)
+        expected_transcript = json.loads(json.dumps(replay.finish()))
+        content = summary_model.requests[0]["contentText"]
+        payload = json.loads(content.split("\n", 1)[1])
+        assert payload["transcript"] == expected_transcript
+        assert payload["transcriptTruncated"] is replay.truncated
+        assert "[REDACTED]" in json.dumps(payload["transcript"])
+        assert "read_artifact" in json.dumps(payload["transcript"])
+        assert SECRET not in content
+        assert str(tmp_path) not in content
+        finished = (await state.snapshot())["lastCompletedInvocation"]
+        assert finished["summarizer"]["phase"] == "succeeded"
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
     asyncio.run(scenario())
 
