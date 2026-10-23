@@ -283,6 +283,28 @@ placed in the Worker model prompt.
 invocation, including reminders, model recovery and publication; it does not
 turn `requestTimeoutSeconds` into a whole-invocation cap.
 
+**WRK-R167.** An ordinary ADK invocation applies the same absolute deadline to
+its whole logical invocation: model and tool execution, model recovery waits,
+the result finalizer and the terminal summarizer. Runtime converts it to a
+monotonic deadline once, at invocation start. A request whose deadline has
+already passed starts no model or tool call and adds nothing to the session's
+conversation. When the deadline passes, Runtime cancels the work in flight and joins
+it, starts no further model, tool, finalizer or summarizer call, and returns
+the retryable `worker_timeout` failure; it does not depend on the Server's
+best-effort A2A cancellation. Externally requested cancellation is never
+reported as `worker_timeout`, a sandbox failure keeps its own code, and the
+timeout of a nested operation, such as the Gateway attempt series (WRK-R13,
+WRK-R157), keeps that operation's failure. A summarizer call cut off by the
+deadline is recorded with the `cancelled` cause (WRK-R155).
+
+**WRK-R168.** The deadline bounds the semantic work of WRK-R158 and WRK-R167,
+not what follows its outcome. Pre-terminal workspace auto-export
+([WSP-R143](../tools/workspace.md)) keeps the request timeouts of its writes,
+and Worker State finalization and session release run after an expired
+deadline under their own bounded, cancellation-shielded cleanup budget
+(FAIL-WRK-4). A release that exceeds that budget fences the Worker exactly as
+it does without a deadline.
+
 How the Audit strategy converts and applies the deadline is owned by
 [Audit Worker completion](../audits/worker-completion.md).
 
@@ -1316,6 +1338,7 @@ Errors ([registry](../platform/errors.md)):
 - `worker_gateway_unavailable`, `worker_gateway_invalid_request`
   (WRK-R19, WRK-R21);
 - `worker_budget_exhausted` (WRK-R25);
+- `worker_timeout` (WRK-R158, WRK-R167);
 - result failures: `worker_result_missing`, `worker_output_limit_exceeded`,
   `worker_result_invalid`, `worker_result_subtask_mismatch`,
   `worker_result_finalizer_mismatch`, `worker_result_finalizer_failed`,

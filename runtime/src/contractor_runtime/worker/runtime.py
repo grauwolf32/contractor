@@ -132,6 +132,29 @@ def requires_content_free_telemetry(
     )
 
 
+class _InvocationDeadline:
+    """The effective Worker-call deadline on the event loop's monotonic clock.
+
+    It is converted once, at invocation start, so continuations never reset it.
+    ``scope`` cancels the work in flight once the loop runs its timer; ADK then
+    joins its node task. ``check`` refuses to start the next phase when the
+    deadline passed while this task ran without yielding to that timer
+    (WRK-R167).
+    """
+
+    def __init__(self, deadline: datetime) -> None:
+        self._loop = asyncio.get_running_loop()
+        self.when = self._loop.time() + (deadline - datetime.now(UTC)).total_seconds()
+        self.scope = asyncio.timeout_at(self.when)
+
+    def passed(self) -> bool:
+        return self.scope.expired() or self._loop.time() >= self.when
+
+    def check(self) -> None:
+        if self.passed():
+            raise TimeoutError("Worker invocation deadline exceeded")
+
+
 class AdkWorkerRuntime:
     def __init__(
         self,
@@ -620,21 +643,19 @@ class AdkWorkerRuntime:
         transcript = TranscriptRecorder(secrets=summary_secrets)
         self._invocation_observed_refs.clear()
         completion = self._completion
-        # The Planner's deadline covers the whole logical invocation. The
-        # request timeout still applies independently inside model/tool clients.
-        deadline = (
-            asyncio.get_running_loop().time()
-            + (request.deadline - datetime.now(UTC)).total_seconds()
-        )
+        # The Planner's deadline covers the whole logical invocation, ordinary
+        # or Audit (WRK-R158, WRK-R167). The request timeout still applies
+        # independently inside model/tool clients (WRK-R157).
+        deadline = _InvocationDeadline(request.deadline)
         try:
             if completion is not None:
                 failure = completion.validate_request(request)
                 if failure is not None:
                     return failure, False
                 completion.begin(invocation_id)
-            async with (
-                asyncio.timeout_at(deadline) if completion is not None else contextlib.nullcontext()
-            ):
+            async with deadline.scope:
+                # An expired request starts no model or tool work.
+                deadline.check()
                 while True:
                     candidate: str | None = None
                     try:
@@ -671,6 +692,9 @@ class AdkWorkerRuntime:
                                     candidate = text
                     except Exception as error:
                         self._worker_state.execution.check()
+                        # Work that ends after the deadline, including a
+                        # summarization request, ends with the deadline.
+                        deadline.check()
                         if _worker_summarization_request(error) is not None:
                             return await self._run_terminal_summarizer(
                                 request=request,
@@ -708,6 +732,10 @@ class AdkWorkerRuntime:
         except TimeoutError as error:
             if completion is not None:
                 return completion.failure(error), False
+            if not deadline.passed():
+                # Only the invocation deadline owns worker_timeout; a nested
+                # operation's own timeout stays an execution failure.
+                raise
             return _failure("worker_timeout", "Worker invocation deadline exceeded", True), False
         except WorkerCompletionError as error:
             self._check_active()
@@ -734,7 +762,7 @@ class AdkWorkerRuntime:
             try:
                 decision = await self._completion.finish(
                     request=request,
-                    deadline=deadline,
+                    deadline=deadline.when,
                     check_active=self._check_active,
                 )
             except Exception as error:
@@ -759,6 +787,8 @@ class AdkWorkerRuntime:
                 tuple(self._invocation_observed_refs),
                 verified_finalizer_refs=tuple(decision.result.artifacts.values()),
             )
+        # No finalizer call starts once the deadline has passed (WRK-R167).
+        deadline.check()
         return await self._complete_ordinary_finish(request, candidate, invocation_id)
 
     async def _complete_ordinary_finish(self, request, candidate, invocation_id):

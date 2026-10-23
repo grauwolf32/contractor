@@ -12,6 +12,7 @@ from typing import Any
 
 import httpx
 import pytest
+from fakes.clock import advance_clock, run_with_advanceable_clock
 from fakes.model import (
     ScriptedLlm,
     json_result,
@@ -74,7 +75,11 @@ from contractor_runtime.toolsets.memory.tools import MemoryToolsetFactory
 from contractor_runtime.toolsets.run_artifacts.tools import RunArtifactsToolsetFactory
 from contractor_runtime.worker.factory import AdkWorkerRuntimeFactory
 from contractor_runtime.worker.finalizer import _SYSTEM_INSTRUCTION as FINALIZER_INSTRUCTION
-from contractor_runtime.worker.runtime import AdkWorkerRuntime, _summarizer_secrets
+from contractor_runtime.worker.runtime import (
+    INVOCATION_CLEANUP_TIMEOUT_SECONDS,
+    AdkWorkerRuntime,
+    _summarizer_secrets,
+)
 from contractor_runtime.worker.sessions import WorkerSessionLifecycleError
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -2768,6 +2773,489 @@ def test_session_cleanup_timeout_is_bounded_and_keeps_invocation_identity(
         await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
     asyncio.run(scenario())
+
+
+# stage_request() expires one hour after it is built; advancing the loop clock
+# by this much passes the deadline at a point the test chooses.
+PAST_STAGE_DEADLINE_SECONDS = timedelta(hours=1).total_seconds() + 1
+
+
+class SettlingScriptedLlm(ScriptedLlm):
+    """Record each started model call once it has ended, including by cancellation."""
+
+    settled: list[int] = Field(default_factory=list, exclude=True)
+
+    async def generate_content_async(
+        self, llm_request: LlmRequest, stream: bool = False
+    ) -> AsyncGenerator[LlmResponse]:
+        call = len(self.requests) + 1
+        try:
+            async for response in super().generate_content_async(llm_request, stream=stream):
+                yield response
+        finally:
+            self.settled.append(call)
+
+
+def settling_model(
+    responses: list[object],
+    *,
+    block_call_number: int | None = None,
+    model: str = "deterministic-fake",
+) -> SettlingScriptedLlm:
+    return SettlingScriptedLlm(
+        model=model,
+        responses=list(responses),
+        block_call_number=block_call_number,
+    )
+
+
+def assert_worker_timeout(completion: Any) -> None:
+    assert completion.result is None
+    assert completion.failure is not None
+    assert completion.failure.code == "worker_timeout"
+    assert completion.failure.message == "Worker invocation deadline exceeded"
+    assert completion.failure.retryable is True
+
+
+def assert_slot_released(runtime: AdkWorkerRuntime) -> None:
+    assert runtime._active_task is None
+    assert runtime._active_budget is None
+    assert not runtime._invoke_lock.locked()
+    assert runtime._session_lifecycle.active_session_id is None
+    # A deadline ends one invocation; it does not fence the Worker.
+    assert runtime._accepting
+
+
+def test_ordinary_worker_with_an_expired_deadline_starts_no_model_or_tool_call(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        tool_calls: list[str] = []
+
+        async def probe() -> dict[str, bool]:
+            tool_calls.append("probe")
+            return {"ok": True}
+
+        state = WorkerState()
+        model = scripted_model(
+            [tool_call("probe", {}, call_id="probe-after-deadline"), terminal_text("done")]
+        )
+        runtime = await create_runtime(
+            tmp_path, state, {"probe": probe}, model, session_mode=WorkerSessionMode.SHARED
+        )
+        expired = stage_request().model_copy(
+            update={
+                "deadline": datetime.now(UTC) - timedelta(days=1),
+                "objective": "EXPIRED_OBJECTIVE_SENTINEL",
+            }
+        )
+
+        # No CancelTask arrives: the Runtime alone refuses the expired call.
+        completion = await runtime.invoke(expired)
+
+        assert_worker_timeout(completion)
+        assert model.requests == []
+        assert tool_calls == []
+        assert state.metrics.counters.get("llm_calls", 0) == 0
+        snapshot = await state.snapshot()
+        completed = snapshot["lastCompletedInvocation"]
+        assert completed["invocationId"] == completion.invocation_id
+        assert completed["phase"] == "failed"
+        assert completed["metrics"]["modelCalls"] == 0
+        assert completed["metrics"]["toolCalls"] == 0
+        assert_slot_released(runtime)
+
+        later = await runtime.invoke(stage_request())
+
+        assert later.result is not None
+        assert later.result.result == "done"
+        assert tool_calls == ["probe"]
+        # The expired task never entered the shared conversation.
+        assert all(
+            "EXPIRED_OBJECTIVE_SENTINEL" not in call["contentText"] for call in model.requests
+        )
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("phase", ["model", "tool", "result_finalizer", "summarizer"])
+def test_deadline_during_an_ordinary_phase_cancels_and_joins_its_work(
+    tmp_path: Path, phase: str
+) -> None:
+    async def scenario() -> None:
+        tool_entered = asyncio.Event()
+        tool_settled: list[str] = []
+
+        async def probe() -> dict[str, bool]:
+            if phase == "tool":
+                tool_entered.set()
+                try:
+                    await asyncio.Event().wait()
+                finally:
+                    tool_settled.append("probe")
+            return {"ok": True}
+
+        state = WorkerState()
+        instrumentation = RecordingInstrumentation()
+        summary_model: SettlingScriptedLlm | None = None
+        if phase == "model":
+            model = settling_model([terminal_text("late")], block_call_number=1)
+        elif phase == "tool":
+            model = settling_model(
+                [tool_call("probe", {}, call_id="blocked-probe"), terminal_text("late")]
+            )
+        elif phase == "result_finalizer":
+            model = settling_model([terminal_text("late")], block_call_number=2)
+        else:
+            model = settling_model([tool_call("probe", {}, call_id="probe-before-summary")])
+            summary_model = settling_model(
+                [structured_result("late")],
+                block_call_number=1,
+                model="worker-summary-model",
+            )
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {"probe": probe},
+            model,
+            instrumentation=instrumentation,
+            summary_model=summary_model,
+            cumulative_budget=10 if summary_model is not None else None,
+        )
+        invocation = asyncio.create_task(runtime.invoke(stage_request()))
+        in_flight = tool_entered if phase == "tool" else (summary_model or model).blocked
+        await asyncio.wait_for(in_flight.wait(), timeout=1)
+
+        # No CancelTask arrives: only the Runtime's own deadline ends the work.
+        advance_clock(PAST_STAGE_DEADLINE_SECONDS)
+        completion = await asyncio.wait_for(invocation, timeout=1)
+
+        assert_worker_timeout(completion)
+        # The work in flight ended before the invocation did, and nothing followed it.
+        if phase == "tool":
+            assert tool_settled == ["probe"]
+            assert len(model.requests) == 1
+        elif phase == "summarizer":
+            assert summary_model is not None
+            assert len(summary_model.requests) == 1
+            assert summary_model.settled == [1]
+            assert len(model.requests) == 1
+        else:
+            blocked_call = 1 if phase == "model" else 2
+            assert len(model.requests) == blocked_call
+            assert blocked_call in model.settled
+        snapshot = await state.snapshot()
+        completed = snapshot["lastCompletedInvocation"]
+        assert completed["invocationId"] == completion.invocation_id
+        assert completed["phase"] == "failed"
+        if phase == "summarizer":
+            assert completed["summarizer"]["phase"] == "failed"
+            assert completed["summarizer"]["failureCode"] == "cancelled"
+        if phase in {"model", "result_finalizer"}:
+            model_spans = [
+                span for span in instrumentation.spans if span.name == "contractor.worker.model"
+            ]
+            assert model_spans[-1].outcome == "cancelled"
+            assert (model_spans[-1].attributes.get("model.phase") == "result_finalizer") is (
+                phase == "result_finalizer"
+            )
+        assert_slot_released(runtime)
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    run_with_advanceable_clock(scenario())
+
+
+@pytest.mark.parametrize("boundary", ["next_model_call", "result_finalizer", "summarizer"])
+def test_deadline_passing_at_a_step_boundary_starts_no_next_call(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, boundary: str
+) -> None:
+    """The clock passes the deadline in this task's ADK hooks, before its timer fires."""
+
+    async def scenario() -> None:
+        tool_calls: list[str] = []
+
+        async def probe() -> dict[str, bool]:
+            tool_calls.append("probe")
+            return {"ok": True}
+
+        state = WorkerState()
+        instrumentation = RecordingInstrumentation()
+        summary_model = None
+        if boundary == "next_model_call":
+            model = scripted_model(
+                [tool_call("probe", {}, call_id="probe-1"), terminal_text("late")]
+            )
+        elif boundary == "result_finalizer":
+            model = scripted_model([terminal_text("late")])
+        else:
+            model = scripted_model([tool_call("probe", {}, call_id="probe-before-summary")])
+            summary_model = scripted_model(
+                [structured_result("late")], model="worker-summary-model"
+            )
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {"probe": probe},
+            model,
+            instrumentation=instrumentation,
+            summary_model=summary_model,
+            cumulative_budget=10 if summary_model is not None else None,
+        )
+        if boundary == "next_model_call":
+
+            async def on_event(*, invocation_context: Any, event: Any) -> None:
+                del invocation_context
+                if event.get_function_responses():
+                    advance_clock(PAST_STAGE_DEADLINE_SECONDS)
+
+            monkeypatch.setattr(runtime._plugin, "on_event_callback", on_event)
+        elif boundary == "result_finalizer":
+
+            async def after_run(*, invocation_context: Any) -> None:
+                del invocation_context
+                advance_clock(PAST_STAGE_DEADLINE_SECONDS)
+
+            monkeypatch.setattr(runtime._plugin, "after_run_callback", after_run)
+        else:
+            # ADK reports the summarization request as a run error from this task.
+            async def on_run_error(*, invocation_context: Any, error: Exception) -> None:
+                del invocation_context, error
+                advance_clock(PAST_STAGE_DEADLINE_SECONDS)
+
+            monkeypatch.setattr(runtime._plugin, "on_run_error_callback", on_run_error)
+
+        # The guard outlives the clock jump that happens during the invocation.
+        completion = await asyncio.wait_for(
+            runtime.invoke(stage_request()), timeout=PAST_STAGE_DEADLINE_SECONDS + 10
+        )
+
+        assert_worker_timeout(completion)
+        # A call counts as started before the provider sees it: only the first
+        # main model call started, and no model, finalizer or summarizer followed.
+        assert state.metrics.counters["llm_calls"] == 1
+        assert len(model.requests) == 1
+        model_spans = [
+            span for span in instrumentation.spans if span.name == "contractor.worker.model"
+        ]
+        assert len(model_spans) == 1
+        assert model_spans[0].outcome == "succeeded"
+        snapshot = await state.snapshot()
+        completed = snapshot["lastCompletedInvocation"]
+        if boundary == "summarizer":
+            assert summary_model is not None and summary_model.requests == []
+            assert completed["summarizer"]["phase"] == "requested"
+            assert (
+                state.metrics.build_report(
+                    report_id="worker-report", duration_ms=1
+                ).metrics.summarizer
+                is None
+            )
+        else:
+            assert tool_calls == ([] if boundary == "result_finalizer" else ["probe"])
+        assert_slot_released(runtime)
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    run_with_advanceable_clock(scenario())
+
+
+def test_cancellation_requested_before_the_deadline_stays_a_cancellation(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        state = WorkerState()
+        model = scripted_model([terminal_text("late")], block=True)
+        runtime = await create_runtime(tmp_path, state, {}, model)
+        invocation = asyncio.create_task(runtime.invoke(stage_request()))
+        await asyncio.wait_for(model.blocked.wait(), timeout=1)
+
+        # CancelTask wins; the deadline then passes while the cancellation unwinds.
+        runtime.cancel_active(invocation)
+        advance_clock(PAST_STAGE_DEADLINE_SECONDS)
+
+        with pytest.raises(asyncio.CancelledError):
+            await invocation
+        assert state.metrics.final_outcome == "cancelled"
+        snapshot = await state.snapshot()
+        assert snapshot["lastCompletedInvocation"]["phase"] == "cancelled"
+        assert len(model.requests) == 1
+        assert not runtime._invoke_lock.locked()
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    run_with_advanceable_clock(scenario())
+
+
+@pytest.mark.parametrize(
+    ("deadline_seconds", "advance_seconds", "expected_code"),
+    [
+        # The Gateway operation timeout (requestTimeoutSeconds + 60 s) fires first.
+        (3600, 62, "worker_gateway_unavailable"),
+        # The Stage deadline fires before the Gateway's own timeout.
+        (30, 31, "worker_timeout"),
+    ],
+)
+def test_gateway_operation_timeout_and_stage_deadline_keep_separate_outcomes(
+    tmp_path: Path, deadline_seconds: int, advance_seconds: int, expected_code: str
+) -> None:
+    async def scenario() -> None:
+        sent = asyncio.Event()
+        settled: list[str] = []
+
+        async def gateway(_request: httpx.Request) -> httpx.Response:
+            sent.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                settled.append("request")
+            raise AssertionError("unreachable")
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(gateway)) as http:
+            handle = new_gateway_client(
+                base_url="https://gateway.example/v1",
+                api_key=SECRET,
+                timeout_seconds=1,
+                http_client=http,
+            )
+            handle.max_retries = 0
+            runtime = await create_runtime(
+                tmp_path,
+                WorkerState(),
+                {},
+                OpenAICompatibleGatewayLlm(model="worker-model", client_handle=handle),
+            )
+            request = stage_request().model_copy(
+                update={"deadline": datetime.now(UTC) + timedelta(seconds=deadline_seconds)}
+            )
+            invocation = asyncio.create_task(runtime.invoke(request))
+            await asyncio.wait_for(sent.wait(), timeout=1)
+
+            advance_clock(advance_seconds)
+            completion = await asyncio.wait_for(invocation, timeout=1)
+
+            assert completion.result is None
+            assert completion.failure is not None
+            assert completion.failure.code == expected_code
+            assert completion.failure.retryable is True
+            assert settled == ["request"]
+            assert_slot_released(runtime)
+            await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    run_with_advanceable_clock(scenario())
+
+
+def test_a_nested_timeout_before_the_deadline_is_not_worker_timeout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    model = scripted_model([])
+
+    async def nested_timeout(_model: object, _request: object, stream: bool = False) -> Any:
+        del stream
+        if False:
+            yield None
+        raise TimeoutError("an operation inside the model call timed out")
+
+    monkeypatch.setattr(type(model), "generate_content_async", nested_timeout)
+
+    async def scenario() -> None:
+        runtime = await create_runtime(tmp_path, WorkerState(), {}, model)
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.result is None
+        assert completion.failure is not None
+        assert completion.failure.code == "worker_execution_failed"
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("cleanup", ["completes", "stuck"])
+def test_session_cleanup_after_the_deadline_keeps_its_own_budget(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, cleanup: str
+) -> None:
+    async def scenario() -> None:
+        model = scripted_model([terminal_text("late")], block=True)
+        runtime = await create_runtime(
+            tmp_path, WorkerState(), {}, model, session_mode=WorkerSessionMode.ISOLATED
+        )
+        entered, proceed = asyncio.Event(), asyncio.Event()
+        finish = runtime._session_lifecycle.finish_invocation
+        releases = 0
+
+        async def gated_finish() -> None:
+            nonlocal releases
+            releases += 1
+            entered.set()
+            await proceed.wait()
+            await finish()
+
+        monkeypatch.setattr(runtime._session_lifecycle, "finish_invocation", gated_finish)
+        invocation = asyncio.create_task(runtime.invoke(stage_request()))
+        await asyncio.wait_for(model.blocked.wait(), timeout=1)
+        advance_clock(PAST_STAGE_DEADLINE_SECONDS)
+
+        # Release starts after the deadline and is not cut short by it.
+        await asyncio.wait_for(entered.wait(), timeout=1)
+        assert not invocation.done()
+        if cleanup == "completes":
+            proceed.set()
+        else:
+            advance_clock(INVOCATION_CLEANUP_TIMEOUT_SECONDS + 1)
+        completion = await asyncio.wait_for(invocation, timeout=1)
+
+        assert_worker_timeout(completion)
+        assert releases == 1
+        assert not runtime._invoke_lock.locked()
+        if cleanup == "completes":
+            assert_slot_released(runtime)
+        else:
+            # A release that exceeds its own budget fences the Worker, as
+            # without a deadline.
+            assert not runtime._accepting
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    run_with_advanceable_clock(scenario())
+
+
+def test_deadline_stops_an_ordinary_model_recovery_wait(tmp_path: Path) -> None:
+    from test_gateway_recovery import Authority
+
+    async def scenario() -> None:
+        authority = Authority(wait=True)
+        sent: list[httpx.Request] = []
+
+        async def gateway(request: httpx.Request) -> httpx.Response:
+            sent.append(request)
+            return httpx.Response(500)
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(gateway)) as http:
+            handle = new_gateway_client(
+                base_url="https://gateway.example/v1",
+                api_key=SECRET,
+                timeout_seconds=1,
+                http_client=http,
+                recovery=authority,
+            )
+            runtime = await create_runtime(
+                tmp_path,
+                WorkerState(),
+                {},
+                OpenAICompatibleGatewayLlm(model="worker-model", client_handle=handle),
+            )
+            invocation = asyncio.create_task(runtime.invoke(stage_request()))
+            await asyncio.wait_for(authority.observed.wait(), timeout=1)
+
+            advance_clock(PAST_STAGE_DEADLINE_SECONDS)
+            completion = await asyncio.wait_for(invocation, timeout=1)
+
+            assert_worker_timeout(completion)
+            assert sent == []
+            assert authority.events
+            assert {event[2] for event in authority.events} == {"acquire"}
+            assert_slot_released(runtime)
+            await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    run_with_advanceable_clock(scenario())
 
 
 def test_gateway_model_bounds_transport_retries_and_aggregate_timeout(tmp_path: Path) -> None:

@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-127 open tasks: 4 in progress, 98 pending, 25 deferred. 991 finished: 988 completed, 3 archived.
+127 open tasks: 5 in progress, 97 pending, 25 deferred. 991 finished: 988 completed, 3 archived.
 
 ## In progress
 
@@ -15,6 +15,7 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
+| [V407-010](v407-010-worker-local-deadline.yml) | planner-worker | defect | P2 | Enforce the effective Worker-call deadline for ordinary ADK invocations |
 
 ## Pending
 
@@ -42,7 +43,6 @@ the epics are in [epics.yml](epics.yml).
 | [V371-005](v371-005-worker-state-read-cost-guard.yml) | chore | P3 | — | Guard the Worker State read cost with a deterministic bound and re-measure it |
 | [V371-006](v371-006-workspace-observation-descriptor.yml) | chore | P3 | — | Take the Worker tools that observe the workspace from the shared Toolset descriptor |
 | [V407-008](v407-008-planner-result-verification-classes.yml) | defect | P1 | — | Align Planner artifact-failure classes and report rejected invocations correctly |
-| [V407-010](v407-010-worker-local-deadline.yml) | defect | P2 | — | Enforce the effective Worker-call deadline for ordinary ADK invocations |
 | [V407-011](v407-011-worker-state-publication-cost.yml) | chore | P2 | — | Reduce repeated Worker metric serialization and unused transcript recording |
 | [V407-012](v407-012-runtime-core-duplicates.yml) | chore | P3 | — | Consolidate equivalent Runtime helpers and offload prepare filesystem work |
 
