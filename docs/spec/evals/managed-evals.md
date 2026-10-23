@@ -532,7 +532,11 @@ instead of a subtotal of whichever contributions fit first; its source
 references still name every snapshot that reported it. The member's other
 counters keep their own values, completeness and source references. The same
 metric observations therefore always produce the same usage, and recollecting
-them creates no new result revision (EVM-R82, EVM-R239).
+them creates no new result revision (EVM-R82, EVM-R239). This rule changed the
+native output normalizer's results, so it is a new normalizer version with a
+new pinned implementation digest ([EVF-R53, EVF-R58](format.md)); a result
+collected under the earlier version is superseded by a new revision on
+recollection, never rewritten.
 
 **EVM-R82.** Recollection creates new result revisions. An existing selected
 result changes only through explicit selection, which preserves result and
