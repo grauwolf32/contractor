@@ -7,7 +7,7 @@ kind: defect
 introduced_by: V55-001
 priority: P3
 status: completed
-implementation_commit: 815d6c3eff23dcdf0937e75c7e0d017f28011f9e
+implementation_commit: dd5d65645e0c453496e8c93b2ab9d758b6ee8309
 depends_on: []
 languages:
 - python
@@ -97,11 +97,13 @@ verification:
   - 'A2: test_stopped_scanner_joins_held_thread_before_cleanup_and_unlock[18 cases: 9 stages x cancel/close] shows the task and close stay pending with the scan lock held and no rmtree while the thread is held, removal after release, removal of a directory created after the stop, no Katana publication, one cancelled tool error, an empty workspace and scan_closed after close. test_deadline_during_held_materialization_joins_thread_and_times_out returns scan_timeout without launch after joining. Existing process, timeout, output-overflow, publication and lifecycle suites pass unchanged.'
   - 'A3: test_create_only_scanner_output_is_checked_by_metadata_without_payload[8 cases] uses the real ArtifactClient over the shared ArtifactStore fake (now serving ART-R116 metadata and recording reads): 404 admits and publishes, an existing binding gives scan_output_exists, 503 and a lost response give scan_artifact_unavailable, none launches the scanner and no payload GET of targets or template-manifest occurs. The Katana unit fake now fails any payload read.'
   - 'A4: the A1 identity test compares each threaded observation with a direct parse of the same near-1 MiB output (stdoutTruncated and, for JSON scanners, resultsTruncated with 100 results; Katana published bytes equal the direct export). With the test files copied onto an unmodified fc93f1a5 worktree all 43 new tests fail (steps on the loop thread, payload reads instead of metadata reads).'
+  - 'Review follow-up (dd5d6564, after 815d6c3e): the rulepack adapter test records every read of the supplied pack and requires the exact revision (a latest-revision metadata read in production now fails all 7 cases, checked by mutation); the deadline test records the scan''s asyncio.timeout_at deadline with an hour-long budget and expires it with Timeout.reschedule only after the worker thread is held, so no real-time deadline is involved; SCN-R255 names both Nuclei manifest paths (pinned installed package and custom rulepack).'
   - 'Spec: SCN-R254 (off-loop scanner work, fixed thread submissions, joined cancellation) and SCN-R255 (metadata-only create-only output check) added to docs/spec/tools/scanners.md; make docs-dependencies regenerated the graph fingerprint.'
   commands:
   - 'cd runtime && uv run --locked pytest -q tests/test_scan_toolset.py tests/test_scan_error_codes.py: passed (146 tests).'
   - 'cd runtime && uv run --locked pytest tests/test_scan_katana.py tests/test_scan_katana_lifecycle.py tests/test_scan_katana_live.py tests/test_scan_ffuf.py tests/test_scan_ffuf_live.py tests/test_scan_sqlmap_request.py tests/test_scan_sqlmap_live.py tests/test_scan_wordlist.py tests/test_scan_http_request.py tests/test_threads.py tests/test_tool_worker.py: passed (413 tests, none skipped).'
   - 'make lint: passed.'
+  - 'After the review follow-up: the task command passed (146 tests), the scan suites passed (413 tests), the 50 changed and new off-loop, rulepack and deadline tests passed in 5 consecutive runs, and make lint passed.'
   - 'make test-runtime: 4360 passed, 39 skipped, 107 failed. 105 of the 107 IDs also fail on an unmodified fc93f1a5 worktree (podman, tool_process, trailmark child, projectfs local direct/io, code analysis: macOS Errno 43, missing pidfd_open). The other two (test_code_analysis_faults malformed-engine and test_podman_engine output flood) passed on the base run and fail intermittently when rerun alone on this branch as well; neither touches the scan toolset.'
   database_tests_configured: false
   declined:
