@@ -9,9 +9,11 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type metadataOnlyRepository struct {
@@ -79,7 +81,13 @@ func TestCandidateArtifactLookupErrorsKeepTheirMeaning(t *testing.T) {
 	}{
 		{"transfer capacity", artifacts.ErrTransferCapacity, "result_verification_unavailable", true},
 		{"database unavailable", errors.New("temporary database failure"), "result_verification_unavailable", true},
+		{"lock timeout", fmt.Errorf("read artifact metadata: %w",
+			&pgconn.PgError{Code: persistencepostgres.SQLStateLockNotAvailable}), "result_verification_unavailable", true},
+		{"expired lookup", context.DeadlineExceeded, "result_verification_unavailable", true},
 		{"missing artifact", artifacts.ErrArtifactNotFound, "result_contract_violation", false},
+		{"invalid name", artifacts.ErrInvalidName, "result_contract_violation", false},
+		{"inexact answer", fmt.Errorf("%w: ArtifactStore returned an inexact ref", artifacts.ErrArtifactIntegrity),
+			"result_contract_violation", false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			h := newSchedulerHarness(t)

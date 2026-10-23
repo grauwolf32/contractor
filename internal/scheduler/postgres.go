@@ -543,8 +543,7 @@ func commitNextStage(
 	sort.Slice(pins, func(i, j int) bool { return pins[i].Name < pins[j].Name })
 	for _, pin := range pins {
 		if err := artifactService.RequireExact(ctx, scope, pin.Ref); err != nil {
-			if errors.Is(err, artifacts.ErrArtifactNotFound) || errors.Is(err, artifacts.ErrInvalidName) ||
-				errors.Is(err, artifacts.ErrExactRevisionRequired) {
+			if artifacts.IsExactReferenceRejection(err) {
 				return fmt.Errorf("%w: require StageContext artifact %q: %w", errInvalidRunState, pin.Name, err)
 			}
 			return fmt.Errorf("require StageContext artifact %q: %w", pin.Name, err)

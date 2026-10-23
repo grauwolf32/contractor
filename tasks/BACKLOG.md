@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-123 open tasks: 4 in progress, 94 pending, 25 deferred. 995 finished: 992 completed, 3 archived.
+122 open tasks: 4 in progress, 93 pending, 25 deferred. 996 finished: 993 completed, 3 archived.
 
 ## In progress
 
@@ -40,7 +40,6 @@ the epics are in [epics.yml](epics.yml).
 | [V371-004](v371-004-worker-completion-exact-integers.yml) | defect | P3 | — | Bound WorkerCompletion integers to the range A2A carries exactly |
 | [V371-005](v371-005-worker-state-read-cost-guard.yml) | chore | P3 | — | Guard the Worker State read cost with a deterministic bound and re-measure it |
 | [V371-006](v371-006-workspace-observation-descriptor.yml) | chore | P3 | — | Take the Worker tools that observe the workspace from the shared Toolset descriptor |
-| [V407-008](v407-008-planner-result-verification-classes.yml) | defect | P1 | — | Align Planner artifact-failure classes and report rejected invocations correctly |
 | [V407-010](v407-010-worker-local-deadline.yml) | defect | P2 | — | Enforce the effective Worker-call deadline for ordinary ADK invocations |
 | [V407-011](v407-011-worker-state-publication-cost.yml) | chore | P2 | — | Reduce repeated Worker metric serialization and unused transcript recording |
 | [V407-012](v407-012-runtime-core-duplicates.yml) | chore | P3 | — | Consolidate equivalent Runtime helpers and offload prepare filesystem work |
@@ -190,7 +189,7 @@ the epics are in [epics.yml](epics.yml).
 | [V372-029](v372-029-shared-fixture-gate-scope.yml) | chore | P3 | — | Extend the shared fixture gate to every cross-language fixture and keep slow store suites out of it |
 | [V372-030](v372-030-shrink-test-only-export-baseline.yml) | chore | P3 | — | Resolve the exported identifiers that only tests use and empty the test-only export baseline |
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | chore | P3 | — | Find out why about a hundred Runtime tests fail on a macOS host and make each one pass or declare its platform |
-| [V407-039](v407-039-close-server-runtime-review.yml) | chore | P3 | V407-001, V407-002, V407-003, V407-004, V407-005, V407-006, V407-007, V407-008, V407-010, V407-011, V407-012, V407-013, V407-014, V407-015, V407-016, V407-017, V407-018, V407-019, V407-020, V407-021, V407-022, V407-023, V407-025, V407-026, V407-027, V407-028, V407-029, V407-031, V407-032, V407-033, V407-034, V407-035, V407-036 | Close the validated Server and Runtime review with explicit dispositions and verification |
+| [V407-039](v407-039-close-server-runtime-review.yml) | chore | P3 | V407-001, V407-002, V407-003, V407-004, V407-005, V407-006, V407-007, V407-010, V407-011, V407-012, V407-013, V407-014, V407-015, V407-016, V407-017, V407-018, V407-019, V407-020, V407-021, V407-022, V407-023, V407-025, V407-026, V407-027, V407-028, V407-029, V407-031, V407-032, V407-033, V407-034, V407-035, V407-036 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V408-001](v408-001-gate-duration-baseline.yml) | chore | P2 | — | Record the baseline duration of every release stage and local test target |
 | [V408-004](v408-004-e2e-build-once.yml) | chore | P2 | V408-001 | Build the Server binary and the test PKI once per e2e package and right-size per-test budgets |
 | [V408-005](v408-005-family-guard-gaps.yml) | chore | P2 | — | Close the family-target guard gaps and run the Runtime suite once with warnings as errors |
@@ -235,7 +234,7 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 10 | 41 | 51 | 18 | 73 |
-| Planners and the Worker model boundary (`planner-worker`) | 7 | 27 | 40 | 16 | 58 |
+| Planners and the Worker model boundary (`planner-worker`) | 6 | 27 | 40 | 16 | 58 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 12 | 25 | 13 | 4 | 40 |
 | Shared Memory tools (`memory`) | 1 | 6 | 9 | 2 | 12 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 2 | 1 | 1 |

@@ -38,7 +38,7 @@ func (r *ArtifactServiceResolver) Resolve(
 		return ResolvedArtifact{}, err
 	}
 	if err := result.Ref.ValidateExact(); err != nil {
-		return ResolvedArtifact{}, fmt.Errorf("ArtifactStore returned an inexact ref: %w", err)
+		return ResolvedArtifact{}, fmt.Errorf("%w: ArtifactStore returned an inexact ref: %v", artifacts.ErrArtifactIntegrity, err)
 	}
 	return ResolvedArtifact{Ref: result.Ref, MediaType: result.MediaType}, nil
 }

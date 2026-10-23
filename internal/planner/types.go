@@ -66,7 +66,10 @@ type ArtifactMetadata struct {
 }
 
 // ArtifactInspector resolves metadata for an exact ref inside one RunScope.
-// The Planner never receives artifact bytes through this interface.
+// The Planner never receives artifact bytes through this interface. An error
+// that artifacts.IsExactReferenceRejection reports rejects the ref, and
+// inspecting it again gives the same answer; any other error leaves the ref
+// unverified (PLN-R118).
 type ArtifactInspector interface {
 	Inspect(context.Context, string, contracts.ArtifactRef) (ArtifactMetadata, error)
 }
