@@ -2,17 +2,18 @@ package evalstore
 
 // SQL statements for experiments.go.
 
-// insertMembersSQL freezes the whole expected matrix of experiment $1 in one
-// statement, so the statement trigger eval_members_projection runs once with
-// every member in its transition table and advances the projection queue
-// once, while the row trigger eval_members_bound still checks each row.
-// $2-$16 hold one element per member in manifest order: member ID, pair ID,
-// ordinal, suite ID, case ID, sample, variant ID, eligibility, execution
-// kind, submission key, case and binding digests, eligibility reason (NULL
-// when absent), and the 1-based positions of the member's case part in $17
-// and variant part in $18. A recipe is exactly the case part followed by the
-// variant part (see memberRows), so each distinct projected case and each
-// variant is sent once instead of once per member. Used by Store.persistPlan.
+// insertMembersSQL inserts one bounded batch of experiment $1's expected
+// matrix (freezeBatches), so the statement trigger eval_members_projection
+// runs once per batch with the batch in its transition table and advances
+// the projection queue once, while the row trigger eval_members_bound still
+// checks each row. $2-$16 hold one element per member in manifest order:
+// member ID, pair ID, ordinal, suite ID, case ID, sample, variant ID,
+// eligibility, execution kind, submission key, case and binding digests,
+// eligibility reason (NULL when absent), and the 1-based positions of the
+// member's case part in $17 and variant part in $18. A recipe is exactly the
+// case part followed by the variant part (see memberRows), so each distinct
+// projected case and each variant of the batch is sent once instead of once
+// per member. Used by Store.persistPlan.
 var insertMembersSQL = `
 INSERT INTO eval_members(
     experiment_id, member_id, pair_id, ordinal, suite_id, case_id, sample,

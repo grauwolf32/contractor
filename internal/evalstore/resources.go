@@ -14,9 +14,10 @@ type PlanResource struct {
 }
 
 // putResources validates every plan resource before it writes, then inserts
-// them with one statement. A native plan at the 1,000-member ceiling carries
-// about as many case and input documents as members, all written inside the
-// freeze transaction that holds the Project and experiment locks.
+// them in freezeBatches by document size. A native plan at the 1,000-member
+// ceiling carries about as many case and input documents as members, all
+// written inside the freeze transaction that holds the Project and
+// experiment locks.
 func (s *Store) putResources(ctx context.Context, id string, resources []PlanResource) error {
 	if len(resources) > evaldomain.MaxMembers {
 		return evaldomain.Failure("eval_limit_exceeded")
@@ -38,12 +39,19 @@ func (s *Store) putResources(ctx context.Context, id string, resources []PlanRes
 		kinds = append(kinds, resource.Document.Kind())
 		documents = append(documents, resource.Document.Bytes())
 	}
-	_, err := s.db.Exec(ctx, `
+	start := 0
+	for _, end := range freezeBatches(len(documents), func(i int) int { return len(documents[i]) }) {
+		_, err := s.db.Exec(ctx, `
 INSERT INTO eval_plan_resources(experiment_id, resource_path, document_kind, document)
 SELECT $1, r.path, r.kind, r.document
   FROM unnest($2::text[], $3::text[], $4::bytea[]) WITH ORDINALITY AS r(path, kind, document, position)
- ORDER BY r.position`, id, paths, kinds, documents)
-	return normalize(err)
+ ORDER BY r.position`, id, paths[start:end], kinds[start:end], documents[start:end])
+		if err != nil {
+			return normalize(err)
+		}
+		start = end
+	}
+	return nil
 }
 
 func (s *Store) PlanResource(ctx context.Context, owner, id, path string) (PlanResource, error) {

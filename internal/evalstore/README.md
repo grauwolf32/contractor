@@ -40,8 +40,9 @@ artifact namespaces. The service must choose explicit public projections.
 
 The database freezes expected membership with a deferred completeness check and
 bounded unique ordinals. The freeze validates every member before it writes and
-inserts the whole matrix with one statement, then the plan resources with one
-more, so the projection trigger runs once per freeze (EVM-R241). There is no
+inserts the matrix, then the plan resources, in statements of at most 1,000 rows
+and 4 MiB of stored bytes (LIM-EVM-18), so the projection trigger runs once per
+member statement rather than once per member (EVM-R241). There is no
 independently editable public manifest.
 Project deletion fences new work in the existing lifecycle transaction. The
 ordinary Project drain waits for unresolved intents and exact Audit workspaces.

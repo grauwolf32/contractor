@@ -61,19 +61,19 @@ func (h *serviceHarness) freezeInserts(t *testing.T, fn func()) map[string]int {
 	return maps.Clone(trace.statements)
 }
 
-// assertOneInsertPerTable requires one member INSERT and, when the plan has
-// resources, one resource INSERT for the whole freeze.
-func assertOneInsertPerTable(t *testing.T, pool *pgxpool.Pool, id string, statements map[string]int) {
+// assertFreezeStatements requires the exact number of member and plan
+// resource INSERT statements: a freeze inserts each table in batches of at
+// most 1,000 rows and 4 MiB of stored recipe or document bytes (LIM-EVM-18).
+func assertFreezeStatements(t *testing.T, pool *pgxpool.Pool, id string, statements map[string]int, members, resources int) {
 	t.Helper()
-	var members, resources int
-	if err := pool.QueryRow(t.Context(), `SELECT (SELECT count(*) FROM eval_members WHERE experiment_id = $1), (SELECT count(*) FROM eval_plan_resources WHERE experiment_id = $1)`, id).Scan(&members, &resources); err != nil {
+	var memberRows, resourceRows int
+	if err := pool.QueryRow(t.Context(), `SELECT (SELECT count(*) FROM eval_members WHERE experiment_id = $1), (SELECT count(*) FROM eval_plan_resources WHERE experiment_id = $1)`, id).Scan(&memberRows, &resourceRows); err != nil {
 		t.Fatal(err)
 	}
-	wantResources := min(resources, 1)
-	if statements["eval_members"] != 1 || statements["eval_plan_resources"] != wantResources {
-		t.Errorf("want one INSERT statement per table, got %v", statements)
+	t.Logf("froze %d members and %d plan resources with %v INSERT statements", memberRows, resourceRows, statements)
+	if statements["eval_members"] != members || statements["eval_plan_resources"] != resources {
+		t.Errorf("want %d member and %d resource INSERT statements, got %v", members, resources, statements)
 	}
-	t.Logf("froze %d members and %d plan resources with %v INSERT statements", members, resources, statements)
 }
 
 // projectionQueue reads the experiment's projection queue row. During a
@@ -329,11 +329,12 @@ func (h *serviceHarness) externalAtByteCeiling(t *testing.T) (evaldomain.Frozen,
 }
 
 // The largest external registration that byte admission accepts freezes its
-// members with one INSERT. The statement trigger therefore runs once: it
-// creates the projection queue row at revision 1 and one projection row per
-// member. The per-member loop sent one INSERT per member and left the queue
-// at a revision equal to the member count.
-func TestSharedPostgresExternalByteCeilingFreezesMembersInOneStatement(t *testing.T) {
+// 1,216 members with two bounded INSERT statements. The statement trigger
+// runs once per statement: the first creates the projection queue row at
+// revision 1 and the second advances it, with one projection row per member.
+// The per-member loop sent one INSERT per member and left the queue at a
+// revision equal to the member count.
+func TestSharedPostgresExternalByteCeilingFreezesMembersInBoundedStatements(t *testing.T) {
 	h := newHarness(t)
 	doc, cases, members := h.externalAtByteCeiling(t)
 	var receipt evalstore.Receipt
@@ -352,9 +353,11 @@ func TestSharedPostgresExternalByteCeilingFreezesMembersInOneStatement(t *testin
 	if e.State != evaldomain.StateReady || e.Expected != members {
 		t.Fatalf("registration: state=%s members=%d, want ready with %d", e.State, e.Expected, members)
 	}
-	assertOneInsertPerTable(t, h.pool, e.ID, statements)
-	if revision, published, exists := projectionQueue(t, h.pool, e.ID); !exists || revision != 1 || published != 0 {
-		t.Errorf("initial projection queue row: exists=%v revision=%d published=%d, want created once at revision 1", exists, revision, published)
+	// 1,216 small recipes: two member batches (1,000 + 216 rows), and the two
+	// binding resources in one batch.
+	assertFreezeStatements(t, h.pool, e.ID, statements, 2, 1)
+	if revision, published, exists := projectionQueue(t, h.pool, e.ID); !exists || revision != 2 || published != 0 {
+		t.Errorf("projection queue row: exists=%v revision=%d published=%d, want created by the first batch and advanced by the second", exists, revision, published)
 	}
 	assertMemberProjections(t, h.pool, e.ID, members)
 	assertFrozenMembers(t, h.pool, e, cases)

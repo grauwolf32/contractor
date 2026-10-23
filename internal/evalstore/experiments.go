@@ -301,8 +301,48 @@ func (s *Store) persistPlan(ctx context.Context, e Experiment, document evaldoma
 	if err != nil {
 		return normalize(err)
 	}
-	_, err = s.db.Exec(ctx, insertMembersSQL, rows.arguments(e.ID)...)
-	return normalize(err)
+	start := 0
+	for _, end := range freezeBatches(len(rows.ids), rows.recipeBytes) {
+		if _, err = s.db.Exec(ctx, insertMembersSQL, rows.arguments(e.ID, start, end)...); err != nil {
+			return normalize(err)
+		}
+		start = end
+	}
+	return nil
+}
+
+// Each freeze insert statement holds at most freezeBatchRows rows and
+// freezeBatchBytes stored recipe or resource document bytes, but at least one
+// row (LIM-EVM-18). A member statement's trigger keeps every inserted row,
+// recipe uncompressed, in its transition table, so the byte bound keeps that
+// table within PostgreSQL's default 4 MB work_mem and each statement far below
+// the 15 s default statement timeout even for the largest admitted recipes.
+// The row bound equals the native member ceiling (LIM-EVM-3), so a native plan
+// of ordinary recipes still freezes with one statement.
+const (
+	freezeBatchRows  = 1000
+	freezeBatchBytes = 4 << 20
+)
+
+// freezeBatches splits n rows, in order, into consecutive insert batches and
+// returns the end index of each. size(i) is the stored size of row i; a row
+// that alone exceeds freezeBatchBytes forms its own batch.
+func freezeBatches(n int, size func(int) int) []int {
+	var ends []int
+	rows, bytes := 0, 0
+	for i := range n {
+		next := size(i)
+		if rows > 0 && (rows == freezeBatchRows || bytes+next > freezeBatchBytes) {
+			ends = append(ends, i)
+			rows, bytes = 0, 0
+		}
+		rows++
+		bytes += next
+	}
+	if rows > 0 {
+		ends = append(ends, n)
+	}
+	return ends
 }
 
 // memberRows is the expected matrix as one array per eval_members column,
@@ -310,9 +350,8 @@ func (s *Store) persistPlan(ctx context.Context, e Experiment, document evaldoma
 // the setup's maxMembers budget (LIM-EVF-8). A stored recipe is
 // bytesOf(Recipe{case, variant}), whose encoding is the case part
 // {"case":<case>,"variant": followed by the variant part <variant>}. Each
-// distinct projected case and each variant is kept once, so the insert's
-// parameters follow the document and dataset byte bounds (LIM-EVF-3) rather
-// than members times recipe bytes.
+// distinct projected case and each variant is kept once, and each insert
+// batch sends only the parts its members use.
 type memberRows struct {
 	ids, pairs, suites, caseIDs, variantIDs  []string
 	eligibility, kinds, keys                 []string
@@ -393,12 +432,39 @@ func prepareMembers(e Experiment, members []evaldomain.PublicMember, cases map[s
 	return rows, nil
 }
 
-// arguments returns insertMembersSQL's parameters in placeholder order.
-func (r memberRows) arguments(experimentID string) []any {
+// recipeBytes is the stored recipe size of member i.
+func (r memberRows) recipeBytes(i int) int {
+	return len(r.caseParts[r.caseRefs[i]-1]) + len(r.variantParts[r.variantRefs[i]-1])
+}
+
+// arguments returns insertMembersSQL's parameters for members [start, end)
+// in placeholder order. The batch carries only the case and variant parts its
+// members use, renumbered from 1.
+func (r memberRows) arguments(experimentID string, start, end int) []any {
+	caseRefs, variantRefs := make([]int, 0, end-start), make([]int, 0, end-start)
+	var caseParts, variantParts [][]byte
+	cases, variants := map[int]int{}, map[int]int{}
+	for i := start; i < end; i++ {
+		part, ok := cases[r.caseRefs[i]]
+		if !ok {
+			caseParts = append(caseParts, r.caseParts[r.caseRefs[i]-1])
+			part = len(caseParts)
+			cases[r.caseRefs[i]] = part
+		}
+		caseRefs = append(caseRefs, part)
+		part, ok = variants[r.variantRefs[i]]
+		if !ok {
+			variantParts = append(variantParts, r.variantParts[r.variantRefs[i]-1])
+			part = len(variantParts)
+			variants[r.variantRefs[i]] = part
+		}
+		variantRefs = append(variantRefs, part)
+	}
 	return []any{
-		experimentID, r.ids, r.pairs, r.ordinals, r.suites, r.caseIDs,
-		r.samples, r.variantIDs, r.eligibility, r.kinds, r.keys,
-		r.caseDigests, r.bindingDigests, r.reasons, r.caseRefs, r.variantRefs,
-		r.caseParts, r.variantParts,
+		experimentID, r.ids[start:end], r.pairs[start:end], r.ordinals[start:end],
+		r.suites[start:end], r.caseIDs[start:end], r.samples[start:end],
+		r.variantIDs[start:end], r.eligibility[start:end], r.kinds[start:end],
+		r.keys[start:end], r.caseDigests[start:end], r.bindingDigests[start:end],
+		r.reasons[start:end], caseRefs, variantRefs, caseParts, variantParts,
 	}
 }
