@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
@@ -83,7 +84,7 @@ func TestAuditStandardHandlersExposeCatalogProjectionOnly(t *testing.T) {
 			Attribution: "Example authors", Disclosure: auditstandards.DisclosureFull,
 		},
 		Digest: auditHandlerDigest("standard"), Artifact: contracts.ArtifactRef{
-			Namespace: auditstandards.CatalogNamespace, Name: "std-example", Revision: &revision,
+			Namespace: artifactpolicy.AuditStandardCatalogNamespace, Name: "std-example", Revision: &revision,
 		},
 		EntryCount: 1, MappingCount: 1, EvidenceContractCount: 1,
 	}}}

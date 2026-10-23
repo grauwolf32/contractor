@@ -1,4 +1,8 @@
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join, relative, sep } from "node:path";
+import ts from "typescript";
 import nameCases from "../../../api/testdata/v1alpha1/artifact-name-cases.json";
+import reservationCases from "../../../api/testdata/v1alpha1/memory-reservation-cases.json";
 import { describe, expect, it, vi } from "vitest";
 
 import type { RuntimeConfig } from "../config/runtime-config";
@@ -6,6 +10,7 @@ import {
   ARTIFACT_NAME_PATTERN,
   canPreviewArtifact,
   downloadArtifact,
+  FINDING_PROPOSAL_NAMESPACE,
   listArtifacts,
   MAXIMUM_PREVIEW_BYTES,
   previewArtifact,
@@ -279,5 +284,123 @@ describe("portable Artifact names", () => {
   });
   it.each(nameCases.invalid)("rejects %j", (name) => {
     expect(ARTIFACT_NAME_PATTERN.test(name)).toBe(false);
+  });
+});
+
+const UI_ROOT = join(__dirname, "..", "..");
+/**
+ * The distinctive reserved Namespaces: the purpose-reserved Run Namespaces
+ * (ART-R114) and the UserScope Audit standard catalog (ART-R25), the names
+ * the Go (internal/artifactpolicy/namespace_literal_test.go) and Runtime
+ * (runtime/tests/test_security_findings_toolset.py) scans check. inputs,
+ * outputs and skills are ordinary words of other rules and are not scanned.
+ * The UI names only finding-proposals; a module that needs another reserved
+ * Namespace defines it next to FINDING_PROPOSAL_NAMESPACE.
+ */
+const RESERVED_NAMESPACES = new Set([
+  FINDING_PROPOSAL_NAMESPACE,
+  "contractor-system",
+  "audit-standards",
+]);
+const NAMESPACE_DEFINITION = "src/api/artifacts.ts";
+// A query key such as ["audit-standards", scheme, version] names a cache
+// entry, another rule.
+const QUERY_KEYS = "src/api/query-keys.ts";
+
+/** The UI production modules: no tests, fixtures or generated code. */
+function* productionModules(directory: string): Generator<string> {
+  for (const name of readdirSync(directory)) {
+    const path = join(directory, name);
+    if (statSync(path).isDirectory()) {
+      const module = relative(UI_ROOT, path).split(sep).join("/");
+      if (module !== "src/api/generated" && module !== "src/test") {
+        yield* productionModules(path);
+      }
+    } else if (/\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name)) {
+      yield path;
+    }
+  }
+}
+
+/**
+ * The lines of module `name` (relative to ui/) whose string literal spells a
+ * reserved Namespace as a whole, as a comparison, ref or filter value would.
+ * A path such as /v1/audit-standards/... names a route, another rule.
+ */
+function reservedNamespaceCopies(name: string, text: string): number[] {
+  const file = ts.createSourceFile(name, text, ts.ScriptTarget.Latest, true);
+  const lines: number[] = [];
+  const visit = (node: ts.Node) => {
+    if (
+      (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) &&
+      RESERVED_NAMESPACES.has(node.text) &&
+      !(name === QUERY_KEYS && ts.isArrayLiteralExpression(node.parent)) &&
+      !(
+        name === NAMESPACE_DEFINITION &&
+        ts.isVariableDeclaration(node.parent) &&
+        node.parent.name.getText(file) === "FINDING_PROPOSAL_NAMESPACE"
+      )
+    ) {
+      lines.push(file.getLineAndCharacterOfPosition(node.getStart(file)).line);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  return lines.map((line) => line + 1);
+}
+
+describe("reserved Artifact Namespaces have one UI definition", () => {
+  it("names the Namespace the shared reservation fixture pins", () => {
+    expect(reservationCases.purposeReservedNamespaces).toContain(
+      FINDING_PROPOSAL_NAMESPACE,
+    );
+    expect(reservationCases.purposeReservedNamespaces).toContain(
+      "contractor-system",
+    );
+  });
+
+  it("reports copies, not routes, query keys or the definition", () => {
+    const probe =
+      'if (namespace === "finding-proposals") hidden = true;\n' +
+      "const system = `contractor-system`;\n" +
+      'const chip = <Chip value="audit-standards" />;\n' +
+      'const route = "/runs/run-1/artifacts/finding-proposals/x";\n' +
+      'const path = "/v1/audit-standards/{scheme}/versions/{version}";\n' +
+      'const notes = "audit-standards-notes";\n' +
+      'const key = ["audit-standards", scheme] as const;\n';
+    expect(reservedNamespaceCopies("src/probe.tsx", probe)).toEqual([
+      1, 2, 3, 7,
+    ]);
+    expect(
+      reservedNamespaceCopies(
+        QUERY_KEYS,
+        'const key = ["audit-standards", scheme] as const;\n' +
+          'const ref = { namespace: "audit-standards" };\n',
+      ),
+    ).toEqual([2]);
+    expect(
+      reservedNamespaceCopies(
+        NAMESPACE_DEFINITION,
+        'export const FINDING_PROPOSAL_NAMESPACE = "finding-proposals";\n' +
+          'export const SYSTEM = "contractor-system";\n',
+      ),
+    ).toEqual([2]);
+  });
+
+  it("finds no copy in UI production code", () => {
+    const copies: string[] = [];
+    let scanned = 0;
+    for (const path of productionModules(join(UI_ROOT, "src"))) {
+      const name = relative(UI_ROOT, path).split(sep).join("/");
+      scanned++;
+      for (const line of reservedNamespaceCopies(
+        name,
+        readFileSync(path, "utf8"),
+      )) {
+        copies.push(`${name}:${line}`);
+      }
+    }
+    expect(scanned).toBeGreaterThan(300);
+    expect(copies).toEqual([]);
   });
 });

@@ -2,7 +2,10 @@ import { useState } from "react";
 import { Link } from "react-router";
 
 import type { ArtifactArchiveScope } from "../../../api/artifact-archive";
-import type { ArtifactMetadata } from "../../../api/artifacts";
+import {
+  FINDING_PROPOSAL_NAMESPACE,
+  type ArtifactMetadata,
+} from "../../../api/artifacts";
 import {
   messageBytes,
   type HTTPExchangeDocument,
@@ -303,7 +306,7 @@ export default function HTTPExchangePreview({
   const trustedAssociation =
     scope?.kind === "run" &&
     context?.metadata.frozen === true &&
-    context.metadata.artifact.namespace === "finding-proposals" &&
+    context.metadata.artifact.namespace === FINDING_PROPOSAL_NAMESPACE &&
     context.metadata.artifact.name ===
       "http.exchange." + document.finding.proposal_id;
   return (
@@ -317,7 +320,7 @@ export default function HTTPExchangePreview({
           Saved with a possible issue.{" "}
           <Link
             to={artifactDetailPath(scope, {
-              namespace: "finding-proposals",
+              namespace: FINDING_PROPOSAL_NAMESPACE,
               name: document.finding.proposal_id,
             })}
           >

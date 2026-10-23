@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/config"
@@ -28,7 +29,7 @@ func validateBundledCatalogStandards(plan *auditstandards.SeedPlan, snapshot *co
 			}
 			revision := "offline-validation"
 			if err := validateProfileStandardSelection(profile, pkg, contracts.ArtifactRef{
-				Namespace: auditstandards.CatalogNamespace,
+				Namespace: artifactpolicy.AuditStandardCatalogNamespace,
 				Name:      auditstandards.ArtifactName(ref), Revision: &revision,
 			}); err != nil {
 				return err

@@ -18,6 +18,7 @@ from contractor_runtime.contracts import RuntimeSettings
 from contractor_runtime.contracts.artifacts import (
     FINDING_PROPOSAL_NAMESPACE,
     PURPOSE_RESERVED_NAMESPACES,
+    RUN_SYSTEM_NAMESPACE,
 )
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.finding_proposals import FindingProposalClient
@@ -203,8 +204,19 @@ def test_finding_transport_loss_retries_byte_identical_submission() -> None:
     asyncio.run(scenario())
 
 
-def _finding_proposal_namespace_copies(source: str) -> list[int]:
-    """Return the lines of Runtime source that spell the finding-proposals Namespace.
+# The distinctive reserved Namespaces, the same names the Go scan
+# (internal/artifactpolicy/namespace_literal_test.go) and the UI scan
+# (ui/src/api/artifacts.test.ts) check: the purpose-reserved Run Namespaces the
+# contracts module names (ART-R114) and the UserScope Audit standard catalog
+# (ART-R25), which no Runtime code names. inputs, outputs and skills are
+# ordinary words of other rules and are not scanned.
+RESERVED_NAMESPACES = frozenset(
+    {FINDING_PROPOSAL_NAMESPACE, RUN_SYSTEM_NAMESPACE, "audit-standards"}
+)
+
+
+def _reserved_namespace_copies(source: str) -> list[int]:
+    """Return the lines of Runtime source that spell a reserved Namespace.
 
     The private route segment, an argument of allocation_path, names the
     endpoint, another rule, and is not reported.
@@ -223,15 +235,16 @@ def _finding_proposal_namespace_copies(source: str) -> list[int]:
         node.lineno
         for node in ast.walk(tree)
         if isinstance(node, ast.Constant)
-        and node.value == FINDING_PROPOSAL_NAMESPACE
+        and isinstance(node.value, str)
+        and node.value in RESERVED_NAMESPACES
         and id(node) not in routes
     )
 
 
-def test_finding_proposal_namespace_is_named_only_by_contracts() -> None:
-    """Runtime code names the Namespace through contracts.artifacts (ART-R114)."""
+def test_reserved_namespaces_are_named_only_by_contracts() -> None:
+    """Runtime code names reserved Namespaces through contracts.artifacts."""
 
-    assert FINDING_PROPOSAL_NAMESPACE in PURPOSE_RESERVED_NAMESPACES
+    assert {FINDING_PROPOSAL_NAMESPACE, RUN_SYSTEM_NAMESPACE} <= PURPOSE_RESERVED_NAMESPACES
     package = Path(contractor_runtime.__file__).parent
     owner = package / "contracts"
     sources = [path for path in package.rglob("*.py") if owner not in path.parents]
@@ -239,20 +252,24 @@ def test_finding_proposal_namespace_is_named_only_by_contracts() -> None:
     copies = {
         str(path.relative_to(package)): lines
         for path in sources
-        if (lines := _finding_proposal_namespace_copies(path.read_text(encoding="utf-8")))
+        if (lines := _reserved_namespace_copies(path.read_text(encoding="utf-8")))
     }
-    assert copies == {}, "use contracts.artifacts.FINDING_PROPOSAL_NAMESPACE"
+    assert copies == {}, "use the reserved Namespace constants of contracts.artifacts"
 
 
-def test_finding_proposal_namespace_scan_reports_copies_not_routes() -> None:
+def test_reserved_namespace_scan_reports_copies_not_routes() -> None:
     source = (
         'path = allocation_path(allocation_id, "finding-proposals")\n'
         'if ref.namespace != "finding-proposals":\n'
         "    pass\n"
         'derived = "audit-finding-proposals"\n'
         'joined = "finding-" "proposals"\n'
+        'hidden = frozenset({"skills", "contractor-system"})\n'
+        'catalog = "audit-standards"\n'
+        'route = "/v1/audit-standards"\n'
+        'notes = "audit-standards-notes"\n'
     )
-    assert _finding_proposal_namespace_copies(source) == [2, 5]
+    assert _reserved_namespace_copies(source) == [2, 5, 6, 7]
 
 
 class FakeToolContext:

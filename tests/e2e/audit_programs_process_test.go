@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -1305,7 +1306,7 @@ func replaceAuditProgramCatalog(
 DELETE FROM artifact_bindings
  WHERE scope_kind = 'user' AND scope_id = $1
    AND namespace = $2 AND name = $3`,
-			ownerID, auditstandards.CatalogNamespace, auditstandards.ArtifactName(reference),
+			ownerID, artifactpolicy.AuditStandardCatalogNamespace, auditstandards.ArtifactName(reference),
 		)
 		if deleteErr != nil {
 			t.Fatalf("replace current %s@%s catalog binding: %v", reference.Scheme, reference.Version, deleteErr)

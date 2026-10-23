@@ -110,10 +110,10 @@ func TestDiscoveryIsAllOrNothingAndRejectsDuplicateIdentity(t *testing.T) {
 	if plan, err := DiscoverBundled(root); err != nil || len(plan.Packages()) != 0 {
 		t.Fatalf("missing catalog = (%+v, %v)", plan, err)
 	}
-	if err := os.MkdirAll(filepath.Join(root, CatalogNamespace), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, artifactpolicy.AuditStandardCatalogNamespace), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	writeRaw(t, filepath.Join(root, CatalogNamespace, ".gitkeep"), []byte("\n"))
+	writeRaw(t, filepath.Join(root, artifactpolicy.AuditStandardCatalogNamespace, ".gitkeep"), []byte("\n"))
 	if plan, err := DiscoverBundled(root); err != nil || len(plan.Packages()) != 0 {
 		t.Fatalf("empty catalog marker = (%+v, %v)", plan, err)
 	}
@@ -122,7 +122,7 @@ func TestDiscoveryIsAllOrNothingAndRejectsDuplicateIdentity(t *testing.T) {
 	if plan, err := DiscoverBundled(root); validationCode(err) != CodeIdentityMismatch || plan != nil {
 		t.Fatalf("duplicate catalog = (%+v, %v)", plan, err)
 	}
-	if _, err := os.Stat(filepath.Join(root, CatalogNamespace, "one", ManifestPath)); err != nil {
+	if _, err := os.Stat(filepath.Join(root, artifactpolicy.AuditStandardCatalogNamespace, "one", ManifestPath)); err != nil {
 		t.Fatalf("discovery mutated source tree: %v", err)
 	}
 }
@@ -200,7 +200,7 @@ func TestCatalogCreateOnlySeedResolvePinAndDisclosure(t *testing.T) {
 
 	user, _ := service.User("owner")
 	if _, err := user.Write(context.Background(), artifacts.ArtifactRef{
-		Namespace: CatalogNamespace, Name: "forbidden",
+		Namespace: artifactpolicy.AuditStandardCatalogNamespace, Name: "forbidden",
 	}, artifacts.Payload{MediaType: "application/json", Data: []byte("{}")}, nil); !errors.Is(err, artifacts.ErrReservedNamespace) {
 		t.Fatalf("generic catalog write error = %v", err)
 	}
@@ -216,7 +216,7 @@ func TestCatalogRejectsDriftWithoutAdvancingBinding(t *testing.T) {
 	if _, err := catalog.Initialize(context.Background(), "owner", plan); err != nil {
 		t.Fatal(err)
 	}
-	ref := artifacts.ArtifactRef{Namespace: CatalogNamespace, Name: ArtifactName(Reference{Scheme: "example", Version: "1"})}
+	ref := artifacts.ArtifactRef{Namespace: artifactpolicy.AuditStandardCatalogNamespace, Name: ArtifactName(Reference{Scheme: "example", Version: "1"})}
 	current, _ := service.User("owner")
 	read, _ := current.Read(context.Background(), ref)
 	// No Server path advances a catalog binding; tamper with the store itself.
@@ -298,7 +298,7 @@ func validDocument(scheme, version string) Document {
 
 func writePackageSource(t *testing.T, root, directory string, document Document) {
 	t.Helper()
-	path := filepath.Join(root, CatalogNamespace, directory)
+	path := filepath.Join(root, artifactpolicy.AuditStandardCatalogNamespace, directory)
 	if err := os.MkdirAll(path, 0o755); err != nil {
 		t.Fatal(err)
 	}
