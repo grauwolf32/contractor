@@ -27,7 +27,7 @@ const maximumSocketsPerSession = 8
 type RunRepository interface {
 	GetRun(context.Context, string) (runstore.WorkflowRun, error)
 	GetRunEventCursor(context.Context, string) (runstore.WorkflowRunEventCursor, error)
-	ListRunEvents(context.Context, string, int64, int) ([]runstore.WorkflowRunEvent, error)
+	ListRunEvents(context.Context, string, int64, int) (runstore.WorkflowRunEventPage, error)
 }
 
 type OperationsSource interface {

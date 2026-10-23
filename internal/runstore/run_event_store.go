@@ -15,7 +15,19 @@ import (
 )
 
 const (
-	maxRunEventDataBytes               = 2 * 1024 * 1024
+	// maxRunEventDataBytes bounds one event's data (LIM-API-25). Append and
+	// read check the bytes they hold; the workflow_run_events CHECK counts
+	// the stored text, the measure of the page budget.
+	maxRunEventDataBytes = 2 * 1024 * 1024
+	// maxRunEventPageDataBytes is the budget of persisted data one
+	// ListRunEvents page returns (LIM-API-24), counted as the octet length of
+	// each stored data text. It holds at least four maximum-sized events, so
+	// any committed event fits a fresh page. It bounds the event data a read
+	// transfers, not the Server's memory or a WebSocket frame.
+	maxRunEventPageDataBytes = 8 * 1024 * 1024
+	// maxRunEventPageEvents bounds the events one ListRunEvents page may
+	// request.
+	maxRunEventPageEvents              = 1000
 	maxRunEventTokenBytes              = 128
 	maxRunEventSubtaskObjectiveBytes   = 8 * 1024
 	maxRunEventSubtaskInstructionBytes = 32 * 1024
@@ -432,49 +444,63 @@ WHERE run_id = $1`, runID).Scan(&result.Generation, &result.Sequence)
 	return result, nil
 }
 
+// ListRunEvents reads the committed events of Run runID after afterSequence
+// in sequence order: at most limit events whose persisted data is together at
+// most maxRunEventPageDataBytes (API-R110). The page ends early when the next
+// event would exceed either bound, and More then reports that event without
+// transferring its data. Every returned event passes the append validation
+// again; an invalid stored event fails the whole read.
 func (s *PostgresStore) ListRunEvents(
 	ctx context.Context, runID string, afterSequence int64, limit int,
-) ([]WorkflowRunEvent, error) {
+) (WorkflowRunEventPage, error) {
 	if err := validateOpaque("runID", runID); err != nil {
-		return nil, err
+		return WorkflowRunEventPage{}, err
 	}
-	if afterSequence < 0 || limit < 1 || limit > 1000 {
-		return nil, invalidf("WorkflowRun event cursor or limit is invalid")
+	if afterSequence < 0 || limit < 1 || limit > maxRunEventPageEvents {
+		return WorkflowRunEventPage{}, invalidf("WorkflowRun event cursor or limit is invalid")
 	}
-	rows, err := s.db.Query(ctx, `
-SELECT run_id, sequence_number, event_id, event_schema_version, kind, data, occurred_at
-FROM workflow_run_events
-WHERE run_id = $1 AND sequence_number > $2
-ORDER BY sequence_number
-LIMIT $3`, runID, afterSequence, limit)
+	rows, err := s.db.Query(ctx, listRunEventsSQL, runID, afterSequence, limit, maxRunEventPageDataBytes)
 	if err != nil {
-		return nil, fmt.Errorf("list WorkflowRun events %q: %w", runID, err)
+		return WorkflowRunEventPage{}, fmt.Errorf("list WorkflowRun events %q: %w", runID, err)
 	}
 	defer rows.Close()
-	result := make([]WorkflowRunEvent, 0)
+	page := WorkflowRunEventPage{Events: make([]WorkflowRunEvent, 0)}
+	last := afterSequence
 	for rows.Next() {
 		var event WorkflowRunEvent
+		var returned bool
 		var data []byte
 		if err := rows.Scan(
 			&event.RunID, &event.SequenceNumber, &event.EventID,
-			&event.EventSchemaVersion, &event.Kind, &data, &event.OccurredAt,
+			&event.EventSchemaVersion, &event.Kind, &event.OccurredAt, &returned, &data,
 		); err != nil {
-			return nil, fmt.Errorf("scan WorkflowRun event %q: %w", runID, err)
+			return WorkflowRunEventPage{}, fmt.Errorf("scan WorkflowRun event %q: %w", runID, err)
+		}
+		// The look-ahead is the last walked row, and it never comes first:
+		// one valid event's data is below the page budget, so a first event
+		// that does not fit is invalid rather than a reason to skip it.
+		if page.More || event.SequenceNumber <= last || !returned && len(page.Events) == 0 {
+			return WorkflowRunEventPage{}, fmt.Errorf("persisted WorkflowRun event is invalid")
+		}
+		last = event.SequenceNumber
+		if !returned {
+			page.More = true
+			continue
 		}
 		event.Data = append(json.RawMessage(nil), data...)
-		if event.SequenceNumber <= afterSequence || !validRunEventKinds[event.Kind] ||
+		if !validRunEventKinds[event.Kind] ||
 			validateRunEventAppend(RunEventAppend{
 				EventID: event.EventID, EventSchemaVersion: event.EventSchemaVersion,
 				Kind: event.Kind, Data: event.Data,
 			}) != nil {
-			return nil, fmt.Errorf("persisted WorkflowRun event is invalid")
+			return WorkflowRunEventPage{}, fmt.Errorf("persisted WorkflowRun event is invalid")
 		}
-		result = append(result, event)
+		page.Events = append(page.Events, event)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate WorkflowRun events %q: %w", runID, err)
+		return WorkflowRunEventPage{}, fmt.Errorf("iterate WorkflowRun events %q: %w", runID, err)
 	}
-	return result, nil
+	return page, nil
 }
 
 // EncodePublicRunEventData returns the exact reduced payload admitted to the
