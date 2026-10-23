@@ -5,7 +5,7 @@ milestone: runtime-placement-labels-2026-10
 epic: execution-core
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - go
@@ -18,6 +18,10 @@ context:
   - docs/spec/execution/control-plane.md#CTL-R26
   - docs/spec/execution/control-plane.md#CTL-R75
   - docs/spec/execution/runtime-agent.md#RTA-R6
+  - docs/spec/execution/control-plane.md#CTL-R156
+  - docs/spec/execution/control-plane.md#CTL-R157
+  - docs/spec/execution/control-plane.md#CTL-R158
+  - docs/spec/execution/runtime-agent.md#RTA-R114
 scope:
   in:
   - Shared placement grammar and bounds, Go and Python validation, startup CLI/environment and private
@@ -110,3 +114,25 @@ tests:
   - A1
   - A2
   - A3
+- command: make ui-verify
+  covers:
+  - A3
+implementation_commit: 62ee2dc8b3922a5607fcfafb9b0f42362adc611a
+verification:
+  date: '2026-10-23'
+  environment: macOS arm64; Go 1.26.9, Node 24.20.0, pnpm 11.24.0 and the locked Runtime venv. No database/store
+    schema was changed.
+  commands:
+  - go test ./internal/contracts/... ./internal/controlplane ./internal/httpapi/public ./internal/publicclient
+    passed (full package suites).
+  - 'cd runtime && uv run pytest tests/test_settings.py tests/test_contracts.py tests/test_state.py tests/test_shared_placement_labels.py
+    tests/test_shared_mutation_cases.py passed: 303 tests.'
+  - 'make test-ansible passed: syntax, strict lint, controller resolution and probe checks.'
+  - make verify-public-api passed, including operation coverage without PostgreSQL.
+  - 'make ui-verify passed: generate-check, lint, typecheck, 190 test files (2308 passed and one existing
+    expected failure), server tests and build.'
+  - make lint passed, including generated clients, Go vet/staticcheck/unused exports, Ansible, task/spec/shared-fixture
+    checks, Ruff and Python layers.
+  database_tests_configured: false
+  remaining: V405-002 implements matching and pinned Run requirements; V405-003/004/005 own Audit selection,
+    UI controls and the process release gate. Startup declarations alone do not constrain placement.

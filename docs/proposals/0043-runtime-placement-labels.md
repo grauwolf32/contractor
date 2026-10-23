@@ -1,7 +1,8 @@
 # Runtime placement labels: cloud and local
 
-Proposal 0043 · Status: **Namespace and matching decisions recorded;
-not implemented.** Recorded on 2026-10-23 from the user's decisions.
+Proposal 0043 · Status: **Partially implemented. Startup declarations and
+Operations observations are delivered; Run/Audit selection, matching and UI
+remain planned.** Recorded on 2026-10-23 from the user's decisions.
 
 ## 1. Accepted direction
 
@@ -35,6 +36,11 @@ catalog. Additional top-level namespaces require an explicit design change;
 A Runtime may declare only the broad `cloud` or `local` label when it does
 not need a more specific location. A label such as `cloud/aws` already belongs
 to `cloud`; declaring the parent as another label is unnecessary.
+
+Each subject's labels form one ancestor chain: `cloud` with `cloud/aws` is
+valid, while mixed roots or disjoint provider/site branches are rejected.
+The bounded grammar and registration declaration are owned by
+[CTL-R156 through CTL-R158](../spec/execution/control-plane.md).
 
 This namespace restriction applies to placement labels only. Existing
 RuntimeConfig labels such as `debug` and `caido` retain their own grammar and
@@ -104,11 +110,12 @@ registration; later registrations use Server-authoritative configuration labels
 ([CTL-R26](../spec/execution/control-plane.md)). That field cannot implement the
 accepted startup authority for placement labels without changing its meaning.
 
-Implementation must finalize additive API and registration field names,
-collection and byte bounds, validation errors, and how incompatible declarations
-or requirements within and across the two location namespaces are rejected.
-The names `placementLabels` for registration and `requiredPlacementLabels`
-for launch requests are working names, not published fields.
+Registration publishes optional non-null `placementLabels`; startup uses
+`--placement-label` and `CONTRACTOR_PLACEMENT_LABELS`. Grammar bounds and
+incompatible-chain rejection are defined by CTL-R156. The additive launch
+request field `requiredPlacementLabels` remains a working name until the Run
+selection task publishes it. Placement selection still needs persistence,
+matching, Audit propagation and UI contracts.
 
 Before implementation, create the owning task and cover grammar and parent
 matching through shared Go/Python fixtures. Apply the predicate to candidate
@@ -121,7 +128,7 @@ documents when the capability lands.
 
 ## 6. Implementation tasks
 
-- [V405-001](../../tasks/v405-001-runtime-placement-declarations.yml): Publish startup-owned cloud and local Runtime placement labels.
+- [V405-001](../../tasks/done/v405-001-runtime-placement-declarations.yml): Publish startup-owned cloud and local Runtime placement labels.
 - [V405-002](../../tasks/v405-002-run-placement-requirements.yml): Pin Run placement requirements and enforce dynamic Runtime matching.
 - [V405-003](../../tasks/v405-003-audit-placement-propagation.yml): Pin Audit placement selection and propagate it to every child Run.
 - [V405-004](../../tasks/v405-004-placement-label-picker-ui.yml): Select Runtime placement labels in Workflow and Audit launch forms.
