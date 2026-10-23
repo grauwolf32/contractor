@@ -82,9 +82,6 @@ func correlationQueryID(query url.Values, key string, required bool) bool {
 
 func (h *auditHandlers) listFindingDuplicateCandidates(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if rejectHead(w, r) {
-		return
-	}
 	query, limit, cursor, err := findingCorrelationQuery(r, "scope", "targetAuditId", "sourceReceiptId")
 	if err != nil {
 		handleError(w, err)
@@ -119,9 +116,6 @@ func (h *auditHandlers) listFindingDuplicateCandidates(w http.ResponseWriter, r 
 }
 func (h *auditHandlers) listProjectFindingComparisons(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if rejectHead(w, r) {
-		return
-	}
 	query, limit, cursor, err := findingCorrelationQuery(r, "leftAuditId", "rightAuditId")
 	if err != nil {
 		handleError(w, err)
@@ -152,9 +146,6 @@ func (h *auditHandlers) listProjectFindingComparisons(w http.ResponseWriter, r *
 }
 func (h *auditHandlers) listFindingCorrelationMembers(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if rejectHead(w, r) {
-		return
-	}
 	query, limit, cursor, err := findingCorrelationQuery(r, "auditId", "leftAuditId", "rightAuditId")
 	if err != nil {
 		handleError(w, err)

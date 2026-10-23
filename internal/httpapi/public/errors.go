@@ -99,14 +99,6 @@ func methodNotAllowed(w http.ResponseWriter, _ *http.Request) {
 	writeError(w, apierror.MethodNotAllowed, "")
 }
 
-func rejectHead(w http.ResponseWriter, r *http.Request) bool {
-	if r.Method != http.MethodHead {
-		return false
-	}
-	methodNotAllowed(w, r)
-	return true
-}
-
 func notFound(w http.ResponseWriter, _ *http.Request) {
 	writeError(w, apierror.NotFound, "")
 }

@@ -1,5 +1,5 @@
-// Package httpx holds request-parsing helpers shared by the public and
-// private Server HTTP adapters. Helpers that classify a request as invalid
+// Package httpx holds the routing rule and request-parsing helpers shared by
+// the public and private Server HTTP adapters. Helpers that classify a request as invalid
 // wrap the caller's own sentinel, so each adapter keeps its error identity
 // and its error-to-status mapping.
 package httpx
