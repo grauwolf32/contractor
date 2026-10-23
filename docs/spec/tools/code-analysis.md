@@ -417,11 +417,11 @@ supported source. Its sorted unique `reasons` are drawn from `file_limit`,
 parse result contains an error or missing node; only a parse result reports
 malformed source. Managed text is valid UTF-8 and Tree-sitter recovers from
 any syntax error, so acquiring a parser and extracting definition names raise
-no exception for any source. An exception from either is a Runtime defect or
-a parser that became unusable after the startup probe (CAN-R47): it is never
-counted as source coverage or cached, and it fails the call through the
-Worker's generic tool-error boundary as the non-retryable `tool_call_failed`
-that names only the tool and the exception class
+no exception for any source. An exception from either is a Runtime failure,
+such as a defect or a parser that became unusable after the startup probe
+(CAN-R47): it is never counted as source coverage or cached, and it fails the
+call through the Worker's generic tool-error boundary as the non-retryable
+`tool_call_failed` that names only the tool and the exception class
 ([OBS-R32](../platform/observability.md)). Parser availability is classified
 only by that probe.
 
@@ -1139,7 +1139,7 @@ Error codes, with their meaning and retryability, are registered in
 **CAN-R135.** The model-visible error vocabulary of `code-analysis@1`
 is [ERR-R11](../platform/errors.md); this document owns the conditions that
 raise each code (CAN-R32, CAN-R42, CAN-R74, CAN-R83, CAN-R136 to CAN-R138).
-An exception outside that vocabulary is a Runtime defect that the generic
+An exception outside that vocabulary is a Runtime failure that the generic
 tool-error boundary reports (CAN-R152).
 
 **CAN-R136.** Invalid input, stale or not-found symbol and deterministic

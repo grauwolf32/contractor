@@ -996,7 +996,7 @@ class _CodeAnalysisSession:
             )
         # Malformed source is a parse result, never an exception (CAN-R152).
         # Anything raised while acquiring a parser or extracting names is a
-        # Runtime defect: it fails the call through the Worker's tool-error
+        # Runtime failure: it fails the call through the Worker's tool-error
         # boundary, and nothing about this file is counted or cached.
         parser = self._parsers.get(language)
         if parser is None:
