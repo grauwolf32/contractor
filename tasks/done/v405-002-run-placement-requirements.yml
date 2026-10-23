@@ -5,7 +5,7 @@ milestone: runtime-placement-labels-2026-10
 epic: execution-core
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V405-001
 languages:
@@ -104,3 +104,16 @@ tests:
   - A1
   - A2
   - A3
+implementation_commit: efeba9113b1c472eee330dae3a51b69de9049055
+verification:
+  date: '2026-10-23'
+  environment: macOS arm64; Go 1.26.9, Node 24.20.0, pnpm 11.24.0 and the locked Runtime venv; isolated PostgreSQL 17.11 with all 31 migrations.
+  commands:
+  - make test-postgres passed; database tests were configured and ran against the isolated database.
+  - go test ./internal/contracts ./internal/runstore ./internal/runservice ./internal/controlplane ./internal/scheduler ./internal/httpapi/public ./internal/publicclient passed; the complete Control Plane and HTTP suites also passed after the final regression additions.
+  - make verify-public-api and make verify-public-api-postgres passed.
+  - 'make test-wire-cross-language passed: 300 Runtime contract tests; 246 fixtures, 227 Go and 175 Python shared tests, including 1147 Python shared cases.'
+  - 'make ui-verify passed: generated checks, lint, typecheck, 2308 tests passed and one existing expected failure, 17 server tests, and build.'
+  - make lint passed, including schema placement, generated clients, Go vet/staticcheck, task/spec/fixture checks and Python layers.
+  database_tests_configured: true
+  remaining: Audit propagation (V405-003), UI selection (V405-004), and the process release gate (V405-005) remain separate tasks.

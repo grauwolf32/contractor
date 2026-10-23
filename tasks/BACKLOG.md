@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-71 open tasks: 5 in progress, 41 pending, 25 deferred. 977 finished: 974 completed, 3 archived.
+70 open tasks: 4 in progress, 41 pending, 25 deferred. 978 finished: 975 completed, 3 archived.
 
 ## In progress
 
@@ -15,7 +15,6 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
-| [V405-002](v405-002-run-placement-requirements.yml) | execution-core | feature | P2 | Pin Run placement requirements and enforce dynamic Runtime matching |
 
 ## Pending
 
@@ -26,7 +25,7 @@ the epics are in [epics.yml](epics.yml).
 | [V371-014](v371-014-scheduler-stage-history-reads.yml) | defect | P3 | — | Read only the Stage history fields escalation counting and cancellation cleanup use |
 | [V372-007](v372-007-terminal-stage-state-set.yml) | chore | P3 | — | Define the terminal StageExecution states once and hold SQL and the UI to them |
 | [V372-028](v372-028-runstore-strict-snapshot-reads.yml) | chore | P3 | — | Decode persisted Run, Stage and allocation snapshots strictly in runstore |
-| [V405-005](v405-005-placement-process-release-gate.yml) | feature | P2 | V405-002, V405-003, V405-004 | Verify cloud and local placement across real processes and fold proposal 0043 |
+| [V405-005](v405-005-placement-process-release-gate.yml) | feature | P2 | V405-003, V405-004 | Verify cloud and local placement across real processes and fold proposal 0043 |
 
 ### Planners and the Worker model boundary (`planner-worker`)
 
@@ -79,7 +78,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V371-009](v371-009-audit-list-preparation-batch.yml) | defect | P3 | — | Read the preparation state of a whole Audit page in bounded statements |
-| [V405-003](v405-003-audit-placement-propagation.yml) | feature | P2 | V405-002 | Pin Audit placement selection and propagate it to every child Run |
+| [V405-003](v405-003-audit-placement-propagation.yml) | feature | P2 | — | Pin Audit placement selection and propagate it to every child Run |
 
 ### Evaluations (`evals`)
 
@@ -92,7 +91,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V403-003](v403-003-openapi-preview-at-1mib.yml) | defect | P3 | — | Keep a 1 MiB OpenAPI preview from blocking the page |
-| [V405-004](v405-004-placement-label-picker-ui.yml) | feature | P2 | V405-002, V405-003 | Select Runtime placement labels in Workflow and Audit launch forms |
+| [V405-004](v405-004-placement-label-picker-ui.yml) | feature | P2 | V405-003 | Select Runtime placement labels in Workflow and Audit launch forms |
 
 ### Public API and wire contracts (`api-contracts`)
 
@@ -162,7 +161,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 5 | 41 | 50 | 11 | 66 |
+| Run execution core (`execution-core`) | 4 | 41 | 50 | 11 | 66 |
 | Planners and the Worker model boundary (`planner-worker`) | 3 | 27 | 37 | 14 | 55 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 10 | 25 | 12 | 3 | 37 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 1 | 11 |
