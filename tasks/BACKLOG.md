@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-78 open tasks: 4 in progress, 49 pending, 25 deferred. 947 finished: 944 completed, 3 archived.
+82 open tasks: 4 in progress, 53 pending, 25 deferred. 947 finished: 944 completed, 3 archived.
 
 ## In progress
 
@@ -25,6 +25,8 @@ the epics are in [epics.yml](epics.yml).
 | [V371-014](v371-014-scheduler-stage-history-reads.yml) | defect | P3 | — | Read only the Stage history fields escalation counting and cancellation cleanup use |
 | [V372-007](v372-007-terminal-stage-state-set.yml) | chore | P3 | — | Define the terminal StageExecution states once and hold SQL and the UI to them |
 | [V372-028](v372-028-runstore-strict-snapshot-reads.yml) | chore | P3 | — | Decode persisted Run, Stage and allocation snapshots strictly in runstore |
+| [V400-001](v400-001-model-free-lane-pool.yml) | feature | P2 | — | Run model-free Stages in a separate Scheduler lane pool |
+| [V400-002](v400-002-model-first-shared-agents.yml) | feature | P2 | V400-001 | Resolve shared Runtime Agent conflicts in favour of model Stages |
 
 ### Planners and the Worker model boundary (`planner-worker`)
 
@@ -86,6 +88,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V371-009](v371-009-audit-list-preparation-batch.yml) | defect | P3 | — | Read the preparation state of a whole Audit page in bounded statements |
+| [V400-004](v400-004-audit-dispatch-per-lane-class.yml) | feature | P2 | V400-001, V400-002, V400-003 | Pace Audit dispatch separately for model and model-free roles |
 
 ### Evaluations (`evals`)
 
@@ -99,6 +102,12 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V372-005](v372-005-issues-decision-focus-race.yml) | defect | P2 | — | Move focus to the next possible issue reliably after a decision |
+
+### Operations, authentication, CLI and deployment (`operations`)
+
+| Task | Kind | Priority | Waiting for | Title |
+| --- | --- | --- | --- | --- |
+| [V400-003](v400-003-tool-lanes-settings-ui.yml) | feature | P2 | V400-001 | Edit the model-free lane limit on the Operations settings page |
 
 ### Public API and wire contracts (`api-contracts`)
 
@@ -174,7 +183,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 3 | 36 | 50 | 11 | 65 |
+| Run execution core (`execution-core`) | 5 | 38 | 50 | 11 | 65 |
 | Planners and the Worker model boundary (`planner-worker`) | 3 | 27 | 37 | 14 | 55 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 11 | 25 | 12 | 3 | 37 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 1 | 11 |
@@ -186,11 +195,11 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 8 | 14 | 5 | 6 | 9 |
 | Workflow catalog and document workflows (`workflows`) | 3 | 14 | 13 | 12 | 12 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 30 | 32 | 5 | 35 |
-| Audits (`audits`) | 17 | 50 | 70 | 17 | 83 |
+| Audits (`audits`) | 18 | 51 | 70 | 17 | 83 |
 | Evaluations (`evals`) | 3 | 21 | 29 | 5 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 9 | 1 | 1 | 2 |
 | Web UI (`ui`) | 1 | 21 | 55 | 12 | 49 |
-| Operations, authentication, CLI and deployment (`operations`) | 0 | 12 | 32 | 5 | 9 |
+| Operations, authentication, CLI and deployment (`operations`) | 1 | 13 | 32 | 5 | 9 |
 | Public API and wire contracts (`api-contracts`) | 7 | 1 | 30 | 20 | 8 |
 | PostgreSQL persistence and schema (`persistence`) | 4 | 0 | 19 | 33 | 8 |
 | Quality, CI and process (`quality`) | 14 | 1 | 20 | 78 | 16 |

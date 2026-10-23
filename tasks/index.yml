@@ -80,6 +80,9 @@ execution_policy:
     P3: Low-impact correction with no user-visible failure, such as documentation, dead code or test hygiene.
 
 milestones:
+  - id: model-free-stage-lanes-2026-10
+    exit_task: V400-004
+    outcome: Model-free Stages run in their own lane pool sized by maxConcurrentToolRuns and editable on the Operations page, conflicts on shared Runtime Agents resolve in favour of model Stages, and Audits pace scan and model roles by their own limits.
   - id: finding-sarif-export-2026-10
     exit_task: V397-009
     outcome: Exact-evidence analysis and frozen selections produce validated generic SARIF downloads through API CLI and UI while retaining all selected findings and independent Audit results without changing Worker tools.

@@ -1,0 +1,154 @@
+schema_version: "1.0"
+id: V400-001
+title: "Run model-free Stages in a separate Scheduler lane pool"
+milestone: model-free-stage-lanes-2026-10
+epic: execution-core
+kind: feature
+priority: P2
+status: pending
+depends_on: []
+languages: [go, sql]
+goal: >-
+  Scanner Stages make no model calls, yet each holds one of the
+  maxConcurrentRuns lanes that in practice pace model work, so scans and model
+  checks wait on each other. After this task a Stage whose Planner and Workers
+  use no model runs in its own lane pool sized by maxConcurrentToolRuns
+  (default 2), and maxConcurrentRuns bounds only Runs progressing model Stages.
+context:
+  proposal: docs/proposals/0040-model-free-stage-lanes.md
+  specification:
+    - docs/spec/execution/scheduler.md#SCH-R114
+    - docs/spec/execution/scheduler.md#SCH-R115
+    - docs/spec/execution/scheduler.md#SCH-R116
+    - docs/spec/execution/scheduler.md#SCH-R120
+    - docs/spec/execution/scheduler.md#SCH-R121
+    - docs/spec/execution/scheduler.md#SCH-R127
+    - docs/spec/execution/scheduler.md#SCH-R128
+    - docs/spec/execution/scheduler.md#SCH-R135
+    - docs/spec/execution/scheduler.md#SCH-R136
+    - docs/spec/execution/scheduler.md#SCH-R139
+    - docs/spec/execution/scheduler.md#SCH-R164
+    - docs/spec/execution/scheduler.md#SCH-R167
+    - docs/spec/operations/operations.md#OPS-R47
+    - docs/spec/operations/operations.md#OPS-R50
+    - docs/spec/tools/scanners.md#SCN-R170
+  current_code: >-
+    The supervisor runs at most maxConcurrentRuns lanes
+    (internal/scheduler/supervisor.go). Every lane claims through one statement,
+    claimRunnableRunSQL in internal/runstore/store_sql.go, which reads
+    workflow_runs_claim_idx and workflow_runs_deferred_claim_idx (migration
+    000006_scheduler_claim_order.sql). StageExecutions are created by one
+    statement, createStageExecutionSQL in internal/runstore/stage_store_sql.go.
+    Planner model use is already declared once in the PlannerFactory
+    descriptors (internal/config/resolved/descriptors.go, ModelFree on
+    passthrough@1 and scan-plan@1; IsModelFreePlanner). Worker model use is
+    AgentTemplate.IsToolWorker().
+  siblings: >-
+    The rule "every Worker of the Workflow is a tool Worker" is written twice:
+    internal/runservice/public.go (the modelFree loop before
+    PinRuntimeLabels) and internal/evalservice/preflight_binding.go
+    (workflowModelFree). Both must call the shared Worker predicate this task
+    adds. LIM-SCH-16 (Workflow snapshot cache, two Runs per possible lane) and
+    the SCH-R120 exclusion set are derived from the lane maximum and must be
+    re-derived from the sum of both pools. The Audit dispatch window
+    (V400-004) and the Operations settings page (V400-003) consume the new
+    setting.
+scope:
+  in:
+    - "A lane-class function in internal/config/resolved: a StageExecution is `tool` when IsModelFreePlanner(stage.Planner) and every Agent binding is a tool Worker, otherwise `model`; plus the shared Worker-only predicate that runservice and evalservice use instead of their copies."
+    - "scheduler_settings.max_concurrent_tool_runs: integer 1..32, default 2, a database check constraint, the same revision, ETag CAS, wake hint, periodic refresh and restart rules as maxConcurrentRuns."
+    - "The Scheduler settings API: maxConcurrentToolRuns in SchedulerSettings (required in responses) and in UpdateSchedulerSettingsRequest (optional; absent keeps the stored value), OpenAPI, the regenerated Go public client and the regenerated UI types. No UI page change."
+    - "workflow_runs.scheduler_lane_class (`model` or `tool`), written in the transaction that creates the Run, creates a StageExecution or commits a transition decision, set to the class of the StageExecution the Scheduler progresses next."
+    - "Claim indexes rebuilt with the lane class as leading key; each pool claims only its class, still without sorting candidates."
+    - "The supervisor runs two pools with the existing lane loop; each resizes, drains and bounds distinct Runs independently; the exclusion set covers both pools."
+    - "A lane progresses only Stages of its class and releases the claim without deferral when a transition creates a Stage of the other class."
+    - "Specification: scheduler (SCH-R115, SCH-R116, SCH-R120, SCH-R121, SCH-R127 to SCH-R129, SCH-R134 to SCH-R142, SCH-R164, SCH-R167), operations (OPS-R46 to OPS-R52, Scheduler settings fields and examples), limits (LIM-SCH-6, LIM-SCH-16, a new LIM-OPS entry beside LIM-OPS-7), glossary (Scheduler settings, lane class)."
+  out:
+    - "Model-first conflict resolution on shared Runtime Agents (V400-002). Until it lands, a tool Stage may take a slot a waiting model Stage needs; the default of 2 bounds the exposure."
+    - "The Operations settings page field (V400-003) and per-class Audit dispatch windows (V400-004)."
+    - "A per-target scan concurrency limit: accepted risk in the proposal, section 6."
+    - "Renaming maxConcurrentRuns: /v1 changes stay additive."
+requirements:
+  - id: R1
+    text: "The lane class has one definition in internal/config/resolved, computed from the pinned StageExecution spec; the Scheduler, runservice and evalservice call it or its Worker predicate and keep no copy."
+  - id: R2
+    text: "At most maxConcurrentRuns distinct Runs hold model lanes and at most maxConcurrentToolRuns distinct Runs hold tool lanes outside a decrease-drain interval of that pool; no Run holds two lanes at once."
+  - id: R3
+    text: "A Run's stored lane class always equals the class recomputed from the StageExecution it is progressing or will create next. A disagreement is a storage invariant failure that fails the Run through the existing unprogressable-Run path; it is never corrected silently."
+  - id: R4
+    text: "Cancellation, finalizing, aborting, allocation-loss handling and recovery of a Stage run in the pool of that Stage's class; cancelling Runs keep their claim priority within the pool (SCH-R121). Owner queue pause applies to both pools."
+  - id: R5
+    text: "LIM-SCH-16 and the SCH-R120 exclusion set are bounded by the sum of both pool maxima (64 lanes), and the snapshot cache bound is re-derived from it."
+failure_outcomes:
+  - operation: "PUT Scheduler settings with maxConcurrentToolRuns"
+    permanent: "Out-of-range or non-integer value: 400 invalid_request; stale or malformed ETag: the existing precondition errors (OPS-R50 onwards). Never retried."
+    retryable: "503 storage_transaction_conflict, as for maxConcurrentRuns."
+    ambiguous: "The client re-reads the resource; the revision and ETag tell whether the write committed."
+    cancelled: "The request transaction rolls back; no partial row."
+    timeout: "The existing HTTP request timeout; the supervisor applies the value on the next wake or periodic refresh."
+  - operation: "Per-pool Run claim"
+    permanent: "A missing or invalid settings row is a storage invariant failure (OPS-R50); no default is guessed."
+    retryable: "Claim errors back off by scheduler.pollInterval as today."
+    ambiguous: "The FOR UPDATE SKIP LOCKED claim boundary stays authoritative (SCH-R120)."
+    cancelled: "Shutdown cancels both pools; each lane releases its claim (LIFE-SCH-3)."
+    timeout: "Claim and renewal keep scheduler.claimDuration (LIM-SCH-15)."
+cardinality:
+  - collection: "Scheduler lanes"
+    expected: "maxConcurrentRuns 1-4, maxConcurrentToolRuns 2"
+    maximum: "32 per pool, 64 in total"
+    bound: "One claim per lane per attempt; the exclusion set holds at most 64 Run IDs."
+  - collection: "Runs skipped by one claim"
+    expected: "a few"
+    maximum: "Runs claimed by lanes of that pool, Runs deferred within their window and pending Runs of paused owners (SCH-R164)"
+    bound: "Index order within one class; no sort."
+lifecycle:
+  - entity: "scheduler_settings.max_concurrent_tool_runs"
+    delete: "Never; it is a column of the singleton."
+    cascade: "None."
+    retention: "As the singleton."
+  - entity: "workflow_runs.scheduler_lane_class"
+    delete: "With the Run row."
+    cascade: "None."
+    retention: "As the Run; ignored by claims once the Run is terminal."
+acceptance_criteria:
+  - id: A1
+    given: "Stages with passthrough@1, scan-plan@1, streamline@1 and router@1 Planners and tool, ADK and mixed Worker bindings, including retries and escalated executions"
+    when: "the lane class is computed"
+    then: "only Stages with a model-free Planner and only tool Workers are `tool`; runservice and evalservice compute model-freeness through the same predicate and keep their current results."
+  - id: A2
+    given: "maxConcurrentRuns = 1, maxConcurrentToolRuns = 2 and runnable model and tool Runs in PostgreSQL"
+    when: "the supervisor runs"
+    then: "at most one Run progresses a model Stage and at most two progress tool Stages at once, and each pool claims only its class."
+  - id: A3
+    given: "a Run whose first Stage is a scan and second Stage uses a model"
+    when: "the scan Stage completes"
+    then: "the tool lane releases the claim without deferral, a model lane claims the Run next, and the Run never holds two lanes."
+  - id: A4
+    given: "either setting lowered below its pool's active lanes"
+    when: "the update commits"
+    then: "that pool drains without cancelling a Run or Planner call, the other pool is unaffected, and after restart both values are read before any claim."
+  - id: A5
+    given: "a PUT without maxConcurrentToolRuns, with it, and with 0 or 33"
+    when: "the request is handled"
+    then: "the stored value is kept, updated, or rejected with 400 invalid_request respectively, and the OpenAPI contract tests pass."
+  - id: A6
+    given: "a Run whose stored lane class was changed to disagree with its StageExecution"
+    when: "a lane claims it"
+    then: "the Run fails as unprogressable with a storage invariant error instead of being re-classified."
+  - id: A7
+    given: "a cancelling Run whose active Stage is a tool Stage while every tool lane is busy and model lanes are idle"
+    when: "the next tool lane frees"
+    then: "it claims the cancelling Run before ordinary tool work, and no model lane claims it."
+tests:
+  - command: "go test ./internal/config/resolved ./internal/scheduler ./internal/runstore ./internal/settingsstore ./internal/runservice ./internal/evalservice ./internal/httpapi/public"
+    covers: [A1, A2, A3, A4, A5, A6, A7]
+  - command: make test-postgres
+    covers: [A2, A3, A4, A6, A7]
+  - command: make verify-public-api
+    covers: [A5]
+  - command: make verify-public-api-postgres
+    covers: [A5]
+  - command: make ui-verify
+    covers: [A5]
+  - command: make lint
+    covers: [A1, A2, A3, A4, A5, A6, A7]

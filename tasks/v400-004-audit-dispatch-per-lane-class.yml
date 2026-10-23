@@ -1,0 +1,106 @@
+schema_version: "1.0"
+id: V400-004
+title: "Pace Audit dispatch separately for model and model-free roles"
+milestone: model-free-stage-lanes-2026-10
+epic: audits
+kind: feature
+priority: P2
+status: pending
+depends_on: [V400-001, V400-002, V400-003]
+languages: [go, sql]
+goal: >-
+  An Audit keeps at most maxConcurrentRuns child Runs outstanding, counted as
+  one total, so even with a separate tool lane pool it never submits more than
+  that many scans and the pool idles. After this task scan roles are paced by
+  maxConcurrentToolRuns and model roles by maxConcurrentRuns, so an Audit with
+  many OpenAPI scan items keeps both pools busy. This is the milestone's exit
+  task: it depends on the model-first rule (V400-002) because it is what lets
+  Audits submit many scans at once, and on the settings page (V400-003) so the
+  milestone ends with the limit editable.
+context:
+  proposal: "docs/proposals/0040-model-free-stage-lanes.md#5-audit-dispatch-windows-per-class"
+  specification:
+    - docs/spec/audits/execution.md#AUX-R3
+    - docs/spec/audits/execution.md#AUX-R4
+    - docs/spec/audits/execution.md#AUX-R5
+    - docs/spec/audits/execution.md#AUX-R6
+    - docs/spec/audits/execution.md#AUX-R7
+    - docs/spec/execution/scheduler.md#SCH-R142
+  current_code: >-
+    audits.outstanding_run_count is one counter. The submission gate in
+    internal/auditstore/internal/pgstore/execution_intent_sql.go increments it
+    only while it is below claim_gate.max_concurrent_runs, and
+    execution_sql.go decrements it on terminal observation.
+    internal/auditstore/internal/pgstore/execution.go and read.go pass
+    settings.MaxConcurrentRuns, and
+    internal/auditcontroller/dispatch_selection.go stops dispatch when
+    OutstandingRunCount reaches it.
+  siblings: >-
+    Preparation attempts of prepare roles go through the same gate and must be
+    classified by their role too. The reconcile snapshot (AUX-R95) must carry
+    both limits and both counts. FAIL-AUX-6 orders the settings row against
+    dispatch reservations and must cover both settings. LIM-AUX-1, the
+    glossary entry Dispatch look-ahead and invariant 6 of Audit execution
+    change with it.
+scope:
+  in:
+    - "A role's lane class from its pinned Workflow: `tool` when every Stage is `tool` by the V400-001 function, otherwise `model`."
+    - "Per-class outstanding counts on the Audit, incremented and decremented in the existing transactions, with the gate comparing each against its own setting."
+    - "Dispatch selection that fills each class's window independently."
+    - "A migration that splits the counter for existing Audits from their nonterminal child Runs."
+    - "Specification: AUX-R3 to AUX-R7, invariant 6, LIM-AUX-1, FAIL-AUX-6 and the glossary entry."
+  out:
+    - "Any AuditProfile concurrency setting (SCH-R142 stays)."
+    - "A per-target scan limit: accepted risk in the proposal, section 6."
+requirements:
+  - id: R1
+    text: "An Audit's outstanding tool-class child Runs never exceed maxConcurrentToolRuns and its model-class ones never exceed maxConcurrentRuns, enforced transactionally across Controller instances (AUX-R4)."
+  - id: R2
+    text: "A role with mixed Stages counts as `model`; the window stays producer backpressure, not an execution limit (AUX-R5)."
+  - id: R3
+    text: "Lowering either setting never cancels submitted child Runs; that class submits again only once its count falls below the new value (AUX-R7)."
+failure_outcomes:
+  - operation: "Dispatch reservation against a class window"
+    permanent: "A role whose pinned Workflow cannot be classified is a storage invariant failure of the Audit, never a default class."
+    retryable: "storage_transaction_conflict retries as the existing reservation does."
+    ambiguous: "Submission intents keep their keys; reconciliation counts each intent once, in its class."
+    cancelled: "An unreserved intent is released as today."
+    timeout: "The existing Controller operation timeout."
+cardinality:
+  - collection: "Outstanding child Runs per Audit"
+    expected: "maxConcurrentRuns + maxConcurrentToolRuns"
+    maximum: "64"
+    bound: "Two counters on the Audit row; no scan of child Runs per tick."
+lifecycle:
+  - entity: "Per-class outstanding counters"
+    delete: "With the Audit."
+    cascade: "None."
+    retention: "As the Audit."
+acceptance_criteria:
+  - id: A1
+    given: "an Audit with 10 scan items and 10 model check items, maxConcurrentRuns = 1 and maxConcurrentToolRuns = 2"
+    when: "the Controller dispatches"
+    then: "one model check Run and two scan Runs are outstanding, and each class refills as its Runs finish."
+  - id: A2
+    given: "a role whose Workflow scans and then triages with a model"
+    when: "its items are dispatched"
+    then: "they count against maxConcurrentRuns."
+  - id: A3
+    given: "two Controller instances dispatching the same Audit concurrently"
+    when: "both reserve"
+    then: "neither class window is overfilled, on PostgreSQL."
+  - id: A4
+    given: "maxConcurrentToolRuns lowered below an Audit's outstanding scan count"
+    when: "the Controller reconciles"
+    then: "no Run is cancelled and no scan is submitted until the count falls below the new value, while model dispatch continues."
+  - id: A5
+    given: "an Audit created before the migration with nonterminal child Runs of both classes"
+    when: "the migration runs"
+    then: "the two counters equal the nonterminal child Runs of each class."
+tests:
+  - command: "go test ./internal/auditcontroller ./internal/auditstore/..."
+    covers: [A1, A2, A3, A4]
+  - command: make test-postgres
+    covers: [A1, A3, A4, A5]
+  - command: make lint
+    covers: [A1, A2, A3, A4, A5]

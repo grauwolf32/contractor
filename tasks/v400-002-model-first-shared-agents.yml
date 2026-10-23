@@ -1,0 +1,125 @@
+schema_version: "1.0"
+id: V400-002
+title: "Resolve shared Runtime Agent conflicts in favour of model Stages"
+milestone: model-free-stage-lanes-2026-10
+epic: execution-core
+kind: feature
+priority: P2
+status: pending
+depends_on: [V400-001]
+languages: [go, sql]
+goal: >-
+  With a separate tool lane pool, every Runtime slot that frees up can go to
+  the next scan, and a model Stage that needs several slots at once may wait
+  indefinitely. The user decided on 2026-10-23 that a conflict on a shared
+  Runtime Agent is resolved in favour of the model Stage. After this task tool
+  placement never reserves an Agent that the oldest model Stage waiting for
+  busy capacity could use, while scans still run on Agents that Stage cannot
+  use.
+context:
+  proposal: "docs/proposals/0040-model-free-stage-lanes.md#4-model-stages-first-on-shared-runtime-agents"
+  specification:
+    - docs/spec/execution/scheduler.md#SCH-R19
+    - docs/spec/execution/scheduler.md#SCH-R23
+    - docs/spec/execution/scheduler.md#SCH-R121
+    - docs/spec/execution/scheduler.md#SCH-R122
+    - docs/spec/execution/scheduler.md#SCH-R123
+    - docs/spec/execution/control-plane.md#CTL-R76
+    - docs/spec/execution/control-plane.md#CTL-R84
+  current_code: >-
+    workflow_runs.scheduler_deferred is one boolean set by three causes: owner
+    queue pause (ErrQueuePaused mapped to ErrDeferred in
+    internal/scheduler/supervisor.go), insufficient capacity
+    (internal/scheduler/stage_preparation.go, prepareStageWorkers) and a
+    denied model-route admission (internal/scheduler/allocation_reservations.go,
+    the Admit callback). DeferRunClaim in internal/runstore/store.go writes it.
+    Control Plane returns ErrInsufficientCapacity
+    (internal/controlplane/errors.go) from internal/controlplane/registry.go
+    and internal/controlplane/placement.go both when compatible Agents are
+    reserved and when no registered Agent is compatible.
+  siblings: >-
+    claimRunnableRunSQL and both claim indexes read scheduler_deferred and must
+    read the new cause instead. Every DeferRunClaim caller must pass its cause.
+    The Gateway model-route recovery gate (SCH-R106 onwards) keeps its own
+    probe and wait records; only its deferral cause changes.
+scope:
+  in:
+    - "Record the deferral cause and time on workflow_runs: capacity_busy, capacity_incompatible, queue_paused or model_route, replacing the boolean, with the claim ordering of SCH-R121 to SCH-R123 unchanged."
+    - "Control Plane placement distinguishes compatible-but-reserved capacity from no compatible registered Agent, as two classified errors."
+    - "An indexed read of the oldest model-class Run deferred with capacity_busy."
+    - "Tool placement excludes Agents compatible with that Stage's requirement set, derived from its pinned execution config as its own placement derives it; a tool Stage with no remaining compatible Agent is deferred with capacity_busy."
+    - "Specification: a new Scheduler requirement in Preparation and capacity, the Control Plane placement outcome, and failure-model entries for the new outcomes."
+  out:
+    - "Priority between waiting model Stages: unchanged (SCH-R121, SCH-R123)."
+    - "Dedicated scan Agents: already possible through scanner capabilities (SCN-R54); no code."
+    - "Any change to how model Stages are placed."
+requirements:
+  - id: R1
+    text: "While a model Stage is deferred with capacity_busy, tool placement does not reserve an Agent compatible with the oldest such Stage; a tool Stage that fits an Agent that Stage cannot use is placed."
+  - id: R2
+    text: "The hold ends when that Stage is placed, cancelled, aborted or reaches its Stage deadline, and the next oldest capacity_busy model Stage then applies."
+  - id: R3
+    text: "A model Stage deferred with capacity_incompatible, queue_paused or model_route holds no Agent back."
+  - id: R4
+    text: "The rule affects only placement of new tool Stages; running tool Stages, cancellation, finalization, release and recovery are never delayed by it."
+  - id: R5
+    text: "Each tool placement performs one indexed read and one requirement-set comparison per candidate Agent, independent of how many Runs are waiting."
+failure_outcomes:
+  - operation: "Read of the oldest capacity_busy model Run before tool placement"
+    permanent: "A malformed stored cause is a storage invariant failure that fails the Run through the existing unprogressable-Run path."
+    retryable: "A read error defers the tool Stage with capacity_busy; it never places the tool Stage without the check."
+    ambiguous: "Not applicable: a read."
+    cancelled: "The lane's context cancels the read; the claim is released as today."
+    timeout: "The Scheduler operation timeout that bounds placement."
+  - operation: "Control Plane placement with the excluded Agent set"
+    permanent: "capacity_incompatible for a Stage no registered Agent can serve; the Stage stays preparing until its deadline as today (SCH-R19)."
+    retryable: "capacity_busy defers with the existing bounded backoff."
+    ambiguous: "Reservation stays atomic (SCH-R23); a lost response reconciles through the existing reservation rows."
+    cancelled: "No reservation is left without its grant (the Admit rule)."
+    timeout: "The existing placement timeout."
+cardinality:
+  - collection: "Capacity-waiting model Runs"
+    expected: "0-4"
+    maximum: "every running model Run in preparing"
+    bound: "Only the oldest one is read, through an index."
+  - collection: "Candidate Agents per tool placement"
+    expected: "a few"
+    maximum: "registered Runtime Agents"
+    bound: "One requirement-set comparison per candidate Agent, in memory."
+lifecycle:
+  - entity: "workflow_runs deferral cause and time"
+    delete: "With the Run row."
+    cascade: "None."
+    retention: "Cleared when the Run is claimed and progresses, as the boolean is today."
+acceptance_criteria:
+  - id: A1
+    given: "two shared Agents, a model Stage needing both and a stream of scan Runs that arrive faster than they finish"
+    when: "the Scheduler runs with a deterministic clock"
+    then: "the model Stage is placed once the Agents free up, and no scan is placed on them while it waits."
+  - id: A2
+    given: "a waiting capacity_busy model Stage and a free Agent with scanners that lacks a capability the model Stage requires"
+    when: "a scan Stage is admitted"
+    then: "the scan is placed on that Agent."
+  - id: A3
+    given: "the only waiting model Stage is capacity_incompatible, queue_paused or model_route"
+    when: "a scan Stage is admitted"
+    then: "it is placed on any compatible free Agent."
+  - id: A4
+    given: "the waiting model Stage is cancelled, aborted or reaches its Stage deadline"
+    when: "the next scan is admitted"
+    then: "the hold moves to the next oldest capacity_busy model Stage, or ends."
+  - id: A5
+    given: "running scan Stages and a cancelling scan Run while a model Stage waits"
+    when: "they progress"
+    then: "they finish, cancel and release exactly as without the rule."
+  - id: A6
+    given: "1,000 deferred model Runs"
+    when: "a scan placement checks the hold"
+    then: "it reads one Run through the index, proven on PostgreSQL."
+tests:
+  - command: "go test ./internal/scheduler ./internal/controlplane ./internal/runstore"
+    covers: [A1, A2, A3, A4, A5, A6]
+  - command: make test-postgres
+    covers: [A1, A4, A5, A6]
+  - command: make lint
+    covers: [A1, A2, A3, A4, A5, A6]

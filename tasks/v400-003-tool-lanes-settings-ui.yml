@@ -1,0 +1,63 @@
+schema_version: "1.0"
+id: V400-003
+title: "Edit the model-free lane limit on the Operations settings page"
+milestone: model-free-stage-lanes-2026-10
+epic: operations
+kind: feature
+priority: P2
+status: pending
+depends_on: [V400-001]
+languages: [typescript]
+goal: >-
+  An operator sets how many scans and other model-free Stages may run at once
+  next to the existing parallel Run limit, without calling the API by hand.
+context:
+  proposal: docs/proposals/0040-model-free-stage-lanes.md
+  specification:
+    - docs/spec/operations/operations.md#OPS-R47
+    - docs/spec/ui/ui.md
+  design: docs/design/ui/README.md
+  current_code: >-
+    The Operations settings page edits maxConcurrentRuns
+    (ui/src/routes/operations/settings/index.tsx, ui/src/api/operations.ts,
+    ui/src/api/scheduler-settings.test.ts,
+    ui/src/routes/operations/settings/settings.test.tsx). V400-001 adds
+    maxConcurrentToolRuns to the resource and regenerates
+    ui/src/api/generated/public.ts.
+scope:
+  in:
+    - "A second numeric field for maxConcurrentToolRuns (1..32) beside maxConcurrentRuns, saved through the same request and ETag."
+    - "Labels and help text in the user's words from docs/design/ui/README.md: the first limit bounds checks that use a model, the second bounds scans and other checks without a model; setting names stay under Technical details."
+    - "The existing stale-revision conflict, validation and saved states for both fields."
+    - "A ui/package.json patch version bump."
+  out:
+    - "Any change to the Scheduler or the API (V400-001)."
+requirements:
+  - id: R1
+    text: "The page never shows a value the Server has not returned; after a save it shows the stored values from the response."
+  - id: R2
+    text: "A stale revision shows the conflict and keeps the operator's draft instead of overwriting the newer value."
+acceptance_criteria:
+  - id: A1
+    given: "the settings resource with both values"
+    when: "the page loads"
+    then: "both fields show the stored values with their explanations."
+  - id: A2
+    given: "an operator changes only the model-free limit"
+    when: "they save"
+    then: "one request sends both values with the current ETag and the page shows the Server's response."
+  - id: A3
+    given: "a value outside 1..32 or a stale ETag"
+    when: "the operator saves"
+    then: "the page shows the validation error or the conflict and keeps the draft."
+  - id: A4
+    given: "a 390 px viewport in the light, dark and black themes"
+    when: "the page renders"
+    then: "both fields fit without horizontal scrolling."
+tests:
+  - command: "corepack pnpm --dir ui test -- src/api/scheduler-settings.test.ts src/routes/operations/settings/settings.test.tsx"
+    covers: [A1, A2, A3]
+  - command: make ui-verify
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
