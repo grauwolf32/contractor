@@ -20,9 +20,13 @@ for (const width of [390, 1280]) {
     await expect(quality).toBeVisible();
     if (width === 390) {
       await expect(progress).not.toBeVisible();
+      // Choose the chart from the keyboard with type-ahead on the option
+      // label. ArrowDown changes a closed native select on Linux Chromium
+      // but opens its popup on macOS Chromium; type-ahead changes the value
+      // of a closed select on every platform.
       await overviewChart.focus();
-      await overviewChart.press("ArrowDown");
-      await overviewChart.press("Enter");
+      await expect(overviewChart).toBeFocused();
+      await page.keyboard.press("e");
       await expect(overviewChart).toHaveValue("progress");
       await expect(progress).toBeVisible();
       await expect(quality).not.toBeVisible();
