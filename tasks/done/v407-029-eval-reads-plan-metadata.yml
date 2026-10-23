@@ -93,7 +93,7 @@ decisions:
   the summary page SQL selects only setup.
 - >-
   Materialized readiness lives in the owned eval_frozen_plans row (new nullable column readiness,
-  migration 000033_eval_plan_readiness.sql), written by persistPlan in the same INSERT as the plan, so
+  migration 000034_eval_plan_readiness.sql), written by persistPlan in the same INSERT as the plan, so
   the freeze transaction and its rollback cover it and eval_plans_immutable protects it. The readiness
   computation and its types moved from evalservice to evaldomain (NativeReadiness, Readiness), so the
   store derives readiness from the very document it stores and validates it against the closed
@@ -111,7 +111,7 @@ decisions:
   would repeat that work on every poll.
 - >-
   One rule, three implementations (AGENTS 3.1): evaldomain.NativeReadiness, the freeze write path and
-  the SQL backfill of migration 000033 are all held to the new shared fixture
+  the SQL backfill of migration 000034 are all held to the new shared fixture
   api/testdata/evals/readiness-cases.json (covered by the existing evals/ readers entry). Its mixed case
   orders the dimensions a-b, a.b, a0, a_b, ab, which en_US collation sorts differently, so the backfill's
   COLLATE "C" is tested; it also covers operator_supplied and unavailable origins, missing pins, null
@@ -169,8 +169,8 @@ verification:
     rejected; TestSharedEvalNativeReadinessRejectsAnotherPlanKind).
   - >-
     go test -count=1 ./internal/persistence/postgres/... passed, including
-    TestSharedPostgresEvalPlanReadinessMigrationBackfillsNativePlans (migrations 1-32, two fixture
-    native plans with members and an external registration, then 000033: backfilled readiness equals the
+    TestSharedPostgresEvalPlanReadinessMigrationBackfillsNativePlans (the migrations before it, two
+    fixture native plans with members and an external registration, then 000034: backfilled readiness equals the
     fixture and NativeReadiness and is schema-valid, external stays NULL, plan and member rows are
     byte-identical before and after, the immutable trigger is enabled again and a native plan without
     readiness is rejected by eval_frozen_plans_readiness_kind_check).

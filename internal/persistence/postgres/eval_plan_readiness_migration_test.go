@@ -50,12 +50,12 @@ SELECT $1, encode(sha256(convert_to($1||'/'||n,'UTF8')),'hex'), encode(sha256(co
 	}
 }
 
-// Migration 000033 backfills the readiness of every retained native plan with
-// exactly what evaldomain.NativeReadiness, and so the experiment view before
-// the migration, derives from it (the shared fixture), leaves registrations
-// without one and changes no other plan or member data. Afterwards the plan
-// row is immutable again and the readiness is required exactly for native
-// plans.
+// Migration eval_plan_readiness backfills the readiness of every retained
+// native plan with exactly what evaldomain.NativeReadiness, and so the
+// experiment view before the migration, derives from it (the shared fixture),
+// leaves registrations without one and changes no other plan or member data.
+// Afterwards the plan row is immutable again and the readiness is required
+// exactly for native plans.
 func TestSharedPostgresEvalPlanReadinessMigrationBackfillsNativePlans(t *testing.T) {
 	url := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
 	if url == "" {
@@ -63,7 +63,7 @@ func TestSharedPostgresEvalPlanReadinessMigrationBackfillsNativePlans(t *testing
 	}
 	ctx := t.Context()
 	pool, _ := isolatedPools(t, ctx, url)
-	installMigrationPrefix(t, ctx, pool, 32)
+	installMigrationPrefix(t, ctx, pool, versionBefore(t, "eval_plan_readiness"))
 	var fixtures struct {
 		Cases []struct {
 			Name       string                `json:"name"`
@@ -167,4 +167,25 @@ VALUES('late','owner','evaluation','late','server','Late plan','ready',1,1,1000)
 SELECT 'late',document_kind,document,setup,plan_sha256 FROM eval_frozen_plans WHERE experiment_id='native-0'`); !violation(err, "eval_frozen_plans_readiness_kind_check") {
 		t.Fatalf("a native plan without readiness was stored: %v", err)
 	}
+}
+
+// versionBefore returns the version of the embedded migration that precedes
+// the one named suffix, so a test installs the schema its migration upgrades
+// whatever number the migration takes.
+func versionBefore(t *testing.T, suffix string) int64 {
+	t.Helper()
+	available, err := loadMigrations()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, item := range available {
+		if strings.TrimSuffix(item.name[strings.IndexByte(item.name, '_')+1:], ".sql") == suffix {
+			if i == 0 {
+				t.Fatalf("migration %s has no predecessor", item.name)
+			}
+			return available[i-1].version
+		}
+	}
+	t.Fatalf("no embedded migration is named %s", suffix)
+	return 0
 }
