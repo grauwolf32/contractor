@@ -2,15 +2,19 @@ package public
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
+	"github.com/grauwolf32/contractor/internal/credentials"
+	"github.com/grauwolf32/contractor/internal/scanstore"
 )
 
 // TestSharedIdempotencyKeyCasesMatchPublicHeaderParameters holds both public
@@ -158,6 +162,101 @@ func TestSharedIdempotencyKeyCasesGateEvalMutations(t *testing.T) {
 				t.Errorf("%s with valid Idempotency-Key %q = %d %s, want %d %s like the fixture key",
 					mutation.Name, key, response.Code, failure.Code, baseline.Code, baselineFailure.Code)
 			}
+		}
+	}
+}
+
+// countingSweepCancels counts the scan sweep cancellations that reach the
+// service.
+type countingSweepCancels struct {
+	*fakeScanSweeps
+	cancels *int
+}
+
+func (s countingSweepCancels) Cancel(ctx context.Context, owner, sweepID string) (scanstore.Sweep, error) {
+	*s.cancels++
+	return s.fakeScanSweeps.Cancel(ctx, owner, sweepID)
+}
+
+// countingCredentialDeletes counts the RuntimeCredential deletions that reach
+// the service.
+type countingCredentialDeletes struct {
+	*fakeRuntimeCredentialManagement
+	deletes *int
+}
+
+func (s countingCredentialDeletes) Delete(ctx context.Context, id, actor string) (credentials.RuntimeCredentialDeleteResult, error) {
+	*s.deletes++
+	return s.fakeRuntimeCredentialManagement.Delete(ctx, id, actor)
+}
+
+// TestSharedIdempotencyKeyCasesGateOptionalKeys sends every shared key to
+// each operation that takes the OptionalIdempotencyKey parameter (API-R28).
+// Such an operation binds no key, so an absent key and every valid key reach
+// its service, but a key outside the grammar and every duplicate header set
+// are 400 invalid_request before the service is called. An operation that
+// takes the parameter but has no request here fails the test.
+func TestSharedIdempotencyKeyCasesGateOptionalKeys(t *testing.T) {
+	calls := map[string]*int{"cancelScanSweep": new(int), "deleteRuntimeCredential": new(int)}
+	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil,
+		func(services *testServices) {
+			services.ScanSweeps = countingSweepCancels{fakeScanSweeps: &fakeScanSweeps{}, cancels: calls["cancelScanSweep"]}
+			services.RuntimeCredentials = countingCredentialDeletes{
+				fakeRuntimeCredentialManagement: services.RuntimeCredentials.(*fakeRuntimeCredentialManagement),
+				deletes:                         calls["deleteRuntimeCredential"],
+			}
+		})
+	requests := map[string]struct{ method, path string }{
+		"cancelScanSweep":         {http.MethodPost, "/v1/scan-sweeps/sweep-one/cancel"},
+		"deleteRuntimeCredential": {http.MethodDelete, "/v1/operations/runtime-credentials/otel-debug"},
+	}
+	for path, item := range loadPublicOpenAPI(t).Paths.Map() {
+		for _, operation := range item.Operations() {
+			for _, parameter := range operation.Parameters {
+				if strings.HasSuffix(parameter.Ref, "/OptionalIdempotencyKey") {
+					if _, listed := requests[operation.OperationID]; !listed {
+						t.Errorf("%s %s takes OptionalIdempotencyKey but has no request here", operation.OperationID, path)
+					}
+				}
+			}
+		}
+	}
+	cases := contractstest.ReadIdempotencyKeyCases(t)
+	rejected := cases.DuplicateHeaders
+	for _, key := range cases.Invalid {
+		rejected = append(rejected, []string{key})
+	}
+	accepted := [][]string{nil}
+	for _, key := range cases.Valid {
+		accepted = append(accepted, []string{key})
+	}
+	for operation, target := range requests {
+		send := func(keys []string) (*httptest.ResponseRecorder, errorResponse) {
+			request := authenticatedRequest(target.method, target.path, bytes.NewReader(nil))
+			for _, key := range keys {
+				request.Header.Add(idempotencyKeyHeader, key)
+			}
+			response := httptest.NewRecorder()
+			fixture.handler.ServeHTTP(response, request)
+			var failure errorResponse
+			_ = json.Unmarshal(response.Body.Bytes(), &failure)
+			return response, failure
+		}
+		for _, keys := range rejected {
+			if response, failure := send(keys); response.Code != http.StatusBadRequest || failure.Code != "invalid_request" {
+				t.Errorf("%s with Idempotency-Key %q = %d %s, want 400 invalid_request", operation, keys, response.Code, response.Body.String())
+			}
+		}
+		if *calls[operation] != 0 {
+			t.Errorf("%s: rejected Idempotency-Keys reached the service %d times", operation, *calls[operation])
+		}
+		for _, keys := range accepted {
+			if response, failure := send(keys); failure.Code == "invalid_request" {
+				t.Errorf("%s with Idempotency-Key %q = %d %s, want it to reach the service", operation, keys, response.Code, response.Body.String())
+			}
+		}
+		if *calls[operation] != len(accepted) {
+			t.Errorf("%s: %d of %d accepted requests reached the service", operation, *calls[operation], len(accepted))
 		}
 	}
 }

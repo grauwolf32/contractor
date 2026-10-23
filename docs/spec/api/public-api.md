@@ -371,11 +371,15 @@ retryability. Managed Eval mutations report the same outcome as
 client never retries a response marked `retryable` false, whatever its
 status.
 
-**API-R28.** RuntimeCredential deletion is the one exception: its durable
-tombstone makes it idempotent by credential ID, so it accepts but neither
-requires nor binds an idempotency key. Its replay response and key-format
-validation are in Runtime configuration
-([RCF-R176](../configuration/runtime-config.md)).
+**API-R28.** RuntimeCredential deletion and scan sweep cancellation are the
+exceptions (the OpenAPI `OptionalIdempotencyKey` parameter): a durable
+tombstone or the sweep's own state makes each idempotent by resource identity,
+so it accepts but neither requires nor binds an idempotency key. A supplied
+key is still one header in the API-R69 grammar, or the request is
+`400 invalid_request` and changes nothing. The RuntimeCredential replay
+response is in Runtime configuration
+([RCF-R176](../configuration/runtime-config.md)); sweep cancellation is in
+Scanners ([SCN-R250](../tools/scanners.md)).
 
 **API-R29.** The API keeps configuration and credential mutations distinct
 from ordinary Run and Artifact use, so later RBAC does not require changing

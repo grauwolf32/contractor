@@ -22,6 +22,18 @@ const maxJSONRequestSize = 1 << 20
 
 const idempotencyKeyHeader = "Idempotency-Key"
 
+// validateOptionalIdempotencyKey checks the OptionalIdempotencyKey of an
+// operation that is idempotent by resource identity and binds no key
+// (API-R28): it may be absent, and a supplied one is one header in the
+// Idempotency-Key grammar.
+func validateOptionalIdempotencyKey(r *http.Request) error {
+	if len(r.Header.Values(idempotencyKeyHeader)) == 0 {
+		return nil
+	}
+	_, err := requireIdempotencyKey(r)
+	return err
+}
+
 // requireIdempotencyKey returns the request's one Idempotency-Key header in
 // the public IdempotencyKey grammar (API-R69).
 func requireIdempotencyKey(r *http.Request) (string, error) {
