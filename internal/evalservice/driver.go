@@ -3,6 +3,7 @@ package evalservice
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -35,6 +36,9 @@ type Driver struct {
 	Runs     RunCreator
 	Audits   AuditExecutor
 	Notifier RunNotifier
+	// Now stamps a cancellation intent when it is journaled; every replay
+	// uses the journaled time. Nil is the system clock.
+	Now func() time.Time
 }
 
 type executionAdapter interface {
@@ -51,7 +55,11 @@ func (d *Driver) Reconcile(ctx context.Context, e evalstore.Experiment, m evalst
 	if d.Pool == nil || d.Runs == nil || d.Audits == nil {
 		return errors.New("eval execution dependencies are incomplete")
 	}
-	operations := &executionOperations{pool: d.Pool}
+	now := d.Now
+	if now == nil {
+		now = time.Now
+	}
+	operations := &executionOperations{pool: d.Pool, now: now}
 	resources := &memberResources{operations: operations}
 	var adapter executionAdapter
 	switch m.ExecutionKind {

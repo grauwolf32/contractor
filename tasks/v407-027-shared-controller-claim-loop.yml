@@ -6,7 +6,7 @@ epic: persistence
 kind: chore
 introduced_by: V38-004
 priority: P3
-status: pending
+status: in_progress
 depends_on:
 - V407-003
 languages:
@@ -64,3 +64,48 @@ tests:
   covers:
   - A1
   - A3
+decisions:
+- >-
+  Shared: internal/claimpass (foundation layer, standard library only) runs the claims one pass leased.
+  Each claim is handled in its own goroutine (concurrency = claims leased, bounded by each controller's
+  claim batch), its release runs only after its handler returned, under context.WithoutCancel(pass) and
+  a release budget, a release reporting the store's lost-claim error is not a failure, and the pass
+  returns once every claim was released, with whether any handler changed state and each claim's
+  handler and release failures joined in claim order (PER-R26, FAIL-PER-3). Both production consumers
+  call claimpass.Run: Controller.RunOnce (internal/auditcontroller/controller.go) and Coordinator.RunOnce
+  (internal/evalcoordinator/coordinator.go). persistencepostgres.ControllerClaims stays the only lease
+  mechanism (PER-R25); no table, receipt or lease was added.
+- >-
+  Kept per controller, unchanged: the lease call (admission query, batch bound, its operation budget),
+  handler budgets (an Audit step owns its snapshot or cleanup budget; an Eval tick runs under
+  OperationTimeout), release budgets (Audit OperationTimeout; Eval 5 s), Run pacing (Audit passes again
+  at once after work without error, otherwise waits PollInterval; Eval always waits PollInterval or a
+  wake hint), and the single-runner guards. A common Run loop or scheduler was rejected because merging
+  these policies would change when each controller works (PER-R26 rationale). Reopen if a third
+  controller needs the same per-pass fan-out (reuse claimpass) or one needs different release semantics
+  (keep its own lifecycle instead of parameterizing claimpass).
+- >-
+  Placement alternative rejected: putting the lifecycle in internal/persistence/postgres next to
+  ControllerClaims. It is goroutine and context plumbing over each controller's own claim type and store
+  method, touches no SQL, and is generic over the claim type anyway; the foundation layer keeps it free
+  of any store dependency.
+- >-
+  Observable differences, both intended: the Audit release context now derives from
+  context.WithoutCancel(pass) instead of context.Background(), so it keeps the pass's context values with
+  the same (absent) cancellation and the same deadline; the Eval poll wait uses Clock.After instead of
+  time.NewTimer plus Stop (an unfired Go timer is collected since Go 1.23).
+- >-
+  Clock injection is targeted: evalcoordinator.Options.Clock (After) drives the Eval poll wait (the Audit
+  controller already had Options.Clock); evalservice.Driver.Now stamps a member cancellation intent
+  (internal/evalservice/workflow_adapter.go and audit_adapter.go previously read time.Now). The time is
+  read once, when prepareOperation journals the intent, and every replay sends the journaled request,
+  so the Run cancellation time and the Audit cancellation request digest never change (EVM-R115).
+  Production defaults stay time.After and time.Now; composition is unchanged.
+- >-
+  Ruled out: the Planner's time.Now and time.NewTimer uses (internal/planner/passthrough.go deadline
+  pre-check and durations, internal/planner/session_lifecycle.go 50 ms completion retry backoff). The
+  Planner deadline is enforced by context.WithDeadline on the runtime clock, so an injected clock would
+  split one deadline across two clocks, and no deterministic Planner test needs it (scope.out excludes
+  banning time.Now by grep). The durable sweep controller (internal/scancontroller/controller.go) leases
+  one sweep per tick, joins that tick through Drain and discards release errors; moving it onto claimpass
+  would start reporting its release failures, a behaviour change outside this chore.
