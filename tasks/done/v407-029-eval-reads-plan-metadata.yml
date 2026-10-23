@@ -6,7 +6,7 @@ epic: evals
 kind: chore
 introduced_by: V38-005
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - go
@@ -126,3 +126,71 @@ decisions:
 - >-
   Report keeps a second FrozenPlanMetadata read inside withSelectedView instead of changing the
   callback signature of five views; both reads are bounded metadata in one snapshot.
+verification:
+  date: '2026-10-24'
+  environment: macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local), Node 24.20.0 with pnpm, the locked Runtime venv;
+    isolated PostgreSQL 17.11 database contractor_test_c with per-test schemas and all 33 migrations.
+  commands:
+  - >-
+    test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1
+    ./internal/evalservice/... ./internal/evalstore/... passed (evalservice 47 s, evalstore 29 s),
+    including TestSharedPostgresExperimentViewReadsStoredReadinessAtNativeCeiling (1,000 members; Get
+    and GetCommand each send 1 metadata read of eval_frozen_plans and 0 reads that select the document;
+    the stored readiness equals what the plan document yields, arms 500/500, 15 pins; 6,223 setup and
+    2,036 readiness bytes instead of the 444,150 byte document),
+    TestSharedPostgresSelectedViewsReadPlanMetadataOnly (get, members, pairs, pair, quality chart,
+    report and review of a drained experiment read no document),
+    TestSharedPostgresExperimentViewRejectsMalformedStoredReadiness (unknown member, missing arms and a
+    wrong JSON type fail as non-domain internal errors; an undeclared status fails Validate(Experiment)
+    with eval_invalid), TestSharedPostgresFreezeStoresNativeReadinessForTheView (each shared fixture
+    case frozen through persistPlan stores the fixture readiness; FrozenPlanView is one query and
+    owner-scoped; external registrations store none),
+    TestSharedPostgresStoredReadinessIsImmutableAndDecodedStrictly (immutable trigger, kind and size
+    checks, strict decode of six malformed values) and the existing
+    TestSharedPostgresNativeTickTrustsStoredPlanAtMemberCeiling.
+  - >-
+    test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1
+    ./internal/httpapi/public/... passed, including
+    TestSharedEvalPostgresExperimentViewFieldsAcrossPlanStates (draft and preparing show draft only;
+    ready shows setup, planSha256 and readiness equal to the stored plan and to the readiness its
+    document yields; a deleted unprepared draft shows its authoring setup without readiness or plan; an
+    external registration has setup and planSha256 and no readiness; a malformed stored readiness
+    answers 500 and a schema-invalid one 422 eval_invalid).
+  - >-
+    A1: with public.go, selected_views.go, review.go and readiness.go of evalservice restored from
+    9cc34c0b, the new tests failed deterministically: Get read 1 plan document and 0 metadata
+    projections; get, members, pairs, pair, chart and review each read 1 document and report 2; a
+    readiness with an unknown member was not rejected (the document was used instead), and GET returned
+    200 instead of 500. The files were restored afterwards. No elapsed-time assertion is used.
+  - >-
+    go test -count=1 ./internal/evaldomain/... passed (TestSharedEvalNativeReadinessMatchesFixtures,
+    TestSharedEvalNativeReadinessIsBoundedByPinnedDimensions: 2 x 1,024 pinned dimensions give 2,048
+    schema-valid pins, the widest schema-valid readiness encodes to 543,169 bytes, 3,072 pins are
+    rejected; TestSharedEvalNativeReadinessRejectsAnotherPlanKind).
+  - >-
+    go test -count=1 ./internal/persistence/postgres/... passed, including
+    TestSharedPostgresEvalPlanReadinessMigrationBackfillsNativePlans (migrations 1-32, two fixture
+    native plans with members and an external registration, then 000033: backfilled readiness equals the
+    fixture and NativeReadiness and is schema-valid, external stays NULL, plan and member rows are
+    byte-identical before and after, the immutable trigger is enabled again and a native plan without
+    readiness is rejected by eval_frozen_plans_readiness_kind_check).
+  - >-
+    go test -count=1 ./internal/persistence passed except the known pre-existing
+    TestSQLAccessFollowsTableOwnership failure at internal/cli/scan_sweep_remote.go:196 (named in the
+    brief as failing on the base); TestSQLStateLiteralsLiveOnlyInTheClassifier and
+    TestSQLPlacementKeepsLongStatementsInSQLFiles passed.
+  - >-
+    go test -count=1 ./internal/evalcoordinator/... passed.
+  - >-
+    make docs-erd regenerated docs/spec/database-erd.html at schema version 33 (its scratch database was
+    dropped); make docs-dependencies regenerated docs/spec/audit-workflow-dependencies.html without
+    changes.
+  - >-
+    make test-wire-cross-language passed (contracts packages, Runtime contract tests 300 passed, shared
+    fixture gate 251 fixtures with 246 Go and 185 Python shared tests, including the new
+    api/testdata/evals/readiness-cases.json readers).
+  - >-
+    make lint passed, including vet, staticcheck U1000, unused-export checks, SQL placement, spec, ERD,
+    release graph and task checks.
+  database_tests_configured: true
+implementation_commit: 4d44ce5663b4109eb90d72dc0749c835bfb28832
