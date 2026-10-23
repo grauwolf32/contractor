@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"maps"
 	"slices"
 
@@ -22,7 +23,7 @@ func (i *Importer) commitRoleFailure(ctx context.Context, claim auditstore.Contr
 	}
 	profile, err := auditprofile.DecodeResolvedAuditProfileSnapshot(snapshot.Audit.ProfileSnapshot)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("%w: pinned AuditProfile is invalid", ErrPermanent)
 	}
 	binding := profile.Workflows[execution.WorkflowRole]
 	remaining := snapshot.Audit.Limits.MaxEvidenceBytes - snapshot.Audit.RetainedEvidenceBytes

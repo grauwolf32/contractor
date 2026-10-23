@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"sort"
 
@@ -25,6 +26,16 @@ const (
 	resultSummary         = "Scanner execution and observations are retained; security conclusions remain unverified."
 )
 
+// ErrInvalid classifies a deterministic failure: the trusted scan assignment
+// differs from its execution manifest, the exact retained scan content is
+// invalid or over its bound, or the assembled result breaks its own contract.
+// The same input can never build a result, so a caller must not retry it.
+// Artifact read and storage failures and cancellation are never classified so.
+var ErrInvalid = errors.New("Audit scan result input is invalid")
+
+// ArtifactReader reads the payload of one exact Run artifact. limit is the
+// artifact's bound: a reader may refuse a larger payload before reading it,
+// and BuildResult classifies a larger returned payload as ErrInvalid.
 type ArtifactReader func(context.Context, contracts.ArtifactRef, int) (artifacts.Payload, error)
 
 type ResultInput struct {
@@ -57,9 +68,14 @@ type resultBuilder struct {
 // BuildResult retains plans and raw reports inside the ZIP. Collection and
 // deletion of the source Run therefore cannot sever its evidence. Assessments
 // distinguish execution coverage from a verified security conclusion.
+//
+// Only the artifact reads perform I/O, and their errors, cancellation
+// included, return unchanged; a missing plan or report is a coverage gap
+// instead. An invalid assignment, retained artifact or assembled result is
+// ErrInvalid.
 func BuildResult(ctx context.Context, input ResultInput, read ArtifactReader) (Result, error) {
 	if err := validateAssignment(input); err != nil {
-		return Result{}, err
+		return Result{}, invalidInput(err)
 	}
 	if read == nil {
 		return Result{}, fmt.Errorf("scan evidence reader is required")
@@ -69,14 +85,22 @@ func BuildResult(ctx context.Context, input ResultInput, read ArtifactReader) (R
 		builder.gaps[gap] = true
 	}
 	if err := builder.addJournal(); err != nil {
-		return Result{}, err
+		return Result{}, invalidInput(err)
 	}
 	for _, attempt := range input.Attempts {
 		if err := builder.addAttempt(ctx, attempt); err != nil {
 			return Result{}, err
 		}
 	}
-	return builder.packageResult()
+	result, err := builder.packageResult()
+	if err != nil {
+		return Result{}, invalidInput(err)
+	}
+	return result, nil
+}
+
+func invalidInput(err error) error {
+	return fmt.Errorf("%w: %w", ErrInvalid, err)
 }
 
 func validateAssignment(input ResultInput) error {

@@ -1840,6 +1840,15 @@ func (h *postgresControllerHarness) controllerWithCollector(
 	if err != nil {
 		t.Fatal(err)
 	}
+	return h.controllerWithImportAccess(t, access, findings...)
+}
+
+// controllerWithImportAccess is controllerWithCollector whose importer reads
+// and writes artifacts through access.
+func (h *postgresControllerHarness) controllerWithImportAccess(
+	t *testing.T, access auditimport.ArtifactAccess, findings ...auditimport.FindingRetention,
+) *Controller {
+	t.Helper()
 	collector, err := auditimport.New(h.audits, h.audits, h.runs, access, findings...)
 	if err != nil {
 		t.Fatal(err)

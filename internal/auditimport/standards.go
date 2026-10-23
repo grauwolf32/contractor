@@ -70,27 +70,19 @@ func (i *Importer) loadPinnedStandards(
 	return result, nil
 }
 
+// validateMappedProposalStandards validates only the Worker's proposal: every
+// standard reference resolves in the loaded pinned standards, and a proposal
+// for a standard-mapped task names each of the task's assigned entries.
 func validateMappedProposalStandards(
 	task auditdomain.ItemTask,
 	document auditdomain.FindingProposal,
-	loadStandards retainedStandardLoader,
+	standards retainedStandardIndex,
 ) error {
-	if task.Standard == nil && len(document.StandardRefs) == 0 {
-		return nil
-	}
-	standards, err := loadStandards()
-	if err != nil {
-		return err
-	}
 	if err := validateProposalStandardRefs(document, standards); err != nil {
 		return err
 	}
 	if task.Standard == nil {
 		return nil
-	}
-	standard, exists := standards[retainedStandardKey(task.Standard.Scheme, task.Standard.Version)]
-	if !exists || !standardTaskMatchesPackage(task, standard) {
-		return errors.New("task standard mapping does not match its retained package")
 	}
 	references := make(map[string]struct{}, len(document.StandardRefs))
 	for _, reference := range document.StandardRefs {
