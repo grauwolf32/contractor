@@ -286,7 +286,7 @@ func TestReserveCandidateEdgesFindsCompleteNonGreedyAssignment(t *testing.T) {
 	if assigned["first"] != "agent-b" || assigned["second"] != "agent-a" {
 		t.Fatalf("candidate assignment = %v", assigned)
 	}
-	if _, err := registry.GetStageReservations(request.StageExecutionID); !errors.Is(err, ErrReservationConflict) {
+	if _, err := registry.reservationsForRequest(request); !errors.Is(err, ErrReservationConflict) {
 		t.Fatalf("provisional reservation visibility error = %v", err)
 	}
 	if err := registry.DiscardCandidateReservations(request.StageExecutionID); err != nil {

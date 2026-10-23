@@ -92,6 +92,7 @@ One Workflow invocation creates one WorkflowRun. A Run durably records:
 - the immutable Workflow parameters;
 - the normalized executionConfig;
 - the pinned default and Run-selected Runtime-label configurations;
+- the immutable required placement labels (RUN-R107–RUN-R109);
 - the immutable metadata labels;
 - the exact input and Agent Skill forks in its RunScope;
 - the nullable `project_id`, which is immutable membership and query
@@ -173,17 +174,19 @@ class WorkflowRunCancellation(BaseModel):
 | `parameters` | string-to-string map | Workflow parameters | this document |
 | `artifacts` | Workflow input slot to `ArtifactRef` | Input bindings in the source scope of the endpoint | [Artifact store](../artifacts/artifact-store.md) (ART-R74) |
 | `runtimeLabels` | optional sorted unique array of names | Runtime-label selection | this document for the field; [RuntimeConfig](../configuration/runtime-config.md) for resolution |
+| `requiredPlacementLabels` | optional array of placement paths | Immutable dynamic Runtime selection (RUN-R107–RUN-R109) | this document for the field; [Control Plane](control-plane.md) for matching |
 | `labels` | optional key/value string map | Metadata labels | this document |
 | `executionConfig` | optional top-level object with the `planner`/`workers`/`stages` shape | Reference-only execution override | [AgentTemplates](../configuration/agent-templates.md) |
 | `Idempotency-Key` header | exactly one bounded key | Create idempotency | this document; header conventions in [Public API](../api/public-api.md) |
 
-### Two label domains
+### Label domains
 
-There are two deliberately separate label domains:
+The label domains have separate purposes:
 
 | Field | Shape | Meaning |
 | --- | --- | --- |
 | `runtimeLabels` | sorted unique array of names | Selects and pins RuntimeConfig bindings such as `debug` or `caido` under [RuntimeConfig](../configuration/runtime-config.md) |
+| `requiredPlacementLabels` | canonical ancestor chain of placement paths | Restricts assignments to matching current Runtime instances under [Control Plane](control-plane.md) |
 | `labels` | key/value string map | Immutable metadata describing one WorkflowRun |
 
 ### Run creation
@@ -248,6 +251,31 @@ Run is standalone, and Server creates no default Project for it
 ([PRJ-R1](../artifacts/projects.md)). A Project Run is created through
 `POST /v1/projects/{project_id}/runs` with the ordinary create-Run body and
 idempotency header ([PRJ-R22, PRJ-R97](../artifacts/projects.md)).
+
+### Placement requirements
+
+**RUN-R107.** Run creation accepts optional non-null `requiredPlacementLabels`.
+It uses the cloud/local grammar, ancestor-chain consistency and bounds of
+[CTL-R156](control-plane.md). Request order has no meaning: Server clones,
+sorts and validates the selection, rejects duplicates and contradictory paths,
+and pins a non-null canonical array in the Run creation transaction. Omission
+and an empty array both impose no location restriction. The selection requires
+no RuntimeConfig binding and is not part of a Workflow definition.
+
+**RUN-R108.** The normalized non-empty placement selection participates in
+public request digests; an empty selection is omitted from the digest. An
+identical replay uses the original keyed Run before mutable dependency reads;
+a changed valid location under the same key is `idempotency_conflict`. Run
+requirements are immutable in PostgreSQL, validated strictly on write and read,
+and retained across Stage retry, manual resume and Server restart. Invalid
+persisted values never become an unrestricted empty selection.
+
+**RUN-R109.** Create/read responses and the retained repeat draft expose
+`requiredPlacementLabels`. A repeat draft copies the original selection for
+the new launch; it does not replace it with the current Runtime fleet. Actual
+allocation placement labels are exposed in each Stage runtime-configuration
+allocation as `placementLabels`, including released allocations. Parent Run
+purge removes these fields with the existing owning rows (LIFE-DEL-1).
 
 ### Workflow parameters
 
@@ -838,7 +866,7 @@ shared conventions are in the [Public API](../api/public-api.md).
 | `GET /v1/runs/{runId}/repeat-draft` | Repeat draft of a terminal Run | RUN-R97 |
 | `POST /v1/projects/{project_id}/runs` | Create a Project Run ([Projects](../artifacts/projects.md)) | RUN-R9 |
 
-Public fields owned here: `parameters`, `runtimeLabels`, `labels`,
+Public fields owned here: `parameters`, `runtimeLabels`, `requiredPlacementLabels`, `labels`,
 `RunStatus.recovery`, `RunStatus.resumeStageExecutionId`,
 `StageAttempt.runtimeConfiguration` and `AttemptDiagnostics`.
 
@@ -944,7 +972,8 @@ rules, including report envelopes and label propagation, are in
 
 ## Invariants
 
-1. `runtimeLabels` configure infrastructure; `labels` describe one Run.
+1. `runtimeLabels` configure infrastructure; `requiredPlacementLabels` select
+   Runtime locations; `labels` describe one Run.
 2. Metadata labels are immutable, owner-scoped, bounded and atomically durable
    with Run creation.
 3. Metadata labels are neither authorization claims nor Scheduler inputs.

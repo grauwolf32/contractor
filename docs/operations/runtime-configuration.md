@@ -191,3 +191,11 @@ requires a new process incarnation. It needs no RuntimeConfig binding and is
 independent of the durable configuration labels seeded by `--initial-label`.
 For Ansible, set `contractor_runtime_placement_labels` at host/group level or
 `placement_labels` on an instance.
+
+A standalone or Project Run can select a location through the public create
+request's `requiredPlacementLabels`, for example `["cloud"]` for any cloud
+Runtime or `["cloud/aws"]` for one provider. All Workers in that Run keep the
+same requirement across retries and manual resume. An offline location is a
+valid selection and waits for matching capacity. Inspect the Run's selection
+and each Stage allocation's actual `placementLabels` through the Run detail
+API. UI controls and Audit selection are tracked separately in proposal 0043.

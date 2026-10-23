@@ -396,7 +396,7 @@ never runs.
 
 **PER-R22.** A row trigger fires only when what it guards or checks can
 change. A guard that rejects changes to some columns fires on `UPDATE OF`
-exactly the columns its function compares, and no BEFORE UPDATE trigger of its
+exactly the columns its function or WHEN condition compares, and no BEFORE UPDATE trigger of its
 table assigns a column, so only an UPDATE that lists a guarded column runs it;
 an after-row or deferred trigger states in its WHEN condition the change it
 reacts to, and fires on every INSERT when its function checks new rows. A Run

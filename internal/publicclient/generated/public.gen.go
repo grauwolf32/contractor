@@ -4018,19 +4018,25 @@ type CreateRunRequest struct {
 	ExecutionConfig *ExecutionConfigPatch                     `json:"executionConfig,omitempty"`
 	Labels          *RunMetadataLabels                        `json:"labels,omitempty"`
 	Parameters      nullable.Nullable[map[string]string]      `json:"parameters,omitempty"`
-	RuntimeLabels   *[]ConfigId                               `json:"runtimeLabels,omitempty"`
-	Workflow        Selector                                  `json:"workflow"`
+
+	// RequiredPlacementLabels Sorted unique cloud/local paths forming one ancestor chain. Empty means no location declaration or requirement.
+	RequiredPlacementLabels *PlacementLabels `json:"requiredPlacementLabels,omitempty"`
+	RuntimeLabels           *[]ConfigId      `json:"runtimeLabels,omitempty"`
+	Workflow                Selector         `json:"workflow"`
 }
 
 // CreateRunResponse defines model for CreateRunResponse.
 type CreateRunResponse struct {
-	Labels               RunMetadataLabels       `json:"labels"`
-	ProjectHttpTarget    *ProjectHTTPTarget      `json:"projectHttpTarget,omitempty"`
-	ProjectId            *ResourceId             `json:"projectId,omitempty"`
-	RunId                ResourceId              `json:"runId"`
-	RuntimeConfiguration RunRuntimeConfiguration `json:"runtimeConfiguration"`
-	RuntimeLabels        []ConfigId              `json:"runtimeLabels"`
-	State                WorkflowRunState        `json:"state"`
+	Labels            RunMetadataLabels  `json:"labels"`
+	ProjectHttpTarget *ProjectHTTPTarget `json:"projectHttpTarget,omitempty"`
+	ProjectId         *ResourceId        `json:"projectId,omitempty"`
+
+	// RequiredPlacementLabels Sorted unique cloud/local paths forming one ancestor chain. Empty means no location declaration or requirement.
+	RequiredPlacementLabels *PlacementLabels        `json:"requiredPlacementLabels,omitempty"`
+	RunId                   ResourceId              `json:"runId"`
+	RuntimeConfiguration    RunRuntimeConfiguration `json:"runtimeConfiguration"`
+	RuntimeLabels           []ConfigId              `json:"runtimeLabels"`
+	State                   WorkflowRunState        `json:"state"`
 }
 
 // CreateRuntimeCredentialRequest defines model for CreateRuntimeCredentialRequest.
@@ -6710,7 +6716,10 @@ type RunRepeatDraft struct {
 	Inputs          map[string]RunRepeatInput `json:"inputs"`
 	Labels          RunMetadataLabels         `json:"labels"`
 	Parameters      map[string]string         `json:"parameters"`
-	RuntimeLabels   []ConfigId                `json:"runtimeLabels"`
+
+	// RequiredPlacementLabels Sorted unique cloud/local paths forming one ancestor chain. Empty means no location declaration or requirement.
+	RequiredPlacementLabels *PlacementLabels `json:"requiredPlacementLabels,omitempty"`
+	RuntimeLabels           []ConfigId       `json:"runtimeLabels"`
 }
 
 // RunRepeatDraftNotice defines model for RunRepeatDraftNotice.
@@ -6775,6 +6784,9 @@ type RunStatus struct {
 	ProjectHttpTarget  *ProjectHTTPTarget           `json:"projectHttpTarget,omitempty"`
 	ProjectId          *ResourceId                  `json:"projectId,omitempty"`
 	Recovery           *RunRecovery                 `json:"recovery,omitempty"`
+
+	// RequiredPlacementLabels Sorted unique cloud/local paths forming one ancestor chain. Empty means no location declaration or requirement.
+	RequiredPlacementLabels *PlacementLabels `json:"requiredPlacementLabels,omitempty"`
 
 	// ResumeStageExecutionId Present only when this failed attempt can be manually continued after cleanup.
 	ResumeStageExecutionId *ResourceId             `json:"resumeStageExecutionId,omitempty"`
@@ -7267,9 +7279,12 @@ type StageResultArtifactSlot struct {
 
 // StageRuntimeAllocation defines model for StageRuntimeAllocation.
 type StageRuntimeAllocation struct {
-	AgentLabels     []PinnedRuntimeConfig  `json:"agentLabels"`
-	LogicalAgent    ConfigId               `json:"logicalAgent"`
-	Origins         StageRuntimeOrigins    `json:"origins"`
+	AgentLabels  []PinnedRuntimeConfig `json:"agentLabels"`
+	LogicalAgent ConfigId              `json:"logicalAgent"`
+	Origins      StageRuntimeOrigins   `json:"origins"`
+
+	// PlacementLabels Sorted unique cloud/local paths forming one ancestor chain. Empty means no location declaration or requirement.
+	PlacementLabels *PlacementLabels       `json:"placementLabels,omitempty"`
 	RuntimeAdapters []RuntimeCapabilityRef `json:"runtimeAdapters"`
 	Status          interface{}            `json:"status"`
 }

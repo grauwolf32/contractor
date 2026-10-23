@@ -14174,6 +14174,7 @@ components:
       additionalProperties: false
       required: [logicalAgent, agentLabels, runtimeAdapters, origins, status]
       properties:
+        placementLabels: {$ref: '#/components/schemas/PlacementLabels'}
         logicalAgent: {$ref: '#/components/schemas/ConfigId'}
         agentLabels:
           type: array
@@ -14331,6 +14332,7 @@ components:
       additionalProperties: false
       required: [runId, workflow, state, deletable, runtimeLabels, labels, runtimeConfiguration, attempts, transitions, outputs, outputPublications]
       properties:
+        requiredPlacementLabels: {$ref: '#/components/schemas/PlacementLabels'}
         recovery: {$ref: '#/components/schemas/RunRecovery'}
         resumeStageExecutionId:
           allOf: [{$ref: '#/components/schemas/ResourceId'}]
@@ -14411,6 +14413,7 @@ components:
       additionalProperties: false
       required: [parameters, runtimeLabels, labels, executionConfig, inputs]
       properties:
+        requiredPlacementLabels: {$ref: '#/components/schemas/PlacementLabels'}
         parameters:
           type: object
           maxProperties: 128
@@ -14498,6 +14501,7 @@ components:
       additionalProperties: false
       required: [runId, state, runtimeLabels, labels, runtimeConfiguration]
       properties:
+        requiredPlacementLabels: {$ref: '#/components/schemas/PlacementLabels'}
         runId: {$ref: '#/components/schemas/ResourceId'}
         projectId: {$ref: '#/components/schemas/ResourceId'}
         state: {$ref: '#/components/schemas/WorkflowRunState'}
@@ -14556,6 +14560,7 @@ components:
       additionalProperties: false
       required: [workflow]
       properties:
+        requiredPlacementLabels: {$ref: '#/components/schemas/PlacementLabels'}
         workflow: {$ref: '#/components/schemas/Selector'}
         runtimeLabels:
           type: array

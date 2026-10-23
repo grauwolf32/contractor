@@ -37,7 +37,7 @@ func (trace *runDetailInterleaving) TraceQueryStart(
 	defer trace.mu.Unlock()
 	switch {
 	case trace.done:
-	case strings.Contains(data.SQL, "metadata_labels FROM workflow_runs WHERE run_id = $1"):
+	case strings.Contains(data.SQL, "workflow_schema_version") && strings.Contains(data.SQL, " FROM workflow_runs WHERE run_id = $1"):
 		trace.runRead = true
 	case trace.runRead:
 		trace.done = true

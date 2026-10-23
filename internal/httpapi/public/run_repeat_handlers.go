@@ -153,9 +153,10 @@ func (h *runRepeatHandlers) getRunRepeatDraft(w http.ResponseWriter, r *http.Req
 		return
 	}
 	draft := &runRepeatDraft{
-		Parameters:    clone.Map(run.Parameters),
-		RuntimeLabels: append([]string{}, run.RuntimeLabels...),
-		Labels:        run.MetadataLabels.Clone(),
+		Parameters:              clone.Map(run.Parameters),
+		RuntimeLabels:           append([]string{}, run.RuntimeLabels...),
+		RequiredPlacementLabels: append([]string{}, run.RequiredPlacementLabels...),
+		Labels:                  run.MetadataLabels.Clone(),
 		ExecutionConfig: runRepeatExecutionConfig{
 			Status: repeatStatusAvailable, Value: snapshot.ExecutionConfig,
 		},

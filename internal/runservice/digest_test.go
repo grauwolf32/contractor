@@ -61,6 +61,12 @@ func TestPublicRequestDigestNormalizesEquivalentRequests(t *testing.T) {
 	if reversed != ordered || reversed == omitted {
 		t.Fatalf("label digests = ordered:%q reversed:%q omitted:%q", ordered, reversed, omitted)
 	}
+	placement := digest(PublicCreateParams{Workflow: "empty@1", RequiredPlacementLabels: []string{"cloud", "cloud/aws"}})
+	placementReversed := digest(PublicCreateParams{Workflow: "empty@1", RequiredPlacementLabels: []string{"cloud/aws", "cloud"}})
+	otherPlacement := digest(PublicCreateParams{Workflow: "empty@1", RequiredPlacementLabels: []string{"local/lab"}})
+	if placement != placementReversed || placement == omitted || placement == otherPlacement {
+		t.Fatal("placement requirements are not canonically bound to the request digest")
+	}
 	metadataOrdered := digest(PublicCreateParams{
 		Workflow: "empty@1", MetadataLabels: runstore.RunMetadataLabels{"purpose": "eval", "eval.leg": "a"},
 	})

@@ -764,6 +764,34 @@ validation uses the same grammar as registration; changing a returned
 registration or observation must not mutate the Registry's stored declaration.
 Declarations follow the existing incarnation retirement lifecycle.
 
+### Runtime location matching
+
+**CTL-R159.** Every placement request carries the Run's pinned
+`requiredPlacementLabels`. A required path matches an actual declaration when
+`actual == required` or `actual` starts with `required + "/"`. Each required
+path must match at least one declared path; all requirements are combined with
+AND. The slash boundary is significant: `cloud` matches `cloud/aws`, while
+`cloud/aws` does not match `cloud/aws-test`. Empty requirements allow every
+otherwise compatible Runtime, including undeclared locations; a non-empty
+requirement never matches an undeclared location.
+
+**CTL-R160.** Control Plane applies location matching while building candidate
+edges, when reserving the complete Worker set under the live Registry lock,
+when pinning allocations against the immutable Run, and when computing model
+Stage holds (CTL-R155). It preserves the complete injective matching contract
+of CTL-R83. A valid requirement without a complete compatible fleet returns
+ordinary insufficient capacity, uses existing backoff and cancellation, and
+never broadens to another location. A matching Runtime that connects later is
+eligible at the next assignment. Existing allocations do not move.
+
+**CTL-R161.** Allocation rows retain each selected incarnation's actual
+`runtime_placement_labels` as a canonical immutable declaration, independent
+of RuntimeConfig provenance and of current fleet liveness. Their API projection
+uses `placementLabels`; no replacement incarnation can reinterpret historical
+placement. A reservation receipt includes the required selection, and cached
+receipt reconciliation rejects a changed placement request before resolving
+mutable dependencies. Retention and purge follow the owning Stage allocation.
+
 ### Capability-aware placement
 
 **CTL-R70.** The currently connected fleet is not consulted while

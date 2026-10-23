@@ -17,6 +17,9 @@ def test_shared_placement_labels() -> None:
     assert fixture["cases"]
     assert fixture["maxLabels"] == 32
     assert fixture["maxLabelBytes"] == 63
+    for case in fixture["matches"]:
+        validate_placement_labels(case["required"])
+        validate_placement_labels(case["actual"])
     registration = json.loads((FIXTURES / "valid" / "agent-registration.json").read_text())
     for case in fixture["cases"]:
         registration["placementLabels"] = case["labels"]

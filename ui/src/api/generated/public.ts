@@ -5100,6 +5100,7 @@ export interface components {
             plannerTelemetry?: components["schemas"]["RuntimeFieldOrigin"];
         };
         StageRuntimeAllocation: {
+            placementLabels?: components["schemas"]["PlacementLabels"];
             logicalAgent: components["schemas"]["ConfigId"];
             agentLabels: components["schemas"]["PinnedRuntimeConfig"][];
             runtimeAdapters: components["schemas"]["RuntimeCapabilityRef"][];
@@ -5215,6 +5216,7 @@ export interface components {
             requiresRetry: boolean;
         };
         RunStatus: {
+            requiredPlacementLabels?: components["schemas"]["PlacementLabels"];
             recovery?: components["schemas"]["RunRecovery"];
             /** @description Present only when this failed attempt can be manually continued after cleanup. */
             resumeStageExecutionId?: components["schemas"]["ResourceId"];
@@ -5277,6 +5279,7 @@ export interface components {
             message?: string;
         };
         RunRepeatDraft: {
+            requiredPlacementLabels?: components["schemas"]["PlacementLabels"];
             parameters: {
                 [key: string]: string;
             };
@@ -5339,6 +5342,7 @@ export interface components {
             page: components["schemas"]["PageInfo"];
         };
         CreateRunResponse: {
+            requiredPlacementLabels?: components["schemas"]["PlacementLabels"];
             runId: components["schemas"]["ResourceId"];
             projectId?: components["schemas"]["ResourceId"];
             state: components["schemas"]["WorkflowRunState"];
@@ -5375,6 +5379,7 @@ export interface components {
             };
         };
         CreateRunRequest: {
+            requiredPlacementLabels?: components["schemas"]["PlacementLabels"];
             workflow: components["schemas"]["Selector"];
             runtimeLabels?: components["schemas"]["ConfigId"][];
             labels?: components["schemas"]["RunMetadataLabels"];

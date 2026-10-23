@@ -487,15 +487,16 @@ func TestPlacementPostgresKeepsOldAgentBindingAndNextResolutionUsesRebind(t *tes
 }
 
 type placementFixture struct {
-	ctx              context.Context
-	pool             *pgxpool.Pool
-	registry         *InMemoryRegistry
-	allocator        *PlacementAllocator
-	runID            string
-	stageExecutionID string
-	runtimeSnapshot  runtimeconfig.RunSnapshot
-	template         contracts.ResolvedAgentTemplate
-	selection        resolved.ResolvedConsumerExecutionConfig
+	requiredPlacementLabels []string
+	ctx                     context.Context
+	pool                    *pgxpool.Pool
+	registry                *InMemoryRegistry
+	allocator               *PlacementAllocator
+	runID                   string
+	stageExecutionID        string
+	runtimeSnapshot         runtimeconfig.RunSnapshot
+	template                contracts.ResolvedAgentTemplate
+	selection               resolved.ResolvedConsumerExecutionConfig
 }
 
 func newPlacementFixture(
@@ -503,8 +504,13 @@ func newPlacementFixture(
 	ctx context.Context,
 	pool *pgxpool.Pool,
 	runLabels []string,
+	placement ...[]string,
 ) *placementFixture {
 	t.Helper()
+	var required []string
+	if len(placement) > 0 {
+		required = append([]string{}, placement[0]...)
+	}
 	configuration, err := configload.Load("../../testdata/configs")
 	if err != nil {
 		t.Fatal(err)
@@ -581,6 +587,7 @@ func newPlacementFixture(
 		RunID:     runID, OwnerID: "user-placement", WorkflowName: workflow.Ref.Name,
 		WorkflowVersion: workflow.Ref.Version, WorkflowSchemaVersion: contracts.APIVersion,
 		WorkflowSnapshot: json.RawMessage(`{}`), Parameters: map[string]string{}, RuntimeConfig: pinned,
+		RequiredPlacementLabels: required,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -630,7 +637,7 @@ func newPlacementFixture(
 	return &placementFixture{
 		ctx: ctx, pool: pool, registry: registry, allocator: allocator,
 		runID: runID, stageExecutionID: stageExecutionID, runtimeSnapshot: pinned,
-		template: binding.Template, selection: selection,
+		template: binding.Template, selection: selection, requiredPlacementLabels: required,
 	}
 }
 
@@ -716,7 +723,8 @@ func (f *placementFixture) registerProcess(
 
 func (f *placementFixture) request() ReservationRequest {
 	return ReservationRequest{
-		RunID: f.runID, StageExecutionID: f.stageExecutionID, RuntimeConfig: &f.runtimeSnapshot,
+		RequiredPlacementLabels: append([]string{}, f.requiredPlacementLabels...),
+		RunID:                   f.runID, StageExecutionID: f.stageExecutionID, RuntimeConfig: &f.runtimeSnapshot,
 		Bindings: []BindingRequirement{{
 			LogicalAgentName: "builder", Namespace: "builder", AgentTemplate: f.template,
 			WorkerSessionMode: contracts.WorkerSessionIsolated,

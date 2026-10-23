@@ -82,8 +82,9 @@ func TestPostgresRunRepeatRequiresRetainedAuthorityWithoutMutation(t *testing.T)
 				t.Run(variant, func(t *testing.T) {
 					runID := "repeat-" + scope + "-" + variant
 					if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{
-						LaneClass: resolved.LaneClassModel,
-						RunID:     runID, OwnerID: "user-1", ProjectID: projectID, WorkflowName: "artifact-copy", WorkflowVersion: "1",
+						RequiredPlacementLabels: []string{"cloud/aws"},
+						LaneClass:               resolved.LaneClassModel,
+						RunID:                   runID, OwnerID: "user-1", ProjectID: projectID, WorkflowName: "artifact-copy", WorkflowVersion: "1",
 						WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`),
 						Parameters: map[string]string{"objective": "original objective"}, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 					}); err != nil {
@@ -150,6 +151,9 @@ func TestPostgresRunRepeatRequiresRetainedAuthorityWithoutMutation(t *testing.T)
 							t.Fatalf("Repeat = %d %s", response.Code, response.Body.String())
 						}
 						if variant == "current" {
+							if repeat.Draft == nil || len(repeat.Draft.RequiredPlacementLabels) != 1 || repeat.Draft.RequiredPlacementLabels[0] != "cloud/aws" {
+								t.Fatalf("repeat lost pinned placement selection: %+v", repeat.Draft)
+							}
 							if repeat.Draft == nil || repeat.Draft.Parameters["objective"] != "original objective" || !sameOptionalString(repeat.ProjectID, projectID) {
 								t.Fatalf("current request lost its draft: %+v", repeat)
 							}

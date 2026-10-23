@@ -103,6 +103,7 @@ type Service struct {
 }
 
 type PublicCreateParams struct {
+	RequiredPlacementLabels []string
 	// Trusted preparation expectations and the retained binding are not public request fields.
 	PinnedWorkflow         *resolved.ResolvedWorkflow
 	ExpectedWorkflowSHA256 string

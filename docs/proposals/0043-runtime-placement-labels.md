@@ -1,8 +1,9 @@
 # Runtime placement labels: cloud and local
 
-Proposal 0043 · Status: **Partially implemented. Startup declarations and
-Operations observations are delivered; Run/Audit selection, matching and UI
-remain planned.** Recorded on 2026-10-23 from the user's decisions.
+Proposal 0043 · Status: **Partially implemented. Startup declarations,
+Operations observations and Run placement requirements/matching are delivered;
+Audit propagation, UI selection and the process release gate remain planned.**
+Recorded on 2026-10-23 from the user's decisions.
 
 ## 1. Accepted direction
 
@@ -113,8 +114,8 @@ accepted startup authority for placement labels without changing its meaning.
 Registration publishes optional non-null `placementLabels`; startup uses
 `--placement-label` and `CONTRACTOR_PLACEMENT_LABELS`. Grammar bounds and
 incompatible-chain rejection are defined by CTL-R156. The additive launch
-request field `requiredPlacementLabels` remains a working name until the Run
-selection task publishes it. Placement selection still needs persistence,
+request field `requiredPlacementLabels` is published for standalone and
+Project Run creation and read/repeat projections. Placement selection still needs persistence,
 matching, Audit propagation and UI contracts.
 
 Before implementation, create the owning task and cover grammar and parent

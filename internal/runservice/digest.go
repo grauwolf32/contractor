@@ -33,6 +33,13 @@ func PublicRequestDigest(params PublicCreateParams) (string, error) {
 	if len(labels) != 0 {
 		canonical["runtimeLabels"] = labels
 	}
+	placement, err := contracts.NormalizePlacementLabels(params.RequiredPlacementLabels)
+	if err != nil {
+		return "", err
+	}
+	if len(placement) != 0 {
+		canonical["requiredPlacementLabels"] = placement
+	}
 	metadata, err := runstore.NormalizeRunMetadataLabels(params.MetadataLabels)
 	if err != nil {
 		return "", err

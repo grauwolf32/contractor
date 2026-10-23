@@ -8818,6 +8818,9 @@
         "status"
       ],
       "properties": {
+        "placementLabels": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PlacementLabels"
+        },
         "logicalAgent": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ConfigId"
         },
@@ -9142,6 +9145,9 @@
         "outputPublications"
       ],
       "properties": {
+        "requiredPlacementLabels": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PlacementLabels"
+        },
         "recovery": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/RunRecovery"
         },
@@ -9293,6 +9299,9 @@
         "inputs"
       ],
       "properties": {
+        "requiredPlacementLabels": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PlacementLabels"
+        },
         "parameters": {
           "type": "object",
           "maxProperties": 128,
@@ -9479,6 +9488,9 @@
         "runtimeConfiguration"
       ],
       "properties": {
+        "requiredPlacementLabels": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PlacementLabels"
+        },
         "runId": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
         },
@@ -9596,6 +9608,9 @@
       "additionalProperties": false,
       "required": ["workflow"],
       "properties": {
+        "requiredPlacementLabels": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PlacementLabels"
+        },
         "workflow": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Selector"
         },

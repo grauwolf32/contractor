@@ -160,6 +160,7 @@ FROM inserted_run`,
 		record.RuntimeConfig.ExplicitLabels(), encodedRuntimeConfig, encodedProjectHTTPTarget, encodedMetadataLabels,
 		record.idempotencyKey, record.requestDigest,
 		string(publicationMode), record.auditExecutionID, record.auditSubmissionKey, string(record.LaneClass),
+		append([]string{}, record.RequiredPlacementLabels...),
 	))
 	switch {
 	case err == nil:
@@ -592,6 +593,9 @@ func validateCreateRun(params CreateRunParams) error {
 	}
 	if _, err := NormalizeRunMetadataLabels(params.MetadataLabels); err != nil {
 		return err
+	}
+	if err := contracts.ValidatePlacementLabels(params.RequiredPlacementLabels); err != nil {
+		return invalidf("required placement labels are invalid: %v", err)
 	}
 	if err := params.RuntimeConfig.Validate(); err != nil {
 		return invalidf("RuntimeConfig snapshot is invalid: %v", err)
