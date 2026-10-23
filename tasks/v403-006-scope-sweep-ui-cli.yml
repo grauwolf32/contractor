@@ -1,0 +1,101 @@
+schema_version: '1.0'
+id: V403-006
+title: Launch and follow durable rule sweeps from UI and CLI
+milestone: web-nuclei-rule-sweeps-2026-10
+epic: ui
+kind: feature
+priority: P2
+status: pending
+depends_on:
+- V403-004
+- V403-005
+languages:
+- go
+- typescript
+- css
+goal: An operator selects a rule and Project scope once, launches a durable sweep, follows paginated
+  per-Project results and can cancel or resume using Server-owned state.
+context:
+  proposal: docs/proposals/0041-web-nuclei-scanning-and-rule-sweeps.md
+  specification:
+  - docs/spec/ui/ui.md
+  - docs/spec/ui/journeys.md
+  - docs/design/ui/README.md
+  - ui/src/ui/README.md
+  - docs/spec/api/public-api.md
+  - docs/spec/artifacts/projects.md
+  - docs/spec/operations/operations.md
+scope:
+  in:
+  - Add UI and CLI create/list/show/cancel controls for the durable sweep API and links to each
+    ordinary Project Run/report.
+  - Reuse V403-005 settings/UserScope selectors, expose explicit scope selection and captured-target
+    semantics, and paginate members/results.
+  - Show skipped, failed, pending, cancelling and terminal facts from Server; stop polling settled
+    sweeps and refetch terminal results.
+  - Use confirmation for destructive purge, shared UI/theme components, accessible mobile layout
+    and a UI package release bump.
+  out:
+  - New execution paths, policy defaults, custom egress isolation and per-host pacing.
+  - Automatic changes to running sweep membership, captured targets or pinned inputs.
+requirements:
+- id: R1
+  text: Launch requests have one stable create key and exact selected inputs; replay/conflict
+    behavior matches the resource.
+- id: R2
+  text: Never claim cancellation before Server reports child settlement; present partial progress
+    without calling missing/unknown scans clean.
+- id: R3
+  text: Every Project/artifact/member picker follows all pages, including scopes larger than one
+    page.
+failure_outcomes:
+- operation: Sweep create/read/cancel/purge through UI and CLI
+  permanent: Show owner/validation/conflict/missing errors and keep the recorded sweep identity.
+  retryable: Back off failed reads and follow API retry classifications.
+  ambiguous: Replay the exact keyed create body or refetch the same sweep after ambiguous cancel/purge;
+    never create an implicit replacement sweep.
+  cancelled: Join or abort client requests; existing admitted Server work is cancelled only by
+    the explicit operation.
+  timeout: Separate client request deadlines; Server/Run deadlines remain authoritative.
+cardinality:
+- collection: Selectable Projects and displayed sweep members
+  expected: '7'
+  maximum: 1000 members per sweep; existing public page maximum
+  bound: Paged/virtualized views with bounded poll responses; no whole-sweep payload every tick.
+lifecycle:
+- entity: UI/CLI sweep view and reusable settings
+  delete: Views dispose transient state; resource deletion uses the authorized Server operation.
+  cascade: No owner rulepack or ordinary child Run is deleted as a side effect of hiding/removing
+    a view.
+  retention: Server snapshots determine execution; reusable preferences only seed later launches.
+acceptance_criteria:
+- id: A1
+  given: more than one page of Projects and one UserScope pack
+  when: the operator creates a sweep from UI or CLI
+  then: the captured scope/settings match and per-Project Runs/results are reachable without manual
+    JSON or ProjectScope uploads
+- id: A2
+  given: partial failures, lost acknowledgement, cancellation and stale/failed reads
+  when: UI/CLI follow and resume a sweep
+  then: Server facts are preserved, keys are stable, polling settles/backoffs and no duplicate
+    sweep or false clean result appears
+- id: A3
+  given: 390 px viewport and light/dark/black themes
+  when: launch, progress and results views render
+  then: shared accessible layout conventions hold; destructive purge requires confirmation
+tests:
+- command: go test ./internal/cli/... ./internal/publicclient/...
+  covers: &id001
+  - A1
+  - A2
+  - A3
+- command: make ui-verify
+  covers: *id001
+- command: make ui-browser-mocked
+  covers: *id001
+- command: make test-ui-stack
+  covers: *id001
+- command: make verify-public-api
+  covers: *id001
+- command: make lint
+  covers: *id001

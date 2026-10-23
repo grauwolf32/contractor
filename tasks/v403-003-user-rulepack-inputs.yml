@@ -1,0 +1,134 @@
+schema_version: '1.0'
+id: V403-003
+title: Run optional custom Nuclei rulepacks from the owner UserScope
+milestone: web-nuclei-rule-sweeps-2026-10
+epic: scan-tools
+kind: feature
+priority: P2
+status: pending
+depends_on:
+- V403-001
+languages:
+- go
+- python
+- yaml
+- typescript
+goal: Upload one custom rulepack to UserScope and use its exact revision in standalone and Project
+  Runs without ProjectScope copies. Missing optional packs preserve installed-rule scans; supplied
+  packs are the exclusive template source.
+context:
+  proposal: docs/proposals/0041-web-nuclei-scanning-and-rule-sweeps.md
+  specification:
+  - docs/spec/tools/scanners.md#SCN-R11
+  - docs/spec/artifacts/projects.md#PRJ-R29
+  - docs/spec/artifacts/artifact-store.md#ART-R76
+  - docs/spec/configuration/workflows.md
+  - docs/spec/execution/runs.md
+scope:
+  in:
+  - 'Add optional: true artifact binding omission across Go/Python/schema/Studio and verify callable
+    omission at preparation.'
+  - 'Add the narrow catalog sourceScope: user rulepack slot exception with authenticated owner
+    authorization and trusted exact UserScope-to-RunScope forks.'
+  - Add scan_nuclei rulepack_ref, semantic media types, bounded flat archive/single-template parsing,
+    full HTTP-template validation and private materialization.
+  - Custom mode requires no installed directory, uses no installed templates, applies selection
+    within the pack and records exact fork/content/template provenance.
+  - Update input-source snapshots, replay, purge/retention, shared fixtures, public/wire schemas
+    and generated clients using generators.
+  out:
+  - Template-controlled custom-pack egress isolation, per the user decision.
+  - General arbitrary cross-owner/scope artifact references and ProjectScope uploads.
+  - OpenAPI-driven Audit rule selection or model-controlled scanner policy.
+requirements:
+- id: R1
+  text: Only an absent optional artifact omits the callable argument; a supplied inaccessible,
+    invalid or missing exact source fails atomically.
+- id: R2
+  text: The owner UserScope is derived from authentication, never request scope IDs. Runtime receives
+    only exact RunScope refs; all other Project input slots preserve existing source semantics.
+- id: R3
+  text: Accept a single application/yaml HTTP template or application/vnd.contractor.nuclei-rulepack+zip.
+    Bound compressed, expanded, entry and per-file work; reject escapes, links, duplicate names
+    and unsupported/non-template entries before launch.
+- id: R4
+  text: One invalid template rejects the whole pack; no partial scan, implicit installed union
+    or fallback. Preserve ordinary pre-launch URL checks and no-proxy/no-OAST behavior.
+- id: R5
+  text: Record source revision/digest and fork lineage; source replacement/deletion after admission
+    cannot alter Run input bytes.
+failure_outcomes:
+- operation: Owner-authorized source fork, pack validation and scanner launch
+  permanent: Ordinary not_found/invalid input admission errors; fixed nonretryable pack validation/media/size/ref
+    diagnostics before scanner launch.
+  retryable: Existing storage_transaction_conflict behavior only; deterministic validation never
+    retries.
+  ambiguous: Run admission and input forks reconcile under the existing create key; scanner delivery
+    uses its existing receipt.
+  cancelled: Join artifact retrieval, extraction/validation threads and subprocesses before private
+    scratch cleanup.
+  timeout: Retrieval, validation and scan share the scanner deadline inside the separate Worker/Stage
+    deadlines.
+cardinality:
+- collection: Owner rulepack entries
+  expected: 1 to 20 HTTP templates
+  maximum: 16 MiB zip input; 64 MiB expanded bytes; 1000 files; 1 MiB per template; single YAML
+    at most 1 MiB
+  bound: Enforce streaming expansion/count/name bounds before writes and perform blocking parsing/copying
+    off the event loop.
+- collection: UserScope/RunScope input forks
+  expected: 1 selected pack per Run
+  maximum: 1 optional rulepack input; existing artifact/API page bounds
+  bound: One authorized exact fork and digest per Run, with no Project-wide or UserScope-wide
+    rescan.
+lifecycle:
+- entity: Owner source, Run input fork and private extracted pack
+  delete: Owner controls the original UserScope binding; Run purge owns its fork; allocation cleanup
+    owns scratch.
+  cascade: Removing a Run never removes the owner source; deleting the source never mutates existing
+    Run forks.
+  retention: Ordinary ArtifactStore/Run retention; cleanup joins in-flight validation/execution.
+acceptance_criteria:
+- id: A1
+  given: one pack uploaded to owner UserScope
+  when: standalone and several Project Runs select it
+  then: every Run receives an exact authorized fork without ProjectScope copies and provenance
+    identifies the same source bytes
+- id: A2
+  given: missing optional packs and supplied wrong-owner/inaccessible/wrong-media/invalid refs
+  when: admission and binding projection run
+  then: absence permits installed mode; invalid supplied refs fail atomically without fallback
+- id: A3
+  given: valid and invalid/oversized/escaping/mixed packs at the expansion bounds
+  when: the real Nuclei adapter prepares
+  then: only complete supported packs launch; custom mode works without installed templates and
+    never adds installed rules
+- id: A4
+  given: source mutation/deletion, cancellation, replay and populated Run purge
+  when: the real PostgreSQL/ArtifactStore/Runtime paths run
+  then: pinned bytes and receipts remain stable, scratch is joined/removed and source artifacts
+    retain their independent lifecycle
+tests:
+- command: go test ./internal/contracts/... ./internal/config/... ./internal/runservice/... ./internal/artifacts/...
+    ./internal/httpapi/public/...
+  covers: &id001
+  - A1
+  - A2
+  - A3
+  - A4
+- command: cd runtime && uv run pytest tests/test_contracts.py tests/test_tool_worker.py tests/test_scan_toolset.py
+  covers: *id001
+- command: make test-wire-cross-language
+  covers: *id001
+- command: make verify-public-api
+  covers: *id001
+- command: make verify-public-api-postgres
+  covers: *id001
+- command: make test-postgres
+  covers: *id001
+- command: make test-config
+  covers: *id001
+- command: make ui-verify
+  covers: *id001
+- command: make lint
+  covers: *id001

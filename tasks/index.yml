@@ -80,6 +80,9 @@ execution_policy:
     P3: Low-impact correction with no user-visible failure, such as documentation, dead code or test hygiene.
 
 milestones:
+  - id: web-nuclei-rule-sweeps-2026-10
+    exit_task: V403-007
+    outcome: Parameterized model-free Nuclei web scans pin rule content, custom packs are uploaded once to UserScope and forked into standalone or Project Runs, and bounded Project sweeps resume and cancel through ordinary Runs with UI and CLI controls.
   - id: runtime-host-provisioning-2026-10
     exit_task: V402-001
     outcome: One Ansible run provisions a Linux host with the Runtime Agents and the capability prerequisites chosen per host or per process, and fails unless each process registered and probed what it was configured for.

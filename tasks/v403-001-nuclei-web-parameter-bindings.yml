@@ -1,0 +1,136 @@
+schema_version: '1.0'
+id: V403-001
+title: Run parameterized web Nuclei scans with pinned installed rules
+milestone: web-nuclei-rule-sweeps-2026-10
+epic: scan-tools
+kind: feature
+priority: P2
+status: in_progress
+depends_on: []
+languages:
+- go
+- python
+- yaml
+- typescript
+goal: An operator can create nuclei-web@1 against one explicit HTTP(S) URL with selected installed
+  rules and rate limits, without a model or OpenAPI document. The working shipped caller, explicit
+  binding projection and installed-content pin land together.
+context:
+  proposal: docs/proposals/0041-web-nuclei-scanning-and-rule-sweeps.md
+  specification:
+  - docs/spec/tools/scanners.md#SCN-R6
+  - docs/spec/tools/scanners.md#SCN-R33
+  - docs/spec/tools/scanners.md#SCN-R41
+  - docs/spec/configuration/workflows.md#WFL-R4
+  - docs/spec/execution/runs.md#RUN-R12
+  - docs/spec/configuration/catalog.md#CAT-R74
+scope:
+  in:
+  - 'Extend parameter bindings with explicit parse: integer and typed default; update Go, Python,
+    wire/OpenAPI schemas, Studio validation and shared fixtures.'
+  - Server and Runtime validate projected Nuclei arguments without mutating persisted string parameters;
+    use one scanner-owned contract and shared fixtures, no Workflow-name special case.
+  - Ship nuclei-web@1 and nuclei-web-scan@1 in the loaded configs tree with model-free passthrough,
+    local-workdir and a literal installed templates_digest.
+  - Define canonical package manifests, bounded private snapshots, mismatch refusal and package/template/engine
+    provenance. Large selected-template manifests are exact referenced artifacts, not oversized
+    inline reports.
+  - Update owning normative specs, error/limit/lifecycle registries, generated clients through
+    their generators and appropriate real-process tests.
+  out:
+  - 'Optional custom rulepacks and UserScope input exceptions: V403-003.'
+  - 'Cross-Project fan-out: V403-002 and V403-004.'
+  - 'UI scan launch forms: V403-005.'
+  - Changing Audit fixtures, model choice, per-host pacing or template-controlled custom-pack
+    egress.
+requirements:
+- id: R1
+  text: Supplied integers match the complete grammar 0|[1-9][0-9]* and the tool range 1..1000.
+    Only omitted parameters select typed defaults; malformed strings, signs, leading zeroes, whitespace,
+    fractions and explicit null fail.
+- id: R2
+  text: Unparsed supplied parameter strings retain their bytes; absent bindings without defaults
+    fail; bool is never an integer. Defaults are finite non-null scalars within existing literal/input-size
+    limits.
+- id: R3
+  text: Defaulted and typed arguments enter the input digest; existing execution/create keys retain
+    their conflict and unknown-outcome semantics.
+- id: R4
+  text: The literal installed-package digest is covered by template/Run snapshots. Scan the verified
+    private copy, including referenced resources, and refuse missing/mismatched sets on replacement
+    allocations.
+- id: R5
+  text: Keep the 512 KiB report and 64 KiB bound arguments. A separate exact manifest artifact
+    carries large selected-rule provenance; no raw target arguments enter logs or receipts.
+failure_outcomes:
+- operation: Run admission and existing input/config snapshot writes
+  permanent: 400 invalid_request for invalid projected scanner inputs; fixed nonretryable tool/preparation
+    failure for package mismatch, unavailable content or malformed output. Register scanner diagnostics
+    in the existing shared outcome table.
+  retryable: Existing storage_transaction_conflict 503 behavior; no new scanner retry policy.
+  ambiguous: Reuse the existing Run create key/digest and tool invocation receipt; changed input
+    under an existing key conflicts and never starts another scan.
+  cancelled: Join scanner subprocesses, package-copy threads and report publication before allocation
+    cleanup.
+  timeout: Existing admission/storage timeout and independent Stage/Worker/scanner deadlines;
+    copying and hashing consume the scanner preparation budget.
+cardinality:
+- collection: Tool argument bindings per Worker
+  expected: 6 to 8
+  maximum: 32; 64 KiB canonical resolved input
+  bound: Existing argument/input limits; parse decimal length before allocating or converting
+    an unbounded integer.
+- collection: Installed package files and provenance manifest
+  expected: About 12000 files and tens of MiB per installed set
+  maximum: 50000 files; 512 MiB total materialized bytes; 16 MiB per file; 16 MiB manifest
+  bound: Enforce counts and bytes while copying/hashing off the event loop; no unbounded tree
+    read or allocation lock hold.
+lifecycle:
+- entity: Private installed-package snapshot and exact report/manifest artifacts
+  delete: Allocation cleanup joins work and removes scratch; durable artifacts follow Run deletion.
+  cascade: No change to the operator installed package or other Runs.
+  retention: Ordinary Run artifact retention; replacement uses the same immutable package pin.
+acceptance_criteria:
+- id: A1
+  given: the shipped web Workflow and an installed local HTTP fixture
+  when: a Run supplies only target, then a single template ID and each other optional knob
+  then: all valid cases execute model-free; omitted knobs use declared defaults and the stored
+    string mapping is unchanged
+- id: A2
+  given: canonical and malformed rate/severity/target values in shared fixtures
+  when: Go admission and Python binding/tool projection validate them
+  then: both sides agree; invalid inputs fail before launch and no valid numeric string reaches
+    strict callable validation as a string
+- id: A3
+  given: the same installed ID with changed bytes/resources or a mismatched replacement allocation
+  when: preparation executes
+  then: no scanner starts; a mutation after private snapshot verification cannot alter scanned
+    bytes
+- id: A4
+  given: a large eligible installed template set and a scanner failure, timeout, cancellation
+    or ambiguous delivery
+  when: the real Worker executes and reports/replays
+  then: bounded exact manifest provenance survives; scratch is removed after joining work; failures/unknown
+    outcomes never become clean scans or implicit rescans
+tests:
+- command: go test ./internal/contracts/... ./internal/config/... ./internal/runservice/... ./internal/planner/...
+    ./internal/httpapi/public/...
+  covers: &id001
+  - A1
+  - A2
+  - A3
+  - A4
+- command: cd runtime && uv run pytest tests/test_contracts.py tests/test_tool_worker.py tests/test_scan_toolset.py
+  covers: *id001
+- command: make test-wire-cross-language
+  covers: *id001
+- command: make verify-public-api
+  covers: *id001
+- command: make verify-public-api-postgres
+  covers: *id001
+- command: make test-config
+  covers: *id001
+- command: make ui-verify
+  covers: *id001
+- command: make lint
+  covers: *id001

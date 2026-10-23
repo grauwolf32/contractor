@@ -1,0 +1,106 @@
+schema_version: '1.0'
+id: V403-002
+title: Launch resumable Project scan sweeps through ordinary Run creation
+milestone: web-nuclei-rule-sweeps-2026-10
+epic: operations
+kind: feature
+priority: P2
+status: pending
+depends_on:
+- V403-001
+languages:
+- go
+- python
+goal: An operator selects Projects and a rule once, saves an immutable local sweep manifest and
+  resumes partial fan-out without duplicate Runs or changed targets. This is the Phase 1 client
+  convenience before the server resource.
+context:
+  proposal: docs/proposals/0041-web-nuclei-scanning-and-rule-sweeps.md
+  specification:
+  - docs/spec/artifacts/projects.md#PRJ-R22
+  - docs/spec/artifacts/projects.md#PRJ-R99
+  - docs/spec/execution/runs.md#RUN-R18
+  - docs/spec/api/public-api.md
+scope:
+  in:
+  - Implement a documented CLI command or script using the public Project/Run APIs, with create
+    and resume modes and a local versioned manifest.
+  - Capture Project IDs, httpTarget.url, exact source refs, supplied params, per-member keys,
+    skipped reasons and returned Run IDs before and during dispatch.
+  - Page all Project reads; one ordinary Project Run per selected Project; show Run membership
+    and results through existing APIs.
+  - Add a real Server/Runtime process gate for the shipped web Workflow and include it in deterministic
+    release verification without requiring host scanners; retain an explicit installed-Nuclei
+    smoke test.
+  out:
+  - 'Server-owned sweep persistence/controller: V403-004.'
+  - 'Custom rulepack transport: V403-003.'
+  - Project credential injection into Nuclei and implicit target defaults on ordinary Run endpoints.
+requirements:
+- id: R1
+  text: Default to explicit selected Project IDs; an all-Projects mode must finish all owner-authorized
+    pages before snapshotting. The scope is at most 1000 unique Projects.
+- id: R2
+  text: Manifest writes are atomic and versioned; resume validates strict schema and digests,
+    reuses captured values/keys and never rebuilds inputs from current Project targets.
+- id: R3
+  text: Record deleting or targetless Projects as skipped; a permanent member error does not block
+    remaining Projects; new inputs require a new sweep identity.
+- id: R4
+  text: A lost create acknowledgement retries the exact captured child request; never append a
+    second unkeyed Run.
+failure_outcomes:
+- operation: Project listing, local manifest write and per-member Run POST
+  permanent: Invalid or changed manifest and changed input under a reused key fail explicitly;
+    Project deletion/missing target is a recorded member skip.
+  retryable: Respect Retry-After and existing retryable API classifications with at most 5 attempts
+    per invocation and bounded backoff; saved state permits later explicit resume.
+  ambiguous: Replay the exact child POST/key; atomic local replacement preserves either previous
+    or next valid manifest.
+  cancelled: Stop dispatch, join the current request, persist known/unknown member outcome and
+    leave existing Runs governed by ordinary lifecycle.
+  timeout: Separate API request timeout and total invocation deadline; a timeout cannot discard
+    the saved child key.
+cardinality:
+- collection: Selected Projects and child requests
+  expected: '7'
+  maximum: 1000 unique Projects; 8 MiB manifest; 16 KiB per member request
+  bound: Existing API page bounds; one child POST at a time and atomic bounded manifest updates.
+lifecycle:
+- entity: Owner-local client sweep manifest
+  delete: The operator removes the local file; this never deletes Project Runs.
+  cascade: None.
+  retention: Until the operator removes it; ordinary Run retention remains independent.
+acceptance_criteria:
+- id: A1
+  given: 7 and 1000 selected Projects across several API pages
+  when: a client sweep runs
+  then: one grouped Project Run is created per eligible Project, limits hold and skipped members
+    have reasons
+- id: A2
+  given: an acknowledgement is lost and the process stops after several members
+  when: resume runs after Project targets and artifact bindings have changed
+  then: captured requests replay to the same Runs, pending requests keep original inputs and changed
+    inputs require a new sweep
+- id: A3
+  given: malformed/oversized manifests, transient errors and deleting/targetless Projects
+  when: the client dispatches
+  then: failures are classified, retries are bounded and other eligible Projects progress
+- id: A4
+  given: the actual shipped Workflow with disposable PostgreSQL and deterministic scanner fixture
+  when: the required process gate runs
+  then: Server/Runtime admission, execution, report publication and replay are covered by a nonempty
+    release-gated selection
+tests:
+- command: go test ./internal/cli/... ./internal/publicclient/...
+  covers: &id001
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make test-nuclei-web-e2e
+  covers: *id001
+- command: make test-scan-e2e
+  covers: *id001
+- command: make lint
+  covers: *id001
