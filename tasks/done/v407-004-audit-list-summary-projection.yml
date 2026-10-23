@@ -6,7 +6,8 @@ epic: audits
 kind: chore
 introduced_by: V25-004
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: f9a711f1ff66ab3875939086785d208fb239cd56
 depends_on: []
 languages:
 - go
@@ -89,3 +90,83 @@ tests:
   - A2
   - A3
   - A4
+verification:
+  date: '2026-10-23'
+  environment: >-
+    macOS arm64; Go 1.26.9; locked Node 24.20 and Runtime venv; local
+    PostgreSQL 17.11 database contractor_test_b2 with isolated per-test
+    schemas; base 7023e96e.
+  re_verification: >-
+    The finding held on base 7023e96e: listProjectAudits called
+    auditDetailReadModel for every preparing or inventory item, which read
+    Preparation (Get, roles, executions, revision Get), GeneratedInventory
+    (nil before rounds) and Get again. GeneratedInventory never reached an
+    inventory link or payload on the list path, as the validation says.
+  regression_before_fix: >-
+    The new TestSharedPostgresAuditListsHydratePreparationInFixedStatements,
+    copied onto base 7023e96e in a temporary worktree, failed in every
+    subtest: a 200-item preparing page took 1201 statements (per-row
+    hydration of the same page 1200), the 12-item mixed page 61, and the
+    interleaved race and storage-loss cases did not hit a hydration
+    statement. Mutation checks on the change: dropping the revision fence
+    from listPreparationPageSQL fails the race subtest (200 instead of 409)
+    and the store test; dropping accepted outputs in the scanner fails the
+    mixed-page parity.
+  change: >-
+    QueryStore.ListPreparationPage reads the pinned prepare roles, attempt
+    counts and latest attempts of every listed Audit in one statement fenced
+    by owner and listed revision; a changed or vanished Audit is
+    auditstore.ErrConflict. The status CASE and attempt joins are shared SQL
+    fragments with ListPreparationRoles, and projectPreparationRole is the
+    one Go projection for the detail and list reads. The lists call
+    Service.PreparationPage once per page and only when an item is preparing
+    or inventory with a prepare role; the detail read keeps its statements.
+    ASC-R150 records the statement count, fence, bounds (LIM-API-18 Audits,
+    LIM-ASC-2 roles, latest attempt only, LIM-ASC-5 outputs) and outcomes.
+    OpenAPI and generated clients are unchanged.
+  commands:
+    - >-
+      test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1
+      ./internal/httpapi/public/... ./internal/auditservice/... ./internal/auditstore/...
+      passed (public 117s, events 9s, auditservice 275s, pgstore 98s); the
+      public packages passed again (100s) after the last test edits.
+    - make verify-public-api passed.
+    - make ui-verify passed (192 files, 2369 tests and 1 expected fail; build ok).
+    - make lint passed after make tasks-backlog.
+    - go test -count=1 ./internal/archtest/ and the SQL placement tests in ./internal/persistence passed.
+  database_tests_configured: true
+  acceptance:
+    A1: >-
+      The public PostgreSQL test counts statements through a pgx tracer: the
+      owner list of 200 preparing Audits and of one take 2 statements (list
+      and hydration), a Project list 3 (with the Project read), a page
+      without preparing items 1; the recorded per-row baseline is 1201. The
+      store test reads a 200-Audit page in exactly one statement.
+    A2: >-
+      Owner pages of 200 preparing Audits and of 12 mixed items (draft,
+      pending, intent, submitted, retrying, exhausted, accepted, inventory,
+      paused, failed, rounds) and the Project page equal the old per-row
+      hydration byte for byte and validate against AuditPage; cursor
+      pagination carries over; each item's preparation equals its detail
+      GET; no item has generatedInventory. Another owner's Audit is refused
+      by the owner fence in the store test.
+    A3: >-
+      A pause committed just before the hydration statement returns 409
+      conflict and a retry shows the paused Audit; a terminated backend
+      returns 500 without items; a 40001 failure stays
+      IsTransactionConflict (store) and maps to 503
+      storage_transaction_conflict (handler); older, newer, absent and
+      other-owner revisions are ErrConflict. Bounds: 1..200 unique
+      identities, at most 16 roles per Audit and 128 outputs per attempt,
+      checked on read.
+    A4: >-
+      make verify-public-api and make ui-verify pass with OpenAPI and
+      generated clients unchanged; auditDetailReadModel keeps its
+      Preparation, GeneratedInventory and revision reads.
+  declined:
+    - >-
+      A listed Audit deleted before hydration now fails the list with 409
+      conflict instead of the 404 the per-row Get returned; ASC-R150 states
+      it. The list and detail operations still do not declare 409 in
+      OpenAPI, which was already reachable through the revision check
+      before this change; declaring it is left to a contract task.
