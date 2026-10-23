@@ -5,7 +5,8 @@ milestone: model-free-stage-lanes-2026-10
 epic: audits
 kind: feature
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: ea1ec362f6560451b0e6e6fdb4085722f6a2bb71
 depends_on: [V400-001, V400-002, V400-003]
 languages: [go, sql]
 goal: >-
@@ -104,3 +105,19 @@ tests:
     covers: [A1, A3, A4, A5]
   - command: make lint
     covers: [A1, A2, A3, A4, A5]
+verification:
+  date: "2026-10-23"
+  revision: "ea1ec362f6560451b0e6e6fdb4085722f6a2bb71"
+  environment: >-
+    Branch feat/model-free-stage-lanes on main @ 75983b5b, macOS arm64,
+    Go 1.26.9, local PostgreSQL 17.11 with CONTRACTOR_TEST_DATABASE_URL
+    set, TMPDIR under /private/tmp.
+  results:
+    - "A1: TestControllerFillsEachClassDispatchWindowIndependently dispatches 24 items, scans first, with model window 1 and tool window 2: one model and two scan Runs stay outstanding, a finished scan refills only its class, and every item runs once. On PostgreSQL, TestPostgresDispatchWindowsCountEachLaneClass reserves per class, stores the class on each execution and releases the tool count on the terminal observation of a submitted scan Run; TestPostgresReconcileSnapshotReadsReadyItemsOfEveryRole shows the check items behind 9,990 ready scans in a full Round, read by three probes of audit_items_ready_role_idx."
+    - "A2: resolved.WorkflowLaneClass is `model` for scan-then-triage and `tool` for scan plus passthrough tool Stages (lane_class_test.go); the migration test checks the SQL copy against it for the same three Workflows."
+    - "A3: TestPostgresDispatchWindowsCountEachLaneClass races six reservations, three of each class, through the reservation statement both Controllers use: exactly one model and two tool intents win. TestPostgresControllersConvergeWithoutDuplicateExecutionAttempts and TestPostgresDispatchReservationOrdersWithSettingsDecrease still pass."
+    - "A4: the same test lowers maxConcurrentToolRuns from 2 to 1 with two scans outstanding: nothing is cancelled, a scan reservation is refused while a model reservation succeeds, and a scan is reserved again only after both earlier scans are released."
+    - "A5: TestPostgresAuditDispatchWindowsMigrationSplitsOutstandingRuns migrates executions of three roles on schema 26: each gets its role's class, the tool counter counts only intent and submitted tool executions, and the checks reject an unknown class and a tool count above the total."
+    - "An undecodable pinned profile still reaches the builder and stops the Audit with dispatch_contract_invalid instead of failing every reconcile (TestControllerStopsAuditWhoseProfileCannotClassifyDispatch)."
+    - "Mutations, each caught: no tool decrement on terminal observation or on submission failure, the tool gate always open, the model gate counting the total, the snapshot window check using the total, a mixed Workflow classified `tool`, batch selection ignoring a closed class, the ready read back to one LIMIT, and an undecodable profile failing the tick."
+    - "go test ./internal/auditcontroller ./internal/auditstore/... with -race -tags=integration: ok. make test-postgres: ok. make test-audits-hardening: ok. make test-go: 94 packages ok. make lint and make verify-architecture: passed."
