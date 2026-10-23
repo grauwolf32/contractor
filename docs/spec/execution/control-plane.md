@@ -959,6 +959,29 @@ allocation no released reservation remains, so placement for the same
 StageExecution can run again. A write-fenced, lost or prepared reservation is
 not dropped this way.
 
+**CTL-R162.** A placement attempt is one evaluation of a placement request:
+its first pass; when that pass returns insufficient compatible capacity, one
+re-read of the durable principals of the location-matching idle candidates
+and, when any principal changed, one more pass; and, for a model Stage that
+still finds no capacity, the hold computation (CTL-R155). Within one attempt
+Control Plane reads each pinned default and Run-label version, each
+Agent-label binding with its version and each LLM or Runtime credential's
+metadata at most once, and resolves each binding for one exact ordered
+Agent-label set at most once, however many candidates or passes share them;
+a candidate-local resolution failure is reused the same way. A candidate first
+considered by a later pass, such as an allocated Agent that only the hold
+sees, is resolved there from the same observations. A principal re-read that
+changed any principal, and a pinning transaction that found a changed
+revision or setting (CTL-R90), prove that a mutation committed after the
+attempt's reads, so the attempt discards every binding, credential and
+resolution observation before its next pass or hold and keeps only the
+immutable pinned versions. A repository or credential backend error still
+ends the attempt with that error. No observation outlives the attempt: the
+next attempt, such as the next Scheduler poll of a waiting Stage, reads
+principals, bindings and credentials again, and the pinning transaction
+always re-reads and re-resolves the selected edges under its locks
+(CTL-R88), so a reused observation never becomes a committed allocation.
+
 **CTL-R91.** After reserving the full set, Control Plane creates one
 globally unique `allocation_id` and one complete AllocationSpec per logical
 Stage Agent binding, including that binding's effective ModelPolicy, resolved
@@ -1384,7 +1407,7 @@ The private live-state route is
 - [FAIL-CTL-3](../platform/failure-model.md): Stage preparation
   (CTL-R84, CTL-R94, CTL-R95, CTL-R147, CTL-R155).
 - [FAIL-CTL-4](../platform/failure-model.md): the allocation-pinning
-  transaction (CTL-R90).
+  transaction (CTL-R90, CTL-R162).
 - [FAIL-CTL-5](../platform/failure-model.md): Worker finalization
   (CTL-R118, CTL-R54).
 - [FAIL-CTL-6](../platform/failure-model.md): Worker abort
@@ -1523,6 +1546,9 @@ different authorization role (CTL-R23, CTL-R38, CTL-R145).
 26. Allocation, A2A Task/context, Contractor invocation and ADK session IDs are
     distinct; only the Runtime may create or observe the ADK session identity
     (CTL-R104).
+27. Placement reuses a binding, credential or resolution observation only
+    within one placement attempt and never in the pinning transaction
+    (CTL-R162, CTL-R88).
 
 ## Examples
 
