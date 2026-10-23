@@ -9,18 +9,35 @@
 	test-lease-integration test-streamline test-faults test-e2e \
 	test-capability-e2e
 
-test-go: test-hardening-matrices runtime-venv
-	go test $$(go list ./... | grep -v '/tests/e2e$$')
+.PHONY: test-release-reports test-release-config-fixtures test-release-shared-fixtures
 
-test-runtime: runtime-venv
-	cd runtime && uv run pytest
+RELEASE_REPORTS := $(CURDIR)/reports
+SHARED_FIXTURE_LOG := $(RELEASE_REPORTS)/shared-fixture-reads.log
+CONFIG_FIXTURE_TESTS := TestAuditProgramsE2EConfigurationLoads|TestCodeAnalysisE2EConfigurationLoads|TestProductionMemoryConfigurationStaging|TestProjectWorkerBudgetMatchesPinnedPolicy|TestDomainGatewayFindsNamedInputAfterParameterBlock|TestDomainGatewayScriptedModelFailureAdvancesWithoutFixtureFailure|TestRuntimeWorkRootEmptyAllowsPersistentOwnerLock
 
-test-runtime-hardening: runtime-venv
-	cd runtime && uv run pytest -W error tests
+test-release-reports:
+	mkdir -p "$(RELEASE_REPORTS)"
+	: > "$(SHARED_FIXTURE_LOG)"
+
+test-go: test-hardening-matrices runtime-venv $(if $(filter 1,$(RELEASE_CONSOLIDATED)),test-release-reports)
+	$(if $(filter 1,$(RELEASE_CONSOLIDATED)),CONTRACTOR_SHARED_FIXTURE_LOG="$(SHARED_FIXTURE_LOG)" python3 scripts/release_test_reports.py run --report "$(RELEASE_REPORTS)/go-unit.jsonl" -- go test -json -count=1 ./...,go test $$(go list ./... | grep -v '/tests/e2e$$'))
+
+test-runtime: test-runtime-hardening
+
+test-runtime-hardening: runtime-venv test-release-reports
+	cd runtime && CONTRACTOR_SHARED_FIXTURE_LOG="$(SHARED_FIXTURE_LOG)" uv run pytest -W error tests --junitxml="$(RELEASE_REPORTS)/runtime.xml"
+	python3 scripts/release_test_reports.py verify-runtime --report "$(RELEASE_REPORTS)/runtime.xml"
+
+test-release-config-fixtures: runtime-venv
+	go test -tags=e2e -v -count=1 ./tests/e2e -run '^($(CONFIG_FIXTURE_TESTS))$$'
+
+test-release-shared-fixtures: RELEASE_CONSOLIDATED := 1
+test-release-shared-fixtures: test-go test-runtime-hardening
+	python3 scripts/shared_fixture_gate.py --go-report "$(RELEASE_REPORTS)/go-unit.jsonl" --runtime-log "$(SHARED_FIXTURE_LOG)"
 
 test-hardening-matrices: runtime-venv
-	go test -count=1 ./tests/e2e
-	go test -tags=e2e -v -count=1 ./tests/e2e -run '^(TestAuditProgramsE2EConfigurationLoads|TestCodeAnalysisE2EConfigurationLoads|TestProductionMemoryConfigurationStaging|TestProjectWorkerBudgetMatchesPinnedPolicy|TestDomainGatewayFindsNamedInputAfterParameterBlock|TestDomainGatewayScriptedModelFailureAdvancesWithoutFixtureFailure|TestRuntimeWorkRootEmptyAllowsPersistentOwnerLock)$$'
+	$(call run-family-test,go test -count=1 ./tests/e2e)
+	$(call run-family-test,go test -tags=e2e -v -count=1 ./tests/e2e -run '^($(CONFIG_FIXTURE_TESTS))$$')
 
 # The one wire contract gate: the whole contracts packages and Runtime contract
 # models, then every TestShared*/test_shared_* test, which are the tests that
@@ -28,9 +45,9 @@ test-hardening-matrices: runtime-venv
 # declares (scripts/shared_fixture_gate.py). Some shared tests use PostgreSQL;
 # a skipped one fails the gate.
 test-wire-cross-language: require-database runtime-venv
-	go test ./internal/contracts/...
-	cd runtime && uv run pytest tests/test_contracts.py tests/test_performance_contracts.py
-	python3 scripts/shared_fixture_gate.py
+	$(call run-family-test,go test ./internal/contracts/...)
+	$(call run-family-test,cd runtime && uv run pytest tests/test_contracts.py tests/test_performance_contracts.py)
+	$(call run-family-test,python3 scripts/shared_fixture_gate.py)
 
 test-config:
 	go test ./internal/config/... ./internal/configload/...

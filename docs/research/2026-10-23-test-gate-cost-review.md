@@ -20,7 +20,7 @@ race runs and closes the review.
 | T1 per-test schema and migrations, 34 helper copies | V408-002 |
 | T2 serial race stages (`-p 1`), almost no `t.Parallel` | [V408-003](../../tasks/done/v408-003-parallel-race-stages.yml): package scheduling implemented; in-package parallelism excluded |
 | T3 e2e builds the Server and PKI per test | V408-004 |
-| T4 family-target guard gaps, 20 unguarded pytest runs, unused `test-runtime-hardening` | V408-005 |
+| T4 family-target guard gaps, 20 unguarded pytest runs, unused `test-runtime-hardening` | [V408-005](../../tasks/done/v408-005-family-guard-gaps.yml): implemented and verified |
 | T5 `-count=1` on pure packages | V408-006 |
 | Baseline and final measurement | V408-001, V408-007 |
 
@@ -114,3 +114,82 @@ parallel integration log contains no skipped tests.
 
 Raw per-target logs, the JSON timing/connection summaries and the RSS
 summary remain outside git under `/private/tmp/contractor-v408-*`.
+
+
+## V408-005 implementation and verification (2026-10-23)
+
+The consolidated family dry run previously contained 12 visible Go commands,
+17 pytest commands, two gate-script invocations and the shared-fixture runner.
+The updated family graph contains no Go, pytest or test-script executions.
+Direct family targets retain their focused suites. The guard also compares
+compiled test inventories across direct families and canonical stages, retaining
+race coverage and explicit filesystem-backend modes. All 46 Go selections
+captured before the change remain covered.
+
+The unit stage runs the complete Runtime suite once with `-W error`, captures
+JUnit and verifies the existing Audit and findings minimum case counts and
+no-skip requirements. The intentionally malformed duplicate ZIP fixture now
+explicitly expects zipfile's warning instead of failing during fixture creation.
+Shared-fixture validation consumes canonical Go events and actual Go/Python read
+records without rerunning tests. The tagged configuration fixtures run once in
+the unit stage; untagged e2e gate tests join its ordinary Go pass. Audit completion
+selection joins the canonical integration pass, and the four findings process
+tests join process shard C. Report capture replaces stale files, propagates child
+failure, redacts database credentials and joins the owned process group on
+cancellation. Reports remain ignored local artifacts under `reports/`.
+
+The graph retains 99 race packages, 24 process tests, seven tagged configuration
+fixtures, 47 tagged e2e tests (eight opt-in), 159 integration-selection names and
+both Artifact backend modes. These counts describe selection, not a green full
+release gate. No CI speedup or full release pass is claimed from dry-run counts.
+
+The complete Linux Runtime gate passed with 4375 tests and 55 existing optional
+skips; mandatory Audit/findings scopes had no skips. Script regressions passed
+(131 tests), including transitive unwrapped commands, lost tags/race/backend
+coverage, filtered Runtime runs, missing cases, skips, stale reports, subprocess
+failure, secret redaction and cancellation. Shared evidence verified 249
+fixtures, 229 Go shared tests and 184 Python shared tests.
+
+Broader checks also exposed existing failures at base `e4480ace`, in unchanged
+Go paths: the namespace-constant source guard; SQL table ownership for the new
+sweep CLI; the public paging inventory missing `listScanSweeps` and
+`listScanSweepMembers`; and the skills process test expecting a fixed catalog
+list. Resource-related lease/performance failures from overlapping local sweeps
+passed when both complete packages were rerun serially on a separate database.
+At initial verification these broader failures were retained and V408-005
+was left in progress; the closure follow-up below records the final result. The original worktree's Make fragment
+was repeatedly overwritten externally, so final work continues in the dedicated
+`v408-005-family-tests` worktree. Raw verification logs remain outside git under
+`/private/tmp/v408-*.log`.
+
+
+### V408-005 closure after main integration
+
+The current main already contains the sweep-page fixture repair V405-006.
+Two additional test-only blockers were repaired independently: V408-008 derives
+the Skills process expectation from its staged SeedPlan and follows bounded
+two-item public pages; V408-009 supplies explicit empty labels and placement
+requirements in the completion importer baseline. Production validation remains
+strict.
+
+All four commands listed by V408-005 passed: `make lint`,
+`make test-runtime-hardening`, `make test-release-integration` and
+`make test-release-process-e2e-c`. The Runtime result is 4375 passed and 55
+existing optional skips. All 13 process-shard tests passed, including the four
+migrated findings tests, with the original mandatory-case verifier. Integration
+passed under `-race -p 2` with the original Audit-case verifier. Current shared
+read evidence covers 249 fixtures, 231 Go shared tests and 184 Python shared
+tests; the complete Runtime suite was not rerun for that evidence check.
+
+The merged graph retains 99 race packages, 25 process tests, seven tagged
+configuration fixtures, 49 tagged e2e tests (eight opt-in), 159 integration
+selection names and both blob backend modes. The 131 script regressions and
+compiled coverage guard passed. No speedup is inferred from these counts.
+
+The pre-existing namespace-literal and SQL-ownership source guards were
+reconfirmed as failures in unchanged production paths. Their owners remain the
+artifactpolicy and persistence maintainers; `make test-go` and their package
+suites detect them. Reopen these separately before claiming a green full release
+gate. They are not Runtime-suite, duplicate-execution or coverage defects fixed
+by V408-005. This follow-up claims the listed task checks, not a complete
+`release-verify` or CI run. Logs remain under `/private/tmp/v408-close-*.log`.

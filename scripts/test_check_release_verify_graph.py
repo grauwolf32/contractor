@@ -362,11 +362,11 @@ class IntegrationParallelismTest(unittest.TestCase):
     command = "go test -race -tags=integration -v -count=1 -p {parallelism} ./fixture -run '^TestTagged$'"
 
     def check(self, command: str) -> int:
-        commands = ["go test -race -tags=integration ./family"] * 3 + [command]
+        commands = [command]
         with (
             tempfile.TemporaryDirectory() as directory,
             mock.patch.object(guard, "ROOT", Path(directory)),
-            mock.patch.object(guard, "discover", return_value={"./fixture": ["TestTagged"]}),
+            mock.patch.object(guard, "release_selection", return_value={"./fixture": {"TestTagged"}}),
             mock.patch.object(guard, "dry_run", return_value=commands),
             mock.patch.object(guard, "EXCEPTIONS", {}),
         ):
@@ -386,6 +386,53 @@ class IntegrationParallelismTest(unittest.TestCase):
     def test_parallel_command_still_requires_uncached_execution(self) -> None:
         with self.assertRaisesRegex(SystemExit, "lost race, verbose evidence, count"):
             self.check(self.command.format(parallelism="2").replace("-count=1 ", ""))
+
+
+class ConsolidatedFamilyTest(unittest.TestCase):
+    def test_transitive_unwrapped_test_commands_are_rejected(self) -> None:
+        recipes = (
+            "go test ./...", "cd runtime && uv run pytest tests/test_allocation.py",
+            "python3 scripts/test-findings-e2e.py", "python3 scripts/shared_fixture_gate.py",
+        )
+        for recipe in recipes:
+            with self.subTest(recipe=recipe), tempfile.TemporaryDirectory() as directory:
+                Path(directory, "Makefile").write_text("release-verify-families: nested\nnested: ; " + recipe + "\n")
+                with mock.patch.object(guard, "ROOT", Path(directory)):
+                    with self.assertRaisesRegex(SystemExit, "repeat test execution"):
+                        guard.check_family_commands(guard.dry_run("release-verify-families", "RELEASE_CONSOLIDATED=1"))
+        guard.check_family_commands([":", "python3 scripts/shared_fixture_gate.py --sources-only"])
+
+    def test_full_runtime_and_report_gates_are_required(self) -> None:
+        commands = ["cd runtime && uv run pytest -W error tests --junitxml=report.xml"] + [
+            "python3 scripts/" + name for name in (
+                "release_test_reports.py verify-runtime", "release_test_reports.py verify-audit",
+                "release_test_reports.py verify-findings", "shared_fixture_gate.py --go-report report",
+            )
+        ]
+        guard.check_runtime_commands(commands)
+        for changed in (
+            commands + commands[:1], [commands[0] + " -k one", *commands[1:]], [commands[0].replace("-W error ", ""), *commands[1:]],
+            [commands[0].replace("error tests ", "error tests/test_one.py "), *commands[1:]],
+            *[commands[:index] + commands[index + 1:] for index in range(1, len(commands))],
+        ):
+            with self.subTest(commands=changed), self.assertRaises(SystemExit):
+                guard.check_runtime_commands(changed)
+
+    def test_lost_test_tag_race_and_backend_are_rejected(self) -> None:
+        inventory = FakeInventory({"TestA", "TestB"})
+        family = [guard.GoTest("family", E2E, ("./tests/e2e",), "^(TestA|TestB)$", True)]
+        complete = guard.GoTest("canonical", E2E, ("./tests/e2e",), None, True)
+        guard.check_family_coverage(family, [complete], inventory)
+        for replacement in (
+            guard.GoTest("canonical", E2E, ("./tests/e2e",), "^TestA$", True),
+            guard.GoTest("canonical", E2E, ("./tests/e2e",), None, False),
+            guard.GoTest("canonical", frozenset(), ("./tests/e2e",), None, True),
+        ):
+            with self.subTest(replacement=replacement), self.assertRaisesRegex(SystemExit, "family coverage lost"):
+                guard.check_family_coverage(family, [replacement], inventory)
+        filesystem = guard.GoTest("family", E2E, ("./tests/e2e",), None, True, frozenset({guard.FILESYSTEM_BACKEND}))
+        with self.assertRaisesRegex(SystemExit, "family coverage lost"):
+            guard.check_family_coverage([filesystem], [complete], inventory)
 
 
 class DatabaseSkipGuardTest(unittest.TestCase):

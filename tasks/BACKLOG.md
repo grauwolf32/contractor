@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-126 open tasks: 4 in progress, 97 pending, 25 deferred. 994 finished: 991 completed, 3 archived.
+125 open tasks: 4 in progress, 96 pending, 25 deferred. 997 finished: 994 completed, 3 archived.
 
 ## In progress
 
@@ -201,9 +201,8 @@ the epics are in [epics.yml](epics.yml).
 | [V407-039](v407-039-close-server-runtime-review.yml) | chore | P3 | V407-001, V407-002, V407-003, V407-004, V407-005, V407-006, V407-007, V407-008, V407-009, V407-010, V407-011, V407-012, V407-013, V407-014, V407-015, V407-016, V407-017, V407-018, V407-019, V407-020, V407-021, V407-022, V407-023, V407-024, V407-025, V407-026, V407-027, V407-028, V407-029, V407-030, V407-031, V407-032, V407-033, V407-034, V407-035, V407-036, V407-037, V407-038 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V408-001](v408-001-gate-duration-baseline.yml) | chore | P2 | — | Record the baseline duration of every release stage and local test target |
 | [V408-004](v408-004-e2e-build-once.yml) | chore | P2 | V408-001 | Build the Server binary and the test PKI once per e2e package and right-size per-test budgets |
-| [V408-005](v408-005-family-guard-gaps.yml) | chore | P2 | — | Close the family-target guard gaps and run the Runtime suite once with warnings as errors |
 | [V408-006](v408-006-go-test-cache.yml) | chore | P3 | — | Let pure Go packages use the test cache: -count=1 only for database and process tests |
-| [V408-007](v408-007-gate-duration-after.yml) | chore | P3 | V408-001, V408-002, V408-004, V408-005, V408-006 | Record the release gate durations after the optimisations and close the test gate cost review |
+| [V408-007](v408-007-gate-duration-after.yml) | chore | P3 | V408-001, V408-002, V408-004, V408-006 | Record the release gate durations after the optimisations and close the test gate cost review |
 
 ## Deferred
 
@@ -246,7 +245,7 @@ tasks in `introduced_by`.
 | Planners and the Worker model boundary (`planner-worker`) | 8 | 27 | 40 | 16 | 59 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 12 | 25 | 13 | 4 | 40 |
 | Shared Memory tools (`memory`) | 1 | 6 | 9 | 2 | 12 |
-| Agent Skills (`agent-skills`) | 0 | 11 | 2 | 1 | 1 |
+| Agent Skills (`agent-skills`) | 0 | 11 | 2 | 1 | 2 |
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 12 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 14 | 2 | 19 |
 | HTTP and Caido tools (`http-tools`) | 2 | 11 | 15 | 4 | 16 |
@@ -254,11 +253,11 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 10 | 14 | 6 | 8 | 11 |
 | Workflow catalog and document workflows (`workflows`) | 4 | 14 | 14 | 12 | 15 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 30 | 33 | 6 | 37 |
-| Audits (`audits`) | 24 | 53 | 72 | 22 | 91 |
+| Audits (`audits`) | 24 | 53 | 72 | 22 | 92 |
 | Evaluations (`evals`) | 6 | 21 | 34 | 7 | 40 |
 | Podman sandbox (`sandbox`) | 0 | 9 | 2 | 1 | 3 |
 | Web UI (`ui`) | 1 | 24 | 60 | 13 | 53 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 16 | 33 | 6 | 11 |
 | Public API and wire contracts (`api-contracts`) | 8 | 1 | 34 | 20 | 11 |
 | PostgreSQL persistence and schema (`persistence`) | 13 | 0 | 21 | 41 | 9 |
-| Quality, CI and process (`quality`) | 18 | 1 | 21 | 87 | 20 |
+| Quality, CI and process (`quality`) | 17 | 1 | 21 | 89 | 20 |

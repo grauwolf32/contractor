@@ -163,3 +163,26 @@ class ReadsTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CanonicalReportsTest(unittest.TestCase):
+    def test_incomplete_canonical_reports_fail_without_rerunning_tests(self):
+        import contextlib
+        import io
+        from unittest import mock
+        import shared_fixture_gate as gate
+
+        with tempfile.TemporaryDirectory() as directory:
+            go = Path(directory) / "go.jsonl"
+            log = Path(directory) / "reads.log"
+            go.write_text("")
+            log.write_text("")
+            errors = io.StringIO()
+            with (
+                mock.patch.object(gate, "run", side_effect=AssertionError("report verification must not execute tests")),
+                contextlib.redirect_stdout(io.StringIO()),
+                contextlib.redirect_stderr(errors),
+            ):
+                self.assertEqual(gate.main(["--go-report", str(go), "--runtime-log", str(log)]), 1)
+            self.assertIn("did not run", errors.getvalue())
+            self.assertIn("does not read it", errors.getvalue())
