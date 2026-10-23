@@ -6295,8 +6295,11 @@ export interface components {
             collectionPolicy: "requested" | "disabled" | "unsupported";
             /** @enum {unknown} */
             status: "disabled" | "unsupported" | "pending" | "available" | "partial" | "unavailable";
-            /** @enum {unknown} */
-            reason?: "unsupported_platform" | "read_failed" | "sampling_gap" | "counter_reset" | "invalid_report" | "report_missing";
+            /**
+             * @description Why resources are partial or unavailable. `report_missing`: the released allocation has no report with usable resources; `report_expired`: its report was received and has since expired under the 30-day telemetry retention.
+             * @enum {unknown}
+             */
+            reason?: "unsupported_platform" | "read_failed" | "sampling_gap" | "counter_reset" | "invalid_report" | "report_missing" | "report_expired";
             resources?: components["schemas"]["RuntimeResourceSummary"];
         };
         AllocationResourcePage: {

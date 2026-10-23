@@ -15765,7 +15765,13 @@ components:
         finishedAt: {type: string, format: date-time}
         collectionPolicy: {enum: [requested, disabled, unsupported]}
         status: {enum: [disabled, unsupported, pending, available, partial, unavailable]}
-        reason: {enum: [unsupported_platform, read_failed, sampling_gap, counter_reset, invalid_report, report_missing]}
+        reason:
+          description: >-
+            Why resources are partial or unavailable. `report_missing`: the
+            released allocation has no report with usable resources;
+            `report_expired`: its report was received and has since expired
+            under the 30-day telemetry retention.
+          enum: [unsupported_platform, read_failed, sampling_gap, counter_reset, invalid_report, report_missing, report_expired]
         resources: {$ref: '#/components/schemas/RuntimeResourceSummary'}
       example:
         allocationId: allocation-example

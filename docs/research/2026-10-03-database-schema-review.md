@@ -41,7 +41,7 @@ dropped (000015); `model_selection_settings` added (000020).
 | `eval_collections` | Both lists already page on immutable keys; the owner-wide counter is still bumped on every experiment state change |
 | `eval_plan_resources` | Four of six path families are write-only; only `bindings/*` and `private/*` are read |
 | Risk: `stage_metrics` TTL | Fixed by V404-001: retention renews StageMetrics that an existing Eval member reads instead of deleting them (OBS-R43, EVM-R239) |
-| Risk: `allocation_execution_reports` TTL | Not rechecked. Reports expire after 30 days while `stage_allocations` stays |
+| Risk: `allocation_execution_reports` TTL | Fixed by V404-002: reports still expire after 30 days while `stage_allocations` stays, and an allocation whose report expired shows `report_expired` instead of `report_missing` (OPS-R183) |
 
 Apart from V365-016, no task tracks these items.
 

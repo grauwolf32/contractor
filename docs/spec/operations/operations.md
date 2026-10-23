@@ -1220,7 +1220,13 @@ allocations nor forces garbage collection.
 **OPS-R183.** Allocation history includes terminal allocation
 records even when their report is missing and shows `disabled`,
 `unsupported`, `pending`, `available`, `partial` or `unavailable` from trusted
-policy and available reports, rather than silently omitting failures.
+policy and available reports, rather than silently omitting failures. An
+allocation whose report was received and has since expired (OPS-R182) is
+`unavailable` with reason `report_expired`; one released without a report,
+or whose report has no usable resources, is `unavailable` with reason
+`report_missing`.
+The Server records on the allocation that a report was stored, so an
+expired report is never shown as one the Runtime failed to deliver.
 
 **OPS-R184.** Every allocation must retain an explicit
 `requested`, `disabled` or `unsupported` policy.
