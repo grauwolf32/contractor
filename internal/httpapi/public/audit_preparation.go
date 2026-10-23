@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -14,11 +15,7 @@ func (h *auditHandlers) auditDetailReadModel(r *http.Request, audit auditstore.A
 	if err != nil {
 		return auditResponse{}, err
 	}
-	if response.Phase == auditdomain.AuditPhaseNotStarted {
-		return response, nil
-	}
-	profile, err := auditprofile.DecodeResolvedAuditProfileSnapshot(audit.ProfileSnapshot)
-	if err != nil || !profile.HasPreparation() {
+	if response.Phase == auditdomain.AuditPhaseNotStarted || !auditPinsPreparation(audit) {
 		return response, nil
 	}
 	roles, err := h.Audits.Preparation(r.Context(), principalUserID(r.Context()), audit.AuditID)
@@ -30,7 +27,38 @@ func (h *auditHandlers) auditDetailReadModel(r *http.Request, audit auditstore.A
 		return auditResponse{}, err
 	}
 	response.GeneratedInventory = inventory
-	response.Preparation = &auditPreparationResponse{Roles: map[string]auditPreparationRoleResponse{}}
+	response.Preparation = auditPreparationReadModel(roles)
+	latest, err := h.Audits.Get(r.Context(), principalUserID(r.Context()), audit.AuditID)
+	if err != nil {
+		return auditResponse{}, err
+	}
+	if latest.Revision != audit.Revision {
+		return auditResponse{}, auditstore.ErrConflict
+	}
+	return response, nil
+}
+
+// auditListHydratesPreparation reports whether a list item carries
+// preparation (ASC-R150): its phase is preparing or inventory and its pinned
+// profile has a prepare role. Neither phase has generatedInventory, which
+// exists only once the Audit reaches rounds (ASC-R146), so the list reads no
+// inventory link or payload.
+func auditListHydratesPreparation(audit auditstore.Audit) bool {
+	return (audit.Phase == auditdomain.AuditPhasePreparing || audit.Phase == auditdomain.AuditPhaseInventory) &&
+		auditPinsPreparation(audit)
+}
+
+// auditPinsPreparation reports whether the Audit's pinned profile has a
+// prepare role. A snapshot that does not decode has none.
+func auditPinsPreparation(audit auditstore.Audit) bool {
+	profile, err := auditprofile.DecodeResolvedAuditProfileSnapshot(audit.ProfileSnapshot)
+	return err == nil && profile.HasPreparation()
+}
+
+// auditPreparationReadModel is the public preparation of one Audit; the
+// detail and both lists build it from the same role projection.
+func auditPreparationReadModel(roles map[string]auditservice.PreparationRoleProjection) *auditPreparationResponse {
+	result := &auditPreparationResponse{Roles: make(map[string]auditPreparationRoleResponse, len(roles))}
 	for name, role := range roles {
 		view := auditPreparationRoleResponse{Status: role.Status, Attempts: role.Attempts, MaxAttempts: role.MaxRunAttempts,
 			ExecutionID: role.ExecutionID, RunID: role.RunID, Outputs: map[string]auditPreparationOutputResponse{}}
@@ -41,16 +69,9 @@ func (h *auditHandlers) auditDetailReadModel(r *http.Request, audit auditstore.A
 					MediaType: output.Output.Retained.MediaType, SizeBytes: output.Output.Retained.SizeBytes},
 			}
 		}
-		response.Preparation.Roles[name] = view
+		result.Roles[name] = view
 	}
-	latest, err := h.Audits.Get(r.Context(), principalUserID(r.Context()), audit.AuditID)
-	if err != nil {
-		return auditResponse{}, err
-	}
-	if latest.Revision != audit.Revision {
-		return auditResponse{}, auditstore.ErrConflict
-	}
-	return response, nil
+	return result
 }
 
 // Prepared artifacts retain their producing execution even after source Run

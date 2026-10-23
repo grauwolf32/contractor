@@ -356,6 +356,21 @@ the Audit revision after hydration. A changed revision returns conflict rather
 than mixing an earlier phase or ETag with newer accepted output descriptors.
 Public coverage pagination retains its existing revision pin.
 
+**ASC-R150.** The owner-wide and Project Audit lists give every item in the
+`preparing` or `inventory` phase whose pinned profile has a prepare role the
+`preparation` that `GET /v1/audits/{auditId}` returns for it; items in other
+phases keep their list projection. One store statement hydrates all such items
+of a page, whatever their number (at most LIM-API-18). It reads each listed
+Audit only at the owner and revision the page listed, with its pinned prepare
+roles (at most LIM-ASC-2), each role's attempt count and latest attempt, and
+the output descriptors of an accepted attempt (at most LIM-ASC-5); it never
+reads preparation snapshots or earlier attempts. A listed Audit that has
+another revision or no longer exists when that statement runs fails the list
+with `409 conflict`, as in ASC-R149, so a page never combines revisions;
+storage failures keep their own class. A page without such an item issues no
+hydration statement. Neither phase has `generatedInventory` (ASC-R146), so the
+lists read no inventory link or payload.
+
 ### Inventory phase and the first Round
 
 **ASC-R46.** After all prepare roles are accepted, `phase: inventory`
@@ -797,7 +812,8 @@ interruption between scanner completion and package publication (FAIL-ASC-7).
   (ASC-R72 to ASC-R84); the rest of the Workflow
   definition is specified in [workflows](../configuration/workflows.md).
 - Public Audit projection: `preparation.roles` (ASC-R41 to
-  ASC-R45), with the schemas `AuditPreparation`,
+  ASC-R45) on the Audit and on preparing and inventory list items
+  (ASC-R150), with the schemas `AuditPreparation`,
   `AuditPreparationRole` and `AuditPreparationOutput` in
   [contractor-public-v1.yaml](../../../api/openapi/contractor-public-v1.yaml).
 - The start response before the first Round (ASC-R53).

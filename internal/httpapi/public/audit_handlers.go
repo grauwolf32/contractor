@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -40,6 +39,7 @@ type AuditManagement interface {
 	Delete(context.Context, auditservice.MutationParams) (auditservice.MutationResult, error)
 	Get(context.Context, string, string) (auditstore.Audit, error)
 	Preparation(context.Context, string, string) (map[string]auditservice.PreparationRoleProjection, error)
+	PreparationPage(context.Context, string, []auditstore.Audit) (map[string]map[string]auditservice.PreparationRoleProjection, error)
 	ReadArtifact(context.Context, string, string, string, string) (artifacts.ReadResult, error)
 	GeneratedInventory(context.Context, string, string, uint64) (*auditservice.GeneratedInventoryProjection, error)
 	List(context.Context, auditstore.ListParams) ([]auditstore.Audit, error)
@@ -275,16 +275,30 @@ func (h *auditHandlers) listProjectAudits(w http.ResponseWriter, r *http.Request
 		return
 	}
 	items := make([]auditResponse, 0, len(audits))
+	hydrate := make([]auditstore.Audit, 0, len(audits))
 	for _, audit := range audits {
 		item, modelErr := auditReadModel(audit)
-		if modelErr == nil && (audit.Phase == auditdomain.AuditPhasePreparing || audit.Phase == auditdomain.AuditPhaseInventory) {
-			item, modelErr = h.auditDetailReadModel(r, audit)
-		}
 		if modelErr != nil {
 			handleError(w, modelErr)
 			return
 		}
+		if auditListHydratesPreparation(audit) {
+			hydrate = append(hydrate, audit)
+		}
 		items = append(items, item)
+	}
+	// One fenced read hydrates every preparing or inventory item (ASC-R150).
+	if len(hydrate) != 0 {
+		roles, err := h.Audits.PreparationPage(r.Context(), principalUserID(r.Context()), hydrate)
+		if err != nil {
+			handleError(w, err)
+			return
+		}
+		for index := range items {
+			if projection, ok := roles[items[index].AuditID]; ok {
+				items[index].Preparation = auditPreparationReadModel(projection)
+			}
+		}
 	}
 	writeJSON(w, http.StatusOK, auditPageResponse{Items: items, Page: page})
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
@@ -45,6 +46,113 @@ func (s *QueryStore) ListPreparationRoles(ctx context.Context, auditID string) (
 		result = append(result, role)
 	}
 	return result, rows.Err()
+}
+
+// ListPreparationPage reads, in one statement, the preparation of a page of
+// owner ownerID's Audits, each at the revision the page listed (ASC-R150). It
+// returns auditstore.ErrConflict when any listed Audit is gone or has another
+// revision, so a page never combines revisions (ASC-R149). The result maps
+// every listed Audit to its pinned prepare roles in role order, each with
+// only its latest attempt. A page holds at most pagelimit.MaxRows Audits and
+// an Audit at most auditprofile.MaxAuditProfileWorkflows roles.
+func (s *QueryStore) ListPreparationPage(
+	ctx context.Context, ownerID string, audits []auditstore.ListedAudit,
+) (map[string][]auditstore.ListedPreparationRole, error) {
+	if err := validateText("ownerID", ownerID, 256, true); err != nil {
+		return nil, err
+	}
+	if len(audits) == 0 || len(audits) > pagelimit.MaxRows {
+		return nil, invalidf("listed Audit selection is invalid")
+	}
+	ids := make([]string, len(audits))
+	revisions := make([]int64, len(audits))
+	result := make(map[string][]auditstore.ListedPreparationRole, len(audits))
+	for index, audit := range audits {
+		if validateID("auditID", audit.AuditID) != nil || audit.Revision == 0 || audit.Revision > math.MaxInt64 {
+			return nil, invalidf("listed Audit identity is invalid")
+		}
+		if _, exists := result[audit.AuditID]; exists {
+			return nil, invalidf("listed Audit selection contains duplicates")
+		}
+		result[audit.AuditID] = []auditstore.ListedPreparationRole{}
+		ids[index], revisions[index] = audit.AuditID, int64(audit.Revision)
+	}
+	rows, err := s.db.Query(ctx, listPreparationPageSQL, ownerID, ids, revisions)
+	if err != nil {
+		return nil, fmt.Errorf("list Audit page preparation: %w", err)
+	}
+	defer rows.Close()
+	seen := make(map[string]bool, len(audits))
+	for rows.Next() {
+		auditID, current, role, scanErr := scanListedPreparationRole(rows)
+		if scanErr != nil {
+			return nil, fmt.Errorf("scan Audit page preparation: %w", scanErr)
+		}
+		roles, listed := result[auditID]
+		if !listed {
+			return nil, errors.New("stored Audit page preparation names an unlisted Audit")
+		}
+		if !current {
+			return nil, auditstore.ErrConflict
+		}
+		seen[auditID] = true
+		if role == nil {
+			continue
+		}
+		if len(roles) == auditprofile.MaxAuditProfileWorkflows {
+			return nil, errors.New("stored Audit preparation roles exceed their profile bound")
+		}
+		result[auditID] = append(roles, *role)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate Audit page preparation: %w", err)
+	}
+	if len(seen) != len(audits) {
+		return nil, errors.New("stored Audit page preparation omitted a listed Audit")
+	}
+	return result, nil
+}
+
+// scanListedPreparationRole reads one row of listPreparationPageSQL. Role is
+// nil when the Audit is not current or pins no prepare role.
+func scanListedPreparationRole(row scanner) (string, bool, *auditstore.ListedPreparationRole, error) {
+	var auditID, status string
+	var current bool
+	var key, executionID, runID, state *string
+	var attempts int
+	var maxAttempts, roleAttempt *int
+	var outputs []byte
+	if err := row.Scan(&auditID, &current, &key, &attempts, &maxAttempts, &executionID,
+		&roleAttempt, &runID, &state, &outputs, &status); err != nil {
+		return "", false, nil, err
+	}
+	if !current || key == nil {
+		return auditID, current, nil, nil
+	}
+	role := auditstore.ListedPreparationRole{PreparationRole: auditstore.PreparationRole{
+		WorkflowRole: *key, Status: auditdomain.PreparationStatus(status), Attempts: attempts, ExecutionID: executionID,
+	}}
+	if validateText("Workflow role", *key, 128, true) != nil || maxAttempts == nil || !role.Status.Valid() {
+		return "", false, nil, errors.New("derived Audit preparation status is invalid")
+	}
+	role.MaxRunAttempts = *maxAttempts
+	if executionID == nil {
+		if roleAttempt != nil || runID != nil || state != nil || outputs != nil {
+			return "", false, nil, errors.New("stored Audit preparation role has an attempt without identity")
+		}
+		return auditID, true, &role, nil
+	}
+	if roleAttempt == nil || state == nil || !auditstore.ExecutionState(*state).Valid() {
+		return "", false, nil, errors.New("stored preparation role has no matching bounded execution")
+	}
+	latest := auditstore.PreparationAttempt{
+		ExecutionID: *executionID, RoleAttempt: *roleAttempt, RunID: runID, State: auditstore.ExecutionState(*state),
+	}
+	if decodeStoredProvenance(outputs, &latest.Outputs) != nil || len(latest.Outputs) > auditprofile.MaxAuditWorkflowMappings {
+		return "", false, nil, errors.New("stored Audit preparation outputs are invalid")
+	}
+	role.Latest = &latest
+	return auditID, true, &role, nil
 }
 
 // StartPreparation pins the original baseline before any preparation Run or

@@ -573,6 +573,8 @@ type fakeAuditManagement struct {
 	coverage            auditservice.CoveragePage
 	preparation         map[string]auditservice.PreparationRoleProjection
 	preparationOwner    string
+	preparationPages    []int
+	preparationErr      error
 	artifactRead        artifacts.ReadResult
 	created             auditservice.CreateDraftParams
 	start               auditservice.StartParams
@@ -595,6 +597,24 @@ type fakeAuditManagement struct {
 func (f *fakeAuditManagement) Preparation(_ context.Context, ownerID, _ string) (map[string]auditservice.PreparationRoleProjection, error) {
 	f.preparationOwner = ownerID
 	return f.preparation, f.err
+}
+
+func (f *fakeAuditManagement) PreparationPage(
+	_ context.Context, ownerID string, audits []auditstore.Audit,
+) (map[string]map[string]auditservice.PreparationRoleProjection, error) {
+	f.preparationOwner = ownerID
+	f.preparationPages = append(f.preparationPages, len(audits))
+	if f.preparationErr != nil {
+		return nil, f.preparationErr
+	}
+	if f.err != nil {
+		return nil, f.err
+	}
+	result := make(map[string]map[string]auditservice.PreparationRoleProjection, len(audits))
+	for _, audit := range audits {
+		result[audit.AuditID] = f.preparation
+	}
+	return result, nil
 }
 
 func (f *fakeAuditManagement) ReadArtifact(_ context.Context, _, _, _, _ string) (artifacts.ReadResult, error) {
