@@ -154,3 +154,25 @@
           reference. Provision one through your image distribution process and set
           contractor_runtime_podman_image (deploy/podman/README.md).
         quiet: true
+
+- name: Install the keep-id image preparation helper
+  ansible.builtin.copy:
+    src: warm_podman_image.py
+    dest: "{{ contractor_runtime_prefix }}/tools/warm_podman_image.py"
+    owner: root
+    group: root
+    mode: "0644"
+
+# First keep-id use can copy/shift a large image and exceed the Runtime's
+# deliberately short sandbox self-test budget. Do it before starting slots.
+- name: Prepare keep-id layers without starting a container or binding host files
+  ansible.builtin.command:
+    argv:
+      - "{{ __contractor_runtime_python }}"
+      - -I
+      - "{{ contractor_runtime_prefix }}/tools/warm_podman_image.py"
+      - "{{ __contractor_runtime_podman_image }}"
+  become: true
+  become_user: "{{ contractor_runtime_user }}"
+  environment: "{{ __contractor_runtime_user_env }}"
+  changed_when: false

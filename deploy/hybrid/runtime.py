@@ -73,6 +73,7 @@ def inventory(args, state, doc):
                 "contractor_runtime_pki_root": str(pki),
                 "contractor_runtime_pki_command": str(binary),
                 "contractor_runtime_capabilities": capabilities,
+                "contractor_runtime_podman_scope_limits": args.full_capabilities,
                 "contractor_runtime_restart": not args.defer_restarts,
                 "contractor_runtime_verify": True,
                 "contractor_runtime_labels": args.labels,

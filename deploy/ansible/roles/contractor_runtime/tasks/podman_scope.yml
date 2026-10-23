@@ -1,0 +1,48 @@
+---
+# Podman 4.9 on Ubuntu 24.04 otherwise leaves the owning systemd scope with
+# inherited PID/swap limits, even when its container child has OCI limits.
+# The Runtime requires the entire supervised scope to have its exact bounds.
+- name: Install the scope policy resolver
+  ansible.builtin.copy:
+    src: podman_scope_policy.py
+    dest: "{{ contractor_runtime_prefix }}/tools/podman_scope_policy.py"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Derive uniform scope limits with the deployed Runtime parser
+  ansible.builtin.command:
+    argv: ["{{ __contractor_runtime_python }}", -I, "{{ contractor_runtime_prefix }}/tools/podman_scope_policy.py"]
+    stdin: "{{ __contractor_runtime_ready | map(attribute='argv') | list | to_json }}"
+  become: true
+  become_user: "{{ contractor_runtime_user }}"
+  changed_when: false
+  register: __contractor_runtime_scope_resolution
+
+- name: Record the validated scope policy
+  ansible.builtin.set_fact:
+    __contractor_runtime_scope_policy: "{{ __contractor_runtime_scope_resolution.stdout | from_json }}"
+
+- name: Create the dedicated account's Podman scope directory
+  ansible.builtin.file:
+    path: "{{ contractor_runtime_home }}/.config/systemd/user/libpod-.scope.d"
+    state: directory
+    owner: "{{ contractor_runtime_user }}"
+    group: "{{ contractor_runtime_group }}"
+    mode: "0700"
+
+- name: Set bounds on every Podman scope of the dedicated Runtime account
+  ansible.builtin.template:
+    src: podman-scope.conf.j2
+    dest: "{{ contractor_runtime_home }}/.config/systemd/user/libpod-.scope.d/50-contractor-limits.conf"
+    owner: "{{ contractor_runtime_user }}"
+    group: "{{ contractor_runtime_group }}"
+    mode: "0600"
+  register: __contractor_runtime_scope_file
+
+- name: Record Podman instances needing a restart for changed scope bounds
+  ansible.builtin.set_fact:
+    __contractor_runtime_changed: >-
+      {{ (__contractor_runtime_changed
+          + (__contractor_runtime_ready | selectattr('podman') | map(attribute='name') | list
+             if __contractor_runtime_scope_file is changed else [])) | unique }}

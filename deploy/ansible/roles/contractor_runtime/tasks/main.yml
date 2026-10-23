@@ -58,6 +58,10 @@
     loop_var: __contractor_runtime_instance
     label: "{{ __contractor_runtime_instance.name }}"
 
+- name: Configure shared Podman scope bounds
+  ansible.builtin.include_tasks: podman_scope.yml
+  when: __contractor_runtime_host.podman and contractor_runtime_podman_scope_limits | bool
+
 - name: Remove absent instances
   ansible.builtin.include_tasks: absent.yml
   loop: "{{ __contractor_runtime_absent }}"
