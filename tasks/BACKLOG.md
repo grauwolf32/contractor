@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-82 open tasks: 16 in progress, 41 pending, 25 deferred. 947 finished: 944 completed, 3 archived.
+70 open tasks: 4 in progress, 41 pending, 25 deferred. 959 finished: 956 completed, 3 archived.
 
 ## In progress
 
@@ -14,18 +14,6 @@ the epics are in [epics.yml](epics.yml).
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
-| [V371-013](v371-013-eval-bounded-json-walker.yml) | evals | chore | P3 | Read Eval JSON documents with strictjson.DecodeBounded |
-| [V371-017](v371-017-strong-etag-grammar.yml) | api-contracts | defect | P3 | Accept only RFC 9110 strong entity tags in If-Match |
-| [V371-018](v371-018-repeat-draft-description.yml) | api-contracts | chore | P3 | Remove the historical-request sentence from the repeat-draft OpenAPI description |
-| [V371-019](v371-019-audit-namespace-prefix-rule.yml) | projects-artifacts | chore | P3 | Use artifactpolicy's Audit namespace rule in the Audit namespace purge |
-| [V371-023](v371-023-audit-route-test-timeouts.yml) | quality | chore | P3 | Keep the Audit route UI tests within their timeout under load |
-| [V371-024](v371-024-browser-gate-ci-artifacts.yml) | quality | chore | P3 | Keep browser gate screenshots and traces where CI uploads them |
-| [V371-025](v371-025-pnpm-root-invocation.yml) | quality | chore | P3 | Document a pnpm invocation that works from the repository root |
-| [V372-005](v372-005-issues-decision-focus-race.yml) | ui | defect | P2 | Move focus to the next possible issue reliably after a decision |
-| [V372-018](v372-018-finding-proposal-namespace-constant.yml) | findings | chore | P3 | Name the finding-proposals Namespace through artifactpolicy in finding intake |
-| [V372-019](v372-019-restore-rehearsal-pg-dump-version.yml) | quality | chore | P3 | Check the pg_dump and pg_restore version before the backup and restore rehearsal |
-| [V372-021](v372-021-credential-master-key-unavailable.yml) | runtime-config | defect | P2 | Answer an LLM or Runtime credential operation without the master key with a registered non-retryable code |
-| [V372-022](v372-022-standby-public-api-envelope.yml) | api-contracts | defect | P3 | Answer the public API on a standby Server with the error envelope |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
 
 ## Pending
@@ -175,21 +163,21 @@ tasks in `introduced_by`.
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 5 | 38 | 50 | 11 | 65 |
 | Planners and the Worker model boundary (`planner-worker`) | 3 | 27 | 37 | 14 | 55 |
-| Runtime labels, configuration and credentials (`runtime-config`) | 11 | 25 | 12 | 3 | 37 |
+| Runtime labels, configuration and credentials (`runtime-config`) | 10 | 25 | 12 | 3 | 37 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 1 | 11 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 2 | 1 | 1 |
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 12 | 4 | 15 |
 | Code analysis and taint annotations (`code-analysis`) | 0 | 14 | 13 | 2 | 18 |
 | HTTP and Caido tools (`http-tools`) | 2 | 11 | 14 | 4 | 15 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 1 | 11 | 4 | 2 | 8 |
-| Findings tools and collections (`findings`) | 8 | 14 | 5 | 6 | 9 |
+| Findings tools and collections (`findings`) | 7 | 14 | 5 | 6 | 9 |
 | Workflow catalog and document workflows (`workflows`) | 3 | 14 | 13 | 12 | 12 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 30 | 32 | 5 | 35 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 30 | 32 | 5 | 35 |
 | Audits (`audits`) | 18 | 51 | 70 | 17 | 83 |
-| Evaluations (`evals`) | 3 | 21 | 29 | 5 | 33 |
+| Evaluations (`evals`) | 2 | 21 | 29 | 5 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 9 | 1 | 1 | 2 |
-| Web UI (`ui`) | 1 | 21 | 55 | 12 | 49 |
+| Web UI (`ui`) | 0 | 21 | 55 | 12 | 49 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 13 | 32 | 5 | 9 |
-| Public API and wire contracts (`api-contracts`) | 7 | 1 | 30 | 20 | 8 |
+| Public API and wire contracts (`api-contracts`) | 4 | 1 | 30 | 20 | 8 |
 | PostgreSQL persistence and schema (`persistence`) | 4 | 0 | 19 | 33 | 8 |
-| Quality, CI and process (`quality`) | 14 | 1 | 20 | 78 | 16 |
+| Quality, CI and process (`quality`) | 10 | 1 | 20 | 78 | 16 |

@@ -5,7 +5,8 @@ milestone: hub-audit-defects-2026-10
 epic: api-contracts
 kind: defect
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: "4925c9c78b9457bccca516060e789cb4bc939c25"
 depends_on: []
 languages: [go, yaml, markdown]
 goal: "A standby Server answers every /v1 request with a registered, retryable error in the public error envelope, so clients see a temporary unavailability instead of a plain-text 404 that reads as a missing resource."
@@ -59,3 +60,17 @@ tests:
     covers: [A1]
   - command: make lint
     covers: [A1, A2]
+verification:
+  date: "2026-10-23"
+  revision: "4925c9c78b9457bccca516060e789cb4bc939c25"
+  environment: >-
+    Integration branch integration/quick-wins-2026-10-23 on macOS arm64 with
+    Go 1.26.9, Node 24.20.0, pnpm 11.24.0, disposable PostgreSQL 17.11
+    (CONTRACTOR_TEST_DATABASE_URL set) and TMPDIR under /private/tmp.
+  merged_run:
+    - "make -k verify: lint after the dependency graph refresh, ui-verify (2,260 UI tests), test-config and build passed; make lint passed in full on the rerun."
+    - "make test-go: every package passed except internal/app TestPostgresControlPlaneLeaseSessionDetectsVanishedHolder, which fails the same way on main because macOS PostgreSQL does not support tcp_user_timeout."
+    - "make test-runtime: the 102 failures it reports (Podman, Darwin process limits, sandbox) fail identically on main; test_scan_toolset::test_capabilities_check_each_binary_independently[scan_nuclei] is timing-dependent (V371-022 class) and passed on rerun."
+    - "make test-wire-cross-language (243 fixtures, 1,135 tests) and make verify-public-api passed."
+  task_commands:
+    - "go test -count=1 ./tests/integration/lease and make test-lease-integration: passed (the standby process test and the in-process lease tests); go test ./internal/app passes except TestPostgresControlPlaneLeaseSessionDetectsVanishedHolder, which fails identically on main because macOS PostgreSQL does not support tcp_user_timeout."
