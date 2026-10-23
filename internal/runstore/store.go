@@ -628,15 +628,8 @@ func encodeProjectHTTPTarget(target *runtimesettings.HTTPOriginTargetRef) ([]byt
 }
 
 func validateIdempotencyKey(value string) error {
-	if len(value) == 0 || len(value) > 128 {
-		return invalidf("idempotency key must contain 1 to 128 characters")
-	}
-	for index, character := range value {
-		valid := character >= 'a' && character <= 'z' || character >= 'A' && character <= 'Z' ||
-			character >= '0' && character <= '9' || index > 0 && strings.ContainsRune("._:-", character)
-		if !valid {
-			return invalidf("idempotency key contains an invalid character")
-		}
+	if !contracts.ValidIdempotencyKey(value) {
+		return invalidf("idempotency key is not in the Idempotency-Key grammar")
 	}
 	return nil
 }

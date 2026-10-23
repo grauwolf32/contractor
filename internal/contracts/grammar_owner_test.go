@@ -26,18 +26,46 @@ func canonicalRegexp(pattern string) (string, bool) {
 	return parsed.Simplify().String(), true
 }
 
-// TestPublicIdentifierGrammarsHaveOneGoDefinition keeps the public ResourceId
-// and ConfigId grammars in one Go definition each, contracts.ValidResourceID
-// and contracts.ValidName: no non-test Go source outside internal/contracts
-// may hold a regular expression that accepts exactly one of those bounded
-// languages. Such copies drifted from the public schemas before. A pattern
-// with another bound is another rule and is not reported.
+// idempotencyKeyGrammar names the public Idempotency-Key grammar in the scan.
+const idempotencyKeyGrammar = "Idempotency-Key (use contracts.ValidIdempotencyKey)"
+
+// sameLanguageRules lists the files whose own, separately specified rule
+// happens to accept the bounded Idempotency-Key language. Each is another
+// rule with its own owner, so it is not a copy; a new entry needs that
+// reason.
+var sameLanguageRules = map[string]string{
+	"internal/credentials/litellm/manager.go":    "managed credential operation ID",
+	"internal/credentials/repository.go":         "managed credential operation ID",
+	"internal/findingintake/types.go":            "finding intake identity",
+	"internal/httpapi/public/events/protocol.go": "live event subscription ID",
+	"internal/requestid/requestid.go":            "X-Request-ID",
+}
+
+// idempotencyKeyPunctuation is how a hand-written character loop spells the
+// Idempotency-Key punctuation. punctuationRules lists the files whose loop
+// checks another rule with it: the Planner fact key allows the punctuation
+// in any position.
+const idempotencyKeyPunctuation = "._:-"
+
+var punctuationRules = map[string]string{
+	"internal/planner/session/service.go": "Planner fact key",
+}
+
+// TestPublicIdentifierGrammarsHaveOneGoDefinition keeps the public ResourceId,
+// ConfigId and Idempotency-Key grammars in one Go definition each,
+// contracts.ValidResourceID, contracts.ValidName and
+// contracts.ValidIdempotencyKey: no non-test Go source outside
+// internal/contracts may hold a regular expression that accepts exactly one
+// of those bounded languages, or spell the Idempotency-Key punctuation for a
+// hand-written character loop. Such copies drifted from the public schemas
+// before. A pattern with another bound is another rule and is not reported.
 func TestPublicIdentifierGrammarsHaveOneGoDefinition(t *testing.T) {
 	t.Parallel()
 	grammars := map[string]string{}
 	for name, pattern := range map[string]string{
 		"ResourceId (use contracts.ValidResourceID)": `^[A-Za-z0-9][A-Za-z0-9_.:-]{0,` + strconv.Itoa(contracts.MaxResourceIDLength-1) + `}$`,
 		"ConfigId (use contracts.ValidName)":         `^[A-Za-z0-9][A-Za-z0-9_.-]{0,` + strconv.Itoa(contracts.MaxNameLength-1) + `}$`,
+		idempotencyKeyGrammar:                        `^[A-Za-z0-9][A-Za-z0-9._:-]{0,` + strconv.Itoa(contracts.MaxIdempotencyKeyLength-1) + `}$`,
 	} {
 		canonical, ok := canonicalRegexp(pattern)
 		if !ok {
@@ -49,6 +77,7 @@ func TestPublicIdentifierGrammarsHaveOneGoDefinition(t *testing.T) {
 	for pattern, want := range map[string]string{
 		`^(?:[0-9A-Za-z])[-:._0-9a-zA-Z]{0,255}$`: "ResourceId (use contracts.ValidResourceID)",
 		`^[a-zA-Z0-9][-_.a-zA-Z0-9]{0,127}$`:      "ConfigId (use contracts.ValidName)",
+		`^[0-9a-zA-Z][-:_.0-9A-Za-z]{0,127}$`:     idempotencyKeyGrammar,
 	} {
 		if canonical, _ := canonicalRegexp(pattern); grammars[canonical] != want {
 			t.Fatalf("probe %q is not recognized as %s", pattern, want)
@@ -59,6 +88,7 @@ func TestPublicIdentifierGrammarsHaveOneGoDefinition(t *testing.T) {
 	owner := filepath.Join(root, "internal", "contracts")
 	files := token.NewFileSet()
 	var copies []string
+	otherRules := map[string]bool{}
 	scanned := 0
 	for _, top := range []string{"api", "cmd", "internal", "tests", "tools"} {
 		err := filepath.WalkDir(filepath.Join(root, top), func(path string, entry fs.DirEntry, err error) error {
@@ -85,12 +115,29 @@ func TestPublicIdentifierGrammarsHaveOneGoDefinition(t *testing.T) {
 					return true
 				}
 				value, err := strconv.Unquote(literal.Value)
-				if err != nil || !strings.Contains(value, "[") {
+				if err != nil {
 					return true
 				}
-				if canonical, ok := canonicalRegexp(value); ok && grammars[canonical] != "" {
-					position := files.Position(literal.Pos())
-					relative, _ := filepath.Rel(root, position.Filename)
+				position := files.Position(literal.Pos())
+				relative, _ := filepath.Rel(root, position.Filename)
+				relative = filepath.ToSlash(relative)
+				if value == idempotencyKeyPunctuation {
+					if punctuationRules[relative] != "" {
+						otherRules[relative] = true
+					} else {
+						copies = append(copies, fmt.Sprintf("%s:%d: %s", relative, position.Line, idempotencyKeyGrammar))
+					}
+					return true
+				}
+				if !strings.Contains(value, "[") {
+					return true
+				}
+				canonical, ok := canonicalRegexp(value)
+				switch {
+				case !ok || grammars[canonical] == "":
+				case grammars[canonical] == idempotencyKeyGrammar && sameLanguageRules[relative] != "":
+					otherRules[relative] = true
+				default:
 					copies = append(copies, fmt.Sprintf("%s:%d: %s", relative, position.Line, grammars[canonical]))
 				}
 				return true
@@ -103,6 +150,13 @@ func TestPublicIdentifierGrammarsHaveOneGoDefinition(t *testing.T) {
 	}
 	if scanned < 500 {
 		t.Fatalf("scanned only %d Go files; the repository walk is broken", scanned)
+	}
+	for _, listed := range []map[string]string{sameLanguageRules, punctuationRules} {
+		for relative, rule := range listed {
+			if !otherRules[relative] {
+				copies = append(copies, fmt.Sprintf("%s: listed for the %s, which it no longer spells; delete the entry", relative, rule))
+			}
+		}
 	}
 	if len(copies) > 0 {
 		t.Fatalf("Go copies of a public identifier grammar outside internal/contracts:\n%s", strings.Join(copies, "\n"))

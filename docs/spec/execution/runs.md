@@ -481,7 +481,9 @@ Run (RUN-R46).
 ### Cancellation
 
 **RUN-R40.** `cancelling` and `cancelled` require the same
-immutable WorkflowRunCancellation, recorded by the winning cancel request.
+immutable WorkflowRunCancellation, recorded by the winning cancel request. Its
+optional `reason` is trimmed and then holds 1 to 4,096 bytes of UTF-8
+(LIM-RUN-10); any other reason is `400 invalid_request` and records nothing.
 
 **RUN-R41.** Cancellation is accepted from `initializing`,
 `pending`, `running` or `waiting` by compare-and-set. Repeating cancellation is
@@ -896,6 +898,8 @@ Limits ([registry](../platform/limits.md)):
   (RUN-R91).
 - LIM-RUN-9 — AttemptDiagnostics entries returned: at most the newest 128
   (RUN-R92).
+- LIM-RUN-10 — cancellation reason: 1 to 4,096 bytes of UTF-8 after trimming
+  (RUN-R40).
 - Workflow parameters have no separate limit; the create request is bounded by
   the public JSON request limit of the [Public API](../api/public-api.md)
   (RUN-R14). One active StageExecution per WorkflowRun is LIM-SCH-1

@@ -461,7 +461,7 @@ type deleteOperationRequest struct {
 
 func normalizeCreateRequest(request CreateRequest) (createOperationRequest, string, error) {
 	if err := validateCredentialID(request.CredentialID); err != nil || request.LLMGateway.ValidateRef() != nil ||
-		!idempotencyKeyPattern.MatchString(request.IdempotencyKey) || !validActorID(request.ActorID) ||
+		!contracts.ValidIdempotencyKey(request.IdempotencyKey) || !validActorID(request.ActorID) ||
 		request.Label != "" && (strings.TrimSpace(request.Label) == "" || !utf8.ValidString(request.Label) ||
 			utf8.RuneCountInString(request.Label) > MaximumCredentialLabel) {
 		return createOperationRequest{}, "", fmt.Errorf("%w: create credential request is invalid", ErrInvalid)
@@ -488,7 +488,7 @@ func normalizeCreateRequest(request CreateRequest) (createOperationRequest, stri
 
 func validateDeleteRequest(request DeleteRequest) (string, error) {
 	if err := validateCredentialID(request.CredentialID); err != nil ||
-		!idempotencyKeyPattern.MatchString(request.IdempotencyKey) || !validActorID(request.ActorID) {
+		!contracts.ValidIdempotencyKey(request.IdempotencyKey) || !validActorID(request.ActorID) {
 		return "", fmt.Errorf("%w: delete credential request is invalid", ErrInvalid)
 	}
 	return operationRequestDigest(struct {

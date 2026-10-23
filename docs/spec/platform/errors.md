@@ -402,7 +402,7 @@ The codes of the public API's HTTP error envelope and WebSocket error frames
 | `storage_transaction_conflict` | 503 | yes | A definite PostgreSQL transaction conflict (serialization failure or deadlock), including one that outlasts the bounded transaction retries of its operation; nothing committed, so the request may be repeated. | [PER-R16](persistence.md) |
 | `subscription_limit` | — (WebSocket error frame) | no | A socket already holds its maximum of subscriptions (LIM-API-11); only the new subscription is refused. | [API-R62](../api/public-api.md), [API-R63](../api/public-api.md) |
 | `unauthorized` | 401; also a WebSocket error frame | no | Authentication is absent or invalid: no valid bearer token or browser session, or a login with invalid credentials. | [SEC-R45](security.md), [API-R33](../api/public-api.md) |
-| `unsupported_media_type` | 415 | no | The Scheduler settings update is not sent as application/json; nothing changes. Other operations answer a wrong media type with invalid_request. | [OPS-R60](../operations/operations.md) |
+| `unsupported_media_type` | 415 | no | An Operations settings update (Scheduler settings or model selection) is not sent as exactly application/json; nothing changes. Other JSON operations answer a wrong media type with invalid_request, or eval_invalid on Managed Eval routes. | [OPS-R60](../operations/operations.md), [OPS-R225](../operations/operations.md) |
 <!-- END GENERATED PUBLIC ERROR CODES -->
 
 ### Other error and stop codes

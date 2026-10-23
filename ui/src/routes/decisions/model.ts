@@ -12,6 +12,7 @@ import {
   type AuditReviewRequest,
   type DecideAuditFindingRequest,
 } from "../../api/audits";
+import { schemaLimit } from "../../api/contract";
 import { PublicAPIError } from "../../api/error";
 import type { components } from "../../api/generated/public";
 import { writeConflict } from "../../app/conflict";
@@ -27,8 +28,13 @@ export type AuditReviewDecision = components["schemas"]["AuditReviewDecision"];
 export type AuditFindingDecisionResult =
   components["schemas"]["AuditFindingDecisionResult"];
 
-/** Rationale limit of every decision: 64 KiB of UTF-8 (S19 §14.1). */
-export const MAX_RATIONALE_BYTES = 65_536;
+/** Rationale limit of every decision, in UTF-8 bytes (x-max-utf8-bytes). */
+export const MAX_RATIONALE_BYTES = schemaLimit(
+  "DecideAuditActionRequest",
+  "x-max-utf8-bytes",
+  "properties",
+  "rationale",
+);
 
 /** Required-reason helper text (contract §3). */
 export const RATIONALE_HELP = "Required. Saved with the decision.";

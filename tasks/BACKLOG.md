@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-129 open tasks: 4 in progress, 100 pending, 25 deferred. 989 finished: 986 completed, 3 archived.
+129 open tasks: 5 in progress, 99 pending, 25 deferred. 989 finished: 986 completed, 3 archived.
 
 ## In progress
 
@@ -15,6 +15,7 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
+| [V407-021](v407-021-public-api-grammars-one-definition.yml) | api-contracts | defect | P1 | Align Idempotency-Key, request body bounds and UTF-8 string limits with the public contract |
 
 ## Pending
 
@@ -165,7 +166,6 @@ the epics are in [epics.yml](epics.yml).
 | [V372-020](v372-020-error-code-vocabularies.yml) | chore | P3 | — | Hold every vocabulary that carries error code names to the registry |
 | [V372-025](v372-025-typed-openapi-enums.yml) | chore | P3 | — | Give every enum of the public OpenAPI document a type |
 | [V372-026](v372-026-request-digests-in-services.yml) | chore | P3 | — | Move the Project, Audit and review request digests out of the public handlers |
-| [V407-021](v407-021-public-api-grammars-one-definition.yml) | defect | P1 | — | Align Idempotency-Key, request body bounds and UTF-8 string limits with the public contract |
 | [V407-022](v407-022-reject-head-centrally.yml) | defect | P2 | — | Reject implicit HEAD before dispatching public GET handlers |
 | [V407-023](v407-023-mutation-handler-preamble.yml) | defect | P3 | — | Classify aborted RuntimeConfig bodies and reject invalid mutation metadata before expensive work |
 | [V407-024](v407-024-cross-language-limits-and-grammars.yml) | defect | P1 | — | Align OpenAPI authoring document bounds with downstream scan preparation |

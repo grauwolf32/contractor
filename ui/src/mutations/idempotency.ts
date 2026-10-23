@@ -1,4 +1,5 @@
-const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+import { IDEMPOTENCY_KEY } from "../api/contract";
+
 const KEY_SCOPE_PATTERN = /^[a-z][a-z0-9-]{0,31}$/;
 
 function canonicalValue(value: unknown): unknown {
@@ -52,7 +53,7 @@ export class MutationDraftKeyring<T> {
       return this.#key;
     }
     const key = this.#generate();
-    if (!IDEMPOTENCY_KEY_PATTERN.test(key)) {
+    if (!IDEMPOTENCY_KEY.test(key)) {
       throw new TypeError("Generated mutation idempotency key is invalid");
     }
     this.#canonical = canonical;

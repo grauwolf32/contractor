@@ -200,8 +200,12 @@ func firstTimeLimit(values []*int) *int {
 	return values[0]
 }
 
+// maximumAuditTimeLimitBodyBytes bounds the optional JSON body of Audit start
+// and resume (LIM-AUD-28), which holds only deadlineSeconds.
+const maximumAuditTimeLimitBodyBytes int64 = 1024
+
 func readAuditTimeLimit(w http.ResponseWriter, r *http.Request) (*int, error) {
-	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1024))
+	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maximumAuditTimeLimitBodyBytes))
 	if exceedsBodyLimit(err) {
 		return nil, fmt.Errorf("%w: Audit time limit body is too large", errRequestTooLarge)
 	}
