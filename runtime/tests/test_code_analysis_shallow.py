@@ -345,7 +345,10 @@ def test_c_family_headers_keep_the_snapshot_language(tmp_path: Path) -> None:
         (("src/a.c", "src/b.c", "src/c.c", "vendor/lib.cc"), Language.C),
         (("src/a.c", "src/b.cc"), Language.CPP),
         (("src/a.c", "include/b.hpp", "include/c.hh"), Language.CPP),
+        (("src/a.c", "src/b.c", "include/c.hh", "include/d.hxx"), Language.CPP),
+        (("src/a.c", "src/b.c", "include/c.hh"), Language.C),
         (("SRC/MAIN.CPP", "src/x.c"), Language.CPP),
+        (("include/A.HH", "src/x.c"), Language.CPP),
     ],
 )
 def test_header_language_follows_the_snapshot_c_family_majority(
@@ -377,6 +380,131 @@ def test_c_project_with_a_vendored_cpp_file_keeps_c_headers(tmp_path: Path) -> N
         assert [(item["name"], item["language"]) for item in listed["items"]] == [("twice", "c")]
 
     asyncio.run(scenario())
+
+
+CPP_HEADER_FILES = {
+    "include/a.hh": (
+        "namespace net {\nclass Socket {\npublic:\n  int open_hh() const { return 1; }\n};\n}\n"
+    ),
+    "include/b.hpp": "template <typename T>\nT& pick_hpp(T& value) { return value; }\n",
+    "include/c.hxx": "struct Buffer {\n  int size_hxx() const { return 0; }\n};\n",
+    # A class parses only as C++: the three C++ headers outvote main.c for d.h.
+    "include/d.h": "class Legacy {\npublic:\n  int legacy_h() { return 3; }\n};\n",
+    "src/main.c": "int main(void) { return 0; }\n",
+}
+
+
+@pytest.mark.parametrize("storage", ["local", "memory"])
+def test_cpp_header_extensions_are_parsed_as_cpp_by_real_workspace_readers(
+    tmp_path: Path,
+    storage: str,
+) -> None:
+    async def scenario() -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
+        source_spec, reader = workspace_inputs(
+            [
+                (
+                    "source",
+                    "",
+                    archive({path: text.encode() for path, text in CPP_HEADER_FILES.items()}),
+                )
+            ]
+        )
+        provider = (
+            LocalWorkspaceProvider(workspace_settings("local", tmp_path / "local"))
+            if storage == "local"
+            else MemoryWorkspaceProvider(workspace_settings("memory"))
+        )
+        session = await hydrate_workspace(
+            provider=provider,
+            spec=source_spec,
+            artifact_reader=reader,
+            allocation_id=f"cpp-headers-{storage}",
+            timeout_seconds=5,
+        )
+        tools, _ = await _tools(session.reader_view(), tmp_path)
+        listed = await tools["list_symbols"](path="include", node_type="function_definition")
+        found = {
+            name: await tools["search_def"](name, language="cpp")
+            for name in ("open_hh", "pick_hpp", "size_hxx", "legacy_h")
+        }
+        await tools["list_symbols"].close()
+        await tools["search_def"].close()
+        await session.close()
+        await provider.cleanup(session.storage)
+        return listed, found
+
+    listed, found = asyncio.run(scenario())
+    assert [(item["path"], item["name"], item["language"]) for item in listed["items"]] == [
+        ("include/a.hh", "open_hh", "cpp"),
+        ("include/b.hpp", "pick_hpp", "cpp"),
+        ("include/c.hxx", "size_hxx", "cpp"),
+        ("include/d.h", "legacy_h", "cpp"),
+    ]
+    assert listed["coverage"]["unsupportedSourceFiles"] == 0
+    assert listed["coverage"]["parseErrors"] == 0
+    assert listed["coverage"]["incomplete"] is False
+    for name, path in (
+        ("open_hh", "include/a.hh"),
+        ("pick_hpp", "include/b.hpp"),
+        ("size_hxx", "include/c.hxx"),
+        ("legacy_h", "include/d.h"),
+    ):
+        assert [(item["path"], item["name"]) for item in found[name]["items"]] == [(path, name)]
+        assert found[name]["coverage"]["unsupportedSourceFiles"] == 0
+
+
+def test_malformed_cpp_header_keeps_parse_error_coverage(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        tools, _ = await _tools(
+            MutableReader(
+                {
+                    "include/broken.hh": "class Broken {\n  int ok_member() { return 1; }\n",
+                    "include/fine.hh": "int fine_member() { return 2; }\n",
+                }
+            ),
+            tmp_path,
+        )
+        listed = await tools["list_symbols"](node_type="function_definition")
+        assert ("include/fine.hh", "fine_member") in {
+            (item["path"], item["name"]) for item in listed["items"]
+        }
+        assert listed["coverage"]["parseErrors"] == 1
+        assert listed["coverage"]["incomplete"] is True
+        assert listed["coverage"]["reasons"] == ["parse_errors"]
+        assert listed["coverage"]["unsupportedSourceFiles"] == 0
+        found = await tools["search_def"]("ok_member", language="cpp")
+        assert found["coverage"]["parseErrors"] == 1
+        assert found["coverage"]["reasons"] == ["parse_errors"]
+
+    asyncio.run(scenario())
+
+
+def test_c_family_source_sets_name_exactly_their_shallow_and_graph_grammars() -> None:
+    assert {".c"} == code_analysis_languages.C_SOURCE_EXTENSIONS
+    assert {
+        ".cc",
+        ".cpp",
+        ".cxx",
+        ".hh",
+        ".hpp",
+        ".hxx",
+    } == code_analysis_languages.CPP_SOURCE_EXTENSIONS
+    header = code_analysis_languages.HEADER_EXTENSION
+    claimed = {
+        **dict.fromkeys(code_analysis_languages.C_SOURCE_EXTENSIONS, Language.C),
+        **dict.fromkeys(code_analysis_languages.CPP_SOURCE_EXTENSIONS, Language.CPP),
+    }
+    assert header not in claimed
+    for extension, language in claimed.items():
+        assert EXTENSION_LANGUAGES[extension] is language
+        assert code_analysis_languages.GRAPH_EXTENSION_LANGUAGES[extension] == language.value
+        assert extension not in code_analysis_languages.GRAPH_ONLY_SOURCE_EXTENSIONS
+        for header_choice in (Language.C, Language.CPP):
+            for path in (f"src/file{extension}", f"src/FILE{extension.upper()}"):
+                detected = code_analysis_languages.detect_language(path, header=header_choice)
+                assert detected is language
+    # Graph-only extensions stay deliberately outside the shallow surface.
+    assert {".m", ".mm", ".sol", ".proto"} <= code_analysis_languages.GRAPH_ONLY_SOURCE_EXTENSIONS
 
 
 def test_case_variant_extensions_are_parsed_or_reported(tmp_path: Path) -> None:
@@ -433,6 +561,7 @@ def test_extension_registry_retains_the_v1_surface() -> None:
         ".exs",
         ".go",
         ".h",
+        ".hh",
         ".hpp",
         ".hs",
         ".hxx",

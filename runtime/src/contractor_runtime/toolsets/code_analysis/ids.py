@@ -38,14 +38,20 @@ def encode_symbol_id(key: bytes, snapshot_digest: str, index: int, upstream_id: 
     return f"{SYMBOL_ID_PREFIX}.{b64url_encode(body)}.{b64url_encode(signature)}"
 
 
+def symbol_id_shape_valid(value: object) -> bool:
+    """Return whether ``value`` has the shape of a symbol ID, before any decoding."""
+
+    return (
+        isinstance(value, str)
+        and bool(value)
+        and value.isascii()
+        and len(value) <= MAX_SYMBOL_ID_BYTES
+    )
+
+
 def decode_symbol_id(key: bytes, value: str) -> DecodedSymbolID:
     _validate_key(key)
-    if (
-        not isinstance(value, str)
-        or not value
-        or not value.isascii()
-        or len(value) > MAX_SYMBOL_ID_BYTES
-    ):
+    if not symbol_id_shape_valid(value):
         raise ValueError("invalid symbol ID")
     try:
         prefix, encoded_body, encoded_signature = value.split(".")
