@@ -3,6 +3,12 @@ package scanplan
 
 import "github.com/grauwolf32/contractor/internal/contracts"
 
+// MaxSourceBytes, MaxDepth and MaxNodes bound the whole source document
+// (LIM-SCN-39, LIM-SCN-41, LIM-SCN-42): its stored bytes, its depth with the
+// top-level value at depth 1, and its nodes, member names included. The Runtime
+// OpenAPI authoring Toolset enforces the same bounds, so every document it
+// writes parses here; api/testdata/openapi-document-bounds.json holds both
+// sides to the same verdicts.
 const (
 	MaxSourceBytes    = 2 * 1024 * 1024
 	MaxOptionsBytes   = 256 * 1024

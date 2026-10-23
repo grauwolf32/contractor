@@ -8,7 +8,7 @@ import math
 import os
 import shutil
 import subprocess
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from pathlib import PurePosixPath
 from types import MappingProxyType
 from typing import Any
@@ -47,9 +47,19 @@ from contractor_runtime.toolsets.openapi.models import (
 )
 from contractor_runtime.workspace import AllocationWorkspace
 
-MAX_DOCUMENT_BYTES = 4 * 1024 * 1024
-MAX_DOCUMENT_DEPTH = 128
-MAX_DOCUMENT_ITEMS = 100_000
+# The source-document bounds of Server scan preparation, so that every document
+# this Toolset accepts or writes is one scan preparation can parse: UTF-8 bytes
+# (LIM-SCN-39); depth, with the top-level value at depth 1 and every member
+# name, member value and array element one deeper than its container
+# (LIM-SCN-41); and nodes, counting every value and every member name
+# (LIM-SCN-42). api/testdata/openapi-document-bounds.json holds the Runtime and
+# internal/scanplan to the same verdicts.
+MAX_DOCUMENT_BYTES = 2 * 1024 * 1024
+MAX_DOCUMENT_DEPTH = 64
+MAX_DOCUMENT_NODES = 100_000
+DOCUMENT_BYTES_MESSAGE = "OpenAPI document exceeds the 2 MiB domain limit"
+DOCUMENT_DEPTH_MESSAGE = "OpenAPI document exceeds the maximum nesting depth"
+DOCUMENT_NODES_MESSAGE = "OpenAPI document exceeds the node limit"
 MAX_TARGETED_RESULT_BYTES = 256 * 1024
 MAX_LIST_ITEMS = 500
 MAX_VACUUM_OUTPUT_BYTES = 1024 * 1024
@@ -192,7 +202,7 @@ class _OpenAPISession(DocumentSession[dict[str, Any]]):
     seed_revision_message = (
         "an OpenAPI seed outside the Worker namespace requires an exact revision"
     )
-    seed_too_large_message = "OpenAPI document exceeds the 4 MiB domain limit"
+    seed_too_large_message = DOCUMENT_BYTES_MESSAGE
     seed_media_type_message = "OpenAPI seed media type must be application/yaml or application/json"
     not_loaded_message = "load_openapi or initialize_openapi must be called first"
 
@@ -461,10 +471,13 @@ class _OpenAPISession(DocumentSession[dict[str, Any]]):
         project_evidence_paths = await self._project_evidence_paths()
         async with self._lock:
             document, artifact = self._require_document()
+            # The document bounds fail the call before Vacuum runs; only the
+            # structure checks below are reported beside its findings.
             rendered = _dump_document(document).decode("utf-8")
+            _validate_json_tree(document)
             structural_errors: list[str] = []
             try:
-                _validate_document(document, require_provenance=True)
+                _validate_structure(document, require_provenance=True)
                 self._validate_current_provenance(document, project_evidence_paths)
             except ValueError as error:
                 structural_errors.append(str(error))
@@ -1149,22 +1162,16 @@ _UniqueSafeLoader.add_constructor(
 
 def _parse_document(data: bytes) -> dict[str, Any]:
     if len(data) > MAX_DOCUMENT_BYTES:
-        raise ToolInputError("OpenAPI document exceeds the 4 MiB domain limit")
+        raise ToolInputError(DOCUMENT_BYTES_MESSAGE)
     try:
         text = data.decode("utf-8", errors="strict")
     except UnicodeDecodeError as error:
         raise ToolInputError("OpenAPI document must be valid UTF-8") from error
     try:
-        events = list(yaml.parse(text, Loader=yaml.SafeLoader))
-        if any(getattr(event, "anchor", None) is not None for event in events):
-            raise ToolInputError("OpenAPI YAML aliases and anchors are not supported")
+        _check_event_bounds(yaml.parse(text, Loader=yaml.SafeLoader))
         documents = list(yaml.load_all(text, Loader=_UniqueSafeLoader))
     except yaml.YAMLError as error:
         raise ToolInputError("OpenAPI document is not valid YAML or JSON") from error
-    except RecursionError:
-        # PyYAML composes nodes recursively. Nesting that exhausts the stack is
-        # far beyond the depth limit _validate_json_tree enforces afterwards.
-        raise ToolInputError("OpenAPI document exceeds the maximum nesting depth") from None
     if len(documents) != 1 or not isinstance(documents[0], dict):
         raise ToolInputError("OpenAPI artifact must contain exactly one object document")
     document = documents[0]
@@ -1172,17 +1179,52 @@ def _parse_document(data: bytes) -> dict[str, Any]:
     return document
 
 
+def _check_event_bounds(events: Iterable[yaml.Event]) -> None:
+    """Reject anchors and nodes beyond the depth or node bound while PyYAML parses.
+
+    A node event (scalar, alias, mapping or sequence start) is one node at one
+    more than the number of collections open around it, so a mapping key is a
+    node at the depth of its value, as in _validate_json_tree. The check stops
+    at the first such event, before PyYAML composes a recursive tree.
+    """
+    open_collections = 0
+    nodes = 0
+    for event in events:
+        if isinstance(event, yaml.CollectionEndEvent):
+            open_collections -= 1
+            continue
+        if not isinstance(event, yaml.NodeEvent):
+            continue
+        if event.anchor is not None:
+            raise ToolInputError("OpenAPI YAML aliases and anchors are not supported")
+        nodes += 1
+        if open_collections + 1 > MAX_DOCUMENT_DEPTH:
+            raise ToolInputError(DOCUMENT_DEPTH_MESSAGE)
+        if nodes > MAX_DOCUMENT_NODES:
+            raise ToolInputError(DOCUMENT_NODES_MESSAGE)
+        if isinstance(event, yaml.CollectionStartEvent):
+            open_collections += 1
+
+
 def _validate_json_tree(value: Any) -> None:
+    """Check the document bounds and the JSON value types of a parsed tree.
+
+    The top-level value is at depth 1; every member name, member value and
+    array element is one deeper than its container and counts as one node.
+    """
     count = 0
     active: set[int] = set()
 
-    def visit(item: Any, depth: int) -> None:
+    def node(depth: int) -> None:
         nonlocal count
-        if depth > MAX_DOCUMENT_DEPTH:
-            raise ToolInputError("OpenAPI document exceeds the maximum nesting depth")
         count += 1
-        if count > MAX_DOCUMENT_ITEMS:
-            raise ToolInputError("OpenAPI document exceeds the collection item limit")
+        if depth > MAX_DOCUMENT_DEPTH:
+            raise ToolInputError(DOCUMENT_DEPTH_MESSAGE)
+        if count > MAX_DOCUMENT_NODES:
+            raise ToolInputError(DOCUMENT_NODES_MESSAGE)
+
+    def visit(item: Any, depth: int) -> None:
+        node(depth)
         if item is None or isinstance(item, str | bool):
             return
         if isinstance(item, int):
@@ -1201,6 +1243,7 @@ def _validate_json_tree(value: Any) -> None:
             for key, child in item.items():
                 if not isinstance(key, str):
                     raise ToolInputError("OpenAPI object keys must be strings")
+                node(depth + 1)
                 visit(child, depth + 1)
             active.remove(identity)
             return
@@ -1215,11 +1258,17 @@ def _validate_json_tree(value: Any) -> None:
             return
         raise ToolInputError(f"OpenAPI document contains unsupported {type(item).__name__} value")
 
-    visit(value, 0)
+    visit(value, 1)
 
 
 def _validate_document(document: dict[str, Any], *, require_provenance: bool) -> None:
     _validate_json_tree(document)
+    _validate_structure(document, require_provenance=require_provenance)
+
+
+def _validate_structure(document: dict[str, Any], *, require_provenance: bool) -> None:
+    """Check OpenAPI structure of a document already within the document bounds."""
+
     version = document.get("openapi")
     if not isinstance(version, str) or not (
         version.startswith("3.0.") or version.startswith("3.1.")
@@ -1516,7 +1565,7 @@ def _dump_document(document: dict[str, Any]) -> bytes:
         width=120,
     ).encode("utf-8")
     if len(rendered) > MAX_DOCUMENT_BYTES:
-        raise ToolInputError("OpenAPI document exceeds the 4 MiB domain limit")
+        raise ToolInputError(DOCUMENT_BYTES_MESSAGE)
     return rendered
 
 

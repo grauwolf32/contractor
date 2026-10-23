@@ -6,7 +6,7 @@ epic: api-contracts
 kind: defect
 introduced_by: V2-003
 priority: P1
-status: pending
+status: in_progress
 depends_on: []
 languages:
 - go
@@ -44,6 +44,43 @@ plan:
   cross-protocol code strings.
 - Wire both language consumers into test-wire-cross-language and retain the existing summary and CWE tests
   unchanged.
+decisions:
+- >-
+  Server scan preparation stays the single definition (LIM-SCN-39/41/42, now stated by SCN-R253):
+  UTF-8 bytes of the stored document, depth with the top-level value at depth 1 and every member name,
+  member value and array element one deeper, and nodes counting every value and every member name.
+  openapi@1 adopts it (2 MiB, 64, 100,000 nodes with keys). Rejected alternatives: raising Server to
+  4 MiB/128 (scope.out: Server limits unchanged) and keeping value-only node counting in the Runtime
+  (an authored document could still fail preparation). api/testdata/openapi-document-bounds.json is the
+  shared definition of the verdicts; its sha256 values pin the Go and Python generators to identical
+  bytes. Reopen only together with a deliberate change of the LIM-SCN entries.
+- >-
+  Error vocabulary stays local: internal/scanplan keeps PreparationError source_limit_exceeded; openapi@1
+  keeps its non-retryable tool_input_invalid ToolInputError, with one message per bound (2 MiB domain
+  limit, maximum nesting depth, node limit). "collection item limit" became "node limit" because the
+  count now includes member names.
+- >-
+  Enforcement points in openapi@1: the seed read limit and _parse_document byte check; a PyYAML event
+  check of anchors, depth and nodes that stops at the first offending event, before the recursive
+  composer runs (this replaces the RecursionError fallback); _validate_json_tree on the parsed tree, on
+  every mutation result and on fragments; the rendered-YAML byte check on every write and read; and
+  validate_openapi checks bytes and the tree before Vacuum, reporting only structure errors beside
+  Vacuum's findings.
+- >-
+  Siblings. openapi-scans@1 inventory, PrepareOpenAPIScanTask and the scan Planner input read use the
+  same scanplan constants and parseDocument, so they are covered. openapi-operations@1
+  (auditdomain.parseJSONOrYAML: 8 MiB LIM-AUD-14, depth 64 LIM-AUD-17 with the same depth convention,
+  250,000 value nodes) encloses these bounds, so every document within LIM-SCN-39/41/42 also fits it
+  (LIM-R6); no change. Residual outside this task: its 64 KiB per-string bound (MaximumStringBytes) has
+  no openapi@1 counterpart, so an authored document with a longer string passes authoring and scan
+  preparation but fails that inventory; a separate quantity, to be filed as its own task (review Q4).
+- >-
+  Validation dispositions confirmed on ac982d28: the 16 KiB Worker summary (LIM-AWC-2) and the
+  TestBundledCWEClassificationMatchesRuntime byte-equality gate are unchanged and pass; finding-ID regex
+  and Interactsh admission are untouched. The V405-002 SQL placement grammar has landed since dc7012e8
+  (contractor_valid_placement_labels in migration 000032); TestSharedPostgresPlacementLabels already
+  holds it to api/testdata/v1alpha1/placement-label-cases.json and passes in make
+  test-wire-cross-language with the database configured, so no change.
 scope:
   in:
   - OpenAPI authoring/scan document-bound agreement, owning spec references, shared fixtures and precise
