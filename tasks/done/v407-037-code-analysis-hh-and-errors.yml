@@ -6,7 +6,7 @@ epic: code-analysis
 kind: defect
 introduced_by: V314-001
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - python
@@ -126,3 +126,40 @@ tests:
   - A1
   - A3
   - A4
+verification:
+  date: '2026-10-23'
+  scope: All acceptance criteria pass; the two failures of the listed pytest command are pre-existing
+    on the base commit and unrelated (see below).
+  environment: Worktree /Users/ruslan/src/contractor-wt/r4, branch claude/rv-r4 from ac982d28; macOS
+    arm64 (Darwin), locked Python 3.13 Runtime (uv sync --locked), Go 1.26.9, Node 24.20. No database
+    tests are involved (database_tests_configured is false).
+  database_tests_configured: false
+  results:
+  - 'cd runtime && uv run --locked pytest -q tests/test_code_analysis_shallow.py tests/test_code_analysis_faults.py
+    tests/test_code_analysis_graph.py tests/test_taint_annotations.py tests/test_taint_annotations_hardening.py
+    tests/test_taint_annotations_regressions.py: 428 passed, 2 failed. Both failures reproduce on an unmodified
+    ac982d28 worktree (3 of 3 runs): test_graph_collection_stops_at_encoded_result_ceiling_with_resumable_cursor
+    builds a 1625-character relative path, above the Darwin PATH_MAX of 1024, so the mirror cannot be written
+    on macOS; test_real_four_mib_parser_keeps_event_loop_gaps_below_100_ms is the known wall-clock gap
+    threshold on the native parser (passed 2 of 3 isolated runs here) and does not reach the changed
+    code.'
+  - 'make test-runtime: 4300 passed, 39 skipped, 106 failed. The failures are the known macOS-only set
+    (96 podman_*, 2 tool_process, 2 trailmark_child address-space, 4 projectfs_local_* / local_direct_faults)
+    plus the two failures above; none is in a code-analysis, taint, instrumentation or ADK runtime suite.'
+  - 'cd runtime && uv run --locked pytest tests/test_code_analysis_concurrency.py tests/test_code_analysis_child_lifecycle.py
+    tests/test_code_analysis_traversal.py tests/test_code_analysis_redaction.py tests/test_local_direct_tool_consumers.py
+    tests/test_filesystem_observations.py tests/test_trailmark_probe.py tests/test_toolset_cursors.py
+    tests/test_instrumentation.py: 80 passed (session ownership, cancellation joins, child lifecycle and
+    the tool-error boundary unchanged, A3).'
+  - 'make lint: passed (spec checker, task checker, ruff, ruff format, import-linter 5 contracts kept,
+    Go vet/staticcheck/testonlyexports, UI gates).'
+  - 'Regressions fail before the fix: with the base languages.py the .hh real-reader tests (local and
+    memory), the malformed .hh coverage test, the C/C++ source-set test, the extension registry test and
+    the taint hh-header-in-c-project case fail; with the base broad except restored (and .hh mapped) both
+    parser-acquisition and extraction cases of test_unexpected_parser_path_failure_is_a_tool_error_not_parse_error_coverage
+    fail because the first call returns parseErrors=1/incomplete=true instead of tool_call_failed.'
+  - 'Decoding evidence for CAN-R152: a scratch fuzz probe parsed 22,800 random multi-byte, syntactically
+    broken sources (4 seeds x 19 grammars x 300, about 5% above 64 KiB to use the chunked parse path)
+    with parse_symbols and raised no exception.'
+  - 'Added assertions use injected failures and deterministic call counts; none measures elapsed time.'
+implementation_commit: d489b60508336d016d9189c052627bca452e37ae
