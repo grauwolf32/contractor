@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import hashlib
 import json
 import re
 import subprocess
@@ -33,8 +34,12 @@ from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.factories import built_in_factories
 from contractor_runtime.projectfs.storage import WorkspaceSnapshot, WorkspaceTextFile
 from contractor_runtime.toolsets.openapi.tools import (
+    DOCUMENT_BYTES_MESSAGE,
+    DOCUMENT_DEPTH_MESSAGE,
+    DOCUMENT_NODES_MESSAGE,
     MAX_DOCUMENT_BYTES,
     MAX_DOCUMENT_DEPTH,
+    MAX_DOCUMENT_NODES,
     OpenAPIToolsetFactory,
     _run_vacuum,
     _validate_json_tree,
@@ -43,6 +48,7 @@ from contractor_runtime.worker.instrumentation import _safe_tool_response
 from contractor_runtime.workspace import AllocationWorkspace
 
 SECRET = "openapi-tool-recognizable-secret"
+DOCUMENT_BOUNDS = Path(__file__).resolve().parents[2] / "api/testdata/openapi-document-bounds.json"
 
 
 def test_openapi_tools_build_validate_and_expose_exact_refs(
@@ -481,7 +487,11 @@ def test_path_and_component_listings_fit_the_model_output_limit(tmp_path: Path) 
             f"{index:04d}" + chr(0x1F600) * 252: {"type": "string"}
             for index in range(openapi_module.MAX_LIST_ITEMS)
         }
-        seed = client.seed("inputs", "seed", "application/yaml", yaml.safe_dump(document).encode())
+        # Unescaped UTF-8 keeps the seed within the 2 MiB document bound while
+        # each listing still exceeds the model output limit.
+        payload = yaml.safe_dump(document, allow_unicode=True).encode()
+        assert len(payload) <= openapi_module.MAX_DOCUMENT_BYTES
+        seed = client.seed("inputs", "seed", "application/yaml", payload)
         tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
         await tools["load_openapi"]("inputs", "seed", seed.revision)
 
@@ -532,7 +542,7 @@ def test_mutation_depth_rejection_preserves_the_published_document(
     asyncio.run(scenario())
 
 
-def test_parser_enforces_byte_depth_and_item_limits(
+def test_parser_enforces_byte_depth_and_node_limits(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     async def oversized_scenario() -> None:
@@ -544,22 +554,170 @@ def test_parser_enforces_byte_depth_and_item_limits(
             b"x" * (MAX_DOCUMENT_BYTES + 1),
         )
         tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
-        with pytest.raises(ValueError, match="4 MiB"):
+        with pytest.raises(ToolInputError, match="2 MiB"):
             await tools["load_openapi"]("inputs", "oversized", seed.revision)
         assert client.read_limits == [MAX_DOCUMENT_BYTES]
         assert client.write_count == 0
 
     asyncio.run(oversized_scenario())
+    with pytest.raises(ToolInputError, match="2 MiB"):
+        openapi_module._parse_document(b"x" * (MAX_DOCUMENT_BYTES + 1))
 
+    # The top-level value is at depth 1, so the leaf of 63 nested arrays is at
+    # the bound and one more array puts it beyond.
     nested: Any = "leaf"
-    for _ in range(MAX_DOCUMENT_DEPTH + 1):
+    for _ in range(MAX_DOCUMENT_DEPTH - 1):
         nested = [nested]
-    with pytest.raises(ValueError, match="nesting depth"):
-        _validate_json_tree(nested)
+    _validate_json_tree(nested)
+    with pytest.raises(ToolInputError, match="nesting depth"):
+        _validate_json_tree([nested])
+    keyed: Any = "leaf"
+    for _ in range(MAX_DOCUMENT_DEPTH - 1):
+        keyed = {"a": keyed}
+    _validate_json_tree(keyed)
+    with pytest.raises(ToolInputError, match="nesting depth"):
+        _validate_json_tree({"a": keyed})
 
-    monkeypatch.setattr(openapi_module, "MAX_DOCUMENT_ITEMS", 3)
-    with pytest.raises(ValueError, match="item limit"):
+    # Member names are nodes: {"a": 1} is three nodes although it holds two values.
+    monkeypatch.setattr(openapi_module, "MAX_DOCUMENT_NODES", 3)
+    _validate_json_tree({"a": 1})
+    _validate_json_tree([1, 2])
+    with pytest.raises(ToolInputError, match="node limit"):
+        _validate_json_tree({"a": 1, "b": 2})
+    with pytest.raises(ToolInputError, match="node limit"):
         _validate_json_tree([1, 2, 3])
+
+
+def test_shared_openapi_document_bounds_match_scan_preparation(tmp_path: Path) -> None:
+    """Loading each shared bound case gives the verdict Server scan preparation gives."""
+
+    fixture = json.loads(DOCUMENT_BOUNDS.read_text(encoding="utf-8"))
+    assert fixture["bounds"] == {
+        "sourceBytes": MAX_DOCUMENT_BYTES,
+        "depth": MAX_DOCUMENT_DEPTH,
+        "nodes": MAX_DOCUMENT_NODES,
+    }
+    assert len(fixture["cases"]) >= 12
+    messages = {
+        "bytes": DOCUMENT_BYTES_MESSAGE,
+        "depth": DOCUMENT_DEPTH_MESSAGE,
+        "nodes": DOCUMENT_NODES_MESSAGE,
+    }
+
+    async def verdict(document: bytes, media_type: str) -> str | None:
+        client = MemoryArtifactClient()
+        seed = client.seed("inputs", "bounds", media_type, document)
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
+        try:
+            loaded = await tools["load_openapi"]("inputs", "bounds", seed.revision)
+        except ToolInputError as error:
+            assert client.write_count == 0
+            return str(error)
+        assert loaded["copied"] is True
+        assert len(client.bindings[("openapi", "openapi")].data) <= MAX_DOCUMENT_BYTES
+        return None
+
+    async def scenario() -> None:
+        for case in fixture["cases"]:
+            for form in ("json", "yaml"):
+                document = bounds_document(
+                    fixture["prefix"][form], case, compact_json=form == "json"
+                )
+                label = f"{case['name']}/{form}"
+                assert hashlib.sha256(document).hexdigest() == case["sha256"][form], label
+                expected = None if case["violation"] is None else messages[case["violation"]]
+                assert await verdict(document, f"application/{form}") == expected, label
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    ("case", "message"),
+    [
+        # The size of the document Server preparation rejected in the review.
+        ({"pad": {"bytes": 3145826, "fill": "a"}}, DOCUMENT_BYTES_MESSAGE),
+        ({"deep": {"kind": "mapping", "depth": 65}}, DOCUMENT_DEPTH_MESSAGE),
+        # 50,007 nodes counting values alone, 100,013 with the member names.
+        ({"members": 50000}, DOCUMENT_NODES_MESSAGE),
+    ],
+    ids=["reproduced-3MiB", "depth-65", "member-names"],
+)
+def test_document_beyond_the_bounds_is_rejected_before_vacuum(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: dict[str, Any], message: str
+) -> None:
+    async def scenario() -> None:
+        vacuum = AsyncMock(side_effect=clean_vacuum)
+        monkeypatch.setattr(openapi_module, "_run_vacuum", vacuum)
+        client = MemoryArtifactClient()
+        payload = bounds_document(BOUNDS_YAML_PREFIX, case)
+        seed = client.seed("inputs", "seed", "application/yaml", payload)
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
+        with pytest.raises(ToolInputError) as rejected:
+            await tools["load_openapi"]("inputs", "seed", seed.revision)
+        assert _safe_tool_response("load_openapi", rejected.value)["error"] == {
+            "code": "tool_input_invalid",
+            "message": message,
+            "retryable": False,
+        }
+        with pytest.raises(ToolInputError, match="must be called first"):
+            await tools["validate_openapi"]()
+        assert client.write_count == 0
+        vacuum.assert_not_awaited()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    ("bound", "value", "message"),
+    [
+        ("MAX_DOCUMENT_BYTES", 64, DOCUMENT_BYTES_MESSAGE),
+        ("MAX_DOCUMENT_DEPTH", 2, DOCUMENT_DEPTH_MESSAGE),
+        ("MAX_DOCUMENT_NODES", 8, DOCUMENT_NODES_MESSAGE),
+    ],
+)
+def test_validation_checks_the_bounds_before_vacuum_and_keeps_semantic_checks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, bound: str, value: int, message: str
+) -> None:
+    async def scenario() -> None:
+        vacuum = AsyncMock(side_effect=clean_vacuum)
+        monkeypatch.setattr(openapi_module, "_run_vacuum", vacuum)
+        client = MemoryArtifactClient()
+        document = minimal_document("Seed")
+        document["paths"]["/health"] = valid_path_item()
+        seed = client.seed("inputs", "seed", "application/yaml", yaml.safe_dump(document).encode())
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
+        await tools["load_openapi"]("inputs", "seed", seed.revision)
+
+        # A document within the bounds keeps its semantic validation beside Vacuum.
+        checked = await tools["validate_openapi"]()
+        assert checked["valid"] is False
+        assert checked["structuralErrors"] == ["OpenAPI path /health is missing source provenance"]
+        vacuum.assert_awaited_once()
+
+        monkeypatch.setattr(openapi_module, bound, value)
+        with pytest.raises(ToolInputError) as rejected:
+            await tools["validate_openapi"]()
+        assert str(rejected.value) == message
+        vacuum.assert_awaited_once()
+
+    asyncio.run(scenario())
+
+
+def test_mutation_beyond_the_byte_bound_preserves_the_published_document(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        client = MemoryArtifactClient()
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
+        initialized = await tools["initialize_openapi"](title="Service")
+        writes = client.write_count
+        with pytest.raises(ToolInputError) as rejected:
+            await tools["set_openapi_info"]("Service", description="a" * MAX_DOCUMENT_BYTES)
+        assert str(rejected.value) == DOCUMENT_BYTES_MESSAGE
+        assert client.write_count == writes
+        assert (await tools["get_openapi_info"]())["artifact"] == initialized["artifact"]
+
+    asyncio.run(scenario())
 
 
 @pytest.mark.parametrize(
@@ -1338,6 +1496,54 @@ def runtime_settings() -> RuntimeSettings:
         artifactApiUrl="https://control.example/private/v1",
         requestTimeoutSeconds=30,
     )
+
+
+BOUNDS_YAML_PREFIX = "openapi: 3.0.3\ninfo:\n  title: Bounds\n  version: 1.0.0\npaths: {}\n"
+
+
+def bounds_document(prefix: str, case: dict[str, Any], *, compact_json: bool = False) -> bytes:
+    """Render one case of api/testdata/openapi-document-bounds.json after prefix.
+
+    The fixture's description states the rule; Go's TestSharedOpenAPIDocumentBounds*
+    renders the same bytes, which the fixture's sha256 values pin.
+    """
+
+    text = prefix
+    deep = case.get("deep")
+    if deep is not None:
+        levels = deep["depth"] - 2
+        if deep["kind"] == "mapping":
+            if compact_json:
+                text += ',"x-deep":' + '{"a":' * levels + "0" + "}" * levels
+            else:
+                text += "x-deep:\n" + "".join("  " * level + "a:\n" for level in range(1, levels))
+                text += "  " * levels + "a: 0\n"
+        elif deep["kind"] == "sequence":
+            nested = "[" * levels + "0" + "]" * levels
+            text += (',"x-deep":' + nested) if compact_json else ("x-deep: " + nested + "\n")
+        else:
+            raise ValueError(f"unknown deep kind {deep['kind']!r}")
+    elements = case.get("elements", 0)
+    if elements:
+        if compact_json:
+            text += ',"x-items":[' + ",".join(["0"] * elements) + "]"
+        else:
+            text += "x-items:\n" + "- 0\n" * elements
+    members = case.get("members", 0)
+    if members:
+        if compact_json:
+            text += ',"x-keys":{' + ",".join(f'"k{index:06d}":0' for index in range(members)) + "}"
+        else:
+            text += "x-keys:\n" + "".join(f"  k{index:06d}: 0\n" for index in range(members))
+    pad = case.get("pad")
+    if pad is None:
+        return (text + "}" if compact_json else text).encode()
+    head, tail = (text + ',"x-pad":"', '"}') if compact_json else (text + "x-pad: ", "\n")
+    room = pad["bytes"] - len(head.encode()) - len(tail.encode())
+    fill = pad["fill"].encode()
+    if room < 0 or not fill:
+        raise ValueError(f"a pad of {pad['bytes']} bytes cannot hold the document")
+    return head.encode() + fill * (room // len(fill)) + b"a" * (room % len(fill)) + tail.encode()
 
 
 def minimal_document(title: str) -> dict[str, Any]:

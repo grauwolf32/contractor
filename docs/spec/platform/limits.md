@@ -664,10 +664,10 @@ its owning requirement.
 | `LIM-SCN-36` | 10 seconds | HTTP timeout of each ffuf request | scan_ffuf adapter (Runtime) | [SCN-R100](../tools/scanners.md) |
 | `LIM-SCN-37` | 100 matches | projected ffuf JSONL matches in the observation | scan_ffuf adapter (Runtime) | [SCN-R103](../tools/scanners.md) |
 | `LIM-SCN-38` | 128 KiB | encoded ffuf match data in the observation | scan_ffuf adapter (Runtime) | [SCN-R103](../tools/scanners.md) |
-| `LIM-SCN-39` | 2 MiB | OpenAPI source bytes for preparation | Preparation library internal/scanplan | [SCN-R167](../tools/scanners.md) |
+| `LIM-SCN-39` | 2 MiB (UTF-8 bytes as stored) | OpenAPI source document bytes | Preparation library internal/scanplan; OpenAPI authoring Toolset openapi@1 (Runtime) on load, mutation, write and before validation ([SCN-R253](../tools/scanners.md)) | [SCN-R167](../tools/scanners.md) |
 | `LIM-SCN-40` | 256 KiB | preparation options | Preparation library internal/scanplan | [SCN-R167](../tools/scanners.md) |
-| `LIM-SCN-41` | 64 | parsed OpenAPI document depth (whole document) | Preparation library internal/scanplan | [SCN-R167](../tools/scanners.md) |
-| `LIM-SCN-42` | 100,000 nodes | parsed OpenAPI document nodes (whole document) | Preparation library internal/scanplan | [SCN-R167](../tools/scanners.md) |
+| `LIM-SCN-41` | 64 levels (top-level value at depth 1; member names, member values and array elements one deeper than their container) | parsed OpenAPI document depth (whole document) | Preparation library internal/scanplan; OpenAPI authoring Toolset openapi@1 (Runtime) on load, mutation, write and before validation ([SCN-R253](../tools/scanners.md)) | [SCN-R167](../tools/scanners.md) |
+| `LIM-SCN-42` | 100,000 nodes (every object, array, scalar and member name) | parsed OpenAPI document nodes (whole document) | Preparation library internal/scanplan; OpenAPI authoring Toolset openapi@1 (Runtime) on load, mutation, write and before validation ([SCN-R253](../tools/scanners.md)) | [SCN-R167](../tools/scanners.md) |
 | `LIM-SCN-43` | 4,096 resolutions | local reference resolutions for the selected operation | Preparation library internal/scanplan | [SCN-R167](../tools/scanners.md) |
 | `LIM-SCN-44` | 32 | reference depth | Preparation library internal/scanplan | [SCN-R167](../tools/scanners.md) |
 | `LIM-SCN-45` | 100,000 nodes | shared concrete-hint extraction work budget | Preparation library internal/scanplan | [SCN-R167](../tools/scanners.md) |
