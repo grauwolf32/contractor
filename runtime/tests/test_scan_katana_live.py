@@ -27,7 +27,7 @@ class CapturedArtifacts:
     def __init__(self):
         self.writes = []
 
-    async def read_artifact(self, ref, **kwargs):
+    async def read_artifact_metadata(self, ref):
         raise ArtifactAPIError(404, "artifact_not_found", False)
 
     async def write_artifact(self, ref, *, data, media_type, expected_revision):

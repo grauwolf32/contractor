@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -28,10 +29,7 @@ const (
 	maximumPreparedOperationBatch = 200
 )
 
-var (
-	operationIDPattern    = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$`)
-	idempotencyKeyPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
-)
+var operationIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$`)
 
 // Repository exposes transaction-neutral primitives. A pgx.Tx may be passed
 // to compose reservation, active-row/tombstone transitions and operation phase
@@ -230,7 +228,7 @@ ON CONFLICT DO NOTHING`,
 func (r *Repository) GetOperationByIdempotency(
 	ctx context.Context, kind OperationKind, idempotencyKey string,
 ) (Operation, error) {
-	if !validOperationKind(kind) || !idempotencyKeyPattern.MatchString(idempotencyKey) {
+	if !validOperationKind(kind) || !contracts.ValidIdempotencyKey(idempotencyKey) {
 		return Operation{}, fmt.Errorf("%w: operation lookup is invalid", ErrInvalid)
 	}
 	return scanOperation(r.db.QueryRow(ctx, `
@@ -432,7 +430,7 @@ func validateCredentialID(value string) error {
 
 func validateOperation(operation Operation) error {
 	if !operationIDPattern.MatchString(operation.OperationID) ||
-		!idempotencyKeyPattern.MatchString(operation.IdempotencyKey) ||
+		!contracts.ValidIdempotencyKey(operation.IdempotencyKey) ||
 		!contentdigest.Valid(operation.RequestHash) ||
 		validateCredentialID(operation.CredentialID) != nil || !validOperationKind(operation.Kind) ||
 		(operation.Phase != OperationPrepared && operation.Phase != OperationCompleted &&

@@ -145,6 +145,12 @@ func (h *scanSweepHandlers) cancel(w http.ResponseWriter, r *http.Request) {
 		handleError(w, err)
 		return
 	}
+	// Cancellation is idempotent by sweep (SCN-R250), so the key is optional
+	// and not bound; a supplied one must still be well formed.
+	if err := validateOptionalIdempotencyKey(r); err != nil {
+		handleError(w, err)
+		return
+	}
 	if err := requireEmptyBody(w, r); err != nil {
 		handleError(w, err)
 		return

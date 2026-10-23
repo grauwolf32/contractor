@@ -48,6 +48,18 @@ _SUMMARIZER_COUNTER_FIELDS = (
     "tokenUsageUnavailable",
 )
 _FAILURE_CODE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
+# A summarization request whose invocation ends before the summarizer records
+# an outcome closes as one cancelled attempt without a summarizer model call
+# (WRK-R107, WRK-R155).
+_UNSTARTED_SUMMARY: dict[str, Any] = {
+    "succeeded": False,
+    "model_calls": 0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "total_tokens": 0,
+    "token_usage_unavailable": 0,
+    "failure_code": "cancelled",
+}
 
 InvocationPhase = Literal["running", "succeeded", "failed", "cancelled"]
 
@@ -199,10 +211,23 @@ class WorkerStateStore:
         invocation_workspace = (
             _UNSET if workspace is _UNSET else _workspace_observation_copy(workspace)
         )
+        closed_request = False
 
         def mutate(state: dict[str, Any]) -> None:
+            nonlocal closed_request
             current = _matching_current(state, invocation_id)
             completed = copy.deepcopy(current)
+            summarizer = completed["summarizer"]
+            # Every terminal path closes here, so no completed invocation keeps
+            # a pending summarization request (WRK-R107): the deadline, a
+            # sandbox failure or cancellation can end the invocation after the
+            # request and before the summarizer records its own outcome.
+            closed_request = summarizer["phase"] == "requested"
+            if closed_request:
+                completed["summarizer"] = {
+                    **_summarizer_usage_copy(**_UNSTARTED_SUMMARY),
+                    "requestStateRevision": summarizer["requestStateRevision"],
+                }
             completed["phase"] = phase
             completed["metrics"] = invocation_metrics
             if invocation_workspace is not _UNSET:
@@ -210,7 +235,12 @@ class WorkerStateStore:
             state["lastCompletedInvocation"] = completed
             state["currentInvocation"] = None
 
-        return await self._mutate(mutate)
+        snapshot = await self._mutate(mutate)
+        if closed_request:
+            # The allocation aggregate counts the closed request as one
+            # cancelled attempt once the State close is committed (WRK-R155).
+            self.metrics.record_summarizer_attempt(**_UNSTARTED_SUMMARY)
+        return snapshot
 
     async def sync_metrics(self) -> dict[str, Any]:
         """Publish allocation metrics after a non-ADK lifecycle mutation."""

@@ -158,9 +158,11 @@ Project for standalone Runs; the UI may group standalone Runs.
 
 ### Project resource
 
-**PRJ-R2.** A Project `name` must be a non-empty display name (LIM-PRJ-3).
+**PRJ-R2.** A Project `name` must be a non-empty display name of at most 160
+bytes of UTF-8 (LIM-PRJ-3).
 
-**PRJ-R96.** A Project `description` is optional bounded text.
+**PRJ-R96.** A Project `description` is optional text of at most 4,096 bytes
+of UTF-8 (LIM-PRJ-5).
 
 **PRJ-R3.** A Project's `kind` is immutable.
 
@@ -682,9 +684,11 @@ Registry entries owned by this document:
 - [LIM-PRJ-2](../platform/limits.md): one publication result per present
   declared output of a successful Project Run (PRJ-R56).
 - [LIM-PRJ-3](../platform/limits.md): a Project name has at least one
-  character (PRJ-R2).
+  character and at most 160 bytes of UTF-8 (PRJ-R2).
 - [LIM-PRJ-4](../platform/limits.md): counted transient publication failures
   before a replay stops attempting publication (PRJ-R58).
+- [LIM-PRJ-5](../platform/limits.md): a Project description has at most 4,096
+  bytes of UTF-8 (PRJ-R96).
 - [FAIL-PRJ-1](../platform/failure-model.md): Project metadata and target
   update (PRJ-R4, PRJ-R5, PRJ-R65, PRJ-R75).
 - [FAIL-PRJ-2](../platform/failure-model.md): Project Run creation and input

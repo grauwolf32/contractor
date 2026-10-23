@@ -780,8 +780,10 @@ func rejectInvalidUnicodeEscapes(data []byte) error {
 	return nil
 }
 
+// DigestIdempotencyKey returns the digest a Runtime management receipt keeps
+// of an operator's key, which must be in the public Idempotency-Key grammar.
 func DigestIdempotencyKey(value string) (string, error) {
-	if value == "" || len(value) > 128 || value != strings.TrimSpace(value) {
+	if !contracts.ValidIdempotencyKey(value) {
 		return "", invalid("idempotency key is invalid")
 	}
 	return contentdigest.Bytes([]byte(value)), nil

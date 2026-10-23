@@ -118,11 +118,12 @@ func TestPostgresRunDetailResponseKeepsStateWithItsCursor(t *testing.T) {
 			detail.State, detail.Deletable, detail.EventCursor, before)
 	}
 	// Subscribing after the response cursor delivers the terminal transition.
-	events, err := runs.ListRunEvents(ctx, runID, before.Sequence, 10)
+	page, err := runs.ListRunEvents(ctx, runID, before.Sequence, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(events) != 1 || events[0].Kind != runstore.RunEventLifecycleChanged ||
+	events := page.Events
+	if len(events) != 1 || page.More || events[0].Kind != runstore.RunEventLifecycleChanged ||
 		!strings.Contains(string(events[0].Data), string(runstore.RunFailed)) {
 		t.Fatalf("events after the response cursor = %+v", events)
 	}

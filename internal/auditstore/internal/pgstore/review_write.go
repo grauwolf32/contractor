@@ -14,12 +14,22 @@ func (s *ReviewStore) InsertFindingReviewRequest(ctx context.Context, p auditsto
 	return reviewWriteError(err)
 }
 
+// RecordReviewDecision appends the decision and marks its request decided
+// together. It returns ErrPrecondition and writes nothing unless request
+// p.RequestID of Audit p.AuditID is pending. Callers lock and validate the
+// request before; the store keeps the guarantee on its own as well.
 func (s *ReviewStore) RecordReviewDecision(ctx context.Context, p auditstore.ReviewDecisionWriteParams) error {
-	_, err := s.db.Exec(ctx, recordReviewDecisionSQL, p.DecisionID, p.RequestID,
+	tag, err := s.db.Exec(ctx, recordReviewDecisionSQL, p.DecisionID, p.RequestID,
 		p.AuditID, p.FindingID, p.ActorID, p.Action, p.Verdict, p.Severity,
 		p.Rationale, p.DuplicateTargetID, p.SubjectRevision, p.SubjectDigest,
 		p.IdempotencyKey, p.RequestDigest)
-	return reviewWriteError(err)
+	if err != nil {
+		return reviewWriteError(err)
+	}
+	if tag.RowsAffected() != 1 {
+		return auditstore.ErrPrecondition
+	}
+	return nil
 }
 
 func (s *ReviewStore) ProjectFindingDecision(ctx context.Context, findingID, state string,

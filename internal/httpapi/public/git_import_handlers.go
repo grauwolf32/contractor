@@ -12,6 +12,10 @@ import (
 	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 )
 
+// maximumGitImportBodyBytes bounds the JSON body of a Git import request
+// (LIM-GIT-5).
+const maximumGitImportBodyBytes int64 = 64 << 10
+
 type GitImportService interface {
 	Timeout() time.Duration
 	DoImport(context.Context, gitimport.ImportRequest, func(gitimport.ImportResult)) error
@@ -50,7 +54,7 @@ func (h *artifactHandlers) importGitArtifact(w http.ResponseWriter, r *http.Requ
 		Mode          json.RawMessage `json:"mode"`
 		Ref           json.RawMessage `json:"ref"`
 	}
-	if err := decodeJSONBounded(w, r, &body, 64<<10); err != nil {
+	if err := decodeJSONBounded(w, r, &body, maximumGitImportBodyBytes); err != nil {
 		handleError(w, err)
 		return
 	}

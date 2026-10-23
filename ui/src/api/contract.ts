@@ -190,15 +190,25 @@ const encoder = new TextEncoder();
 
 /**
  * The checks of the string schema at `name` (or at `path` inside it, for
- * example ["properties", "scheme"]). Lengths count Unicode code points, as
- * JSON Schema does.
+ * example ["properties", "scheme"]); a nullable string schema checks its
+ * string values. Lengths count Unicode code points, as JSON Schema does, and
+ * a declared x-max-utf8-bytes bound counts UTF-8 bytes, as the Server does.
  */
 export function stringRule(
   name: PublicSchemaName,
   ...path: string[]
 ): StringRule {
   const schema = schemaAt(name, path);
-  if (schema.type !== "string") {
+  const type = schema.type;
+  if (
+    type !== "string" &&
+    !(
+      Array.isArray(type) &&
+      type.length === 2 &&
+      type.includes("string") &&
+      type.includes("null")
+    )
+  ) {
     throw new Error(`Public contract ${name} is not a string schema`);
   }
   const minLength = numberKeyword(schema, "minLength");
@@ -319,6 +329,7 @@ export function schemaLimit(
     | "maxItems"
     | "minLength"
     | "maxLength"
+    | "x-max-utf8-bytes"
     | "minProperties"
     | "maxProperties",
   ...path: string[]
@@ -354,6 +365,8 @@ export const RUNTIME_INFRASTRUCTURE_ID = stringRule("RuntimeInfrastructureId");
 export const RUNTIME_CONFIG_VERSION = stringRule("RuntimeConfigVersion");
 /** RuntimeCredentialId: a Runtime credential's identifier. */
 export const RUNTIME_CREDENTIAL_ID = stringRule("RuntimeCredentialId");
+/** The Idempotency-Key header every keyed mutation sends. */
+export const IDEMPOTENCY_KEY = stringRule("IdempotencyKeyHeader");
 /** A Runtime Agent principal's ID: 64 lowercase hexadecimal digits. */
 export const RUNTIME_AGENT_ID = stringRule(
   "RuntimeAgentPrincipal",

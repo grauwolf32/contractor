@@ -58,6 +58,7 @@ var contractsImporters = map[string][]string{
 	"internal/controlplane":                {"DecodePrivateStrict", "ResolvedSkill", "WorkerHandle"},
 	"internal/credentials":                 {"ResolvedModelPolicy", "SecretString"},
 	"internal/credentials/litellm":         {"ResolvedModelPolicy"},
+	"internal/evaldomain":                  {"ValidIdempotencyKey"},
 	"internal/evalservice":                 {"ArtifactRef"},
 	"internal/evalstore":                   {"ArtifactRef", "ValidResourceID"},
 	"internal/findingintake":               {"ArtifactRef", "ToolsetSelection"},

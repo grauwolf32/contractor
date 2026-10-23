@@ -246,8 +246,9 @@ func requireBeginStarted(
 	if got := readBeginEffects(t, ctx, pool); got != want {
 		t.Fatalf("Planner start effects = %+v, want %+v", got, want)
 	}
-	events, err := store.ListRunEvents(ctx, lockOrderRunID, before.nextEvent-1, 10)
-	if err != nil || len(events) != 2 || events[0].Kind != runstore.RunEventLifecycleChanged ||
+	page, err := store.ListRunEvents(ctx, lockOrderRunID, before.nextEvent-1, 10)
+	events := page.Events
+	if err != nil || len(events) != 2 || page.More || events[0].Kind != runstore.RunEventLifecycleChanged ||
 		events[0].SequenceNumber != before.nextEvent || events[1].Kind != runstore.RunEventPlannerStarted ||
 		!strings.Contains(string(events[1].Data), identity.SessionID) {
 		t.Fatalf("Planner start events = (%+v, %v)", events, err)

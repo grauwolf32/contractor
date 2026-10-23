@@ -211,7 +211,16 @@ joint upgrade of Server, UI and bundled clients are in Runs
 unless a resource declares a smaller bound, such as the login body
 ([SEC-R49](../platform/security.md)). A larger body is rejected with
 `413 request_too_large` and never reaches the handler's validation
-(FAIL-API-1).
+(FAIL-API-1). The OpenAPI document declares each operation's exact bound as
+`x-max-request-body-bytes`: 8 KiB for login (LIM-SEC-8), 64 KiB for the Git key
+and Git import bodies (LIM-GIT-21, LIM-GIT-5), 1 KiB for Audit start and resume
+(LIM-AUD-28), 128 KiB for RuntimeConfig publication, 64 MiB for Artifact
+payloads (API-R5) and 1 MiB for Eval documents (API-R6). A string that the
+Server bounds in UTF-8 bytes declares that bound as `x-max-utf8-bytes` next to
+an equal `maxLength`, so text outside ASCII reaches the byte bound first: Run
+cancellation reasons (LIM-RUN-10), Project names and descriptions (LIM-PRJ-3,
+LIM-PRJ-5), Audit scope fields (LIM-AUD-29), review rationales (LIM-REV-11),
+Run metadata label values (LIM-RUN-5) and the login password (LIM-SEC-7).
 
 **API-R5.** An Artifact over its 64 MiB limit
 ([ART-R65](../artifacts/artifact-store.md),
@@ -345,7 +354,13 @@ RuntimeConfig, label and Agent-label administrative commands require their own
 idempotency keys, revision preconditions where specified, and an audit actor.
 
 **API-R69.** Every operation that binds an `Idempotency-Key` (the OpenAPI
-`IdempotencyKey` parameter) treats the key as bound to its exact request:
+`IdempotencyKey` parameter) takes exactly one such header of 1 to 128
+characters in `[A-Za-z0-9][A-Za-z0-9._:-]*` (LIM-API-26). The Server has one
+definition of the grammar, which every handler, Managed Eval mutations, the
+stores that keep keys and the bundled CLI apply; a missing, repeated or
+malformed key is `400 invalid_request`, or `422 eval_invalid` on Managed Eval
+routes, before any receipt is read or written. The operation treats the key as
+bound to its exact request:
 repeating that request with the key replays the original result, and sending
 a different request with it is `409 idempotency_conflict` with `retryable`
 false. The outcome is permanent: the original result is unchanged, and only
@@ -356,11 +371,15 @@ retryability. Managed Eval mutations report the same outcome as
 client never retries a response marked `retryable` false, whatever its
 status.
 
-**API-R28.** RuntimeCredential deletion is the one exception: its durable
-tombstone makes it idempotent by credential ID, so it accepts but neither
-requires nor binds an idempotency key. Its replay response and key-format
-validation are in Runtime configuration
-([RCF-R176](../configuration/runtime-config.md)).
+**API-R28.** RuntimeCredential deletion and scan sweep cancellation are the
+exceptions (the OpenAPI `OptionalIdempotencyKey` parameter): a durable
+tombstone or the sweep's own state makes each idempotent by resource identity,
+so it accepts but neither requires nor binds an idempotency key. A supplied
+key is still one header in the API-R69 grammar, or the request is
+`400 invalid_request` and changes nothing. The RuntimeCredential replay
+response is in Runtime configuration
+([RCF-R176](../configuration/runtime-config.md)); sweep cancellation is in
+Scanners ([SCN-R250](../tools/scanners.md)).
 
 **API-R29.** The API keeps configuration and credential mutations distinct
 from ordinary Run and Artifact use, so later RBAC does not require changing
@@ -536,6 +555,27 @@ Rationale: while the listener is established every commit wakes its Run, so
 the periodic catch-up only bounds how long a lost notification can delay
 delivery, for example while a broken listener connection is not yet detected.
 
+**API-R110.** One read of a Run's committed events after a cursor, such as
+one page of a catch-up (API-R72), returns the events after that cursor in
+sequence order and ends before the first event that would exceed either the
+number of events the read requests or 8 MiB of persisted event data
+(LIM-API-24). The data budget counts the octet length of each event's stored
+`data` JSON text, the measure in which one event's data is at most 2 MiB
+(LIM-API-25), so a read returns at least the next committed event whenever
+one exists. A read reports whether a committed event follows the last event
+it returns without transferring that event's data, and measures no event
+beyond that one. A catch-up continues from the last delivered sequence while
+a read reports a following event, without waiting for another trigger, and
+ends at the read that reports none. A stored event that fails validation
+fails the read that would return it and is never skipped. The budget bounds
+the event data one read transfers from PostgreSQL, not the memory of Server
+or the size of a frame (LIM-API-9).
+
+Rationale: a read bounded only by its event count transfers up to that count
+times the per-event bound. A read that ends on its data budget is shorter
+than its count although more events are committed, so the catch-up follows
+the read's report, not its length.
+
 #### Operations stream
 
 **API-R56.** The `operations` stream reports Runtime Agent, allocation,
@@ -591,7 +631,7 @@ jitter: UI reconnect starts at 500 ms (LIM-API-16) and doubles up to 30 seconds
 | [`contractor-public-v1.yaml`](../../../api/openapi/contractor-public-v1.yaml) | Public `/v1` resources, error envelope, mutation headers and the WebSocket upgrade | API-R1, API-R44 |
 | [`contractor-events-v1.schema.json`](../../../api/events/contractor-events-v1.schema.json) | Live event message contract | API-R41, API-R44 |
 | `POST /v1/auth/login`, `GET /v1/auth/session`, `POST /v1/auth/logout` | Browser authentication | API-R14 to API-R24 |
-| `GET /v1/events/ws`, subprotocol `contractor.events.v1` | Live event WebSocket | API-R30 to API-R66, API-R72 |
+| `GET /v1/events/ws`, subprotocol `contractor.events.v1` | Live event WebSocket | API-R30 to API-R66, API-R72, API-R110 |
 | Request headers `Content-Type`, `Idempotency-Key`, `If-Match`, `X-CSRF-Token`, `Origin` | Mutation headers and browser checks | API-R10, API-R23, API-R27 |
 | Response headers `X-Request-ID`, `ETag`, `Content-Disposition`, `Retry-After` | Browser-readable response headers | API-R11 |
 
@@ -632,6 +672,10 @@ Limits ([registry](../platform/limits.md)):
   listener: every second (API-R72).
 - LIM-API-22 — Run stream catch-up while the notification listener is
   established: every 15 seconds (API-R72).
+- LIM-API-24 — persisted event data per Run event read: 8 MiB (API-R110).
+- LIM-API-25 — persisted data of one Run event: 2 MiB (API-R110).
+- LIM-API-26 — `Idempotency-Key`: exactly one header of 1 to 128 characters
+  in `[A-Za-z0-9][A-Za-z0-9._:-]*` (API-R69).
 
 The generic Artifact payload limit is [LIM-ART-4](../platform/limits.md)
 ([ART-R65](../artifacts/artifact-store.md)); the login body and login limiter
@@ -692,7 +736,9 @@ The owning tests are the live event contract tests in
 [`internal/httpapi/public/events/events_test.go`](../../../internal/httpapi/public/events/events_test.go),
 [`internal/httpapi/public/events/run_poller_test.go`](../../../internal/httpapi/public/events/run_poller_test.go)
 and
-[`internal/httpapi/public/event_handlers_test.go`](../../../internal/httpapi/public/event_handlers_test.go).
+[`internal/httpapi/public/event_handlers_test.go`](../../../internal/httpapi/public/event_handlers_test.go),
+and the Run event read tests in
+[`internal/runstore/run_event_page_postgres_test.go`](../../../internal/runstore/run_event_page_postgres_test.go).
 
 1. An upgrade with an invalid Origin or session, and a Run subscription the
    principal is not authorized for, are rejected (API-R33, API-R39); tests
@@ -718,6 +764,14 @@ and
 7. Subscriptions to one Run from different cursors each receive exactly the
    events after their own cursor (API-R49, API-R72); test
    `TestRunSubscriptionsFromDifferentCursorsShareOnePoller`.
+8. A Run event read returns at most 8 MiB of persisted event data, starts
+   with the next committed event however large, and reports a following
+   event without transferring it; a catch-up reads on across such reads in
+   the same round and ends at the read that reports no following event
+   (API-R110); tests `TestPostgresListRunEventsBoundsPageDataBytes`,
+   `TestPostgresListRunEventsFailsOnInvalidStoredEventsAndKeepsGaps`,
+   `TestRunCatchUpContinuesAcrossByteShortPages` and
+   `TestRunCatchUpEndsAtTheLastCommittedEvent`.
 
 ### Durable scan sweeps
 

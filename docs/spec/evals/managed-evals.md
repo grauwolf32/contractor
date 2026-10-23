@@ -362,6 +362,29 @@ Rationale: reads do not revalidate up to 1 MiB, the [portable
 format](format.md) document bound (LIM-EVF-3), on every coordinator tick,
 admission or collection.
 
+**EVM-R241.** The transaction that freezes a plan or registration validates
+every expected member before it writes the plan and every plan resource before
+it writes the resources. It then inserts the members, in manifest order, and
+the plan resources in consecutive statements of at most 1,000 rows and 4 MiB
+of stored recipe or document bytes each, but at least one row (LIM-EVM-18).
+Each statement takes rows until the next one would exceed either bound, so a
+native plan of 1,000 ordinary members uses one member statement, an external
+registration of 1,216 members at its 1 MiB document bound uses two, and 1,000
+members whose recipes total about 190 MB use about 50. Each member statement
+creates its members' projection rows once and creates or advances the
+experiment's projection queue once, never once per member, and sends each
+projected case and variant its members use once. A rejected member or a failed
+statement or transaction leaves no plan, member, projection row, resource or
+receipt.
+
+Rationale: one insert per member repeated the projection work for every
+member. One statement for the whole matrix instead held every recipe of a
+legal plan, hundreds of megabytes for large cases and variants, uncompressed
+in the projection trigger's transition table and on temporary storage under a
+single statement timeout. A 4 MiB batch keeps that table within PostgreSQL's
+default work_mem and each statement far below the default 15 s statement
+timeout; the 1,000-row bound equals the native member ceiling (LIM-EVM-3).
+
 **EVM-R41.** Secret values do not enter public DTOs, logs, cursors or error
 text.
 

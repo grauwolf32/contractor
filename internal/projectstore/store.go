@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -15,10 +14,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
-)
-
-var (
-	idempotencyKeyPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
 )
 
 type PostgresStore struct{ db persistencepostgres.DBTX }
@@ -303,7 +298,7 @@ func validateCreate(params CreateParams) error {
 	if err := validateMetadata(params.Name, params.Description); err != nil {
 		return err
 	}
-	if !idempotencyKeyPattern.MatchString(params.IdempotencyKey) || !contentdigest.Valid(params.RequestDigest) {
+	if !contracts.ValidIdempotencyKey(params.IdempotencyKey) || !contentdigest.Valid(params.RequestDigest) {
 		return invalid("Project idempotency identity is invalid")
 	}
 	return nil

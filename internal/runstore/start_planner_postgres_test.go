@@ -172,8 +172,9 @@ func TestPostgresStartPlannerLeavesTransactionConflictsToTheirOwner(t *testing.T
 			t.Fatalf("pool StartPlanner = %v after %d attempts, want success on the replay", err, injection.attempts())
 		}
 		requireStarted(t, readStartPlannerEffects(t, ctx, pool, stageID), before, params.SessionID)
-		events, err := store.ListRunEvents(ctx, runID, before.nextEvent-1, 10)
-		if err != nil || len(events) != 2 || events[0].Kind != RunEventLifecycleChanged ||
+		page, err := store.ListRunEvents(ctx, runID, before.nextEvent-1, 10)
+		events := page.Events
+		if err != nil || len(events) != 2 || page.More || events[0].Kind != RunEventLifecycleChanged ||
 			events[1].EventID != params.RunEvent.EventID || events[1].SequenceNumber != before.nextEvent+1 {
 			t.Fatalf("Planner start events = (%+v, %v), want the lifecycle event and %q", events, err, params.RunEvent.EventID)
 		}

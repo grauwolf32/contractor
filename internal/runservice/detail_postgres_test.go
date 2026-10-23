@@ -139,10 +139,11 @@ func TestPostgresRunDetailReadsStateAndCursorFromOneSnapshot(t *testing.T) {
 			detail.Run.State, detail.Run.FinishedAt, detail.EventCursor, before, after, detail.DeletionBlocker)
 	}
 	// A subscription after the detail cursor delivers the terminal transition.
-	events, err := runs.ListRunEvents(ctx, runID, detail.EventCursor.Sequence, 10)
-	if err != nil {
-		t.Fatal(err)
+	page, err := runs.ListRunEvents(ctx, runID, detail.EventCursor.Sequence, 10)
+	if err != nil || page.More {
+		t.Fatalf("events after the detail cursor: more=%t, %v", page.More, err)
 	}
+	events := page.Events
 	var lifecycle struct {
 		Resource string `json:"resource"`
 		State    string `json:"state"`

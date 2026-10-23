@@ -427,6 +427,27 @@ truncation, a completed process and a completed invocation never establish that
 a target is secure or free of vulnerabilities, or a negative SQL-injection
 result.
 
+**SCN-R254.** Scanner adapters keep blocking work off the Runtime event loop.
+Creating and removing the private per-invocation scratch directory (including
+the capability probe's), adapter preparation inside it, wordlist and request
+parsing, writing private scanner input files and projecting scanner output into
+the observation run in worker threads. Destination checks, Artifact reads and
+writes, process supervision and result publication stay awaited on the loop.
+An invocation submits a fixed number of worker threads, independent of its
+input and output size. Cancellation, the scan deadline and allocation close
+join each in-flight thread before scratch removal and before the allocation's
+scan lock is released, so no thread outlives the invocation; the deadline still
+yields `scan_timeout` and a stop still yields cancellation.
+
+**SCN-R255.** The `targets` output of `scan_katana` and the `template-manifest`
+that `scan_nuclei` publishes for a pinned installed package (SCN-R229) or a
+custom rulepack (SCN-R241) are create-only. Before launch, the adapter
+checks that the output name is free with a metadata read
+([ART-R116](../artifacts/artifact-store.md)) and never downloads an existing
+payload for this check. Only `404` admits the invocation; an existing binding
+fails as `scan_output_exists`, and any other read failure fails as
+`scan_artifact_unavailable`. Neither failure launches the scanner.
+
 ### Pinned installed Nuclei web scans
 
 **SCN-R225.** `nuclei-web@1` accepts a required explicit `target` and optional
@@ -692,7 +713,9 @@ bounds do not extend ordinary Run execution or scanner deadlines.
 creation through the parent transaction fence, cancels unsent members, and
 requests ordinary cancellation of admitted Runs. Only actual terminal child
 states settle those members; the parent then becomes `cancelled`. Repeated
-cancellation is idempotent. Missing and foreign sweeps are indistinguishable.
+cancellation is idempotent, so it accepts an `Idempotency-Key` that it
+validates but does not bind ([API-R28](../api/public-api.md)). Missing and
+foreign sweeps are indistinguishable.
 
 **SCN-R251.** Owner purge requires a terminal sweep with no live controller
 claim, cancels and joins in-process work before physical deletion, and holds

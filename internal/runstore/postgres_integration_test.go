@@ -218,8 +218,9 @@ WHERE allocation_id = 'allocation-1'`); persistencepostgres.SQLState(err) != per
 		string(session.State) != `{"step": 1}` && string(session.State) != `{"step":1}` {
 		t.Fatalf("Planner session = (%+v, %v)", session, err)
 	}
-	plannerRunEvents, err := store.ListRunEvents(ctx, run.RunID, 5, 10)
-	if err != nil || len(plannerRunEvents) != 2 ||
+	plannerRunEventPage, err := store.ListRunEvents(ctx, run.RunID, 5, 10)
+	plannerRunEvents := plannerRunEventPage.Events
+	if err != nil || len(plannerRunEvents) != 2 || plannerRunEventPage.More ||
 		plannerRunEvents[0].EventID != "event-started" || plannerRunEvents[0].SequenceNumber != 6 ||
 		plannerRunEvents[1].EventID != "event-1" || plannerRunEvents[1].SequenceNumber != 7 {
 		t.Fatalf("Planner Run events = (%+v, %v)", plannerRunEvents, err)
@@ -240,8 +241,9 @@ WHERE allocation_id = 'allocation-1'`); persistencepostgres.SQLState(err) != per
 	if err != nil || cursor.Sequence != 7 || cursor.Generation == "" {
 		t.Fatalf("Run event cursor = (%+v, %v)", cursor, err)
 	}
-	runEvents, err := store.ListRunEvents(ctx, run.RunID, 0, 10)
-	if err != nil || len(runEvents) != 7 || runEvents[0].Kind != RunEventLifecycleChanged ||
+	runEventPage, err := store.ListRunEvents(ctx, run.RunID, 0, 10)
+	runEvents := runEventPage.Events
+	if err != nil || len(runEvents) != 7 || runEventPage.More || runEvents[0].Kind != RunEventLifecycleChanged ||
 		runEvents[1].Kind != RunEventLifecycleChanged || runEvents[2].Kind != RunEventLifecycleChanged ||
 		runEvents[3].Kind != RunEventLifecycleChanged || runEvents[4].Kind != RunEventLifecycleChanged ||
 		runEvents[5].Kind != RunEventPlannerStarted || runEvents[6].Kind != RunEventPlannerRequestRecorded {
@@ -512,9 +514,9 @@ WHERE run_id = $1`, projectRun.RunID)
 	foreignParams := testRunParams("run-foreign-project-member")
 	foreignParams.OwnerID = "user-2"
 	foreignParams.ProjectID = &projectID
-	_, err = createRun(ctx, store, foreignParams)
-	if persistencepostgres.SQLState(err) != persistencepostgres.SQLStateForeignKeyViolation {
-		t.Fatalf("foreign Project membership SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
+	// Another owner's Project is one its owner does not have (PRJ-R5).
+	if _, err = createRun(ctx, store, foreignParams); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("foreign Project membership = %v, want ErrNotFound", err)
 	}
 }
 
@@ -1399,8 +1401,9 @@ func TestWorkflowRunEventNotificationIsVisibleOnlyAfterCommit(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("committed WorkflowRun event did not publish a wake-up notification")
 	}
-	events, err := NewPostgresStore(pool).ListRunEvents(ctx, runID, 0, 10)
-	if err != nil || len(events) != 1 || events[0].Kind != RunEventLifecycleChanged ||
+	page, err := NewPostgresStore(pool).ListRunEvents(ctx, runID, 0, 10)
+	events := page.Events
+	if err != nil || len(events) != 1 || page.More || events[0].Kind != RunEventLifecycleChanged ||
 		events[0].SequenceNumber != 1 || !strings.Contains(string(events[0].Data), `"state": "initializing"`) {
 		t.Fatalf("committed lifecycle events = (%+v, %v)", events, err)
 	}
