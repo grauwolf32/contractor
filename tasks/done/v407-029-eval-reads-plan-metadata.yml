@@ -192,5 +192,12 @@ verification:
   - >-
     make lint passed, including vet, staticcheck U1000, unused-export checks, SQL placement, spec, ERD,
     release graph and task checks.
+  - >-
+    After the migration moved to 000034 (V407-025 takes 000033) and claude/review-v407-v409 was merged
+    (b5bb1628; the migration directory then has 000032 followed by 000034, which the runner accepts
+    because it only requires increasing versions): go test -tags=integration -count=1
+    ./internal/evalservice/... ./internal/evalstore/... ./internal/persistence/postgres/... passed;
+    go test -tags=integration -count=1 ./internal/httpapi/public/... passed; make lint passed; make
+    docs-dependencies and make docs-erd regenerated their pages unchanged at schema version 000034.
   database_tests_configured: true
 implementation_commit: 4d44ce5663b4109eb90d72dc0749c835bfb28832
