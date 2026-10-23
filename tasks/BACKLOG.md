@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-101 open tasks: 4 in progress, 72 pending, 25 deferred. 1017 finished: 1013 completed, 4 archived.
+100 open tasks: 4 in progress, 71 pending, 25 deferred. 1018 finished: 1014 completed, 4 archived.
 
 ## In progress
 
@@ -27,7 +27,6 @@ the epics are in [epics.yml](epics.yml).
 | [V372-028](v372-028-runstore-strict-snapshot-reads.yml) | chore | P3 | — | Decode persisted Run, Stage and allocation snapshots strictly in runstore |
 | [V407-013](v407-013-mtls-connection-reuse.yml) | chore | P2 | — | Reuse verified private TLS connections with bounded lifecycle ownership |
 | [V407-016](v407-016-scheduler-idle-and-release-pacing.yml) | chore | P3 | — | Reduce idle claim probes and bound terminal-release head-of-line work |
-| [V407-017](v407-017-startup-lease-tolerance.yml) | chore | P3 | — | Document and test inherited startup lease connection and query budgets |
 | [V409-011](v409-011-execution-store-n1-and-duplicates.yml) | chore | P3 | V407-016 | Reduce execution query round trips while preserving lock and recovery contracts |
 
 ### Planners and the Worker model boundary (`planner-worker`)
@@ -153,7 +152,7 @@ the epics are in [epics.yml](epics.yml).
 | [V372-029](v372-029-shared-fixture-gate-scope.yml) | chore | P3 | — | Extend the shared fixture gate to every cross-language fixture and keep slow store suites out of it |
 | [V372-030](v372-030-shrink-test-only-export-baseline.yml) | chore | P3 | — | Resolve the exported identifiers that only tests use and empty the test-only export baseline |
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | chore | P3 | — | Find out why about a hundred Runtime tests fail on a macOS host and make each one pass or declare its platform |
-| [V407-039](v407-039-close-server-runtime-review.yml) | chore | P3 | V407-002, V407-004, V407-005, V407-011, V407-012, V407-013, V407-016, V407-017, V407-020, V407-023, V407-025, V407-027, V407-029, V407-032, V407-033 | Close the validated Server and Runtime review with explicit dispositions and verification |
+| [V407-039](v407-039-close-server-runtime-review.yml) | chore | P3 | V407-002, V407-004, V407-005, V407-011, V407-012, V407-013, V407-016, V407-020, V407-023, V407-025, V407-027, V407-029, V407-032, V407-033 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V408-001](v408-001-gate-duration-baseline.yml) | chore | P2 | — | Record the baseline duration of every release stage and local test target |
 | [V408-004](v408-004-e2e-build-once.yml) | chore | P2 | V408-001 | Build the Server binary and the test PKI once per e2e package and right-size per-test budgets |
 | [V408-005](v408-005-family-guard-gaps.yml) | chore | P2 | — | Close the family-target guard gaps and run the Runtime suite once with warnings as errors |
@@ -197,7 +196,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 7 | 41 | 51 | 18 | 73 |
+| Run execution core (`execution-core`) | 6 | 41 | 51 | 18 | 73 |
 | Planners and the Worker model boundary (`planner-worker`) | 5 | 27 | 40 | 16 | 58 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 10 | 25 | 13 | 4 | 40 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 2 | 12 |
