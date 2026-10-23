@@ -208,11 +208,15 @@ class AdkWorkerRuntime:
                 observer=self._plugin,
             )
         )
+        instruction = context.instruction
         self._agent = LlmAgent(
             name="contractor_worker",
             description=context.description,
             model=model,
-            instruction=context.instruction,
+            # A provider delivers the authored text literally: ADK would
+            # otherwise expand {name} from session State and fail on a
+            # missing key before the first model call (WRK-R166).
+            instruction=lambda _: instruction,
             tools=adk_tools,
             generate_content_config=generation,
         )

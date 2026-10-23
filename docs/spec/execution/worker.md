@@ -255,6 +255,16 @@ instructions, the exact opaque `subtask_id`, immutable string parameters and
 named exact input ArtifactRefs, and its explicitly selected tools and skills.
 It sees no Contractor result schema or lifecycle envelope.
 
+**WRK-R166.** Every ADK agent that Runtime Agent constructs (the main
+Worker, the result finalizer and the terminal summarizer) receives its
+instruction through an instruction provider that returns the exact text, so
+ADK never applies its session-State or artifact templating to it. A `{name}`
+sequence therefore neither fails the invocation before the first model call
+nor takes a value from ADK State, such as the `contractor` subtree
+(WRK-R105). Authored instruction text keeps its braces
+([AgentTemplates](../configuration/agent-templates.md), TPL-R114 and
+TPL-R51).
+
 How the semantic task is rendered for the Worker model, and which transport,
 allocation and lifecycle facts the rendered task never contains, is owned by
 [Planners](planners.md).
@@ -1431,7 +1441,8 @@ These properties follow from the cited requirements, which are authoritative.
   typed lifecycle commands; and shared mutable Planner and Worker information
   belongs in MemoryTools and artifacts.
 - A generic Planner `get_state`, arbitrary state keys or model-defined filters.
-- Generic or secret-backed ADK instruction templating. Future ADK instruction
+- Generic or secret-backed ADK instruction templating; instructions reach the
+  model literally (WRK-R166). Future ADK instruction
   templating may consume an explicitly specified safe initial-state schema: a
   later closed schema may seed approved non-secret allocation and task values
   without adding a remote State-write endpoint. Arbitrary placeholders and

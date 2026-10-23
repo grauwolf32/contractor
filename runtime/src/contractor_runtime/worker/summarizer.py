@@ -230,7 +230,8 @@ class TerminalSummarizer:
             description="Produce one terminal result from bounded Worker history.",
             model=self._model,
             # A provider preserves literal braces in configured Markdown/JSON
-            # instead of treating them as ADK session-state substitutions.
+            # instead of treating them as ADK session-state substitutions
+            # (TPL-R51, WRK-R166).
             instruction=lambda _: self._instructions,
             tools=[],
             output_schema=WorkerModelResult,
