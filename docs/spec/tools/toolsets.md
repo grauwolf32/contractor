@@ -253,6 +253,12 @@ construct only the selected tools, with the allocation's Namespace, Artifact
 client, sandbox and safe RuntimeSettings. Unselected tools are neither
 constructed nor exposed.
 
+The selected tools of a Toolset that edits one document, `openapi@1` or
+`likec4@1`, share one document session: their calls serialize on it, their
+document work runs off the event loop and is joined on cancellation, and
+closing any of them closes that session
+([RTA-R115](../execution/runtime-agent.md)).
+
 ### Infrastructure channels
 
 **TLS-R22.** Each exported-tool descriptor declares a fixed subset of the

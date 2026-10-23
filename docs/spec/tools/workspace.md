@@ -757,6 +757,11 @@ code-analysis parser budgets remain independent.
 `source-analysis@1` path are never combined, and project-workspace presence
 always takes precedence, including for a missing path.
 
+`openapi@1` acquires that snapshot before it takes its document-session lock
+and checks the evidence paths against the snapshot or the allocation-private
+source tree in the session's worker thread
+([RTA-R115](../execution/runtime-agent.md)).
+
 The read-only `code-analysis@1` Toolset consumes the same `WorkspaceReader`
 snapshot boundary; neither its Tree-sitter operations nor its local-only
 Trailmark allocation child receives the provider's physical root

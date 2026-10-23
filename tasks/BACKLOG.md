@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-111 open tasks: 4 in progress, 82 pending, 25 deferred. 1007 finished: 1003 completed, 4 archived.
+110 open tasks: 4 in progress, 81 pending, 25 deferred. 1008 finished: 1004 completed, 4 archived.
 
 ## In progress
 
@@ -86,7 +86,6 @@ the epics are in [epics.yml](epics.yml).
 | [V372-013](v372-013-planner-facts-one-source.yml) | chore | P3 | — | Take Planner refs and facts from the descriptor registry in Go, the composition and Studio |
 | [V372-014](v372-014-execution-config-patch-strict-decode.yml) | chore | P3 | — | Decode executionConfig patch members with strictjson |
 | [V372-015](v372-015-config-split-leftovers.yml) | chore | P3 | — | Stop locals from shadowing the resolved package and drop config's copy of clone.Map |
-| [V407-031](v407-031-document-session-off-loop.yml) | defect | P1 | — | Offload OpenAPI document preparation and avoid repeated validation while preserving session ownership |
 
 ### Projects, artifacts and lifecycle controls (`projects-artifacts`)
 
@@ -168,7 +167,7 @@ the epics are in [epics.yml](epics.yml).
 | [V372-029](v372-029-shared-fixture-gate-scope.yml) | chore | P3 | — | Extend the shared fixture gate to every cross-language fixture and keep slow store suites out of it |
 | [V372-030](v372-030-shrink-test-only-export-baseline.yml) | chore | P3 | — | Resolve the exported identifiers that only tests use and empty the test-only export baseline |
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | chore | P3 | — | Find out why about a hundred Runtime tests fail on a macOS host and make each one pass or declare its platform |
-| [V407-039](v407-039-close-server-runtime-review.yml) | chore | P3 | V407-002, V407-003, V407-004, V407-005, V407-006, V407-007, V407-011, V407-012, V407-013, V407-014, V407-015, V407-016, V407-017, V407-020, V407-021, V407-022, V407-023, V407-025, V407-027, V407-029, V407-031, V407-032, V407-033, V407-035 | Close the validated Server and Runtime review with explicit dispositions and verification |
+| [V407-039](v407-039-close-server-runtime-review.yml) | chore | P3 | V407-002, V407-003, V407-004, V407-005, V407-006, V407-007, V407-011, V407-012, V407-013, V407-014, V407-015, V407-016, V407-017, V407-020, V407-021, V407-022, V407-023, V407-025, V407-027, V407-029, V407-032, V407-033, V407-035 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V408-001](v408-001-gate-duration-baseline.yml) | chore | P2 | — | Record the baseline duration of every release stage and local test target |
 | [V408-004](v408-004-e2e-build-once.yml) | chore | P2 | V408-001 | Build the Server binary and the test PKI once per e2e package and right-size per-test budgets |
 | [V408-005](v408-005-family-guard-gaps.yml) | chore | P2 | — | Close the family-target guard gaps and run the Runtime suite once with warnings as errors |
@@ -222,7 +221,7 @@ tasks in `introduced_by`.
 | HTTP and Caido tools (`http-tools`) | 2 | 11 | 15 | 4 | 16 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 4 | 14 | 5 | 6 | 10 |
 | Findings tools and collections (`findings`) | 10 | 14 | 6 | 8 | 11 |
-| Workflow catalog and document workflows (`workflows`) | 4 | 14 | 14 | 12 | 15 |
+| Workflow catalog and document workflows (`workflows`) | 3 | 14 | 14 | 12 | 15 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 30 | 33 | 6 | 37 |
 | Audits (`audits`) | 22 | 53 | 72 | 22 | 91 |
 | Evaluations (`evals`) | 5 | 21 | 34 | 8 | 41 |
