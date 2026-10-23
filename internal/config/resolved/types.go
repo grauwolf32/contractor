@@ -42,10 +42,11 @@ type ArtifactBinding struct {
 // observations to a result name without asking the Worker model to serialize
 // Contractor transport data.
 type ArtifactSlot struct {
-	Required   bool             `json:"required"`
-	MediaTypes []string         `json:"mediaTypes"`
-	From       *ArtifactBinding `json:"from,omitempty"`
-	Primary    bool             `json:"primary,omitempty"`
+	SourceScope string           `json:"sourceScope,omitempty"`
+	Required    bool             `json:"required"`
+	MediaTypes  []string         `json:"mediaTypes"`
+	From        *ArtifactBinding `json:"from,omitempty"`
+	Primary     bool             `json:"primary,omitempty"`
 }
 
 // ContextArtifact identifies a logical RunScope binding to pin for a Stage.

@@ -172,6 +172,13 @@ func resolveArtifactSlotMap(
 ) (map[string]resolved.ArtifactSlot, error) {
 	result := make(map[string]resolved.ArtifactSlot, len(source))
 	for name, slot := range source {
+		scope := ""
+		if slot.SourceScope.Kind != 0 {
+			if field != "spec.inputs" || slot.SourceScope.Kind != yaml.ScalarNode || slot.SourceScope.Tag != "!!str" || slot.SourceScope.Value != "user" {
+				return nil, fmt.Errorf("sourceScope user is allowed only on Workflow inputs")
+			}
+			scope = slot.SourceScope.Value
+		}
 		if err := resolved.ValidateArtifactComponent(field+" slot name", name); err != nil {
 			return nil, err
 		}
@@ -207,7 +214,7 @@ func resolveArtifactSlotMap(
 			primary = *slot.Primary
 		}
 		result[name] = resolved.ArtifactSlot{
-			Required: *slot.Required, MediaTypes: mediaTypes, From: from, Primary: primary,
+			Required: *slot.Required, MediaTypes: mediaTypes, From: from, Primary: primary, SourceScope: scope,
 		}
 	}
 	return result, nil

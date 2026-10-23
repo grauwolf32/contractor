@@ -742,7 +742,8 @@ Run output.
 Workflow input slots ([Workflows](../configuration/workflows.md)), as
 `ArtifactRef` values in the source scope selected by the endpoint: a
 standalone Run selects from the caller's authenticated UserScope, and a Project
-Run selects from its owner-authorized ProjectScope ([Projects](projects.md)).
+Run selects from its owner-authorized ProjectScope, with the explicit owner
+rulepack exception in [PRJ-R29](projects.md) and [WFL-R88](../configuration/workflows.md).
 
 **ART-R75.** A versionless input selects the binding current at
 Run creation and is resolved to that exact revision; a versioned input
@@ -750,12 +751,14 @@ explicitly selects that retained historical revision directly.
 
 **ART-R76.** Before the Run becomes schedulable, and so before the
 first Stage is selected, the trusted Run-creation operation records the exact
-source version of every supplied input, validates its media type against the
+source version and scope of every supplied input, validates its media type against the
 Workflow input slot, then forks it to
 `RunScope(run_id): inputs/<workflow input name>`. For a standalone Run that
 operation is Workflow Scheduler; for a Project Run it is the Project endpoint,
 after verifying ownership ([Projects](projects.md)). In the same
-initialization boundary Scheduler pins and forks every selected Agent Skill
+initialization boundary the optional Nuclei `sourceScope: user` rulepack uses the
+authenticated owner UserScope even for a Project Run (SCN-R238), and Scheduler
+pins and forks every selected Agent Skill
 into `skills` ([Skills](../tools/skills.md)).
 
 **ART-R77.** A fork creates an independent target binding and a

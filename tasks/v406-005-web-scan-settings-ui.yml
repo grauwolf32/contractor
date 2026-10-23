@@ -1,0 +1,94 @@
+schema_version: '1.0'
+id: V406-005
+title: Launch a web scan with rule settings and owner rulepack selection
+milestone: web-nuclei-rule-sweeps-2026-10
+epic: ui
+kind: feature
+priority: P2
+status: pending
+depends_on:
+- V406-003
+languages:
+- typescript
+- css
+goal: An operator starts a standalone or Project web scan using a form for target, rules and rate
+  limits, with optional upload/selection from their UserScope rather than hand-written JSON.
+context:
+  proposal: docs/proposals/0041-web-nuclei-scanning-and-rule-sweeps.md
+  specification:
+  - docs/spec/ui/ui.md
+  - docs/spec/ui/journeys.md
+  - docs/design/ui/README.md
+  - ui/src/ui/README.md
+  - docs/spec/artifacts/projects.md
+  - docs/spec/configuration/workflows.md
+scope:
+  in:
+  - Add scan settings form and single-Run launch for nuclei-web@1 using published contracts and
+    existing UI building blocks/theme tokens.
+  - Page all UserScope rulepack and Project selectors; upload packs to UserScope and submit exact
+    selected refs without ProjectScope upload prerequisites.
+  - Expose rule IDs/tags/severity, rate limit and target plus defaults; preserve supplied strings
+    and server truth/errors.
+  - Refetch terminal Run/result state, stop settled polling and back off failed reads; bump UI
+    package version.
+  out:
+  - 'Sweep orchestration views: V406-006.'
+  - Secrets in params, browser storage or model-visible state; implicit target defaulting on ordinary
+    Run APIs.
+requirements:
+- id: R1
+  text: Use shared/generated contracts and fixtures for validation; never silently coerce invalid
+    numeric strings or claim scanner coverage not returned by Server.
+- id: R2
+  text: Keep a stale-revision/conflict visible; destructive operations require existing confirmations.
+- id: R3
+  text: Use the established materials/check/possible issue vocabulary and keep internal digests
+    in Technical details.
+failure_outcomes:
+- operation: Owner artifact selection/upload and web Run creation/read
+  permanent: Show classified Server validation/access/conflict errors with no misleading success.
+  retryable: Existing API retry/backoff behavior for safe reads; keyed Run creation keeps its
+    original body/key.
+  ambiguous: Reuse the create key and selected exact refs after an unknown response; do not duplicate
+    uploads/Runs.
+  cancelled: Abort/ignore stale requests and clean entered form state on unmount without altering
+    an admitted Run.
+  timeout: Separate upload/create/read timeouts and existing browser request cancellation.
+cardinality:
+- collection: UserScope artifacts and selectable Projects
+  expected: Tens to hundreds
+  maximum: Server resource bounds; picker follows every page
+  bound: Existing API page bounds and virtualized/paged UI; one exact selected pack per launch.
+lifecycle:
+- entity: Scan form and created Run
+  delete: Unmount clears transient state; Run follows its existing lifecycle.
+  cascade: No removal of owner rulepacks on Run/form cleanup.
+  retention: Reusable owner inputs stay in UserScope; no secret form data persists in browser
+    storage.
+acceptance_criteria:
+- id: A1
+  given: standalone and Project web launch forms with omitted/default and explicit settings
+  when: the operator uploads or selects a UserScope pack and launches
+  then: a valid Run request uses the correct exact ref, string params and existing create key;
+    no ProjectScope copy is requested
+- id: A2
+  given: multi-page artifact lists and invalid/stale/failed API responses
+  when: the operator selects inputs and submits
+  then: all eligible choices are reachable, errors remain truthful and no duplicate Run is created
+- id: A3
+  given: 390 px viewport and light/dark/black themes
+  when: the scan launch and report/error states render
+  then: shared UI conventions hold and accessible controls do not overflow
+tests:
+- command: make ui-verify
+  covers: &id001
+  - A1
+  - A2
+  - A3
+- command: make ui-browser-mocked
+  covers: *id001
+- command: make test-ui-stack
+  covers: *id001
+- command: make lint
+  covers: *id001

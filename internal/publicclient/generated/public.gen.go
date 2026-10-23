@@ -72,6 +72,21 @@ func (e ArtifactArchiveEntryKind) Valid() bool {
 	}
 }
 
+// Defines values for ArtifactSlotSourceScope.
+const (
+	User ArtifactSlotSourceScope = "user"
+)
+
+// Valid indicates whether the value is a known member of the ArtifactSlotSourceScope enum.
+func (e ArtifactSlotSourceScope) Valid() bool {
+	switch e {
+	case User:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AuditExecutionPolicyRoundMode.
 const (
 	FixedBarrier AuditExecutionPolicyRoundMode = "fixed-barrier"
@@ -2069,16 +2084,28 @@ func (e StageContentResultApiVersion) Valid() bool {
 
 // Defines values for ToolExecutionConfigArguments0Source.
 const (
-	Artifact  ToolExecutionConfigArguments0Source = "artifact"
-	Parameter ToolExecutionConfigArguments0Source = "parameter"
+	ToolExecutionConfigArguments0SourceParameter ToolExecutionConfigArguments0Source = "parameter"
 )
 
 // Valid indicates whether the value is a known member of the ToolExecutionConfigArguments0Source enum.
 func (e ToolExecutionConfigArguments0Source) Valid() bool {
 	switch e {
-	case Artifact:
+	case ToolExecutionConfigArguments0SourceParameter:
 		return true
-	case Parameter:
+	default:
+		return false
+	}
+}
+
+// Defines values for ToolExecutionConfigArguments1Parse.
+const (
+	Integer ToolExecutionConfigArguments1Parse = "integer"
+)
+
+// Valid indicates whether the value is a known member of the ToolExecutionConfigArguments1Parse enum.
+func (e ToolExecutionConfigArguments1Parse) Valid() bool {
+	switch e {
+	case Integer:
 		return true
 	default:
 		return false
@@ -2087,11 +2114,56 @@ func (e ToolExecutionConfigArguments0Source) Valid() bool {
 
 // Defines values for ToolExecutionConfigArguments1Source.
 const (
-	Literal ToolExecutionConfigArguments1Source = "literal"
+	ToolExecutionConfigArguments1SourceParameter ToolExecutionConfigArguments1Source = "parameter"
 )
 
 // Valid indicates whether the value is a known member of the ToolExecutionConfigArguments1Source enum.
 func (e ToolExecutionConfigArguments1Source) Valid() bool {
+	switch e {
+	case ToolExecutionConfigArguments1SourceParameter:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ToolExecutionConfigArguments2Optional.
+const (
+	True ToolExecutionConfigArguments2Optional = true
+)
+
+// Valid indicates whether the value is a known member of the ToolExecutionConfigArguments2Optional enum.
+func (e ToolExecutionConfigArguments2Optional) Valid() bool {
+	switch e {
+	case True:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ToolExecutionConfigArguments2Source.
+const (
+	Artifact ToolExecutionConfigArguments2Source = "artifact"
+)
+
+// Valid indicates whether the value is a known member of the ToolExecutionConfigArguments2Source enum.
+func (e ToolExecutionConfigArguments2Source) Valid() bool {
+	switch e {
+	case Artifact:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ToolExecutionConfigArguments3Source.
+const (
+	Literal ToolExecutionConfigArguments3Source = "literal"
+)
+
+// Valid indicates whether the value is a known member of the ToolExecutionConfigArguments3Source enum.
+func (e ToolExecutionConfigArguments3Source) Valid() bool {
 	switch e {
 	case Literal:
 		return true
@@ -2841,7 +2913,13 @@ type ArtifactRef struct {
 type ArtifactSlot struct {
 	MediaTypes []MediaType `json:"mediaTypes"`
 	Required   bool        `json:"required"`
+
+	// SourceScope Owner UserScope for the optional Nuclei rulepack input only.
+	SourceScope *ArtifactSlotSourceScope `json:"sourceScope,omitempty"`
 }
+
+// ArtifactSlotSourceScope Owner UserScope for the optional Nuclei rulepack input only.
+type ArtifactSlotSourceScope string
 
 // ArtifactWriteResponse defines model for ArtifactWriteResponse.
 type ArtifactWriteResponse struct {
@@ -7328,8 +7406,9 @@ type ToolExecutionConfig struct {
 
 // ToolExecutionConfigArguments0 defines model for ToolExecutionConfig.Arguments.0.
 type ToolExecutionConfigArguments0 struct {
-	Name   string                              `json:"name"`
-	Source ToolExecutionConfigArguments0Source `json:"source"`
+	Default *string                             `json:"default,omitempty"`
+	Name    string                              `json:"name"`
+	Source  ToolExecutionConfigArguments0Source `json:"source"`
 }
 
 // ToolExecutionConfigArguments0Source defines model for ToolExecutionConfig.Arguments.0.Source.
@@ -7337,24 +7416,51 @@ type ToolExecutionConfigArguments0Source string
 
 // ToolExecutionConfigArguments1 defines model for ToolExecutionConfig.Arguments.1.
 type ToolExecutionConfigArguments1 struct {
-	Source ToolExecutionConfigArguments1Source   `json:"source"`
-	Value  ToolExecutionConfig_Arguments_1_Value `json:"value"`
+	Default *int                                `json:"default,omitempty"`
+	Name    string                              `json:"name"`
+	Parse   ToolExecutionConfigArguments1Parse  `json:"parse"`
+	Source  ToolExecutionConfigArguments1Source `json:"source"`
 }
+
+// ToolExecutionConfigArguments1Parse defines model for ToolExecutionConfig.Arguments.1.Parse.
+type ToolExecutionConfigArguments1Parse string
 
 // ToolExecutionConfigArguments1Source defines model for ToolExecutionConfig.Arguments.1.Source.
 type ToolExecutionConfigArguments1Source string
 
-// ToolExecutionConfigArguments1Value0 defines model for ToolExecutionConfig.Arguments.1.Value.0.
-type ToolExecutionConfigArguments1Value0 = string
+// ToolExecutionConfigArguments2 defines model for ToolExecutionConfig.Arguments.2.
+type ToolExecutionConfigArguments2 struct {
+	Name     string                                 `json:"name"`
+	Optional *ToolExecutionConfigArguments2Optional `json:"optional,omitempty"`
+	Source   ToolExecutionConfigArguments2Source    `json:"source"`
+}
 
-// ToolExecutionConfigArguments1Value1 defines model for ToolExecutionConfig.Arguments.1.Value.1.
-type ToolExecutionConfigArguments1Value1 = bool
+// ToolExecutionConfigArguments2Optional defines model for ToolExecutionConfig.Arguments.2.Optional.
+type ToolExecutionConfigArguments2Optional bool
 
-// ToolExecutionConfigArguments1Value2 defines model for ToolExecutionConfig.Arguments.1.Value.2.
-type ToolExecutionConfigArguments1Value2 = float32
+// ToolExecutionConfigArguments2Source defines model for ToolExecutionConfig.Arguments.2.Source.
+type ToolExecutionConfigArguments2Source string
 
-// ToolExecutionConfig_Arguments_1_Value defines model for ToolExecutionConfig.Arguments.1.Value.
-type ToolExecutionConfig_Arguments_1_Value struct {
+// ToolExecutionConfigArguments3 defines model for ToolExecutionConfig.Arguments.3.
+type ToolExecutionConfigArguments3 struct {
+	Source ToolExecutionConfigArguments3Source   `json:"source"`
+	Value  ToolExecutionConfig_Arguments_3_Value `json:"value"`
+}
+
+// ToolExecutionConfigArguments3Source defines model for ToolExecutionConfig.Arguments.3.Source.
+type ToolExecutionConfigArguments3Source string
+
+// ToolExecutionConfigArguments3Value0 defines model for ToolExecutionConfig.Arguments.3.Value.0.
+type ToolExecutionConfigArguments3Value0 = string
+
+// ToolExecutionConfigArguments3Value1 defines model for ToolExecutionConfig.Arguments.3.Value.1.
+type ToolExecutionConfigArguments3Value1 = bool
+
+// ToolExecutionConfigArguments3Value2 defines model for ToolExecutionConfig.Arguments.3.Value.2.
+type ToolExecutionConfigArguments3Value2 = float32
+
+// ToolExecutionConfig_Arguments_3_Value defines model for ToolExecutionConfig.Arguments.3.Value.
+type ToolExecutionConfig_Arguments_3_Value struct {
 	union json.RawMessage
 }
 
@@ -13324,22 +13430,22 @@ func (t *StageContentResult) UnmarshalJSON(b []byte) error {
 	return err
 }
 
-// AsToolExecutionConfigArguments1Value0 returns the union data inside the ToolExecutionConfig_Arguments_1_Value as a ToolExecutionConfigArguments1Value0
-func (t ToolExecutionConfig_Arguments_1_Value) AsToolExecutionConfigArguments1Value0() (ToolExecutionConfigArguments1Value0, error) {
-	var body ToolExecutionConfigArguments1Value0
+// AsToolExecutionConfigArguments3Value0 returns the union data inside the ToolExecutionConfig_Arguments_3_Value as a ToolExecutionConfigArguments3Value0
+func (t ToolExecutionConfig_Arguments_3_Value) AsToolExecutionConfigArguments3Value0() (ToolExecutionConfigArguments3Value0, error) {
+	var body ToolExecutionConfigArguments3Value0
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromToolExecutionConfigArguments1Value0 overwrites any union data inside the ToolExecutionConfig_Arguments_1_Value as the provided ToolExecutionConfigArguments1Value0
-func (t *ToolExecutionConfig_Arguments_1_Value) FromToolExecutionConfigArguments1Value0(v ToolExecutionConfigArguments1Value0) error {
+// FromToolExecutionConfigArguments3Value0 overwrites any union data inside the ToolExecutionConfig_Arguments_3_Value as the provided ToolExecutionConfigArguments3Value0
+func (t *ToolExecutionConfig_Arguments_3_Value) FromToolExecutionConfigArguments3Value0(v ToolExecutionConfigArguments3Value0) error {
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeToolExecutionConfigArguments1Value0 performs a merge with any union data inside the ToolExecutionConfig_Arguments_1_Value, using the provided ToolExecutionConfigArguments1Value0
-func (t *ToolExecutionConfig_Arguments_1_Value) MergeToolExecutionConfigArguments1Value0(v ToolExecutionConfigArguments1Value0) error {
+// MergeToolExecutionConfigArguments3Value0 performs a merge with any union data inside the ToolExecutionConfig_Arguments_3_Value, using the provided ToolExecutionConfigArguments3Value0
+func (t *ToolExecutionConfig_Arguments_3_Value) MergeToolExecutionConfigArguments3Value0(v ToolExecutionConfigArguments3Value0) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -13350,22 +13456,22 @@ func (t *ToolExecutionConfig_Arguments_1_Value) MergeToolExecutionConfigArgument
 	return err
 }
 
-// AsToolExecutionConfigArguments1Value1 returns the union data inside the ToolExecutionConfig_Arguments_1_Value as a ToolExecutionConfigArguments1Value1
-func (t ToolExecutionConfig_Arguments_1_Value) AsToolExecutionConfigArguments1Value1() (ToolExecutionConfigArguments1Value1, error) {
-	var body ToolExecutionConfigArguments1Value1
+// AsToolExecutionConfigArguments3Value1 returns the union data inside the ToolExecutionConfig_Arguments_3_Value as a ToolExecutionConfigArguments3Value1
+func (t ToolExecutionConfig_Arguments_3_Value) AsToolExecutionConfigArguments3Value1() (ToolExecutionConfigArguments3Value1, error) {
+	var body ToolExecutionConfigArguments3Value1
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromToolExecutionConfigArguments1Value1 overwrites any union data inside the ToolExecutionConfig_Arguments_1_Value as the provided ToolExecutionConfigArguments1Value1
-func (t *ToolExecutionConfig_Arguments_1_Value) FromToolExecutionConfigArguments1Value1(v ToolExecutionConfigArguments1Value1) error {
+// FromToolExecutionConfigArguments3Value1 overwrites any union data inside the ToolExecutionConfig_Arguments_3_Value as the provided ToolExecutionConfigArguments3Value1
+func (t *ToolExecutionConfig_Arguments_3_Value) FromToolExecutionConfigArguments3Value1(v ToolExecutionConfigArguments3Value1) error {
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeToolExecutionConfigArguments1Value1 performs a merge with any union data inside the ToolExecutionConfig_Arguments_1_Value, using the provided ToolExecutionConfigArguments1Value1
-func (t *ToolExecutionConfig_Arguments_1_Value) MergeToolExecutionConfigArguments1Value1(v ToolExecutionConfigArguments1Value1) error {
+// MergeToolExecutionConfigArguments3Value1 performs a merge with any union data inside the ToolExecutionConfig_Arguments_3_Value, using the provided ToolExecutionConfigArguments3Value1
+func (t *ToolExecutionConfig_Arguments_3_Value) MergeToolExecutionConfigArguments3Value1(v ToolExecutionConfigArguments3Value1) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -13376,22 +13482,22 @@ func (t *ToolExecutionConfig_Arguments_1_Value) MergeToolExecutionConfigArgument
 	return err
 }
 
-// AsToolExecutionConfigArguments1Value2 returns the union data inside the ToolExecutionConfig_Arguments_1_Value as a ToolExecutionConfigArguments1Value2
-func (t ToolExecutionConfig_Arguments_1_Value) AsToolExecutionConfigArguments1Value2() (ToolExecutionConfigArguments1Value2, error) {
-	var body ToolExecutionConfigArguments1Value2
+// AsToolExecutionConfigArguments3Value2 returns the union data inside the ToolExecutionConfig_Arguments_3_Value as a ToolExecutionConfigArguments3Value2
+func (t ToolExecutionConfig_Arguments_3_Value) AsToolExecutionConfigArguments3Value2() (ToolExecutionConfigArguments3Value2, error) {
+	var body ToolExecutionConfigArguments3Value2
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromToolExecutionConfigArguments1Value2 overwrites any union data inside the ToolExecutionConfig_Arguments_1_Value as the provided ToolExecutionConfigArguments1Value2
-func (t *ToolExecutionConfig_Arguments_1_Value) FromToolExecutionConfigArguments1Value2(v ToolExecutionConfigArguments1Value2) error {
+// FromToolExecutionConfigArguments3Value2 overwrites any union data inside the ToolExecutionConfig_Arguments_3_Value as the provided ToolExecutionConfigArguments3Value2
+func (t *ToolExecutionConfig_Arguments_3_Value) FromToolExecutionConfigArguments3Value2(v ToolExecutionConfigArguments3Value2) error {
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeToolExecutionConfigArguments1Value2 performs a merge with any union data inside the ToolExecutionConfig_Arguments_1_Value, using the provided ToolExecutionConfigArguments1Value2
-func (t *ToolExecutionConfig_Arguments_1_Value) MergeToolExecutionConfigArguments1Value2(v ToolExecutionConfigArguments1Value2) error {
+// MergeToolExecutionConfigArguments3Value2 performs a merge with any union data inside the ToolExecutionConfig_Arguments_3_Value, using the provided ToolExecutionConfigArguments3Value2
+func (t *ToolExecutionConfig_Arguments_3_Value) MergeToolExecutionConfigArguments3Value2(v ToolExecutionConfigArguments3Value2) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -13402,12 +13508,12 @@ func (t *ToolExecutionConfig_Arguments_1_Value) MergeToolExecutionConfigArgument
 	return err
 }
 
-func (t ToolExecutionConfig_Arguments_1_Value) MarshalJSON() ([]byte, error) {
+func (t ToolExecutionConfig_Arguments_3_Value) MarshalJSON() ([]byte, error) {
 	b, err := t.union.MarshalJSON()
 	return b, err
 }
 
-func (t *ToolExecutionConfig_Arguments_1_Value) UnmarshalJSON(b []byte) error {
+func (t *ToolExecutionConfig_Arguments_3_Value) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }
@@ -13454,6 +13560,58 @@ func (t *ToolExecutionConfig_Arguments_AdditionalProperties) FromToolExecutionCo
 
 // MergeToolExecutionConfigArguments1 performs a merge with any union data inside the ToolExecutionConfig_Arguments_AdditionalProperties, using the provided ToolExecutionConfigArguments1
 func (t *ToolExecutionConfig_Arguments_AdditionalProperties) MergeToolExecutionConfigArguments1(v ToolExecutionConfigArguments1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsToolExecutionConfigArguments2 returns the union data inside the ToolExecutionConfig_Arguments_AdditionalProperties as a ToolExecutionConfigArguments2
+func (t ToolExecutionConfig_Arguments_AdditionalProperties) AsToolExecutionConfigArguments2() (ToolExecutionConfigArguments2, error) {
+	var body ToolExecutionConfigArguments2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromToolExecutionConfigArguments2 overwrites any union data inside the ToolExecutionConfig_Arguments_AdditionalProperties as the provided ToolExecutionConfigArguments2
+func (t *ToolExecutionConfig_Arguments_AdditionalProperties) FromToolExecutionConfigArguments2(v ToolExecutionConfigArguments2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeToolExecutionConfigArguments2 performs a merge with any union data inside the ToolExecutionConfig_Arguments_AdditionalProperties, using the provided ToolExecutionConfigArguments2
+func (t *ToolExecutionConfig_Arguments_AdditionalProperties) MergeToolExecutionConfigArguments2(v ToolExecutionConfigArguments2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsToolExecutionConfigArguments3 returns the union data inside the ToolExecutionConfig_Arguments_AdditionalProperties as a ToolExecutionConfigArguments3
+func (t ToolExecutionConfig_Arguments_AdditionalProperties) AsToolExecutionConfigArguments3() (ToolExecutionConfigArguments3, error) {
+	var body ToolExecutionConfigArguments3
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromToolExecutionConfigArguments3 overwrites any union data inside the ToolExecutionConfig_Arguments_AdditionalProperties as the provided ToolExecutionConfigArguments3
+func (t *ToolExecutionConfig_Arguments_AdditionalProperties) FromToolExecutionConfigArguments3(v ToolExecutionConfigArguments3) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeToolExecutionConfigArguments3 performs a merge with any union data inside the ToolExecutionConfig_Arguments_AdditionalProperties, using the provided ToolExecutionConfigArguments3
+func (t *ToolExecutionConfig_Arguments_AdditionalProperties) MergeToolExecutionConfigArguments3(v ToolExecutionConfigArguments3) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err

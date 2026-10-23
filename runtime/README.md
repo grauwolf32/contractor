@@ -293,6 +293,46 @@ detection. It accepts either an exact `request_ref` for one prepared HTTP
 request or the existing URL, parameter selection, POST data and cookie
 arguments; both modes accept level and risk. Naabu uses TCP CONNECT scanning
 on one hostname/IP and explicit ports.
+The shipped `nuclei-web@1` Workflow runs this tool without a model. Supply
+`target`, optionally `template_ids`, `tags`, `severity` and a canonical decimal
+`rate_limit` from 1 through 1000 (default 10). It pins the complete Ansible
+nuclei-templates v10.5.0 package. Runtime copies and hashes every file, including
+resources, and scans only the verified private snapshot. A different installation
+fails before scanning. For an operator-managed package, compute its content pin
+and update the `templates_digest` literal in `nuclei-web-scan@1`:
+
+```shell
+cd runtime
+uv run python -m contractor_runtime.toolsets.scan.nuclei_package /path/to/nuclei-templates
+```
+
+The command only copies/hashes local files. The Run returns a bounded `report`
+and an exact `template_manifest` containing package file digests, engine-selected
+template IDs/content digests and engine version. Empty selections fail. A model
+is never called and a completed scan does not establish a secure target.
+
+To scan a selected scope of Projects through ordinary Project Runs:
+
+```shell
+contractor scan-sweep create sweep.json --project PROJECT_A --project PROJECT_B \
+  --param template_ids=CVE-example --param rate_limit=10
+contractor scan-sweep resume sweep.json
+contractor scan-sweep status sweep.json
+```
+
+Use `--all` instead of repeated `--project` only when every Project page should
+be selected (maximum 1000). The mode-0600 manifest records target URLs and exact
+input revisions before the first Run POST; resume never refreshes those inputs.
+Use a new file/create invocation for new inputs. `--timeout` bounds an API
+attempt; `--deadline` bounds the command (default 30m, maximum 24h). Known
+permanent errors and missing/deleting/targetless Projects retain explicit member
+reasons; unknown/permanent failures produce a nonzero exit after other eligible
+members progress. `created` means accepted: inspect `contractor run get RUN_ID`
+for actual execution/results. The Unix lock sidecar releases on process exit;
+remove the manifest and its `.lock` sidecar only while no command is active.
+Neither file deletion nor command cancellation deletes or cancels created Runs.
+
+
 See upstream CLI references for [nuclei](https://github.com/projectdiscovery/nuclei),
 [sqlmap](https://github.com/sqlmapproject/sqlmap/wiki/usage) and
 [naabu](https://github.com/projectdiscovery/naabu).

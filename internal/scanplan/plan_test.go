@@ -340,6 +340,12 @@ func TestBuildPlanRejectsMalformedOrUnboundedWholeInput(t *testing.T) {
 		"literal target": func(_ *scanplan.PlanInput, _ *scan.ScanPlanPolicy, b map[string]scanplan.ToolBinding) {
 			b["nuclei"].Template.Execution.Arguments["url"] = contracts.ToolArgumentBinding{Source: "literal", Value: "https://unplanned.test/"}
 		},
+		"parsed dynamic target": func(_ *scanplan.PlanInput, _ *scan.ScanPlanPolicy, b map[string]scanplan.ToolBinding) {
+			b["nuclei"].Template.Execution.Arguments["url"] = contracts.ToolArgumentBinding{Source: "parameter", Name: "target", Parse: "integer"}
+		},
+		"defaulted dynamic target": func(_ *scanplan.PlanInput, _ *scan.ScanPlanPolicy, b map[string]scanplan.ToolBinding) {
+			b["nuclei"].Template.Execution.Arguments["url"] = contracts.ToolArgumentBinding{Source: "parameter", Name: "target", Default: "https://unexpected.test/"}
+		},
 		"extra dynamic argument": func(_ *scanplan.PlanInput, _ *scan.ScanPlanPolicy, b map[string]scanplan.ToolBinding) {
 			b["nuclei"].Template.Execution.Arguments["templates"] = contracts.ToolArgumentBinding{Source: "parameter", Name: "unplanned"}
 		},

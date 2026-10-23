@@ -178,7 +178,7 @@ func (p ScanPlan) Validate() error {
 				return bad()
 			}
 		case "scan_naabu":
-			if job.Request != nil || len(job.Parameters) != 1 || len(job.Artifacts) != 0 || !scanHost(job.Parameters["target"]) || job.Parameters["target"] != strings.ToLower(job.Parameters["target"]) {
+			if job.Request != nil || len(job.Parameters) != 1 || len(job.Artifacts) != 0 || !scan.ValidHost(job.Parameters["target"]) || job.Parameters["target"] != strings.ToLower(job.Parameters["target"]) {
 				return bad()
 			}
 		case "scan_nuclei", "scan_ffuf":
@@ -275,7 +275,7 @@ func validPlanExecution(execution contracts.ToolExecutionConfig) bool {
 	}
 	for name, expected := range dynamic {
 		actual, exists := execution.Arguments[name]
-		if !exists || actual.Source != expected.Source || actual.Name != expected.Name || actual.Value != nil {
+		if !exists || actual.Source != expected.Source || actual.Name != expected.Name || actual.Value != nil || actual.Parse != "" || actual.Default != nil || actual.Optional {
 			return false
 		}
 	}

@@ -7,6 +7,10 @@
   "codes": [
     {"errorCode": "scanner_unavailable", "exitCode": null, "outcome": "unavailable"},
     {"errorCode": "nuclei_templates_unavailable", "exitCode": null, "outcome": "unavailable"},
+    {"errorCode": "nuclei_rulepack_invalid", "exitCode": null, "outcome": "incomplete"},
+    {"errorCode": "nuclei_package_invalid", "exitCode": null, "outcome": "incomplete"},
+    {"errorCode": "nuclei_package_mismatch", "exitCode": null, "outcome": "incomplete"},
+    {"errorCode": "nuclei_selection_invalid", "exitCode": null, "outcome": "incomplete"},
     {"errorCode": "scan_closed", "exitCode": null, "outcome": "incomplete"},
     {"errorCode": "scan_proxy_unsupported", "exitCode": null, "outcome": "incomplete"},
     {"errorCode": "scan_target_denied", "exitCode": null, "outcome": "incomplete"},

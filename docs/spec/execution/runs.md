@@ -259,8 +259,10 @@ missing required parameters, unknown names and every non-string value,
 including numbers, booleans, arrays, objects and null.
 
 **RUN-R12.** Server performs no coercion, trimming,
-interpolation or structured parsing of parameters. An empty string is a valid
-supplied string.
+interpolation or structured parsing of the stored parameter mapping. An empty
+string is a valid supplied string. Explicit tool-argument parsing and defaults
+are a separate validation projection (SCN-R222 to SCN-R224 in
+[Scanners](../tools/scanners.md)); they never rewrite the accepted mapping.
 
 **RUN-R13.** The exact validated mapping is stored durably with the
 Run and is immutable for its lifetime (LIFE-RUN-1). Retrying a Stage does not
@@ -791,7 +793,8 @@ treating RunScope refs as UserScope or ProjectScope inputs.
 
 **RUN-R99.** Run creation retains the bounded non-secret request
 fragment that the projection needs, in the same transaction as the input forks.
-The fragment stores the exact original source refs and the requested execution
+The strict `contractor.run-repeat-request/v2` fragment stores each exact original
+source ref together with its `sourceScope` (`user` or `project`) and the requested execution
 selections; it may retain credential identities, and must not retain
 credential values or resolved RuntimeSettings. It is held in the `repeat-request`
 binding of the hidden `contractor-system` Namespace
@@ -807,7 +810,9 @@ configuration may reconstruct the original request (FAIL-RUN-8).
 
 **RUN-R102.** An explicitly retained empty executionConfig object
 is valid; an omitted or null object is invalid. Repeat-draft reads never
-repair or rewrite retained data.
+repair or rewrite retained data. Unscoped prior fragment versions are invalid.
+If the current Workflow selects a different source scope for an input, its
+repeat selection is unavailable with `input_source_scope_changed`.
 
 **RUN-R103.** The projection validates that the exact Workflow,
 Project, source revisions, selected configurations, credential identities and

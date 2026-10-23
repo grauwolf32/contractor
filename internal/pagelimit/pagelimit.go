@@ -10,6 +10,8 @@
 package pagelimit
 
 const (
+	// MaxCursorBytes bounds the shared public continuation cursor (API-R67).
+	MaxCursorBytes = 512
 	// MaxRows is the largest page a public list returns.
 	MaxRows = 200
 	// MaxFetchRows is the largest read a store accepts for one public page:

@@ -9,7 +9,7 @@ import contractor_runtime.toolsets.scan as scan_package
 ROOT = Path(__file__).parents[2]
 CASES = json.loads((ROOT / "api/scan/v1/testdata/worker-error-codes.json").read_text())
 CODE_TARGETS = {"error", "error_code", "errorCode"}
-CODE_EXCEPTIONS = {"ScannerUnavailable", "ScanTargetRefused"}
+CODE_EXCEPTIONS = {"ScannerUnavailable", "ScanTargetRefused", "PackageError"}
 
 
 def _string_constants(node: ast.AST) -> set[str]:

@@ -50,7 +50,7 @@ def test_capabilities_check_each_binary_independently(tmp_path, monkeypatch, ava
         path.write_text(f"#!/bin/sh\n{source}\n")
         path.chmod(0o700)
     monkeypatch.setenv("PATH", str(tmp_path))
-    monkeypatch.setattr(scan, "PROBE_TIMEOUT_SECONDS", 0.2)
+    # Fresh script launch on macOS can exceed 200 ms; keep the production probe budget.
 
     async def scenario():
         factory = scan.ScanToolsetFactory()
@@ -680,5 +680,725 @@ def test_installed_nuclei_comma_url_does_not_scan_second_origin(tmp_path):
         assert requests["allowed"] > 0
         assert requests["other"] == 0
         await tools["scan_nuclei"].close()
+
+    asyncio.run(scenario())
+
+
+# The installed package path is shared by discovery, standalone tools and the
+# model-free Worker. Test private bytes and provenance on the actual adapter.
+def test_shared_nuclei_inputs():
+    from contractor_runtime.core.input_errors import ToolInputError
+    from contractor_runtime.toolsets.scan.nuclei_inputs import validate_nuclei_arguments
+
+    root = Path(__file__).parents[2]
+    fixture = json.loads((root / "api/testdata/nuclei-input-cases.json").read_text())
+    from contractor_runtime.toolsets.scan.nuclei_rulepack import (
+        MAX_FILE_BYTES,
+        MAX_ZIP_BYTES,
+        RULEPACK_MEDIA_TYPE,
+    )
+
+    assert fixture["rulepackLimits"] == {
+        "zipBytes": MAX_ZIP_BYTES,
+        "fileBytes": MAX_FILE_BYTES,
+        "mediaType": RULEPACK_MEDIA_TYPE,
+    }
+    for case in fixture["cases"]:
+        try:
+            validate_nuclei_arguments(case["arguments"])
+            valid = True
+        except ToolInputError:
+            valid = False
+        assert valid == case["valid"], case["name"]
+
+
+def test_shared_nuclei_package_canonical_manifest():
+    from contractor_runtime.digests import jcs_digest
+
+    root = Path(__file__).parents[2]
+    fixture = json.loads((root / "api/testdata/nuclei-package-manifest.json").read_text())
+    assert jcs_digest(fixture["manifest"]) == fixture["digest"]
+
+
+NUCLEI_PIN_FIXTURE = (
+    "id: contractor-pin-fixture\ninfo:\n  name: Pinned local fixture\n"
+    "  author: contractor\n  severity: info\n  tags: contractor,fixture\n"
+    'http:\n  - method: GET\n    path: ["{{BaseURL}}/"]\n'
+    "    matchers:\n      - type: word\n        words: [contractor-pin-fixture]\n"
+)
+
+
+def package_pin(source, destination):
+    import time
+
+    from contractor_runtime.toolsets.scan.nuclei_package import snapshot_package
+
+    return snapshot_package(source, destination, time.monotonic() + 30).digest
+
+
+def install_pin_scanner(tmp_path, monkeypatch, *, mode="completed", mutate=False):
+    marker = tmp_path / "scans"
+    pid = tmp_path / "scan.pid"
+    source = (
+        "import json, os, pathlib, sys, time\n"
+        "if '-version' in sys.argv:\n"
+        "    print('Nuclei Engine Version: v3.11.1')\n"
+        "elif '-validate' in sys.argv:\n"
+        f"    sys.exit({2 if mode == 'invalid_rules' else 0})\n"
+        "elif '-tl' in sys.argv:\n"
+        "    root = pathlib.Path(sys.argv[sys.argv.index('-t')+1])\n"
+        "    print('\\n'.join(str(p.relative_to(root)) for p in sorted(root.rglob('*.yaml'))))\n"
+        "else:\n"
+        f"    pathlib.Path({str(marker)!r}).open('a').write('scan\\n')\n"
+        f"    pathlib.Path({str(pid)!r}).write_text(str(os.getpid()))\n"
+        "    root = pathlib.Path(sys.argv[sys.argv.index('-t')+1])\n"
+    )
+    if mutate:
+        source += (
+            f"    pathlib.Path({str(tmp_path / 'templates/fixture.yaml')!r})"
+            ".write_text('mutated installed bytes')\n"
+        )
+    if mode == "timeout":
+        source += "    time.sleep(60)\n"
+    elif mode == "failed":
+        source += "    sys.exit(2)\n"
+    else:
+        source += "    print(json.dumps({'privateBytes': next(root.glob('*.yaml')).read_text()}))\n"
+    executable(tmp_path, "nuclei", source)
+    monkeypatch.setenv("PATH", str(tmp_path))
+    return marker, pid
+
+
+@pytest.mark.parametrize("change", ["template", "resource", "replacement", "symlink"])
+def test_nuclei_package_mismatch_never_launches(tmp_path, monkeypatch, change):
+    from test_tool_worker import ArtifactStore
+
+    from contractor_runtime.artifacts import ArtifactClient
+
+    marker, _ = install_pin_scanner(tmp_path, monkeypatch)
+
+    async def scenario():
+        tools, _ = await make_tools(tmp_path, selected=["scan_nuclei"])
+        tool = tools["scan_nuclei"]
+        tool._session.artifact_client = ArtifactClient("allocation", ArtifactStore())
+        source = tmp_path / "templates"
+        (source / "fixture.yaml").write_text(NUCLEI_PIN_FIXTURE)
+        (source / "words.txt").write_text("first")
+        digest = package_pin(source, tmp_path / "reference")
+        if change == "template":
+            (source / "fixture.yaml").write_text(NUCLEI_PIN_FIXTURE + "# changed\n")
+        elif change == "resource":
+            (source / "words.txt").write_text("second")
+        elif change == "replacement":
+            digest = "sha256:" + "f" * 64
+        else:
+            (source / "words.txt").unlink()
+            (source / "words.txt").symlink_to(tmp_path / "reference/words.txt")
+        value = await tool("http://target.invalid/", templates_digest=digest)
+        assert value["status"] == "failed"
+        assert value["errorCode"] == (
+            "nuclei_package_invalid" if change == "symlink" else "nuclei_package_mismatch"
+        )
+        assert not marker.exists()
+        await tool.close()
+        assert not list((tmp_path / "workspace").iterdir())
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("outcome", ["completed", "failed", "timeout", "unknown"])
+def test_shared_nuclei_pinned_worker_manifest_receipt_and_private_bytes(
+    tmp_path, monkeypatch, outcome
+):
+    from test_tool_worker import ArtifactStore, request, tool_spec, worker
+
+    from contractor_runtime.artifacts import ArtifactClient
+    from contractor_runtime.contracts import ArtifactRef
+    from contractor_runtime.contracts.tool_execution import ToolArgumentBinding
+    from contractor_runtime.digests import _agent_template_digest
+
+    marker, pid = install_pin_scanner(tmp_path, monkeypatch, mode=outcome, mutate=True)
+
+    async def scenario():
+        tools, _ = await make_tools(tmp_path, selected=["scan_nuclei"])
+        tool = tools["scan_nuclei"]
+        store, spec = ArtifactStore(), tool_spec()
+        tool._session.artifact_client = ArtifactClient(spec.allocation_id, store)
+        tool._session.namespace = spec.namespace
+        source = tmp_path / "templates"
+        (source / "fixture.yaml").write_text(NUCLEI_PIN_FIXTURE)
+        digest = package_pin(source, tmp_path / "reference")
+        for name, value in {
+            "templates_digest": digest,
+            "timeout_seconds": 1 if outcome == "timeout" else 15,
+        }.items():
+            spec.agent_template.execution.arguments[name] = ToolArgumentBinding(
+                source="literal", value=value
+            )
+        spec.agent_template.ref.digest = _agent_template_digest(spec.agent_template)
+        value = request(spec, target="http://target.invalid/")
+        value.result_artifacts["template_manifest"] = ArtifactRef(
+            namespace=spec.namespace, name="template-manifest"
+        )
+        runtime = await worker(tmp_path, store, tool, spec=spec)
+        store.fail_terminal = outcome == "unknown"
+        completion = await runtime.invoke(value)
+        expected = {
+            "failed": "tool_execution_failed",
+            "timeout": "tool_execution_failed",
+            "unknown": "tool_outcome_unknown",
+        }
+        if outcome in expected:
+            assert completion.failure.code == expected[outcome], completion
+        else:
+            assert completion.failure is None, completion
+        data, _, revision = store.values[(spec.namespace, "template-manifest")]
+        manifest = json.loads(data)
+        assert manifest["packageDigest"] == digest
+        assert manifest["selectedTemplates"][0]["id"] == "contractor-pin-fixture"
+        assert manifest["engineVersion"] == "v3.11.1"
+        if outcome == "completed":
+            report = json.loads(store.values[(spec.namespace, "report")][0])
+            observation = report["observation"]
+            assert observation["results"][0]["privateBytes"] == NUCLEI_PIN_FIXTURE
+            assert observation["templateManifest"]["revision"] == revision
+            assert (
+                observation["expectedPackageDigest"] == observation["actualPackageDigest"] == digest
+            )
+        # Re-created allocation uses durable receipts, even though installed bytes changed.
+        recreated = await worker(tmp_path, store, tool, spec=spec)
+        replay = await recreated.invoke(value)
+        assert replay.failure == completion.failure
+        assert marker.read_text() == "scan\n"
+        await tool.close()
+        assert not list((tmp_path / "workspace").iterdir())
+        with pytest.raises(ProcessLookupError):
+            import os
+
+            os.kill(int(pid.read_text()), 0)
+
+    asyncio.run(scenario())
+
+
+def test_shared_nuclei_large_package_manifest_survives_worker_and_replay(tmp_path, monkeypatch):
+    from test_tool_worker import ArtifactStore, request, tool_spec, worker
+
+    from contractor_runtime.artifacts import ArtifactClient
+    from contractor_runtime.contracts import ArtifactRef
+    from contractor_runtime.contracts.tool_execution import ToolArgumentBinding
+    from contractor_runtime.digests import _agent_template_digest
+
+    marker, _ = install_pin_scanner(tmp_path, monkeypatch)
+
+    async def scenario():
+        tools, _ = await make_tools(tmp_path, selected=["scan_nuclei"])
+        tool = tools["scan_nuclei"]
+        source = tmp_path / "templates"
+        (source / "fixture.yaml").write_text(NUCLEI_PIN_FIXTURE)
+        for index in range(12_000):
+            (source / f"rule-{index:05}.yaml").write_text(
+                NUCLEI_PIN_FIXTURE.replace("contractor-pin-fixture", f"rule-{index:05}")
+            )
+        digest = package_pin(source, tmp_path / "reference")
+        store, spec = ArtifactStore(), tool_spec()
+        tool._session.artifact_client = ArtifactClient(spec.allocation_id, store)
+        tool._session.namespace = spec.namespace
+        spec.agent_template.execution.arguments["templates_digest"] = ToolArgumentBinding(
+            source="literal", value=digest
+        )
+        spec.agent_template.ref.digest = _agent_template_digest(spec.agent_template)
+        value = request(spec)
+        value.result_artifacts["template_manifest"] = ArtifactRef(
+            namespace=spec.namespace, name="template-manifest"
+        )
+        runtime = await worker(tmp_path, store, tool, spec=spec)
+        completion = await runtime.invoke(value)
+        assert completion.failure is None, completion
+        manifest = store.values[(spec.namespace, "template-manifest")][0]
+        assert 512 * 1024 < len(manifest) < 16 * 1024 * 1024
+        assert len(json.loads(manifest)["selectedTemplates"]) == 12_001
+        assert len(store.values[(spec.namespace, "report")][0]) < 512 * 1024
+        recreated = await worker(tmp_path, store, tool, spec=spec)
+        replay = await recreated.invoke(value)
+        assert replay.result.artifacts == completion.result.artifacts
+        assert marker.read_text() == "scan\n"
+        await tool.close()
+        assert not list((tmp_path / "workspace").iterdir())
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "bound", ["files", "file_bytes", "total_bytes", "manifest_bytes", "deadline"]
+)
+def test_nuclei_package_bounds(tmp_path, monkeypatch, bound):
+    import time
+
+    from contractor_runtime.toolsets.scan import nuclei_package as package
+
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "a.yaml").write_text(NUCLEI_PIN_FIXTURE)
+    (source / "words.txt").write_text("resource")
+    if bound != "deadline":
+        constant = {
+            "files": "MAX_FILES",
+            "file_bytes": "MAX_FILE_BYTES",
+            "total_bytes": "MAX_PACKAGE_BYTES",
+            "manifest_bytes": "MAX_MANIFEST_BYTES",
+        }[bound]
+        monkeypatch.setattr(package, constant, 1)
+    with pytest.raises(package.PackageError) as error:
+        package.snapshot_package(
+            source, tmp_path / "private", 0 if bound == "deadline" else time.monotonic() + 5
+        )
+    assert str(error.value) == ("scan_timeout" if bound == "deadline" else "nuclei_package_invalid")
+
+
+def test_nuclei_snapshot_thread_joined_before_cancelled_cleanup(tmp_path, monkeypatch):
+    import threading
+
+    from contractor_runtime import threads
+
+    entered, finish, exited = threading.Event(), threading.Event(), threading.Event()
+
+    def copy():
+        entered.set()
+        finish.wait()
+        (tmp_path / "complete").write_text("joined")
+        exited.set()
+
+    async def scenario():
+        task = asyncio.create_task(
+            threads.to_thread_until_done(copy, name="nuclei-package-snapshot")
+        )
+        await asyncio.to_thread(entered.wait)
+        task.cancel()
+        await asyncio.sleep(0)
+        assert not task.done()
+        finish.set()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert exited.is_set()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.skipif(shutil.which("nuclei") is None, reason="optional nuclei binary is absent")
+def test_installed_nuclei_pinned_package_and_manifest(tmp_path):
+    from test_tool_worker import ArtifactStore
+
+    from contractor_runtime.artifacts import ArtifactClient
+
+    requests = []
+
+    async def handle(reader, writer):
+        requests.append(await reader.readuntil(b"\r\n\r\n"))
+        body = b"contractor-pin-fixture"
+        writer.write(
+            b"HTTP/1.1 200 OK\r\nConnection: close\r\n"
+            + f"Content-Length: {len(body)}\r\n\r\n".encode()
+            + body
+        )
+        await writer.drain()
+        writer.close()
+        await writer.wait_closed()
+
+    async def scenario():
+        tools, _ = await make_tools(tmp_path, selected=["scan_nuclei"])
+        tool = tools["scan_nuclei"]
+        store = ArtifactStore()
+        tool._session.artifact_client = ArtifactClient("allocation", store)
+        (tmp_path / "templates/fixture.yaml").write_text(
+            NUCLEI_PIN_FIXTURE.replace("{{BaseURL}}/", "{{BaseURL}}/{{word}}").replace(
+                "    matchers:", "    payloads:\n      word: helpers/words.txt\n    matchers:"
+            )
+        )
+        (tmp_path / "templates/helpers").mkdir()
+        (tmp_path / "templates/helpers/words.txt").write_text("private-resource\n")
+        digest = package_pin(tmp_path / "templates", tmp_path / "reference")
+        async with await asyncio.start_server(handle, "127.0.0.1", 0) as server:
+            port = server.sockets[0].getsockname()[1]
+            result = await tool(
+                f"http://127.0.0.1:{port}/", templates_digest=digest, timeout_seconds=15
+            )
+        assert result["status"] == "completed", result
+        assert result["results"][0]["template-id"] == "contractor-pin-fixture"
+        assert result["templateManifest"]["revision"]
+        assert len(requests) == 1 and requests[0].startswith(b"GET /private-resource ")
+        await tool.close()
+        assert not list((tmp_path / "workspace").iterdir())
+
+    asyncio.run(scenario())
+
+
+def test_shared_nuclei_cancel_joins_process_and_never_rescans(tmp_path, monkeypatch):
+    from datetime import UTC, datetime, timedelta
+
+    from test_tool_worker import ArtifactStore, request, tool_spec, worker
+
+    from contractor_runtime.artifacts import ArtifactClient
+    from contractor_runtime.contracts import ArtifactRef
+    from contractor_runtime.contracts.tool_execution import ToolArgumentBinding
+    from contractor_runtime.digests import _agent_template_digest
+
+    marker, pid = install_pin_scanner(tmp_path, monkeypatch, mode="timeout")
+
+    async def scenario():
+        tools, _ = await make_tools(tmp_path, selected=["scan_nuclei"])
+        tool = tools["scan_nuclei"]
+        store, spec = ArtifactStore(), tool_spec()
+        tool._session.artifact_client = ArtifactClient(spec.allocation_id, store)
+        tool._session.namespace = spec.namespace
+        (tmp_path / "templates/fixture.yaml").write_text(NUCLEI_PIN_FIXTURE)
+        digest = package_pin(tmp_path / "templates", tmp_path / "reference")
+        spec.agent_template.execution.arguments["templates_digest"] = ToolArgumentBinding(
+            source="literal", value=digest
+        )
+        spec.agent_template.ref.digest = _agent_template_digest(spec.agent_template)
+        value = request(spec)
+        value.result_artifacts["template_manifest"] = ArtifactRef(
+            namespace=spec.namespace, name="template-manifest"
+        )
+        runtime = await worker(tmp_path, store, tool, spec=spec)
+        task = asyncio.create_task(runtime.invoke(value))
+        async with asyncio.timeout(5):
+            while not pid.exists() or not pid.read_text():
+                await asyncio.sleep(0.01)
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=5))
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        await tool.close()
+        assert not list((tmp_path / "workspace").iterdir())
+        with pytest.raises(ProcessLookupError):
+            import os
+
+            os.kill(int(pid.read_text()), 0)
+        recreated = await worker(tmp_path, store, tool, spec=spec)
+        assert (await recreated.invoke(value)).failure.code == "tool_outcome_unknown"
+        assert marker.read_text() == "scan\n"
+        assert (spec.namespace, "template-manifest") in store.values
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("ambiguous", [False, True])
+def test_shared_nuclei_manifest_publication_failure_never_scans(tmp_path, monkeypatch, ambiguous):
+    from test_tool_worker import ArtifactStore, request, tool_spec, worker
+
+    from contractor_runtime.artifacts import ArtifactClient, ArtifactTransportError
+    from contractor_runtime.contracts import ArtifactRef
+    from contractor_runtime.contracts.tool_execution import ToolArgumentBinding
+    from contractor_runtime.digests import _agent_template_digest
+
+    class ManifestFailureStore(ArtifactStore):
+        async def request(self, method, path, **kwargs):
+            if method == "PUT" and path.endswith("/template-manifest"):
+                if ambiguous:
+                    await super().request(method, path, **kwargs)
+                raise ArtifactTransportError("manifest response unavailable")
+            return await super().request(method, path, **kwargs)
+
+    marker, _ = install_pin_scanner(tmp_path, monkeypatch)
+
+    async def scenario():
+        tools, _ = await make_tools(tmp_path, selected=["scan_nuclei"])
+        tool = tools["scan_nuclei"]
+        store, spec = ManifestFailureStore(), tool_spec()
+        tool._session.artifact_client = ArtifactClient(spec.allocation_id, store)
+        tool._session.namespace = spec.namespace
+        (tmp_path / "templates/fixture.yaml").write_text(NUCLEI_PIN_FIXTURE)
+        digest = package_pin(tmp_path / "templates", tmp_path / "reference")
+        spec.agent_template.execution.arguments["templates_digest"] = ToolArgumentBinding(
+            source="literal", value=digest
+        )
+        spec.agent_template.ref.digest = _agent_template_digest(spec.agent_template)
+        value = request(spec)
+        value.result_artifacts["template_manifest"] = ArtifactRef(
+            namespace=spec.namespace, name="template-manifest"
+        )
+        runtime = await worker(tmp_path, store, tool, spec=spec)
+        assert (await runtime.invoke(value)).failure.code == "tool_execution_failed"
+        recreated = await worker(tmp_path, store, tool, spec=spec)
+        assert (await recreated.invoke(value)).failure.code == "tool_execution_failed"
+        assert not marker.exists()
+        assert ((spec.namespace, "template-manifest") in store.values) == ambiguous
+        await tool.close()
+        assert not list((tmp_path / "workspace").iterdir())
+
+    asyncio.run(scenario())
+
+
+def rulepack_zip(entries, *, stored=False):
+    import io
+    import zipfile
+
+    stream = io.BytesIO()
+    with zipfile.ZipFile(
+        stream, "w", zipfile.ZIP_STORED if stored else zipfile.ZIP_DEFLATED
+    ) as archive:
+        for name, content in entries:
+            archive.writestr(name, content)
+    return stream.getvalue()
+
+
+def test_rulepack_complete_pack_and_real_cardinality_bounds(tmp_path):
+    import time
+
+    from contractor_runtime.toolsets.scan.nuclei_rulepack import (
+        MAX_FILES,
+        RULEPACK_MEDIA_TYPE,
+        materialize_rulepack,
+    )
+
+    entries = [
+        (f"rule-{i}.yaml", NUCLEI_PIN_FIXTURE.replace("contractor-pin-fixture", f"fixture-{i}"))
+        for i in range(MAX_FILES)
+    ]
+    snapshot, identifiers, digest = materialize_rulepack(
+        rulepack_zip(entries),
+        RULEPACK_MEDIA_TYPE,
+        tmp_path / "accepted",
+        time.monotonic() + 30,
+    )
+    assert len(snapshot.files) == len(identifiers) == MAX_FILES
+    assert snapshot.digest.startswith("sha256:") and digest != snapshot.digest
+    entries.append(("overflow.yaml", NUCLEI_PIN_FIXTURE))
+    from contractor_runtime.toolsets.scan.nuclei_package import PackageError
+
+    with pytest.raises(PackageError, match="nuclei_rulepack_invalid"):
+        materialize_rulepack(
+            rulepack_zip(entries), RULEPACK_MEDIA_TYPE, tmp_path / "overflow", time.monotonic() + 30
+        )
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "traversal",
+        "absolute",
+        "directory",
+        "backslash",
+        "symlink",
+        "duplicate",
+        "case",
+        "duplicate_id",
+        "non_template",
+        "non_http",
+        "mixed",
+        "alias",
+        "duplicate_key",
+        "multi_document",
+        "invalid_utf8",
+        "oversize",
+        "expanded",
+        "zip_bytes",
+        "deadline",
+        "empty",
+        "unknown_media",
+        "too_deep",
+        "tokens",
+        "lying_count",
+        "truncated",
+        "appended",
+    ],
+)
+def test_rulepack_rejects_entire_invalid_pack(tmp_path, case):
+    import stat
+    import struct
+    import time
+    import zipfile
+
+    from contractor_runtime.toolsets.scan.nuclei_package import PackageError
+    from contractor_runtime.toolsets.scan.nuclei_rulepack import (
+        MAX_FILE_BYTES,
+        RULEPACK_MEDIA_TYPE,
+        materialize_rulepack,
+    )
+
+    content = NUCLEI_PIN_FIXTURE
+    entries = [("valid.yaml", content)]
+    media = RULEPACK_MEDIA_TYPE
+    deadline = time.monotonic() + 30
+    if case in {"traversal", "absolute", "directory", "backslash"}:
+        entries.append(
+            (
+                {
+                    "traversal": "../evil.yaml",
+                    "absolute": "/evil.yaml",
+                    "directory": "nested/evil.yaml",
+                    "backslash": "dir\\evil.yaml",
+                }[case],
+                content,
+            )
+        )
+    elif case == "symlink":
+        link = zipfile.ZipInfo("link.yaml")
+        link.create_system = 3
+        link.external_attr = (stat.S_IFLNK | 0o777) << 16
+        entries.append((link, "valid.yaml"))
+    elif case in {"duplicate", "case"}:
+        entries.append(("valid.yaml" if case == "duplicate" else "VALID.yaml", content))
+    elif case == "duplicate_id":
+        entries.append(("other.yaml", content))
+    elif case in {"non_template", "non_http", "mixed"}:
+        entries.append(
+            (
+                "bad.yaml",
+                "words: [test]"
+                if case == "non_template"
+                else content.replace("http:", "dns:")
+                if case == "non_http"
+                else content + "\ncode: [{engine: [sh], source: echo}]\n",
+            )
+        )
+    elif case == "alias":
+        entries.append(("bad.yaml", content + "\nvariables: {a: &a value, b: *a}\n"))
+    elif case == "duplicate_key":
+        entries.append(("bad.yaml", content + "\nid: different\n"))
+    elif case == "multi_document":
+        entries.append(("bad.yaml", content + "\n---\n" + content))
+    elif case == "invalid_utf8":
+        entries.append(("bad.yaml", b"\xff"))
+    elif case == "oversize":
+        entries.append(("bad.yaml", "x" * (MAX_FILE_BYTES + 1)))
+    elif case == "zip_bytes":
+        entries = [
+            (
+                f"{i}.yaml",
+                content.replace("contractor-pin-fixture", f"fixture-{i}")
+                + "#"
+                + "x" * (MAX_FILE_BYTES - len(content) - 2),
+            )
+            for i in range(17)
+        ]
+    elif case == "expanded":
+        # Each file is valid and individually bounded; aggregate expansion fails.
+        entries = [
+            (
+                f"{i}.yaml",
+                content.replace("contractor-pin-fixture", f"fixture-{i}")
+                + "#"
+                + "x" * (MAX_FILE_BYTES - len(content) - 2),
+            )
+            for i in range(66)
+        ]
+    elif case == "deadline":
+        deadline = 0
+    elif case == "empty":
+        entries = []
+    elif case == "unknown_media":
+        media = "application/zip"
+    elif case == "too_deep":
+        entries.append(("bad.yaml", content + "\nvariables: " + "[" * 65 + "0" + "]" * 65))
+    elif case == "tokens":
+        entries.append(("bad.yaml", content + "\nvariables: [" + "a," * 60000 + "a]"))
+    payload = rulepack_zip(entries, stored=case == "zip_bytes")
+    if case == "lying_count":
+        payload = bytearray(payload)
+        position = payload.rfind(b"PK\x05\x06")
+        struct.pack_into("<HH", payload, position + 8, 0, 0)
+        payload = bytes(payload)
+    elif case == "truncated":
+        payload = payload[:-15]
+    elif case == "appended":
+        payload += b"extra"
+    with pytest.raises(
+        PackageError, match="scan_timeout" if case == "deadline" else "nuclei_rulepack_invalid"
+    ):
+        materialize_rulepack(payload, media, tmp_path / "pack", deadline)
+
+
+@pytest.mark.parametrize(
+    "archive, case",
+    [
+        (False, "valid"),
+        (True, "valid"),
+        (True, "invalid_rules"),
+        (False, "wrong_media"),
+        (False, "large_yaml"),
+        (False, "missing"),
+        (False, "timeout"),
+    ],
+)
+def test_rulepack_adapter_uses_only_exact_pack_without_installed_rules(
+    tmp_path, monkeypatch, archive, case
+):
+    from urllib.parse import parse_qs, unquote, urlsplit
+
+    from test_tool_worker import ArtifactStore
+
+    from contractor_runtime.artifacts import ArtifactClient
+    from contractor_runtime.toolsets.scan.nuclei_rulepack import RULEPACK_MEDIA_TYPE
+
+    class RulepackStore(ArtifactStore):
+        async def request(self, method, path, **kwargs):
+            parsed = urlsplit(path)
+            if method == "GET" and parsed.path.endswith("/metadata"):
+                namespace, name, _ = map(unquote, parsed.path.split("/artifacts/")[1].split("/"))
+                if (namespace, name) not in self.values:
+                    return self.response(404, {"code": "not_found", "retryable": False})
+                data, media, revision = self.values[(namespace, name)]
+                assert parse_qs(parsed.query)["revision"] == [revision]
+                return self.response(
+                    200,
+                    {
+                        "apiVersion": "contractor/v1alpha1",
+                        "artifact": {"namespace": namespace, "name": name, "revision": revision},
+                        "mediaType": media,
+                        "size": len(data),
+                    },
+                )
+            return await super().request(method, path, **kwargs)
+
+    marker, _ = install_pin_scanner(tmp_path, monkeypatch, mode=case)
+
+    async def scenario():
+        tools, _ = await make_tools(tmp_path, selected=["scan_nuclei"])
+        (tmp_path / "templates").rmdir()  # Custom mode requires no installation.
+        store = RulepackStore()
+        data = (
+            rulepack_zip([("fixture.yaml", NUCLEI_PIN_FIXTURE)])
+            if archive
+            else NUCLEI_PIN_FIXTURE.encode()
+        )
+        media = RULEPACK_MEDIA_TYPE if archive else "application/yaml"
+        if case == "wrong_media":
+            media = "application/zip"
+        if case == "large_yaml":
+            data = data + b"#" + b"x" * (1024 * 1024)
+        store.values[("inputs", "rulepack")] = (data, media, "revision-pack")
+        if case == "missing":
+            store.values.clear()
+        tool = tools["scan_nuclei"]
+        tool._session.artifact_client = ArtifactClient("allocation", store)
+        result = await tool(
+            "http://target.invalid/",
+            templates_digest="sha256:" + "f" * 64,
+            rulepack_ref={"namespace": "inputs", "name": "rulepack", "revision": "revision-pack"},
+            timeout_seconds=1 if case == "timeout" else 30,
+        )
+        if case not in {"valid", "timeout"}:
+            assert result["errorCode"] == (
+                "scan_artifact_unavailable" if case == "missing" else "nuclei_rulepack_invalid"
+            ), result
+            assert not marker.exists()
+            await tool.close()
+            assert not list((tmp_path / "workspace").iterdir())
+            return
+        if case == "timeout":
+            assert result["errorCode"] == "scan_timeout", result
+            await tool.close()
+            assert not list((tmp_path / "workspace").iterdir())
+            return
+        assert result["status"] == "completed", result
+        assert result["source"] == "rulepack" and result["selectedTemplateCount"] == 1
+        manifest = json.loads(store.values[("scanner", "template-manifest")][0])
+        assert len(manifest["files"]) == 1
+        assert manifest["source"]["artifact"]["revision"] == "revision-pack"
+        assert manifest["source"]["contentDigest"] == result["sourceContentDigest"]
+        assert marker.read_text() == "scan\n"
+        await tool.close()
+        assert not list((tmp_path / "workspace").iterdir())
 
     asyncio.run(scenario())
