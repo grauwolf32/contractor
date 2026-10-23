@@ -38,7 +38,7 @@ const (
 )
 
 // batchedDrainStatements are the mutations a reconcile step batches under
-// the fixed per-step bound (AUX-R96).
+// the fixed per-step bound (AUX-R97).
 var batchedDrainStatements = []string{
 	cancellationStatement, observationStatement, submissionFailureStatement, runDeletionStatement,
 }

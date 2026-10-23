@@ -319,7 +319,9 @@ def test_collected_completion_uses_typed_request_owned_result(collected_runtime,
             "workspace": ArtifactRef(namespace="builder", name="workspace"),
         }
     )
-    runtime._workspace_exporter = SimpleNamespace(reserved_slots=frozenset({"workspace"}))
+    runtime._workspace_exporter = SimpleNamespace(
+        reserved_slots=frozenset({"workspace"}), release=lambda: None
+    )
     runtime._invocation_observed_refs = [
         ArtifactRef(namespace="builder", name="report", revision="observed-r1"),
         ArtifactRef(namespace="builder", name="observed", revision="observed-r1"),

@@ -1300,7 +1300,7 @@ func (i *fakeInspector) Inspect(
 	}
 	mediaType, ok := i.mediaTypes[refKey(ref)]
 	if !ok {
-		return planner.ArtifactMetadata{}, errors.New("artifact absent")
+		return planner.ArtifactMetadata{}, artifacts.ErrArtifactNotFound
 	}
 	return planner.ArtifactMetadata{MediaType: mediaType}, nil
 }

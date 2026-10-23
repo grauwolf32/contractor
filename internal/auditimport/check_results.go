@@ -237,13 +237,40 @@ func (i *Importer) resolveMemberProposals(
 			return nil, &invalidCheckResults{code: "finding-proposal-association-invalid"}
 		}
 		seenProposalReceipts[proposal.ReceiptID] = struct{}{}
-		if validationErr := validateMappedProposalStandards(
-			member.task, proposal.Document, loadStandards,
-		); validationErr != nil {
-			return nil, &invalidCheckResults{code: "finding-proposal-standard-reference-invalid"}
+		if err := validateResolvedProposalStandards(member.task, proposal.Document, loadStandards); err != nil {
+			return nil, err
 		}
 	}
 	return resolved, nil
+}
+
+// validateResolvedProposalStandards separates the pinned standards from the
+// Worker's proposal. Loading them keeps its class: a storage failure stays
+// retryable and invalid pinned standards are ErrPermanent, also when every
+// proposal was retained by an earlier attempt that skipped this read. Only a
+// proposal whose standard references violate their contract is invalid-result.
+func validateResolvedProposalStandards(
+	task auditdomain.ItemTask,
+	document auditdomain.FindingProposal,
+	loadStandards retainedStandardLoader,
+) error {
+	if task.Standard == nil && len(document.StandardRefs) == 0 {
+		return nil
+	}
+	standards, err := loadStandards()
+	if err != nil {
+		return err
+	}
+	if task.Standard != nil {
+		standard, exists := standards[retainedStandardKey(task.Standard.Scheme, task.Standard.Version)]
+		if !exists || !standardTaskMatchesPackage(task, standard) {
+			return fmt.Errorf("%w: pinned standard task does not match its retained package", ErrPermanent)
+		}
+	}
+	if validateMappedProposalStandards(task, document, standards) != nil {
+		return &invalidCheckResults{code: "finding-proposal-standard-reference-invalid"}
+	}
+	return nil
 }
 
 func (i *Importer) retainCheckResults(

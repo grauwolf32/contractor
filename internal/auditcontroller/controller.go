@@ -113,7 +113,7 @@ func (c *Controller) reconcile(
 		return result.changed, result.err
 	}
 	// A batched drain phase ends the step when it changed anything: later
-	// phases need a fresh snapshot of the revision it advanced (AUX-R96).
+	// phases need a fresh snapshot of the revision it advanced (AUX-R97).
 	if changed, err := c.observeTerminalBatch(ctx, claim, snapshot); changed || err != nil {
 		return changed, err
 	}
@@ -424,7 +424,7 @@ func (c *Controller) dispatchClosureReason(
 }
 
 // drainBatch counts the mutations of one batched drain phase of a reconcile
-// step against the fixed per-step bound (AUX-R96, LIM-AUX-14). Snapshot rows
+// step against the fixed per-step bound (AUX-R97, LIM-AUX-14). Snapshot rows
 // are only candidates: every mutation keeps its own store-side claim, state
 // and Run checks, and the first error, including a lost claim or a stale
 // precondition, ends the batch with the mutations already committed.

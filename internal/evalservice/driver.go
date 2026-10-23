@@ -71,7 +71,7 @@ func (d *memberReconciler) Reconcile(ctx context.Context, e evalstore.Experiment
 	if err != nil {
 		return err
 	}
-	if sub.State == "terminal" || sub.State == "rejected" {
+	if sub.State == evalstore.SubmissionTerminal || sub.State == evalstore.SubmissionRejected {
 		return nil
 	}
 	tombstone, tombErr := store.Tombstone(ctx, e.OwnerID, e.ID, m.MemberID)
@@ -105,7 +105,7 @@ func (d *memberReconciler) Reconcile(ctx context.Context, e evalstore.Experiment
 	if !notFound(tombErr) {
 		return tombErr
 	}
-	if sub.State == "intent" {
+	if sub.State == evalstore.SubmissionIntent {
 		kind := "run-create"
 		if m.ExecutionKind == "audit" {
 			kind = "audit-create"
@@ -144,7 +144,7 @@ func (d *memberReconciler) Reconcile(ctx context.Context, e evalstore.Experiment
 	if err != nil {
 		return err
 	}
-	if sub.State != "accepted" {
+	if sub.State != evalstore.SubmissionAccepted {
 		return nil
 	}
 	if e.State == evaldomain.StateCancelling {

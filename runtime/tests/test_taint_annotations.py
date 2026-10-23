@@ -233,8 +233,22 @@ def test_cpp_header_inline_method_is_annotatable_and_parse_failures_are_final(
             "twice",
             "c",
         ),
+        (
+            {
+                # .hh is always C++, even where the .h vote would pick C.
+                "include/socket.hh": (
+                    "namespace net {\nclass Socket {\npublic:\n"
+                    "  int open() const { return 1; }\n};\n}\n"
+                ),
+                "src/a.c": "int main(void) { return 0; }\n",
+                "src/b.c": "int other(void) { return 1; }\n",
+            },
+            "include/socket.hh",
+            "open",
+            "cpp",
+        ),
     ],
-    ids=["cpp-project-macros", "c-project-vendored-cpp"],
+    ids=["cpp-project-macros", "c-project-vendored-cpp", "hh-header-in-c-project"],
 )
 def test_header_definitions_found_by_search_def_are_annotatable(
     tmp_path: Path, files: dict[str, str], path: str, symbol: str, language: str

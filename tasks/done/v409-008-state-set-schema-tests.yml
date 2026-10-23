@@ -1,0 +1,247 @@
+schema_version: "1.0"
+id: V409-008
+title: "Extend migrated-schema state-set parity tests to the remaining reviewed owners"
+milestone: sql-review-2026-10
+epic: persistence
+kind: chore
+priority: P3
+status: completed
+depends_on: []
+languages: [go, sql]
+goal: >-
+  Tests compare the reviewed state and phase CHECK sets and state-dependent
+  index predicates with their owning Go definitions, detecting drift without
+  changing the accepted states or introducing production exports for tests.
+context:
+  review: "docs/research/2026-10-23-sql-review.md, section B, state CHECK sets"
+  specification: docs/spec/platform/lifecycle.md
+  finding: >-
+    internal/runstore/run_states_postgres_test.go:298-403 already compares
+    workflow_runs state CHECKs, partial-index predicates and the generated
+    scheduler tier against declared state sets. Equivalent migrated-schema
+    parity coverage was not found for the ten reviewed tables:
+    stage_executions, audits, audit_items, audit_executions, projects,
+    eval_experiments, eval_submissions, audit_review_requests, audit_findings
+    and credential_operations. This is a coverage gap, not an observed
+    mismatch between the current Go and PostgreSQL state sets.
+  coverage:
+    - "stage_executions.state and its state-dependent partial-index predicates."
+    - "audits.state, audit_items.state and audit_executions.state, with their state-dependent partial-index predicates."
+    - "projects.lifecycle_state and projects.deletion_phase, with lifecycle/phase-dependent partial-index predicates."
+    - "eval_experiments.state and eval_submissions.state, with their state-dependent partial-index predicates."
+    - "audit_review_requests.state and audit_findings.state, with their state-dependent partial-index predicates."
+    - "credential_operations.phase and any phase-dependent partial-index predicates."
+  siblings: >-
+    Preserve existing workflow_runs parity tests, the Run-state partition and
+    API/SQL tests in internal/runstore/run_states_test.go:96-125, Eval fixture
+    and managed-schema checks in internal/evaldomain/lifecycle_states_test.go:12-54,
+    and closed Audit state/transition validation in
+    internal/auditstore/internal/pgstore/validation_test.go:15-65. The broader
+    schema tests in internal/persistence/postgres/schema_invariants_postgres_test.go
+    cover other invariants and are not a substitute for state-set parity.
+  validation: >-
+    Review of main 1d533b2db885e0162ebabb01d36470f139546009 found no current
+    state-set drift. The existing Run PostgreSQL parity and Eval shared-state
+    tests passed. State words overlap across unrelated domains, and SQL,
+    negative fixtures and cross-language fixtures legitimately contain
+    literals. A global word ban would not establish semantic ownership.
+    A central test cannot import another package's export_test.go hooks as
+    ordinary dependency exports.
+plan:
+  - >-
+    For each listed table.column, map the enum to its actual owning Go type
+    or boundary fixture and name any intentional partial-index subset.
+    Compare exact sets from pg_constraint and pg_index on a fully migrated
+    disposable schema, scoped by relation and column rather than a global
+    search for words. Enumerate relevant predicates so a newly introduced
+    state-dependent predicate requires an explicit expected subset.
+  - >-
+    Put assertions in owner-package tests and share catalog-reading helpers
+    through a permitted test-helper package where useful. Use existing
+    production definitions or shared fixtures and verify expected-set
+    exhaustiveness against the owning declarations; do not compare two
+    unchecked handwritten lists. When a type has no exhaustive enumerator,
+    use a test-only declaration check or other bounded test helper instead
+    of adding a production export used only by tests. Do not rely on imports
+    of another package's export_test.go.
+  - >-
+    Add negative fixtures that demonstrate detection of a Go-only enum member,
+    a schema-only value, a missing/extra predicate member and an undeclared
+    relevant predicate. Retain intentional SQL literals and boundary/negative
+    fixtures. Consolidate a definition only where the exact same semantic
+    set is duplicated and the change preserves layer direction and behavior.
+scope:
+  in:
+    - "Parity tests for the enumerated state/phase columns and their state-dependent partial indexes."
+    - "Minimal shared test helpers and behavior-preserving ownership consolidation needed by those tests."
+  out:
+    - "Changing any state, phase, transition, index semantics or public/wire contract."
+    - "A repository-wide ban on state-name literals or a generic test of every enum in every table."
+    - "Production exports whose only callers are tests, or upward package dependencies."
+acceptance_criteria:
+  - id: A1
+    text: >-
+      Given a migrated disposable PostgreSQL schema, when the owner tests run,
+      then every table.column in context.coverage has an exact CHECK-set
+      comparison and every relevant partial-index predicate has a named,
+      verified subset. Existing workflow_runs coverage remains intact.
+  - id: A2
+    text: >-
+      Given negative fixtures for an added Go-only state, schema-only value,
+      missing/extra predicate member or undeclared state-dependent predicate,
+      when the parity checker runs, then each mismatch fails with the owning
+      table.column or index identified. The expected Go set is independently
+      checked for exhaustiveness, so adding a declaration cannot silently
+      escape an outdated handwritten test list.
+  - id: A3
+    text: >-
+      Given overlapping state words in independent domains and intentional SQL
+      or boundary fixtures, when the tests run, then only the explicitly
+      mapped semantic sets are compared. Existing Eval shared-fixture and
+      Audit/Run lifecycle tests pass; accepted states and transitions are
+      unchanged, and tests build without cross-package test-only imports.
+  - id: A4
+    text: >-
+      Given the new tests and helpers, when repository lint runs, then layer
+      checks, test-only export checks and task metadata validation pass.
+tests:
+  - command: >-
+      CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?Set a disposable PostgreSQL URL before running this task}"
+      go test -tags=integration -count=1 ./internal/persistence/... ./internal/runstore/... ./internal/auditstore/... ./internal/projectstore/... ./internal/evalstore/... ./internal/evaldomain/... ./internal/credentials/...
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A4]
+decisions:
+  - >-
+    Finding re-verified on 7bcd8fd6 with a migrated schema (all 32
+    migrations): only TestPostgresRunStateSetsMatchSchema compared a state
+    CHECK and partial-index predicates with Go; the ten reviewed tables had no
+    such test, and no current drift exists (every new comparison passes
+    unchanged). Coverage gap only; no state, transition, index or contract
+    changed.
+  - >-
+    Shared checker: internal/persistence/statesettest (test helper package,
+    kernel layer). Read takes the CHECK constraints (pg_get_constraintdef) and
+    partial-index predicates (pg_get_expr) of one relation; Compare is scoped
+    to the declared columns of that relation, so overlapping words in other
+    columns or tables (hold_state, eval_suboperations, Run states) are never
+    compared. Every partial index of the table must be declared, nil when it
+    restricts no declared column, so an undeclared new predicate fails with
+    its index name and text. Restrictions are read in the forms PostgreSQL
+    prints (= / = ANY / <> / <> ALL); any other form that mentions a declared
+    column fails loudly instead of being guessed. Values a shape CHECK or a
+    predicate compares with must be declared. The existing workflow_runs test
+    is unchanged.
+  - >-
+    Owning sets are read from the owning type's constants by DeclaredValues
+    (a go/parser declaration check of the owning package's non-test files),
+    so adding a constant joins the expected set. It reads package-level
+    constants written as `Name T = "v"` or `Name = T("v")` and fails on
+    anything that could hide a value in that package: an alias of T, a
+    function-local constant, alias or same-named type, a non-literal or
+    implicitly repeated value, or an untyped expression mentioning T. Out of
+    scope, as documented on DeclaredValues: a constant of T declared in
+    another package through a qualified type (finding it would mean parsing
+    every package); constants of a distinct type defined from T are not
+    values of T. Further, handwritten subsets must form declared partitions
+    (Column.Partitions) and derived subsets use production predicates
+    (AuditState.Terminal, evaldomain.State.Terminal). Types with Valid have it
+    checked against the declaration. Mapping: stage_executions.state →
+    runstore.StageExecutionState; audits/audit_items/audit_executions/
+    audit_review_requests/audit_findings.state → auditstore AuditState,
+    ItemState, ExecutionState, ReviewState, FindingState;
+    projects.lifecycle_state/deletion_phase → projectstore Lifecycle,
+    DeletionPhase; eval_experiments.state → evaldomain.State;
+    eval_submissions.state → evalstore.SubmissionState;
+    credential_operations.phase → credentials.OperationPhase.
+    TestSharedLifecycleStatesMatchSharedCases now also holds the shared Eval
+    fixture api/testdata/evals/lifecycle-states.json to the evaldomain.State
+    constants, so fixture, managed schema, Go and the CHECK agree.
+  - >-
+    Consolidation: eval_submissions.state had no Go declaration; the four
+    words were string literals in evalstore and evalservice. The new
+    evalstore.SubmissionState with its constants is now the Go definition
+    used by every Go comparison (Settle, PutSuboperation, Admit's receipt,
+    the member reconciler and the member view). SQL literals stay, as do the
+    receipt's string field and the eval_suboperations words, which are a
+    different set. Behaviour is unchanged.
+  - >-
+    State-dependent predicates on other columns: stage_executions'
+    terminal-history indexes filter on terminal_at, which
+    stage_execution_state_shape sets in exactly the terminal states; a
+    Marker verifies that tie branch by branch, so those indexes are compared
+    with the terminal subset. The audit_findings pointer indexes
+    (current_decision_id, duplicate_target_id, purge pointers) and the
+    run_id, role and correlation indexes serve foreign-key probes, purge and
+    uniqueness whatever the state; they are declared nil. A reader that
+    starts relying on one of them as a state filter should declare it with a
+    Marker.
+  - >-
+    V372-007 overlap: the new stage test holds the stage_executions CHECK,
+    stage_execution_state_shape (through the marker) and all five partial
+    indexes to the StageExecutionState declaration, with handwritten
+    active/terminal subsets that must partition it. It does not add the
+    production terminal predicate, change the Go switches, scan Go SQL
+    literals or check the UI copy; those remain V372-007's scope, and its
+    production definition can replace the handwritten subsets once it exists.
+verification:
+  date: '2026-10-24'
+  environment: >-
+    macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local), Node 24.20.0 with pnpm
+    11.24.0, the locked Runtime venv; local PostgreSQL 17.11 database
+    contractor_test_f with per-test schemas and all 32 migrations.
+  commands:
+    - >-
+      CONTRACTOR_TEST_DATABASE_URL=postgres://…/contractor_test_f go test
+      -tags=integration -count=1 ./internal/persistence/... ./internal/runstore/...
+      ./internal/auditstore/... ./internal/projectstore/... ./internal/evalstore/...
+      ./internal/evaldomain/... ./internal/credentials/... — 331 top-level tests
+      passed, 1 failed, 1 skipped. The failure is
+      TestSQLAccessFollowsTableOwnership in internal/persistence
+      (internal/cli/scan_sweep_remote.go:196 reads projects); go test
+      -count=1 -run TestSQLAccessFollowsTableOwnership ./internal/persistence
+      fails identically on the unmodified base 7bcd8fd6 in a temporary
+      worktree, so it is pre-existing and unrelated. The skip is
+      TestPinnedLiteLLMContract (live LiteLLM contract environment not
+      configured), not a database test. Every new test ran against
+      PostgreSQL: TestPostgresStageExecutionStateSetsMatchSchema,
+      TestPostgresAuditStateSetsMatchSchema (5 tables),
+      TestPostgresProjectStateSetsMatchSchema,
+      TestPostgresEvalStateSetsMatchSchema (2 tables),
+      TestPostgresCredentialOperationPhasesMatchSchema,
+      TestCompareReportsDriftWithItsOwner (14 drift cases),
+      TestPostgresReadReportsTheCatalogForm and
+      TestDeclaredValuesReadsTheWholeDeclaration passed, as did the existing
+      TestPostgresRunStateSetsMatchSchema, TestRunStateSetsMatchOpenAPIAndGoSQL,
+      TestSharedLifecycleStatesMatchSharedCases and
+      TestClosedStateAndTransitionValidation.
+    - >-
+      go test -tags=integration -count=1 ./internal/evalservice/...
+      ./internal/evalcoordinator/... ./internal/archtest/... passed (callers of
+      the new SubmissionState); go test -count=1 -run Eval
+      ./internal/httpapi/public and -run
+      TestSharedProjectCollectionExcludesEvalExecutionWorkspacesBeforePagination
+      on the same package passed.
+    - make test-wire-cross-language passed (shared fixture gate 249 fixtures).
+    - >-
+      Can-fail check: removing aborting from the stage "active" subset and the
+      declaration of stage_executions_terminal_history_idx made
+      TestPostgresStageExecutionStateSetsMatchSchema fail with the partition
+      gap, both active-index mismatches and the undeclared index named; the
+      edit was reverted.
+    - >-
+      make lint passed (layers, staticcheck U1000, testonlyexports, task
+      checks, spec checks).
+    - >-
+      Review follow-up (e9f08301): DeclaredValues silently skipped constants
+      declared through an alias, inside a function or as an untyped
+      expression. The new alias, local, localtype and expression fixtures
+      of TestDeclaredValuesReadsTheWholeDeclaration fail against the
+      previous reader (it returned [open] for alias, local and localtype)
+      and pass after the fix. Rerun on contractor_test_f: every owner parity
+      test (stage_executions, the five Audit tables, projects, the two Eval
+      tables, credential_operations), the existing workflow_runs test,
+      TestSharedLifecycleStatesMatchSharedCases and the statesettest
+      package passed; make lint passed.
+  database_tests_configured: true
+implementation_commit: e9f08301f89759fbe76ad26c572a16cdc88adfd6

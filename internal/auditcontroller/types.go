@@ -29,7 +29,7 @@ const (
 	// claimed reconcile step commits in its batched phase: terminal
 	// observations, failures of unbound intents, child Run cancellation
 	// requests or deletions of released terminal child Runs (LIM-AUX-14,
-	// AUX-R96). It does not depend on the Audit's size and stays below
+	// AUX-R97). It does not depend on the Audit's size and stays below
 	// auditstore.MaxReconcileRows, the snapshot window its candidates come
 	// from.
 	maxDrainMutationsPerStep = 32

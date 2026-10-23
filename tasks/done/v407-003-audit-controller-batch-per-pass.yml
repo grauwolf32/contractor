@@ -103,7 +103,7 @@ tests:
 decisions:
 - >-
   B is 32 drain mutations per claimed reconcile step and batched phase (maxDrainMutationsPerStep,
-  LIM-AUX-14, AUX-R96 in docs/spec/audits/execution.md), a constant independent of Audit size and below
+  LIM-AUX-14, AUX-R97 in docs/spec/audits/execution.md), a constant independent of Audit size and below
   the 200-row snapshot window (auditstore.MaxReconcileRows) its candidates come from; 32 also exercises
   tails at 50 and 200 children. Rows: each mutation is its own transaction over one execution with its
   members (at most batchSize) and one Audit event, or over one child Run and its event; a Run deletion is

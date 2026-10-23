@@ -6,7 +6,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from test_projectfs_paths import reference_glob_matches
 
+import contractor_runtime.projectfs.paths as paths_module
 import contractor_runtime.toolsets.filesystem.tools as filesystem_module
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.contracts import RuntimeSettings
@@ -304,8 +306,90 @@ def test_large_file_reads_and_grep_keep_event_loop_responsive(tmp_path: Path) ->
     asyncio.run(scenario())
 
 
+def test_glob_compiles_once_and_matches_20000_paths_off_the_event_loop(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    snapshot = _large_snapshot()
+    paths = sorted(
+        {*snapshot.directories, *(file.path for file in snapshot.files), *snapshot.binary_paths}
+    )
+    assert len(paths) > filesystem_module.MAX_SCAN_PATHS
+    sizes = {file.path: file.size for file in snapshot.files}
+    normalized_globs = 0
+    matching_threads: set[int] = set()
+    normalize_glob = paths_module.normalize_project_glob
+    normalize_path = paths_module.normalize_project_path
+
+    def counted_glob(value: str) -> str:
+        nonlocal normalized_globs
+        normalized_globs += 1
+        return normalize_glob(value)
+
+    def recorded_path(value: str, *, allow_root: bool = True) -> str:
+        matching_threads.add(threading.get_ident())
+        return normalize_path(value, allow_root=allow_root)
+
+    monkeypatch.setattr(paths_module, "normalize_project_glob", counted_glob)
+    monkeypatch.setattr(paths_module, "normalize_project_path", recorded_path)
+
+    async def scenario() -> None:
+        reader = _SnapshotReader(snapshot)
+        tools = await create_tools(
+            FilesystemToolsetFactory(), reader, WorkerState(), tmp_path, ["glob"]
+        )
+        try:
+            for pattern in ("**/file049.py", "assets/*.png", "**/*.txt", "pkg00[2-3]/**"):
+                calls_before = normalized_globs
+                pages: list[tuple[list[dict[str, Any]], int]] = []
+                cursor = ""
+                while True:
+                    page = await tools["glob"](pattern, cursor, 100)
+                    pages.append((page["matches"], page["scanned"]))
+                    assert page["truncated"] == (page["nextCursor"] is not None)
+                    cursor = page["nextCursor"] or ""
+                    if not cursor:
+                        break
+                expected = _reference_pages(paths, pattern, 100)
+                assert [scanned for _, scanned in pages] == [scanned for _, scanned in expected]
+                assert [[item["path"] for item in matches] for matches, _ in pages] == [
+                    page for page, _ in expected
+                ]
+                for matches, _ in pages:
+                    for item in matches:
+                        if item["path"] in sizes:
+                            assert item == {
+                                "path": item["path"],
+                                "type": "file",
+                                "size": sizes[item["path"]],
+                            }
+                        elif item["path"] in snapshot.binary_paths:
+                            assert item == {"path": item["path"], "type": "binary", "size": None}
+                        else:
+                            assert item == {"path": item["path"], "type": "directory", "size": None}
+                # One normalization per call, never one per scanned path.
+                assert normalized_globs - calls_before == len(pages)
+            assert matching_threads
+            assert threading.get_ident() not in matching_threads
+
+            first = await tools["glob"]("**/file049.py", "", 100)
+            reader.snapshot_value = _large_snapshot(digest="changed-snapshot")
+            with pytest.raises(FilesystemToolError) as stale:
+                await tools["glob"]("**/file049.py", first["nextCursor"], 100)
+            assert stale.value.code == "workspace_cursor_invalid"
+        finally:
+            await tools["glob"].close()
+
+    asyncio.run(scenario())
+
+
 @pytest.mark.parametrize(
-    "name,helper", [("read_file", "_read_file_window"), ("grep", "_scan_grep")]
+    "name,helper",
+    [
+        ("read_file", "_read_file_window"),
+        ("grep", "_scan_grep"),
+        ("ls", "_listing_page"),
+        ("glob", "_listing_page"),
+    ],
 )
 def test_cancelled_filesystem_scan_waits_for_owned_thread(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str, helper: str
@@ -327,9 +411,12 @@ def test_cancelled_filesystem_scan_waits_for_owned_thread(
         try:
             with monkeypatch.context() as patch:
                 patch.setattr(filesystem_module, helper, delayed)
-                call = (
-                    tools["read_file"]("big.txt") if name == "read_file" else tools["grep"]("one")
-                )
+                call = {
+                    "read_file": lambda: tools["read_file"]("big.txt"),
+                    "grep": lambda: tools["grep"]("one"),
+                    "ls": lambda: tools["ls"](""),
+                    "glob": lambda: tools["glob"]("**/*"),
+                }[name]()
                 task = asyncio.create_task(call)
                 assert await asyncio.to_thread(entered.wait, 2)
                 task.cancel()
@@ -361,6 +448,54 @@ class _FixedReader:
             binary_paths=(),
             digest="fixed-snapshot",
         )
+
+
+class _SnapshotReader:
+    def __init__(self, snapshot: WorkspaceSnapshot) -> None:
+        self.snapshot_value = snapshot
+
+    async def read_text(self, path: str) -> str:
+        raise AssertionError(f"listing must not read {path}")
+
+    async def snapshot(self) -> WorkspaceSnapshot:
+        return self.snapshot_value
+
+
+def _large_snapshot(digest: str = "large-snapshot") -> WorkspaceSnapshot:
+    packages = [f"pkg{package:03d}" for package in range(40)]
+    modules = [f"{package}/mod{module:02d}" for package in packages for module in range(10)]
+    files = [
+        WorkspaceTextFile(path=f"{module}/file{index:03d}.py", text="x" * index, size=index)
+        for module in modules
+        for index in range(50)
+    ]
+    files.append(WorkspaceTextFile(path="zz/last.txt", text="last", size=4))
+    return WorkspaceSnapshot(
+        directories=tuple(sorted(["assets", "zz", *packages, *modules])),
+        files=tuple(sorted(files, key=lambda file: file.path)),
+        binary_paths=tuple(f"assets/image{index:03d}.png" for index in range(200)),
+        digest=digest,
+    )
+
+
+def _reference_pages(paths: list[str], pattern: str, limit: int) -> list[tuple[list[str], int]]:
+    """Pages of a bounded sorted scan, with per-path reference matching."""
+
+    pages: list[tuple[list[str], int]] = []
+    index = 0
+    while True:
+        page: list[str] = []
+        scanned = 0
+        while (
+            index < len(paths) and scanned < filesystem_module.MAX_SCAN_PATHS and len(page) < limit
+        ):
+            if reference_glob_matches(paths[index], pattern):
+                page.append(paths[index])
+            index += 1
+            scanned += 1
+        pages.append((page, scanned))
+        if index >= len(paths):
+            return pages
 
 
 async def _call_with_loop_gap(operation: Any) -> tuple[dict[str, Any], float]:

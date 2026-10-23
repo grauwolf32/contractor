@@ -7,6 +7,7 @@ import (
 
 	evalschema "github.com/grauwolf32/contractor/api/evals/v1"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
+	"github.com/grauwolf32/contractor/internal/persistence/statesettest"
 )
 
 func TestSharedLifecycleStatesMatchSharedCases(t *testing.T) {
@@ -28,6 +29,17 @@ func TestSharedLifecycleStatesMatchSharedCases(t *testing.T) {
 		if !slices.Contains(cases.States, state) {
 			t.Errorf("terminal state %q is not a lifecycle state", state)
 		}
+	}
+	// The fixture lists exactly the declared State constants, which the
+	// eval_experiments state CHECK must list too (evalstore's parity test).
+	declared := statesettest.DeclaredValues(t, "internal/evaldomain", "State")
+	listed := make([]string, 0, len(cases.States))
+	for _, state := range cases.States {
+		listed = append(listed, string(state))
+	}
+	slices.Sort(listed)
+	if !slices.Equal(listed, declared) {
+		t.Errorf("shared lifecycle states %v, want the declared State constants %v", listed, declared)
 	}
 	raw, err := evalschema.Files.ReadFile("managed.schema.json")
 	if err != nil {

@@ -177,6 +177,21 @@ func LockLLMCredentialDeletion(ctx context.Context, tx pgx.Tx, credentialID stri
 	return nil
 }
 
+// TryLockLLMCredentialDeletion takes the lock of LockLLMCredentialDeletion
+// only when no transaction holds it or a shared reference to the credential,
+// and reports whether it did; it never waits. Holding it proves that every
+// earlier transaction that prepared a deletion of the credential has ended.
+func TryLockLLMCredentialDeletion(ctx context.Context, tx pgx.Tx, credentialID string) (bool, error) {
+	if tx == nil || credentialID == "" {
+		return false, errors.New("LLM credential deletion lock is not configured")
+	}
+	locked, err := persistencepostgres.TryLockAdvisory(ctx, tx, llmCredentialReferenceLock(credentialID))
+	if err != nil {
+		return false, persistencepostgres.WrapError("lock LLM credential deletion", err)
+	}
+	return locked, nil
+}
+
 func validateSpecLLMCredentialInTransaction(
 	ctx context.Context, tx pgx.Tx, spec Spec, factory TransactionLLMCredentialLookupFactory,
 ) error {
