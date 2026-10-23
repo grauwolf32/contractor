@@ -5,7 +5,7 @@ milestone: server-runtime-review-2026-10
 epic: audits
 kind: chore
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - go
@@ -148,3 +148,35 @@ decisions:
   V407-027. The fixtures of more than 32 outstanding children clear audits.outstanding_run_count before
   each ordinary dispatch (the dispatch window never exceeds 32) and restore the true count afterwards;
   every intent, Run and binding still comes from production paths.
+verification:
+  date: '2026-10-23'
+  environment: macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local), Node 24.20.0 with pnpm 11.24.0, the locked
+    Runtime venv; isolated PostgreSQL 17.11 database contractor_test_b with per-test schemas and all 32
+    migrations.
+  commands:
+  - test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1 ./internal/auditcontroller/...
+    passed (75 top-level tests, none skipped, 50 s), including TestPostgresControllerDrainBatchesCancellationObservationAndDeletion,
+    TestPostgresControllerDrainBatchesUnboundIntentFailures (1, 50 and 200 children plus the 50-child
+    one-per-pass baseline), TestPostgresControllerDrainBatchStopsAtALostClaim, TestPostgresControllerDrainBatchKeepsRevisionFencedWorkForAFreshSnapshot
+    and TestPostgresControllerSecondAuditProgressesBesideALargeDrain.
+  - go test -count=1 ./internal/auditcontroller/... passed, including the fake-store tests for bounded
+    batches and tails, mid-batch claim loss, a stale intent, the end of the step budget and a blocked deletion.
+  - 'Mutation check: with drainBatch.open ignoring the bound, the intent drain (passes [50] and [200]
+    instead of [32 18] and 6x32+8), the two-Audit fairness test (40 observed in the first pass instead
+    of 32) and the fake batch test failed; the bound was restored before committing.'
+  - go test -count=1 ./internal/persistence/ failed only TestSQLAccessFollowsTableOwnership at internal/cli/scan_sweep_remote.go:196,
+    the failure that already exists on the base 7bcd8fd6; no new ownership or SQL placement finding.
+  - make lint passed, including Go vet/staticcheck/unused exports, the spec checker, the dependency graph
+    check and the task checks.
+  database_tests_configured: true
+  evidence: Snapshot counts per drain (baseline with the bound set to 1 -> batched) are recorded in the
+    decisions; the largest full-batch pass issued the same statements for 50 and 200 children (46 cancellation
+    or intent failure, 78 observation, 880 deletion).
+  declined:
+  - >-
+    Batching collection: each receipt keeps its own result-import transaction and byte/evidence
+    guarantees, so collection stays one execution per step and is counted separately.
+  - >-
+    A deletion batch bound by Run revision counts (see decisions); the existing cleanup budget bounds the
+    deleting step.
+implementation_commit: 2bc36a575e73956600272d97fd01690b8370a5fb
