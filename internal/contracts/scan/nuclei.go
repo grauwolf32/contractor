@@ -6,7 +6,14 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/contracts"
+)
+
+const (
+	NucleiRulepackMediaType    = "application/vnd.contractor.nuclei-rulepack+zip"
+	MaxNucleiRulepackZIPBytes  = 16 * 1024 * 1024
+	MaxNucleiRulepackFileBytes = 1024 * 1024
 )
 
 var nucleiFilter = regexp.MustCompile(`^[A-Za-z0-9_*][A-Za-z0-9_.*-]*(,[A-Za-z0-9_*][A-Za-z0-9_.*-]*)*$`)
@@ -17,7 +24,7 @@ var nucleiFilter = regexp.MustCompile(`^[A-Za-z0-9_*][A-Za-z0-9_.*-]*(,[A-Za-z0-
 func ValidateNucleiArguments(arguments map[string]any) error {
 	for name := range arguments {
 		switch name {
-		case "url", "template_ids", "tags", "severity", "rate_limit", "timeout_seconds", "templates_digest":
+		case "url", "template_ids", "tags", "severity", "rate_limit", "timeout_seconds", "templates_digest", "rulepack_ref":
 		default:
 			return contracts.Invalidf("unknown Nuclei argument")
 		}
@@ -72,5 +79,16 @@ func ValidateNucleiArguments(arguments map[string]any) error {
 			return contracts.Invalidf("invalid Nuclei package digest")
 		}
 	}
+	if value, exists := arguments["rulepack_ref"]; exists {
+		encoded, err := json.Marshal(value)
+		if err != nil {
+			return contracts.Invalidf("invalid Nuclei rulepack ref")
+		}
+		var ref contracts.ArtifactRef
+		if _, err := contracts.DecodeStrictObject(encoded, &ref); err != nil || ref.ValidateExact() != nil || artifactpolicy.IsModelHiddenBinding(ref.Namespace, ref.Name) {
+			return contracts.Invalidf("invalid Nuclei rulepack ref")
+		}
+	}
+
 	return nil
 }

@@ -107,6 +107,19 @@ export function validateDraft(draft: Draft): Problem[] {
         row = record(slot);
       if (typeof row.required !== "boolean")
         error([...p, "required"], "Choose whether this file is required.");
+      if (
+        Object.hasOwn(row, "sourceScope") &&
+        (draft.kind !== "Workflow" ||
+          path.length !== 2 ||
+          path[1] !== "inputs" ||
+          name !== "rulepack" ||
+          row.sourceScope !== "user" ||
+          row.required !== false)
+      )
+        error(
+          [...p, "sourceScope"],
+          "Only an optional rulepack input may select the owner UserScope.",
+        );
       const problem = mediaTypesProblem(row.mediaTypes);
       if (problem !== undefined) error([...p, "mediaTypes"], problem);
     }

@@ -9690,6 +9690,7 @@
       "additionalProperties": false,
       "required": ["required", "mediaTypes"],
       "properties": {
+        "sourceScope": { "type": "string", "enum": ["user"] },
         "required": { "type": "boolean" },
         "mediaTypes": {
           "type": "array",
@@ -10464,7 +10465,12 @@
                 "required": ["source", "name"],
                 "properties": {
                   "source": { "type": "string", "const": "artifact" },
-                  "name": { "type": "string", "minLength": 1, "maxLength": 128 }
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "optional": { "type": "boolean", "const": true }
                 }
               },
               {

@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import re
 
+from contractor_runtime.contracts import ArtifactRef
 from contractor_runtime.core.input_errors import ToolInputError
+from contractor_runtime.toolsets.common.artifact_visibility import require_model_visible_binding
 from contractor_runtime.toolsets.scan.http_request import validate_http_url
 
 _FILTER = re.compile(r"[A-Za-z0-9_*][A-Za-z0-9_.*-]*(,[A-Za-z0-9_*][A-Za-z0-9_.*-]*)*")
@@ -19,6 +21,7 @@ def validate_nuclei_arguments(arguments: dict) -> None:
         "rate_limit",
         "timeout_seconds",
         "templates_digest",
+        "rulepack_ref",
     }:
         raise ToolInputError("unknown Nuclei argument")
     validate_http_url(arguments.get("url"))
@@ -43,3 +46,10 @@ def validate_nuclei_arguments(arguments: dict) -> None:
     digest = arguments.get("templates_digest", "")
     if not isinstance(digest, str) or (digest and not re.fullmatch(r"sha256:[0-9a-f]{64}", digest)):
         raise ToolInputError("invalid Nuclei package digest")
+
+    if "rulepack_ref" in arguments:
+        try:
+            ref = ArtifactRef.model_validate(arguments["rulepack_ref"]).require_exact()
+            require_model_visible_binding(ref.namespace, ref.name)
+        except (ValueError, TypeError):
+            raise ToolInputError("rulepack_ref must be an accessible exact artifact ref") from None

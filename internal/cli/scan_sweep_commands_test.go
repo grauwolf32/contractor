@@ -31,6 +31,8 @@ type sweepFixture struct {
 	runs               map[string]string
 	retryProject       string
 	missingArtifact    string
+	userRulepack       bool
+	userReads          int
 }
 
 func (f *sweepFixture) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -42,6 +44,19 @@ func (f *sweepFixture) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		f.gets++
 		if f.changed {
 			f.t.Error("resume reread a mutable Project or Artifact")
+		}
+		if strings.HasPrefix(r.URL.Path, "/v1/workflows/") {
+			scope := ""
+			if f.userRulepack {
+				scope = `,"sourceScope":"user"`
+			}
+			_, _ = io.WriteString(w, `{"ref":{"name":"nuclei-web","version":"1"},"inputs":{"rulepack":{"required":false`+scope+`},"request":{"required":false}},"outputs":{},"parameters":{},"stages":{},"entryStage":"scan"}`)
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/v1/artifacts/") {
+			f.userReads++
+			_ = json.NewEncoder(w).Encode(map[string]any{"artifact": map[string]string{"namespace": "scan", "name": "input", "revision": "revision-1"}, "mediaType": "application/yaml", "size": 0, "createdAt": "2026-10-23T00:00:00Z", "current": true, "frozen": false})
+			return
 		}
 		if r.URL.Path == "/v1/projects" {
 			start, _ := strconv.Atoi(r.URL.Query().Get("cursor"))
@@ -427,5 +442,24 @@ func TestScanSweepInvalidReplacementPreservesPreviousManifest(t *testing.T) {
 	}
 	if !bytes.Equal(before, after) {
 		t.Fatal("failed replacement lost previous snapshot")
+	}
+}
+
+func TestScanSweepCapturesUserRulepackOnceAcrossProjects(t *testing.T) {
+	fixture, server := newSweepFixture(t, 7)
+	fixture.userRulepack = true
+	path := filepath.Join(t.TempDir(), "sweep.json")
+	if err := invokeSweep(t, t.Context(), server.URL, path, "create", "--all", "--artifact", "rulepack=scan/input"); err != nil {
+		t.Fatal(err)
+	}
+	if fixture.userReads != 1 || len(fixture.runs) != 5 {
+		t.Fatalf("user reads=%d runs=%d", fixture.userReads, len(fixture.runs))
+	}
+	fixture.changed = true
+	if err := invokeSweep(t, t.Context(), server.URL, path, "resume"); err != nil {
+		t.Fatal(err)
+	}
+	if fixture.userReads != 1 {
+		t.Fatal("resume resolved mutable rulepack")
 	}
 }

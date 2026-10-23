@@ -275,7 +275,7 @@ func validPlanExecution(execution contracts.ToolExecutionConfig) bool {
 	}
 	for name, expected := range dynamic {
 		actual, exists := execution.Arguments[name]
-		if !exists || actual.Source != expected.Source || actual.Name != expected.Name || actual.Value != nil || actual.Parse != "" || actual.Default != nil {
+		if !exists || actual.Source != expected.Source || actual.Name != expected.Name || actual.Value != nil || actual.Parse != "" || actual.Default != nil || actual.Optional {
 			return false
 		}
 	}

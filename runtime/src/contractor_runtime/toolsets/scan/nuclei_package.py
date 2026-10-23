@@ -142,7 +142,12 @@ def snapshot_package(source: Path, destination: Path, deadline: float) -> Packag
 
 
 def selected_manifest(
-    snapshot: PackageSnapshot, output: bytes, engine_version: str, deadline: float
+    snapshot: PackageSnapshot,
+    output: bytes,
+    engine_version: str,
+    deadline: float,
+    identifiers: dict[str, str] | None = None,
+    source: dict | None = None,
 ) -> tuple[bytes, int]:
     """Resolve the engine's -tl selection exclusively within verified package bytes."""
     index = {record["path"]: record for record in snapshot.files}
@@ -159,26 +164,31 @@ def selected_manifest(
             if line not in index or line in selected or not line.endswith((".yaml", ".yml")):
                 raise ValueError
             data = (snapshot.root / line).read_bytes()
-            identifier = _ID.search(data)
-            if identifier is None:
-                raise ValueError
-            selected[line] = {**index[line], "id": identifier[2].decode("ascii")}
+            if identifiers is None:
+                identifier = _ID.search(data)
+                if identifier is None:
+                    raise ValueError
+                name = identifier[2].decode("ascii")
+            else:
+                name = identifiers[line]
+            selected[line] = {**index[line], "id": name}
         if not selected:
             raise ValueError
-        data = jcs.canonicalize(
-            {
-                "schemaVersion": 1,
-                "packageDigest": snapshot.digest,
-                "files": snapshot.files,
-                "selectedTemplates": [selected[name] for name in sorted(selected)],
-                "engineVersion": engine_version,
-            }
-        )
+        manifest = {
+            "schemaVersion": 1,
+            "packageDigest": snapshot.digest,
+            "files": snapshot.files,
+            "selectedTemplates": [selected[name] for name in sorted(selected)],
+            "engineVersion": engine_version,
+        }
+        if source is not None:
+            manifest["source"] = source
+        data = jcs.canonicalize(manifest)
         if len(data) > MAX_MANIFEST_BYTES:
             raise ValueError
         _check_deadline(deadline)
         return data, len(selected)
-    except (OSError, UnicodeError, ValueError):
+    except (OSError, UnicodeError, ValueError, KeyError):
         raise PackageError("nuclei_selection_invalid") from None
 
 

@@ -554,6 +554,7 @@ Assembled from every document.
 | `taint_annotation_unavailable` | — | yes | Taint annotation unavailable | [ERR-R12](errors.md), [CAN-R139](../tools/code-analysis.md) |
 | `taint_annotation_workspace_changed` | — | yes | Workspace changed during taint annotation | [ERR-R12](errors.md), [CAN-R124](../tools/code-analysis.md) |
 | `nuclei_package_invalid` | — | no | Installed rules contain unsupported files, exceed materialization limits or cannot be copied safely; no target scan. | [SCN-R231](../tools/scanners.md) |
+| `nuclei_rulepack_invalid` | — | no | Supplied custom rulepack has unsupported media, structure, size or native template syntax; no target scan or fallback. | [SCN-R240](../tools/scanners.md) |
 | `nuclei_package_mismatch` | — | no | Computed private package digest differs from the authored pin; no target scan. | [SCN-R231](../tools/scanners.md) |
 | `nuclei_selection_invalid` | — | no | Engine version or bounded selected-template manifest is invalid or empty; no target scan. | [SCN-R231](../tools/scanners.md) |
 | `template_digest_mismatch` | — | no | Before creating the Worker, Runtime Agent found that the instruction digest, a ModelPolicy dependency digest or the enclosing AgentTemplate digest does not match the content carried in AllocationSpec; allocation preparation fails and Runtime Agent neither recomputes the identity nor fetches replacement content. | [TPL-R63](../configuration/agent-templates.md) |

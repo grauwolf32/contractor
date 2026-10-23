@@ -34,11 +34,12 @@ func (t *ResolvedAgentTemplate) UnmarshalJSON(data []byte) error {
 }
 
 type ToolArgumentBinding struct {
-	Source  string `json:"source" yaml:"source" strictjson:"required"`
-	Name    string `json:"name,omitempty" yaml:"name,omitempty"`
-	Value   any    `json:"value,omitempty" yaml:"value,omitempty"`
-	Parse   string `json:"parse,omitempty" yaml:"parse,omitempty"`
-	Default any    `json:"default,omitempty" yaml:"default,omitempty"`
+	Source   string `json:"source" yaml:"source" strictjson:"required"`
+	Name     string `json:"name,omitempty" yaml:"name,omitempty"`
+	Value    any    `json:"value,omitempty" yaml:"value,omitempty"`
+	Parse    string `json:"parse,omitempty" yaml:"parse,omitempty"`
+	Default  any    `json:"default,omitempty" yaml:"default,omitempty"`
+	Optional bool   `json:"optional,omitempty" yaml:"optional,omitempty"`
 }
 
 func (b *ToolArgumentBinding) UnmarshalJSON(data []byte) error {
@@ -49,10 +50,14 @@ func (b *ToolArgumentBinding) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	if value.Source == "parameter" {
-		if fields["name"] == nil || fields["value"] != nil ||
+		if fields["name"] == nil || fields["value"] != nil || fields["optional"] != nil ||
 			(fields["default"] != nil && value.Default == nil) ||
 			(fields["parse"] != nil && value.Parse == "") {
 			return Invalidf("parameter tool argument requires name and forbids null default or value")
+		}
+	} else if value.Source == "artifact" {
+		if fields["name"] == nil || fields["source"] == nil || len(fields) > 3 || fields["value"] != nil || fields["parse"] != nil || fields["default"] != nil || (fields["optional"] != nil && strings.TrimSpace(string(fields["optional"])) != "true") {
+			return Invalidf("artifact binding accepts name and optional true only")
 		}
 	} else if len(fields) != 2 || fields["source"] == nil ||
 		(value.Source == "literal" && fields["value"] == nil) ||
@@ -107,6 +112,9 @@ func (b ToolArgumentBinding) ResolveParameter(parameters map[string]string) (any
 }
 
 func (b ToolArgumentBinding) validateParameterOptions() error {
+	if b.Optional && b.Source != "artifact" {
+		return Invalidf("optional requires an artifact binding")
+	}
 	if b.Source != "parameter" {
 		if b.Parse != "" || b.Default != nil {
 			return Invalidf("parse and default require a parameter binding")

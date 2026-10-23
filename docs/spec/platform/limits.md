@@ -703,6 +703,13 @@ its owning requirement.
 | `LIM-SCN-78` | 16 KiB | one captured sweep child CreateRunRequest | CLI capture and strict manifest reader | [SCN-R234](../tools/scanners.md) |
 | `LIM-SCN-79` | 4 MiB | each client sweep API response | CLI bounded response decoder | [SCN-R234](../tools/scanners.md) |
 | `LIM-SCN-80` | default 30 minutes; maximum 24 hours | one scan-sweep command invocation | CLI overall deadline, independent of API attempt timeout | [SCN-R235](../tools/scanners.md) |
+| `LIM-SCN-81` | 16 MiB | one custom ZIP | Artifact admission and Runtime bounded read | [SCN-R239](../tools/scanners.md), [SCN-R240](../tools/scanners.md) |
+| `LIM-SCN-82` | 64 MiB | expanded custom pack | Streaming extraction before writes | [SCN-R239](../tools/scanners.md), [SCN-R240](../tools/scanners.md) |
+| `LIM-SCN-83` | 1000 | custom pack files | ZIP preflight and extraction | [SCN-R239](../tools/scanners.md), [SCN-R240](../tools/scanners.md) |
+| `LIM-SCN-84` | 1 MiB | each custom file or single YAML | Admission for YAML and streamed expansion | [SCN-R239](../tools/scanners.md), [SCN-R240](../tools/scanners.md) |
+| `LIM-SCN-85` | 128 UTF-8 bytes | flat custom filename | Extraction name validation | [SCN-R239](../tools/scanners.md), [SCN-R240](../tools/scanners.md) |
+| `LIM-SCN-86` | 100000 | YAML tokens per template | Streaming token validation | [SCN-R239](../tools/scanners.md), [SCN-R240](../tools/scanners.md) |
+| `LIM-SCN-87` | 64 | YAML nesting depth | Streaming token validation | [SCN-R239](../tools/scanners.md), [SCN-R240](../tools/scanners.md) |
 | `LIM-SEC-1` | 256 bits (exactly 32 decoded bytes) | Credential-encryption master key in the --credential-master-key-file (RFC 4648 base64) | Server startup (master key loader) | [SEC-R17](security.md) |
 | `LIM-SEC-2` | at most 1 trailing newline | Content of the credential master key file | Server startup (master key loader) | [SEC-R17](security.md) |
 | `LIM-SEC-3` | 1 active master key | Credential-encryption keyring | Server | [SEC-R20](security.md) |

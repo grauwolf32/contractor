@@ -147,6 +147,11 @@ class ToolWorkerRuntime:
         self._input = create_model(
             "ToolWorkerInput", __config__=ConfigDict(strict=True, extra="forbid"), **fields
         )
+        for name, binding in execution.arguments.items():
+            if binding.optional and (
+                name not in fields or self._input.model_fields[name].is_required()
+            ):
+                raise ValueError("optional artifact binding requires a callable default")
         self._state = context.state
         self.allocation_id = context.allocation_id
         self._active: asyncio.Task | None = None
@@ -179,14 +184,20 @@ class ToolWorkerRuntime:
 
     def _resolve(self, request: StageContentRequest):
         arguments = {}
+        omitted = set()
         for name, binding in self._execution.arguments.items():
             if binding.source == "parameter":
                 arguments[name] = binding.resolve_parameter(request.parameters)
             elif binding.source == "artifact":
-                arguments[name] = request.artifacts[binding.name].model_dump(by_alias=True)
+                if binding.optional and binding.name not in request.artifacts:
+                    omitted.add(name)
+                else:
+                    arguments[name] = request.artifacts[binding.name].model_dump(by_alias=True)
             else:
                 arguments[name] = binding.value
         arguments = self._input.model_validate(arguments).model_dump()
+        for name in omitted:
+            arguments.pop(name, None)
         target = request.result_artifacts[self._execution.result_artifact]
         if target.namespace != self._context.namespace or target.name.startswith(RECEIPT_PREFIX):
             raise ValueError("invalid tool output namespace or reserved binding")

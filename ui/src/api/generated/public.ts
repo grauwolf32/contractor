@@ -5408,6 +5408,11 @@ export interface components {
             required: boolean;
         };
         ArtifactSlot: {
+            /**
+             * @description Owner UserScope for the optional Nuclei rulepack input only.
+             * @enum {string}
+             */
+            sourceScope?: "user";
             required: boolean;
             mediaTypes: components["schemas"]["MediaType"][];
         };
@@ -5778,6 +5783,8 @@ export interface components {
                     /** @constant */
                     source: "artifact";
                     name: string;
+                    /** @constant */
+                    optional?: true;
                 } | {
                     /** @constant */
                     source: "literal";

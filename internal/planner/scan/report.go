@@ -188,6 +188,7 @@ var workerErrorOutcomes = map[string]string{
 	"scan_wordlist_file_unavailable": planner.ScanJobIncomplete,
 	"scan_artifact_unavailable":      planner.ScanJobIncomplete,
 	"scan_output_exists":             planner.ScanJobIncomplete,
+	"nuclei_rulepack_invalid":        planner.ScanJobIncomplete,
 	"nuclei_package_invalid":         planner.ScanJobIncomplete,
 	"nuclei_package_mismatch":        planner.ScanJobIncomplete,
 	"nuclei_selection_invalid":       planner.ScanJobIncomplete,

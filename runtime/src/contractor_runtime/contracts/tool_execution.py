@@ -30,8 +30,14 @@ class ToolArgumentBinding(WireModel):
     parse: Literal["integer"] | None = Field(default=None, exclude_if=lambda value: value is None)
     default: Any = Field(default=None, exclude_if=lambda value: value is None)
 
+    optional: bool = Field(default=False, strict=True, exclude_if=lambda value: value is False)
+
     @model_validator(mode="after")
     def validate_binding(self) -> Self:
+        if "optional" in self.model_fields_set and (
+            self.source != "artifact" or self.optional is not True
+        ):
+            raise ValueError("optional true requires an artifact binding")
         options = self.model_fields_set & {"parse", "default"}
         if self.source != "parameter" and options:
             raise ValueError("parse and default require a parameter binding")

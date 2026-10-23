@@ -19,6 +19,7 @@ spec:
       # Canonical package manifest of the Ansible-provisioned v10.5.0 release.
       # Recompute this literal when provisioning a different installed package.
       templates_digest: {source: literal, value: "sha256:51a3bd4eef14e95bdeb0bad14ca4bd9bd455479a7044b244b76dee8f6dba5014"}
+      rulepack_ref: {source: artifact, name: rulepack, optional: true}
       timeout_seconds: {source: literal, value: 300}
     resultArtifact: report
     # Allow the adapter to return a timeout diagnostic and publish its report.

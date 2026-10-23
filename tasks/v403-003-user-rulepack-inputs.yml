@@ -5,7 +5,7 @@ milestone: web-nuclei-rule-sweeps-2026-10
 epic: scan-tools
 kind: feature
 priority: P2
-status: pending
+status: in_progress
 depends_on:
 - V403-001
 languages:
@@ -13,9 +13,9 @@ languages:
 - python
 - yaml
 - typescript
-goal: Upload one custom rulepack to UserScope and use its exact revision in standalone and Project
-  Runs without ProjectScope copies. Missing optional packs preserve installed-rule scans; supplied
-  packs are the exclusive template source.
+goal: Upload one custom rulepack to UserScope and use its exact revision in standalone and Project Runs
+  without ProjectScope copies. Missing optional packs preserve installed-rule scans; supplied packs are
+  the exclusive template source.
 context:
   proposal: docs/proposals/0041-web-nuclei-scanning-and-rule-sweeps.md
   specification:
@@ -26,74 +26,73 @@ context:
   - docs/spec/execution/runs.md
 scope:
   in:
-  - 'Add optional: true artifact binding omission across Go/Python/schema/Studio and verify callable
-    omission at preparation.'
-  - 'Add the narrow catalog sourceScope: user rulepack slot exception with authenticated owner
-    authorization and trusted exact UserScope-to-RunScope forks.'
+  - 'Add optional: true artifact binding omission across Go/Python/schema/Studio and verify callable omission
+    at preparation.'
+  - 'Add the narrow catalog sourceScope: user rulepack slot exception with authenticated owner authorization
+    and trusted exact UserScope-to-RunScope forks.'
   - Add scan_nuclei rulepack_ref, semantic media types, bounded flat archive/single-template parsing,
     full HTTP-template validation and private materialization.
-  - Custom mode requires no installed directory, uses no installed templates, applies selection
-    within the pack and records exact fork/content/template provenance.
-  - Update input-source snapshots, replay, purge/retention, shared fixtures, public/wire schemas
-    and generated clients using generators.
+  - Custom mode requires no installed directory, uses no installed templates, applies selection within
+    the pack and records exact fork/content/template provenance.
+  - Update owner-aware CLI sweep metadata selection and retained scoped repeat-source snapshots.
+  - Update input-source snapshots, replay, purge/retention, shared fixtures, public/wire schemas and generated
+    clients using generators.
   out:
   - Template-controlled custom-pack egress isolation, per the user decision.
   - General arbitrary cross-owner/scope artifact references and ProjectScope uploads.
   - OpenAPI-driven Audit rule selection or model-controlled scanner policy.
 requirements:
 - id: R1
-  text: Only an absent optional artifact omits the callable argument; a supplied inaccessible,
-    invalid or missing exact source fails atomically.
+  text: Only an absent optional artifact omits the callable argument; a supplied inaccessible, invalid
+    or missing exact source fails atomically.
 - id: R2
   text: The owner UserScope is derived from authentication, never request scope IDs. Runtime receives
     only exact RunScope refs; all other Project input slots preserve existing source semantics.
 - id: R3
   text: Accept a single application/yaml HTTP template or application/vnd.contractor.nuclei-rulepack+zip.
-    Bound compressed, expanded, entry and per-file work; reject escapes, links, duplicate names
-    and unsupported/non-template entries before launch.
+    Bound compressed, expanded, entry and per-file work; reject escapes, links, duplicate names and unsupported/non-template
+    entries before launch.
 - id: R4
-  text: One invalid template rejects the whole pack; no partial scan, implicit installed union
-    or fallback. Preserve ordinary pre-launch URL checks and no-proxy/no-OAST behavior.
+  text: One invalid template rejects the whole pack; no partial scan, implicit installed union or fallback.
+    Preserve ordinary pre-launch URL checks and no-proxy/no-OAST behavior.
 - id: R5
-  text: Record source revision/digest and fork lineage; source replacement/deletion after admission
-    cannot alter Run input bytes.
+  text: Record source revision/digest and fork lineage; source replacement/deletion after admission cannot
+    alter Run input bytes.
 failure_outcomes:
 - operation: Owner-authorized source fork, pack validation and scanner launch
   permanent: Ordinary not_found/invalid input admission errors; fixed nonretryable pack validation/media/size/ref
     diagnostics before scanner launch.
-  retryable: Existing storage_transaction_conflict behavior only; deterministic validation never
-    retries.
-  ambiguous: Run admission and input forks reconcile under the existing create key; scanner delivery
-    uses its existing receipt.
-  cancelled: Join artifact retrieval, extraction/validation threads and subprocesses before private
-    scratch cleanup.
+  retryable: Existing storage_transaction_conflict behavior only; deterministic validation never retries.
+  ambiguous: Run admission and input forks reconcile under the existing create key; scanner delivery uses
+    its existing receipt.
+  cancelled: Join artifact retrieval, extraction/validation threads and subprocesses before private scratch
+    cleanup.
   timeout: Retrieval, validation and scan share the scanner deadline inside the separate Worker/Stage
     deadlines.
 cardinality:
 - collection: Owner rulepack entries
   expected: 1 to 20 HTTP templates
-  maximum: 16 MiB zip input; 64 MiB expanded bytes; 1000 files; 1 MiB per template; single YAML
-    at most 1 MiB
+  maximum: 16 MiB zip input; 64 MiB expanded bytes; 1000 files; 1 MiB per template; single YAML at most
+    1 MiB
   bound: Enforce streaming expansion/count/name bounds before writes and perform blocking parsing/copying
     off the event loop.
 - collection: UserScope/RunScope input forks
   expected: 1 selected pack per Run
   maximum: 1 optional rulepack input; existing artifact/API page bounds
-  bound: One authorized exact fork and digest per Run, with no Project-wide or UserScope-wide
-    rescan.
+  bound: One authorized exact fork and digest per Run, with no Project-wide or UserScope-wide rescan.
 lifecycle:
 - entity: Owner source, Run input fork and private extracted pack
-  delete: Owner controls the original UserScope binding; Run purge owns its fork; allocation cleanup
-    owns scratch.
-  cascade: Removing a Run never removes the owner source; deleting the source never mutates existing
-    Run forks.
+  delete: Owner controls the original UserScope binding; Run purge owns its fork; allocation cleanup owns
+    scratch.
+  cascade: Removing a Run never removes the owner source; deleting the source never mutates existing Run
+    forks.
   retention: Ordinary ArtifactStore/Run retention; cleanup joins in-flight validation/execution.
 acceptance_criteria:
 - id: A1
   given: one pack uploaded to owner UserScope
   when: standalone and several Project Runs select it
-  then: every Run receives an exact authorized fork without ProjectScope copies and provenance
-    identifies the same source bytes
+  then: every Run receives an exact authorized fork without ProjectScope copies and provenance identifies
+    the same source bytes
 - id: A2
   given: missing optional packs and supplied wrong-owner/inaccessible/wrong-media/invalid refs
   when: admission and binding projection run
@@ -101,13 +100,13 @@ acceptance_criteria:
 - id: A3
   given: valid and invalid/oversized/escaping/mixed packs at the expansion bounds
   when: the real Nuclei adapter prepares
-  then: only complete supported packs launch; custom mode works without installed templates and
-    never adds installed rules
+  then: only complete supported packs launch; custom mode works without installed templates and never
+    adds installed rules
 - id: A4
   given: source mutation/deletion, cancellation, replay and populated Run purge
   when: the real PostgreSQL/ArtifactStore/Runtime paths run
-  then: pinned bytes and receipts remain stable, scratch is joined/removed and source artifacts
-    retain their independent lifecycle
+  then: pinned bytes and receipts remain stable, scratch is joined/removed and source artifacts retain
+    their independent lifecycle
 tests:
 - command: go test ./internal/contracts/... ./internal/config/... ./internal/runservice/... ./internal/artifacts/...
     ./internal/httpapi/public/...
@@ -117,6 +116,12 @@ tests:
   - A3
   - A4
 - command: cd runtime && uv run pytest tests/test_contracts.py tests/test_tool_worker.py tests/test_scan_toolset.py
+  covers: *id001
+- command: go test ./internal/cli/... ./internal/runrepeat/...
+  covers: *id001
+- command: make test-nuclei-web-installed
+  covers: *id001
+- command: make test-nuclei-web-e2e
   covers: *id001
 - command: make test-wire-cross-language
   covers: *id001
@@ -132,3 +137,51 @@ tests:
   covers: *id001
 - command: make lint
   covers: *id001
+progress:
+  completed_work:
+  - Added strict optional artifact bindings across Go, Python, authored/wire/public schemas and basic
+    Studio validation; absent optional bindings omit the callable argument and its digest entry, while
+    preparation requires a callable default.
+  - Added the narrow optional rulepack sourceScope user contract. Authenticated owner selection and exact
+    transactional UserScope-to-RunScope forks work for standalone and multiple Project Runs; other input
+    sources retain their endpoint semantics.
+  - Added bounded single-YAML and flat-ZIP extraction, complete HTTP-template structure validation and
+    native Nuclei validation before target scanning. Custom packs exclusively use private bytes and require
+    no installed template directory.
+  - Recorded canonical package/template manifests, exact Run input refs and raw source content digests;
+    shared outcome classification treats invalid packs as incomplete without fallback.
+  - Captured UserScope rulepack revisions once per CLI sweep and retained scoped repeat-request v2 snapshots.
+    Repeat drafts block changed input scopes; prior unscoped snapshot versions are rejected.
+  - Verified owner isolation, atomic rejection, source advancement/removal, idempotent replay and populated
+    Run artifact purge on PostgreSQL; covered 1000 templates, aggregate/compressed/per-file bounds, invalid
+    entries and timeout cleanup.
+  - Updated owning specs, registries, generated clients and shipped Workflow. Removed the obsolete Scope.Kind
+    test-only export baseline entry now that admission uses it in production.
+  remaining_work: []
+verification:
+  date: '2026-10-23'
+  environment: Isolated codex/web-nuclei-sweeps worktree; Go 1.26.9, Node 24.20, locked Python Runtime,
+    Nuclei 3.11.1 and disposable PostgreSQL 17; no demo data.
+  results:
+  - Full Go suites for contracts, config, runservice, artifacts, public handlers, CLI, runrepeat, scanplan,
+    publicclient and planner/scan passed with PostgreSQL configured. Final runservice suite includes original
+    source binding retirement and preserved admitted forks/replay.
+  - 'cd runtime && uv run pytest tests/test_contracts.py tests/test_tool_worker.py tests/test_scan_toolset.py:
+    410 passed; one expected ZIP duplicate-name fixture warning.'
+  - 'make test-nuclei-web-e2e: final standalone run passed (154.581s), actual Server/Scheduler/Runtime
+    with deterministic scanner; custom input fork/source mutation, absent installed directory, native
+    validation rejection and no target traffic on invalid packs.'
+  - 'make test-nuclei-web-installed: passed (174.989s), actual installed Nuclei and the shipped Workflow,
+    including custom HTTP YAML and invalid matcher syntax rejection.'
+  - 'make test-wire-cross-language: passed, 248 fixtures, 226 Go and 182 Python shared tests; Runtime
+    shared selection 1158 passed.'
+  - 'make verify-public-api verify-public-api-postgres test-config: passed; shipped configuration validates.'
+  - 'make test-postgres: passed all ten package suites, including public repeat source-scope drift coverage.'
+  - 'make ui-verify: passed 190 test files, 2324 tests and one existing expected failure, 17 Node tests,
+    generated checks, lint, typecheck and build.'
+  - 'make lint: passed including SQL/layer checks, shared-fixture readers, release graph, test-only export
+    checks, Ruff and five Runtime import contracts. Final additional test cases pass Ruff and formatting;
+    closing metadata is rechecked before completion.'
+  - 'Process gates must run serially on one database: an overlapping attempt waited on the database-wide
+    active Server lease and exceeded its harness budget; its independent final rerun passed. No production
+    change was needed.'

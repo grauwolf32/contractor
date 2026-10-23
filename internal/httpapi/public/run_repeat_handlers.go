@@ -122,7 +122,8 @@ func (h *runRepeatHandlers) getRunRepeatDraft(w http.ResponseWriter, r *http.Req
 	}
 	selector := run.WorkflowName + "@" + run.WorkflowVersion
 	workflowAvailable := true
-	if _, workflowErr := h.Config.Workflow(selector); workflowErr != nil {
+	currentWorkflow, workflowErr := h.Config.Workflow(selector)
+	if workflowErr != nil {
 		workflowAvailable = false
 		response.Notices = append(response.Notices, runRepeatDraftNotice{
 			Code: "workflow_unavailable", Severity: "blocking", Field: "workflow",
@@ -167,6 +168,15 @@ func (h *runRepeatHandlers) getRunRepeatDraft(w http.ResponseWriter, r *http.Req
 		return
 	}
 	if workflowAvailable {
+		for slot, source := range snapshot.Inputs {
+			expected := artifacts.ScopeUser
+			if run.ProjectID != nil && currentWorkflow.Inputs[slot].SourceScope != "user" {
+				expected = artifacts.ScopeProject
+			}
+			if source.SourceScope != expected {
+				draft.Inputs[slot] = runRepeatInputSelection{Status: repeatStatusUnavailable, Code: "input_source_scope_changed", Message: "The Workflow now selects a different source scope. Select the input again before creating another Run."}
+			}
+		}
 		if _, resolveErr := h.Config.ResolveRunWorkflow(
 			r.Context(), selector, snapshot.ExecutionConfig, h.Credentials,
 		); errors.Is(resolveErr, resolved.ErrCredentialLookup) {
@@ -237,15 +247,16 @@ func (h *runRepeatHandlers) repeatInputsFromSnapshot(
 }
 
 func (h *runRepeatHandlers) resolveRepeatSource(
-	ctx context.Context, run runstore.WorkflowRun, ref contracts.ArtifactRef,
+	ctx context.Context, run runstore.WorkflowRun, source runrepeat.InputSource,
 ) (runRepeatInputSelection, error) {
+	ref := source.Artifact
 	copy := ref.Clone()
 	var (
 		store artifacts.ScopedStore
 		err   error
 		kind  artifacts.ScopeKind
 	)
-	if run.ProjectID == nil {
+	if source.SourceScope == artifacts.ScopeUser {
 		kind = artifacts.ScopeUser
 		store, err = h.Artifacts.User(run.OwnerID)
 	} else {
@@ -309,7 +320,7 @@ func (h *runRepeatHandlers) appendRuntimeBindingNotices(
 	return nil
 }
 
-func sortedArtifactSlots(source map[string]contracts.ArtifactRef) []string {
+func sortedArtifactSlots[T any](source map[string]T) []string {
 	result := make([]string, 0, len(source))
 	for slot := range source {
 		result = append(result, slot)

@@ -12,6 +12,11 @@ import (
 func TestSharedNucleiInputs(t *testing.T) {
 	data := contractstest.ReadFile(t, "api", "testdata", "nuclei-input-cases.json")
 	var fixture struct {
+		RulepackLimits struct {
+			ZIPBytes  int
+			FileBytes int
+			MediaType string
+		}
 		Cases []struct {
 			Name      string
 			Arguments map[string]any
@@ -20,6 +25,9 @@ func TestSharedNucleiInputs(t *testing.T) {
 	}
 	if err := json.Unmarshal(data, &fixture); err != nil {
 		t.Fatal(err)
+	}
+	if fixture.RulepackLimits.ZIPBytes != MaxNucleiRulepackZIPBytes || fixture.RulepackLimits.FileBytes != MaxNucleiRulepackFileBytes || fixture.RulepackLimits.MediaType != NucleiRulepackMediaType {
+		t.Fatal("rulepack admission limits drift")
 	}
 	for _, c := range fixture.Cases {
 		t.Run(c.Name, func(t *testing.T) {

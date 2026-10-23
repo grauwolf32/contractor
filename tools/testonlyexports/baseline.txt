@@ -34,7 +34,6 @@ internal/apierror.EvalViewChanged V372-030
 
 # Accessors that only in-memory test doubles read (V368-010 keeps the doubles).
 internal/artifacts.Scope.ID V372-030
-internal/artifacts.Scope.Kind V372-030
 internal/credentials.RuntimeCredentialMaterial.Kind V372-030
 internal/runtimeconfig.PreparedPublication.Name V372-030
 internal/runtimeconfig.PreparedPublication.Version V372-030

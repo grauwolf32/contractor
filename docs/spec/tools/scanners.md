@@ -505,8 +505,8 @@ existing outcomes; none implies a clean scan or automatic rescan (FAIL-SCN-12).
 selection of explicit `--project` IDs or every owner-authorized Project page
 with `--all`, before any child POST. The default Workflow is `nuclei-web@1`;
 `--workflow` requires an exact selector. Capture Project IDs, explicit target
-URLs from `httpTarget.url`, supplied `--param` values, exact ProjectScope input
-Artifact revisions from `--artifact`, child requests and per-member create keys.
+URLs from `httpTarget.url`, supplied `--param` values, exact declared-source input
+Artifact revisions from `--artifact` (SCN-R243), child requests and per-member create keys.
 Target cannot be supplied through `--param`. Runs use the ordinary Project Run
 API and include a `scan-sweep` metadata label. Missing/deleting/targetless
 Projects and inaccessible required source refs are explicit member skips; no
@@ -566,6 +566,65 @@ without host scanner dependencies. It covers admission, HTTP invocation,
 exact report/manifest publication, Project grouping, lost-create acknowledgement
 and settled-member replay. A separate explicit gate retains real installed
 Nuclei smoke coverage. A zero-test or skipped acceptance selection is not a pass.
+
+### Owner-uploaded custom Nuclei rulepacks
+
+**SCN-R238.** `scan_nuclei` accepts optional `rulepack_ref`, an exact
+visible RunScope ArtifactRef. An absent binding selects installed mode; a
+supplied invalid/inaccessible pack fails without fallback. The web Workflow's
+optional `rulepack` input declares `sourceScope: user`; trusted Run admission
+derives its UserScope from the authenticated owner even for Project Runs,
+validates media/size and forks the exact source to `inputs/rulepack` in the
+same create transaction. No request selects a scope ID. Other Project inputs
+remain ProjectScope inputs. Runtime receives only RunScope authority.
+
+**SCN-R239.** A pack is one UTF-8 HTTP template with `application/yaml`, or a
+flat archive with `application/vnd.contractor.nuclei-rulepack+zip`. ZIP input
+is at most 16 MiB; expanded content is at most 64 MiB, 1000 files and 1 MiB
+per file (also the single-YAML limit; LIM-SCN-81 to LIM-SCN-84). Only stored
+or deflated regular `.yaml`/`.yml` files are accepted. Reject directories,
+links, escapes, special files, encryption, split/ZIP64/SFX/appended archives,
+unsupported entries, duplicate IDs and duplicate or Unicode/case-fold-colliding
+names. Names contain at most 128 UTF-8 bytes, no leading dot, surrounding
+whitespace, separators, colon or controls (LIM-SCN-85). ZIP entry preflight and
+streaming expansion enforce limits before unbounded allocation or writes.
+
+**SCN-R240.** Parse every template, rejecting duplicate/non-string YAML
+mapping keys, aliases, anchors, explicit tags, multiple documents, invalid IDs,
+missing/empty HTTP requests and other protocol templates. Bound YAML to
+100000 tokens and depth 64 (LIM-SCN-86, LIM-SCN-87). Off-loop private extraction,
+validation, hashing and manifest assembly share the scanner deadline. Native
+Nuclei `-validate` validates the complete private pack before filters or target
+scanning; a single invalid file rejects the whole pack as
+`nuclei_rulepack_invalid`. Unavailable Artifact reads use
+`scan_artifact_unavailable`; validation never silently falls back or retries
+(FAIL-SCN-14).
+
+**SCN-R241.** Custom mode works without an installed template directory and
+exclusively supplies private pack bytes to validation, selection and scanning.
+It overrides the installed package pin without adding installed rules. Apply
+ordinary ID/tag/severity selection within the pack. Canonical package identity
+and the create-only manifest follow SCN-R227 and SCN-R229; the manifest additionally
+records `source` with kind `rulepack`, exact Run input ArtifactRef and raw source
+contentDigest. The report records source `rulepack`, rulepackArtifact,
+sourceContentDigest and actualPackageDigest. Source advancement cannot change
+a Run's fork or invocation bytes. Purge removes the Run fork and manifest,
+independently of the owner source (LIFE-SCN-9).
+
+**SCN-R242.** Custom rules are trusted owner-controlled content. Ordinary
+supplied-target validation, no proxy, disabled OAST and HTTP-only selection
+remain enforced. Isolation of template-controlled request destinations is an
+accepted non-goal owned by the operator; reconsider before accepting untrusted
+or shared rulepacks. Pack size, structure, source scope and provenance remain
+strictly enforced. No arbitrary scope/owner selection is added.
+
+**SCN-R243.** Client sweeps inspect the selected Workflow input contract when
+artifact inputs are supplied. Resolve each owner-scoped rulepack once to an
+exact UserScope revision before dispatch and reuse it across Projects; resolve
+ordinary inputs per Project. Resume reads no mutable source. Repeat snapshots
+retain each original exact source with its explicit sourceScope; a catalog
+change to that scope makes the repeat input unavailable rather than selecting
+another scope's same-named artifact.
 
 ### SQLMap HTTP request artifacts
 

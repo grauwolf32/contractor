@@ -89,10 +89,10 @@ func TestRunRepeatDraftBlocksMissingOrInvalidAuthorityDespiteLineage(t *testing.
 	}{
 		{"missing", "", "repeat_request_unavailable"},
 		{"malformed", "{", "repeat_request_invalid"},
-		{"missing-patch", `{"schemaVersion":"contractor.run-repeat-request/v1","workflow":{"name":"artifact-copy","version":"1"},"inputs":{}}`, "repeat_request_invalid"},
-		{"null-patch", `{"schemaVersion":"contractor.run-repeat-request/v1","workflow":{"name":"artifact-copy","version":"1"},"inputs":{},"executionConfig":null}`, "repeat_request_invalid"},
-		{"wrong-workflow", `{"schemaVersion":"contractor.run-repeat-request/v1","workflow":{"name":"other","version":"1"},"inputs":{},"executionConfig":{}}`, "repeat_request_invalid"},
-		{"wrong-project", `{"schemaVersion":"contractor.run-repeat-request/v1","workflow":{"name":"artifact-copy","version":"1"},"projectId":"other","inputs":{},"executionConfig":{}}`, "repeat_request_invalid"},
+		{"missing-patch", `{"schemaVersion":"contractor.run-repeat-request/v2","workflow":{"name":"artifact-copy","version":"1"},"inputs":{}}`, "repeat_request_invalid"},
+		{"null-patch", `{"schemaVersion":"contractor.run-repeat-request/v2","workflow":{"name":"artifact-copy","version":"1"},"inputs":{},"executionConfig":null}`, "repeat_request_invalid"},
+		{"wrong-workflow", `{"schemaVersion":"contractor.run-repeat-request/v2","workflow":{"name":"other","version":"1"},"inputs":{},"executionConfig":{}}`, "repeat_request_invalid"},
+		{"wrong-project", `{"schemaVersion":"contractor.run-repeat-request/v2","workflow":{"name":"artifact-copy","version":"1"},"projectId":"other","inputs":{},"executionConfig":{}}`, "repeat_request_invalid"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			fixture := newHandlerFixture(t)
@@ -208,7 +208,7 @@ func TestRunRepeatDraftReportsChangedRuntimeBinding(t *testing.T) {
 	fixture.runs.runs[run.RunID] = run
 	retained, err := runrepeat.Encode(runrepeat.Snapshot{
 		Workflow: resolved.WorkflowRef{Name: run.WorkflowName, Version: run.WorkflowVersion},
-		Inputs:   map[string]contracts.ArtifactRef{},
+		Inputs:   map[string]runrepeat.InputSource{},
 	})
 	if err != nil {
 		t.Fatal(err)

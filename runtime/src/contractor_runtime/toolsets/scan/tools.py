@@ -63,6 +63,12 @@ from contractor_runtime.toolsets.scan.nuclei_package import (
     selected_manifest,
     snapshot_package,
 )
+from contractor_runtime.toolsets.scan.nuclei_rulepack import (
+    MAX_FILE_BYTES,
+    MAX_ZIP_BYTES,
+    RULEPACK_MEDIA_TYPE,
+    materialize_rulepack,
+)
 from contractor_runtime.toolsets.scan.process import ProcessResult, child_environment, run_process
 from contractor_runtime.toolsets.scan.wordlist import MAX_WORDLIST_ARTIFACT_BYTES, parse_wordlist
 from contractor_runtime.workspace import AllocationWorkspace
@@ -296,12 +302,12 @@ class NucleiTool(JSONLinesScanTool):
     name = "scan_nuclei"
     binary = "nuclei"
     version_arguments = ("-version",)
-    description = """Scan one HTTP(S) URL with installed nuclei HTTP templates.
+    description = """Scan one HTTP(S) URL with installed or exact custom nuclei HTTP templates.
 
     Uses local templates, disables updates and external OAST callbacks. Calls are
     serialized within the allocation. A configured tool proxy route is unsupported.
-    Metadata and Runtime service destinations fail with scan_target_denied, as do
-    loopback and link-local ones unless the operator allows the network.
+    The supplied target passes target policy before launch. Custom pack-controlled
+    destinations follow the trusted templates.
     Findings are scanner evidence and are not automatically published.
 
     Args:
@@ -314,6 +320,10 @@ class NucleiTool(JSONLinesScanTool):
         templates_digest: Optional sha256 package pin. Verify a private installed-package
             snapshot, list the selected rules and publish their exact template_manifest
             artifact before scanning. A mismatch fails without scanning.
+        rulepack_ref: Optional exact RunScope artifact ref for application/yaml or
+            application/vnd.contractor.nuclei-rulepack+zip. Custom mode validates
+            every HTTP template and exclusively scans the pack, without installed
+            templates. A bad supplied pack fails; it never selects installed rules.
 
     Returns:
         status, exitCode, errorCode, bounded stdout/stderr previews and truncation
@@ -322,8 +332,6 @@ class NucleiTool(JSONLinesScanTool):
     """
 
     def prepare(self, directory: Path, templates: Path) -> list[str]:
-        if not templates.is_dir():
-            raise ScannerUnavailable("nuclei_templates_unavailable")
         # Prevent a first-run template install even on older nuclei versions.
         (directory / "nuclei-templates").mkdir()
         return []
@@ -337,27 +345,31 @@ class NucleiTool(JSONLinesScanTool):
         rate_limit: int = 10,
         timeout_seconds: int = 300,
         templates_digest: str = "",
+        rulepack_ref: dict[str, str] | None = None,
     ) -> dict:
         provenance: dict = {}
         manifest_ref = ArtifactRef(namespace=self._session.namespace, name="template-manifest")
 
         def arguments():
+            values = dict(
+                url=url,
+                template_ids=template_ids,
+                tags=tags,
+                severity=severity,
+                rate_limit=rate_limit,
+                timeout_seconds=timeout_seconds,
+                templates_digest=templates_digest,
+            )
+            if rulepack_ref is not None:
+                values["rulepack_ref"] = rulepack_ref
             try:
-                validate_nuclei_arguments(
-                    dict(
-                        url=url,
-                        template_ids=template_ids,
-                        tags=tags,
-                        severity=severity,
-                        rate_limit=rate_limit,
-                        timeout_seconds=timeout_seconds,
-                        templates_digest=templates_digest,
-                    )
-                )
+                validate_nuclei_arguments(values)
             except ToolInputError as error:
                 raise ScanInputError(str(error)) from None
-            if templates_digest:
-                provenance.update(expectedPackageDigest=templates_digest)
+            if rulepack_ref is not None:
+                provenance.update(source="rulepack", rulepackArtifact=rulepack_ref)
+            elif templates_digest:
+                provenance.update(source="installed", expectedPackageDigest=templates_digest)
             command = [
                 "-jsonl",
                 "-silent",
@@ -385,17 +397,62 @@ class NucleiTool(JSONLinesScanTool):
 
         async def prepare_target(directory: Path, deadline: float) -> list[str]:
             templates = self._session.templates
-            if templates_digest:
-                snapshot = await threads.to_thread_until_done(
-                    snapshot_package,
-                    templates,
+            identifiers = None
+            source = None
+            if rulepack_ref is not None:
+                exact_ref = ArtifactRef.model_validate(rulepack_ref).require_exact()
+                try:
+                    metadata = await self._session.artifact_client.read_artifact_metadata(exact_ref)
+                    if metadata.media_type not in {"application/yaml", RULEPACK_MEDIA_TYPE}:
+                        raise PackageError("nuclei_rulepack_invalid")
+                    maximum = (
+                        MAX_FILE_BYTES
+                        if metadata.media_type == "application/yaml"
+                        else MAX_ZIP_BYTES
+                    )
+                    if metadata.size > maximum:
+                        raise PackageError("nuclei_rulepack_invalid")
+                    artifact = await self._session.artifact_client.read_artifact(
+                        exact_ref, max_bytes=maximum
+                    )
+                    if (
+                        artifact.media_type != metadata.media_type
+                        or len(artifact.data) != metadata.size
+                    ):
+                        raise PackageError("nuclei_rulepack_invalid")
+                except PackageError:
+                    raise
+                except Exception:
+                    raise ScannerUnavailable("scan_artifact_unavailable") from None
+                snapshot, identifiers, digest = await threads.to_thread_until_done(
+                    materialize_rulepack,
+                    artifact.data,
+                    artifact.media_type,
                     directory / "nuclei-templates",
                     deadline,
-                    name="nuclei-package-snapshot",
+                    name="nuclei-rulepack-materialize",
                 )
-                provenance["actualPackageDigest"] = snapshot.digest
-                if snapshot.digest != templates_digest:
-                    raise PackageError("nuclei_package_mismatch")
+                provenance.update(actualPackageDigest=snapshot.digest, sourceContentDigest=digest)
+                source = {
+                    "kind": "rulepack",
+                    "artifact": exact_ref.model_dump(by_alias=True),
+                    "contentDigest": digest,
+                }
+            else:
+                if not templates.is_dir():
+                    raise ScannerUnavailable("nuclei_templates_unavailable")
+                if templates_digest:
+                    snapshot = await threads.to_thread_until_done(
+                        snapshot_package,
+                        templates,
+                        directory / "nuclei-templates",
+                        deadline,
+                        name="nuclei-package-snapshot",
+                    )
+                    provenance["actualPackageDigest"] = snapshot.digest
+                    if snapshot.digest != templates_digest:
+                        raise PackageError("nuclei_package_mismatch")
+            if templates_digest or rulepack_ref is not None:
                 templates = snapshot.root
                 try:
                     await self._session.artifact_client.read_artifact(
@@ -426,6 +483,25 @@ class NucleiTool(JSONLinesScanTool):
                         raise PackageError("nuclei_selection_invalid")
                     engine_version = match[1].decode("ascii")
                     provenance["engineVersion"] = engine_version
+                    if rulepack_ref is not None:
+                        validation = await run_command(
+                            [
+                                executable,
+                                "-validate",
+                                "-t",
+                                str(templates),
+                                "-disable-update-check",
+                                "-no-interactsh",
+                                "-no-color",
+                                "-silent",
+                            ],
+                            cwd=directory,
+                            env=child_environment(directory),
+                            timeout=max(0.001, deadline - time.monotonic()),
+                            max_output_bytes=MAX_MANIFEST_BYTES,
+                        )
+                        if validation.returncode:
+                            raise PackageError("nuclei_rulepack_invalid")
                     listing = await run_command(
                         [executable, *arguments(), "-t", str(templates), "-tl"],
                         cwd=directory,
@@ -441,6 +517,8 @@ class NucleiTool(JSONLinesScanTool):
                         listing.stdout,
                         engine_version,
                         deadline,
+                        identifiers,
+                        source,
                         name="nuclei-selected-manifest",
                     )
                 except ProcessTimeoutError:
@@ -471,7 +549,7 @@ class NucleiTool(JSONLinesScanTool):
 
         def observation(result: ProcessResult) -> dict:
             value = self.observation(result)
-            if templates_digest:
+            if templates_digest or rulepack_ref is not None:
                 value.update(
                     **provenance,
                     rateLimit=rate_limit,

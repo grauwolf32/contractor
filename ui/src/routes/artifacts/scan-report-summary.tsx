@@ -16,6 +16,7 @@ type WorkerErrorOutcome = "unavailable" | "incomplete" | "failed";
 const WORKER_ERROR_OUTCOMES: ReadonlyMap<string, WorkerErrorOutcome> = new Map([
   ["scanner_unavailable", "unavailable"],
   ["nuclei_templates_unavailable", "unavailable"],
+  ["nuclei_rulepack_invalid", "incomplete"],
   ["nuclei_package_invalid", "incomplete"],
   ["nuclei_package_mismatch", "incomplete"],
   ["nuclei_selection_invalid", "incomplete"],

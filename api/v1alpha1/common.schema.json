@@ -157,7 +157,7 @@
                 "parse": {"const": "integer"}, "default": {"type": "integer", "minimum": 0, "maximum": 9007199254740991}
               }},
               {"type": "object", "additionalProperties": false, "required": ["source", "name"], "properties": {
-                "source": {"const": "artifact"}, "name": {"type": "string", "minLength": 1, "maxLength": 128, "x-maxBytes": 128}
+                "source": {"const": "artifact"}, "name": {"type": "string", "minLength": 1, "maxLength": 128, "x-maxBytes": 128}, "optional": {"const": true}
               }},
               {"type": "object", "additionalProperties": false, "required": ["source", "value"], "properties": {
                 "source": {"const": "literal"}, "value": {"oneOf": [

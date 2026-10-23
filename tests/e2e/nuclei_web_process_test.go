@@ -52,6 +52,10 @@ func runNucleiWebProcessAcceptance(t *testing.T, deterministic bool) {
 args = sys.argv[1:]
 if '-version' in args:
     print('Nuclei Engine Version: v3.11.1')
+elif '-validate' in args:
+    root = pathlib.Path(args[args.index('-t') + 1])
+    if any(b'contractor-invalid-matcher' in p.read_bytes() for p in root.glob('*.yaml')):
+        sys.exit(2)
 elif '-tl' in args:
     root = pathlib.Path(args[args.index('-t') + 1])
     print('\n'.join(str(path.relative_to(root)) for path in sorted(root.rglob('*.yaml'))))
@@ -159,6 +163,64 @@ else:
 			runNucleiProjectSweep(t, h)
 		})
 	}
+	t.Run("custom_user_rulepack_without_installation", func(t *testing.T) {
+		path := filepath.Join(h.temporaryRoot, "nuclei-templates")
+		payload, err := os.ReadFile(filepath.Join(path, "fixture.yaml"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		payload = bytes.ReplaceAll(payload, []byte("contractor-local-fixture"), []byte("contractor-custom-fixture"))
+		ref := h.upload(t, "custom-rulepack", "application/yaml", payload, nil)
+		if err := os.Rename(path, path+".saved"); err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if err := os.Rename(path+".saved", path); err != nil {
+				t.Error(err)
+			}
+		}()
+		id := h.createRun(t, "nuclei-web@1", map[string]string{"target": h.targetURL}, map[string]artifactRef{"rulepack": ref})
+		// The admitted Run reads its fork even after the owner advances the source.
+		h.upload(t, "custom-rulepack", "application/yaml", []byte("invalid replacement"), ref.Revision)
+		_, report := h.completedReport(t, id, "scan_nuclei")
+		if report.Observation["source"] != "rulepack" {
+			t.Fatalf("lost custom mode: %+v", report.Observation)
+		}
+		manifest, _ := download(t, h.client, h.baseURL+"/v1/runs/"+id+"/outputs/template_manifest")
+		var provenance struct {
+			Selected []struct {
+				ID string `json:"id"`
+			} `json:"selectedTemplates"`
+			Source struct {
+				ContentDigest string `json:"contentDigest"`
+			} `json:"source"`
+		}
+		if err := json.Unmarshal(manifest, &provenance); err != nil {
+			t.Fatal(err)
+		}
+		if len(provenance.Selected) != 1 || provenance.Selected[0].ID != "contractor-custom-fixture" || provenance.Source.ContentDigest != contentdigest.Bytes(payload) {
+			t.Fatalf("wrong custom provenance: %+v", provenance)
+		}
+		before := len(scanFixtureRequests(h))
+		bad := h.upload(t, "invalid-rulepack", "application/yaml", []byte("id: bad\nhttp: []\n"), nil)
+		id = h.createRun(t, "nuclei-web@1", map[string]string{"target": h.targetURL}, map[string]artifactRef{"rulepack": bad})
+		h.terminal(t, id, "failed")
+		if len(scanFixtureRequests(h)) != before {
+			t.Fatal("invalid rulepack reached target")
+		}
+		// Structurally valid HTTP rules still require complete native syntax validation.
+		nativeBad := bytes.ReplaceAll(payload, []byte("type: word"), []byte("type: contractor-invalid-matcher"))
+		if bytes.Equal(payload, nativeBad) {
+			t.Fatal("native validation fixture did not change")
+		}
+		bad = h.upload(t, "native-invalid-rulepack", "application/yaml", nativeBad, nil)
+		id = h.createRun(t, "nuclei-web@1", map[string]string{"target": h.targetURL}, map[string]artifactRef{"rulepack": bad})
+		h.terminal(t, id, "failed")
+		if len(scanFixtureRequests(h)) != before {
+			t.Fatal("native-invalid pack reached target")
+		}
+
+	})
 	t.Run("changed_package_never_scans", func(t *testing.T) {
 		before := len(scanFixtureRequests(h))
 		path := filepath.Join(h.temporaryRoot, "nuclei-templates", "fixture.yaml")

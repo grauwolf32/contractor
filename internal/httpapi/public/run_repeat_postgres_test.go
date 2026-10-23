@@ -99,7 +99,7 @@ func TestPostgresRunRepeatRequiresRetainedAuthorityWithoutMutation(t *testing.T)
 					}
 					retained, err := runrepeat.Encode(runrepeat.Snapshot{
 						Workflow: resolved.WorkflowRef{Name: "artifact-copy", Version: "1"}, ProjectID: projectID,
-						Inputs: map[string]contracts.ArtifactRef{"source": source.Ref},
+						Inputs: map[string]runrepeat.InputSource{"source": {SourceScope: artifacts.ScopeKind(scope), Artifact: source.Ref}},
 					})
 					if err != nil {
 						t.Fatal(err)
@@ -178,5 +178,47 @@ func TestPostgresRunRepeatRequiresRetainedAuthorityWithoutMutation(t *testing.T)
 				})
 			}
 		})
+	}
+}
+
+func TestPostgresRepeatRefusesChangedInputSourceScope(t *testing.T) {
+	ctx := t.Context()
+	pool := isolatedPublicPool(t, ctx)
+	fixture := newHandlerFixture(t)
+	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	runs := runstore.NewPostgresStore(pool)
+	projects := projectstore.NewPostgresStore(pool)
+	project, _, err := projects.Create(ctx, projectstore.CreateParams{ProjectID: "scope-drift-project", OwnerID: "user-1", Kind: projectstore.KindProject, Name: "Scope drift", IdempotencyKey: "scope-drift-project", RequestDigest: "sha256:" + strings.Repeat("a", 64)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	user, _ := service.User("user-1")
+	source, err := user.Write(ctx, contracts.ArtifactRef{Namespace: "rules", Name: "pack"}, artifacts.Payload{MediaType: "application/yaml", Data: []byte("owner rules")}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const runID = "scope-drift-run"
+	if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{LaneClass: resolved.LaneClassModel, RunID: runID, OwnerID: "user-1", ProjectID: &project.ProjectID, WorkflowName: "artifact-copy", WorkflowVersion: "1", WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`), RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot()}); err != nil {
+		t.Fatal(err)
+	}
+	retained, err := runrepeat.Encode(runrepeat.Snapshot{Workflow: resolved.WorkflowRef{Name: "artifact-copy", Version: "1"}, ProjectID: &project.ProjectID, Inputs: map[string]runrepeat.InputSource{"rulepack": {SourceScope: artifacts.ScopeUser, Artifact: source.Ref}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := runrepeat.Retain(ctx, service, runID, retained); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runs.TransitionRun(ctx, runID, runstore.RunInitializing, runstore.RunFailed, runstore.Reason{Code: "fixture-complete"}); err != nil {
+		t.Fatal(err)
+	}
+	h := &runRepeatHandlers{RunRepeatDependencies: RunRepeatDependencies{Runs: runs, Projects: projects, Artifacts: service, Config: fixture.configs, Credentials: fixture.credentials, RuntimeConfigs: fixture.runtimeConfigs}}
+	request := httptest.NewRequest(http.MethodGet, "/v1/runs/"+runID+"/repeat-draft", nil).WithContext(auth.WithPrincipal(ctx, auth.Principal{UserID: "user-1"}))
+	request.SetPathValue("runId", runID)
+	response := httptest.NewRecorder()
+	h.getRunRepeatDraft(response, request)
+	var repeat runRepeatDraftResponse
+	decodeQueryResponse(t, response, &repeat)
+	if response.Code != http.StatusOK || repeat.Draft == nil || repeat.Draft.Inputs["rulepack"].Status != repeatStatusUnavailable || !hasRepeatNotice(repeat.Notices, "input_source_scope_changed") {
+		t.Fatalf("scope drift silently selected another source: %s", response.Body.String())
 	}
 }

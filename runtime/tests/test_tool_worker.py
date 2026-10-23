@@ -1203,3 +1203,28 @@ def test_shared_tool_parameter_binding_defaults_and_typed_receipt(tmp_path):
         assert len(tool.calls) == 1
 
     asyncio.run(scenario())
+
+
+def test_shared_optional_artifact_binding_omits_callable_argument_and_checks_default(tmp_path):
+    class OptionalTool(FixtureTool):
+        async def __call__(
+            self, url: str, rate_limit: int = 10, rulepack_ref: dict[str, str] | None = None
+        ) -> dict:
+            self.calls.append(rulepack_ref)
+            return self.result
+
+    async def scenario():
+        store, tool, spec = ArtifactStore(), OptionalTool(), tool_spec()
+        spec.agent_template.execution.arguments["rulepack_ref"] = ToolArgumentBinding(
+            source="artifact", name="rulepack", optional=True
+        )
+        runtime = await worker(tmp_path, store, tool, spec=spec)
+        result = await runtime.invoke(request(spec))
+        assert result.failure is None, result
+        assert tool.calls == [None]
+        with pytest.raises(
+            ValueError, match="optional artifact binding requires a callable default"
+        ):
+            await worker(tmp_path, ArtifactStore(), FixtureTool(), spec=spec)
+
+    asyncio.run(scenario())

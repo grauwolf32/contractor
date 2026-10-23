@@ -50,7 +50,7 @@ def test_capabilities_check_each_binary_independently(tmp_path, monkeypatch, ava
         path.write_text(f"#!/bin/sh\n{source}\n")
         path.chmod(0o700)
     monkeypatch.setenv("PATH", str(tmp_path))
-    monkeypatch.setattr(scan, "PROBE_TIMEOUT_SECONDS", 0.2)
+    # Fresh script launch on macOS can exceed 200 ms; keep the production probe budget.
 
     async def scenario():
         factory = scan.ScanToolsetFactory()
@@ -692,6 +692,17 @@ def test_shared_nuclei_inputs():
 
     root = Path(__file__).parents[2]
     fixture = json.loads((root / "api/testdata/nuclei-input-cases.json").read_text())
+    from contractor_runtime.toolsets.scan.nuclei_rulepack import (
+        MAX_FILE_BYTES,
+        MAX_ZIP_BYTES,
+        RULEPACK_MEDIA_TYPE,
+    )
+
+    assert fixture["rulepackLimits"] == {
+        "zipBytes": MAX_ZIP_BYTES,
+        "fileBytes": MAX_FILE_BYTES,
+        "mediaType": RULEPACK_MEDIA_TYPE,
+    }
     for case in fixture["cases"]:
         try:
             validate_nuclei_arguments(case["arguments"])
@@ -732,6 +743,8 @@ def install_pin_scanner(tmp_path, monkeypatch, *, mode="completed", mutate=False
         "import json, os, pathlib, sys, time\n"
         "if '-version' in sys.argv:\n"
         "    print('Nuclei Engine Version: v3.11.1')\n"
+        "elif '-validate' in sys.argv:\n"
+        f"    sys.exit({2 if mode == 'invalid_rules' else 0})\n"
         "elif '-tl' in sys.argv:\n"
         "    root = pathlib.Path(sys.argv[sys.argv.index('-t')+1])\n"
         "    print('\\n'.join(str(p.relative_to(root)) for p in sorted(root.rglob('*.yaml'))))\n"
@@ -750,7 +763,7 @@ def install_pin_scanner(tmp_path, monkeypatch, *, mode="completed", mutate=False
     elif mode == "failed":
         source += "    sys.exit(2)\n"
     else:
-        source += "    print(json.dumps({'privateBytes': (root / 'fixture.yaml').read_text()}))\n"
+        source += "    print(json.dumps({'privateBytes': next(root.glob('*.yaml')).read_text()}))\n"
     executable(tmp_path, "nuclei", source)
     monkeypatch.setenv("PATH", str(tmp_path))
     return marker, pid
@@ -1110,6 +1123,281 @@ def test_shared_nuclei_manifest_publication_failure_never_scans(tmp_path, monkey
         assert (await recreated.invoke(value)).failure.code == "tool_execution_failed"
         assert not marker.exists()
         assert ((spec.namespace, "template-manifest") in store.values) == ambiguous
+        await tool.close()
+        assert not list((tmp_path / "workspace").iterdir())
+
+    asyncio.run(scenario())
+
+
+def rulepack_zip(entries, *, stored=False):
+    import io
+    import zipfile
+
+    stream = io.BytesIO()
+    with zipfile.ZipFile(
+        stream, "w", zipfile.ZIP_STORED if stored else zipfile.ZIP_DEFLATED
+    ) as archive:
+        for name, content in entries:
+            archive.writestr(name, content)
+    return stream.getvalue()
+
+
+def test_rulepack_complete_pack_and_real_cardinality_bounds(tmp_path):
+    import time
+
+    from contractor_runtime.toolsets.scan.nuclei_rulepack import (
+        MAX_FILES,
+        RULEPACK_MEDIA_TYPE,
+        materialize_rulepack,
+    )
+
+    entries = [
+        (f"rule-{i}.yaml", NUCLEI_PIN_FIXTURE.replace("contractor-pin-fixture", f"fixture-{i}"))
+        for i in range(MAX_FILES)
+    ]
+    snapshot, identifiers, digest = materialize_rulepack(
+        rulepack_zip(entries),
+        RULEPACK_MEDIA_TYPE,
+        tmp_path / "accepted",
+        time.monotonic() + 30,
+    )
+    assert len(snapshot.files) == len(identifiers) == MAX_FILES
+    assert snapshot.digest.startswith("sha256:") and digest != snapshot.digest
+    entries.append(("overflow.yaml", NUCLEI_PIN_FIXTURE))
+    from contractor_runtime.toolsets.scan.nuclei_package import PackageError
+
+    with pytest.raises(PackageError, match="nuclei_rulepack_invalid"):
+        materialize_rulepack(
+            rulepack_zip(entries), RULEPACK_MEDIA_TYPE, tmp_path / "overflow", time.monotonic() + 30
+        )
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "traversal",
+        "absolute",
+        "directory",
+        "backslash",
+        "symlink",
+        "duplicate",
+        "case",
+        "duplicate_id",
+        "non_template",
+        "non_http",
+        "mixed",
+        "alias",
+        "duplicate_key",
+        "multi_document",
+        "invalid_utf8",
+        "oversize",
+        "expanded",
+        "zip_bytes",
+        "deadline",
+        "empty",
+        "unknown_media",
+        "too_deep",
+        "tokens",
+        "lying_count",
+        "truncated",
+        "appended",
+    ],
+)
+def test_rulepack_rejects_entire_invalid_pack(tmp_path, case):
+    import stat
+    import struct
+    import time
+    import zipfile
+
+    from contractor_runtime.toolsets.scan.nuclei_package import PackageError
+    from contractor_runtime.toolsets.scan.nuclei_rulepack import (
+        MAX_FILE_BYTES,
+        RULEPACK_MEDIA_TYPE,
+        materialize_rulepack,
+    )
+
+    content = NUCLEI_PIN_FIXTURE
+    entries = [("valid.yaml", content)]
+    media = RULEPACK_MEDIA_TYPE
+    deadline = time.monotonic() + 30
+    if case in {"traversal", "absolute", "directory", "backslash"}:
+        entries.append(
+            (
+                {
+                    "traversal": "../evil.yaml",
+                    "absolute": "/evil.yaml",
+                    "directory": "nested/evil.yaml",
+                    "backslash": "dir\\evil.yaml",
+                }[case],
+                content,
+            )
+        )
+    elif case == "symlink":
+        link = zipfile.ZipInfo("link.yaml")
+        link.create_system = 3
+        link.external_attr = (stat.S_IFLNK | 0o777) << 16
+        entries.append((link, "valid.yaml"))
+    elif case in {"duplicate", "case"}:
+        entries.append(("valid.yaml" if case == "duplicate" else "VALID.yaml", content))
+    elif case == "duplicate_id":
+        entries.append(("other.yaml", content))
+    elif case in {"non_template", "non_http", "mixed"}:
+        entries.append(
+            (
+                "bad.yaml",
+                "words: [test]"
+                if case == "non_template"
+                else content.replace("http:", "dns:")
+                if case == "non_http"
+                else content + "\ncode: [{engine: [sh], source: echo}]\n",
+            )
+        )
+    elif case == "alias":
+        entries.append(("bad.yaml", content + "\nvariables: {a: &a value, b: *a}\n"))
+    elif case == "duplicate_key":
+        entries.append(("bad.yaml", content + "\nid: different\n"))
+    elif case == "multi_document":
+        entries.append(("bad.yaml", content + "\n---\n" + content))
+    elif case == "invalid_utf8":
+        entries.append(("bad.yaml", b"\xff"))
+    elif case == "oversize":
+        entries.append(("bad.yaml", "x" * (MAX_FILE_BYTES + 1)))
+    elif case == "zip_bytes":
+        entries = [
+            (
+                f"{i}.yaml",
+                content.replace("contractor-pin-fixture", f"fixture-{i}")
+                + "#"
+                + "x" * (MAX_FILE_BYTES - len(content) - 2),
+            )
+            for i in range(17)
+        ]
+    elif case == "expanded":
+        # Each file is valid and individually bounded; aggregate expansion fails.
+        entries = [
+            (
+                f"{i}.yaml",
+                content.replace("contractor-pin-fixture", f"fixture-{i}")
+                + "#"
+                + "x" * (MAX_FILE_BYTES - len(content) - 2),
+            )
+            for i in range(66)
+        ]
+    elif case == "deadline":
+        deadline = 0
+    elif case == "empty":
+        entries = []
+    elif case == "unknown_media":
+        media = "application/zip"
+    elif case == "too_deep":
+        entries.append(("bad.yaml", content + "\nvariables: " + "[" * 65 + "0" + "]" * 65))
+    elif case == "tokens":
+        entries.append(("bad.yaml", content + "\nvariables: [" + "a," * 60000 + "a]"))
+    payload = rulepack_zip(entries, stored=case == "zip_bytes")
+    if case == "lying_count":
+        payload = bytearray(payload)
+        position = payload.rfind(b"PK\x05\x06")
+        struct.pack_into("<HH", payload, position + 8, 0, 0)
+        payload = bytes(payload)
+    elif case == "truncated":
+        payload = payload[:-15]
+    elif case == "appended":
+        payload += b"extra"
+    with pytest.raises(
+        PackageError, match="scan_timeout" if case == "deadline" else "nuclei_rulepack_invalid"
+    ):
+        materialize_rulepack(payload, media, tmp_path / "pack", deadline)
+
+
+@pytest.mark.parametrize(
+    "archive, case",
+    [
+        (False, "valid"),
+        (True, "valid"),
+        (True, "invalid_rules"),
+        (False, "wrong_media"),
+        (False, "large_yaml"),
+        (False, "missing"),
+        (False, "timeout"),
+    ],
+)
+def test_rulepack_adapter_uses_only_exact_pack_without_installed_rules(
+    tmp_path, monkeypatch, archive, case
+):
+    from urllib.parse import parse_qs, unquote, urlsplit
+
+    from test_tool_worker import ArtifactStore
+
+    from contractor_runtime.artifacts import ArtifactClient
+    from contractor_runtime.toolsets.scan.nuclei_rulepack import RULEPACK_MEDIA_TYPE
+
+    class RulepackStore(ArtifactStore):
+        async def request(self, method, path, **kwargs):
+            parsed = urlsplit(path)
+            if method == "GET" and parsed.path.endswith("/metadata"):
+                namespace, name, _ = map(unquote, parsed.path.split("/artifacts/")[1].split("/"))
+                if (namespace, name) not in self.values:
+                    return self.response(404, {"code": "not_found", "retryable": False})
+                data, media, revision = self.values[(namespace, name)]
+                assert parse_qs(parsed.query)["revision"] == [revision]
+                return self.response(
+                    200,
+                    {
+                        "apiVersion": "contractor/v1alpha1",
+                        "artifact": {"namespace": namespace, "name": name, "revision": revision},
+                        "mediaType": media,
+                        "size": len(data),
+                    },
+                )
+            return await super().request(method, path, **kwargs)
+
+    marker, _ = install_pin_scanner(tmp_path, monkeypatch, mode=case)
+
+    async def scenario():
+        tools, _ = await make_tools(tmp_path, selected=["scan_nuclei"])
+        (tmp_path / "templates").rmdir()  # Custom mode requires no installation.
+        store = RulepackStore()
+        data = (
+            rulepack_zip([("fixture.yaml", NUCLEI_PIN_FIXTURE)])
+            if archive
+            else NUCLEI_PIN_FIXTURE.encode()
+        )
+        media = RULEPACK_MEDIA_TYPE if archive else "application/yaml"
+        if case == "wrong_media":
+            media = "application/zip"
+        if case == "large_yaml":
+            data = data + b"#" + b"x" * (1024 * 1024)
+        store.values[("inputs", "rulepack")] = (data, media, "revision-pack")
+        if case == "missing":
+            store.values.clear()
+        tool = tools["scan_nuclei"]
+        tool._session.artifact_client = ArtifactClient("allocation", store)
+        result = await tool(
+            "http://target.invalid/",
+            templates_digest="sha256:" + "f" * 64,
+            rulepack_ref={"namespace": "inputs", "name": "rulepack", "revision": "revision-pack"},
+            timeout_seconds=1 if case == "timeout" else 30,
+        )
+        if case not in {"valid", "timeout"}:
+            assert result["errorCode"] == (
+                "scan_artifact_unavailable" if case == "missing" else "nuclei_rulepack_invalid"
+            ), result
+            assert not marker.exists()
+            await tool.close()
+            assert not list((tmp_path / "workspace").iterdir())
+            return
+        if case == "timeout":
+            assert result["errorCode"] == "scan_timeout", result
+            await tool.close()
+            assert not list((tmp_path / "workspace").iterdir())
+            return
+        assert result["status"] == "completed", result
+        assert result["source"] == "rulepack" and result["selectedTemplateCount"] == 1
+        manifest = json.loads(store.values[("scanner", "template-manifest")][0])
+        assert len(manifest["files"]) == 1
+        assert manifest["source"]["artifact"]["revision"] == "revision-pack"
+        assert manifest["source"]["contentDigest"] == result["sourceContentDigest"]
+        assert marker.read_text() == "scan\n"
         await tool.close()
         assert not list((tmp_path / "workspace").iterdir())
 

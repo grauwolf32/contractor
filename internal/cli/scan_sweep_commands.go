@@ -73,7 +73,7 @@ func (c *CLI) runScanSweep(ctx context.Context, client *publicclient.Client, pri
 			f.BoolVar(&all, "all", false, "capture every Project page before creating Runs (maximum 1000)")
 			f.StringVar(&workflow, "workflow", "nuclei-web@1", "exact Workflow selector")
 			f.Var(&parameters, "param", "captured key=value parameter (target comes from each Project)")
-			f.Var(&artifactArgs, "artifact", "slot=namespace/name[@revision], resolved once per Project")
+			f.Var(&artifactArgs, "artifact", "slot=namespace/name[@revision], resolved from the declared input scope")
 		}
 	})
 	if err != nil || flags == nil {
@@ -312,6 +312,32 @@ func (c *CLI) captureScanSweep(ctx context.Context, client *publicclient.Client,
 		sorted = append(sorted, id)
 	}
 	sort.Strings(sorted)
+	// Only supplied artifact slots need a catalog lookup. An owner-scoped slot is
+	// captured once, rather than resolving mutable UserScope content per Project.
+	userSlots := map[string]bool{}
+	userExacts := map[string]publicapi.ArtifactRef{}
+	userUnavailable := map[string]bool{}
+	if len(refs) > 0 {
+		name, version, err := exactSelector(workflow)
+		if err != nil {
+			return manifest, err
+		}
+		response, callErr := client.API.GetWorkflow(ctx, name, version)
+		resource, err := sweepResponse[publicapi.WorkflowResource](response, callErr, http.StatusOK)
+		if err != nil {
+			return manifest, err
+		}
+		if resource.Ref.Name != name || resource.Ref.Version != version {
+			return manifest, errors.New("Workflow response identity mismatch")
+		}
+		for slot := range refs {
+			input, present := resource.Inputs[slot]
+			if !present {
+				return manifest, &UsageError{Message: "unknown Workflow artifact slot"}
+			}
+			userSlots[slot] = input.SourceScope != nil && string(*input.SourceScope) == "user"
+		}
+	}
 	for _, id := range sorted {
 		if err := ctx.Err(); err != nil {
 			return manifest, err
@@ -344,31 +370,51 @@ func (c *CLI) captureScanSweep(ctx context.Context, client *publicclient.Client,
 			body.Labels = &labels
 			exacts := map[string]publicapi.ArtifactRef{}
 			for slot, ref := range refs {
-				params := &publicapi.GetProjectArtifactMetadataParams{}
+				if userUnavailable[slot] {
+					member.SkipReason = "input_artifact_unavailable"
+					break
+				}
+				if exact, captured := userExacts[slot]; captured {
+					exacts[slot] = exact
+					continue
+				}
+				var revision *string
 				if ref.Revision.IsSpecified() {
-					revision, err := ref.Revision.Get()
+					value, err := ref.Revision.Get()
 					if err != nil {
 						return manifest, err
 					}
-					params.Revision = &revision
+					revision = &value
 				}
-				response, callErr := client.API.GetProjectArtifactMetadata(ctx, id, ref.Namespace, ref.Name, params)
+				var response *http.Response
+				var callErr error
+				if userSlots[slot] {
+					response, callErr = client.API.GetArtifactMetadata(ctx, ref.Namespace, ref.Name, &publicapi.GetArtifactMetadataParams{Revision: revision})
+				} else {
+					response, callErr = client.API.GetProjectArtifactMetadata(ctx, id, ref.Namespace, ref.Name, &publicapi.GetProjectArtifactMetadataParams{Revision: revision})
+				}
 				metadata, err := sweepResponse[publicapi.ArtifactMetadata](response, callErr, http.StatusOK)
 				if err != nil {
 					var apiErr *publicclient.APIError
 					if errors.As(err, &apiErr) && apiErr.Status >= 400 && apiErr.Status < 500 && !apiErr.Retryable {
 						member.SkipReason = "input_artifact_unavailable"
+						if userSlots[slot] {
+							userUnavailable[slot] = true
+						}
 						break
 					}
 					return manifest, err
 				}
 				exact := metadata.Artifact
-				if exact.Namespace != ref.Namespace || exact.Name != ref.Name || contracts.ValidateResourceID("revision", exact.Revision) != nil || (params.Revision != nil && exact.Revision != *params.Revision) {
+				if exact.Namespace != ref.Namespace || exact.Name != ref.Name || contracts.ValidateResourceID("revision", exact.Revision) != nil || (revision != nil && exact.Revision != *revision) {
 					return manifest, errors.New("artifact metadata identity mismatch")
 				}
 				pinned := publicapi.ArtifactRef{Namespace: exact.Namespace, Name: exact.Name}
 				pinned.Revision.Set(exact.Revision)
 				exacts[slot] = pinned
+				if userSlots[slot] {
+					userExacts[slot] = pinned
+				}
 			}
 			if member.SkipReason != "" {
 				outcome.State = "skipped"

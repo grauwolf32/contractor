@@ -87,7 +87,7 @@
     {
       "name": "url-11",
       "arguments": {
-        "url": "http://host/é"
+        "url": "http://host/\u00e9"
       },
       "valid": false
     },
@@ -405,6 +405,67 @@
         "templates_digest": ""
       },
       "valid": true
+    },
+    {
+      "name": "rulepack-exact",
+      "arguments": {
+        "url": "https://fixture.invalid/",
+        "rulepack_ref": {
+          "namespace": "inputs",
+          "name": "rulepack",
+          "revision": "revision-pack"
+        }
+      },
+      "valid": true
+    },
+    {
+      "name": "rulepack-absent-revision",
+      "arguments": {
+        "url": "https://fixture.invalid/",
+        "rulepack_ref": {
+          "namespace": "inputs",
+          "name": "rulepack"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "rulepack-null",
+      "arguments": {
+        "url": "https://fixture.invalid/",
+        "rulepack_ref": null
+      },
+      "valid": false
+    },
+    {
+      "name": "rulepack-unknown",
+      "arguments": {
+        "url": "https://fixture.invalid/",
+        "rulepack_ref": {
+          "namespace": "inputs",
+          "name": "rulepack",
+          "revision": "revision-pack",
+          "scope": "other"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "rulepack-hidden",
+      "arguments": {
+        "url": "https://fixture.invalid/",
+        "rulepack_ref": {
+          "namespace": "contractor-system",
+          "name": "repeat-request",
+          "revision": "revision-pack"
+        }
+      },
+      "valid": false
     }
-  ]
+  ],
+  "rulepackLimits": {
+    "zipBytes": 16777216,
+    "fileBytes": 1048576,
+    "mediaType": "application/vnd.contractor.nuclei-rulepack+zip"
+  }
 }

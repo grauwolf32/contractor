@@ -72,6 +72,21 @@ func (e ArtifactArchiveEntryKind) Valid() bool {
 	}
 }
 
+// Defines values for ArtifactSlotSourceScope.
+const (
+	User ArtifactSlotSourceScope = "user"
+)
+
+// Valid indicates whether the value is a known member of the ArtifactSlotSourceScope enum.
+func (e ArtifactSlotSourceScope) Valid() bool {
+	switch e {
+	case User:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AuditExecutionPolicyRoundMode.
 const (
 	FixedBarrier AuditExecutionPolicyRoundMode = "fixed-barrier"
@@ -2112,6 +2127,21 @@ func (e ToolExecutionConfigArguments1Source) Valid() bool {
 	}
 }
 
+// Defines values for ToolExecutionConfigArguments2Optional.
+const (
+	True ToolExecutionConfigArguments2Optional = true
+)
+
+// Valid indicates whether the value is a known member of the ToolExecutionConfigArguments2Optional enum.
+func (e ToolExecutionConfigArguments2Optional) Valid() bool {
+	switch e {
+	case True:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ToolExecutionConfigArguments2Source.
 const (
 	Artifact ToolExecutionConfigArguments2Source = "artifact"
@@ -2881,7 +2911,13 @@ type ArtifactRef struct {
 type ArtifactSlot struct {
 	MediaTypes []MediaType `json:"mediaTypes"`
 	Required   bool        `json:"required"`
+
+	// SourceScope Owner UserScope for the optional Nuclei rulepack input only.
+	SourceScope *ArtifactSlotSourceScope `json:"sourceScope,omitempty"`
 }
+
+// ArtifactSlotSourceScope Owner UserScope for the optional Nuclei rulepack input only.
+type ArtifactSlotSourceScope string
 
 // ArtifactWriteResponse defines model for ArtifactWriteResponse.
 type ArtifactWriteResponse struct {
@@ -7386,9 +7422,13 @@ type ToolExecutionConfigArguments1Source string
 
 // ToolExecutionConfigArguments2 defines model for ToolExecutionConfig.Arguments.2.
 type ToolExecutionConfigArguments2 struct {
-	Name   string                              `json:"name"`
-	Source ToolExecutionConfigArguments2Source `json:"source"`
+	Name     string                                 `json:"name"`
+	Optional *ToolExecutionConfigArguments2Optional `json:"optional,omitempty"`
+	Source   ToolExecutionConfigArguments2Source    `json:"source"`
 }
+
+// ToolExecutionConfigArguments2Optional defines model for ToolExecutionConfig.Arguments.2.Optional.
+type ToolExecutionConfigArguments2Optional bool
 
 // ToolExecutionConfigArguments2Source defines model for ToolExecutionConfig.Arguments.2.Source.
 type ToolExecutionConfigArguments2Source string

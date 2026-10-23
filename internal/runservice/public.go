@@ -165,9 +165,9 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 						return err
 					}
 				}
-				exactSources := make(map[string]contracts.ArtifactRef, len(normalized.Inputs))
+				exactSources := make(map[string]runrepeat.InputSource, len(normalized.Inputs))
 				for _, slot := range sortedInputSlots(normalized.Inputs) {
-					sourceScope, scopeErr := inputSourceScope(normalized.OwnerID, normalized.ProjectID)
+					sourceScope, scopeErr := inputSourceScope(normalized.OwnerID, normalized.ProjectID, workflow.Inputs[slot].SourceScope)
 					if scopeErr != nil {
 						return scopeErr
 					}
@@ -178,7 +178,10 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 					if !contracts.AcceptsMediaType(workflow.Inputs[slot].MediaTypes, fork.MediaType) {
 						return fmt.Errorf("%w: input %q has unsupported media type", ErrInvalid, slot)
 					}
-					exactSources[slot] = fork.SourceRef
+					if workflow.Inputs[slot].SourceScope == "user" && (fork.Size > scan.MaxNucleiRulepackZIPBytes || (fork.MediaType == "application/yaml" && fork.Size > scan.MaxNucleiRulepackFileBytes)) {
+						return fmt.Errorf("%w: rulepack input exceeds its byte limit", ErrInvalid)
+					}
+					exactSources[slot] = runrepeat.InputSource{SourceScope: sourceScope.Kind(), Artifact: fork.SourceRef}
 				}
 				repeatRequest, encodeErr := runrepeat.Encode(runrepeat.Snapshot{
 					Workflow: workflow.Ref, ProjectID: normalized.ProjectID,
@@ -337,10 +340,13 @@ func forkInput(
 	})
 }
 
-// inputSourceScope is the scope public Run creation forks inputs from: the
-// owner's UserScope for a standalone Run, the ProjectScope for a Project Run.
-func inputSourceScope(ownerID string, projectID *string) (artifacts.Scope, error) {
-	if projectID == nil {
+// inputSourceScope derives scope from authenticated owner and validated catalog
+// authority. Only the narrow rulepack override changes a Project input source.
+func inputSourceScope(ownerID string, projectID *string, override string) (artifacts.Scope, error) {
+	if override != "" && override != "user" {
+		return artifacts.Scope{}, ErrInvalid
+	}
+	if projectID == nil || override == "user" {
 		return artifacts.UserScope(ownerID)
 	}
 	return artifacts.ProjectScope(*projectID)
