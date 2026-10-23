@@ -1,11 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useId, useLayoutEffect, useRef, useState } from "react";
 import {
   Link,
   useLocation,
@@ -224,10 +217,14 @@ export function IssuesRoute() {
       };
   });
 
-  // Runs after PaneLayout's own effect (children first), which on one-pane
-  // screens focuses the row of the decided possible issue: that row leaves
-  // the list once its check is read again.
-  useEffect(() => {
+  // A layout effect, so focus moves in the commit that shows the list: the
+  // navigation commits in a transition, whose passive effects run in a later
+  // task, and focus would sit on <body> until then (as in IssueDetail).
+  // PaneLayout's own effect runs after it and leaves focus that is already
+  // in the list where it is, so on one-pane screens it does not move focus to
+  // the row of the decided possible issue, which leaves the list once its
+  // check is read again.
+  useLayoutEffect(() => {
     if (selectedKey !== undefined || !focusListTitle.current) return;
     focusListTitle.current = false;
     listTitle.current?.focus();

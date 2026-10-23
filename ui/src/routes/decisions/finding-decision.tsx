@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 
 import { collectAuditPages } from "../../api/audit-collections";
 import {
@@ -28,7 +28,7 @@ import {
   type DecisionOption,
   type DecisionSeverity,
 } from "../../ui";
-import { useAnnouncement } from "./announcement";
+import { focusIfLost, useAnnouncement } from "./announcement";
 import { DecisionRecord } from "./decision-record";
 import { DuplicatePicker } from "./duplicate-picker";
 import { DecisionMarkdown } from "./markdown";
@@ -332,8 +332,10 @@ function FindingDecisionPanel({
 
   // A focus request runs after the render that shows its target. A target
   // that is still disabled (the review status is loading) waits for a later
-  // render.
-  useEffect(() => {
+  // render. A layout effect, so focus moves in that render's commit: passive
+  // effects of a commit outside a user event (a refetch, a navigation) run in
+  // a later task, and until then focus sat on <body>.
+  useLayoutEffect(() => {
     const container = root.current;
     if (
       focusRequest === null ||
@@ -408,6 +410,10 @@ function FindingDecisionPanel({
       });
     },
     onSuccess: async (result, { findingRevision }) => {
+      // The bar goes away; keep keyboard and screen reader users here. Before
+      // the refetch: the refetched finding can show the decision, and take
+      // the bar and its focus away, while slower reads keep it waiting.
+      focusIfLost(root.current);
       await refreshAfterDecision(queryClient, auditId);
       setRecordedRevision(findingRevision);
       announcement.announce(

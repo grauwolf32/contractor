@@ -1,8 +1,10 @@
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 
+import { queryKeys } from "../../api/query-keys";
 import * as build from "../../test/builders";
+import { deferred } from "../../test/deferred";
 import { check, issue, issuesServer, renderIssues } from "./test-support";
 
 const shop = build.project("project_shop", { name: "Shop" });
@@ -70,6 +72,44 @@ function rowTitles() {
       .getByRole("region", { name: "Possible issues" })
       .querySelectorAll("li.ui-row"),
   ].map((row) => row.querySelector(".ui-row-title")?.textContent);
+}
+
+/** The detail header of the possible issue `findingId`, once it shows. */
+function detailBar(findingId: string): HTMLElement | undefined {
+  return [
+    ...document.querySelectorAll<HTMLElement>(
+      ".ui-panes-detail .issues-detail-bar",
+    ),
+  ].find(
+    (bar) => bar.querySelector(`a[href$="finding=${findingId}"]`) !== null,
+  );
+}
+
+/**
+ * Where focus is when `find` first returns an element. It is read in the
+ * MutationObserver callback of the DOM change that showed the element, so
+ * before any later task (a passive effect, a timer, the next poll of a
+ * findBy query) could move focus.
+ */
+function focusWhenShown(find: () => Element | null | undefined): {
+  element?: Element;
+  focused?: Element | null;
+} {
+  const seen: { element?: Element; focused?: Element | null } = {};
+  const observer = new MutationObserver(() => {
+    const element = find();
+    if (element === null || element === undefined) return;
+    seen.element = element;
+    seen.focused = document.activeElement;
+    observer.disconnect();
+  });
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    characterData: true,
+  });
+  onTestFinished(() => observer.disconnect());
+  return seen;
 }
 
 /** The page's own status region: outside both panes, so never hidden with one. */
@@ -374,12 +414,134 @@ describe("Issues", () => {
         "Possible issue 1 of 1",
       ),
     ).toBeVisible();
-    expect(
-      screen
-        .getByRole("region", { name: "Review" })
-        .querySelector(".issues-detail-bar"),
-    ).toHaveFocus();
+    await waitFor(() => expect(detailBar("finding_orders")).toHaveFocus());
   });
+
+  it.each(["list", "detail"] as const)(
+    "moves focus to the next possible issue once shown when the %s reads answer first",
+    async (first) => {
+      const server = twoProjects();
+      // After the decision: the list reads, the decided possible issue's
+      // reads and those of the next one wait until the test answers them.
+      const gates = { list: deferred(), detail: deferred(), next: deferred() };
+      const asked = { list: 0, detail: 0, next: 0 };
+      let decided = false;
+      server.hold = ({ request, url }) => {
+        if (!decided) {
+          decided =
+            request.method === "POST" && url.pathname.endsWith("/decisions");
+          return undefined;
+        }
+        if (request.method !== "GET") return undefined;
+        const group = ["/v1/findings", "/v1/audits", "/v1/projects"].includes(
+          url.pathname,
+        )
+          ? "list"
+          : url.pathname.startsWith("/v1/audits/audit_billing")
+            ? "detail"
+            : url.pathname.startsWith("/v1/audits/audit_shop")
+              ? "next"
+              : undefined;
+        if (group === undefined) return undefined;
+        asked[group] += 1;
+        return gates[group].promise;
+      };
+      const { router, queryClient } = renderIssues(
+        server,
+        "/issues/audit_billing/finding_invoices",
+      );
+      const review = await screen.findByRole("region", { name: "Review" });
+      expect(
+        await within(review).findByText("Possible issue 1 of 2"),
+      ).toBeVisible();
+      const bar = await within(review).findByRole("region", {
+        name: "Your decision",
+      });
+      const user = userEvent.setup();
+      await user.click(
+        await within(bar).findByRole("button", { name: "Not an issue" }),
+      );
+      await user.type(
+        within(bar).getByRole("textbox", { name: "Why" }),
+        "Invoices need a session.",
+      );
+      const shown = focusWhenShown(() => detailBar("finding_orders"));
+      await user.click(
+        within(bar).getByRole("button", { name: "Record decision" }),
+      );
+
+      // The decision refetches the list and the decided possible issue's
+      // reads together, and moves on once both answered.
+      await waitFor(() => {
+        expect(asked.list).toBeGreaterThan(0);
+        expect(asked.detail).toBeGreaterThan(0);
+      });
+      gates[first].resolve();
+      if (first === "list")
+        await waitFor(() =>
+          expect(rowTitles()).toEqual(["Any user can read any order"]),
+        );
+      else
+        expect(
+          await within(review).findByRole("region", {
+            name: "Current decision",
+          }),
+        ).toBeVisible();
+      expect(router.state.location.pathname).toBe(
+        "/issues/audit_billing/finding_invoices",
+      );
+      gates[first === "list" ? "detail" : "list"].resolve();
+
+      // The next possible issue shows from the list while its own reads
+      // wait; its header has focus from the change that shows it.
+      await waitFor(() =>
+        expect(router.state.location.pathname).toBe(
+          "/issues/audit_shop/finding_orders",
+        ),
+      );
+      await waitFor(() => expect(shown.element).toBeDefined());
+      expect(shown.focused).toBe(shown.element);
+      expect(shown.element).toHaveFocus();
+      await waitFor(() => expect(asked.next).toBeGreaterThan(0));
+
+      // The polled list reads again while the next possible issue's reads
+      // are on their way; they answer in the same order as before.
+      gates.list = deferred();
+      void queryClient.refetchQueries({
+        queryKey: queryKeys.crossProject.all,
+        type: "active",
+      });
+      const listSettled = () =>
+        waitFor(() =>
+          expect(
+            queryClient.isFetching({ queryKey: queryKeys.crossProject.all }),
+          ).toBe(0),
+        );
+      const nextSettled = () =>
+        waitFor(() =>
+          expect(
+            within(
+              screen.getByRole("region", { name: "Your decision" }),
+            ).getByRole("button", { name: "Not an issue" }),
+          ).toBeEnabled(),
+        );
+      if (first === "list") {
+        gates.list.resolve();
+        await listSettled();
+        gates.next.resolve();
+        await nextSettled();
+      } else {
+        gates.next.resolve();
+        await nextSettled();
+        gates.list.resolve();
+        await listSettled();
+      }
+      const header = detailBar("finding_orders");
+      expect(header).toBe(shown.element);
+      expect(header).toHaveTextContent("Possible issue 1 of 1");
+      expect(header).toHaveFocus();
+    },
+  );
 
   it("stays where the user went when a decision answers after they left", async () => {
     const server = twoProjects();
@@ -450,6 +612,9 @@ describe("Issues", () => {
     const reason = within(bar).getByRole("textbox", { name: "Why" });
     expect(reason).toHaveFocus();
     await user.type(reason, "Orders are scoped by the session.");
+    const listShown = focusWhenShown(() =>
+      document.querySelector(".ui-panes-detail .issues-detail-empty"),
+    );
     await user.click(
       within(bar).getByRole("button", { name: "Record decision" }),
     );
@@ -466,6 +631,9 @@ describe("Issues", () => {
       name: "Possible issues",
     });
     await waitFor(() => expect(title).toHaveFocus());
+    // From the change that shows the list without a selection on.
+    expect(listShown.element).toBeDefined();
+    expect(listShown.focused).toBe(title);
     expect(title).toHaveAttribute("tabindex", "-1");
     // The decided possible issue leaves the list once its check is read again.
     expect(

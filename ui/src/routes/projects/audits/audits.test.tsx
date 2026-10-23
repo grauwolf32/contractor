@@ -1,6 +1,6 @@
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { PublicAPI } from "../../../api/client";
 import type {
@@ -219,6 +219,23 @@ function emptyCollection(path: string, audit: Audit): Response {
     return json(auditPage(audit, []));
   return json({ items: [], page: { hasMore: false } });
 }
+
+// The routes these tests open (the check page, the project's possible
+// issues, Issues) and the Markdown preview of a possible issue's description
+// load lazily. Without this, the first test to use each loads it inside its
+// own 5 s budget: alone the first test took 265–285 ms instead of 96–99 ms
+// and the first decision on Issues 582–672 ms instead of 250 ms; in the full
+// parallel suite they took 770 ms and 867 ms (vitest JSON reports,
+// 2026-10-23).
+beforeAll(async () => {
+  await Promise.all([
+    import("./detail"),
+    import("./findings"),
+    import("../detail"),
+    import("../../issues"),
+    import("../../artifacts/previews/markdown"),
+  ]);
+});
 
 describe("Project Audit routes", () => {
   it.each(["coverage", "report"] as const)(

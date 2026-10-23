@@ -7,7 +7,7 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type {
   Audit,
@@ -163,6 +163,14 @@ function stubScroll() {
   HTMLElement.prototype.scrollIntoView = scroll;
   return scroll;
 }
+
+// The check page is a lazy route. Without this, the first test that renders
+// it loads the route module inside its own 5 s budget: alone that test took
+// 437–515 ms instead of 268–282 ms, and 1,082 ms in the full parallel suite
+// (vitest JSON reports, 2026-10-23).
+beforeAll(async () => {
+  await import("./detail");
+});
 
 afterEach(() => {
   if (previousScroll !== undefined)
@@ -2253,7 +2261,12 @@ describe("Check refresh correctness", () => {
     ).toBeVisible();
   });
 
+  // The two polling tests below advance fake timers instead of waiting for
+  // the 1 s check poll in real time: they took 1.5 s and 2.2 s of their 5 s
+  // budget, alone and in the full parallel suite alike (2026-10-23), most of
+  // it sleeping, and the first needed a 10 s timeout.
   it("reads the counts at most every 5 s while the check keeps moving", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     let revision = 2;
     const workspaceReads = vi.fn();
     const { api } = serveCheck({
@@ -2271,7 +2284,7 @@ describe("Check refresh correctness", () => {
     });
     renderApplication(ROOT, { api });
     await screen.findByRole("region", { name: "Check progress" });
-    await waitFor(() => expect(workspaceReads).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(workspaceReads).toHaveBeenCalledOnce());
     const shownRevision = () =>
       Number(
         screen.getByText("Current revision", { selector: "dt" })
@@ -2279,13 +2292,20 @@ describe("Check refresh correctness", () => {
       );
     const first = shownRevision();
     // The page polls the check every second and shows its new revision…
-    await waitFor(() => expect(shownRevision()).toBeGreaterThan(first));
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    // …but the counts wait for their own 5 s interval.
+    await vi.advanceTimersByTimeAsync(1_100);
+    await vi.waitFor(() => expect(shownRevision()).toBeGreaterThan(first));
+    const second = shownRevision();
+    await vi.advanceTimersByTimeAsync(2_000);
+    await vi.waitFor(() => expect(shownRevision()).toBeGreaterThan(second));
+    // …but the counts wait for their own 5 s interval…
     expect(workspaceReads).toHaveBeenCalledOnce();
-  }, 10_000);
+    // …and read again once it has passed.
+    await vi.advanceTimersByTimeAsync(2_000);
+    await vi.waitFor(() => expect(workspaceReads).toHaveBeenCalledTimes(2));
+  });
 
   it("reads the counts again for each revision until the last run drains", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     let current = { ...auditAt("paused", 3), outstandingRunCount: 1 };
     const detailReads = vi.fn();
     const workspaceReads = vi.fn();
@@ -2301,13 +2321,17 @@ describe("Check refresh correctness", () => {
     });
     renderApplication(ROOT, { api });
     await screen.findByRole("region", { name: "Check progress" });
-    await waitFor(() => expect(workspaceReads).toHaveBeenCalledWith(3));
+    await vi.waitFor(() => expect(workspaceReads).toHaveBeenCalledWith(3));
     current = { ...auditAt("paused", 4), outstandingRunCount: 0 };
-    await waitFor(() => expect(workspaceReads).toHaveBeenCalledWith(4));
+    // The next check poll, a second later, sees the drained revision.
+    await vi.advanceTimersByTimeAsync(1_100);
+    await vi.waitFor(() => expect(workspaceReads).toHaveBeenCalledWith(4));
     expect(workspaceReads).toHaveBeenCalledTimes(2);
     const readsAfterDrain = detailReads.mock.calls.length;
-    await new Promise((resolve) => setTimeout(resolve, 1_150));
+    // Settled: neither the check (1 s) nor its counts (5 s) are read again.
+    await vi.advanceTimersByTimeAsync(6_000);
     expect(detailReads).toHaveBeenCalledTimes(readsAfterDrain);
+    expect(workspaceReads).toHaveBeenCalledTimes(2);
   });
 
   it("reads the counts again right after pausing a check", async () => {

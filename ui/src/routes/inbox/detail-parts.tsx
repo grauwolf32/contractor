@@ -3,7 +3,7 @@
  * previous / next, the heading block, titled blocks and the "Decision
  * recorded" line.
  */
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useId, useLayoutEffect, useRef, type ReactNode } from "react";
 
 import { ContextLink } from "../../app/context-navigation";
 import { Icon } from "../../app/icon";
@@ -48,13 +48,18 @@ export interface DetailContext {
 /**
  * Moves focus to `target` once when `focus` turns on, then reports the
  * request used up, so a later visit to the same item leaves focus alone.
+ *
+ * A layout effect, so focus moves in the commit that shows the target. The
+ * move after a decision is a navigation, which React commits in a
+ * transition and runs passive effects for in a later task: until then
+ * focus sat on <body>, as the decision bar that had it was gone.
  */
 function useFocusRequest(
   target: { readonly current: HTMLElement | null },
   focus: boolean,
   onFocused: () => void,
 ) {
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!focus) return;
     target.current?.focus();
     onFocused();

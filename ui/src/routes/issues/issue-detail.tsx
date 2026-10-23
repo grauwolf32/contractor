@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useLayoutEffect, useRef } from "react";
 import { useSearchParams } from "react-router";
 
 import {
@@ -149,7 +149,13 @@ export function IssueDetail({
     enabled: reviewId !== null,
     retry: false,
   });
-  useEffect(() => {
+  // A layout effect, so focus moves in the commit that shows this possible
+  // issue. The move after a decision is a navigation, which React commits
+  // in a transition and runs passive effects for in a later task: the
+  // control that had focus was gone with the previous possible issue, and
+  // until that task focus sat on <body>, where a key press or a screen
+  // reader lost its place.
+  useLayoutEffect(() => {
     if (focusRequest !== undefined) header.current?.focus();
   }, [focusRequest]);
 
