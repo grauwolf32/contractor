@@ -6,7 +6,7 @@ epic: scan-tools
 kind: chore
 introduced_by: V406-004
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V406-004]
 languages: [go]
 goal: The shared maximum-page gate covers both new ScanSweep lists on real PostgreSQL and their fakes enforce the repository read bound.
@@ -29,3 +29,5 @@ tests:
   covers: [A1, A2]
 - command: make lint
   covers: [A1, A2]
+
+implementation_commit: 900f0791761ce479641bc088785ca8b89e6fdc27
