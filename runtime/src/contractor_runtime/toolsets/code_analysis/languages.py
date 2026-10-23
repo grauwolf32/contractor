@@ -68,6 +68,7 @@ EXTENSION_LANGUAGES = MappingProxyType(
         ".cc": Language.CPP,
         ".cxx": Language.CPP,
         ".hpp": Language.CPP,
+        ".hh": Language.CPP,
         ".hxx": Language.CPP,
         ".cs": Language.C_SHARP,
         ".rb": Language.RUBY,
@@ -86,10 +87,18 @@ EXTENSION_LANGUAGES = MappingProxyType(
 )
 
 # A ".h" header is valid C and C++ alike; header_language() picks one grammar
-# for all of a snapshot's headers from its unambiguous C and C++ files.
+# for all of a snapshot's headers from its unambiguous C and C++ files. Those
+# are derived from the shallow mapping, so every extension that votes for a
+# grammar is also parsed with it.
 HEADER_EXTENSION = ".h"
-C_SOURCE_EXTENSIONS = frozenset({".c"})
-CPP_SOURCE_EXTENSIONS = frozenset({".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx"})
+C_SOURCE_EXTENSIONS = frozenset(
+    extension
+    for extension, language in EXTENSION_LANGUAGES.items()
+    if language is Language.C and extension != HEADER_EXTENSION
+)
+CPP_SOURCE_EXTENSIONS = frozenset(
+    extension for extension, language in EXTENSION_LANGUAGES.items() if language is Language.CPP
+)
 
 # Reviewed extension table for Trailmark 0.5.0 auto-detection plus parser-walk
 # headers. Its parser walk matches these suffixes case-sensitively. Its C and

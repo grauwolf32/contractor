@@ -33,7 +33,7 @@ from contractor_runtime.projectfs.storage import (
     WorkspaceTextFile,
 )
 from contractor_runtime.threads import to_thread_until_done
-from contractor_runtime.toolsets.code_analysis.ids import MAX_SYMBOL_ID_BYTES
+from contractor_runtime.toolsets.code_analysis.ids import symbol_id_shape_valid
 from contractor_runtime.toolsets.code_analysis.languages import Language, SymbolRecord
 from contractor_runtime.toolsets.code_analysis.trailmark_host import (
     GraphBuildResult,
@@ -464,22 +464,13 @@ class _CodeAnalysisSession:
     ) -> _OperationResult:
         if operation not in {"find_callers", "find_callees"}:
             raise CodeAnalysisError("code_analysis_input_invalid")
-        if (
-            not isinstance(symbol_id, str)
-            or not symbol_id
-            or not symbol_id.isascii()
-            or len(symbol_id) > MAX_SYMBOL_ID_BYTES
-        ):
-            raise CodeAnalysisError("code_analysis_symbol_not_found")
+        normalized_symbol = _symbol_id(symbol_id)
         resolved_limit = _limit(limit)
-        query_digest = cursors.query_digest({"operation": operation, "symbolId": symbol_id})
+        query_digest = cursors.query_digest({"operation": operation, "symbolId": normalized_symbol})
         async with self._lock:
             snapshot, invalidations = await self._begin_call()
             host = self._require_graph_host()
-            try:
-                host.validate_symbol_id(symbol_id, snapshot.digest)
-            except TrailmarkHostError as error:
-                raise CodeAnalysisError(error.code, retryable=error.retryable) from None
+            self._validate_symbol_id(host, normalized_symbol, snapshot.digest)
             offset = (
                 self._cursor_offset(
                     cursor,
@@ -494,7 +485,7 @@ class _CodeAnalysisSession:
             try:
                 page = await host.relationships(
                     operation,
-                    symbol_id,
+                    normalized_symbol,
                     offset=offset,
                     limit=resolved_limit,
                 )
@@ -1003,26 +994,27 @@ class _CodeAnalysisSession:
                 ),
                 True,
             )
-        try:
-            parser = self._parsers.get(language)
-            if parser is None:
-                parser = await to_thread_until_done(
-                    language_support.load_parser,
-                    language,
-                    name="code-analysis-cpu",
-                )
-                self._parsers[language] = parser
-            parsed = await to_thread_until_done(
-                _parse_symbols_text,
-                parser,
-                item.text,
-                item.path,
+        # Malformed source is a parse result, never an exception (CAN-R152).
+        # Anything raised while acquiring a parser or extracting names is a
+        # Runtime defect: it fails the call through the Worker's tool-error
+        # boundary, and nothing about this file is counted or cached.
+        parser = self._parsers.get(language)
+        if parser is None:
+            parser = await to_thread_until_done(
+                language_support.load_parser,
                 language,
-                parse_limit,
                 name="code-analysis-cpu",
             )
-        except Exception:
-            parsed = language_support.ParseResult((), True, False)
+            self._parsers[language] = parser
+        parsed = await to_thread_until_done(
+            _parse_symbols_text,
+            parser,
+            item.text,
+            item.path,
+            language,
+            parse_limit,
+            name="code-analysis-cpu",
+        )
         if (
             not parsed.symbol_limit_reached
             and len(self._file_cache) < MAX_COMPACT_CACHE_FILES
@@ -1571,12 +1563,7 @@ def _complexity_threshold(value: int) -> int:
 
 
 def _symbol_id(value: str) -> str:
-    if (
-        not isinstance(value, str)
-        or not value
-        or not value.isascii()
-        or len(value) > MAX_SYMBOL_ID_BYTES
-    ):
+    if not symbol_id_shape_valid(value):
         raise CodeAnalysisError("code_analysis_symbol_not_found")
     return value
 

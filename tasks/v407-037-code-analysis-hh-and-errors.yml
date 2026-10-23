@@ -6,7 +6,7 @@ epic: code-analysis
 kind: defect
 introduced_by: V314-001
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages:
 - python
@@ -73,6 +73,45 @@ acceptance_criteria:
   text: Symbol-ID validation has one implementation with the same accepted values/error codes, and the
     full shallow/fault/graph/shared-consumer tests pass. Added regression assertions do not depend on
     elapsed time.
+decisions:
+- 'Re-verified on ac982d28 before the change: EXTENSION_LANGUAGES (languages.py:51-86) lacked .hh while
+  CPP_SOURCE_EXTENSIONS (:92) and the graph table (:116) had it, so GRAPH_ONLY_SOURCE_EXTENSIONS (:153)
+  counted .hh as unsupported; tools.py:1006-1025 turned every exception into a cached parse_error; tools.py:467-473
+  repeated _symbol_id (:1573-1581), and ids.py decode_symbol_id (:41-48) held a third copy of the same
+  shape check.'
+- 'C/C++ voting sets: C_SOURCE_EXTENSIONS and CPP_SOURCE_EXTENSIONS are now derived from EXTENSION_LANGUAGES
+  instead of being a second hand-written list, so an extension that votes for the .h grammar is always
+  parsed with that grammar (CAN-R49). Graph-only extensions (.m, .mm, .sol, ...) stay outside the shallow
+  mapping; graph admission is unchanged because .hh was already a graph C++ source.'
+- 'Parser-path exceptions: no exception is retained as parse_errors. Malformed syntax is reported by the
+  parse result (root.has_error), and no malformed-source or decoding exception was observed: managed text
+  is strict UTF-8 (projectfs storage encodes it strictly when building a snapshot) and a fuzz probe of
+  22,800 random multi-byte, syntactically broken sources across all 19 grammars, including the chunked
+  >64 KiB parse path, raised nothing. Dependency availability stays classified explicitly by the startup
+  probe (dependency_versions_match plus probe_all_parsers omit both shallow tools, CAN-R47), and the
+  finding-anchor consumer keeps its own explicit anchor_parser_unavailable outcome (downloaded_languages
+  plus tree_sitter_language_pack.Error, toolsets/common/finding_anchors.py), unchanged. A parser that fails
+  to load after a passing probe is not a source property, so in code analysis it propagates like any
+  other defect. No tree-sitter exception family was introduced. Recorded as CAN-R152; CAN-R135 points
+  to it.'
+- 'Unexpected exceptions now reach the existing Worker tool-error boundary: RecordedToolCall records them
+  once and WorkerInstrumentationPlugin.on_tool_error_callback returns {ok:false, error:{code:tool_call_failed,
+  message:"<tool> failed (<ExceptionClass>)", retryable:false}} without the exception message. Nothing
+  is cached for the file, so the next call parses it again.'
+- 'Symbol-ID validation: one predicate, ids.symbol_id_shape_valid, now serves decode_symbol_id and tools._symbol_id;
+  find_callers/find_callees use _symbol_id and _validate_symbol_id like the path tools. Accepted values
+  (non-empty ASCII str of at most 512 characters) and the code_analysis_symbol_not_found code are unchanged.'
+- 'Session serialization is unchanged. CAN-R31 now records its reason, the bounds of the wait (LIM-CAN-11
+  plus one LIM-CAN-5 parse, LIM-CAN-12/13 with child kill, joined cancellation, WSP-R169/R170 fencing),
+  the detection signal (tool-call duration and graph build counts, CAN-R141) and the reopen condition
+  (a reproducible wait beyond those bounds, or a workload needing concurrent calls in one allocation).'
+- 'Sibling ruled out: taint-annotations@1 maps an unexpected preparation exception to its closed,
+  retryable taint_annotation_unavailable (ERR-R12, CAN-R140). It produces no coverage, so it is not the
+  parse-coverage misclassification fixed here; changing that closed vocabulary is outside scope. Its
+  shared language table does change: a .hh file is now annotated as C++ (regression added). The Trailmark
+  child reports parse failures through its own exit-code contract (CAN-R83) and graph parseErrors stay
+  0 (CAN-R40). probe_all_parsers keeps its broad catch because a probe failure of any kind omits the
+  capability (FAIL-RTA-1).'
 tests:
 - command: cd runtime && uv run --locked pytest -q tests/test_code_analysis_shallow.py tests/test_code_analysis_faults.py
     tests/test_code_analysis_graph.py tests/test_taint_annotations.py tests/test_taint_annotations_hardening.py
