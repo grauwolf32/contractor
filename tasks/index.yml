@@ -82,7 +82,7 @@ execution_policy:
 milestones:
   - id: sql-review-2026-10
     exit_task: V409-013
-    outcome: Every statement, trigger and index found by the 2026-10-23 SQL review is fixed with a real-store test, dropped, or kept with a recorded reason verified by EXPLAIN on a real database.
+    outcome: Retained SQL-review defects are fixed with real-store regressions, behavior-preserving improvements are verified, and unsupported or declined claims have evidence-backed decisions that preserve the owning contracts.
   - id: test-gate-cost-2026-10
     exit_task: V408-007
     outcome: The release gate and the local test targets check the same things in a fraction of the time, with per-package test schemas, parallel race passes, one build per process suite, no repeated family runs, and recorded before and after durations.

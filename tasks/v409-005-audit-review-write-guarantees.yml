@@ -1,6 +1,6 @@
 schema_version: "1.0"
 id: V409-005
-title: "Enforce review-write guarantees in SQL: gated decisions, one expiry clock, conflict-safe artifact links"
+title: "Reject review decision writes when the locked request is not pending"
 milestone: sql-review-2026-10
 epic: audits
 kind: defect
@@ -9,55 +9,92 @@ priority: P2
 status: pending
 depends_on: []
 languages: [go, sql]
-goal: "A review decision cannot commit against a non-pending request, review expiry uses one database clock everywhere, and an artifact-link key collision fails closed with a test."
+goal: >-
+  The review store appends a decision and marks its matching locked request
+  decided together, or returns ErrPrecondition without adding a decision
+  when that request is absent, belongs to another Audit or is not pending.
 context:
-  review: "docs/research/2026-10-23-sql-review.md, section C (recordReviewDecisionSQL, two review clocks, audit_artifact_links)"
-  specification: docs/spec/audits/review-and-reports.md
-  severity: medium
+  review: "docs/research/2026-10-23-sql-review.md, section C, recordReviewDecisionSQL"
+  specification:
+    - docs/spec/audits/review-and-reports.md#REV-R27
+    - docs/spec/audits/review-and-reports.md#REV-R43
+    - docs/spec/audits/review-and-reports.md#REV-R44
+  severity: low
   finding: >-
-    (1) internal/auditstore/internal/pgstore/review_write_sql.go:18-30
-    recordReviewDecisionSQL inserts the decision in a data-modifying CTE
-    that always executes; the outer UPDATE audit_review_requests ... AND
-    state='pending' affects 0 rows when the request is not pending and
-    review_write.go:17-23 discards the command tag, so a decision row can
-    commit with the request left undecided. The services check the state
-    under LockFindingReview/LockActionReview first
-    (auditservice/finding_review.go:145, action_review.go), so this is
-    defence in depth today. review_write.go:28-33 ProjectFindingDecision
-    updates audit_findings WHERE finding_id=$1 without audit_id. (2)
-    finding_reads_sql.go:127 reviewUnexpiredSQL uses expires_at >
-    statement_timestamp() while audit_live_item_reviews, claimAuditSQL:33-66,
-    expiredItemReviewsSQL:28, expireReportReviewSQL:149 and
-    ExpireReviewAtDatabaseTime use clock_timestamp(); within one long
-    statement a request can be pending in the count and expired in the
-    claim (REV-R43 names one clock). (3) collection_sql.go:226-234,
-    round_sql.go:118-126, preparation_sql.go:33-37, finding_intake_sql.go:9-15
-    insert audit_artifact_links (PK (audit_id, logical_key)) with no ON
-    CONFLICT; a key collision across sources surfaces as ClassDuplicate ->
-    ErrConflict, which a retried collection treats as retryable, parking the
-    execution in collecting forever (AGENTS 3.2).
+    internal/auditstore/internal/pgstore/review_write_sql.go:18-30 inserts a
+    decision in a data-modifying CTE before an outer UPDATE restricted to
+    request.state='pending'. review_write.go:17-23 discards the affected-row
+    count. A direct store call for an expired request can therefore return
+    success and commit a decision while leaving the request expired.
+    This is a store-boundary precondition defect: the production services
+    already lock and validate the request before calling it.
   siblings: >-
-    Every other review-write statement in pgstore (assessFindingDirectlySQL,
-    transition*SQL) carries audit_id; grep for WHERE <id>=$1 without the
-    parent scope.
+    Finding and action decisions share RecordReviewDecision. The finding
+    service locks the request and checks its state and database-clock expiry
+    in internal/auditservice/finding_review.go:145-168 before writing at
+    line 202; action_review.go:62-67,108 applies the same protections. Keep
+    those checks and the surrounding transaction containing projections and
+    events. ProjectFindingDecision scoping, review reads, collection receipts
+    and artifact-link collision handling are outside this narrowed defect.
+  validation: >-
+    On main 1d533b2db885e0162ebabb01d36470f139546009, a real PostgreSQL
+    Store.RecordReviewDecision probe against an expired request returned nil,
+    left its state expired and inserted one decision. Public service bypass
+    was not reproduced. Existing database-clock expiry tests passed. REV-R43
+    requires the PostgreSQL clock under the request lock, not a single SQL
+    timestamp function; no expiry-clock change is justified here. No
+    reachable cross-source artifact-link collision was established.
+  provenance: >-
+    git blame traces the ungated statement to V343-001 commit
+    5eb6154228e392bc56b5f87f071ede15dd5dd8b5; its later move into the internal
+    pgstore package did not introduce this behavior.
 plan:
-  - "Gate the decision INSERT on the request row (INSERT ... SELECT ... FROM audit_review_requests WHERE request_id=$2 AND audit_id=$3 AND state='pending') and return ErrPrecondition when RowsAffected() != 1; add audit_id to ProjectFindingDecision."
-  - "Define one Go constant for the review clock expression (statement_timestamp() for predicates is the stable choice) and use it in every statement and the view (new migration for the view)."
-  - "Decide the artifact-link collision outcome: ON CONFLICT DO NOTHING with a verification read of the existing link's digest (replay) or a permanent classified error; implement and add a test where two collections retain the same logical key."
+  - >-
+    Gate the INSERT on the matching request_id, audit_id and pending state
+    under the existing request-lock contract. Check that the statement
+    inserts the decision and advances exactly one request; classify an unmet
+    precondition as ErrPrecondition rather than success. Preserve transaction
+    atomicity, existing constraint errors and service-level replay handling.
+  - >-
+    Add real-store regression cases for an expired request, an already
+    decided request with an existing decision, an absent request and an
+    Audit mismatch. Include a valid pending decision and exercise both
+    finding and action service paths without changing their authority rules.
 scope:
   in:
-    - "Gated decision statement, one clock constant and view migration, link collision outcome and test."
+    - "The shared review decision SQL, its store result handling and real PostgreSQL regression tests."
   out:
-    - "Review request lifecycle rules."
+    - "Changing expiry predicates, lifecycle rules, review locks or database-clock semantics."
+    - "Changing artifact-link keys, collision classification, receipts or replay identity."
+    - "Unrelated parent-scope changes to finding projection writes."
 acceptance_criteria:
   - id: A1
-    text: "Recording a decision against a decided or expired request returns ErrPrecondition and leaves no decision row (real-store test fails on the unfixed statement)."
+    text: >-
+      Given an expired request and otherwise valid decision parameters, when
+      the store write is attempted under the normal request lock, then it
+      returns ErrPrecondition, inserts no decision and leaves the request
+      unchanged; this regression fails against the original statement.
   - id: A2
-    text: "grep finds one review clock expression; the pending count and the claim agree in a test with a request expiring during the statement window."
+    text: >-
+      Given a decided request, an absent request or an Audit mismatch, when
+      the same store method is called, then it returns ErrPrecondition and
+      adds no decision or request update; a decision already stored for a
+      decided request remains intact.
   - id: A3
-    text: "Two collections retaining the same logical key end in a replay or a permanent classified failure, never a retry loop."
+    text: >-
+      Given a matching pending request, when an authorized finding or action
+      decision succeeds, then exactly one decision and the decided request
+      commit with the existing projection and event effects. A surrounding
+      transaction failure rolls them back, and existing service replay and
+      expiry rejection tests continue to pass.
+  - id: A4
+    text: >-
+      Given the implementation and task changes, when repository lint runs,
+      then SQL placement, layer boundaries and task metadata checks pass.
 tests:
-  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/auditstore/... ./internal/auditservice/... ./internal/auditimport/..."
+  - command: >-
+      CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?Set a disposable PostgreSQL URL before running this task}"
+      go test -tags=integration -count=1 ./internal/auditstore/... ./internal/auditservice/... ./internal/auditcontroller/...
     covers: [A1, A2, A3]
   - command: make lint
-    covers: [A2]
+    covers: [A4]

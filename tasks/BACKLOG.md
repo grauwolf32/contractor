@@ -32,9 +32,9 @@ the epics are in [epics.yml](epics.yml).
 | [V407-015](v407-015-scheduler-stage-end-cost.yml) | defect | P2 | — | Stop re-decrypting Worker credentials and rebuilding metrics at Stage end, and scope cancel scans to pending work |
 | [V407-016](v407-016-scheduler-idle-and-release-pacing.yml) | defect | P3 | — | Probe idle lanes once per class and release stuck terminal Stages concurrently |
 | [V407-017](v407-017-startup-lease-tolerance.yml) | defect | P2 | — | Bound the single-active Server's startup lease dial and first acquire by the lease tolerance |
-| [V409-003](v409-003-runstore-lock-order-and-cas.yml) | defect | P2 | — | Lock the Run before the Stage in StartPlanner, carry the CAS in resume, and use one clock per statement family |
-| [V409-010](v409-010-byte-bounded-run-reads.yml) | defect | P2 | — | Bound Run event pages and Planner session reads by bytes, and bound the Run purge transaction |
-| [V409-011](v409-011-execution-store-n1-and-duplicates.yml) | defect | P3 | — | Batch execution-store round trips, fail closed on corrupt metrics rows and fold duplicated statements |
+| [V409-003](v409-003-runstore-lock-order-and-cas.yml) | defect | P2 | — | Lock the owning Run before the Stage in StartPlanner |
+| [V409-010](v409-010-byte-bounded-run-reads.yml) | chore | P2 | — | Bound internal Run event fetches by bytes while preserving complete replay |
+| [V409-011](v409-011-execution-store-n1-and-duplicates.yml) | chore | P3 | — | Reduce execution and Eval query round trips while preserving lock and recovery contracts |
 
 ### Planners and the Worker model boundary (`planner-worker`)
 
@@ -103,8 +103,8 @@ the epics are in [epics.yml](epics.yml).
 | [V397-008](v397-008-generic-sarif-renderer.yml) | feature | P2 | V397-007 | Render deterministic validated generic SARIF from frozen snapshots |
 | [V397-009](v397-009-sarif-export-api-ui.yml) | feature | P2 | V397-008 | Publish and download generic SARIF through API CLI and UI |
 | [V407-033](v407-033-findings-toolsets-cost.yml) | defect | P2 | — | Bound finding toolset cost: encode audit results off the collector lock, cache the exact source ZIP per allocation, and page list_findings linearly |
-| [V409-001](v409-001-finding-correlation-project-lock.yml) | defect | P1 | — | Stop finding writes from taking a NOWAIT lock on the Project row that Run creation shares |
-| [V409-002](v409-002-finding-inbox-index.yml) | defect | P1 | — | Serve the Audit finding inbox and the per-Run proposal bound from indexes |
+| [V409-001](v409-001-finding-correlation-project-lock.yml) | defect | P2 | — | Retry definite transaction conflicts in Audit finding import and retention |
+| [V409-002](v409-002-finding-inbox-index.yml) | chore | P2 | — | Bound Audit finding inbox reads to native and held receipts |
 
 ### Workflow catalog and document workflows (`workflows`)
 
@@ -132,8 +132,8 @@ the epics are in [epics.yml](epics.yml).
 | [V407-003](v407-003-audit-controller-batch-per-pass.yml) | defect | P2 | — | Settle every terminal, cancelled or deleted child Run of an Audit within one controller pass |
 | [V407-004](v407-004-audit-list-summary-projection.yml) | defect | P2 | — | Serve Audit list pages from a summary projection instead of a per-row detail read model |
 | [V407-005](v407-005-audit-fail-closed-and-dead-code.yml) | defect | P3 | — | Fail closed on preparation Workflow comparison and remove unreachable Audit domain code |
-| [V409-004](v409-004-audit-read-statements-indexes.yml) | defect | P2 | — | Make Audit read statements use their indexes: item pages, workspace counts, execution probes, review joins |
-| [V409-005](v409-005-audit-review-write-guarantees.yml) | defect | P2 | — | Enforce review-write guarantees in SQL: gated decisions, one expiry clock, conflict-safe artifact links |
+| [V409-004](v409-004-audit-read-statements-indexes.yml) | chore | P2 | — | Reduce avoidable Audit read work while preserving exact totals and expiry |
+| [V409-005](v409-005-audit-review-write-guarantees.yml) | defect | P2 | — | Reject review decision writes when the locked request is not pending |
 
 ### Evaluations (`evals`)
 
@@ -143,7 +143,7 @@ the epics are in [epics.yml](epics.yml).
 | [V407-028](v407-028-eval-member-bulk-freeze.yml) | defect | P2 | — | Freeze Eval members with one set-based insert instead of one statement per member |
 | [V407-029](v407-029-eval-reads-plan-metadata.yml) | defect | P2 | — | Read Eval plan metadata instead of the frozen document and stop re-validating the plan on every GET |
 | [V407-030](v407-030-eval-preparing-lifecycle-and-usage.yml) | defect | P3 | — | Let a preparing Eval be cancelled or fall back after bounded attempts, and make usage totals order-independent |
-| [V409-009](v409-009-eval-store-bounds.yml) | defect | P2 | — | Bound Eval store work: batched purge, projected view publication, single-pass comparison pages, cursor-based member reconcile |
+| [V409-009](v409-009-eval-store-bounds.yml) | defect | P2 | — | Purge drained Eval data in bounded, restartable transactions |
 
 ### Web UI (`ui`)
 
@@ -184,11 +184,11 @@ the epics are in [epics.yml](epics.yml).
 | [V407-026](v407-026-store-error-classes-and-event-validation.yml) | defect | P3 | — | Classify a missing Project on Run insert as not-found, treat the artifact-write key race as a conflict, and validate immutable Run events once |
 | [V407-027](v407-027-shared-controller-claim-loop.yml) | chore | P3 | — | Share one controller claim loop with an injected clock between the Audit controller and the Eval coordinator |
 | [V408-002](v408-002-shared-postgres-test-schema.yml) | chore | P2 | V408-001 | Apply migrations once per package: one shared PostgreSQL test helper with per-test truncation |
-| [V409-006](v409-006-trigger-column-scoping.yml) | defect | P2 | — | Scope hot-table triggers to the columns they guard and extend the trigger-column test to every guarded table |
-| [V409-007](v409-007-dead-and-redundant-indexes.yml) | chore | P2 | V409-013 | Drop indexes without readers, merge the collation twins on audit_findings and align keyset orders with their indexes |
-| [V409-008](v409-008-state-set-schema-tests.yml) | chore | P3 | — | Test every state CHECK set and partial-index predicate against its Go definition |
-| [V409-012](v409-012-migration-and-sql-hygiene.yml) | chore | P3 | — | Migration and SQL hygiene: fold redefined functions, test the backfills, document the single-transaction runner, one updated_at rule, SQL placement |
-| [V409-013](v409-013-verify-sql-review-on-database.yml) | chore | P2 | — | Verify the SQL review's static claims on a real database and close the review |
+| [V409-006](v409-006-trigger-column-scoping.yml) | chore | P2 | — | Scope unnecessary trigger work while preserving admission and projection effects |
+| [V409-007](v409-007-dead-and-redundant-indexes.yml) | chore | P2 | — | Consolidate indexes only where reader and constraint evidence permits it |
+| [V409-008](v409-008-state-set-schema-tests.yml) | chore | P3 | — | Extend migrated-schema state-set parity tests to the remaining reviewed owners |
+| [V409-012](v409-012-migration-and-sql-hygiene.yml) | chore | P3 | — | Test the revision-count and controller-claim backfills and document migration budgets |
+| [V409-013](v409-013-verify-sql-review-on-database.yml) | chore | P2 | V409-001, V409-002, V409-003, V409-004, V409-005, V409-006, V409-007, V409-008, V409-009, V409-010, V409-011, V409-012 | Verify retained SQL-review changes and record evidence for every accepted or declined claim |
 
 ### Quality, CI and process (`quality`)
 
@@ -248,23 +248,23 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 13 | 41 | 58 | 11 | 73 |
-| Planners and the Worker model boundary (`planner-worker`) | 8 | 27 | 41 | 15 | 58 |
-| Runtime labels, configuration and credentials (`runtime-config`) | 12 | 25 | 14 | 3 | 39 |
+| Run execution core (`execution-core`) | 13 | 41 | 56 | 13 | 72 |
+| Planners and the Worker model boundary (`planner-worker`) | 8 | 27 | 41 | 15 | 59 |
+| Runtime labels, configuration and credentials (`runtime-config`) | 12 | 25 | 14 | 3 | 40 |
 | Shared Memory tools (`memory`) | 1 | 6 | 10 | 1 | 12 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 2 | 1 | 1 |
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 13 | 4 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 14 | 2 | 19 |
 | HTTP and Caido tools (`http-tools`) | 2 | 11 | 15 | 4 | 16 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 4 | 14 | 6 | 4 | 9 |
-| Findings tools and collections (`findings`) | 10 | 14 | 8 | 6 | 11 |
+| Findings tools and collections (`findings`) | 10 | 14 | 7 | 7 | 11 |
 | Workflow catalog and document workflows (`workflows`) | 4 | 14 | 14 | 12 | 15 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 30 | 34 | 5 | 36 |
-| Audits (`audits`) | 25 | 52 | 77 | 17 | 89 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 30 | 34 | 5 | 37 |
+| Audits (`audits`) | 25 | 52 | 76 | 18 | 91 |
 | Evaluations (`evals`) | 6 | 21 | 36 | 5 | 40 |
 | Podman sandbox (`sandbox`) | 0 | 9 | 2 | 1 | 3 |
 | Web UI (`ui`) | 4 | 25 | 58 | 12 | 53 |
-| Operations, authentication, CLI and deployment (`operations`) | 1 | 16 | 34 | 5 | 11 |
+| Operations, authentication, CLI and deployment (`operations`) | 1 | 16 | 34 | 5 | 10 |
 | Public API and wire contracts (`api-contracts`) | 8 | 1 | 34 | 20 | 11 |
-| PostgreSQL persistence and schema (`persistence`) | 13 | 0 | 23 | 39 | 11 |
+| PostgreSQL persistence and schema (`persistence`) | 13 | 0 | 22 | 40 | 9 |
 | Quality, CI and process (`quality`) | 18 | 1 | 21 | 87 | 20 |
