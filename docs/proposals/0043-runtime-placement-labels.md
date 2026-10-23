@@ -135,4 +135,4 @@ the graph guard rejects a missing or empty test selection.
 - [V405-002](../../tasks/done/v405-002-run-placement-requirements.yml): Pin Run placement requirements and enforce dynamic Runtime matching.
 - [V405-003](../../tasks/done/v405-003-audit-placement-propagation.yml): Pin Audit placement selection and propagate it to every child Run.
 - [V405-004](../../tasks/done/v405-004-placement-label-picker-ui.yml): Add ordinary Audit labels, freeze them at start and inherit them into child Runs.
-- [V405-005](../../tasks/v405-005-placement-process-release-gate.yml): Verify cloud and local placement across real processes and fold proposal 0043.
+- [V405-005](../../tasks/done/v405-005-placement-process-release-gate.yml): Verify cloud and local placement across real processes and fold proposal 0043.

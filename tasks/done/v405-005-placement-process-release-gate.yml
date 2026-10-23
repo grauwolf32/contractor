@@ -5,7 +5,7 @@ milestone: runtime-placement-labels-2026-10
 epic: execution-core
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V405-001
 - V405-002
@@ -92,3 +92,5 @@ tests:
   covers:
   - A1
   - A2
+
+implementation_commit: 6ddb09543dd9c5173726c6a652da5f79c809503a
