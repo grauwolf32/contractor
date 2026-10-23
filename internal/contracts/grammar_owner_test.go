@@ -32,7 +32,8 @@ const idempotencyKeyGrammar = "Idempotency-Key (use contracts.ValidIdempotencyKe
 // sameLanguageRules lists the files whose own, separately specified rule
 // happens to accept the bounded Idempotency-Key language. Each is another
 // rule with its own owner, so it is not a copy; a new entry needs that
-// reason.
+// reason. A listed file may spell that language once: a second pattern in
+// the same file is reported as a copy.
 var sameLanguageRules = map[string]string{
 	"internal/credentials/litellm/manager.go":    "managed credential operation ID",
 	"internal/credentials/repository.go":         "managed credential operation ID",
@@ -135,7 +136,7 @@ func TestPublicIdentifierGrammarsHaveOneGoDefinition(t *testing.T) {
 				canonical, ok := canonicalRegexp(value)
 				switch {
 				case !ok || grammars[canonical] == "":
-				case grammars[canonical] == idempotencyKeyGrammar && sameLanguageRules[relative] != "":
+				case grammars[canonical] == idempotencyKeyGrammar && sameLanguageRules[relative] != "" && !otherRules[relative]:
 					otherRules[relative] = true
 				default:
 					copies = append(copies, fmt.Sprintf("%s:%d: %s", relative, position.Line, grammars[canonical]))
