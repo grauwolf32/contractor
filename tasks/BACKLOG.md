@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-116 open tasks: 4 in progress, 87 pending, 25 deferred. 1002 finished: 999 completed, 3 archived.
+115 open tasks: 4 in progress, 86 pending, 25 deferred. 1003 finished: 1000 completed, 3 archived.
 
 ## In progress
 
@@ -119,10 +119,9 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V40-003](v40-003-agent-instruction-eval-decision.yml) | feature | P1 | V40-002 | Evaluate instruction candidates and record evidence-based adoption decisions |
-| [V407-028](v407-028-eval-member-bulk-freeze.yml) | chore | P2 | — | Freeze admitted Eval members with one bounded set-based insert |
 | [V407-029](v407-029-eval-reads-plan-metadata.yml) | chore | P2 | — | Use bounded Eval plan metadata and precomputed readiness for polled views |
 | [V409-009](v409-009-eval-store-bounds.yml) | defect | P2 | — | Purge drained Eval data in bounded, restartable transactions |
-| [V409-014](v409-014-eval-comparison-and-recovery-queries.yml) | chore | P3 | V407-028, V407-029, V409-009 | Reduce Eval comparison-page and composed recovery query round trips |
+| [V409-014](v409-014-eval-comparison-and-recovery-queries.yml) | chore | P3 | V407-029, V409-009 | Reduce Eval comparison-page and composed recovery query round trips |
 
 ### Web UI (`ui`)
 
@@ -178,7 +177,7 @@ the epics are in [epics.yml](epics.yml).
 | [V372-029](v372-029-shared-fixture-gate-scope.yml) | chore | P3 | — | Extend the shared fixture gate to every cross-language fixture and keep slow store suites out of it |
 | [V372-030](v372-030-shrink-test-only-export-baseline.yml) | chore | P3 | — | Resolve the exported identifiers that only tests use and empty the test-only export baseline |
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | chore | P3 | — | Find out why about a hundred Runtime tests fail on a macOS host and make each one pass or declare its platform |
-| [V407-039](v407-039-close-server-runtime-review.yml) | chore | P3 | V407-002, V407-003, V407-004, V407-005, V407-006, V407-007, V407-010, V407-011, V407-012, V407-013, V407-014, V407-015, V407-016, V407-017, V407-018, V407-020, V407-021, V407-022, V407-023, V407-025, V407-027, V407-028, V407-029, V407-031, V407-032, V407-033, V407-035, V407-036 | Close the validated Server and Runtime review with explicit dispositions and verification |
+| [V407-039](v407-039-close-server-runtime-review.yml) | chore | P3 | V407-002, V407-003, V407-004, V407-005, V407-006, V407-007, V407-010, V407-011, V407-012, V407-013, V407-014, V407-015, V407-016, V407-017, V407-018, V407-020, V407-021, V407-022, V407-023, V407-025, V407-027, V407-029, V407-031, V407-032, V407-033, V407-035, V407-036 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V408-001](v408-001-gate-duration-baseline.yml) | chore | P2 | — | Record the baseline duration of every release stage and local test target |
 | [V408-004](v408-004-e2e-build-once.yml) | chore | P2 | V408-001 | Build the Server binary and the test PKI once per e2e package and right-size per-test budgets |
 | [V408-005](v408-005-family-guard-gaps.yml) | chore | P2 | — | Close the family-target guard gaps and run the Runtime suite once with warnings as errors |
@@ -235,7 +234,7 @@ tasks in `introduced_by`.
 | Workflow catalog and document workflows (`workflows`) | 4 | 14 | 14 | 12 | 15 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 30 | 33 | 6 | 37 |
 | Audits (`audits`) | 23 | 53 | 72 | 22 | 91 |
-| Evaluations (`evals`) | 6 | 21 | 34 | 8 | 41 |
+| Evaluations (`evals`) | 5 | 21 | 34 | 8 | 41 |
 | Podman sandbox (`sandbox`) | 0 | 9 | 2 | 1 | 3 |
 | Web UI (`ui`) | 3 | 24 | 58 | 12 | 53 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 16 | 33 | 6 | 10 |
