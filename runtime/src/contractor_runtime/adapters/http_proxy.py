@@ -158,7 +158,9 @@ class ProxyHTTPClient:
         try:
             client = self.async_client
             request = client.build_request(method, url, **kwargs)
-        except (httpx.InvalidURL, idna.IDNAError):
+        except (httpx.InvalidURL, idna.IDNAError, UnicodeEncodeError):
+            # The caller's input cannot form a request (an invalid URL or a
+            # header value httpx cannot encode); this is not a route failure.
             raise
         except Exception:
             raise ProxyRequestError from None

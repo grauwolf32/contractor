@@ -321,9 +321,15 @@ class CaidoGraphQLClient:
         except CaidoClientError as error:
             metrics.record_operation(succeeded=False, error_code="request_failed")
             raise error from None
-        except Exception:
+        except (httpx.HTTPError, OSError):
+            # The documented transport family, as for the Interactsh adapter.
             metrics.record_operation(succeeded=False, error_code="request_failed")
             raise CaidoClientError("caido_request_failed", retryable=True) from None
+        except Exception:
+            # An implementation failure is not a transport failure: record the
+            # failed operation and let the exception keep its type.
+            metrics.record_operation(succeeded=False, error_code="request_failed")
+            raise
         metrics.record_operation(succeeded=True)
         return decoded
 

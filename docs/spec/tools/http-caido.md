@@ -373,7 +373,9 @@ that hop is sent.
 **HTP-R33.** Raw control characters and hosts outside the shared host syntax
 rule of the [target policy](../platform/security.md) are also invalid input
 (`http_request_invalid`); neither the direct nor the proxy route resolves,
-forwards or retries them as transport failures.
+forwards or retries them as transport failures. The same holds for input from
+which no request can be built, such as a port outside 0..65535 or a header or
+session cookie value that cannot be encoded as ASCII.
 
 ### HTTP session
 
@@ -807,6 +809,18 @@ a target transport failure.
 a large text or any binary result is written to one exact reserved
 `caido.output.*` artifact with a bounded preview in the tool result.
 
+**HTP-R132.** Payload processing of a Caido tool call runs outside the event
+loop, in a worker thread that the call joins: decoding and canonical
+validation of request, response, convert-output and Automate payload Blobs,
+scrubbing (HTP-R94, HTP-R95), raw previews, convert-output decoding, and the
+Replay and Automate request tag and placeholder offsets (HTP-R98, HTP-R104).
+Each step is bounded by the complete response limits (LIM-HTP-19, LIM-HTP-34)
+and the raw request bound (LIM-HTP-20). The session lock is held across each
+step. A cancelled or expired call joins its running step before the lock is
+released, and then buffers no capture, writes no artifact and sends no further
+GraphQL request. Structural validation of at most one page of nodes and the
+redaction of a result within LIM-HTP-35 stay on the event loop.
+
 ### Credentials in Caido-captured traffic
 
 **HTP-R94.** Caido stores proxied traffic as sent: when the `tool-http`,
@@ -903,6 +917,20 @@ result whose `error_code` is that type name rather than an invalid response.
 and retryability without echoing the endpoint, bearer token, raw query,
 variables or arbitrary server text.
 
+**HTP-R133.** Both Toolsets classify only documented failure families into
+their error codes: their own errors, Artifact client errors, capture
+validation, the `httpx` and operating-system transport errors of the Caido
+adapter, and the `httpx` errors and `tool-http` route failure of
+`http_request`. Any other exception is an implementation failure. It keeps its
+type, is never reported or retried as a transport failure, and reaches the
+Worker's tool-error handling, which answers the model with the non-retryable
+`tool_call_failed` that names only the tool and the exception class
+([OBS-R32](../platform/observability.md)). The Caido adapter still records the
+failed operation. A Caido mutation that fails this way is not retried and its
+request tag is not reused (HTP-R99, HTP-R108). An `http_request` attempt that
+fails this way remains in history as an incomplete exchange marked
+`transport_error` (HTP-R59), and its request ID is not reused.
+
 ### Allocation lifecycle
 
 **HTP-R113.** Prepare order is adapter host first, selected Toolsets second,
@@ -954,12 +982,12 @@ Toolset call counters and Runtime adapter metrics remain the only ones.
 
 **HTP-R122.** The stable error codes of the two Toolsets include:
 
-- `http_request_invalid`, `http_request_failed`, `http_response_invalid`,
+- `http_request_invalid`, `http_response_invalid`,
   `http_response_too_large`, `http_body_not_found`, `http_cookie_state_invalid`,
   `http_cookie_state_conflict`, `http_cookie_write_denied` (all non-retryable),
-  and `http_cookie_storage_unavailable` (retryable), together with
-  `http_target_denied`, which the [target policy](../platform/security.md)
-  owns;
+  `http_request_failed` and `http_cookie_storage_unavailable` (retryable,
+  HTP-R30, HTP-R131), together with `http_target_denied`, which the
+  [target policy](../platform/security.md) owns;
 - `caido_not_configured`, `caido_request_invalid`, `caido_request_failed`,
   `caido_response_invalid` and `caido_response_too_large`.
 

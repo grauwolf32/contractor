@@ -31,6 +31,7 @@ from contractor_runtime.core.target_policy import TargetDenied
 from contractor_runtime.toolsets.http.tools import (
     HTTPToolError,
 )
+from contractor_runtime.worker.instrumentation import WorkerInstrumentationPlugin
 from contractor_runtime.workspace import AllocationWorkspace
 
 SECRET = "recognizable-http-session-secret"
@@ -440,6 +441,26 @@ def test_malformed_urls_fail_before_send_without_proxy_retries(
                     assert calls == []
                     assert delays == []
 
+            # Input httpx cannot turn into a request is invalid on both routes:
+            # an unusable port, or a header value it cannot encode as ASCII.
+            for url, headers in (
+                ("https://target.example:99999/", None),
+                ("https://target.example/", {"X-Note": "café"}),
+            ):
+                with pytest.raises(HTTPToolError) as failure:
+                    await tools["http_request"](url, headers=headers)
+                assert failure.value.code == "http_request_invalid", repr((url, headers))
+                assert failure.value.retryable is False
+                assert calls == []
+                assert delays == []
+            await tools["http_session_set"](cookies={"session": "café"})
+            with pytest.raises(HTTPToolError) as cookie_failure:
+                await tools["http_request"]("https://target.example/")
+            assert cookie_failure.value.code == "http_request_invalid"
+            assert calls == []
+            assert delays == []
+            await tools["http_session_clear"]()
+
             if route == "proxy":
                 with pytest.raises(HTTPToolError) as transport_failure:
                     await tools["http_request"]("https://target.example/transport")
@@ -447,6 +468,120 @@ def test_malformed_urls_fail_before_send_without_proxy_retries(
                 assert transport_failure.value.retryable is True
                 assert len(calls) == 3
                 assert delays == [0.25, 0.5]
+        finally:
+            await close_tools(tools)
+            if proxy_client is not None:
+                await proxy_client.aclose()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    ("route", "injection"),
+    [("direct", "transport"), ("direct", "capture"), ("proxy", "capture")],
+)
+def test_unexpected_send_exception_reaches_tool_error_callback_unclassified(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, route: str, injection: str
+) -> None:
+    async def scenario() -> None:
+        calls: list[str] = []
+        delays: list[float] = []
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            calls.append(request.url.path)
+            if request.url.path == "/bug" and injection == "transport":
+                raise TypeError(f"injected implementation failure {SECRET}")
+            if request.url.path == "/connect":
+                raise httpx.ConnectError("recognizable connection failure")
+            return httpx.Response(200, content=b"ok", request=request)
+
+        async def record_retry(delay: float) -> None:
+            delays.append(delay)
+
+        original_from_request = http_tools.CapturedAttempt.from_request.__func__
+
+        def failing_from_request(
+            cls: type, request: httpx.Request, *, target_credential: bool = False
+        ) -> Any:
+            if request.url.path == "/bug":
+                raise TypeError(f"injected implementation failure {SECRET}")
+            return original_from_request(cls, request, target_credential=target_credential)
+
+        monkeypatch.setattr(http_tools, "_retry_sleep", record_retry)
+        if injection == "capture":
+            monkeypatch.setattr(
+                http_tools.CapturedAttempt, "from_request", classmethod(failing_from_request)
+            )
+        state = WorkerState()
+        proxy_client: httpx.AsyncClient | None = None
+        if route == "direct":
+            tools = await make_tools(
+                HTTPToolsetFactory(
+                    lambda: httpx.AsyncClient(
+                        transport=httpx.MockTransport(handler), trust_env=False
+                    )
+                ),
+                tmp_path,
+                state=state,
+            )
+        else:
+            proxy_client = httpx.AsyncClient(
+                transport=httpx.MockTransport(handler), trust_env=False
+            )
+            tools = await make_tools(
+                HTTPToolsetFactory(),
+                tmp_path,
+                state=state,
+                settings=proxy_runtime_settings(),
+                adapter_handles=AdapterHandles(tool_http=ProxyHTTPClient(proxy_client)),
+            )
+        callbacks = await WorkerToolCallbacks.start(state)
+        try:
+            request = tools["http_request"]
+            # Even an idempotent request is not retried: the exception keeps
+            # its identity and is not a transport failure.
+            response, raised = await callbacks.call(request, url="https://target.example/bug")
+            assert type(raised) is TypeError
+            assert response == {
+                "ok": False,
+                "error": {
+                    "code": "tool_call_failed",
+                    "message": "http_request failed (TypeError)",
+                    "retryable": False,
+                },
+            }
+            assert delays == []
+            assert calls == (["/bug"] if injection == "transport" else [])
+
+            # A known connection failure keeps its classified retryability and
+            # the idempotent retry policy.
+            response, raised = await callbacks.call(request, url="https://target.example/connect")
+            assert isinstance(raised, HTTPToolError)
+            assert response == {
+                "ok": False,
+                "error": {
+                    "code": "http_request_failed",
+                    "message": "http_request failed (HTTPToolError)",
+                    "retryable": True,
+                },
+            }
+            assert delays == [0.25, 0.5]
+
+            # Request IDs stay monotonic; the failed send keeps its explicit record.
+            response, raised = await callbacks.call(request, url="https://target.example/ok")
+            assert raised is None
+            assert response["request_id"] == 3
+            history = {item["request_id"]: item for item in await tools["http_history"]()}
+            if injection == "transport":
+                assert history[1]["error"] == "transport_error"
+            else:
+                assert 1 not in history
+            assert history[2]["error"] == "transport_error"
+            assert history[3]["status"] == 200
+            retained = repr(state.metrics)
+            assert "tool_call_failed" in retained
+            assert SECRET not in retained
+            assert "injected implementation failure" not in retained
         finally:
             await close_tools(tools)
             if proxy_client is not None:
@@ -770,6 +905,52 @@ async def make_tools(
 async def close_tools(tools: dict[str, Any]) -> None:
     for tool in tools.values():
         await tool.close()
+
+
+class WorkerToolCallbacks:
+    """Call real tools between the Worker's ADK callbacks, exactly as ADK does.
+
+    ADK runs before_tool_callback, awaits the tool and hands a raised exception
+    to on_tool_error_callback, whose response replaces the tool result.
+    """
+
+    def __init__(self, plugin: WorkerInstrumentationPlugin, invocation_id: str) -> None:
+        self._plugin = plugin
+        self._context = SimpleNamespace(
+            invocation_id=invocation_id, session=SimpleNamespace(id="session", state={})
+        )
+
+    @classmethod
+    async def start(cls, state: WorkerState) -> WorkerToolCallbacks:
+        plugin = WorkerInstrumentationPlugin(
+            state=state,
+            budget=lambda: None,
+            instrumentation=None,
+            model_alias="model",
+            observe_artifacts=lambda _owner, _cursor: None,
+        )
+        callbacks = cls(plugin, "worker-tool-errors")
+        plugin.prepare_invocation(invocation_id="worker-tool-errors", subtask_id="1")
+        await plugin.before_run_callback(invocation_context=callbacks._context)
+        return callbacks
+
+    async def call(self, tool: Any, **arguments: Any) -> tuple[Any, Exception | None]:
+        adk_tool = SimpleNamespace(name=tool.name, func=tool)
+        rejection = await self._plugin.before_tool_callback(
+            tool=adk_tool, tool_args=arguments, tool_context=self._context
+        )
+        assert rejection is None
+        try:
+            result = await tool(**arguments)
+        except Exception as error:
+            response = await self._plugin.on_tool_error_callback(
+                tool=adk_tool, tool_args=arguments, tool_context=self._context, error=error
+            )
+            return response, error
+        await self._plugin.after_tool_callback(
+            tool=adk_tool, tool_args=arguments, tool_context=self._context, result=result
+        )
+        return result, None
 
 
 def proxy_runtime_settings() -> RuntimeSettings:

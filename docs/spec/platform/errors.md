@@ -236,10 +236,11 @@ the retryability of the codes not classified here, are owned by
 
 **ERR-R13.** Stable HTTP and Caido tool errors include:
 
-- `http_request_invalid`, `http_target_denied`, `http_request_failed`,
+- `http_request_invalid`, `http_target_denied`,
   `http_response_invalid`, `http_response_too_large`, `http_body_not_found`,
   `http_cookie_state_invalid`, `http_cookie_state_conflict`, `http_cookie_write_denied`
-  (non-retryable) and `http_cookie_storage_unavailable` (retryable);
+  (non-retryable), `http_request_failed` and `http_cookie_storage_unavailable`
+  (retryable);
 - `caido_not_configured`, `caido_request_invalid`, `caido_request_failed`,
   `caido_response_invalid`, `caido_response_too_large`.
 
