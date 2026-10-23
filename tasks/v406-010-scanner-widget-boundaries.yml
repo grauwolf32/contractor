@@ -1,0 +1,41 @@
+schema_version: '1.0'
+id: V406-010
+title: Isolate specialized scanner views behind widget registries
+milestone: web-nuclei-rule-sweeps-2026-10
+epic: ui
+kind: chore
+priority: P2
+status: pending
+depends_on: [V406-005, V406-006]
+languages: [typescript]
+goal: Keep Workflow-specific launch fields and scanner-specific result/input presentation in explicit widgets while shared UI owns transport, lifecycle and navigation.
+context:
+  proposal: docs/proposals/0041-web-nuclei-scanning-and-rule-sweeps.md
+  specification:
+  - docs/spec/ui/ui.md#UI-R204
+  - docs/spec/ui/journeys.md
+  - ui/src/ui/README.md
+  finding: User requested bundled widgets for all existing specialized forms/views on 2026-10-23. Scanner report dispatch and Audit Nuclei/SQLMap input panels are the remaining specialized surfaces.
+scope:
+  in:
+  - Move scanner result presentation into a widget module with explicit supported tools and contract-aware dispatch.
+  - Isolate Nuclei and SQLMap Audit input presentation behind scanner widgets while shared evidence links and receipts keep their owner.
+  - Keep the Nuclei Workflow widget registered once and shared by single scans and sweeps.
+  - Record widget ownership and extension rules; retain existing behavior and shared error/status definitions.
+  out:
+  - New ffuf/SQLMap launch capabilities, dynamic plugin loading, Studio changes or new backend APIs.
+  - Converting generic Run lifecycle or format-based OpenAPI/LikeC4 previews into Workflow-specific code.
+acceptance_criteria:
+- id: A1
+  text: Route components contain no scanner-specific presentation branches; registered widgets own their specialized labels/fields and report outcome rules.
+- id: A2
+  text: Existing report and Audit input behavior is preserved by regression suites, with unknown/incompatible payloads remaining explicit or falling back to raw preview.
+- id: A3
+  text: Every widget has a production caller, no transport/lifecycle duplication is introduced, and launch widgets are shared by scans and sweeps.
+tests:
+- command: make ui-verify
+  covers: [A1, A2, A3]
+- command: make ui-browser-mocked
+  covers: [A1, A2, A3]
+- command: make lint
+  covers: [A1, A2, A3]

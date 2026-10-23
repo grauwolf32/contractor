@@ -540,3 +540,8 @@ the owning specification registries acquire them with each implementation.
 The core-first implementation keeps UI/Studio work separate: CLI access to the
 durable server resource is tracked by [V406-009](../../tasks/done/v406-009-durable-sweep-cli.yml),
 which depends only on the completed server sweep. The UI tasks remain planned.
+
+Workflow-specific UI controls are bundled widgets, reused by single scans and
+sweeps. The follow-up [V406-010](../../tasks/v406-010-scanner-widget-boundaries.yml)
+isolates the existing scanner report and Audit input views behind the same
+explicit widget ownership rules, without new Studio capabilities.

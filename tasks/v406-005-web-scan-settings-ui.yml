@@ -5,7 +5,7 @@ milestone: web-nuclei-rule-sweeps-2026-10
 epic: ui
 kind: feature
 priority: P2
-status: pending
+status: in_progress
 depends_on:
 - V406-003
 languages:
@@ -24,6 +24,7 @@ context:
   - docs/spec/configuration/workflows.md
 scope:
   in:
+  - Register a bundled Workflow-specific widget with exact-version and contract compatibility checks; keep launch/lifecycle in shared hosts.
   - Add scan settings form and single-Run launch for nuclei-web@1 using published contracts and
     existing UI building blocks/theme tokens.
   - Page all UserScope rulepack and Project selectors; upload packs to UserScope and submit exact

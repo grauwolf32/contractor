@@ -15,6 +15,7 @@ depends_on:
 - V406-006
 - V406-008
 - V406-009
+- V406-010
 languages:
 - go
 - python
