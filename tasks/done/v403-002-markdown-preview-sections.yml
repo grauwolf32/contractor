@@ -6,7 +6,8 @@ epic: ui
 kind: defect
 introduced_by: V403-001
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: "4d80536341bf554d1403b7071f446bb2f2e6ac01"
 depends_on: []
 languages: [typescript]
 goal: >-
@@ -48,7 +49,7 @@ scope:
   in:
     - "Split the Markdown body (after frontmatter) into sections only before an unindented line that follows a blank line and does not start a list item, outside top-level fenced code and HTML blocks; group them into sections of about 16 Ki characters."
     - "Parse the whole body as one section when a section boundary could change the result: a link reference or footnote definition anywhere, a fence or HTML block opened inside a container whose end cannot be told line by line, or a fence-like line inside a possible HTML block."
-    - "Render the first section with the preview and each further section in a later browser task, with a status line until the last one is shown; sections already shown are not parsed again."
+    - "Render the first section with the preview and the others four at a time in later browser tasks, with a status line until the last one is shown; sections already shown are not parsed again, and a changed document starts again from its first section."
     - "Show a section longer than 256 Ki characters (LIM-UI-16) as plain text with a notice instead of parsing it; Source keeps the whole document."
     - "UI-R202 and LIM-UI-16 in the specification; a ui/package.json patch bump."
     - "A unit test that compares sectioned and whole renders over Markdown that exercises every boundary rule, and a browser regression with a 1 MiB report."
@@ -74,3 +75,18 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3, A4]
+verification:
+  date: "2026-10-23"
+  revision: "4d80536341bf554d1403b7071f446bb2f2e6ac01"
+  environment: >-
+    Branch feat/v403-002-markdown-sections on main @ 99964a6c, macOS arm64,
+    Node 24.20.0 with Corepack pnpm 11.24.0 and Playwright Chromium.
+  results:
+    - "A1: markdown-sections.test.tsx renders 15 boundary cases (headings, list items and look-alike lines, block quotes, indented code, fences with a heading inside, a shorter closing fence, a backtick info string, a fence in an ordered list item, a fence after a table, HTML comments, script, processing instruction, declaration and CDATA blocks, an HTML block ending at a blank line, CRLF) and compares each sectioned render with the whole render; it asserts where every case is cut and that six ambiguous bodies (fence-like lines in possible HTML, indented fences and HTML blocks a less indented line may close, link reference and footnote definitions) stay whole."
+    - "A2: a 1 MiB report splits into 65 sections of at most 16 Ki characters; e2e/artifact-preview.spec.ts opens a report just under 1 MiB with a list, a table and a fence per part and sees the first and last headings, every table, no fenced line as a heading, and the status line gone."
+    - "A3: a GFM table over 262,144 characters is shown as text with the notice and no table element, between rendered headings, in both the unit test and the browser test; run against main, the browser test fails because the table renders and the notice never appears."
+    - "A4: removing the fence, HTML comment, list-marker, definition, indentation, possible-HTML or backtick info-string rule, the line break between sections, or the reset on a changed document each fails at least one test."
+    - "Chromium, temporary uncommitted spec, timing taken in the page: the 1 MiB report showed its first section after 0.35 s and finished after 2.0 s with the longest task 54 ms; main showed nothing until 4.0 s and blocked for 3.1 s. One section per step finished after 2.7 s, eight after 1.8 s with 70 ms tasks, doubling batches after 1.9 s with 200 ms tasks. A single table takes 0.9 s at 128 KiB and 2.2 s just under 256 KiB, the same as main: LIM-UI-16 keeps the worst single block at what 256 KiB previews already cost before V403-001."
+    - "OpenAPI at 1 MiB (about 7,000 operations) blocked for 1.4 s on main and on this branch; it is V403-003."
+    - "The splitter takes 9 ms for the 1 MiB report and at most 28 ms on 1 MiB adversarial inputs (open brackets, fences, HTML lines) in Node."
+    - "make lint, make ui-verify (190 files, 2308 tests, 1 expected fail, build) and make ui-browser-mocked (82 tests) passed on the implementation commit's tree."
