@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-82 open tasks: 4 in progress, 53 pending, 25 deferred. 947 finished: 944 completed, 3 archived.
+70 open tasks: 4 in progress, 41 pending, 25 deferred. 959 finished: 956 completed, 3 archived.
 
 ## In progress
 
@@ -41,7 +41,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V372-006](v372-006-runtime-label-set-rule.yml) | chore | P3 | — | Give the Runtime label set rule one Go definition and hold the UI and the Runtime to it |
-| [V372-021](v372-021-credential-master-key-unavailable.yml) | defect | P2 | — | Answer an LLM or Runtime credential operation without the master key with a registered non-retryable code |
 
 ### HTTP and Caido tools (`http-tools`)
 
@@ -62,7 +61,6 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V371-010](v371-010-discarded-receipt-projection.yml) | defect | P2 | — | Drop the report projection of a proposal receipt discarded by Run deletion |
 | [V371-011](v371-011-proposal-quota-limits.yml) | chore | P3 | — | Register the per-Run proposal and per-proposal evidence quotas in the specification |
-| [V372-018](v372-018-finding-proposal-namespace-constant.yml) | chore | P3 | — | Name the finding-proposals Namespace through artifactpolicy in finding intake |
 | [V372-023](v372-023-findings-tool-error-codes.yml) | chore | P3 | — | Name the findings error codes the open question lists and register the findings tool codes |
 | [V397-006](v397-006-finding-analysis-resolver.yml) | feature | P2 | — | Resolve optional finding analysis against exact retained evidence |
 | [V397-007](v397-007-finding-export-snapshot.yml) | feature | P2 | V397-006 | Freeze explicit finding selections and independent Audit results |
@@ -77,12 +75,6 @@ the epics are in [epics.yml](epics.yml).
 | [V372-014](v372-014-execution-config-patch-strict-decode.yml) | chore | P3 | — | Decode executionConfig patch members with strictjson |
 | [V372-015](v372-015-config-split-leftovers.yml) | chore | P3 | — | Stop locals from shadowing the resolved package and drop config's copy of clone.Map |
 
-### Projects, artifacts and lifecycle controls (`projects-artifacts`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V371-019](v371-019-audit-namespace-prefix-rule.yml) | chore | P3 | — | Use artifactpolicy's Audit namespace rule in the Audit namespace purge |
-
 ### Audits (`audits`)
 
 | Task | Kind | Priority | Waiting for | Title |
@@ -95,13 +87,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V40-003](v40-003-agent-instruction-eval-decision.yml) | feature | P1 | V40-002 | Evaluate instruction candidates and record evidence-based adoption decisions |
-| [V371-013](v371-013-eval-bounded-json-walker.yml) | chore | P3 | — | Read Eval JSON documents with strictjson.DecodeBounded |
-
-### Web UI (`ui`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V372-005](v372-005-issues-decision-focus-race.yml) | defect | P2 | — | Move focus to the next possible issue reliably after a decision |
 
 ### Operations, authentication, CLI and deployment (`operations`)
 
@@ -114,10 +99,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V371-016](v371-016-idempotency-key-grammar.yml) | defect | P3 | — | Give the Idempotency-Key grammar one Go definition |
-| [V371-017](v371-017-strong-etag-grammar.yml) | defect | P3 | — | Accept only RFC 9110 strong entity tags in If-Match |
-| [V371-018](v371-018-repeat-draft-description.yml) | chore | P3 | — | Remove the historical-request sentence from the repeat-draft OpenAPI description |
 | [V372-020](v372-020-error-code-vocabularies.yml) | chore | P3 | — | Hold every vocabulary that carries error code names to the registry |
-| [V372-022](v372-022-standby-public-api-envelope.yml) | defect | P3 | — | Answer the public API on a standby Server with the error envelope |
 | [V372-025](v372-025-typed-openapi-enums.yml) | chore | P3 | — | Give every enum of the public OpenAPI document a type |
 | [V372-026](v372-026-request-digests-in-services.yml) | chore | P3 | — | Move the Project, Audit and review request digests out of the public handlers |
 
@@ -137,11 +119,7 @@ the epics are in [epics.yml](epics.yml).
 | [V371-015](v371-015-memory-claim-paused-skip.yml) | chore | P3 | — | Model the paused-owner claim skip in the Scheduler's memory store doubles |
 | [V371-021](v371-021-postgres-test-wall-clock.yml) | chore | P3 | — | Replace wall-clock budgets in the Scheduler and runstore PostgreSQL tests |
 | [V371-022](v371-022-capability-probe-test-budget.yml) | chore | P3 | — | Remove the 10 ms probe budget from the capability discovery tests |
-| [V371-023](v371-023-audit-route-test-timeouts.yml) | chore | P3 | — | Keep the Audit route UI tests within their timeout under load |
-| [V371-024](v371-024-browser-gate-ci-artifacts.yml) | chore | P3 | — | Keep browser gate screenshots and traces where CI uploads them |
-| [V371-025](v371-025-pnpm-root-invocation.yml) | chore | P3 | — | Document a pnpm invocation that works from the repository root |
 | [V372-016](v372-016-wall-clock-test-budgets-wave-2.yml) | chore | P3 | — | Replace wall-clock budgets in the finding intake, Audit, Eval and persistence tests and the result publication test |
-| [V372-019](v372-019-restore-rehearsal-pg-dump-version.yml) | chore | P3 | — | Check the pg_dump and pg_restore version before the backup and restore rehearsal |
 | [V372-024](v372-024-audit-item-attempts-fake.yml) | chore | P3 | — | Make the Audit item attempt fake answer like the store and keep the item list schema-valid without it |
 | [V372-029](v372-029-shared-fixture-gate-scope.yml) | chore | P3 | — | Extend the shared fixture gate to every cross-language fixture and keep slow store suites out of it |
 | [V372-030](v372-030-shrink-test-only-export-baseline.yml) | chore | P3 | — | Resolve the exported identifiers that only tests use and empty the test-only export baseline |
@@ -185,21 +163,21 @@ tasks in `introduced_by`.
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 5 | 38 | 50 | 11 | 65 |
 | Planners and the Worker model boundary (`planner-worker`) | 3 | 27 | 37 | 14 | 55 |
-| Runtime labels, configuration and credentials (`runtime-config`) | 11 | 25 | 12 | 3 | 37 |
+| Runtime labels, configuration and credentials (`runtime-config`) | 10 | 25 | 12 | 3 | 37 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 1 | 11 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 2 | 1 | 1 |
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 12 | 4 | 15 |
 | Code analysis and taint annotations (`code-analysis`) | 0 | 14 | 13 | 2 | 18 |
 | HTTP and Caido tools (`http-tools`) | 2 | 11 | 14 | 4 | 15 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 1 | 11 | 4 | 2 | 8 |
-| Findings tools and collections (`findings`) | 8 | 14 | 5 | 6 | 9 |
+| Findings tools and collections (`findings`) | 7 | 14 | 5 | 6 | 9 |
 | Workflow catalog and document workflows (`workflows`) | 3 | 14 | 13 | 12 | 12 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 30 | 32 | 5 | 35 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 30 | 32 | 5 | 35 |
 | Audits (`audits`) | 18 | 51 | 70 | 17 | 83 |
-| Evaluations (`evals`) | 3 | 21 | 29 | 5 | 33 |
+| Evaluations (`evals`) | 2 | 21 | 29 | 5 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 9 | 1 | 1 | 2 |
-| Web UI (`ui`) | 1 | 21 | 55 | 12 | 49 |
+| Web UI (`ui`) | 0 | 21 | 55 | 12 | 49 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 13 | 32 | 5 | 9 |
-| Public API and wire contracts (`api-contracts`) | 7 | 1 | 30 | 20 | 8 |
+| Public API and wire contracts (`api-contracts`) | 4 | 1 | 30 | 20 | 8 |
 | PostgreSQL persistence and schema (`persistence`) | 4 | 0 | 19 | 33 | 8 |
-| Quality, CI and process (`quality`) | 14 | 1 | 20 | 78 | 16 |
+| Quality, CI and process (`quality`) | 10 | 1 | 20 | 78 | 16 |

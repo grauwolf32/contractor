@@ -169,7 +169,17 @@ the shared name grammar `[A-Za-z0-9][A-Za-z0-9_.-]*` of at most 128 characters
 (LIM-API-20). The Server has one definition of each grammar, which handlers,
 the live event protocol and the stores apply. A store rejects an identity
 outside its grammar as invalid when it is written, so no stored identity can
-fail a later strict read.
+fail a later strict read. An `If-Match` revision precondition is exactly one
+strong entity tag (RFC 9110): a double quote, one or more visible ASCII
+characters other than a double quote, a backslash or a comma, and a double
+quote. The Server compares its value verbatim and never unescapes it; the
+private Artifact API and the Runtime read and write the same grammar
+([ART-R45](../artifacts/artifact-store.md)). An entity tag has no escapes, and
+no Server ETag contains a backslash, a comma or a non-ASCII byte, so such a
+value, surrounding whitespace, a single- or back-quoted value, an empty or weak
+tag and a list are malformed: the request is `400 invalid_request`, or
+`422 eval_invalid` on Managed Eval routes, before any revision is compared,
+never a precondition conflict.
 
 **API-R73.** The Server serves exactly the operations of the contract: another
 method on an operation's path is `405 method_not_allowed`, and any other path

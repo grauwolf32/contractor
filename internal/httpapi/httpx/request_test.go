@@ -80,10 +80,40 @@ func TestParseStrongETag(t *testing.T) {
 		wantErr error
 	}{
 		{raw: `"7"`, want: "7"},
-		{raw: `  "rev-1" `, want: "rev-1"},
+		{raw: `"rev-1"`, want: "rev-1"},
+		// Weak tags and lists. The shared cases in TestSharedStrongETagCases
+		// cover the grammar; this table pins which error each failure is.
 		{raw: `W/"7"`, wantErr: ErrWeakETag},
 		{raw: `"7", "8"`, wantErr: ErrWeakETag},
+		{raw: `"7","8"`, wantErr: ErrWeakETag},
+		{raw: `"7,8"`, wantErr: ErrWeakETag},
+		// Escaped spellings are never unescaped.
+		{raw: `"\x37"`, wantErr: ErrUnquotedETag},
+		{raw: `"\067"`, wantErr: ErrUnquotedETag},
+		{raw: `"\u0037"`, wantErr: ErrUnquotedETag},
+		{raw: `"\U00000037"`, wantErr: ErrUnquotedETag},
+		{raw: `"a\"b"`, wantErr: ErrUnquotedETag},
+		{raw: `"7\"`, wantErr: ErrUnquotedETag},
+		{raw: `"\\"`, wantErr: ErrUnquotedETag},
+		// Other quoting, padding and bytes outside etagc.
+		{raw: `'7'`, wantErr: ErrUnquotedETag},
+		{raw: "`7`", wantErr: ErrUnquotedETag},
 		{raw: `7`, wantErr: ErrUnquotedETag},
+		{raw: `*`, wantErr: ErrUnquotedETag},
+		{raw: ` "7"`, wantErr: ErrUnquotedETag},
+		{raw: `"7" `, wantErr: ErrUnquotedETag},
+		{raw: "\t\"7\"", wantErr: ErrUnquotedETag},
+		{raw: `"7"x`, wantErr: ErrUnquotedETag},
+		{raw: `"7"8"`, wantErr: ErrUnquotedETag},
+		{raw: `"7 8"`, wantErr: ErrUnquotedETag},
+		{raw: "\"7\t8\"", wantErr: ErrUnquotedETag},
+		{raw: "\"7\x7f\"", wantErr: ErrUnquotedETag},
+		{raw: "\"7\x00\"", wantErr: ErrUnquotedETag},
+		{raw: "\"r\x80\xff\"", wantErr: ErrUnquotedETag},
+		{raw: `"отчет"`, wantErr: ErrUnquotedETag},
+		// Empty values.
+		{raw: ``, wantErr: ErrUnquotedETag},
+		{raw: `"`, wantErr: ErrUnquotedETag},
 		{raw: `""`, wantErr: ErrUnquotedETag},
 	} {
 		got, err := ParseStrongETag(tc.raw)

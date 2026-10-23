@@ -7686,6 +7686,9 @@ type Error409 = Error
 // CredentialInUse defines model for CredentialInUse.
 type CredentialInUse = Error
 
+// CredentialMutationUnavailable defines model for CredentialMutationUnavailable.
+type CredentialMutationUnavailable = Error
+
 // CredentialRecoveryRequired defines model for CredentialRecoveryRequired.
 type CredentialRecoveryRequired = Error
 
@@ -7739,6 +7742,9 @@ type RateLimited = Error
 
 // RunCreationUnavailable defines model for RunCreationUnavailable.
 type RunCreationUnavailable = Error
+
+// RuntimeCredentialMutationUnavailable defines model for RuntimeCredentialMutationUnavailable.
+type RuntimeCredentialMutationUnavailable = Error
 
 // RuntimeLabelWritten defines model for RuntimeLabelWritten.
 type RuntimeLabelWritten = RuntimeLabelBinding
@@ -8402,9 +8408,11 @@ type DeleteRuntimeLabelParams struct {
 // PutRuntimeLabelParams defines parameters for PutRuntimeLabel.
 type PutRuntimeLabelParams struct {
 	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
-	IdempotencyKey IdempotencyKey                    `json:"Idempotency-Key"`
-	IfMatch        *IfMatch                          `json:"If-Match,omitempty"`
-	IfNoneMatch    *PutRuntimeLabelParamsIfNoneMatch `json:"If-None-Match,omitempty"`
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+
+	// IfMatch One strong quoted positive decimal revision, as `RequiredIfMatch`. Any other value is 400 `invalid_request`, never a CAS conflict.
+	IfMatch     *IfMatch                          `json:"If-Match,omitempty"`
+	IfNoneMatch *PutRuntimeLabelParamsIfNoneMatch `json:"If-None-Match,omitempty"`
 
 	// Origin Required with exact allowlist match when sessionCookie authenticates an unsafe request.
 	Origin *OptionalOrigin `json:"Origin,omitempty"`
@@ -14796,7 +14804,7 @@ type ClientInterface interface {
 
 	// GetRunRepeatDraft Project a terminal Run into a reviewed new-Run draft
 	//
-	// Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. Historical requests that predate executionConfig retention remain explicitly unavailable instead of inheriting current defaults silently.
+	// Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. The draft requires the Run's retained executionConfig fragment, valid and matching its Workflow and Project; a missing or invalid fragment returns a blocking notice and no draft, and neither lineage nor current or effective configuration reconstructs the original request.
 	//
 	// Corresponds with GET /v1/runs/{runId}/repeat-draft (the `GetRunRepeatDraft` operationId).
 	GetRunRepeatDraft(ctx context.Context, runId RunId, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -17681,7 +17689,7 @@ func (c *Client) DownloadRunOutput(ctx context.Context, runId RunId, slot Artifa
 
 // GetRunRepeatDraft Project a terminal Run into a reviewed new-Run draft
 //
-// Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. Historical requests that predate executionConfig retention remain explicitly unavailable instead of inheriting current defaults silently.
+// Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. The draft requires the Run's retained executionConfig fragment, valid and matching its Workflow and Project; a missing or invalid fragment returns a blocking notice and no draft, and neither lineage nor current or effective configuration reconstructs the original request.
 //
 // Corresponds with GET /v1/runs/{runId}/repeat-draft (the `GetRunRepeatDraft` operationId).
 func (c *Client) GetRunRepeatDraft(ctx context.Context, runId RunId, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -29618,7 +29626,7 @@ type ClientWithResponsesInterface interface {
 
 	// GetRunRepeatDraftWithResponse Project a terminal Run into a reviewed new-Run draft
 	//
-	// Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. Historical requests that predate executionConfig retention remain explicitly unavailable instead of inheriting current defaults silently.
+	// Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. The draft requires the Run's retained executionConfig fragment, valid and matching its Workflow and Project; a missing or invalid fragment returns a blocking notice and no draft, and neither lineage nor current or effective configuration reconstructs the original request.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -39792,7 +39800,7 @@ type CreateCredentialResponse struct {
 	// JSON502 the response for an HTTP 502 `application/json` response
 	JSON502 *GatewayUnavailable
 	// JSON503 the response for an HTTP 503 `application/json` response
-	JSON503 *CredentialRecoveryRequired
+	JSON503 *CredentialMutationUnavailable
 	// Headers201 the parsed response headers for an HTTP 201 response
 	Headers201 *CreateCredentialResponse201Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -39854,7 +39862,7 @@ func (r CreateCredentialResponse) GetJSON502() *GatewayUnavailable {
 }
 
 // GetJSON503 returns the response for an HTTP 503 `application/json` response
-func (r CreateCredentialResponse) GetJSON503() *CredentialRecoveryRequired {
+func (r CreateCredentialResponse) GetJSON503() *CredentialMutationUnavailable {
 	return r.JSON503
 }
 
@@ -39952,7 +39960,7 @@ type DeleteCredentialResponse struct {
 	// JSON502 the response for an HTTP 502 `application/json` response
 	JSON502 *GatewayUnavailable
 	// JSON503 the response for an HTTP 503 `application/json` response
-	JSON503 *CredentialRecoveryRequired
+	JSON503 *CredentialMutationUnavailable
 	// Headers204 the parsed response headers for an HTTP 204 response
 	Headers204 *DeleteCredentialResponse204Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -40009,7 +40017,7 @@ func (r DeleteCredentialResponse) GetJSON502() *GatewayUnavailable {
 }
 
 // GetJSON503 returns the response for an HTTP 503 `application/json` response
-func (r DeleteCredentialResponse) GetJSON503() *CredentialRecoveryRequired {
+func (r DeleteCredentialResponse) GetJSON503() *CredentialMutationUnavailable {
 	return r.JSON503
 }
 
@@ -41606,7 +41614,7 @@ type CreateRuntimeCredentialResponse struct {
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
 	// JSON503 the response for an HTTP 503 `application/json` response
-	JSON503 *StorageTransactionConflict
+	JSON503 *RuntimeCredentialMutationUnavailable
 	// Headers201 the parsed response headers for an HTTP 201 response
 	Headers201 *CreateRuntimeCredentialResponse201Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -41661,7 +41669,7 @@ func (r CreateRuntimeCredentialResponse) GetJSON500() *InternalError {
 }
 
 // GetJSON503 returns the response for an HTTP 503 `application/json` response
-func (r CreateRuntimeCredentialResponse) GetJSON503() *StorageTransactionConflict {
+func (r CreateRuntimeCredentialResponse) GetJSON503() *RuntimeCredentialMutationUnavailable {
 	return r.JSON503
 }
 
@@ -41752,7 +41760,7 @@ type DeleteRuntimeCredentialResponse struct {
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
 	// JSON503 the response for an HTTP 503 `application/json` response
-	JSON503 *StorageTransactionConflict
+	JSON503 *RuntimeCredentialMutationUnavailable
 	// Headers204 the parsed response headers for an HTTP 204 response
 	Headers204 *DeleteRuntimeCredentialResponse204Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -41802,7 +41810,7 @@ func (r DeleteRuntimeCredentialResponse) GetJSON500() *InternalError {
 }
 
 // GetJSON503 returns the response for an HTTP 503 `application/json` response
-func (r DeleteRuntimeCredentialResponse) GetJSON503() *StorageTransactionConflict {
+func (r DeleteRuntimeCredentialResponse) GetJSON503() *RuntimeCredentialMutationUnavailable {
 	return r.JSON503
 }
 
@@ -52522,7 +52530,7 @@ func (c *ClientWithResponses) DownloadRunOutputWithResponse(ctx context.Context,
 
 // GetRunRepeatDraftWithResponse Project a terminal Run into a reviewed new-Run draft
 //
-// Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. Historical requests that predate executionConfig retention remain explicitly unavailable instead of inheriting current defaults silently.
+// Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. The draft requires the Run's retained executionConfig fragment, valid and matching its Workflow and Project; a missing or invalid fragment returns a blocking notice and no draft, and neither lineage nor current or effective configuration reconstructs the original request.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -65116,7 +65124,7 @@ func ParseCreateCredentialResponse(rsp *http.Response) (*CreateCredentialRespons
 		response.JSON502 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest CredentialRecoveryRequired
+		var dest CredentialMutationUnavailable
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -65308,7 +65316,7 @@ func ParseDeleteCredentialResponse(rsp *http.Response) (*DeleteCredentialRespons
 		response.JSON502 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest CredentialRecoveryRequired
+		var dest CredentialMutationUnavailable
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -67301,7 +67309,7 @@ func ParseCreateRuntimeCredentialResponse(rsp *http.Response) (*CreateRuntimeCre
 		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest StorageTransactionConflict
+		var dest RuntimeCredentialMutationUnavailable
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -67483,7 +67491,7 @@ func ParseDeleteRuntimeCredentialResponse(rsp *http.Response) (*DeleteRuntimeCre
 		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest StorageTransactionConflict
+		var dest RuntimeCredentialMutationUnavailable
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

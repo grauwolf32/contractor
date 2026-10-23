@@ -243,6 +243,11 @@ func (s *Service) Create(ctx context.Context, request CreateRequest) (CreateResu
 	if err != nil {
 		return CreateResult{}, err
 	}
+	// Without the master key no credential row can exist (RCF-R44), so the
+	// request stops before any read, write or Gateway call.
+	if s.cipher == nil {
+		return CreateResult{}, ErrCredentialKeyUnavailable
+	}
 	s.lifecycleMu.Lock()
 	defer s.lifecycleMu.Unlock()
 	if !s.ready.Load() {
@@ -285,9 +290,6 @@ func (s *Service) Create(ctx context.Context, request CreateRequest) (CreateResu
 	if !errors.Is(err, ErrNotFound) {
 		return CreateResult{}, err
 	}
-	if s.cipher == nil {
-		return CreateResult{}, ErrKeyUnavailable
-	}
 	operation, err := s.newOperation(
 		OperationCreate, normalized.CredentialID, request.IdempotencyKey, requestHash, normalized,
 	)
@@ -312,6 +314,9 @@ func (s *Service) Delete(ctx context.Context, request DeleteRequest) (DeleteResu
 	requestHash, err := validateDeleteRequest(request)
 	if err != nil {
 		return DeleteResult{}, err
+	}
+	if s.cipher == nil {
+		return DeleteResult{}, ErrCredentialKeyUnavailable
 	}
 	s.lifecycleMu.Lock()
 	defer s.lifecycleMu.Unlock()
@@ -503,7 +508,7 @@ func (s *Service) executeCreate(
 		return Record{}, err
 	}
 	if s.cipher == nil {
-		return Record{}, ErrKeyUnavailable
+		return Record{}, ErrCredentialKeyUnavailable
 	}
 	managerRequest := ManagerCreateRequest{
 		OperationID: operation.OperationID, CredentialID: request.CredentialID,

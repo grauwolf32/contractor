@@ -490,8 +490,10 @@ its caller supply an arbitrary scope ID.
 **ART-R45.** The private HTTP binding has one unambiguous
 write protocol. Creating a binding requires `If-None-Match: *`; updating it
 requires exactly one quoted, strong `If-Match` value containing the expected
-opaque revision. A PUT without one of those preconditions, with a weak
-validator or with a list of validators is rejected.
+opaque revision, read verbatim in the entity-tag grammar of
+[API-R70](../api/public-api.md). A PUT without one of those preconditions,
+with a weak validator, with a list of validators or with an escaped or
+otherwise quoted value is `400 invalid_request` before the store is read.
 
 **ART-R46.** Successful private reads return the resolved revision in
 `ETag`; successful writes return the same exact revision in both `ETag` and the

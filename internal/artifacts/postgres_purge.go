@@ -5,8 +5,8 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"strings"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
@@ -36,7 +36,7 @@ func (p *PostgresPurger) PurgeAuditNamespace(
 	if err != nil {
 		return false, err
 	}
-	if !strings.HasPrefix(namespace, "audit-") || validateComponent(namespace) != nil {
+	if !artifactpolicy.IsAuditManagedProjectNamespace(namespace) || validateComponent(namespace) != nil {
 		return false, ErrInvalidName
 	}
 	ctx, cancel := persistencepostgres.WithCleanupBudget(ctx)

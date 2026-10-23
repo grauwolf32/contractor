@@ -19,6 +19,7 @@ from contractor_runtime.artifacts import (
     require_json,
 )
 from contractor_runtime.contracts import DIGEST_PATTERN, ArtifactRef, validate_media_type
+from contractor_runtime.contracts.artifacts import FINDING_PROPOSAL_NAMESPACE
 
 # findingintake.MaxRequestBytes / auditdomain.MaximumDocumentBytes.
 MAX_FINDING_SUBMISSION_BYTES = MAX_ARTIFACT_BYTES
@@ -104,7 +105,7 @@ class FindingProposalClient:
         digest = proposal.get("digest")
         size = proposal.get("sizeBytes")
         if (
-            ref.namespace != "finding-proposals"
+            ref.namespace != FINDING_PROPOSAL_NAMESPACE
             or not isinstance(digest, str)
             or DIGEST_PATTERN.fullmatch(digest) is None
             or proposal.get("mediaType") != "application/json"
@@ -153,7 +154,7 @@ class FindingProposalClient:
         if "httpEvidence" in request:
             selected = evidence[-1]
             if (
-                selected["ref"]["namespace"] != "finding-proposals"
+                selected["ref"]["namespace"] != FINDING_PROPOSAL_NAMESPACE
                 or selected["ref"]["name"] != "http.exchange." + value["proposalId"]
                 or selected["mediaType"] != "application/vnd.contractor.http-exchange+json"
             ):

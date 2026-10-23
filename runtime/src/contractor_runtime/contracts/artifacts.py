@@ -24,8 +24,12 @@ from contractor_runtime.contracts.base import (
 # into one. The memory. name prefix belongs to MemoryTools in every other
 # Namespace (ART-R19 to ART-R22). The Server's artifactpolicy applies the same
 # rule; api/testdata/v1alpha1/memory-reservation-cases.json pins both.
+# FINDING_PROPOSAL_NAMESPACE (artifactpolicy.FindingProposalNamespace) holds the
+# proposals and frozen HTTP exchanges Server finding intake writes; Runtime code
+# outside this package names it only through the constant.
+FINDING_PROPOSAL_NAMESPACE = "finding-proposals"
 PURPOSE_RESERVED_NAMESPACES = frozenset(
-    {"contractor-system", "finding-proposals", "inputs", "outputs", "skills"}
+    {"contractor-system", FINDING_PROPOSAL_NAMESPACE, "inputs", "outputs", "skills"}
 )
 MEMORY_ARTIFACT_PREFIX = "memory."
 

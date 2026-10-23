@@ -144,9 +144,9 @@ func artifactWritePrecondition(r *http.Request) (*string, error) {
 		return nil, fmt.Errorf("%w: If-Match requires one quoted revision", errInvalidRequest)
 	}
 	// One plain quoted revision in the public Revision grammar, as for
-	// ?revision (API-R70): a malformed or escaped value is a bad request,
-	// never a CAS conflict with the current binding (ART-R70).
-	if validatePublicRevision(revision) != nil || ifMatch[0] != `"`+revision+`"` {
+	// ?revision (API-R70): a malformed value is a bad request, never a CAS
+	// conflict with the current binding (ART-R70).
+	if validatePublicRevision(revision) != nil {
 		return nil, fmt.Errorf("%w: If-Match requires one quoted Artifact revision", errInvalidRequest)
 	}
 	return &revision, nil

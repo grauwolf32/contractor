@@ -2,7 +2,15 @@ import { useQuery } from "@tanstack/react-query";
 import { act, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  onTestFinished,
+  vi,
+} from "vitest";
 
 import {
   getAuditReport,
@@ -25,6 +33,29 @@ import {
 import { fakeServer, type Routes } from "../../test/fake-server";
 import { failure, json } from "../../test/responses";
 import { renderWithAPI } from "../../test/render";
+
+/**
+ * document.activeElement after every DOM change from now on, until `stop`
+ * (or the end of the test): whether focus ever sat on <body> in between.
+ */
+function focusTrail(): { stop: () => (Element | null)[] } {
+  const trail: (Element | null)[] = [];
+  const observer = new MutationObserver(() =>
+    trail.push(document.activeElement),
+  );
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    characterData: true,
+  });
+  onTestFinished(() => observer.disconnect());
+  return {
+    stop: () => {
+      observer.disconnect();
+      return trail;
+    },
+  };
+}
 
 /** A Server that keeps one review request. */
 function reviewServer(
@@ -137,6 +168,66 @@ describe("ActionDecision", () => {
     },
   );
 
+  it("keeps focus on the decision while a slower read holds the refresh", async () => {
+    const server = reviewServer(makeActionReview());
+    // Another read of the check, as a page has: it answers late after the
+    // decision, so the refetched request shows the decision first.
+    const slow = deferred();
+    let slowReads = 0;
+    function SlowRead() {
+      useQuery({
+        queryKey: [...queryKeys.audits.detail(AUDIT_ID), "slow"],
+        queryFn: async () => {
+          slowReads += 1;
+          if (slowReads > 1) await slow.promise;
+          return slowReads;
+        },
+      });
+      return null;
+    }
+    renderWithAPI(
+      <>
+        <Live
+          requestId="review_action"
+          render={(review) => (
+            <ActionDecision auditId={AUDIT_ID} review={review} />
+          )}
+        />
+        <SlowRead />
+      </>,
+      { server: fakeServer(server.routes) },
+    );
+    const user = userEvent.setup();
+    const region = await bar();
+    await user.click(within(region).getByRole("button", { name: "Approve" }));
+    await user.keyboard("The target is our own staging host.");
+    const trail = focusTrail();
+    await user.click(
+      within(region).getByRole("button", { name: "Record decision" }),
+    );
+
+    expect(await screen.findByText("Approved")).toBeVisible();
+    expect(
+      screen.queryByRole("region", { name: "Your decision" }),
+    ).not.toBeInTheDocument();
+    await waitFor(() => expect(slowReads).toBe(2));
+    const group = screen.getByRole("group", {
+      name: "Decision on active test approval",
+    });
+    expect(group).toHaveFocus();
+    await act(async () => {
+      slow.resolve();
+      await slow.promise;
+    });
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Decision recorded: Approved.",
+      ),
+    );
+    expect(group).toHaveFocus();
+    expect(trail.stop()).not.toContain(document.body);
+  });
+
   it("records an approval with the request revision, an idempotency key and the reason", async () => {
     const onDecided = vi.fn();
     const server = reviewServer(makeActionReview());
@@ -170,6 +261,7 @@ describe("ActionDecision", () => {
     await user.keyboard("   ");
     expect(record).toBeDisabled();
     await user.keyboard("The **target** is our own staging host. ");
+    const trail = focusTrail();
     await user.click(record);
 
     expect(await screen.findByText("Approved")).toBeVisible();
@@ -187,6 +279,8 @@ describe("ActionDecision", () => {
     expect(
       screen.getByRole("group", { name: "Decision on active test approval" }),
     ).toHaveFocus();
+    // Not even while the bar went away and the refetch was on its way.
+    expect(trail.stop()).not.toContain(document.body);
     const posts = sent("POST", "/decisions");
     expect(posts).toHaveLength(1);
     expect(posts[0]?.headers.get("If-Match")).toBe('"2"');

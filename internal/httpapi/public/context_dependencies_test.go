@@ -56,8 +56,9 @@ var sharedFiles = []string{
 	"types.go", "types_configuration.go", "types_operations.go", "types_run_project.go", "version.go",
 }
 
-// compositionFiles assemble the contexts and register their routes.
-var compositionFiles = []string{"router.go", "routes.go"}
+// compositionFiles assemble the contexts and register their routes, or, for
+// a standby Server, the boundary that answers without any context.
+var compositionFiles = []string{"router.go", "routes.go", "standby.go"}
 
 // TestContextFilesReachOnlyTheirOwnDependencies keeps every context on its own
 // handler struct: a context file declares methods only on its own struct and

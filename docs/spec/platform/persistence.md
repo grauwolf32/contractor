@@ -68,7 +68,7 @@ stateDiagram-v2
     Standby --> Standby: lease not acquired, or an acquisition probe stalls and the lock-free session reconnects
     Standby --> Active: advisory lease acquired on the lease session
     Active --> Stopped: lease-session loss, a single liveness probe fails within the 10 s tolerance window
-    note right of Standby: serves /healthz, returns 503 from /readyz, no private API
+    note right of Standby: serves /healthz, 503 from /readyz and 503 server_standby under /v1, no private API
     note right of Active: credential recovery, Control Plane, Scheduler and private API run
     note right of Stopped: listeners closed, Scheduler cancelled
 ```
@@ -83,7 +83,7 @@ sequenceDiagram
     A->>DB: Hold the session-level advisory lease on the lease session
     Note over A: Credential recovery, Control Plane, Scheduler and private API start
     B->>DB: Acquisition probe, lease held elsewhere
-    Note over B: Serves /healthz, 503 from /readyz, no private API, keeps polling
+    Note over B: Serves /healthz, 503 from /readyz and server_standby under /v1, no private API, keeps polling
     Note over A,DB: Active Server disconnected without closing the connection
     A->>A: Liveness probe fails within the 10 s tolerance window
     A->>A: Close listeners, cancel the Scheduler
@@ -169,8 +169,13 @@ PostgreSQL advisory lease on a dedicated connection, the lease session.
 
 **PER-R3.** Until it acquires the advisory lease, a standby Server has only
 public health and 503 readiness: it serves `/healthz`, returns 503 from
-`/readyz` and has no private API. The general `/readyz` dependency check is
-[OPS-R115](../operations/operations.md).
+`/readyz` and has no private API. It answers every other request under `/v1`,
+the event upgrade included, without authenticating or routing it, with
+`503 server_standby`, retryable true, in the public error envelope with
+`X-Request-ID`, `X-Contractor-API-Version` and `Cache-Control: no-store`, so a
+client backs off instead of reading a missing resource until the standby takes
+over (PER-R4) or the client reaches the active Server. The general `/readyz`
+dependency check is [OPS-R115](../operations/operations.md).
 
 **PER-R4.** When the active Server detects lease-session loss, it closes its
 listeners and cancels the Scheduler; the standby then takes over
@@ -478,7 +483,8 @@ Lifecycle ([lifecycle](lifecycle.md)):
 - LIFE-PER-2 — the receipt of a keyed mutation (PER-R24).
 
 Errors ([registry](errors.md)): `/readyz` returns `503` on a standby Server
-until it acquires the advisory lease (PER-R3). The `/readyz` `503` for an
+until it acquires the advisory lease, and every `/v1` request the retryable
+`503 server_standby` (PER-R3). The `/readyz` `503` for an
 unusable working DB connection path is owned by
 [Operations](../operations/operations.md). A transaction conflict that
 outlasts its retries is the retryable `503 storage_transaction_conflict`
@@ -507,6 +513,10 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
 5. The lease session carries the keepalive values of PER-R6; test
    `TestPostgresControlPlaneLeaseSessionDetectsVanishedHolder` in
    [`internal/app/single_active_postgres_test.go`](../../../internal/app/single_active_postgres_test.go).
+   A standby Server process answers `/v1` requests and the event upgrade with
+   the retryable `server_standby` error envelope (PER-R3); test
+   `TestStandbyServerAnswersPublicAPIWithRetryableEnvelope` in
+   [`tests/integration/lease/standby_process_test.go`](../../../tests/integration/lease/standby_process_test.go).
 6. Every SQLSTATE class maps to one outcome class (PER-R13); test
    `TestClassifyMapsEverySQLStateClassToOneOutcome` in
    [`internal/persistence/postgres/sqlstate_test.go`](../../../internal/persistence/postgres/sqlstate_test.go).

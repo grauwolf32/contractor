@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 )
@@ -104,6 +105,48 @@ func TestTokenCipherRejectsInvalidInputsAndRandomFailure(t *testing.T) {
 	}
 	if _, err := (*TokenCipher)(nil).Open("worker", testPinnedGatewayRef("1", strings.Repeat("1", 64)), EncryptedEnvelope{}); !errors.Is(err, ErrKeyUnavailable) {
 		t.Fatalf("nil cipher error = %v", err)
+	}
+}
+
+// Every operation of a Server without a master key reports the narrowed
+// ErrCredentialKeyUnavailable, which the public API answers with the permanent
+// credential_key_unavailable (RCF-R44); a key that startup refuses keeps the
+// unclassified ErrKeyUnavailable.
+func TestMissingMasterKeyIsThePermanentCredentialKeyUnavailable(t *testing.T) {
+	t.Parallel()
+	var missing *TokenCipher
+	gateway := testPinnedGatewayRef("1", strings.Repeat("1", 64))
+	token, _ := NewToken("sk-token")
+	material, err := NewHTTPProxyBearerCredential("bearer-secret")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, seal := missing.Seal("worker", gateway, token)
+	_, open := missing.Open("worker", gateway, EncryptedEnvelope{})
+	_, sealRuntime := missing.SealRuntimeCredential("proxy", material)
+	_, openRuntime := missing.OpenRuntimeCredential("proxy", material.kind, EncryptedEnvelope{})
+	_, mac := missing.RuntimeCredentialRequestMAC("proxy", material)
+	_, resolve := (&EncryptedProvider{records: &credentialRecordReader{record: Record{
+		CredentialID: "worker", LLMGateway: gateway,
+	}}}).ResolveLLMCredential(t.Context(), llmgateway.LLMCredentialRef{CredentialID: "worker"}, gateway)
+	for name, err := range map[string]error{
+		"Seal": seal, "Open": open, "SealRuntimeCredential": sealRuntime,
+		"OpenRuntimeCredential": openRuntime, "RuntimeCredentialRequestMAC": mac, "ResolveLLMCredential": resolve,
+	} {
+		classified, ok := apierror.Of(err)
+		if !errors.Is(err, ErrCredentialKeyUnavailable) || !errors.Is(err, ErrKeyUnavailable) || !ok ||
+			classified.ErrorKind() != apierror.CredentialKeyUnavailable {
+			t.Errorf("%s without a master key = %v", name, err)
+		}
+	}
+	if kind := apierror.CredentialKeyUnavailable; kind.Status() != 503 || kind.Retryable() {
+		t.Fatalf("credential_key_unavailable = %d retryable=%t", kind.Status(), kind.Retryable())
+	}
+	if _, err := NewTokenCipher([]byte("short")); errors.Is(err, ErrCredentialKeyUnavailable) {
+		t.Fatalf("a refused key reports %v", err)
+	}
+	if _, ok := apierror.Of(ErrKeyUnavailable); ok {
+		t.Fatal("ErrKeyUnavailable has a public Kind")
 	}
 }
 
