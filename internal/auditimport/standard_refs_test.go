@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
@@ -56,7 +57,7 @@ func TestStandardProposalReferencesRequirePinnedExistingEntries(t *testing.T) {
 		},
 	}
 	pinned.Catalog = pinned.Retained
-	pinned.Catalog.Artifact.Namespace = auditstandards.CatalogNamespace
+	pinned.Catalog.Artifact.Namespace = artifactpolicy.AuditStandardCatalogNamespace
 	standards := retainedStandardIndex{
 		retainedStandardKey("owasp-web-top10", "2025"): indexRetainedStandard(pinned, pkg),
 	}
@@ -276,7 +277,7 @@ func TestCollectionLoadsPinnedStandardsOncePerAttempt(t *testing.T) {
 		},
 	}
 	pinned.Catalog = pinned.Retained
-	pinned.Catalog.Artifact.Namespace = auditstandards.CatalogNamespace
+	pinned.Catalog.Artifact.Namespace = artifactpolicy.AuditStandardCatalogNamespace
 	pinned.Catalog.Artifact.Name = auditstandards.ArtifactName(pkg.Reference())
 	if err := auditstandards.ValidatePinnedPackage(pinned); err != nil {
 		t.Fatal(err)

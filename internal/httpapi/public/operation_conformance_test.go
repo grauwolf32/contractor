@@ -10,6 +10,7 @@ import (
 
 	"github.com/getkin/kin-openapi/routers"
 	"github.com/getkin/kin-openapi/routers/gorillamux"
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
@@ -156,7 +157,7 @@ func conformAuditOperations(t *testing.T, router routers.Router) {
 				Attribution: "Example authors", Disclosure: auditstandards.DisclosureFull,
 			},
 			Digest: auditHandlerDigest("standard"), Artifact: contracts.ArtifactRef{
-				Namespace: auditstandards.CatalogNamespace, Name: "std-example", Revision: &standardRevision,
+				Namespace: artifactpolicy.AuditStandardCatalogNamespace, Name: "std-example", Revision: &standardRevision,
 			},
 			EntryCount: 1, MappingCount: 1, EvidenceContractCount: 1,
 		}},

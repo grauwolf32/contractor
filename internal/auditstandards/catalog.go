@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -67,9 +68,10 @@ func NewCatalog(service *artifacts.Service) (*Catalog, error) {
 }
 
 // DiscoverBundled validates and freezes all immediate package directories
-// below <operatorRoot>/audit-standards before any catalog mutation occurs.
+// below <operatorRoot>/audit-standards, the directory named after the catalog
+// Namespace, before any catalog mutation occurs.
 func DiscoverBundled(operatorRoot string) (*SeedPlan, error) {
-	root := filepath.Join(filepath.Clean(operatorRoot), CatalogNamespace)
+	root := filepath.Join(filepath.Clean(operatorRoot), artifactpolicy.AuditStandardCatalogNamespace)
 	info, err := os.Lstat(root)
 	if errors.Is(err, os.ErrNotExist) {
 		return &SeedPlan{}, nil
@@ -158,7 +160,7 @@ func (c *Catalog) Initialize(ctx context.Context, ownerID string, plan *SeedPlan
 	outcomes := make([]SeedOutcome, 0, len(plan.packages))
 	for _, bundled := range plan.packages {
 		ref := contracts.ArtifactRef{
-			Namespace: CatalogNamespace,
+			Namespace: artifactpolicy.AuditStandardCatalogNamespace,
 			Name:      ArtifactName(bundled.metadata.Reference),
 		}
 		current, readErr := store.Read(ctx, ref)
@@ -212,7 +214,7 @@ func (c *Catalog) Resolve(ctx context.Context, ownerID string, ref Reference) (R
 		return ResolvedPackage{}, err
 	}
 	read, err := store.Read(ctx, contracts.ArtifactRef{
-		Namespace: CatalogNamespace, Name: ArtifactName(ref),
+		Namespace: artifactpolicy.AuditStandardCatalogNamespace, Name: ArtifactName(ref),
 	})
 	if errors.Is(err, artifacts.ErrArtifactNotFound) {
 		return ResolvedPackage{}, ErrNotFound
@@ -238,7 +240,7 @@ func (c *Catalog) List(ctx context.Context, ownerID string) ([]ResolvedPackage, 
 	if err != nil {
 		return nil, err
 	}
-	namespace := CatalogNamespace
+	namespace := artifactpolicy.AuditStandardCatalogNamespace
 	// One bounded page detects a catalog over its package limit without
 	// reading every binding in the Namespace.
 	page, err := store.ListRefs(ctx, artifacts.RefPageQuery{Namespace: &namespace, Limit: MaximumPackages})
