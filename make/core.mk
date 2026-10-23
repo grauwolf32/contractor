@@ -58,8 +58,11 @@ test-control-integration:
 test-artifact-integration:
 	go test -tags=integration -count=1 ./internal/httpapi/privateartifacts -run TestCrossLanguagePrivateArtifactLifecycle
 
+# pg_dump refuses a server of a newer major version, so the client tools are
+# checked against SHOW server_version_num before the rehearsal creates a
+# database (scripts/check_postgres_client_version.py).
 test-backup-restore: require-database
-	@command -v pg_dump >/dev/null && command -v pg_restore >/dev/null || (echo "pg_dump and pg_restore are required" >&2; exit 1)
+	python3 scripts/check_postgres_client_version.py
 	go test -tags=integration -count=1 -timeout=10m ./tests/integration/restore -run '^TestBackupRestorePreservesExactArtifactsAndCAS$$'
 
 test-lease-integration:

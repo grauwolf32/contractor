@@ -229,8 +229,9 @@ In another terminal at the repository root:
 
 ```shell
 make ui-build
+cd ui
 CONTRACTOR_UI_API_BASE_URL=http://127.0.0.1:8080 \
-  corepack pnpm --dir ui start
+  corepack pnpm start
 ```
 
 Open `http://127.0.0.1:4173` and sign in as `admin` with the password used to

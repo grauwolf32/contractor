@@ -123,63 +123,104 @@ export function validateBrowserReport(report, requiredFiles) {
   return total;
 }
 
-export async function runBrowserGate(label, specs) {
-  // Build and serve an isolated production UI on an OS-selected port. No
-  // database or independently started development server is required.
+/**
+ * Runs one gate attempt that writes its Playwright screenshots and traces to
+ * `directory`. Results of an earlier run are removed first and a passing run
+ * removes its own, so whatever remains after a run belongs to a run that
+ * failed. A second run of the same gate started concurrently in the same
+ * checkout removes the first one's results, which makes that run fail rather
+ * than pass; run one gate at a time per checkout.
+ */
+export async function withGateResults(directory, run) {
+  await rm(directory, { recursive: true, force: true });
+  try {
+    await run(directory);
+  } catch (error) {
+    console.error(
+      `browser gate failed; its screenshots and traces, if any, are in ${directory}`,
+    );
+    throw error;
+  }
+  await rm(directory, { recursive: true, force: true });
+}
+
+const GATE_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/**
+ * Builds and serves an isolated production UI on an OS-selected port and runs
+ * `specs` against it. No database or independently started development
+ * server is required. The build stays in a temporary directory; Playwright
+ * output goes to ui/test-results/<name>, which CI uploads with the stage's
+ * reports (.github/workflows/ci.yml), and is kept only when the gate fails.
+ */
+export async function runBrowserGate(name, label, specs) {
+  if (!GATE_NAME.test(name)) throw new Error(`invalid gate name ${name}`);
   const work = await mkdtemp(join(tmpdir(), "contractor-ui-browser-"));
   let server;
   try {
-    const distDir = join(work, "dist");
-    execFileSync(
-      "corepack",
-      ["pnpm", "exec", "vite", "build", "--outDir", distDir],
-      {
-        cwd: uiRoot,
-        stdio: "inherit",
+    await withGateResults(
+      join(uiRoot, "test-results", name),
+      async (output) => {
+        const distDir = join(work, "dist");
+        execFileSync(
+          "corepack",
+          ["pnpm", "exec", "vite", "build", "--outDir", distDir],
+          {
+            cwd: uiRoot,
+            stdio: "inherit",
+          },
+        );
+        server = await createStaticServer({
+          distDir,
+          runtimeConfig: {
+            uiVersion: UI_VERSION,
+            supportedApiVersions: ["contractor.public.v1"],
+            apiBaseUrl: "http://127.0.0.1:1",
+          },
+        });
+        await new Promise((resolve, reject) => {
+          server.once("error", reject);
+          server.listen(0, "127.0.0.1", resolve);
+        });
+        const reportPath = join(work, "browser-report.json");
+        const baseURL = `http://127.0.0.1:${server.address().port}`;
+        const child = spawn(
+          "corepack",
+          [
+            "pnpm",
+            "exec",
+            "playwright",
+            "test",
+            "--reporter=line,json",
+            ...specs,
+          ],
+          {
+            cwd: uiRoot,
+            stdio: "inherit",
+            env: {
+              ...process.env,
+              CONTRACTOR_UI_E2E_BASE_URL: baseURL,
+              CONTRACTOR_UI_E2E_API_URL: baseURL,
+              CONTRACTOR_UI_E2E_OUTPUT_DIR: output,
+              PLAYWRIGHT_JSON_OUTPUT_FILE: reportPath,
+            },
+          },
+        );
+        await new Promise((resolve, reject) => {
+          child.once("error", reject);
+          child.once("exit", (code, signal) => {
+            if (code === 0) resolve();
+            else reject(new Error(`${label} gate exited: ${signal ?? code}`));
+          });
+        });
+        const count = validateBrowserReport(
+          JSON.parse(await readFile(reportPath, "utf8")),
+          specs,
+        );
+        console.log(
+          `${label} gate verified ${count} passing browser tests across ${specs.length} specs`,
+        );
       },
-    );
-    server = await createStaticServer({
-      distDir,
-      runtimeConfig: {
-        uiVersion: UI_VERSION,
-        supportedApiVersions: ["contractor.public.v1"],
-        apiBaseUrl: "http://127.0.0.1:1",
-      },
-    });
-    await new Promise((resolve, reject) => {
-      server.once("error", reject);
-      server.listen(0, "127.0.0.1", resolve);
-    });
-    const reportPath = join(work, "browser-report.json");
-    const baseURL = `http://127.0.0.1:${server.address().port}`;
-    const child = spawn(
-      "corepack",
-      ["pnpm", "exec", "playwright", "test", "--reporter=line,json", ...specs],
-      {
-        cwd: uiRoot,
-        stdio: "inherit",
-        env: {
-          ...process.env,
-          CONTRACTOR_UI_E2E_BASE_URL: baseURL,
-          CONTRACTOR_UI_E2E_API_URL: baseURL,
-          CONTRACTOR_UI_E2E_OUTPUT_DIR: join(work, "results"),
-          PLAYWRIGHT_JSON_OUTPUT_FILE: reportPath,
-        },
-      },
-    );
-    await new Promise((resolve, reject) => {
-      child.once("error", reject);
-      child.once("exit", (code, signal) => {
-        if (code === 0) resolve();
-        else reject(new Error(`${label} gate exited: ${signal ?? code}`));
-      });
-    });
-    const count = validateBrowserReport(
-      JSON.parse(await readFile(reportPath, "utf8")),
-      specs,
-    );
-    console.log(
-      `${label} gate verified ${count} passing browser tests across ${specs.length} specs`,
     );
   } finally {
     if (server) {

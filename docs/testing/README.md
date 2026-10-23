@@ -154,7 +154,7 @@ make release-verify
 | Podman execution | [Podman provisioning and verification](../../deploy/podman/README.md) |
 | PostgreSQL/filesystem artifact payloads | [Blob backend verification](../operations/artifact-blob-storage.md#release-verification) |
 | Git import | [Git artifacts](../guides/git-artifacts.md) |
-| Backup/restore with exact artifact bytes and CAS | `make test-backup-restore` | PostgreSQL role with CREATE/DROP DATABASE, `pg_dump`, `pg_restore` |
+| Backup/restore with exact artifact bytes and CAS | `make test-backup-restore`; needs a PostgreSQL role with CREATE/DROP DATABASE, `psql`, and `pg_dump` and `pg_restore` of the server's major version or newer, which the target checks before it creates a database; [offline backup and restore](../operations/artifact-blob-storage.md#offline-backup-and-restore) |
 
 Podman, Git, backup/restore and blob-backend checks have their own host/image requirements;
 consult their guides before running those targets.

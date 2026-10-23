@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-82 open tasks: 11 in progress, 46 pending, 25 deferred. 947 finished: 944 completed, 3 archived.
+82 open tasks: 14 in progress, 43 pending, 25 deferred. 947 finished: 944 completed, 3 archived.
 
 ## In progress
 
@@ -18,7 +18,10 @@ the epics are in [epics.yml](epics.yml).
 | [V371-017](v371-017-strong-etag-grammar.yml) | api-contracts | defect | P3 | Accept only RFC 9110 strong entity tags in If-Match |
 | [V371-018](v371-018-repeat-draft-description.yml) | api-contracts | chore | P3 | Remove the historical-request sentence from the repeat-draft OpenAPI description |
 | [V371-019](v371-019-audit-namespace-prefix-rule.yml) | projects-artifacts | chore | P3 | Use artifactpolicy's Audit namespace rule in the Audit namespace purge |
+| [V371-024](v371-024-browser-gate-ci-artifacts.yml) | quality | chore | P3 | Keep browser gate screenshots and traces where CI uploads them |
+| [V371-025](v371-025-pnpm-root-invocation.yml) | quality | chore | P3 | Document a pnpm invocation that works from the repository root |
 | [V372-018](v372-018-finding-proposal-namespace-constant.yml) | findings | chore | P3 | Name the finding-proposals Namespace through artifactpolicy in finding intake |
+| [V372-019](v372-019-restore-rehearsal-pg-dump-version.yml) | quality | chore | P3 | Check the pg_dump and pg_restore version before the backup and restore rehearsal |
 | [V372-021](v372-021-credential-master-key-unavailable.yml) | runtime-config | defect | P2 | Answer an LLM or Runtime credential operation without the master key with a registered non-retryable code |
 | [V372-022](v372-022-standby-public-api-envelope.yml) | api-contracts | defect | P3 | Answer the public API on a standby Server with the error envelope |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
@@ -133,10 +136,7 @@ the epics are in [epics.yml](epics.yml).
 | [V371-021](v371-021-postgres-test-wall-clock.yml) | chore | P3 | — | Replace wall-clock budgets in the Scheduler and runstore PostgreSQL tests |
 | [V371-022](v371-022-capability-probe-test-budget.yml) | chore | P3 | — | Remove the 10 ms probe budget from the capability discovery tests |
 | [V371-023](v371-023-audit-route-test-timeouts.yml) | chore | P3 | — | Keep the Audit route UI tests within their timeout under load |
-| [V371-024](v371-024-browser-gate-ci-artifacts.yml) | chore | P3 | — | Keep browser gate screenshots and traces where CI uploads them |
-| [V371-025](v371-025-pnpm-root-invocation.yml) | chore | P3 | — | Document a pnpm invocation that works from the repository root |
 | [V372-016](v372-016-wall-clock-test-budgets-wave-2.yml) | chore | P3 | — | Replace wall-clock budgets in the finding intake, Audit, Eval and persistence tests and the result publication test |
-| [V372-019](v372-019-restore-rehearsal-pg-dump-version.yml) | chore | P3 | — | Check the pg_dump and pg_restore version before the backup and restore rehearsal |
 | [V372-024](v372-024-audit-item-attempts-fake.yml) | chore | P3 | — | Make the Audit item attempt fake answer like the store and keep the item list schema-valid without it |
 | [V372-029](v372-029-shared-fixture-gate-scope.yml) | chore | P3 | — | Extend the shared fixture gate to every cross-language fixture and keep slow store suites out of it |
 | [V372-030](v372-030-shrink-test-only-export-baseline.yml) | chore | P3 | — | Resolve the exported identifiers that only tests use and empty the test-only export baseline |

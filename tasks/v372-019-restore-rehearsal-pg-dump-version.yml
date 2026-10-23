@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: quality
 kind: chore
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, markdown]
 goal: "make test-backup-restore and the restore test fail at once with a clear message when pg_dump or pg_restore is older than the PostgreSQL server's major version, and the guides state the requirement."
