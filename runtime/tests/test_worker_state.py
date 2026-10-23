@@ -231,6 +231,77 @@ def test_snapshot_race_returns_only_complete_revisions_under_asyncio_debug() -> 
     asyncio.run(scenario(), debug=True)
 
 
+@pytest.mark.parametrize("phase", ["failed", "cancelled"])
+def test_completion_closes_a_pending_summarization_request(phase: str) -> None:
+    async def scenario() -> None:
+        state = WorkerStateStore()
+        await state.begin_invocation(
+            invocation_id="worker-cut-off",
+            subtask_id="2.1",
+            metrics=empty_invocation_metrics(),
+            summarizer_enabled=True,
+        )
+        requested = await state.request_summarization(invocation_id="worker-cut-off")
+        request_revision = requested["currentInvocation"]["summarizer"]["requestStateRevision"]
+
+        # The invocation ends before the summarizer records an outcome.
+        completed = await state.complete_invocation(
+            invocation_id="worker-cut-off",
+            phase=phase,
+            metrics=empty_invocation_metrics(),
+        )
+
+        assert completed["lastCompletedInvocation"]["summarizer"] == {
+            "phase": "failed",
+            "requestStateRevision": request_revision,
+            "modelCalls": 0,
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "totalTokens": 0,
+            "tokenUsageUnavailable": 0,
+            "failureCode": "cancelled",
+        }
+        summary_metrics = state.metrics.build_report(
+            report_id="worker-report", duration_ms=1
+        ).metrics.summarizer
+        assert summary_metrics is not None
+        assert summary_metrics.model_dump(by_alias=True) == {
+            "attempts": 1,
+            "succeeded": 0,
+            "failed": 1,
+            "modelCalls": 0,
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "totalTokens": 0,
+            "tokenUsageUnavailable": 0,
+            "failureCodes": {"cancelled": 1},
+        }
+        # The Server's and Runtime's State contracts accept the terminal revision.
+        snapshot = await state.agent_state_snapshot()
+        assert snapshot.state.last_completed_invocation is not None
+        assert snapshot.state.last_completed_invocation.summarizer.phase == "failed"
+
+        # An invocation without a request is completed as it is.
+        await state.begin_invocation(
+            invocation_id="worker-unrequested",
+            subtask_id="2.2",
+            metrics=empty_invocation_metrics(),
+            summarizer_enabled=True,
+        )
+        unrequested = await state.complete_invocation(
+            invocation_id="worker-unrequested",
+            phase=phase,
+            metrics=empty_invocation_metrics(),
+        )
+        assert unrequested["lastCompletedInvocation"]["summarizer"]["phase"] == "not_requested"
+        summary_metrics = state.metrics.build_report(
+            report_id="worker-report", duration_ms=1
+        ).metrics.summarizer
+        assert summary_metrics is not None and summary_metrics.attempts == 1
+
+    asyncio.run(scenario())
+
+
 def test_state_records_one_closed_terminal_summarizer_attempt() -> None:
     async def scenario() -> None:
         state = WorkerStateStore()

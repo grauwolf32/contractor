@@ -666,6 +666,9 @@ type fakeGatewayManager struct {
 	createErr   error
 	deleteErr   error
 	recoverErr  error
+	// deleteGate, when set, runs before each remote delete without the
+	// manager's lock, so a test can hold a delete in flight.
+	deleteGate func()
 }
 
 func newFakeGatewayManager() *fakeGatewayManager {
@@ -707,6 +710,12 @@ func (m *fakeGatewayManager) Create(_ context.Context, request ManagerCreateRequ
 }
 
 func (m *fakeGatewayManager) Delete(_ context.Context, request ManagerDeleteRequest) error {
+	m.mu.Lock()
+	gate := m.deleteGate
+	m.mu.Unlock()
+	if gate != nil {
+		gate()
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.deletes++

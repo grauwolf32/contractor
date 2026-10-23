@@ -137,7 +137,7 @@ security scan и не доказательство отсутствия друг
 | G11 | Repeated page canonicalization квадратична; заменить точным incremental sizing. Unsigned cursor намеренно предусмотрен FND-R137–141; common HMAC codec имеет другой контракт и не подставляется. | V407-033 chore |
 | G12 | Scanner parsing и часть prepare/cleanup I/O выполняются на loop. Offload синхронную работу с joined cancellation; async publication остаётся await. | V407-007 defect |
 | G13 | Worker summary 16 KiB уже описан LIM-AWC-2/AWC-R60; generic 64 KiB не доказывает drift. CWE equality gate уже существует. ID regex duplication — cleanup; LikeC4 уже пользуется common line window. | V407-024, неподтверждённые подпункты исключены |
-| G14 | До 128 payload reads Memory выполняются последовательно. Внутри serialized operation допустим bounded concurrency; MEM-R49 и последовательность writes сохраняются. Готового private Worker batch endpoint нет. | V407-036 chore |
+| G14 | До 128 payload reads Memory выполняются последовательно. Внутри serialized operation допустим bounded concurrency; MEM-R49 и последовательность writes сохраняются. Готового private Worker batch endpoint нет. | V407-036 — отклонено 2026-10-24: параллельные reads конкурируют за 4 fail-fast transfer slots Server (LIM-BLB-1, BLB-R24–R26) и превращают успешные операции в memory_unavailable; задача archived, reopen условия в её записи |
 | G15 | read_openapi_document доступен custom templates и упоминается production guidance; отсутствие shipped selection не доказывает dead API. Оставить tool. Общий exception перенести для filesystem, edit_files и workspace_changes; katana existence read проверить только на реально существующем артефакте. | V407-038 chore; katana — V407-007 |
 
 ## H. Обвязка и ограничения проверки

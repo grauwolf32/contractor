@@ -779,6 +779,9 @@ type fakeControllerStore struct {
 	// runs supplies the child Run states of the snapshot, as the store's
 	// join of workflow_runs does.
 	runs *fakeControllerRuns
+	// childRuns lists every bound child Run in binding order: the store keeps
+	// an execution's run_id after collection, so deletion still finds it.
+	childRuns []string
 }
 
 func newFakeControllerStore(t *testing.T, itemCount, window int) *fakeControllerStore {
@@ -1105,10 +1108,23 @@ func (s *fakeControllerStore) ListItemsByIDs(_ context.Context, auditID string, 
 	return result, nil
 }
 
+// ObserveTerminal mirrors the store: a replay of the same observation
+// returns it, a claim that is no longer held is ErrClaimLost and an
+// execution that is not submitted is ErrPrecondition. A collected execution
+// leaves the fake, so only a collecting one is replayed.
 func (s *fakeControllerStore) ObserveTerminal(_ context.Context, params auditstore.ObserveTerminalParams) (auditstore.Execution, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	index := s.findExecution(params.ExecutionID)
+	if index >= 0 && s.executions[index].State == auditstore.ExecutionCollecting &&
+		s.executions[index].RunID != nil && *s.executions[index].RunID == params.RunID &&
+		s.executions[index].TerminalRunGeneration != nil && *s.executions[index].TerminalRunGeneration == params.Generation &&
+		s.executions[index].TerminalRunSequence != nil && *s.executions[index].TerminalRunSequence == params.Sequence {
+		return s.executions[index], nil
+	}
+	if !s.held || params.Claim.Epoch != s.epoch {
+		return auditstore.Execution{}, auditstore.ErrClaimLost
+	}
 	if index < 0 || s.executions[index].State != auditstore.ExecutionSubmitted {
 		return auditstore.Execution{}, auditstore.ErrPrecondition
 	}
@@ -1128,11 +1144,21 @@ func (s *fakeControllerStore) ObserveTerminal(_ context.Context, params auditsto
 	return s.executions[index], nil
 }
 
+// ObserveSubmissionFailure mirrors the store as ObserveTerminal does: a
+// replay returns the failed execution, a lost claim is ErrClaimLost and an
+// execution that is no longer an unbound intent is ErrPrecondition.
 func (s *fakeControllerStore) ObserveSubmissionFailure(_ context.Context, params auditstore.ObserveSubmissionFailureParams) (auditstore.Execution, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	index := s.findExecution(params.ExecutionID)
-	if index < 0 || s.executions[index].State != auditstore.ExecutionIntent {
+	if index >= 0 && s.executions[index].State == auditstore.ExecutionCollecting &&
+		s.executions[index].TerminalOutcome != nil && *s.executions[index].TerminalOutcome == auditstore.TerminalSubmissionFailed {
+		return s.executions[index], nil
+	}
+	if !s.held || params.Claim.Epoch != s.epoch {
+		return auditstore.Execution{}, auditstore.ErrClaimLost
+	}
+	if index < 0 || s.executions[index].State != auditstore.ExecutionIntent || s.executions[index].RunID != nil {
 		return auditstore.Execution{}, auditstore.ErrPrecondition
 	}
 	outcome := auditstore.TerminalSubmissionFailed
@@ -1241,6 +1267,8 @@ func (s *fakeControllerStore) ReleaseDispatchHold(
 	return s.audit, true, nil
 }
 
+// NextLiveRunForDeletion mirrors the store: the earliest bound child Run that
+// still exists, for a deleting Audit under a live claim.
 func (s *fakeControllerStore) NextLiveRunForDeletion(
 	_ context.Context, claim auditstore.ControllerClaim,
 ) (string, bool, error) {
@@ -1248,6 +1276,16 @@ func (s *fakeControllerStore) NextLiveRunForDeletion(
 	defer s.mu.Unlock()
 	if !s.held || claim.Epoch != s.epoch {
 		return "", false, auditstore.ErrClaimLost
+	}
+	if s.audit.State != auditstore.AuditDeleting {
+		return "", false, auditstore.ErrPrecondition
+	}
+	s.runs.mu.Lock()
+	defer s.runs.mu.Unlock()
+	for _, runID := range s.childRuns {
+		if _, exists := s.runs.runs[runID]; exists {
+			return runID, true, nil
+		}
 	}
 	return "", false, nil
 }
@@ -1304,6 +1342,7 @@ func (s *fakeControllerStore) bind(executionID, runID string) error {
 	s.executions[index].RunID = &runID
 	s.executions[index].State = auditstore.ExecutionSubmitted
 	s.audit.SubmittedRunCount++
+	s.childRuns = append(s.childRuns, runID)
 	return nil
 }
 

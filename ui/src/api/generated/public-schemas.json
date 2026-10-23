@@ -3808,7 +3808,8 @@
       "additionalProperties": {
         "type": "string",
         "minLength": 0,
-        "maxLength": 256
+        "maxLength": 256,
+        "x-max-utf8-bytes": 256
       }
     },
     "CreateProjectRequest": {
@@ -3819,8 +3820,17 @@
         "kind": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ProjectKind"
         },
-        "name": { "type": "string", "minLength": 1, "maxLength": 160 },
-        "description": { "type": "string", "maxLength": 4096 },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "x-max-utf8-bytes": 160
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 4096,
+          "x-max-utf8-bytes": 4096
+        },
         "activeChecks": {
           "allOf": [
             {
@@ -3835,8 +3845,17 @@
       "additionalProperties": false,
       "minProperties": 1,
       "properties": {
-        "name": { "type": "string", "minLength": 1, "maxLength": 160 },
-        "description": { "type": "string", "maxLength": 4096 },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "x-max-utf8-bytes": 160
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 4096,
+          "x-max-utf8-bytes": 4096
+        },
         "activeChecks": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ActiveChecksPolicy"
         },
@@ -3918,8 +3937,17 @@
         "kind": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ProjectKind"
         },
-        "name": { "type": "string", "minLength": 1, "maxLength": 160 },
-        "description": { "type": "string", "maxLength": 4096 },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "x-max-utf8-bytes": 160
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 4096,
+          "x-max-utf8-bytes": 4096
+        },
         "httpTarget": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ProjectHTTPTarget"
         },
@@ -4733,9 +4761,21 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "objective": { "type": "string", "maxLength": 65536 },
-        "target": { "type": "string", "maxLength": 65536 },
-        "authorizationScope": { "type": "string", "maxLength": 65536 }
+        "objective": {
+          "type": "string",
+          "maxLength": 65536,
+          "x-max-utf8-bytes": 65536
+        },
+        "target": {
+          "type": "string",
+          "maxLength": 65536,
+          "x-max-utf8-bytes": 65536
+        },
+        "authorizationScope": {
+          "type": "string",
+          "maxLength": 65536,
+          "x-max-utf8-bytes": 65536
+        }
       }
     },
     "CreateAuditRequest": {
@@ -7081,7 +7121,12 @@
         "severity": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditFindingSeverity"
         },
-        "rationale": { "type": "string", "minLength": 1, "maxLength": 65536 },
+        "rationale": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "x-max-utf8-bytes": 65536
+        },
         "duplicateTargetId": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
         },
@@ -7414,7 +7459,12 @@
         "severity": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditFindingSeverity"
         },
-        "rationale": { "type": "string", "minLength": 1, "maxLength": 65536 }
+        "rationale": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "x-max-utf8-bytes": 65536
+        }
       }
     },
     "DecideAuditFindingDuplicateRequest": {
@@ -7426,7 +7476,12 @@
         "duplicateTargetId": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
         },
-        "rationale": { "type": "string", "minLength": 1, "maxLength": 65536 }
+        "rationale": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "x-max-utf8-bytes": 65536
+        }
       }
     },
     "DecideAuditFindingOtherRequest": {
@@ -7438,7 +7493,12 @@
           "type": "string",
           "enum": ["false_positive", "reopen", "needs_evidence"]
         },
-        "rationale": { "type": "string", "minLength": 1, "maxLength": 65536 }
+        "rationale": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "x-max-utf8-bytes": 65536
+        }
       }
     },
     "DecideAuditActionRequest": {
@@ -7449,7 +7509,12 @@
         "action": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditReviewAction"
         },
-        "rationale": { "type": "string", "minLength": 1, "maxLength": 65536 }
+        "rationale": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "x-max-utf8-bytes": 65536
+        }
       }
     },
     "DecideAuditReviewRequest": {
@@ -8079,7 +8144,12 @@
         "requestedBy": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ConfigId"
         },
-        "reason": { "type": "string", "minLength": 1, "maxLength": 4096 }
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096,
+          "x-max-utf8-bytes": 4096
+        }
       }
     },
     "MetricsSummary": {
@@ -9609,7 +9679,12 @@
         "projectId": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
         },
-        "name": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "x-max-utf8-bytes": 160
+        },
         "kind": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ProjectKind"
         }
@@ -9716,7 +9791,8 @@
         "reason": {
           "type": ["string", "null"],
           "minLength": 1,
-          "maxLength": 4096
+          "maxLength": 4096,
+          "x-max-utf8-bytes": 4096
         }
       }
     },

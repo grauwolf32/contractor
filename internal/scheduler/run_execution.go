@@ -159,19 +159,8 @@ func (s *Scheduler) executeCancelling(ctx context.Context, run runstore.Workflow
 	}
 	execution, err := s.store.GetActiveStageExecution(ctx, run.RunID)
 	if errors.Is(err, runstore.ErrNotFound) {
-		// No Stage is active: the cancellation ends the Run once every
-		// earlier attempt's allocations are fenced and released, which this
-		// one-time path reads the Stage history for.
-		executions, listErr := s.store.ListStageExecutions(ctx, run.RunID)
-		if listErr != nil {
-			return listErr
-		}
-		for _, execution := range executions {
-			_ = s.fenceRecordedAllocations(ctx, execution.StageExecutionID, nil)
-			if workflowErr == nil {
-				reservations := s.existingLiveReservations(ctx, run, workflow, execution)
-				_ = s.releaseTerminal(execution.StageExecutionID, reservations)
-			}
+		if err := s.releaseEarlierAttempts(ctx, run, workflow, workflowErr); err != nil {
+			return err
 		}
 		return s.finishCancelledRun(ctx, run.RunID)
 	}
@@ -197,6 +186,45 @@ func (s *Scheduler) executeCancelling(ctx context.Context, run runstore.Workflow
 	default:
 		return fmt.Errorf("unhandled cancelling StageExecution state %q", execution.State)
 	}
+}
+
+// releaseEarlierAttempts fences and releases, before a cancelling Run without
+// an active Stage ends, the allocations of its earlier attempts whose release
+// is incomplete (SCH-R179). It reads only those StageExecutions and, in one
+// statement, their allocation rows, never the attempts whose release is
+// complete. Only a failure to read the executions is returned, so the next
+// claim retries. An unreadable allocation set, a fence or release failure, or
+// an unreadable Workflow snapshot (workflowErr) leaves the remaining release
+// to terminal release recovery (SCH-R71) and does not hold the cancellation.
+func (s *Scheduler) releaseEarlierAttempts(
+	ctx context.Context, run runstore.WorkflowRun, workflow executableWorkflow, workflowErr error,
+) error {
+	executions, err := s.store.ListStageExecutionsWithUnreleasedAllocations(ctx, run.RunID)
+	if err != nil || len(executions) == 0 {
+		return err
+	}
+	ids := make([]string, len(executions))
+	for index, execution := range executions {
+		ids[index] = execution.StageExecutionID
+	}
+	allocations, err := s.store.ListStageAllocationsBatch(ctx, ids)
+	if err != nil {
+		s.options.Logger.Warn("cancelling Run left earlier allocation release to recovery", "run_id", run.RunID)
+		return nil
+	}
+	for _, execution := range executions {
+		recorded := allocations[execution.StageExecutionID]
+		_ = s.fenceLiveAllocations(recorded, nil)
+		if workflowErr != nil {
+			continue
+		}
+		var reservations []controlplane.Reservation
+		if requirements, requirementsErr := auditBindingRequirements(run, workflow, execution.StageContext); requirementsErr == nil {
+			reservations = s.liveReservationsFor(ctx, run, workflow, execution, requirements, recorded)
+		}
+		_ = s.releaseTerminal(execution.StageExecutionID, reservations)
+	}
+	return nil
 }
 
 func (s *Scheduler) finishCancelledRun(ctx context.Context, runID string) error {

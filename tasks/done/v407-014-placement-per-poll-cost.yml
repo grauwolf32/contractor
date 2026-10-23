@@ -1,0 +1,145 @@
+schema_version: '1.0'
+id: V407-014
+title: Reuse overlapping placement resolution work within a waiting attempt
+milestone: server-runtime-review-2026-10
+epic: execution-core
+kind: chore
+introduced_by: V106-001
+priority: P2
+status: completed
+depends_on:
+- V405-002
+languages:
+- go
+goal: Avoid repeated resolution of the same candidate within one failed placement attempt while retaining
+  fresh durable authorization on later attempts.
+context:
+  review: docs/research/2026-10-23-server-runtime-review.md (corrected dispositions, verified on main
+    dc7012e8; recheck source lines before implementation)
+  specification: docs/spec/execution/scheduler.md
+  finding: internal/controlplane/placement.go:99-115 retries stale-principal placement after refresh and
+    may resolve a model hold through candidateEdges at :128 with a new cache after the main pass at :237.
+    These passes can overlap, but PlacementCandidates contains only eligible slots and liveCandidates
+    also contains occupied slots. When no eligible candidate exists, :233-235 skips the first resolution
+    pass. The extra cost therefore depends on the overlap and failure path, rather than a fixed two-pass
+    query count on every waiting poll.
+  validation: Validated against main dc7012e8 on 2026-10-23. main dc7012e8 has no full GetRun/Workflow-snapshot
+    read or unformatted RequiredPlacementLabels check in pinReservations. Those claims referred to an
+    uncommitted V405-002 branch and are removed. Registry operationsRevision changes on heartbeat (registry.go:322),
+    so it is not sufficient evidence for a cross-poll metadata-cache invalidation policy.
+  siblings: Model and tool lanes share candidateEdges. Model holds must still resolve occupied live candidates
+    that were absent from the first pass. After V405-002 is complete, inspect its actual committed placement-label
+    contract as a dependency, without assuming the earlier uncommitted code remains.
+plan:
+- Add deterministic query counters for zero eligible candidates, partially overlapping eligible/live sets,
+  stale-principal refresh and successful placement. State candidate/binding cardinalities and current
+  per-attempt counts.
+- Share the resolution/cache results only within the same attempt where the underlying principal/config/credential
+  view is unchanged. Resolve newly considered live candidates and invalidate affected entries after a
+  principal refresh.
+- Retain fresh reads on subsequent scheduler polls and transaction-time authorization. Do not introduce
+  cross-poll caching keyed only by operationsRevision.
+- Preserve SCH-R176 re-claim/hold expiry and both lane classes; verify durable credential, binding and
+  label mutations are observed and no stale result becomes a committed reservation.
+scope:
+  in:
+  - Per-attempt resolution reuse and deterministic query-budget tests over candidate-set overlap.
+  - Integration with the committed V405-002 placement-label behavior.
+  out:
+  - An assumed GetRun or gofmt fix from uncommitted code.
+  - Cross-poll caches, new metadata invalidation policy, or changing SCH-R176 claim/hold behavior.
+acceptance_criteria:
+- id: A1
+  text: When the same compatible candidate/configuration occurs in the main and hold passes without an
+    intervening revision change, counting tests show reuse rather than duplicate metadata/credential lookups;
+    candidates present only in the live set are still resolved.
+- id: A2
+  text: With no eligible candidates there is no fictitious first-pass query budget; stale-principal refresh
+    invalidates affected resolution results, and subsequent polls observe changed durable credentials,
+    bindings and placement labels.
+- id: A3
+  text: Real PostgreSQL placement tests and lane/hold tests preserve transaction revalidation, no-capacity
+    outcomes and hold expiry; the overlapping-candidate count regression fails on the old path.
+tests:
+- command: test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1 ./internal/controlplane/...
+    ./internal/scheduler/... ./internal/runstore/...
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+verification:
+  date: '2026-10-23'
+  environment: macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local), Node 24.20.0 with pnpm, the locked Runtime venv;
+    isolated PostgreSQL 17.11 database contractor_test_d2 with per-test schemas.
+  findings: >-
+    The finding was re-verified on base 9cc34c0b (V405-002 committed). ReserveAllContext ran
+    candidateEdges with a fresh read cache in the first pass, again after a changed principal refresh,
+    and over every live candidate in the model Stage hold; each pass re-read the pinned default and
+    Run-label versions, every Agent-label binding and version, and every LLM and Runtime credential.
+    With no idle candidate the first pass already made no query (reserveAllContext returns before
+    candidateEdges), so the extra cost only exists when eligible and live sets overlap or the refresh
+    retries. The committed V405-002 contract is preserved: location filtering still precedes every read
+    and the pinning transaction still checks the immutable Run requirement.
+  decision: 'One ReserveAllContext call owns a placementAttemptCache (CTL-R162): pinned versions, Agent-label
+    bindings, credential metadata and resolutions keyed by binding and exact ordered Agent-label set.
+    Invalidation is coarse by choice: a changed principal or a drift found by the pinning transaction
+    discards every binding, credential and resolution observation and keeps only the immutable pinned
+    versions, because the attempt cannot tell which binding or credential mutations accompanied the
+    change (an operator usually rebinds a label and then assigns it). Both paths are rare, so the
+    precision of per-label invalidation was not worth its complexity. The pinning transaction never
+    reads the cache and no cache outlives the attempt; no operationsRevision-keyed or cross-poll cache
+    was added. Admission receives a detached Clone of a cached resolution. Reversal condition: if
+    refresh-driven retries become frequent, narrow the discard to the refreshed principals'' labels.'
+  cardinalities: >-
+    Per attempt the cache holds at most 1 + Run labels pinned versions, one entry per distinct
+    Agent label, one per distinct credential ID and one per (binding, distinct label set) among the
+    location-matching live candidates; reads per attempt no longer grow with passes or with candidates
+    sharing a configuration. Principal refresh reads stay one per distinct idle principal.
+  commands:
+  - 'test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1 ./internal/controlplane/...
+    ./internal/scheduler/... ./internal/runstore/... passed (controlplane 125 top-level tests, none
+    skipped; scheduler 85 s; runstore 49 s).'
+  - 'A1/A3 counts (optimistic SQL by catalog, LLM and Runtime credential lookups, exact):
+    TestPlacementAttemptReusesResolutionsAcrossPassesAndHold, one binding, default + 1 Run label, idle
+    candidates on "shared" without the required adapter, allocated candidates on "shared" and "other":
+    idle=0/allocated=2, idle=1/allocated=2 and idle=8/allocated=16 each read 4 versions, 2 bindings,
+    one principal per idle candidate, 1 LLM and 2 Runtime lookups, no transaction, and hold every
+    allocated Agent (the "other" label exists only in the live set). The base placement.go read 7
+    versions, 3 bindings, 2 LLM and 3 Runtime lookups for idle=1 and idle=8 and failed.
+    TestPlacementAttemptReusesCompatibleCandidateResolutionInHold (two bindings, one idle compatible and
+    one allocated candidate): 3 versions, 1 binding, 1 principal, 1 LLM, 1 Runtime, both held; base: 6
+    versions, 2 bindings, 2 LLM, 2 Runtime, failed.'
+  - 'A2: the idle=0 case is the zero-eligible budget (no principal read, only hold reads; equal on the base).
+    TestPlacementAttemptRefreshDiscardsObservationsOfChangedPrincipals rebinds "next" and moves the stale
+    principal onto it between the first pass and the refresh: placement succeeds with the rebound
+    configuration, optimistic 4 versions, 3 bindings, 2 principals, 2 LLM lookups; base read 5 versions
+    and failed; with the discard removed the retry reused the old binding and returned capacity.
+    TestPlacementNextAttemptObservesDurableMutations: the next attempt observes a rebind (old -> new
+    telemetry endpoint), a deleted durable LLM credential (capacity, nothing held, the hold reuses the
+    first pass lookup) and its restoration with a principal label change (placed at label revision 2,
+    5 lookups in total). Location declarations of later incarnations remain covered by
+    TestPlacementLocationWaitsForMatchingFleetAndRetainsProvenance.'
+  - 'A3: TestPlacementAttemptTransactionDriftDiscardsObservationsBeforeHold rebinds during admission; the
+    pinning transaction re-reads 2 versions, 2 bindings, 1 principal, reports capacity, leaves no
+    allocation, and the hold re-reads the binding (3 versions, 2 bindings, 1 principal, 2 LLM) and holds
+    nothing; base read 4 versions and failed; with the discard removed the hold kept the stale binding
+    and held the Agent. TestPlacementAttemptSuccessfulPlacementReadBudget: 4 candidates sharing a label,
+    optimistic 3 versions, 1 binding, 1 LLM; transaction 3 versions, 2 bindings, 1 principal.
+    Existing TestPlacementPostgresRechecksBindingChangedAfterOptimisticPass,
+    TestPlacementPostgresDiscardsProvisionalBatchOnPrincipalRevisionChange,
+    TestModelStageHoldPostgresGivesReleasedSharedAgentToWaitingModelStage (model and tool lanes),
+    TestModelStageHoldKeepsSharedAgentsFromModelFreePlacement (injected clock hold expiry) and the
+    location tests pass unchanged. No elapsed-time assertion is used.'
+  - go test -race -count=1 ./internal/controlplane/... passed.
+  - make docs-dependencies regenerated docs/spec/audit-workflow-dependencies.html.
+  - make lint passed.
+  spec: >-
+    Added CTL-R162 and Control Plane invariant 27 in docs/spec/execution/control-plane.md; FAIL-CTL-4 in
+    docs/spec/platform/failure-model.md names the discard before the retry or hold.
+  database_tests_configured: true
+implementation_commit: a3a7984e675498e56de42e51640067d7ff0ad47f

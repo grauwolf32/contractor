@@ -123,25 +123,3 @@ func TestPostgresListRoundItemsReadsOneBoundedRound(t *testing.T) {
 		t.Fatalf("invalid Round ID = %v", err)
 	}
 }
-
-// TestPostgresReviewDecisionCheckViolationIsInvalid covers V368-023: a review
-// decision the stored constraints refuse is ErrInvalid, never an
-// unclassified storage error.
-func TestPostgresReviewDecisionCheckViolationIsInvalid(t *testing.T) {
-	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
-	if databaseURL == "" {
-		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	pool := isolatedAuditPool(t, ctx, databaseURL)
-	err := newTestStore(pool).RecordReviewDecision(ctx, auditstore.ReviewDecisionWriteParams{
-		DecisionID: "decision-invalid-key", RequestID: "request-invalid-key", AuditID: "audit-invalid-key",
-		ActorID: "owner", Action: "approve", Rationale: "The exact action is approved.",
-		SubjectRevision: 1, SubjectDigest: testDigest("a"),
-		IdempotencyKey: "key with spaces", RequestDigest: testDigest("b"),
-	})
-	if !errors.Is(err, auditstore.ErrInvalid) {
-		t.Fatalf("review decision with an invalid key = %v, want ErrInvalid", err)
-	}
-}

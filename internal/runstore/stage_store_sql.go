@@ -76,6 +76,21 @@ WHERE run_id = $1 AND state IN ('preparing', 'running', 'finalizing', 'aborting'
 ORDER BY created_at, stage_execution_id
 LIMIT 2`
 
+// listStageExecutionsWithUnreleasedAllocationsSQL returns, oldest first, the
+// StageExecutions of Run $1 that have an allocation whose release has not
+// completed; an execution whose allocations are all released is not read.
+// Used by PostgresStore.ListStageExecutionsWithUnreleasedAllocations.
+var listStageExecutionsWithUnreleasedAllocationsSQL = `
+SELECT ` + prefixedStageExecutionColumns("execution") + `
+FROM stage_executions AS execution
+WHERE execution.run_id = $1
+  AND EXISTS (
+      SELECT 1 FROM stage_allocations AS allocation
+      WHERE allocation.stage_execution_id = execution.stage_execution_id
+        AND allocation.release_completed_at IS NULL
+  )
+ORDER BY execution.created_at, execution.stage_execution_id`
+
 // listStageExecutionsSQL returns every StageExecution of Run $1, oldest
 // first. Used by PostgresStore.ListStageExecutions.
 var listStageExecutionsSQL = `
