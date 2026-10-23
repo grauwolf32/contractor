@@ -485,10 +485,12 @@ proves that the transaction has ended, and only then reads whether a prepared
 deletion of the credential remains. When none remains, references are admitted
 again in the same process without a delete retry or restart. A prepared
 deletion keeps them rejected until the same request or recovery completes it.
-A lock still held, a failed read or cancellation keeps them rejected; the next
-reference, the next delete or recovery reconciles again, and a delete of
-another credential is rejected with `credential_recovery_required` rather than
-running beside the unsettled one.
+A lock still held or a failed read keeps them rejected with
+`credential_recovery_required`, never a storage error, and a cancelled caller
+receives its own cancellation while the fence stays; the next reference, the
+next delete or recovery reconciles again, and a delete of another credential is
+rejected with `credential_recovery_required` rather than running beside the
+unsettled one.
 
 Rationale: this prevents a newly committed Run from pinning a remote key that
 may already have been deleted. A journal read taken without the deletion lock

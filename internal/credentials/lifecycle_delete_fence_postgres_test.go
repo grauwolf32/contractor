@@ -8,13 +8,14 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
 	"github.com/jackc/pgx/v5"
@@ -193,27 +194,52 @@ func TestCredentialDeleteFenceStaysClosedWhenReconciliationCannotRead(t *testing
 	f, ctx := newDeleteFenceFixture(t)
 	f.failDeleteIntentInsert(t, ctx, f.deleteRequest(f.deleting, "delete-before-outage"))
 
+	// A cancelled caller keeps its cancellation, and the fence stays.
 	cancelled, cancel := context.WithCancel(ctx)
 	cancel()
-	if err := f.service.reconcileForReferences(cancelled); !errors.Is(err, context.Canceled) {
+	if err := f.service.reconcileForReferences(cancelled); !errors.Is(err, context.Canceled) ||
+		errors.Is(err, ErrRecoveryRequired) {
 		t.Fatalf("cancelled reconciliation error = %v", err)
 	}
 	if f.service.uncertainDelete.Load() == nil {
 		t.Fatal("cancelled reconciliation cleared the fence")
 	}
 
+	// A reconciliation that cannot read keeps the fence, and the public answer
+	// is the retryable credential_recovery_required, not a storage failure.
 	f.faults.setOutage(true)
 	for name, guard := range f.guards() {
 		called := false
 		err := guard(ctx, func() error { called = true; return nil })
-		if called || persistencepostgres.Classify(err) != persistencepostgres.ClassUnavailable {
-			t.Fatalf("%s guard during a database outage = (called=%v, err=%v)", name, called, err)
+		if called {
+			t.Fatalf("%s guard ran its reference during a database outage", name)
 		}
+		assertRecoveryRequiredAnswer(t, name+" guard during a database outage", err)
 	}
 	if f.service.uncertainDelete.Load() == nil {
 		t.Fatal("failed reconciliation cleared the fence")
 	}
 	f.faults.setOutage(false)
+
+	// A delete that cannot settle the earlier intent is rejected the same way
+	// instead of running beside it. The outage starts after its reference
+	// checks, so the reconciliation is the read that fails.
+	f.faults.afterStatement(func(sql string) {
+		if strings.Contains(sql, "credential_runs") {
+			f.faults.setOutage(true)
+		}
+	})
+	_, err := f.service.Delete(ctx, f.deleteRequest(f.unrelated, "delete-during-outage"))
+	f.faults.afterStatement(nil)
+	if !f.faults.inOutage() {
+		t.Fatal("the outage did not start before the delete reconciled")
+	}
+	f.faults.setOutage(false)
+	assertRecoveryRequiredAnswer(t, "delete during a reconciliation outage", err)
+	if f.manager.deleteCalls() != 0 || countOperations(t, ctx, f.pool, OperationDelete) != 0 {
+		t.Fatalf("delete during a reconciliation outage had side effects: calls=%d", f.manager.deleteCalls())
+	}
+
 	f.assertGuardsAdmit(t, ctx, "run-after-outage")
 }
 
@@ -424,6 +450,18 @@ func (f deleteFenceFixture) assertGuardsAdmit(t *testing.T, ctx context.Context,
 		return lookupManagedCredential(ctx, f.pool, f.unrelated.CredentialID)
 	}); err != nil {
 		t.Fatalf("allocation referencing an unrelated credential: %v", err)
+	}
+}
+
+// assertRecoveryRequiredAnswer checks the public answer to err: the public API
+// answers the first classified error of its chain, which must be the
+// retryable 503 credential_recovery_required.
+func assertRecoveryRequiredAnswer(t *testing.T, name string, err error) {
+	t.Helper()
+	classified, ok := apierror.Of(err)
+	if !ok || classified.ErrorKind() != apierror.CredentialRecoveryRequired ||
+		classified.ErrorKind().Status() != http.StatusServiceUnavailable || !classified.ErrorKind().Retryable() {
+		t.Fatalf("%s answer = %v, want the retryable 503 credential_recovery_required", name, err)
 	}
 }
 

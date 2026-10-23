@@ -237,12 +237,31 @@ func (s *Service) reconcileForReferences(ctx context.Context) error {
 	defer s.fenceMu.Unlock()
 	state, err := s.settleUncertainDeleteLocked(ctx)
 	if err != nil {
-		return persistencepostgres.WrapError("reconcile uncertain LLM credential deletion", err)
+		return reconciliationFailure(ctx, err)
 	}
 	if state != deleteIntentResolved {
 		return ErrRecoveryRequired
 	}
 	return nil
+}
+
+// errReconciliationUnreadable reports a reconciliation that could not read
+// durable state. Its public outcome is the retryable credential_recovery_required.
+var errReconciliationUnreadable = fmt.Errorf(
+	"%w: the uncertain credential deletion could not be reconciled with durable state", ErrRecoveryRequired,
+)
+
+// reconciliationFailure answers a reconciliation that failed for a guard or a
+// delete. The fence stays closed either way. A live caller gets the retryable
+// credential_recovery_required of RCF-R53 rather than a storage failure; the
+// storage cause is not kept, so a timeout inside the database read cannot pass
+// for the caller's own cancellation. A cancelled or expired caller keeps its
+// context error.
+func reconciliationFailure(ctx context.Context, err error) error {
+	if ctx.Err() != nil {
+		return persistencepostgres.WrapError("reconcile uncertain LLM credential deletion", err)
+	}
+	return errReconciliationUnreadable
 }
 
 // settleUncertainDeleteLocked reconciles the uncertain delete, if any, with
@@ -532,7 +551,7 @@ func (s *Service) Delete(ctx context.Context, request DeleteRequest) (DeleteResu
 	earlier, err := s.settleUncertainDeleteLocked(ctx)
 	s.fenceMu.Unlock()
 	if err != nil {
-		return DeleteResult{}, persistencepostgres.WrapError("reconcile uncertain LLM credential deletion", err)
+		return DeleteResult{}, reconciliationFailure(ctx, err)
 	}
 	if earlier != deleteIntentResolved {
 		return DeleteResult{}, ErrRecoveryRequired
