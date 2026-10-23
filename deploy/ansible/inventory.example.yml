@@ -1,0 +1,46 @@
+---
+# Example inventory. Copy it outside the repository, adjust it, and run
+#   ansible-playbook -i <inventory> deploy/ansible/runtime.yml
+# from the repository root (or set ANSIBLE_CONFIG=deploy/ansible/ansible.cfg).
+contractor_runtime:
+  vars:
+    # The Server's private Control Plane listener.
+    contractor_runtime_control_plane_url: https://10.0.0.5:8443
+    # `contractor pki` and the deployment CA live on the controller here.
+    contractor_runtime_pki_host: localhost
+    contractor_runtime_pki_root: /srv/contractor/.local/pki
+    # Remote Runtimes listen on every address and advertise their own.
+    contractor_runtime_listen_host: 0.0.0.0
+  hosts:
+    # A host with the full capability set (the default) and two slots.
+    runtime-a.example:
+      contractor_runtime_advertise_host: 10.0.0.11
+      contractor_runtime_instances:
+        - {name: runtime-a-1, port: 9443}
+        - {name: runtime-a-2, port: 9444}
+
+    # A scanner host: no Podman sandbox, no validators, in-memory workspaces,
+    # and a label the Operations page can bind a proxy RuntimeConfig to.
+    runtime-b.example:
+      contractor_runtime_advertise_host: 10.0.0.12
+      contractor_runtime_capabilities:
+        workspace_storage: memory
+        podman: false
+        podman_network: false
+        openapi_validator: false
+        likec4_validator: false
+      contractor_runtime_instances:
+        - name: runtime-b-scan-1
+          port: 9443
+          labels: [site-proxy]
+          adapters: [http-proxy@1]
+          allowed_target_networks: [127.0.0.0/8]
+        # Mixed per process: this one has only the validators.
+        - name: runtime-b-docs-1
+          port: 9444
+          capabilities:
+            openapi_validator: true
+            likec4_validator: true
+            scanners: []
+        # A retired process: its unit is stopped and removed.
+        - {name: runtime-b-old-1, state: absent}

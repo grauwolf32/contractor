@@ -1,0 +1,82 @@
+---
+# Order matters: nothing on the host changes before resolve.yml has accepted
+# the configuration, and no running instance is touched before every
+# prerequisite and the preflight of its new settings have passed.
+
+- name: Resolve and validate the configuration
+  ansible.builtin.include_tasks: resolve.yml
+
+- name: Install system packages
+  ansible.builtin.include_tasks: packages.yml
+
+- name: Prepare the service account
+  ansible.builtin.include_tasks: account.yml
+
+- name: Install pinned tools
+  ansible.builtin.include_tasks: tools.yml
+
+- name: Install the Runtime release
+  ansible.builtin.include_tasks: release.yml
+
+- name: Prepare rootless Podman
+  ansible.builtin.include_tasks: podman.yml
+  when: __contractor_runtime_host.podman
+
+- name: Install the CA certificate and the tool probe
+  ansible.builtin.include_tasks: ca.yml
+
+- name: Complete instance settings with host values
+  ansible.builtin.set_fact:
+    __contractor_runtime_ready: >-
+      {{ __contractor_runtime_ready + [__contractor_runtime_instance | combine({
+           'bin_dir': __contractor_runtime_bin_dir,
+           'argv': __contractor_runtime_argv,
+           'environment': __contractor_runtime_env,
+         })] }}
+  loop: "{{ __contractor_runtime_instances }}"
+  loop_control:
+    loop_var: __contractor_runtime_instance
+    label: "{{ __contractor_runtime_instance.name }}"
+  vars:
+    __contractor_runtime_links: >-
+      {{ dict(__contractor_runtime_instance.tools
+              | zip(__contractor_runtime_instance.tools | map('extract', __contractor_runtime_tool_paths | default({})))) }}
+    __contractor_runtime_bin_dir: >-
+      {{ __contractor_runtime_instance.root }}/bin-{{
+         (__contractor_runtime_links | to_json(sort_keys=true) | hash('sha256'))[:12] }}
+    __contractor_runtime_argv: >-
+      {{ [__contractor_runtime_executable] + __contractor_runtime_instance.args
+         + (['--podman-image', __contractor_runtime_podman_image] if __contractor_runtime_instance.podman else []) }}
+    __contractor_runtime_env: >-
+      {{ __contractor_runtime_instance.environment
+         | combine({'PATH': __contractor_runtime_bin_dir ~ ':' ~ contractor_runtime_system_path}) }}
+
+- name: Configure instances
+  ansible.builtin.include_tasks: instance.yml
+  loop: "{{ __contractor_runtime_ready }}"
+  loop_control:
+    loop_var: __contractor_runtime_instance
+    label: "{{ __contractor_runtime_instance.name }}"
+
+- name: Remove absent instances
+  ansible.builtin.include_tasks: absent.yml
+  loop: "{{ __contractor_runtime_absent }}"
+  loop_control:
+    loop_var: __contractor_runtime_absent_name
+  vars:
+    __contractor_runtime_unit_path: "{{ contractor_runtime_home }}/.config/systemd/user/contractor-runtime-{{ __contractor_runtime_absent_name }}.service"
+
+- name: Reload the user manager
+  ansible.builtin.command:
+    argv: "{{ __contractor_runtime_systemctl + ['daemon-reload'] }}"
+  changed_when: false
+
+- name: Start and verify instances
+  ansible.builtin.include_tasks: start.yml
+  loop: "{{ __contractor_runtime_ready }}"
+  loop_control:
+    loop_var: __contractor_runtime_instance
+    label: "{{ __contractor_runtime_instance.name }}"
+
+- name: Prune old releases
+  ansible.builtin.include_tasks: prune.yml

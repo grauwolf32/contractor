@@ -1,0 +1,36 @@
+---
+- name: Create the configuration directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: root
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - {path: "{{ contractor_runtime_config_dir }}", group: root, mode: "0755"}
+    - {path: "{{ contractor_runtime_config_dir }}/pki", group: "{{ contractor_runtime_group }}", mode: "0750"}
+
+- name: Read the deployment CA certificate
+  ansible.builtin.slurp:
+    src: "{{ contractor_runtime_pki_root }}/ca.crt"
+  register: __contractor_runtime_ca_content
+  delegate_to: "{{ contractor_runtime_pki_host }}"
+  become: false
+  run_once: true
+
+- name: Install the deployment CA certificate
+  ansible.builtin.copy:
+    dest: "{{ contractor_runtime_config_dir }}/pki/ca.crt"
+    content: "{{ __contractor_runtime_ca_content.content | b64decode }}"
+    owner: root
+    group: "{{ contractor_runtime_group }}"
+    mode: "0644"
+  register: __contractor_runtime_ca
+
+- name: Install the tool probe
+  ansible.builtin.copy:
+    src: probe_tools.py
+    dest: "{{ contractor_runtime_prefix }}/tools/probe_tools.py"
+    owner: root
+    group: root
+    mode: "0644"

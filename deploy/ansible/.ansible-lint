@@ -1,0 +1,6 @@
+---
+profile: production
+# galaxy_info.license: the repository declares no license, and this role is
+# not published to Galaxy.
+skip_list:
+  - schema[meta]

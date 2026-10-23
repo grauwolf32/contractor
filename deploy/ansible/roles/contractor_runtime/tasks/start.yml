@@ -1,0 +1,95 @@
+---
+# Starts or restarts one instance (__contractor_runtime_instance) when needed and verifies it.
+# main.yml runs this once per instance in order, so a host loses at most one
+# slot at a time.
+
+- name: Enable at boot {{ __contractor_runtime_instance.name }}
+  when: contractor_runtime_enable_at_boot
+  block:
+    - name: Read the boot setting of {{ __contractor_runtime_instance.name }}
+      ansible.builtin.command:
+        argv: "{{ __contractor_runtime_systemctl + ['is-enabled', __contractor_runtime_instance.unit] }}"
+      register: __contractor_runtime_enabled
+      changed_when: false
+      failed_when: false
+
+    - name: Enable {{ __contractor_runtime_instance.name }}
+      ansible.builtin.command:
+        argv: "{{ __contractor_runtime_systemctl + ['enable', __contractor_runtime_instance.unit] }}"
+      when: __contractor_runtime_enabled.stdout != 'enabled'
+      changed_when: true
+
+- name: Read the state of {{ __contractor_runtime_instance.name }}
+  ansible.builtin.command:
+    argv: "{{ __contractor_runtime_systemctl + ['is-active', __contractor_runtime_instance.unit] }}"
+  register: __contractor_runtime_active
+  changed_when: false
+  failed_when: false
+
+- name: Decide the action for {{ __contractor_runtime_instance.name }}
+  ansible.builtin.set_fact:
+    __contractor_runtime_action: >-
+      {{ 'start' if __contractor_runtime_active.stdout != 'active'
+         else 'none' if __contractor_runtime_instance.name not in __contractor_runtime_changed
+         else 'restart' if contractor_runtime_restart
+         else 'pending' }}
+
+- name: Report the pending restart of {{ __contractor_runtime_instance.name }}
+  ansible.builtin.debug:
+    msg: >-
+      {{ __contractor_runtime_instance.name }} changed but keeps running its previous settings
+      because contractor_runtime_restart is false. Drain it and run
+      systemctl --user restart {{ __contractor_runtime_instance.unit }} as {{ contractor_runtime_user }}.
+  when: __contractor_runtime_action == 'pending'
+
+- name: Record the pending restart of {{ __contractor_runtime_instance.name }}
+  ansible.builtin.set_fact:
+    __contractor_runtime_pending: "{{ __contractor_runtime_pending + [__contractor_runtime_instance.name] }}"
+  when: __contractor_runtime_action == 'pending'
+
+- name: Start {{ __contractor_runtime_instance.name }}
+  when: __contractor_runtime_action in ['start', 'restart']
+  block:
+    # A stop waits for the Runtime's own shutdown (TimeoutStopSec).
+    - name: Stop {{ __contractor_runtime_instance.name }}
+      ansible.builtin.command:
+        argv: "{{ __contractor_runtime_systemctl + ['stop', __contractor_runtime_instance.unit] }}"
+      changed_when: true
+      when: __contractor_runtime_action == 'restart'
+
+    - name: Mark the start time of {{ __contractor_runtime_instance.name }}
+      ansible.builtin.command:
+        argv: [date, +%s]
+      register: __contractor_runtime_stopped_at
+      changed_when: false
+
+    # Journal reads start at the next whole second, after every line of the
+    # previous process.
+    - name: Wait for the next second
+      ansible.builtin.command:
+        argv: [sleep, "1"]
+      changed_when: false
+
+    - name: Start the unit of {{ __contractor_runtime_instance.name }}
+      ansible.builtin.command:
+        argv: "{{ __contractor_runtime_systemctl + ['start', __contractor_runtime_instance.unit] }}"
+      changed_when: true
+
+    - name: Verify {{ __contractor_runtime_instance.name }}
+      ansible.builtin.include_tasks: verify.yml
+      when: contractor_runtime_verify
+      vars:
+        __contractor_runtime_since: "{{ __contractor_runtime_stopped_at.stdout | int + 1 }}"
+
+    - name: Find superseded bin directories of {{ __contractor_runtime_instance.name }}
+      ansible.builtin.find:
+        paths: "{{ __contractor_runtime_instance.root }}"
+        patterns: ["bin-*"]
+        file_type: directory
+      register: __contractor_runtime_bin_dirs
+
+    - name: Remove superseded bin directories of {{ __contractor_runtime_instance.name }}
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop: "{{ __contractor_runtime_bin_dirs.files | map(attribute='path') | reject('equalto', __contractor_runtime_instance.bin_dir) | list }}"

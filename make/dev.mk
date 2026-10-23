@@ -2,7 +2,7 @@
 # public API and the architecture model to the specifications.
 
 .PHONY: fmt lint ui-gates generate-public-client generate-public-client-check verify-architecture docs-erd \
-	docs-error-registry verify-public-api verify-public-api-postgres run-local tasks-backlog
+	docs-error-registry verify-public-api verify-public-api-postgres run-local tasks-backlog test-ansible
 
 fmt:
 	gofmt -w cmd internal tests tools
@@ -20,6 +20,7 @@ lint: generate-public-client-check docs-dependencies-check model-config-check ui
 	go -C tools/testonlyexports run . -tags=integration,e2e -baseline tools/testonlyexports/baseline.txt "$(CURDIR)"
 	cd runtime && uv run python -m unittest discover -s ../scripts -p 'test_*.py'
 	sh deploy/phoenix/test-run.sh
+	sh deploy/ansible/tests/run.sh
 	python3 scripts/check_release_verify_graph.py
 	cd runtime && uv run python ../scripts/check_tasks.py
 	python3 scripts/check_spec.py
@@ -28,6 +29,11 @@ lint: generate-public-client-check docs-dependencies-check model-config-check ui
 	cd runtime && uv run ruff check .
 	cd runtime && uv run ruff format --check .
 	cd runtime && uv run lint-imports --no-cache --no-logo
+
+# The Runtime host role (V402-001): syntax, ansible-lint and resolution tests.
+# make lint runs the same script.
+test-ansible:
+	sh deploy/ansible/tests/run.sh
 
 # The UI's dead-code and building-block gates (V385-001; ui/src/ui/README.md,
 # "Gates"). They need the UI dependencies (make ui-install): the probes of the

@@ -1,0 +1,50 @@
+---
+# Every tool lands in its own versioned directory and is never changed in
+# place: a running Runtime keeps the executables it probed, and a new version
+# reaches an instance only through a new bin directory and a restart.
+
+- name: Create the installation layout
+  ansible.builtin.file:
+    path: "{{ contractor_runtime_prefix }}/{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop: ['', downloads, tools, tools/wrappers, releases, cache]
+
+- name: Install archived tools
+  ansible.builtin.include_tasks: tool_archive.yml
+  loop: "{{ __contractor_runtime_host.tools | difference(['likec4']) }}"
+  loop_control:
+    loop_var: __contractor_runtime_tool_name
+  vars:
+    __contractor_runtime_tool: "{{ __contractor_runtime_tools[__contractor_runtime_tool_name] }}"
+    __contractor_runtime_asset: >-
+      {{ __contractor_runtime_tool.assets[ansible_architecture]
+         | default(__contractor_runtime_tool.assets.any | default({})) }}
+    __contractor_runtime_dest: "{{ contractor_runtime_prefix }}/tools/{{ __contractor_runtime_tool_name }}-{{ __contractor_runtime_tool.version }}"
+    __contractor_runtime_archive: >-
+      {{ contractor_runtime_prefix }}/downloads/{{ __contractor_runtime_tool_name }}-{{
+         __contractor_runtime_asset.url | basename }}
+
+- name: Install likec4
+  ansible.builtin.include_tasks: likec4.yml
+  when: "'likec4' in __contractor_runtime_host.tools"
+
+- name: Install the sqlmap launcher
+  ansible.builtin.include_tasks: wrapper.yml
+  when: "'sqlmap' in __contractor_runtime_host.tools"
+  vars:
+    __contractor_runtime_wrapper_tool: sqlmap
+    __contractor_runtime_wrapper_argv:
+      - "{{ contractor_runtime_sqlmap_python }}"
+      - "{{ contractor_runtime_prefix }}/tools/sqlmap-{{ __contractor_runtime_tools.sqlmap.version }}/{{ __contractor_runtime_tools.sqlmap.path }}"
+
+- name: Record executable locations
+  ansible.builtin.set_fact:
+    __contractor_runtime_tool_paths: >-
+      {{ __contractor_runtime_tool_paths | default({}) | combine({
+           item: contractor_runtime_prefix ~ '/tools/' ~ item ~ '-' ~ __contractor_runtime_tools[item].version
+                 ~ '/' ~ __contractor_runtime_tools[item].path
+         }) }}
+  loop: "{{ __contractor_runtime_host.tools | intersect(['vacuum', 'nuclei', 'naabu', 'ffuf', 'katana']) }}"
