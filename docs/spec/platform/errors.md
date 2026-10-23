@@ -553,6 +553,9 @@ Assembled from every document.
 | `taint_annotation_target_not_found` | — | not specified | Taint annotation target not found | [ERR-R12](errors.md), [CAN-R110](../tools/code-analysis.md) |
 | `taint_annotation_unavailable` | — | yes | Taint annotation unavailable | [ERR-R12](errors.md), [CAN-R139](../tools/code-analysis.md) |
 | `taint_annotation_workspace_changed` | — | yes | Workspace changed during taint annotation | [ERR-R12](errors.md), [CAN-R124](../tools/code-analysis.md) |
+| `nuclei_package_invalid` | — | no | Installed rules contain unsupported files, exceed materialization limits or cannot be copied safely; no target scan. | [SCN-R231](../tools/scanners.md) |
+| `nuclei_package_mismatch` | — | no | Computed private package digest differs from the authored pin; no target scan. | [SCN-R231](../tools/scanners.md) |
+| `nuclei_selection_invalid` | — | no | Engine version or bounded selected-template manifest is invalid or empty; no target scan. | [SCN-R231](../tools/scanners.md) |
 | `template_digest_mismatch` | — | no | Before creating the Worker, Runtime Agent found that the instruction digest, a ModelPolicy dependency digest or the enclosing AgentTemplate digest does not match the content carried in AllocationSpec; allocation preparation fails and Runtime Agent neither recomputes the identity nor fetches replacement content. | [TPL-R63](../configuration/agent-templates.md) |
 | `tool_call_cancelled` | — | yes | A started tool call was cancelled while it ran, or was still pending when the Worker closed, and its toolset recorded no domain error. | [OBS-R24](observability.md) |
 | `tool_call_failed` | — | not specified | Recorded in place of a tool error code that is not an identifier or that contains a long secret. | [OBS-R32](observability.md) |

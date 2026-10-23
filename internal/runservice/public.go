@@ -13,6 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/contracts/scan"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -277,11 +278,22 @@ func validateWorkflowInputs(
 			if !agent.Template.IsToolWorker() || agent.Template.Execution == nil {
 				continue
 			}
-			for _, argument := range agent.Template.Execution.Arguments {
-				if argument.Source == "parameter" {
-					if _, err := argument.ResolveParameter(parameters); err != nil {
+			arguments := map[string]any{}
+			for name, argument := range agent.Template.Execution.Arguments {
+				switch argument.Source {
+				case "parameter":
+					value, err := argument.ResolveParameter(parameters)
+					if err != nil {
 						return fmt.Errorf("%w: invalid bound tool parameter", ErrInvalid)
 					}
+					arguments[name] = value
+				case "literal":
+					arguments[name] = argument.Value
+				}
+			}
+			if agent.Template.Execution.Tool == "scan_nuclei" {
+				if err := scan.ValidateNucleiArguments(arguments); err != nil {
+					return fmt.Errorf("%w: invalid Nuclei inputs", ErrInvalid)
 				}
 			}
 		}

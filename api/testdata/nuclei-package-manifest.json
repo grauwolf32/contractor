@@ -1,0 +1,18 @@
+{
+  "manifest": {
+    "schemaVersion": 1,
+    "files": [
+      {
+        "path": "a.yaml",
+        "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "size": 12
+      },
+      {
+        "path": "helpers/words.txt",
+        "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "size": 3
+      }
+    ]
+  },
+  "digest": "sha256:b91b4c84fd0bb3f6951eff81580884c87fac93d2de8745b441818a0517587bbe"
+}

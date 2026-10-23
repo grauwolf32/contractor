@@ -1,0 +1,410 @@
+{
+  "cases": [
+    {
+      "name": "defaults",
+      "arguments": {
+        "url": "https://example.test/a?x=a,b"
+      },
+      "valid": true
+    },
+    {
+      "name": "url-0",
+      "arguments": {
+        "url": "http://[::1]:8080/a"
+      },
+      "valid": true
+    },
+    {
+      "name": "url-1",
+      "arguments": {
+        "url": "https://under_score.test"
+      },
+      "valid": true
+    },
+    {
+      "name": "url-2",
+      "arguments": {
+        "url": "HTTPS://example.test"
+      },
+      "valid": false
+    },
+    {
+      "name": "url-3",
+      "arguments": {
+        "url": "http://user@host"
+      },
+      "valid": false
+    },
+    {
+      "name": "url-4",
+      "arguments": {
+        "url": "http://host#"
+      },
+      "valid": false
+    },
+    {
+      "name": "url-5",
+      "arguments": {
+        "url": "http://host:"
+      },
+      "valid": false
+    },
+    {
+      "name": "url-6",
+      "arguments": {
+        "url": "http://host:0"
+      },
+      "valid": false
+    },
+    {
+      "name": "url-7",
+      "arguments": {
+        "url": "http://[example.test]/"
+      },
+      "valid": false
+    },
+    {
+      "name": "url-8",
+      "arguments": {
+        "url": "http://host/%xy"
+      },
+      "valid": false
+    },
+    {
+      "name": "url-9",
+      "arguments": {
+        "url": "http://host/?x=%xy"
+      },
+      "valid": false
+    },
+    {
+      "name": "url-10",
+      "arguments": {
+        "url": "http://host/hello world"
+      },
+      "valid": false
+    },
+    {
+      "name": "url-11",
+      "arguments": {
+        "url": "http://host/é"
+      },
+      "valid": false
+    },
+    {
+      "name": "url-12",
+      "arguments": {
+        "url": "file:///tmp/x"
+      },
+      "valid": false
+    },
+    {
+      "name": "url-13",
+      "arguments": {
+        "url": "http://host\\evil/"
+      },
+      "valid": false
+    },
+    {
+      "name": "url-14",
+      "arguments": {
+        "url": "http://xn--.test/"
+      },
+      "valid": false
+    },
+    {
+      "name": "url-15",
+      "arguments": {
+        "url": "http://host:65536/"
+      },
+      "valid": false
+    },
+    {
+      "name": "url-16",
+      "arguments": {
+        "url": "http://host/\n"
+      },
+      "valid": false
+    },
+    {
+      "name": "rate_limit-0",
+      "arguments": {
+        "url": "https://example.test/a?x=a,b",
+        "rate_limit": 1
+      },
+      "valid": true
+    },
+    {
+      "name": "rate_limit-1",
+      "arguments": {
+        "url": "https://example.test/a?x=a,b",
+        "rate_limit": 1000
+      },
+      "valid": true
+    },
+    {
+      "name": "rate_limit-2",
+      "arguments": {
+        "url": "https://example.test/a?x=a,b",
+        "rate_limit": 0
+      },
+      "valid": false
+    },
+    {
+      "name": "rate_limit-3",
+      "arguments": {
+        "url": "https://example.test/a?x=a,b",
+        "rate_limit": 1001
+      },
+      "valid": false
+    },
+    {
+      "name": "rate_limit-4",
+      "arguments": {
+        "url": "https://example.test/a?x=a,b",
+        "rate_limit": true
+      },
+      "valid": false
+    },
+    {
+      "name": "rate_limit-5",
+      "arguments": {
+        "url": "https://example.test/a?x=a,b",
+        "rate_limit": "10"
+      },
+      "valid": false
+    },
+    {
+      "name": "rate_limit-6",
+      "arguments": {
+        "url": "https://example.test/a?x=a,b",
+        "rate_limit": null
+      },
+      "valid": false
+    },
+    {
+      "name": "rate_limit-7",
+      "arguments": {
+        "url": "https://example.test/a?x=a,b",
+        "rate_limit": 1.5
+      },
+      "valid": false
+    },
+    {
+      "name": "timeout_seconds-0",
+      "arguments": {
+        "url": "https://example.test/a?x=a,b",
+        "timeout_seconds": 1
+      },
+      "valid": true
+    },
+    {
+      "name": "timeout_seconds-1",
+      "arguments": {
+        "url": "https://example.test/a?x=a,b",
+        "timeout_seconds": 3600
+      },
+      "valid": true
+    },
+    {
+      "name": "timeout_seconds-2",
+      "arguments": {
+        "url": "https://example.test/a?x=a,b",
+        "timeout_seconds": 0
+      },
+      "valid": false
+    },
+    {
+      "name": "timeout_seconds-3",
+      "arguments": {
+        "url": "https://example.test/a?x=a,b",
+        "timeout_seconds": 3601
+      },
+      "valid": false
+    },
+    {
+      "name": "timeout_seconds-4",
+      "arguments": {
+        "url": "https://example.test/a?x=a,b",
+        "timeout_seconds": false
+      },
+      "valid": false
+    },
+    {
+      "name": "severity-0",
+      "arguments": {
+        "url": "https://example.test/a?x=a,b",
+        "severity": "info,low,medium,high,critical,unknown"
+      },
+      "valid": true
+    },
+    {
+      "name": "severity-1",
+      "arguments": {
+        "url": "https://example.test/a?x=a,b",
+        "severity": "high,critical"
+      },
+      "valid": true
+    },
+    {
+      "name": "severity-2",
+      "arguments": {
+        "url": "https://example.test/a?x=a,b",
+        "severity": "HIGH"
+      },
+      "valid": false
+    },
+    {
+      "name": "severity-3",
+      "arguments": {
+        "url": "https://example.test/a?x=a,b",
+        "severity": "bogus"
+      },
+      "valid": false
+    },
+    {
+      "name": "severity-4",
+      "arguments": {
+        "url": "https://example.test/a?x=a,b",
+        "severity": "high,"
+      },
+      "valid": false
+    },
+    {
+      "name": "severity-5",
+      "arguments": {
+        "url": "https://example.test/a?x=a,b",
+        "severity": " high"
+      },
+      "valid": false
+    },
+    {
+      "name": "template_ids-0",
+      "arguments": {
+        "url": "https://example.test/a?x=a,b",
+        "template_ids": "CVE-*"
+      },
+      "valid": true
+    },
+    {
+      "name": "template_ids-1",
+      "arguments": {
+        "url": "https://example.test/a?x=a,b",
+        "template_ids": "a,b"
+      },
+      "valid": true
+    },
+    {
+      "name": "template_ids-2",
+      "arguments": {
+        "url": "https://example.test/a?x=a,b",
+        "template_ids": "../../file"
+      },
+      "valid": false
+    },
+    {
+      "name": "template_ids-3",
+      "arguments": {
+        "url": "https://example.test/a?x=a,b",
+        "template_ids": "--help"
+      },
+      "valid": false
+    },
+    {
+      "name": "template_ids-4",
+      "arguments": {
+        "url": "https://example.test/a?x=a,b",
+        "template_ids": "a b"
+      },
+      "valid": false
+    },
+    {
+      "name": "template_ids-5",
+      "arguments": {
+        "url": "https://example.test/a?x=a,b",
+        "template_ids": "a,"
+      },
+      "valid": false
+    },
+    {
+      "name": "template_ids-6",
+      "arguments": {
+        "url": "https://example.test/a?x=a,b",
+        "template_ids": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      },
+      "valid": false
+    },
+    {
+      "name": "tags-0",
+      "arguments": {
+        "url": "https://example.test/a?x=a,b",
+        "tags": "http,tech"
+      },
+      "valid": true
+    },
+    {
+      "name": "tags-1",
+      "arguments": {
+        "url": "https://example.test/a?x=a,b",
+        "tags": "*"
+      },
+      "valid": true
+    },
+    {
+      "name": "tags-2",
+      "arguments": {
+        "url": "https://example.test/a?x=a,b",
+        "tags": ""
+      },
+      "valid": true
+    },
+    {
+      "name": "tags-3",
+      "arguments": {
+        "url": "https://example.test/a?x=a,b",
+        "tags": "a\nb"
+      },
+      "valid": false
+    },
+    {
+      "name": "templates_digest-0",
+      "arguments": {
+        "url": "https://example.test/a?x=a,b",
+        "templates_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "valid": true
+    },
+    {
+      "name": "templates_digest-1",
+      "arguments": {
+        "url": "https://example.test/a?x=a,b",
+        "templates_digest": "sha256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "valid": false
+    },
+    {
+      "name": "templates_digest-2",
+      "arguments": {
+        "url": "https://example.test/a?x=a,b",
+        "templates_digest": null
+      },
+      "valid": false
+    },
+    {
+      "name": "templates_digest-3",
+      "arguments": {
+        "url": "https://example.test/a?x=a,b",
+        "templates_digest": "bad"
+      },
+      "valid": false
+    },
+    {
+      "name": "templates_digest-4",
+      "arguments": {
+        "url": "https://example.test/a?x=a,b",
+        "templates_digest": ""
+      },
+      "valid": true
+    }
+  ]
+}

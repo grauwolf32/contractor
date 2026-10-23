@@ -346,7 +346,7 @@ an immutable revision and exclude the primary report slot. Invalid output
 mappings fail as `tool_output_invalid`.
 
 **SCN-R45.** Before publishing success, Runtime verifies each exact revision
-through the Artifact API with a 512 KiB read bound (LIM-SCN-12). Inaccessible
+through the Artifact API with a 16 MiB read bound (LIM-SCN-12). Inaccessible
 or mismatched published revisions fail as `tool_report_failed` (FAIL-SCN-3).
 
 **SCN-R46.** The receipt persists the validated refs, and WorkerCompletion
@@ -425,6 +425,79 @@ empty matches, an empty result list, an empty SQL-injection technique list,
 truncation, a completed process and a completed invocation never establish that
 a target is secure or free of vulnerabilities, or a negative SQL-injection
 result.
+
+### Pinned installed Nuclei web scans
+
+**SCN-R225.** `nuclei-web@1` accepts a required explicit `target` and optional
+string `template_ids`, `tags`, `severity` and `rate_limit`. Its passthrough Stage
+uses `nuclei-web-scan@1`, `tool@1`, `local-workdir@1` and `scan@1.scan_nuclei`,
+without a model or OpenAPI input. Empty filter defaults select the engine's
+eligible HTTP templates; omitted rate defaults to integer 10. Explicit rate
+text follows SCN-R222 and must project to 1..1000. The adapter deadline is
+300 seconds and Worker deadline 330 seconds to allow diagnostic publication.
+Server admission and Runtime share scanner-owned input fixtures: URLs use the
+bounded printable ASCII HTTP request URL grammar and shared host syntax;
+filters are at most 2048 bytes of comma-separated names matching
+`[A-Za-z0-9_*][A-Za-z0-9_.*-]*`; severity names are exactly info, low, medium,
+high, critical and unknown. Inputs are never rewritten in the durable Run.
+
+**SCN-R226.** The AgentTemplate pins the installed package using a literal
+`templates_digest` (`sha256:` and 64 lowercase hexadecimal characters), covered
+by its resolved digest, the Run snapshot and invocation input digest. The
+shipped pin covers the complete Ansible-provisioned nuclei-templates v10.5.0
+release archive. A changed installation requires a matching authored literal
+for new Runs. Existing direct/Audit adapters may omit the pin; they retain
+explicitly unpinned installed-rule semantics. No caller substitutes a local
+package for a supplied mismatching pin (FAIL-SCN-12).
+
+**SCN-R227.** Canonical package identity is SHA-256 of RFC 8785 JSON
+`{"schemaVersion":1,"files":[{"path":...,"digest":...,"size":...},...]}`.
+Each path is package-relative with `/` separators; records sort by UTF-8 path
+bytes. Include every regular file, including helper resources and engine ignore
+files, without extension filtering. Symlinks and special files fail. Bound the
+package to 50000 files, 512 MiB aggregate and 16 MiB per file (LIM-SCN-69 to
+LIM-SCN-71); directory traversal admits at most 100000 entries, depth 64 and
+1024 UTF-8 path bytes (LIM-SCN-73 to LIM-SCN-75). Reject empty packages. The
+canonical package/provenance JSON is at most 16 MiB (LIM-SCN-72).
+
+**SCN-R228.** Before pinned scanning, Runtime copies and hashes the complete
+installation into a private per-invocation directory using link-refusing opens,
+regular-file checks and streaming count/byte limits. Copying, hashing and
+selected-template manifest assembly run off the event loop and consume the
+scanner preparation deadline. Scanning reads only verified private bytes,
+including relative helper resources; subsequent changes to the installation
+cannot change them. Replacement allocations verify the same pin again.
+Cancellation/close joins copy threads and all subprocesses before scratch
+removal (LIFE-SCN-7).
+
+**SCN-R229.** With the verified private package and the same HTTP/ID/tag/severity
+filters, Runtime invokes the engine's bounded local `-tl` selection before the
+scan. Every selected path must resolve inside that manifest and name a YAML
+file with a top-level scalar Nuclei ID (plain or quoted ASCII ID). Empty,
+duplicate, escaping or malformed selections fail as `nuclei_selection_invalid`.
+The installed engine's version probe must yield a version and finish within two
+seconds and the remaining preparation budget. Runtime publishes create-only
+`template-manifest` in the scanner Namespace before target scanning. It contains
+schemaVersion 1, packageDigest, all file records, selectedTemplates with ID/path/
+content digest/size, and engineVersion. Publication ambiguity or failure stops
+before scanning; existing receipt semantics prevent another invocation.
+
+**SCN-R230.** The web Workflow declares the `template_manifest` result and
+output as `application/vnd.contractor.nuclei-manifest+json`. The bounded ordinary
+report contains expectedPackageDigest, actualPackageDigest when computed,
+engineVersion when known, selectedTemplateCount, resolved filters/rateLimit and
+the exact templateManifest ArtifactRef. The separate manifest carries the large
+rule list and follows ordinary Run retention/purge. Reports remain bounded by
+SCN-R41; additional revision verification follows SCN-R45.
+
+**SCN-R231.** Missing installed content yields `nuclei_templates_unavailable`;
+invalid/unbounded package content yields `nuclei_package_invalid`; a differing
+computed digest yields `nuclei_package_mismatch`. These fixed nonretryable
+preparation diagnostics launch no target scan. Mismatch reports retain both
+expected and actual digests. `scan-plan@1` classifies invalid packages, mismatch
+and invalid selection as incomplete through the shared outcome table. Timeout,
+process/output failure, cancellation and ambiguous receipt delivery retain their
+existing outcomes; none implies a clean scan or automatic rescan (FAIL-SCN-12).
 
 ### SQLMap HTTP request artifacts
 

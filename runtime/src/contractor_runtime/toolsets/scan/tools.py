@@ -15,11 +15,17 @@ from types import MappingProxyType
 from typing import Any
 from urllib.parse import urlsplit
 
+from contractor_runtime import threads
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.artifacts import ArtifactAPIError
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.core.input_errors import ToolInputError
+from contractor_runtime.core.process import (
+    ProcessOutputLimitError,
+    ProcessTimeoutError,
+    run_command,
+)
 from contractor_runtime.core.target_policy import (
     TargetDenied,
     TargetPolicy,
@@ -49,14 +55,22 @@ from contractor_runtime.toolsets.scan.katana import (
     katana_observation,
     scope_regex,
 )
-from contractor_runtime.toolsets.scan.process import ProcessResult, run_process
+from contractor_runtime.toolsets.scan.nuclei_inputs import validate_nuclei_arguments
+from contractor_runtime.toolsets.scan.nuclei_package import (
+    MANIFEST_MEDIA_TYPE,
+    MAX_MANIFEST_BYTES,
+    PackageError,
+    selected_manifest,
+    snapshot_package,
+)
+from contractor_runtime.toolsets.scan.process import ProcessResult, child_environment, run_process
 from contractor_runtime.toolsets.scan.wordlist import MAX_WORDLIST_ARTIFACT_BYTES, parse_wordlist
 from contractor_runtime.workspace import AllocationWorkspace
 
 PROBE_TIMEOUT_SECONDS = 2.0
 MAX_RESULTS = 100
 MAX_RESULTS_BYTES = 128 * 1024
-PrepareInvocation = Callable[[Path], Awaitable[list[str]]]
+PrepareInvocation = Callable[[Path, float], Awaitable[list[str]]]
 Destination = tuple[str, tuple[int, ...]]
 FinalizeInvocation = Callable[[dict, float], Awaitable[dict]]
 
@@ -151,10 +165,10 @@ class _ScanSession:
                     if destination is not None:
                         await self.require_destination(*destination)
                     if prepare is not None:
-                        prepared += await prepare(directory)
+                        prepared += await prepare(directory, deadline)
             except TimeoutError:
                 return ProcessResult(None, error_code="scan_timeout")
-            except (ScannerUnavailable, ScanTargetRefused) as error:
+            except (ScannerUnavailable, ScanTargetRefused, PackageError) as error:
                 return ProcessResult(None, error_code=str(error))
             remaining = deadline - time.monotonic()
             if remaining <= 0:
@@ -297,6 +311,9 @@ class NucleiTool(JSONLinesScanTool):
         severity: Comma-separated info, low, medium, high, critical, unknown values.
         rate_limit: Maximum requests per second, 1 through 1000; defaults to 10.
         timeout_seconds: Total scan deadline, 1 through 3600 seconds; defaults to 300.
+        templates_digest: Optional sha256 package pin. Verify a private installed-package
+            snapshot, list the selected rules and publish their exact template_manifest
+            artifact before scanning. A mismatch fails without scanning.
 
     Returns:
         status, exitCode, errorCode, bounded stdout/stderr previews and truncation
@@ -309,7 +326,7 @@ class NucleiTool(JSONLinesScanTool):
             raise ScannerUnavailable("nuclei_templates_unavailable")
         # Prevent a first-run template install even on older nuclei versions.
         (directory / "nuclei-templates").mkdir()
-        return ["-t", str(templates)]
+        return []
 
     async def __call__(
         self,
@@ -319,10 +336,28 @@ class NucleiTool(JSONLinesScanTool):
         severity: str = "",
         rate_limit: int = 10,
         timeout_seconds: int = 300,
+        templates_digest: str = "",
     ) -> dict:
+        provenance: dict = {}
+        manifest_ref = ArtifactRef(namespace=self._session.namespace, name="template-manifest")
+
         def arguments():
-            _url(url)
-            _integer(rate_limit, "rate_limit", 1, 1000)
+            try:
+                validate_nuclei_arguments(
+                    dict(
+                        url=url,
+                        template_ids=template_ids,
+                        tags=tags,
+                        severity=severity,
+                        rate_limit=rate_limit,
+                        timeout_seconds=timeout_seconds,
+                        templates_digest=templates_digest,
+                    )
+                )
+            except ToolInputError as error:
+                raise ScanInputError(str(error)) from None
+            if templates_digest:
+                provenance.update(expectedPackageDigest=templates_digest)
             command = [
                 "-jsonl",
                 "-silent",
@@ -344,34 +379,117 @@ class NucleiTool(JSONLinesScanTool):
                 "1",
             ]
             for flag, value in (("-id", template_ids), ("-tags", tags), ("-severity", severity)):
-                _tokens(value)
                 if value:
                     command += [flag, value]
-            if severity and set(severity.split(",")) - {
-                "info",
-                "low",
-                "medium",
-                "high",
-                "critical",
-                "unknown",
-            }:
-                raise ScanInputError("severity contains an unsupported value")
             return command
 
-        async def prepare_target(directory: Path) -> list[str]:
-            # Nuclei's -u flag splits one URL at commas. A private one-line file
-            # preserves query commas without introducing a second target.
+        async def prepare_target(directory: Path, deadline: float) -> list[str]:
+            templates = self._session.templates
+            if templates_digest:
+                snapshot = await threads.to_thread_until_done(
+                    snapshot_package,
+                    templates,
+                    directory / "nuclei-templates",
+                    deadline,
+                    name="nuclei-package-snapshot",
+                )
+                provenance["actualPackageDigest"] = snapshot.digest
+                if snapshot.digest != templates_digest:
+                    raise PackageError("nuclei_package_mismatch")
+                templates = snapshot.root
+                try:
+                    await self._session.artifact_client.read_artifact(
+                        manifest_ref, max_bytes=MAX_MANIFEST_BYTES
+                    )
+                except ArtifactAPIError as error:
+                    if error.status_code != 404:
+                        raise ScannerUnavailable("scan_artifact_unavailable") from None
+                except Exception:
+                    raise ScannerUnavailable("scan_artifact_unavailable") from None
+                else:
+                    raise ScannerUnavailable("scan_output_exists")
+                executable = self._session.executables[self.name]
+                try:
+                    version = await run_command(
+                        [executable, "-version"],
+                        cwd=directory,
+                        env=child_environment(directory),
+                        timeout=min(2.0, max(0.001, deadline - time.monotonic())),
+                        max_output_bytes=8192,
+                    )
+                    match = re.search(
+                        rb"(?:Nuclei Engine Version|Current [Vv]ersion):\s*"
+                        rb"(v[0-9]+\.[0-9]+\.[0-9]+(?:[-+][A-Za-z0-9.-]+)?)",
+                        version.stdout + version.stderr,
+                    )
+                    if version.returncode or match is None:
+                        raise PackageError("nuclei_selection_invalid")
+                    engine_version = match[1].decode("ascii")
+                    provenance["engineVersion"] = engine_version
+                    listing = await run_command(
+                        [executable, *arguments(), "-t", str(templates), "-tl"],
+                        cwd=directory,
+                        env=child_environment(directory),
+                        timeout=max(0.001, deadline - time.monotonic()),
+                        max_output_bytes=MAX_MANIFEST_BYTES,
+                    )
+                    if listing.returncode:
+                        raise PackageError("nuclei_selection_invalid")
+                    data, count = await threads.to_thread_until_done(
+                        selected_manifest,
+                        snapshot,
+                        listing.stdout,
+                        engine_version,
+                        deadline,
+                        name="nuclei-selected-manifest",
+                    )
+                except ProcessTimeoutError:
+                    raise PackageError("scan_timeout") from None
+                except (ProcessOutputLimitError, OSError):
+                    raise PackageError("nuclei_selection_invalid") from None
+                try:
+                    written = await self._session.artifact_client.write_artifact(
+                        manifest_ref,
+                        data=data,
+                        media_type=MANIFEST_MEDIA_TYPE,
+                        expected_revision=None,
+                    )
+                    exact = written.artifact.require_exact()
+                    if exact.namespace != manifest_ref.namespace or exact.name != manifest_ref.name:
+                        raise ValueError
+                except Exception:
+                    raise ScannerUnavailable("scan_artifact_failed") from None
+                provenance.update(
+                    templateManifest=exact.model_dump(by_alias=True), selectedTemplateCount=count
+                )
+            # A one-line file preserves commas in the supplied URL.
             target = directory / "target.txt"
             with target.open("xb") as stream:
                 os.fchmod(stream.fileno(), 0o600)
                 stream.write((url + "\n").encode("utf-8"))
-            return ["-l", str(target)]
+            return ["-l", str(target), "-t", str(templates)]
+
+        def observation(result: ProcessResult) -> dict:
+            value = self.observation(result)
+            if templates_digest:
+                value.update(
+                    **provenance,
+                    rateLimit=rate_limit,
+                    filters={"templateIds": template_ids, "tags": tags, "severity": severity},
+                )
+                value["artifacts"] = (
+                    {"template_manifest": provenance["templateManifest"]}
+                    if "templateManifest" in provenance
+                    else {}
+                )
+            return value
 
         return await self._call(
             timeout_seconds,
             arguments,
             destination=lambda: _url_destination(url),
             prepare=prepare_target,
+            observation=observation,
         )
 
 
@@ -466,7 +584,7 @@ class SQLMapTool(ScanTool):
                 command.append(f"--cookie={cookie}")
             return command
 
-        async def prepare_request(directory: Path) -> list[str]:
+        async def prepare_request(directory: Path, _deadline: float) -> list[str]:
             if not (exact_ref is not None):
                 raise RuntimeError("Expected exact_ref is not None")
             try:
@@ -678,7 +796,7 @@ class FFUFTool(ScanTool):
                     command.extend((flag, value))
             return command
 
-        async def prepare_wordlist(directory: Path) -> list[str]:
+        async def prepare_wordlist(directory: Path, _deadline: float) -> list[str]:
             nonlocal entries
             if not (exact_ref is not None):
                 raise RuntimeError("Expected exact_ref is not None")
@@ -814,7 +932,7 @@ class KatanaTool(ScanTool):
                 str(MAX_RESPONSE_BYTES),
             ]
 
-        async def prepare(directory: Path) -> list[str]:
+        async def prepare(directory: Path, _deadline: float) -> list[str]:
             try:
                 await self._session.artifact_client.read_artifact(
                     target, max_bytes=MAX_TARGET_BYTES

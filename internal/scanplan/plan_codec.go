@@ -178,7 +178,7 @@ func (p ScanPlan) Validate() error {
 				return bad()
 			}
 		case "scan_naabu":
-			if job.Request != nil || len(job.Parameters) != 1 || len(job.Artifacts) != 0 || !scanHost(job.Parameters["target"]) || job.Parameters["target"] != strings.ToLower(job.Parameters["target"]) {
+			if job.Request != nil || len(job.Parameters) != 1 || len(job.Artifacts) != 0 || !scan.ValidHost(job.Parameters["target"]) || job.Parameters["target"] != strings.ToLower(job.Parameters["target"]) {
 				return bad()
 			}
 		case "scan_nuclei", "scan_ffuf":

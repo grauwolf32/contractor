@@ -63,7 +63,7 @@ func TestPostgresToolParameterProjectionValidatesBeforeCreationAndPreservesStrin
 	if err != nil {
 		t.Fatal(err)
 	}
-	for index, rate := range []string{"7", "", "07", "+7", "7.0", "7 ", "9007199254740992", "omit"} {
+	for index, rate := range []string{"7", "", "07", "+7", "7.0", "7 ", "0", "1001", "9007199254740992", "omit"} {
 		t.Run(fmt.Sprintf("case-%d", index), func(t *testing.T) {
 			id := fmt.Sprintf("tool-parameter-run-%d", index)
 			parameters := map[string]string{"target": "https://fixture.invalid/"}

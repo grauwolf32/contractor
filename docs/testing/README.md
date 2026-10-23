@@ -203,3 +203,8 @@ For versioned datasets and reproducible comparisons, use the
 [fixture catalog](../../configs/evals/README.md) and
 [instruction-evaluation guide](../../tests/eval/agent_instructions/README.md).
 Offline conformance checks do not measure model quality.
+
+`make test-nuclei-web-e2e` requires PostgreSQL and the installed Nuclei engine.
+It runs the shipped model-free web Workflow through Server/Scheduler/Runtime,
+checks omitted and individual knobs against a loopback HTTP fixture, exact
+package/template provenance, admission refusal and changed-package refusal.

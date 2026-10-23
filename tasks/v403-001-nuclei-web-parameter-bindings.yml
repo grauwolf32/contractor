@@ -12,9 +12,9 @@ languages:
 - python
 - yaml
 - typescript
-goal: An operator can create nuclei-web@1 against one explicit HTTP(S) URL with selected installed
-  rules and rate limits, without a model or OpenAPI document. The working shipped caller, explicit
-  binding projection and installed-content pin land together.
+goal: An operator can create nuclei-web@1 against one explicit HTTP(S) URL with selected installed rules
+  and rate limits, without a model or OpenAPI document. The working shipped caller, explicit binding projection
+  and installed-content pin land together.
 context:
   proposal: docs/proposals/0041-web-nuclei-scanning-and-rule-sweeps.md
   specification:
@@ -26,65 +26,63 @@ context:
   - docs/spec/configuration/catalog.md#CAT-R74
 scope:
   in:
-  - 'Extend parameter bindings with explicit parse: integer and typed default; update Go, Python,
-    wire/OpenAPI schemas, Studio validation and shared fixtures.'
+  - 'Extend parameter bindings with explicit parse: integer and typed default; update Go, Python, wire/OpenAPI
+    schemas, Studio validation and shared fixtures.'
   - Server and Runtime validate projected Nuclei arguments without mutating persisted string parameters;
     use one scanner-owned contract and shared fixtures, no Workflow-name special case.
-  - Ship nuclei-web@1 and nuclei-web-scan@1 in the loaded configs tree with model-free passthrough,
-    local-workdir and a literal installed templates_digest.
+  - Ship nuclei-web@1 and nuclei-web-scan@1 in the loaded configs tree with model-free passthrough, local-workdir
+    and a literal installed templates_digest.
   - Define canonical package manifests, bounded private snapshots, mismatch refusal and package/template/engine
-    provenance. Large selected-template manifests are exact referenced artifacts, not oversized
-    inline reports.
-  - Update owning normative specs, error/limit/lifecycle registries, generated clients through
-    their generators and appropriate real-process tests.
+    provenance. Large selected-template manifests are exact referenced artifacts, not oversized inline
+    reports.
+  - Update owning normative specs, error/limit/lifecycle registries, generated clients through their generators
+    and appropriate real-process tests.
   out:
   - 'Optional custom rulepacks and UserScope input exceptions: V403-003.'
   - 'Cross-Project fan-out: V403-002 and V403-004.'
   - 'UI scan launch forms: V403-005.'
-  - Changing Audit fixtures, model choice, per-host pacing or template-controlled custom-pack
-    egress.
+  - Changing Audit fixtures, model choice, per-host pacing or template-controlled custom-pack egress.
 requirements:
 - id: R1
-  text: Supplied integers match the complete grammar 0|[1-9][0-9]* and the tool range 1..1000.
-    Only omitted parameters select typed defaults; malformed strings, signs, leading zeroes, whitespace,
-    fractions and explicit null fail.
+  text: Supplied integers match the complete grammar 0|[1-9][0-9]* and the tool range 1..1000. Only omitted
+    parameters select typed defaults; malformed strings, signs, leading zeroes, whitespace, fractions
+    and explicit null fail.
 - id: R2
-  text: Unparsed supplied parameter strings retain their bytes; absent bindings without defaults
-    fail; bool is never an integer. Defaults are finite non-null scalars within existing literal/input-size
+  text: Unparsed supplied parameter strings retain their bytes; absent bindings without defaults fail;
+    bool is never an integer. Defaults are finite non-null scalars within existing literal/input-size
     limits.
 - id: R3
-  text: Defaulted and typed arguments enter the input digest; existing execution/create keys retain
-    their conflict and unknown-outcome semantics.
+  text: Defaulted and typed arguments enter the input digest; existing execution/create keys retain their
+    conflict and unknown-outcome semantics.
 - id: R4
-  text: The literal installed-package digest is covered by template/Run snapshots. Scan the verified
-    private copy, including referenced resources, and refuse missing/mismatched sets on replacement
-    allocations.
+  text: The literal installed-package digest is covered by template/Run snapshots. Scan the verified private
+    copy, including referenced resources, and refuse missing/mismatched sets on replacement allocations.
 - id: R5
-  text: Keep the 512 KiB report and 64 KiB bound arguments. A separate exact manifest artifact
-    carries large selected-rule provenance; no raw target arguments enter logs or receipts.
+  text: Keep the 512 KiB report and 64 KiB bound arguments. A separate exact manifest artifact carries
+    large selected-rule provenance; no raw target arguments enter logs or receipts.
 failure_outcomes:
 - operation: Run admission and existing input/config snapshot writes
   permanent: 400 invalid_request for invalid projected scanner inputs; fixed nonretryable tool/preparation
     failure for package mismatch, unavailable content or malformed output. Register scanner diagnostics
     in the existing shared outcome table.
   retryable: Existing storage_transaction_conflict 503 behavior; no new scanner retry policy.
-  ambiguous: Reuse the existing Run create key/digest and tool invocation receipt; changed input
-    under an existing key conflicts and never starts another scan.
+  ambiguous: Reuse the existing Run create key/digest and tool invocation receipt; changed input under
+    an existing key conflicts and never starts another scan.
   cancelled: Join scanner subprocesses, package-copy threads and report publication before allocation
     cleanup.
-  timeout: Existing admission/storage timeout and independent Stage/Worker/scanner deadlines;
-    copying and hashing consume the scanner preparation budget.
+  timeout: Existing admission/storage timeout and independent Stage/Worker/scanner deadlines; copying
+    and hashing consume the scanner preparation budget.
 cardinality:
 - collection: Tool argument bindings per Worker
   expected: 6 to 8
   maximum: 32; 64 KiB canonical resolved input
-  bound: Existing argument/input limits; parse decimal length before allocating or converting
-    an unbounded integer.
+  bound: Existing argument/input limits; parse decimal length before allocating or converting an unbounded
+    integer.
 - collection: Installed package files and provenance manifest
   expected: About 12000 files and tens of MiB per installed set
   maximum: 50000 files; 512 MiB total materialized bytes; 16 MiB per file; 16 MiB manifest
-  bound: Enforce counts and bytes while copying/hashing off the event loop; no unbounded tree
-    read or allocation lock hold.
+  bound: Enforce counts and bytes while copying/hashing off the event loop; no unbounded tree read or
+    allocation lock hold.
 lifecycle:
 - entity: Private installed-package snapshot and exact report/manifest artifacts
   delete: Allocation cleanup joins work and removes scratch; durable artifacts follow Run deletion.
@@ -94,21 +92,20 @@ acceptance_criteria:
 - id: A1
   given: the shipped web Workflow and an installed local HTTP fixture
   when: a Run supplies only target, then a single template ID and each other optional knob
-  then: all valid cases execute model-free; omitted knobs use declared defaults and the stored
-    string mapping is unchanged
+  then: all valid cases execute model-free; omitted knobs use declared defaults and the stored string
+    mapping is unchanged
 - id: A2
   given: canonical and malformed rate/severity/target values in shared fixtures
   when: Go admission and Python binding/tool projection validate them
-  then: both sides agree; invalid inputs fail before launch and no valid numeric string reaches
-    strict callable validation as a string
+  then: both sides agree; invalid inputs fail before launch and no valid numeric string reaches strict
+    callable validation as a string
 - id: A3
   given: the same installed ID with changed bytes/resources or a mismatched replacement allocation
   when: preparation executes
-  then: no scanner starts; a mutation after private snapshot verification cannot alter scanned
-    bytes
+  then: no scanner starts; a mutation after private snapshot verification cannot alter scanned bytes
 - id: A4
-  given: a large eligible installed template set and a scanner failure, timeout, cancellation
-    or ambiguous delivery
+  given: a large eligible installed template set and a scanner failure, timeout, cancellation or ambiguous
+    delivery
   when: the real Worker executes and reports/replays
   then: bounded exact manifest provenance survives; scratch is removed after joining work; failures/unknown
     outcomes never become clean scans or implicit rescans
@@ -128,6 +125,8 @@ tests:
   covers: *id001
 - command: make verify-public-api-postgres
   covers: *id001
+- command: make test-nuclei-web-e2e
+  covers: *id001
 - command: make test-config
   covers: *id001
 - command: make ui-verify
@@ -136,43 +135,55 @@ tests:
   covers: *id001
 progress:
   completed_work:
-  - Implemented strict Go/Python parameter bindings with explicit integer parsing and absence-only
-    typed defaults; admission and Worker projection preserve the supplied string mapping.
-  - Updated private/OpenAPI schemas, generated public clients/validators, Studio validation and
-    UI patch version; added 32 shared binding cases and 24 projection cases read by Go, Python
-    and UI.
-  - Added Worker receipt/recreated-allocation replay regressions and a real PostgreSQL admission
-    test that proves invalid projections create no Run and valid/omitted parameters retain their
-    supplied string representation.
-  - Kept scan-plan dynamic inputs exact and unparsed/default-free in catalog validation and plan
-    codec/builder; covered huge numeric values and UTF-8 default byte bounds.
-  remaining_work:
-  - Implement scanner-owned Server validation of Nuclei URL/filter/severity/rate ranges and matching
-    shared fixtures; generic binding projection alone does not complete A2.
-  - Implement pinned installed-package manifests, bounded private snapshots, mismatch refusal
-    and exact selected-template/engine provenance.
-  - Ship the loaded nuclei-web@1 Workflow and nuclei-web-scan@1 caller with installed content
-    pin; existing Audit fixtures stay unchanged.
-  - Complete the real new-Workflow Server/Runtime execution, cancellation/replacement/report evidence
-    and all remaining listed task checks before marking the task completed.
+  - Implemented strict Go/Python parameter bindings with explicit integer parsing and absence-only typed
+    defaults; admission and Worker projection preserve the supplied string mapping.
+  - Updated private/OpenAPI schemas, generated public clients/validators, Studio validation and UI patch
+    version; added 32 shared binding cases and 24 projection cases read by Go, Python and UI.
+  - Added Worker receipt/recreated-allocation replay regressions and a real PostgreSQL admission test
+    that proves invalid projections create no Run and valid/omitted parameters retain their supplied string
+    representation.
+  - Kept scan-plan dynamic inputs exact and unparsed/default-free in catalog validation and plan codec/builder;
+    covered huge numeric values and UTF-8 default byte bounds.
+  - Shipped nuclei-web@1 and nuclei-web-scan@1 with passthrough/tool@1, explicit optional knob defaults,
+    a 300-second scanner budget and a 330-second Worker diagnostic budget.
+  - Added scanner-owned Server/Runtime URL, filter, severity and numeric validation with shared fixtures;
+    moved the existing host grammar into contracts/scan for production reuse.
+  - Pinned the complete Ansible v10.5.0 installation by canonical manifest; bounded private copying/hash
+    and exact selected-rule manifests run off the event loop. Runtime refuses mismatch, unsafe files and
+    empty/invalid selection before target scanning.
+  - Published create-only exact package/template/engine provenance before scanning and raised bounded
+    additional-artifact verification to 16 MiB while retaining the 512 KiB report cap.
+  - Covered 12001 selected rules, source/resource mutation, replacement pins, snapshot isolation, failure,
+    timeout, cancellation and ambiguous manifest/receipt delivery. The installed-engine smoke consumes
+    a helper resource from the private snapshot.
+  - Updated owning specifications/registries/operator documentation, shared diagnostic classification
+    and its basic UI rendering; no additional Studio work.
+  remaining_work: []
 verification:
   date: '2026-10-23'
-  scope: Partial contract-foundation checkpoint only. V403-001 remains in_progress; the shipped
-    web Workflow and installed-package pin acceptance criteria are not yet complete.
+  scope: All acceptance criteria verified; implementation is ready for the terminal task metadata commit.
   environment: Isolated codex/web-nuclei-sweeps worktree from main 9a5083ffd73e06ea577048bcec2ed89997f22b83;
-    macOS arm64, Go 1.26.9, Node 24.20.0, locked Python 3.13 Runtime and a separate disposable
-    PostgreSQL 17 instance.
+    macOS arm64, Go 1.26.9, Node 24.20.0, locked Python 3.13 Runtime and a separate disposable PostgreSQL
+    17 instance.
   results:
   - 'go test ./internal/contracts/... ./internal/config/... ./internal/runservice/... ./internal/scanplan/...
-    ./internal/publicclient/...: passed with CONTRACTOR_TEST_DATABASE_URL set; the new PostgreSQL
-    regression ran without a skip.'
-  - 'cd runtime && uv run pytest tests/test_contracts.py tests/test_tool_worker.py: 307 passed.'
-  - 'make ui-verify: passed; 190 files, 2312 tests passed and 1 existing expected failure; 17
-    Node server tests passed; lint/typecheck/generated checks/build passed.'
-  - 'make test-wire-cross-language: passed; 246 fixtures, 224 Go and 175 Python shared tests;
-    final shared Runtime selection 1147 passed and 3219 deselected.'
-  - 'make verify-public-api verify-public-api-postgres: passed.'
-  - 'make lint: passed after using the available local toolchains and permitting metadata lookup
-    for the pinned staticcheck tool.'
-  - Generated dependency graph was rebuilt with make docs-dependencies; only its source fingerprint
-    changed. git diff --check passed.
+    ./internal/planner/... ./internal/httpapi/public/...: passed with CONTRACTOR_TEST_DATABASE_URL set
+    to disposable PostgreSQL 17; no database skip.'
+  - 'cd runtime && uv run pytest tests/test_contracts.py tests/test_tool_worker.py tests/test_scan_toolset.py:
+    375 passed; installed Nuclei tests ran, including a private helper resource.'
+  - 'make test-nuclei-web-e2e: passed (115.216s), actual shipped Workflow across real Server/Scheduler/Runtime/Nuclei
+    and loopback HTTP; omitted and all individual knobs, invalid admission and changed package refusal.'
+  - 'make test-wire-cross-language: passed; 248 fixtures, 226 Go and 179 Python shared tests; 1154 Runtime
+    shared tests passed, 3230 deselected. The final added cancellation/publication tests also passed in
+    the full Runtime suite.'
+  - 'make verify-public-api verify-public-api-postgres test-config: passed; loaded shipped catalog includes
+    22 Workflows and 27 AgentTemplates.'
+  - 'make ui-verify: passed; 190 files, 2315 tests passed and 1 existing expected failure, 17 Node server
+    tests; generated/lint/typecheck/build checks passed.'
+  - 'make lint: passed, including shared-fixture readers, release graph, layer checks and import-linter
+    (5 contracts kept, 0 broken).'
+  - 'Verified downloaded v10.5.0 archive SHA-256 against the Ansible pin. Full installed package: 14413
+    files; canonical digest sha256:51a3bd4eef14e95bdeb0bad14ca4bd9bd455479a7044b244b76dee8f6dba5014. Real
+    engine local selection (no target scan): 11925 HTTP templates, 4214853-byte exact manifest.'
+  - make docs-dependencies, specification checker, shared-fixture source checker and git diff --check
+    passed.

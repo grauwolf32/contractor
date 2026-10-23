@@ -66,6 +66,10 @@ EXPECTED_CONFIG_TESTS = {
 # opt-in target that selects it and why release-verify cannot run it; every
 # other e2e-tagged test must be selected by release-verify.
 OPT_IN_E2E_TESTS = {
+    "TestNucleiWebAcrossProductionProcesses": (
+        "test-nuclei-web-e2e",
+        "requires the real nuclei scanner on PATH",
+    ),
     "TestAuditCompositionAcrossProductionProcesses": (
         "test-audit-composition-e2e",
         "requires the real nuclei/sqlmap scanners and Chromium",

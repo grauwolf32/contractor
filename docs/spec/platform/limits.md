@@ -633,7 +633,7 @@ its owning requirement.
 | `LIM-SCN-9` | 64 KiB of canonical JSON | bound arguments plus artifact refs and output binding | tool Worker (Runtime) | [SCN-R16](../tools/scanners.md) |
 | `LIM-SCN-10` | 512 KiB | tool Worker report (application/json) | tool Worker (Runtime), report publication | [SCN-R41](../tools/scanners.md) |
 | `LIM-SCN-11` | 8192 UTF-8 JSON bytes | observation.artifacts map returned by the callable | tool Worker (Runtime) | [SCN-R44](../tools/scanners.md) |
-| `LIM-SCN-12` | 512 KiB read bound | verification read of each additional artifact revision | tool Worker (Runtime) via the Artifact API | [SCN-R45](../tools/scanners.md) |
+| `LIM-SCN-12` | 16 MiB read bound | verification read of each additional artifact revision | tool Worker (Runtime) via the Artifact API | [SCN-R45](../tools/scanners.md) |
 | `LIM-SCN-13` | 256 KiB | SQLMap request artifact | scan_sqlmap adapter (Runtime), before scanner launch | [SCN-R62](../tools/scanners.md) |
 | `LIM-SCN-14` | 64 KiB | UTF-8 body of a SQLMap request artifact | scan_sqlmap adapter (Runtime), before scanner launch | [SCN-R62](../tools/scanners.md) |
 | `LIM-SCN-15` | 8192 bytes | URL of a SQLMap request artifact | scan_sqlmap adapter (Runtime), before scanner launch | [SCN-R62](../tools/scanners.md) |
@@ -690,6 +690,13 @@ its owning requirement.
 | `LIM-SCN-66` | 100 bytes | report.from.name prefix of the scan-plan@1 aggregate report | scan-plan@1 Stage configuration | [SCN-R211](../tools/scanners.md) |
 | `LIM-SCN-67` | ±9007199254740991 (exact integer range of IEEE 754 doubles) | numbers in a JSON or YAML preparation source | Preparation library internal/scanplan | [SCN-R124](../tools/scanners.md) |
 | `LIM-SCN-68` | at most 1 retry | each failed ffuf HTTP request, without another rate-limiter tick | ffuf, within the scan_ffuf deadline (Runtime) | [SCN-R102](../tools/scanners.md) |
+| `LIM-SCN-69` | 50000 files | pinned Nuclei installed package | Runtime streaming private snapshot | [SCN-R227](../tools/scanners.md) |
+| `LIM-SCN-70` | 512 MiB | pinned Nuclei package aggregate file bytes | Runtime streaming private snapshot | [SCN-R227](../tools/scanners.md) |
+| `LIM-SCN-71` | 16 MiB | each pinned Nuclei package file | Runtime streaming private snapshot | [SCN-R227](../tools/scanners.md) |
+| `LIM-SCN-72` | 16 MiB | canonical Nuclei package/selected-template manifest and engine selection output | Runtime preparation and Artifact publication | [SCN-R227](../tools/scanners.md) |
+| `LIM-SCN-73` | 100000 entries | pinned Nuclei package tree including directories | Runtime private snapshot traversal | [SCN-R227](../tools/scanners.md) |
+| `LIM-SCN-74` | 64 directories | pinned Nuclei package nesting depth | Runtime private snapshot traversal | [SCN-R227](../tools/scanners.md) |
+| `LIM-SCN-75` | 1024 UTF-8 bytes | pinned Nuclei package-relative path | Runtime private snapshot traversal | [SCN-R227](../tools/scanners.md) |
 | `LIM-SEC-1` | 256 bits (exactly 32 decoded bytes) | Credential-encryption master key in the --credential-master-key-file (RFC 4648 base64) | Server startup (master key loader) | [SEC-R17](security.md) |
 | `LIM-SEC-2` | at most 1 trailing newline | Content of the credential master key file | Server startup (master key loader) | [SEC-R17](security.md) |
 | `LIM-SEC-3` | 1 active master key | Credential-encryption keyring | Server | [SEC-R20](security.md) |

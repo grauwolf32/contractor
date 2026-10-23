@@ -293,6 +293,24 @@ detection. It accepts either an exact `request_ref` for one prepared HTTP
 request or the existing URL, parameter selection, POST data and cookie
 arguments; both modes accept level and risk. Naabu uses TCP CONNECT scanning
 on one hostname/IP and explicit ports.
+The shipped `nuclei-web@1` Workflow runs this tool without a model. Supply
+`target`, optionally `template_ids`, `tags`, `severity` and a canonical decimal
+`rate_limit` from 1 through 1000 (default 10). It pins the complete Ansible
+nuclei-templates v10.5.0 package. Runtime copies and hashes every file, including
+resources, and scans only the verified private snapshot. A different installation
+fails before scanning. For an operator-managed package, compute its content pin
+and update the `templates_digest` literal in `nuclei-web-scan@1`:
+
+```shell
+cd runtime
+uv run python -m contractor_runtime.toolsets.scan.nuclei_package /path/to/nuclei-templates
+```
+
+The command only copies/hashes local files. The Run returns a bounded `report`
+and an exact `template_manifest` containing package file digests, engine-selected
+template IDs/content digests and engine version. Empty selections fail. A model
+is never called and a completed scan does not establish a secure target.
+
 See upstream CLI references for [nuclei](https://github.com/projectdiscovery/nuclei),
 [sqlmap](https://github.com/sqlmapproject/sqlmap/wiki/usage) and
 [naabu](https://github.com/projectdiscovery/naabu).

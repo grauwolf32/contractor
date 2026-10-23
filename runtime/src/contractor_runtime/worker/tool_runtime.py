@@ -38,6 +38,7 @@ if TYPE_CHECKING:
 
 MAX_INPUT_BYTES = 64 * 1024
 MAX_REPORT_BYTES = 512 * 1024
+MAX_ADDITIONAL_ARTIFACT_BYTES = 16 * 1024 * 1024
 MAX_ADDITIONAL_ARTIFACTS = 16
 MAX_ADDITIONAL_REF_BYTES = 8192
 MAX_RECEIPT_BYTES = 16 * 1024
@@ -254,7 +255,7 @@ class ToolWorkerRuntime:
         # Tools have their own Artifact clients, so a ref in a JSON observation
         # is not proof of publication. Exact reads verify existence and revision.
         for ref in refs.values():
-            await self._client.read_artifact(ref, max_bytes=MAX_REPORT_BYTES)
+            await self._client.read_artifact(ref, max_bytes=MAX_ADDITIONAL_ARTIFACT_BYTES)
 
     async def invoke(self, request: StageContentRequest) -> WorkerCompletion:
         if not self._accepting:

@@ -19,7 +19,7 @@
 	test-http-caido-matrix test-http-caido-runtime test-http-cookie-store \
 	test-http-caido-architecture test-http-caido-hardening \
 	test-shared-memory-e2e test-production-memory-e2e test-http-caido-e2e \
-	test-scan-e2e
+	test-scan-e2e test-nuclei-web-e2e
 
 # These opt-in process tests dispatch real host scanners, so they need the
 # binaries in addition to the release gate's usual database and Runtime.
@@ -135,3 +135,9 @@ test-production-memory-e2e: require-database runtime-venv
 
 test-http-caido-e2e: require-database runtime-venv
 	$(call run-family-test,go test -tags=e2e -count=1 -timeout=6m ./tests/e2e -run '^TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses$$')
+
+# The installed-engine smoke is explicit until the resumable sweep gate also
+# supplies its deterministic scanner fixture.
+test-nuclei-web-e2e: require-database runtime-venv
+	@command -v nuclei >/dev/null || { echo "real nuclei is required on PATH" >&2; exit 1; }
+	go test -tags=e2e -count=1 -timeout=6m ./tests/e2e -run '^TestNucleiWebAcrossProductionProcesses$$'
