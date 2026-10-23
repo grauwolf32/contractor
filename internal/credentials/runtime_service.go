@@ -85,7 +85,7 @@ func (s *RuntimeCredentialService) Create(
 		return RuntimeCredentialCreateResult{}, err
 	}
 	if s.cipher == nil {
-		return RuntimeCredentialCreateResult{}, ErrKeyUnavailable
+		return RuntimeCredentialCreateResult{}, ErrCredentialKeyUnavailable
 	}
 	requestMAC, err := s.cipher.RuntimeCredentialRequestMAC(request.CredentialID, request.Material)
 	if err != nil {
@@ -214,7 +214,7 @@ func (s *RuntimeCredentialService) Use(
 			return err
 		}
 		if s.cipher == nil {
-			return ErrKeyUnavailable
+			return ErrCredentialKeyUnavailable
 		}
 		material, err := s.cipher.OpenRuntimeCredential(record.Metadata.CredentialID, record.Metadata.Kind, record.Envelope)
 		if err != nil {
@@ -263,6 +263,11 @@ func (s *RuntimeCredentialService) Delete(
 	if s == nil || s.repository == nil || s.barrier == nil ||
 		validateRuntimeCredentialID(credentialID) != nil || !validActorID(actor) {
 		return RuntimeCredentialDeleteResult{}, runtimeInvalid("Runtime credential delete request is invalid")
+	}
+	// Without the master key no Runtime credential can exist (RCF-R44), so the
+	// request stops before any read or write.
+	if s.cipher == nil {
+		return RuntimeCredentialDeleteResult{}, ErrCredentialKeyUnavailable
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()

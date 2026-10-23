@@ -1393,7 +1393,7 @@ export interface paths {
         };
         /**
          * Project a terminal Run into a reviewed new-Run draft
-         * @description Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. Historical requests that predate executionConfig retention remain explicitly unavailable instead of inheriting current defaults silently.
+         * @description Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. The draft requires the Run's retained executionConfig fragment, valid and matching its Workflow and Project; a missing or invalid fragment returns a blocking notice and no draft, and neither lineage nor current or effective configuration reconstructs the original request.
          */
         get: operations["getRunRepeatDraft"];
         put?: never;
@@ -6579,6 +6579,26 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description Credential lifecycle recovery has not completed (`credential_recovery_required`) or a definite database transaction conflict exhausted retries (`storage_transaction_conflict`), both retryable after they settle; or the Server was started without a credential master key (`credential_key_unavailable`, retryable false), so nothing is written and no Gateway call is made until an operator configures the key and restarts the Server */
+        CredentialMutationUnavailable: {
+            headers: {
+                "X-Request-ID": components["headers"]["RequestId"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description A definite database transaction conflict exhausted retries (`storage_transaction_conflict`, retryable); or the Server was started without a credential master key (`credential_key_unavailable`, retryable false), so nothing is written until an operator configures the key and restarts the Server */
+        RuntimeCredentialMutationUnavailable: {
+            headers: {
+                "X-Request-ID": components["headers"]["RequestId"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description Credential recovery is in progress or a definite database transaction conflict exhausted retries; retry with the same Idempotency-Key */
         RunCreationUnavailable: {
             headers: {
@@ -11641,7 +11661,7 @@ export interface operations {
             409: components["responses"]["Conflict"];
             413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
-            503: components["responses"]["StorageTransactionConflict"];
+            503: components["responses"]["RuntimeCredentialMutationUnavailable"];
         };
     };
     getRuntimeCredential: {
@@ -11698,7 +11718,7 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             500: components["responses"]["InternalError"];
-            503: components["responses"]["StorageTransactionConflict"];
+            503: components["responses"]["RuntimeCredentialMutationUnavailable"];
         };
     };
     listRuntimeAgentPrincipals: {
@@ -11903,7 +11923,7 @@ export interface operations {
             413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
             502: components["responses"]["GatewayUnavailable"];
-            503: components["responses"]["CredentialRecoveryRequired"];
+            503: components["responses"]["CredentialMutationUnavailable"];
         };
     };
     getCredential: {
@@ -11960,7 +11980,7 @@ export interface operations {
             409: components["responses"]["CredentialInUse"];
             500: components["responses"]["InternalError"];
             502: components["responses"]["GatewayUnavailable"];
-            503: components["responses"]["CredentialRecoveryRequired"];
+            503: components["responses"]["CredentialMutationUnavailable"];
         };
     };
     getModelSelection: {

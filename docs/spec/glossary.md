@@ -1037,7 +1037,7 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Standalone Run** — A WorkflowRun created without a Project. Owner: [Runs](execution/runs.md).
 
-**Standby Server** — A Server process on the same database that does not hold the advisory lease and has only public health and 503 readiness until it acquires it. Owner: [Persistence](platform/persistence.md).
+**Standby Server** — A Server process on the same database that does not hold the advisory lease and has only public health, 503 readiness and the retryable `server_standby` answer under `/v1` until it acquires it. Owner: [Persistence](platform/persistence.md).
 
 **Static operation** — A GraphQL document that is a source-code constant selected by a Caido tool method. Owner: [HTTP and Caido tools](tools/http-caido.md).
 

@@ -115,6 +115,12 @@ var (
 		"A definite PostgreSQL transaction conflict (serialization failure or deadlock), including one that outlasts "+
 			"the bounded transaction retries of its operation; nothing committed, so the request may be repeated.",
 		link("PER-R16", "persistence.md"))
+	ServerStandby = define("server_standby", http.StatusServiceUnavailable, true,
+		"Server is standing by for the active Server; retry shortly",
+		"This Server is a standby: another Server holds the database's single-active lease, so it answers every "+
+			"public API request, the event upgrade included, without authenticating or routing it, until it takes "+
+			"over or the client reaches the active Server; nothing changes.",
+		link("PER-R3", "persistence.md"))
 	InternalError = define("internal_error", http.StatusInternalServerError, true,
 		"request could not be processed",
 		"An unclassified failure, answered without its cause. The Server cannot tell a transient failure from a "+
@@ -293,6 +299,12 @@ var (
 		"The bound Gateway credential manager failed or is not configured, so the credential operation did not "+
 			"complete; the database record is retained.",
 		link("RCF-R49", runtimeCfg))
+	CredentialKeyUnavailable = define("credential_key_unavailable", http.StatusServiceUnavailable, false,
+		"credential master key is not configured on this Server",
+		"The Server was started without a credential master key, so it can neither create, delete nor use an "+
+			"LLM or Runtime credential; nothing is written and no Gateway call is made. No retry succeeds until an "+
+			"operator configures the key and restarts the Server.",
+		link("RCF-R44", runtimeCfg))
 	CredentialRecoveryRequired = define("credential_recovery_required", http.StatusServiceUnavailable, true,
 		"credential operation recovery is in progress",
 		"An earlier credential operation ended ambiguously, so new Run initialization and credential changes wait "+

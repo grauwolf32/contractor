@@ -205,6 +205,7 @@ func TestServerRetryableFlagDecidesRetriesOnEveryStatus(t *testing.T) {
 	}{
 		{name: "503 not retryable", status: http.StatusServiceUnavailable, code: "artifact_content_corrupt", calls: 1},
 		{name: "503 retryable", status: http.StatusServiceUnavailable, code: "storage_transaction_conflict", retryable: true, calls: 2},
+		{name: "503 without a master key", status: http.StatusServiceUnavailable, code: "credential_key_unavailable", calls: 1},
 		{name: "502 not retryable", status: http.StatusBadGateway, code: "gateway_rejected", calls: 1},
 		{name: "504 not retryable", status: http.StatusGatewayTimeout, code: "git_import_timeout", calls: 1},
 		{name: "idempotency conflict", status: http.StatusConflict, code: "idempotency_conflict", calls: 1},

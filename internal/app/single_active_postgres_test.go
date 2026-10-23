@@ -1,13 +1,18 @@
 package app
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net"
 	"net/http"
 	"testing"
 	"time"
+
+	publicapi "github.com/grauwolf32/contractor/internal/httpapi/public"
+	"github.com/grauwolf32/contractor/internal/requestid"
 )
 
 func TestPostgresControlPlaneLeaseReleasesOnNormalExit(t *testing.T) {
@@ -142,6 +147,7 @@ func TestPostgresControlPlaneLeaseStandbyAndTakeover(t *testing.T) {
 	if health.StatusCode != http.StatusOK {
 		t.Fatalf("standby health = %d, want 200", health.StatusCode)
 	}
+	assertStandbyPublicAPI(t, client, "http://"+standbyAddress)
 	select {
 	case completed := <-standbyDone:
 		standbyReceived = true
@@ -181,5 +187,58 @@ func TestPostgresControlPlaneLeaseStandbyAndTakeover(t *testing.T) {
 		_ = rebound.Close()
 	case <-ctx.Done():
 		t.Fatal("standby did not acquire released lease", ctx.Err())
+	}
+}
+
+// assertStandbyPublicAPI checks that a standby answers a /v1 request and the
+// event upgrade with the retryable server_standby error envelope (PER-R3),
+// never the plain-text 404 that a client reads as a missing resource.
+func assertStandbyPublicAPI(t *testing.T, client *http.Client, baseURL string) {
+	t.Helper()
+	runs, err := http.NewRequest(http.MethodGet, baseURL+"/v1/runs", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runs.Header.Set("Authorization", "Bearer standby-test")
+	upgrade, err := http.NewRequest(http.MethodGet, baseURL+"/v1/events/ws", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, value := range map[string]string{
+		"Connection": "Upgrade", "Upgrade": "websocket", "Sec-WebSocket-Version": "13",
+		"Sec-WebSocket-Key": "dGhlIHNhbXBsZSBub25jZQ==", "Sec-WebSocket-Protocol": "contractor.events.v1",
+	} {
+		upgrade.Header.Set(name, value)
+	}
+	for _, request := range []*http.Request{runs, upgrade} {
+		response, err := client.Do(request)
+		if err != nil {
+			t.Fatalf("standby %s: %v", request.URL.Path, err)
+		}
+		body, err := io.ReadAll(response.Body)
+		_ = response.Body.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		var envelope struct {
+			Code      string `json:"code"`
+			Message   string `json:"message"`
+			Retryable bool   `json:"retryable"`
+			RequestID string `json:"requestId"`
+		}
+		decoder := json.NewDecoder(bytes.NewReader(body))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&envelope); err != nil {
+			t.Fatalf("standby %s body %q: %v", request.URL.Path, body, err)
+		}
+		requestID := response.Header.Get(requestid.Header)
+		if response.StatusCode != http.StatusServiceUnavailable ||
+			response.Header.Get("Content-Type") != "application/json" ||
+			response.Header.Get("Cache-Control") != "no-store" ||
+			response.Header.Get(publicapi.APIVersionHeader) != publicapi.APIVersion ||
+			envelope.Code != "server_standby" || !envelope.Retryable || envelope.Message == "" ||
+			!requestid.Valid(requestID) || envelope.RequestID != requestID {
+			t.Fatalf("standby %s = %d headers=%v body=%s", request.URL.Path, response.StatusCode, response.Header, body)
+		}
 	}
 }

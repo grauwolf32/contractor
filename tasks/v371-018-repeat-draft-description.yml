@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: api-contracts
 kind: chore
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [yaml, go, typescript]
 goal: "The getRunRepeatDraft description states only behaviour the Server has, and the generated clients repeat it."

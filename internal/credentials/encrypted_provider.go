@@ -83,7 +83,7 @@ func (p *EncryptedProvider) ResolveLLMCredential(
 		return contracts.SecretString{}, ErrNotFound
 	}
 	if p.cipher == nil {
-		return contracts.SecretString{}, ErrKeyUnavailable
+		return contracts.SecretString{}, ErrCredentialKeyUnavailable
 	}
 	token, err := p.cipher.Open(record.CredentialID, record.LLMGateway, record.Envelope)
 	if err != nil {
