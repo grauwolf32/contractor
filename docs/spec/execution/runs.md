@@ -401,8 +401,8 @@ sets `running` and the Run's first `started_at`. Each Stage records its own
 can wait for capacity without consuming its execution deadline
 ([Scheduler](scheduler.md)).
 
-**RUN-R29.** Admission, cancellation and finalization share Run-first
-transaction locking.
+**RUN-R29.** Admission, Planner start, cancellation and finalization share
+Run-first transaction locking.
 
 **RUN-R106.** RunStore alone changes the state of a Run or a
 StageExecution and takes their exclusive row locks
@@ -1013,6 +1013,13 @@ rules, including report envelopes and label propagation, are in
     `TestPostgresFailRunWithActiveStagesEndsEveryActiveStage` and
     `TestPostgresStageAdmissionMarksOnceAndDiscardsOnlyUnadmittedPlacements` in
     [`internal/runstore`](../../../internal/runstore/transition_owner_postgres_test.go).
+11. Planner start locks the owning Run row before its Stage compare-and-set:
+    on a pool in its own replay-safe transaction, otherwise once inside its
+    caller's (RUN-R29, [PER-R18](../platform/persistence.md)); tests
+    `TestPostgresStartPlannerLocksTheRunBeforeTheStage` in
+    [`internal/runstore`](../../../internal/runstore/start_planner_postgres_test.go)
+    and `TestPostgresBeginLocksTheRunBeforeTheStage` in
+    [`internal/planner/session`](../../../internal/planner/session/start_lock_order_postgres_test.go).
 
 ## Examples
 

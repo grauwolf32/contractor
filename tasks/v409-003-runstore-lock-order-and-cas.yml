@@ -6,7 +6,7 @@ epic: execution-core
 kind: defect
 introduced_by: V3-009
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, sql]
 goal: "Make StartPlanner obey the Run-before-Stage lock order without changing Planner start, continuation replay or scheduler-claim expiry semantics."
