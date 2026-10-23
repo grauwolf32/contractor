@@ -1225,3 +1225,23 @@ authoritative REST snapshot (UI-R29). Shared rules are in
   query contract.
 - Audit WebSocket subscriptions, their authorization, cursor and sequence
   replay, and resync are deferred as one complete later transport feature.
+
+**UI-R203.** Checks exposes a basic web scan launcher at `/checks/web/new`,
+with optional `project` context. It selects an ordinary Project or standalone
+execution, submits the reviewed target URL explicitly, and offers rule IDs,
+tags, severity and an optional request rate without coercing supplied strings.
+Rulepacks are selected or uploaded in the owner's library and submitted as exact
+refs even for Project Runs. Pickers page through the Server inventory, retain
+selected exact refs across refreshes, and show read/write errors. A pending
+submission disables editing; an unchanged retry reuses its request key. Success
+opens the existing Run detail and result lifecycle. This basic launcher does
+not require the configuration editor.
+
+**UI-R204.** Workflow-specific controls live in bundled widgets, selected by
+an explicit registry and checked against the exact published Workflow version,
+required parameters and input source/media contracts. A widget owns domain
+field labels and controls. Shared hosts own Project and material pickers,
+authenticated API writes, request keys, navigation and execution lifecycle.
+An incompatible contract cannot launch through the widget; the generic
+Workflow form remains available. A widget may be reused by single-Run and
+sweep launchers. No dynamic plugin loader or Studio editing is required.

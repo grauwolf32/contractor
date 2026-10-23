@@ -1,0 +1,13 @@
+.scan-page {
+  max-width: 960px;
+  margin-inline: auto;
+}
+.scan-fields {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.scan-page code {
+  overflow-wrap: anywhere;
+}

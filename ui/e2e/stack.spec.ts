@@ -1118,3 +1118,80 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
     mode: 0o600,
   });
 });
+
+// The specialized widget uses the ordinary Run API and owner library even
+// without a scanner-capable allocation. Loopback is intentionally denied by
+// Runtime policy: this browser journey proves admission/input wiring, while
+// the focused scanner process gate proves execution against its own fixture.
+test("widget: launches the web scan widget with one owner rulepack through the real API", async ({
+  page,
+}) => {
+  const apiURL = requiredEnvironment("CONTRACTOR_UI_E2E_API_URL");
+  await page.goto("/checks/web/new");
+  await login(
+    page,
+    requiredEnvironment("CONTRACTOR_UI_E2E_USERNAME"),
+    requiredEnvironment("CONTRACTOR_UI_E2E_PASSWORD"),
+  );
+  await page.getByLabel("Rule source").selectOption("custom");
+  await page
+    .getByRole("button", { name: "Upload rulepack", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Drop a file here").setInputFiles({
+    name: "widget-process-rule.yaml",
+    mimeType: "application/yaml",
+    buffer: Buffer.from(
+      "id: widget-process-rule\ninfo:\n  name: Widget fixture\n  author: contractor\n  severity: info\nhttp:\n  - method: GET\n    path:\n      - '{{BaseURL}}/'\n",
+    ),
+  });
+  await dialog.getByRole("button", { name: "Upload and select" }).click();
+  await expect(dialog).toHaveCount(0);
+  await page.getByLabel("Target URL").fill("http://127.0.0.1:1/");
+  let widgetRequest: string | null = null;
+  await page.route("**/v1/runs", async (route) => {
+    if (route.request().method() === "POST")
+      widgetRequest = route.request().postData();
+    await route.continue();
+  });
+  const responsePromise = page.waitForResponse(
+    (response) =>
+      response.url() === `${apiURL}/v1/runs` &&
+      response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "Start scan", exact: true }).click();
+  const response = await responsePromise;
+  expect(response.status()).toBe(202);
+  const request = JSON.parse(widgetRequest ?? "null") as {
+    artifacts: {
+      rulepack: { namespace: string; name: string; revision: string };
+    };
+  };
+  expect(request.artifacts.rulepack).toMatchObject({
+    namespace: "inputs",
+    name: "widget-process-rule",
+  });
+  expect(request.artifacts.rulepack.revision).not.toBe("");
+  const run = (await response.json()) as { runId: string };
+  await expect(page).toHaveURL(new RegExp(`/runs/${run.runId}$`));
+  const cancelled = await page.evaluate(
+    async ({ apiURL, runId }) => {
+      const session = (await (
+        await fetch(`${apiURL}/v1/auth/session`, { credentials: "include" })
+      ).json()) as { csrfToken: string };
+      return (
+        await fetch(`${apiURL}/v1/runs/${runId}/cancel`, {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRF-Token": session.csrfToken,
+          },
+          body: JSON.stringify({ reason: "Browser fixture cleanup" }),
+        })
+      ).status;
+    },
+    { apiURL, runId: run.runId },
+  );
+  expect([202, 409]).toContain(cancelled);
+});

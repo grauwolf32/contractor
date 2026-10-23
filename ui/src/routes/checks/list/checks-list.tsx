@@ -200,9 +200,21 @@ export function ChecksListPane({
       title="Checks"
       subtitle={subtitle}
       actions={
-        <ButtonLink variant="primary" size="sm" to={startHref}>
-          Start a check
-        </ButtonLink>
+        <div className="ui-toolbar">
+          <ButtonLink variant="primary" size="sm" to={startHref}>
+            Start a check
+          </ButtonLink>
+          <ButtonLink
+            size="sm"
+            to={
+              projectId === undefined
+                ? "/checks/web/new"
+                : `/checks/web/new?${new URLSearchParams({ project: projectId })}`
+            }
+          >
+            Web scan
+          </ButtonLink>
+        </div>
       }
       toolbar={
         <div className="checks-list-toolbar">

@@ -26,6 +26,7 @@ const mockedSpecs = [
   "e2e/runs-navigation.spec.ts",
   "e2e/scheduler-settings.spec.ts",
   "e2e/studio.spec.ts",
+  "e2e/web-scans.spec.ts",
 ];
 
 const processSpecs = [

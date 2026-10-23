@@ -129,6 +129,8 @@ test("known client routes get no-store index and a derived CSP", async (t) => {
     "/checks",
     "/checks?state=waiting_review&project=project_example&check=audit_example",
     "/checks/new",
+    "/checks/web/new",
+    "/checks/web/new?project=project_example",
     "/checks/new?project=project_example&objective=Find%20IDOR&type=owasp-top10",
     "/issues",
     "/issues?state=proposed&project=project_example&severity=high",

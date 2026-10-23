@@ -9,6 +9,7 @@ status: in_progress
 depends_on:
 - V406-003
 languages:
+- go
 - typescript
 - css
 goal: An operator starts a standalone or Project web scan using a form for target, rules and rate
@@ -89,7 +90,7 @@ tests:
   - A3
 - command: make ui-browser-mocked
   covers: *id001
-- command: make test-ui-stack-operations
+- command: make test-web-scan-ui-stack
   covers: *id001
 - command: make lint
   covers: *id001

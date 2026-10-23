@@ -67,6 +67,13 @@ export function applicationRoutes(): RouteObject[] {
               path: "/checks/new",
               lazy: lazyRoute(startCheck, "StartCheckRoute"),
             },
+            {
+              path: "/checks/web/new",
+              lazy: lazyRoute(
+                () => import("../routes/scans/new"),
+                "WebScanRoute",
+              ),
+            },
             // Issues and Reports keep the selected item in the path. A list
             // and its item route share one component, so selecting an item
             // keeps the list mounted.
