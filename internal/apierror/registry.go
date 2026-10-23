@@ -293,6 +293,12 @@ var (
 		"The bound Gateway credential manager failed or is not configured, so the credential operation did not "+
 			"complete; the database record is retained.",
 		link("RCF-R49", runtimeCfg))
+	CredentialKeyUnavailable = define("credential_key_unavailable", http.StatusServiceUnavailable, false,
+		"credential master key is not configured on this Server",
+		"The Server was started without a credential master key, so it can neither create, delete nor use an "+
+			"LLM or Runtime credential; nothing is written and no Gateway call is made. No retry succeeds until an "+
+			"operator configures the key and restarts the Server.",
+		link("RCF-R44", runtimeCfg))
 	CredentialRecoveryRequired = define("credential_recovery_required", http.StatusServiceUnavailable, true,
 		"credential operation recovery is in progress",
 		"An earlier credential operation ended ambiguously, so new Run initialization and credential changes wait "+

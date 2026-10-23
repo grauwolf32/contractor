@@ -27,10 +27,16 @@ var (
 	ErrInvalid  = apierror.New(apierror.InvalidRequest, "invalid LLM credential")
 	ErrConflict = apierror.New(apierror.CredentialConflict, "LLM credential conflict")
 	ErrCrypto   = errors.New("LLM credential cryptographic failure")
-	// ErrKeyUnavailable has no public Kind: an LLM or Runtime credential
-	// operation without the master key is an internal error, while the Git key
-	// reports its narrower ErrGitKeyUnavailable.
-	ErrKeyUnavailable     = errors.New("LLM credential master key is unavailable")
+	// ErrKeyUnavailable reports a master key that is missing, unreadable or does
+	// not match the stored rows. It has no public Kind: startup refuses such a
+	// key (RCF-R44, SEC-R18), and a Server that runs without a key answers
+	// through the narrower ErrCredentialKeyUnavailable or ErrGitKeyUnavailable.
+	ErrKeyUnavailable = errors.New("LLM credential master key is unavailable")
+	// ErrCredentialKeyUnavailable reports a Server started without a master
+	// key: it can neither create, delete nor use an LLM or Runtime credential
+	// until an operator configures the key and restarts it (RCF-R44).
+	ErrCredentialKeyUnavailable = apierror.Narrow(ErrKeyUnavailable, apierror.CredentialKeyUnavailable,
+		"LLM and Runtime credential encryption")
 	ErrManagerUnavailable = apierror.New(apierror.GatewayUnavailable, "Gateway credential manager is unavailable")
 	budgetDurationPattern = regexp.MustCompile(`^[1-9][0-9]*(s|m|h|d|mo)$`)
 )

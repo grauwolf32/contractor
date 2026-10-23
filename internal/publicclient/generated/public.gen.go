@@ -7686,6 +7686,9 @@ type Error409 = Error
 // CredentialInUse defines model for CredentialInUse.
 type CredentialInUse = Error
 
+// CredentialMutationUnavailable defines model for CredentialMutationUnavailable.
+type CredentialMutationUnavailable = Error
+
 // CredentialRecoveryRequired defines model for CredentialRecoveryRequired.
 type CredentialRecoveryRequired = Error
 
@@ -7739,6 +7742,9 @@ type RateLimited = Error
 
 // RunCreationUnavailable defines model for RunCreationUnavailable.
 type RunCreationUnavailable = Error
+
+// RuntimeCredentialMutationUnavailable defines model for RuntimeCredentialMutationUnavailable.
+type RuntimeCredentialMutationUnavailable = Error
 
 // RuntimeLabelWritten defines model for RuntimeLabelWritten.
 type RuntimeLabelWritten = RuntimeLabelBinding
@@ -39792,7 +39798,7 @@ type CreateCredentialResponse struct {
 	// JSON502 the response for an HTTP 502 `application/json` response
 	JSON502 *GatewayUnavailable
 	// JSON503 the response for an HTTP 503 `application/json` response
-	JSON503 *CredentialRecoveryRequired
+	JSON503 *CredentialMutationUnavailable
 	// Headers201 the parsed response headers for an HTTP 201 response
 	Headers201 *CreateCredentialResponse201Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -39854,7 +39860,7 @@ func (r CreateCredentialResponse) GetJSON502() *GatewayUnavailable {
 }
 
 // GetJSON503 returns the response for an HTTP 503 `application/json` response
-func (r CreateCredentialResponse) GetJSON503() *CredentialRecoveryRequired {
+func (r CreateCredentialResponse) GetJSON503() *CredentialMutationUnavailable {
 	return r.JSON503
 }
 
@@ -39952,7 +39958,7 @@ type DeleteCredentialResponse struct {
 	// JSON502 the response for an HTTP 502 `application/json` response
 	JSON502 *GatewayUnavailable
 	// JSON503 the response for an HTTP 503 `application/json` response
-	JSON503 *CredentialRecoveryRequired
+	JSON503 *CredentialMutationUnavailable
 	// Headers204 the parsed response headers for an HTTP 204 response
 	Headers204 *DeleteCredentialResponse204Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -40009,7 +40015,7 @@ func (r DeleteCredentialResponse) GetJSON502() *GatewayUnavailable {
 }
 
 // GetJSON503 returns the response for an HTTP 503 `application/json` response
-func (r DeleteCredentialResponse) GetJSON503() *CredentialRecoveryRequired {
+func (r DeleteCredentialResponse) GetJSON503() *CredentialMutationUnavailable {
 	return r.JSON503
 }
 
@@ -41606,7 +41612,7 @@ type CreateRuntimeCredentialResponse struct {
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
 	// JSON503 the response for an HTTP 503 `application/json` response
-	JSON503 *StorageTransactionConflict
+	JSON503 *RuntimeCredentialMutationUnavailable
 	// Headers201 the parsed response headers for an HTTP 201 response
 	Headers201 *CreateRuntimeCredentialResponse201Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -41661,7 +41667,7 @@ func (r CreateRuntimeCredentialResponse) GetJSON500() *InternalError {
 }
 
 // GetJSON503 returns the response for an HTTP 503 `application/json` response
-func (r CreateRuntimeCredentialResponse) GetJSON503() *StorageTransactionConflict {
+func (r CreateRuntimeCredentialResponse) GetJSON503() *RuntimeCredentialMutationUnavailable {
 	return r.JSON503
 }
 
@@ -41752,7 +41758,7 @@ type DeleteRuntimeCredentialResponse struct {
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
 	// JSON503 the response for an HTTP 503 `application/json` response
-	JSON503 *StorageTransactionConflict
+	JSON503 *RuntimeCredentialMutationUnavailable
 	// Headers204 the parsed response headers for an HTTP 204 response
 	Headers204 *DeleteRuntimeCredentialResponse204Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -41802,7 +41808,7 @@ func (r DeleteRuntimeCredentialResponse) GetJSON500() *InternalError {
 }
 
 // GetJSON503 returns the response for an HTTP 503 `application/json` response
-func (r DeleteRuntimeCredentialResponse) GetJSON503() *StorageTransactionConflict {
+func (r DeleteRuntimeCredentialResponse) GetJSON503() *RuntimeCredentialMutationUnavailable {
 	return r.JSON503
 }
 
@@ -65116,7 +65122,7 @@ func ParseCreateCredentialResponse(rsp *http.Response) (*CreateCredentialRespons
 		response.JSON502 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest CredentialRecoveryRequired
+		var dest CredentialMutationUnavailable
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -65308,7 +65314,7 @@ func ParseDeleteCredentialResponse(rsp *http.Response) (*DeleteCredentialRespons
 		response.JSON502 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest CredentialRecoveryRequired
+		var dest CredentialMutationUnavailable
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -67301,7 +67307,7 @@ func ParseCreateRuntimeCredentialResponse(rsp *http.Response) (*CreateRuntimeCre
 		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest StorageTransactionConflict
+		var dest RuntimeCredentialMutationUnavailable
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -67483,7 +67489,7 @@ func ParseDeleteRuntimeCredentialResponse(rsp *http.Response) (*DeleteRuntimeCre
 		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest StorageTransactionConflict
+		var dest RuntimeCredentialMutationUnavailable
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

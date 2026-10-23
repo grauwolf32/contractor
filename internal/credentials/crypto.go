@@ -54,7 +54,7 @@ func (c *TokenCipher) SealRuntimeCredential(
 	material RuntimeCredentialMaterial,
 ) (EncryptedEnvelope, error) {
 	if c == nil || c.aead == nil {
-		return EncryptedEnvelope{}, ErrKeyUnavailable
+		return EncryptedEnvelope{}, ErrCredentialKeyUnavailable
 	}
 	if err := validateCredentialID(credentialID); err != nil || !validRuntimeCredentialKind(material.kind) ||
 		len(material.canonical) == 0 || len(material.canonical) > MaximumRuntimePlaintextBytes {
@@ -85,7 +85,7 @@ func (c *TokenCipher) OpenRuntimeCredential(
 	envelope EncryptedEnvelope,
 ) (RuntimeCredentialMaterial, error) {
 	if c == nil || c.aead == nil {
-		return RuntimeCredentialMaterial{}, ErrKeyUnavailable
+		return RuntimeCredentialMaterial{}, ErrCredentialKeyUnavailable
 	}
 	if err := validateCredentialID(credentialID); err != nil || !validRuntimeCredentialKind(kind) {
 		return RuntimeCredentialMaterial{}, ErrRuntimeCredentialInvalid
@@ -116,7 +116,7 @@ func (c *TokenCipher) RuntimeCredentialRequestMAC(
 	material RuntimeCredentialMaterial,
 ) ([]byte, error) {
 	if c == nil || c.aead == nil {
-		return nil, ErrKeyUnavailable
+		return nil, ErrCredentialKeyUnavailable
 	}
 	if err := validateCredentialID(credentialID); err != nil || !validRuntimeCredentialKind(material.kind) ||
 		len(material.canonical) == 0 || len(material.canonical) > MaximumRuntimePlaintextBytes {
@@ -170,7 +170,7 @@ func (c *TokenCipher) Seal(
 	token Token,
 ) (EncryptedEnvelope, error) {
 	if c == nil || c.aead == nil {
-		return EncryptedEnvelope{}, ErrKeyUnavailable
+		return EncryptedEnvelope{}, ErrCredentialKeyUnavailable
 	}
 	if err := validateCipherIdentity(credentialID, gateway); err != nil {
 		return EncryptedEnvelope{}, err
@@ -205,7 +205,7 @@ func (c *TokenCipher) Open(
 	envelope EncryptedEnvelope,
 ) (Token, error) {
 	if c == nil || c.aead == nil {
-		return Token{}, ErrKeyUnavailable
+		return Token{}, ErrCredentialKeyUnavailable
 	}
 	if err := validateCipherIdentity(credentialID, gateway); err != nil {
 		return Token{}, err

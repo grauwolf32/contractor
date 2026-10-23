@@ -352,6 +352,59 @@ describe("Operations API", () => {
     expect(JSON.stringify(credential)).not.toMatch(/token|cipher|remoteKey/i);
   });
 
+  // A Server started without a credential master key refuses every
+  // credential mutation with the permanent credential_key_unavailable
+  // (RCF-R44): the client sends each request once and keeps the Server's
+  // message and retryable false for the page.
+  it("sends a credential mutation once when the Server has no master key", async () => {
+    const fetch = vi.fn(async () =>
+      response(
+        {
+          code: "credential_key_unavailable",
+          message: "credential master key is not configured on this Server",
+          retryable: false,
+          requestId: "request-1",
+        },
+        503,
+      ),
+    );
+    const api = new PublicAPI(runtimeConfig, fetch);
+    api.csrf.replace("a".repeat(43));
+    const mutations: (() => Promise<unknown>)[] = [
+      () =>
+        createCredential(
+          api,
+          {
+            credentialId: "worker-budget",
+            llmGateway: gateway,
+            gatewayPolicy: { modelPolicies: [policy] },
+          },
+          "credential-create-1",
+        ),
+      () => deleteCredential(api, "worker-budget", "credential-delete-1"),
+      () =>
+        createRuntimeCredential(
+          api,
+          {
+            credentialId: "otel-debug",
+            kind: "otlp-headers@1",
+            material: { headers: { authorization: "WRITE_ONLY_CANARY" } },
+          },
+          "runtime-credential-create-1",
+        ),
+      () => deleteRuntimeCredential(api, "otel-debug", "runtime-delete-1"),
+    ];
+    for (const [index, mutation] of mutations.entries()) {
+      await expect(mutation()).rejects.toMatchObject({
+        status: 503,
+        code: "credential_key_unavailable",
+        message: "credential master key is not configured on this Server",
+        retryable: false,
+      });
+      expect(fetch).toHaveBeenCalledTimes(index + 1);
+    }
+  });
+
   // Credential IDs are ConfigId (CreateCredentialRequest.credentialId and
   // the CredentialId path parameter), which also allows capitals, digits
   // first and dots; a ConfigurationName check refused them.

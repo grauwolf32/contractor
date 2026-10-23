@@ -413,7 +413,13 @@ decryption operation and the model-client settings that actively need it.
 under [LLM credential read model](#llm-credential-read-model).
 
 **RCF-R44.** When any credential row exists, Server startup requires the
-credential-encryption master key ([Security](../platform/security.md)).
+credential-encryption master key ([Security](../platform/security.md)). A
+Server started without the key answers every LLM or Runtime credential
+creation and deletion with `503 credential_key_unavailable`, retryable false,
+before it reads or writes a credential row or calls a Gateway; no retry
+succeeds until an operator configures the key and restarts the Server. The
+owner Git key answers the same condition with `git_key_unavailable`
+([Git import](../artifacts/git-import.md)).
 
 **RCF-R45.** A decryption or authentication failure is a bounded internal
 configuration error and never falls back to plaintext, another credential or an
@@ -1462,6 +1468,8 @@ Lifecycle ([registry](../platform/lifecycle.md)):
 Errors ([registry](../platform/errors.md)):
 
 - `credential_in_use` — LLM credential still pinned or referenced (RCF-R48).
+- `credential_key_unavailable` — LLM or Runtime credential creation or
+  deletion on a Server without the master key (RCF-R44).
 - `runtime_config_conflict` — different same-layer values in one merge unit
   (RCF-R151).
 - `runtime_label_unknown`, `runtime_config_invalid`,

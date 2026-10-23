@@ -5693,7 +5693,7 @@ paths:
         '409': {$ref: '#/components/responses/Conflict'}
         '413': {$ref: '#/components/responses/PayloadTooLarge'}
         '500': {$ref: '#/components/responses/InternalError'}
-        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
+        '503': {$ref: '#/components/responses/RuntimeCredentialMutationUnavailable'}
 
   /v1/operations/runtime-credentials/{credentialId}:
     parameters:
@@ -5737,7 +5737,7 @@ paths:
         '404': {$ref: '#/components/responses/NotFound'}
         '409': {$ref: '#/components/responses/Conflict'}
         '500': {$ref: '#/components/responses/InternalError'}
-        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
+        '503': {$ref: '#/components/responses/RuntimeCredentialMutationUnavailable'}
 
   /v1/operations/runtime-agent-principals:
     get:
@@ -5890,7 +5890,7 @@ paths:
         '409': {$ref: '#/components/responses/Conflict'}
         '413': {$ref: '#/components/responses/PayloadTooLarge'}
         '502': {$ref: '#/components/responses/GatewayUnavailable'}
-        '503': {$ref: '#/components/responses/CredentialRecoveryRequired'}
+        '503': {$ref: '#/components/responses/CredentialMutationUnavailable'}
         '500': {$ref: '#/components/responses/InternalError'}
 
   /v1/operations/credentials/{credentialId}:
@@ -5929,7 +5929,7 @@ paths:
         '404': {$ref: '#/components/responses/NotFound'}
         '409': {$ref: '#/components/responses/CredentialInUse'}
         '502': {$ref: '#/components/responses/GatewayUnavailable'}
-        '503': {$ref: '#/components/responses/CredentialRecoveryRequired'}
+        '503': {$ref: '#/components/responses/CredentialMutationUnavailable'}
         '500': {$ref: '#/components/responses/InternalError'}
 
   /v1/operations/settings/models:
@@ -6788,6 +6788,29 @@ components:
           schema: {$ref: '#/components/schemas/Error'}
     CredentialRecoveryRequired:
       description: Credential lifecycle recovery has not completed or a definite database transaction conflict exhausted retries; retry after it settles
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestId'}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    CredentialMutationUnavailable:
+      description: >-
+        Credential lifecycle recovery has not completed (`credential_recovery_required`) or a definite
+        database transaction conflict exhausted retries (`storage_transaction_conflict`), both retryable
+        after they settle; or the Server was started without a credential master key
+        (`credential_key_unavailable`, retryable false), so nothing is written and no Gateway call is
+        made until an operator configures the key and restarts the Server
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestId'}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    RuntimeCredentialMutationUnavailable:
+      description: >-
+        A definite database transaction conflict exhausted retries (`storage_transaction_conflict`,
+        retryable); or the Server was started without a credential master key
+        (`credential_key_unavailable`, retryable false), so nothing is written until an operator
+        configures the key and restarts the Server
       headers:
         X-Request-ID: {$ref: '#/components/headers/RequestId'}
       content:
