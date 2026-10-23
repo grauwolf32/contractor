@@ -19,8 +19,22 @@ type Admission struct {
 	Mutation                           evaldomain.MutationIdentity
 }
 
+// SubmissionState is the stored state of a member's submission: an intent
+// whose execution is not yet confirmed, an accepted execution, or a settled
+// submission whose execution ended (terminal) or never started (rejected).
+// The eval_submissions state CHECK lists exactly these values.
+type SubmissionState string
+
+const (
+	SubmissionIntent   SubmissionState = "intent"
+	SubmissionAccepted SubmissionState = "accepted"
+	SubmissionTerminal SubmissionState = "terminal"
+	SubmissionRejected SubmissionState = "rejected"
+)
+
 type Submission struct {
-	ExperimentID, MemberID, State, ActorID         string
+	ExperimentID, MemberID, ActorID                string
+	State                                          SubmissionState
 	ExecutionID, ExecutionProjectID, TerminalState *string
 }
 
@@ -102,7 +116,7 @@ UPDATE eval_experiments SET state='running',outstanding_count=outstanding_count+
 started_at=COALESCE(started_at,statement_timestamp()),deadline_at=COALESCE(deadline_at,statement_timestamp()+wall_ms*interval '1 millisecond'),
 last_producer_activity_at=CASE WHEN control_mode='external' THEN clock_timestamp() ELSE last_producer_activity_at END,
 `+observe+` WHERE experiment_id=$1`, e.ID)
-		return AcceptedSubmissionReceipt{SubmissionKey: key, ExperimentRevision: e.Revision, State: "intent"}, err
+		return AcceptedSubmissionReceipt{SubmissionKey: key, ExperimentRevision: e.Revision, State: string(SubmissionIntent)}, err
 	})
 }
 
@@ -220,11 +234,11 @@ func (s *Store) PutSuboperation(ctx context.Context, scope Scope, id, member str
 	if (e.DeletionRequestedAt != nil || e.State == evaldomain.StateCancelling) && op.Kind != "cancel" {
 		return evaldomain.Failure("eval_project_deleting")
 	}
-	var state string
+	var state SubmissionState
 	if err = s.db.QueryRow(ctx, `SELECT state FROM eval_submissions WHERE experiment_id=$1 AND member_id=$2`, id, member).Scan(&state); err != nil {
 		return normalize(err)
 	}
-	if state != "intent" && !(state == "accepted" && op.Kind == "cancel") {
+	if state != SubmissionIntent && !(state == SubmissionAccepted && op.Kind == "cancel") {
 		return evaldomain.Failure("eval_not_ready")
 	}
 	_, err = s.db.Exec(ctx, `INSERT INTO eval_suboperations(experiment_id,member_id,kind,operation_key,request) VALUES($1,$2,$3,$4,$5)`, id, member, op.Kind, op.Key, []byte(op.Request))
@@ -349,7 +363,7 @@ func (s *Store) Settle(ctx context.Context, scope Scope, id, member string, clai
 	if err != nil {
 		return err
 	}
-	if sub.State == "terminal" || sub.State == "rejected" {
+	if sub.State == SubmissionTerminal || sub.State == SubmissionRejected {
 		return nil
 	}
 	var unresolved bool
@@ -360,8 +374,8 @@ func (s *Store) Settle(ctx context.Context, scope Scope, id, member string, clai
 	if unresolved {
 		return ErrDrain
 	}
-	state, terminal := "rejected", ""
-	if sub.State == "accepted" {
+	state, terminal := SubmissionRejected, ""
+	if sub.State == SubmissionAccepted {
 		var kind string
 		err = s.db.QueryRow(ctx, `SELECT execution_kind FROM eval_members WHERE experiment_id=$1 AND member_id=$2`, id, member).Scan(&kind)
 		if err != nil {
@@ -397,7 +411,7 @@ WHERE owner_id=$1
 		if err != nil {
 			return err
 		}
-		state = "terminal"
+		state = SubmissionTerminal
 	} else {
 		var rejected bool
 		err = s.db.QueryRow(ctx, settleSubmissionSQL, id, member, e.State == evaldomain.StateCancelling).Scan(&rejected)

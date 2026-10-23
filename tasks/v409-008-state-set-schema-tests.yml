@@ -5,7 +5,7 @@ milestone: sql-review-2026-10
 epic: persistence
 kind: chore
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, sql]
 goal: >-
@@ -111,3 +111,69 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A4]
+decisions:
+  - >-
+    Finding re-verified on 7bcd8fd6 with a migrated schema (all 32
+    migrations): only TestPostgresRunStateSetsMatchSchema compared a state
+    CHECK and partial-index predicates with Go; the ten reviewed tables had no
+    such test, and no current drift exists (every new comparison passes
+    unchanged). Coverage gap only; no state, transition, index or contract
+    changed.
+  - >-
+    Shared checker: internal/persistence/statesettest (test helper package,
+    kernel layer). Read takes the CHECK constraints (pg_get_constraintdef) and
+    partial-index predicates (pg_get_expr) of one relation; Compare is scoped
+    to the declared columns of that relation, so overlapping words in other
+    columns or tables (hold_state, eval_suboperations, Run states) are never
+    compared. Every partial index of the table must be declared, nil when it
+    restricts no declared column, so an undeclared new predicate fails with
+    its index name and text. Restrictions are read in the forms PostgreSQL
+    prints (= / = ANY / <> / <> ALL); any other form that mentions a declared
+    column fails loudly instead of being guessed. Values a shape CHECK or a
+    predicate compares with must be declared. The existing workflow_runs test
+    is unchanged.
+  - >-
+    Owning sets are read from the owning type's constants by DeclaredValues
+    (a go/parser declaration check of the owning package's non-test files that
+    fails on a constant it cannot read whole), so adding a constant joins the
+    expected set; handwritten subsets must form declared partitions
+    (Column.Partitions) and derived subsets use production predicates
+    (AuditState.Terminal, evaldomain.State.Terminal). Types with Valid have it
+    checked against the declaration. Mapping: stage_executions.state →
+    runstore.StageExecutionState; audits/audit_items/audit_executions/
+    audit_review_requests/audit_findings.state → auditstore AuditState,
+    ItemState, ExecutionState, ReviewState, FindingState;
+    projects.lifecycle_state/deletion_phase → projectstore Lifecycle,
+    DeletionPhase; eval_experiments.state → evaldomain.State;
+    eval_submissions.state → evalstore.SubmissionState;
+    credential_operations.phase → credentials.OperationPhase.
+    TestSharedLifecycleStatesMatchSharedCases now also holds the shared Eval
+    fixture api/testdata/evals/lifecycle-states.json to the evaldomain.State
+    constants, so fixture, managed schema, Go and the CHECK agree.
+  - >-
+    Consolidation: eval_submissions.state had no Go declaration; the four
+    words were string literals in evalstore and evalservice. The new
+    evalstore.SubmissionState with its constants is now the Go definition
+    used by every Go comparison (Settle, PutSuboperation, Admit's receipt,
+    the member reconciler and the member view). SQL literals stay, as do the
+    receipt's string field and the eval_suboperations words, which are a
+    different set. Behaviour is unchanged.
+  - >-
+    State-dependent predicates on other columns: stage_executions'
+    terminal-history indexes filter on terminal_at, which
+    stage_execution_state_shape sets in exactly the terminal states; a
+    Marker verifies that tie branch by branch, so those indexes are compared
+    with the terminal subset. The audit_findings pointer indexes
+    (current_decision_id, duplicate_target_id, purge pointers) and the
+    run_id, role and correlation indexes serve foreign-key probes, purge and
+    uniqueness whatever the state; they are declared nil. A reader that
+    starts relying on one of them as a state filter should declare it with a
+    Marker.
+  - >-
+    V372-007 overlap: the new stage test holds the stage_executions CHECK,
+    stage_execution_state_shape (through the marker) and all five partial
+    indexes to the StageExecutionState declaration, with handwritten
+    active/terminal subsets that must partition it. It does not add the
+    production terminal predicate, change the Go switches, scan Go SQL
+    literals or check the UI copy; those remain V372-007's scope, and its
+    production definition can replace the handwritten subsets once it exists.
