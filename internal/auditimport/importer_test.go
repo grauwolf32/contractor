@@ -319,6 +319,38 @@ func TestImporterRecordsMissingNamedRoleOutputWithoutItems(t *testing.T) {
 	}
 }
 
+// A failed or cancelled preparation execution reads the pinned AuditProfile
+// first when it retains its attempt outputs. A snapshot that cannot be decoded
+// never decodes on a retry, so it settles through the contract-invalid receipt.
+func TestImporterSettlesFailedPreparationWithInvalidPinnedProfileAsContractInvalid(t *testing.T) {
+	for _, outcome := range []auditstore.TerminalOutcome{auditstore.TerminalFailed, auditstore.TerminalCancelled} {
+		t.Run(string(outcome), func(t *testing.T) {
+			harness := newImportHarness(t)
+			harness.snapshot.Audit.ProfileSnapshot = json.RawMessage(`{"schema":"not an AuditProfile"}`)
+			harness.execution.Role = auditstore.ExecutionPrepare
+			harness.execution.WorkflowRole = "z-seed"
+			attempt := 1
+			harness.execution.RoleAttempt = &attempt
+			harness.execution.RoundID = nil
+			harness.execution.Preparation = &auditstore.PreparationSnapshot{
+				Inputs: map[string]auditstore.ExactArtifact{}, Parameters: map[string]string{},
+			}
+			harness.execution.TerminalOutcome = &outcome
+			harness.store.members = nil
+
+			worked, err := harness.importer.Collect(
+				context.Background(), harness.claim, harness.snapshot, harness.execution,
+			)
+			collected := harness.store.collected
+			if err != nil || !worked || collected.Disposition != auditstore.CollectionContractInvalid ||
+				collected.ErrorCode == nil || *collected.ErrorCode != "collection-contract-invalid" ||
+				len(collected.Items) != 0 {
+				t.Fatalf("failed preparation with invalid pinned profile = (%t, %v, %+v)", worked, err, collected)
+			}
+		})
+	}
+}
+
 func TestImporterRetainsAuditChildFindingProposalsBeforeCollection(t *testing.T) {
 	harness, findings := newFindingImportHarness(t)
 	worked, err := harness.importer.Collect(

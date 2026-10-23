@@ -136,10 +136,13 @@ flowchart TD
 | --- | --- |
 | `accepted-result` | An exact frozen output that passes validation |
 | `missing-output` | An expected frozen output that is missing |
-| `invalid-result` | An invalid or incomplete result set or package, including one that exceeds `maxEvidenceBytes` (`evidence-budget-exhausted`) |
+| `invalid-result` | An invalid or incomplete result set or package of the child Run, including one that exceeds `maxEvidenceBytes` (`evidence-budget-exhausted`) |
 | `execution-failed` | A technically failed Run |
 | `execution-cancelled` | A cancelled Run |
-| `collection-contract-invalid` | The bounded trusted-data failure specified in [REV-R154](review-and-reports.md) |
+| `collection-contract-invalid` | Pinned or retained trusted data that was read but cannot be validated, or a request the Store rejects by its content alone: the bounded trusted-data failure specified in [REV-R154](review-and-reports.md) |
+
+A failed or cancelled read and a receipt that cannot be committed record no
+disposition: the execution stays `collecting` (AUX-R96).
 
 ### Item outcome after collection
 
@@ -340,6 +343,33 @@ items.
 **AUX-R35.** Collection is unique by execution and exact terminal Run version
 (LIM-AUX-3); accepted output identity additionally includes its exact
 revision and digest.
+
+**AUX-R96.** Collection classifies a failure by its cause, whichever step
+reads the failing input first. A failed or cancelled read of storage, an
+artifact or the scan history, and a transient failure to commit the receipt,
+leave the execution `collecting` without a receipt or a consumed item
+attempt; a later reconcile collects the same terminal observation. Pinned or retained trusted data that was read but cannot
+be validated settles through `collection-contract-invalid` (REV-R154): the
+execution manifest, an item task package, the AuditProfile, the standard
+baseline, a retained standard package or its match with a standard-mapped
+task, the scan assignment, a retained scan plan or scanner report, and the
+scan result assembled only from them. Only a violation by the child Run's own
+output, including the standard references of a finding proposal it selects,
+is an `invalid-result`. A retained scan plan or scanner report that does not
+exist is a coverage gap of the recovered scan result, not a failure
+([scans](scans.md), ASC-R145).
+
+Rationale: a storage failure never proves the Worker's output invalid, and an
+`invalid-result` would consume an item attempt for it; immutable data that
+cannot be validated never passes on a retry, so retrying it would leave the
+execution collecting forever. An earlier attempt that retained every finding
+proposal skips the retention-time read of the pinned standards, so the class
+cannot depend on which step reads them. Earlier validation already keeps some
+of these branches unreachable: the exact read verifies the manifest and task
+digests pinned when the Round was materialized after validating them, and the
+scan journal accepts only exact plan and report references, so a reference
+without a revision never reaches collection. The importer still applies this
+rule to them.
 
 The hard-deletion gate that an Audit-bound Run passes only after its
 collection receipt exists is specified in
@@ -701,7 +731,7 @@ Registry entries owned by this document:
 - [FAIL-AUX-1](../platform/failure-model.md): child Run submission
   (AUX-R26, AUX-R76, AUX-R82).
 - [FAIL-AUX-2](../platform/failure-model.md): collection and result import of
-  a terminal child Run (AUX-R33, AUX-R40, AUX-R46, AUX-R76).
+  a terminal child Run (AUX-R33, AUX-R40, AUX-R46, AUX-R76, AUX-R96).
 - [FAIL-AUX-3](../platform/failure-model.md): Audit-side retention of
   child-Run proposals and evidence (AUX-R49, AUX-R51, AUX-R92).
 - [FAIL-AUX-4](../platform/failure-model.md): Controller claims and
@@ -784,6 +814,13 @@ Controller logs the full error (AUX-R67). Shared rules are in
    read appears in none of it (AUX-R95); test
    `TestPostgresReconcileSnapshotReadsOneCommitOnAPoolAndInACallerTransaction`
    in [`internal/auditstore/internal/pgstore/reconcile_snapshot_postgres_test.go`](../../../internal/auditstore/internal/pgstore/reconcile_snapshot_postgres_test.go).
+10. A failed read during collection never commits a receipt or consumes an
+   item attempt, and pinned data that cannot be validated never leaves an
+   execution collecting (AUX-R96); tests
+   `TestPostgresStandardReadFailureAfterRetentionKeepsExecutionCollecting` in
+   [`internal/auditimport/collection_failure_integration_test.go`](../../../internal/auditimport/collection_failure_integration_test.go)
+   and `TestPostgresScanRecoveryCollectionKeepsFailureClasses` in
+   [`internal/auditcontroller/scan_collection_postgres_test.go`](../../../internal/auditcontroller/scan_collection_postgres_test.go).
 
 ## Non-goals
 

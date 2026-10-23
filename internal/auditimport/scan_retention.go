@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
@@ -23,9 +24,11 @@ func (i *Importer) retainScanRecovery(
 	data []byte,
 	code string,
 ) (bool, error) {
+	// The package is assembled only from pinned and retained data, so a
+	// validation failure here can never pass on a retry.
 	pkg, err := auditdomain.DecodeCheckResultPackage(data)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("%w: assembled scan result package is invalid", ErrPermanent)
 	}
 	evidence := make(map[string]validatedEvidence, len(pkg.Evidence.Evidence))
 	for _, item := range pkg.Evidence.Evidence {
@@ -33,7 +36,7 @@ func (i *Importer) retainScanRecovery(
 	}
 	coverage, err := semanticCoverage(auditprofile.AuditModeRiskAssessment, member.task, pkg.Results.Results[0], evidence)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("%w: assembled scan result does not match its pinned task", ErrPermanent)
 	}
 	coverage.Gaps = mergeSorted(coverage.Gaps, []string{code})
 	coverage.Rationale = "Scan evidence was recovered from the durable execution journal after a Run or publication failure."

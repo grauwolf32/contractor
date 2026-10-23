@@ -12,6 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -25,26 +26,7 @@ func testPreparedOpenAPIScanPolicy(t *testing.T, policy contracts.ActiveChecksPo
 
 	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 	defer cancel()
-	catalog := preparationControllerConfig(t, false, func(files map[string]string) {
-		for _, path := range []string{"workflows/audit_openapi_sqlmap_scan.yaml", "agent-templates/audit_sqlmap_scan.yaml", "instructions/audit-openapi-scan.md"} {
-			data, err := os.ReadFile("../config/testdata/audit-scan-catalog/" + path)
-			if err != nil {
-				t.Fatal(err)
-			}
-			files[path] = string(data)
-		}
-		profile := files["audit-profiles/checklist.yaml"]
-		profile = strings.Replace(profile, "mode: custom-checklist", "mode: risk-assessment", 1)
-		profile = strings.Replace(profile, "    checklist: {required: true, mediaTypes: [application/json]}", "    checklist: {required: true, mediaTypes: [application/json]}\n    settings: {required: true, mediaTypes: [application/json]}", 1)
-		profile = strings.Replace(profile, "implementation: checklist@1", "implementation: openapi-scans@1", 1)
-		profile = strings.Replace(profile, "    source: {source: audit-input, name: checklist}", "    source: {source: prepare-output, role: z-seed, name: list}\n    settings: {source: audit-input, name: settings}", 1)
-		profile = strings.Replace(profile, "      ref: audit-check@1", "      ref: audit-openapi-sqlmap-scan@1", 1)
-		profile = strings.Replace(profile, "        task: {source: item-package}", `        task: {source: item-package}
-        execution_manifest: {source: execution-manifest}
-        openapi: {source: prepare-output, role: z-seed, name: list}
-        settings: {source: audit-input, name: settings}`, 1)
-		files["audit-profiles/checklist.yaml"] = strings.Replace(profile, "activeChecks: prohibited", "activeChecks: approval-required", 1)
-	})
+	catalog := preparedOpenAPIScanCatalog(t)
 	settings := artifacts.Payload{MediaType: "application/json", Data: []byte(`{"schema":"contractor.audit.openapi-scan-settings.v1","scanner":"sqlmap","server":"http://127.0.0.1:8080","testParameters":["q"],"operations":{"#/paths/~1a/get":{"parameters":{"query:q":"one"}},"#/paths/~1b/get":{"parameters":{"query:q":"two"}},"#/paths/~1c/get":{"parameters":{"query:q":"three"}}}}`)}
 	h := newPostgresControllerHarnessWithPolicy(t, ctx, 0, 1, catalog, policy, map[string]artifacts.Payload{"settings": settings})
 	c := preparationController(t, h)
@@ -97,4 +79,31 @@ func testPreparedOpenAPIScanPolicy(t *testing.T, policy contracts.ActiveChecksPo
 		t.Fatalf("generated scan review ledger: %+v %v", reviews, err)
 	}
 	preparationExecutions(t, ctx, h, 1)
+}
+
+// preparedOpenAPIScanCatalog is the preparation catalog whose check role runs
+// the SQLMap OpenAPI scan Workflow on the prepared document and the Audit's
+// scan settings input.
+func preparedOpenAPIScanCatalog(t *testing.T) *config.Snapshot {
+	t.Helper()
+	return preparationControllerConfig(t, false, func(files map[string]string) {
+		for _, path := range []string{"workflows/audit_openapi_sqlmap_scan.yaml", "agent-templates/audit_sqlmap_scan.yaml", "instructions/audit-openapi-scan.md"} {
+			data, err := os.ReadFile("../config/testdata/audit-scan-catalog/" + path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			files[path] = string(data)
+		}
+		profile := files["audit-profiles/checklist.yaml"]
+		profile = strings.Replace(profile, "mode: custom-checklist", "mode: risk-assessment", 1)
+		profile = strings.Replace(profile, "    checklist: {required: true, mediaTypes: [application/json]}", "    checklist: {required: true, mediaTypes: [application/json]}\n    settings: {required: true, mediaTypes: [application/json]}", 1)
+		profile = strings.Replace(profile, "implementation: checklist@1", "implementation: openapi-scans@1", 1)
+		profile = strings.Replace(profile, "    source: {source: audit-input, name: checklist}", "    source: {source: prepare-output, role: z-seed, name: list}\n    settings: {source: audit-input, name: settings}", 1)
+		profile = strings.Replace(profile, "      ref: audit-check@1", "      ref: audit-openapi-sqlmap-scan@1", 1)
+		profile = strings.Replace(profile, "        task: {source: item-package}", `        task: {source: item-package}
+        execution_manifest: {source: execution-manifest}
+        openapi: {source: prepare-output, role: z-seed, name: list}
+        settings: {source: audit-input, name: settings}`, 1)
+		files["audit-profiles/checklist.yaml"] = strings.Replace(profile, "activeChecks: prohibited", "activeChecks: approval-required", 1)
+	})
 }

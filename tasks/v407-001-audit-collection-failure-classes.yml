@@ -6,7 +6,7 @@ epic: audits
 kind: defect
 introduced_by: V45-004
 priority: P1
-status: pending
+status: in_progress
 depends_on: []
 languages:
 - go
