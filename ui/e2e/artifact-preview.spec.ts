@@ -10,6 +10,47 @@ import {
 
 const REVISION = "revision-1";
 
+// A report just under the 1 MiB preview limit (LIM-UI-12), in ASCII so that
+// characters are bytes; each part carries a list, a table and a fence.
+function largeReport(): { source: string; lastSection: number } {
+  let source = "";
+  for (let index = 0; ; index++) {
+    const part = [
+      `## Section ${index}`,
+      "",
+      "A paragraph with `code` and **bold** text.",
+      "",
+      "- one",
+      "- two",
+      "",
+      "| Check | Result |",
+      "| --- | --- |",
+      `| ${index} | passed |`,
+      "",
+      "```text",
+      `# not a heading ${index}`,
+      "```",
+      "",
+      "",
+    ].join("\n");
+    if (source.length + part.length > 1024 * 1024 - 1024) {
+      return { source, lastSection: index - 1 };
+    }
+    source += part;
+  }
+}
+
+const LARGE_REPORT = largeReport();
+
+// One table longer than a Markdown section may be (LIM-UI-16).
+function longTable(): string {
+  let table = "| Endpoint | Method |\n| --- | --- |\n";
+  while (table.length <= 300 * 1024) {
+    table += "| `/v1/items/{id}` | **GET** |\n";
+  }
+  return `# Inventory\n\n${table}\n## After the inventory\n\nDone.\n`;
+}
+
 const artifacts = {
   "http-evidence": {
     mediaType: "application/vnd.contractor.http-exchange+json",
@@ -108,6 +149,14 @@ const artifacts = {
       "  }",
       "}",
     ].join("\n"),
+  },
+  "large-report": {
+    mediaType: "text/markdown",
+    source: LARGE_REPORT.source,
+  },
+  "long-table": {
+    mediaType: "text/markdown",
+    source: longTable(),
   },
   "workspace-diff": {
     mediaType: "text/x-diff",
@@ -282,6 +331,42 @@ for (const viewport of [
     });
   });
 }
+
+test("renders a 1 MiB Markdown report in sections and a long table as text", async ({
+  page,
+}) => {
+  await installArtifactAPI(page);
+  const preview = page.locator(".markdown-artifact-preview");
+
+  await openPreview(page, "large-report");
+  await expect(
+    preview.getByRole("heading", { name: "Section 0", exact: true }),
+  ).toBeVisible();
+  await expect(
+    preview.getByRole("heading", {
+      name: `Section ${LARGE_REPORT.lastSection}`,
+      exact: true,
+    }),
+  ).toBeAttached({ timeout: 60_000 });
+  await expect(preview.getByRole("status")).toHaveCount(0);
+  await expect(preview.locator("table")).toHaveCount(
+    LARGE_REPORT.lastSection + 1,
+  );
+  // Fenced "# not a heading" lines stay code in every section.
+  await expect(preview.locator("h1")).toHaveCount(0);
+
+  await openPreview(page, "long-table");
+  await expect(
+    preview.getByText(/too long to render, so it is shown as text/),
+  ).toBeVisible();
+  await expect(preview.locator("table")).toHaveCount(0);
+  await expect(
+    preview.getByRole("heading", { name: "Inventory", exact: true }),
+  ).toBeVisible();
+  await expect(
+    preview.getByRole("heading", { name: "After the inventory" }),
+  ).toBeAttached();
+});
 
 for (const theme of ["light", "dark", "black"]) {
   test("HTTP evidence at 390px in " + theme, async ({ page }, testInfo) => {

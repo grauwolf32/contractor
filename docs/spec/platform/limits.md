@@ -762,6 +762,7 @@ its owning requirement.
 | `LIM-UI-13` | 8192 Unicode characters | Displayed text of one HTTP request or response body | Web UI HTTP preview; explicit shortening and complete body download | [UI-R194](../ui/ui.md) |
 | `LIM-UI-14` | 50 rows | Structured HTTP headers displayed at once | Web UI HTTP preview, with Previous/Next header pages | [UI-R194](../ui/ui.md) |
 | `LIM-UI-15` | 20 pages per read | One load-all read of a cursor-paged list (owner-wide Checks, Issues, Reports, Inbox sections, pickers and inventories) | Web UI shared page reader; the view reports an incomplete list, pickers refuse a partial one | [UI-R197](../ui/ui.md) |
+| `LIM-UI-16` | 262,144 UTF-16 code units | One section of a Markdown Preview parsed at once | Web UI Markdown Preview; a longer section is shown as text and Source keeps the whole document | [UI-R202](../ui/ui.md) |
 | `LIM-UIJ-1` | 7 days | Audit Start/Continue time-limit dialog: seven-day preset, which is also the UI default for Start and for resuming after the time limit | Web UI (Audit time-limit dialog) | [journeys](../ui/journeys.md) |
 | `LIM-UIJ-2` | 24 hours | Audit Start/Continue time-limit dialog: 24-hour preset | Web UI (Audit time-limit dialog) | [UIJ-R77](../ui/journeys.md) |
 | `LIM-WFL-1` | exactly 1 entry Stage per Workflow | Workflow `entryStage` | WorkflowCatalog (Workflow schema validation) | [WFL-R3](../configuration/workflows.md) |

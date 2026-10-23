@@ -413,6 +413,15 @@ prompt: task context, conversation and expanded Skills are not included.
 
 **UI-R54.** Markdown Preview executes no HTML and loads no remote images.
 
+**UI-R202.** Markdown Preview renders a large body in sections, the first at
+once and each further one in a later browser task, and the result equals a
+whole-body render. A section starts only before an unindented line that
+follows a blank line and does not start a list item, outside top-level
+fenced code and HTML blocks; a body with a link reference or footnote
+definition, or with a fence or HTML block whose end cannot be told line by
+line, renders as one section. A section longer than LIM-UI-16 is shown as
+text with a notice instead of being parsed; Source shows the whole body.
+
 **UI-R55.** Workflow logical Worker bindings link to the exact AgentTemplate
 version.
 
