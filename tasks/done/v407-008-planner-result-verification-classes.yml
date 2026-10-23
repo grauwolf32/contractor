@@ -6,7 +6,7 @@ epic: planner-worker
 kind: defect
 introduced_by: MVP-013
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - go
@@ -86,3 +86,17 @@ tests:
   - A2
   - A3
   - A4
+implementation_commit: f1f4ed77dc193cff3363ca3b6a06b6141cb9f014
+verification:
+  date: '2026-10-23'
+  environment: macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local), Node 24.20.0 with the locked UI dependencies and the locked Runtime venv; local PostgreSQL 17.11 database contractor_test_d with isolated per-test schemas and all migrations.
+  revalidation: 'Re-verified on base ac982d28: internal/planner/result.go marked every inspector error retryable (result_artifact_unavailable) and iterated maps unsorted; internal/planner/streamline/tools.go did the same for Worker results and request artifacts and finish discarded the class; internal/scheduler/stage_finalization.go classified only ErrArtifactNotFound and ErrInvalidName as deterministic and made every summary-artifact lookup failure retryable; internal/planner/passthrough.go left invokeFailure nil on candidate rejection. All claims held.'
+  commands:
+  - 'test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1 ./internal/planner/... ./internal/scheduler/... passed (planner, a2a, router, scan, session, stageresult, stateview, streamline, scheduler).'
+  - go test -tags=integration -count=1 ./internal/artifacts/... ./internal/archtest ./internal/apierror passed with the database configured.
+  - 'make lint passed (after make docs-dependencies, because planners.md and scheduler.md feed the dependency graph fingerprint, and make tasks-backlog).'
+  - 'Regression evidence: on a temporary worktree at ac982d28 with the new tests copied in, TestValidateCandidateClassifiesResultArtifactVerification, TestValidateCandidateSelectsTheSameRejectionAcrossRuns, TestRecoverCompletionClassifiesResultArtifactVerification, TestPassthroughRejectedCandidateIsOneFailedInvocation (missing artifact code and a2a.invoke metrics), TestStreamlineClassifiesWorkerArtifactVerificationAndContinues, TestPostgresResultArtifactVerificationClassifiesMissingAndUnavailable, TestResultArtifactVerificationVerdictMatchesPlanner, TestSummaryArtifactVerificationKeepsItsClass and the new inexact-answer case of TestCandidateArtifactLookupErrorsKeepTheirMeaning failed; TestStreamlineFinishRejectionKeepsVerificationClass failed with the finish change reverted. All pass after the fix.'
+  - 'An intermediate run showed 35 filesystem-blob-backend failures in internal/artifacts and internal/scheduler (invalid artifact blob directory: artifact blob storage I/O failed); the identical failure set reproduced on the unmodified base worktree, and the final run of the same suites passed completely.'
+  database_tests_configured: true
+  siblings: 'Applied the shared artifacts.IsExactReferenceRejection to Passthrough and scan candidate validation and recovery (planner.ValidateCandidate/RecoverCompletion), Streamline and Router Worker request, Worker result and finish validation, Scheduler result and summary revalidation, ArtifactServiceResolver inexact answers and the StageContext pin check of commitNextStage. Ruled out: planner/scan report.go job-status mapping (scan coverage vocabulary, not a Planner retry class; owned by V407-001), and evalstore, auditimport, findingintake and auditcontroller artifact classifications (other domains with their own outcome vocabularies, outside the Planner/Scheduler boundary).'
+  declined: 'No public API error codes were added (A3); the new codes live in the assembled Other error and stop codes table only. on.interrupted retry policy, successful result shapes and Runtime finalization are unchanged (scope.out).'
