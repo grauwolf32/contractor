@@ -562,7 +562,26 @@ archive and document subtypes `zip`, `x-zip-compressed`, any `+zip` suffix,
 `application/octet-stream`, is downloaded once per exact revision and refused
 when it is not valid UTF-8. The allocation keeps one downloaded revision of
 at most 64 MiB, so paging it, or reading a versionless ref whose current
-revision it holds, downloads nothing again.
+revision it holds, downloads nothing again. Alongside the revision it keeps
+what it derived from the payload once, off the event loop: whether the
+payload is valid UTF-8 and, for `read_text_artifact`, a line index that
+counts the line starts before every 4,096-byte block. The index size follows from the
+payload size alone, so the cache never retains more than LIM-ART-7 whatever
+the lines or characters, and it never retains decoded text: a page finds its
+first line by scanning at most one block and decodes only its own window of
+at most 128 KiB. Concurrent first reads of one revision share one derivation.
+A cancelled derivation is joined before the cache can be cleared or replaced,
+and its result is discarded. Replacing the cached revision or closing a
+reader discards the derived state with the payload. A read served from the
+cache records its exact revision for invocation provenance like a download.
+
+Rationale: keeping decoded text would retain up to four times the payload
+(Python stores a mostly ASCII text that contains one astral character in four
+bytes per character), and one eight-byte offset per line up to eight times
+the payload of a text made of line breaks. Line breaks are the bytes `\r` and `\n`, which
+never occur inside a multi-byte UTF-8 character, so byte offsets give the
+same line numbers as the decoded text. Reopen this if a reader needs
+character rather than byte positions inside a line.
 
 ### Versions, reads and writes
 
