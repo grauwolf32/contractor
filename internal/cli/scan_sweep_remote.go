@@ -96,7 +96,7 @@ func (c *CLI) runRemoteScanSweep(ctx context.Context, client *publicclient.Clien
 	case "show", "get", "cancel":
 		var response *http.Response
 		if action == "cancel" {
-			response, err = client.API.CancelScanSweep(ctx, id)
+			response, err = client.API.CancelScanSweep(ctx, id, nil) // The key is optional and not bound (API-R28).
 		} else {
 			response, err = client.API.GetScanSweep(ctx, id)
 		}

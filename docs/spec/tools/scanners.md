@@ -713,7 +713,9 @@ bounds do not extend ordinary Run execution or scanner deadlines.
 creation through the parent transaction fence, cancels unsent members, and
 requests ordinary cancellation of admitted Runs. Only actual terminal child
 states settle those members; the parent then becomes `cancelled`. Repeated
-cancellation is idempotent. Missing and foreign sweeps are indistinguishable.
+cancellation is idempotent, so it accepts an `Idempotency-Key` that it
+validates but does not bind ([API-R28](../api/public-api.md)). Missing and
+foreign sweeps are indistinguishable.
 
 **SCN-R251.** Owner purge requires a terminal sweep with no live controller
 claim, cancels and joins in-process work before physical deletion, and holds

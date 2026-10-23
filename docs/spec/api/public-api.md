@@ -211,7 +211,16 @@ joint upgrade of Server, UI and bundled clients are in Runs
 unless a resource declares a smaller bound, such as the login body
 ([SEC-R49](../platform/security.md)). A larger body is rejected with
 `413 request_too_large` and never reaches the handler's validation
-(FAIL-API-1).
+(FAIL-API-1). The OpenAPI document declares each operation's exact bound as
+`x-max-request-body-bytes`: 8 KiB for login (LIM-SEC-8), 64 KiB for the Git key
+and Git import bodies (LIM-GIT-21, LIM-GIT-5), 1 KiB for Audit start and resume
+(LIM-AUD-28), 128 KiB for RuntimeConfig publication, 64 MiB for Artifact
+payloads (API-R5) and 1 MiB for Eval documents (API-R6). A string that the
+Server bounds in UTF-8 bytes declares that bound as `x-max-utf8-bytes` next to
+an equal `maxLength`, so text outside ASCII reaches the byte bound first: Run
+cancellation reasons (LIM-RUN-10), Project names and descriptions (LIM-PRJ-3,
+LIM-PRJ-5), Audit scope fields (LIM-AUD-29), review rationales (LIM-REV-11),
+Run metadata label values (LIM-RUN-5) and the login password (LIM-SEC-7).
 
 **API-R5.** An Artifact over its 64 MiB limit
 ([ART-R65](../artifacts/artifact-store.md),
@@ -345,7 +354,13 @@ RuntimeConfig, label and Agent-label administrative commands require their own
 idempotency keys, revision preconditions where specified, and an audit actor.
 
 **API-R69.** Every operation that binds an `Idempotency-Key` (the OpenAPI
-`IdempotencyKey` parameter) treats the key as bound to its exact request:
+`IdempotencyKey` parameter) takes exactly one such header of 1 to 128
+characters in `[A-Za-z0-9][A-Za-z0-9._:-]*` (LIM-API-26). The Server has one
+definition of the grammar, which every handler, Managed Eval mutations, the
+stores that keep keys and the bundled CLI apply; a missing, repeated or
+malformed key is `400 invalid_request`, or `422 eval_invalid` on Managed Eval
+routes, before any receipt is read or written. The operation treats the key as
+bound to its exact request:
 repeating that request with the key replays the original result, and sending
 a different request with it is `409 idempotency_conflict` with `retryable`
 false. The outcome is permanent: the original result is unchanged, and only
@@ -356,11 +371,15 @@ retryability. Managed Eval mutations report the same outcome as
 client never retries a response marked `retryable` false, whatever its
 status.
 
-**API-R28.** RuntimeCredential deletion is the one exception: its durable
-tombstone makes it idempotent by credential ID, so it accepts but neither
-requires nor binds an idempotency key. Its replay response and key-format
-validation are in Runtime configuration
-([RCF-R176](../configuration/runtime-config.md)).
+**API-R28.** RuntimeCredential deletion and scan sweep cancellation are the
+exceptions (the OpenAPI `OptionalIdempotencyKey` parameter): a durable
+tombstone or the sweep's own state makes each idempotent by resource identity,
+so it accepts but neither requires nor binds an idempotency key. A supplied
+key is still one header in the API-R69 grammar, or the request is
+`400 invalid_request` and changes nothing. The RuntimeCredential replay
+response is in Runtime configuration
+([RCF-R176](../configuration/runtime-config.md)); sweep cancellation is in
+Scanners ([SCN-R250](../tools/scanners.md)).
 
 **API-R29.** The API keeps configuration and credential mutations distinct
 from ordinary Run and Artifact use, so later RBAC does not require changing
@@ -655,6 +674,8 @@ Limits ([registry](../platform/limits.md)):
   established: every 15 seconds (API-R72).
 - LIM-API-24 — persisted event data per Run event read: 8 MiB (API-R110).
 - LIM-API-25 — persisted data of one Run event: 2 MiB (API-R110).
+- LIM-API-26 — `Idempotency-Key`: exactly one header of 1 to 128 characters
+  in `[A-Za-z0-9][A-Za-z0-9._:-]*` (API-R69).
 
 The generic Artifact payload limit is [LIM-ART-4](../platform/limits.md)
 ([ART-R65](../artifacts/artifact-store.md)); the login body and login limiter

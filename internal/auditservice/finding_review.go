@@ -364,7 +364,7 @@ func appendAuditReviewEvent(
 func validateCreateFindingReview(params CreateFindingReviewParams, now time.Time) error {
 	if !auditstore.ValidReviewIdentity(params.OwnerID, 256) || !auditstore.ValidReviewIdentity(params.AuditID, 256) ||
 		!auditstore.ValidReviewIdentity(params.FindingID, 256) || !auditstore.ValidReviewIdentity(params.RequestID, 256) ||
-		params.ExpectedRevision < 1 || !validIdempotencyKey(params.IdempotencyKey) ||
+		params.ExpectedRevision < 1 || !contracts.ValidIdempotencyKey(params.IdempotencyKey) ||
 		!contentdigest.Valid(params.RequestDigest) {
 		return auditstore.ErrInvalid
 	}
@@ -378,7 +378,7 @@ func validateFindingDecision(params DecideFindingParams) error {
 	if !auditstore.ValidReviewIdentity(params.OwnerID, 256) || !auditstore.ValidReviewIdentity(params.AuditID, 256) ||
 		!auditstore.ValidReviewIdentity(params.RequestID, 256) || !auditstore.ValidReviewIdentity(params.DecisionID, 256) ||
 		params.ExpectedRequestRevision < 1 || !params.Verdict.Valid() ||
-		!validIdempotencyKey(params.IdempotencyKey) || !contentdigest.Valid(params.RequestDigest) ||
+		!contracts.ValidIdempotencyKey(params.IdempotencyKey) || !contentdigest.Valid(params.RequestDigest) ||
 		!validRationale(params.Rationale) {
 		return auditstore.ErrInvalid
 	}
@@ -398,18 +398,4 @@ func validateFindingDecision(params DecideFindingParams) error {
 func validRationale(value string) bool {
 	return strings.TrimSpace(value) != "" && utf8.ValidString(value) &&
 		!strings.ContainsRune(value, 0) && len([]byte(value)) <= MaxReviewRationale
-}
-
-func validIdempotencyKey(value string) bool {
-	if value == "" || len(value) > 128 {
-		return false
-	}
-	for index, character := range value {
-		if (character >= 'A' && character <= 'Z') || (character >= 'a' && character <= 'z') ||
-			(character >= '0' && character <= '9') || (index > 0 && strings.ContainsRune("._:-", character)) {
-			continue
-		}
-		return false
-	}
-	return true
 }

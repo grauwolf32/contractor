@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"math"
-	"regexp"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -16,8 +15,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 )
-
-var idempotencyKeyPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
 
 func validateID(field, value string) error {
 	if !contracts.ValidResourceID(value) {
@@ -41,7 +38,7 @@ func validateDigest(field, value string) error {
 }
 
 func validateIdempotency(key, digest string) error {
-	if !idempotencyKeyPattern.MatchString(key) {
+	if !contracts.ValidIdempotencyKey(key) {
 		return invalidf("idempotency key is invalid")
 	}
 	return validateDigest("request digest", digest)
@@ -694,7 +691,7 @@ func validateExecutionIntent(params auditstore.CreateExecutionIntentParams) erro
 	if err := validateExactArtifact("execution manifest", params.Manifest, false); err != nil {
 		return err
 	}
-	if !idempotencyKeyPattern.MatchString(params.SubmissionKey) {
+	if !contracts.ValidIdempotencyKey(params.SubmissionKey) {
 		return invalidf("submission key is invalid")
 	}
 	if err := validateDigest("execution request digest", params.RequestDigest); err != nil {

@@ -1,7 +1,8 @@
 // Guards the one-definition rule for contract grammars and state lists
-// (AGENTS.md 3.1): identifier, digest and Runtime identity grammars come
-// from the generated contract (src/api/contract.ts), and Audit and Run state
-// lists from src/api/states.ts. A copy elsewhere drifts from the Server.
+// (AGENTS.md 3.1): identifier, Idempotency-Key, digest and Runtime identity
+// grammars come from the generated contract (src/api/contract.ts), and Audit
+// and Run state lists from src/api/states.ts. A copy elsewhere drifts from
+// the Server.
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import ts from "typescript";
@@ -69,7 +70,7 @@ function upperBound(quantifier: string | undefined): number {
 
 /**
  * Grammar copies in one pattern or string literal. A class with another
- * bound is another rule (HTTP capture identifiers, Idempotency-Keys).
+ * bound is another rule (HTTP capture identifiers).
  */
 function grammarCopies(text: string): string[] {
   const found: string[] = [];
@@ -84,6 +85,12 @@ function grammarCopies(text: string): string[] {
       (bound === Infinity || bound >= 255)
     ) {
       found.push("ResourceId or Revision");
+    } else if (
+      sameMembers(members, ["A-Z", "a-z", "0-9", "_", ".", ":", "-"]) &&
+      bound === 127 &&
+      before.endsWith("[A-Za-z0-9]")
+    ) {
+      found.push("Idempotency-Key");
     } else if (
       sameMembers(members, ["a-z", "0-9", "_", "-"]) &&
       before.endsWith("[a-z]")
@@ -194,7 +201,9 @@ describe("contract rules have one definition", () => {
     expect(grammarCopies("^[a-zA-Z0-9_.:\\-]{1,256}$")).toEqual([
       "ResourceId or Revision",
     ]);
-    expect(grammarCopies("^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")).toEqual([]);
+    expect(grammarCopies("^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")).toEqual([
+      "Idempotency-Key",
+    ]);
     expect(grammarCopies("^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")).toEqual([]);
     expect(grammarCopies("^sha256:[a-f0-9]{64}$")).toEqual(["digest"]);
     expect(grammarCopies("^[0-9a-f]{64}$")).toEqual(["Runtime Agent ID"]);

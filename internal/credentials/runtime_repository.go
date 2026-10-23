@@ -361,7 +361,7 @@ func classifyRuntimeCredentialWrite(err error) error {
 }
 
 func runtimeCredentialKeyDigest(value string) (string, error) {
-	if !idempotencyKeyPattern.MatchString(value) {
+	if !contracts.ValidIdempotencyKey(value) {
 		return "", runtimeInvalid("Runtime credential idempotency key is invalid")
 	}
 	return operationRequestDigest(value)

@@ -2279,6 +2279,9 @@ export const REQUEST_HEADER_SCHEMAS = {
       "connectEventsWebSocketSecWebSocketProtocolHeader",
   },
   "POST /v1/scan-sweeps": { "Idempotency-Key": "IdempotencyKeyHeader" },
+  "POST /v1/scan-sweeps/{sweepId}/cancel": {
+    "Idempotency-Key": "OptionalIdempotencyKeyHeader",
+  },
 } as const satisfies Partial<
   Record<ResponseOperation, Record<string, PublicSchemaName>>
 >;
