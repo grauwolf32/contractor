@@ -5,7 +5,8 @@ milestone: interactsh-worker-tools-2026-10
 epic: http-tools
 kind: feature
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 1bf48a1ea8a8b9c4f663f7a4d754b52ef6906083
 depends_on: []
 languages: [go, python, typescript, markdown]
 goal: >-
@@ -98,3 +99,20 @@ tests:
     covers: [A1]
   - command: make lint
     covers: [A1, A2, A3]
+
+verification:
+  date: "2026-10-23"
+  runtime_environment: Linux arm64, Python 3.13.12, unprivileged uid 1000 in a disposable container with read-only source mounts.
+  database_environment: Disposable PostgreSQL 17 with UTF-8; CONTRACTOR_TEST_DATABASE_URL set for every database-backed Go and shared-fixture gate.
+  results:
+    - Full make test-runtime passed with 4307 passed and 57 skipped; the real Interactsh protocol suite was run separately without skips.
+    - make test-interactsh-protocol passed against pinned upstream v1.4.1 with actual DNS, HTTP and SMTP callbacks, decrypted exact evidence and confirmed upstream deregistration.
+    - make test-wire-cross-language verify-public-api passed, including all shared fixture readers and public operation coverage.
+    - The full Go command above passed, including real-store credential replay, encryption, label binding deletion fences, snapshot paths and migration suites.
+    - make ui-verify and make ui-browser-mocked passed; 81 browser tests include Interactsh publication and explicit clear at 390 px in light, dark and black themes.
+    - make lint, make verify-architecture and shipped configuration validation passed.
+  decisions:
+    - Polling is a destructive upstream read, so no automatic retry can fabricate complete coverage after a lost response. A sticky gap survives subsequent successful polls.
+    - Callback events retain an unverified trigger relation and never become machine proof solely through availability.
+    - Unknown remote deregistration expires through operator-owned upstream retention; local work is joined and private material erased before release.
+  delivery: Local branch codex/interactsh-worker-tools; not merged into main. User-owned untracked files were preserved.
