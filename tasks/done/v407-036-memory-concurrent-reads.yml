@@ -6,7 +6,22 @@ epic: memory
 kind: chore
 introduced_by: V9-002
 priority: P3
-status: in_progress
+status: archived
+archive:
+  date: '2026-10-24'
+  previous_status: in_progress
+  reason: >-
+    Declined after reassessment (see reassessment below). Overlapping Worker
+    note reads would compete for the Server's four process-wide, fail-fast
+    Artifact transfer slots (LIM-BLB-1, BLB-R24 to BLB-R26) and turn
+    successful Memory operations into memory_unavailable, so the goal's
+    preserved outcomes (A2) cannot hold together with A1.
+  disposition: >-
+    Archived by the V407/V409 integrator under the autonomous-execution
+    instruction, following this task's proposed_disposition; the user may
+    reactivate it. Removed from V407-039 depends_on and recorded as declined
+    for G14 in the review ledger in the same change. No production code,
+    specification or test changed.
 depends_on: []
 languages:
 - python
