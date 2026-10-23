@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-121 open tasks: 4 in progress, 92 pending, 25 deferred. 997 finished: 994 completed, 3 archived.
+121 open tasks: 5 in progress, 91 pending, 25 deferred. 997 finished: 994 completed, 3 archived.
 
 ## In progress
 
@@ -15,6 +15,7 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
+| [V407-018](v407-018-credential-delete-lock-scope.yml) | runtime-config | chore | P2 | Document credential lifecycle availability tradeoffs and a bounded redesign proposal |
 
 ## Pending
 
@@ -49,7 +50,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V372-006](v372-006-runtime-label-set-rule.yml) | chore | P3 | — | Give the Runtime label set rule one Go definition and hold the UI and the Runtime to it |
-| [V407-018](v407-018-credential-delete-lock-scope.yml) | chore | P2 | — | Document credential lifecycle availability tradeoffs and a bounded redesign proposal |
 
 ### Shared Memory tools (`memory`)
 

@@ -70,7 +70,7 @@ following ones.
 | Credential manager | The optional Gateway declaration (`credentialManager`) through which Server Operations creates and deletes LLM credentials |
 | Failure signatures | The optional provider-specific part of model recovery classification declared by a Gateway (`failureSignatures`) |
 | Gateway policy | The immutable key policy (`gatewayPolicy`) sent when an LLM credential is created |
-| Credential-lifecycle barrier | The lock shared by Run initialization, binding and Agent-label mutation, allocation config pinning and credential deletion |
+| Credential-lifecycle barrier | The lock shared by Run initialization, RuntimeConfig publication and binding mutation, Project target attachment, allocation config pinning, Runtime credential use and credential deletion |
 | Runtime label | A bounded name such as `debug` or `caido` selected through `runtimeLabels` on a Run or assigned to a Runtime Agent |
 | Default binding | The reserved `default` binding used as the base for every Run, including a Run with no labels |
 | RuntimeConfig | One immutable versioned typed non-secret infrastructure configuration stored by Server |
@@ -465,12 +465,17 @@ credential row. The completed delete operation is the non-secret audit
 tombstone, containing only the ID, actor and deletion time; it is not a
 credential and cannot be selected for execution (LIFE-RCF-1, LIFE-RCF-2).
 
-**RCF-R52.** Run initialization, RuntimeConfig binding and Agent-label
-mutation, allocation config pinning and credential deletion share one
-credential-lifecycle barrier. Readers hold it from current credential
-revalidation through their immutable Run or allocation commit; deletion holds
-the write side from all durable and live reference checks through remote
-deletion and local tombstone commit.
+**RCF-R52.** Run initialization (including Audit start, resume and
+Audit-managed Runs, and Eval preflight), RuntimeConfig publication and binding
+mutation, Project target credential attachment, allocation config pinning,
+Runtime credential use and credential deletion share one credential-lifecycle
+barrier. Readers hold it from current credential revalidation through their
+immutable Run or allocation commit, and Runtime credential use holds it while
+its consumer reads the decrypted material; deletion holds the write side from
+all durable and live reference checks through remote deletion and local
+tombstone commit. Agent-label mutation does not take it: an Agent label names a binding,
+which is itself a counted reference, and allocation config pinning revalidates
+every credential the label resolves to.
 
 **RCF-R53.** If a delete call has an ambiguous Gateway or database result, the
 encrypted row remains active and inspectable, the write intent remains
@@ -499,7 +504,8 @@ be in flight. Reconciliation runs only while such an outcome is uncertain, so an
 ordinary reference performs no extra query. Keeping every reference rejected
 while a durable prepared intent exists, instead of narrowing the fence to its
 credential once reconciliation finds it, preserves the earlier guarantee
-until that deletion completes; narrowing it is a separate decision.
+until that deletion completes; narrowing it is a separate decision
+([proposal 0044](../../proposals/0044-credential-deletion-availability.md)).
 
 **RCF-R54.** The deletion fence of RCF-R48, RCF-R52 and RCF-R128 applies to
 both LLM credentials and runtime credentials.
