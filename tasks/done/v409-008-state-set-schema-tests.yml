@@ -134,9 +134,16 @@ decisions:
     is unchanged.
   - >-
     Owning sets are read from the owning type's constants by DeclaredValues
-    (a go/parser declaration check of the owning package's non-test files that
-    fails on a constant it cannot read whole), so adding a constant joins the
-    expected set; handwritten subsets must form declared partitions
+    (a go/parser declaration check of the owning package's non-test files),
+    so adding a constant joins the expected set. It reads package-level
+    constants written as `Name T = "v"` or `Name = T("v")` and fails on
+    anything that could hide a value in that package: an alias of T, a
+    function-local constant, alias or same-named type, a non-literal or
+    implicitly repeated value, or an untyped expression mentioning T. Out of
+    scope, as documented on DeclaredValues: a constant of T declared in
+    another package through a qualified type (finding it would mean parsing
+    every package); constants of a distinct type defined from T are not
+    values of T. Further, handwritten subsets must form declared partitions
     (Column.Partitions) and derived subsets use production predicates
     (AuditState.Terminal, evaldomain.State.Terminal). Types with Valid have it
     checked against the declaration. Mapping: stage_executions.state →
@@ -225,5 +232,16 @@ verification:
     - >-
       make lint passed (layers, staticcheck U1000, testonlyexports, task
       checks, spec checks).
+    - >-
+      Review follow-up (e9f08301): DeclaredValues silently skipped constants
+      declared through an alias, inside a function or as an untyped
+      expression. The new alias, local, localtype and expression fixtures
+      of TestDeclaredValuesReadsTheWholeDeclaration fail against the
+      previous reader (it returned [open] for alias, local and localtype)
+      and pass after the fix. Rerun on contractor_test_f: every owner parity
+      test (stage_executions, the five Audit tables, projects, the two Eval
+      tables, credential_operations), the existing workflow_runs test,
+      TestSharedLifecycleStatesMatchSharedCases and the statesettest
+      package passed; make lint passed.
   database_tests_configured: true
-implementation_commit: 62cc56cd39783c33fb1e07cf3c63c03e36614c37
+implementation_commit: e9f08301f89759fbe76ad26c572a16cdc88adfd6
