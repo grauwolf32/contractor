@@ -4,7 +4,7 @@ title: Pass authored Worker instructions literally to ADK
 milestone: server-runtime-review-2026-10
 epic: planner-worker
 kind: defect
-introduced_by: V13-001
+introduced_by: MVP-012
 priority: P1
 status: completed
 depends_on: []

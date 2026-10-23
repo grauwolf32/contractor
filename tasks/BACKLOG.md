@@ -244,8 +244,8 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 11 | 41 | 51 | 18 | 72 |
-| Planners and the Worker model boundary (`planner-worker`) | 7 | 27 | 40 | 16 | 59 |
+| Run execution core (`execution-core`) | 11 | 41 | 51 | 18 | 73 |
+| Planners and the Worker model boundary (`planner-worker`) | 7 | 27 | 40 | 16 | 58 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 12 | 25 | 13 | 4 | 40 |
 | Shared Memory tools (`memory`) | 1 | 6 | 9 | 2 | 12 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 2 | 1 | 1 |
