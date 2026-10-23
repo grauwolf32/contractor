@@ -1,0 +1,67 @@
+schema_version: "1.0"
+id: V404-002
+title: "Tell an expired allocation report apart from one that never arrived"
+milestone: hub-audit-defects-2026-10
+epic: operations
+kind: defect
+introduced_by: V32-005
+priority: P3
+status: pending
+depends_on: []
+languages: [go, sql, typescript, yaml, markdown]
+goal: "Allocation resource summaries report `report_expired` when the allocation's report was received and has since expired under LIM-OBS-8, and keep `report_missing` for an allocation whose Runtime never delivered one."
+context:
+  review: "docs/research/2026-10-03-database-schema-review.md, risk `allocation_execution_reports` TTL"
+  specification: "docs/spec/operations/operations.md#OPS-R183"
+  severity: low
+  finding: >-
+    Allocation reports expire after 30 days (OBS-R43, OPS-R182) while
+    stage_allocations stay. Both readers,
+    allocationResourceHistorySQL and stageAllocationResourcesSQL
+    (internal/telemetry/allocation_resources_sql.go), keep only unexpired
+    reports, and projectAllocationResources
+    (internal/telemetry/allocation_resources.go:193) maps a released
+    allocation without one to `unavailable` with reason `report_missing`.
+    Every allocation older than the retention period therefore looks like a
+    Runtime that failed to report, in the Operations allocation history and
+    on Run detail (AGENTS.md 3.8). Deciding by age alone would make the
+    opposite claim for an old allocation whose report never arrived.
+  siblings: >-
+    The Operations allocation history (GET /v1/operations/allocation-history)
+    and Run detail resources share
+    projectAllocationResources and the same report subquery; both are fixed
+    there. The public client and the UI types are generated from OpenAPI; the
+    UI renders the reason text generically (ui/src/routes/operations/performance/resources.tsx).
+    Reports whose runtime resources are absent keep `report_missing`.
+scope:
+  in:
+    - "stage_allocations records that an execution report was received; the database sets it when a report row is inserted, so every writer is covered, and the migration sets it for allocations that have a report now."
+    - "A released allocation without an unexpired report and with a received report maps to `unavailable` with reason `report_expired`; without a received report the existing `pending`/`report_missing` mapping stays."
+    - "OpenAPI adds `report_expired` to AllocationResourceSummary.reason (additive), with the generated public client and UI types regenerated."
+    - "OPS-R183 and the observability text name the reason."
+    - "Regression tests on PostgreSQL for both readers, and a UI test that renders the reason."
+  out:
+    - "Changing the retention period or keeping reports longer."
+    - "Recovering the history of allocations whose reports were deleted before the migration: they keep `report_missing`."
+acceptance_criteria:
+  - id: A1
+    text: "Given a released allocation whose report expired, both the allocation history and Run detail resources return status `unavailable` with reason `report_expired`, whether the expired row is still stored or already deleted by cleanup."
+  - id: A2
+    text: "Given a released allocation that never received a report, both readers still return `report_missing`, at any age."
+  - id: A3
+    text: "The migration marks allocations that have a stored report, and an inserted report marks its allocation without a separate write in Go."
+  - id: A4
+    text: "make verify-public-api passes with the additive enum value, and the UI shows the reason as text."
+  - id: A5
+    text: "The A1 test fails on the unfixed mapping."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/telemetry ./internal/runservice ./internal/persistence/postgres ./internal/httpapi/public"
+    covers: [A1, A2, A3, A5]
+  - command: make verify-public-api
+    covers: [A4]
+  - command: make ui-verify
+    covers: [A4]
+  - command: make test-go
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3, A4]

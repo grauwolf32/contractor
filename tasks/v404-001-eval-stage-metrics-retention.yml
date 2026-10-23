@@ -1,0 +1,73 @@
+schema_version: "1.0"
+id: V404-001
+title: "Keep the StageMetrics of Eval member Runs while the member exists"
+milestone: hub-audit-defects-2026-10
+epic: evals
+kind: defect
+introduced_by: V38-006
+priority: P2
+status: in_progress
+depends_on: []
+languages: [go, sql, markdown]
+goal: "Telemetry retention never removes StageMetrics that an existing Eval member reads, so a finished experiment keeps its results, assessments and observed usage after LIM-OBS-8, and a late external result is checked against the same observation."
+context:
+  review: "docs/research/2026-10-03-database-schema-review.md, risk `stage_metrics` TTL"
+  specification: "docs/spec/platform/observability.md#OBS-R43"
+  severity: medium
+  finding: >-
+    Telemetry cleanup (internal/telemetry/repository.go:333, OBS-R43) deletes
+    stage_metrics of terminal StageExecutions 30 days after their last write.
+    Evals read the table live: observedUsage
+    (internal/evalservice/usage_collection.go:105) through
+    Store.MetricSnapshots (internal/evalstore/metric_snapshots_sql.go) and the
+    driver's token budget through Store.KnownTokens
+    (internal/evalstore/observed_usage_sql.go). The delete fires
+    eval_metrics_projection (contractor_eval_metrics_changed, baseline
+    migration), which marks every Eval member that executed the Run dirty;
+    claimStatement (internal/evalstore/claims_sql.go) claims experiments with
+    an unpublished projection revision even when they are finished;
+    collectMember recomputes usage, now "Stage metrics are unavailable", and
+    collectNativeRecords (internal/evalservice/native_records.go) saves a new
+    ResultInput and AssessmentInput because the usage differs. An external
+    result posted after the cleanup fails validateCollectedResult
+    (internal/evalservice/record_ingestion.go:72) with eval_member_conflict,
+    because the recomputed usage no longer equals the collected one. A
+    running experiment older than 30 days under-counts known tokens for its
+    token budget (EVM-R118).
+  siblings: >-
+    observedUsage (collection and external result validation) and
+    KnownTokens (budget) are the only Eval readers of stage_metrics; both are
+    fixed by keeping the rows. Native check Runs are not read for usage.
+    allocation_execution_reports and planner_execution_reports are not read
+    by Evals (their expiry is V404-002 and unchanged respectively).
+    Run deletion still removes StageMetrics with the Run, so a purged Eval
+    execution Project releases them as before.
+scope:
+  in:
+    - "Retention cleanup renews, instead of deleting, an expired stage_metrics row whose Run an existing Eval member executed, directly (execution_kind run) or as a child Run of its Audit (audit_executions); the renewal uses the column's own retention default, so the row leaves the expired range and later passes do not rescan it."
+    - "Renewal and deletion share the table's bounded budget per pass (OBS-R44), and renewed rows count as progress for the drain decision."
+    - "eval_metrics_projection fires on changes of the metrics content only, so a renewal does not mark Eval members dirty."
+    - "OBS-R43, LIFE-OBS-2 and the Eval usage requirements state the exception and its end: rows of a Run no Eval member references expire as before, at the latest one retention period after the last renewal."
+    - "Regression tests on PostgreSQL through the real Eval coordinator and the real cleanup."
+  out:
+    - "Copying usage into Eval records at first collection (it would still break external result validation)."
+    - "Retention of allocation and Planner reports."
+    - "A retention period for Eval experiments themselves."
+acceptance_criteria:
+  - id: A1
+    text: "Given a finished server-controlled experiment whose member Run has StageMetrics, when the cleanup runs after the rows expired and the coordinator ticks, then the rows remain with a renewed expiry, no new ResultInput or AssessmentInput is saved, the projection revision does not change, and the recomputed observed usage equals the collected usage."
+  - id: A2
+    text: "Given the same expired rows of a Run executed as a child Run of an Audit member, the cleanup renews them as well."
+  - id: A3
+    text: "Given expired StageMetrics of a Run that no Eval member executed, the cleanup deletes them in the same pass, and a Run whose Eval experiment was purged loses its rows once they expire again."
+  - id: A4
+    text: "Retained rows do not occupy later passes: after a renewal the next pass reaches other expired rows with its whole budget."
+  - id: A5
+    text: "The A1 test fails on the unfixed cleanup."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/evalservice ./internal/telemetry ./internal/persistence/postgres"
+    covers: [A1, A2, A3, A4, A5]
+  - command: make test-go
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
