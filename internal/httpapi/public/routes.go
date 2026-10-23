@@ -11,7 +11,7 @@ type route struct {
 }
 
 // routes lists every public operation once. register serves each of them and
-// answers any other method of their paths with 405;
+// answers any other method of their paths, HEAD included, with 405;
 // TestRouteTableMatchesOpenAPI keeps the table equal to the operations of
 // the OpenAPI contract, and every operation must pass a validated test
 // (TestMain).
@@ -197,28 +197,32 @@ func (c contextHandlers) routes() []route {
 	}
 }
 
-// register serves every route, answers another method of a route's path with
-// 405 and any other path with 404.
-func (c contextHandlers) register(mux *http.ServeMux) {
-	paths := map[string]bool{}
-	for _, route := range c.routes() {
+// register serves routes, answers another method of a route's path with 405
+// and any other path with 404. ServeMux lets a GET pattern serve HEAD too, and
+// no operation of the contract defines HEAD, so every path with a GET route
+// also gets an explicit HEAD pattern: HEAD is 405 before any operation handler
+// runs (API-R111). Authentication and authorization wrap the mux, so they
+// still answer first, as they do for GET.
+func register(mux *http.ServeMux, routes []route) {
+	paths, gets := map[string]bool{}, map[string]bool{}
+	for _, route := range routes {
 		mux.HandleFunc(route.method+" "+route.path, route.handler)
 		paths[route.path] = true
+		gets[route.path] = gets[route.path] || route.method == http.MethodGet
 	}
 	for path := range paths {
+		if gets[path] {
+			mux.HandleFunc(http.MethodHead+" "+path, methodNotAllowed)
+		}
 		mux.HandleFunc(path, methodNotAllowed)
 	}
 	mux.HandleFunc("/", notFound)
 }
 
-// evalRoute keeps every Eval response out of caches and refuses HEAD, which
-// the Eval documents do not define.
+// evalRoute keeps every Eval response out of caches.
 func evalRoute(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
-		if rejectHead(w, r) {
-			return
-		}
 		next(w, r)
 	}
 }

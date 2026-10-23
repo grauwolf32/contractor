@@ -114,9 +114,6 @@ func (h *sessionHandlers) login(w http.ResponseWriter, r *http.Request) {
 
 func (h *sessionHandlers) getSession(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if rejectHead(w, r) {
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		handleError(w, err)
 		return

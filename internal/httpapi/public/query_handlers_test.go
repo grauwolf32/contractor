@@ -757,31 +757,6 @@ func TestPublicArtifactLineageHidesAuditImportStagingEdge(t *testing.T) {
 	}
 }
 
-func TestQueryRoutesDoNotImplicitlyServeHEAD(t *testing.T) {
-	fixture := newHandlerFixture(t)
-	for _, target := range []string{
-		"/v1/workflows",
-		"/v1/workflows/artifact-copy/versions/1",
-		"/v1/runs",
-		"/v1/artifacts",
-		"/v1/artifacts/projects/source/metadata",
-		"/v1/artifacts/projects/source/versions",
-		"/v1/artifacts/projects/source/lineage",
-		"/v1/runs/missing/artifacts",
-		"/v1/runs/missing/artifacts/inputs/source",
-		"/v1/runs/missing/artifacts/inputs/source/metadata",
-		"/v1/runs/missing/artifacts/inputs/source/versions",
-		"/v1/runs/missing/artifacts/inputs/source/lineage",
-	} {
-		request := authenticatedRequest(http.MethodHead, target, bytes.NewReader(nil))
-		response := httptest.NewRecorder()
-		fixture.handler.ServeHTTP(response, request)
-		if response.Code != http.StatusMethodNotAllowed {
-			t.Errorf("HEAD %s = %d, want 405", target, response.Code)
-		}
-	}
-}
-
 func serveQuery(t *testing.T, handler http.Handler, target string) *httptest.ResponseRecorder {
 	t.Helper()
 	request := authenticatedRequest(http.MethodGet, target, bytes.NewReader(nil))

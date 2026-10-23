@@ -45,9 +45,6 @@ type catalogHandlers struct {
 }
 
 func (h *catalogHandlers) listWorkflows(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	values, limit, encodedCursor, err := pageQuery(r.URL.RawQuery, "q", "name")
 	if err != nil {
 		handleError(w, err)
@@ -97,9 +94,6 @@ func (h *catalogHandlers) listWorkflows(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *catalogHandlers) getWorkflow(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		handleError(w, err)
 		return

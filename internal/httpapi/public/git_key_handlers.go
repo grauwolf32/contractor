@@ -24,7 +24,7 @@ type gitKeyHandlers struct {
 }
 
 func (h *gitKeyHandlers) getGitKey(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) || !acceptGitKeyRequest(w, r) {
+	if !acceptGitKeyRequest(w, r) {
 		return
 	}
 	m, err := h.GitKeys.Metadata(r.Context(), principalUserID(r.Context()))

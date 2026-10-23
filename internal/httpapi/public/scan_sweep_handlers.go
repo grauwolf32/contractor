@@ -55,9 +55,6 @@ func (h *scanSweepHandlers) create(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, result)
 }
 func (h *scanSweepHandlers) get(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		handleError(w, err)
 		return
@@ -70,9 +67,6 @@ func (h *scanSweepHandlers) get(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 func (h *scanSweepHandlers) list(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	_, limit, encoded, err := pageQuery(r.URL.RawQuery)
 	if err != nil {
 		handleError(w, err)
@@ -103,9 +97,6 @@ func (h *scanSweepHandlers) list(w http.ResponseWriter, r *http.Request) {
 	}{items, page})
 }
 func (h *scanSweepHandlers) members(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	_, limit, encoded, err := pageQuery(r.URL.RawQuery)
 	if err != nil {
 		handleError(w, err)
