@@ -102,6 +102,38 @@ describe("ui.css", () => {
     expect(shown().textOverflow).toBe("ellipsis");
   });
 
+  it("dims a button that is only aria-disabled like a disabled one", () => {
+    const { getByRole } = render(
+      <>
+        <button type="button" className="ui-btn" disabled>
+          Disabled
+        </button>
+        <button type="button" className="ui-btn" aria-disabled="true">
+          Locked
+        </button>
+        <button
+          type="button"
+          className="ui-btn"
+          aria-disabled="true"
+          aria-busy="true"
+        >
+          Recording
+        </button>
+      </>,
+    );
+    for (const name of ["Disabled", "Locked", "Recording"]) {
+      expect(getComputedStyle(getByRole("button", { name })).opacity).toBe(
+        "0.58",
+      );
+    }
+    expect(
+      getComputedStyle(getByRole("button", { name: "Locked" })).cursor,
+    ).toBe("not-allowed");
+    expect(
+      getComputedStyle(getByRole("button", { name: "Recording" })).cursor,
+    ).toBe("progress");
+  });
+
   it("caps a recorded decision where the pane footer is pinned", () => {
     const footer = mediaRule(PINNED, ".ui-detail-pane-footer");
     expect(footer.position).toBe("sticky");

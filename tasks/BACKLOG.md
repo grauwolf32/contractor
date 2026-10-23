@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-77 open tasks: 5 in progress, 47 pending, 25 deferred. 959 finished: 956 completed, 3 archived.
+77 open tasks: 6 in progress, 46 pending, 25 deferred. 959 finished: 956 completed, 3 archived.
 
 ## In progress
 
@@ -16,6 +16,7 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
 | [V401-001](v401-001-remaining-namespace-literals.yml) | projects-artifacts | defect | P3 | Name the remaining reserved Namespaces through one definition in the UI, the Runtime and auditstandards |
+| [V401-002](v401-002-decision-bar-pending-focus.yml) | ui | defect | P2 | Keep keyboard focus in the decision bar while a decision is recording |
 
 ## Pending
 
@@ -90,12 +91,6 @@ the epics are in [epics.yml](epics.yml).
 | [V40-003](v40-003-agent-instruction-eval-decision.yml) | feature | P1 | V40-002 | Evaluate instruction candidates and record evidence-based adoption decisions |
 | [V401-005](v401-005-evals-chart-select-keyboard.yml) | defect | P3 | — | Choose the narrow-screen Eval overview chart with keys that work in every browser platform |
 | [V401-006](v401-006-eval-nesting-depth-definition.yml) | defect | P3 | — | Define how the Eval nesting depth limit counts levels and pin its boundary in shared cases |
-
-### Web UI (`ui`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V401-002](v401-002-decision-bar-pending-focus.yml) | defect | P2 | — | Keep keyboard focus in the decision bar while a decision is recording |
 
 ### Operations, authentication, CLI and deployment (`operations`)
 

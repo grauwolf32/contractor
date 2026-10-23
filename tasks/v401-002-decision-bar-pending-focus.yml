@@ -5,13 +5,13 @@ milestone: hub-audit-defects-2026-10
 epic: ui
 kind: defect
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [typescript]
 goal: "A keyboard user who records a decision keeps focus inside the decision bar while the request is in flight, in a real browser, until V372-005's focus move to the next item or the decision group takes over."
 context:
   review: "Finding of V372-005 (merged in 68b553de), recorded 2026-10-23; position on main @ 68b553de"
-  specification: "docs/spec/ui/README.md"
+  specification: "docs/spec/ui/ui.md"
   severity: medium
   finding: >-
     ui/src/ui/decision-bar.tsx:307 renders the Record decision button with

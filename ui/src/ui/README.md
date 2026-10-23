@@ -546,8 +546,14 @@ bar. Put it in `DetailPane`'s `footer` to pin it.
   a required severity is set. A line under the bar says what is missing
   ("Choose a decision.", "Choose severity.", "Write a short reason.") and
   describes the button.
-- **`pending`:** disables every control, turns off the keys, makes the reason
-  read-only (focus stays) and makes `more` and `extra` inert.
+- **`pending`:** locks every control, turns off the keys and makes `more`
+  and `extra` inert. Keyboard focus stays in the bar until the page moves it
+  after the answer, as a browser drops focus from a control that turns
+  disabled or inert: the reason only turns read-only and Record only
+  `aria-disabled` and `aria-busy` (pressing it again sends nothing). When
+  recording starts with focus on a control that does lock, or on the page
+  body, focus moves to Record in the same commit (Safari and Firefox on
+  macOS do not focus a clicked button, so a verdict can keep it).
 - **`next`:** a quiet button. Its key is bound as well; if the page already
   binds the same key to the same action, only one handler runs.
 - **Narrow panes:** the verdict, Next and Record buttons shrink and wrap
@@ -983,7 +989,8 @@ settledInterval?, maxInterval? })` returns a `refetchInterval` function:
   - `data-size`: `sm` (32 px) or `xs` (28 px); the default is 38 px.
   - `data-icon-only`: square, as wide as it is tall.
   - `aria-pressed="true"` gets the selected look; `aria-busy="true"` the
-    progress cursor; disabled buttons are dimmed and show no hover.
+    progress cursor; disabled buttons, and those only `aria-disabled="true"`
+    so they keep focus, are dimmed and show no hover.
   - Pressing moves it down 1 px; colours fade in 140 ms.
 - **`.ui-stack`:** a column of children with one gap (12 px; `data-gap`
   1, 2, 4 or 6 picks another step of the spacing scale).
