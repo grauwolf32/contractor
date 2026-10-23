@@ -555,3 +555,60 @@ func assertResolutionError(t *testing.T, err error, code ResolutionErrorCode, pa
 		t.Fatalf("resolution error = %#v (%v), want %s at %s", resolution, err, code, path)
 	}
 }
+
+func TestResolverInteractshAtomicDefaultRunAgentPrecedenceAndClear(t *testing.T) {
+	input := resolverInput()
+	input.Default.Spec.Worker.Interactsh = interactshPatch("https://default.example", "")
+	input.RunLabels = []PinnedRuntimeConfig{testPin("debug", "3", Spec{Worker: WorkerPatch{
+		Interactsh: interactshPatch("https://run.example/prefix", "run-interactsh"),
+	}})}
+	input.AgentLabels = []PinnedRuntimeConfig{testPin("lab", "4", Spec{Worker: WorkerPatch{
+		Interactsh: interactshPatch("https://agent.example", ""),
+	}})}
+	input.RuntimeCredentials["run-interactsh"] = runtimesettings.RuntimeCredentialInteractshToken
+
+	result, err := ResolveRuntimeConfig(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Interactsh == nil || result.Interactsh.Endpoint != "https://agent.example" ||
+		result.Interactsh.Credential != "" || result.Origins.Interactsh.Layer != LayerAgentLabels ||
+		!reflect.DeepEqual(result.RequiredRuntimeAdapters, []runtimesettings.RuntimeAdapterRef{runtimesettings.RuntimeAdapterInteractshHTTP}) ||
+		len(result.Provenance.RuntimeCredentialRefs) != 0 {
+		t.Fatalf("Agent Interactsh precedence = %+v", result)
+	}
+
+	input.AgentLabels = nil
+	result, err = ResolveRuntimeConfig(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Interactsh == nil || result.Interactsh.Endpoint != "https://run.example/prefix" ||
+		result.Origins.Interactsh.Layer != LayerRunLabels ||
+		!reflect.DeepEqual(result.Provenance.RuntimeCredentialRefs, []runtimesettings.RuntimeCredentialRef{{
+			CredentialID: "run-interactsh", Kind: runtimesettings.RuntimeCredentialInteractshToken,
+		}}) {
+		t.Fatalf("Run Interactsh precedence = %+v", result)
+	}
+
+	input.AgentLabels = []PinnedRuntimeConfig{testPin("no-interactsh", "5", Spec{Worker: WorkerPatch{
+		Interactsh: AtomicPatch[InteractshConfig]{Present: true, Clear: true},
+	}})}
+	result, err = ResolveRuntimeConfig(input)
+	if err != nil || result.Interactsh != nil || len(result.RequiredRuntimeAdapters) != 0 ||
+		result.Origins.Interactsh.Layer != LayerAgentLabels {
+		t.Fatalf("Agent Interactsh clear = (%+v, %v)", result, err)
+	}
+
+	input.AgentLabels = nil
+	input.RuntimeCredentials["run-interactsh"] = runtimesettings.RuntimeCredentialProxyBearer
+	_, err = ResolveRuntimeConfig(input)
+	assertResolutionError(t, err, ResolutionCredentialKindMismatch, "worker.interactsh.credential")
+}
+
+func interactshPatch(endpoint, credentialID string) AtomicPatch[InteractshConfig] {
+	return AtomicPatch[InteractshConfig]{Present: true, Value: InteractshConfig{
+		Adapter: string(runtimesettings.RuntimeAdapterInteractshHTTP), Endpoint: endpoint,
+		Credential: credentialID, RequestTimeoutSeconds: 30,
+	}}
+}

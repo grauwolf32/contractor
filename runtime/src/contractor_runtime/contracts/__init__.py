@@ -144,6 +144,7 @@ from contractor_runtime.contracts.settings import (
 )
 from contractor_runtime.contracts.settings import HTTPProxyBasicAuth as HTTPProxyBasicAuth
 from contractor_runtime.contracts.settings import HTTPProxySettings as HTTPProxySettings
+from contractor_runtime.contracts.settings import InteractshSettings as InteractshSettings
 from contractor_runtime.contracts.settings import LLMCredentialRef as LLMCredentialRef
 from contractor_runtime.contracts.settings import LLMGatewayConfigRef as LLMGatewayConfigRef
 from contractor_runtime.contracts.settings import ModelPolicyRef as ModelPolicyRef

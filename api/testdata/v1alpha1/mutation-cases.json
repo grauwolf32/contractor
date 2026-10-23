@@ -1707,6 +1707,7 @@
         "",
         "/caido",
         "/httpProxy",
+        "/interactsh",
         "/telemetry",
         "/telemetry/export",
         "/telemetry/export/retry"
@@ -1715,6 +1716,7 @@
         "",
         "/caido",
         "/httpProxy",
+        "/interactsh",
         "/telemetry",
         "/telemetry/export",
         "/telemetry/export/retry",

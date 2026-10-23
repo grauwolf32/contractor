@@ -5,7 +5,7 @@ milestone: interactsh-worker-tools-2026-10
 epic: http-tools
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, python, typescript, markdown]
 goal: >-
@@ -18,6 +18,7 @@ context:
     On 2026-10-15 the user requested a separate task for Interactsh Worker tools
     and configurability comparable to Caido, LLM Gateways and HTTP proxies.
   specification:
+    - docs/spec/tools/interactsh.md
     - docs/spec/tools/http-caido.md
     - docs/spec/tools/toolsets.md
     - docs/spec/configuration/runtime-config.md
@@ -53,14 +54,14 @@ requirements:
 failure_outcomes:
   - operation: Registration, polling and deregistration against Interactsh
     permanent: Invalid input, unknown handles, authentication denial and incompatible protocol return stable classified tool errors without blind retries.
-    retryable: Bounded polling retries honor finite attempt/deadline limits and Retry-After; registration retries require reconciliation of the same owned identity.
+    retryable: One finite network poll per call, no automatic retry of the upstream destructive read; explicit subsequent polls honor local rate bounds and a bounded Retry-After hint. Registration response loss reconciles the same owned identity.
     ambiguous: Preserve the generated registration identity and reconcile a response-lost registration or deregistration through upstream semantics; report outcome unknown when reconciliation cannot prove the result.
     cancelled: Allocation teardown cancels and joins adapter work before dropping credentials and registration ownership.
     timeout: Give registration, one poll and cleanup independent finite budgets; retain uncertainty without fabricating absent callbacks.
 cardinality:
   - collection: Registrations and interactions per allocation
     expected: A small number of registrations with bounded incremental polling.
-    maximum: Specify finite caps before implementation and record them in docs/spec/platform/limits.md.
+    maximum: 16 registrations, 100 event candidates per poll, 1 MiB response, 64 KiB event, 2 MiB exact evidence and at most 48 MiB pending buffers (LIM-INT-1 through LIM-INT-9).
     bound: Bound each tool call by events and serialized bytes; cap accumulated in-memory events and never rescan all retained Run artifacts on a poll.
 lifecycle:
   - entity: Interactsh registration and callback evidence
@@ -81,9 +82,19 @@ acceptance_criteria:
     when: The real adapter processes each outcome.
     then: Stable errors, bounded work, reconciliation and joined cleanup are verified without leaking keys or credentials.
 tests:
+  - command: make test-interactsh-protocol
+    covers: [A2, A3]
   - command: make test-wire-cross-language verify-public-api
     covers: [A1, A2, A3]
-  - command: make test-runtime ui-verify
+  - command: make test-runtime
     covers: [A1, A2, A3]
+  - command: make ui-verify
+    covers: [A1]
+  - command: make ui-browser-mocked
+    covers: [A1]
+  - command: go test -count=1 ./internal/contracts/... ./internal/runtimeconfig ./internal/config/... ./internal/credentials ./internal/scheduler ./internal/controlplane ./internal/agentprincipal ./internal/httpapi/public ./internal/persistence/...
+    covers: [A1, A3]
+  - command: make verify-architecture
+    covers: [A1]
   - command: make lint
     covers: [A1, A2, A3]

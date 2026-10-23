@@ -59,7 +59,7 @@ Terms are defined once in the [glossary](../glossary.md).
 | Toolset descriptor registry | The Server's lightweight registry of Toolset descriptors used for authoring-time validation. |
 | ToolsetFactory registry | A Runtime Agent's own registry of installed and enabled Toolset factories. |
 | Toolset capability | An exact Toolset ref plus the subset of its exported tools whose prerequisites passed in one Runtime Agent's process environment. |
-| Infrastructure channel | A class of allocation-owned handle supplied by Runtime that an exported tool declares it consumes: `runtime-http-client`, `runtime-subprocess-launcher` or `caido-graphql-client`. |
+| Infrastructure channel | A class of allocation-owned handle supplied by Runtime that an exported tool declares it consumes: `runtime-http-client`, `runtime-subprocess-launcher` or `caido-graphql-client` or `interactsh-client`. |
 | Local/artifact-only tool | An exported tool that declares no infrastructure channel. |
 | Internal helper | Code used by a selected tool that is not itself a model-visible tool. |
 | Model authority boundary | AgentTemplate tool selection, which alone decides which tools the model can see and call. |
@@ -108,6 +108,7 @@ carries the infrastructure channels that tool consumes:
 | `runtime-http-client` | The Runtime-owned HTTP client |
 | `runtime-subprocess-launcher` | The Runtime-owned bounded subprocess launcher |
 | `caido-graphql-client` | The Caido GraphQL client of the allocation |
+| `interactsh-client` | The allocation-owned Interactsh callback client |
 
 Registered descriptors and their Runtime counterparts are also where
 SandboxProfile/tool compatibility lives; that compatibility is specified in
@@ -256,7 +257,7 @@ constructed nor exposed.
 
 **TLS-R22.** Each exported-tool descriptor declares a fixed subset of the
 infrastructure channels the tool consumes: `runtime-http-client` and/or
-`runtime-subprocess-launcher` and/or `caido-graphql-client`.
+`runtime-subprocess-launcher` and/or `caido-graphql-client` or `interactsh-client`.
 
 **TLS-R23.** The channel declaration is registered code metadata under the
 exact Toolset version, not an AgentTemplate option.

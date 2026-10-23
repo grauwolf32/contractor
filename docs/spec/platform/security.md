@@ -531,7 +531,7 @@ denied rather than guessed.
 
 **SEC-R70.** Runtime service endpoints are always denied, by host name plus port
 and by every resolved address plus port. They are the LLM Gateway, the Artifact
-API, the telemetry collector, the forward proxy, the Caido control API, Control
+API, the telemetry collector, the forward proxy, the Caido and Interactsh control APIs, Control
 Plane, the advertised control and A2A URLs and the private listener. A loopback
 or unspecified endpoint address protects every loopback address on that port.
 

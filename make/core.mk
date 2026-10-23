@@ -83,3 +83,7 @@ test-e2e: test-release-process-e2e
 
 test-capability-e2e: require-database runtime-venv
 	go test -tags=e2e -count=1 -timeout=3m ./tests/e2e -run '^TestHeterogeneousRuntimeCapabilityPlacement$$'
+
+.PHONY: test-interactsh-protocol
+test-interactsh-protocol: runtime-venv
+	sh scripts/test_interactsh_protocol.sh

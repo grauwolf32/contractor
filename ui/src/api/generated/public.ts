@@ -4912,6 +4912,15 @@ export interface components {
             caBundlePem?: string;
             requestTimeoutSeconds?: number;
         };
+        RuntimeInteractshConfig: {
+            /** @constant */
+            adapter: "interactsh-http@1";
+            /** Format: uri */
+            endpoint: string;
+            credential?: components["schemas"]["RuntimeCredentialId"];
+            caBundlePem?: string;
+            requestTimeoutSeconds?: number;
+        };
         RuntimeLLMGatewayAuthorPatch: {
             gateway?: components["schemas"]["Selector"];
             credential?: components["schemas"]["ConfigId"] | null;
@@ -4921,6 +4930,7 @@ export interface components {
             telemetry?: components["schemas"]["RuntimeTelemetryConfig"] | null;
             httpProxy?: components["schemas"]["RuntimeHTTPProxyConfig"] | null;
             caido?: components["schemas"]["RuntimeCaidoConfig"] | null;
+            interactsh?: components["schemas"]["RuntimeInteractshConfig"] | null;
         };
         RuntimeConfigAuthorSpec: {
             worker?: components["schemas"]["RuntimeWorkerAuthorPatch"];
@@ -4944,6 +4954,7 @@ export interface components {
             telemetry?: components["schemas"]["RuntimeTelemetryConfig"] | null;
             httpProxy?: components["schemas"]["RuntimeHTTPProxyConfig"] | null;
             caido?: components["schemas"]["RuntimeCaidoConfig"] | null;
+            interactsh?: components["schemas"]["RuntimeInteractshConfig"] | null;
         };
         RuntimePlannerPatch: {
             telemetry?: components["schemas"]["RuntimeTelemetryConfig"] | null;
@@ -4992,7 +5003,7 @@ export interface components {
             config: components["schemas"]["RuntimeConfigRef"];
         };
         /** @enum {unknown} */
-        RuntimeCredentialKind: "otlp-headers@1" | "http-proxy-basic@1" | "http-proxy-bearer@1" | "caido-bearer@1" | "http-origin-basic@1" | "http-origin-bearer@1";
+        RuntimeCredentialKind: "otlp-headers@1" | "http-proxy-basic@1" | "http-proxy-bearer@1" | "caido-bearer@1" | "interactsh-token@1" | "http-origin-basic@1" | "http-origin-bearer@1";
         RuntimeCredentialMetadata: {
             credentialId: components["schemas"]["RuntimeCredentialId"];
             kind: components["schemas"]["RuntimeCredentialKind"];
@@ -5017,6 +5028,9 @@ export interface components {
             token: string;
         };
         CaidoBearerMaterial: {
+            token: string;
+        };
+        InteractshTokenMaterial: {
             token: string;
         };
         HTTPOriginBasicMaterial: {
@@ -5049,6 +5063,11 @@ export interface components {
         } | {
             credentialId: components["schemas"]["RuntimeCredentialId"];
             /** @constant */
+            kind: "interactsh-token@1";
+            material: components["schemas"]["InteractshTokenMaterial"];
+        } | {
+            credentialId: components["schemas"]["RuntimeCredentialId"];
+            /** @constant */
             kind: "http-origin-basic@1";
             material: components["schemas"]["HTTPOriginBasicMaterial"];
         } | {
@@ -5076,6 +5095,7 @@ export interface components {
             llmCredential?: components["schemas"]["RuntimeFieldOrigin"];
             workerTelemetry?: components["schemas"]["RuntimeFieldOrigin"];
             httpProxy?: components["schemas"]["RuntimeFieldOrigin"];
+            interactsh?: components["schemas"]["RuntimeFieldOrigin"];
             caido?: components["schemas"]["RuntimeFieldOrigin"];
             plannerTelemetry?: components["schemas"]["RuntimeFieldOrigin"];
         };

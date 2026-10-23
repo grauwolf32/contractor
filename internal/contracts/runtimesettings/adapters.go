@@ -5,23 +5,25 @@ import "github.com/grauwolf32/contractor/internal/contracts"
 // The Runtime adapter and credential kinds that RuntimeSettings, Runtime
 // registration and Runtime reports are keyed by.
 const (
-	RuntimeAdapterOTLPHTTP     RuntimeAdapterRef = "otlp-http@1"
-	RuntimeAdapterHTTPProxy    RuntimeAdapterRef = "http-proxy@1"
-	RuntimeAdapterCaidoGraphQL RuntimeAdapterRef = "caido-graphql@1"
+	RuntimeAdapterOTLPHTTP       RuntimeAdapterRef = "otlp-http@1"
+	RuntimeAdapterHTTPProxy      RuntimeAdapterRef = "http-proxy@1"
+	RuntimeAdapterCaidoGraphQL   RuntimeAdapterRef = "caido-graphql@1"
+	RuntimeAdapterInteractshHTTP RuntimeAdapterRef = "interactsh-http@1"
 
-	RuntimeCredentialOTLPHeaders  RuntimeCredentialKind = "otlp-headers@1"
-	RuntimeCredentialProxyBasic   RuntimeCredentialKind = "http-proxy-basic@1"
-	RuntimeCredentialProxyBearer  RuntimeCredentialKind = "http-proxy-bearer@1"
-	RuntimeCredentialCaidoBearer  RuntimeCredentialKind = "caido-bearer@1"
-	RuntimeCredentialOriginBasic  RuntimeCredentialKind = "http-origin-basic@1"
-	RuntimeCredentialOriginBearer RuntimeCredentialKind = "http-origin-bearer@1"
+	RuntimeCredentialOTLPHeaders     RuntimeCredentialKind = "otlp-headers@1"
+	RuntimeCredentialProxyBasic      RuntimeCredentialKind = "http-proxy-basic@1"
+	RuntimeCredentialProxyBearer     RuntimeCredentialKind = "http-proxy-bearer@1"
+	RuntimeCredentialCaidoBearer     RuntimeCredentialKind = "caido-bearer@1"
+	RuntimeCredentialInteractshToken RuntimeCredentialKind = "interactsh-token@1"
+	RuntimeCredentialOriginBasic     RuntimeCredentialKind = "http-origin-basic@1"
+	RuntimeCredentialOriginBearer    RuntimeCredentialKind = "http-origin-bearer@1"
 )
 
 type RuntimeAdapterRef string
 
 func (r RuntimeAdapterRef) Validate() error {
 	switch r {
-	case RuntimeAdapterOTLPHTTP, RuntimeAdapterHTTPProxy, RuntimeAdapterCaidoGraphQL:
+	case RuntimeAdapterOTLPHTTP, RuntimeAdapterHTTPProxy, RuntimeAdapterCaidoGraphQL, RuntimeAdapterInteractshHTTP:
 		return nil
 	default:
 		return contracts.Invalidf("unknown RuntimeAdapter ref")
@@ -33,7 +35,7 @@ type RuntimeCredentialKind string
 func (k RuntimeCredentialKind) Validate() error {
 	switch k {
 	case RuntimeCredentialOTLPHeaders, RuntimeCredentialProxyBasic, RuntimeCredentialProxyBearer,
-		RuntimeCredentialCaidoBearer, RuntimeCredentialOriginBasic, RuntimeCredentialOriginBearer:
+		RuntimeCredentialCaidoBearer, RuntimeCredentialInteractshToken, RuntimeCredentialOriginBasic, RuntimeCredentialOriginBearer:
 		return nil
 	default:
 		return contracts.Invalidf("unknown Runtime credential kind")

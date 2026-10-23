@@ -43,6 +43,7 @@ func everySecretSettings() RuntimeSettings {
 			BearerToken: secret("canary-proxy-bearer"),
 			Targets:     []HTTPProxyTarget{ProxyTargetLLMGateway},
 		},
+		Interactsh: &InteractshSettings{Adapter: RuntimeAdapterInteractshHTTP, Endpoint: "https://oast.example", Token: secret("canary-interactsh-token"), RequestTimeoutSeconds: 30},
 		Caido: &CaidoSettings{
 			Adapter: RuntimeAdapterCaidoGraphQL, Endpoint: "https://caido.example/graphql",
 			BearerToken: secret("canary-caido-bearer"), RequestTimeoutSeconds: 30,

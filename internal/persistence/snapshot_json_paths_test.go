@@ -147,6 +147,7 @@ func snapshotJSONReads() []snapshotJSONRead {
 			name: "RuntimeConfig worker Caido credential", document: runtimeConfigDocument,
 			path: textArrayPath(runtimeconfig.WorkerCaidoCredentialPath), want: workerCaido,
 		},
+		{name: "RuntimeConfig worker Interactsh credential", document: runtimeConfigDocument, path: textArrayPath(runtimeconfig.WorkerInteractshCredentialPath), want: "worker-interactsh"},
 		{
 			name: "RuntimeConfig planner telemetry credential", document: runtimeConfigDocument,
 			path: textArrayPath(runtimeconfig.PlannerTelemetryCredentialPath), want: plannerTelemetry,
@@ -405,7 +406,8 @@ func runtimeConfigDocument(t *testing.T) any {
   "llmGateway":{"gateway":"local-litellm@1","credential":"worker-llm"},
   "telemetry":{"adapter":"otlp-http@1","endpoint":"https://otel.example/v1/traces","credential":"worker-telemetry"},
   "httpProxy":{"adapter":"http-proxy@1","proxyUrl":"http://proxy.example:8080","targets":["llm-gateway"],"credential":"worker-proxy"},
-  "caido":{"adapter":"caido-graphql@1","endpoint":"https://caido.example","credential":"worker-caido"}},
+  "caido":{"adapter":"caido-graphql@1","endpoint":"https://caido.example","credential":"worker-caido"},
+  "interactsh":{"adapter":"interactsh-http@1","endpoint":"https://oast.example","credential":"worker-interactsh"}},
  "planner":{"telemetry":{"adapter":"otlp-http@1","endpoint":"https://otel.example/v1/traces","credential":"planner-telemetry"}}}}`
 	prepared, err := runtimeconfig.PreparePublication([]byte(document))
 	if err != nil {

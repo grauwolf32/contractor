@@ -182,20 +182,26 @@ func TestPreparePublicationRejectsUnsafeOrAmbiguousDocuments(t *testing.T) {
 		return []byte(`{"apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig","metadata":{"name":"debug","version":"1"},"spec":` + spec + `}`)
 	}
 	tests := map[string][]byte{
-		"empty":                   base(`{}`),
-		"unknown":                 base(`{"worker":{"telemetry":null,"mystery":1}}`),
-		"duplicate":               base(`{"worker":{"telemetry":null,"telemetry":null}}`),
-		"bad endpoint":            base(`{"worker":{"telemetry":{"adapter":"otlp-http@1","endpoint":"https://user:secret@example/a?x=1"}}}`),
-		"null content capture":    base(`{"worker":{"telemetry":{"adapter":"otlp-http@1","endpoint":"https://example/a","captureContent":null}}}`),
-		"duplicate targets":       base(`{"worker":{"httpProxy":{"adapter":"http-proxy@1","proxyUrl":"http://proxy.example","targets":["tool-http","tool-http"]}}}`),
-		"null gateway":            base(`{"worker":{"llmGateway":{"gateway":null}}}`),
-		"invalid surrogate":       base(`{"worker":{"telemetry":{"adapter":"otlp-http@1","endpoint":"https://example/\ud800"}}}`),
-		"Caido wrong adapter":     base(`{"worker":{"caido":{"adapter":"http-proxy@1","endpoint":"https://caido.example"}}}`),
-		"Caido endpoint userinfo": base(`{"worker":{"caido":{"adapter":"caido-graphql@1","endpoint":"https://user:secret@caido.example"}}}`),
-		"Caido endpoint query":    base(`{"worker":{"caido":{"adapter":"caido-graphql@1","endpoint":"https://caido.example?token=secret"}}}`),
-		"Caido null credential":   base(`{"worker":{"caido":{"adapter":"caido-graphql@1","endpoint":"https://caido.example","credential":null}}}`),
-		"Caido zero timeout":      base(`{"worker":{"caido":{"adapter":"caido-graphql@1","endpoint":"https://caido.example","requestTimeoutSeconds":0}}}`),
-		"Caido excessive timeout": base(`{"worker":{"caido":{"adapter":"caido-graphql@1","endpoint":"https://caido.example","requestTimeoutSeconds":121}}}`),
+		"empty":                        base(`{}`),
+		"unknown":                      base(`{"worker":{"telemetry":null,"mystery":1}}`),
+		"duplicate":                    base(`{"worker":{"telemetry":null,"telemetry":null}}`),
+		"bad endpoint":                 base(`{"worker":{"telemetry":{"adapter":"otlp-http@1","endpoint":"https://user:secret@example/a?x=1"}}}`),
+		"null content capture":         base(`{"worker":{"telemetry":{"adapter":"otlp-http@1","endpoint":"https://example/a","captureContent":null}}}`),
+		"duplicate targets":            base(`{"worker":{"httpProxy":{"adapter":"http-proxy@1","proxyUrl":"http://proxy.example","targets":["tool-http","tool-http"]}}}`),
+		"null gateway":                 base(`{"worker":{"llmGateway":{"gateway":null}}}`),
+		"invalid surrogate":            base(`{"worker":{"telemetry":{"adapter":"otlp-http@1","endpoint":"https://example/\ud800"}}}`),
+		"Caido wrong adapter":          base(`{"worker":{"caido":{"adapter":"http-proxy@1","endpoint":"https://caido.example"}}}`),
+		"Interactsh wrong adapter":     base(`{"worker":{"interactsh":{"adapter":"http-proxy@1","endpoint":"https://interactsh.example"}}}`),
+		"Caido endpoint userinfo":      base(`{"worker":{"caido":{"adapter":"caido-graphql@1","endpoint":"https://user:secret@caido.example"}}}`),
+		"Interactsh endpoint userinfo": base(`{"worker":{"interactsh":{"adapter":"interactsh-http@1","endpoint":"https://user:secret@interactsh.example"}}}`),
+		"Caido endpoint query":         base(`{"worker":{"caido":{"adapter":"caido-graphql@1","endpoint":"https://caido.example?token=secret"}}}`),
+		"Interactsh endpoint query":    base(`{"worker":{"interactsh":{"adapter":"interactsh-http@1","endpoint":"https://interactsh.example?token=secret"}}}`),
+		"Caido null credential":        base(`{"worker":{"caido":{"adapter":"caido-graphql@1","endpoint":"https://caido.example","credential":null}}}`),
+		"Interactsh null credential":   base(`{"worker":{"interactsh":{"adapter":"interactsh-http@1","endpoint":"https://interactsh.example","credential":null}}}`),
+		"Caido zero timeout":           base(`{"worker":{"caido":{"adapter":"caido-graphql@1","endpoint":"https://caido.example","requestTimeoutSeconds":0}}}`),
+		"Interactsh zero timeout":      base(`{"worker":{"interactsh":{"adapter":"interactsh-http@1","endpoint":"https://interactsh.example","requestTimeoutSeconds":0}}}`),
+		"Caido excessive timeout":      base(`{"worker":{"caido":{"adapter":"caido-graphql@1","endpoint":"https://caido.example","requestTimeoutSeconds":121}}}`),
+		"Interactsh excessive timeout": base(`{"worker":{"interactsh":{"adapter":"interactsh-http@1","endpoint":"https://interactsh.example","requestTimeoutSeconds":121}}}`),
 	}
 	for name, document := range tests {
 		document := document
@@ -339,5 +345,48 @@ func TestPreparePublicationGatewaySelectorUsesConfigurationGrammar(t *testing.T)
 		if _, err := PreparePublication(document(selector)); !errors.Is(err, ErrInvalid) {
 			t.Errorf("Gateway selector %q error = %v", selector, err)
 		}
+	}
+}
+
+func TestInteractshConfigNormalizesAsOneAtomicWorkerField(t *testing.T) {
+	t.Parallel()
+	document := []byte(`{
+  "apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig",
+  "metadata":{"name":"interactsh-lab","version":"1"},
+  "spec":{"worker":{"interactsh":{
+    "requestTimeoutSeconds":30,"credential":"interactsh-token",
+    "endpoint":"https://interactsh.example/prefix","adapter":"interactsh-http@1"
+  }}}
+}`)
+	prepared, err := PreparePublication(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	version, err := prepared.Resolve(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	interactsh := version.Spec.Worker.Interactsh
+	if !interactsh.Present || interactsh.Clear || interactsh.Value.Adapter != "interactsh-http@1" ||
+		interactsh.Value.Endpoint != "https://interactsh.example/prefix" ||
+		interactsh.Value.Credential != "interactsh-token" || interactsh.Value.RequestTimeoutSeconds != 30 {
+		t.Fatalf("normalized Interactsh config = %+v", interactsh)
+	}
+	decoded, err := DecodeStoredDocument(version.CanonicalDocument)
+	if err != nil || decoded.Spec.Worker.Interactsh != interactsh {
+		t.Fatalf("stored Interactsh round trip = (%+v, %v)", decoded.Spec.Worker.Interactsh, err)
+	}
+
+	clear, err := PreparePublication([]byte(`{
+  "apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig",
+  "metadata":{"name":"no-interactsh","version":"1"},
+  "spec":{"worker":{"interactsh":null}}
+}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cleared, err := clear.Resolve(context.Background(), nil)
+	if err != nil || !cleared.Spec.Worker.Interactsh.Present || !cleared.Spec.Worker.Interactsh.Clear {
+		t.Fatalf("Interactsh clear = (%+v, %v)", cleared.Spec.Worker.Interactsh, err)
 	}
 }

@@ -56,3 +56,17 @@ spec:
       endpoint: https://caido-control.example:8443
       credential: caido-api
       requestTimeoutSeconds: 30
+
+---
+apiVersion: contractor/v1alpha1
+kind: RuntimeConfig
+metadata:
+  name: interactsh-lab
+  version: "1"
+spec:
+  worker:
+    interactsh:
+      adapter: interactsh-http@1
+      endpoint: https://oast.example
+      credential: interactsh-api
+      requestTimeoutSeconds: 30

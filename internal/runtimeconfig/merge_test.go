@@ -76,3 +76,25 @@ func TestMergeSameLayerTreatsCaidoAsOneAtomicValue(t *testing.T) {
 func testRef(name, digit string) Ref {
 	return Ref{Name: name, Version: "1", Digest: "sha256:" + strings.Repeat(digit, 64)}
 }
+
+func TestMergeSameLayerTreatsInteractshAsOneAtomicValue(t *testing.T) {
+	t.Parallel()
+	one := LayerEntry{Label: "one", Ref: testRef("one", "1"), Spec: Spec{Worker: WorkerPatch{
+		Interactsh: interactshPatch("https://one.example", "one-token"),
+	}}}
+	two := LayerEntry{Label: "two", Ref: testRef("two", "2"), Spec: Spec{Worker: WorkerPatch{
+		Interactsh: interactshPatch("https://two.example", "two-token"),
+	}}}
+	_, err := MergeSameLayer([]LayerEntry{one, two})
+	var conflict *MergeConflictError
+	if !errors.As(err, &conflict) || conflict.Path != "worker.interactsh" ||
+		strings.Contains(err.Error(), "https://") || strings.Contains(err.Error(), "token") {
+		t.Fatalf("Interactsh conflict = %#v (%v)", conflict, err)
+	}
+
+	two.Spec.Worker.Interactsh = one.Spec.Worker.Interactsh
+	merged, err := MergeSameLayer([]LayerEntry{two, one})
+	if err != nil || merged.Worker.Interactsh != one.Spec.Worker.Interactsh {
+		t.Fatalf("equal Interactsh merge = (%+v, %v)", merged.Worker.Interactsh, err)
+	}
+}

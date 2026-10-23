@@ -26,6 +26,10 @@ Caido-assisted security workflows:
 The implementation is domain-specific, but the architectural boundary is the
 same as for every Worker Toolset.
 
+Interactsh callback registration, polling and its evidence contract are owned by
+[Interactsh tools](interactsh.md). These callbacks do not upgrade HTTP/Caido
+evidence to machine proof.
+
 It leaves to other documents:
 
 - the common Toolset boundary between AgentTemplate tool selection, Runtime

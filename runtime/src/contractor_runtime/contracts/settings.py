@@ -8,6 +8,7 @@ import re
 import ssl
 import unicodedata
 from typing import Self
+from urllib.parse import urlsplit
 
 from pydantic import (
     Field,
@@ -499,6 +500,47 @@ class CaidoSettings(WireModel):
         return None if value is None else value.get_secret_value()
 
 
+class InteractshSettings(WireModel):
+    nullable_fields = frozenset({"token", "ca_bundle_pem"})
+
+    adapter: RuntimeAdapterRef
+    endpoint: str
+    token: SecretStr | None = None
+    ca_bundle_pem: str | None = None
+    request_timeout_seconds: int
+
+    @model_validator(mode="after")
+    def validate_interactsh(self) -> Self:
+        if self.adapter != "interactsh-http@1":
+            raise ValueError("Interactsh adapter must be interactsh-http@1")
+        _require_runtime_endpoint("interactsh.endpoint", self.endpoint)
+        host = urlsplit(self.endpoint).hostname or ""
+        labels = host.split(".")
+        if (
+            len(host) > 219
+            or re.fullmatch(r"[a-zA-Z0-9](?:[a-zA-Z0-9.-]*[a-zA-Z0-9])?", host) is None
+            or all(label.isdecimal() for label in labels)
+            or any(
+                not 1 <= len(label) <= 63 or label.startswith("-") or label.endswith("-")
+                for label in labels
+            )
+        ):
+            raise ValueError("Interactsh endpoint requires a callback DNS hostname")
+        if self.token is not None:
+            token = self.token.get_secret_value()
+            if not 1 <= len(token.encode("utf-8")) <= 8192 or "\r" in token or "\n" in token:
+                raise ValueError("Interactsh token is outside its size bound")
+        if self.ca_bundle_pem is not None:
+            _validate_ca_bundle("Interactsh", self.ca_bundle_pem)
+        if not 1 <= self.request_timeout_seconds <= 120:
+            raise ValueError("Interactsh requestTimeoutSeconds must be from 1 through 120")
+        return self
+
+    @field_serializer("token", when_used="json")
+    def serialize_bearer(self, value: SecretStr | None) -> str | None:
+        return None if value is None else value.get_secret_value()
+
+
 class RuntimeLabelBindingProvenance(WireModel):
     label: str
     binding_revision: int = Field(gt=0, le=2**64 - 1)
@@ -558,6 +600,7 @@ class RuntimeSettings(WireModel):
             "telemetry",
             "http_proxy",
             "caido",
+            "interactsh",
             "http_origin_target",
         }
     )
@@ -571,6 +614,7 @@ class RuntimeSettings(WireModel):
     telemetry: TelemetrySettings | None = None
     http_proxy: HTTPProxySettings | None = None
     caido: CaidoSettings | None = None
+    interactsh: InteractshSettings | None = None
     http_origin_target: HTTPOriginTargetSettings | None = None
     request_timeout_seconds: int = Field(gt=0)
 

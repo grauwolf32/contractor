@@ -41,6 +41,10 @@ func MergeSameLayer(entries []LayerEntry) (Spec, error) {
 			func(s Spec) (AtomicPatch[CaidoConfig], bool) {
 				return s.Worker.Caido, s.Worker.Caido.Present
 			}),
+		mergeField(ordered, "worker.interactsh", &result.Worker.Interactsh,
+			func(s Spec) (AtomicPatch[InteractshConfig], bool) {
+				return s.Worker.Interactsh, s.Worker.Interactsh.Present
+			}),
 		mergeField(ordered, "planner.telemetry", &result.Planner.Telemetry,
 			func(s Spec) (AtomicPatch[TelemetryConfig], bool) {
 				return s.Planner.Telemetry, s.Planner.Telemetry.Present

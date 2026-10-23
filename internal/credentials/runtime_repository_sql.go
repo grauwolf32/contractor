@@ -24,6 +24,7 @@ JOIN runtime_config_versions c
 WHERE c.canonical_document::jsonb #>> '` + runtimeconfig.WorkerTelemetryCredentialPath + `' = $1
    OR c.canonical_document::jsonb #>> '` + runtimeconfig.WorkerHTTPProxyCredentialPath + `' = $1
    OR c.canonical_document::jsonb #>> '` + runtimeconfig.WorkerCaidoCredentialPath + `' = $1
+   OR c.canonical_document::jsonb #>> '` + runtimeconfig.WorkerInteractshCredentialPath + `' = $1
    OR c.canonical_document::jsonb #>> '` + runtimeconfig.PlannerTelemetryCredentialPath + `' = $1
 ORDER BY b.label
 LIMIT $2`

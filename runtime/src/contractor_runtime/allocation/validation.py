@@ -194,6 +194,16 @@ def validate_spec(
             retryable=False,
             status_code=422,
         )
+    if (
+        "interactsh-client" in required_infrastructure_channels
+        and spec.runtime_settings.interactsh is None
+    ):
+        raise AllocationError(
+            "interactsh_not_configured",
+            "selected Interactsh tools require resolved Runtime configuration",
+            retryable=False,
+            status_code=422,
+        )
     if spec.workspace is not None:
         provider = factories.workspace_provider
         if (
@@ -223,6 +233,8 @@ def validate_spec(
         configured.add(spec.runtime_settings.http_proxy.adapter)
     if spec.runtime_settings.caido is not None:
         configured.add(spec.runtime_settings.caido.adapter)
+    if spec.runtime_settings.interactsh is not None:
+        configured.add(spec.runtime_settings.interactsh.adapter)
     if (
         required != configured
         or not capabilities.supports_runtime_adapters(required)

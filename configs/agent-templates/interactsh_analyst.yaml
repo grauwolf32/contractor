@@ -1,0 +1,19 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata:
+  name: interactsh_analyst
+  version: "1"
+spec:
+  description: Performs bounded authorized out-of-band checks and retains callback evidence
+  runtime: adk@1
+  instructions:
+    ref: instructions/interactsh-analyst.md
+  modelPolicy: worker@2
+  toolsets:
+    - ref: interactsh@1
+      tools: [interactsh_register, interactsh_poll]
+    - ref: http-tools@1
+      tools: [http_request, http_read_body, http_history]
+    - ref: text-artifacts@1
+      tools: [read_text_artifact, write_text_artifact]
+  sandboxProfile: local-workdir@1

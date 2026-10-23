@@ -126,6 +126,7 @@ source_modules = ["contractor_runtime.worker"]
 forbidden_modules = [
   "contractor_runtime.toolsets.audit_results",
   "contractor_runtime.toolsets.caido",
+  "contractor_runtime.toolsets.interactsh",
   "contractor_runtime.toolsets.code_analysis",
   "contractor_runtime.toolsets.code_execution",
   "contractor_runtime.toolsets.edit_files",
@@ -171,7 +172,7 @@ containers = ["contractor_runtime.toolsets"]
 exhaustive = true
 layers = [
   # concrete toolsets: independent of each other ("|")
-  "audit_results | caido | code_execution | edit_files | http | likec4 | memory | openapi | run_artifacts | scan | security_findings | source_analysis | taint_annotations | text_artifacts | workspace_changes",
+  "audit_results | caido | interactsh | code_execution | edit_files | http | likec4 | memory | openapi | run_artifacts | scan | security_findings | source_analysis | taint_annotations | text_artifacts | workspace_changes",
   # chain bases: independent of each other; each one is imported only by the
   # consumers its protected contract below declares
   "code_analysis | filesystem",

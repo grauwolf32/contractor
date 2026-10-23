@@ -45,6 +45,8 @@ def runtime_secrets(settings: RuntimeSettings) -> tuple[str, ...]:
             values.append(proxy.bearer_token.get_secret_value())
     if settings.caido is not None and settings.caido.bearer_token is not None:
         values.append(settings.caido.bearer_token.get_secret_value())
+    if settings.interactsh is not None and settings.interactsh.token is not None:
+        values.append(settings.interactsh.token.get_secret_value())
     if settings.http_origin_target is not None:
         # The target URL is the audited application and legitimately appears in
         # results; only the credentials Runtime injects for it are private.
@@ -75,6 +77,10 @@ def runtime_setting_values(settings: RuntimeSettings) -> tuple[str, ...]:
         values.append(settings.caido.endpoint)
         if settings.caido.ca_bundle_pem is not None:
             values.append(settings.caido.ca_bundle_pem)
+    if settings.interactsh is not None:
+        values.append(settings.interactsh.endpoint)
+        if settings.interactsh.ca_bundle_pem is not None:
+            values.append(settings.interactsh.ca_bundle_pem)
     values.extend(runtime_secrets(settings))
     return tuple(value for value in values if value)
 

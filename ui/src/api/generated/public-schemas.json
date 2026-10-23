@@ -8156,6 +8156,29 @@
         }
       }
     },
+    "RuntimeInteractshConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["adapter", "endpoint"],
+      "properties": {
+        "adapter": { "type": "string", "const": "interactsh-http@1" },
+        "endpoint": {
+          "type": "string",
+          "format": "uri",
+          "minLength": 8,
+          "maxLength": 2048
+        },
+        "credential": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/RuntimeCredentialId"
+        },
+        "caBundlePem": { "type": "string", "minLength": 1, "maxLength": 65536 },
+        "requestTimeoutSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 120
+        }
+      }
+    },
     "RuntimeLLMGatewayAuthorPatch": {
       "type": "object",
       "additionalProperties": false,
@@ -8202,6 +8225,14 @@
           "oneOf": [
             {
               "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/RuntimeCaidoConfig"
+            },
+            { "type": "null" }
+          ]
+        },
+        "interactsh": {
+          "oneOf": [
+            {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/RuntimeInteractshConfig"
             },
             { "type": "null" }
           ]
@@ -8282,6 +8313,14 @@
           "oneOf": [
             {
               "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/RuntimeCaidoConfig"
+            },
+            { "type": "null" }
+          ]
+        },
+        "interactsh": {
+          "oneOf": [
+            {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/RuntimeInteractshConfig"
             },
             { "type": "null" }
           ]
@@ -8432,6 +8471,7 @@
         "http-proxy-basic@1",
         "http-proxy-bearer@1",
         "caido-bearer@1",
+        "interactsh-token@1",
         "http-origin-basic@1",
         "http-origin-bearer@1"
       ]
@@ -8520,6 +8560,19 @@
       }
     },
     "CaidoBearerMaterial": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["token"],
+      "properties": {
+        "token": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8192,
+          "writeOnly": true
+        }
+      }
+    },
+    "InteractshTokenMaterial": {
       "type": "object",
       "additionalProperties": false,
       "required": ["token"],
@@ -8629,6 +8682,21 @@
             "credentialId": {
               "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/RuntimeCredentialId"
             },
+            "kind": { "type": "string", "const": "interactsh-token@1" },
+            "material": {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/InteractshTokenMaterial",
+              "writeOnly": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["credentialId", "kind", "material"],
+          "properties": {
+            "credentialId": {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/RuntimeCredentialId"
+            },
             "kind": { "type": "string", "const": "http-origin-basic@1" },
             "material": {
               "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/HTTPOriginBasicMaterial",
@@ -8726,6 +8794,9 @@
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/RuntimeFieldOrigin"
         },
         "httpProxy": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/RuntimeFieldOrigin"
+        },
+        "interactsh": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/RuntimeFieldOrigin"
         },
         "caido": {

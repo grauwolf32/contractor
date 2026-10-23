@@ -93,11 +93,20 @@ type CaidoConfig struct {
 	RequestTimeoutSeconds int    `json:"requestTimeoutSeconds,omitempty"`
 }
 
+type InteractshConfig struct {
+	Adapter               string `json:"adapter"`
+	Endpoint              string `json:"endpoint"`
+	Credential            string `json:"credential,omitempty"`
+	CABundlePEM           string `json:"caBundlePem,omitempty"`
+	RequestTimeoutSeconds int    `json:"requestTimeoutSeconds,omitempty"`
+}
+
 type WorkerPatch struct {
 	LLMGateway LLMGatewayPatch
 	Telemetry  AtomicPatch[TelemetryConfig]
 	HTTPProxy  AtomicPatch[HTTPProxyConfig]
 	Caido      AtomicPatch[CaidoConfig]
+	Interactsh AtomicPatch[InteractshConfig]
 }
 
 type PlannerPatch struct {

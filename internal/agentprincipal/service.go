@@ -219,6 +219,9 @@ func appendRequiredRuntimeAdapters(seen map[string]struct{}, version runtimeconf
 	if version.Spec.Worker.Caido.Present && !version.Spec.Worker.Caido.Clear {
 		seen["caido-graphql@1"] = struct{}{}
 	}
+	if version.Spec.Worker.Interactsh.Present && !version.Spec.Worker.Interactsh.Clear {
+		seen["interactsh-http@1"] = struct{}{}
+	}
 }
 
 // sortedAdapters is never nil, so a principal without adapters lists none.

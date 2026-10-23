@@ -263,13 +263,13 @@ func (e CreateRuntimeCredentialRequest3Kind) Valid() bool {
 
 // Defines values for CreateRuntimeCredentialRequest4Kind.
 const (
-	HttpOriginBasic1 CreateRuntimeCredentialRequest4Kind = "http-origin-basic@1"
+	InteractshToken1 CreateRuntimeCredentialRequest4Kind = "interactsh-token@1"
 )
 
 // Valid indicates whether the value is a known member of the CreateRuntimeCredentialRequest4Kind enum.
 func (e CreateRuntimeCredentialRequest4Kind) Valid() bool {
 	switch e {
-	case HttpOriginBasic1:
+	case InteractshToken1:
 		return true
 	default:
 		return false
@@ -278,11 +278,26 @@ func (e CreateRuntimeCredentialRequest4Kind) Valid() bool {
 
 // Defines values for CreateRuntimeCredentialRequest5Kind.
 const (
-	HttpOriginBearer1 CreateRuntimeCredentialRequest5Kind = "http-origin-bearer@1"
+	HttpOriginBasic1 CreateRuntimeCredentialRequest5Kind = "http-origin-basic@1"
 )
 
 // Valid indicates whether the value is a known member of the CreateRuntimeCredentialRequest5Kind enum.
 func (e CreateRuntimeCredentialRequest5Kind) Valid() bool {
+	switch e {
+	case HttpOriginBasic1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateRuntimeCredentialRequest6Kind.
+const (
+	HttpOriginBearer1 CreateRuntimeCredentialRequest6Kind = "http-origin-bearer@1"
+)
+
+// Valid indicates whether the value is a known member of the CreateRuntimeCredentialRequest6Kind enum.
+func (e CreateRuntimeCredentialRequest6Kind) Valid() bool {
 	switch e {
 	case HttpOriginBearer1:
 		return true
@@ -1971,6 +1986,21 @@ const (
 func (e RuntimeHTTPProxyConfigAdapter) Valid() bool {
 	switch e {
 	case HttpProxy1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RuntimeInteractshConfigAdapter.
+const (
+	InteractshHttp1 RuntimeInteractshConfigAdapter = "interactsh-http@1"
+)
+
+// Valid indicates whether the value is a known member of the RuntimeInteractshConfigAdapter enum.
+func (e RuntimeInteractshConfigAdapter) Valid() bool {
+	switch e {
+	case InteractshHttp1:
 		return true
 	default:
 		return false
@@ -4050,7 +4080,7 @@ type CreateRuntimeCredentialRequest3Kind string
 type CreateRuntimeCredentialRequest4 struct {
 	CredentialId RuntimeCredentialId                 `json:"credentialId"`
 	Kind         CreateRuntimeCredentialRequest4Kind `json:"kind"`
-	Material     *HTTPOriginBasicMaterial            `json:"material,omitempty"`
+	Material     *InteractshTokenMaterial            `json:"material,omitempty"`
 }
 
 // CreateRuntimeCredentialRequest4Kind defines model for CreateRuntimeCredentialRequest.4.Kind.
@@ -4060,11 +4090,21 @@ type CreateRuntimeCredentialRequest4Kind string
 type CreateRuntimeCredentialRequest5 struct {
 	CredentialId RuntimeCredentialId                 `json:"credentialId"`
 	Kind         CreateRuntimeCredentialRequest5Kind `json:"kind"`
-	Material     *HTTPOriginBearerMaterial           `json:"material,omitempty"`
+	Material     *HTTPOriginBasicMaterial            `json:"material,omitempty"`
 }
 
 // CreateRuntimeCredentialRequest5Kind defines model for CreateRuntimeCredentialRequest.5.Kind.
 type CreateRuntimeCredentialRequest5Kind string
+
+// CreateRuntimeCredentialRequest6 defines model for CreateRuntimeCredentialRequest.6.
+type CreateRuntimeCredentialRequest6 struct {
+	CredentialId RuntimeCredentialId                 `json:"credentialId"`
+	Kind         CreateRuntimeCredentialRequest6Kind `json:"kind"`
+	Material     *HTTPOriginBearerMaterial           `json:"material,omitempty"`
+}
+
+// CreateRuntimeCredentialRequest6Kind defines model for CreateRuntimeCredentialRequest.6.Kind.
+type CreateRuntimeCredentialRequest6Kind string
 
 // CredentialConsumption defines model for CredentialConsumption.
 type CredentialConsumption struct {
@@ -5906,6 +5946,11 @@ type InstructionsRef struct {
 	Ref    InstructionPath `json:"ref"`
 }
 
+// InteractshTokenMaterial defines model for InteractshTokenMaterial.
+type InteractshTokenMaterial struct {
+	Token *string `json:"token,omitempty"`
+}
+
 // LLMGatewayBody defines model for LLMGatewayBody.
 type LLMGatewayBody struct {
 	CredentialManager *CredentialManagerDescriptor `json:"credentialManager,omitempty"`
@@ -6951,6 +6996,18 @@ type RuntimeHTTPProxyConfigAdapter string
 // RuntimeInfrastructureId defines model for RuntimeInfrastructureId.
 type RuntimeInfrastructureId = string
 
+// RuntimeInteractshConfig defines model for RuntimeInteractshConfig.
+type RuntimeInteractshConfig struct {
+	Adapter               RuntimeInteractshConfigAdapter `json:"adapter"`
+	CaBundlePem           *string                        `json:"caBundlePem,omitempty"`
+	Credential            *RuntimeCredentialId           `json:"credential,omitempty"`
+	Endpoint              string                         `json:"endpoint"`
+	RequestTimeoutSeconds *int                           `json:"requestTimeoutSeconds,omitempty"`
+}
+
+// RuntimeInteractshConfigAdapter defines model for RuntimeInteractshConfig.Adapter.
+type RuntimeInteractshConfigAdapter string
+
 // RuntimeLLMGatewayAuthorPatch defines model for RuntimeLLMGatewayAuthorPatch.
 type RuntimeLLMGatewayAuthorPatch struct {
 	Credential nullable.Nullable[ConfigId] `json:"credential,omitempty"`
@@ -7065,18 +7122,20 @@ type RuntimeToolsetCapability struct {
 
 // RuntimeWorkerAuthorPatch defines model for RuntimeWorkerAuthorPatch.
 type RuntimeWorkerAuthorPatch struct {
-	Caido      nullable.Nullable[RuntimeCaidoConfig]     `json:"caido,omitempty"`
-	HttpProxy  nullable.Nullable[RuntimeHTTPProxyConfig] `json:"httpProxy,omitempty"`
-	LlmGateway *RuntimeLLMGatewayAuthorPatch             `json:"llmGateway,omitempty"`
-	Telemetry  nullable.Nullable[RuntimeTelemetryConfig] `json:"telemetry,omitempty"`
+	Caido      nullable.Nullable[RuntimeCaidoConfig]      `json:"caido,omitempty"`
+	HttpProxy  nullable.Nullable[RuntimeHTTPProxyConfig]  `json:"httpProxy,omitempty"`
+	Interactsh nullable.Nullable[RuntimeInteractshConfig] `json:"interactsh,omitempty"`
+	LlmGateway *RuntimeLLMGatewayAuthorPatch              `json:"llmGateway,omitempty"`
+	Telemetry  nullable.Nullable[RuntimeTelemetryConfig]  `json:"telemetry,omitempty"`
 }
 
 // RuntimeWorkerPatch defines model for RuntimeWorkerPatch.
 type RuntimeWorkerPatch struct {
-	Caido      nullable.Nullable[RuntimeCaidoConfig]     `json:"caido,omitempty"`
-	HttpProxy  nullable.Nullable[RuntimeHTTPProxyConfig] `json:"httpProxy,omitempty"`
-	LlmGateway *RuntimeLLMGatewayPatch                   `json:"llmGateway,omitempty"`
-	Telemetry  nullable.Nullable[RuntimeTelemetryConfig] `json:"telemetry,omitempty"`
+	Caido      nullable.Nullable[RuntimeCaidoConfig]      `json:"caido,omitempty"`
+	HttpProxy  nullable.Nullable[RuntimeHTTPProxyConfig]  `json:"httpProxy,omitempty"`
+	Interactsh nullable.Nullable[RuntimeInteractshConfig] `json:"interactsh,omitempty"`
+	LlmGateway *RuntimeLLMGatewayPatch                    `json:"llmGateway,omitempty"`
+	Telemetry  nullable.Nullable[RuntimeTelemetryConfig]  `json:"telemetry,omitempty"`
 }
 
 // SafeReason defines model for SafeReason.
@@ -7216,6 +7275,7 @@ type StageRuntimeConfiguration struct {
 type StageRuntimeOrigins struct {
 	Caido            *RuntimeFieldOrigin `json:"caido,omitempty"`
 	HttpProxy        *RuntimeFieldOrigin `json:"httpProxy,omitempty"`
+	Interactsh       *RuntimeFieldOrigin `json:"interactsh,omitempty"`
 	LlmCredential    *RuntimeFieldOrigin `json:"llmCredential,omitempty"`
 	LlmGateway       *RuntimeFieldOrigin `json:"llmGateway,omitempty"`
 	PlannerTelemetry *RuntimeFieldOrigin `json:"plannerTelemetry,omitempty"`
@@ -10663,6 +10723,32 @@ func (t *CreateRuntimeCredentialRequest) FromCreateRuntimeCredentialRequest5(v C
 
 // MergeCreateRuntimeCredentialRequest5 performs a merge with any union data inside the CreateRuntimeCredentialRequest, using the provided CreateRuntimeCredentialRequest5
 func (t *CreateRuntimeCredentialRequest) MergeCreateRuntimeCredentialRequest5(v CreateRuntimeCredentialRequest5) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsCreateRuntimeCredentialRequest6 returns the union data inside the CreateRuntimeCredentialRequest as a CreateRuntimeCredentialRequest6
+func (t CreateRuntimeCredentialRequest) AsCreateRuntimeCredentialRequest6() (CreateRuntimeCredentialRequest6, error) {
+	var body CreateRuntimeCredentialRequest6
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCreateRuntimeCredentialRequest6 overwrites any union data inside the CreateRuntimeCredentialRequest as the provided CreateRuntimeCredentialRequest6
+func (t *CreateRuntimeCredentialRequest) FromCreateRuntimeCredentialRequest6(v CreateRuntimeCredentialRequest6) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCreateRuntimeCredentialRequest6 performs a merge with any union data inside the CreateRuntimeCredentialRequest, using the provided CreateRuntimeCredentialRequest6
+func (t *CreateRuntimeCredentialRequest) MergeCreateRuntimeCredentialRequest6(v CreateRuntimeCredentialRequest6) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
