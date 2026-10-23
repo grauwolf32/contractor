@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-129 open tasks: 6 in progress, 98 pending, 25 deferred. 989 finished: 986 completed, 3 archived.
+130 open tasks: 7 in progress, 98 pending, 25 deferred. 989 finished: 986 completed, 3 archived.
 
 ## In progress
 
@@ -17,6 +17,7 @@ the epics are in [epics.yml](epics.yml).
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
 | [V408-005](v408-005-family-guard-gaps.yml) | quality | chore | P2 | Close the family-target guard gaps and run the Runtime suite once with warnings as errors |
 | [V408-008](v408-008-skills-process-catalog.yml) | quality | chore | P2 | Keep the Skills process gate aligned with the staged seed catalog |
+| [V408-009](v408-009-audit-completion-placement-fixture.yml) | quality | chore | P2 | Keep the Audit completion fixture valid after placement pinning |
 
 ## Pending
 
@@ -257,11 +258,11 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 10 | 14 | 6 | 8 | 11 |
 | Workflow catalog and document workflows (`workflows`) | 4 | 14 | 14 | 12 | 15 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 30 | 33 | 6 | 37 |
-| Audits (`audits`) | 24 | 53 | 72 | 22 | 91 |
+| Audits (`audits`) | 24 | 53 | 72 | 22 | 92 |
 | Evaluations (`evals`) | 6 | 21 | 34 | 7 | 40 |
 | Podman sandbox (`sandbox`) | 0 | 9 | 2 | 1 | 3 |
 | Web UI (`ui`) | 3 | 24 | 58 | 12 | 53 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 16 | 33 | 6 | 10 |
 | Public API and wire contracts (`api-contracts`) | 8 | 1 | 34 | 20 | 11 |
 | PostgreSQL persistence and schema (`persistence`) | 13 | 0 | 21 | 41 | 9 |
-| Quality, CI and process (`quality`) | 19 | 1 | 21 | 88 | 20 |
+| Quality, CI and process (`quality`) | 20 | 1 | 21 | 89 | 20 |
