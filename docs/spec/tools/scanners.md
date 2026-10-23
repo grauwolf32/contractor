@@ -440,7 +440,8 @@ scan lock is released, so no thread outlives the invocation; the deadline still
 yields `scan_timeout` and a stop still yields cancellation.
 
 **SCN-R255.** The `targets` output of `scan_katana` and the `template-manifest`
-of a pinned `scan_nuclei` scan are create-only. Before launch, the adapter
+that `scan_nuclei` publishes for a pinned installed package (SCN-R229) or a
+custom rulepack (SCN-R241) are create-only. Before launch, the adapter
 checks that the output name is free with a metadata read
 ([ART-R116](../artifacts/artifact-store.md)) and never downloads an existing
 payload for this check. Only `404` admits the invocation; an existing binding

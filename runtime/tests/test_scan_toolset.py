@@ -1333,17 +1333,36 @@ def test_rulepack_rejects_entire_invalid_pack(tmp_path, case):
 def test_rulepack_adapter_uses_only_exact_pack_without_installed_rules(
     tmp_path, monkeypatch, archive, case
 ):
+    from urllib.parse import parse_qs
+
     from test_tool_worker import ArtifactStore
 
     from contractor_runtime.artifacts import ArtifactClient
     from contractor_runtime.toolsets.scan.nuclei_rulepack import RULEPACK_MEDIA_TYPE
+
+    class RulepackStore(ArtifactStore):
+        """Records the revision every read of the supplied pack asks for."""
+
+        def __init__(self):
+            super().__init__()
+            self.pack_reads = []
+
+        async def request(self, method, path, **kwargs):
+            parsed = urlsplit(path)
+            for kind, suffix in (
+                ("metadata", "/inputs/rulepack/metadata"),
+                ("payload", "/inputs/rulepack"),
+            ):
+                if method == "GET" and parsed.path.endswith(suffix):
+                    self.pack_reads.append((kind, parse_qs(parsed.query).get("revision")))
+            return await super().request(method, path, **kwargs)
 
     marker, _ = install_pin_scanner(tmp_path, monkeypatch, mode=case)
 
     async def scenario():
         tools, _ = await make_tools(tmp_path, selected=["scan_nuclei"])
         (tmp_path / "templates").rmdir()  # Custom mode requires no installation.
-        store = ArtifactStore()
+        store = RulepackStore()
         data = (
             rulepack_zip([("fixture.yaml", NUCLEI_PIN_FIXTURE)])
             if archive
@@ -1365,6 +1384,9 @@ def test_rulepack_adapter_uses_only_exact_pack_without_installed_rules(
             rulepack_ref={"namespace": "inputs", "name": "rulepack", "revision": "revision-pack"},
             timeout_seconds=1 if case == "timeout" else 30,
         )
+        # The pack is resolved and read only at its exact revision, never the latest.
+        assert store.pack_reads[0] == ("metadata", ["revision-pack"])
+        assert all(revisions == ["revision-pack"] for _, revisions in store.pack_reads)
         if case not in {"valid", "timeout"}:
             assert result["errorCode"] == (
                 "scan_artifact_unavailable" if case == "missing" else "nuclei_rulepack_invalid"
@@ -1943,12 +1965,27 @@ def test_deadline_during_held_materialization_joins_thread_and_times_out(tmp_pat
                 ScratchRecorder(tmp_path / "workspace", gate.loop_thread) as recorder,
             ):
                 hold_stage(patch, recorder, "scan_ffuf", "materialize", gate)
-                task = asyncio.create_task(scanner.call(timeout_seconds=1))
+                # The test owns the scan deadline: the hour-long budget never
+                # expires by itself, and expires only once the thread is held.
+                deadlines = []
+                real_timeout_at = asyncio.timeout_at
+
+                def recorded_timeout_at(when):
+                    deadlines.append(real_timeout_at(when))
+                    return deadlines[-1]
+
+                patch.setattr(asyncio, "timeout_at", recorded_timeout_at)
+                task = asyncio.create_task(scanner.call(timeout_seconds=3600))
                 await until_held(gate, task)
-                # The scan deadline cancels the invocation while the thread is held.
+                assert len(deadlines) == 1 and not session._task.cancelling()
+                deadlines[0].reschedule(asyncio.get_running_loop().time())
+                # The expired deadline cancels the invocation while the thread is held.
                 async with asyncio.timeout(30):
                     while not session._task.cancelling():
-                        await asyncio.sleep(0.01)
+                        await asyncio.sleep(0)
+                for _ in range(20):
+                    await asyncio.sleep(0)
+                assert deadlines[0].expired()
                 assert not task.done() and session._lock.locked()
                 released = recorder.mark("released")
                 gate.release.set()
