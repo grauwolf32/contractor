@@ -14802,7 +14802,7 @@ type ClientInterface interface {
 
 	// GetRunRepeatDraft Project a terminal Run into a reviewed new-Run draft
 	//
-	// Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. Historical requests that predate executionConfig retention remain explicitly unavailable instead of inheriting current defaults silently.
+	// Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. The draft requires the Run's retained executionConfig fragment, valid and matching its Workflow and Project; a missing or invalid fragment returns a blocking notice and no draft, and neither lineage nor current or effective configuration reconstructs the original request.
 	//
 	// Corresponds with GET /v1/runs/{runId}/repeat-draft (the `GetRunRepeatDraft` operationId).
 	GetRunRepeatDraft(ctx context.Context, runId RunId, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -17687,7 +17687,7 @@ func (c *Client) DownloadRunOutput(ctx context.Context, runId RunId, slot Artifa
 
 // GetRunRepeatDraft Project a terminal Run into a reviewed new-Run draft
 //
-// Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. Historical requests that predate executionConfig retention remain explicitly unavailable instead of inheriting current defaults silently.
+// Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. The draft requires the Run's retained executionConfig fragment, valid and matching its Workflow and Project; a missing or invalid fragment returns a blocking notice and no draft, and neither lineage nor current or effective configuration reconstructs the original request.
 //
 // Corresponds with GET /v1/runs/{runId}/repeat-draft (the `GetRunRepeatDraft` operationId).
 func (c *Client) GetRunRepeatDraft(ctx context.Context, runId RunId, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -29624,7 +29624,7 @@ type ClientWithResponsesInterface interface {
 
 	// GetRunRepeatDraftWithResponse Project a terminal Run into a reviewed new-Run draft
 	//
-	// Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. Historical requests that predate executionConfig retention remain explicitly unavailable instead of inheriting current defaults silently.
+	// Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. The draft requires the Run's retained executionConfig fragment, valid and matching its Workflow and Project; a missing or invalid fragment returns a blocking notice and no draft, and neither lineage nor current or effective configuration reconstructs the original request.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -52528,7 +52528,7 @@ func (c *ClientWithResponses) DownloadRunOutputWithResponse(ctx context.Context,
 
 // GetRunRepeatDraftWithResponse Project a terminal Run into a reviewed new-Run draft
 //
-// Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. Historical requests that predate executionConfig retention remain explicitly unavailable instead of inheriting current defaults silently.
+// Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. The draft requires the Run's retained executionConfig fragment, valid and matching its Workflow and Project; a missing or invalid fragment returns a blocking notice and no draft, and neither lineage nor current or effective configuration reconstructs the original request.
 //
 // Returns a wrapper object for the known response body format(s).
 //

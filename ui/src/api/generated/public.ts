@@ -1393,7 +1393,7 @@ export interface paths {
         };
         /**
          * Project a terminal Run into a reviewed new-Run draft
-         * @description Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. Historical requests that predate executionConfig retention remain explicitly unavailable instead of inheriting current defaults silently.
+         * @description Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. The draft requires the Run's retained executionConfig fragment, valid and matching its Workflow and Project; a missing or invalid fragment returns a blocking notice and no draft, and neither lineage nor current or effective configuration reconstructs the original request.
          */
         get: operations["getRunRepeatDraft"];
         put?: never;
