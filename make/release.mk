@@ -63,13 +63,19 @@ RELEASE_RACE_PATTERNS := \
 	./internal/runtimeconfig/... ./internal/scheduler/... ./internal/telemetry/... \
 	./tests/integration/lease ./tools/performancebench
 
+# Keep database-backed package binaries bounded independently of the runner's
+# CPU count. Existing tests keep their own scheduling and isolated schemas.
+# Use RACE_PACKAGE_PARALLELISM=1 for serial diagnosis; raise it only after
+# measuring database connections and memory on the runner.
+RACE_PACKAGE_PARALLELISM ?= 2
+
 test-release-go-race: require-database runtime-venv
-	go test -p 1 -race -count=1 -timeout=20m $$(go list $(RELEASE_RACE_PATTERNS) | sort -u)
+	go test -p $(RACE_PACKAGE_PARALLELISM) -race -count=1 -timeout=20m $$(go list $(RELEASE_RACE_PATTERNS) | sort -u)
 
 # Every other package with tests, discovered so new packages are raced too;
 # exceptions and their reasons live in scripts/release_race_packages.py.
 test-release-go-race-discovered: require-database runtime-venv
-	go test -p 1 -race -count=1 -timeout=30m $$(python3 scripts/release_race_packages.py --exclude $(RELEASE_RACE_PATTERNS))
+	go test -p $(RACE_PACKAGE_PARALLELISM) -race -count=1 -timeout=30m $$(python3 scripts/release_race_packages.py --exclude $(RELEASE_RACE_PATTERNS))
 
 # Discover exact names from integration-tagged files. This adds complete tagged
 # coverage without replacing family commands that also race-test untagged cases.
@@ -77,7 +83,7 @@ RELEASE_INTEGRATION_PACKAGES := $(shell python3 scripts/release_integration_test
 RELEASE_INTEGRATION_TESTS := $(shell python3 scripts/release_integration_tests.py --regex)
 
 test-release-integration: require-database runtime-venv
-	go test -p 1 -race -tags=integration -v -count=1 -timeout=20m $(RELEASE_INTEGRATION_PACKAGES) -run '$(RELEASE_INTEGRATION_TESTS)'
+	go test -p $(RACE_PACKAGE_PARALLELISM) -race -tags=integration -v -count=1 -timeout=20m $(RELEASE_INTEGRATION_PACKAGES) -run '$(RELEASE_INTEGRATION_TESTS)'
 
 # Packages with race-constrained test files relax a budget under the race
 # detector (findingintake doubles its 10-second production collection

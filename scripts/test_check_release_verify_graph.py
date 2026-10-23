@@ -358,6 +358,36 @@ class RaceCoverageTest(unittest.TestCase):
         self.assertEqual(guard.substituted_packages(command), {"a", "b"})
 
 
+class IntegrationParallelismTest(unittest.TestCase):
+    command = "go test -race -tags=integration -v -count=1 -p {parallelism} ./fixture -run '^TestTagged$'"
+
+    def check(self, command: str) -> int:
+        commands = ["go test -race -tags=integration ./family"] * 3 + [command]
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            mock.patch.object(guard, "ROOT", Path(directory)),
+            mock.patch.object(guard, "discover", return_value={"./fixture": ["TestTagged"]}),
+            mock.patch.object(guard, "dry_run", return_value=commands),
+            mock.patch.object(guard, "EXCEPTIONS", {}),
+        ):
+            return guard.check_integration_graph()
+
+    def test_serial_and_parallel_integration_commands_keep_coverage(self) -> None:
+        for parallelism in ("1", "2", "4"):
+            with self.subTest(parallelism=parallelism):
+                self.assertEqual(self.check(self.command.format(parallelism=parallelism)), 1)
+
+    def test_invalid_or_missing_parallelism_is_rejected(self) -> None:
+        for parallelism in ("0", "-1", "auto", ""):
+            with self.subTest(parallelism=parallelism):
+                with self.assertRaisesRegex(SystemExit, "positive integer"):
+                    self.check(self.command.format(parallelism=parallelism))
+
+    def test_parallel_command_still_requires_uncached_execution(self) -> None:
+        with self.assertRaisesRegex(SystemExit, "lost race, verbose evidence, count"):
+            self.check(self.command.format(parallelism="2").replace("-count=1 ", ""))
+
+
 class DatabaseSkipGuardTest(unittest.TestCase):
     def test_skip_after_failed_ping_is_rejected(self) -> None:
         source = """

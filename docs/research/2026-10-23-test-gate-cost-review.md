@@ -34,3 +34,29 @@ All findings open. Tasks V408-001 … V408-007 (milestone `test-gate-cost-2026-1
 **Runtime suite (measured).** 4217 passed, 110 failed (macOS: Podman AF_UNIX, no `go`, Linux-only cases), 39 skipped, 6 errors in 149 s. Slowest: `test_scan_katana_live.py` 25 s total (runs the installed katana), Podman recovery tests with real 3–5 s waits, `test_metrics.py` 2.8 s. 23 `time.sleep(60)` calls live in child-process fixtures that are killed early. Nothing structural to fix.
 
 **Observations kept out of scope.** 410 tests set contexts with 10 s or longer timeouts while injected clocks exist in most packages; `make release-verify` locally runs the twelve stages sequentially although CI runs them on separate runners, so a local `release-verify` costs the sum of all stage times.
+
+## V408-003 scope decision (2026-10-23)
+
+The first step is package scheduling only: all three aggregate race targets
+use `RACE_PACKAGE_PARALLELISM`, default `2`; `1` restores serial execution.
+The package lists, race detector, uncached execution, timeouts and integration
+selection stay the same. The release-graph guard accepts positive integer
+parallelism and still checks the complete package and test inventory.
+
+This does not depend on V408-002: current helpers already create a distinct
+schema for each test. No additional PostgreSQL test uses `t.Parallel` in this
+change. The proposed single schema per package plus `TRUNCATE` between tests
+in V408-002 cannot support simultaneous tests sharing that schema. Revisit
+in-package parallelism only after choosing separate schemas for simultaneous
+tests or another isolation design that covers multi-connection tests.
+
+The original T1 summary overstates the pool cap: the runstore, artifacts and
+scheduler helpers do not explicitly set `MaxConns` on their ordinary pools.
+Connection accounting must include admin pools, additional working pools and
+direct connections. Schema separation also does not isolate database-scoped
+advisory locks. Keep the default at two packages until representative CI runs
+show both connection/memory headroom and an elapsed-time improvement.
+
+V408-001 still owns the complete pre-optimisation baseline. V408-007 owns the
+final Linux CI comparison, repeated CI runs and any timeout adjustment; local
+measurements alone do not establish CI speed or absence of flakes.
