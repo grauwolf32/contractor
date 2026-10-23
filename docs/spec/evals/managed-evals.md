@@ -523,6 +523,21 @@ collection derives the zeros only from the immutable Stage's exact
 `passthrough@1` identity. Missing Worker or model-backed Planner counters
 remain incomplete.
 
+**EVM-R240.** A counter's usage does not depend on the order in which its
+contributions are read. Collection sums the known nonnegative contributions of
+a counter exactly, within one stage snapshot (its Planner, Workers and their
+tools) and across a member's snapshots. When that sum exceeds the signed
+64-bit range, the counter is `unavailable` with the gap `counter overflow`
+instead of a subtotal of whichever contributions fit first; its source
+references still name every snapshot that reported it. The member's other
+counters keep their own values, completeness and source references. The same
+metric observations therefore always produce the same usage, and recollecting
+them creates no new result revision (EVM-R82, EVM-R239). This rule changed the
+native output normalizer's results, so it is a new normalizer version with a
+new pinned implementation digest ([EVF-R53, EVF-R58](format.md)); a result
+collected under the earlier version is superseded by a new revision on
+recollection, never rewritten.
+
 **EVM-R82.** Recollection creates new result revisions. An existing selected
 result changes only through explicit selection, which preserves result and
 assessment history.

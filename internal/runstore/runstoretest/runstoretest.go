@@ -39,9 +39,15 @@ func CreateRun(
 // CreateRunningStage stores and starts one minimal Stage through production
 // RunStore paths. The caller has already admitted runID as running.
 func CreateRunningStage(ctx context.Context, store *runstore.PostgresStore, runID, stageID, schemaVersion string) error {
+	return CreateRunningNamedStage(ctx, store, runID, stageID, "test", schemaVersion)
+}
+
+// CreateRunningNamedStage is CreateRunningStage for the first attempt of Stage
+// stageName, so that one Run can hold several Stages.
+func CreateRunningNamedStage(ctx context.Context, store *runstore.PostgresStore, runID, stageID, stageName, schemaVersion string) error {
 	if _, err := store.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
 		LaneClass:        resolved.LaneClassModel,
-		StageExecutionID: stageID, RunID: runID, StageName: "test", Attempt: 1,
+		StageExecutionID: stageID, RunID: runID, StageName: stageName, Attempt: 1,
 		StageSpecSchemaVersion: schemaVersion, StageSpecSnapshot: json.RawMessage(`{"objective":"test"}`),
 		StageContextSchemaVersion: schemaVersion,
 		StageContext:              runstore.StageContextSnapshot{Parameters: map[string]string{}, Artifacts: map[string]runstore.PinnedContextArtifact{}},
