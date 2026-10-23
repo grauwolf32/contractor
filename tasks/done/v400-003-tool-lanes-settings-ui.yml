@@ -5,7 +5,8 @@ milestone: model-free-stage-lanes-2026-10
 epic: operations
 kind: feature
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: e4c0bb8fb13b1f177d28c73ef4df0dcfbc649d2d
 depends_on: [V400-001]
 languages: [typescript]
 goal: >-
@@ -65,3 +66,18 @@ tests:
     covers: [A2, A4]
   - command: make lint
     covers: [A1, A2, A3, A4]
+verification:
+  date: "2026-10-23"
+  revision: "e4c0bb8fb13b1f177d28c73ef4df0dcfbc649d2d"
+  environment: >-
+    Branch feat/model-free-stage-lanes on main @ 75983b5b, macOS arm64,
+    Node 24.20 with Corepack pnpm, Playwright Chromium, TMPDIR under
+    /private/tmp.
+  results:
+    - "A1: settings.test.tsx 'explains both limits and keeps their setting names under Technical details' reads both saved values, both field descriptions and the setting names, lane pools and revision inside the closed disclosure."
+    - "A2: 'saves a changed model-free limit with both values and shows the Server's answer' sends one PUT with If-Match \"1\" and both values and shows the response; scheduler-settings.test.ts checks the body and rejects a response that differs in either value."
+    - "A3: the CAS test and the new A2 test show the range and whole-number errors of each field with Save disabled; the 412 test keeps both drafted values while the reloaded value appears, and reset restores both."
+    - "A4: e2e/scheduler-settings.spec.ts at 390 px in light, dark and black: both inputs inside the viewport, no horizontal page scroll, Technical details open, and a save of the model-free limit alone."
+    - "Mutations: dropping maxConcurrentToolRuns from the PUT body, checking or validating only maxConcurrentRuns in the API helper, comparing only the model limit for dirtiness, sending the saved instead of the drafted model-free value, or validating only the first field each fails a test."
+    - "make ui-browser-mocked: 78 passed. A first run failed 8 git-artifacts tests because ui/package.json was bumped while the gate ran (build 0.7.4, runtime configuration 0.7.5); the rerun on the settled tree passed."
+    - "make ui-verify: 189 files, 2279 tests passed (1 expected fail); make lint passed."
