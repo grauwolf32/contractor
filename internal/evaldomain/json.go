@@ -1,9 +1,8 @@
 package evaldomain
 
 import (
-	"bytes"
 	"encoding/json"
-	"io"
+	"errors"
 	"math"
 	"unicode/utf8"
 
@@ -21,7 +20,15 @@ const (
 	MaxPageSize      = 100
 )
 
+// strictJSONBounds applies MaxDepth below the top-level value, which
+// DecodeBounded counts as depth 1. Every value takes at least one byte of its
+// own, so MaxDocumentBytes nodes never bind before the document size does.
+var strictJSONBounds = strictjson.Bounds{MaxDepth: MaxDepth + 1, MaxNodes: MaxDocumentBytes}
+
 // StrictJSON retains JSON numbers and rejects ambiguities before schema decode.
+// Invalid JSON is eval_invalid even when it is also too deep; within a valid
+// document the first violation decides between eval_limit_exceeded (depth)
+// and eval_invalid (duplicate member name or non-finite number).
 func StrictJSON(data []byte) (any, error) {
 	if len(data) > MaxDocumentBytes {
 		return nil, Failure("eval_limit_exceeded")
@@ -29,71 +36,19 @@ func StrictJSON(data []byte) (any, error) {
 	if len(data) == 0 || !utf8.Valid(data) || !json.Valid(data) || !strictjson.ValidUnicodeEscapes(data) {
 		return nil, Failure("eval_invalid")
 	}
-	d := json.NewDecoder(bytes.NewReader(data))
-	d.UseNumber()
-	value, err := readValue(d, 0)
-	if err != nil {
-		return nil, err
+	value, err := strictjson.DecodeBounded(data, strictJSONBounds, finiteJSONNumber)
+	if errors.Is(err, strictjson.ErrBounds) {
+		return nil, Failure("eval_limit_exceeded")
 	}
-	if _, err = d.Token(); err != io.EOF {
+	if err != nil {
 		return nil, Failure("eval_invalid")
 	}
 	return value, nil
 }
 
-func readValue(d *json.Decoder, depth int) (any, error) {
-	if depth > MaxDepth {
-		return nil, Failure("eval_limit_exceeded")
-	}
-	t, err := d.Token()
-	if err != nil {
-		return nil, Failure("eval_invalid")
-	}
-	switch t {
-	case json.Delim('{'):
-		m := map[string]any{}
-		for d.More() {
-			key, err := d.Token()
-			if err != nil {
-				return nil, Failure("eval_invalid")
-			}
-			k, ok := key.(string)
-			if !ok {
-				return nil, Failure("eval_invalid")
-			}
-			if _, ok = m[k]; ok {
-				return nil, Failure("eval_invalid")
-			}
-			v, err := readValue(d, depth+1)
-			if err != nil {
-				return nil, err
-			}
-			m[k] = v
-		}
-		if end, err := d.Token(); err != nil || end != json.Delim('}') {
-			return nil, Failure("eval_invalid")
-		}
-		return m, nil
-	case json.Delim('['):
-		a := []any{}
-		for d.More() {
-			v, err := readValue(d, depth+1)
-			if err != nil {
-				return nil, err
-			}
-			a = append(a, v)
-		}
-		if end, err := d.Token(); err != nil || end != json.Delim(']') {
-			return nil, Failure("eval_invalid")
-		}
-		return a, nil
-	default:
-		if n, ok := t.(json.Number); ok {
-			value, err := n.Float64()
-			if err != nil || math.IsInf(value, 0) || math.IsNaN(value) {
-				return nil, Failure("eval_invalid")
-			}
-		}
-		return t, nil
-	}
+// finiteJSONNumber keeps the literal of every number float64 represents.
+func finiteJSONNumber(literal string) (json.Number, bool) {
+	number := json.Number(literal)
+	value, err := number.Float64()
+	return number, err == nil && !math.IsInf(value, 0) && !math.IsNaN(value)
 }
