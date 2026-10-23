@@ -1,6 +1,7 @@
 {
-  "description": "Canonical startup-owned placement labels; Go and Python share grammar, bounds and ancestor-chain consistency. Parent matching cases are added by the Run-placement task.",
+  "description": "Canonical cloud/local placement declarations and requirements. Go and PostgreSQL validate the same sets and Go owns parent matching; Runtime validates the sets on the wire.",
   "maxLabels": 32,
+  "maxAuditLabels": 28,
   "maxLabelBytes": 63,
   "cases": [
     {
@@ -256,6 +257,279 @@
         "cloud",
         "cloud"
       ],
+      "valid": false
+    }
+  ],
+  "matches": [
+    {
+      "name": "unrestricted-empty",
+      "required": [],
+      "actual": [],
+      "matches": true
+    },
+    {
+      "name": "unrestricted-local",
+      "required": [],
+      "actual": [
+        "local/lab"
+      ],
+      "matches": true
+    },
+    {
+      "name": "no-declaration",
+      "required": [
+        "cloud"
+      ],
+      "actual": [],
+      "matches": false
+    },
+    {
+      "name": "broad-cloud",
+      "required": [
+        "cloud"
+      ],
+      "actual": [
+        "cloud"
+      ],
+      "matches": true
+    },
+    {
+      "name": "any-provider",
+      "required": [
+        "cloud"
+      ],
+      "actual": [
+        "cloud/aws"
+      ],
+      "matches": true
+    },
+    {
+      "name": "another-provider",
+      "required": [
+        "cloud"
+      ],
+      "actual": [
+        "cloud/hetzner"
+      ],
+      "matches": true
+    },
+    {
+      "name": "exact-provider",
+      "required": [
+        "cloud/aws"
+      ],
+      "actual": [
+        "cloud/aws"
+      ],
+      "matches": true
+    },
+    {
+      "name": "provider-descendant",
+      "required": [
+        "cloud/aws"
+      ],
+      "actual": [
+        "cloud/aws/eu"
+      ],
+      "matches": true
+    },
+    {
+      "name": "less-specific",
+      "required": [
+        "cloud/aws"
+      ],
+      "actual": [
+        "cloud"
+      ],
+      "matches": false
+    },
+    {
+      "name": "other-provider",
+      "required": [
+        "cloud/aws"
+      ],
+      "actual": [
+        "cloud/hetzner"
+      ],
+      "matches": false
+    },
+    {
+      "name": "segment-boundary",
+      "required": [
+        "cloud/aws"
+      ],
+      "actual": [
+        "cloud/aws-test"
+      ],
+      "matches": false
+    },
+    {
+      "name": "local",
+      "required": [
+        "local"
+      ],
+      "actual": [
+        "local/lab"
+      ],
+      "matches": true
+    },
+    {
+      "name": "other-namespace",
+      "required": [
+        "cloud"
+      ],
+      "actual": [
+        "local/lab"
+      ],
+      "matches": false
+    },
+    {
+      "name": "all-required",
+      "required": [
+        "cloud",
+        "cloud/aws"
+      ],
+      "actual": [
+        "cloud",
+        "cloud/aws",
+        "cloud/aws/eu"
+      ],
+      "matches": true
+    }
+  ],
+  "metadataCases": [
+    {
+      "name": "empty",
+      "labels": {},
+      "required": [],
+      "valid": true
+    },
+    {
+      "name": "ordinary",
+      "labels": {
+        "team": "appsec",
+        "owner": "Руслан"
+      },
+      "required": [],
+      "valid": true
+    },
+    {
+      "name": "all-cloud",
+      "labels": {
+        "cloud": ""
+      },
+      "required": [
+        "cloud"
+      ],
+      "valid": true
+    },
+    {
+      "name": "provider",
+      "labels": {
+        "cloud": "aws"
+      },
+      "required": [
+        "cloud/aws"
+      ],
+      "valid": true
+    },
+    {
+      "name": "nested-provider",
+      "labels": {
+        "cloud": "aws/eu-central"
+      },
+      "required": [
+        "cloud/aws/eu-central"
+      ],
+      "valid": true
+    },
+    {
+      "name": "all-local",
+      "labels": {
+        "local": ""
+      },
+      "required": [
+        "local"
+      ],
+      "valid": true
+    },
+    {
+      "name": "local-site",
+      "labels": {
+        "local": "lab"
+      },
+      "required": [
+        "local/lab"
+      ],
+      "valid": true
+    },
+    {
+      "name": "similar-names-are-metadata",
+      "labels": {
+        "cloudy": "aws",
+        "cloud.env": "lab"
+      },
+      "required": [],
+      "valid": true
+    },
+    {
+      "name": "contradictory",
+      "labels": {
+        "cloud": "aws",
+        "local": "lab"
+      },
+      "valid": false
+    },
+    {
+      "name": "wildcard",
+      "labels": {
+        "cloud": "*"
+      },
+      "valid": false
+    },
+    {
+      "name": "uppercase",
+      "labels": {
+        "cloud": "AWS"
+      },
+      "valid": false
+    },
+    {
+      "name": "whitespace",
+      "labels": {
+        "cloud": " aws"
+      },
+      "valid": false
+    },
+    {
+      "name": "leading-slash",
+      "labels": {
+        "local": "/lab"
+      },
+      "valid": false
+    },
+    {
+      "name": "trailing-slash",
+      "labels": {
+        "cloud": "aws/"
+      },
+      "valid": false
+    },
+    {
+      "name": "maximum-path",
+      "labels": {
+        "cloud": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "required": [
+        "cloud/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      ],
+      "valid": true
+    },
+    {
+      "name": "oversized-path",
+      "labels": {
+        "cloud": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
       "valid": false
     }
   ]

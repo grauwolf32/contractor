@@ -91,7 +91,7 @@ function RuntimeLabelPreview({ binding }: { binding: RuntimeLabelBinding }) {
 }
 
 /**
- * Runtime placement: the default binding always applies; explicit labels
+ * Runtime configuration: the default binding always applies; explicit labels
  * add infrastructure. A retained label no loaded binding has stays
  * selected until it is cleared.
  */
@@ -119,7 +119,7 @@ export function RuntimePlacement({
   const retained = selected.filter((label) => !visible.has(label));
   return (
     <SettingsDisclosure
-      title="Runtime placement"
+      title="Runtime configuration"
       description="Published default is always applied"
       status={
         runtimeLabelInventory.error !== null
@@ -386,7 +386,8 @@ export function RunMetadata({
       >
         <p className="muted-copy">
           Add labels to find and group Runs. Edit a badge directly or remove it
-          with × before starting the Run.
+          with × before starting the Run. cloud with an empty value selects any
+          cloud; cloud:aws selects AWS, and local:lab selects a local site.
         </p>
         <div className="run-label-secret-warning">
           <strong>Do not put secrets in labels.</strong>

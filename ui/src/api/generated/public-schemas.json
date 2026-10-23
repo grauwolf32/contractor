@@ -3778,6 +3778,19 @@
       "maxLength": 128,
       "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
     },
+    "AuditLabels": {
+      "allOf": [
+        {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/RunMetadataLabels"
+        },
+        {
+          "type": "object",
+          "additionalProperties": true,
+          "maxProperties": 28,
+          "propertyNames": { "not": { "pattern": "^audit\\." } }
+        }
+      ]
+    },
     "RunMetadataLabels": {
       "type": "object",
       "maxProperties": 32,
@@ -4730,6 +4743,9 @@
       "additionalProperties": false,
       "required": ["profile", "inputs"],
       "properties": {
+        "labels": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditLabels"
+        },
         "profile": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditProfileSelector"
         },
@@ -4878,6 +4894,12 @@
         "standards"
       ],
       "properties": {
+        "labels": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditLabels"
+        },
+        "requiredPlacementLabels": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PlacementLabels"
+        },
         "activeChecks": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ActiveChecksPolicy"
         },
@@ -5154,6 +5176,12 @@
         "updatedAt"
       ],
       "properties": {
+        "labels": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditLabels"
+        },
+        "requiredPlacementLabels": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PlacementLabels"
+        },
         "auditId": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
         },
@@ -8980,6 +9008,9 @@
         "status"
       ],
       "properties": {
+        "placementLabels": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PlacementLabels"
+        },
         "logicalAgent": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ConfigId"
         },
@@ -9304,6 +9335,9 @@
         "outputPublications"
       ],
       "properties": {
+        "requiredPlacementLabels": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PlacementLabels"
+        },
         "recovery": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/RunRecovery"
         },
@@ -9455,6 +9489,9 @@
         "inputs"
       ],
       "properties": {
+        "requiredPlacementLabels": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PlacementLabels"
+        },
         "parameters": {
           "type": "object",
           "maxProperties": 128,
@@ -9641,6 +9678,9 @@
         "runtimeConfiguration"
       ],
       "properties": {
+        "requiredPlacementLabels": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PlacementLabels"
+        },
         "runId": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
         },

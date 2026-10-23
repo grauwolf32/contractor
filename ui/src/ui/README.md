@@ -374,6 +374,14 @@ progress/info `--m-progress`, blocked `--m-blocked`, idle/neutral `--m-idle`.
 
 ## Chips and hints
 
+### `LabelsEditor`
+
+An ordinary key/value label editor with quick additions, a bounded count,
+editable rows and accessible removal. The caller supplies `entries`,
+`onChange`, `maximum`, `hint`, optional `suggestions` and validation `error`.
+Incomplete rows stay in the caller's state so launch validation can reject
+them. The editor preserves values and never resolves fleet availability.
+
 ### `MethodChip`
 
 ```ts

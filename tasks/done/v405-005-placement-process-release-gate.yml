@@ -1,43 +1,42 @@
 schema_version: '1.0'
-id: V405-004
-title: Select Runtime placement labels in Workflow and Audit launch forms
+id: V405-005
+title: Verify cloud and local placement across real processes and fold proposal 0043
 milestone: runtime-placement-labels-2026-10
-epic: ui
+epic: execution-core
 kind: feature
 priority: P2
-status: pending
+status: completed
 depends_on:
+- V405-001
 - V405-002
 - V405-003
+- V405-004
 languages:
 - go
+- python
 - typescript
-goal: Users choose cloud/local or a concrete provider/site from current Runtime declarations, can enter
-  an offline location, and see the actual selection and capacity wait without confusing RuntimeConfig
-  labels.
+goal: A deterministic release gate proves location selection end to end across Server, Runtime and PostgreSQL,
+  and the reference specification owns the delivered guarantees.
 context:
   proposal: docs/proposals/0043-runtime-placement-labels.md
 scope:
   in:
-  - Owner-authorized bounded placement-label inventory derived from live registrations, including busy
-    instances and parent labels.
-  - Shared UI validation, manual entry, dynamic suggestions, offline-selection retention and truthful
-    online/free counts.
-  - Workflow launch and repeat drafts, Audit draft/start forms, Run/Audit details and Runtime Operations
-    display.
-  - Rename the existing misleading Runtime placement configuration block, use shared UI components/themes
-    and bump the UI patch version.
+  - Process coverage for broad cloud, provider-specific, local and empty selection with heterogeneous
+    capabilities.
+  - A test-only scanner executable supplies deterministic tool observations; this gate verifies placement and lifecycle, while the separate scanner gates verify real scanner behaviour.
+  - Audit preparation/check/round propagation, capacity deferral, late Runtime connection, registration
+    restart, retry/resume, cancellation and retained allocation provenance.
+  - Audit role/round inheritance uses the real PostgreSQL controller suites in the same gate; the process suite exercises ordinary Run dispatch and lifecycle with model-free Workers.
+  - Release-verify graph integration and nonzero test-selection checks.
+  - Fold proposal 0043 into current specifications and update operator examples and topology statements
+    affected by remote Runtime deployment.
   out:
-  - A new configuration catalog, location editor, RuntimeConfig bindings for placement labels, or per-Stage
-    UI overrides.
+  - Live Gateway/model benchmarks, cloud VM provisioning APIs and demo deployment.
 requirements:
 - id: R1
-  text: Do not block a syntactically valid offline label on current fleet availability. Persist selection
-    in drafts; a failed inventory read never clears it. Counts describe label matches and do not promise
-    tool compatibility or admission.
-- id: R2
-  text: Bound inventory work by registered-fleet and per-instance label limits; paginate every public
-    list and follow every page in pickers. Validate from the shared fixture and generated API contracts.
+  text: Use a disposable real PostgreSQL database, real Runtime startup arguments and deterministic non-model
+    Workers. Gate skips only when its database URL is unset; a configured unreachable database and zero
+    selected tests fail.
 failure_outcomes:
 - operation: Placement declaration, selection or observation at the task boundary
   permanent: Malformed, oversized or inconsistent input is rejected before mutation using the existing
@@ -56,7 +55,7 @@ cardinality:
   maximum: 32 labels of at most 63 ASCII bytes each
   bound: Canonical sorted unique arrays, one compatible ancestor chain; no fleet IDs copied into launch
     snapshots.
-- collection: Runtime fleet and UI inventory
+- collection: Runtime fleet
   expected: A few local and cloud instances
   maximum: Existing bounded registry capacity times the per-instance label bound
   bound: Reuse registry limits and public pagination; no unbounded history scan or external lookup per
@@ -69,28 +68,29 @@ lifecycle:
     live with their owning retained Run/Audit.
 acceptance_criteria:
 - id: A1
-  given: Workflow and Audit forms with cloud/aws, local/lab and a selected offline label
-  when: The user selects a parent, types a valid label, repeats a Run or the fleet changes
-  then: The correct requiredPlacementLabels reach the API and selected values remain visible across refetches
-    and failed reads.
+  given: Real Server and heterogeneous Runtime processes with shared fixtures
+  when: The location process gate runs
+  then: Every accepted parent-match and lifecycle guarantee is exercised and wrong-location Runtime instances
+    never receive allocations.
 - id: A2
-  given: More than one inventory page, invalid/cross-namespace input and stale draft revisions
-  when: The forms render at 390 px in light, dark and black themes and submit
-  then: Every page is discoverable, errors and conflicts are explicit and the UI reports only Server-confirmed
-    state.
+  given: The finished series
+  when: Release-graph, API, wire and lint checks run
+  then: The gate is reachable, all required commands pass, and proposal status/specification/operations
+    documentation agree.
 tests:
-- command: make ui-verify
+- command: make test-runtime-placement-e2e
+  covers:
+  - A1
+- command: make test-wire-cross-language
   covers:
   - A1
   - A2
-- command: go test ./internal/controlplane ./internal/httpapi/public
+- command: make verify-public-api-postgres
   covers:
-  - A1
   - A2
-- command: make verify-public-api
-  covers:
-  - A1
 - command: make lint
   covers:
   - A1
   - A2
+
+implementation_commit: 6ddb09543dd9c5173726c6a652da5f79c809503a

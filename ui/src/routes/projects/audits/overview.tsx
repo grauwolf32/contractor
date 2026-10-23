@@ -109,6 +109,17 @@ export function CheckTechnicalDetails({
               { term: "Dispatch", value: audit.dispatchState },
               { term: "Evidence hold", value: audit.holdState },
               { term: "Objective", value: audit.scope.objective ?? "Not set" },
+              {
+                term: "Labels",
+                value:
+                  audit.labels === undefined
+                    ? "Not reported"
+                    : Object.entries(audit.labels)
+                        .map(([key, value]) =>
+                          value === "" ? key : `${key}:${value}`,
+                        )
+                        .join(", ") || "None",
+              },
               { term: "Target", value: audit.scope.target ?? "Not set" },
               {
                 term: "Authorization scope",

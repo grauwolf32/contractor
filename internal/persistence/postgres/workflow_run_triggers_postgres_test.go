@@ -11,9 +11,9 @@ import (
 )
 
 // workflowRunBeforeUpdateTriggersSQL lists each BEFORE UPDATE trigger of
-// workflow_runs with its function source and its UPDATE OF columns, if any.
+// workflow_runs with its function/WHEN sources and its UPDATE OF columns, if any.
 const workflowRunBeforeUpdateTriggersSQL = `
-SELECT trigger.tgname::text, function.prosrc,
+SELECT trigger.tgname::text, function.prosrc || E'\n' || pg_get_triggerdef(trigger.oid),
        ARRAY(SELECT attribute.attname::text
                FROM unnest(trigger.tgattr::int2[]) AS column_number
                JOIN pg_attribute AS attribute
@@ -26,14 +26,14 @@ SELECT trigger.tgname::text, function.prosrc,
  ORDER BY 1`
 
 var (
-	comparedTriggerColumn = regexp.MustCompile(`NEW\.([a-z_]+) IS DISTINCT FROM OLD\.([a-z_]+)`)
-	assignedTriggerColumn = regexp.MustCompile(`NEW\.([a-z_]+)\s*:=`)
+	comparedTriggerColumn = regexp.MustCompile(`(?i)NEW\.([a-z_]+) IS DISTINCT FROM OLD\.([a-z_]+)`)
+	assignedTriggerColumn = regexp.MustCompile(`(?i)NEW\.([a-z_]+)\s*:=`)
 )
 
 // TestWorkflowRunGuardsFireOnTheColumnsTheyCompare checks the column-scoped
 // guards of workflow_runs (PER-R22). An UPDATE OF trigger runs only when an
 // UPDATE lists one of its columns, so each guard must list exactly the
-// columns its function compares between NEW and OLD, and no BEFORE UPDATE
+// columns its function or WHEN compares between NEW and OLD, and no BEFORE UPDATE
 // trigger may assign a column of NEW, which would change a value without
 // listing it.
 func TestWorkflowRunGuardsFireOnTheColumnsTheyCompare(t *testing.T) {
@@ -81,7 +81,7 @@ func TestWorkflowRunGuardsFireOnTheColumnsTheyCompare(t *testing.T) {
 			t.Errorf("%s fires on UPDATE OF %v but compares %v", trigger.name, trigger.updateOf, compared)
 		}
 	}
-	if guards < 3 {
-		t.Fatalf("found %d column-scoped guards of workflow_runs, want the three of PER-R22", guards)
+	if guards < 4 {
+		t.Fatalf("found %d column-scoped guards of workflow_runs, want the four including placement requirements (PER-R22, RUN-R108)", guards)
 	}
 }

@@ -143,6 +143,23 @@ func sharedHoldRegistration(instanceID string) control.AgentRegistration {
 	return registration
 }
 
+func TestModelStageHoldRespectsLocationEvenWithExtraCandidateEdges(t *testing.T) {
+	registry := newTestRegistry(t, newTestClock())
+	for _, entry := range []struct{ instance, label string }{{"cloud-agent", "cloud/aws"}, {"local-agent", "local/lab"}} {
+		registration := sharedHoldRegistration(entry.instance)
+		registration.PlacementLabels = []string{entry.label}
+		registerReadyWith(t, registry, registration)
+	}
+	model := ReservationRequest{RunID: "model-location", StageExecutionID: "model-location-stage", RequiredPlacementLabels: []string{"cloud"}, Bindings: []BindingRequirement{testBinding(t, "builder", "builder", testTemplate(t))}}
+	if err := registry.holdForModelStage(model, liveHoldEdges(registry, model)); err != nil {
+		t.Fatal(err)
+	}
+	scan := holdScanRequest(t, "local-scan-location")
+	if placed, err := registry.ReserveAll(scan); err != nil || placed[0].Grant.RuntimeInstanceID != "local-agent" {
+		t.Fatalf("wrong-location hold blocked local capacity: %+v, %v", placed, err)
+	}
+}
+
 // liveHoldEdges builds the edges placement would resolve for every live Agent
 // that has no label or adapter requirement.
 func liveHoldEdges(registry *InMemoryRegistry, request ReservationRequest) []CandidateEdge {

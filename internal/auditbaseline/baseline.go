@@ -9,6 +9,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
@@ -56,16 +57,18 @@ type DerivedInventory struct {
 }
 
 type BaselineSnapshot struct {
-	Schema               string                               `json:"schema"`
-	ActiveChecks         contracts.ActiveChecksPolicy         `json:"activeChecks"`
-	Inputs               map[string]auditstore.ExactArtifact  `json:"inputs"`
-	Scope                Scope                                `json:"scope"`
-	RuntimeLabels        []string                             `json:"runtimeLabels"`
-	RuntimeConfig        runtimeconfig.RunSnapshot            `json:"runtimeConfig"`
-	Skills               []agentskills.RunSkillSnapshot       `json:"skills"`
-	LLMCredentialIDs     []string                             `json:"llmCredentialIds"`
-	RuntimeCredentialIDs []string                             `json:"runtimeCredentialIds"`
-	ProjectHTTPTarget    *runtimesettings.HTTPOriginTargetRef `json:"projectHttpTarget,omitempty"`
-	Standards            []auditstandards.PinnedPackage       `json:"standards"`
-	Inventory            *BaselineInventory                   `json:"inventory,omitempty"`
+	Labels                  runlabels.RunMetadataLabels          `json:"labels"`
+	RequiredPlacementLabels []string                             `json:"requiredPlacementLabels"`
+	Schema                  string                               `json:"schema"`
+	ActiveChecks            contracts.ActiveChecksPolicy         `json:"activeChecks"`
+	Inputs                  map[string]auditstore.ExactArtifact  `json:"inputs"`
+	Scope                   Scope                                `json:"scope"`
+	RuntimeLabels           []string                             `json:"runtimeLabels"`
+	RuntimeConfig           runtimeconfig.RunSnapshot            `json:"runtimeConfig"`
+	Skills                  []agentskills.RunSkillSnapshot       `json:"skills"`
+	LLMCredentialIDs        []string                             `json:"llmCredentialIds"`
+	RuntimeCredentialIDs    []string                             `json:"runtimeCredentialIds"`
+	ProjectHTTPTarget       *runtimesettings.HTTPOriginTargetRef `json:"projectHttpTarget,omitempty"`
+	Standards               []auditstandards.PinnedPackage       `json:"standards"`
+	Inventory               *BaselineInventory                   `json:"inventory,omitempty"`
 }

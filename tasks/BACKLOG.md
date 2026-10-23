@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-132 open tasks: 4 in progress, 103 pending, 25 deferred. 984 finished: 981 completed, 3 archived.
+128 open tasks: 4 in progress, 99 pending, 25 deferred. 989 finished: 986 completed, 3 archived.
 
 ## In progress
 
@@ -25,10 +25,8 @@ the epics are in [epics.yml](epics.yml).
 | [V371-014](v371-014-scheduler-stage-history-reads.yml) | defect | P3 | — | Read only the Stage history fields escalation counting and cancellation cleanup use |
 | [V372-007](v372-007-terminal-stage-state-set.yml) | chore | P3 | — | Define the terminal StageExecution states once and hold SQL and the UI to them |
 | [V372-028](v372-028-runstore-strict-snapshot-reads.yml) | chore | P3 | — | Decode persisted Run, Stage and allocation snapshots strictly in runstore |
-| [V405-002](v405-002-run-placement-requirements.yml) | feature | P2 | — | Pin Run placement requirements and enforce dynamic Runtime matching |
-| [V405-005](v405-005-placement-process-release-gate.yml) | feature | P2 | V405-002, V405-003, V405-004 | Verify cloud and local placement across real processes and fold proposal 0043 |
 | [V407-013](v407-013-mtls-connection-reuse.yml) | chore | P2 | — | Reuse verified private TLS connections with bounded lifecycle ownership |
-| [V407-014](v407-014-placement-per-poll-cost.yml) | chore | P2 | V405-002 | Reuse overlapping placement resolution work within a waiting attempt |
+| [V407-014](v407-014-placement-per-poll-cost.yml) | chore | P2 | — | Reuse overlapping placement resolution work within a waiting attempt |
 | [V407-015](v407-015-scheduler-stage-end-cost.yml) | chore | P3 | — | Reduce redundant Stage-end work while preserving recovery and redaction |
 | [V407-016](v407-016-scheduler-idle-and-release-pacing.yml) | chore | P3 | — | Reduce idle claim probes and bound terminal-release head-of-line work |
 | [V407-017](v407-017-startup-lease-tolerance.yml) | chore | P3 | — | Document and test inherited startup lease connection and query budgets |
@@ -126,7 +124,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V371-009](v371-009-audit-list-preparation-batch.yml) | defect | P3 | — | Read the preparation state of a whole Audit page in bounded statements |
-| [V405-003](v405-003-audit-placement-propagation.yml) | feature | P2 | V405-002 | Pin Audit placement selection and propagate it to every child Run |
 | [V407-001](v407-001-audit-collection-failure-classes.yml) | defect | P1 | — | Preserve transient Audit collection errors and settle invalid pinned data through existing receipts |
 | [V407-002](v407-002-audit-collection-store-work.yml) | chore | P2 | — | Batch Audit collection lookups and retention within existing row and byte limits |
 | [V407-003](v407-003-audit-controller-batch-per-pass.yml) | chore | P2 | — | Batch Audit drain mutations under a fixed per-step work budget |
@@ -150,7 +147,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V403-003](v403-003-openapi-preview-at-1mib.yml) | defect | P3 | — | Keep a 1 MiB OpenAPI preview from blocking the page |
-| [V405-004](v405-004-placement-label-picker-ui.yml) | feature | P2 | V405-002, V405-003 | Select Runtime placement labels in Workflow and Audit launch forms |
 | [V406-005](v406-005-web-scan-settings-ui.yml) | feature | P2 | — | Launch a web scan with rule settings and owner rulepack selection |
 | [V406-006](v406-006-scope-sweep-ui-cli.yml) | feature | P2 | V406-005 | Launch and follow durable rule sweeps from the UI |
 
@@ -248,7 +244,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 13 | 41 | 51 | 18 | 72 |
+| Run execution core (`execution-core`) | 11 | 41 | 51 | 18 | 72 |
 | Planners and the Worker model boundary (`planner-worker`) | 8 | 27 | 40 | 16 | 59 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 12 | 25 | 13 | 4 | 40 |
 | Shared Memory tools (`memory`) | 1 | 6 | 9 | 2 | 12 |
@@ -256,14 +252,14 @@ tasks in `introduced_by`.
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 12 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 14 | 2 | 19 |
 | HTTP and Caido tools (`http-tools`) | 2 | 11 | 15 | 4 | 16 |
-| Scanner tool Workers and scan planning (`scan-tools`) | 4 | 14 | 5 | 5 | 9 |
+| Scanner tool Workers and scan planning (`scan-tools`) | 4 | 14 | 5 | 6 | 10 |
 | Findings tools and collections (`findings`) | 10 | 14 | 6 | 8 | 11 |
 | Workflow catalog and document workflows (`workflows`) | 4 | 14 | 14 | 12 | 15 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 30 | 33 | 6 | 37 |
-| Audits (`audits`) | 25 | 52 | 72 | 22 | 91 |
+| Audits (`audits`) | 24 | 53 | 72 | 22 | 91 |
 | Evaluations (`evals`) | 6 | 21 | 34 | 7 | 40 |
 | Podman sandbox (`sandbox`) | 0 | 9 | 2 | 1 | 3 |
-| Web UI (`ui`) | 4 | 25 | 58 | 12 | 53 |
+| Web UI (`ui`) | 3 | 24 | 58 | 12 | 53 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 16 | 33 | 6 | 10 |
 | Public API and wire contracts (`api-contracts`) | 8 | 1 | 34 | 20 | 11 |
 | PostgreSQL persistence and schema (`persistence`) | 13 | 0 | 21 | 41 | 9 |

@@ -1,4 +1,5 @@
 import type { ArtifactMetadata, ExactArtifactRef } from "../api/artifacts";
+import { labelPlacementError } from "../api/audit-labels";
 import type { components } from "../api/generated/public";
 import {
   RUN_METADATA_LABEL_LIMIT,
@@ -128,6 +129,8 @@ export function validateRunDraft(
       left === right ? 0 : left < right ? -1 : 1,
     ),
   );
+  const placementError = labelPlacementError(sortedMetadataLabels);
+  if (placementError !== undefined) errors.metadataLabels = placementError;
   const parameters: Record<string, string> = {};
   for (const [name, slot] of Object.entries(workflow.parameters).sort()) {
     const value = values.parameters[name];

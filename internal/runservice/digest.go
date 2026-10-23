@@ -37,6 +37,9 @@ func PublicRequestDigest(params PublicCreateParams) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if _, err := metadata.PlacementRequirements(); err != nil {
+		return "", err
+	}
 	if len(metadata) != 0 {
 		canonical["labels"] = metadata
 	}

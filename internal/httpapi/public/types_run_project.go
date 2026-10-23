@@ -92,13 +92,14 @@ func (l *runMetadataLabels) UnmarshalJSON(data []byte) error {
 }
 
 type createRunResponse struct {
-	RunID                string                               `json:"runId"`
-	ProjectID            *string                              `json:"projectId,omitempty"`
-	State                runstore.WorkflowRunState            `json:"state"`
-	RuntimeLabels        []string                             `json:"runtimeLabels"`
-	Labels               runstore.RunMetadataLabels           `json:"labels"`
-	RuntimeConfiguration runRuntimeConfigResponse             `json:"runtimeConfiguration"`
-	ProjectHTTPTarget    *runtimesettings.HTTPOriginTargetRef `json:"projectHttpTarget,omitempty"`
+	RequiredPlacementLabels []string                             `json:"requiredPlacementLabels"`
+	RunID                   string                               `json:"runId"`
+	ProjectID               *string                              `json:"projectId,omitempty"`
+	State                   runstore.WorkflowRunState            `json:"state"`
+	RuntimeLabels           []string                             `json:"runtimeLabels"`
+	Labels                  runstore.RunMetadataLabels           `json:"labels"`
+	RuntimeConfiguration    runRuntimeConfigResponse             `json:"runtimeConfiguration"`
+	ProjectHTTPTarget       *runtimesettings.HTTPOriginTargetRef `json:"projectHttpTarget,omitempty"`
 }
 
 type createProjectRequest struct {
@@ -240,30 +241,31 @@ type artifactLineagePageResponse struct {
 }
 
 type runStatusResponse struct {
-	Recovery               *gatewayrecovery.Status              `json:"recovery,omitempty"`
-	RunID                  string                               `json:"runId"`
-	ProjectID              *string                              `json:"projectId,omitempty"`
-	Workflow               string                               `json:"workflow"`
-	State                  runstore.WorkflowRunState            `json:"state"`
-	Deletable              bool                                 `json:"deletable"`
-	ResumeStageExecutionID *string                              `json:"resumeStageExecutionId,omitempty"`
-	RuntimeLabels          []string                             `json:"runtimeLabels"`
-	Labels                 runstore.RunMetadataLabels           `json:"labels"`
-	RuntimeConfiguration   runRuntimeConfigResponse             `json:"runtimeConfiguration"`
-	ProjectHTTPTarget      *runtimesettings.HTTPOriginTargetRef `json:"projectHttpTarget,omitempty"`
-	Cancellation           *runstore.WorkflowRunCancellation    `json:"cancellation,omitempty"`
-	Parameters             map[string]string                    `json:"parameters,omitempty"`
-	Inputs                 map[string]contracts.ArtifactRef     `json:"inputs,omitempty"`
-	Attempts               []stageAttemptResponse               `json:"attempts"`
-	Transitions            []stageTransitionResponse            `json:"transitions"`
-	Outputs                map[string]contracts.ArtifactRef     `json:"outputs"`
-	OutputPublications     []outputPublicationResponse          `json:"outputPublications"`
-	EventCursor            *eventCursorResponse                 `json:"eventCursor,omitempty"`
-	ActiveStageExecutionID *string                              `json:"activeStageExecutionId,omitempty"`
-	CreatedAt              time.Time                            `json:"createdAt,omitempty"`
-	UpdatedAt              time.Time                            `json:"updatedAt,omitempty"`
-	StartedAt              *time.Time                           `json:"startedAt,omitempty"`
-	FinishedAt             *time.Time                           `json:"finishedAt,omitempty"`
+	RequiredPlacementLabels []string                             `json:"requiredPlacementLabels"`
+	Recovery                *gatewayrecovery.Status              `json:"recovery,omitempty"`
+	RunID                   string                               `json:"runId"`
+	ProjectID               *string                              `json:"projectId,omitempty"`
+	Workflow                string                               `json:"workflow"`
+	State                   runstore.WorkflowRunState            `json:"state"`
+	Deletable               bool                                 `json:"deletable"`
+	ResumeStageExecutionID  *string                              `json:"resumeStageExecutionId,omitempty"`
+	RuntimeLabels           []string                             `json:"runtimeLabels"`
+	Labels                  runstore.RunMetadataLabels           `json:"labels"`
+	RuntimeConfiguration    runRuntimeConfigResponse             `json:"runtimeConfiguration"`
+	ProjectHTTPTarget       *runtimesettings.HTTPOriginTargetRef `json:"projectHttpTarget,omitempty"`
+	Cancellation            *runstore.WorkflowRunCancellation    `json:"cancellation,omitempty"`
+	Parameters              map[string]string                    `json:"parameters,omitempty"`
+	Inputs                  map[string]contracts.ArtifactRef     `json:"inputs,omitempty"`
+	Attempts                []stageAttemptResponse               `json:"attempts"`
+	Transitions             []stageTransitionResponse            `json:"transitions"`
+	Outputs                 map[string]contracts.ArtifactRef     `json:"outputs"`
+	OutputPublications      []outputPublicationResponse          `json:"outputPublications"`
+	EventCursor             *eventCursorResponse                 `json:"eventCursor,omitempty"`
+	ActiveStageExecutionID  *string                              `json:"activeStageExecutionId,omitempty"`
+	CreatedAt               time.Time                            `json:"createdAt,omitempty"`
+	UpdatedAt               time.Time                            `json:"updatedAt,omitempty"`
+	StartedAt               *time.Time                           `json:"startedAt,omitempty"`
+	FinishedAt              *time.Time                           `json:"finishedAt,omitempty"`
 }
 
 type runRepeatDraftResponse struct {
@@ -277,11 +279,12 @@ type runRepeatDraftResponse struct {
 }
 
 type runRepeatDraft struct {
-	Parameters      map[string]string                  `json:"parameters"`
-	RuntimeLabels   []string                           `json:"runtimeLabels"`
-	Labels          runstore.RunMetadataLabels         `json:"labels"`
-	ExecutionConfig runRepeatExecutionConfig           `json:"executionConfig"`
-	Inputs          map[string]runRepeatInputSelection `json:"inputs"`
+	RequiredPlacementLabels []string                           `json:"requiredPlacementLabels"`
+	Parameters              map[string]string                  `json:"parameters"`
+	RuntimeLabels           []string                           `json:"runtimeLabels"`
+	Labels                  runstore.RunMetadataLabels         `json:"labels"`
+	ExecutionConfig         runRepeatExecutionConfig           `json:"executionConfig"`
+	Inputs                  map[string]runRepeatInputSelection `json:"inputs"`
 }
 
 type runRepeatExecutionConfig struct {
@@ -357,6 +360,7 @@ type stageRuntimeConfigurationResponse struct {
 }
 
 type stageRuntimeAllocationResponse struct {
+	PlacementLabels []string                                   `json:"placementLabels"`
 	LogicalAgent    string                                     `json:"logicalAgent"`
 	AgentLabels     []pinnedRuntimeConfigResponse              `json:"agentLabels"`
 	RuntimeAdapters []runtimesettings.RuntimeAdapterRef        `json:"runtimeAdapters"`
