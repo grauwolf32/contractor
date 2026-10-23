@@ -283,6 +283,10 @@ type decisionTransactions struct {
 
 type decisionProjectionKey struct{}
 
+// decisionReviewLock is the advisory lock that starts each decision attempt
+// (LockFindingReviews).
+var decisionReviewLock = persistencepostgres.NewAdvisoryKey("audit-finding-review", decisionRetryAudit)
+
 func (c *decisionTransactions) TraceQueryStart(
 	ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData,
 ) context.Context {
@@ -290,8 +294,8 @@ func (c *decisionTransactions) TraceQueryStart(
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	switch {
-	case strings.Contains(statement, "pg_advisory_xact_lock") && len(data.Args) == 1 &&
-		strings.Contains(fmt.Sprint(data.Args[0]), "audit-finding-review"):
+	case strings.Contains(data.SQL, persistencepostgres.AdvisoryLockSQL("$1")) && len(data.Args) == 1 &&
+		fmt.Sprint(data.Args[0]) == string(decisionReviewLock):
 		c.attempts++
 	case strings.HasPrefix(statement, "update audit_findings"):
 		c.projections = append(c.projections, nil)
