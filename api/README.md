@@ -43,6 +43,16 @@ finding decision variants, multibyte passwords, label selectors and retained
 Run history. These fixtures establish their tested cases, not exhaustive
 equivalence between every schema and domain validator.
 
+Two extensions state bounds that JSON Schema cannot. `x-max-request-body-bytes`
+on an operation is the exact request body bound its handler enforces; every
+operation with a request body declares it, and `TestPublicRequestBodyBoundsMatchHandlers`
+sends a body at and one byte over each bound. `x-max-utf8-bytes` (and
+`x-min-utf8-bytes`) on a string schema is a bound in UTF-8 bytes, which the
+Server applies; it stands next to an equal `maxLength`, so the byte bound binds
+first for text outside ASCII. The shared cases in
+`testdata/public/utf8-byte-bound-cases.json` list every such string, and the
+browser client's `stringRule` applies the byte bound before it sends a value.
+
 Every operation whose handler reaches PostgreSQL documents the retryable `503`
 (`storage_transaction_conflict`) returned when definite serialization or
 deadlock aborts exhaust their retries. The contract test lists the few

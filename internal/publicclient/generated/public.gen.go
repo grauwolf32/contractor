@@ -9137,6 +9137,12 @@ type CreateScanSweepParams struct {
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// CancelScanSweepParams defines parameters for CancelScanSweep.
+type CancelScanSweepParams struct {
+	// IdempotencyKey Accepted for uniform mutation headers; the operation is idempotent by resource identity and does not bind the key.
+	IdempotencyKey *OptionalIdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
 // ListScanSweepMembersParams defines parameters for ListScanSweepMembers.
 type ListScanSweepMembersParams struct {
 	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
@@ -15335,7 +15341,7 @@ type ClientInterface interface {
 	// CancelScanSweep cancelScanSweep
 	//
 	// Corresponds with POST /v1/scan-sweeps/{sweepId}/cancel (the `CancelScanSweep` operationId).
-	CancelScanSweep(ctx context.Context, sweepId ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error)
+	CancelScanSweep(ctx context.Context, sweepId ResourceId, params *CancelScanSweepParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListScanSweepMembers listScanSweepMembers
 	//
@@ -18359,8 +18365,8 @@ func (c *Client) GetScanSweep(ctx context.Context, sweepId ResourceId, reqEditor
 // CancelScanSweep cancelScanSweep
 //
 // Corresponds with POST /v1/scan-sweeps/{sweepId}/cancel (the `CancelScanSweep` operationId).
-func (c *Client) CancelScanSweep(ctx context.Context, sweepId ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCancelScanSweepRequest(c.Server, sweepId)
+func (c *Client) CancelScanSweep(ctx context.Context, sweepId ResourceId, params *CancelScanSweepParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCancelScanSweepRequest(c.Server, sweepId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -28778,7 +28784,7 @@ func NewGetScanSweepRequest(server string, sweepId ResourceId) (*http.Request, e
 }
 
 // NewCancelScanSweepRequest constructs an http.Request for the CancelScanSweep method
-func NewCancelScanSweepRequest(server string, sweepId ResourceId) (*http.Request, error) {
+func NewCancelScanSweepRequest(server string, sweepId ResourceId, params *CancelScanSweepParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -28806,6 +28812,21 @@ func NewCancelScanSweepRequest(server string, sweepId ResourceId) (*http.Request
 	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+
+		if params.IdempotencyKey != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Idempotency-Key", *params.IdempotencyKey, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Idempotency-Key", headerParam0)
+		}
+
 	}
 
 	return req, nil
@@ -30609,7 +30630,7 @@ type ClientWithResponsesInterface interface {
 	// Returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /v1/scan-sweeps/{sweepId}/cancel (the `CancelScanSweep` operationId).
-	CancelScanSweepWithResponse(ctx context.Context, sweepId ResourceId, reqEditors ...RequestEditorFn) (*CancelScanSweepResponse, error)
+	CancelScanSweepWithResponse(ctx context.Context, sweepId ResourceId, params *CancelScanSweepParams, reqEditors ...RequestEditorFn) (*CancelScanSweepResponse, error)
 
 	// ListScanSweepMembersWithResponse listScanSweepMembers
 	//
@@ -54592,8 +54613,8 @@ func (c *ClientWithResponses) GetScanSweepWithResponse(ctx context.Context, swee
 // Returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /v1/scan-sweeps/{sweepId}/cancel (the `CancelScanSweep` operationId).
-func (c *ClientWithResponses) CancelScanSweepWithResponse(ctx context.Context, sweepId ResourceId, reqEditors ...RequestEditorFn) (*CancelScanSweepResponse, error) {
-	rsp, err := c.CancelScanSweep(ctx, sweepId, reqEditors...)
+func (c *ClientWithResponses) CancelScanSweepWithResponse(ctx context.Context, sweepId ResourceId, params *CancelScanSweepParams, reqEditors ...RequestEditorFn) (*CancelScanSweepResponse, error) {
+	rsp, err := c.CancelScanSweep(ctx, sweepId, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}

@@ -8,6 +8,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 spec_path = ROOT / "api/openapi/contractor-public-v1.yaml"
 source = json.loads((ROOT / "api/evals/v1/managed.schema.json").read_text())["$defs"]
+# evaldomain.MaxDocumentBytes: every Eval request body is one Eval document
+# (API-R6); a larger body is 422 eval_limit_exceeded. The public package's
+# TestPublicRequestBodyBoundsMatchHandlers binds the declaration to the
+# handlers.
+MAX_DOCUMENT_BYTES = 1 << 20
 
 
 def refs(value, prefix="Eval"):
@@ -424,6 +429,7 @@ for method, path, operation, body, result, status, cas in routes:
         "responses": responses,
     }
     if body:
+        op["x-max-request-body-bytes"] = MAX_DOCUMENT_BYTES
         parameters.append({"$ref": "#/components/parameters/IdempotencyKey"})
         if cas:
             parameters.append({"$ref": "#/components/parameters/RequiredIfMatch"})

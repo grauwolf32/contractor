@@ -43,6 +43,10 @@ const MaxNameLength = 128
 // public ResourceId schema does.
 const MaxResourceIDLength = 256
 
+// MaxIdempotencyKeyLength bounds an idempotency key (ValidIdempotencyKey), as
+// the public IdempotencyKey parameter does.
+const MaxIdempotencyKeyLength = 128
+
 var (
 	// ErrValidation identifies a syntactically valid JSON value that violates a
 	// Contractor wire invariant.
@@ -74,6 +78,15 @@ var (
 	// private schemas, the public OpenAPI and the Runtime to both.
 	namePattern       = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*$`)
 	resourceIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:-]*$`)
+	// idempotencyKeyPattern is the only Go definition of the Idempotency-Key
+	// grammar of the public IdempotencyKey parameter (API-R69). It has the
+	// characters of the ResourceId grammar but its own bound, so it is its
+	// own rule. Public handlers, the Managed Eval mutation identity, every
+	// store that keeps a request key and the CLI apply it; the source scan in
+	// the contracts tests rejects a copy in another package, and the shared
+	// cases in api/testdata/public/idempotency-key-cases.json hold Go, the
+	// public OpenAPI and the UI to it.
+	idempotencyKeyPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]*$`)
 )
 
 // ValidIdentifier reports whether value matches the identifier grammar
@@ -104,6 +117,12 @@ func ValidName(value string) bool {
 // the grammar [A-Za-z0-9][A-Za-z0-9_.:-]*, such as a Runtime Agent instance ID.
 func ValidResourceID(value string) bool {
 	return len(value) <= MaxResourceIDLength && resourceIDPattern.MatchString(value)
+}
+
+// ValidIdempotencyKey reports whether value is an idempotency key: 1 to
+// MaxIdempotencyKeyLength ASCII bytes in the grammar [A-Za-z0-9][A-Za-z0-9._:-]*.
+func ValidIdempotencyKey(value string) bool {
+	return len(value) <= MaxIdempotencyKeyLength && idempotencyKeyPattern.MatchString(value)
 }
 
 // ValidConfigID reports whether value is a bounded configuration identifier.

@@ -1350,18 +1350,19 @@ func (f *fakeRunStore) ListRunEvents(
 	runID string,
 	afterSequence int64,
 	limit int,
-) ([]runstore.WorkflowRunEvent, error) {
-	result := make([]runstore.WorkflowRunEvent, 0, limit)
+) (runstore.WorkflowRunEventPage, error) {
+	page := runstore.WorkflowRunEventPage{Events: make([]runstore.WorkflowRunEvent, 0, limit)}
 	for _, event := range f.runEvents[runID] {
 		if event.SequenceNumber <= afterSequence {
 			continue
 		}
-		result = append(result, event)
-		if len(result) == limit {
+		if len(page.Events) == limit {
+			page.More = true
 			break
 		}
+		page.Events = append(page.Events, event)
 	}
-	return result, nil
+	return page, nil
 }
 
 type fakeUnitOfWork struct {

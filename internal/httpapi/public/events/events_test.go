@@ -27,12 +27,15 @@ type fakeRunRepository struct {
 	runs       map[string]runstore.WorkflowRun
 	generation map[string]string
 	events     map[string][]runstore.WorkflowRunEvent
+	// pageDataBytes is the data budget of one page (LIM-API-24); a test
+	// lowers it to make pages end on bytes with small events.
+	pageDataBytes int
 }
 
 func newFakeRunRepository() *fakeRunRepository {
 	return &fakeRunRepository{
 		runs: make(map[string]runstore.WorkflowRun), generation: make(map[string]string),
-		events: make(map[string][]runstore.WorkflowRunEvent),
+		events: make(map[string][]runstore.WorkflowRunEvent), pageDataBytes: 8 * 1024 * 1024,
 	}
 }
 
@@ -62,28 +65,38 @@ func (f *fakeRunRepository) GetRunEventCursor(
 	return runstore.WorkflowRunEventCursor{Generation: f.generation[runID], Sequence: sequence}, nil
 }
 
+// ListRunEvents pages like the store (API-R110): the contiguous events after
+// the cursor up to limit and the page data budget, with More when a further
+// event exists. A first event that exceeds the budget is invalid, as it is in
+// the store.
 func (f *fakeRunRepository) ListRunEvents(
 	ctx context.Context,
 	runID string,
 	after int64,
 	limit int,
-) ([]runstore.WorkflowRunEvent, error) {
+) (runstore.WorkflowRunEventPage, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return runstore.WorkflowRunEventPage{}, err
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	result := make([]runstore.WorkflowRunEvent, 0, limit)
+	page := runstore.WorkflowRunEventPage{Events: make([]runstore.WorkflowRunEvent, 0, limit)}
+	dataBytes := 0
 	for _, event := range f.events[runID] {
 		if event.SequenceNumber <= after {
 			continue
 		}
-		result = append(result, event)
-		if len(result) == limit {
+		dataBytes += len(event.Data)
+		if len(page.Events) == limit || dataBytes > f.pageDataBytes {
+			if len(page.Events) == 0 {
+				return runstore.WorkflowRunEventPage{}, errors.New("persisted WorkflowRun event is invalid")
+			}
+			page.More = true
 			break
 		}
+		page.Events = append(page.Events, event)
 	}
-	return result, nil
+	return page, nil
 }
 
 func (f *fakeRunRepository) addRun(runID, owner, generation string) {
@@ -91,6 +104,13 @@ func (f *fakeRunRepository) addRun(runID, owner, generation string) {
 	defer f.mu.Unlock()
 	f.runs[runID] = runstore.WorkflowRun{RunID: runID, OwnerID: owner}
 	f.generation[runID] = generation
+}
+
+// setPageDataBytes sets the data budget of one page.
+func (f *fakeRunRepository) setPageDataBytes(budget int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.pageDataBytes = budget
 }
 
 func (f *fakeRunRepository) append(event runstore.WorkflowRunEvent) {
@@ -526,6 +546,16 @@ func testLifecycleEvent(runID string, sequence int64) runstore.WorkflowRunEvent 
 		Data:       json.RawMessage(fmt.Sprintf(`{"runId":%q,"resource":"run","state":"running"}`, runID)),
 		OccurredAt: time.Date(2026, 8, 31, 12, 0, int(sequence%60), 0, time.UTC),
 	}
+}
+
+// testStageLifecycleEvent is a Stage lifecycle event, whose data is longer
+// than that of the Run lifecycle event of testLifecycleEvent.
+func testStageLifecycleEvent(runID string, sequence int64) runstore.WorkflowRunEvent {
+	event := testLifecycleEvent(runID, sequence)
+	event.Data = json.RawMessage(fmt.Sprintf(
+		`{"runId":%q,"resource":"stageExecution","stageExecutionId":"stage-1","state":"running"}`, runID,
+	))
+	return event
 }
 
 func writeClientJSON(t *testing.T, connection *websocket.Conn, value any) {

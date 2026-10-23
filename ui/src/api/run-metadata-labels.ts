@@ -1,9 +1,16 @@
+import { schemaLimit } from "./contract";
+
 const RUN_METADATA_LABEL_KEY = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/;
 const encoder = new TextEncoder();
 
 export const RUN_METADATA_LABEL_LIMIT = 32;
 const RUN_METADATA_LABEL_KEY_BYTE_LIMIT = 63;
-const RUN_METADATA_LABEL_VALUE_BYTE_LIMIT = 256;
+// The Server bounds a label value in UTF-8 bytes (x-max-utf8-bytes).
+const RUN_METADATA_LABEL_VALUE_BYTE_LIMIT = schemaLimit(
+  "RunMetadataLabels",
+  "x-max-utf8-bytes",
+  "additionalProperties",
+);
 
 export interface RunMetadataLabelDraft {
   id: string;

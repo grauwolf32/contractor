@@ -586,6 +586,18 @@ type WorkflowRunEvent struct {
 	OccurredAt         time.Time
 }
 
+// WorkflowRunEventPage is one bounded read of a Run's committed events after
+// a cursor (API-R110): the contiguous sequence prefix within the requested
+// event count and the page data budget.
+type WorkflowRunEventPage struct {
+	Events []WorkflowRunEvent
+	// More reports that a committed event follows the last returned one. A
+	// page with More holds at least one event, so the next read continues
+	// after the last returned sequence and makes progress. Without More the
+	// read reached the end of the committed history.
+	More bool
+}
+
 type WorkflowRunEventCursor struct {
 	Generation string
 	Sequence   int64
