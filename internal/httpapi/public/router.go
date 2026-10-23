@@ -28,6 +28,7 @@ type Dependencies struct {
 	RunRepeat            RunRepeatDependencies
 	Queue                QueueDependencies
 	Artifacts            ArtifactDependencies
+	ScanSweeps           ScanSweepDependencies
 	Audits               AuditDependencies
 	Findings             FindingDependencies
 	Evals                EvalDependencies
@@ -47,6 +48,7 @@ type contextHandlers struct {
 	runRepeat            *runRepeatHandlers
 	queue                *queueHandlers
 	artifacts            *artifactHandlers
+	scanSweeps           *scanSweepHandlers
 	audits               *auditHandlers
 	findings             *findingHandlers
 	evals                *evalHandlers
@@ -71,6 +73,7 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 		{"Run repeat", dependencies.RunRepeat},
 		{"Run Queue", dependencies.Queue},
 		{"Artifact", dependencies.Artifacts},
+		{"Scan sweep", dependencies.ScanSweeps},
 		{"Audit", dependencies.Audits},
 		{"finding", dependencies.Findings},
 		{"Eval", dependencies.Evals},
@@ -102,6 +105,7 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 		runRepeat:            &runRepeatHandlers{RunRepeatDependencies: dependencies.RunRepeat},
 		queue:                &queueHandlers{QueueDependencies: dependencies.Queue, cursors: cursors},
 		artifacts:            &artifactHandlers{ArtifactDependencies: dependencies.Artifacts, cursors: cursors},
+		scanSweeps:           &scanSweepHandlers{ScanSweepDependencies: dependencies.ScanSweeps, cursors: cursors},
 		audits:               &auditHandlers{AuditDependencies: dependencies.Audits, cursors: cursors},
 		findings:             &findingHandlers{FindingDependencies: dependencies.Findings, cursors: cursors},
 		evals:                &evalHandlers{EvalDependencies: dependencies.Evals, cursors: cursors},

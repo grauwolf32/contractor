@@ -82,6 +82,7 @@ type testServices struct {
 	GitImports              GitImportService
 	GitKeys                 GitKeySettings
 
+	ScanSweeps         ScanSweepManagement
 	Audits             AuditManagement
 	FindingProposals   FindingProposalManagement
 	FindingCollections FindingCollectionManagement
@@ -97,6 +98,9 @@ type testServices struct {
 }
 
 func (s testServices) dependencies() Dependencies {
+	if s.ScanSweeps == nil {
+		s.ScanSweeps = &fakeScanSweeps{}
+	}
 	if s.ModelSelection == nil {
 		s.ModelSelection = newFakeModelSelection()
 	}
@@ -129,7 +133,8 @@ func (s testServices) dependencies() Dependencies {
 		Artifacts: ArtifactDependencies{
 			Artifacts: s.Artifacts, Projects: s.Projects, Runs: s.Runs, GitImports: s.GitImports,
 		},
-		Audits: AuditDependencies{Audits: s.Audits, Projects: s.Projects, NewID: s.NewID},
+		ScanSweeps: ScanSweepDependencies{Sweeps: s.ScanSweeps},
+		Audits:     AuditDependencies{Audits: s.Audits, Projects: s.Projects, NewID: s.NewID},
 		Findings: FindingDependencies{
 			FindingProposals: s.FindingProposals, FindingCollections: s.FindingCollections,
 			Audits: s.Audits, Runs: s.Runs,

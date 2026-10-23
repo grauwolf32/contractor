@@ -444,7 +444,7 @@ func (h *artifactHandlers) putArtifact(w http.ResponseWriter, r *http.Request) {
 		handleError(w, err)
 		return
 	}
-	if artifactpolicy.IsAuditStandardCatalogNamespace(r.PathValue("namespace")) {
+	if artifactpolicy.IsAuditStandardCatalogNamespace(r.PathValue("namespace")) || artifactpolicy.IsRunSystemNamespace(r.PathValue("namespace")) {
 		handleError(w, artifacts.ErrReservedNamespace)
 		return
 	}
@@ -555,7 +555,7 @@ func validateUserArtifactReadRoute(r *http.Request) error {
 	if err := validateArtifactRouteNames(r); err != nil {
 		return err
 	}
-	if artifactpolicy.IsAuditStandardCatalogNamespace(r.PathValue("namespace")) {
+	if artifactpolicy.IsAuditStandardCatalogNamespace(r.PathValue("namespace")) || artifactpolicy.IsRunSystemNamespace(r.PathValue("namespace")) {
 		return artifacts.ErrArtifactNotFound
 	}
 	return nil

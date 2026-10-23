@@ -523,7 +523,7 @@ identifies the artifact-preview work on main:
   Phase 1 client fan-out and real-process gate.
 - [V406-003](../../tasks/done/v406-003-user-rulepack-inputs.yml): optional UserScope
   rulepacks and exact authorized input forks.
-- [V406-004](../../tasks/v406-004-durable-scope-sweeps.yml): durable bounded
+- [V406-004](../../tasks/done/v406-004-durable-scope-sweeps.yml): durable bounded
   server sweep and recovery/cancellation/purge.
 - [V406-005](../../tasks/v406-005-web-scan-settings-ui.yml): single-scan form
   and owner rulepack selection/upload.

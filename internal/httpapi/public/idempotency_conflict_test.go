@@ -21,6 +21,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/scanservice"
+	"github.com/grauwolf32/contractor/internal/scanstore"
 )
 
 // Every operation that binds an Idempotency-Key reports the key reused with a
@@ -39,6 +41,7 @@ func TestEveryKeyedOperationReportsKeyReuseAsPermanent(t *testing.T) {
 	fixture = newHandlerFixtureWithAuth(t, "../../config/testdata/valid",
 		newTestAuthentication(t), mustTestOrigins(t), false, nil,
 		func(dependencies *testServices) {
+			dependencies.ScanSweeps = reusedKeySweeps{fakeScanSweeps: &fakeScanSweeps{}, err: scanstore.ErrIdempotency}
 			dependencies.Audits = audits
 			dependencies.RunCreator = reusedKeyRuns{err: reused}
 			dependencies.Projects = reusedKeyProjects{ProjectManagement: dependencies.Projects, err: reused}
@@ -92,6 +95,7 @@ func TestEveryKeyedOperationReportsKeyReuseAsPermanent(t *testing.T) {
 	}
 	runBody := `{"workflow":"artifact-copy@1","parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`
 	requests := map[string]keyedRequest{
+		"createScanSweep":  {http.MethodPost, "/v1/scan-sweeps", `{"projectIds":["project-one"],"workflow":"nuclei-web@1","parameters":{}}`, nil},
 		"createProject":    {http.MethodPost, "/v1/projects", `{"kind":"project","name":"Keyed"}`, nil},
 		"createRun":        {http.MethodPost, "/v1/runs", runBody, nil},
 		"createProjectRun": {http.MethodPost, "/v1/projects/project-one/runs", runBody, nil},
@@ -335,4 +339,13 @@ func (a *reusedKeyAudits) DecideActionReview(
 	context.Context, auditservice.DecideActionReviewParams,
 ) (auditservice.ActionReviewDecisionResult, error) {
 	return auditservice.ActionReviewDecisionResult{}, a.reach("DecideActionReview")
+}
+
+type reusedKeySweeps struct {
+	*fakeScanSweeps
+	err error
+}
+
+func (s reusedKeySweeps) Create(context.Context, string, string, scanservice.Request) (scanstore.Sweep, bool, error) {
+	return scanstore.Sweep{}, false, s.err
 }

@@ -17,6 +17,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
+	"github.com/grauwolf32/contractor/internal/scanstore"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
@@ -359,4 +360,85 @@ func runNucleiProjectSweep(t *testing.T, h *scanProcessHarness) {
 	if creates.Load() != 4 || len(scanFixtureRequests(h)) != before {
 		t.Fatal("resume repeated a settled Run or scan")
 	}
+	runDurableNucleiSweep(t, h, []string{projects[1].ProjectID, projects[4].ProjectID})
+}
+
+func runDurableNucleiSweep(t *testing.T, h *scanProcessHarness, projectIDs []string) {
+	t.Helper()
+	payload, err := os.ReadFile(filepath.Join(h.temporaryRoot, "nuclei-templates", "fixture.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := h.upload(t, "durable-sweep-pack", "application/yaml", payload, nil)
+	body, err := json.Marshal(map[string]any{"projectIds": projectIDs, "workflow": "nuclei-web@1", "parameters": map[string]string{"template_ids": "contractor-local-fixture"}, "rulepack": source})
+	if err != nil {
+		t.Fatal(err)
+	}
+	call := func(method, path string, body []byte, status int) *http.Response {
+		req, err := http.NewRequestWithContext(h.ctx, method, h.baseURL+path, bytes.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("Authorization", "Bearer "+publicToken)
+		if len(body) > 0 {
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Idempotency-Key", "durable-sweep-create")
+		}
+		return do(t, h.client, req, status)
+	}
+	var sweep scanstore.Sweep
+	response := call(http.MethodPost, "/v1/scan-sweeps", body, http.StatusCreated)
+	decodeResponse(t, response, &sweep)
+	response.Body.Close()
+	h.upload(t, "durable-sweep-pack", "application/yaml", []byte("invalid replacement"), source.Revision)
+	var members struct {
+		Items []scanstore.Member `json:"items"`
+		Page  struct {
+			HasMore    bool    `json:"hasMore"`
+			NextCursor *string `json:"nextCursor,omitempty"`
+		} `json:"page"`
+	}
+
+	path := "/v1/scan-sweeps/" + sweep.SweepID
+	runID := ""
+	waitScanCondition(t, h, "durable sweep ordinary child admission", func() bool {
+		response := call(http.MethodGet, path+"/members?limit=2", nil, http.StatusOK)
+		decodeResponse(t, response, &members)
+		response.Body.Close()
+		for _, m := range members.Items {
+			if m.RunID != nil {
+				runID = *m.RunID
+				return true
+			}
+		}
+		return false
+	})
+	if len(members.Items) != 2 {
+		t.Fatalf("durable members=%+v", members)
+	}
+	_, report := h.completedReport(t, runID, "scan_nuclei")
+	if report.Observation["source"] != "rulepack" || report.Observation["sourceContentDigest"] != contentdigest.Bytes(payload) {
+		t.Fatalf("durable sweep lost retained source: %+v", report.Observation)
+	}
+	waitScanCondition(t, h, "durable sweep terminal settlement", func() bool {
+		response := call(http.MethodGet, path, nil, http.StatusOK)
+		decodeResponse(t, response, &sweep)
+		response.Body.Close()
+		return sweep.State == "completed"
+	})
+	before := len(scanFixtureRequests(h))
+	response = call(http.MethodPost, "/v1/scan-sweeps", body, http.StatusCreated)
+	if response.Header.Get("Idempotency-Replayed") != "true" {
+		t.Fatal("durable sweep create did not replay")
+	}
+	response.Body.Close()
+	response = call(http.MethodPost, path+"/cancel", nil, http.StatusOK)
+	response.Body.Close()
+	response = call(http.MethodDelete, path, nil, http.StatusNoContent)
+	response.Body.Close()
+	if len(scanFixtureRequests(h)) != before {
+		t.Fatal("durable replay or cleanup rescanned target")
+	}
+	// Child report and input lifecycle are independent of the sweep's purge.
+	h.completedReport(t, runID, "scan_nuclei")
 }

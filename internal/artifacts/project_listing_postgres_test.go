@@ -165,3 +165,64 @@ func (node explainNode) scansOf(relation string) []explainNode {
 	}
 	return result
 }
+
+func TestPostgresIntegrationUserListingSkipsSweepSnapshotsByIndex(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+	pool := isolatedArtifactPool(t, ctx)
+	service := NewService(NewPostgresRepository(pool))
+	user, _ := service.User("sweep-library-owner")
+	refs := []ArtifactRef{{Namespace: "notes", Name: "first"}, {Namespace: "notes", Name: "second"}, {Namespace: "zeta", Name: "third"}}
+	var source WriteResult
+	for _, ref := range refs {
+		written, err := user.Write(ctx, ref, Payload{MediaType: "text/plain", Data: []byte("shared")}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		source = written
+	}
+	var version string
+	if err := pool.QueryRow(ctx, `SELECT version_id FROM artifact_binding_revisions WHERE scope_kind='user' AND scope_id='sweep-library-owner' AND namespace=$1 AND name=$2 AND revision=$3`, source.Ref.Namespace, source.Ref.Name, source.Ref.Revision).Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO artifact_binding_revisions(scope_kind,scope_id,namespace,name,revision,version_id)
+SELECT 'user','sweep-library-owner',$1,'scan-sweep.'||i||'.rulepack','rev-sweep-'||i,$2 FROM generate_series(1,6000) i`, artifactpolicy.RunSystemNamespace, version); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO artifact_bindings(scope_kind,scope_id,namespace,name,current_revision,frozen)
+SELECT scope_kind,scope_id,namespace,name,revision,true FROM artifact_binding_revisions WHERE scope_kind='user' AND scope_id='sweep-library-owner' AND namespace=$1`, artifactpolicy.RunSystemNamespace); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `ANALYZE artifact_bindings`); err != nil {
+		t.Fatal(err)
+	}
+	var reads int64
+	var listed []string
+	if err := postgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		pages, _ := NewService(NewPostgresRepository(tx)).User("sweep-library-owner")
+		query := BindingPageQuery{HiddenNamespace: artifactpolicy.AuditStandardCatalogNamespace, Limit: 2}
+		for {
+			items, err := pages.ListMetadata(ctx, query)
+			if err != nil {
+				return err
+			}
+			for _, item := range items {
+				listed = append(listed, item.Ref.Namespace+"/"+item.Ref.Name)
+			}
+			if len(items) < query.Limit {
+				break
+			}
+			last := items[len(items)-1].Ref
+			query.AfterNamespace, query.AfterName = last.Namespace, last.Name
+		}
+		return tx.QueryRow(ctx, `SELECT coalesce(sum(seq_tup_read+idx_tup_fetch),0) FROM pg_stat_xact_user_tables WHERE relname='artifact_bindings'`).Scan(&reads)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(listed, " "); got != "notes/first notes/second zeta/third" {
+		t.Fatalf("library=%q", got)
+	}
+	if reads > 20 {
+		t.Fatalf("library read %d bindings for 3 visible entries; hidden snapshots entered page scan", reads)
+	}
+}
