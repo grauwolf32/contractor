@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: evals
 kind: chore
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: "The Eval domain uses the one bounded strict JSON walker instead of its own, with unchanged verdicts and error codes."
@@ -26,6 +26,25 @@ context:
     evalstore/submissions.go:195 and 233, evalservice/native_checks.go:56.
     The four walkers V370-014 converted (planner/scan, auditdomain,
     auditpriority, scanplan) stay as they are.
+  decision: >-
+    Guarantee: StrictJSON keeps its size, UTF-8, json.Valid and
+    ValidUnicodeEscapes prechecks, so an oversized document is
+    eval_limit_exceeded and invalid JSON is eval_invalid even when it is also
+    too deep, and then reads the value with strictjson.DecodeBounded.
+    Bounds: MaxDepth+1, because the Eval walker put the top-level value at
+    depth 0 and DecodeBounded puts it at depth 1 (33 levels of values stay
+    accepted, 34 stay eval_limit_exceeded); MaxNodes is MaxDocumentBytes,
+    which never binds because every value takes at least one byte of its own;
+    no string bound and no name nodes. The number function keeps the
+    json.Number literal and rejects what json.Number.Float64 cannot represent
+    finitely, as the old walker did. ErrBounds maps to eval_limit_exceeded
+    and every other error to eval_invalid; DecodeBounded checks depth,
+    duplicates and numbers in document order as the old walker did, so the
+    first violation decides the code. Evidence: TestStrictJSONVerdictsAndCodes,
+    TestStrictJSONDocumentSizeBound and TestStrictJSONKeepsNumberLiterals
+    (internal/evaldomain/json_test.go) passed on the old walker before the
+    change and pass on DecodeBounded; dropping the +1 fails the three
+    deepest-value cases.
 scope:
   in:
     - "StrictJSON delegates to DecodeBounded with a number function that keeps finite json.Number values, and maps size and ErrBounds to eval_limit_exceeded and every other failure to eval_invalid."
