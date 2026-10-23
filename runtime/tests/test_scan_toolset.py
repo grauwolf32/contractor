@@ -4,15 +4,22 @@ import asyncio
 import inspect
 import ipaddress
 import json
+import os
 import shutil
 import sys
+import tempfile
+import threading
+from base64 import b64encode
 from pathlib import Path
+from types import SimpleNamespace
+from urllib.parse import urlsplit
 
 import pytest
 from fakes.worker_runtime import StubADKWorkerRuntimeFactory
 from google.adk.tools import FunctionTool
 from target_policy_fixtures import SCAN_TEST_POLICY
 
+import contractor_runtime.threads as threads_module
 import contractor_runtime.toolsets.scan.process as process_module
 import contractor_runtime.toolsets.scan.tools as scan
 from contractor_runtime.adapters import AdapterHandles
@@ -25,7 +32,9 @@ from contractor_runtime.core.target_policy import (
     parse_allowed_networks,
 )
 from contractor_runtime.factories import FactoryRegistry
-from contractor_runtime.toolsets.scan.process import run_process
+from contractor_runtime.toolsets.scan.ffuf import ffuf_observation
+from contractor_runtime.toolsets.scan.katana import TARGET_LIST_MEDIA_TYPE, katana_observation
+from contractor_runtime.toolsets.scan.process import ProcessResult, run_process
 from contractor_runtime.workspace import AllocationWorkspace, LocalWorkdirFactory
 
 
@@ -1324,39 +1333,17 @@ def test_rulepack_rejects_entire_invalid_pack(tmp_path, case):
 def test_rulepack_adapter_uses_only_exact_pack_without_installed_rules(
     tmp_path, monkeypatch, archive, case
 ):
-    from urllib.parse import parse_qs, unquote, urlsplit
-
     from test_tool_worker import ArtifactStore
 
     from contractor_runtime.artifacts import ArtifactClient
     from contractor_runtime.toolsets.scan.nuclei_rulepack import RULEPACK_MEDIA_TYPE
-
-    class RulepackStore(ArtifactStore):
-        async def request(self, method, path, **kwargs):
-            parsed = urlsplit(path)
-            if method == "GET" and parsed.path.endswith("/metadata"):
-                namespace, name, _ = map(unquote, parsed.path.split("/artifacts/")[1].split("/"))
-                if (namespace, name) not in self.values:
-                    return self.response(404, {"code": "not_found", "retryable": False})
-                data, media, revision = self.values[(namespace, name)]
-                assert parse_qs(parsed.query)["revision"] == [revision]
-                return self.response(
-                    200,
-                    {
-                        "apiVersion": "contractor/v1alpha1",
-                        "artifact": {"namespace": namespace, "name": name, "revision": revision},
-                        "mediaType": media,
-                        "size": len(data),
-                    },
-                )
-            return await super().request(method, path, **kwargs)
 
     marker, _ = install_pin_scanner(tmp_path, monkeypatch, mode=case)
 
     async def scenario():
         tools, _ = await make_tools(tmp_path, selected=["scan_nuclei"])
         (tmp_path / "templates").rmdir()  # Custom mode requires no installation.
-        store = RulepackStore()
+        store = ArtifactStore()
         data = (
             rulepack_zip([("fixture.yaml", NUCLEI_PIN_FIXTURE)])
             if archive
@@ -1400,5 +1387,640 @@ def test_rulepack_adapter_uses_only_exact_pack_without_installed_rules(
         assert marker.read_text() == "scan\n"
         await tool.close()
         assert not list((tmp_path / "workspace").iterdir())
+
+    asyncio.run(scenario())
+
+
+# Off-loop scanner work. These are structural checks, not event-loop gap
+# bounds: a worker thread can hold the GIL, so wall-clock gaps are not
+# deterministic. Thread identity proves where each step ran, and a gate that
+# holds the worker shows the loop still running callbacks meanwhile.
+
+_SCRATCH_EVENTS = frozenset({"tempfile.mkdtemp", "os.mkdir", "open", "shutil.rmtree"})
+_scratch_recorders: list[ScratchRecorder] = []
+
+
+def _audit_scratch(event: str, args: tuple[object, ...]) -> None:
+    if not _scratch_recorders or event not in _SCRATCH_EVENTS or not args:
+        return
+    path = args[0]
+    if isinstance(path, (str, bytes, os.PathLike)):
+        for recorder in tuple(_scratch_recorders):
+            recorder.audit(event, os.fsdecode(os.fspath(path)))
+
+
+# Audit hooks cannot be removed; this one is inert while no recorder is active.
+sys.addaudithook(_audit_scratch)
+
+
+class Gate:
+    """Holds one worker-thread step until the test releases it.
+
+    A step reached on the event-loop thread is recorded instead of held:
+    holding it would stop the loop that has to release it.
+    """
+
+    def __init__(self, loop_thread: int) -> None:
+        self.loop_thread = loop_thread
+        self.entered = threading.Event()
+        self.release = threading.Event()
+        self.on_loop = False
+
+    def hold(self) -> None:
+        if threading.get_ident() == self.loop_thread:
+            self.on_loop = True
+            return
+        self.entered.set()
+        if not self.release.wait(30):
+            raise RuntimeError("the test never released the gate")
+
+
+class ScratchRecorder:
+    """Audited filesystem operations below one directory, with their threads."""
+
+    def __init__(self, root: Path, loop_thread: int) -> None:
+        self.root = f"{root}{os.sep}"
+        self.loop_thread = loop_thread
+        self.operations: list[tuple[str, str]] = []
+        self.on_loop: list[tuple[str, str]] = []
+        # (event, base name or None for any name) -> gate held before the operation.
+        self.gates: dict[tuple[str, str | None], Gate] = {}
+
+    def __enter__(self) -> ScratchRecorder:
+        _scratch_recorders.append(self)
+        return self
+
+    def __exit__(self, *_exception: object) -> None:
+        _scratch_recorders.remove(self)
+
+    def audit(self, event: str, path: str) -> None:
+        if not path.startswith(self.root):
+            return
+        name = os.path.basename(path)
+        self.operations.append((event, name))
+        if threading.get_ident() == self.loop_thread:
+            self.on_loop.append((event, name))
+        gate = self.gates.get((event, name)) or self.gates.get((event, None))
+        if gate is not None:
+            gate.hold()
+
+    def mark(self, label: str) -> int:
+        self.operations.append((label, ""))
+        return len(self.operations) - 1
+
+    def indices(self, event: str) -> list[int]:
+        return [index for index, (name, _) in enumerate(self.operations) if name == event]
+
+
+OFF_LOOP_WORDLIST = {"namespace": "inputs", "name": "wordlist", "revision": "wordlist-1"}
+OFF_LOOP_REQUEST = {"namespace": "inputs", "name": "request", "revision": "request-1"}
+OFF_LOOP_FFUF_URL = "https://target.invalid/FUZZ"
+OFF_LOOP_KATANA_SEED = "http://target.invalid/"
+OFF_LOOP_CASES = (
+    "scan_nuclei",
+    "scan_sqlmap",
+    "scan_sqlmap_request",
+    "scan_naabu",
+    "scan_ffuf",
+    "scan_katana",
+)
+# Parsers whose thread identity is recorded; every observation projects the
+# process result through ProcessResult.observation as well.
+OFF_LOOP_PARSERS = {
+    "scan_nuclei": ((scan, "_json_lines"),),
+    "scan_sqlmap": (),
+    "scan_sqlmap_request": ((scan, "parse_http_request"), (scan, "_sqlmap_techniques")),
+    "scan_naabu": ((scan, "_json_lines"),),
+    "scan_ffuf": ((scan, "parse_wordlist"), (scan, "ffuf_observation")),
+    "scan_katana": ((scan, "katana_observation"),),
+}
+OFF_LOOP_PRIVATE_FILES = {
+    "scan_nuclei": {"target.txt"},
+    "scan_sqlmap": set(),
+    "scan_sqlmap_request": {"request.http"},
+    "scan_naabu": set(),
+    "scan_ffuf": {"wordlist.txt"},
+    "scan_katana": {"seed.txt", "config.yaml"},
+}
+# Scratch creation, adapter preparation, observation and scratch removal,
+# plus each adapter's materialization: a fixed count, whatever the output size.
+OFF_LOOP_SUBMISSIONS = {
+    "scan_nuclei": 6,
+    "scan_sqlmap": 4,
+    "scan_sqlmap_request": 6,
+    "scan_naabu": 4,
+    "scan_ffuf": 5,
+    "scan_katana": 5,
+}
+FFUF_OFF_LOOP_RECORD = {
+    "input": {"FUZZ": b64encode(b"foo").decode()},
+    "position": 1,
+    "status": 200,
+    "length": 2,
+    "words": 1,
+    "lines": 1,
+    "url": "https://target.invalid/foo",
+    "duration": 123,
+    "content-type": "text/plain",
+    "redirectlocation": "",
+}
+FFUF_OFF_LOOP_PROGRESS = (
+    b":: Progress: [1/1] :: Job [1/1] :: 10 req/sec :: Duration: [0:00:00] :: Errors: 0 ::\n"
+)
+
+
+def scanner_output(case: str, *, large: bool) -> tuple[bytes, bytes]:
+    """Valid scanner stdout and stderr; large output nearly fills the 1 MiB bound."""
+
+    def line(index: int) -> bytes:
+        if case in {"scan_nuclei", "scan_naabu"}:
+            value = {"host": "target.invalid", "port": index % 65535 + 1, "info": "x" * 160}
+            return json.dumps(value).encode()
+        if case == "scan_ffuf":
+            return json.dumps(FFUF_OFF_LOOP_RECORD).encode()
+        if case == "scan_katana":
+            return json.dumps(
+                {
+                    "request": {
+                        "method": "GET",
+                        "endpoint": f"{OFF_LOOP_KATANA_SEED}p{index:06}",
+                        "source": OFF_LOOP_KATANA_SEED,
+                    },
+                    "response": {"status_code": 200},
+                }
+            ).encode()
+        if case == "scan_sqlmap_request":
+            return b"    Type: boolean-based blind" if index % 2 else b"    Payload: id=7 AND 1=1"
+        return b"[INFO] testing connection to the target URL"
+
+    stderr = FFUF_OFF_LOOP_PROGRESS if case == "scan_ffuf" else b""
+    limit = process_module.MAX_OUTPUT_BYTES - len(stderr)
+    lines, size = [], 0
+    while True:
+        item = line(len(lines)) + b"\n"
+        if lines and (not large or size + len(item) > limit):
+            return b"".join(lines), stderr
+        lines.append(item)
+        size += len(item)
+
+
+def off_loop_store(*, output: str | None = None, failure: str | None = None):
+    """An Artifact API fake holding the scanner inputs.
+
+    ``failure`` fails metadata reads of ``scanner/<output>`` as an unavailable
+    store ("unavailable") or a lost response ("transport").
+    """
+
+    from test_scan_http_request import request_document
+    from test_tool_worker import ArtifactStore
+
+    from contractor_runtime.artifacts import ArtifactTransportError
+
+    class Store(ArtifactStore):
+        async def request(self, method, path, **kwargs):
+            self.threads.append(threading.get_ident())
+            metadata = urlsplit(path).path.endswith(f"/scanner/{output}/metadata")
+            if failure is not None and method == "GET" and metadata:
+                self.reads.append(("metadata", "scanner", output))
+                if failure == "transport":
+                    raise ArtifactTransportError("metadata response lost")
+                return self.response(503, {"code": "storage_unavailable", "retryable": True})
+            return await super().request(method, path, **kwargs)
+
+    store = Store()
+    store.threads = []
+    store.values[("inputs", "wordlist")] = (b"foo\n", "text/plain", "wordlist-1")
+    store.values[("inputs", "request")] = (
+        json.dumps(request_document()).encode(),
+        "application/json",
+        "request-1",
+    )
+    return store
+
+
+async def off_loop_scanner(tmp_path, monkeypatch, case, stdout, stderr=b"", *, store=None):
+    """One scanner whose process returns ``stdout``/``stderr`` without launching."""
+
+    from contractor_runtime.artifacts import ArtifactClient
+
+    install_echo_scanners(tmp_path, monkeypatch)
+    launches = []
+
+    async def process(command, directory, timeout):
+        launches.append(command)
+        return ProcessResult(0, stdout=stdout, stderr=stderr)
+
+    monkeypatch.setattr(scan, "run_process", process)
+    name = "scan_sqlmap" if case == "scan_sqlmap_request" else case
+    tools, state = await make_tools(tmp_path, selected=[name])
+    tool = tools[name]
+    store = off_loop_store() if store is None else store
+    tool._session.artifact_client = ArtifactClient("allocation", store)
+    arguments = {
+        "scan_nuclei": ("http://target.invalid/",),
+        "scan_sqlmap": ("http://target.invalid/?id=1",),
+        "scan_sqlmap_request": (),
+        "scan_naabu": ("target.invalid",),
+        "scan_ffuf": (OFF_LOOP_FFUF_URL, OFF_LOOP_WORDLIST),
+        "scan_katana": (OFF_LOOP_KATANA_SEED,),
+    }[case]
+    options = {"request_ref": OFF_LOOP_REQUEST} if case == "scan_sqlmap_request" else {}
+    return SimpleNamespace(
+        tool=tool,
+        state=state,
+        store=store,
+        launches=launches,
+        call=lambda **extra: tool(*arguments, **options, **extra),
+    )
+
+
+def record_threads(patch, targets) -> list[tuple[str, int]]:
+    calls: list[tuple[str, int]] = []
+    for owner, name in targets:
+        original = getattr(owner, name)
+
+        def recorded(*args, _original=original, _name=name, **kwargs):
+            calls.append((_name, threading.get_ident()))
+            return _original(*args, **kwargs)
+
+        patch.setattr(owner, name, recorded)
+    return calls
+
+
+def count_thread_submissions(patch) -> list[str]:
+    names: list[str] = []
+    original = threads_module.to_thread_until_done
+
+    async def counted(function, *args, name):
+        names.append(name)
+        return await original(function, *args, name=name)
+
+    patch.setattr(threads_module, "to_thread_until_done", counted)
+    return names
+
+
+def direct_observation(case: str, tool, result: ProcessResult) -> dict:
+    """The observation each adapter's parser computes, called directly."""
+
+    if case == "scan_ffuf":
+        return {**ffuf_observation(result, 1), "wordlistArtifact": OFF_LOOP_WORDLIST}
+    if case == "scan_katana":
+        value, _ = katana_observation(
+            result,
+            seed=OFF_LOOP_KATANA_SEED,
+            max_depth=2,
+            max_pages=100,
+            rate_limit=10,
+            timeout_seconds=60,
+        )
+        return value
+    if case == "scan_sqlmap_request":
+        techniques = scan._sqlmap_techniques(result.stdout)
+        return {
+            **result.observation(),
+            "scanner": "sqlmap",
+            "stdout": "",
+            "stderr": "",
+            "diagnosticsRedacted": True,
+            "requestArtifact": OFF_LOOP_REQUEST,
+            "injectionOutcome": "reported" if techniques else "unknown",
+            "injectionTechniques": techniques,
+        }
+    return tool.observation(result)
+
+
+@pytest.mark.parametrize("case", OFF_LOOP_CASES)
+def test_scanner_parsing_and_scratch_files_stay_off_the_event_loop(tmp_path, monkeypatch, case):
+    stdout, stderr = scanner_output(case, large=True)
+    assert len(stdout) + len(stderr) > process_module.MAX_OUTPUT_BYTES - 1024
+
+    async def scenario():
+        scanner = await off_loop_scanner(tmp_path, monkeypatch, case, stdout, stderr)
+        loop_thread = threading.get_ident()
+        workspace = tmp_path / "workspace"
+        try:
+            with (
+                monkeypatch.context() as patch,
+                ScratchRecorder(workspace, loop_thread) as recorder,
+            ):
+                parsers = record_threads(
+                    patch, ((ProcessResult, "observation"), *OFF_LOOP_PARSERS[case])
+                )
+                submissions = count_thread_submissions(patch)
+                result = await scanner.call()
+        finally:
+            await scanner.tool.close()
+
+        assert len(scanner.launches) == 1
+        # Parsing ran, and never on the loop thread.
+        expected_parsers = {"observation", *(name for _, name in OFF_LOOP_PARSERS[case])}
+        assert {name for name, _ in parsers} == expected_parsers
+        assert loop_thread not in {thread for _, thread in parsers}
+        # Scratch creation, private inputs and removal ran, and never on the loop.
+        events = {event for event, _ in recorder.operations}
+        assert {"tempfile.mkdtemp", "os.mkdir", "shutil.rmtree"} <= events
+        opened = {name for event, name in recorder.operations if event == "open"}
+        assert OFF_LOOP_PRIVATE_FILES[case] <= opened
+        assert recorder.on_loop == []
+        assert len(submissions) == OFF_LOOP_SUBMISSIONS[case], submissions
+        # Artifact reads and publication stay awaited on the loop.
+        assert set(scanner.store.threads) <= {loop_thread}
+        assert list(workspace.iterdir()) == []
+
+        # The threaded observation equals a direct parse of the same output.
+        expected = direct_observation(
+            case, scanner.tool, ProcessResult(0, stdout=stdout, stderr=stderr)
+        )
+        observed = dict(result)
+        if case == "scan_katana":
+            published = scanner.store.values[("scanner", "targets")]
+            _, data = katana_observation(
+                ProcessResult(0, stdout=stdout, stderr=stderr),
+                seed=OFF_LOOP_KATANA_SEED,
+                max_depth=2,
+                max_pages=100,
+                rate_limit=10,
+                timeout_seconds=60,
+            )
+            assert published[:2] == (data, TARGET_LIST_MEDIA_TYPE)
+            exact = {"namespace": "scanner", "name": "targets", "revision": published[2]}
+            assert observed.pop("targetsArtifact") == exact
+            assert observed.pop("artifacts") == {"targets": exact}
+            del expected["targetsArtifact"], expected["artifacts"]
+        assert observed == expected
+        assert result["stdoutTruncated"] is True
+        if case not in {"scan_sqlmap", "scan_sqlmap_request"}:
+            assert result["resultsTruncated"] is True and len(result["results"]) == 100
+
+    asyncio.run(scenario())
+
+
+def test_probe_scratch_stays_off_the_event_loop(tmp_path, monkeypatch):
+    executable(tmp_path, "naabu", "print('fixture')")
+    monkeypatch.setenv("PATH", str(tmp_path))
+    probe_root = tmp_path / "probe-tmp"
+    probe_root.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(probe_root))
+
+    async def scenario():
+        factory = scan.ScanToolsetFactory(scanners=[scan.NaabuTool])
+        with ScratchRecorder(probe_root, threading.get_ident()) as recorder:
+            assert await factory.probe() == {"scan_naabu"}
+        events = {event for event, _ in recorder.operations}
+        assert {"tempfile.mkdtemp", "shutil.rmtree"} <= events
+        assert recorder.on_loop == []
+        assert list(probe_root.iterdir()) == []
+
+    asyncio.run(scenario())
+
+
+# (case, stage): the held worker-thread step of one invocation.
+OFF_LOOP_STAGES = (
+    ("scan_ffuf", "create"),
+    ("scan_nuclei", "prepare"),
+    ("scan_ffuf", "materialize"),
+    ("scan_sqlmap_request", "materialize"),
+    ("scan_katana", "materialize"),
+    ("scan_ffuf", "parse"),
+    ("scan_katana", "parse"),
+    ("scan_naabu", "parse"),
+    ("scan_ffuf", "remove"),
+)
+
+
+def hold_stage(patch, recorder: ScratchRecorder, case: str, stage: str, gate: Gate) -> None:
+    if stage == "create":
+        recorder.gates[("tempfile.mkdtemp", None)] = gate
+    elif stage == "prepare":
+        recorder.gates[("os.mkdir", "nuclei-templates")] = gate
+    elif stage == "materialize":
+        name = {
+            "scan_ffuf": "wordlist.txt",
+            "scan_sqlmap_request": "request.http",
+            "scan_katana": "seed.txt",
+        }[case]
+        recorder.gates[("open", name)] = gate
+    elif stage == "remove":
+        recorder.gates[("shutil.rmtree", None)] = gate
+    else:
+        owner, name = {
+            "scan_ffuf": (scan, "ffuf_observation"),
+            "scan_katana": (scan, "katana_observation"),
+            "scan_naabu": (scan, "_json_lines"),
+        }[case]
+        original = getattr(owner, name)
+
+        def held(*args, **kwargs):
+            gate.hold()
+            return original(*args, **kwargs)
+
+        patch.setattr(owner, name, held)
+
+
+async def until_held(gate: Gate, task: asyncio.Task) -> None:
+    """Wait until a worker thread holds the gate; a step on the loop is not held."""
+
+    async with asyncio.timeout(30):
+        while not gate.entered.is_set() and not task.done():
+            await asyncio.sleep(0.001)
+    assert not gate.on_loop, "the held step ran on the event-loop thread"
+    assert gate.entered.is_set()
+
+
+@pytest.mark.parametrize("case,stage", OFF_LOOP_STAGES)
+def test_held_scanner_thread_leaves_the_event_loop_running(tmp_path, monkeypatch, case, stage):
+    stdout, stderr = scanner_output(case, large=False)
+
+    async def scenario():
+        scanner = await off_loop_scanner(tmp_path, monkeypatch, case, stdout, stderr)
+        loop = asyncio.get_running_loop()
+        gate = Gate(threading.get_ident())
+        task = None
+        try:
+            with (
+                monkeypatch.context() as patch,
+                ScratchRecorder(tmp_path / "workspace", gate.loop_thread) as recorder,
+            ):
+                hold_stage(patch, recorder, case, stage, gate)
+                task = asyncio.create_task(scanner.call())
+                await until_held(gate, task)
+                # An independent callback runs while the worker is still held.
+                progressed = asyncio.Event()
+                loop.call_soon(progressed.set)
+                await progressed.wait()
+                assert not task.done() and not gate.release.is_set()
+                gate.release.set()
+                result = await task
+        finally:
+            gate.release.set()
+            if task is not None:
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+            await scanner.tool.close()
+        assert result["status"] == "completed", result
+        assert recorder.on_loop == []
+        assert len(scanner.launches) == 1
+        assert list((tmp_path / "workspace").iterdir()) == []
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("stop", ["cancel", "close"])
+@pytest.mark.parametrize("case,stage", OFF_LOOP_STAGES)
+def test_stopped_scanner_joins_held_thread_before_cleanup_and_unlock(
+    tmp_path, monkeypatch, case, stage, stop
+):
+    stdout, stderr = scanner_output(case, large=False)
+
+    async def scenario():
+        scanner = await off_loop_scanner(tmp_path, monkeypatch, case, stdout, stderr)
+        session = scanner.tool._session
+        gate = Gate(threading.get_ident())
+        task = closing = None
+        try:
+            with (
+                monkeypatch.context() as patch,
+                ScratchRecorder(tmp_path / "workspace", gate.loop_thread) as recorder,
+            ):
+                hold_stage(patch, recorder, case, stage, gate)
+                task = asyncio.create_task(scanner.call())
+                await until_held(gate, task)
+                held = len(recorder.operations)
+                if stop == "cancel":
+                    task.cancel()
+                else:
+                    closing = asyncio.create_task(session.close())
+                for _ in range(20):
+                    await asyncio.sleep(0)
+                # The stopped invocation waits for the held thread: no cleanup
+                # and no lock release happen while it still runs.
+                assert not task.done() and session._lock.locked()
+                assert closing is None or not closing.done()
+                assert "shutil.rmtree" not in {event for event, _ in recorder.operations[held:]}
+                released = recorder.mark("released")
+                gate.release.set()
+                with pytest.raises(asyncio.CancelledError):
+                    await task
+                if closing is not None:
+                    await closing
+        finally:
+            gate.release.set()
+            for pending in (task, closing):
+                if pending is not None:
+                    pending.cancel()
+                    await asyncio.gather(pending, return_exceptions=True)
+            await scanner.tool.close()
+
+        assert not session._lock.locked()
+        assert list((tmp_path / "workspace").iterdir()) == []
+        removals = recorder.indices("shutil.rmtree")
+        assert len(removals) == 1
+        if stage in {"create", "prepare", "materialize"}:
+            # The scratch is removed only after the held thread finished.
+            assert removals[0] > released
+        if stage == "create":
+            # The directory the thread created after the stop is removed too.
+            assert recorder.indices("os.mkdir")[0] > released
+        assert ("scanner", "targets") not in scanner.store.values
+        assert scanner.state.metrics.counters["tool_errors"] == 1
+        if stop == "close":
+            assert (await scanner.call())["errorCode"] == "scan_closed"
+
+    asyncio.run(scenario())
+
+
+def test_deadline_during_held_materialization_joins_thread_and_times_out(tmp_path, monkeypatch):
+    stdout, stderr = scanner_output("scan_ffuf", large=False)
+
+    async def scenario():
+        scanner = await off_loop_scanner(tmp_path, monkeypatch, "scan_ffuf", stdout, stderr)
+        session = scanner.tool._session
+        gate = Gate(threading.get_ident())
+        task = None
+        try:
+            with (
+                monkeypatch.context() as patch,
+                ScratchRecorder(tmp_path / "workspace", gate.loop_thread) as recorder,
+            ):
+                hold_stage(patch, recorder, "scan_ffuf", "materialize", gate)
+                task = asyncio.create_task(scanner.call(timeout_seconds=1))
+                await until_held(gate, task)
+                # The scan deadline cancels the invocation while the thread is held.
+                async with asyncio.timeout(30):
+                    while not session._task.cancelling():
+                        await asyncio.sleep(0.01)
+                assert not task.done() and session._lock.locked()
+                released = recorder.mark("released")
+                gate.release.set()
+                result = await task
+        finally:
+            gate.release.set()
+            if task is not None:
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+            await scanner.tool.close()
+        assert result["status"] == "failed" and result["errorCode"] == "scan_timeout"
+        assert result["scanComplete"] is False
+        assert not scanner.launches
+        assert recorder.indices("shutil.rmtree")[0] > released
+        assert list((tmp_path / "workspace").iterdir()) == []
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("output", ["targets", "template-manifest"])
+@pytest.mark.parametrize("binding", ["missing", "existing", "unavailable", "transport"])
+def test_create_only_scanner_output_is_checked_by_metadata_without_payload(
+    tmp_path, monkeypatch, output, binding
+):
+    failure = binding if binding in {"unavailable", "transport"} else None
+    store = off_loop_store(output=output, failure=failure)
+    existing = (b"existing", "application/octet-stream", "existing-1")
+    if binding == "existing":
+        store.values[("scanner", output)] = existing
+
+    async def scenario():
+        if output == "targets":
+            stdout, stderr = scanner_output("scan_katana", large=False)
+            scanner = await off_loop_scanner(
+                tmp_path, monkeypatch, "scan_katana", stdout, stderr, store=store
+            )
+            tool = scanner.tool
+            call = scanner.call
+            launched = lambda: bool(scanner.launches)  # noqa: E731
+        else:
+            from contractor_runtime.artifacts import ArtifactClient
+
+            marker, _ = install_pin_scanner(tmp_path, monkeypatch)
+            tools, _ = await make_tools(tmp_path, selected=["scan_nuclei"])
+            tool = tools["scan_nuclei"]
+            tool._session.artifact_client = ArtifactClient("allocation", store)
+            (tmp_path / "templates/fixture.yaml").write_text(NUCLEI_PIN_FIXTURE)
+            digest = package_pin(tmp_path / "templates", tmp_path / "reference")
+
+            def call():
+                return tool("http://target.invalid/", templates_digest=digest, timeout_seconds=30)
+
+            launched = marker.exists
+        try:
+            result = await call()
+        finally:
+            await tool.close()
+
+        assert ("metadata", "scanner", output) in store.reads
+        # An existing payload is never downloaded to learn that it exists.
+        assert ("payload", "scanner", output) not in store.reads
+        if binding == "missing":
+            assert result["status"] == "completed", result
+            assert launched()
+            assert ("scanner", output) in store.values
+        else:
+            expected = {"existing": "scan_output_exists"}.get(binding, "scan_artifact_unavailable")
+            assert result["status"] == "failed" and result["errorCode"] == expected, result
+            assert not launched()
+            assert store.values.get(("scanner", output)) == (
+                existing if binding == "existing" else None
+            )
+        assert list((tmp_path / "workspace").iterdir()) == []
 
     asyncio.run(scenario())
