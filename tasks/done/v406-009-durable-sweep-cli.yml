@@ -1,0 +1,98 @@
+schema_version: '1.0'
+id: V406-009
+title: Launch and manage durable server sweeps from the CLI
+milestone: web-nuclei-rule-sweeps-2026-10
+epic: operations
+kind: feature
+priority: P2
+status: completed
+depends_on:
+- V406-004
+languages: [go]
+goal: Use the durable sweep API without Studio or hand-written JSON, with stable creation keys,
+  exact owner rulepack refs, bounded result pages and honest cancellation/purge output.
+context:
+  proposal: docs/proposals/0041-web-nuclei-scanning-and-rule-sweeps.md
+  specification:
+  - docs/spec/tools/scanners.md#SCN-R244
+  - docs/spec/tools/scanners.md#SCN-R251
+  - docs/spec/tools/scanners.md#SCN-R252
+  - docs/spec/api/public-api.md#API-R68
+  - docs/testing/README.md
+scope:
+  in:
+  - Add scan-sweep remote create/list/show/members/cancel/purge over generated public client operations.
+  - Select explicit Project IDs or all owner Projects, rule parameters and an exact optional UserScope rulepack.
+  - Reuse bounded response decoding, transport retries, generated-key retry hints and cursor limits.
+  - Follow every member page on explicit all-pages reads and preserve actual child Run states.
+  - Require explicit confirmation flag for purge; extend the production Nuclei process gate with CLI calls.
+  out:
+  - New UI or Studio surfaces; V406-005 and V406-006 retain the UI work for a later step.
+  - Local-manifest format changes, new scheduler paths or implicit replacement scans on failure.
+requirements:
+- id: R1
+  text: Creation fixes one body/key for all retries; generated keys are reported after ambiguous failure.
+    An exact source ref is required so a later replay does not resolve a changed mutable binding.
+- id: R2
+  text: Server owns targets and membership; reject target overrides and invalid scope before any POST.
+    Response reads remain at most 4 MiB and page limits at most 200.
+- id: R3
+  text: All-pages members read at most 1000 rows and rejects repeated cursors, duplicate members,
+    empty continuation pages or oversized responses. No whole-sweep poll loop is added.
+- id: R4
+  text: Cancellation prints Server state; purge requires --yes and removes only the named sweep.
+failure_outcomes:
+- operation: Durable sweep create/read/cancel/purge HTTP calls
+  permanent: Propagate validation/owner/missing/conflict errors without retry or implicit fallback.
+  retryable: Existing public client retry classes, attempt count and Retry-After bound.
+  ambiguous: Repeat identical keyed creation or inspect the same sweep identity after cancel/purge loss.
+  cancelled: Context cancellation joins the in-flight HTTP operation; admitted Server work retains its lifecycle.
+  timeout: Existing per-request CLI timeout; no model or Server execution deadline changes.
+cardinality:
+- collection: Selected Projects and sweep members
+  expected: '7'
+  maximum: 1000; 200 per page; 4 MiB per response
+  bound: Explicit bounded all-pages aggregation; cursor and duplicate detection; parent reads use counters.
+- collection: Owner sweep list
+  expected: One page of 50
+  maximum: 200 per request; containing collection unbounded
+  bound: Return the Server keyset page/cursor without collecting the whole list.
+lifecycle:
+- entity: CLI invocation and referenced server sweep
+  delete: Explicit remote purge requires --yes and Server terminal-state checks.
+  cascade: No child Run or owner rulepack deletion.
+  retention: Server snapshots/receipts own recovery; CLI stores no additional execution state.
+acceptance_criteria:
+- id: A1
+  given: explicit/all Projects and an exact UserScope pack
+  when: CLI creation loses a committed acknowledgement and retries
+  then: identical body/key produces one sweep without mutable source rereads
+- id: A2
+  given: 1000 members across pages and malformed/cyclic/oversized alternatives
+  when: results are read
+  then: all valid members and actual Run states are shown, and invalid/bound-breaking reads fail
+- id: A3
+  given: active and terminal sweeps
+  when: cancel or purge runs
+  then: actual state is retained, unconfirmed purge sends no DELETE, and the real process gate keeps child reports
+tests:
+- command: go test ./internal/cli/... ./internal/publicclient/...
+  covers: [A1, A2, A3]
+- command: make test-nuclei-web-e2e
+  covers: [A1, A2, A3]
+- command: make verify-public-api
+  covers: [A1, A2, A3]
+- command: make lint
+  covers: [A1, A2, A3]
+implementation_commit: b76026f99f0f9a122d202a7ea01d37e40e6dff60
+verification:
+  date: '2026-10-23'
+  results:
+  - Full internal/cli and internal/publicclient suites passed, including stable keyed replay,
+    1000-member pagination, malformed responses, response-size bounds and purge confirmation.
+  - make test-nuclei-web-e2e passed in 175.219s through the production Server and Runtime
+    processes with the deterministic scanner. CLI creation replayed a committed lost response,
+    retained the original owner rulepack after source advancement, and preserved child reports after purge.
+  - make verify-public-api passed.
+  - make lint passed after regenerating the dependency graph.
+  - Full release-verify was not invoked. No new UI or Studio surface was added.
