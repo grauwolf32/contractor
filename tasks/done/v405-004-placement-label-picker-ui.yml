@@ -5,7 +5,7 @@ milestone: runtime-placement-labels-2026-10
 epic: audits
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V405-002
 - V405-003
@@ -85,3 +85,5 @@ tests:
   covers:
   - A1
   - A2
+
+implementation_commit: 204fd960cabb30bd467789ffeafe3092092023ae
