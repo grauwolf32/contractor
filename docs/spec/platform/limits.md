@@ -326,7 +326,7 @@ its owning requirement.
 | `LIM-EVF-1` | 1–128 ASCII characters | `Id` common type (ordinary member, case, variant and other IDs) | playground-v2 format validation (JSON Schema plus semantic validation) | [EVF-R19](../evals/format.md) |
 | `LIM-EVF-2` | at most 128 ASCII characters in total | `VersionedId` (registered provider and scorer IDs) | playground-v2 format validation | [EVF-R20](../evals/format.md) |
 | `LIM-EVF-3` | 1 MiB per document | one JSON/YAML evaluation document, including its scorer/provider configuration and failure messages | playground-v2 format validation | [format](../evals/format.md) |
-| `LIM-EVF-4` | nesting depth 32 | one JSON/YAML evaluation document | playground-v2 format validation | [EVF-R30](../evals/format.md) |
+| `LIM-EVF-4` | nesting depth 32 below the top-level value (top-level value at depth 0) | one JSON/YAML evaluation document | playground-v2 format validation | [EVF-R30](../evals/format.md) |
 | `LIM-EVF-5` | 1,000 cases | cases per suite | playground-v2 format validation | [EVF-R30](../evals/format.md) |
 | `LIM-EVF-6` | 16 variants | variants per experiment | playground-v2 format validation | [EVF-R30](../evals/format.md) |
 | `LIM-EVF-7` | 1–100 repetitions | experiment `repetitions` | playground-v2 format validation | [format](../evals/format.md) |

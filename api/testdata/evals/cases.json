@@ -644,6 +644,20 @@
     "errorCode": "eval_limit_exceeded"
   },
   {
+    "name": "depth-limit-deepest",
+    "kind": "Command",
+    "file": "invalid/depth-limit-deepest.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "depth-limit-exceeded",
+    "kind": "Command",
+    "file": "invalid/depth-limit-exceeded.json",
+    "valid": false,
+    "errorCode": "eval_limit_exceeded"
+  },
+  {
     "name": "failed-execution-passing-assessment",
     "kind": "Summary",
     "file": "valid/failed-execution-passing-assessment.json",
