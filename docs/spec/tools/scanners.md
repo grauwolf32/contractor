@@ -1282,8 +1282,12 @@ array, scalar and member name (LIM-SCN-42). A JSON document and a YAML document
 of the same tree count alike. The OpenAPI authoring Toolset `openapi@1`
 enforces the same three bounds, counted the same way, on every document it
 loads, on the result of every mutation, on every document it writes or returns,
-and in `validate_openapi` before the external validator runs, so every document
-it accepts or writes passes preparation's source-document parsing. Preparation
+and in `validate_openapi` before the external validator runs, so no document it
+accepts or writes exceeds these byte, depth or node bounds of preparation. The
+shared bounds do not make the two parsers agree on anything else: the Runtime
+reads and writes YAML 1.1 while preparation reads YAML 1.2, so scalars such as
+`0o17` or `1e3` and merge keys can still parse differently or fail preparation
+as `invalid_document`. Preparation
 reports an exceeded bound as `source_limit_exceeded`; `openapi@1` reports it as
 the non-retryable `tool_input_invalid` tool error that names the bound and
 leaves the current document unchanged. Sharing these bounds does not make

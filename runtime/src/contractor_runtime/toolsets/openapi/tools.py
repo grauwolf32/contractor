@@ -47,8 +47,8 @@ from contractor_runtime.toolsets.openapi.models import (
 )
 from contractor_runtime.workspace import AllocationWorkspace
 
-# The source-document bounds of Server scan preparation, so that every document
-# this Toolset accepts or writes is one scan preparation can parse: UTF-8 bytes
+# The source-document bounds of Server scan preparation, so that no document
+# this Toolset accepts or writes exceeds them (SCN-R253): UTF-8 bytes
 # (LIM-SCN-39); depth, with the top-level value at depth 1 and every member
 # name, member value and array element one deeper than its container
 # (LIM-SCN-41); and nodes, counting every value and every member name
