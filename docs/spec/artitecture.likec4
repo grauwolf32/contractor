@@ -403,6 +403,10 @@ model {
         #contractor
       }
 
+      scanSweep = component 'Durable Nuclei Sweeps — immutable owner snapshots, bounded ordinary Project Run admission, cancellation and retention' {
+        #contractor
+      }
+
       scanPlanner = component 'scan-plan@1 Planner — model-free bounded Plan v1 over one RequestSet / target-list Artifact; fixed tool@1 Workers' {
         #contractor
       }
@@ -695,6 +699,9 @@ model {
     orchestration.stagePlanner -> runtimeOperations.telemetry 'Planner ExecutionReport with Run metadata-label trace attributes'
     orchestration.stagePlanner -> identityConfiguration.runtimeConfigService 'Use pinned default/Run-selected Runtime-label Planner telemetry settings'
     orchestration.plannerArtifactInspector -> artifactPlane.artifactService 'Read exact metadata inside current RunScope'
+    orchestration.scanSweep -> orchestration.runService 'Ordinary Run creation and member binding share the parent-fenced transaction'
+    orchestration.scanSweep -> artifactPlane.artifactService 'Retain one frozen owner input; preserve independent child and source lifecycle'
+    orchestration.scanSweep -> workspaceLifecycle.runStore 'Report actual child states and request ordinary cancellation'
     orchestration.skillCatalog -> artifactPlane.artifactService 'Create missing owner skills/*; resolve current and fork exact revisions into RunScope'
     orchestration.plannerMemoryTools -> artifactPlane.artifactService 'Reserved memory.* canonical note artifacts; hidden Artifact revisions'
 

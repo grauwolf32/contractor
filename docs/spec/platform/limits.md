@@ -712,6 +712,11 @@ its owning requirement.
 | `LIM-SCN-85` | 128 UTF-8 bytes | flat custom filename | Extraction name validation | [SCN-R239](../tools/scanners.md), [SCN-R240](../tools/scanners.md) |
 | `LIM-SCN-86` | 100000 | YAML tokens per template | Streaming token validation | [SCN-R239](../tools/scanners.md), [SCN-R240](../tools/scanners.md) |
 | `LIM-SCN-87` | 64 | YAML nesting depth | Streaming token validation | [SCN-R239](../tools/scanners.md), [SCN-R240](../tools/scanners.md) |
+| `LIM-SCN-88` | 1000 Projects; 8 MiB closure plus requests; 16 KiB per child | one durable server sweep | Transactional admission, 1001-row overflow read | [SCN-R246](../tools/scanners.md) |
+| `LIM-SCN-89` | 25 members / 4 MiB per fan-out tick; 200 items per public page | sweep progression and reads | Indexed bounded reads and maintained counters | [SCN-R247](../tools/scanners.md) |
+| `LIM-SCN-90` | 24 hours; at most 100 attempts; backoff at most 300 seconds | pending member admission | Captured admission deadline and retry count | [SCN-R249](../tools/scanners.md) |
+| `LIM-SCN-91` | 30-second tick; 10-second child; 60-second claim; 5-second release; 1-second poll | sweep controller | Independent contexts, existing claims and joined release | [SCN-R249](../tools/scanners.md) |
+| `LIM-SCN-92` | 30 days after settlement; one parent and at most 25 member deletions per minute | automatic sweep retention | Terminal-only indexed maintenance | [SCN-R251](../tools/scanners.md) |
 | `LIM-SEC-1` | 256 bits (exactly 32 decoded bytes) | Credential-encryption master key in the --credential-master-key-file (RFC 4648 base64) | Server startup (master key loader) | [SEC-R17](security.md) |
 | `LIM-SEC-2` | at most 1 trailing newline | Content of the credential master key file | Server startup (master key loader) | [SEC-R17](security.md) |
 | `LIM-SEC-3` | 1 active master key | Credential-encryption keyring | Server | [SEC-R20](security.md) |

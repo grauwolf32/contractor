@@ -52,6 +52,12 @@ func RuntimeManagementReceiptKey(keyDigest string) ReceiptKey {
 	return ReceiptKey{scope: []string{"runtime-management"}, key: keyDigest}
 }
 
+// ScanSweepReceiptKey keeps owner-bound creation replayable after sweep purge.
+// It retains only the original sweep identity and request digest.
+func ScanSweepReceiptKey(ownerID, idempotencyKey string) ReceiptKey {
+	return ReceiptKey{scope: []string{"scan-sweep", ownerID, "scan-sweep.create"}, key: idempotencyKey}
+}
+
 // AdvisoryKey is the advisory key that serializes the requests under k.
 func (k ReceiptKey) AdvisoryKey() AdvisoryKey {
 	return NewAdvisoryKey("mutation-receipt", append(append([]string{}, k.scope...), k.key)...)

@@ -93,7 +93,7 @@ func (s ScopedStore) Write(
 func genericWriteReserved(scope Scope, namespace string, advancing bool) bool {
 	switch scope.kind {
 	case ScopeUser:
-		return artifactpolicy.IsAuditStandardCatalogNamespace(namespace)
+		return artifactpolicy.IsAuditStandardCatalogNamespace(namespace) || artifactpolicy.IsRunSystemNamespace(namespace)
 	case ScopeProject:
 		return artifactpolicy.IsAuditManagedProjectNamespace(namespace)
 	case ScopeRun:

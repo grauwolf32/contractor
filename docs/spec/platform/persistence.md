@@ -137,6 +137,7 @@ own the rules of particular state are indexed in the next section.
 | `internal/projectstore` | `projects` |
 | `internal/runstore` | `owner_queue_controls`, `planner_sessions`, `run_stage_resumptions`, `stage_allocations`, `stage_executions`, `stage_transition_decisions`, `workflow_run_events`, `workflow_run_output_publications`, `workflow_runs` |
 | `internal/runtimeconfig` | `runtime_config_versions`, `runtime_label_bindings` |
+| `internal/scanstore` | `scan_sweeps`, `scan_sweep_members` |
 | `internal/settingsstore` | `scheduler_settings`, `model_selection_settings` |
 | `internal/telemetry` | `allocation_execution_reports`, `planner_execution_reports`, `stage_metrics` |
 
@@ -412,6 +413,7 @@ against is immutable ([AWC-R7](../audits/worker-completion.md)).
 **PER-R24.** A keyed mutation is a request its caller may repeat under an
 idempotency key and whose receipt is kept apart from the entity it changes:
 an owner's Audit mutation (create, start, pause, cancel, resume and delete),
+a durable scan-sweep creation,
 a managed Eval mutation, and a Runtime label binding or Agent label set
 operation. Each records one receipt in `mutation_receipts`, in the
 transaction of its effect, through one flow:
@@ -426,7 +428,9 @@ transaction of its effect, through one flow:
 A key is unique within the scope of its family: an Audit key per owner and
 operation, an Eval key per owner, Project, resource and operation, and a
 Runtime management key across every operation, held only as the digest of the
-operator's key. A family that also compares the stored operation or resource
+operator's key. A scan-sweep create key is scoped by owner and operation; its receipt survives
+purge and a replay resolves the original identity or returns `not_found`,
+never creates new traffic. A family that also compares the stored operation or resource
 on replay, as Runtime management does, reports a difference as the same
 conflict. No receipt changes once claimed. An Audit receipt is deleted with
 its Audit, an Eval receipt only in its Project's purge, so it stays
@@ -447,11 +451,12 @@ key. Two locks keep their own keys: the advisory lease of the active Server
 lock, which is scoped to the schema being migrated.
 
 **PER-R25.** A controller that leases the subjects it reconciles, the Audit
-controller ([AUX-R74](../audits/execution.md)) and the Eval coordinator
+controller ([AUX-R74](../audits/execution.md)), the durable sweep controller
+([SCN-R247](../tools/scanners.md)), and the Eval coordinator
 ([EVM-R108](../evals/managed-evals.md)), keeps one claim row per subject in
-its own claim table, and every claim table has one shape: the subject, an
+its own claim table or on its primary resource row, with one shape: the subject, an
 epoch, and the holder with the start and the end of its lease, all three set
-or none. Both controllers lease, prove and release claims through one helper.
+or none. These controllers lease, prove and release claims through one helper.
 A lease advances the epoch. A write proves that its holder still holds the
 claim at its epoch and that the lease has not ended; only a release or a
 purge by the holder accepts its holder's ended lease, because no other holder

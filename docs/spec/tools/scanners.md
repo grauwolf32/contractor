@@ -626,6 +626,84 @@ retain each original exact source with its explicit sourceScope; a catalog
 change to that scope makes the repeat input unavailable rather than selecting
 another scope's same-named artifact.
 
+### Durable server Project sweeps
+
+**SCN-R244.** `POST /v1/scan-sweeps` selects either 1..1000 unique owner
+Project IDs or all owner Projects. Admission captures concrete membership,
+`httpTarget.url`, resolved model-free single-stage passthrough Nuclei Workflow
+and templates, RuntimeConfig pins, defaulted parameters, exact source revision
+and digest, and canonical child requests with independent opaque create keys.
+The ordinary Run endpoint still requires an explicit target. Missing, deleting
+or targetless Projects become skipped members with explicit reasons; a changed
+Project after capture never supplies a new target to a pending member.
+
+**SCN-R245.** Sweep creation is one bounded transaction under the existing
+KeyedMutation receipt (PER-R24). Replay precedes configuration and source reads.
+Changed requests under that owner key return `idempotency_conflict`. Resolved
+configuration remains pinned; unavailable or drifted catalog dependencies fail
+admission rather than substitute new content. Installed mode requires a literal
+package digest. Custom mode retains exactly one frozen input fork in the same
+owner UserScope under `contractor-system/scan-sweep.<id>.rulepack`; generic
+uploads cannot write this namespace and public library reads/listings hide it.
+The source can advance or disappear after capture. Children fork the retained
+bytes, while their repeat fragment records the original exact owner source.
+No Project copy, new model scope, scanner path or receipt/lease mechanism is
+introduced. Custom template destinations retain SCN-R242's accepted policy.
+
+**SCN-R246.** A parent stores immutable closure and membership identities;
+only counters, claim state, retry deadlines and member outcomes advance.
+The total closure plus child request bytes is at most 8 MiB and every child is
+at most 16 KiB. Expected scope size is seven Projects; maximum is 1000
+(LIM-SCN-88). Admission reads at most 1001 owner Projects to detect overflow,
+without per-Project lookups. Source bytes obey LIM-SCN-81 and LIM-SCN-84 and
+are shared through ordinary Artifact versions rather than copied per Project.
+
+**SCN-R247.** The sweep controller leases one parent through ControllerClaims
+(PER-R25), then processes at most 25 members and 4 MiB of serialized child
+requests per tick. A partial index orders unsettled members by next attempt
+and ordinal, so polling settled members cannot starve pending admissions.
+Parent read views use maintained counters; neither polling nor a tick scans
+the whole collection. Members and owner sweeps use authenticated keyset pages
+of at most 200 items (LIM-SCN-89).
+
+**SCN-R248.** Ordinary Project Run creation and binding its Run ID to the
+member commit in the same Run-creation transaction, under the parent's live
+claim and row lock. Cancellation takes that same parent lock. A lost response
+therefore leaves either both facts or neither; reconciliation uses exactly the
+captured request and key. Admitted facts never become pending or disappear.
+The Scheduler and Runtime's existing receipts alone own scan delivery and
+execution; the sweep never repeats active or terminal scans independently.
+
+**SCN-R249.** Member states are `pending`, `admitted`, `skipped`, `failed` and
+`cancelled`. Admitted members report the actual current Run state, including
+`cancelling`; a removed child retains its Run ID and settles with `run_removed`.
+The counts classify member admission outcomes, not scanner findings. A sweep is
+`active` until every pending admission and admitted Run has settled,
+then `completed`. A later independent ordinary Run resume does not reopen the
+sweep. Permanent member admission errors settle only that member.
+Retryable or ambiguous errors retain its captured key and body with bounded
+exponential backoff; admission expires after 24 hours or 100 attempts. A tick
+has a separate 30-second budget, child admission 10 seconds, claim 60 seconds,
+and claim release five seconds (LIM-SCN-90, LIM-SCN-91; FAIL-SCN-15). These
+bounds do not extend ordinary Run execution or scanner deadlines.
+
+**SCN-R250.** Owner cancellation sets `cancelling`, blocks further child
+creation through the parent transaction fence, cancels unsent members, and
+requests ordinary cancellation of admitted Runs. Only actual terminal child
+states settle those members; the parent then becomes `cancelled`. Repeated
+cancellation is idempotent. Missing and foreign sweeps are indistinguishable.
+
+**SCN-R251.** Owner purge requires a terminal sweep with no live controller
+claim, cancels and joins in-process work before physical deletion, and holds
+the parent lock through cleanup. It removes only sweep membership, metadata
+and the one retained input; child Runs, their forks and owner sources have
+independent lifecycle. Terminal metadata and snapshots become eligible for
+automatic purge 30 days after settlement. Maintenance selects one expired
+parent per minute and deletes at most 25 members per transaction; a resource
+being physically purged is hidden from reads. Creation receipts retain only
+the original identity and request digest indefinitely. Replay after purge is
+`not_found`, never a new sweep or new child traffic (LIFE-SCN-10).
+
 ### SQLMap HTTP request artifacts
 
 **SCN-R58.** `scan_sqlmap(request_ref=...)` accepts one prepared HTTP request

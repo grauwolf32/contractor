@@ -77,6 +77,8 @@ var contractsImporters = map[string][]string{
 	"internal/runservice":                  {"AgentSkillNamespace", "ArtifactRef"},
 	"internal/runstore":                    {"ArtifactRef", "ValidRuntimeAgentID", "WorkerCompletionContract"},
 	"internal/runtimeconfig":               {"ResolvedModelPolicy", "ValidIdentifier"},
+	"internal/scanservice":                 {"ArtifactRef"},
+	"internal/scanstore":                   {"ArtifactRef", "ExactArtifact"},
 	"internal/scanplan":                    {"ResolvedAgentTemplate", "ToolExecutionConfig"},
 	"internal/scheduler":                   {"AllocationWorkspaceSpec", "ResolvedSkill", "WorkerHandle"},
 	"internal/telemetry":                   {"DecodePrivateStrict", "ResultJSONSize"},

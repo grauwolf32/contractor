@@ -72,6 +72,7 @@ JOIN artifact_binding_revisions AS revision
 JOIN artifact_versions AS version ON version.version_id = revision.version_id
 JOIN artifact_blobs AS blob ON blob.sha256 = version.blob_sha256
 WHERE binding.scope_kind = $1 AND binding.scope_id = $2
+  AND (binding.scope_kind <> 'user' OR binding.namespace <> 'contractor-system')
   AND ($3::text IS NULL OR binding.namespace = $3)
   AND ($4::text IS NULL OR binding.namespace <> $4)
   AND ($5::text = '' OR left(binding.namespace, length($5)) <> $5)
@@ -134,3 +135,26 @@ WHERE revision.scope_kind = $1 AND revision.scope_id = $2
   AND ($5::timestamptz IS NULL OR (revision.created_at, revision.revision) < ($5, $6))
 ORDER BY revision.created_at DESC, revision.revision DESC
 LIMIT $7`
+
+// listUserMetadataSQL uses the library-only partial index. Sweep snapshots
+// and catalog packages do not enter the scan before LIMIT (ART-R119).
+var listUserMetadataSQL = `
+SELECT binding.namespace, binding.name, revision.revision,
+       version.media_type, blob.size_bytes, true, binding.frozen, revision.created_at, ` + gitSourceProjection + `
+FROM artifact_bindings AS binding
+JOIN artifact_binding_revisions AS revision
+  ON revision.scope_kind = binding.scope_kind
+ AND revision.scope_id = binding.scope_id
+ AND revision.namespace = binding.namespace
+ AND revision.name = binding.name
+ AND revision.revision = binding.current_revision
+JOIN artifact_versions AS version ON version.version_id = revision.version_id
+JOIN artifact_blobs AS blob ON blob.sha256 = version.blob_sha256
+WHERE binding.scope_kind = 'user' AND binding.scope_id = $1
+  AND binding.namespace NOT IN ('audit-standards','contractor-system')
+  AND ($2::text IS NULL OR binding.namespace = $2)
+  AND ($3::text IS NULL OR binding.namespace <> $3)
+  AND ($4::text = '' OR (binding.namespace, binding.name) > ($4, $5))
+  AND ($7::text = '' OR binding.namespace <> $7)
+ORDER BY binding.namespace, binding.name
+LIMIT $6`

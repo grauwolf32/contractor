@@ -144,6 +144,12 @@ func (u postgresPublicUnitOfWork) Do(
 	ctx context.Context,
 	fn func(runservice.PublicRunWriter, *artifacts.Service) error,
 ) error {
+	return u.do(ctx, func(_ pgx.Tx, writer runservice.PublicRunWriter, service *artifacts.Service) error {
+		return fn(writer, service)
+	})
+}
+
+func (u postgresPublicUnitOfWork) do(ctx context.Context, fn func(pgx.Tx, runservice.PublicRunWriter, *artifacts.Service) error) error {
 	return persistencepostgres.InTxWithRetry(ctx, u.pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
 		txLookup, err := runtimeconfig.BindTransactionLLMCredentialLookup(
 			tx, u.transactionLLMCredentials,
@@ -151,7 +157,7 @@ func (u postgresPublicUnitOfWork) Do(
 		if err != nil {
 			return err
 		}
-		return fn(
+		return fn(tx,
 			runstore.NewRunCreationPostgresStore(tx, txLookup, credentials.NewRuntimeCredentialRepository(tx)),
 			artifacts.NewService(artifacts.NewPostgresRepository(tx)),
 		)

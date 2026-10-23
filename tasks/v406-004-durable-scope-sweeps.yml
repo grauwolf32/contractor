@@ -26,6 +26,8 @@ context:
   - docs/spec/platform/failure-model.md
   - docs/spec/platform/lifecycle.md
   - docs/spec/api/public-api.md
+  - docs/spec/tools/scanners.md#SCN-R244
+  - docs/spec/tools/scanners.md#SCN-R251
 scope:
   in:
   - Implement the sweep resource, schema/migrations, owner-bound create/read/list/cancel/purge API and
@@ -39,12 +41,12 @@ scope:
   - Update owning specs/OpenAPI, error/limit/failure/lifecycle registries, generated client, architecture/table
     ownership/ERD and real-store/process tests.
   out:
-  - New Scheduler lane paths, receipt/lease families, model decisions or per-host pacing.
+  - New Scheduler lane paths, receipt/lease mechanisms, model decisions or per-host pacing.
   - Ordinary Run endpoint implicit target defaulting and arbitrary cross-scope request authority.
   - 'UI/CLI sweep surfaces: V406-006.'
 requirements:
 - id: R1
-  text: At most 1000 unique Projects and an 8 MiB total canonical snapshot; child request bytes are at
+  text: At most 1000 unique Projects and 8 MiB in canonical closure and child request payloads; child request bytes are at
     most 16 KiB. Scope membership/targets/inputs are fixed at admission, not re-read on recovery.
 - id: R2
   text: Each tick processes at most 25 members and 4 MiB of serialized child requests; result lists use
@@ -109,7 +111,7 @@ acceptance_criteria:
   then: new admissions stop, actual child states are shown, controller work is joined and only sweep-owned
     state is removed
 tests:
-- command: go test ./internal/scancontroller/... ./internal/scanstore/... ./internal/scanservice/... ./internal/httpapi/public/...
+- command: go test ./internal/scancontroller/... ./internal/scanstore/... ./internal/scanservice/... ./internal/app/... ./internal/runservice/... ./internal/artifacts/... ./internal/archtest/... ./internal/httpapi/public/...
     ./internal/persistence/postgres/...
   covers: &id001
   - A1
@@ -128,26 +130,43 @@ tests:
   covers: *id001
 - command: make verify-architecture
   covers: *id001
+- command: make ui-verify
+  covers: *id001
 - command: make lint
   covers: *id001
 progress:
   completed_work:
-  - Confirmed V406-002 and V406-003 are completed. Read sweep proposal and existing Run admission, ArtifactStore
-    fork, keyed-mutation, controller-claim and active Server boundaries.
-  - Identified the existing runservice.PublicCreateParams.PinnedWorkflow/ExpectedWorkflowSHA256 path as
-    the child admission boundary; no second scanner execution or Scheduler path is needed.
-  - Confirmed that ordinary Artifact forks currently target RunScope/ProjectScope only. Sweep-owned retained
-    inputs need an explicitly constrained trusted retention path, and its purge must preserve already
-    admitted Run forks.
-  - 'Confirmed database-wide active Server lease behavior: process gates on one test database must run
-    serially or use separate databases.'
+  - Implemented owner-bound create/read/list/member/cancel/purge API and regenerated SDKs from OpenAPI.
+  - Captured exact Projects, target URLs, resolved Workflow/template and Runtime pins, defaulted arguments,
+    original and retained source provenance, canonical child requests and opaque keys in one keyed mutation.
+  - Retain one frozen same-owner UserScope fork and share its immutable bytes with ordinary Project Runs;
+    original source deletion and advancement do not change pending members.
+  - Use existing ControllerClaims on the parent row; process at most 25 members and 4 MiB per tick;
+    maintained counters and indexed unsettled work avoid whole-sweep reads on polling.
+  - Bind ordinary Run creation and admitted member facts in the same credential-aware Run transaction,
+    fenced against cancellation and purge. In-process drain joins work and claim release before cleanup.
+  - PostgreSQL coverage passes for 7/1000 members, source deletion, replay, lost child acknowledgements,
+    competing claim ownership, restart, cancellation races, populated purge, admission deadline and
+    30-day retention with 25-row cleanup batches.
+  - Admission Project selection uses an indexed 1001-row prefix or bounded PK lookups; a 10000-Project
+    containing portfolio regression verifies both paths.
+  - Owner library pages skip reserved source snapshots through a partial index; a real-store 6000-snapshot
+    regression verifies bounded rows read for visible entries.
+  - Updated owning specs, failure/lifecycle/limit registries, table ownership and architecture; ERD
+    regenerated from a scratch PostgreSQL database at migration 31. Architecture validation passed.
   remaining_work:
-  - Specify immutable membership/target/configuration/input snapshot contracts, exact retained source
-    provenance, numeric retention, pagination and cancellation/purge outcomes in the owning specs and
-    public API.
-  - Implement bounded real-store sweep admission and member reconciliation using existing KeyedMutation
-    and ControllerClaims, with production readers/callers for every new table or export.
-  - Fence child creation against cancellation/purge at the transaction boundary; reconcile response loss
-    through captured child keys and pinned Workflow admission.
-  - Add authorization, 7/1000-member bounds, concurrent/restart/response-loss, source deletion, cancellation
-    and populated purge coverage, and run every listed gate before closure.
+  - Record implementation commit, move task to done and land the branch.
+verification:
+  date: '2026-10-23'
+  outcome: All A1-A4 acceptance criteria and listed gates passed.
+  evidence:
+  - Full touched Go package suites passed with disposable PostgreSQL, including the exact task command.
+  - make test-postgres, verify-public-api and verify-public-api-postgres passed.
+  - Extended make test-nuclei-web-e2e passed in 173.919s with real Server/Scheduler/Runtime processes
+    and the deterministic scanner fixture, including the durable server sweep, custom retained input,
+    replay and independent child report after purge.
+  - make ui-verify passed 191 test files and 2352 tests with one expected failure; production build passed.
+  - make lint, docs-erd and verify-architecture passed; ERD reflects migration 31 and 72 tables.
+  - PostgreSQL proofs cover 1000 members, a 10000-Project containing portfolio and 6000 hidden retained
+    snapshots without whole-collection page scans.
+  - release-verify and broad make verify were not run for this task.

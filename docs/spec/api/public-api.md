@@ -718,3 +718,13 @@ and
 7. Subscriptions to one Run from different cursors each receive exactly the
    events after their own cursor (API-R49, API-R72); test
    `TestRunSubscriptionsFromDifferentCursorsShareOnePoller`.
+
+### Durable scan sweeps
+
+**API-R109.** The authenticated owner creates, lists, reads, pages members,
+cancels and purges durable scan sweeps through `/v1/scan-sweeps`. Creation
+requires `Idempotency-Key`; cancellation is idempotent by resource identity.
+Foreign and absent identities return `not_found`. Storage-reaching routes
+document retryable `503 storage_transaction_conflict`. The scanner owner
+defines snapshot, bounds and lifecycle in [SCN-R244](../tools/scanners.md)
+through [SCN-R251](../tools/scanners.md); OpenAPI defines the exact fields.
