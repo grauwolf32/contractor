@@ -743,10 +743,11 @@ import acquires a nonblocking Project `FOR NO KEY UPDATE NOWAIT` before any
 retained artifact admission. Other child mutations also acquire this fence
 without waiting; contention becomes the existing retryable SQLSTATE `40001`,
 finite transaction retries and the retryable HTTP `503
-storage_transaction_conflict` (PER-R16). Owner import and each bounded
-collection transaction replay only the whole transaction that aborted, at most
-three transactions within the caller's context and budget; a permanent,
-cancelled or uncertain outcome is never replayed (FAIL-REV-7, FAIL-AUX-3).
+storage_transaction_conflict` (PER-R16). Owner import, each bounded
+collection transaction and an analyst finding decision replay only the whole
+transaction that aborted, at most three transactions within the caller's
+context and budget; a permanent, cancelled or uncertain outcome is never
+replayed (FAIL-REV-7, FAIL-AUX-3, FAIL-REV-1).
 No new claim or advisory lock is introduced. The revision is an
 exact integer in 1..9007199254740991 and cannot decrease or skip an increment.
 A finding page's Audit revision still fences its own observations; the explicit
