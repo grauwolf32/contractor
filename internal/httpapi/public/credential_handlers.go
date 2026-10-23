@@ -93,13 +93,13 @@ func (h *credentialHandlers) createCredential(w http.ResponseWriter, r *http.Req
 		handleError(w, err)
 		return
 	}
-	var request createCredentialRequest
-	if err := decodeJSON(w, r, &request); err != nil {
+	idempotencyKey, err := requireIdempotencyKey(r)
+	if err != nil {
 		handleError(w, err)
 		return
 	}
-	idempotencyKey, err := requireIdempotencyKey(r)
-	if err != nil {
+	var request createCredentialRequest
+	if err := decodeJSON(w, r, &request); err != nil {
 		handleError(w, err)
 		return
 	}

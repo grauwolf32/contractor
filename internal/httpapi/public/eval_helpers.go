@@ -47,6 +47,11 @@ func evalBody(w http.ResponseWriter, r *http.Request, kind string, cas bool) (ev
 	if len(r.Header.Values("Idempotency-Key")) != 1 || len(r.Header.Values("If-Match")) > 1 || !cas && r.Header.Get("If-Match") != "" {
 		return fail()
 	}
+	// The key and precondition are checked before the body is read (API-R111).
+	if _, err := evaldomain.MutationPrecondition(r.Header.Get("Idempotency-Key"), r.Header.Get("If-Match"), cas); err != nil {
+		handleError(w, err)
+		return evaldomain.Frozen{}, evaldomain.MutationIdentity{}, false
+	}
 	body, err := io.ReadAll(io.LimitReader(r.Body, evaldomain.MaxDocumentBytes+1))
 	if err != nil {
 		return fail()

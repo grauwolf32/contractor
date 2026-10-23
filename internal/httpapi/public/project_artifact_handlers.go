@@ -44,15 +44,11 @@ func (h *artifactHandlers) getProjectArtifact(w http.ResponseWriter, r *http.Req
 	h.writeArtifactRead(w, r, store, ref)
 }
 
+// putProjectArtifact checks the request metadata before it reads the Project,
+// so a malformed request answers the same whichever Project it names; then
+// Project ownership and lifecycle, then the Audit-managed namespace, and only
+// then takes a transfer slot for the body (API-R111).
 func (h *artifactHandlers) putProjectArtifact(w http.ResponseWriter, r *http.Request) {
-	store, _, err := h.ownedActiveProjectArtifactStore(r)
-	if err != nil {
-		handleError(w, err)
-		return
-	}
-	if h.rejectAuditManagedProjectArtifact(w, r) {
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		handleError(w, err)
 		return
@@ -69,6 +65,14 @@ func (h *artifactHandlers) putProjectArtifact(w http.ResponseWriter, r *http.Req
 	expectedRevision, err := artifactWritePrecondition(r)
 	if err != nil {
 		handleError(w, err)
+		return
+	}
+	store, _, err := h.ownedActiveProjectArtifactStore(r)
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+	if h.rejectAuditManagedProjectArtifact(w, r) {
 		return
 	}
 	h.writeArtifactUpload(w, r, store, mediaType, expectedRevision)

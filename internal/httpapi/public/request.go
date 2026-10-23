@@ -56,15 +56,9 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, target any) error {
 // case aliases, duplicate keys, unknown members and trailing data are
 // rejected rather than guessed (API-R71).
 func decodeJSONBounded(w http.ResponseWriter, r *http.Request, target any, maximum int64) error {
-	if maximum <= 0 || r.ContentLength > maximum {
-		return fmt.Errorf("%w: JSON body is too large", errRequestTooLarge)
-	}
-	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maximum))
+	data, err := readJSONBody(w, r, maximum)
 	if err != nil {
-		if exceedsBodyLimit(err) {
-			return fmt.Errorf("%w: JSON body is too large", errRequestTooLarge)
-		}
-		return fmt.Errorf("%w: read JSON body: %v", errInvalidRequest, err)
+		return err
 	}
 	switch err := strictjson.Decode(data, target); {
 	case errors.Is(err, strictjson.ErrTrailingData):
@@ -73,6 +67,26 @@ func decodeJSONBounded(w http.ResponseWriter, r *http.Request, target any, maxim
 		return fmt.Errorf("%w: decode JSON body: %v", errInvalidRequest, err)
 	}
 	return nil
+}
+
+// readJSONBody reads a JSON request body of at most maximum bytes. A larger
+// body is 413 request_too_large, unread when its declared length is already
+// too large (FAIL-API-1). Any other read failure, such as a body that ends
+// before its declared length, is the client's 400 invalid_request, never a
+// retryable internal error (API-R111); the bytes read so far are cleared.
+func readJSONBody(w http.ResponseWriter, r *http.Request, maximum int64) ([]byte, error) {
+	if maximum <= 0 || r.ContentLength > maximum {
+		return nil, fmt.Errorf("%w: JSON body is too large", errRequestTooLarge)
+	}
+	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maximum))
+	if err != nil {
+		clear(data)
+		if exceedsBodyLimit(err) {
+			return nil, fmt.Errorf("%w: JSON body is too large", errRequestTooLarge)
+		}
+		return nil, fmt.Errorf("%w: read JSON body: %v", errInvalidRequest, err)
+	}
+	return data, nil
 }
 
 // exceedsBodyLimit reports a read stopped by http.MaxBytesReader.

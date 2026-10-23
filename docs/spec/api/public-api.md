@@ -381,6 +381,27 @@ response is in Runtime configuration
 ([RCF-R176](../configuration/runtime-config.md)); sweep cancellation is in
 Scanners ([SCN-R250](../tools/scanners.md)).
 
+**API-R111.** A mutation checks its request metadata before it reads its
+body or a store, and a request that fails one of these checks reads no byte
+of its body and gets the same answer whatever resource it names. First come
+the query, the path parameters it checks syntactically, such as Artifact
+names, and the media type, with each endpoint's own media-type status (such
+as the `415` of [OPS-R60](../operations/operations.md)); then the
+`Idempotency-Key` (API-R69) and the `If-Match` or `If-None-Match`
+precondition the operation requires (API-R70), whose failure is `400
+invalid_request`, or on Managed Eval routes `422 eval_invalid` and, for a
+missing required `If-Match`, `428 eval_precondition_required`. Project Run
+creation and Project Artifact upload then read the Project (the
+non-disclosing `404` of API-R25 for an unknown or foreign Project; for an
+upload, `409 project_deleting` for a deleting Project and then the `404` of
+an Audit-managed namespace), and only then the body. The body is checked
+last: first its bound (`413`, API-R4), then strict decoding (API-R71). A JSON
+body that cannot be read completely, such as one that ends before its
+declared length, is `400 invalid_request`, or `422 eval_invalid` on Managed
+Eval routes, changes nothing and is never a retryable internal error
+(FAIL-API-1). Artifact payload transfers keep their own socket deadlines
+([FAIL-BLB-1](../platform/failure-model.md)).
+
 **API-R29.** The API keeps configuration and credential mutations distinct
 from ordinary Run and Artifact use, so later RBAC does not require changing
 domain semantics.
@@ -632,7 +653,7 @@ jitter: UI reconnect starts at 500 ms (LIM-API-16) and doubles up to 30 seconds
 | [`contractor-events-v1.schema.json`](../../../api/events/contractor-events-v1.schema.json) | Live event message contract | API-R41, API-R44 |
 | `POST /v1/auth/login`, `GET /v1/auth/session`, `POST /v1/auth/logout` | Browser authentication | API-R14 to API-R24 |
 | `GET /v1/events/ws`, subprotocol `contractor.events.v1` | Live event WebSocket | API-R30 to API-R66, API-R72, API-R110 |
-| Request headers `Content-Type`, `Idempotency-Key`, `If-Match`, `X-CSRF-Token`, `Origin` | Mutation headers and browser checks | API-R10, API-R23, API-R27 |
+| Request headers `Content-Type`, `Idempotency-Key`, `If-Match`, `X-CSRF-Token`, `Origin` | Mutation headers and browser checks | API-R10, API-R23, API-R27, API-R111 |
 | Response headers `X-Request-ID`, `ETag`, `Content-Disposition`, `Retry-After` | Browser-readable response headers | API-R11 |
 
 The error envelope is the `Error` schema of the OpenAPI document; its
@@ -685,7 +706,8 @@ bounds are [LIM-SEC-8 to LIM-SEC-10](../platform/limits.md)
 
 Failure outcomes ([failure model](../platform/failure-model.md)):
 
-- FAIL-API-1 — an oversized public request body (API-R4, API-R5).
+- FAIL-API-1 — an oversized or incomplete public request body (API-R4, API-R5,
+  API-R111).
 - FAIL-API-2 — a cookie-authenticated non-safe request without a valid
   `Origin` and `X-CSRF-Token` (API-R23).
 - FAIL-API-3 — the `workflow_run_events` notification (API-R55, API-R72).

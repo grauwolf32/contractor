@@ -142,13 +142,13 @@ func (h *auditHandlers) createAuditFindingReview(w http.ResponseWriter, r *http.
 		handleError(w, err)
 		return
 	}
-	var request createFindingReviewRequest
-	if err := decodeJSON(w, r, &request); err != nil {
+	key, revision, err := auditMutationHeaders(r)
+	if err != nil {
 		handleError(w, err)
 		return
 	}
-	key, revision, err := reviewMutationHeaders(r)
-	if err != nil {
+	var request createFindingReviewRequest
+	if err := decodeJSON(w, r, &request); err != nil {
 		handleError(w, err)
 		return
 	}
@@ -238,13 +238,13 @@ func (h *auditHandlers) decideAuditReview(w http.ResponseWriter, r *http.Request
 		handleError(w, err)
 		return
 	}
-	var request decideFindingRequest
-	if err := decodeJSON(w, r, &request); err != nil {
+	key, revision, err := auditMutationHeaders(r)
+	if err != nil {
 		handleError(w, err)
 		return
 	}
-	key, revision, err := reviewMutationHeaders(r)
-	if err != nil {
+	var request decideFindingRequest
+	if err := decodeJSON(w, r, &request); err != nil {
 		handleError(w, err)
 		return
 	}
@@ -372,13 +372,16 @@ func (h *auditHandlers) listAuditFindingProvenance(w http.ResponseWriter, r *htt
 	})
 }
 
-func reviewMutationHeaders(r *http.Request) (string, uint64, error) {
+// auditMutationHeaders returns the Idempotency-Key and the one strong If-Match
+// revision that every Audit control and review mutation requires.
+// Callers check them before they read the body (API-R111).
+func auditMutationHeaders(r *http.Request) (string, uint64, error) {
 	key, err := requireIdempotencyKey(r)
 	if err != nil {
 		return "", 0, err
 	}
 	if len(r.Header.Values("If-None-Match")) != 0 || len(r.Header.Values("If-Match")) != 1 {
-		return "", 0, fmt.Errorf("%w: review mutation requires one If-Match", errInvalidRequest)
+		return "", 0, fmt.Errorf("%w: Audit mutation requires one If-Match", errInvalidRequest)
 	}
 	revision, err := parseRuntimeRevisionETag(r.Header.Values("If-Match")[0])
 	return key, revision, err

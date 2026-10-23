@@ -15,25 +15,36 @@ type MutationIdentity struct {
 	ExpectedRevision *uint64 `json:"expectedRevision"`
 }
 
-// IdentifyMutation binds a Managed Eval mutation to its key, which must be in
-// the public Idempotency-Key grammar, its precondition and its exact body.
-func IdentifyMutation(key, ifMatch string, requireRevision bool, kind string, body []byte) (MutationIdentity, error) {
+// MutationPrecondition checks the headers of a Managed Eval mutation: its
+// key, which must be in the public Idempotency-Key grammar, and its If-Match,
+// which a state transition requires. It returns the expected revision, if
+// any. It needs no body, so the API checks it before reading one.
+func MutationPrecondition(key, ifMatch string, requireRevision bool) (*uint64, error) {
 	if !contracts.ValidIdempotencyKey(key) {
-		return MutationIdentity{}, Failure("eval_invalid")
+		return nil, Failure("eval_invalid")
 	}
-	var revision *uint64
-	if ifMatch == "" && requireRevision {
-		return MutationIdentity{}, Failure("eval_precondition_required")
+	if ifMatch == "" {
+		if requireRevision {
+			return nil, Failure("eval_precondition_required")
+		}
+		return nil, nil
 	}
-	if ifMatch != "" {
-		if len(ifMatch) < 3 || ifMatch[0] != '"' || ifMatch[len(ifMatch)-1] != '"' {
-			return MutationIdentity{}, Failure("eval_invalid")
-		}
-		n, err := strconv.ParseUint(ifMatch[1:len(ifMatch)-1], 10, 64)
-		if err != nil || n == 0 {
-			return MutationIdentity{}, Failure("eval_invalid")
-		}
-		revision = &n
+	if len(ifMatch) < 3 || ifMatch[0] != '"' || ifMatch[len(ifMatch)-1] != '"' {
+		return nil, Failure("eval_invalid")
+	}
+	n, err := strconv.ParseUint(ifMatch[1:len(ifMatch)-1], 10, 64)
+	if err != nil || n == 0 {
+		return nil, Failure("eval_invalid")
+	}
+	return &n, nil
+}
+
+// IdentifyMutation binds a Managed Eval mutation to its key and precondition
+// (MutationPrecondition) and its exact body.
+func IdentifyMutation(key, ifMatch string, requireRevision bool, kind string, body []byte) (MutationIdentity, error) {
+	revision, err := MutationPrecondition(key, ifMatch, requireRevision)
+	if err != nil {
+		return MutationIdentity{}, err
 	}
 	if err := Validate(kind, body); err != nil {
 		return MutationIdentity{}, err

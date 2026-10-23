@@ -34,13 +34,13 @@ func (h *scanSweepHandlers) create(w http.ResponseWriter, r *http.Request) {
 		handleError(w, errInvalidRequest)
 		return
 	}
-	var request scanservice.Request
-	if err := decodeJSON(w, r, &request); err != nil {
+	key, err := requireIdempotencyKey(r)
+	if err != nil {
 		handleError(w, err)
 		return
 	}
-	key, err := requireIdempotencyKey(r)
-	if err != nil {
+	var request scanservice.Request
+	if err := decodeJSON(w, r, &request); err != nil {
 		handleError(w, err)
 		return
 	}

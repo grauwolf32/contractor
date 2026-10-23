@@ -117,13 +117,13 @@ func (h *catalogHandlers) publishConfiguration(w http.ResponseWriter, r *http.Re
 		handleError(w, err)
 		return
 	}
-	var request publishConfigurationRequest
-	if err := decodeJSON(w, r, &request); err != nil {
+	idempotencyKey, err := requireIdempotencyKey(r)
+	if err != nil {
 		handleError(w, err)
 		return
 	}
-	idempotencyKey, err := requireIdempotencyKey(r)
-	if err != nil {
+	var request publishConfigurationRequest
+	if err := decodeJSON(w, r, &request); err != nil {
 		handleError(w, err)
 		return
 	}
