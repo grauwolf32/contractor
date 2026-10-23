@@ -273,6 +273,14 @@ dirty workspace.
 | Input/output roles | 128 | LIM-EVF-9 |
 | Evidence refs per result | 1,024 | LIM-EVF-10 |
 
+Nesting depth counts containment below the top-level value: the top-level
+value is at depth 0, each member of an object and each element of an array is
+one deeper than its container, and no value may be deeper than 32. A document
+with a value at depth 33 is rejected with `eval_limit_exceeded` before any
+schema check; the shared cases `depth-limit-deepest` and
+`depth-limit-exceeded` in [`api/testdata/evals`](../../../api/testdata/evals/)
+pin both sides of the bound.
+
 **EVF-R31.** The expanded matrix is validated before any submit.
 
 **EVF-R32.** Scorer and provider configuration and failure messages
@@ -1142,7 +1150,8 @@ Registry entries owned by this document:
   characters (EVF-R20).
 - [LIM-EVF-3](../platform/limits.md): 1 MiB per JSON/YAML document
   (EVF-R30).
-- [LIM-EVF-4](../platform/limits.md): nesting depth 32 (EVF-R30).
+- [LIM-EVF-4](../platform/limits.md): nesting depth 32 below the top-level
+  value, which is at depth 0 (EVF-R30).
 - [LIM-EVF-5](../platform/limits.md): 1,000 cases per suite
   (EVF-R30).
 - [LIM-EVF-6](../platform/limits.md): 16 variants (EVF-R30).

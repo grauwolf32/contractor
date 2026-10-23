@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: evals
 kind: defect
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, markdown, json]
 goal: "EVF-R30 and LIM-EVF-4 say exactly which nesting the depth limit of 32 counts, and shared Eval conformance cases accept the deepest allowed document and reject one level more."

@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-77 open tasks: 9 in progress, 43 pending, 25 deferred. 959 finished: 956 completed, 3 archived.
+77 open tasks: 10 in progress, 42 pending, 25 deferred. 959 finished: 956 completed, 3 archived.
 
 ## In progress
 
@@ -20,6 +20,7 @@ the epics are in [epics.yml](epics.yml).
 | [V401-003](v401-003-lease-user-timeout-platforms.yml) | persistence | defect | P3 | State and test the lease session's user timeout only where PostgreSQL supports it |
 | [V401-004](v401-004-canonical-test-tmpdir.yml) | quality | defect | P3 | Run the filesystem blob tests from a symlink-free temporary directory on macOS |
 | [V401-005](v401-005-evals-chart-select-keyboard.yml) | evals | defect | P3 | Choose the narrow-screen Eval overview chart with keys that work in every browser platform |
+| [V401-006](v401-006-eval-nesting-depth-definition.yml) | evals | defect | P3 | Define how the Eval nesting depth limit counts levels and pin its boundary in shared cases |
 
 ## Pending
 
@@ -92,7 +93,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V40-003](v40-003-agent-instruction-eval-decision.yml) | feature | P1 | V40-002 | Evaluate instruction candidates and record evidence-based adoption decisions |
-| [V401-006](v401-006-eval-nesting-depth-definition.yml) | defect | P3 | — | Define how the Eval nesting depth limit counts levels and pin its boundary in shared cases |
 
 ### Operations, authentication, CLI and deployment (`operations`)
 
