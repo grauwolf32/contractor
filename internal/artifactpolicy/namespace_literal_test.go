@@ -12,15 +12,19 @@ import (
 	"testing"
 )
 
-// reservedNamespaceOwners maps each distinctive purpose-reserved Run Namespace
-// (ART-R114) to the constant that names it. Go code outside this package names
-// them only through the constant, so a rename cannot miss a copy (AGENTS.md
-// 3.1). inputs, outputs and skills are ordinary words of other rules and are
-// not scanned. Test files are excluded: their fixtures pin the persisted and
-// wire value independently of the constant.
+// reservedNamespaceOwners maps each distinctive reserved Namespace to the
+// constant that names it: the purpose-reserved Run Namespaces (ART-R114) and
+// the UserScope Audit standard catalog (ART-R25). Go code outside this package
+// names them only through the constant, so a rename cannot miss a copy
+// (AGENTS.md 3.1). inputs, outputs and skills are ordinary words of other rules
+// and are not scanned. Test files are excluded: their fixtures pin the
+// persisted and wire value independently of the constant. The Runtime
+// (runtime/tests/test_security_findings_toolset.py) and the UI
+// (ui/src/api/artifacts.test.ts) scan their sources for the same names.
 var reservedNamespaceOwners = map[string]string{
-	FindingProposalNamespace: "artifactpolicy.FindingProposalNamespace",
-	RunSystemNamespace:       "artifactpolicy.RunSystemNamespace",
+	AuditStandardCatalogNamespace: "artifactpolicy.AuditStandardCatalogNamespace",
+	FindingProposalNamespace:      "artifactpolicy.FindingProposalNamespace",
+	RunSystemNamespace:            "artifactpolicy.RunSystemNamespace",
 }
 
 // reservedNamespaceCopy is one string literal that spells a reserved Namespace.
@@ -30,9 +34,10 @@ type reservedNamespaceCopy struct {
 }
 
 // reservedNamespaceLiterals returns the string literals of file that spell a
-// reserved Namespace: the whole literal, as a Go comparison or ref would, or a
-// quoted SQL string inside it. A route such as .../{runId}/finding-proposals
-// names the resource, another rule, and is not reported.
+// reserved Namespace: the whole literal, as a Go comparison, ref or directory
+// name would, or a quoted SQL string inside it. A route such as
+// .../{runId}/finding-proposals or /v1/audit-standards names the resource,
+// another rule, and is not reported.
 func reservedNamespaceLiterals(fset *token.FileSet, file *ast.File) []reservedNamespaceCopy {
 	var copies []reservedNamespaceCopy
 	ast.Inspect(file, func(node ast.Node) bool {
@@ -110,7 +115,10 @@ func TestReservedNamespaceScanReportsCopiesNotRoutes(t *testing.T) {
 		"}\n\n" +
 		"const route = \"POST /private/v1/allocations/{allocationID}/finding-proposals\"\n" +
 		"const query = `SELECT 1 FROM artifact_bindings WHERE namespace = 'finding-proposals'`\n" +
-		"const derived = \"audit-finding-proposals\"\n"
+		"const derived = \"audit-finding-proposals\"\n" +
+		"const CatalogNamespace = \"audit-standards\"\n" +
+		"const catalogRoute = \"/v1/audit-standards/{scheme}/versions/{version}\"\n" +
+		"const notes = \"audit-standards-notes\"\n"
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, "sample.go", source, parser.SkipObjectResolution)
 	if err != nil {
@@ -121,7 +129,7 @@ func TestReservedNamespaceScanReportsCopiesNotRoutes(t *testing.T) {
 		lines = append(lines, found.position.Line)
 	}
 	slices.Sort(lines)
-	if want := []int{4, 4, 8}; !slices.Equal(lines, want) {
+	if want := []int{4, 4, 8, 10}; !slices.Equal(lines, want) {
 		t.Fatalf("reported lines %v, want %v", lines, want)
 	}
 }

@@ -11,6 +11,11 @@ export const ARTIFACT_PAGE_SIZE = 50;
 const MAXIMUM_WRITE_RESPONSE_BYTES = 64 * 1024;
 export const HTTP_EXCHANGE_MEDIA_TYPE =
   "application/vnd.contractor.http-exchange+json";
+// The Run Namespace that Server finding intake writes possible issues and
+// their frozen HTTP exchanges to (ART-R114), the Server's
+// artifactpolicy.FindingProposalNamespace. UI code names it only through this
+// constant; artifacts.test.ts scans for copies of every reserved Namespace.
+export const FINDING_PROPOSAL_NAMESPACE = "finding-proposals";
 
 export const ARTIFACT_NAME_PATTERN = stringRule("ArtifactName");
 // An exact Artifact revision is the public Revision grammar.

@@ -13,8 +13,7 @@ const (
 	Schema    = "contractor.audit-standard.v1"
 	MediaType = "application/vnd.contractor.audit-standard+zip"
 
-	CatalogNamespace = "audit-standards"
-	ManifestPath     = "standard.json"
+	ManifestPath = "standard.json"
 
 	MaximumPackages              = 64
 	MaximumPackageBytes          = 8 << 20

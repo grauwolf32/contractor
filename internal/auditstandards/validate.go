@@ -267,7 +267,7 @@ func ValidatePinnedPackage(value PinnedPackage) error {
 	if err := validateExactPackage(value.Retained); err != nil {
 		return err
 	}
-	if value.Catalog.Artifact.Namespace != CatalogNamespace ||
+	if value.Catalog.Artifact.Namespace != artifactpolicy.AuditStandardCatalogNamespace ||
 		!artifactpolicy.IsAuditManagedProjectNamespace(value.Retained.Artifact.Namespace) ||
 		value.Catalog.Digest != value.Retained.Digest || value.Catalog.SizeBytes != value.Retained.SizeBytes {
 		return validationError(CodeIdentityMismatch, ManifestPath)

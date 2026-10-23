@@ -5,14 +5,14 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 from contractor_runtime.contracts import ArtifactRef
-from contractor_runtime.contracts.artifacts import MEMORY_ARTIFACT_PREFIX
+from contractor_runtime.contracts.artifacts import MEMORY_ARTIFACT_PREFIX, RUN_SYSTEM_NAMESPACE
 
 HTTP_BODY_ARTIFACT_PREFIX = "http.body."
 # Model visibility (ART-R17, ART-R19, ART-R24, ART-R109), the same rule as the
 # Server's artifactpolicy.IsModelHiddenBinding, which also excludes these
 # bindings from the private paged listing; both are checked against
 # api/testdata/v1alpha1/artifact-list-cases.json.
-MODEL_HIDDEN_NAMESPACES = frozenset({"skills", "contractor-system"})
+MODEL_HIDDEN_NAMESPACES = frozenset({"skills", RUN_SYSTEM_NAMESPACE})
 MODEL_HIDDEN_NAME_PREFIXES = (MEMORY_ARTIFACT_PREFIX, HTTP_BODY_ARTIFACT_PREFIX)
 MODEL_NAME_PREFIX_EXEMPT_NAMESPACES = frozenset({"inputs", "outputs"})
 

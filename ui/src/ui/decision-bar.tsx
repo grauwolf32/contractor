@@ -1,5 +1,6 @@
 import {
   useId,
+  useLayoutEffect,
   useRef,
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
@@ -68,7 +69,10 @@ interface DecisionBarProps {
   onSubmit: () => void;
   /** Default "Record decision". */
   submitLabel?: string | undefined;
-  /** While recording: every control is disabled and the reason is read-only. */
+  /**
+   * While recording: every control locks and the reason is read-only. Focus
+   * stays in the bar (see DecisionBar).
+   */
   pending?: boolean | undefined;
   /** Shown under the bar as an alert. */
   error?: ReactNode;
@@ -96,6 +100,15 @@ function isShown(node: ReactNode): boolean {
  * Ctrl+Enter or ⌘+Enter in the reason records the decision. Recording is
  * disabled until a verdict is chosen, the reason is not blank and a
  * required severity is set; a line under the bar says what is missing.
+ *
+ * While `pending`, keyboard focus stays in the bar until the page moves it
+ * after the answer. A browser drops focus to the page body when the focused
+ * control turns disabled or inert, so the reason only turns read-only and
+ * the Record button only aria-disabled (pressing it again sends nothing).
+ * When recording starts with focus on a control that does lock, or on the
+ * page body, focus moves to the Record button in the same commit: Safari
+ * and Firefox on macOS do not focus a clicked button, so a verdict or a
+ * control in `more` or `extra` can still have focus when Record is clicked.
  */
 export function DecisionBar({
   options,
@@ -114,7 +127,9 @@ export function DecisionBar({
   "aria-label": ariaLabel = "Your decision",
 }: DecisionBarProps) {
   const id = useId();
+  const bar = useRef<HTMLElement>(null);
   const reasonField = useRef<HTMLTextAreaElement>(null);
+  const recordButton = useRef<HTMLButtonElement>(null);
   const locked = pending || disabledReason !== undefined;
   const chosen = options.find((option) => option.id === selected);
   const severityLabel = severity?.label ?? "Severity";
@@ -171,8 +186,29 @@ export function DecisionBar({
   ]);
   useShortcuts(bindings, { enabled: !pending });
 
+  // When recording starts. A layout effect, so it runs in the commit that
+  // locks the controls, before any task or frame shows focus on the page
+  // body: Chromium drops focus from a control the moment it turns disabled
+  // (the effect finds the page body) and from one in an inert container a
+  // task later (the effect still finds it there).
+  const wasPending = useRef(pending);
+  useLayoutEffect(() => {
+    const starting = pending && !wasPending.current;
+    wasPending.current = pending;
+    const container = bar.current;
+    if (!starting || container === null) return;
+    const active = document.activeElement;
+    const lost = active === null || active === document.body;
+    const onLockedControl =
+      active !== null &&
+      container.contains(active) &&
+      (active.matches(":disabled") || active.closest("[inert]") !== null);
+    if (lost || onLockedControl) recordButton.current?.focus();
+  }, [pending]);
+
   return (
     <section
+      ref={bar}
       className="ui-decision"
       aria-label={ariaLabel}
       aria-busy={pending || undefined}
@@ -301,10 +337,14 @@ export function DecisionBar({
           onKeyDown={onReasonKeyDown}
         />
         <button
+          ref={recordButton}
           type="button"
           className="ui-btn"
           data-variant="primary"
-          disabled={!canSubmit}
+          // Recording, it keeps focus: aria-disabled, and submit() refuses.
+          disabled={!canSubmit && !pending}
+          aria-disabled={pending || undefined}
+          aria-busy={pending || undefined}
           aria-describedby={hintId}
           onClick={submit}
         >

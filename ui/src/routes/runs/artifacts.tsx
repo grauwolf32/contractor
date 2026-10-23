@@ -6,6 +6,7 @@ import { Link, useParams, useSearchParams } from "react-router";
 import {
   ARTIFACT_NAME_PATTERN,
   ARTIFACT_REVISION_PATTERN,
+  FINDING_PROPOSAL_NAMESPACE,
 } from "../../api/artifacts";
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
@@ -72,7 +73,7 @@ export function RunArtifactLibrary({
           options={[
             { value: "", label: "All materials" },
             {
-              value: "finding-proposals",
+              value: FINDING_PROPOSAL_NAMESPACE,
               label: "Possible issues and evidence",
             },
           ]}

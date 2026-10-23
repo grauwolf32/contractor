@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -15,7 +16,7 @@ import (
 func TestGenericArtifactRoutesCannotExposeOrMutateAuditStandardCatalog(t *testing.T) {
 	fixture := newHandlerFixture(t)
 	target := contracts.ArtifactRef{
-		Namespace: auditstandards.CatalogNamespace,
+		Namespace: artifactpolicy.AuditStandardCatalogNamespace,
 		Name:      "std-protected",
 	}
 	// Seed the package as the catalog seed path does.

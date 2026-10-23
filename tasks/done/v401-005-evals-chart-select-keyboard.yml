@@ -6,13 +6,14 @@ epic: evals
 kind: defect
 introduced_by: V38-008
 priority: P3
-status: pending
+status: completed
+implementation_commit: "d947c6e118936ec96ac2384494553e897a61a5c3"
 depends_on: []
 languages: [typescript]
 goal: "The mocked browser gate's Eval comparison journey at 390 px passes on Linux and macOS Chromium while still proving that the overview chart select works from the keyboard."
 context:
   review: "Failure in the 2026-10-23 merged verification run of the quick-win batch on macOS; reproduced on main @ 257c57d8"
-  specification: "docs/spec/ui/README.md"
+  specification: "docs/spec/ui/ui.md"
   severity: low
   finding: >-
     ui/e2e/evals-comparison.spec.ts:22-28 focuses the native Overview chart
@@ -38,3 +39,16 @@ tests:
     covers: [A1]
   - command: "make ui-verify"
     covers: [A1]
+verification:
+  date: "2026-10-23"
+  revision: "7f34866a8601cf6a3476a9dd58f40d165c389f8c"
+  environment: >-
+    Integration branch integration/v401-findings on macOS arm64 with Go 1.26.9,
+    Node 24.20.0, pnpm 11.24.0 and disposable PostgreSQL 17.11
+    (CONTRACTOR_TEST_DATABASE_URL set), TMPDIR left at the shell default.
+  merged_run:
+    - "make -k verify: test-go passed with no failing package, ui-verify passed (2,271 UI tests), build and test-config passed; ui-gates failed only because ui/node_modules was not installed yet, and make lint passed in full after installing it."
+    - "make test-runtime: 101 failures, all among the 102 that fail identically on main on this host (V401-007)."
+    - "make test-wire-cross-language (245 fixtures), make verify-public-api and make ui-browser-mocked (75 of 75) passed."
+  task_commands:
+    - "make ui-browser-mocked: 75 of 75 specs passed on macOS Chromium, the Eval comparison at 390 px included."

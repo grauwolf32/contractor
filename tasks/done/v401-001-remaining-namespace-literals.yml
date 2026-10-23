@@ -6,7 +6,8 @@ epic: projects-artifacts
 kind: defect
 introduced_by: V376-003
 priority: P3
-status: pending
+status: completed
+implementation_commit: "7f34866a8601cf6a3476a9dd58f40d165c389f8c"
 depends_on: []
 languages: [go, python, typescript]
 goal: "No production source outside its one definition per side spells a reserved Artifact Namespace, and the source scans that V372-018 added cover every reserved Namespace on every side, the UI included."
@@ -36,6 +37,17 @@ context:
     keep literal values. internal/auditstandards/catalog.go:72 uses the
     Namespace as the operator-root directory name and keeps doing so through
     the one constant.
+  decision: >-
+    The UI definition is FINDING_PROPOSAL_NAMESPACE in ui/src/api/artifacts.ts,
+    next to HTTP_EXCHANGE_MEDIA_TYPE, and its scan is in
+    ui/src/api/artifacts.test.ts (added to the UI test command). The Runtime
+    defines RUN_SYSTEM_NAMESPACE next to FINDING_PROPOSAL_NAMESPACE; it does
+    not define skills, an ordinary word that no scan covers. All three scans
+    check finding-proposals, contractor-system and audit-standards as whole
+    string literals; a side that has no constant for one of them (the Runtime
+    and the UI for audit-standards, the UI for contractor-system) defines it
+    in its owning module when it first needs it. The UI scan skips the
+    elements of query-key arrays in ui/src/api/query-keys.ts.
 scope:
   in:
     - "auditstandards uses artifactpolicy.AuditStandardCatalogNamespace; its own CatalogNamespace goes."
@@ -57,7 +69,20 @@ tests:
     covers: [A1, A2, A3]
   - command: "cd runtime && uv run pytest tests/test_security_findings_toolset.py tests/test_run_artifacts_toolset.py"
     covers: [A1, A2, A3]
-  - command: "cd ui && corepack pnpm test --run src/routes/artifacts src/routes/runs"
+  - command: "cd ui && corepack pnpm test --run src/api/artifacts.test.ts src/routes/artifacts src/routes/runs"
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
+verification:
+  date: "2026-10-23"
+  revision: "7f34866a8601cf6a3476a9dd58f40d165c389f8c"
+  environment: >-
+    Integration branch integration/v401-findings on macOS arm64 with Go 1.26.9,
+    Node 24.20.0, pnpm 11.24.0 and disposable PostgreSQL 17.11
+    (CONTRACTOR_TEST_DATABASE_URL set), TMPDIR left at the shell default.
+  merged_run:
+    - "make -k verify: test-go passed with no failing package, ui-verify passed (2,271 UI tests), build and test-config passed; ui-gates failed only because ui/node_modules was not installed yet, and make lint passed in full after installing it."
+    - "make test-runtime: 101 failures, all among the 102 that fail identically on main on this host (V401-007)."
+    - "make test-wire-cross-language (245 fixtures), make verify-public-api and make ui-browser-mocked (75 of 75) passed."
+  task_commands:
+    - "make test-wire-cross-language passed after the readers.json entry (245 fixtures); the Go, Runtime and UI scans each failed with a removed literal put back."

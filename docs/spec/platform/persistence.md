@@ -87,7 +87,7 @@ sequenceDiagram
     Note over A,DB: Active Server disconnected without closing the connection
     A->>A: Liveness probe fails within the 10 s tolerance window
     A->>A: Close listeners, cancel the Scheduler
-    DB->>DB: Server-side TCP keepalives detect the lost peer within about half a minute
+    DB->>DB: Server-side TCP keepalives and user timeout detect the lost peer (about half a minute, PER-R6)
     DB->>DB: Release the advisory lease
     B->>DB: Acquisition probe acquires the lease
     Note over B: Takes over as the active Server
@@ -201,9 +201,25 @@ Rationale: the window absorbs transient stalls.
 
 **PER-R6.** The lease session sets server-side TCP keepalives of 10 s idle
 (LIM-PER-4), a 5 s interval (LIM-PER-5), 3 probes (LIM-PER-6) and a 30 s user
-timeout (LIM-PER-7), so PostgreSQL releases the lease within about half a
-minute (LIM-PER-8) when the active Server's host disappears without closing the
-connection (LIFE-PER-1).
+timeout (LIM-PER-7) on every platform, so PostgreSQL releases the lease within
+about half a minute (LIM-PER-8) when the active Server's host disappears
+without closing the connection (LIFE-PER-1). PostgreSQL applies the user
+timeout only where the server's operating system supports `TCP_USER_TIMEOUT`,
+which is Linux; elsewhere, for example on macOS, it ignores the setting and
+reads it back as `0`. There the keepalives alone bound the release: within
+about half a minute when the host disappears while the lease session has no
+unacknowledged data, and otherwise, on a TCP stack that suspends keepalive
+probes while sent data is unacknowledged, only within that stack's
+retransmission limit, which is minutes.
+
+Rationale: the user timeout covers the case that Linux keepalives miss, a
+reply still unacknowledged when the host disappears. A later release delays
+only the standby's takeover; PER-R7 still holds, because the active Server
+stops within its tolerance window either way. The lease-session test
+(invariant 5) expects the user timeout from a Linux server and `0` from any
+other, so a Linux server that stops applying it, or another platform that
+starts to, fails the test. Revisit when a deployment needs the half-minute
+takeover with PostgreSQL on an operating system without `TCP_USER_TIMEOUT`.
 
 **PER-R7.** The tolerance window stays below that keepalive bound, so a
 disconnected active Server stops before PostgreSQL releases the lock to a
@@ -467,9 +483,13 @@ Limits ([registry](limits.md)):
 - LIM-PER-4 — lease-session TCP keepalive idle time: 10 s (PER-R6).
 - LIM-PER-5 — lease-session TCP keepalive interval: 5 s (PER-R6).
 - LIM-PER-6 — lease-session TCP keepalive probes: 3 (PER-R6).
-- LIM-PER-7 — lease-session TCP user timeout: 30 s (PER-R6).
+- LIM-PER-7 — lease-session TCP user timeout: 30 s, applied only where the
+  PostgreSQL server's operating system supports `TCP_USER_TIMEOUT` (Linux)
+  (PER-R6).
 - LIM-PER-8 — release of the lease after the active Server's host disappears
-  without closing the connection: within about half a minute (PER-R6).
+  without closing the connection: within about half a minute; where the server
+  lacks `TCP_USER_TIMEOUT` and a reply is unacknowledged at that moment,
+  possibly only within its TCP retransmission limit (minutes) (PER-R6).
 
 Failure outcomes ([failure model](failure-model.md)):
 
@@ -510,7 +530,9 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
 4. A standby survives a transient stall of its acquisition probe (PER-R8);
    test `TestPostgresControlPlaneLeaseStandbySurvivesAcquisitionStall` in
    [`internal/app/single_active_proxy_postgres_test.go`](../../../internal/app/single_active_proxy_postgres_test.go).
-5. The lease session carries the keepalive values of PER-R6; test
+5. The lease session carries the keepalive values of PER-R6, and the user
+   timeout exactly where the server supports `TCP_USER_TIMEOUT`; tests
+   `TestControlPlaneLeaseUserTimeoutFollowsServerPlatform` and
    `TestPostgresControlPlaneLeaseSessionDetectsVanishedHolder` in
    [`internal/app/single_active_postgres_test.go`](../../../internal/app/single_active_postgres_test.go).
    A standby Server process answers `/v1` requests and the event upgrade with

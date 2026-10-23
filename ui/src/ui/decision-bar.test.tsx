@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState, type ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -152,7 +152,7 @@ describe("DecisionBar", () => {
     );
   });
 
-  it("disables everything while pending", async () => {
+  it("locks everything while pending, Record decision only for assistive technology", async () => {
     const onSelect = vi.fn();
     const onSubmit = vi.fn();
     const onNext = vi.fn();
@@ -171,7 +171,10 @@ describe("DecisionBar", () => {
     for (const option of OPTIONS) {
       expect(screen.getByRole("button", { name: option.label })).toBeDisabled();
     }
-    expect(recordButton()).toBeDisabled();
+    // It keeps focus: a browser moves focus off a disabled button.
+    expect(recordButton()).toBeEnabled();
+    expect(recordButton()).toHaveAttribute("aria-disabled", "true");
+    expect(recordButton()).toHaveAttribute("aria-busy", "true");
     expect(recordButton()).toHaveAccessibleDescription("Recording…");
     expect(screen.getByRole("button", { name: "Next item" })).toBeDisabled();
     expect(reasonField()).toHaveAttribute("readonly");
@@ -185,9 +188,84 @@ describe("DecisionBar", () => {
     await user.keyboard("cj");
     await user.click(reasonField());
     await user.keyboard("{Control>}{Enter}{/Control}");
+    await user.click(recordButton());
+    expect(recordButton()).toHaveFocus();
+    await user.keyboard("{Enter} ");
     expect(onSelect).not.toHaveBeenCalled();
     expect(onNext).not.toHaveBeenCalled();
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("keeps focus where recording started from", async () => {
+    const onSubmit = vi.fn();
+    const { rerender } = render(
+      <Harness initialSelected="reject" onSubmit={onSubmit} />,
+    );
+    const user = userEvent.setup();
+    await user.click(reasonField());
+    await user.keyboard("Only administrators reach this view.");
+    await user.keyboard("{Control>}{Enter}{/Control}");
+    rerender(<Harness pending onSubmit={onSubmit} />);
+    expect(reasonField()).toHaveFocus();
+
+    rerender(<Harness onSubmit={onSubmit} />);
+    await user.click(recordButton());
+    rerender(<Harness pending onSubmit={onSubmit} />);
+    expect(recordButton()).toHaveFocus();
+    expect(onSubmit).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    ["a verdict", () => screen.getByRole("button", { name: "Not an issue" })],
+    ["the next item", () => screen.getByRole("button", { name: "Next item" })],
+    ["a control in more", () => screen.getByRole("button", { name: "More" })],
+    [
+      "a control above the reason",
+      () => screen.getByRole("button", { name: "Use AI summary" }),
+    ],
+    ["the page body", () => document.body],
+  ])(
+    "moves focus from %s to Record decision when recording starts",
+    (_, focused) => {
+      const props: HarnessProps = {
+        initialSelected: "reject",
+        initialReason: "Only administrators reach this view.",
+        next: { label: "Next item", onNext: vi.fn() },
+        more: <button type="button">More</button>,
+        extra: <button type="button">Use AI summary</button>,
+      };
+      const { rerender } = render(<Harness {...props} />);
+      // As a click on Record decision leaves it in Safari: focus stays.
+      const element = focused();
+      element.focus();
+      expect(document.activeElement).toBe(element);
+      fireEvent.click(recordButton());
+      rerender(<Harness {...props} pending />);
+      expect(recordButton()).toHaveFocus();
+    },
+  );
+
+  it("leaves focus outside the bar, and on a bar shown while recording, alone", () => {
+    const { rerender, unmount } = render(
+      <>
+        <button type="button">Elsewhere</button>
+        <Harness initialSelected="reject" initialReason="Not reachable" />
+      </>,
+    );
+    const elsewhere = screen.getByRole("button", { name: "Elsewhere" });
+    elsewhere.focus();
+    rerender(
+      <>
+        <button type="button">Elsewhere</button>
+        <Harness pending initialSelected="reject" />
+      </>,
+    );
+    expect(elsewhere).toHaveFocus();
+    unmount();
+
+    // Focus on the page body is not taken by a bar that never was idle.
+    render(<Harness pending initialSelected="reject" />);
+    expect(document.body).toHaveFocus();
   });
 
   it("shows the error as an alert and the disabled reason as a description", () => {
