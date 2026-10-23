@@ -131,6 +131,6 @@ documents when the capability lands.
 
 - [V405-001](../../tasks/done/v405-001-runtime-placement-declarations.yml): Publish startup-owned cloud and local Runtime placement labels.
 - [V405-002](../../tasks/done/v405-002-run-placement-requirements.yml): Pin Run placement requirements and enforce dynamic Runtime matching.
-- [V405-003](../../tasks/v405-003-audit-placement-propagation.yml): Pin Audit placement selection and propagate it to every child Run.
+- [V405-003](../../tasks/done/v405-003-audit-placement-propagation.yml): Pin Audit placement selection and propagate it to every child Run.
 - [V405-004](../../tasks/v405-004-placement-label-picker-ui.yml): Select Runtime placement labels in Workflow and Audit launch forms.
 - [V405-005](../../tasks/v405-005-placement-process-release-gate.yml): Verify cloud and local placement across real processes and fold proposal 0043.

@@ -5,7 +5,7 @@ milestone: runtime-placement-labels-2026-10
 epic: audits
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V405-002
 languages:
@@ -91,3 +91,16 @@ tests:
   covers:
   - A1
   - A2
+implementation_commit: b606718d286ee93846a2e915602e5a1901a0956a
+verification:
+  date: '2026-10-23'
+  environment: macOS arm64; Go 1.26.9; isolated PostgreSQL 17.11 with all 31 migrations; locked Node and Runtime dependencies.
+  commands:
+  - go test ./internal/auditservice ./internal/auditcontroller ./internal/auditstore/... ./internal/runservice ./internal/httpapi/public passed.
+  - go test -tags=integration ./internal/auditservice ./internal/auditcontroller ./internal/auditstore/... ./internal/runservice ./internal/httpapi/public passed, including preparation, generated-inventory check Runs, recovery and cancellation scenarios under a pinned cloud/aws requirement.
+  - make test-postgres passed with database tests configured, including the shared preparation authority fixture.
+  - make verify-public-api and make verify-public-api-postgres passed.
+  - make ui-verify passed, including generated contracts, lint, typecheck, tests, server tests and build.
+  - make lint passed, including spec/task/generated checks, layers, staticcheck and test-only exports.
+  database_tests_configured: true
+  remaining: UI selection (V405-004) and process release coverage (V405-005).
