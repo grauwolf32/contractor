@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-118 open tasks: 4 in progress, 89 pending, 25 deferred. 1000 finished: 997 completed, 3 archived.
+117 open tasks: 4 in progress, 88 pending, 25 deferred. 1001 finished: 998 completed, 3 archived.
 
 ## In progress
 
@@ -30,7 +30,6 @@ the epics are in [epics.yml](epics.yml).
 | [V407-015](v407-015-scheduler-stage-end-cost.yml) | chore | P3 | — | Reduce redundant Stage-end work while preserving recovery and redaction |
 | [V407-016](v407-016-scheduler-idle-and-release-pacing.yml) | chore | P3 | — | Reduce idle claim probes and bound terminal-release head-of-line work |
 | [V407-017](v407-017-startup-lease-tolerance.yml) | chore | P3 | — | Document and test inherited startup lease connection and query budgets |
-| [V409-010](v409-010-byte-bounded-run-reads.yml) | chore | P2 | — | Bound internal Run event fetches by bytes while preserving complete replay |
 | [V409-011](v409-011-execution-store-n1-and-duplicates.yml) | chore | P3 | V407-016 | Reduce execution query round trips while preserving lock and recovery contracts |
 
 ### Planners and the Worker model boundary (`planner-worker`)
@@ -165,7 +164,7 @@ the epics are in [epics.yml](epics.yml).
 | [V409-006](v409-006-trigger-column-scoping.yml) | chore | P2 | V407-025 | Scope unnecessary trigger work while preserving admission and projection effects |
 | [V409-007](v409-007-dead-and-redundant-indexes.yml) | chore | P2 | V407-025, V409-002, V409-004, V409-006 | Consolidate indexes only where reader and constraint evidence permits it |
 | [V409-012](v409-012-migration-and-sql-hygiene.yml) | chore | P3 | — | Test the revision-count and controller-claim backfills and document migration budgets |
-| [V409-013](v409-013-verify-sql-review-on-database.yml) | chore | P2 | V409-001, V409-002, V409-004, V409-005, V409-006, V409-007, V409-009, V409-010, V409-011, V409-012, V409-014 | Verify retained SQL-review changes and record evidence for every accepted or declined claim |
+| [V409-013](v409-013-verify-sql-review-on-database.yml) | chore | P2 | V409-001, V409-002, V409-004, V409-005, V409-006, V409-007, V409-009, V409-011, V409-012, V409-014 | Verify retained SQL-review changes and record evidence for every accepted or declined claim |
 
 ### Quality, CI and process (`quality`)
 
@@ -224,7 +223,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 10 | 41 | 51 | 18 | 73 |
+| Run execution core (`execution-core`) | 9 | 41 | 51 | 18 | 73 |
 | Planners and the Worker model boundary (`planner-worker`) | 6 | 27 | 40 | 16 | 58 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 11 | 25 | 13 | 4 | 40 |
 | Shared Memory tools (`memory`) | 1 | 6 | 9 | 2 | 12 |

@@ -159,8 +159,9 @@ func TestPostgresRunEventAppendsFireNoWorkflowRunTrigger(t *testing.T) {
 	if err := tx.Commit(ctx); err != nil {
 		t.Fatal(err)
 	}
-	events, err := NewPostgresStore(pool).ListRunEvents(ctx, run.RunID, 0, 20)
-	if err != nil || len(events) < 2 || events[len(events)-2].EventID != "event-triggers-started" ||
+	page, err := NewPostgresStore(pool).ListRunEvents(ctx, run.RunID, 0, 20)
+	events := page.Events
+	if err != nil || len(events) < 2 || page.More || events[len(events)-2].EventID != "event-triggers-started" ||
 		events[len(events)-1].EventID != "event-triggers-request" {
 		t.Fatalf("Run events = (%+v, %v)", events, err)
 	}

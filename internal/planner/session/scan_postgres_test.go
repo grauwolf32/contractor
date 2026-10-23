@@ -93,8 +93,8 @@ func TestPostgresScanClaimsFenceTakeoverAndConcurrentDispatch(t *testing.T) {
 	if err := restarted.CompleteScan(ctx, recovered.Identity, scanTestCompletion()); err != nil {
 		t.Fatal(err)
 	}
-	events, err := store.ListRunEvents(ctx, "run-planner", 0, 100)
-	if err != nil || len(events) == 0 {
-		t.Fatalf("read durable public scan events = (%d, %v)", len(events), err)
+	page, err := store.ListRunEvents(ctx, "run-planner", 0, 100)
+	if err != nil || len(page.Events) == 0 || page.More {
+		t.Fatalf("read durable public scan events = (%d, more=%t, %v)", len(page.Events), page.More, err)
 	}
 }
