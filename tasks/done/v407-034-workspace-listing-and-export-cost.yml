@@ -7,7 +7,7 @@ kind: chore
 introduced_by: V11-007
 priority: P2
 status: completed
-implementation_commit: e9810db56ee9bc57e942f68bfdada5d8215b4ba7
+implementation_commit: 5e2950318e98e7273d4984da358acc851c9cda8d
 depends_on:
 - V407-038
 languages:
@@ -98,7 +98,7 @@ tests:
   - A4
 verification:
   date: '2026-10-23'
-  revision: e9810db56ee9bc57e942f68bfdada5d8215b4ba7
+  revision: 5e2950318e98e7273d4984da358acc851c9cda8d
   environment: Worktree contractor-wt/r3, branch claude/rv-r3 on base 21b005e9, macOS arm64 (Darwin),
     Python 3.13 via uv sync --locked, Node 24.20 with Corepack pnpm. The change is Runtime-only and has
     no PostgreSQL tests, so CONTRACTOR_TEST_DATABASE_URL was not used.
@@ -161,6 +161,19 @@ verification:
     event-loop-gap test, which also fails intermittently on base 21b005e9. A first run showed three test
     doubles of the exporter without release() (test_adk_runtime x2, test_worker_completion); they were
     given the method in the implementation commit.'
+  - 'Review follow-up (2026-10-24, commit 5e295031 after e9810db5): a run of consecutive ** components
+    made every closure as long as the run, so one path step cost components x run length (128 x ** over
+    20,001 deep paths: 72 s against 2.5 s for the former matcher). compile_project_glob now emits one **
+    per run; closures hold at most two indices and matching is O(path components x glob components); .pattern
+    and the cursor query digest are unchanged. test_double_star_runs_compile_once_and_bound_matching_work
+    counts the closure indices each match unions on 20-120 component paths and compares results with the
+    reference matcher; with the former compile it fails (167809 transitions against a bound of 82, and
+    the component-count assertion). The reviewer harness now measures 128 x ** at 0.44 s and 127 x **/zz
+    at 0.50 s on 20,001 deep paths (base 1.68 s and 30.15 s), and its differential runs found 0 mismatches
+    in 600,000 random and 400,000 derived pattern/path pairs.'
+  - 'Follow-up checks: the task test command again gave 133 passed, 2 failed (the same /proc-based tests);
+    the paths, security, source-analysis, local-direct consumer, cursor, observation and parity suites gave
+    108 passed; make lint passed.'
   declined:
   - Stat-only listing, a metadata digest field, treating revisions as digests and zero reads for the first
     unknown equal-size revision are out of scope (scope.out). Moving the source-archive list/search matching
