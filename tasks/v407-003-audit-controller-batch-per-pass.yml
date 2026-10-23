@@ -5,7 +5,7 @@ milestone: server-runtime-review-2026-10
 epic: audits
 kind: chore
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages:
 - go
@@ -100,3 +100,51 @@ tests:
   - A3
   - A4
   - A5
+decisions:
+- >-
+  B is 32 drain mutations per claimed reconcile step and batched phase (maxDrainMutationsPerStep,
+  LIM-AUX-14, AUX-R96 in docs/spec/audits/execution.md), a constant independent of Audit size and below
+  the 200-row snapshot window (auditstore.MaxReconcileRows) its candidates come from; 32 also exercises
+  tails at 50 and 200 children. Rows: each mutation is its own transaction over one execution with its
+  members (at most batchSize) and one Audit event, or over one child Run and its event; a Run deletion is
+  atomic and bounded by the Run revision quota (LIM-ART-6). Bytes: observation, intent failure and
+  cancellation write identifiers, states and fixed-shape event payloads only. Statements: a fixed count
+  per mutation; measured on real PostgreSQL the largest full-batch pass issues 46 statements
+  (cancellation or intent failure), 78 (observation) and 880 (deletion) for both 50 and 200 children,
+  against 15 (cancellation or intent failure), 16 (observation) and 43 (deletion) for one mutation per
+  pass. Deadline: an ordinary step's batch shares one
+  OperationTimeout with its snapshot under a lease at least twice that long; a deleting step's batch uses
+  the existing two-minute cleanup budget under the renewed four-minute lease (REV-R160), so a step's
+  budget always ends before its claim and the worst-case deleting pass is no longer than before.
+- >-
+  Phase order and barriers are unchanged. A batched phase that changed anything ends the step: observation
+  and intent failure advance the Audit revision, and cancellation requests and deletions change child Run
+  states that later revision-fenced phases (settlement, hold release, transitions, purge) read, so those
+  wait for a fresh snapshot. Collection stays one execution per step (separate receipt, byte and evidence
+  guarantees), the purge runs in a step that found no child Run left, and a cancellation request never
+  substitutes for the child's terminal transition, observation and receipt.
+- >-
+  Stop conditions: the bound, the end of the step budget (no further mutation starts; an interrupted
+  mutation committed or rolled back whole, so drainBatch.stop reports progress without an error), the
+  first error including ErrClaimLost or ErrPrecondition, and a child Run that is not deletable yet.
+  Candidates stay valid under a concurrent owner revision change because terminal Run states are final,
+  closed dispatch never reopens, a cancelling or deleting Audit always needs its children cancelled and
+  a deleting Audit only proceeds to its purge; claim-fenced store mutations re-check the claim, and every
+  deletion candidate comes from a fresh claim-proven NextLiveRunForDeletion read.
+- >-
+  Baseline (one mutation per pass, measured by the same tests with the bound set to 1) and batched
+  snapshot counts. Cancel+delete of running children through purge: 1 child 7 -> 7; 50 children 203 ->
+  60 (cancellations 32+18, observations 32+17 then the last 1, deletions 32+18); 200 children 804 by
+  formula -> 226 (6x32+8 each). Intent-only cancellation: 1 child 5 -> 5; 50: 103 -> 55; 200: 403 by formula
+  -> 210 (6x32+8). Collections (one per execution), the hold release, settlement and transitions and the
+  purge passes are counted separately; the tests assert the exact formula, including tails.
+- >-
+  Rejected: bounding a deletion batch by reading artifact_scopes revision counts. It would add a
+  cross-owner read to the table ownership registry and a second copy of LIM-ART-6's value; the existing
+  cleanup budget already bounds the deleting step's duration, and the budget-end stop keeps progress.
+- >-
+  Siblings ruled out: Project deletion purges Runs through its own purge budget (projectlifecycle, REV-R160
+  "Project deletion ... is unchanged"); the Eval coordinator and the shared claim loop are left to
+  V407-027. The fixtures of more than 32 outstanding children clear audits.outstanding_run_count before
+  each ordinary dispatch (the dispatch window never exceeds 32) and restore the true count afterwards;
+  every intent, Run and binding still comes from production paths.

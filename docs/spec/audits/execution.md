@@ -554,18 +554,24 @@ Round in [ASC-R57](scans.md).
 1. obtains a short claim with expiry/epoch and reads the Audit and Project
    fences;
 2. resumes durable submission and collection intents;
-3. reads authoritative state for associated Runs and records each new exact
-   terminal observation without settling an item;
-4. collects every observed execution exactly once: validates a frozen result
-   set when present, retains accepted revisions, commits a receipt for
-   accepted, missing, invalid, failed or cancelled output, and then either
-   requeues or settles each item according to its remaining attempt policy;
+3. reads authoritative state for associated Runs and records new exact
+   terminal observations, at most LIM-AUX-14 of them, without settling an
+   item;
+4. collects one observed execution, so every observed execution is collected
+   exactly once over the steps: validates a frozen result set when present,
+   retains accepted revisions, commits a receipt for accepted, missing,
+   invalid, failed or cancelled output, and then either requeues or settles
+   each item according to its remaining attempt policy;
 5. observes item state already changed by the authenticated review API, while
    execution-intent creation independently rechecks the accepted, unexpired
    exact decision in its own transaction;
 6. creates only the next bounded set of allowed submissions;
 7. creates at most one assessment execution after the barrier (LIM-AUX-12);
 8. accepts a next Round or commits the exact final report and coverage.
+
+A step ends after the first of these phases that changes anything, and the
+next step continues from a fresh snapshot (AUX-R96); a step therefore does
+part of this work, never more than one batched phase of it.
 
 **AUX-R74.** A claim alone does not authorize stale commits. Every mutation
 checks epoch or revision plus uniqueness constraints (FAIL-AUX-4).
@@ -578,8 +584,54 @@ Run transition appears in every part of the snapshot or in none. The snapshot
 carries the lifecycle state of each child Run bound to an execution in its
 window: terminal observation and cancellation read no Run per execution, and
 a dispatch reads the next attempts of its whole candidate batch in one
-statement. The statements a reconcile step issues therefore do not grow with
-the Audit's items, executions or child Runs.
+statement. A batched drain phase adds at most LIM-AUX-14 mutations of a fixed
+statement count each (AUX-R96). The statements a reconcile step issues
+therefore do not grow with the Audit's items, executions or child Runs.
+
+**AUX-R96.** Four drain phases of a reconcile step are batched: terminal
+observation of submitted executions whose child Run the snapshot shows
+terminal, failure of execution intents that never got a child Run once
+dispatch is closed, cancellation requests for the nonterminal child Runs of a
+`cancelling` or `deleting` Audit, and deletion of the released terminal child
+Runs of a `deleting` Audit. Each commits at most 32 mutations per claimed step
+(LIM-AUX-14), a fixed number that does not depend on the Audit's size and
+stays below the 200-row snapshot window its candidates come from.
+
+- Bounds. Each mutation is its own transaction over one execution with its
+  members (at most `batchSize`) and one Audit event, or over one child Run
+  and its event; a Run deletion is atomic and bounded by the Run's revision
+  quota (LIM-ART-6). Observation, intent failure and cancellation write only
+  identifiers, states and fixed-shape event payloads, never caller-sized
+  bytes. Each mutation has a fixed statement count, so a step's statements
+  are bounded by LIM-AUX-14 and do not grow with the Audit. An
+  ordinary step's batch shares one `OperationTimeout` with its snapshot read,
+  and the claim lease is at least twice that timeout; a deleting step's batch
+  uses the two-minute cleanup budget under the renewed four-minute lease
+  ([REV-R160](review-and-reports.md)). The step's budget therefore ends
+  before its claim.
+- Stop conditions. A batch stops at the bound, when the step's budget ends
+  (no further mutation starts), at the first error, including a lost claim
+  or a precondition that became stale, and, for deletion, at a child Run that
+  is not deletable yet. Committed mutations remain and none is repeated:
+  observation and intent failure are claim-fenced and idempotent on replay, a
+  cancellation request is idempotent and never stands for the Run's terminal
+  transition, and every deletion candidate comes from a fresh claim-proven
+  read. A mutation interrupted by the end of the budget committed or rolled
+  back whole; the next step's snapshot shows which, so the end of the budget
+  stops the batch without failing the step.
+- Revisions. Candidates stay valid under a concurrent owner mutation: a
+  terminal Run state is final, a closed dispatch never reopens, an Audit that
+  is `cancelling` or `deleting` never stops needing its child Runs
+  cancelled, and a `deleting` Audit only proceeds to its purge. A batched
+  phase that changed anything ends the step, because its mutations advance
+  the Audit revision or change the child Run states that later,
+  revision-fenced phases read: settlement, the dispatch hold release, Audit
+  and Round transitions and the purge wait for the next step's fresh
+  snapshot. Collection stays one execution per step (AUX-R73),
+  and the purge runs in a step that found no child Run left.
+- Fairness. One Controller pass reconciles each claimed Audit in its own step
+  (LIM-AUX-11), so a draining Audit spends at most one batch per pass and
+  delays no other claimed Audit beyond it.
 
 **AUX-R75.** No network or model call occurs under a database row lock.
 
@@ -698,6 +750,8 @@ Registry entries owned by this document:
   the barrier (AUX-R73).
 - [LIM-AUX-13](../platform/limits.md): `maxSubmittedRuns` child Run attempts
   per Audit (AUX-R78).
+- [LIM-AUX-14](../platform/limits.md): at most 32 drain mutations per claimed
+  reconcile step and batched phase (AUX-R96).
 - [FAIL-AUX-1](../platform/failure-model.md): child Run submission
   (AUX-R26, AUX-R76, AUX-R82).
 - [FAIL-AUX-2](../platform/failure-model.md): collection and result import of
@@ -705,7 +759,7 @@ Registry entries owned by this document:
 - [FAIL-AUX-3](../platform/failure-model.md): Audit-side retention of
   child-Run proposals and evidence (AUX-R49, AUX-R51, AUX-R92).
 - [FAIL-AUX-4](../platform/failure-model.md): Controller claims and
-  reconcile mutations (AUX-R74, AUX-R76).
+  reconcile mutations (AUX-R74, AUX-R76, AUX-R96).
 - [FAIL-AUX-5](../platform/failure-model.md): next-Round building
   (AUX-R65 to AUX-R68).
 - [FAIL-AUX-6](../platform/failure-model.md): a change of the global
@@ -784,6 +838,12 @@ Controller logs the full error (AUX-R67). Shared rules are in
    read appears in none of it (AUX-R95); test
    `TestPostgresReconcileSnapshotReadsOneCommitOnAPoolAndInACallerTransaction`
    in [`internal/auditstore/internal/pgstore/reconcile_snapshot_postgres_test.go`](../../../internal/auditstore/internal/pgstore/reconcile_snapshot_postgres_test.go).
+10. A claimed reconcile step commits at most LIM-AUX-14 drain mutations, its
+    statements do not grow with the Audit, and a lost claim or stale
+    precondition ends its batch without repeating a mutation (AUX-R96);
+    tests `TestPostgresControllerDrainBatchesCancellationObservationAndDeletion`
+    and `TestPostgresControllerDrainBatchStopsAtALostClaim` in
+    [`internal/auditcontroller/drain_batch_postgres_test.go`](../../../internal/auditcontroller/drain_batch_postgres_test.go).
 
 ## Non-goals
 
