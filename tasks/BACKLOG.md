@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-70 open tasks: 4 in progress, 41 pending, 25 deferred. 959 finished: 956 completed, 3 archived.
+77 open tasks: 4 in progress, 48 pending, 25 deferred. 959 finished: 956 completed, 3 archived.
 
 ## In progress
 
@@ -75,6 +75,12 @@ the epics are in [epics.yml](epics.yml).
 | [V372-014](v372-014-execution-config-patch-strict-decode.yml) | chore | P3 | — | Decode executionConfig patch members with strictjson |
 | [V372-015](v372-015-config-split-leftovers.yml) | chore | P3 | — | Stop locals from shadowing the resolved package and drop config's copy of clone.Map |
 
+### Projects, artifacts and lifecycle controls (`projects-artifacts`)
+
+| Task | Kind | Priority | Waiting for | Title |
+| --- | --- | --- | --- | --- |
+| [V401-001](v401-001-remaining-namespace-literals.yml) | defect | P3 | — | Name the remaining reserved Namespaces through one definition in the UI, the Runtime and auditstandards |
+
 ### Audits (`audits`)
 
 | Task | Kind | Priority | Waiting for | Title |
@@ -87,6 +93,14 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V40-003](v40-003-agent-instruction-eval-decision.yml) | feature | P1 | V40-002 | Evaluate instruction candidates and record evidence-based adoption decisions |
+| [V401-005](v401-005-evals-chart-select-keyboard.yml) | defect | P3 | — | Choose the narrow-screen Eval overview chart with keys that work in every browser platform |
+| [V401-006](v401-006-eval-nesting-depth-definition.yml) | defect | P3 | — | Define how the Eval nesting depth limit counts levels and pin its boundary in shared cases |
+
+### Web UI (`ui`)
+
+| Task | Kind | Priority | Waiting for | Title |
+| --- | --- | --- | --- | --- |
+| [V401-002](v401-002-decision-bar-pending-focus.yml) | defect | P2 | — | Keep keyboard focus in the decision bar while a decision is recording |
 
 ### Operations, authentication, CLI and deployment (`operations`)
 
@@ -110,6 +124,7 @@ the epics are in [epics.yml](epics.yml).
 | [V372-008](v372-008-upward-table-reads.yml) | chore | P3 | — | Remove the table reads that point up the layer stack or name who owns each one |
 | [V372-009](v372-009-ownership-check-blind-spots.yml) | chore | P3 | — | Close the blind spots of the table ownership check |
 | [V372-010](v372-010-erd-usage-from-ownership-scan.yml) | chore | P3 | — | Take the ERD's code-usage lists from the ownership scan and document the new-table workflow |
+| [V401-003](v401-003-lease-user-timeout-platforms.yml) | defect | P3 | — | State and test the lease session's user timeout only where PostgreSQL supports it |
 
 ### Quality, CI and process (`quality`)
 
@@ -123,6 +138,8 @@ the epics are in [epics.yml](epics.yml).
 | [V372-024](v372-024-audit-item-attempts-fake.yml) | chore | P3 | — | Make the Audit item attempt fake answer like the store and keep the item list schema-valid without it |
 | [V372-029](v372-029-shared-fixture-gate-scope.yml) | chore | P3 | — | Extend the shared fixture gate to every cross-language fixture and keep slow store suites out of it |
 | [V372-030](v372-030-shrink-test-only-export-baseline.yml) | chore | P3 | — | Resolve the exported identifiers that only tests use and empty the test-only export baseline |
+| [V401-004](v401-004-canonical-test-tmpdir.yml) | defect | P3 | — | Run the filesystem blob tests from a symlink-free temporary directory on macOS |
+| [V401-007](v401-007-runtime-suite-on-macos.yml) | chore | P3 | — | Find out why about a hundred Runtime tests fail on a macOS host and make each one pass or declare its platform |
 
 ## Deferred
 
@@ -161,7 +178,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 5 | 38 | 50 | 11 | 65 |
+| Run execution core (`execution-core`) | 5 | 38 | 50 | 11 | 66 |
 | Planners and the Worker model boundary (`planner-worker`) | 3 | 27 | 37 | 14 | 55 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 10 | 25 | 12 | 3 | 37 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 1 | 11 |
@@ -172,12 +189,12 @@ tasks in `introduced_by`.
 | Scanner tool Workers and scan planning (`scan-tools`) | 1 | 11 | 4 | 2 | 8 |
 | Findings tools and collections (`findings`) | 7 | 14 | 5 | 6 | 9 |
 | Workflow catalog and document workflows (`workflows`) | 3 | 14 | 13 | 12 | 12 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 30 | 32 | 5 | 35 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 30 | 33 | 5 | 36 |
 | Audits (`audits`) | 18 | 51 | 70 | 17 | 83 |
-| Evaluations (`evals`) | 2 | 21 | 29 | 5 | 33 |
+| Evaluations (`evals`) | 4 | 21 | 31 | 5 | 34 |
 | Podman sandbox (`sandbox`) | 0 | 9 | 1 | 1 | 2 |
-| Web UI (`ui`) | 0 | 21 | 55 | 12 | 49 |
+| Web UI (`ui`) | 1 | 21 | 56 | 12 | 50 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 13 | 32 | 5 | 9 |
 | Public API and wire contracts (`api-contracts`) | 4 | 1 | 30 | 20 | 8 |
-| PostgreSQL persistence and schema (`persistence`) | 4 | 0 | 19 | 33 | 8 |
-| Quality, CI and process (`quality`) | 10 | 1 | 20 | 78 | 16 |
+| PostgreSQL persistence and schema (`persistence`) | 5 | 0 | 20 | 33 | 8 |
+| Quality, CI and process (`quality`) | 12 | 1 | 21 | 79 | 16 |

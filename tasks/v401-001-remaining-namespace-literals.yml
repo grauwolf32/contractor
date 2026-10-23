@@ -1,0 +1,63 @@
+schema_version: "1.0"
+id: V401-001
+title: "Name the remaining reserved Namespaces through one definition in the UI, the Runtime and auditstandards"
+milestone: hub-audit-defects-2026-10
+epic: projects-artifacts
+kind: defect
+introduced_by: V376-003
+priority: P3
+status: pending
+depends_on: []
+languages: [go, python, typescript]
+goal: "No production source outside its one definition per side spells a reserved Artifact Namespace, and the source scans that V372-018 added cover every reserved Namespace on every side, the UI included."
+context:
+  review: "Out-of-scope findings of V372-018 (merged in 68b553de), recorded 2026-10-23; positions on main @ 68b553de"
+  specification: "docs/spec/artifacts/artifact-store.md"
+  severity: low
+  finding: >-
+    V372-018 gave finding-proposals one constant per side and a source scan in
+    Go (internal/artifactpolicy/namespace_literal_test.go) and in the Runtime
+    (runtime/tests/test_security_findings_toolset.py), but three copies stayed
+    outside its area. The UI spells "finding-proposals" in production code at
+    ui/src/routes/artifacts/previews/http-exchange.tsx:306 and :320 and
+    ui/src/routes/runs/artifacts.tsx:75 (introduced by V376-003). The Runtime
+    spells "contractor-system" in
+    runtime/src/contractor_runtime/toolsets/common/artifact_visibility.py:15
+    (introduced by V367-010), and the Python scan checks only
+    finding-proposals. internal/auditstandards/types.go:16 declares
+    CatalogNamespace = "audit-standards", a second definition of
+    artifactpolicy.AuditStandardCatalogNamespace (introduced by V26-001), and
+    the Go scan does not cover audit-standards.
+  siblings: >-
+    URL path segments named finding-proposals (the Runtime's
+    allocation_path(allocation_id, "finding-proposals") and the public
+    .../finding-proposals routes) and the UI query key "audit-standards" in
+    ui/src/api/query-keys.ts are different rules and stay. Test fixtures may
+    keep literal values. internal/auditstandards/catalog.go:72 uses the
+    Namespace as the operator-root directory name and keeps doing so through
+    the one constant.
+scope:
+  in:
+    - "auditstandards uses artifactpolicy.AuditStandardCatalogNamespace; its own CatalogNamespace goes."
+    - "artifact_visibility.py takes contractor-system (and skills, if the contracts module defines it) from the Runtime contracts module."
+    - "One UI definition of the finding-proposals Namespace, used by the HTTP evidence preview and the Run materials filter."
+    - "The Go scan covers audit-standards, the Python scan covers contractor-system, and a UI test scans ui/src production files for the reserved Namespace literals outside the definition."
+  out:
+    - "URL path segments, query keys and test fixtures."
+    - "Namespace names and visibility rules."
+acceptance_criteria:
+  - id: A1
+    text: "No production Go, Python or UI source outside its definition spells finding-proposals, contractor-system or audit-standards as a Namespace."
+  - id: A2
+    text: "Existing behaviour is unchanged: the touched packages' tests pass without edits to their expectations."
+  - id: A3
+    text: "Each scan fails when one of the removed literals is put back."
+tests:
+  - command: "go test ./internal/artifactpolicy ./internal/auditstandards ./internal/app"
+    covers: [A1, A2, A3]
+  - command: "cd runtime && uv run pytest tests/test_security_findings_toolset.py tests/test_run_artifacts_toolset.py"
+    covers: [A1, A2, A3]
+  - command: "cd ui && corepack pnpm test --run src/routes/artifacts src/routes/runs"
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]

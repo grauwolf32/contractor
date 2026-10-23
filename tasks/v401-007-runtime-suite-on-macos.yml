@@ -1,0 +1,42 @@
+schema_version: "1.0"
+id: V401-007
+title: "Find out why about a hundred Runtime tests fail on a macOS host and make each one pass or declare its platform"
+milestone: hub-audit-defects-2026-10
+epic: quality
+kind: chore
+priority: P3
+status: pending
+depends_on: []
+languages: [python, markdown]
+goal: "make test-runtime on a macOS developer host either passes or skips only tests whose behaviour the specification limits to Linux, each with its reason, and the testing guide says which."
+context:
+  review: "2026-10-23 merged verification run of the quick-win batch on macOS; the same 102 tests fail on main @ 257c57d8"
+  specification: "docs/testing/README.md"
+  severity: low
+  finding: >-
+    make test-runtime reported 102 failures on macOS arm64 that also fail on
+    main: tests/test_podman_*.py (about 90), test_projectfs_local_direct.py,
+    test_projectfs_local_io.py, test_tool_process.py, test_trailmark_child.py,
+    test_local_direct_faults.py and two timing tests in code_analysis. The
+    commonest errors are "OSError: [Errno 43] Protocol not supported" (58),
+    "allocation resource preparation failed (OSError)" (22) and
+    "dlsym(RTLD_DEFAULT, pidfd_open): symbol not found" (2). The run happened
+    inside an agent's command sandbox, so part of these failures may come from
+    the sandbox rather than from macOS.
+  siblings: >-
+    The Go side's macOS issues are V401-003 and V401-004; the browser gate's
+    is V401-005.
+scope:
+  in:
+    - "Reproduce outside any command sandbox on macOS and classify each failing test: sandbox artefact, Linux-only behaviour the specification allows, or a Runtime defect on macOS."
+    - "Mark Linux-only tests with an explicit platform reason, fix or create tasks for real defects, and record the result in docs/testing/README.md."
+  out:
+    - "Making the Podman sandbox work on macOS."
+acceptance_criteria:
+  - id: A1
+    text: "Every one of the 102 tests is classified in the task record with its cause."
+  - id: A2
+    text: "make test-runtime on macOS fails only for defects that have their own task."
+tests:
+  - command: "make test-runtime"
+    covers: [A1, A2]

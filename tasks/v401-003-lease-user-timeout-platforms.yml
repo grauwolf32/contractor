@@ -1,0 +1,44 @@
+schema_version: "1.0"
+id: V401-003
+title: "State and test the lease session's user timeout only where PostgreSQL supports it"
+milestone: hub-audit-defects-2026-10
+epic: persistence
+kind: defect
+introduced_by: V168-001
+priority: P3
+status: pending
+depends_on: []
+languages: [go, markdown]
+goal: "PER-R6 and TestPostgresControlPlaneLeaseSessionDetectsVanishedHolder state and check the lease session's keepalive settings truthfully on every PostgreSQL platform: the 30 s user timeout where the server supports TCP_USER_TIMEOUT, the keepalive probes everywhere."
+context:
+  review: "Failure in the 2026-10-23 merged verification run of the quick-win batch on macOS; reproduced on main @ 257c57d8"
+  specification: "docs/spec/platform/persistence.md#PER-R6"
+  severity: low
+  finding: >-
+    internal/app/single_active_postgres_test.go:52-58 expects
+    current_setting('tcp_user_timeout') = "30000" on the lease session that
+    internal/app/single_active.go:61 configures. PostgreSQL supports
+    TCP_USER_TIMEOUT only where the operating system does (Linux); on the macOS
+    Homebrew PostgreSQL 17.11 server the setting reads "0", so the test fails
+    on every macOS developer host while CI on Linux passes. PER-R6 states the
+    30 s user timeout (LIM-PER-7) without that condition, so the specification
+    promises a bound that a non-Linux server does not apply.
+  siblings: >-
+    The three keepalive settings are supported on both platforms and stay
+    asserted. The lease code itself keeps requesting the user timeout.
+scope:
+  in:
+    - "The test asserts tcp_user_timeout 30000 when the server supports TCP_USER_TIMEOUT and 0 otherwise, deciding support deterministically (for example from the server's platform in version()), and keeps asserting the keepalive settings."
+    - "PER-R6 and LIM-PER-7 or LIM-PER-8 say that the user timeout applies where the server supports it and what bounds detection elsewhere."
+  out:
+    - "The lease algorithm and its tolerance window (PER-R7)."
+acceptance_criteria:
+  - id: A1
+    text: "The test passes against PostgreSQL on Linux and on macOS, and still fails on Linux if the lease session does not set the user timeout."
+  - id: A2
+    text: "PER-R6 states the platform condition and the bound that holds without it."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/app -run 'ControlPlaneLease'"
+    covers: [A1]
+  - command: make lint
+    covers: [A1, A2]

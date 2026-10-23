@@ -1,0 +1,40 @@
+schema_version: "1.0"
+id: V401-005
+title: "Choose the narrow-screen Eval overview chart with keys that work in every browser platform"
+milestone: hub-audit-defects-2026-10
+epic: evals
+kind: defect
+introduced_by: V38-008
+priority: P3
+status: pending
+depends_on: []
+languages: [typescript]
+goal: "The mocked browser gate's Eval comparison journey at 390 px passes on Linux and macOS Chromium while still proving that the overview chart select works from the keyboard."
+context:
+  review: "Failure in the 2026-10-23 merged verification run of the quick-win batch on macOS; reproduced on main @ 257c57d8"
+  specification: "docs/spec/ui/README.md"
+  severity: low
+  finding: >-
+    ui/e2e/evals-comparison.spec.ts:22-28 focuses the native Overview chart
+    select and presses ArrowDown and Enter, then expects the value
+    "progress". On Linux Chromium ArrowDown changes a closed select's value;
+    on macOS Chromium it opens the popup instead, so the value stays
+    "quality" and make ui-browser-mocked fails 1 of 65 specs on every macOS
+    host.
+  siblings: >-
+    Other mocked browser specs that drive native selects with arrow keys, if
+    any, have the same platform dependence and are checked.
+scope:
+  in:
+    - "Drive the select with keyboard input that changes a closed select's value on every platform (for example type-ahead on the option label), or assert the platform's keyboard behaviour explicitly, and keep the keyboard check."
+    - "Check the other mocked browser specs for arrow-key selection of native selects."
+  out:
+    - "The overview chart component and its narrow-screen behaviour."
+acceptance_criteria:
+  - id: A1
+    text: "make ui-browser-mocked passes the Eval comparison spec on macOS Chromium, and the spec still fails if the select cannot be operated from the keyboard."
+tests:
+  - command: "make ui-browser-mocked"
+    covers: [A1]
+  - command: "make ui-verify"
+    covers: [A1]

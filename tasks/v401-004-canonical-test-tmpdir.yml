@@ -1,0 +1,51 @@
+schema_version: "1.0"
+id: V401-004
+title: "Run the filesystem blob tests from a symlink-free temporary directory on macOS"
+milestone: hub-audit-defects-2026-10
+epic: quality
+kind: defect
+introduced_by: V34-002
+priority: P3
+status: pending
+depends_on: []
+languages: [go, makefile, markdown]
+goal: "make test-go and the documented Go test commands pass on a macOS host with the default TMPDIR, without weakening the filesystem blob store's refusal of symlinked directories."
+context:
+  review: "Failure in the 2026-10-23 merged verification run of the quick-win batch on macOS; reported by the V371-019, V371-017 and V372-021 implementers"
+  specification: "docs/spec/artifacts/blob-storage.md"
+  severity: low
+  finding: >-
+    internal/artifacts/blob_filesystem.go:55-68 refuses a configured blob
+    directory that has a symlink component, as the blob storage specification
+    requires. On macOS the default TMPDIR is under /var/folders and /var is a
+    symlink to /private/var, so every test that roots a filesystem blob store
+    in t.TempDir() fails with "artifact blob storage I/O failed": among them
+    the filesystem tests of internal/artifacts,
+    TestGitImportPublicationAndAdmission/filesystem and
+    TestConfiguredGitSnapshotPublishesExactFilesystemBlob in
+    internal/httpapi/public. They pass with TMPDIR=/private/tmp/....
+  siblings: >-
+    About twenty test files create filesystem blob stores (internal/artifacts,
+    internal/app, internal/memory, internal/scheduler,
+    internal/httpapi/privateartifacts, internal/httpapi/public,
+    internal/findingintake, internal/auditcontroller,
+    internal/projectlifecycle). The production refusal of symlinked
+    directories stays.
+scope:
+  in:
+    - "Give the Go test targets a canonical TMPDIR (for example by resolving it in the make files) or give the tests one shared helper that returns a symlink-free temporary directory, whichever keeps one definition."
+    - "State in docs/testing/README.md what a macOS host needs for direct go test runs."
+  out:
+    - "The blob store's symlink rule and configuration validation."
+acceptance_criteria:
+  - id: A1
+    text: "make test-go passes the filesystem blob tests on macOS with the default TMPDIR."
+  - id: A2
+    text: "A configured blob directory with a symlink component is still refused."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> make test-go"
+    covers: [A1]
+  - command: "go test ./internal/artifacts -run Filesystem"
+    covers: [A2]
+  - command: make lint
+    covers: [A1, A2]

@@ -1,0 +1,54 @@
+schema_version: "1.0"
+id: V401-002
+title: "Keep keyboard focus in the decision bar while a decision is recording"
+milestone: hub-audit-defects-2026-10
+epic: ui
+kind: defect
+priority: P2
+status: pending
+depends_on: []
+languages: [typescript]
+goal: "A keyboard user who records a decision keeps focus inside the decision bar while the request is in flight, in a real browser, until V372-005's focus move to the next item or the decision group takes over."
+context:
+  review: "Finding of V372-005 (merged in 68b553de), recorded 2026-10-23; position on main @ 68b553de"
+  specification: "docs/spec/ui/README.md"
+  severity: medium
+  finding: >-
+    ui/src/ui/decision-bar.tsx:307 renders the Record decision button with
+    disabled={!canSubmit}, and canSubmit is false while pending
+    (decision-bar.tsx:118, :126). Browsers move focus to <body> when the
+    focused element becomes disabled, so a user who presses the button or
+    Ctrl/Cmd+Enter loses their place for the whole time the decision records.
+    jsdom keeps focus on a disabled button, so the component tests cannot see
+    it; V372-005 found it by reading the code and left it unchanged. The line
+    comes from the V3B primitives (f1d803cd), which had no task, so the
+    introducing task is unknowable.
+  siblings: >-
+    Other controls of the bar that lock while pending: the rationale textarea
+    is readOnly (focus stays) and the choice inputs; check whether a focused
+    choice input is disabled too. The bar's consumers are the Issues and Inbox
+    details and the Audit finding and review decisions
+    (ui/src/routes/decisions). Other UI buttons disabled while their own
+    request is pending are out of scope unless they share this component.
+scope:
+  in:
+    - "Keep every bar control that can hold focus focusable while pending (for example aria-disabled with a guarded handler) or move focus to the bar group before disabling it, without letting a second submit through."
+    - "A browser regression test in the mocked browser gate that holds the decision response and checks that focus stays inside the decision bar until the Server answers."
+  out:
+    - "The decision API, polling and V372-005's focus move after the answer."
+acceptance_criteria:
+  - id: A1
+    given: "A decision submitted with the Record decision button or Ctrl/Cmd+Enter while the response is held"
+    when: "the request is in flight in Chromium"
+    then: "document.activeElement stays inside the decision bar and a second submit is not sent."
+  - id: A2
+    text: "The browser test fails on the unfixed component."
+  - id: A3
+    text: "The decision bar's component tests and its consumers' tests pass."
+tests:
+  - command: "cd ui && corepack pnpm test --run src/ui src/routes/issues src/routes/inbox src/routes/decisions"
+    covers: [A3]
+  - command: "make ui-browser-mocked"
+    covers: [A1, A2]
+  - command: "make ui-verify"
+    covers: [A1, A3]
