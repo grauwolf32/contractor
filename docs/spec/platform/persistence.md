@@ -406,7 +406,12 @@ trigger of `workflow_runs` except the deferred binding check of an
 audit-managed Run. The deferred Audit completion check runs when a Run is
 inserted and when its completion changes, not on later updates that keep it:
 the completion cannot change once set, and the profile binding it is checked
-against is immutable ([AWC-R7](../audits/worker-completion.md)).
+against is immutable ([AWC-R7](../audits/worker-completion.md)). Likewise a
+StageExecution admission and a counted output publication failure, which
+change neither a guarded column nor the state, fire no trigger of
+`stage_executions`; the manual continuation check still runs on every INSERT
+and on an UPDATE only when the resume source is assigned, and the lifecycle
+capture on every INSERT and on a state change.
 
 ### Keyed mutations and controller claims
 
@@ -619,9 +624,16 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
     An append to a Run with an Audit completion fires only the binding
     check; test `TestAuditCompletionPostgresAtomicCreationRestartAndAllocation`
     in [`internal/runservice/audit_completion_postgres_test.go`](../../../internal/runservice/audit_completion_postgres_test.go).
-    Each column-scoped guard of `workflow_runs` lists exactly the columns its
-    function compares; test `TestWorkflowRunGuardsFireOnTheColumnsTheyCompare`
-    in [`internal/persistence/postgres/workflow_run_triggers_postgres_test.go`](../../../internal/persistence/postgres/workflow_run_triggers_postgres_test.go).
+    Each column-scoped guard of `workflow_runs` and `stage_executions` lists
+    exactly the columns its function compares; tests
+    `TestWorkflowRunGuardsFireOnTheColumnsTheyCompare` and
+    `TestStageExecutionGuardsFireOnTheColumnsTheyCompare` in
+    [`internal/persistence/postgres/workflow_run_triggers_postgres_test.go`](../../../internal/persistence/postgres/workflow_run_triggers_postgres_test.go).
+    Each StageExecution store transition calls only the `stage_executions`
+    triggers it concerns, a guarded change is still rejected and the
+    lifecycle events are one per state entered; test
+    `TestPostgresStageExecutionUpdatesFireOnlyTheTriggersTheyConcern` in
+    [`internal/runstore/stage_triggers_postgres_test.go`](../../../internal/runstore/stage_triggers_postgres_test.go).
 18. Only its owner package writes a relation; every other access is a granted
     read or a known access that names an open task, and no registry entry
     outlives its access (PER-R23); tests

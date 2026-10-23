@@ -2,40 +2,16 @@ package postgres
 
 import (
 	"context"
-	"regexp"
-	"slices"
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5"
-)
-
-// workflowRunBeforeUpdateTriggersSQL lists each BEFORE UPDATE trigger of
-// workflow_runs with its function/WHEN sources and its UPDATE OF columns, if any.
-const workflowRunBeforeUpdateTriggersSQL = `
-SELECT trigger.tgname::text, function.prosrc || E'\n' || pg_get_triggerdef(trigger.oid),
-       ARRAY(SELECT attribute.attname::text
-               FROM unnest(trigger.tgattr::int2[]) AS column_number
-               JOIN pg_attribute AS attribute
-                 ON attribute.attrelid = trigger.tgrelid AND attribute.attnum = column_number)
-  FROM pg_trigger AS trigger
-  JOIN pg_proc AS function ON function.oid = trigger.tgfoid
- WHERE trigger.tgrelid = 'workflow_runs'::regclass AND NOT trigger.tgisinternal
-   -- BEFORE (2) and UPDATE (16) of pg_trigger.tgtype
-   AND trigger.tgtype & 18 = 18
- ORDER BY 1`
-
-var (
-	comparedTriggerColumn = regexp.MustCompile(`(?i)NEW\.([a-z_]+) IS DISTINCT FROM OLD\.([a-z_]+)`)
-	assignedTriggerColumn = regexp.MustCompile(`(?i)NEW\.([a-z_]+)\s*:=`)
+	"github.com/grauwolf32/contractor/internal/persistence/explaintest"
 )
 
 // TestWorkflowRunGuardsFireOnTheColumnsTheyCompare checks the column-scoped
-// guards of workflow_runs (PER-R22). An UPDATE OF trigger runs only when an
-// UPDATE lists one of its columns, so each guard must list exactly the
-// columns its function or WHEN compares between NEW and OLD, and no BEFORE UPDATE
-// trigger may assign a column of NEW, which would change a value without
-// listing it.
+// guards of workflow_runs (PER-R22): each lists exactly the columns its
+// function or WHEN compares between NEW and OLD, and no BEFORE UPDATE trigger
+// assigns a column of NEW, which would change a value without listing it.
 func TestWorkflowRunGuardsFireOnTheColumnsTheyCompare(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 	defer cancel()
@@ -43,45 +19,23 @@ func TestWorkflowRunGuardsFireOnTheColumnsTheyCompare(t *testing.T) {
 	if _, err := ApplyMigrations(ctx, pool, MigrationBudgets{}); err != nil {
 		t.Fatal(err)
 	}
-	rows, err := pool.Query(ctx, workflowRunBeforeUpdateTriggersSQL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	type beforeUpdateTrigger struct {
-		name, source string
-		updateOf     []string
-	}
-	triggers, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (beforeUpdateTrigger, error) {
-		var trigger beforeUpdateTrigger
-		err := row.Scan(&trigger.name, &trigger.source, &trigger.updateOf)
-		return trigger, err
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	guards := 0
-	for _, trigger := range triggers {
-		for _, assignment := range assignedTriggerColumn.FindAllStringSubmatch(trigger.source, -1) {
-			t.Errorf("%s assigns NEW.%s, which no UPDATE OF guard sees", trigger.name, assignment[1])
-		}
-		if len(trigger.updateOf) == 0 {
-			continue
-		}
-		guards++
-		var compared []string
-		for _, comparison := range comparedTriggerColumn.FindAllStringSubmatch(trigger.source, -1) {
-			if comparison[1] != comparison[2] {
-				t.Errorf("%s compares NEW.%s with OLD.%s", trigger.name, comparison[1], comparison[2])
-			}
-			compared = append(compared, comparison[1])
-		}
-		slices.Sort(compared)
-		slices.Sort(trigger.updateOf)
-		if compared = slices.Compact(compared); !slices.Equal(compared, trigger.updateOf) {
-			t.Errorf("%s fires on UPDATE OF %v but compares %v", trigger.name, trigger.updateOf, compared)
-		}
-	}
-	if guards < 4 {
+	if guards := explaintest.RequireColumnScopedGuards(t, ctx, pool, "workflow_runs"); guards < 4 {
 		t.Fatalf("found %d column-scoped guards of workflow_runs, want the four including placement requirements (PER-R22, RUN-R108)", guards)
+	}
+}
+
+// TestStageExecutionGuardsFireOnTheColumnsTheyCompare checks the same for
+// stage_executions: the immutability guard lists the columns it protects and
+// the manual continuation guard, which also validates every INSERT, fires on
+// an UPDATE only for resume_source_execution_id (PER-R22).
+func TestStageExecutionGuardsFireOnTheColumnsTheyCompare(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
+	defer cancel()
+	pool, _ := isolatedPools(t, ctx, storageReviewDatabaseURL(t))
+	if _, err := ApplyMigrations(ctx, pool, MigrationBudgets{}); err != nil {
+		t.Fatal(err)
+	}
+	if guards := explaintest.RequireColumnScopedGuards(t, ctx, pool, "stage_executions"); guards != 2 {
+		t.Fatalf("found %d column-scoped guards of stage_executions, want the immutability and the manual continuation guards (PER-R22)", guards)
 	}
 }

@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-119 open tasks: 4 in progress, 90 pending, 25 deferred. 999 finished: 996 completed, 3 archived.
+119 open tasks: 5 in progress, 89 pending, 25 deferred. 999 finished: 996 completed, 3 archived.
 
 ## In progress
 
@@ -15,6 +15,7 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
+| [V407-025](v407-025-persistence-indexes-and-triggers.yml) | persistence | chore | P2 | Reduce Project-drain and held-Audit query work and scope Stage triggers |
 
 ## Pending
 
@@ -159,7 +160,6 @@ the epics are in [epics.yml](epics.yml).
 | [V372-008](v372-008-upward-table-reads.yml) | chore | P3 | — | Remove the table reads that point up the layer stack or name who owns each one |
 | [V372-009](v372-009-ownership-check-blind-spots.yml) | chore | P3 | — | Close the blind spots of the table ownership check |
 | [V372-010](v372-010-erd-usage-from-ownership-scan.yml) | chore | P3 | — | Take the ERD's code-usage lists from the ownership scan and document the new-table workflow |
-| [V407-025](v407-025-persistence-indexes-and-triggers.yml) | chore | P2 | — | Reduce Project-drain and held-Audit query work and scope Stage triggers |
 | [V407-026](v407-026-store-error-classes-and-event-validation.yml) | defect | P3 | — | Classify missing Project references at the Run-store boundary |
 | [V407-027](v407-027-shared-controller-claim-loop.yml) | chore | P3 | V407-003 | Share controller claim-lifecycle plumbing without merging distinct scheduling policies |
 | [V408-002](v408-002-shared-postgres-test-schema.yml) | chore | P2 | V408-001 | Apply migrations once per package: one shared PostgreSQL test helper with per-test truncation |
