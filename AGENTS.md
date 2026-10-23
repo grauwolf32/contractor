@@ -429,7 +429,9 @@ Notes:
 
 ### UI
 
-- Node 24.20 with Corepack and pnpm (`corepack pnpm --dir ui …`).
+- Node 24.20 with Corepack and pnpm, run from `ui/` as make and CI do
+  (`cd ui && corepack pnpm …`). From the root, `corepack pnpm --dir ui …`
+  starts Corepack's default pnpm, which refuses the pinned version.
 - Shared V3B building blocks live in `ui/src/ui`; colours come only from
   `ui/src/app/theme.css` tokens. Shared CSS must not live in lazily loaded
   route CSS.

@@ -16,12 +16,16 @@ make ui-browser-install
 
 For frontend development, Vite serves source files on loopback. Supply a
 matching runtime config through the production static service when testing the
-built application:
+built application. Run pnpm from `ui/`, as make and CI do: the repository root
+has no `package.json`, so `corepack pnpm --dir ui …` from the root starts
+Corepack's default pnpm, which refuses the pinned version with
+`ERR_PNPM_BAD_PM_VERSION`. From the repository root:
 
 ```shell
-corepack pnpm --dir ui build
+cd ui
+corepack pnpm build
 CONTRACTOR_UI_API_BASE_URL=http://127.0.0.1:8080 \
-  corepack pnpm --dir ui start
+  corepack pnpm start
 ```
 
 `CONTRACTOR_UI_API_BASE_URL` is required. It must be an origin-only HTTPS URL;
@@ -40,7 +44,7 @@ Optional static-service settings are:
 The sidebar, `/runtime-config.json` and `/healthz` use the UI version from
 `package.json`. Increment it for each UI release: patch for fixes, minor for new
 features, major for breaking changes. For a patch release, run
-`corepack pnpm --dir ui version patch --no-git-tag-version` from the repository
+`cd ui && corepack pnpm version patch --no-git-tag-version` from the repository
 root before building. Rebuilding alone does not increment the version. Deploy
 the matching `package.json` with the new bundle and restart the UI service so
 the browser and runtime configuration report the same version.
