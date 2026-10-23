@@ -715,11 +715,14 @@ class AdkWorkerRuntime:
                             ),
                             False,
                         )
+                    if completion is None:
+                        # No finalizer call starts once the deadline has passed.
+                        deadline.check()
                     outcome, exportable = await self._complete_normal_finish(
                         request=request,
                         candidate=candidate,
                         invocation_id=invocation_id,
-                        deadline=deadline,
+                        deadline=deadline.when,
                     )
                     if not isinstance(outcome, ContinueCompletion):
                         return outcome, exportable
@@ -762,7 +765,7 @@ class AdkWorkerRuntime:
             try:
                 decision = await self._completion.finish(
                     request=request,
-                    deadline=deadline.when,
+                    deadline=deadline,
                     check_active=self._check_active,
                 )
             except Exception as error:
@@ -787,8 +790,6 @@ class AdkWorkerRuntime:
                 tuple(self._invocation_observed_refs),
                 verified_finalizer_refs=tuple(decision.result.artifacts.values()),
             )
-        # No finalizer call starts once the deadline has passed (WRK-R167).
-        deadline.check()
         return await self._complete_ordinary_finish(request, candidate, invocation_id)
 
     async def _complete_ordinary_finish(self, request, candidate, invocation_id):
