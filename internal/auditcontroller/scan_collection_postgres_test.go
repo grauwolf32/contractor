@@ -53,6 +53,31 @@ func TestPostgresScanRecoveryCollectionKeepsFailureClasses(t *testing.T) {
 			t.Fatalf("recovered scan coverage = %+v", coverage)
 		}
 	})
+	// Scan history is the accepted exception (AUX-R96): the Planner session
+	// validates its journal on every write and read, so a stored plan
+	// reference without a revision fails to decode as history before
+	// collection reads it. The error stays retryable; the execution stays
+	// collecting and every reconcile reports it.
+	t.Run("scan history that does not decode stays collecting", func(t *testing.T) {
+		scan := newScanCollection(t, nil, validReport)
+		tag, err := scan.h.pool.Exec(scan.ctx, `
+UPDATE planner_sessions SET state = state #- '{scan,state,plan,revision}'
+ WHERE stage_execution_id IN (SELECT stage_execution_id FROM stage_executions WHERE run_id = $1)`,
+			*scan.execution.RunID)
+		if err != nil || tag.RowsAffected() != 1 {
+			t.Fatalf("remove the journal plan revision = (%d, %v)", tag.RowsAffected(), err)
+		}
+		for range 3 {
+			_, err := scan.controller.RunOnce(scan.ctx)
+			if err == nil || errors.Is(err, auditimport.ErrPermanent) {
+				t.Fatalf("collection with undecodable scan history = %v", err)
+			}
+			scan.requireCollecting(t)
+		}
+		if reads := scan.faults.count(scan.plan.Name) + scan.faults.count(scan.report.Name); reads != 0 {
+			t.Fatalf("collection read %d retained scan artifacts without a valid history", reads)
+		}
+	})
 	for name, test := range map[string]struct {
 		plan, report *artifacts.Payload
 		invalid      func(*scanCollection) string

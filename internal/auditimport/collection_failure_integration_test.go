@@ -88,6 +88,103 @@ SELECT retention_state FROM finding_proposal_receipts WHERE receipt_id = $1`, re
 	f.requireAcceptedAssessment(t, execution.ExecutionID, receiptID)
 }
 
+// Pinned standard data that cannot be validated never validates on a retry, so
+// the production collection path settles it through one contract-invalid
+// receipt instead of judging the Worker's proposal or retrying. Retention reads
+// the standards for a proposal it has not retained yet. A proposal the owner
+// held before the Run finished needs no retention read, so result resolution
+// is the first to read them.
+func TestPostgresInvalidPinnedStandardSettlesCollectionContractInvalid(t *testing.T) {
+	pool := completionPool(t)
+	for _, corruption := range []struct {
+		name    string
+		corrupt func(*auditstandards.PinnedPackage)
+		// reads is the number of retained standard reads of the first
+		// attempt: an invalid pin is rejected before its package is read.
+		reads int
+	}{
+		{name: "invalid baseline pin", corrupt: func(pinned *auditstandards.PinnedPackage) {
+			pinned.Catalog.Artifact.Namespace = "standards"
+		}},
+		{name: "retained package differs from its pin", reads: 1, corrupt: func(pinned *auditstandards.PinnedPackage) {
+			pinned.Title = "A different standard title"
+		}},
+	} {
+		for _, entry := range []struct {
+			name      string
+			ownerHold bool
+		}{
+			{name: "at retention"},
+			{name: "at resolution after an owner hold", ownerHold: true},
+		} {
+			t.Run(corruption.name+"/"+entry.name, func(t *testing.T) {
+				var pinned auditstandards.PinnedPackage
+				f := newCompletionFixtureWithOptions(t, pool, completionOptions{
+					acceptance: "automatic", findingConfirmation: "human-required",
+					standards: func(t *testing.T, f *completionFixture) []auditstandards.PinnedPackage {
+						pinned = f.retainStandard(t, top10ImportPackage(t))
+						corruption.corrupt(&pinned)
+						return []auditstandards.PinnedPackage{pinned}
+					},
+				})
+				receiptID := f.proposal(t, "candidate", auditdomain.FindingProposal{
+					Schema: auditdomain.FindingProposalSchema, ClientKey: "candidate",
+					Title: "Candidate", Description: "Check the access control of the handler",
+					Subject:       &auditdomain.FindingSubject{Kind: "code", Key: "handler"},
+					Preconditions: []string{},
+					StandardRefs: []auditdomain.StandardReference{{
+						Scheme: pinned.Reference.Scheme, Version: pinned.Reference.Version, RequirementID: "A01:2025",
+					}},
+					EvidenceIDs:    []string{},
+					ProposedChecks: []auditdomain.ProposedCheck{},
+					Limitations:    []string{},
+				})
+				f.writeResult(t, map[string][]auditdomain.ProposalSelection{
+					"first": {{InvocationID: f.proposalInvocation(), ClientKey: "candidate"}},
+				})
+				intake, err := findingintake.New(f.pool)
+				mustCompletion(t, err)
+				if entry.ownerHold {
+					var proposalRef contracts.ArtifactRef
+					mustCompletion(t, f.pool.QueryRow(f.ctx, `
+SELECT proposal_ref FROM finding_proposal_receipts WHERE receipt_id = $1`, receiptID).Scan(&proposalRef))
+					_, _, err = intake.ImportIntoAudit(f.ctx, findingintake.ImportRequest{
+						OwnerID: "owner", AuditID: f.id, RunID: f.run.RunID, Proposal: proposalRef,
+					})
+					mustCompletion(t, err)
+				}
+				execution, snapshot := f.terminal(t, runstore.RunSucceeded)
+				access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(f.pool))
+				mustCompletion(t, err)
+				faults := &collectionFaults{standardRef: pinned.Retained.Artifact}
+				importer, err := New(f.audits, f.audits, f.runs, collectionFaultAccess{ArtifactAccess: access, faults: faults}, intake)
+				mustCompletion(t, err)
+
+				changed, err := importer.Collect(f.ctx, f.claim, snapshot, execution)
+				if err != nil || !changed {
+					t.Fatalf("collection with invalid pinned standard = (%t, %v)", changed, err)
+				}
+				f.requireContractInvalid(t, execution.ExecutionID)
+				if faults.standardReads != corruption.reads {
+					t.Fatalf("retained standard reads = %d, want %d", faults.standardReads, corruption.reads)
+				}
+				// A retry with the stale observation replays the same receipt.
+				changed, err = importer.Collect(f.ctx, f.claim, snapshot, execution)
+				if err != nil || !changed {
+					t.Fatalf("replayed collection with invalid pinned standard = (%t, %v)", changed, err)
+				}
+				f.requireContractInvalid(t, execution.ExecutionID)
+				var assessments int
+				mustCompletion(t, f.pool.QueryRow(f.ctx, `
+SELECT count(*) FROM audit_finding_assessments WHERE receipt_id = $1`, receiptID).Scan(&assessments))
+				if assessments != 0 {
+					t.Fatalf("contract-invalid collection assessed the proposal %d times", assessments)
+				}
+			})
+		}
+	}
+}
+
 // collectionFaults holds the read failures a test injects into one importer.
 type collectionFaults struct {
 	standardRef   contracts.ArtifactRef
@@ -248,6 +345,30 @@ SELECT execution.state,
   FROM audit_executions AS execution WHERE execution.execution_id = $1`, executionID).Scan(&state, &receipts, &settled))
 	if state != string(auditstore.ExecutionCollecting) || receipts != 0 || settled != 0 {
 		t.Fatalf("execution state=%s receipts=%d settled members=%d, want collecting", state, receipts, settled)
+	}
+}
+
+// requireContractInvalid fails unless the execution has exactly one
+// contract-invalid receipt and every member settled with it.
+func (f *completionFixture) requireContractInvalid(t *testing.T, executionID string) {
+	t.Helper()
+	var disposition, errorCode string
+	var receipts, members, settled int
+	mustCompletion(t, f.pool.QueryRow(f.ctx, `
+SELECT execution.collection_disposition, execution.collection_error_code,
+       (SELECT count(*) FROM audit_executions WHERE execution_id = $1 AND collection_receipt_id IS NOT NULL),
+       (SELECT count(*) FROM audit_execution_items WHERE execution_id = $1),
+       (SELECT count(*) FROM audit_execution_items AS member
+          JOIN audit_items AS item ON item.item_id = member.item_id
+         WHERE member.execution_id = $1 AND member.state = 'settled'
+           AND member.collection_disposition = $2 AND item.final_disposition = $3)
+  FROM audit_executions AS execution WHERE execution.execution_id = $1`,
+		executionID, string(auditstore.CollectionContractInvalid), string(auditstore.FinalInvalidResult),
+	).Scan(&disposition, &errorCode, &receipts, &members, &settled))
+	if disposition != string(auditstore.CollectionContractInvalid) || errorCode != "collection-contract-invalid" ||
+		receipts != 1 || members == 0 || settled != members {
+		t.Fatalf("execution disposition=%s error=%s receipts=%d settled members=%d/%d, want contract-invalid",
+			disposition, errorCode, receipts, settled, members)
 	}
 }
 
