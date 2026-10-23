@@ -10,6 +10,7 @@ import zipfile
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
+import jcs
 import pytest
 from google.adk.tools import FunctionTool
 
@@ -786,5 +787,207 @@ def test_reader_errors_keep_distinct_codes_in_model_visible_envelope(monkeypatch
         assert _safe_tool_response("list_findings", raised.value)["error"]["code"] == (
             "findings_limit_exceeded"
         )
+
+    asyncio.run(scenario())
+
+
+def _sized_items(count, sizes):
+    """Synthetic prepared items whose canonical sizes vary with ``sizes``."""
+    return tuple(
+        {
+            "receipt_id": f"receipt-{index:03}",
+            # Every seventh item has the null subject of a proposal without one.
+            "subject": None
+            if index % 7 == 6
+            else {"kind": "code" if index % 3 else "route", "key": f"subject-{index % 2}"},
+            "title_preview": {"text": "t" * sizes(index), "truncated": False},
+            "evidence": [],
+            "reviews": [],
+        }
+        for index in range(count)
+    )
+
+
+def _legacy_page(tool, subject_kind=None, subject_key=None, limit=None, cursor=None):
+    """The replaced algorithm, which canonicalized the growing page per candidate."""
+    from contractor_runtime.toolsets.security_findings import reader as reader_module
+
+    matching = [
+        item
+        for item in tool._items
+        if (subject_kind is None or (item["subject"] or {}).get("kind") == subject_kind)
+        and (subject_key is None or (item["subject"] or {}).get("key") == subject_key)
+    ]
+    start = 0
+    if cursor is not None:
+        after = tool._decode_cursor(cursor, subject_kind, subject_key)
+        start = [item["receipt_id"] for item in matching].index(after) + 1
+    result = {"items": [], "next_cursor": None}
+    for index in range(start, min(len(matching), start + (20 if limit is None else limit))):
+        item = matching[index]
+        next_cursor = (
+            None
+            if index + 1 == len(matching)
+            else tool._cursor(item["receipt_id"], subject_kind, subject_key)
+        )
+        candidate = {"items": [*result["items"], item], "next_cursor": next_cursor}
+        if len(jcs.canonicalize(candidate)) > reader_module.MAX_PAGE_BYTES:
+            if not result["items"]:
+                raise FindingsError("findings_limit_exceeded")
+            break
+        result = candidate
+    return result
+
+
+def _expected_cursor(digest, after, kind=None, key=None):
+    # FND-R137: unpadded base64url of the canonical five-field object, no signature.
+    value = {
+        "version": 1,
+        "collection_digest": digest,
+        "subject_kind": kind,
+        "subject_key": key,
+        "after_receipt_id": after,
+    }
+    return base64.urlsafe_b64encode(jcs.canonicalize(value)).rstrip(b"=").decode()
+
+
+@pytest.mark.parametrize("subject", [(None, None), ("code", None), ("code", "subject-1")])
+def test_linear_page_assembly_matches_the_replaced_algorithm_byte_for_byte(monkeypatch, subject):
+    async def scenario():
+        from contractor_runtime.toolsets.security_findings import reader as reader_module
+
+        kind, key = subject
+        digest = "sha256:" + "c" * 64
+        tool = ListFindingsTool(
+            _sized_items(48, lambda index: (index * 37) % 400), digest, WorkerState().metrics, ()
+        )
+        matching = [
+            item
+            for item in tool._items
+            if (kind is None or (item["subject"] or {}).get("kind") == kind)
+            and (key is None or (item["subject"] or {}).get("key") == key)
+        ]
+        # Exact sizes of the first pages decide every boundary: one byte below,
+        # at and above the size of a page holding k items and its own cursor.
+        bounds = {reader_module.MAX_PAGE_BYTES}
+        for count in range(1, 5):
+            cursor = (
+                None
+                if count == len(matching)
+                else _expected_cursor(digest, matching[count - 1]["receipt_id"], kind, key)
+            )
+            size = len(jcs.canonicalize({"items": matching[:count], "next_cursor": cursor}))
+            bounds |= {size - 1, size, size + 1}
+        for bound in sorted(bounds):
+            monkeypatch.setattr(reader_module, "MAX_PAGE_BYTES", bound)
+            for limit in (None, 1, 2, 7, 100):
+                cursor, pages = None, 0
+                while True:
+                    try:
+                        expected = _legacy_page(tool, kind, key, limit, cursor)
+                    except FindingsError:
+                        with pytest.raises(FindingsError, match="findings_limit_exceeded"):
+                            await tool(
+                                subject_kind=kind, subject_key=key, limit=limit, cursor=cursor
+                            )
+                        break
+                    page = await tool(
+                        subject_kind=kind, subject_key=key, limit=limit, cursor=cursor
+                    )
+                    assert jcs.canonicalize(page) == jcs.canonicalize(expected)
+                    assert len(jcs.canonicalize(page)) <= bound
+                    pages += 1
+                    cursor = page["next_cursor"]
+                    if cursor is None:
+                        break
+                    assert cursor == _expected_cursor(
+                        digest, page["items"][-1]["receipt_id"], kind, key
+                    )
+                assert pages <= len(matching)
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "count,size,limit",
+    [
+        (256, 900, None),  # realistic: the default page of a full collection
+        (256, 900, 100),  # every item fits: the item limit ends the page
+        (256, 3000, 100),  # maximum: the 256 KiB bound ends each page
+    ],
+)
+def test_page_sizing_canonicalizes_each_candidate_item_once(monkeypatch, count, size, limit):
+    async def scenario():
+        from contractor_runtime.toolsets.security_findings import reader as reader_module
+
+        serialized = []
+        real = reader_module.canonical
+
+        def spy(value):
+            # Count every serialization of an item, alone or inside a page.
+            if isinstance(value, dict) and "receipt_id" in value:
+                serialized.append(value["receipt_id"])
+            elif isinstance(value, dict) and "items" in value:
+                serialized.extend(item["receipt_id"] for item in value["items"])
+            return real(value)
+
+        monkeypatch.setattr(reader_module, "canonical", spy)
+        tool = ListFindingsTool(
+            _sized_items(count, lambda _: size), "sha256:" + "d" * 64, WorkerState().metrics, ()
+        )
+        cursor, seen, examined = None, [], 0
+        while True:
+            serialized.clear()
+            page = await tool(limit=limit, cursor=cursor)
+            ids = [item["receipt_id"] for item in page["items"]]
+            seen.extend(ids)
+            full = len(ids) == (20 if limit is None else limit)
+            # Admitted items plus at most the one candidate the byte bound rejected.
+            assert serialized[: len(ids)] == ids
+            assert len(serialized) == len(ids) + (0 if full or page["next_cursor"] is None else 1)
+            assert len(set(serialized)) == len(serialized)
+            assert len(jcs.canonicalize(page)) <= reader_module.MAX_PAGE_BYTES
+            examined += len(serialized)
+            cursor = page["next_cursor"]
+            if cursor is None or limit is None:
+                break
+        if limit is None:
+            assert seen == [f"receipt-{index:03}" for index in range(20)]
+        else:
+            assert seen == [f"receipt-{index:03}" for index in range(count)]
+            # Linear: each item once, plus one rejected candidate per byte-bounded page.
+            assert examined < 2 * count
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("remaining", [True, False])
+def test_exact_256_kib_bound_includes_the_actual_final_cursor(remaining):
+    async def scenario():
+        from contractor_runtime.toolsets.security_findings import reader as reader_module
+
+        digest = "sha256:" + "e" * 64
+
+        def tool_with(filler):
+            sizes = {0: 100, 1: filler, 2: 10}
+            items = _sized_items(3 if remaining else 2, lambda index: sizes[index])
+            return ListFindingsTool(items, digest, WorkerState().metrics, ())
+
+        probe = tool_with(0)
+        cursor = _expected_cursor(digest, "receipt-001") if remaining else None
+        base = len(jcs.canonicalize({"items": list(probe._items[:2]), "next_cursor": cursor}))
+        exact = tool_with(reader_module.MAX_PAGE_BYTES - base)
+        page = await exact(limit=2)
+        assert [item["receipt_id"] for item in page["items"]] == ["receipt-000", "receipt-001"]
+        assert page["next_cursor"] == cursor
+        assert len(jcs.canonicalize(page)) == reader_module.MAX_PAGE_BYTES == 256 * 1024
+        over = tool_with(reader_module.MAX_PAGE_BYTES - base + 1)
+        page = await over(limit=2)
+        assert [item["receipt_id"] for item in page["items"]] == ["receipt-000"]
+        assert page["next_cursor"] == _expected_cursor(digest, "receipt-000")
+        # The item that did not fit is the next page's first item, not dropped.
+        second = await over(cursor=page["next_cursor"], limit=1)
+        assert [item["receipt_id"] for item in second["items"]] == ["receipt-001"]
+        assert second["next_cursor"] == cursor
 
     asyncio.run(scenario())

@@ -342,3 +342,283 @@ def test_missing_cached_grammar_never_downloads_during_publication(monkeypatch):
 
     monkeypatch.setattr(anchors, "get_parser", unexpected)
     assert derive("a.py", "sink(x)\n", 1) == anchors.unavailable("anchor_parser_unavailable")
+
+
+def padded_archive(size, marker):
+    """A stored source ZIP of exactly ``size`` bytes with one selectable file."""
+
+    def build(padding):
+        out = io.BytesIO()
+        with zipfile.ZipFile(out, "w", compression=zipfile.ZIP_STORED) as handle:
+            info = zipfile.ZipInfo("a.py", date_time=(1980, 1, 1, 0, 0, 0))
+            handle.writestr(info, f"sink({marker})\nsink(y)\n")
+            handle.writestr(zipfile.ZipInfo("pad.bin", date_time=(1980, 1, 1, 0, 0, 0)), padding)
+        return out.getvalue()
+
+    data = build(b"")
+    data = build(b"p" * (size - len(data)))
+    assert len(data) == size
+    return data
+
+
+class SourceAPI:
+    """Private API transport: exact source metadata/payload reads plus finding intake."""
+
+    def __init__(self, sources):
+        from test_security_findings_toolset import FakeFindingClient
+
+        self.sources = dict(sources)
+        self.intake = FakeFindingClient()
+        self.metadata_reads = []
+        self.payload_reads = []
+        self.reported_size = {}
+        self.missing = set()
+        self.payload_error = None
+        self.gate = None
+
+    @property
+    def requests(self):
+        return self.intake.requests
+
+    async def request(self, method, path, *, headers, body, max_response_bytes):
+        from urllib.parse import parse_qs, urlsplit
+
+        from contractor_runtime.artifacts import ArtifactHTTPResponse
+
+        if method != "GET":
+            return await self.intake.request(
+                method, path, headers=headers, body=body, max_response_bytes=max_response_bytes
+            )
+        parsed = urlsplit(path)
+        revision = parse_qs(parsed.query)["revision"][0]
+        if parsed.path.endswith("/metadata"):
+            self.metadata_reads.append(revision)
+            if revision in self.missing:
+                error = {
+                    "code": "artifact_not_found",
+                    "message": "artifact unavailable",
+                    "retryable": False,
+                    "requestId": "anchor-source-test",
+                }
+                return ArtifactHTTPResponse(
+                    404, {"content-type": "application/json"}, json.dumps(error).encode()
+                )
+            size = self.reported_size.get(revision, len(self.sources.get(revision, b"")))
+            metadata = {
+                "apiVersion": "contractor/v1alpha1",
+                "artifact": {**REF, "revision": revision},
+                "mediaType": "application/zip",
+                "size": size,
+            }
+            return ArtifactHTTPResponse(
+                200, {"content-type": "application/json"}, json.dumps(metadata).encode()
+            )
+        self.payload_reads.append(revision)
+        if self.gate is not None:
+            await self.gate.wait()
+        if self.payload_error is not None:
+            raise self.payload_error
+        return ArtifactHTTPResponse(
+            200,
+            {
+                "content-type": "application/zip",
+                "etag": f'"{revision}"',
+                "x-contractor-binding-created-at": "2026-10-22T00:00:00Z",
+                "x-contractor-revision-created-at": "2026-10-22T00:00:00Z",
+            },
+            self.sources[revision],
+        )
+
+
+async def code_finding_tool(api):
+    from test_security_findings_toolset import _settings, _workspace
+
+    from contractor_runtime.allocation import WorkerState
+    from contractor_runtime.artifacts import ArtifactClient
+    from contractor_runtime.toolsets.security_findings.facades import CodeFindingsToolsetFactory
+
+    client = ArtifactClient("allocation-test", api)
+    tools = await CodeFindingsToolsetFactory(lambda *_: client).create_selected(
+        selected=["finding"],
+        allocation_id="allocation-test",
+        run_id="run-test",
+        namespace="worker",
+        runtime_settings=_settings(),
+        workspace=_workspace(),
+        state=WorkerState(),
+    )
+    return tools["finding"], client
+
+
+async def submit_code_finding(tool, revision, call):
+    from test_finding_facades import context
+
+    from contractor_runtime.contracts import ArtifactRef
+
+    return await tool(
+        title="Sink reached",
+        description="An independent code observation.",
+        file="a.py",
+        line=1,
+        evidence_refs=[ArtifactRef.model_validate({**REF, "revision": revision})],
+        tool_context=context(call_id=call),
+    )
+
+
+def test_thirty_findings_reuse_one_exact_source_download_and_parse_each(monkeypatch):
+    from contractor_runtime.contracts import ArtifactRef
+
+    parses = []
+    real_parser = anchors.get_parser
+
+    def parser(language):
+        parses.append(language)
+        return real_parser(language)
+
+    monkeypatch.setattr(anchors, "get_parser", parser)
+
+    async def scenario():
+        api = SourceAPI({"1": archive("a.py", "sink(x)\nsink(y)\n")})
+        tool, client = await code_finding_tool(api)
+        exact = ArtifactRef.model_validate(REF)
+        for index in range(30):
+            cursor = client.observation_cursor
+            await submit_code_finding(tool, "1", f"call-{index}")
+            # Each publication observes the exact source content, served or downloaded.
+            assert client.observed_exact_refs_since(cursor) == (exact,)
+        assert api.payload_reads == ["1"]
+        assert api.metadata_reads == ["1"] * 30
+        # Derivation and parsing still happen once per publication (FND-R169).
+        assert parses == ["python"] * 30
+        derived = [request["derived_anchors"] for request in api.requests]
+        assert len(derived) == 30 and derived[0]["availability"] == "available"
+        assert all(value == derived[0] for value in derived)
+
+    asyncio.run(scenario())
+
+
+def test_concurrent_findings_share_one_exact_source_download():
+    async def scenario():
+        api = SourceAPI({"1": archive("a.py", "sink(x)\n")})
+        api.gate = asyncio.Event()
+        tool, _ = await code_finding_tool(api)
+        calls = [
+            asyncio.create_task(submit_code_finding(tool, "1", f"call-{index}"))
+            for index in range(30)
+        ]
+        for _ in range(1000):
+            if len(api.metadata_reads) == 30:
+                break
+            await asyncio.sleep(0)
+        assert len(api.metadata_reads) == 30 and api.payload_reads == ["1"]
+        api.gate.set()
+        await asyncio.gather(*calls)
+        assert api.payload_reads == ["1"]
+        assert len(api.requests) == 30
+        assert all(r["derived_anchors"]["availability"] == "available" for r in api.requests)
+
+    asyncio.run(scenario())
+
+
+def test_source_reuse_keeps_one_maximum_entry_and_is_released_with_the_tools():
+    async def scenario():
+        size = anchors.MAX_SOURCE_BYTES
+        api = SourceAPI({"1": padded_archive(size, "a"), "2": padded_archive(size, "b")})
+        api.reported_size["3"] = size + 1
+        tool, _ = await code_finding_tool(api)
+        for index, revision in enumerate(["1", "1", "2", "2", "1"]):
+            await submit_code_finding(tool, revision, f"call-{index}")
+        # One retained 8 MiB entry: another exact ref replaces and releases it.
+        assert api.payload_reads == ["1", "2", "1"]
+        await submit_code_finding(tool, "3", "oversized")
+        assert api.requests[-1]["derived_anchors"] == anchors.unavailable("input_limit")
+        assert api.payload_reads == ["1", "2", "1"]
+        assert all(
+            request["derived_anchors"]["availability"] == "available"
+            for request in api.requests[:-1]
+        )
+        await tool.close()
+        for index in range(2):
+            await submit_code_finding(tool, "1", f"released-{index}")
+        assert api.payload_reads == ["1", "2", "1", "1", "1"]
+
+    asyncio.run(scenario())
+
+
+def test_source_reuse_preserves_missing_mismatch_and_transport_outcomes():
+    from contractor_runtime.artifacts import ArtifactAPIError, ArtifactTransportError
+
+    async def scenario():
+        api = SourceAPI({"1": archive("a.py", "sink(x)\n"), "2": archive("a.py", "sink(z)\n")})
+        tool, _ = await code_finding_tool(api)
+        await submit_code_finding(tool, "1", "first")
+        assert api.payload_reads == ["1"] and len(api.requests) == 1
+        # Retained bytes never bypass the finding's own metadata read.
+        api.missing.add("1")
+        with pytest.raises(ArtifactAPIError):
+            await submit_code_finding(tool, "1", "missing")
+        api.missing.clear()
+        assert api.payload_reads == ["1"] and len(api.requests) == 1
+        # Metadata that disagrees with the retained bytes downloads again and
+        # fails exactly as a fresh download that disagrees with its metadata.
+        api.reported_size["1"] = len(api.sources["1"]) + 1
+        with pytest.raises(ArtifactTransportError, match="differs from exact content"):
+            await submit_code_finding(tool, "1", "mismatch")
+        del api.reported_size["1"]
+        assert api.payload_reads == ["1", "1"] and len(api.requests) == 1
+        await submit_code_finding(tool, "1", "consistent")
+        assert api.payload_reads == ["1", "1"] and len(api.requests) == 2
+        # A failed download retains nothing.
+        api.payload_error = ArtifactTransportError("source response lost")
+        with pytest.raises(ArtifactTransportError):
+            await submit_code_finding(tool, "2", "lost")
+        api.payload_error = None
+        await submit_code_finding(tool, "2", "retried")
+        assert api.payload_reads == ["1", "1", "2", "2"] and len(api.requests) == 3
+
+    asyncio.run(scenario())
+
+
+def test_cancelled_or_expired_source_download_retains_nothing():
+    from contractor_runtime.artifacts import ArtifactClient
+    from contractor_runtime.contracts import ArtifactRef
+    from contractor_runtime.toolsets.security_findings.anchors import ExactSourceCache
+
+    async def scenario():
+        api = SourceAPI({"1": archive("a.py", "sink(x)\n"), "2": archive("b.py", "sink(y)\n")})
+        api.gate = asyncio.Event()
+        client = ArtifactClient("allocation-test", api)
+        cache = ExactSourceCache()
+        first = await client.read_artifact_metadata(ArtifactRef.model_validate(REF))
+        leader = asyncio.create_task(cache.read(client, first))
+        waiter = asyncio.create_task(cache.read(client, first))
+        for _ in range(10):
+            await asyncio.sleep(0)
+        assert api.payload_reads == ["1"] and not waiter.done()
+        leader.cancel()
+        for _ in range(10):
+            await asyncio.sleep(0)
+        # The waiter is not failed by the cancelled download; it reads itself.
+        assert api.payload_reads == ["1", "1"] and not waiter.done()
+        api.gate.set()
+        with pytest.raises(asyncio.CancelledError):
+            await leader
+        assert (await waiter).data == api.sources["1"]
+        cursor = client.observation_cursor
+        assert (await cache.read(client, first)).data == api.sources["1"]
+        assert api.payload_reads == ["1", "1"]
+        assert client.observed_exact_refs_since(cursor) == (first.artifact,)
+        # A deadline that expires during the download leaves no partial entry.
+        api.gate = asyncio.Event()
+        second = await client.read_artifact_metadata(
+            ArtifactRef.model_validate({**REF, "revision": "2"})
+        )
+        with pytest.raises(TimeoutError):
+            async with asyncio.timeout(0):
+                await cache.read(client, second)
+        api.gate.set()
+        assert (await cache.read(client, second)).data == api.sources["2"]
+        assert (await cache.read(client, second)).data == api.sources["2"]
+        assert api.payload_reads == ["1", "1", "2", "2"]
+
+    asyncio.run(scenario())

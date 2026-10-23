@@ -629,6 +629,17 @@ Use only already cached versioned grammars during publication; missing or
 unloadable grammars yield `anchor_parser_unavailable`, without a lazy download.
 Runtime installation/test preparation owns prefetching pinned parser assets.
 
+**FND-R184.** The publisher of one allocation may retain the bytes of at most
+one selected exact ZIP within the LIM-FND-38 input bound and reuse them for a
+later finding that selects the same exact ref. Each finding still resolves the
+metadata of every selected ref, and reuse requires the media type and size that
+this resolution reports; otherwise the source is read again and checked as a
+fresh read is. Reuse counts as a content observation of the exact revision, as
+a read does. Concurrent findings of one exact ref share one read; a failed,
+cancelled or expired read retains nothing. Selecting another exact ZIP replaces
+the retained bytes, and allocation release discards them. ASTs and derivations
+are never retained, so each publication parses its selected files again.
+
 **FND-R170.** Resolve an exact inclusive line/range to one supported
 statement. Python statements must be direct children of a module/block;
 JavaScript/TypeScript support lexical/variable declarations, expression,
