@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
@@ -18,8 +19,8 @@ func TestSnapshotRoundTripPreservesExactInputsAndExecutionPatch(t *testing.T) {
 	projectID := "project-1"
 	encoded, err := Encode(Snapshot{
 		Workflow: resolved.WorkflowRef{Name: "review", Version: "1"}, ProjectID: &projectID,
-		Inputs: map[string]contracts.ArtifactRef{
-			"source": {Namespace: "sources", Name: "service", Revision: &revision},
+		Inputs: map[string]InputSource{
+			"source": {SourceScope: artifacts.ScopeProject, Artifact: contracts.ArtifactRef{Namespace: "sources", Name: "service", Revision: &revision}},
 		},
 		ExecutionConfig: patch,
 	})
@@ -42,14 +43,14 @@ func TestSnapshotRoundTripPreservesExactInputsAndExecutionPatch(t *testing.T) {
 func TestSnapshotRejectsVersionlessAndUnknownData(t *testing.T) {
 	_, err := Encode(Snapshot{
 		Workflow: resolved.WorkflowRef{Name: "review", Version: "1"},
-		Inputs: map[string]contracts.ArtifactRef{
-			"source": {Namespace: "sources", Name: "service"},
+		Inputs: map[string]InputSource{
+			"source": {SourceScope: artifacts.ScopeUser, Artifact: contracts.ArtifactRef{Namespace: "sources", Name: "service"}},
 		},
 	})
 	if !errors.Is(err, ErrInvalidSnapshot) {
 		t.Fatalf("versionless input error = %v", err)
 	}
-	if _, err := Decode([]byte(`{"schemaVersion":"contractor.run-repeat-request/v1","workflow":{"name":"review","version":"1"},"inputs":{},"executionConfig":{},"extra":true}`)); !errors.Is(err, ErrInvalidSnapshot) {
+	if _, err := Decode([]byte(`{"schemaVersion":"contractor.run-repeat-request/v2","workflow":{"name":"review","version":"1"},"inputs":{},"executionConfig":{},"extra":true}`)); !errors.Is(err, ErrInvalidSnapshot) {
 		t.Fatalf("unknown field error = %v", err)
 	}
 }
@@ -75,5 +76,12 @@ func TestSnapshotRequiresExplicitExecutionConfig(t *testing.T) {
 		} else if !errors.Is(err, ErrInvalidSnapshot) {
 			t.Fatalf("patch %s accepted: %v", value, err)
 		}
+	}
+}
+
+func TestSnapshotRejectsLegacyUnscopedInputs(t *testing.T) {
+	_, err := Decode([]byte(`{"schemaVersion":"contractor.run-repeat-request/v1","workflow":{"name":"review","version":"1"},"inputs":{},"executionConfig":{}}`))
+	if !errors.Is(err, ErrInvalidSnapshot) {
+		t.Fatalf("legacy snapshot accepted: %v", err)
 	}
 }

@@ -199,6 +199,9 @@ func escalationExecutionConfigOrigin(
 // Worker bindings and base execution configuration against its Planner and
 // Agents.
 func ValidateWorkflowExecutionConfigs(workflow ResolvedWorkflow) error {
+	if err := validateRulepackSourceScopes(workflow); err != nil {
+		return err
+	}
 	for stageName, stage := range workflow.Stages {
 		if err := ValidateScanPlanStage(stage); err != nil {
 			return fmt.Errorf("Stage %q: %w", stageName, err)
@@ -227,7 +230,11 @@ func ValidateWorkflowExecutionConfigs(workflow ResolvedWorkflow) error {
 						return fmt.Errorf("tool@1 argument names undeclared parameter")
 					}
 				case "artifact":
-					if _, ok := stage.Context.Artifacts[source.Name]; !ok {
+					context, ok := stage.Context.Artifacts[source.Name]
+					if source.Optional && context.Required {
+						return fmt.Errorf("optional artifact binding requires optional context")
+					}
+					if !ok {
 						return fmt.Errorf("tool@1 argument names undeclared context artifact")
 					}
 				}

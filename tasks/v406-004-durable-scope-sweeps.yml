@@ -1,0 +1,153 @@
+schema_version: '1.0'
+id: V406-004
+title: Coordinate durable bounded Nuclei sweeps over Project scopes
+milestone: web-nuclei-rule-sweeps-2026-10
+epic: scan-tools
+kind: feature
+priority: P2
+status: in_progress
+depends_on:
+- V406-002
+- V406-003
+languages:
+- go
+- sql
+- yaml
+goal: Create one durable owner-authorized sweep, pin its concrete Projects, targets, Workflow and rule
+  content, and recover bounded child Run admission without rescanning already admitted members.
+context:
+  proposal: docs/proposals/0041-web-nuclei-scanning-and-rule-sweeps.md
+  specification:
+  - docs/spec/artifacts/projects.md
+  - docs/spec/artifacts/artifact-store.md
+  - docs/spec/execution/scheduler.md
+  - docs/spec/platform/persistence.md#PER-R24
+  - docs/spec/platform/persistence.md#PER-R25
+  - docs/spec/platform/failure-model.md
+  - docs/spec/platform/lifecycle.md
+  - docs/spec/api/public-api.md
+scope:
+  in:
+  - Implement the sweep resource, schema/migrations, owner-bound create/read/list/cancel/purge API and
+    bounded controller in one production path.
+  - Retain authorized exact input snapshots before dispatch; capture concrete Project IDs, httpTarget.url,
+    resolved Workflow/template pins, projected params, source digests and canonical child requests/keys.
+  - Reuse KeyedMutation and ControllerClaims plus ordinary Project Run creation/replay; preserve completed/unknown
+    member facts and source snapshots across restarts.
+  - Implement per-member pending/admitted/skipped/failed states, paginated read views, cancellation, Project
+    deletion races and populated purge.
+  - Update owning specs/OpenAPI, error/limit/failure/lifecycle registries, generated client, architecture/table
+    ownership/ERD and real-store/process tests.
+  out:
+  - New Scheduler lane paths, receipt/lease families, model decisions or per-host pacing.
+  - Ordinary Run endpoint implicit target defaulting and arbitrary cross-scope request authority.
+  - 'UI/CLI sweep surfaces: V406-006.'
+requirements:
+- id: R1
+  text: At most 1000 unique Projects and an 8 MiB total canonical snapshot; child request bytes are at
+    most 16 KiB. Scope membership/targets/inputs are fixed at admission, not re-read on recovery.
+- id: R2
+  text: Each tick processes at most 25 members and 4 MiB of serialized child requests; result lists use
+    existing API page limits and keyset pagination.
+- id: R3
+  text: Missing/deleting/targetless Projects settle with explicit reasons without blocking eligible members.
+    Before any remote child create, persist its canonical request and key.
+- id: R4
+  text: Resume replays identical child keys/bodies; changed inputs conflict and explicitly new sweeps
+    receive new identities. Retained source forks survive original UserScope binding deletion.
+- id: R5
+  text: Cancellation stops new admissions and requests cancellation of already admitted Runs, exposing
+    actual states. Purge joins controller work and removes only sweep-owned snapshots/metadata.
+- id: R6
+  text: Every SQL statement of 10 or more lines lives in the owning *_sql.go; table, migration and claim
+    ownership have production readers/callers in this change.
+failure_outcomes:
+- operation: Sweep create, input snapshotting, controller claim, child Run creation and cancellation/purge
+  permanent: Owner/missing/invalid/conflict API errors are nonretryable; deterministic member errors settle
+    only that member; every storage-reaching handler documents storage_transaction_conflict.
+  retryable: Existing bounded controller backoff/claim deadlines and retryable storage classification.
+  ambiguous: Keyed sweep creation and captured per-member Run keys reconcile lost responses; never blindly
+    repeat scans or allocate a new key.
+  cancelled: Join controller work and mark unsent members cancelled; ordinary Run cancellation/release
+    owns admitted children.
+  timeout: Separate sweep admission, controller-operation and child API deadlines; existing Run/Stage
+    deadlines own actual scanning.
+cardinality:
+- collection: Projects/members in one sweep
+  expected: '7'
+  maximum: 1000 Projects; 8 MiB snapshot
+  bound: 25 members/4 MiB per tick; keyset-paged result reads; no whole-sweep rescan on polling.
+- collection: Retained sweep source inputs
+  expected: 0 or 1 rulepack and one installed-package pin
+  maximum: The selected exact source bytes within V406-001/V406-003 limits, retained once per sweep
+  bound: Share immutable blob content through ordinary forks; no per-Project copies or new scope kind.
+lifecycle:
+- entity: Sweep, members, existing mutation receipts/controller claims and input snapshots
+  delete: Owner may cancel; purge requires joined controller work and terminal or transferred child admissions.
+  cascade: Sweep-owned members/snapshots cascade; Project Runs and owner sources retain independent lifecycle.
+  retention: Keep snapshots through recovery and pending admission, then ordinary sweep retention; define
+    retention numerically in lifecycle registry before implementation.
+acceptance_criteria:
+- id: A1
+  given: 7 and 1000 Projects including targetless/deleting Projects and one shared source pack
+  when: sweep admission and bounded controller ticks run
+  then: eligible members create one ordinary Project Run each, skips are explicit and work/read limits
+    hold on PostgreSQL
+- id: A2
+  given: lost child/sweep acknowledgements, competing controllers, restart and changed Project/source
+    bindings
+  when: reconciliation resumes
+  then: one create key resolves to one Run; retained inputs/pins stay unchanged; no completed/unknown
+    scan is silently restarted
+- id: A3
+  given: source deletion and unavailable content, retries, deadlines and per-member permanent errors
+  when: pending members dispatch
+  then: retained bytes are used, failures are bounded/classified and unaffected members continue
+- id: A4
+  given: a fully populated active/terminal sweep with admitted Runs and retained source artifacts
+  when: cancel and purge run
+  then: new admissions stop, actual child states are shown, controller work is joined and only sweep-owned
+    state is removed
+tests:
+- command: go test ./internal/scancontroller/... ./internal/scanstore/... ./internal/scanservice/... ./internal/httpapi/public/...
+    ./internal/persistence/postgres/...
+  covers: &id001
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make test-postgres
+  covers: *id001
+- command: make verify-public-api
+  covers: *id001
+- command: make verify-public-api-postgres
+  covers: *id001
+- command: make test-nuclei-web-e2e
+  covers: *id001
+- command: make docs-erd
+  covers: *id001
+- command: make verify-architecture
+  covers: *id001
+- command: make lint
+  covers: *id001
+progress:
+  completed_work:
+  - Confirmed V406-002 and V406-003 are completed. Read sweep proposal and existing Run admission, ArtifactStore
+    fork, keyed-mutation, controller-claim and active Server boundaries.
+  - Identified the existing runservice.PublicCreateParams.PinnedWorkflow/ExpectedWorkflowSHA256 path as
+    the child admission boundary; no second scanner execution or Scheduler path is needed.
+  - Confirmed that ordinary Artifact forks currently target RunScope/ProjectScope only. Sweep-owned retained
+    inputs need an explicitly constrained trusted retention path, and its purge must preserve already
+    admitted Run forks.
+  - 'Confirmed database-wide active Server lease behavior: process gates on one test database must run
+    serially or use separate databases.'
+  remaining_work:
+  - Specify immutable membership/target/configuration/input snapshot contracts, exact retained source
+    provenance, numeric retention, pagination and cancellation/purge outcomes in the owning specs and
+    public API.
+  - Implement bounded real-store sweep admission and member reconciliation using existing KeyedMutation
+    and ControllerClaims, with production readers/callers for every new table or export.
+  - Fence child creation against cancellation/purge at the transaction boundary; reconcile response loss
+    through captured child keys and pinned Workflow admission.
+  - Add authorization, 7/1000-member bounds, concurrent/restart/response-loss, source deletion, cancellation
+    and populated purge coverage, and run every listed gate before closure.

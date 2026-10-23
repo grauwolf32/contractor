@@ -113,7 +113,7 @@ func ValidateScanPlanStage(stage ResolvedStage) error {
 		}
 		for name, source := range expected {
 			actual, exists := execution.Arguments[name]
-			if !exists || actual.Source != source.Source || actual.Name != source.Name || actual.Value != nil {
+			if !exists || actual.Source != source.Source || actual.Name != source.Name || actual.Value != nil || actual.Parse != "" || actual.Default != nil || actual.Optional {
 				return fmt.Errorf("scanPlan Worker has an invalid dynamic input binding")
 			}
 		}

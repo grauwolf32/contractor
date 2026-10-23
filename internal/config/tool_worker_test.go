@@ -118,3 +118,58 @@ func TestToolWorkerRejectsModelAndInvalidBindings(t *testing.T) {
 		t.Fatal("missing parameter accepted")
 	}
 }
+
+func TestUserRulepackScopeIsNarrowAndSurvivesSnapshots(t *testing.T) {
+	snapshot := mustLoad(t, scanFixtureRoot)
+	for _, variant := range []string{"valid", "required", "wrong_slot", "wrong_media", "missing_binding", "required_context", "output", "stage_result"} {
+		t.Run(variant, func(t *testing.T) {
+			workflow, err := snapshot.Workflow("nuclei-target@1")
+			if err != nil {
+				t.Fatal(err)
+			}
+			workflow.Inputs["rulepack"] = resolved.ArtifactSlot{SourceScope: "user", MediaTypes: []string{"application/yaml"}}
+			stage := workflow.Stages["scan"]
+			stage.Context.Artifacts["rulepack"] = resolved.ContextArtifact{Namespace: "inputs", Name: "rulepack"}
+			agent := stage.Agents["scanner"]
+			agent.Template.Execution.Arguments["rulepack_ref"] = contracts.ToolArgumentBinding{Source: "artifact", Name: "rulepack", Optional: true}
+			switch variant {
+			case "required":
+				slot := workflow.Inputs["rulepack"]
+				slot.Required = true
+				workflow.Inputs["rulepack"] = slot
+			case "wrong_slot":
+				workflow.Inputs["source"] = workflow.Inputs["rulepack"]
+				delete(workflow.Inputs, "rulepack")
+			case "wrong_media":
+				slot := workflow.Inputs["rulepack"]
+				slot.MediaTypes = []string{"application/zip"}
+				workflow.Inputs["rulepack"] = slot
+			case "missing_binding":
+				delete(agent.Template.Execution.Arguments, "rulepack_ref")
+			case "required_context":
+				value := stage.Context.Artifacts["rulepack"]
+				value.Required = true
+				stage.Context.Artifacts["rulepack"] = value
+			case "output":
+				workflow.Outputs["rulepack"] = workflow.Inputs["rulepack"]
+			case "stage_result":
+				stage.Result.Artifacts["rulepack"] = workflow.Inputs["rulepack"]
+			}
+			stage.Agents["scanner"] = agent
+			workflow.Stages["scan"] = stage
+			err = resolved.ValidateWorkflowExecutionConfigs(workflow)
+			if (err == nil) != (variant == "valid") {
+				t.Fatalf("validation: %v", err)
+			}
+			if variant == "valid" {
+				encoded, err := json.Marshal(workflow)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := resolved.DecodeResolvedWorkflowSnapshot(encoded); err != nil {
+					t.Fatal(err)
+				}
+			}
+		})
+	}
+}

@@ -172,7 +172,7 @@ exactly one source:
 
 | `source` | Required payload | Resolved value |
 | --- | --- | --- |
-| `parameter` | `name`, 1–128 non-whitespace characters (LIM-SCN-4) | The unchanged `StageContentRequest.parameters` string |
+| `parameter` | `name`, 1–128 non-whitespace characters (LIM-SCN-4) | The supplied `StageContentRequest.parameters` string, or explicitly parsed/defaulted value (SCN-R222) |
 | `artifact` | `name`, with the same bounds | The exact ArtifactRef object from `StageContentRequest.artifacts` |
 | `literal` | `value` | A non-null JSON string, boolean or finite number |
 
@@ -183,11 +183,35 @@ other sources.
 must be finite and, when integral, within the exactly representable integer
 range ±9007199254740991 (LIM-SCN-6).
 
-**SCN-R9.** There is no string interpolation and no implicit JSON or type
-coercion.
+**SCN-R9.** There is no string interpolation or implicit JSON/type coercion.
+Only an explicit `parameter` binding's `parse: integer` performs conversion
+(SCN-R222); the public Run parameter mapping remains unchanged.
 
-**SCN-R10.** Numeric limits can be pinned as literals; omitted arguments use
-the callable's defaults.
+**SCN-R10.** Numeric limits can be pinned as literals or supplied through an
+explicit integer parameter binding. Callable defaults apply to arguments absent
+from `execution.arguments`; parameter binding defaults follow SCN-R223.
+
+**SCN-R222.** A `parameter` binding may declare `parse: integer`. Supplied
+text must match the complete ASCII grammar `0|[1-9][0-9]*` and represent an
+integer from zero through 9007199254740991 (LIM-SCN-6). Validate its length
+before conversion. Signs, whitespace, leading zeroes, fractions, exponents and
+empty strings fail. Without `parse`, supplied strings pass through unchanged.
+The callable or scanner owns any narrower domain range.
+
+**SCN-R223.** A `parameter` binding may declare a non-null `default`. It is a
+string within LIM-SCN-5 without `parse`, or an exact nonnegative integer within
+LIM-SCN-6 with `parse: integer`. It applies only when the named parameter is
+absent; explicitly supplied empty/invalid text never selects it. A missing
+parameter without a default fails. Other sources forbid `parse` and `default`;
+explicit null, unknown options and unknown parsers fail strict decoding.
+
+**SCN-R224.** Server validates bound parameter projections at ordinary tool
+Workflow admission, and Runtime uses the same projection before strict callable
+validation. `scan-plan@1` retains ownership of generated per-job parameters.
+Neither projection modifies the supplied durable Run string map. Resolved
+arguments, including typed defaults, enter the ordinary tool input digest.
+Bindings remain bounded by LIM-SCN-2 and LIM-SCN-9; errors do not echo supplied
+values.
 
 **SCN-R11.** Artifacts remain refs for adapters to resolve, never local paths
 or model context.
@@ -322,7 +346,7 @@ an immutable revision and exclude the primary report slot. Invalid output
 mappings fail as `tool_output_invalid`.
 
 **SCN-R45.** Before publishing success, Runtime verifies each exact revision
-through the Artifact API with a 512 KiB read bound (LIM-SCN-12). Inaccessible
+through the Artifact API with a 16 MiB read bound (LIM-SCN-12). Inaccessible
 or mismatched published revisions fail as `tool_report_failed` (FAIL-SCN-3).
 
 **SCN-R46.** The receipt persists the validated refs, and WorkerCompletion
@@ -401,6 +425,206 @@ empty matches, an empty result list, an empty SQL-injection technique list,
 truncation, a completed process and a completed invocation never establish that
 a target is secure or free of vulnerabilities, or a negative SQL-injection
 result.
+
+### Pinned installed Nuclei web scans
+
+**SCN-R225.** `nuclei-web@1` accepts a required explicit `target` and optional
+string `template_ids`, `tags`, `severity` and `rate_limit`. Its passthrough Stage
+uses `nuclei-web-scan@1`, `tool@1`, `local-workdir@1` and `scan@1.scan_nuclei`,
+without a model or OpenAPI input. Empty filter defaults select the engine's
+eligible HTTP templates; omitted rate defaults to integer 10. Explicit rate
+text follows SCN-R222 and must project to 1..1000. The adapter deadline is
+300 seconds and Worker deadline 330 seconds to allow diagnostic publication.
+Server admission and Runtime share scanner-owned input fixtures: URLs use the
+bounded printable ASCII HTTP request URL grammar and shared host syntax;
+filters are at most 2048 bytes of comma-separated names matching
+`[A-Za-z0-9_*][A-Za-z0-9_.*-]*`; severity names are exactly info, low, medium,
+high, critical and unknown. Inputs are never rewritten in the durable Run.
+
+**SCN-R226.** The AgentTemplate pins the installed package using a literal
+`templates_digest` (`sha256:` and 64 lowercase hexadecimal characters), covered
+by its resolved digest, the Run snapshot and invocation input digest. The
+shipped pin covers the complete Ansible-provisioned nuclei-templates v10.5.0
+release archive. A changed installation requires a matching authored literal
+for new Runs. Existing direct/Audit adapters may omit the pin; they retain
+explicitly unpinned installed-rule semantics. No caller substitutes a local
+package for a supplied mismatching pin (FAIL-SCN-12).
+
+**SCN-R227.** Canonical package identity is SHA-256 of RFC 8785 JSON
+`{"schemaVersion":1,"files":[{"path":...,"digest":...,"size":...},...]}`.
+Each path is package-relative with `/` separators; records sort by UTF-8 path
+bytes. Include every regular file, including helper resources and engine ignore
+files, without extension filtering. Symlinks and special files fail. Bound the
+package to 50000 files, 512 MiB aggregate and 16 MiB per file (LIM-SCN-69 to
+LIM-SCN-71); directory traversal admits at most 100000 entries, depth 64 and
+1024 UTF-8 path bytes (LIM-SCN-73 to LIM-SCN-75). Reject empty packages. The
+canonical package/provenance JSON is at most 16 MiB (LIM-SCN-72).
+
+**SCN-R228.** Before pinned scanning, Runtime copies and hashes the complete
+installation into a private per-invocation directory using link-refusing opens,
+regular-file checks and streaming count/byte limits. Copying, hashing and
+selected-template manifest assembly run off the event loop and consume the
+scanner preparation deadline. Scanning reads only verified private bytes,
+including relative helper resources; subsequent changes to the installation
+cannot change them. Replacement allocations verify the same pin again.
+Cancellation/close joins copy threads and all subprocesses before scratch
+removal (LIFE-SCN-7).
+
+**SCN-R229.** With the verified private package and the same HTTP/ID/tag/severity
+filters, Runtime invokes the engine's bounded local `-tl` selection before the
+scan. Every selected path must resolve inside that manifest and name a YAML
+file with a top-level scalar Nuclei ID (plain or quoted ASCII ID). Empty,
+duplicate, escaping or malformed selections fail as `nuclei_selection_invalid`.
+The installed engine's version probe must yield a version and finish within two
+seconds and the remaining preparation budget. Runtime publishes create-only
+`template-manifest` in the scanner Namespace before target scanning. It contains
+schemaVersion 1, packageDigest, all file records, selectedTemplates with ID/path/
+content digest/size, and engineVersion. Publication ambiguity or failure stops
+before scanning; existing receipt semantics prevent another invocation.
+
+**SCN-R230.** The web Workflow declares the `template_manifest` result and
+output as `application/vnd.contractor.nuclei-manifest+json`. The bounded ordinary
+report contains expectedPackageDigest, actualPackageDigest when computed,
+engineVersion when known, selectedTemplateCount, resolved filters/rateLimit and
+the exact templateManifest ArtifactRef. The separate manifest carries the large
+rule list and follows ordinary Run retention/purge. Reports remain bounded by
+SCN-R41; additional revision verification follows SCN-R45.
+
+**SCN-R231.** Missing installed content yields `nuclei_templates_unavailable`;
+invalid/unbounded package content yields `nuclei_package_invalid`; a differing
+computed digest yields `nuclei_package_mismatch`. These fixed nonretryable
+preparation diagnostics launch no target scan. Mismatch reports retain both
+expected and actual digests. `scan-plan@1` classifies invalid packages, mismatch
+and invalid selection as incomplete through the shared outcome table. Timeout,
+process/output failure, cancellation and ambiguous receipt delivery retain their
+existing outcomes; none implies a clean scan or automatic rescan (FAIL-SCN-12).
+
+### Resumable client Project sweeps
+
+**SCN-R232.** `contractor scan-sweep create MANIFEST` captures a bounded
+selection of explicit `--project` IDs or every owner-authorized Project page
+with `--all`, before any child POST. The default Workflow is `nuclei-web@1`;
+`--workflow` requires an exact selector. Capture Project IDs, explicit target
+URLs from `httpTarget.url`, supplied `--param` values, exact declared-source input
+Artifact revisions from `--artifact` (SCN-R243), child requests and per-member create keys.
+Target cannot be supplied through `--param`. Runs use the ordinary Project Run
+API and include a `scan-sweep` metadata label. Missing/deleting/targetless
+Projects and inaccessible required source refs are explicit member skips; no
+Project credential material enters the manifest.
+
+**SCN-R233.** The version-1 local manifest contains one immutable snapshot
+(Server origin, sweep ID and ordered members), its RFC 8785 SHA-256 digest,
+per-request digests and mutable member outcomes. The strict reader rejects
+unknown/duplicate/case-aliased fields, malformed/nonexact inputs, altered
+requests/keys/digests and other Server origins before dispatch. A request is
+canonical CreateRunRequest JSON, not a lossy re-creation from a Project. The
+checksum detects accidental modification; this owner-controlled local file is
+not an authorization boundary. Changed inputs require a new `create` invocation,
+new sweep identity and new keys. `resume` accepts no input/selection flags.
+This client freezes requests and Artifact revisions; ordinary Run admission
+still resolves the selected catalog content. The operator keeps published
+catalog content stable during a client sweep; per-Run package digests in the
+reports detect drift. Server-owned sweeps must pin resolved configuration to
+remove that pre-production operational condition.
+
+**SCN-R234.** A client scope contains at most 1000 unique Projects
+(LIM-SCN-76); the manifest is at most 8 MiB (LIM-SCN-77), each captured child
+request 16 KiB (LIM-SCN-78) and each API response 4 MiB (LIM-SCN-79). Every
+Project page requests at most 200 rows; duplicate members, repeated/empty
+continuation cursors and empty continuing pages fail. Only one child request
+runs at a time. Capture completes before the first POST; local outcome writes
+replace at most 8 MiB after each member (at most 1001 bounded writes for a full
+invocation). The expected scope is about 7 Projects.
+
+**SCN-R235.** The existing Go public client retries replayable calls at most
+three times (within the sweep's five-attempt ceiling) using the unchanged body
+and idempotency key. Respect a valid Retry-After in seconds or HTTP-date;
+waiting more than 30 seconds returns the retryable response for explicit later
+resume rather than retrying early. API attempts retain the CLI `--timeout`;
+`--deadline` independently bounds the whole invocation (default 30 minutes,
+maximum 24 hours; LIM-SCN-80). Exhausted/ambiguous calls leave a member unknown;
+resume repeats only pending/unknown requests with the original key. Permanent
+member failures never block other eligible Projects and are not automatically
+resubmitted. Create/resume prints the bounded outcomes and exits nonzero if
+unknown/permanently failed members remain. `created` means Run accepted, not
+scan completed (FAIL-SCN-13).
+
+**SCN-R236.** Publish the initial manifest create-only before dispatch; each
+update uses a mode-0600 temporary file, fsync, atomic replacement and directory
+sync. A persistent sidecar inode and Unix advisory lock exclude concurrent CLI
+writers; process death releases the kernel lock. Never remove that sidecar
+while a command is active. Cancellation joins the in-flight HTTP call and saves
+its known/unknown outcome; if local persistence fails, the previous valid file
+still preserves the child key/request for idempotent resume. The operator owns
+manifest/sidecar removal while idle, independently of ordinary Run retention
+(LIFE-SCN-8). `status` reads local membership; ordinary Run/Project APIs show
+execution and reports.
+
+**SCN-R237.** A required production-process gate exercises the shipped web
+Workflow and client sweep with a deterministic scanner protocol fixture,
+without host scanner dependencies. It covers admission, HTTP invocation,
+exact report/manifest publication, Project grouping, lost-create acknowledgement
+and settled-member replay. A separate explicit gate retains real installed
+Nuclei smoke coverage. A zero-test or skipped acceptance selection is not a pass.
+
+### Owner-uploaded custom Nuclei rulepacks
+
+**SCN-R238.** `scan_nuclei` accepts optional `rulepack_ref`, an exact
+visible RunScope ArtifactRef. An absent binding selects installed mode; a
+supplied invalid/inaccessible pack fails without fallback. The web Workflow's
+optional `rulepack` input declares `sourceScope: user`; trusted Run admission
+derives its UserScope from the authenticated owner even for Project Runs,
+validates media/size and forks the exact source to `inputs/rulepack` in the
+same create transaction. No request selects a scope ID. Other Project inputs
+remain ProjectScope inputs. Runtime receives only RunScope authority.
+
+**SCN-R239.** A pack is one UTF-8 HTTP template with `application/yaml`, or a
+flat archive with `application/vnd.contractor.nuclei-rulepack+zip`. ZIP input
+is at most 16 MiB; expanded content is at most 64 MiB, 1000 files and 1 MiB
+per file (also the single-YAML limit; LIM-SCN-81 to LIM-SCN-84). Only stored
+or deflated regular `.yaml`/`.yml` files are accepted. Reject directories,
+links, escapes, special files, encryption, split/ZIP64/SFX/appended archives,
+unsupported entries, duplicate IDs and duplicate or Unicode/case-fold-colliding
+names. Names contain at most 128 UTF-8 bytes, no leading dot, surrounding
+whitespace, separators, colon or controls (LIM-SCN-85). ZIP entry preflight and
+streaming expansion enforce limits before unbounded allocation or writes.
+
+**SCN-R240.** Parse every template, rejecting duplicate/non-string YAML
+mapping keys, aliases, anchors, explicit tags, multiple documents, invalid IDs,
+missing/empty HTTP requests and other protocol templates. Bound YAML to
+100000 tokens and depth 64 (LIM-SCN-86, LIM-SCN-87). Off-loop private extraction,
+validation, hashing and manifest assembly share the scanner deadline. Native
+Nuclei `-validate` validates the complete private pack before filters or target
+scanning; a single invalid file rejects the whole pack as
+`nuclei_rulepack_invalid`. Unavailable Artifact reads use
+`scan_artifact_unavailable`; validation never silently falls back or retries
+(FAIL-SCN-14).
+
+**SCN-R241.** Custom mode works without an installed template directory and
+exclusively supplies private pack bytes to validation, selection and scanning.
+It overrides the installed package pin without adding installed rules. Apply
+ordinary ID/tag/severity selection within the pack. Canonical package identity
+and the create-only manifest follow SCN-R227 and SCN-R229; the manifest additionally
+records `source` with kind `rulepack`, exact Run input ArtifactRef and raw source
+contentDigest. The report records source `rulepack`, rulepackArtifact,
+sourceContentDigest and actualPackageDigest. Source advancement cannot change
+a Run's fork or invocation bytes. Purge removes the Run fork and manifest,
+independently of the owner source (LIFE-SCN-9).
+
+**SCN-R242.** Custom rules are trusted owner-controlled content. Ordinary
+supplied-target validation, no proxy, disabled OAST and HTTP-only selection
+remain enforced. Isolation of template-controlled request destinations is an
+accepted non-goal owned by the operator; reconsider before accepting untrusted
+or shared rulepacks. Pack size, structure, source scope and provenance remain
+strictly enforced. No arbitrary scope/owner selection is added.
+
+**SCN-R243.** Client sweeps inspect the selected Workflow input contract when
+artifact inputs are supplied. Resolve each owner-scoped rulepack once to an
+exact UserScope revision before dispatch and reuse it across Projects; resolve
+ordinary inputs per Project. Resume reads no mutable source. Repeat snapshots
+retain each original exact source with its explicit sourceScope; a catalog
+change to that scope makes the repeat input unavailable rather than selecting
+another scope's same-named artifact.
 
 ### SQLMap HTTP request artifacts
 
@@ -990,6 +1214,8 @@ scanner may have only one Worker. Workers use `tool@1`, `scan@1` and the
 
 **SCN-R174.** All extra tool arguments are pinned scalar literals in the
 resolved AgentTemplate, so policy cannot override template-owned scanner flags.
+The fixed dynamic-input bindings have no parser or default; the Planner owns
+and supplies those exact per-job values.
 
 **SCN-R175.** Worker allocation, readiness, leases and placement remain
 Scheduler responsibilities ([Scheduler](../execution/scheduler.md)). All

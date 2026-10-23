@@ -159,7 +159,12 @@ backward compatible.
 committed contract by a pinned oapi-codegen version that builds without
 network access, and is never hand-edited. Its freshness check regenerates it
 into a temporary file and fails `make lint` when the result differs from the
-committed client; the UI client follows the same rule (UI-R19).
+committed client; the UI client follows the same rule (UI-R19). The Go public
+client replays only requests with a replayable method or idempotency key and a
+rewindable body, at most three attempts per call. It honours a valid Retry-After
+up to 30 seconds; a longer delay returns the response for explicit later resume,
+without an early retry. Scanner sweep recovery uses that existing transport
+([SCN-R235](../tools/scanners.md)).
 
 **API-R70.** Every identity the public API shows as a `ResourceId` (or as the
 `Revision` and live event `SafeIdentifier` it equals) uses the resource
@@ -381,7 +386,9 @@ parameter (OpenAPI `#/components/parameters/Limit`) accepts a page of 1 to
 `400 invalid_request`. Server reads one row beyond the requested page to
 decide `page.hasMore` and the continuation cursor, so every store behind such
 a collection accepts a read of 201 rows. Server, its stores and the CLI take
-both numbers from one definition. Collections with their own bound declare
+both numbers from one definition. The shared continuation cursor is at most
+512 bytes (LIM-API-23); Server and CLI use the same Go bound, checked against
+both OpenAPI Cursor and PageInfo. Collections with their own bound declare
 it instead: Managed Eval lists (LIM-EVM-15) and allocation history
 (LIM-OPS-28).
 

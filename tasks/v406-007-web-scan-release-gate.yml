@@ -1,0 +1,106 @@
+schema_version: '1.0'
+id: V406-007
+title: Gate the complete web scan and rule sweep journeys
+milestone: web-nuclei-rule-sweeps-2026-10
+epic: scan-tools
+kind: chore
+priority: P2
+status: pending
+depends_on:
+- V406-001
+- V406-002
+- V406-003
+- V406-004
+- V406-005
+- V406-006
+languages:
+- go
+- python
+- typescript
+goal: Close the proposal 0041 milestone with real-store/process/browser evidence that parameterized
+  scans, owner rulepacks and recoverable Project sweeps work together, and keep the deterministic
+  release gate able to fail.
+context:
+  proposal: docs/proposals/0041-web-nuclei-scanning-and-rule-sweeps.md
+  specification:
+  - docs/testing/README.md
+  - docs/spec/tools/scanners.md
+  - docs/spec/platform/failure-model.md
+  - docs/spec/platform/lifecycle.md
+  - docs/spec/api/public-api.md
+scope:
+  in:
+  - Extend the mandatory deterministic process/browser gate and its release graph/CI selection
+    so all proposal journeys run with disposable PostgreSQL and scanner fixtures.
+  - Keep an explicit installed-Nuclei smoke/pack test for actual engine compatibility; distinguish
+    it from deterministic CI fixture coverage.
+  - Collect acceptance evidence for cross-language parity, realistic bounds, lost acknowledgements,
+    source mutation/deletion, replacement, cancel and populated purge.
+  - Reconcile remaining proposal text into owning normative docs, update architecture/ERD and
+    record phase/task completion truthfully.
+  out:
+  - New product capabilities, target/model changes, benchmark-specific rules or live-model checks.
+requirements:
+- id: R1
+  text: A zero-test gate selection, unexpected PostgreSQL skip or unavailable configured database
+    fails. Fixture stores enforce production validation.
+- id: R2
+  text: Tests use testdata/config fixtures, injected clocks and deterministic work budgets; never
+    read live configs except allowed e2e/ui-stack gates.
+- id: R3
+  text: Every changed release selector runs its consuming checks; no completed milestone while
+    a required test is skipped or an acceptance criterion remains open.
+failure_outcomes:
+- operation: Process/browser gate startup, disposable stores and scanner fixtures
+  permanent: Unavailable required prerequisites or zero matched tests fail clearly.
+  retryable: Only existing bounded harness readiness retries, never masking a real assertion.
+  ambiguous: Use recorded process/Run identities and existing receipts; retain diagnostic evidence.
+  cancelled: Join fixture processes/browsers and remove only test-owned database/schema/workspaces.
+  timeout: Separate bounded harness startup and scenario deadlines, raised without changing configured
+    models.
+cardinality:
+- collection: Test Projects, templates, members and paginated results
+  expected: 7-Project scenario plus boundary cases
+  maximum: 1000 member boundary and declared pack/package byte/count maxima
+  bound: Exercise the production per-tick/page limits and at least one realistically sized set;
+    no wall-clock performance assertions.
+lifecycle:
+- entity: Test-owned schemas, processes and workspaces
+  delete: The harness cleans only its own resources after joined work.
+  cascade: No demo/user business data, primary checkout edits or owner library artifacts.
+  retention: Acceptance logs record command/outcome/revision; temporary resources are removed
+    after collection.
+acceptance_criteria:
+- id: A1
+  given: all six implementation tasks completed on the branch
+  when: deterministic gates run against disposable PostgreSQL
+  then: web scan, once-uploaded rulepack and recoverable/cancellable sweep journeys pass through
+    real Server/Runtime/browser boundaries
+- id: A2
+  given: installed Nuclei and representative custom/installed rules
+  when: the explicit engine smoke gate runs
+  then: actual engine behavior matches the declared package/selection/report contract, with failures
+    reported separately from deterministic fixture checks
+- id: A3
+  given: the complete milestone and every affected gate
+  when: final verification and documentation reconciliation run
+  then: required commands pass with nonempty selections, no unexpected skips and honest completion/branch
+    status
+tests:
+- command: make test-nuclei-web-e2e
+  covers: &id001
+  - A1
+  - A2
+  - A3
+- command: make test-scan-e2e
+  covers: *id001
+- command: make test-wire-cross-language
+  covers: *id001
+- command: make verify-public-api-postgres
+  covers: *id001
+- command: make ui-verify
+  covers: *id001
+- command: make test-ui-stack
+  covers: *id001
+- command: make release-verify
+  covers: *id001

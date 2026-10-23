@@ -14608,6 +14608,7 @@ components:
       additionalProperties: false
       required: [required, mediaTypes]
       properties:
+        sourceScope: {type: string, enum: [user], description: Owner UserScope for the optional Nuclei rulepack input only.}
         required: {type: boolean}
         mediaTypes: {type: array, minItems: 1, maxItems: 32, uniqueItems: true, items: {$ref: '#/components/schemas/MediaType'}}
     WorkflowOutputArtifactSlot:
@@ -15034,8 +15035,24 @@ components:
                 additionalProperties: false
                 required: [source, name]
                 properties:
-                  source: {type: string, enum: [parameter, artifact]}
+                  source: {type: string, const: parameter}
                   name: {type: string, minLength: 1, maxLength: 128}
+                  default: {type: string, maxLength: 8192, x-maxBytes: 8192}
+              - type: object
+                additionalProperties: false
+                required: [source, name, parse]
+                properties:
+                  source: {type: string, const: parameter}
+                  name: {type: string, minLength: 1, maxLength: 128}
+                  parse: {type: string, const: integer}
+                  default: {type: integer, minimum: 0, maximum: 9007199254740991}
+              - type: object
+                additionalProperties: false
+                required: [source, name]
+                properties:
+                  source: {type: string, const: artifact}
+                  name: {type: string, minLength: 1, maxLength: 128}
+                  optional: {type: boolean, const: true}
               - type: object
                 additionalProperties: false
                 required: [source, value]

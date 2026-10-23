@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
+	"github.com/grauwolf32/contractor/internal/contracts/scan"
 )
 
 func TestSharedHostSyntaxMatchesRuntimeCases(t *testing.T) {
@@ -21,8 +22,8 @@ func TestSharedHostSyntaxMatchesRuntimeCases(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.Host, func(t *testing.T) {
-			if got := scanHost(tc.Host); got != tc.Accepted {
-				t.Errorf("scanHost(%q) = %v, want %v", tc.Host, got, tc.Accepted)
+			if got := scan.ValidHost(tc.Host); got != tc.Accepted {
+				t.Errorf("scan.ValidHost(%q) = %v, want %v", tc.Host, got, tc.Accepted)
 			}
 		})
 	}

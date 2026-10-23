@@ -203,3 +203,12 @@ For versioned datasets and reproducible comparisons, use the
 [fixture catalog](../../configs/evals/README.md) and
 [instruction-evaluation guide](../../tests/eval/agent_instructions/README.md).
 Offline conformance checks do not measure model quality.
+
+`make test-nuclei-web-e2e` requires PostgreSQL and runs a deterministic scanner
+protocol fixture through the actual shipped Workflow, Server, Scheduler and
+Runtime. It also launches a seven-Project client sweep and drops one committed
+create acknowledgement to prove replay and stable membership. It is selected
+by the consolidated release process group C without host scanner requirements.
+`make test-nuclei-web-installed` is the explicit real Nuclei engine smoke for
+all individual knobs, exact package/template provenance, invalid admission and
+changed-package refusal.

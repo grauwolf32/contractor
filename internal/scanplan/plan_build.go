@@ -254,7 +254,7 @@ func planJob(source planSourceInput, p scan.ScanToolPolicy, b ToolBinding, wordl
 			}
 			host = u.Hostname()
 		}
-		if !scanHost(host) {
+		if !scan.ValidHost(host) {
 			return job, "unsupported_host"
 		}
 		job.Parameters[e.Arguments["host"].Name] = strings.ToLower(host)
