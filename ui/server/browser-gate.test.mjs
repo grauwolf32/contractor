@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -9,6 +9,7 @@ import {
   checkBrowserSpecs,
   directFulfilments,
   validateBrowserReport,
+  withGateResults,
 } from "./browser-gate.mjs";
 
 function report() {
@@ -94,4 +95,36 @@ test("browser specs answer requests only through the contract-checked mock", asy
 test("the browser specs serve no unchecked answer", async () => {
   const e2eDir = fileURLToPath(new URL("../e2e", import.meta.url));
   assert.deepEqual(await directFulfilments(e2eDir), []);
+});
+
+test("a failed gate keeps its own results and a passing gate leaves none", async (t) => {
+  t.mock.method(console, "error", () => {});
+  const root = await mkdtemp(join(tmpdir(), "contractor-gate-results-"));
+  try {
+    const results = join(root, "test-results", "probe");
+    const stale = join(results, "earlier-run", "trace.zip");
+    const failure = join(results, "failing-spec", "test-failed-1.png");
+    await mkdir(join(results, "earlier-run"), { recursive: true });
+    await writeFile(stale, "earlier run");
+    await assert.rejects(
+      withGateResults(results, async (output) => {
+        assert.equal(output, results);
+        await assert.rejects(access(stale), { code: "ENOENT" });
+        await mkdir(join(output, "failing-spec"), { recursive: true });
+        await writeFile(failure, "screenshot");
+        throw new Error("Probe gate exited: 1");
+      }),
+      /Probe gate exited: 1/,
+    );
+    await access(failure);
+
+    await withGateResults(results, async (output) => {
+      await assert.rejects(access(failure), { code: "ENOENT" });
+      await mkdir(join(output, "passing-spec"), { recursive: true });
+      await writeFile(join(output, "passing-spec", "trace.zip"), "trace");
+    });
+    await assert.rejects(access(results), { code: "ENOENT" });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });

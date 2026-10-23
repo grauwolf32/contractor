@@ -157,7 +157,11 @@ make ui-browser-mocked
 
 This builds and serves an isolated production UI, runs every API-mocked spec,
 and checks the Playwright report for executed passes with no skips or flaky
-attempts. Specs answer API requests only through `e2e/support/mock-api.ts`,
+attempts. A failing run keeps its Playwright screenshots and traces in
+`ui/test-results/mocked-browser/` (the Git artifacts gate of
+`make test-git-artifacts` in `ui/test-results/git-artifacts/`), which CI
+uploads with the stage's reports; each run first removes the previous run's
+results, and a passing run removes its own. Specs answer API requests only through `e2e/support/mock-api.ts`,
 which checks every mocked status and success body against the generated
 contract before serving it and fails the test with the operation and the
 failing location otherwise; build mock bodies with the shared builders in

@@ -41,4 +41,4 @@ await checkBrowserSpecs(fileURLToPath(new URL("../e2e", import.meta.url)), [
   ...mockedSpecs,
   ...processSpecs,
 ]);
-await runBrowserGate("Mocked browser", mockedSpecs);
+await runBrowserGate("mocked-browser", "Mocked browser", mockedSpecs);
