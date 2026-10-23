@@ -128,11 +128,12 @@ tests:
     covers: [A1, A2, A3, A4]
   - command: make lint
     covers: [A5]
-implementation_commit: 2cd8e3476f69d71e67e90131cabb2bf20c1c94d1
+implementation_commit: 3b654ad7e6798d7b331a843866057757998e863d
 verification:
   date: '2026-10-23'
   environment: macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local); PostgreSQL 17.11 database contractor_test_a
-    with disposable per-test schemas; branch claude/rv-a on base d7b825c4.
+    with disposable per-test schemas; branch claude/rv-a on base d7b825c4, with claude/review-v407-v409 (07b3ddcd,
+    including V409-005) merged before the review follow-up.
   commands:
   - CONTRACTOR_TEST_DATABASE_URL=postgres://.../contractor_test_a go test -tags=integration -count=1
     ./internal/findingintake/... ./internal/auditimport/... ./internal/auditcontroller/... ./internal/auditstore/...
@@ -146,6 +147,11 @@ verification:
     passes.
   - go vet (with and without -tags=integration) of internal/findingintake, internal/auditimport and
     internal/httpapi/public passed.
+  - 'Review follow-up (after merging claude/review-v407-v409): the task integration command above passed again;
+    CONTRACTOR_TEST_DATABASE_URL=... go test -tags=integration -count=1 ./internal/auditservice/... passed;
+    TestPostgresFindingDecisionReplaysProjectFenceConflict run with -v reports every subtest PASS and no SKIP;
+    go test -count=1 ./internal/archtest/... passed and ./internal/persistence/ fails only the pre-existing
+    TestSQLAccessFollowsTableOwnership; make lint passed.'
   database_tests_configured: true
   evidence:
   - 'A1: TestPostgresOwnerImportReplaysProjectFenceConflict holds the Project FOR SHARE through a real Run creation,
@@ -171,10 +177,23 @@ verification:
     replayed attempt fails ErrScopeDeleting with no late write; with cancellation it stops after one transaction;
     an import that took the fence first commits before deletion. Existing correlation, contribution, source-deletion,
     review and purge suites in findingintake pass unchanged.'
+  - 'Commits: 2cd8e347 retried finding intake; after the review, c040204a retried DecideFinding and 3b654ad7 made
+    its test detect attempts through the shared advisory helpers (TestKeyedMutationsUseTheSharedHelpers), which
+    makes 3b654ad7 the implementation commit.'
   - 'Every new findingintake test fails with importTransaction reverted to InTx (temporary local change, restored):
     the owner and collection conflict cases return 40001 after one transaction. The deletion cases also fail with the
     early fence removed (40P01 deadlock between deletion and the import, and no fence before deletion). The auditimport
     and public contract tests also pass on InTx: they guard the caller classifications, not the retry.'
+  - 'Review follow-up, DecideFinding: TestPostgresFindingDecisionReplaysProjectFenceConflict (auditservice) holds
+    the Project FOR SHARE through a real child Run creation in that Project. Released after the first projection
+    abort, the decision commits once in two attempts (one decision, one review.decided event, a decided request, one
+    finding, Audit and Project correlation revision step) and its idempotent replay changes nothing; persistent
+    contention returns the conflict after three attempts with no state change and the still-pending request decides
+    after release; cancellation after the conflict stops after one attempt; a stale request revision is
+    ErrPrecondition in one attempt. With DecideFinding back on InTx the first three subtests fail (40001 after one
+    attempt). Replay safety: the advisory lock, decision with its idempotency key, request, finding and Audit
+    revisions and events are statements of the aborted transaction, nothing leaves the process before commit, and
+    decisionID, requestID, findingID, replayed and expired are reset per attempt.'
   - 'Replay safety: every effect of both callbacks is a statement of the aborted transaction (locks, exact forks,
     frozen direct-verification writes, holds and trigger rows); AfterCommit effects are discarded on rollback; a
     filesystem candidate blob of an aborted attempt is an ordinary orphan; the direct-verification cache keeps only
@@ -182,22 +201,40 @@ verification:
   siblings_changed:
   - ImportIntoAudit and retainAuditCollectionPrefix (internal/findingintake/postgres.go) share importTransaction,
     which uses InTxWithRetry.
+  - 'Review follow-up: auditservice DecideFinding (finding_review.go) uses InTxWithRetry. Its ProjectFindingDecision
+    (auditstore pgstore review_write.go) updates audit_findings, whose statement trigger
+    contractor_finding_correlation_updated takes the NOWAIT Project fence; FND-R177 and FAIL-REV-1 now include it.'
   - docs/spec/platform/failure-model.md FAIL-REV-7 and FAIL-AUX-3 state permanent, retryable, ambiguous, cancelled
     and timeout outcomes; AUX-R49 and FND-R177 state that only the aborted transaction replays. No requirement ID
     was added.
   siblings_ruled_out:
+  - 'The fence is taken only by the migration 000024 statement triggers: an INSERT, DELETE or changed UPDATE of
+    audit_findings, an INSERT or DELETE of audit_finding_contributions, and a change of
+    finding_proposal_receipts.source_run_deleted_at (the hold-admission trigger inserts findings and contributions).
+    Their Go writers are finding intake (now retried), DecideFinding (now retried), the Audit collection receipt,
+    direct assessment inside finding intake, Audit purge and Run deletion.'
   - RejectAuditCollection takes no Project fence and keeps InTx, per the task.
-  - collection_publication.go already uses InTxWithRetry; Within-based store writers (Run deletion, Audit purge,
-    auditstore pgstore) already retry on pools.
-  - 'auditservice CreateFindingReview / DecideFinding (finding_review.go:29,119), action_review.go:29 and
-    start.go:65,127 also run under InTx and may reach the correlation fence through finding updates; they are
-    outside this task''s scope and are left for a separate task.'
+  - collection_publication.go already uses InTxWithRetry. Run deletion (rundeletion.Deleter, MarkSourceRunDeleted)
+    and Audit purge (ClaimStore.PurgeClaimed) run through persistencepostgres.Within on the pool, which is
+    InTxWithRetry.
+  - 'The Audit collection receipt (ClaimStore.Collect, collectAuditExecutionSQL updating audit_findings) is one
+    statement on the pool; a fence conflict leaves the execution collecting without a receipt for the next
+    reconcile (AUX-R96, FAIL-AUX-2), as TestPostgresProjectFenceConflictKeepsExecutionCollecting shows for
+    retention.'
+  - 'These InTx transactions never reach the fence. CreateFindingReview (finding_review.go:29) locks the finding
+    FOR UPDATE, which fires no trigger, and writes only review requests, review events and the Audit revision.
+    DecideActionReview (action_review.go:29) decides item-action and report requests and writes review requests and
+    decisions, execution items, the Audit and events, never a finding table. Audit start (start.go:65) and start
+    staging (start.go:127) write a starting Audit, which has no findings or holds; their artifact admissions take
+    the Project row only FOR SHARE through contractor_require_active_project, the waiting side of the fence.'
   declined:
   - 'failure_outcomes.retryable says exhaustion keeps "HTTP 503 with Retry-After"; storage_transaction_conflict
     never had a Retry-After header in the Server or OpenAPI. FND-R177, FND-R179 and FAIL-FND-6 now name the
     retryable 503 storage_transaction_conflict (PER-R16) without Retry-After; adding the header would be a separate
     API change for every endpoint.'
   observations:
-  - 'A lost commit response surfaces from pgx as an unclassified "conn closed" error, so the public API answers 500
-    internal_error (retryable) rather than 503 storage_unavailable. That classification is shared by every
-    transaction and is not changed here.'
+  - 'A lost commit response surfaces from pgx as a "conn closed" error that persistencepostgres.Classify returns as
+    ClassNone, so the public API answers the retryable 500 internal_error (API-R73). PER-R13 classes a lost or
+    refused connection as unavailable, so Classify and PER-R13 disagree for pgconn.ErrConnClosed-style errors. That
+    classification is shared by every transaction and is not changed here; the integrator tracks it as a follow-up
+    task.'
