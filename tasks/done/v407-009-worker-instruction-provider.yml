@@ -6,7 +6,7 @@ epic: planner-worker
 kind: defect
 introduced_by: V13-001
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - python
@@ -77,3 +77,21 @@ tests:
   - A1
   - A2
   - A3
+implementation_commit: 4299674b09ada58841e2767e5a6b04647f456265
+verification:
+  date: '2026-10-23'
+  environment: macOS arm64 worktree on ac982d28; Python 3.13 with uv sync --locked (google-adk 2.8.0); Go 1.26.9; Node 24.20 with Corepack pnpm. No database test is affected by this Runtime-only change.
+  evidence:
+  - 'Re-verified finding: runtime.py:211-215 passed context.instruction as a string; on the base a real AdkWorkerRuntime with "Inspect the literal {path}." returned worker_execution_failed (KeyError: Context variable not found: `path`) with zero model requests, and "{contractor}" put the serialized Contractor State subtree into the system instruction.'
+  - 'Siblings: worker/runtime.py (main Worker) now uses instruction=lambda _: instruction; worker/finalizer.py uses the same literal provider for its brace-free constant (no current failure claimed); worker/summarizer.py already used a provider (TPL-R51); Go Streamline already uses InstructionProvider. No other LlmAgent/Agent construction exists in runtime/src.'
+  - 'A1: test_adk_worker_sends_authored_instruction_literally[Inspect the literal {path}.] completes through the factory-built Worker and the real ADK Runner with a scripted model; the first request carries the exact text before ADK''s identity line.'
+  - 'A2: the same test covers {{path}}, {{{path}}}, {path?}, { path }, {artifact.report}, a JSON example and the always-present `contractor` session key; test_adk_worker_instruction_ignores_matching_session_state_keys seeds path=session-path-value and checks both invocations of a shared session. The finalizer request system instruction is asserted exactly; existing summarizer literal tests pass unchanged.'
+  - 'A3: with runtime/src reverted to the base, 5 of 6 new tests fail ({path}, repeated/optional/artifact braces, {contractor}, the seeded path key and the AST guard); the pure JSON case passes on both because ADK keeps non-identifier matches, and stays as A2 coverage. test_every_runtime_llm_agent_receives_a_literal_instruction_provider requires a lambda provider at every LlmAgent construction. TPL-R114 and WRK-R166 state that braces remain accepted and that no placeholder grammar exists.'
+  commands:
+  - 'cd runtime && uv run --locked pytest -q tests/test_adk_runtime.py tests/test_worker_summarizer.py tests/test_settings.py: passed (160 tests).'
+  - 'make lint: passed (spec, task and dependency-graph checks, ruff, ruff format, import-linter, staticcheck, test-only exports, UI gates). make docs-dependencies regenerated the graph page because the edited spec files are fingerprint inputs.'
+  - 'make test-runtime: 4291 passed, 39 skipped, 106 failed. The identical 106 test IDs also fail on an unmodified ac982d28 worktree (podman, trailmark child, tool process, projectfs local direct, code analysis: OSError Errno 43 for unsupported socket families, missing pidfd_open and Darwin address-space limits in this macOS sandbox); none touches the Worker instruction path.'
+  database_tests_configured: false
+  declined:
+  - 'configs/README.md wording was not changed: the spec owns the rule, and the README is a dependency-graph input.'
+  - 'AGENTS.md section 6 still advises avoiding bare braces in Worker instruction text; agent instructions were left for the user to update.'
