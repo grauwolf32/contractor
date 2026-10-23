@@ -55,8 +55,18 @@ func (s operationSelection) valid() bool {
 // PrepareOperation prepares only the assigned operation from the original exact
 // source. Other operations neither consume its request budget nor contribute gaps.
 // Bindings for other operations are rejected, never silently broadened.
+// Each call parses its own source; AuditScanSettings.PrepareOperations prepares
+// several operations of one source from one parse (SCN-R254).
 func PrepareOperation(data []byte, mediaType string, source contracts.ArtifactRef, options Options, pointer string) (scan.HTTPRequestSet, error) {
-	return prepare(data, mediaType, source, options, operationSelection{pointer: pointer, mode: "request"})
+	document, err := parseSource(data, mediaType, source)
+	if err != nil {
+		return scan.HTTPRequestSet{}, err
+	}
+	return document.prepareRequest(options, pointer)
+}
+
+func (d *sourceDocument) prepareRequest(options Options, pointer string) (scan.HTTPRequestSet, error) {
+	return prepare(d, options, operationSelection{pointer: pointer, mode: "request"})
 }
 
 // OperationTarget is an in-process URL preparation result, not a persisted scan
@@ -74,22 +84,41 @@ type OperationTarget struct {
 // PrepareOperationTarget fixes a concrete URL for Nuclei's target-only interface.
 // It uses path/query values but never invents them or projects operation bodies,
 // cookies, headers or authentication into the target. Unsupported explicit
-// bindings fail; declared request requirements remain visible as limitations.
+// bindings fail, before the source is parsed; declared request requirements
+// remain visible as limitations.
 func PrepareOperationTarget(data []byte, mediaType string, source contracts.ArtifactRef, options Options, pointer string) (OperationTarget, error) {
+	if err := urlTargetBindings(options); err != nil {
+		return OperationTarget{}, err
+	}
+	document, err := parseSource(data, mediaType, source)
+	if err != nil {
+		return OperationTarget{}, err
+	}
+	return document.prepareTarget(options, pointer)
+}
+
+func urlTargetBindings(options Options) error {
 	if len(options.Authentication) != 0 {
-		return OperationTarget{}, failure("unsupported_url_target_binding")
+		return failure("unsupported_url_target_binding")
 	}
 	for _, input := range options.Operations {
 		if input.Body != nil {
-			return OperationTarget{}, failure("unsupported_url_target_binding")
+			return failure("unsupported_url_target_binding")
 		}
 		for name := range input.Parameters {
 			if !strings.HasPrefix(name, "path:") && !strings.HasPrefix(name, "query:") {
-				return OperationTarget{}, failure("unsupported_url_target_binding")
+				return failure("unsupported_url_target_binding")
 			}
 		}
 	}
-	set, err := prepare(data, mediaType, source, options, operationSelection{pointer: pointer, mode: "url-target"})
+	return nil
+}
+
+func (d *sourceDocument) prepareTarget(options Options, pointer string) (OperationTarget, error) {
+	if err := urlTargetBindings(options); err != nil {
+		return OperationTarget{}, err
+	}
+	set, err := prepare(d, options, operationSelection{pointer: pointer, mode: "url-target"})
 	if err != nil {
 		return OperationTarget{}, err
 	}

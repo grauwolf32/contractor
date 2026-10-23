@@ -3,6 +3,7 @@ package scanplan
 import (
 	"bytes"
 	"encoding/json"
+	"iter"
 	"maps"
 	"slices"
 	"sort"
@@ -163,40 +164,102 @@ type PreparedAuditOperation struct {
 	Gaps              []scan.PreparationGap
 }
 
+// PrepareOperation prepares one selected operation from the exact source of
+// this call, which it parses. Dispatch-time re-preparation of one accepted
+// task uses it.
 func (s AuditScanSettings) PrepareOperation(data []byte, mediaType string, source contracts.ArtifactRef, pointer string) (PreparedAuditOperation, error) {
-	input, exists := s.document.Operations[pointer]
-	if !exists {
-		return PreparedAuditOperation{}, failure("unassigned_operation_binding")
+	options, err := s.operationOptions(pointer)
+	if err != nil {
+		return PreparedAuditOperation{}, err
 	}
-	options := Options{Server: s.document.Server, Authentication: s.document.Authentication,
-		Operations: map[string]OperationInput{pointer: input}, MaxRequests: 1}
-	result := PreparedAuditOperation{Operation: pointer}
 	if s.document.Scanner == "nuclei" {
 		target, err := PrepareOperationTarget(data, mediaType, source, options, pointer)
 		if err != nil {
 			return PreparedAuditOperation{}, err
 		}
-		result.Target, result.PreparationDigest, result.Gaps = &target, target.PreparationDigest, append([]scan.PreparationGap{}, target.Gaps...)
-		result.Runnable = target.URL != ""
-		if result.Runnable {
-			if _, code := scanURL(target.URL); code != "" {
-				result.Runnable = false
-				result.Gaps = append(result.Gaps, scan.PreparationGap{Pointer: pointer, Code: code})
-			}
-		}
-	} else {
-		set, err := PrepareOperation(data, mediaType, source, options, pointer)
+		return preparedTarget(pointer, target), nil
+	}
+	set, err := PrepareOperation(data, mediaType, source, options, pointer)
+	if err != nil {
+		return PreparedAuditOperation{}, err
+	}
+	return s.preparedRequest(pointer, set), nil
+}
+
+// PrepareOperations prepares every selected operation, in Operations order,
+// from one parse and one content digest of the exact source of this call
+// (SCN-R254). Each result and error equals PrepareOperation's for the same
+// source and operation: a source failure comes first, as it does there,
+// because decoded settings hold no binding that a URL target rejects. The
+// sequence stops after the first error. The parsed source lives only while
+// the sequence runs; nothing retains it on the settings or across calls.
+func (s AuditScanSettings) PrepareOperations(data []byte, mediaType string, source contracts.ArtifactRef) iter.Seq2[PreparedAuditOperation, error] {
+	return func(yield func(PreparedAuditOperation, error) bool) {
+		document, err := parseSource(data, mediaType, source)
 		if err != nil {
-			return PreparedAuditOperation{}, err
+			yield(PreparedAuditOperation{}, err)
+			return
 		}
-		result.RequestSet, result.PreparationDigest, result.Gaps = &set, set.PreparationDigest, append([]scan.PreparationGap{}, set.Gaps...)
-		if len(set.Requests) == 1 {
-			_, code := prepareSQLMapRequest(set.Requests[0].Request, s.document.TestParameters)
-			result.Runnable = code == ""
-			if code != "" {
-				result.Gaps = append(result.Gaps, scan.PreparationGap{Pointer: pointer, Code: code})
+		for _, pointer := range s.Operations() {
+			prepared, err := s.prepareParsed(document, pointer)
+			if !yield(prepared, err) || err != nil {
+				return
 			}
 		}
 	}
-	return result, nil
+}
+
+func (s AuditScanSettings) prepareParsed(document *sourceDocument, pointer string) (PreparedAuditOperation, error) {
+	options, err := s.operationOptions(pointer)
+	if err != nil {
+		return PreparedAuditOperation{}, err
+	}
+	if s.document.Scanner == "nuclei" {
+		target, err := document.prepareTarget(options, pointer)
+		if err != nil {
+			return PreparedAuditOperation{}, err
+		}
+		return preparedTarget(pointer, target), nil
+	}
+	set, err := document.prepareRequest(options, pointer)
+	if err != nil {
+		return PreparedAuditOperation{}, err
+	}
+	return s.preparedRequest(pointer, set), nil
+}
+
+// operationOptions are the preparation options of one selected operation:
+// only its own bindings, so other operations' bindings never apply to it.
+func (s AuditScanSettings) operationOptions(pointer string) (Options, error) {
+	input, exists := s.document.Operations[pointer]
+	if !exists {
+		return Options{}, failure("unassigned_operation_binding")
+	}
+	return Options{Server: s.document.Server, Authentication: s.document.Authentication,
+		Operations: map[string]OperationInput{pointer: input}, MaxRequests: 1}, nil
+}
+
+func preparedTarget(pointer string, target OperationTarget) PreparedAuditOperation {
+	result := PreparedAuditOperation{Operation: pointer, PreparationDigest: target.PreparationDigest,
+		Target: &target, Gaps: append([]scan.PreparationGap{}, target.Gaps...), Runnable: target.URL != ""}
+	if result.Runnable {
+		if _, code := scanURL(target.URL); code != "" {
+			result.Runnable = false
+			result.Gaps = append(result.Gaps, scan.PreparationGap{Pointer: pointer, Code: code})
+		}
+	}
+	return result
+}
+
+func (s AuditScanSettings) preparedRequest(pointer string, set scan.HTTPRequestSet) PreparedAuditOperation {
+	result := PreparedAuditOperation{Operation: pointer, PreparationDigest: set.PreparationDigest,
+		RequestSet: &set, Gaps: append([]scan.PreparationGap{}, set.Gaps...)}
+	if len(set.Requests) == 1 {
+		_, code := prepareSQLMapRequest(set.Requests[0].Request, s.document.TestParameters)
+		result.Runnable = code == ""
+		if code != "" {
+			result.Gaps = append(result.Gaps, scan.PreparationGap{Pointer: pointer, Code: code})
+		}
+	}
+	return result
 }

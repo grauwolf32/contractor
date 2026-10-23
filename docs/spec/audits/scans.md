@@ -612,7 +612,9 @@ are not accepted through the settings artifact.
 
 **ASC-R105.** `auditdomain.BuildOpenAPIScanInventory` creates an
 `openapi-scans` inventory with `openapi-scan` task items. It requires
-the effective approval policy pinned in the Audit baseline.
+the effective approval policy pinned in the Audit baseline. It prepares the
+selected operations from one parse of the source
+([SCN-R254](../tools/scanners.md)).
 
 **ASC-R106.** Each task pins the exact source and settings refs and
 byte digests, the selected operation, the preparation digest, the SQLMap

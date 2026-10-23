@@ -6,7 +6,7 @@ epic: scan-tools
 kind: chore
 introduced_by: V62-001
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages:
 - go
