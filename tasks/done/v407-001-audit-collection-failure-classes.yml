@@ -96,9 +96,9 @@ tests:
   - A2
   - A3
   - A4
-implementation_commit: 784dd2e5ca533951aa135277cf14c6d9daac1c21
+implementation_commit: cc3c821262bbe7e74803817ef1e83acc431a02c3
 verification:
-  date: '2026-10-23'
+  date: '2026-10-24'
   environment: macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local); PostgreSQL 17.11 database contractor_test_a
     with disposable per-test databases and schemas; locked Runtime venv and UI dependencies.
   commands:
@@ -109,6 +109,10 @@ verification:
   - go test -tags=integration -count=1 ./internal/planner/scan/... ./internal/planner/session/... passed
     (planner/scan also calls auditscan.BuildResult).
   - make lint passed, including staticcheck U1000, testonlyexports, spec and task checks.
+  - 'Review follow-up (2026-10-24, after cc3c8212): the integration command above and make lint passed
+    again; go test -tags=integration -count=1 ./internal/auditimport/ -run
+    TestPostgresInvalidPinnedStandardSettlesCollectionContractInvalid passed, and the owner-hold cases failed
+    with the base standards logic reverse-applied.'
   database_tests_configured: true
   evidence:
   - 'Regression tests fail on base ac982d28 (new tests copied into a temporary base worktree, since removed):
@@ -116,8 +120,19 @@ verification:
     cases committed invalid-result), TestPostgresStandardReadFailureAfterRetentionKeepsExecutionCollecting
     (attempt 2 committed a receipt), TestPostgresScanRecoveryCollectionKeepsFailureClasses (invalid plan and
     report returned "retained scan plan/scanner report is invalid" on every reconcile) and
-    TestImporterSettlesFailedPreparationWithInvalidPinnedProfileAsContractInvalid (plain decode error). The
-    auditscan tests use the new ErrInvalid and do not compile on the base.'
+    the defensive-wiring subtests of TestImporterSettlesFailedPreparationWithInvalidPinnedProfileAsContractInvalid
+    (plain decode error; its production-wiring subtests pass on the base). The auditscan tests use the new
+    ErrInvalid and do not compile on the base.'
+  - 'Review follow-up: TestPostgresInvalidPinnedStandardSettlesCollectionContractInvalid drives Importer.Collect
+    with the real store and finding intake for an invalid baseline pin and a retained package that differs
+    from its pin. Its at-retention cases pass on the base (retention already reads the pins first); its
+    owner-hold cases, where a proposal held before the Run finished skips the retention read, committed
+    invalid-result / finding-proposal-standard-reference-invalid with the base standards.go, check_results.go
+    and standard_refs_test.go reverse-applied, and pass with the fix.'
+  - 'Review follow-up: the AUX-R96 scan history exception is pinned by the "scan history that does not decode
+    stays collecting" case of TestPostgresScanRecoveryCollectionKeepsFailureClasses: a stored journal plan
+    reference without a revision fails as scan history ("scan plan reference or digest is invalid") on every
+    reconcile, reads no retained scan artifact and leaves the execution collecting.'
   - 'The completion fixture baseline lacked labels and requiredPlacementLabels, so on the base every
     PostgreSQL test using it failed in Run creation with "stored Audit placement requirements are invalid"
     (TestAuditCompletionRuntimeZIPImporter, the report-retention tests and
@@ -132,18 +147,23 @@ verification:
     cancellation return unchanged.
   - scan_recovery.go maps auditscan.ErrInvalid, a manifest that does not decode and a scan Run whose Audit
     execution or Project differs to ErrPermanent (finding at scan_recovery.go:79-86).
-  - scan_retention.go assembled package decode and semantic coverage, and preparation.go:23-25 AuditProfile
-    decode, are ErrPermanent. The task's claim that preparation.go is protected by an earlier decode is wrong
-    for failed and cancelled preparation executions, which reach commitRoleFailure without decoding the
-    profile first (tested).
+  - scan_retention.go assembled package decode and semantic coverage are ErrPermanent.
+  - preparation.go:23-25 AuditProfile decode is ErrPermanent as a defensive change. The task's claim holds
+    for the production wiring (internal/app/composition_audit.go always passes a finding intake, and
+    retainFindingProposals decodes the profile to ErrPermanent first), so failed and cancelled preparation
+    already settled as collection-contract-invalid on the base. Only an Importer built without a finding
+    intake, which New accepts, reached commitRoleFailure with an undecoded profile.
+    TestImporterSettlesFailedPreparationWithInvalidPinnedProfileAsContractInvalid covers both wirings.
   siblings_ruled_out:
   - standards.go loader errors on the retention path already propagate unchanged; check_results.go:73-75
     (manifest) and importer.go prepareMembers task decode, collectSucceeded and collectSucceededRole profile
     decodes already return ErrPermanent.
   - Scan journal plan and report references are exact (planner session validateScanState on every encode and
-    decode), so ErrExactRevisionRequired cannot reach collection; the pinned manifest and task are read by
-    digest after Round materialization validated them, so their ErrPermanent branches and the scan Run
-    identity checks are defensive.
+    decode), so ErrExactRevisionRequired cannot reach collection; such a stored reference fails as scan
+    history first. Both stay retryable and AUX-R96 now states them as accepted exceptions with their
+    enforcement, detection and reopen condition. The pinned manifest and task are read by digest after Round
+    materialization validated them, so their ErrPermanent branches and the scan Run identity checks are
+    defensive.
   - artifacts.ErrArtifactIntegrity and every other read error stay retryable, per scope.out.
   - '"Audit scan attempt is not terminal" (Scheduler-owned Stage state) and decode errors inside
     planner/session ReadAuditScanHistory (shared with dispatch recovery and validated on write) are left
