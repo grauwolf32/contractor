@@ -139,6 +139,7 @@ export type PublicSchemaName =
   | "UpdateSchedulerSettingsRequest"
   | "AuditActor"
   | "ConfigId"
+  | "AuditLabels"
   | "RunMetadataLabels"
   | "CreateProjectRequest"
   | "UpdateProjectRequest"

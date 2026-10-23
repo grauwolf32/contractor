@@ -21,10 +21,21 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func failedResumeFixture(t *testing.T, ctx context.Context, pool *pgxpool.Pool, runID string) (*PostgresStore, StageExecution) {
+func failedResumeFixture(t *testing.T, ctx context.Context, pool *pgxpool.Pool, runID string, placement ...[]string) (*PostgresStore, StageExecution) {
 	t.Helper()
 	store := NewPostgresStore(pool)
-	run := createTestRun(t, ctx, store, runID)
+	params := testRunParams(runID)
+	if len(placement) > 0 {
+		params.RequiredPlacementLabels = placement[0]
+		if len(placement[0]) > 0 {
+			root, value, _ := strings.Cut(placement[0][len(placement[0])-1], "/")
+			params.MetadataLabels = RunMetadataLabels{root: value}
+		}
+	}
+	run, err := createRun(ctx, store, params)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if _, err := admitTestRun(ctx, store, runID); err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +124,7 @@ func TestPostgresResumeFailedStageIsAtomicAndIdempotent(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
-	store, previous := failedResumeFixture(t, ctx, pool, "run-resume")
+	store, previous := failedResumeFixture(t, ctx, pool, "run-resume", []string{"cloud/aws"})
 	before, err := store.GetRun(ctx, "run-resume")
 	if err != nil {
 		t.Fatal(err)
@@ -165,7 +176,7 @@ func TestPostgresResumeFailedStageIsAtomicAndIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if after.State != RunPending || after.FinishedAt != nil || !after.StartedAt.Equal(*before.StartedAt) || !reflect.DeepEqual(after.RuntimeConfig, before.RuntimeConfig) || !reflect.DeepEqual(after.WorkflowSnapshot, before.WorkflowSnapshot) {
+	if !slices.Equal(after.RequiredPlacementLabels, before.RequiredPlacementLabels) || len(before.RequiredPlacementLabels) == 0 || after.State != RunPending || after.FinishedAt != nil || !after.StartedAt.Equal(*before.StartedAt) || !reflect.DeepEqual(after.RuntimeConfig, before.RuntimeConfig) || !reflect.DeepEqual(after.WorkflowSnapshot, before.WorkflowSnapshot) {
 		t.Fatalf("Run changed incorrectly: %+v", after)
 	}
 	old, err := store.GetStageExecution(ctx, *source)

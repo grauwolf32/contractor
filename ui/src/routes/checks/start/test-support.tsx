@@ -77,6 +77,7 @@ export function renderStart(path: string, server: FakeStartServer = {}) {
         return server.create(call.request, call.url);
       const body = (await call.request.clone().json()) as {
         profile: { name: string; version: string };
+        labels?: Record<string, string>;
       };
       const profile = profiles.find(
         (candidate) =>
@@ -85,7 +86,7 @@ export function renderStart(path: string, server: FakeStartServer = {}) {
       );
       if (profile === undefined)
         return failure(404, "not_found", "Check type not found");
-      const draft = draftAudit(profile);
+      const draft = draftAudit(profile, { labels: { ...body.labels } });
       audits.set(draft.auditId, draft);
       return json(draft, 201, { ETag: '"1"' });
     },

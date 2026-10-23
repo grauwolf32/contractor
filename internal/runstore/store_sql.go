@@ -55,7 +55,8 @@ LIMIT $2`
 // $14, NULL on the other paths), its publication mode ($15) and, for an
 // Audit-managed Run, AuditExecution $16 and submission key $17; a deferred
 // constraint requires that AuditExecution to point back to the Run before
-// commit. $18 is the lane class of the entry Stage (SCH-R175). A
+// commit. $18 is the lane class of the entry Stage (SCH-R175), and $19 pins
+// the normalized placement requirements (RUN-R108). A
 // Project-deletion trigger rejects the insert with SQLSTATE 55000.
 // ON CONFLICT DO NOTHING turns any unique conflict into no row, which the
 // caller resolves: a keyed create looks up the Run that holds its key, the
@@ -69,9 +70,9 @@ INSERT INTO workflow_runs (
     runtime_labels, runtime_config_snapshot, project_http_target_snapshot, metadata_labels,
     request_idempotency_key, request_digest,
     publication_mode, audit_execution_id, audit_submission_key, scheduler_lane_class,
-    state, state_reason_code, state_reason_message
+    state, state_reason_code, state_reason_message, required_placement_labels
 ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, $10::jsonb, $11::jsonb, $12::jsonb,
-          $13, $14, $15, $16, $17, $18, 'initializing', 'created', '')
+          $13, $14, $15, $16, $17, $18, 'initializing', 'created', '', $19)
 ON CONFLICT DO NOTHING
 RETURNING *
 )

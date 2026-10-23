@@ -735,6 +735,37 @@ revalidates both.
 
 ### Baseline and scope
 
+**AUD-R229.** Audit draft creation accepts optional non-null ordinary
+key/value `labels` with the Run metadata grammar. Server clones and validates
+the map and derives placement from reserved `cloud`/`local` keys under
+[RUN-R107](../execution/runs.md). Omission and an empty map are equivalent;
+labels participate in the draft request digest. Draft and baseline readers
+require explicit valid label maps and reject a derived placement snapshot
+that differs from them. Public create selects placement through `labels`;
+`requiredPlacementLabels` is a read-only derived projection.
+
+**AUD-R230.** Every child Run inherits the exact baseline labels plus its
+system `audit.id`, `audit.role`, and applicable `audit.round`/`audit.item`.
+This applies to preparation, initial and subsequent inventories, checks,
+discovery, assessment, retries, later rounds and recovered dispatch. Both
+submission digests include labels. Trusted creation reads them from the
+claim-bound baseline, derives the same placement requirement and checks any
+replayed Run's complete label map. Fleet changes never rewrite the snapshot;
+matching and capacity waiting use [CTL-R159–CTL-R161](../execution/control-plane.md).
+
+**AUD-R231.** Labels are fixed at Audit start with its baseline and existing
+receipt. All later child Runs use that snapshot. Updating the selection after
+start requires a new Audit; existing Runs retain their own immutable copies.
+Pre-start form edits follow the existing draft revision and idempotency flow.
+Pause, cancel and purge follow the owning Audit and Run lifecycle and retain
+no separate label entity.
+
+**AUD-R232.** An Audit accepts at most 28 ordinary labels (LIM-AUD-27), leaving
+four of the Run's 32 entries for system provenance. Owner labels may not use
+the `audit.` namespace or the already reserved `contractor.` namespace.
+Validation rejects oversized or reserved maps before creating a draft or
+starting an Audit, so later dispatch cannot fail from inherited-label growth.
+
 **AUD-R95.** At `start`, one transaction freezes (FAIL-AUD-4):
 
 - exact ProjectScope ArtifactRefs for source, OpenAPI, checklist, finding, and
@@ -742,6 +773,7 @@ revalidates both.
 - a bounded target/scope snapshot, selected assets, exclusions, and permitted
   methods;
 - non-secret credential identities plus durable usage holds;
+- the normalized required placement labels, reused by every child Run;
 - the resolved AuditProfile, every child ResolvedWorkflow closure, and one
   exact Run RuntimeConfig snapshot (default plus Audit-selected Runtime labels)
   reused by every child Run; physical Agent labels still resolve only after

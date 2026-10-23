@@ -1,6 +1,6 @@
 schema_version: "1.0"
 id: V409-008
-title: "Test every state CHECK set and partial-index predicate against its Go definition"
+title: "Extend migrated-schema state-set parity tests to the remaining reviewed owners"
 milestone: sql-review-2026-10
 epic: persistence
 kind: chore
@@ -8,38 +8,106 @@ priority: P3
 status: pending
 depends_on: []
 languages: [go, sql]
-goal: "A state added or renamed in Go without the matching schema change fails a test for every table, not only workflow_runs."
+goal: >-
+  Tests compare the reviewed state and phase CHECK sets and state-dependent
+  index predicates with their owning Go definitions, detecting drift without
+  changing the accepted states or introducing production exports for tests.
 context:
-  review: "docs/research/2026-10-23-sql-review.md, section B (state CHECK sets)"
+  review: "docs/research/2026-10-23-sql-review.md, section B, state CHECK sets"
   specification: docs/spec/platform/lifecycle.md
   finding: >-
-    State CHECK sets exist on stage_executions (baseline:2136), audits
-    (3360), audit_items (3236), audit_executions (3109), projects
-    (2584/2589), eval_experiments (3817), eval_submissions (4078),
-    audit_review_requests (3556), audit_findings (3469) and
-    credential_operations (2653); the Go sets live in
-    internal/runstore/types.go:91-98, internal/auditstore/types.go:37-68,
-    internal/projectstore/types.go:36-39 and the Eval and credential
-    packages. Only workflow_runs has TestPostgresRunStateSetsMatchSchema
-    (internal/runstore/run_states_postgres_test.go:303). Partial-index
-    predicates such as stage_executions_recovery_idx, audits_reconcile_idx,
-    audit_executions_reconcile_idx and eval_experiments_claim_active_idx
-    copy Go 'active' subsets with no test (AGENTS 3.1).
+    internal/runstore/run_states_postgres_test.go:298-403 already compares
+    workflow_runs state CHECKs, partial-index predicates and the generated
+    scheduler tier against declared state sets. Equivalent migrated-schema
+    parity coverage was not found for the ten reviewed tables:
+    stage_executions, audits, audit_items, audit_executions, projects,
+    eval_experiments, eval_submissions, audit_review_requests, audit_findings
+    and credential_operations. This is a coverage gap, not an observed
+    mismatch between the current Go and PostgreSQL state sets.
+  coverage:
+    - "stage_executions.state and its state-dependent partial-index predicates."
+    - "audits.state, audit_items.state and audit_executions.state, with their state-dependent partial-index predicates."
+    - "projects.lifecycle_state and projects.deletion_phase, with lifecycle/phase-dependent partial-index predicates."
+    - "eval_experiments.state and eval_submissions.state, with their state-dependent partial-index predicates."
+    - "audit_review_requests.state and audit_findings.state, with their state-dependent partial-index predicates."
+    - "credential_operations.phase and any phase-dependent partial-index predicates."
+  siblings: >-
+    Preserve existing workflow_runs parity tests, the Run-state partition and
+    API/SQL tests in internal/runstore/run_states_test.go:96-125, Eval fixture
+    and managed-schema checks in internal/evaldomain/lifecycle_states_test.go:12-54,
+    and closed Audit state/transition validation in
+    internal/auditstore/internal/pgstore/validation_test.go:15-65. The broader
+    schema tests in internal/persistence/postgres/schema_invariants_postgres_test.go
+    cover other invariants and are not a substitute for state-set parity.
+  validation: >-
+    Review of main 1d533b2db885e0162ebabb01d36470f139546009 found no current
+    state-set drift. The existing Run PostgreSQL parity and Eval shared-state
+    tests passed. State words overlap across unrelated domains, and SQL,
+    negative fixtures and cross-language fixtures legitimately contain
+    literals. A global word ban would not establish semantic ownership.
+    A central test cannot import another package's export_test.go hooks as
+    ordinary dependency exports.
 plan:
-  - "Generalise the workflow_runs test into a table-driven test reading pg_constraint (CHECK) and pg_index (partial predicates) for each table above and comparing against an exported-for-test list per package (export_test.go hooks)."
-  - "Where a Go set has no single definition (grep for string literals of state names outside the owning package), consolidate first."
+  - >-
+    For each listed table.column, map the enum to its actual owning Go type
+    or boundary fixture and name any intentional partial-index subset.
+    Compare exact sets from pg_constraint and pg_index on a fully migrated
+    disposable schema, scoped by relation and column rather than a global
+    search for words. Enumerate relevant predicates so a newly introduced
+    state-dependent predicate requires an explicit expected subset.
+  - >-
+    Put assertions in owner-package tests and share catalog-reading helpers
+    through a permitted test-helper package where useful. Use existing
+    production definitions or shared fixtures and verify expected-set
+    exhaustiveness against the owning declarations; do not compare two
+    unchecked handwritten lists. When a type has no exhaustive enumerator,
+    use a test-only declaration check or other bounded test helper instead
+    of adding a production export used only by tests. Do not rely on imports
+    of another package's export_test.go.
+  - >-
+    Add negative fixtures that demonstrate detection of a Go-only enum member,
+    a schema-only value, a missing/extra predicate member and an undeclared
+    relevant predicate. Retain intentional SQL literals and boundary/negative
+    fixtures. Consolidate a definition only where the exact same semantic
+    set is duplicated and the change preserves layer direction and behavior.
 scope:
   in:
-    - "Table-driven schema test, consolidation of scattered state literals."
+    - "Parity tests for the enumerated state/phase columns and their state-dependent partial indexes."
+    - "Minimal shared test helpers and behavior-preserving ownership consolidation needed by those tests."
   out:
-    - "Changing any state set."
+    - "Changing any state, phase, transition, index semantics or public/wire contract."
+    - "A repository-wide ban on state-name literals or a generic test of every enum in every table."
+    - "Production exports whose only callers are tests, or upward package dependencies."
 acceptance_criteria:
   - id: A1
-    text: "The test covers the ten tables and their partial-index predicates and fails when a state is added to Go only."
+    text: >-
+      Given a migrated disposable PostgreSQL schema, when the owner tests run,
+      then every table.column in context.coverage has an exact CHECK-set
+      comparison and every relevant partial-index predicate has a named,
+      verified subset. Existing workflow_runs coverage remains intact.
   - id: A2
-    text: "No state name literal of those sets appears outside its owning package (source test)."
+    text: >-
+      Given negative fixtures for an added Go-only state, schema-only value,
+      missing/extra predicate member or undeclared state-dependent predicate,
+      when the parity checker runs, then each mismatch fails with the owning
+      table.column or index identified. The expected Go set is independently
+      checked for exhaustiveness, so adding a declaration cannot silently
+      escape an outdated handwritten test list.
+  - id: A3
+    text: >-
+      Given overlapping state words in independent domains and intentional SQL
+      or boundary fixtures, when the tests run, then only the explicitly
+      mapped semantic sets are compared. Existing Eval shared-fixture and
+      Audit/Run lifecycle tests pass; accepted states and transitions are
+      unchanged, and tests build without cross-package test-only imports.
+  - id: A4
+    text: >-
+      Given the new tests and helpers, when repository lint runs, then layer
+      checks, test-only export checks and task metadata validation pass.
 tests:
-  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/persistence/postgres/... ./internal/runstore/... ./internal/auditstore/... ./internal/projectstore/... ./internal/evalstore/... ./internal/credentials/..."
-    covers: [A1, A2]
+  - command: >-
+      CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?Set a disposable PostgreSQL URL before running this task}"
+      go test -tags=integration -count=1 ./internal/persistence/... ./internal/runstore/... ./internal/auditstore/... ./internal/projectstore/... ./internal/evalstore/... ./internal/evaldomain/... ./internal/credentials/...
+    covers: [A1, A2, A3]
   - command: make lint
-    covers: [A2]
+    covers: [A4]

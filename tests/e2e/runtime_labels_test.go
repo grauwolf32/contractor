@@ -67,10 +67,11 @@ type pinnedRuntimeConfig struct {
 }
 
 type createdLabeledRun struct {
-	RunID                string   `json:"runId"`
-	State                string   `json:"state"`
-	RuntimeLabels        []string `json:"runtimeLabels"`
-	RuntimeConfiguration struct {
+	RequiredPlacementLabels []string `json:"requiredPlacementLabels"`
+	RunID                   string   `json:"runId"`
+	State                   string   `json:"state"`
+	RuntimeLabels           []string `json:"runtimeLabels"`
+	RuntimeConfiguration    struct {
 		Default pinnedRuntimeConfig   `json:"default"`
 		Labels  []pinnedRuntimeConfig `json:"labels"`
 	} `json:"runtimeConfiguration"`

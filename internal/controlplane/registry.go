@@ -387,7 +387,7 @@ func (r *InMemoryRegistry) holdForModelStage(request ReservationRequest, edges [
 	live := make([]*agentEntry, 0, len(r.agents))
 	for _, entry := range r.agents {
 		r.expireEntry(entry, monotonicNow)
-		if isCapacityLive(entry, monotonicNow) {
+		if isCapacityLive(entry, monotonicNow) && contracts.PlacementLabelsMatch(request.RequiredPlacementLabels, entry.registration.PlacementLabels) {
 			live = append(live, entry)
 		}
 	}
@@ -499,6 +499,7 @@ func (r *InMemoryRegistry) reserveAll(
 	available := make([]*agentEntry, 0, len(r.agents))
 	for _, entry := range r.agents {
 		if isPlacementEligible(entry, monotonicNow) &&
+			contracts.PlacementLabelsMatch(request.RequiredPlacementLabels, entry.registration.PlacementLabels) &&
 			(!request.ModelFree || entry.modelStageHeldUntil <= monotonicNow) {
 			available = append(available, entry)
 		}
@@ -526,6 +527,7 @@ func (r *InMemoryRegistry) reserveAll(
 			ReadPolicy: ReadCurrentRun, WritePolicy: WriteInputsAndIntermediates,
 		}
 		reservation := Reservation{
+			PlacementLabels:        append([]string{}, entry.registration.PlacementLabels...),
 			CompletionContract:     contracts.CloneWorkerCompletionContract(binding.CompletionContract),
 			CompletionCapabilities: control.NormalizeAgentRegistration(entry.registration).Capabilities,
 			Grant:                  grant, ControlURL: entry.registration.ControlURL, A2AURL: entry.registration.A2AURL,
@@ -554,23 +556,24 @@ func (r *InMemoryRegistry) reserveAll(
 	return reservations, nil
 }
 
-// GetStageReservations returns only a fully pinned batch. Provisional
-// reservations are deliberately invisible to Scheduler replay.
-func (r *InMemoryRegistry) GetStageReservations(stageExecutionID string) ([]Reservation, error) {
-	if strings.TrimSpace(stageExecutionID) == "" {
-		return nil, ErrAllocationNotFound
+// reservationsForRequest reconciles an ambiguous durable placement without
+// resolving mutable dependencies again, while checking its immutable request.
+func (r *InMemoryRegistry) reservationsForRequest(request ReservationRequest) ([]Reservation, error) {
+	fingerprint, _, err := normalizeReservationRequest(request)
+	if err != nil {
+		return nil, err
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	existing, ok := r.stageReservations[stageExecutionID]
+	existing, ok := r.stageReservations[request.StageExecutionID]
 	if !ok {
 		return nil, ErrAllocationNotFound
 	}
+	if existing.fingerprint != fingerprint || !existing.committed {
+		return nil, ErrReservationConflict
+	}
 	if existing.released {
 		return nil, ErrReservationReleased
-	}
-	if !existing.committed {
-		return nil, ErrReservationConflict
 	}
 	return r.existingReservations(existing)
 }
@@ -1259,6 +1262,9 @@ func supportsWorkspaceMode(
 }
 
 func normalizeReservationRequest(request ReservationRequest) (string, []BindingRequirement, error) {
+	if err := contracts.ValidatePlacementLabels(request.RequiredPlacementLabels); err != nil {
+		return "", nil, fmt.Errorf("%w: required placement labels are invalid: %v", ErrInvalidRequest, err)
+	}
 	if strings.TrimSpace(request.RunID) == "" || strings.TrimSpace(request.StageExecutionID) == "" || len(request.Bindings) == 0 {
 		return "", nil, fmt.Errorf("%w: run, StageExecution, and bindings are required", ErrInvalidRequest)
 	}
@@ -1337,17 +1343,19 @@ func normalizeReservationRequest(request ReservationRequest) (string, []BindingR
 	}
 	sort.Slice(bindings, func(i, j int) bool { return bindings[i].LogicalAgentName < bindings[j].LogicalAgentName })
 	encoded, err := json.Marshal(struct {
-		RunID             string
-		StageExecutionID  string
-		RunMetadataLabels runlabels.RunMetadataLabels
-		Bindings          []BindingRequirement
-		RuntimeConfig     *runtimeconfig.RunSnapshot
+		RequiredPlacementLabels []string
+		RunID                   string
+		StageExecutionID        string
+		RunMetadataLabels       runlabels.RunMetadataLabels
+		Bindings                []BindingRequirement
+		RuntimeConfig           *runtimeconfig.RunSnapshot
 	}{
-		RunID:             request.RunID,
-		StageExecutionID:  request.StageExecutionID,
-		RunMetadataLabels: metadataLabels,
-		Bindings:          bindings,
-		RuntimeConfig:     cloneRunSnapshot(request.RuntimeConfig),
+		RequiredPlacementLabels: append([]string{}, request.RequiredPlacementLabels...),
+		RunID:                   request.RunID,
+		StageExecutionID:        request.StageExecutionID,
+		RunMetadataLabels:       metadataLabels,
+		Bindings:                bindings,
+		RuntimeConfig:           cloneRunSnapshot(request.RuntimeConfig),
 	})
 	if err != nil {
 		return "", nil, fmt.Errorf("encode reservation request: %w", err)

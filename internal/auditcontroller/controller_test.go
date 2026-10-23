@@ -1578,7 +1578,8 @@ func (c *fakeControllerCreator) CreateAudit(_ context.Context, params runservice
 	if err != nil {
 		return runservice.CreateResult{}, err
 	}
-	run := runstore.WorkflowRun{RunID: runID, State: runstore.RunRunning}
+	run := runstore.WorkflowRun{RunID: runID, State: runstore.RunRunning,
+		RequiredPlacementLabels: append([]string{}, params.RequiredPlacementLabels...)}
 	c.runs.mu.Lock()
 	c.runs.runs[runID] = run
 	c.runs.order = append(c.runs.order, runID)

@@ -110,6 +110,7 @@ type SchedulerClaim struct {
 }
 
 type WorkflowRun struct {
+	RequiredPlacementLabels   []string
 	RunID                     string
 	OwnerID                   string
 	ProjectID                 *string
@@ -264,17 +265,18 @@ func (c WorkflowRunCancellation) Validate() error {
 }
 
 type CreateRunParams struct {
-	RunID                 string
-	OwnerID               string
-	ProjectID             *string
-	WorkflowName          string
-	WorkflowVersion       string
-	WorkflowSchemaVersion string
-	WorkflowSnapshot      json.RawMessage
-	Parameters            map[string]string
-	MetadataLabels        RunMetadataLabels
-	RuntimeConfig         runtimeconfig.RunSnapshot
-	ProjectHTTPTarget     *runtimesettings.HTTPOriginTargetRef
+	RequiredPlacementLabels []string
+	RunID                   string
+	OwnerID                 string
+	ProjectID               *string
+	WorkflowName            string
+	WorkflowVersion         string
+	WorkflowSchemaVersion   string
+	WorkflowSnapshot        json.RawMessage
+	Parameters              map[string]string
+	MetadataLabels          RunMetadataLabels
+	RuntimeConfig           runtimeconfig.RunSnapshot
+	ProjectHTTPTarget       *runtimesettings.HTTPOriginTargetRef
 	// LaneClass is the lane class of the Workflow's entry Stage
 	// (resolved.EntryLaneClass), which the Run carries until the Scheduler
 	// creates its first StageExecution (SCH-R175).
@@ -590,6 +592,7 @@ type WorkflowRunEventCursor struct {
 }
 
 type StageAllocation struct {
+	RuntimePlacementLabels            []string
 	CompletionContract                *contracts.WorkerCompletionContract
 	AllocationID                      string
 	StageExecutionID                  string

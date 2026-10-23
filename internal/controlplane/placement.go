@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 
@@ -96,6 +97,9 @@ func (a *PlacementAllocator) ReserveAllContext(
 	ctx context.Context,
 	request ReservationRequest,
 ) ([]Reservation, error) {
+	if err := contracts.ValidatePlacementLabels(request.RequiredPlacementLabels); err != nil {
+		return nil, fmt.Errorf("%w: invalid required placement labels: %v", ErrInvalidRequest, err)
+	}
 	reservations, err := a.reserveAllContext(ctx, request)
 	if !errors.Is(err, ErrInsufficientCapacity) || ctx.Err() != nil {
 		return reservations, err
@@ -104,7 +108,7 @@ func (a *PlacementAllocator) ReserveAllContext(
 	// may have prevented any compatible edge from being built. Refresh only on
 	// failure, after provisional reservations have been discarded, and retry
 	// once with the current durable principals.
-	changed, refreshErr := a.refreshCandidatePrincipals(ctx, a.registry.PlacementCandidates())
+	changed, refreshErr := a.refreshCandidatePrincipals(ctx, matchingLocationCandidates(request.RequiredPlacementLabels, a.registry.PlacementCandidates()))
 	if refreshErr != nil {
 		return nil, refreshErr
 	}
@@ -140,6 +144,7 @@ func (a *PlacementAllocator) candidateEdges(
 	request ReservationRequest,
 	candidates []AgentSnapshot,
 ) ([]CandidateEdge, map[string]runtimeconfig.ResolvedRuntimeConfig, error) {
+	candidates = matchingLocationCandidates(request.RequiredPlacementLabels, candidates)
 	optimistic := make(map[string]runtimeconfig.ResolvedRuntimeConfig)
 	cache := &placementReadCache{agentLabels: make(map[string]placementCachedValue[runtimeconfig.PinnedRuntimeConfig])}
 	lookups := placementCredentialLookups{
@@ -186,6 +191,22 @@ func (a *PlacementAllocator) candidateEdges(
 	return edges, optimistic, nil
 }
 
+// matchingLocationCandidates filters immutable declarations before candidate
+// configuration reads. A wrong-location principal cannot become eligible through
+// a mutable RuntimeConfig-label refresh, so capacity retries never query it.
+func matchingLocationCandidates(required []string, candidates []AgentSnapshot) []AgentSnapshot {
+	if len(required) == 0 {
+		return candidates
+	}
+	matching := make([]AgentSnapshot, 0, len(candidates))
+	for _, candidate := range candidates {
+		if contracts.PlacementLabelsMatch(required, candidate.Registration.PlacementLabels) {
+			matching = append(matching, candidate)
+		}
+	}
+	return matching
+}
+
 func (a *PlacementAllocator) refreshCandidatePrincipals(ctx context.Context, candidates []AgentSnapshot) (bool, error) {
 	repository := agentprincipal.NewRepository(a.pool)
 	seen := make(map[string]struct{}, len(candidates))
@@ -222,7 +243,7 @@ func (a *PlacementAllocator) reserveAllContext(
 	ctx context.Context,
 	request ReservationRequest,
 ) ([]Reservation, error) {
-	if existing, err := a.registry.GetStageReservations(request.StageExecutionID); err == nil {
+	if existing, err := a.registry.reservationsForRequest(request); err == nil {
 		return existing, nil
 	} else if !errors.Is(err, ErrAllocationNotFound) {
 		return nil, err
@@ -377,6 +398,7 @@ func (a *PlacementAllocator) pinReservations(
 			reservation.Grant.LogicalAgentName, reservation.Grant.RuntimeInstanceID,
 		)]
 		if !ok || !sameResolvedRuntimeConfig(observed, resolved) ||
+			!contracts.PlacementLabelsMatch(request.RequiredPlacementLabels, candidate.Registration.PlacementLabels) ||
 			!isBindingCompatible(candidate.Registration, binding) ||
 			!containsRuntimeAdapters(candidate.Registration.SupportedRuntimeAdapters, resolved.RequiredRuntimeAdapters) {
 			return errPlacementRevisionChanged
@@ -398,6 +420,13 @@ func (a *PlacementAllocator) pinReservations(
 			return persistencepostgres.WrapError("lock StageExecution for allocation placement", err)
 		}
 	}
+	storedRun, err := store.GetRun(ctx, request.RunID)
+	if err != nil {
+		return err
+	}
+	if !slices.Equal(storedRun.RequiredPlacementLabels, request.RequiredPlacementLabels) {
+		return fmt.Errorf("%w: requirements differ from the immutable Run", ErrInvalidRequest)
+	}
 	for _, reservation := range reservations {
 		resolved := result[reservation.Grant.AllocationID]
 		configuration := &runstore.AllocationRuntimeConfiguration{
@@ -406,8 +435,9 @@ func (a *PlacementAllocator) pinReservations(
 			Provenance:  resolved.Provenance,
 		}
 		if err := store.RecordStageAllocation(ctx, runstore.StageAllocation{
-			CompletionContract: contracts.CloneWorkerCompletionContract(reservation.CompletionContract),
-			AllocationID:       reservation.Grant.AllocationID, StageExecutionID: request.StageExecutionID,
+			RuntimePlacementLabels: append([]string{}, reservation.PlacementLabels...),
+			CompletionContract:     contracts.CloneWorkerCompletionContract(reservation.CompletionContract),
+			AllocationID:           reservation.Grant.AllocationID, StageExecutionID: request.StageExecutionID,
 			LogicalAgentName: reservation.Grant.LogicalAgentName, Namespace: reservation.Grant.Namespace,
 			AgentTemplateRef: reservation.AgentTemplate.Ref, WorkerRuntimeRef: reservation.AgentTemplate.Runtime,
 			RuntimeAgentID:                    reservation.Grant.RuntimeAgentID,

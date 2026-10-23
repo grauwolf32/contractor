@@ -299,10 +299,11 @@ func (h *runHandlers) createRunFromProject(w http.ResponseWriter, r *http.Reques
 func createRunReadModel(run runstore.WorkflowRun) createRunResponse {
 	return createRunResponse{
 		RunID: run.RunID, ProjectID: run.ProjectID, State: run.State,
-		RuntimeLabels:        append([]string{}, run.RuntimeLabels...),
-		Labels:               run.MetadataLabels.Clone(),
-		RuntimeConfiguration: runtimeConfigReadModel(run.RuntimeConfig),
-		ProjectHTTPTarget:    run.ProjectHTTPTarget.Clone(),
+		RuntimeLabels:           append([]string{}, run.RuntimeLabels...),
+		RequiredPlacementLabels: append([]string{}, run.RequiredPlacementLabels...),
+		Labels:                  run.MetadataLabels.Clone(),
+		RuntimeConfiguration:    runtimeConfigReadModel(run.RuntimeConfig),
+		ProjectHTTPTarget:       run.ProjectHTTPTarget.Clone(),
 	}
 }
 
@@ -432,11 +433,12 @@ func (h *runHandlers) getRun(w http.ResponseWriter, r *http.Request) {
 		RunID:                  run.RunID, ProjectID: run.ProjectID,
 		Workflow: run.WorkflowName + "@" + run.WorkflowVersion,
 		State:    run.State, Deletable: detail.DeletionBlocker == nil,
-		RuntimeLabels:        append([]string{}, run.RuntimeLabels...),
-		Labels:               run.MetadataLabels.Clone(),
-		RuntimeConfiguration: runtimeConfigReadModel(run.RuntimeConfig),
-		ProjectHTTPTarget:    run.ProjectHTTPTarget.Clone(),
-		Cancellation:         run.Cancellation, Parameters: run.Parameters,
+		RuntimeLabels:           append([]string{}, run.RuntimeLabels...),
+		RequiredPlacementLabels: append([]string{}, run.RequiredPlacementLabels...),
+		Labels:                  run.MetadataLabels.Clone(),
+		RuntimeConfiguration:    runtimeConfigReadModel(run.RuntimeConfig),
+		ProjectHTTPTarget:       run.ProjectHTTPTarget.Clone(),
+		Cancellation:            run.Cancellation, Parameters: run.Parameters,
 		Inputs: detail.Inputs, Attempts: attempts,
 		Transitions: stageTransitionsReadModel(detail.Transitions), Outputs: detail.Outputs,
 		OutputPublications: outputPublicationsReadModel(detail.OutputPublications),
@@ -563,8 +565,9 @@ func stageRuntimeConfigurationReadModel(
 			status = "release_pending"
 		}
 		projected = append(projected, stageRuntimeAllocationResponse{
-			LogicalAgent: allocation.LogicalAgentName,
-			AgentLabels:  agentLabels,
+			PlacementLabels: append([]string{}, allocation.RuntimePlacementLabels...),
+			LogicalAgent:    allocation.LogicalAgentName,
+			AgentLabels:     agentLabels,
 			RuntimeAdapters: append([]runtimesettings.RuntimeAdapterRef{},
 				configuration.Provenance.RuntimeAdapters...),
 			Origins: configuration.Origins,

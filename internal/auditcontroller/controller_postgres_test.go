@@ -1724,6 +1724,7 @@ func newPostgresControllerHarnessWithPolicy(
 		t.Fatal(err)
 	}
 	draft, _, err := auditService.CreateDraft(ctx, auditservice.CreateDraftParams{
+		Labels:  map[string]string{"cloud": "aws", "team": "appsec"},
 		AuditID: "audit-controller", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
 		Profile:       auditservice.ProfileSelector{Name: "test-checklist", Version: "1"},
 		Inputs:        inputRefs,

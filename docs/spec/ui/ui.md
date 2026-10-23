@@ -609,6 +609,30 @@ presentation over the generic label query without an eval-only Server
 execution path are specified in [Runs](../execution/runs.md) (RUN-R74,
 RUN-R76).
 
+**UI-R203.** The Audit start form offers ordinary `labels` as editable
+key/value chips with quick cloud/local additions and a visible bound, using
+the shared metadata grammar and
+reserved cloud/local validation. `cloud` selects any cloud, `cloud:aws`
+selects cloud/aws, and `local:lab` selects local/lab. The UI uses this label
+field for placement and has no separate location selector or fleet-availability
+gate. It retains typed labels through failed reads and draft/start conflicts,
+explains that start fixes the map and all child Runs inherit it, and shows the
+Server-reported labels in Audit details. Run forms use their existing metadata
+label editor and repeat copies those labels. RuntimeConfig controls remain
+separate and are titled Runtime configuration.
+
+
+Checks exposes a basic web scan launcher at `/checks/web/new`,
+with optional `project` context. It selects an ordinary Project or standalone
+execution, submits the reviewed target URL explicitly, and offers rule IDs,
+tags, severity and an optional request rate without coercing supplied strings.
+Rulepacks are selected or uploaded in the owner's library and submitted as exact
+refs even for Project Runs. Pickers page through the Server inventory, retain
+selected exact refs across refreshes, and show read/write errors. A pending
+submission disables editing; an unchanged retry reuses its request key. Success
+opens the existing Run detail and result lifecycle. This basic launcher does
+not require the configuration editor.
+
 **UI-R95.** The Run-create UI presents Runtime labels separately, as
 infrastructure configuration.
 
@@ -1225,17 +1249,6 @@ authoritative REST snapshot (UI-R29). Shared rules are in
   query contract.
 - Audit WebSocket subscriptions, their authorization, cursor and sequence
   replay, and resync are deferred as one complete later transport feature.
-
-**UI-R203.** Checks exposes a basic web scan launcher at `/checks/web/new`,
-with optional `project` context. It selects an ordinary Project or standalone
-execution, submits the reviewed target URL explicitly, and offers rule IDs,
-tags, severity and an optional request rate without coercing supplied strings.
-Rulepacks are selected or uploaded in the owner's library and submitted as exact
-refs even for Project Runs. Pickers page through the Server inventory, retain
-selected exact refs across refreshes, and show read/write errors. A pending
-submission disables editing; an unchanged retry reuses its request key. Success
-opens the existing Run detail and result lifecycle. This basic launcher does
-not require the configuration editor.
 
 **UI-R204.** Workflow-specific controls live in bundled widgets, selected by
 an explicit registry and checked against the exact published Workflow version,

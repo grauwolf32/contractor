@@ -3471,6 +3471,11 @@ export interface components {
         };
         AuditActor: string;
         ConfigId: string;
+        /** @description Ordinary labels pinned at Audit start and inherited by every child Run. cloud or local with an empty value selects the whole namespace; cloud=aws selects cloud/aws. Four entries are reserved for child-specific audit.* provenance. */
+        AuditLabels: components["schemas"]["RunMetadataLabels"] & {
+            [key: string]: unknown;
+        };
+        /** @description Immutable ordinary key/value labels. cloud and local derive Runtime placement; an empty value selects the namespace and a non-empty value selects its provider/site child path. Other keys are descriptive. */
         RunMetadataLabels: {
             [key: string]: string;
         };
@@ -3773,6 +3778,7 @@ export interface components {
             authorizationScope?: string;
         };
         CreateAuditRequest: {
+            labels?: components["schemas"]["AuditLabels"];
             profile: components["schemas"]["AuditProfileSelector"];
             inputs: {
                 [key: string]: components["schemas"]["ExactArtifactRef"];
@@ -3815,6 +3821,8 @@ export interface components {
             worklist: components["schemas"]["AuditExactArtifact"];
         };
         AuditBaseline: {
+            labels?: components["schemas"]["AuditLabels"];
+            requiredPlacementLabels?: components["schemas"]["PlacementLabels"];
             activeChecks: components["schemas"]["ActiveChecksPolicy"];
             inputs: {
                 [key: string]: components["schemas"]["AuditExactArtifact"];
@@ -3899,6 +3907,8 @@ export interface components {
             message: string;
         };
         Audit: {
+            labels?: components["schemas"]["AuditLabels"];
+            requiredPlacementLabels?: components["schemas"]["PlacementLabels"];
             auditId: components["schemas"]["ResourceId"];
             projectId: components["schemas"]["ResourceId"];
             profile: components["schemas"]["AuditProfileIdentity"];
@@ -5218,6 +5228,7 @@ export interface components {
             plannerTelemetry?: components["schemas"]["RuntimeFieldOrigin"];
         };
         StageRuntimeAllocation: {
+            placementLabels?: components["schemas"]["PlacementLabels"];
             logicalAgent: components["schemas"]["ConfigId"];
             agentLabels: components["schemas"]["PinnedRuntimeConfig"][];
             runtimeAdapters: components["schemas"]["RuntimeCapabilityRef"][];
@@ -5333,6 +5344,7 @@ export interface components {
             requiresRetry: boolean;
         };
         RunStatus: {
+            requiredPlacementLabels?: components["schemas"]["PlacementLabels"];
             recovery?: components["schemas"]["RunRecovery"];
             /** @description Present only when this failed attempt can be manually continued after cleanup. */
             resumeStageExecutionId?: components["schemas"]["ResourceId"];
@@ -5395,6 +5407,7 @@ export interface components {
             message?: string;
         };
         RunRepeatDraft: {
+            requiredPlacementLabels?: components["schemas"]["PlacementLabels"];
             parameters: {
                 [key: string]: string;
             };
@@ -5457,6 +5470,7 @@ export interface components {
             page: components["schemas"]["PageInfo"];
         };
         CreateRunResponse: {
+            requiredPlacementLabels?: components["schemas"]["PlacementLabels"];
             runId: components["schemas"]["ResourceId"];
             projectId?: components["schemas"]["ResourceId"];
             state: components["schemas"]["WorkflowRunState"];

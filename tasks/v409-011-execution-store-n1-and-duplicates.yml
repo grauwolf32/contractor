@@ -1,72 +1,192 @@
-schema_version: "1.0"
+schema_version: '1.0'
 id: V409-011
-title: "Batch execution-store round trips, fail closed on corrupt metrics rows and fold duplicated statements"
+title: Reduce execution and Eval query round trips while preserving lock and recovery contracts
 milestone: sql-review-2026-10
 epic: execution-core
-kind: defect
-introduced_by: V1-004
+kind: chore
+introduced_by: V8-001
 priority: P3
 status: pending
 depends_on: []
-languages: [go, sql]
-goal: "Terminal release recovery, binding locks and credential usage queries issue bounded statement counts, corrupt rows fail reads, and sibling statements share one definition."
+languages:
+- go
+- sql
+goal: Batch demonstrably repeated database work in existing transaction and release phases while
+  keeping authority, partial failure, replay and selected-view results unchanged.
 context:
-  review: "docs/research/2026-10-23-sql-review.md, section D (N+1, FindEvalReceipt, metrics_batch lenient read, credential OR, duplicates)"
-  specification: docs/spec/platform/persistence.md
-  severity: low
-  finding: >-
-    (1) internal/scheduler/allocation_release.go:98-135 reads 32 executions
-    then per execution ListStageAllocations
-    (internal/runstore/allocation_store.go:157, with a second existence
-    probe at :167 on empty) and per allocation
-    MarkStageAllocationReleaseAttempt/Released, although
-    ListStageAllocationsBatch (:180) exists with one runservice caller. (2)
-    internal/runtimeconfig/repository.go:348-370 lockBindings and
-    internal/agentprincipal/repository.go:131-153 LockMany lock one row per
-    statement in a sorted loop; ValidateLockedAgentLabels
-    (agent_labels.go:77-86) does GetBinding + GetVersionByRef per label.
-    (3) internal/credentials/runtime_repository_sql.go:64
-    runtimeCredentialAllocationUsageSQL has OR r.project_http_target_snapshot
-    #>> ... = $1 across two tables, so neither the GIN index
-    stage_allocations_live_runtime_credentials_idx nor
-    workflow_runs_project_http_target_credential_idx applies. (4)
-    internal/persistence/postgres/receipts.go:168-173 FindEvalReceipt
-    selects project_id with LIMIT 1 and no ORDER BY where two receipts with
-    different Projects are possible. (5) internal/telemetry/metrics_batch.go:34-36
-    GetStageMetricsBatch continues past a row whose JSON fails to decode
-    (AGENTS 2: validate strictly on read). (6) Duplicates:
-    internal/artifacts/ref_page_sql.go:11 vs :26 (namespace-scoped variant
-    keeps constant $5-$7 filters); internal/credentials/repository.go:176-183
-    vs runtime_repository_sql.go:17 (same join, different JSON path lists,
-    both casting canonical_document::jsonb from text per version);
-    internal/gatewayrecovery/waiting.go:119-152 reads owner_id after
-    LockRunState already read the row; internal/runstore/resume_store.go:46-69
-    reads project_id unlocked, locks the Project, then re-reads the Run FOR
-    UPDATE.
-  siblings: >-
-    V407-015 (scheduler Stage-end cost) and V407-014 (placement reads)
-    touch neighbouring paths; coordinate the batch readers.
+  review: docs/research/2026-10-23-sql-review.md, D N+1/duplicates and safe comparison-page/recovery-query
+    portions transferred from original V409-009.
+  specification:
+  - docs/spec/platform/persistence.md
+  - docs/spec/configuration/runtime-config.md
+  - docs/spec/execution/scheduler.md
+  - docs/spec/execution/runs.md#RUN-R90
+  - docs/spec/evals/managed-evals.md#EVM-R108
+  - docs/spec/evals/managed-evals.md#EVM-R110
+  - docs/spec/evals/managed-evals.md#EVM-R164
+  - docs/spec/evals/managed-evals.md#EVM-R168
+  - docs/spec/evals/managed-evals.md#EVM-R214
+  - docs/spec/evals/managed-evals.md#EVM-R216
+  finding: runtimeconfig/repository.go:348-369 and agentprincipal/repository.go:131-153 lock each
+    requested row separately; runtimeconfig/agent_labels.go:74-106 repeats binding/version reads.
+    scheduler/allocation_release.go:38-47,60-75,135-172 writes release markers per allocation. evalstore/comparison_pages.go:76-90
+    performs separate count and page statements, and selectedMemberPageSQL extracts JSON filter fields
+    before the limit. evalservice/execution_operations.go:59-65 and driver.go:159-167 already compose
+    multiple recovery-aware store methods in the same database transaction; those methods repeat
+    authority reads. These are verified repeated operations, not measured production latency incidents.
+  validation: Revalidated on main 1d533b2db885e0162ebabb01d36470f139546009. Existing 10000 directly
+    seeded comparison fixture passed with two SQL queries per page and maximum serialized page 632876
+    bytes. Real PostgreSQL malformed-metrics probe retained the healthy sibling and omitted only
+    the corrupt row, as RUN-R90 requires. No reachable cross-Project Eval receipt ambiguity was demonstrated.
+    Recovery currently returns after its first Stage that worked/errored, not after releasing every
+    one of 32 candidates.
+  siblings: Binding shared pins and exclusive writers; principal locks and label validation; normal
+    terminal release and recovery for one owned Stage; Eval PairPage/SelectedMemberPage including
+    empty/foreign-owner/filter cases; composed BindExecution+ResolveSuboperation and ObserveTokens+Settle
+    transactions; gatewayrecovery Retry owner lookup. Coordinate terminal release scheduling with
+    V407-016 and adjacent Stage-end/placement work V407-015/014. V409-009 owns purge only; V407-028/029
+    own member insertion and FrozenPlan metadata reads.
+  provenance: 'The binding loop comes from d8ef98c1427ebcb34504655e8ef181047a134576 (V8-001). Related
+    origins: release marker loop 9ef3eec6f9841abdfb3165536d488c437c613004 (V45-005); principal cleanup
+    3ecd3f2f4bf99f3a42ec009381df732d59e1a41d (V370-012); comparison pages 9fc021501ce34389ecc7f35ca65bdf7959a25ce9
+    (V38-006). V1-004 metrics behavior is explicitly excluded.'
+  decisions:
+  - Keep GetStageMetricsBatch per-row omission and healthy peers (RUN-R90; metrics_batch.go:9-11,34-35).
+    A batch error on one malformed row would make runservice/detail.go:195-197 omit all metrics.
+    Do not recast this intentional failure outcome as a defect.
+  - Keep LockBindings FOR SHARE and LockBindingsForUpdate FOR UPDATE; sorted batching must preserve
+    mode and binding-before-principal order. Keep ResumeFailedRun initial Project lookup, then Project
+    lock, then Run lock (resume_store.go:44-69); it is required for Project-first ordering.
+  - EvalReceiptProject is a retained-receipt Project lookup after an addressed experiment disappears,
+    not a Create collection lookup. Service-generated experiment IDs use 128-bit randomness; external
+    PortableID is distinct. Leave it unchanged. Reopen duplicate-receipt handling only with a reachable
+    production writer or demonstrated corruption-detection requirement; adding ProjectID would be
+    circular for this lookup.
+  - 'No unconditional UNION/index rewrite of allocation credential usage: the target index in migration
+    000002:39-43 covers only active Runs, while terminal unreleased allocations must remain references.
+    A target-only EXPLAIN probe still used Seq Scan. Keep the query unless a representative full
+    allocation fixture proves a semantics-preserving improvement; no active-state filter or invented
+    keyset API is permitted.'
+  - No requirement for one SQL string per conceptual query. Namespace-specific artifact ref pagination
+    has a different keyset from cross-namespace pagination; nullable-namespace OR and generic JSON-path
+    consolidation need plan/semantic evidence before adoption. Keep these separate statements; reopen
+    only if a concrete duplication fix preserves both custom/generic plans and exact credential-kind
+    paths.
+  - Full PublishView projection redesign and persisted next_ordinal remain outside accepted work
+    for the reasons recorded in V409-009. Their omission is a documented decision, not an implementation
+    claim. Reuse within current transactions must never create a transaction across an intent commit,
+    ordinary Run/Audit side effect and acknowledgement.
 plan:
-  - "Release recovery: one ListStageAllocationsBatch for the 32 executions and one UPDATE ... WHERE allocation_id = ANY($1) per mark; drop the empty-result existence probe or fold it into the batch."
-  - "Lock bindings and principals with one statement WHERE label = ANY($1) ORDER BY label FOR UPDATE; fetch bindings and versions for a label set in one statement."
-  - "Split the credential usage query into two UNION arms (allocation provenance via the GIN index; project target via the expression index) with the keyset applied to the union."
-  - "FindEvalReceipt: include project_id in the lookup or treat more than one row as an internal error; metrics batch: return an error naming the stage on a corrupt row."
-  - "Fold the duplicated statements: one ref-page statement with a nullable namespace parameter; one credential projection statement taking a path array (or store canonical_document as jsonb in a migration); drop the second reads in gatewayrecovery and resume by returning the needed columns from the locking read."
-  - "Statement-count tests on the fake and real stores for release recovery (32 executions), binding locks (16 labels) and the credential usage page (EXPLAIN index use)."
+- Batch binding and principal locks with sorted key arrays and the correct existing lock mode. Preserve
+  syntax validation and duplicate rejection before SQL (runtimeconfig/repository.go:356-360 and agentprincipal/repository.go:139-143
+  already reject duplicate keys); verify that returned rows cover the requested set and preserve
+  existing missing-key error classes. Preserve all-or-error caller transaction semantics and principal
+  identity validation. Batch label binding/version lookup without weakening canonical document/digest
+  integrity checks.
+- For one Stage already owned by the terminal-release gate, batch attempt markers and batch only
+  those completion markers whose live grants are confirmed absent. Keep provenance verification,
+  write fences, per-Stage gate, error aggregation, timeout ownership and per-allocation missing-row
+  semantics. Do not eagerly fetch/release all 32 candidates or change scheduling; that is V407-016.
+  Use bounded admitted allocation cohorts and distinguish partial outcomes before marking anything
+  complete.
+- Replace Eval count-plus-page round trips with one statement that returns both the exact filtered
+  total and a bounded page, including an empty after-cursor page. Restrict full output document transfer/decoding
+  to selected page rows and the necessary bounded lookahead. Exact counting may still examine the
+  filtered cohort; do not claim total work proportional only to page size. If filter/member identity
+  columns are projected, maintain them at the existing projection write boundary and add a real migration/backfill
+  consistency test.
+- Preserve view-generation snapshot, owner/filter binding, full experiment summary, ordering/tie
+  breaks and HasMore. Pair/MemberView payloads remain complete. Do not omit data just to meet a statement-text
+  assertion; include the exact empty-page FilteredCount and foreign-owner behavior in query equivalence
+  tests.
+- Share repeated recovery authority work only inside already-composed database-only transactions
+  such as BindExecution+ResolveSuboperation and ObserveTokens+Settle. Pass a transaction-bound capability
+  or composed operation, not a reusable cached authorization across transactions. Refresh mutable
+  state and recheck live-claim/fence conditions where the old protocol requires them; no read saved
+  at the cost of admitting work after cancellation or losing intent durability.
+- Return owner identity from the existing gateway Retry locking read when this removes its subsequent
+  lookup without changing lock order or ownership errors. Keep the Resume Project discovery read.
+  Remove or adapt only callers of helpers actually changed; do not add a generic preamble/SQL consolidation
+  framework.
+- Add deterministic SQL-count tests on the real store for valid 16-label sets and multi-allocation
+  Stages admitted by existing contracts, plus exact failure cases. Extend existing comparison page
+  tests at an admitted native ceiling and retain the explicitly store-seeded 10000-member defensive
+  fixture. Compare query counts within defined operations, not elapsed time, and preserve shared-pin
+  concurrency, pause/cancel, expired-claim, restart and lost-acknowledgement tests.
 scope:
   in:
-    - "Batching, union rewrite, strict reads, statement folding, tests."
+  - Binding/principal/label-read batching with existing lock semantics; per-owned-Stage release marker
+    batching.
+  - Single-statement Eval comparison pages and bounded output-document reads, explicitly transferred
+    chore scope from original V409-009; recovery-query reuse only inside existing composed database
+    transactions.
+  - Gateway Retry owner projection and focused query-count/equivalence tests.
   out:
-    - "Release protocol and credential formats."
+  - Malformed-metrics failure policy, Eval receipt lookup behavior, Resume Project-first lookup,
+    full-tick transactions, release scheduling/concurrency changes.
+  - Unproven allocation credential UNION/index changes, artifact pagination SQL merging, dynamic
+    credential path consolidation, full PublishView redesign and persistent admission cursor.
+  - Eval purge (V409-009), member INSERT batching/FrozenPlan metadata (V407-028/029), new external
+    API fields or changed comparison denominators.
 acceptance_criteria:
-  - id: A1
-    text: "Terminal release recovery of 32 executions issues a constant number of statements; locking 16 labels issues one statement."
-  - id: A2
-    text: "EXPLAIN of the credential usage query shows index scans on both arms; a corrupt StageMetrics row fails the batch read with a classified error."
-  - id: A3
-    text: "The folded statements have one definition each; existing tests pass; the statement-count tests fail on the unfixed code."
+- id: A1
+  text: Given valid overlapping 16-label pin sets or exclusive mutations, when the batch lock methods
+    run, then each lock-set query is constant-count, pins remain mutually compatible, writers remain
+    excluded, and duplicate/missing/invalid inputs preserve their existing outcomes and lock order.
+- id: A2
+  text: Given an owned terminal Stage with multiple valid allocations and mixed release outcomes,
+    when marker batching runs, then SQL marker count is bounded per phase instead of per allocation,
+    only absent grants become completed, live/diverged grants retain their existing fences and errors,
+    and recovery does not process additional Stages merely to fill a batch.
+- id: A3
+  text: Given any supported Eval pair/member filter and cursor, including empty/end/foreign-owner
+    pages, when the page is read, then one SQL statement returns the same exact filtered total, full
+    summary identity, complete bounded items, ordering and continuation as before; full output documents
+    are fetched only for selected page rows and bounded lookahead.
+- id: A4
+  text: Given a composed recovery transaction that encounters cancellation, claim loss, an ambiguous
+    side-effect acknowledgement or retry, when shared authority reads are used, then every original
+    fence/replay outcome remains valid and no transaction spans an external service call; counted
+    duplicate queries decrease only within the specified existing transaction boundaries.
+- id: A5
+  text: Given malformed optional metrics, retained Eval receipts, a Run resume and credential usage
+    on terminal unreleased allocations, when existing paths are exercised, then the documented per-row
+    omission, scope resolution, Project-first lock order and retained-reference behavior are unchanged;
+    no unsupported rewrite is required for closure.
+- id: A6
+  text: Given the original implementations, when binding/marker/comparison/composed-operation count
+    regressions run, then the relevant old operation counts fail their new assertions; preservation
+    tests may already pass and are not claimed as reproduced defects. Migration/backfill tests pass
+    against real PostgreSQL if projected filter columns are added.
 tests:
-  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/scheduler/... ./internal/runstore/... ./internal/runtimeconfig/... ./internal/agentprincipal/... ./internal/credentials/... ./internal/telemetry/... ./internal/artifacts/... ./internal/gatewayrecovery/... ./internal/persistence/postgres/..."
-    covers: [A1, A2, A3]
-  - command: make lint
-    covers: [A3]
+- command: CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?Set an isolated disposable
+    PostgreSQL URL}" go test -tags=integration -count=1 ./internal/scheduler/... ./internal/runstore/...
+    ./internal/runtimeconfig/... ./internal/agentprincipal/... ./internal/credentials/... ./internal/telemetry/...
+    ./internal/runservice/... ./internal/gatewayrecovery/... ./internal/evaldomain/... ./internal/evalstore/...
+    ./internal/evalservice/... ./internal/evalcoordinator/... ./internal/persistence/... ./internal/httpapi/public/...
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+  - A6
+- command: make verify-public-api
+  covers:
+  - A3
+  - A5
+- command: make lint
+  covers: []
+  purpose: Static layering, formatting, SQL placement, migration/task/specification checks only;
+    does not prove lock compatibility, counts or failure semantics.
+manual_verification:
+- check: Record before/after statement counts and representative custom/generic query plans with
+    dataset cardinalities; confirm any new projected columns have an atomic writer/backfill and every
+    retained/rejected original subclaim has its disposition. Do not force index scans or report preservation
+    tests as initially failing defects.
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A6
