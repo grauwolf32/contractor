@@ -304,3 +304,101 @@ func TestPassthroughRejectedCandidateIsOneFailedInvocation(t *testing.T) {
 		})
 	}
 }
+
+// A failed session write after the Planner judged the invocation changes only
+// the report-level error: the a2a.invoke call keeps its verdict, and the
+// Planner returns planner_session_unavailable instead of the candidate or the
+// rejection, retryable after an accepted result and with the rejection's
+// retryability otherwise (PLN-R106, PLN-R119).
+func TestPassthroughSessionWriteFailureKeepsInvocationVerdict(t *testing.T) {
+	for _, test := range []struct {
+		name          string
+		err           func(contracts.ArtifactRef) error
+		callCode      string
+		callRetryable bool
+		retryable     bool
+	}{
+		{name: "accepted result", retryable: true},
+		{
+			name: "rejected candidate", err: func(contracts.ArtifactRef) error { return artifacts.ErrArtifactNotFound },
+			callCode: "result_contract_violation", callRetryable: false, retryable: false,
+		},
+		{
+			name: "unverifiable candidate", err: transientMetadataFailure,
+			callCode: "result_artifact_unavailable", callRetryable: true, retryable: true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			candidate := verificationCandidate(map[string]contracts.ArtifactRef{"report": verificationRef("report", "result-r1")})
+			repository := &scriptedMetadataRepository{answer: func(ref contracts.ArtifactRef) (artifacts.Metadata, error) {
+				if test.err != nil {
+					return artifacts.Metadata{}, test.err(ref)
+				}
+				return artifacts.Metadata{Ref: ref.Clone(), MediaType: "application/json"}, nil
+			}}
+			var attempted []Completion
+			sessions := &memorySessions{completeHook: func(_ context.Context, completion Completion) error {
+				attempted = append(attempted, completion)
+				return errors.New("database write failed")
+			}}
+			worker := &recordingWorker{result: workerCompletionFromCandidate(candidate)}
+			factory, err := NewPassthroughFactory(sessions, worker, verificationInspector(t, repository))
+			if err != nil {
+				t.Fatal(err)
+			}
+			instance, err := factory.Create(testInvocation())
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := instance.Run(t.Context())
+			var plannerError *Error
+			if !errors.As(err, &plannerError) || plannerError.Code != "planner_session_unavailable" ||
+				plannerError.Retryable != test.retryable {
+				t.Fatalf("Run error = %v, want planner_session_unavailable retryable=%t", err, test.retryable)
+			}
+			if result.Outcome != "" {
+				t.Fatalf("Run returned candidate %+v with a failed session write", result)
+			}
+			if worker.calls != 1 || len(attempted) != 1 || sessions.completion != nil {
+				t.Fatalf("Worker calls = %d, completion writes = %+v, recorded = %+v", worker.calls, attempted, sessions.completion)
+			}
+			if test.callCode == "" {
+				if attempted[0].Result == nil || attempted[0].Failure != nil {
+					t.Fatalf("attempted completion = %+v, want the accepted candidate", attempted[0])
+				}
+			} else if attempted[0].Failure == nil || attempted[0].Failure.Code != test.callCode {
+				t.Fatalf("attempted completion = %+v, want failure %s", attempted[0], test.callCode)
+			}
+
+			report, ok := instance.(ReportProvider).ExecutionReport()
+			if !ok {
+				t.Fatal("failed session write left no Planner execution report")
+			}
+			succeeded, failed := int64(1), int64(0)
+			if test.callCode != "" {
+				succeeded, failed = 0, 1
+			}
+			metrics := report.Metrics.Tools["a2a.invoke"]
+			if metrics.Calls == nil || *metrics.Calls != 1 || metrics.Succeeded == nil || *metrics.Succeeded != succeeded ||
+				metrics.Failed == nil || *metrics.Failed != failed {
+				t.Fatalf("a2a.invoke metrics = %+v", metrics)
+			}
+			if len(report.ToolCalls) != 1 || report.ToolCalls[0].Tool != "a2a.invoke" {
+				t.Fatalf("tool calls = %+v", report.ToolCalls)
+			}
+			call := report.ToolCalls[0]
+			if test.callCode == "" {
+				if call.Outcome != reporting.ToolCallSucceeded || call.Error != nil {
+					t.Fatalf("a2a.invoke call = %+v, want succeeded", call)
+				}
+			} else if call.Outcome != reporting.ToolCallFailed || call.Error == nil || call.Error.Code != test.callCode ||
+				call.Error.Retryable == nil || *call.Error.Retryable != test.callRetryable {
+				t.Fatalf("a2a.invoke call = %+v, want failed %s retryable=%t", call, test.callCode, test.callRetryable)
+			}
+			if len(report.Errors) != 1 || report.Errors[0].Code != "planner_session_unavailable" ||
+				report.Errors[0].Retryable == nil || *report.Errors[0].Retryable != test.retryable {
+				t.Fatalf("report errors = %+v", report.Errors)
+			}
+		})
+	}
+}
