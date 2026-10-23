@@ -817,8 +817,11 @@ def check_integration_graph() -> int:
             f"{len(commands)} visible commands, {len(consolidated)} complete discovery gates"
         )
     tokens = consolidated[0]
-    if any(flag not in tokens for flag in ("-race", "-v", "-count=1", "-p", "1", "-run")):
-        raise SystemExit("release integration command lost race, verbose evidence, count, serial or selection")
+    if any(flag not in tokens for flag in ("-race", "-v", "-count=1", "-p", "-run")):
+        raise SystemExit("release integration command lost race, verbose evidence, count, parallelism or selection")
+    parallelism_index = tokens.index("-p") + 1
+    if parallelism_index >= len(tokens) or re.fullmatch(r"[1-9][0-9]*", tokens[parallelism_index]) is None:
+        raise SystemExit("release integration package parallelism must be a positive integer")
     packages = {token for token in tokens if token.startswith("./")}
     if packages != selected.keys():
         raise SystemExit(

@@ -92,6 +92,17 @@ still runs all 19 process tests in one local command, and `make test-ui-stack`
 still runs the full browser stack locally. The release-graph guard checks that
 each selected process and browser test runs exactly once.
 
+The three aggregate race targets (`test-release-go-race`,
+`test-release-go-race-discovered`, `test-release-integration`) run at most two
+package binaries concurrently by default. Set `RACE_PACKAGE_PARALLELISM=1`
+when diagnosing contention or reproducing serial execution, for example
+`make test-release-go-race RACE_PACKAGE_PARALLELISM=1`. This setting changes
+package scheduling only; tests inside each package keep their existing
+scheduling. Before increasing it, measure peak PostgreSQL connections
+(including admin pools and direct connections), memory and elapsed time on
+the runner. PostgreSQL advisory locks also require checking their database
+scope; separate schemas alone do not isolate every resource.
+
 Inside the stages, family targets skip their own Go suites and browser stack
 in favor of the race, integration, process and browser passes; running a
 family target directly still runs its focused suites. Every Go package with
