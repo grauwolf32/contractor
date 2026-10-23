@@ -6,7 +6,7 @@ epic: evals
 kind: defect
 introduced_by: V38-008
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [typescript]
 goal: "The mocked browser gate's Eval comparison journey at 390 px passes on Linux and macOS Chromium while still proving that the overview chart select works from the keyboard."
