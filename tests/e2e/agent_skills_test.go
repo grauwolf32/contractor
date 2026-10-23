@@ -42,11 +42,6 @@ type agentSkillRunEvidence struct {
 	runtimeInstanceID string
 }
 
-var bundledAgentSkillNames = []string{
-	"auth", "caido", "code-exec", "exploit", "likec4",
-	"stride", "trace", "vuln-scan", "vulns",
-}
-
 func TestAgentSkillsMVPProcesses(t *testing.T) {
 	if testing.Short() {
 		t.Skip("end-to-end process test")
@@ -68,6 +63,14 @@ func TestAgentSkillsMVPProcesses(t *testing.T) {
 		filepath.Join(temporaryRoot, "configs"), gateway.URL(),
 	)
 	packageA, packageB := stageAgentSkillPackageVariants(t, configRoot, fixture)
+	seedPlan, err := agentskills.DiscoverBundled(configRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bundledNames := make([]string, 0, len(seedPlan.Packages()))
+	for _, pkg := range seedPlan.Packages() {
+		bundledNames = append(bundledNames, pkg.Name)
+	}
 
 	isolateURL := isolatedDatabase(t, ctx, databaseURL)
 	serverBinary := filepath.Join(temporaryRoot, "contractor-server")
@@ -131,7 +134,7 @@ func TestAgentSkillsMVPProcesses(t *testing.T) {
 	firstServer := startServer("Go Server initial Skill seed")
 	waitForHTTP(t, ctx, firstServer, publicClient, publicBaseURL+"/readyz", http.StatusOK)
 	seedA := assertAgentSkillCatalogAPI(
-		t, publicClient, publicBaseURL, fixture.SkillName, packageA, 1,
+		t, publicClient, publicBaseURL, fixture.SkillName, packageA, 1, bundledNames,
 	)
 	firstServer.stop(t)
 	publicClient.CloseIdleConnections()
@@ -139,7 +142,7 @@ func TestAgentSkillsMVPProcesses(t *testing.T) {
 	server := startServer("Go Server restarted Skill seed")
 	waitForHTTP(t, ctx, server, publicClient, publicBaseURL+"/readyz", http.StatusOK)
 	restartedA := assertAgentSkillCatalogAPI(
-		t, publicClient, publicBaseURL, fixture.SkillName, packageA, 1,
+		t, publicClient, publicBaseURL, fixture.SkillName, packageA, 1, bundledNames,
 	)
 	if seedA.Ref.Revision == nil || restartedA.Ref.Revision == nil ||
 		*seedA.Ref.Revision != *restartedA.Ref.Revision {
@@ -241,7 +244,7 @@ func TestAgentSkillsMVPProcesses(t *testing.T) {
 	if updatedB.Revision == nil || *updatedB.Revision == *seedA.Ref.Revision {
 		t.Fatal("ordinary Artifact PUT did not advance the Skill binding")
 	}
-	assertAgentSkillCatalogAPI(t, publicClient, publicBaseURL, fixture.SkillName, packageB, 2)
+	assertAgentSkillCatalogAPI(t, publicClient, publicBaseURL, fixture.SkillName, packageB, 2, bundledNames)
 	oldExactURL := publicBaseURL + "/v1/artifacts/skills/" + url.PathEscape(fixture.SkillName) +
 		"?revision=" + url.QueryEscape(*seedA.Ref.Revision)
 	oldExact, oldExactMedia := download(t, publicClient, oldExactURL)
@@ -462,23 +465,52 @@ func assertAgentSkillCatalogAPI(
 	baseURL, name string,
 	want agentSkillPackageVariant,
 	wantVersions int,
+	bundledNames []string,
 ) artifacts.Metadata {
 	t.Helper()
-	var page struct {
-		Items []artifacts.Metadata `json:"items"`
-		Page  json.RawMessage      `json:"page"`
+	var items []artifacts.Metadata
+	cursor := ""
+	for pages := 0; ; pages++ {
+		if pages >= agentskills.MaximumBundledSkills {
+			t.Fatal("bundled Skill pagination exceeded its catalog bound")
+		}
+		var page struct {
+			Items []artifacts.Metadata `json:"items"`
+			Page  struct {
+				HasMore    bool    `json:"hasMore"`
+				NextCursor *string `json:"nextCursor,omitempty"`
+			} `json:"page"`
+		}
+		target := baseURL + "/v1/artifacts?namespace=skills&limit=2"
+		if cursor != "" {
+			target += "&cursor=" + url.QueryEscape(cursor)
+		}
+		getAuthenticatedJSON(t, client, target, &page)
+		items = append(items, page.Items...)
+		if len(items) > len(bundledNames) {
+			t.Fatalf("bundled Skill catalog has too many entries: %d", len(items))
+		}
+		if !page.Page.HasMore {
+			if page.Page.NextCursor != nil {
+				t.Fatal("terminal Skill page has a next cursor")
+			}
+			break
+		}
+		if page.Page.NextCursor == nil || *page.Page.NextCursor == "" || *page.Page.NextCursor == cursor {
+			t.Fatal("bundled Skill pagination did not advance")
+		}
+		cursor = *page.Page.NextCursor
 	}
-	getAuthenticatedJSON(t, client, baseURL+"/v1/artifacts?namespace=skills", &page)
-	if len(page.Items) != len(bundledAgentSkillNames) {
-		t.Fatalf("bundled Skill Artifact list = %+v", page.Items)
+	if len(items) != len(bundledNames) {
+		t.Fatalf("bundled Skill Artifact list = %+v", items)
 	}
-	expected := make(map[string]bool, len(bundledAgentSkillNames))
-	for _, bundledName := range bundledAgentSkillNames {
+	expected := make(map[string]bool, len(bundledNames))
+	for _, bundledName := range bundledNames {
 		expected[bundledName] = true
 	}
 	var selected *artifacts.Metadata
-	for index := range page.Items {
-		item := &page.Items[index]
+	for index := range items {
+		item := &items[index]
 		if item.Ref.Namespace != "skills" || !expected[item.Ref.Name] ||
 			item.Ref.Revision == nil || item.MediaType != agentskills.MediaType || !item.Current {
 			t.Fatalf("bundled Skill Artifact %d = %+v", index, item)

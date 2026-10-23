@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-128 open tasks: 5 in progress, 98 pending, 25 deferred. 989 finished: 986 completed, 3 archived.
+129 open tasks: 6 in progress, 98 pending, 25 deferred. 989 finished: 986 completed, 3 archived.
 
 ## In progress
 
@@ -16,6 +16,7 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
 | [V408-005](v408-005-family-guard-gaps.yml) | quality | chore | P2 | Close the family-target guard gaps and run the Runtime suite once with warnings as errors |
+| [V408-008](v408-008-skills-process-catalog.yml) | quality | chore | P2 | Keep the Skills process gate aligned with the staged seed catalog |
 
 ## Pending
 
@@ -248,7 +249,7 @@ tasks in `introduced_by`.
 | Planners and the Worker model boundary (`planner-worker`) | 8 | 27 | 40 | 16 | 59 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 12 | 25 | 13 | 4 | 40 |
 | Shared Memory tools (`memory`) | 1 | 6 | 9 | 2 | 12 |
-| Agent Skills (`agent-skills`) | 0 | 11 | 2 | 1 | 1 |
+| Agent Skills (`agent-skills`) | 0 | 11 | 2 | 1 | 2 |
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 12 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 14 | 2 | 19 |
 | HTTP and Caido tools (`http-tools`) | 2 | 11 | 15 | 4 | 16 |
@@ -263,4 +264,4 @@ tasks in `introduced_by`.
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 16 | 33 | 6 | 10 |
 | Public API and wire contracts (`api-contracts`) | 8 | 1 | 34 | 20 | 11 |
 | PostgreSQL persistence and schema (`persistence`) | 13 | 0 | 21 | 41 | 9 |
-| Quality, CI and process (`quality`) | 18 | 1 | 21 | 87 | 20 |
+| Quality, CI and process (`quality`) | 19 | 1 | 21 | 88 | 20 |
