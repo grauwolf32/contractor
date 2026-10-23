@@ -206,23 +206,35 @@ func (s *PostgresStore) StartPlanner(ctx context.Context, params StartPlannerPar
 	); err != nil {
 		return err
 	}
-	var sessionID string
-	err := s.db.QueryRow(ctx, startPlannerSQL,
-		params.StageExecutionID, params.SessionID, params.InvocationID,
-		params.StateSchemaVersion, []byte(params.InitialState), params.Reason.Code, params.Reason.Message,
-		params.RunEvent.EventID, params.RunEvent.EventSchemaVersion,
-		params.RunEvent.Kind, []byte(params.RunEvent.Data),
-	).Scan(&sessionID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return &StateConflictError{Resource: "StageExecution", ID: params.StageExecutionID, Expected: string(StagePreparing)}
-	}
-	if err != nil {
-		if persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate {
-			return fmt.Errorf("start Planner for StageExecution %q: %w", params.StageExecutionID, ErrConflict)
+	// The Stage CAS locks the Stage and the event allocation its Run, so the
+	// Run is locked first (RUN-R29). On a pool the start is its own
+	// replay-safe transaction; in a caller's transaction it runs once.
+	err := persistencepostgres.Within(ctx, s.db, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		var runID string
+		err := tx.QueryRow(ctx, lockStartPlannerRunSQL, params.StageExecutionID).Scan(&runID)
+		if err == nil {
+			var sessionID string
+			err = tx.QueryRow(ctx, startPlannerSQL,
+				params.StageExecutionID, params.SessionID, params.InvocationID,
+				params.StateSchemaVersion, []byte(params.InitialState), params.Reason.Code, params.Reason.Message,
+				params.RunEvent.EventID, params.RunEvent.EventSchemaVersion,
+				params.RunEvent.Kind, []byte(params.RunEvent.Data), runID,
+			).Scan(&sessionID)
 		}
+		if errors.Is(err, pgx.ErrNoRows) {
+			return &StateConflictError{Resource: "StageExecution", ID: params.StageExecutionID, Expected: string(StagePreparing)}
+		}
+		return err
+	})
+	var notPreparing *StateConflictError
+	switch {
+	case err == nil, errors.As(err, &notPreparing):
+		return err
+	case persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate:
+		return fmt.Errorf("start Planner for StageExecution %q: %w", params.StageExecutionID, ErrConflict)
+	default:
 		return fmt.Errorf("start Planner for StageExecution %q: %w", params.StageExecutionID, err)
 	}
-	return nil
 }
 
 func (s *PostgresStore) EnterFinalizing(ctx context.Context, params EnterFinalizingParams) error {
