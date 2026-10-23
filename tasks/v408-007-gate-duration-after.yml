@@ -17,6 +17,7 @@ context:
     stage table in docs/testing/README.md must follow the new durations.
 plan:
   - "Trigger one manual full-gate CI run, collect reports-<stage>, run scripts/test_durations.py and add an After section to the report next to the Baseline."
+  - "Retain V408-003's CI stability check: run all three race stages at the configured RACE_PACKAGE_PARALLELISM three consecutive times on the Linux CI runner, record elapsed time, connection and memory headroom and any failures; local measurements do not substitute for these runs."
   - "Lower RELEASE_STAGE_TIMEOUTS to about twice the measured stage time; update docs/testing/README.md; run make lint."
   - "Record in the report's Status section which finding each task closed and anything declined with its reason."
 scope:
@@ -28,7 +29,7 @@ acceptance_criteria:
   - id: A1
     text: "The report has Baseline and After tables for all twelve stages and names the closing task per finding."
   - id: A2
-    text: "CI timeouts are lowered to match and the full gate passes on a manual run."
+    text: "CI timeouts are lowered to match, the full gate passes on a manual run, and all three race stages pass three consecutive Linux CI executions at the configured package parallelism."
 tests:
   - command: make lint
     covers: [A1, A2]

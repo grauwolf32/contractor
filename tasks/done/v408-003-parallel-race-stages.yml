@@ -6,7 +6,8 @@ epic: quality
 kind: chore
 introduced_by: V340-001
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 70d9cb11ddcfb56ae380cac6db13d29e07b48453
 depends_on: []
 languages: [make, python]
 goal: "The three race stages use the runner's cores instead of one package at a time, without two packages sharing a schema or exceeding the database connection limit."
@@ -38,7 +39,7 @@ decision:
 plan:
   - "Use RACE_PACKAGE_PARALLELISM (default 2) in all three race commands; retain an explicit serial override."
   - "Run all three targets against a dedicated disposable PostgreSQL cluster, record elapsed time and peak connections, and compare serial and parallel runs."
-  - "Keep the release graph and package coverage guards passing; document the setting and the remaining CI measurement work."
+  - "Keep the release graph and package coverage guards passing; document the setting and retain the three consecutive Linux CI race runs explicitly in V408-007."
 scope:
   in:
     - "Package parallelism in the three race stages, local verification and measurement, operator documentation."
@@ -62,3 +63,10 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2]
+verification:
+  - "All three race targets passed individually against dedicated PostgreSQL 17.11 UTF-8 at the default -p 2 and again with RACE_PACKAGE_PARALLELISM=1; -race, -count=1, timeouts and selections were identical."
+  - "Serial/parallel times: race 617.238/308.274 s, discovered 607.476/351.881 s, integration 269.357/160.388 s; sum 1494.071/820.543 s (45.1 percent lower). One exploratory local pair, not a CI guarantee."
+  - "Sampled peak connections: parallel 6/4/7, serial 6/9/5 with max_connections=100; no connection exhaustion. Process-tree RSS peak 1584.4 MiB, excluding PostgreSQL."
+  - "Full make lint passed; 120 script unit tests passed in the Runtime environment; release graph passed with default and serial override, retaining 98 race packages and 106 integration tests."
+  - "Original three consecutive Linux CI race runs remain explicit acceptance in V408-007. CI was not run for this local change."
+  - "Raw logs and measurement summaries remain outside git under /private/tmp/contractor-v408-*. An initial SQL_ASCII setup was discarded; a redundant third sweep was stopped after all six successful target runs."

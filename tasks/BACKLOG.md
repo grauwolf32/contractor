@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-121 open tasks: 6 in progress, 90 pending, 25 deferred. 981 finished: 978 completed, 3 archived.
+120 open tasks: 5 in progress, 90 pending, 25 deferred. 982 finished: 979 completed, 3 archived.
 
 ## In progress
 
@@ -16,7 +16,6 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
 | [V406-004](v406-004-durable-scope-sweeps.yml) | scan-tools | feature | P2 | Coordinate durable bounded Nuclei sweeps over Project scopes |
-| [V408-003](v408-003-parallel-race-stages.yml) | quality | chore | P2 | Run race stages with bounded package parallelism |
 
 ## Pending
 
@@ -198,7 +197,7 @@ the epics are in [epics.yml](epics.yml).
 | [V408-004](v408-004-e2e-build-once.yml) | chore | P2 | V408-001 | Build the Server binary and the test PKI once per e2e package and right-size per-test budgets |
 | [V408-005](v408-005-family-guard-gaps.yml) | chore | P2 | — | Close the family-target guard gaps and run the Runtime suite once with warnings as errors |
 | [V408-006](v408-006-go-test-cache.yml) | chore | P3 | — | Let pure Go packages use the test cache: -count=1 only for database and process tests |
-| [V408-007](v408-007-gate-duration-after.yml) | chore | P3 | V408-001, V408-002, V408-003, V408-004, V408-005, V408-006 | Record the release gate durations after the optimisations and close the test gate cost review |
+| [V408-007](v408-007-gate-duration-after.yml) | chore | P3 | V408-001, V408-002, V408-004, V408-005, V408-006 | Record the release gate durations after the optimisations and close the test gate cost review |
 
 ## Deferred
 
@@ -256,4 +255,4 @@ tasks in `introduced_by`.
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 15 | 34 | 5 | 10 |
 | Public API and wire contracts (`api-contracts`) | 8 | 1 | 34 | 20 | 11 |
 | PostgreSQL persistence and schema (`persistence`) | 8 | 0 | 22 | 35 | 9 |
-| Quality, CI and process (`quality`) | 19 | 1 | 21 | 87 | 20 |
+| Quality, CI and process (`quality`) | 18 | 1 | 21 | 87 | 20 |

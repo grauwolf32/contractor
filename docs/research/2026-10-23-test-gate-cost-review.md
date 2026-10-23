@@ -8,12 +8,17 @@
 
 ## Status (2026-10-23)
 
-All findings open. Tasks V408-001 … V408-007 (milestone `test-gate-cost-2026-10`); V408-007 records the before/after stage durations and closes the review.
+V408-003 implements bounded package scheduling, with the local measurements
+below. In-package PostgreSQL parallelism is excluded until its isolation
+conflict with V408-002 is resolved. Other findings remain open. Tasks
+V408-001 … V408-007 (milestone `test-gate-cost-2026-10`); V408-007 records
+the full before/after CI durations, retains the three consecutive Linux CI
+race runs and closes the review.
 
 | Finding | Task |
 | --- | --- |
 | T1 per-test schema and migrations, 34 helper copies | V408-002 |
-| T2 serial race stages (`-p 1`), almost no `t.Parallel` | V408-003 |
+| T2 serial race stages (`-p 1`), almost no `t.Parallel` | [V408-003](../../tasks/done/v408-003-parallel-race-stages.yml): package scheduling implemented; in-package parallelism excluded |
 | T3 e2e builds the Server and PKI per test | V408-004 |
 | T4 family-target guard gaps, 20 unguarded pytest runs, unused `test-runtime-hardening` | V408-005 |
 | T5 `-count=1` on pure packages | V408-006 |
@@ -60,3 +65,52 @@ show both connection/memory headroom and an elapsed-time improvement.
 V408-001 still owns the complete pre-optimisation baseline. V408-007 owns the
 final Linux CI comparison, repeated CI runs and any timeout adjustment; local
 measurements alone do not establish CI speed or absence of flakes.
+
+### Local package-parallelism measurement
+
+Implementation: `70d9cb11`, based on `main` `725b863e`.
+
+Measured on macOS arm64, 18 logical CPUs and 36 GiB RAM, with Go 1.26.9
+and a dedicated PostgreSQL 17 cluster. The test database uses UTF-8;
+`max_connections=100`. The order was one `-p 2` sweep followed by one
+`-p 1` sweep, reusing the Go build cache. Both kept `-race -count=1`,
+the same package/test selection and the same timeouts. Each target was
+invoked separately, including its locked Runtime setup and parser prefetch.
+An initial SQL_ASCII setup attempt was discarded before this comparison.
+
+| Target | Serial `-p 1` | Parallel `-p 2` | Reduction | Peak connections, serial / parallel |
+| --- | ---: | ---: | ---: | ---: |
+| `test-release-go-race` | 617.2 s | 308.3 s | 50.1% | 6 / 6 |
+| `test-release-go-race-discovered` | 607.5 s | 351.9 s | 42.1% | 9 / 4 |
+| `test-release-integration` | 269.4 s | 160.4 s | 40.5% | 5 / 7 |
+| Sum of these local targets | 1494.1 s | 820.5 s | 45.1% | |
+
+All six completed target invocations passed. An optional third sweep was
+stopped after this successful comparison; no partial invocation is included
+in the table. Connections were sampled approximately
+every 0.2 seconds across all client backends of the dedicated cluster,
+excluding the sampler connection; short spikes can fall between samples.
+No run exhausted the connection limit. This is an observed peak, not a
+hard per-package pool bound.
+
+The observed process-tree RSS peak was 1584.4 MiB.
+That sampler ran every 0.5 seconds from the discovered parallel stage
+through the serial sweep. It excludes PostgreSQL and can count shared
+pages repeatedly. It is a local observation, not a CI memory budget.
+
+This is one exploratory local pair on a shared development machine.
+It establishes neither a minimum CI speedup nor absence of flakes.
+CI runs these stages as separate jobs, so their sum is not full CI wall
+time; process/browser stage durations are unchanged by this change.
+V408-001 and V408-007 retain the full baseline and repeated Linux CI
+comparison. Do not increase the default or lower CI timeouts from these
+local numbers alone.
+
+Verification: all three race targets on real PostgreSQL at `-p 2` and
+`-p 1`; full `make lint`; 120 script unit tests in the Runtime environment;
+release-graph checks with the default and the serial override. The graph
+retains 98 raced packages and 106 discovered integration tests. The
+parallel integration log contains no skipped tests.
+
+Raw per-target logs, the JSON timing/connection summaries and the RSS
+summary remain outside git under `/private/tmp/contractor-v408-*`.
