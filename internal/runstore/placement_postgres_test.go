@@ -48,14 +48,15 @@ func TestPostgresRunPlacementRequirementsAreImmutableAndReadStrictly(t *testing.
 	pool := isolatedRunStorePool(t, ctx)
 	store := NewPostgresStore(pool)
 	params := testRunParams("run-location")
-	params.RequiredPlacementLabels = []string{"cloud", "cloud/aws"}
+	params.RequiredPlacementLabels = []string{"cloud/aws"}
+	params.MetadataLabels = map[string]string{"cloud": "aws"}
 	created, err := createRun(ctx, store, params)
 	if err != nil || !slices.Equal(created.RequiredPlacementLabels, params.RequiredPlacementLabels) {
 		t.Fatalf("create = %+v, %v", created, err)
 	}
-	params.RequiredPlacementLabels[1] = "local/lab"
+	params.RequiredPlacementLabels[0] = "local/lab"
 	loaded, err := NewPostgresStore(pool).GetRun(ctx, created.RunID)
-	if err != nil || !slices.Equal(loaded.RequiredPlacementLabels, []string{"cloud", "cloud/aws"}) {
+	if err != nil || !slices.Equal(loaded.RequiredPlacementLabels, []string{"cloud/aws"}) {
 		t.Fatalf("fresh store read = %+v, %v", loaded, err)
 	}
 	if _, err := pool.Exec(ctx, `UPDATE workflow_runs SET required_placement_labels = ARRAY['local/lab'] WHERE run_id = $1`, created.RunID); err == nil {
@@ -68,7 +69,7 @@ func TestPostgresRunPlacementRequirementsAreImmutableAndReadStrictly(t *testing.
 		t.Fatal(err)
 	}
 	loaded, err = store.GetRun(ctx, created.RunID)
-	if err != nil || !slices.Equal(loaded.RequiredPlacementLabels, []string{"cloud", "cloud/aws"}) {
+	if err != nil || !slices.Equal(loaded.RequiredPlacementLabels, []string{"cloud/aws"}) {
 		t.Fatalf("cancellation changed placement = %+v, %v", loaded, err)
 	}
 	bad := testRunParams("invalid-location")

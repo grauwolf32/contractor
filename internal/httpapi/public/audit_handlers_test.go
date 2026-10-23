@@ -117,7 +117,7 @@ func TestAuditStandardHandlersExposeCatalogProjectionOnly(t *testing.T) {
 func TestAuditCreateStartQueryAndStableErrors(t *testing.T) {
 	now := time.Date(2026, 9, 5, 19, 0, 0, 0, time.UTC)
 	revision := "input-r1"
-	selection := auditservice.DraftSelection{RequiredPlacementLabels: []string{},
+	selection := auditservice.DraftSelection{Labels: map[string]string{}, RequiredPlacementLabels: []string{},
 		Schema: auditservice.DraftSelectionSchema,
 		Inputs: map[string]auditstore.ExactArtifact{
 			"checklist": {
@@ -504,7 +504,7 @@ func TestAuditFindingReviewHandlersBindCASIdempotencyAndProvenanceRevision(t *te
 func TestAuditLifecycleHandlersRequireCASAndIdempotency(t *testing.T) {
 	now := time.Date(2026, 9, 6, 1, 0, 0, 0, time.UTC)
 	revision := "input-r1"
-	selection, err := json.Marshal(auditservice.DraftSelection{RequiredPlacementLabels: []string{},
+	selection, err := json.Marshal(auditservice.DraftSelection{Labels: map[string]string{}, RequiredPlacementLabels: []string{},
 		Schema: auditservice.DraftSelectionSchema,
 		Inputs: map[string]auditstore.ExactArtifact{"checklist": {
 			Ref:    contracts.ArtifactRef{Namespace: "inputs", Name: "checklist", Revision: &revision},

@@ -3353,6 +3353,11 @@ export interface components {
         };
         AuditActor: string;
         ConfigId: string;
+        /** @description Ordinary labels pinned at Audit start and inherited by every child Run. cloud or local with an empty value selects the whole namespace; cloud=aws selects cloud/aws. Four entries are reserved for child-specific audit.* provenance. */
+        AuditLabels: components["schemas"]["RunMetadataLabels"] & {
+            [key: string]: unknown;
+        };
+        /** @description Immutable ordinary key/value labels. cloud and local derive Runtime placement; an empty value selects the namespace and a non-empty value selects its provider/site child path. Other keys are descriptive. */
         RunMetadataLabels: {
             [key: string]: string;
         };
@@ -3655,7 +3660,7 @@ export interface components {
             authorizationScope?: string;
         };
         CreateAuditRequest: {
-            requiredPlacementLabels?: components["schemas"]["PlacementLabels"];
+            labels?: components["schemas"]["AuditLabels"];
             profile: components["schemas"]["AuditProfileSelector"];
             inputs: {
                 [key: string]: components["schemas"]["ExactArtifactRef"];
@@ -3698,6 +3703,7 @@ export interface components {
             worklist: components["schemas"]["AuditExactArtifact"];
         };
         AuditBaseline: {
+            labels?: components["schemas"]["AuditLabels"];
             requiredPlacementLabels?: components["schemas"]["PlacementLabels"];
             activeChecks: components["schemas"]["ActiveChecksPolicy"];
             inputs: {
@@ -3783,6 +3789,7 @@ export interface components {
             message: string;
         };
         Audit: {
+            labels?: components["schemas"]["AuditLabels"];
             requiredPlacementLabels?: components["schemas"]["PlacementLabels"];
             auditId: components["schemas"]["ResourceId"];
             projectId: components["schemas"]["ResourceId"];
@@ -5382,7 +5389,6 @@ export interface components {
             };
         };
         CreateRunRequest: {
-            requiredPlacementLabels?: components["schemas"]["PlacementLabels"];
             workflow: components["schemas"]["Selector"];
             runtimeLabels?: components["schemas"]["ConfigId"][];
             labels?: components["schemas"]["RunMetadataLabels"];

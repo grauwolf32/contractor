@@ -1,15 +1,15 @@
 # Runtime placement labels: cloud and local
 
 Proposal 0043 · Status: **Partially implemented. Startup declarations,
-Operations observations, Run/Audit placement requirements and matching are delivered;
-UI selection and the process release gate remain planned.**
+Operations observations, Run/Audit labels, inheritance, matching and UI are delivered;
+the process release gate remains planned.**
 Recorded on 2026-10-23 from the user's decisions.
 
 ## 1. Accepted direction
 
 Runtime Agents declare placement labels at process startup. A user chooses
-required placement labels in the UI when launching a WorkflowRun or starting
-an Audit. Control Plane evaluates those requirements against the current
+ordinary labels in the UI when launching a WorkflowRun or starting
+an Audit. The reserved cloud/local keys derive placement requirements. Control Plane evaluates those requirements against the current
 Runtime fleet whenever it assigns Workers.
 
 The launch stores the required labels, not a list of Runtime IDs. A newly
@@ -83,17 +83,18 @@ checks still apply to every candidate.
   of one process incarnation. Registration publishes them; within one
   `instanceId`, including repeated registration, they remain immutable. A
   restart may declare a different set. Operations displays these labels.
-- **Launch selection.** The UI submits required labels for one WorkflowRun
-  or Audit. An Audit pins the selection at start and passes it to all child
-  Runs, including preparation and later rounds. Retry and resume preserve the
-  original requirement; a new launch may choose another requirement.
+- **Launch selection.** The UI uses ordinary key/value `labels`. `cloud` with
+  an empty value derives `cloud`; `cloud=aws` derives `cloud/aws`; `local=lab`
+  derives `local/lab`. All other labels remain ordinary metadata. Audit start
+  fixes its entire label map, and every child Run inherits it plus system
+  `audit.*` provenance. Retry, resume and later rounds preserve this snapshot.
 - **Dynamic matching.** Every new assignment evaluates the pinned requirement
   against current Runtime instances. Existing allocations retain their
   assigned instance; a newly connected Runtime does not move active Workers.
-- **UI choices.** Suggestions include advertised concrete labels and their
-  parents, so a Runtime advertising `cloud/aws` makes both `cloud` and
-  `cloud/aws` available. Manual input is allowed for an offline deployment.
-  A selected requirement remains visible when its last Runtime disconnects.
+- **UI labels.** The user clarified on 2026-10-23 that a separate location
+  selector and live-fleet inventory are unnecessary. Add ordinary labels to
+  Audit and use the existing Run metadata editor. Valid offline cloud/local
+  values remain accepted, and failed reads never clear typed labels.
 - **Unavailable capacity.** A valid requirement with no matching available
   Runtime uses the existing capacity wait and backoff. It never broadens to
   another namespace. The UI explains the wait. Queue waiting does not consume
@@ -101,10 +102,16 @@ checks still apply to every candidate.
 
 ## 5. Existing contracts and implementation follow-up
 
-This is a separate placement concept from both WorkflowRun metadata `labels`
-and RuntimeConfig `runtimeLabels`. The existing contracts deliberately exclude
-those labels from affinity matching ([CTL-R75 and CTL-R82](../spec/execution/control-plane.md),
-[RCF-R149 and RCF-R182](../spec/configuration/runtime-config.md)).
+Runtime startup `placementLabels` remain a separate incarnation declaration
+from RuntimeConfig `runtimeLabels`. Launch placement is derived from the
+reserved `cloud`/`local` keys of ordinary metadata labels. This supersedes the
+initial proposal's separate writable `requiredPlacementLabels` field. The
+requirement remains a read-only, immutable derived snapshot for scheduling and
+provenance; there is one caller-controlled source, `labels`.
+
+Audit accepts at most 28 ordinary labels and rejects `audit.*` owner keys,
+leaving four of the Run's 32 entries for trusted child-specific provenance.
+Start fixes all Audit labels; changing them afterwards requires a new Audit.
 
 Existing startup `initialLabels` seed a durable principal only on its first
 registration; later registrations use Server-authoritative configuration labels
@@ -113,24 +120,16 @@ accepted startup authority for placement labels without changing its meaning.
 
 Registration publishes optional non-null `placementLabels`; startup uses
 `--placement-label` and `CONTRACTOR_PLACEMENT_LABELS`. Grammar bounds and
-incompatible-chain rejection are defined by CTL-R156. The additive launch
-request field `requiredPlacementLabels` is published for standalone and
-Project Run creation and read/repeat projections. Placement selection still needs persistence,
-matching, Audit propagation and UI contracts.
-
-Before implementation, create the owning task and cover grammar and parent
-matching through shared Go/Python fixtures. Apply the predicate to candidate
-construction, final reservation checks and model-Stage capacity holds. Preserve
-complete multi-Worker matching, record actual placement labels in allocation
-history, and verify Audit propagation, retry/resume, restart and cancellation
-on the real store and process paths. Bound the dynamic UI inventory and every
-page it reads. Fold the implemented guarantees into the owning specification
-documents when the capability lands.
+incompatible-chain rejection are defined by CTL-R156. Run and Audit requests
+use `labels`; read/repeat projections expose the derived requirement. Apply
+matching at candidate construction, final reservation and model-capacity
+holds, retain actual allocation labels, and verify lifecycle guarantees on
+real stores and processes. Owning specifications record the implemented rules.
 
 ## 6. Implementation tasks
 
 - [V405-001](../../tasks/done/v405-001-runtime-placement-declarations.yml): Publish startup-owned cloud and local Runtime placement labels.
 - [V405-002](../../tasks/done/v405-002-run-placement-requirements.yml): Pin Run placement requirements and enforce dynamic Runtime matching.
 - [V405-003](../../tasks/done/v405-003-audit-placement-propagation.yml): Pin Audit placement selection and propagate it to every child Run.
-- [V405-004](../../tasks/v405-004-placement-label-picker-ui.yml): Select Runtime placement labels in Workflow and Audit launch forms.
+- [V405-004](../../tasks/v405-004-placement-label-picker-ui.yml): Add ordinary Audit labels, freeze them at start and inherit them into child Runs.
 - [V405-005](../../tasks/v405-005-placement-process-release-gate.yml): Verify cloud and local placement across real processes and fold proposal 0043.

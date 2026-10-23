@@ -735,26 +735,36 @@ revalidates both.
 
 ### Baseline and scope
 
-**AUD-R229.** Audit draft creation accepts optional non-null
-`requiredPlacementLabels` with the cloud/local grammar and limits of
-[CTL-R156](../execution/control-plane.md). Server clones, sorts and validates
-the selection; omission and an empty array both impose no location restriction.
-The normalized non-empty selection participates in the draft request digest.
-The draft selection and start baseline retain a non-null canonical array;
-readers reject missing, malformed or inconsistent stored selections. Start
-pins the draft revision's requirement atomically with the existing baseline
-and receipt. Changing the requirement after start requires a new Audit.
+**AUD-R229.** Audit draft creation accepts optional non-null ordinary
+key/value `labels` with the Run metadata grammar. Server clones and validates
+the map and derives placement from reserved `cloud`/`local` keys under
+[RUN-R107](../execution/runs.md). Omission and an empty map are equivalent;
+labels participate in the draft request digest. Draft and baseline readers
+require explicit valid label maps and reject a derived placement snapshot
+that differs from them. Public create selects placement through `labels`;
+`requiredPlacementLabels` is a read-only derived projection.
 
-**AUD-R230.** Every ordinary child Run inherits exactly the baseline's
-`requiredPlacementLabels`, including preparation, initial and subsequent
-inventories, check, discovery and assessment roles, retries, later rounds and
-recovered dispatch. Submission digests include the pinned selection. Trusted
-Run creation compares the submitted selection and any replayed Run with the
-claim-bound baseline before creating or returning a child. Current fleet
-availability never rewrites the selection; matching and capacity waiting use
-[RUN-R107–RUN-R109](../execution/runs.md) and
-[CTL-R159–CTL-R161](../execution/control-plane.md). Pause, cancel and purge
-follow the owning Audit and Run lifecycles without another placement entity.
+**AUD-R230.** Every child Run inherits the exact baseline labels plus its
+system `audit.id`, `audit.role`, and applicable `audit.round`/`audit.item`.
+This applies to preparation, initial and subsequent inventories, checks,
+discovery, assessment, retries, later rounds and recovered dispatch. Both
+submission digests include labels. Trusted creation reads them from the
+claim-bound baseline, derives the same placement requirement and checks any
+replayed Run's complete label map. Fleet changes never rewrite the snapshot;
+matching and capacity waiting use [CTL-R159–CTL-R161](../execution/control-plane.md).
+
+**AUD-R231.** Labels are fixed at Audit start with its baseline and existing
+receipt. All later child Runs use that snapshot. Updating the selection after
+start requires a new Audit; existing Runs retain their own immutable copies.
+Pre-start form edits follow the existing draft revision and idempotency flow.
+Pause, cancel and purge follow the owning Audit and Run lifecycle and retain
+no separate label entity.
+
+**AUD-R232.** An Audit accepts at most 28 ordinary labels (LIM-AUD-27), leaving
+four of the Run's 32 entries for system provenance. Owner labels may not use
+the `audit.` namespace or the already reserved `contractor.` namespace.
+Validation rejects oversized or reserved maps before creating a draft or
+starting an Audit, so later dispatch cannot fail from inherited-label growth.
 
 **AUD-R95.** At `start`, one transaction freezes (FAIL-AUD-4):
 

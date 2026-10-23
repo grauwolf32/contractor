@@ -140,6 +140,7 @@ func (b *PinnedSubmissionBuilder) PrepareRole(
 	)
 	submissionKey := auditdomain.DeterministicID("audit-role-submission", executionID, manifestDigest)
 	requestDigest, err := submissionDigest(struct {
+		Labels                  map[string]string                    `json:"labels"`
 		RequiredPlacementLabels []string                             `json:"requiredPlacementLabels"`
 		Schema                  string                               `json:"schema"`
 		AuditID                 string                               `json:"auditId"`
@@ -157,6 +158,7 @@ func (b *PinnedSubmissionBuilder) PrepareRole(
 		Skills                  []agentskills.RunSkillSnapshot       `json:"skills"`
 		ProjectTarget           *runtimesettings.HTTPOriginTargetRef `json:"projectTarget,omitempty"`
 	}{
+		Labels:                  baseline.Labels.Clone(),
 		RequiredPlacementLabels: append([]string{}, baseline.RequiredPlacementLabels...),
 		Schema:                  "contractor.audit.role-submission.v1", AuditID: audit.AuditID,
 		RoundID: roundID, ExecutionID: executionID, Kind: kind,
@@ -430,6 +432,7 @@ func (b *PinnedSubmissionBuilder) PrepareBatch(
 	submissionKey := auditdomain.DeterministicID("audit-submission", executionID, manifestDigest)
 	roundID := snapshot.Round.RoundID
 	requestDigest, err := submissionDigest(struct {
+		Labels                  map[string]string                    `json:"labels"`
 		RequiredPlacementLabels []string                             `json:"requiredPlacementLabels"`
 		Schema                  string                               `json:"schema"`
 		AuditID                 string                               `json:"auditId"`
@@ -444,6 +447,7 @@ func (b *PinnedSubmissionBuilder) PrepareBatch(
 		Skills                  []agentskills.RunSkillSnapshot       `json:"skills"`
 		ProjectTarget           *runtimesettings.HTTPOriginTargetRef `json:"projectTarget,omitempty"`
 	}{
+		Labels:                  baseline.Labels.Clone(),
 		RequiredPlacementLabels: append([]string{}, baseline.RequiredPlacementLabels...),
 		Schema:                  "contractor.audit.submission.v1", AuditID: audit.AuditID,
 		ExecutionID: executionID, Members: members,

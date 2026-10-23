@@ -609,6 +609,17 @@ presentation over the generic label query without an eval-only Server
 execution path are specified in [Runs](../execution/runs.md) (RUN-R74,
 RUN-R76).
 
+**UI-R203.** The Audit start form offers ordinary `labels` as editable
+key/value chips with quick cloud/local additions and a visible bound, using the shared metadata grammar and
+reserved cloud/local validation. `cloud` selects any cloud, `cloud:aws`
+selects cloud/aws, and `local:lab` selects local/lab. The UI uses this label
+field for placement and has no separate location selector or fleet-availability
+gate. It retains typed labels through failed reads and draft/start conflicts,
+explains that start fixes the map and all child Runs inherit it, and shows the
+Server-reported labels in Audit details. Run forms use their existing metadata
+label editor and repeat copies those labels. RuntimeConfig controls remain
+separate and are titled Runtime configuration.
+
 **UI-R95.** The Run-create UI presents Runtime labels separately, as
 infrastructure configuration.
 

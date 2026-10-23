@@ -42,7 +42,7 @@ func TestPostgresPublicRunPlacementPinsAndReplaysSelection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	body := map[string]any{"workflow": "artifact-copy@1", "parameters": map[string]string{}, "artifacts": map[string]contracts.ArtifactRef{"source": source.Ref}, "requiredPlacementLabels": []string{"cloud/aws", "cloud"}}
+	body := map[string]any{"workflow": "artifact-copy@1", "parameters": map[string]string{}, "artifacts": map[string]contracts.ArtifactRef{"source": source.Ref}, "labels": map[string]string{"cloud": "aws", "team": "appsec"}}
 	post := func(want int, validate bool) createRunResponse {
 		t.Helper()
 		encoded, err := json.Marshal(body)
@@ -71,21 +71,21 @@ func TestPostgresPublicRunPlacementPinsAndReplaysSelection(t *testing.T) {
 		return result
 	}
 	created := post(http.StatusAccepted, true)
-	if !slices.Equal(created.RequiredPlacementLabels, []string{"cloud", "cloud/aws"}) {
+	if !slices.Equal(created.RequiredPlacementLabels, []string{"cloud/aws"}) {
 		t.Fatalf("response selection = %v", created.RequiredPlacementLabels)
 	}
-	body["requiredPlacementLabels"] = []string{"cloud", "cloud/aws"}
+	body["labels"] = map[string]string{"team": "appsec", "cloud": "aws"}
 	if replay := post(http.StatusAccepted, true); replay.RunID != created.RunID {
 		t.Fatal("equivalent request did not replay")
 	}
-	body["requiredPlacementLabels"] = []string{"local/lab"}
+	body["labels"] = map[string]string{"local": "lab"}
 	post(http.StatusConflict, true)
-	for _, invalid := range []any{nil, "cloud", []string{"cloud", "local"}, []string{"cloud/*"}, []string{"cloud/aws", "cloud/hetzner"}} {
-		body["requiredPlacementLabels"] = invalid
+	for _, invalid := range []any{nil, "cloud", map[string]string{"cloud": "", "local": ""}, map[string]string{"cloud": "*"}, map[string]string{"cloud": "aws,hetzner"}} {
+		body["labels"] = invalid
 		post(http.StatusBadRequest, false)
 	}
 	stored, err := runstore.NewPostgresStore(pool).GetRun(ctx, created.RunID)
-	if err != nil || !slices.Equal(stored.RequiredPlacementLabels, []string{"cloud", "cloud/aws"}) {
+	if err != nil || !slices.Equal(stored.RequiredPlacementLabels, []string{"cloud/aws"}) {
 		t.Fatalf("stored immutable selection = %+v, %v", stored, err)
 	}
 	statusRequest := newPublicContractRequest(http.MethodGet, "/v1/runs/"+created.RunID, nil)

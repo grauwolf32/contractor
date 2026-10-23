@@ -10,7 +10,7 @@ import (
 func TestCloneBaselineDoesNotShareExecutionManifestRefs(t *testing.T) {
 	taskRevision := "task-r1"
 	inputRevision := "input-r1"
-	source := BaselineSnapshot{RequiredPlacementLabels: []string{"cloud/aws"}, Inventory: &BaselineInventory{
+	source := BaselineSnapshot{Labels: map[string]string{"cloud": "aws", "team": "appsec"}, RequiredPlacementLabels: []string{"cloud/aws"}, Inventory: &BaselineInventory{
 		ExecutionManifest: auditdomain.ExecutionManifest{Items: []auditdomain.ExecutionItem{{
 			TaskRef: &contracts.ArtifactRef{Namespace: "audit", Name: "task", Revision: &taskRevision},
 			Inputs: []auditdomain.ExactInput{{
@@ -22,12 +22,13 @@ func TestCloneBaselineDoesNotShareExecutionManifestRefs(t *testing.T) {
 
 	cloned := cloneBaseline(source)
 	cloned.RequiredPlacementLabels[0] = "local"
+	cloned.Labels["team"] = "changed"
 	*cloned.Inventory.ExecutionManifest.Items[0].TaskRef.Revision = "changed-task"
 	*cloned.Inventory.ExecutionManifest.Items[0].Inputs[0].Ref.Revision = "changed-input"
 	cloned.Inventory.ExecutionManifest.Items[0].Inputs[0].Name = "changed"
 
 	item := source.Inventory.ExecutionManifest.Items[0]
-	if source.RequiredPlacementLabels[0] != "cloud/aws" || *item.TaskRef.Revision != "task-r1" || *item.Inputs[0].Ref.Revision != "input-r1" ||
+	if source.Labels["team"] != "appsec" || source.RequiredPlacementLabels[0] != "cloud/aws" || *item.TaskRef.Revision != "task-r1" || *item.Inputs[0].Ref.Revision != "input-r1" ||
 		item.Inputs[0].Name != "source" {
 		t.Fatalf("clone mutation leaked into source: %+v", item)
 	}

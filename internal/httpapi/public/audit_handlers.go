@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 )
 
@@ -169,8 +170,8 @@ func (h *auditHandlers) createAudit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	audit, created, err := h.Audits.CreateDraft(r.Context(), auditservice.CreateDraftParams{
-		RequiredPlacementLabels: append([]string{}, request.RequiredPlacementLabels...),
-		AuditID:                 auditID, OwnerID: principalUserID(r.Context()), ProjectID: projectID,
+		Labels:  runlabels.RunMetadataLabels(request.Labels).Clone(),
+		AuditID: auditID, OwnerID: principalUserID(r.Context()), ProjectID: projectID,
 		Profile: auditservice.ProfileSelector{Name: request.Profile.Name, Version: request.Profile.Version},
 		Inputs:  request.Inputs, RuntimeLabels: labels, Scope: request.Scope,
 		IdempotencyKey: key, RequestDigest: digest,

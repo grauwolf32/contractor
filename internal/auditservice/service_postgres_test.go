@@ -82,8 +82,8 @@ func TestAuditDraftStartReplayAndAtomicUnsupportedRollback(t *testing.T) {
 	manual := writeChecklist(t, ctx, projectArtifacts, "manual", "manual")
 
 	draftParams := CreateDraftParams{
-		RequiredPlacementLabels: []string{"cloud/aws", "cloud"},
-		AuditID:                 "audit-api-one", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
+		Labels:  map[string]string{"cloud": "aws", "team": "appsec"},
+		AuditID: "audit-api-one", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
 		Profile:       ProfileSelector{Name: "test-checklist", Version: "1"},
 		Inputs:        map[string]contracts.ArtifactRef{"checklist": automatic.Ref},
 		RuntimeLabels: []string{}, Scope: Scope{Objective: "Review the service"},
@@ -109,7 +109,7 @@ func TestAuditDraftStartReplayAndAtomicUnsupportedRollback(t *testing.T) {
 		t.Fatalf("start = (%+v, %v)", started, err)
 	}
 	baseline, err := DecodeBaseline(started.Audit.BaselineSnapshot)
-	if err != nil || !slices.Equal(baseline.RequiredPlacementLabels, []string{"cloud", "cloud/aws"}) {
+	if err != nil || !slices.Equal(baseline.RequiredPlacementLabels, []string{"cloud/aws"}) {
 		t.Fatalf("pinned placement requirement = %v, %v", baseline.RequiredPlacementLabels, err)
 	}
 	for _, source := range []json.RawMessage{draft.InputSelection, started.Audit.BaselineSnapshot} {

@@ -144,7 +144,7 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 				}
 				stored, created, err = runs.CreateRunIdempotent(ctx, runstore.CreateRunIdempotentParams{
 					CreateRunParams: runstore.CreateRunParams{
-						RequiredPlacementLabels: append([]string{}, normalized.RequiredPlacementLabels...),
+						RequiredPlacementLabels: append([]string{}, normalized.requiredPlacementLabels...),
 						RunID:                   runID, OwnerID: normalized.OwnerID, ProjectID: normalized.ProjectID,
 						WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
 						WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: workflowSnapshot,
@@ -242,7 +242,7 @@ func normalizePublicCreate(params PublicCreateParams) (PublicCreateParams, error
 		return PublicCreateParams{}, err
 	}
 	params.RuntimeLabels = labels
-	params.RequiredPlacementLabels, err = contracts.NormalizePlacementLabels(params.RequiredPlacementLabels)
+	params.requiredPlacementLabels, err = metadata.PlacementRequirements()
 	if err != nil {
 		return PublicCreateParams{}, fmt.Errorf("%w: invalid required placement labels: %v", ErrInvalid, err)
 	}

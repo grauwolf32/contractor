@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -1164,6 +1165,9 @@ func (f *fakeRunStore) CreateRun(_ context.Context, params runstore.CreateRunPar
 	if contracts.ValidatePlacementLabels(params.RequiredPlacementLabels) != nil {
 		return runstore.WorkflowRun{}, runstore.ErrInvalid
 	}
+	if derived, err := params.MetadataLabels.PlacementRequirements(); err != nil || !slices.Equal(derived, params.RequiredPlacementLabels) {
+		return runstore.WorkflowRun{}, runstore.ErrInvalid
+	}
 	if _, exists := f.runs[params.RunID]; exists {
 		return runstore.WorkflowRun{}, runstore.ErrConflict
 	}
@@ -1188,6 +1192,9 @@ func (f *fakeRunStore) CreateRunIdempotent(
 	params runstore.CreateRunIdempotentParams,
 ) (runstore.WorkflowRun, bool, error) {
 	if contracts.ValidatePlacementLabels(params.RequiredPlacementLabels) != nil {
+		return runstore.WorkflowRun{}, false, runstore.ErrInvalid
+	}
+	if derived, err := params.MetadataLabels.PlacementRequirements(); err != nil || !slices.Equal(derived, params.RequiredPlacementLabels) {
 		return runstore.WorkflowRun{}, false, runstore.ErrInvalid
 	}
 	key := params.OwnerID + "\x00" + params.IdempotencyKey

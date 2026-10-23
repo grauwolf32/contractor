@@ -20,35 +20,19 @@ import (
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
-	"github.com/grauwolf32/contractor/internal/strictjson"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
 type createRunRequest struct {
-	RequiredPlacementLabels runPlacementLabels               `json:"requiredPlacementLabels,omitempty"`
-	Workflow                string                           `json:"workflow"`
-	RuntimeLabels           runRuntimeLabels                 `json:"runtimeLabels,omitempty"`
-	Labels                  runMetadataLabels                `json:"labels,omitempty"`
-	Parameters              map[string]string                `json:"parameters"`
-	Artifacts               map[string]contracts.ArtifactRef `json:"artifacts"`
-	ExecutionConfig         resolved.ExecutionConfigPatch    `json:"executionConfig"`
+	Workflow        string                           `json:"workflow"`
+	RuntimeLabels   runRuntimeLabels                 `json:"runtimeLabels,omitempty"`
+	Labels          runMetadataLabels                `json:"labels,omitempty"`
+	Parameters      map[string]string                `json:"parameters"`
+	Artifacts       map[string]contracts.ArtifactRef `json:"artifacts"`
+	ExecutionConfig resolved.ExecutionConfigPatch    `json:"executionConfig"`
 }
 
 type runRuntimeLabels []string
-
-type runPlacementLabels []string
-
-func (l *runPlacementLabels) UnmarshalJSON(data []byte) error {
-	var value []string
-	if err := strictjson.Decode(data, &value); err != nil {
-		return err
-	}
-	if value == nil {
-		return errors.New("requiredPlacementLabels must be an array")
-	}
-	*l = value
-	return nil
-}
 
 func (l *runRuntimeLabels) UnmarshalJSON(data []byte) error {
 	if isJSONNull(data) {

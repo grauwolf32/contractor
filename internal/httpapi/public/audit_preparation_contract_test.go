@@ -89,6 +89,7 @@ func TestSharedPublicAuditPreparationContracts(t *testing.T) {
 	now := time.Now().UTC()
 	revision := "source-r1"
 	audit := auditResponse{
+		Labels:                  map[string]string{},
 		RequiredPlacementLabels: []string{},
 		AuditID:                 "audit_preparing", ProjectID: "project_example", Profile: auditProfileIdentityResponse{Name: profile.Ref.Name, Version: profile.Ref.Version, Digest: profile.Ref.Digest},
 		Inputs: map[string]auditstore.ExactArtifact{"source": {Ref: contracts.ArtifactRef{Namespace: "sources", Name: "source", Revision: &revision}, Digest: auditHandlerDigest("source")}},

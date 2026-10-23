@@ -10,6 +10,7 @@ interface TextProps {
   hint?: ReactNode;
   required?: boolean | undefined;
   maxLength?: number | undefined;
+  error?: string | undefined;
 }
 
 /** A one-line text field of the Start form, with an optional error. */
@@ -48,9 +49,10 @@ export function TextAreaField({
   hint,
   required,
   maxLength,
+  error,
 }: TextProps) {
   return (
-    <Field label={label} hint={hint} required={required}>
+    <Field label={label} hint={hint} required={required} error={error}>
       {(control) => (
         <textarea
           {...control}

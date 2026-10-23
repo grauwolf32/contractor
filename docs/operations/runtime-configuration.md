@@ -192,12 +192,12 @@ independent of the durable configuration labels seeded by `--initial-label`.
 For Ansible, set `contractor_runtime_placement_labels` at host/group level or
 `placement_labels` on an instance.
 
-A standalone or Project Run can select a location through the public create
-request's `requiredPlacementLabels`, for example `["cloud"]` for any cloud
-Runtime or `["cloud/aws"]` for one provider. All Workers in that Run keep the
-same requirement across retries and manual resume. An offline location is a
-valid selection and waits for matching capacity. Inspect the Run's selection
-and each Stage allocation's actual `placementLabels` through the Run detail
-API. Audit draft creation accepts the same field; start pins it in the baseline
-for all preparation and later child Runs. UI controls are tracked separately
-in proposal 0043.
+A standalone Run, Project Run or Audit selects placement through ordinary
+`labels`, for example `{"cloud":""}` for any cloud or `{"cloud":"aws"}` for
+one provider. `{"local":"lab"}` selects a local site; other keys remain
+ordinary metadata. Audit start fixes all its labels, and every child Run
+inherits that snapshot alongside its own system `audit.*` labels. An Audit
+accepts 28 user labels, reserving four of the Run's 32 entries for provenance.
+The derived `requiredPlacementLabels` is visible in read projections. An
+offline selection waits for matching capacity. Inspect each Stage allocation's
+actual `placementLabels` through Run detail. UI uses the ordinary label editors.

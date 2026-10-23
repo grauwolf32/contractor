@@ -125,6 +125,10 @@ func scanWorkflowRun(row rowScanner) (WorkflowRun, error) {
 	if err := result.MetadataLabels.Validate(); err != nil {
 		return WorkflowRun{}, fmt.Errorf("validate persisted Run metadata labels: %w", err)
 	}
+	derived, err := result.MetadataLabels.PlacementRequirements()
+	if err != nil || !slices.Equal(derived, result.RequiredPlacementLabels) {
+		return WorkflowRun{}, fmt.Errorf("persisted Run placement requirements differ from labels")
+	}
 	if claimID != nil {
 		if claimedAt == nil || claimExpiresAt == nil {
 			return WorkflowRun{}, fmt.Errorf("decode WorkflowRun claim: incomplete persisted claim")

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -596,6 +597,10 @@ func validateCreateRun(params CreateRunParams) error {
 	}
 	if err := contracts.ValidatePlacementLabels(params.RequiredPlacementLabels); err != nil {
 		return invalidf("required placement labels are invalid: %v", err)
+	}
+	derived, err := params.MetadataLabels.PlacementRequirements()
+	if err != nil || !slices.Equal(derived, params.RequiredPlacementLabels) {
+		return invalidf("placement requirements differ from Run labels")
 	}
 	if err := params.RuntimeConfig.Validate(); err != nil {
 		return invalidf("RuntimeConfig snapshot is invalid: %v", err)

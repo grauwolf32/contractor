@@ -1,43 +1,36 @@
 schema_version: '1.0'
 id: V405-004
-title: Select Runtime placement labels in Workflow and Audit launch forms
+title: Add Audit labels inherited by Runs and select placement through ordinary labels
 milestone: runtime-placement-labels-2026-10
-epic: ui
+epic: audits
 kind: feature
 priority: P2
-status: pending
+status: in_progress
 depends_on:
 - V405-002
 - V405-003
 languages:
 - go
 - typescript
-goal: Users choose cloud/local or a concrete provider/site from current Runtime declarations, can enter
-  an offline location, and see the actual selection and capacity wait without confusing RuntimeConfig
-  labels.
+goal: Audits carry ordinary key/value labels, pin them at start and pass them to every child Run. Reserved cloud/local keys derive placement requirements; UI uses labels rather than a separate location selector.
 context:
   proposal: docs/proposals/0043-runtime-placement-labels.md
 scope:
   in:
-  - Owner-authorized bounded placement-label inventory derived from live registrations, including busy
-    instances and parent labels.
-  - Shared UI validation, manual entry, dynamic suggestions, offline-selection retention and truthful
-    online/free counts.
-  - Workflow launch and repeat drafts, Audit draft/start forms, Run/Audit details and Runtime Operations
-    display.
+  - User clarification on 2026-10-23 supersedes a separate placement picker and fleet-count inventory. Reuse ordinary labels in UI and the existing Run metadata key/value contract.
+  - Audit draft/start/read labels, an immutable start snapshot, and exact inheritance into every child Run alongside reserved system audit.* labels.
+  - Derive cloud/local requirements from keys with optional provider/site values; broad cloud with empty value matches every cloud provider. Reject contradictory requirements before mutation.
+  - Shared UI validation, offline-label retention, Workflow launch/repeat, Audit launch and detail projections.
+  - User-requested UI refinement with editable label chips, quick cloud/local additions and concise inheritance feedback.
   - Rename the existing misleading Runtime placement configuration block, use shared UI components/themes
     and bump the UI patch version.
   out:
-  - A new configuration catalog, location editor, RuntimeConfig bindings for placement labels, or per-Stage
-    UI overrides.
+  - Separate location selectors, fleet-count inventory, a new configuration catalog, RuntimeConfig bindings for placement labels, per-Stage overrides or changes to started Audit labels.
 requirements:
 - id: R1
-  text: Do not block a syntactically valid offline label on current fleet availability. Persist selection
-    in drafts; a failed inventory read never clears it. Counts describe label matches and do not promise
-    tool compatibility or admission.
+  text: Arbitrary ordinary labels are inherited from the immutable Audit start snapshot. cloud with an empty value derives cloud; cloud=aws derives cloud/aws; local uses the same rule. Other labels never affect placement. No current fleet lookup is required to accept a valid offline requirement.
 - id: R2
-  text: Bound inventory work by registered-fleet and per-instance label limits; paginate every public
-    list and follow every page in pickers. Validate from the shared fixture and generated API contracts.
+  text: Bound the Audit label map so the child Run retains room for its system audit.* labels; reject reserved-key collisions. Shared fixtures cover extraction and validation, with strict persisted reads and unchanged RuntimeConfig labels.
 failure_outcomes:
 - operation: Placement declaration, selection or observation at the task boundary
   permanent: Malformed, oversized or inconsistent input is rejected before mutation using the existing
@@ -56,11 +49,11 @@ cardinality:
   maximum: 32 labels of at most 63 ASCII bytes each
   bound: Canonical sorted unique arrays, one compatible ancestor chain; no fleet IDs copied into launch
     snapshots.
-- collection: Runtime fleet and UI inventory
-  expected: A few local and cloud instances
-  maximum: Existing bounded registry capacity times the per-instance label bound
-  bound: Reuse registry limits and public pagination; no unbounded history scan or external lookup per
-    label.
+- collection: Inherited Audit metadata
+  expected: Two to five ordinary labels
+  maximum: 28 user labels plus at most four system audit.* labels on every child Run
+  bound: Shared normalization and OpenAPI reject oversized or reserved maps before mutation; trusted Run creation validates the exact inherited snapshot.
+
 lifecycle:
 - entity: Placement labels on existing Runtime incarnations, Runs, Audits or allocations
   delete: Follow the owning existing entity deletion API and authorization.
@@ -69,21 +62,19 @@ lifecycle:
     live with their owning retained Run/Audit.
 acceptance_criteria:
 - id: A1
-  given: Workflow and Audit forms with cloud/aws, local/lab and a selected offline label
-  when: The user selects a parent, types a valid label, repeats a Run or the fleet changes
-  then: The correct requiredPlacementLabels reach the API and selected values remain visible across refetches
-    and failed reads.
+  given: Ordinary Workflow and Audit labels including cloud=aws, local=lab and a selected offline location
+  when: The owner launches, starts, replays, repeats or dispatches later rounds
+  then: Placement derives from labels, all Audit labels reach every child Run, and no started Audit or existing Run changes its snapshot.
 - id: A2
-  given: More than one inventory page, invalid/cross-namespace input and stale draft revisions
+  given: Too many labels, reserved system keys, contradictory cloud/local values and stale draft revisions
   when: The forms render at 390 px in light, dark and black themes and submit
-  then: Every page is discoverable, errors and conflicts are explicit and the UI reports only Server-confirmed
-    state.
+  then: Errors and conflicts are explicit, inherited maps stay within the Run label bound, and UI reports only Server-confirmed state.
 tests:
 - command: make ui-verify
   covers:
   - A1
   - A2
-- command: go test ./internal/controlplane ./internal/httpapi/public
+- command: go test -tags=integration ./internal/contracts/runlabels ./internal/auditservice ./internal/auditcontroller ./internal/auditstore/... ./internal/runservice ./internal/runstore ./internal/controlplane ./internal/httpapi/public
   covers:
   - A1
   - A2

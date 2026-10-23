@@ -15,6 +15,8 @@ const (
 	MaxRunMetadataLabels     = 32
 	MaxRunMetadataLabelKey   = 63
 	MaxRunMetadataLabelValue = 256
+	// Four child-specific audit.* labels may be added to every inherited map.
+	MaxAuditLabels = MaxRunMetadataLabels - 4
 )
 
 var runMetadataLabelKeyPattern = regexp.MustCompile(`^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$`)
@@ -38,6 +40,46 @@ func NormalizeRunMetadataLabels(source map[string]string) (RunMetadataLabels, er
 		result[key] = value
 	}
 	return result, nil
+}
+
+// PlacementRequirements derives the reserved cloud/local paths from ordinary
+// labels. An empty value selects the whole namespace; a value selects a child.
+func (labels RunMetadataLabels) PlacementRequirements() ([]string, error) {
+	if _, err := NormalizeRunMetadataLabels(labels); err != nil {
+		return nil, err
+	}
+	paths := make([]string, 0, 2)
+	for _, namespace := range []string{"cloud", "local"} {
+		if value, found := labels[namespace]; found {
+			path := namespace
+			if value != "" {
+				path += "/" + value
+			}
+			paths = append(paths, path)
+		}
+	}
+	return contracts.NormalizePlacementLabels(paths)
+}
+
+// NormalizeAuditLabels leaves room for child provenance and prevents the
+// owner from shadowing system audit.* identities during inheritance.
+func NormalizeAuditLabels(source map[string]string) (RunMetadataLabels, error) {
+	labels, err := NormalizeRunMetadataLabels(source)
+	if err != nil {
+		return nil, err
+	}
+	if len(labels) > MaxAuditLabels {
+		return nil, contracts.Invalidf("Audit labels exceed %d entries", MaxAuditLabels)
+	}
+	for key := range labels {
+		if strings.HasPrefix(key, "audit.") {
+			return nil, contracts.Invalidf("Audit label %q uses the reserved audit. namespace", key)
+		}
+	}
+	if _, err := labels.PlacementRequirements(); err != nil {
+		return nil, err
+	}
+	return labels, nil
 }
 
 // ValidateRunMetadataLabel checks one exact key/value pair against the shared

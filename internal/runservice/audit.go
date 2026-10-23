@@ -270,10 +270,9 @@ func validateAuditIntent(intent auditstore.RunCreationIntent, params AuditCreate
 }
 
 func auditRunLabels(intent auditstore.RunCreationIntent) (runstore.RunMetadataLabels, error) {
-	labels := runstore.RunMetadataLabels{
-		"audit.id":   intent.Execution.AuditID,
-		"audit.role": string(intent.Execution.Role),
-	}
+	labels := runstore.RunMetadataLabels(intent.Labels).Clone()
+	labels["audit.id"] = intent.Execution.AuditID
+	labels["audit.role"] = string(intent.Execution.Role)
 	if intent.Execution.RoundID != nil {
 		labels["audit.round"] = *intent.Execution.RoundID
 	}
@@ -284,7 +283,8 @@ func auditRunLabels(intent auditstore.RunCreationIntent) (runstore.RunMetadataLa
 }
 
 func matchingAuditRun(run runstore.WorkflowRun, intent auditstore.RunCreationIntent) bool {
-	return slices.Equal(run.RequiredPlacementLabels, intent.RequiredPlacementLabels) &&
+	labels, err := auditRunLabels(intent)
+	return err == nil && maps.Equal(labels, run.MetadataLabels) && slices.Equal(run.RequiredPlacementLabels, intent.RequiredPlacementLabels) &&
 		run.PublicationMode == runstore.PublicationAuditManaged &&
 		run.AuditExecutionID != nil && *run.AuditExecutionID == intent.Execution.ExecutionID &&
 		run.AuditSubmissionKey != nil && *run.AuditSubmissionKey == intent.Execution.SubmissionKey &&

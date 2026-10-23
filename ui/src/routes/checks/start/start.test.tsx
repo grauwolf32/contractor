@@ -739,7 +739,16 @@ describe("Start a check: options and starting", () => {
       screen.getByLabelText("Authorization scope"),
       "Staging only",
     );
-    await user.type(screen.getByLabelText("Runtime labels"), "debug, caido");
+    await user.click(screen.getByText("Technical details", { exact: true }));
+    await user.type(
+      screen.getByLabelText("Runtime configuration labels"),
+      "debug, caido",
+    );
+    await user.click(screen.getByRole("button", { name: "+ cloud" }));
+    await user.type(screen.getByLabelText("Label value 1"), "aws");
+    await user.click(screen.getByRole("button", { name: "+ Add label" }));
+    await user.type(screen.getByLabelText("Label key 2"), "team");
+    await user.type(screen.getByLabelText("Label value 2"), "appsec");
     await user.click(startButton());
 
     await waitFor(() =>
@@ -754,6 +763,7 @@ describe("Start a check: options and starting", () => {
       profile: { name: "owasp-top10-2025-source-risk", version: "1" },
       inputs: { source: sourceZip.artifact },
       runtimeLabels: ["debug", "caido"],
+      labels: { cloud: "aws", team: "appsec" },
       scope: {
         objective: "Review session handling",
         target: "checkout service",
@@ -915,7 +925,11 @@ describe("Start a check: options and starting", () => {
     await user.keyboard("{Control>}{Enter}{/Control}");
     expect(sent("POST", "/audits")).toHaveLength(0);
     await user.click(screen.getByText("Advanced options"));
-    await user.type(screen.getByLabelText("Runtime labels"), "debug");
+    await user.click(screen.getByText("Technical details", { exact: true }));
+    await user.type(
+      screen.getByLabelText("Runtime configuration labels"),
+      "debug",
+    );
     await user.keyboard("{Control>}{Enter}{/Control}");
     await waitFor(() =>
       expect(router.state.location.pathname).toBe(

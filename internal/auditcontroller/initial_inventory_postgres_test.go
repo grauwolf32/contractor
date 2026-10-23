@@ -276,8 +276,11 @@ func TestPostgresGeneratedChecklistRunsChecksAndPublishesReport(t *testing.T) {
 			t.Fatalf("check %d was not submitted: %+v", index, executions)
 		}
 		run, err := h.runs.GetRun(ctx, *check.RunID)
-		if err != nil || len(run.RequiredPlacementLabels) != 2 || run.RequiredPlacementLabels[1] != "cloud/aws" {
+		if err != nil || len(run.RequiredPlacementLabels) != 1 || run.RequiredPlacementLabels[0] != "cloud/aws" {
 			t.Fatalf("check Run lost baseline placement: %+v, %v", run, err)
+		}
+		if run.MetadataLabels["team"] != "appsec" || run.MetadataLabels["cloud"] != "aws" {
+			t.Fatalf("check Run lost inherited Audit labels: %v", run.MetadataLabels)
 		}
 		finishGeneratedChecklistCheck(t, ctx, h, check)
 		preparationStep(t, ctx, c)

@@ -18,6 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 )
@@ -79,10 +80,11 @@ func (s *Service) CreateDraft(
 	if err := validateCreateParams(params); err != nil {
 		return auditstore.Audit{}, false, err
 	}
-	placement, err := contracts.NormalizePlacementLabels(params.RequiredPlacementLabels)
+	metadata, err := runlabels.NormalizeAuditLabels(params.Labels)
 	if err != nil {
-		return auditstore.Audit{}, false, fmt.Errorf("%w: Audit placement requirements are invalid: %v", ErrInvalid, err)
+		return auditstore.Audit{}, false, fmt.Errorf("%w: Audit labels are invalid: %v", ErrInvalid, err)
 	}
+	placement, _ := metadata.PlacementRequirements()
 	if replay, found, err := s.owners().LookupMutationReplay(
 		ctx, params.OwnerID, auditstore.MutationCreate,
 		params.IdempotencyKey, params.RequestDigest,
@@ -142,6 +144,7 @@ func (s *Service) CreateDraft(
 		return auditstore.Audit{}, false, fmt.Errorf("encode AuditProfile snapshot: %w", err)
 	}
 	selection, err := encodeDraftSelection(DraftSelection{
+		Labels:                  metadata,
 		RequiredPlacementLabels: placement,
 		Schema:                  DraftSelectionSchema, Inputs: inputs,
 		RuntimeLabels: labels, Scope: scope,

@@ -174,7 +174,6 @@ class WorkflowRunCancellation(BaseModel):
 | `parameters` | string-to-string map | Workflow parameters | this document |
 | `artifacts` | Workflow input slot to `ArtifactRef` | Input bindings in the source scope of the endpoint | [Artifact store](../artifacts/artifact-store.md) (ART-R74) |
 | `runtimeLabels` | optional sorted unique array of names | Runtime-label selection | this document for the field; [RuntimeConfig](../configuration/runtime-config.md) for resolution |
-| `requiredPlacementLabels` | optional array of placement paths | Immutable dynamic Runtime selection (RUN-R107–RUN-R109) | this document for the field; [Control Plane](control-plane.md) for matching |
 | `labels` | optional key/value string map | Metadata labels | this document |
 | `executionConfig` | optional top-level object with the `planner`/`workers`/`stages` shape | Reference-only execution override | [AgentTemplates](../configuration/agent-templates.md) |
 | `Idempotency-Key` header | exactly one bounded key | Create idempotency | this document; header conventions in [Public API](../api/public-api.md) |
@@ -254,28 +253,30 @@ idempotency header ([PRJ-R22, PRJ-R97](../artifacts/projects.md)).
 
 ### Placement requirements
 
-**RUN-R107.** Run creation accepts optional non-null `requiredPlacementLabels`.
-It uses the cloud/local grammar, ancestor-chain consistency and bounds of
-[CTL-R156](control-plane.md). Request order has no meaning: Server clones,
-sorts and validates the selection, rejects duplicates and contradictory paths,
-and pins a non-null canonical array in the Run creation transaction. Omission
-and an empty array both impose no location restriction. The selection requires
-no RuntimeConfig binding and is not part of a Workflow definition.
+**RUN-R107.** Ordinary `labels` select placement through the reserved keys
+`cloud` and `local`. An empty value selects the whole namespace; a non-empty
+value appends a slash and the provider/site path: `cloud=aws` derives
+`cloud/aws`, and `local=lab` derives `local/lab`. Derived paths obey
+[CTL-R156](control-plane.md). Both keys together, wildcard syntax, malformed
+paths and oversized paths are invalid before mutation. Other label keys have
+no placement meaning. Selection needs no RuntimeConfig binding or Workflow
+field. Public create requests use `labels`; `requiredPlacementLabels` is a
+read-only projection of the derived immutable requirement.
 
-**RUN-R108.** The normalized non-empty placement selection participates in
-public request digests; an empty selection is omitted from the digest. An
-identical replay uses the original keyed Run before mutable dependency reads;
-a changed valid location under the same key is `idempotency_conflict`. Run
-requirements are immutable in PostgreSQL, validated strictly on write and read,
-and retained across Stage retry, manual resume and Server restart. Invalid
-persisted values never become an unrestricted empty selection.
+**RUN-R108.** All labels participate in the canonical public request digest;
+omission and an empty map are equivalent. Identical replay uses the keyed
+Run before mutable dependency reads. Changing a label under the same key is
+`idempotency_conflict`. Server pins the derived canonical requirement in the
+Run transaction, validates it against the labels on write and read, and retains
+both across retry, manual resume and restart. Corrupt or inconsistent stored
+values never become an unrestricted empty selection.
 
-**RUN-R109.** Create/read responses and the retained repeat draft expose
-`requiredPlacementLabels`. A repeat draft copies the original selection for
-the new launch; it does not replace it with the current Runtime fleet. Actual
-allocation placement labels are exposed in each Stage runtime-configuration
-allocation as `placementLabels`, including released allocations. Parent Run
-purge removes these fields with the existing owning rows (LIFE-DEL-1).
+**RUN-R109.** Create/read responses expose derived `requiredPlacementLabels`.
+The retained repeat draft copies the ordinary `labels` and the derived
+requirement; the new launch uses its editable labels. Actual allocation
+placement labels are exposed as `placementLabels` in each Stage
+runtime-configuration allocation, including released allocations. Parent purge
+removes these fields with the owning rows (LIFE-DEL-1).
 
 ### Workflow parameters
 
@@ -594,8 +595,8 @@ sequenceDiagram
 ### Metadata labels
 
 **RUN-R58.** `POST /v1/runs` accepts the metadata `labels` map
-independently of `runtimeLabels`. Labels are used only to identify, group and
-query concrete Runs.
+independently of `runtimeLabels`. Labels identify, group and query concrete
+Runs; `cloud` and `local` additionally derive placement under RUN-R107.
 
 Rationale: the first motivating use is evaluation. One eval invocation may
 create many ordinary WorkflowRuns for fixtures, cases, repeated samples and A/B
@@ -606,10 +607,10 @@ this remains an owner-facing grouping and does not alter the generic label or
 execution contract.
 
 **RUN-R59.** Runtime labels may change infrastructure
-resolution. Metadata labels never change Workflow semantics, configuration
-resolution, Scheduler eligibility, queue priority, placement, Runtime
-capabilities, authorization, budgets, tools, Skills, model selection or
-artifact access.
+resolution. Reserved `cloud`/`local` metadata labels restrict placement
+(RUN-R107). Labels grant no authorization and never change Workflow semantics,
+configuration resolution, queue priority, Runtime capabilities, budgets, tools,
+Skills, model selection or artifact access.
 
 **RUN-R60.** Omitting `labels` is equivalent to an empty map.
 Explicit `null`, an array or non-string values are invalid.
@@ -976,7 +977,8 @@ rules, including report envelopes and label propagation, are in
    Runtime locations; `labels` describe one Run.
 2. Metadata labels are immutable, owner-scoped, bounded and atomically durable
    with Run creation.
-3. Metadata labels are neither authorization claims nor Scheduler inputs.
+3. Labels grant no authorization; only the reserved cloud/local keys derive
+   placement requirements. Other labels are descriptive metadata.
 4. An eval sample is an ordinary WorkflowRun; eval adds no hidden execution
    path to Scheduler, Control Plane or Runtime.
 5. Planner and Runtime may attach labels to traces but never expose them to the

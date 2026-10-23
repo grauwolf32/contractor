@@ -15,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 )
@@ -50,6 +51,9 @@ func DecodeBaseline(data []byte) (BaselineSnapshot, error) {
 }
 
 func validateDraftSelection(value DraftSelection) error {
+	if err := validateAuditLabels(value.Labels, value.RequiredPlacementLabels); err != nil {
+		return err
+	}
 	if value.RequiredPlacementLabels == nil || contracts.ValidatePlacementLabels(value.RequiredPlacementLabels) != nil {
 		return fmt.Errorf("%w: Audit placement requirements are invalid", ErrInvalid)
 	}
@@ -68,6 +72,9 @@ func validateDraftSelection(value DraftSelection) error {
 }
 
 func ValidateBaseline(value BaselineSnapshot) error {
+	if err := validateAuditLabels(value.Labels, value.RequiredPlacementLabels); err != nil {
+		return err
+	}
 	if value.RequiredPlacementLabels == nil || contracts.ValidatePlacementLabels(value.RequiredPlacementLabels) != nil {
 		return fmt.Errorf("%w: Audit baseline placement requirements are invalid", ErrInvalid)
 	}
@@ -203,6 +210,7 @@ func mergeIDs(sets ...[]string) []string {
 
 func cloneBaseline(source BaselineSnapshot) BaselineSnapshot {
 	result := source
+	result.Labels = source.Labels.Clone()
 	result.RequiredPlacementLabels = slices.Clone(source.RequiredPlacementLabels)
 	result.Inputs = contracts.CloneExactArtifacts(source.Inputs)
 	result.RuntimeLabels = slices.Clone(source.RuntimeLabels)
@@ -238,6 +246,20 @@ func cloneBaseline(source BaselineSnapshot) BaselineSnapshot {
 		}
 	}
 	return result
+}
+
+func validateAuditLabels(labels runlabels.RunMetadataLabels, required []string) error {
+	if labels == nil {
+		return fmt.Errorf("%w: Audit labels must be an object", ErrInvalid)
+	}
+	if _, err := runlabels.NormalizeAuditLabels(labels); err != nil {
+		return fmt.Errorf("%w: invalid Audit labels: %v", ErrInvalid, err)
+	}
+	derived, err := labels.PlacementRequirements()
+	if err != nil || !slices.Equal(derived, required) {
+		return fmt.Errorf("%w: Audit placement requirements differ from labels", ErrInvalid)
+	}
+	return nil
 }
 
 func cloneAuditStandardSelection(

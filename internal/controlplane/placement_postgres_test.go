@@ -508,8 +508,13 @@ func newPlacementFixture(
 ) *placementFixture {
 	t.Helper()
 	var required []string
+	metadata := runstore.RunMetadataLabels{}
 	if len(placement) > 0 {
 		required = append([]string{}, placement[0]...)
+		if len(required) > 0 {
+			root, value, _ := strings.Cut(required[len(required)-1], "/")
+			metadata[root] = value
+		}
 	}
 	configuration, err := configload.Load("../../testdata/configs")
 	if err != nil {
@@ -588,6 +593,7 @@ func newPlacementFixture(
 		WorkflowVersion: workflow.Ref.Version, WorkflowSchemaVersion: contracts.APIVersion,
 		WorkflowSnapshot: json.RawMessage(`{}`), Parameters: map[string]string{}, RuntimeConfig: pinned,
 		RequiredPlacementLabels: required,
+		MetadataLabels:          metadata,
 	}); err != nil {
 		t.Fatal(err)
 	}

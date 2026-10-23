@@ -895,7 +895,9 @@ describe("Workflow routes", () => {
 
     await openRunSetup();
     const user = userEvent.setup();
-    await user.click(screen.getByText("Runtime placement", { exact: true }));
+    await user.click(
+      screen.getByText("Runtime configuration", { exact: true }),
+    );
     expect(
       await screen.findByText("Default · always applied"),
     ).toBeInTheDocument();

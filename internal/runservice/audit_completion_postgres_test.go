@@ -92,7 +92,7 @@ func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T)
 		t.Fatal(err)
 	}
 	roundID := "round"
-	_, _, err = audits.MaterializeRound(ctx, auditstore.MaterializeRoundParams{OwnerID: draft.OwnerID, AuditID: draft.AuditID, ExpectedRevision: draft.Revision, RoundID: roundID, RoundOrdinal: 1, Manifest: manifest, BaselineSnapshot: json.RawMessage(`{"requiredPlacementLabels":[]}`), DeadlineAt: time.Now().Add(time.Hour), Items: []auditstore.MaterializedItem{{ItemID: "item", ItemKey: "check-1", Ordinal: 0, Kind: "test", SubjectKey: manifestDoc.Items[0].SubjectKey, Task: task, Origin: runServiceAuditOrigin("check-1", task), WorkflowRole: "check", InitialState: auditstore.ItemReady, Coverage: auditstore.Coverage{Status: auditstore.CoverageNotTested, Requested: []string{}, Completed: []string{}, Gaps: []string{}}}}, IdempotencyKey: "round", RequestDigest: testDigest("4")})
+	_, _, err = audits.MaterializeRound(ctx, auditstore.MaterializeRoundParams{OwnerID: draft.OwnerID, AuditID: draft.AuditID, ExpectedRevision: draft.Revision, RoundID: roundID, RoundOrdinal: 1, Manifest: manifest, BaselineSnapshot: json.RawMessage(`{"labels":{},"requiredPlacementLabels":[]}`), DeadlineAt: time.Now().Add(time.Hour), Items: []auditstore.MaterializedItem{{ItemID: "item", ItemKey: "check-1", Ordinal: 0, Kind: "test", SubjectKey: manifestDoc.Items[0].SubjectKey, Task: task, Origin: runServiceAuditOrigin("check-1", task), WorkflowRole: "check", InitialState: auditstore.ItemReady, Coverage: auditstore.Coverage{Status: auditstore.CoverageNotTested, Requested: []string{}, Completed: []string{}, Gaps: []string{}}}}, IdempotencyKey: "round", RequestDigest: testDigest("4")})
 	if err != nil {
 		t.Fatal(err)
 	}

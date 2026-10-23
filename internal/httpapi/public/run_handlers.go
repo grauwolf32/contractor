@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
-	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 	"github.com/grauwolf32/contractor/internal/planner"
@@ -259,11 +258,6 @@ func (h *runHandlers) createRunFromProject(w http.ResponseWriter, r *http.Reques
 		handleError(w, err)
 		return
 	}
-	placement, err := contracts.NormalizePlacementLabels([]string(request.RequiredPlacementLabels))
-	if err != nil {
-		handleError(w, err)
-		return
-	}
 	idempotencyKey, err := requireIdempotencyKey(r)
 	if err != nil {
 		handleError(w, err)
@@ -271,8 +265,7 @@ func (h *runHandlers) createRunFromProject(w http.ResponseWriter, r *http.Reques
 	}
 	credentialUser := runtimeCredentialUser(r.Context())
 	params := runservice.PublicCreateParams{
-		RequiredPlacementLabels: placement,
-		OwnerID:                 credentialUser.UserID, OperationsPrincipal: credentialUser.Operations,
+		OwnerID: credentialUser.UserID, OperationsPrincipal: credentialUser.Operations,
 		ProjectID: projectID, Workflow: request.Workflow,
 		ExecutionConfig: request.ExecutionConfig, RuntimeLabels: normalizedLabels,
 		MetadataLabels: metadataLabels, Parameters: request.Parameters, Inputs: request.Artifacts,

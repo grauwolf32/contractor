@@ -2884,8 +2884,11 @@ type Audit struct {
 	GeneratedInventory  *AuditGeneratedInventory      `json:"generatedInventory,omitempty"`
 	HoldState           AuditHoldState                `json:"holdState"`
 	Inputs              map[string]AuditExactArtifact `json:"inputs"`
-	Limits              AuditLimits                   `json:"limits"`
-	OutstandingRunCount int                           `json:"outstandingRunCount"`
+
+	// Labels Ordinary labels pinned at Audit start and inherited by every child Run. cloud or local with an empty value selects the whole namespace; cloud=aws selects cloud/aws. Four entries are reserved for child-specific audit.* provenance.
+	Labels              *AuditLabels `json:"labels,omitempty"`
+	Limits              AuditLimits  `json:"limits"`
+	OutstandingRunCount int          `json:"outstandingRunCount"`
 
 	// PausedAt Time when the remaining Audit allowance was frozen.
 	PausedAt    *time.Time           `json:"pausedAt,omitempty"`
@@ -2940,10 +2943,13 @@ type AuditAnalystVerdict = interface{}
 // AuditBaseline defines model for AuditBaseline.
 type AuditBaseline struct {
 	// ActiveChecks Project approval policy for active-enabled Audit profiles, pinned at Audit start. A profile prohibition always remains prohibited.
-	ActiveChecks      ActiveChecksPolicy            `json:"activeChecks"`
-	Inputs            map[string]AuditExactArtifact `json:"inputs"`
-	Inventory         *AuditBaselineInventory       `json:"inventory,omitempty"`
-	ProjectHttpTarget *ProjectHTTPTarget            `json:"projectHttpTarget,omitempty"`
+	ActiveChecks ActiveChecksPolicy            `json:"activeChecks"`
+	Inputs       map[string]AuditExactArtifact `json:"inputs"`
+	Inventory    *AuditBaselineInventory       `json:"inventory,omitempty"`
+
+	// Labels Ordinary labels pinned at Audit start and inherited by every child Run. cloud or local with an empty value selects the whole namespace; cloud=aws selects cloud/aws. Four entries are reserved for child-specific audit.* provenance.
+	Labels            *AuditLabels       `json:"labels,omitempty"`
+	ProjectHttpTarget *ProjectHTTPTarget `json:"projectHttpTarget,omitempty"`
 
 	// RequiredPlacementLabels Sorted unique cloud/local paths forming one ancestor chain. Empty means no location declaration or requirement.
 	RequiredPlacementLabels *PlacementLabels          `json:"requiredPlacementLabels,omitempty"`
@@ -3341,6 +3347,9 @@ type AuditItemPage struct {
 
 // AuditItemState defines model for AuditItemState.
 type AuditItemState = interface{}
+
+// AuditLabels Ordinary labels pinned at Audit start and inherited by every child Run. cloud or local with an empty value selects the whole namespace; cloud=aws selects cloud/aws. Four entries are reserved for child-specific audit.* provenance.
+type AuditLabels map[string]string
 
 // AuditLimits defines model for AuditLimits.
 type AuditLimits struct {
@@ -3995,13 +4004,13 @@ type CreateAuditFindingReviewRequest struct {
 
 // CreateAuditRequest defines model for CreateAuditRequest.
 type CreateAuditRequest struct {
-	Inputs  map[string]ExactArtifactRef `json:"inputs"`
-	Profile AuditProfileSelector        `json:"profile"`
+	Inputs map[string]ExactArtifactRef `json:"inputs"`
 
-	// RequiredPlacementLabels Sorted unique cloud/local paths forming one ancestor chain. Empty means no location declaration or requirement.
-	RequiredPlacementLabels *PlacementLabels           `json:"requiredPlacementLabels,omitempty"`
-	RuntimeLabels           *[]RuntimeInfrastructureId `json:"runtimeLabels,omitempty"`
-	Scope                   *AuditScope                `json:"scope,omitempty"`
+	// Labels Ordinary labels pinned at Audit start and inherited by every child Run. cloud or local with an empty value selects the whole namespace; cloud=aws selects cloud/aws. Four entries are reserved for child-specific audit.* provenance.
+	Labels        *AuditLabels               `json:"labels,omitempty"`
+	Profile       AuditProfileSelector       `json:"profile"`
+	RuntimeLabels *[]RuntimeInfrastructureId `json:"runtimeLabels,omitempty"`
+	Scope         *AuditScope                `json:"scope,omitempty"`
 }
 
 // CreateCredentialRequest defines model for CreateCredentialRequest.
@@ -4025,17 +4034,17 @@ type CreateProjectRequest struct {
 type CreateRunRequest struct {
 	Artifacts       nullable.Nullable[map[string]ArtifactRef] `json:"artifacts,omitempty"`
 	ExecutionConfig *ExecutionConfigPatch                     `json:"executionConfig,omitempty"`
-	Labels          *RunMetadataLabels                        `json:"labels,omitempty"`
-	Parameters      nullable.Nullable[map[string]string]      `json:"parameters,omitempty"`
 
-	// RequiredPlacementLabels Sorted unique cloud/local paths forming one ancestor chain. Empty means no location declaration or requirement.
-	RequiredPlacementLabels *PlacementLabels `json:"requiredPlacementLabels,omitempty"`
-	RuntimeLabels           *[]ConfigId      `json:"runtimeLabels,omitempty"`
-	Workflow                Selector         `json:"workflow"`
+	// Labels Immutable ordinary key/value labels. cloud and local derive Runtime placement; an empty value selects the namespace and a non-empty value selects its provider/site child path. Other keys are descriptive.
+	Labels        *RunMetadataLabels                   `json:"labels,omitempty"`
+	Parameters    nullable.Nullable[map[string]string] `json:"parameters,omitempty"`
+	RuntimeLabels *[]ConfigId                          `json:"runtimeLabels,omitempty"`
+	Workflow      Selector                             `json:"workflow"`
 }
 
 // CreateRunResponse defines model for CreateRunResponse.
 type CreateRunResponse struct {
+	// Labels Immutable ordinary key/value labels. cloud and local derive Runtime placement; an empty value selects the namespace and a non-empty value selects its provider/site child path. Other keys are descriptive.
 	Labels            RunMetadataLabels  `json:"labels"`
 	ProjectHttpTarget *ProjectHTTPTarget `json:"projectHttpTarget,omitempty"`
 	ProjectId         *ResourceId        `json:"projectId,omitempty"`
@@ -6664,7 +6673,7 @@ type ResourceId = string
 // Revision defines model for Revision.
 type Revision = string
 
-// RunMetadataLabels defines model for RunMetadataLabels.
+// RunMetadataLabels Immutable ordinary key/value labels. cloud and local derive Runtime placement; an empty value selects the namespace and a non-empty value selects its provider/site child path. Other keys are descriptive.
 type RunMetadataLabels map[string]string
 
 // RunNotDeletableDetails defines model for RunNotDeletableDetails.
@@ -6684,14 +6693,16 @@ type RunPage struct {
 
 // RunQueueItem defines model for RunQueueItem.
 type RunQueueItem struct {
-	CreatedAt   time.Time                   `json:"createdAt"`
-	EventCursor EventCursor                 `json:"eventCursor"`
-	Labels      RunMetadataLabels           `json:"labels"`
-	Project     *RunQueueProject            `json:"project,omitempty"`
-	RunId       ResourceId                  `json:"runId"`
-	State       NonTerminalWorkflowRunState `json:"state"`
-	UpdatedAt   time.Time                   `json:"updatedAt"`
-	Workflow    Selector                    `json:"workflow"`
+	CreatedAt   time.Time   `json:"createdAt"`
+	EventCursor EventCursor `json:"eventCursor"`
+
+	// Labels Immutable ordinary key/value labels. cloud and local derive Runtime placement; an empty value selects the namespace and a non-empty value selects its provider/site child path. Other keys are descriptive.
+	Labels    RunMetadataLabels           `json:"labels"`
+	Project   *RunQueueProject            `json:"project,omitempty"`
+	RunId     ResourceId                  `json:"runId"`
+	State     NonTerminalWorkflowRunState `json:"state"`
+	UpdatedAt time.Time                   `json:"updatedAt"`
+	Workflow  Selector                    `json:"workflow"`
 }
 
 // RunQueueMembership defines model for RunQueueMembership.
@@ -6723,8 +6734,10 @@ type RunRecovery struct {
 type RunRepeatDraft struct {
 	ExecutionConfig RunRepeatExecutionConfig  `json:"executionConfig"`
 	Inputs          map[string]RunRepeatInput `json:"inputs"`
-	Labels          RunMetadataLabels         `json:"labels"`
-	Parameters      map[string]string         `json:"parameters"`
+
+	// Labels Immutable ordinary key/value labels. cloud and local derive Runtime placement; an empty value selects the namespace and a non-empty value selects its provider/site child path. Other keys are descriptive.
+	Labels     RunMetadataLabels `json:"labels"`
+	Parameters map[string]string `json:"parameters"`
 
 	// RequiredPlacementLabels Sorted unique cloud/local paths forming one ancestor chain. Empty means no location declaration or requirement.
 	RequiredPlacementLabels *PlacementLabels `json:"requiredPlacementLabels,omitempty"`
@@ -6782,17 +6795,19 @@ type RunStatus struct {
 	CreatedAt    *time.Time     `json:"createdAt,omitempty"`
 
 	// Deletable True only when terminal release and every applicable retention receipt are durable.
-	Deletable          bool                         `json:"deletable"`
-	EventCursor        *EventCursor                 `json:"eventCursor,omitempty"`
-	FinishedAt         *time.Time                   `json:"finishedAt,omitempty"`
-	Inputs             *map[string]ExactArtifactRef `json:"inputs,omitempty"`
-	Labels             RunMetadataLabels            `json:"labels"`
-	OutputPublications []OutputPublication          `json:"outputPublications"`
-	Outputs            map[string]ExactArtifactRef  `json:"outputs"`
-	Parameters         *map[string]string           `json:"parameters,omitempty"`
-	ProjectHttpTarget  *ProjectHTTPTarget           `json:"projectHttpTarget,omitempty"`
-	ProjectId          *ResourceId                  `json:"projectId,omitempty"`
-	Recovery           *RunRecovery                 `json:"recovery,omitempty"`
+	Deletable   bool                         `json:"deletable"`
+	EventCursor *EventCursor                 `json:"eventCursor,omitempty"`
+	FinishedAt  *time.Time                   `json:"finishedAt,omitempty"`
+	Inputs      *map[string]ExactArtifactRef `json:"inputs,omitempty"`
+
+	// Labels Immutable ordinary key/value labels. cloud and local derive Runtime placement; an empty value selects the namespace and a non-empty value selects its provider/site child path. Other keys are descriptive.
+	Labels             RunMetadataLabels           `json:"labels"`
+	OutputPublications []OutputPublication         `json:"outputPublications"`
+	Outputs            map[string]ExactArtifactRef `json:"outputs"`
+	Parameters         *map[string]string          `json:"parameters,omitempty"`
+	ProjectHttpTarget  *ProjectHTTPTarget          `json:"projectHttpTarget,omitempty"`
+	ProjectId          *ResourceId                 `json:"projectId,omitempty"`
+	Recovery           *RunRecovery                `json:"recovery,omitempty"`
 
 	// RequiredPlacementLabels Sorted unique cloud/local paths forming one ancestor chain. Empty means no location declaration or requirement.
 	RequiredPlacementLabels *PlacementLabels `json:"requiredPlacementLabels,omitempty"`
@@ -6816,14 +6831,16 @@ type RunSummary struct {
 	CreatedAt time.Time `json:"createdAt"`
 
 	// Deletable True only when terminal release and every applicable retention receipt are durable.
-	Deletable  bool              `json:"deletable"`
-	FinishedAt *time.Time        `json:"finishedAt,omitempty"`
-	Labels     RunMetadataLabels `json:"labels"`
-	ProjectId  *ResourceId       `json:"projectId,omitempty"`
-	RunId      ResourceId        `json:"runId"`
-	State      WorkflowRunState  `json:"state"`
-	UpdatedAt  time.Time         `json:"updatedAt"`
-	Workflow   Selector          `json:"workflow"`
+	Deletable  bool       `json:"deletable"`
+	FinishedAt *time.Time `json:"finishedAt,omitempty"`
+
+	// Labels Immutable ordinary key/value labels. cloud and local derive Runtime placement; an empty value selects the namespace and a non-empty value selects its provider/site child path. Other keys are descriptive.
+	Labels    RunMetadataLabels `json:"labels"`
+	ProjectId *ResourceId       `json:"projectId,omitempty"`
+	RunId     ResourceId        `json:"runId"`
+	State     WorkflowRunState  `json:"state"`
+	UpdatedAt time.Time         `json:"updatedAt"`
+	Workflow  Selector          `json:"workflow"`
 }
 
 // RuntimeAgentLabelsMutation defines model for RuntimeAgentLabelsMutation.
@@ -9201,6 +9218,13 @@ func (t Audit) MarshalJSON() ([]byte, error) {
 		}
 	}
 
+	if t.Labels != nil {
+		object["labels"], err = json.Marshal(t.Labels)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'labels': %w", err)
+		}
+	}
+
 	object["limits"], err = json.Marshal(t.Limits)
 	if err != nil {
 		return nil, fmt.Errorf("error marshaling 'limits': %w", err)
@@ -9399,6 +9423,13 @@ func (t *Audit) UnmarshalJSON(b []byte) error {
 		err = json.Unmarshal(raw, &t.Inputs)
 		if err != nil {
 			return fmt.Errorf("error reading 'inputs': %w", err)
+		}
+	}
+
+	if raw, found := object["labels"]; found {
+		err = json.Unmarshal(raw, &t.Labels)
+		if err != nil {
+			return fmt.Errorf("error reading 'labels': %w", err)
 		}
 	}
 

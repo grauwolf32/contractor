@@ -627,6 +627,7 @@ type BindRunParams struct {
 // trusted Run Service. It contains no secret material and is never exposed by
 // the owner-facing repository or public API.
 type RunCreationIntent struct {
+	Labels                  map[string]string
 	RequiredPlacementLabels []string
 	WorkflowBinding         json.RawMessage
 	OwnerID                 string

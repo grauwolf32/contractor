@@ -27,6 +27,10 @@ func failedResumeFixture(t *testing.T, ctx context.Context, pool *pgxpool.Pool, 
 	params := testRunParams(runID)
 	if len(placement) > 0 {
 		params.RequiredPlacementLabels = placement[0]
+		if len(placement[0]) > 0 {
+			root, value, _ := strings.Cut(placement[0][len(placement[0])-1], "/")
+			params.MetadataLabels = RunMetadataLabels{root: value}
+		}
 	}
 	run, err := createRun(ctx, store, params)
 	if err != nil {

@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -74,6 +75,14 @@ func TestPostgresTrustedAuditRunIsAtomicReplayableAndPinsExactSkill(t *testing.T
 		t.Fatal(err)
 	}
 
+	inheritedLabels := map[string]string{"cloud": "aws", "team": "appsec"}
+	for index := 0; index < 26; index++ {
+		inheritedLabels[fmt.Sprintf("tag%d", index)] = "value"
+	}
+	baselineJSON, err := json.Marshal(map[string]any{"baseline": "pinned", "labels": inheritedLabels, "requiredPlacementLabels": []string{"cloud/aws"}})
+	if err != nil {
+		t.Fatal(err)
+	}
 	audits := auditstoretest.NewStore(pool)
 	draft, _, err := audits.CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: "audit-run-service", OwnerID: "owner-run-service", ProjectID: project.ProjectID,
@@ -92,7 +101,7 @@ func TestPostgresTrustedAuditRunIsAtomicReplayableAndPinsExactSkill(t *testing.T
 	if _, _, err := audits.MaterializeRound(ctx, auditstore.MaterializeRoundParams{
 		OwnerID: draft.OwnerID, AuditID: draft.AuditID, ExpectedRevision: draft.Revision,
 		RoundID: roundID, RoundOrdinal: 1, Manifest: manifest,
-		BaselineSnapshot: []byte(`{"baseline":"pinned","requiredPlacementLabels":["cloud/aws"]}`), DeadlineAt: time.Now().Add(time.Hour),
+		BaselineSnapshot: baselineJSON, DeadlineAt: time.Now().Add(time.Hour),
 		Items: []auditstore.MaterializedItem{{
 			ItemID: "item-run-service", ItemKey: "check-1", Ordinal: 0, Kind: "test",
 			SubjectKey: "subject-1", Task: task, Origin: runServiceAuditOrigin("check-1", task), WorkflowRole: "check",
@@ -227,6 +236,14 @@ func TestPostgresTrustedAuditRunIsAtomicReplayableAndPinsExactSkill(t *testing.T
 	stored, err := runstore.NewPostgresStore(pool).GetRun(ctx, results[0].Run.RunID)
 	if err != nil || !slices.Equal(stored.RequiredPlacementLabels, []string{"cloud/aws"}) {
 		t.Fatalf("child placement requirement = %v, %v", stored.RequiredPlacementLabels, err)
+	}
+	if len(stored.MetadataLabels) != runstore.MaxRunMetadataLabels {
+		t.Fatalf("inherited and system labels=%d, want %d", len(stored.MetadataLabels), runstore.MaxRunMetadataLabels)
+	}
+	for key, value := range inheritedLabels {
+		if stored.MetadataLabels[key] != value {
+			t.Fatalf("child lost inherited label %q", key)
+		}
 	}
 	if err != nil || stored.PublicationMode != runstore.PublicationAuditManaged ||
 		stored.AuditExecutionID == nil || *stored.AuditExecutionID != execution.ExecutionID ||

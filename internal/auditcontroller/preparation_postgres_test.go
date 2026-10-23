@@ -137,8 +137,11 @@ func finishPreparationRun(t *testing.T, ctx context.Context, h *postgresControll
 	}
 	runID := *execution.RunID
 	run, err := h.runs.GetRun(ctx, runID)
-	if err != nil || !slices.Equal(run.RequiredPlacementLabels, []string{"cloud", "cloud/aws"}) {
+	if err != nil || !slices.Equal(run.RequiredPlacementLabels, []string{"cloud/aws"}) {
 		t.Fatalf("preparation Run lost baseline placement: %+v, %v", run, err)
+	}
+	if run.MetadataLabels["team"] != "appsec" || run.MetadataLabels["cloud"] != "aws" {
+		t.Fatalf("preparation Run lost inherited Audit labels: %v", run.MetadataLabels)
 	}
 	if outcome == runstore.RunSucceeded {
 		runArtifacts, _ := h.artifacts.Run(runID)

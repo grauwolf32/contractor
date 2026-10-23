@@ -3616,6 +3616,19 @@
       "maxLength": 128,
       "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
     },
+    "AuditLabels": {
+      "allOf": [
+        {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/RunMetadataLabels"
+        },
+        {
+          "type": "object",
+          "additionalProperties": true,
+          "maxProperties": 28,
+          "propertyNames": { "not": { "pattern": "^audit\\." } }
+        }
+      ]
+    },
     "RunMetadataLabels": {
       "type": "object",
       "maxProperties": 32,
@@ -4568,8 +4581,8 @@
       "additionalProperties": false,
       "required": ["profile", "inputs"],
       "properties": {
-        "requiredPlacementLabels": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PlacementLabels"
+        "labels": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditLabels"
         },
         "profile": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditProfileSelector"
@@ -4719,6 +4732,9 @@
         "standards"
       ],
       "properties": {
+        "labels": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditLabels"
+        },
         "requiredPlacementLabels": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PlacementLabels"
         },
@@ -4998,6 +5014,9 @@
         "updatedAt"
       ],
       "properties": {
+        "labels": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditLabels"
+        },
         "requiredPlacementLabels": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PlacementLabels"
         },
@@ -9617,9 +9636,6 @@
       "additionalProperties": false,
       "required": ["workflow"],
       "properties": {
-        "requiredPlacementLabels": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PlacementLabels"
-        },
         "workflow": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Selector"
         },

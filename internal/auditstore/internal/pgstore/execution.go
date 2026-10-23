@@ -7,10 +7,12 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 	"github.com/jackc/pgx/v5"
+	"slices"
 )
 
 func (s *ClaimStore) CreateExecutionIntent(
@@ -153,8 +155,9 @@ func (s *ClaimStore) GetRunCreationIntent(
 	}
 	var result auditstore.RunCreationIntent
 	var placement []byte
+	var metadata []byte
 	execution, err := scanExecution(withColumns{row: s.db.QueryRow(ctx, `
-SELECT audit.owner_id, audit.project_id, audit.baseline_snapshot->'requiredPlacementLabels', `+profileRoleSQL("#>", "execution.workflow_role")+`, `+prefixedExecutionColumns("execution")+`
+SELECT audit.owner_id, audit.project_id, audit.baseline_snapshot->'labels', audit.baseline_snapshot->'requiredPlacementLabels', `+profileRoleSQL("#>", "execution.workflow_role")+`, `+prefixedExecutionColumns("execution")+`
   FROM audit_executions AS execution
   JOIN audits AS audit USING (audit_id)
   JOIN audit_controller_claims AS claim USING (audit_id)
@@ -162,7 +165,7 @@ SELECT audit.owner_id, audit.project_id, audit.baseline_snapshot->'requiredPlace
    AND `+auditClaims.LiveCondition("claim", "$2", "$3")+`
  FOR UPDATE OF claim, audit, execution`,
 		claim.AuditID, claim.HolderID, claim.Epoch, executionID,
-	), before: []any{&result.OwnerID, &result.ProjectID, &placement, &result.WorkflowBinding}})
+	), before: []any{&result.OwnerID, &result.ProjectID, &metadata, &placement, &result.WorkflowBinding}})
 	if errors.Is(err, pgx.ErrNoRows) {
 		if live, liveErr := s.claimLive(ctx, claim); liveErr != nil {
 			return auditstore.RunCreationIntent{}, liveErr
@@ -177,6 +180,17 @@ SELECT audit.owner_id, audit.project_id, audit.baseline_snapshot->'requiredPlace
 	if strictjson.Decode(placement, &result.RequiredPlacementLabels) != nil || result.RequiredPlacementLabels == nil ||
 		contracts.ValidatePlacementLabels(result.RequiredPlacementLabels) != nil {
 		return auditstore.RunCreationIntent{}, invalidf("stored Audit placement requirements are invalid")
+	}
+	if strictjson.Decode(metadata, &result.Labels) != nil || result.Labels == nil {
+		return auditstore.RunCreationIntent{}, invalidf("stored Audit labels are invalid")
+	}
+	labels, labelErr := runlabels.NormalizeAuditLabels(result.Labels)
+	if labelErr != nil {
+		return auditstore.RunCreationIntent{}, invalidf("stored Audit labels are invalid")
+	}
+	derived, _ := labels.PlacementRequirements()
+	if !slices.Equal(derived, result.RequiredPlacementLabels) {
+		return auditstore.RunCreationIntent{}, invalidf("stored Audit placement requirements differ from labels")
 	}
 	result.Execution = execution
 	result.Items, err = s.listExecutionItems(ctx, executionID)

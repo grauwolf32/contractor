@@ -872,9 +872,11 @@ never downgrade silently to ordinary completion on an older Runtime
 (`supportedPerformanceMetricsVersions`) does not constrain placement or change
 the allocation lifecycle: a Server must not filter placement on it.
 
-**CTL-R82.** WorkflowRun metadata labels do not participate in
-Runtime capability matching or RuntimeConfig merge provenance, and a Runtime
-process does not interpret `purpose` or `eval.*` ([runs](runs.md)).
+**CTL-R82.** The Server derives placement requirements from the reserved
+WorkflowRun metadata keys `cloud` and `local` before capability matching
+(CTL-R159). Other metadata labels do not participate in Runtime capability
+matching or RuntimeConfig merge provenance, and a Runtime process does not
+interpret `purpose` or `eval.*` ([runs](runs.md)).
 
 **CTL-R83.** For a multi-Agent Stage, Control Plane must find a
 complete injective matching between logical bindings and eligible single-slot

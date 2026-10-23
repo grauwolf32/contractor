@@ -333,6 +333,7 @@ func (s *Service) startInTransaction(
 		return StartedAudit{}, err
 	}
 	baseline := BaselineSnapshot{
+		Labels:                  selection.Labels.Clone(),
 		RequiredPlacementLabels: append([]string{}, selection.RequiredPlacementLabels...),
 		ActiveChecks:            plan.activeChecks,
 		Schema:                  BaselineSchema, Inputs: contracts.CloneExactArtifacts(selection.Inputs), Scope: selection.Scope,

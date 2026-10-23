@@ -11,16 +11,17 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
 type createAuditRequest struct {
-	RequiredPlacementLabels runPlacementLabels               `json:"requiredPlacementLabels,omitempty"`
-	Profile                 auditProfileSelectorRequest      `json:"profile"`
-	Inputs                  map[string]contracts.ArtifactRef `json:"inputs"`
-	RuntimeLabels           []string                         `json:"runtimeLabels,omitempty"`
-	Scope                   auditservice.Scope               `json:"scope"`
+	Labels        runMetadataLabels                `json:"labels,omitempty"`
+	Profile       auditProfileSelectorRequest      `json:"profile"`
+	Inputs        map[string]contracts.ArtifactRef `json:"inputs"`
+	RuntimeLabels []string                         `json:"runtimeLabels,omitempty"`
+	Scope         auditservice.Scope               `json:"scope"`
 }
 
 type auditProfileSelectorRequest struct {
@@ -62,6 +63,7 @@ type auditRuntimeSnapshotResponse struct {
 }
 
 type auditBaselineResponse struct {
+	Labels                  runlabels.RunMetadataLabels          `json:"labels"`
 	RequiredPlacementLabels []string                             `json:"requiredPlacementLabels"`
 	ActiveChecks            contracts.ActiveChecksPolicy         `json:"activeChecks"`
 	Inputs                  map[string]auditstore.ExactArtifact  `json:"inputs"`
@@ -101,6 +103,7 @@ type auditStopReasonResponse struct {
 }
 
 type auditResponse struct {
+	Labels                  runlabels.RunMetadataLabels                `json:"labels"`
 	RequiredPlacementLabels []string                                   `json:"requiredPlacementLabels"`
 	GeneratedInventory      *auditservice.GeneratedInventoryProjection `json:"generatedInventory,omitempty"`
 	Phase                   auditdomain.AuditPhase                     `json:"phase"`
