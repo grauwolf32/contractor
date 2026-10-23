@@ -1,0 +1,96 @@
+schema_version: '1.0'
+id: V405-004
+title: Select Runtime placement labels in Workflow and Audit launch forms
+milestone: runtime-placement-labels-2026-10
+epic: ui
+kind: feature
+priority: P2
+status: pending
+depends_on:
+- V405-002
+- V405-003
+languages:
+- go
+- typescript
+goal: Users choose cloud/local or a concrete provider/site from current Runtime declarations, can enter
+  an offline location, and see the actual selection and capacity wait without confusing RuntimeConfig
+  labels.
+context:
+  proposal: docs/proposals/0043-runtime-placement-labels.md
+scope:
+  in:
+  - Owner-authorized bounded placement-label inventory derived from live registrations, including busy
+    instances and parent labels.
+  - Shared UI validation, manual entry, dynamic suggestions, offline-selection retention and truthful
+    online/free counts.
+  - Workflow launch and repeat drafts, Audit draft/start forms, Run/Audit details and Runtime Operations
+    display.
+  - Rename the existing misleading Runtime placement configuration block, use shared UI components/themes
+    and bump the UI patch version.
+  out:
+  - A new configuration catalog, location editor, RuntimeConfig bindings for placement labels, or per-Stage
+    UI overrides.
+requirements:
+- id: R1
+  text: Do not block a syntactically valid offline label on current fleet availability. Persist selection
+    in drafts; a failed inventory read never clears it. Counts describe label matches and do not promise
+    tool compatibility or admission.
+- id: R2
+  text: Bound inventory work by registered-fleet and per-instance label limits; paginate every public
+    list and follow every page in pickers. Validate from the shared fixture and generated API contracts.
+failure_outcomes:
+- operation: Placement declaration, selection or observation at the task boundary
+  permanent: Malformed, oversized or inconsistent input is rejected before mutation using the existing
+    invalid_request/400 or registration-conflict/409 classification; no retry.
+  retryable: Reuse subsystem storage_transaction_conflict/503 and existing bounded registration, controller
+    or capacity backoff; read failures never fabricate empty success.
+  ambiguous: Reconcile registration by immutable instance fingerprint and keyed writes through existing
+    request receipts; do not introduce another journal.
+  cancelled: Existing request/controller owner joins in-flight work; no new background worker survives
+    cancellation.
+  timeout: Existing registration/request/controller budgets own calls; capacity waiting does not consume
+    the execution budget before admission.
+cardinality:
+- collection: Placement declarations and launch requirements
+  expected: 1 location path per instance or launch
+  maximum: 32 labels of at most 63 ASCII bytes each
+  bound: Canonical sorted unique arrays, one compatible ancestor chain; no fleet IDs copied into launch
+    snapshots.
+- collection: Runtime fleet and UI inventory
+  expected: A few local and cloud instances
+  maximum: Existing bounded registry capacity times the per-instance label bound
+  bound: Reuse registry limits and public pagination; no unbounded history scan or external lookup per
+    label.
+lifecycle:
+- entity: Placement labels on existing Runtime incarnations, Runs, Audits or allocations
+  delete: Follow the owning existing entity deletion API and authorization.
+  cascade: No new side-table lifecycle; parent deletion removes its embedded placement data.
+  retention: Runtime declarations live with their incarnation; immutable requirements and allocation provenance
+    live with their owning retained Run/Audit.
+acceptance_criteria:
+- id: A1
+  given: Workflow and Audit forms with cloud/aws, local/lab and a selected offline label
+  when: The user selects a parent, types a valid label, repeats a Run or the fleet changes
+  then: The correct requiredPlacementLabels reach the API and selected values remain visible across refetches
+    and failed reads.
+- id: A2
+  given: More than one inventory page, invalid/cross-namespace input and stale draft revisions
+  when: The forms render at 390 px in light, dark and black themes and submit
+  then: Every page is discoverable, errors and conflicts are explicit and the UI reports only Server-confirmed
+    state.
+tests:
+- command: make ui-verify
+  covers:
+  - A1
+  - A2
+- command: go test ./internal/controlplane ./internal/httpapi/public
+  covers:
+  - A1
+  - A2
+- command: make verify-public-api
+  covers:
+  - A1
+- command: make lint
+  covers:
+  - A1
+  - A2
