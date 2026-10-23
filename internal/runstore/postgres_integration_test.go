@@ -512,9 +512,9 @@ WHERE run_id = $1`, projectRun.RunID)
 	foreignParams := testRunParams("run-foreign-project-member")
 	foreignParams.OwnerID = "user-2"
 	foreignParams.ProjectID = &projectID
-	_, err = createRun(ctx, store, foreignParams)
-	if persistencepostgres.SQLState(err) != persistencepostgres.SQLStateForeignKeyViolation {
-		t.Fatalf("foreign Project membership SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
+	// Another owner's Project is one its owner does not have (PRJ-R5).
+	if _, err = createRun(ctx, store, foreignParams); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("foreign Project membership = %v, want ErrNotFound", err)
 	}
 }
 
