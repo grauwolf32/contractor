@@ -704,6 +704,20 @@ being physically purged is hidden from reads. Creation receipts retain only
 the original identity and request digest indefinitely. Replay after purge is
 `not_found`, never a new sweep or new child traffic (LIFE-SCN-10).
 
+**SCN-R252.** `contractor scan-sweep remote` creates and manages the durable
+server resource through the generated public client. `create` selects `--all`
+or repeated `--project`, optional rule `--param` values and an exact owner
+`--rulepack namespace/name@revision`; target overrides are rejected. One body
+and create key survive transport retry; a generated key is printed on a
+transient creation failure for explicit replay. `list` returns one keyset
+page. `show` and `cancel` print the actual Server state. `members` returns one
+page, or an explicit `--all-pages` bounded array of at most 1000 members,
+including actual child Run states; it rejects duplicate members, repeated
+cursors, empty continuation pages and oversized responses. Reads reuse the
+4 MiB bound and existing transport deadlines/retry policy. `purge` requires
+`--yes`; Server lifecycle checks remain authoritative. The Phase 1 local
+manifest commands retain their own format and lifecycle.
+
 ### SQLMap HTTP request artifacts
 
 **SCN-R58.** `scan_sqlmap(request_ref=...)` accepts one prepared HTTP request

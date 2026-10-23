@@ -257,7 +257,7 @@ Commands:
   check       Verify connectivity, authentication, and API compatibility
   workflow    List and inspect published Workflows
   project     Manage Projects and Project-scoped resources
-  scan-sweep  Capture and resume ordinary Project scan Runs
+  scan-sweep  Local manifest sweeps and durable server sweeps (remote)
   artifact    Manage User, Project, and Run Artifacts
   source      Package and upload a source directory
   run         Create, inspect, watch, cancel, and download Run outputs

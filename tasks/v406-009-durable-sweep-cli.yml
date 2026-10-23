@@ -16,6 +16,7 @@ context:
   specification:
   - docs/spec/tools/scanners.md#SCN-R244
   - docs/spec/tools/scanners.md#SCN-R251
+  - docs/spec/tools/scanners.md#SCN-R252
   - docs/spec/api/public-api.md#API-R68
   - docs/testing/README.md
 scope:
