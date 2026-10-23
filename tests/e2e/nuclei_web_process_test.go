@@ -370,42 +370,78 @@ func runDurableNucleiSweep(t *testing.T, h *scanProcessHarness, projectIDs []str
 		t.Fatal(err)
 	}
 	source := h.upload(t, "durable-sweep-pack", "application/yaml", payload, nil)
-	body, err := json.Marshal(map[string]any{"projectIds": projectIDs, "workflow": "nuclei-web@1", "parameters": map[string]string{"template_ids": "contractor-local-fixture"}, "rulepack": source})
-	if err != nil {
-		t.Fatal(err)
-	}
-	call := func(method, path string, body []byte, status int) *http.Response {
-		req, err := http.NewRequestWithContext(h.ctx, method, h.baseURL+path, bytes.NewReader(body))
+	var lost, replayed atomic.Bool
+	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		request, err := http.NewRequestWithContext(r.Context(), r.Method, h.baseURL+r.URL.RequestURI(), r.Body)
 		if err != nil {
-			t.Fatal(err)
+			t.Error(err)
+			return
 		}
-		req.Header.Set("Authorization", "Bearer "+publicToken)
-		if len(body) > 0 {
-			req.Header.Set("Content-Type", "application/json")
-			req.Header.Set("Idempotency-Key", "durable-sweep-create")
+		request.Header = r.Header.Clone()
+		response, err := h.client.Do(request)
+		if err != nil {
+			t.Error(err)
+			return
 		}
-		return do(t, h.client, req, status)
+		defer response.Body.Close()
+		if r.Method == http.MethodPost && r.URL.Path == "/v1/scan-sweeps" {
+			if lost.CompareAndSwap(false, true) {
+				if response.StatusCode != http.StatusCreated {
+					t.Errorf("lost acknowledgement status=%d", response.StatusCode)
+				}
+				_, _ = io.Copy(io.Discard, response.Body)
+				connection, _, err := w.(http.Hijacker).Hijack()
+				if err != nil {
+					t.Error(err)
+				} else {
+					connection.Close()
+				}
+				return
+			}
+			if response.Header.Get("Idempotency-Replayed") == "true" {
+				replayed.Store(true)
+			}
+		}
+		for key, values := range response.Header {
+			w.Header()[key] = values
+		}
+		w.WriteHeader(response.StatusCode)
+		_, _ = io.Copy(w, response.Body)
+	}))
+	defer proxy.Close()
+	invoke := func(destination any, args ...string) {
+		t.Helper()
+		var stdout, stderr bytes.Buffer
+		command := cli.New(strings.NewReader(""), &stdout, &stderr, func(name string) string {
+			if name == "CONTRACTOR_API_TOKEN" {
+				return publicToken
+			}
+			return ""
+		})
+		if err := command.Run(h.ctx, append([]string{"--server", proxy.URL, "--output", "json", "scan-sweep", "remote"}, args...)); err != nil {
+			t.Fatalf("remote sweep %v: %v (%s)", args, err, stderr.String())
+		}
+		if destination != nil {
+			if err := json.Unmarshal(stdout.Bytes(), destination); err != nil {
+				t.Fatalf("remote sweep output: %v (%s)", err, stdout.String())
+			}
+		}
+	}
+	createArgs := []string{"create", "--workflow", "nuclei-web@1", "--param", "template_ids=contractor-local-fixture", "--rulepack", source.Namespace + "/" + source.Name + "@" + *source.Revision, "--idempotency-key", "durable-sweep-create"}
+	for _, id := range projectIDs {
+		createArgs = append(createArgs, "--project", id)
 	}
 	var sweep scanstore.Sweep
-	response := call(http.MethodPost, "/v1/scan-sweeps", body, http.StatusCreated)
-	decodeResponse(t, response, &sweep)
-	response.Body.Close()
-	h.upload(t, "durable-sweep-pack", "application/yaml", []byte("invalid replacement"), source.Revision)
-	var members struct {
-		Items []scanstore.Member `json:"items"`
-		Page  struct {
-			HasMore    bool    `json:"hasMore"`
-			NextCursor *string `json:"nextCursor,omitempty"`
-		} `json:"page"`
+	invoke(&sweep, createArgs...)
+	if !lost.Load() || !replayed.Load() {
+		t.Fatal("durable CLI did not replay committed creation after lost acknowledgement")
 	}
-
-	path := "/v1/scan-sweeps/" + sweep.SweepID
+	h.upload(t, "durable-sweep-pack", "application/yaml", []byte("invalid replacement"), source.Revision)
+	var members []scanstore.Member
 	runID := ""
 	waitScanCondition(t, h, "durable sweep ordinary child admission", func() bool {
-		response := call(http.MethodGet, path+"/members?limit=2", nil, http.StatusOK)
-		decodeResponse(t, response, &members)
-		response.Body.Close()
-		for _, m := range members.Items {
+		invoke(&members, "members", sweep.SweepID, "--limit", "1", "--all-pages")
+		for _, m := range members {
 			if m.RunID != nil {
 				runID = *m.RunID
 				return true
@@ -413,7 +449,7 @@ func runDurableNucleiSweep(t *testing.T, h *scanProcessHarness, projectIDs []str
 		}
 		return false
 	})
-	if len(members.Items) != 2 {
+	if len(members) != 2 {
 		t.Fatalf("durable members=%+v", members)
 	}
 	_, report := h.completedReport(t, runID, "scan_nuclei")
@@ -421,21 +457,33 @@ func runDurableNucleiSweep(t *testing.T, h *scanProcessHarness, projectIDs []str
 		t.Fatalf("durable sweep lost retained source: %+v", report.Observation)
 	}
 	waitScanCondition(t, h, "durable sweep terminal settlement", func() bool {
-		response := call(http.MethodGet, path, nil, http.StatusOK)
-		decodeResponse(t, response, &sweep)
-		response.Body.Close()
+		invoke(&sweep, "show", sweep.SweepID)
 		return sweep.State == "completed"
 	})
-	before := len(scanFixtureRequests(h))
-	response = call(http.MethodPost, "/v1/scan-sweeps", body, http.StatusCreated)
-	if response.Header.Get("Idempotency-Replayed") != "true" {
-		t.Fatal("durable sweep create did not replay")
+	invoke(&members, "members", sweep.SweepID, "--all-pages")
+	for _, member := range members {
+		if member.RunID != nil && (member.RunState == nil || *member.RunState != "succeeded" || !member.Settled) {
+			t.Fatalf("CLI lost settled child state: %+v", member)
+		}
 	}
-	response.Body.Close()
-	response = call(http.MethodPost, path+"/cancel", nil, http.StatusOK)
-	response.Body.Close()
-	response = call(http.MethodDelete, path, nil, http.StatusNoContent)
-	response.Body.Close()
+	var page struct {
+		Items []scanstore.Sweep `json:"items"`
+	}
+	invoke(&page, "list")
+	if len(page.Items) != 1 || page.Items[0].SweepID != sweep.SweepID {
+		t.Fatalf("durable list=%+v", page)
+	}
+	before := len(scanFixtureRequests(h))
+	var replay scanstore.Sweep
+	invoke(&replay, createArgs...)
+	if replay.SweepID != sweep.SweepID {
+		t.Fatal("durable replay created another sweep")
+	}
+	invoke(&sweep, "cancel", sweep.SweepID)
+	if sweep.State != "completed" {
+		t.Fatal("CLI changed a completed sweep's cancellation state")
+	}
+	invoke(nil, "purge", sweep.SweepID, "--yes")
 	if len(scanFixtureRequests(h)) != before {
 		t.Fatal("durable replay or cleanup rescanned target")
 	}

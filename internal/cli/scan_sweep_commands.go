@@ -56,7 +56,10 @@ type scanSweepManifest struct {
 
 func (c *CLI) runScanSweep(ctx context.Context, client *publicclient.Client, printer *Printer, args []string) error {
 	if len(args) == 0 {
-		return &UsageError{Message: "scan-sweep requires create, resume, or status"}
+		return &UsageError{Message: "scan-sweep requires create, resume, status, or remote"}
+	}
+	if args[0] == "remote" {
+		return c.runRemoteScanSweep(ctx, client, printer, args[1:])
 	}
 	action := args[0]
 	if action != "create" && action != "resume" && action != "status" {
@@ -226,6 +229,12 @@ func sweepResponse[T any](response *http.Response, callErr error, expected int) 
 	}
 	if response.StatusCode != expected {
 		return result, publicclient.DecodeError(response.StatusCode, data)
+	}
+	if expected == http.StatusNoContent {
+		if len(data) != 0 {
+			return result, errors.New("sweep API returned a body for no-content response")
+		}
+		return result, nil
 	}
 	if err := strictjson.Decode(data, &result); err != nil {
 		return result, errors.New("sweep API returned invalid JSON")
