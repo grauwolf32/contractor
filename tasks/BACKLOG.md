@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-82 open tasks: 8 in progress, 49 pending, 25 deferred. 947 finished: 944 completed, 3 archived.
+82 open tasks: 10 in progress, 47 pending, 25 deferred. 947 finished: 944 completed, 3 archived.
 
 ## In progress
 
@@ -16,6 +16,8 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V371-017](v371-017-strong-etag-grammar.yml) | api-contracts | defect | P3 | Accept only RFC 9110 strong entity tags in If-Match |
 | [V371-018](v371-018-repeat-draft-description.yml) | api-contracts | chore | P3 | Remove the historical-request sentence from the repeat-draft OpenAPI description |
+| [V371-019](v371-019-audit-namespace-prefix-rule.yml) | projects-artifacts | chore | P3 | Use artifactpolicy's Audit namespace rule in the Audit namespace purge |
+| [V372-018](v372-018-finding-proposal-namespace-constant.yml) | findings | chore | P3 | Name the finding-proposals Namespace through artifactpolicy in finding intake |
 | [V372-021](v372-021-credential-master-key-unavailable.yml) | runtime-config | defect | P2 | Answer an LLM or Runtime credential operation without the master key with a registered non-retryable code |
 | [V372-022](v372-022-standby-public-api-envelope.yml) | api-contracts | defect | P3 | Answer the public API on a standby Server with the error envelope |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
@@ -65,7 +67,6 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V371-010](v371-010-discarded-receipt-projection.yml) | defect | P2 | — | Drop the report projection of a proposal receipt discarded by Run deletion |
 | [V371-011](v371-011-proposal-quota-limits.yml) | chore | P3 | — | Register the per-Run proposal and per-proposal evidence quotas in the specification |
-| [V372-018](v372-018-finding-proposal-namespace-constant.yml) | chore | P3 | — | Name the finding-proposals Namespace through artifactpolicy in finding intake |
 | [V372-023](v372-023-findings-tool-error-codes.yml) | chore | P3 | — | Name the findings error codes the open question lists and register the findings tool codes |
 | [V397-006](v397-006-finding-analysis-resolver.yml) | feature | P2 | — | Resolve optional finding analysis against exact retained evidence |
 | [V397-007](v397-007-finding-export-snapshot.yml) | feature | P2 | V397-006 | Freeze explicit finding selections and independent Audit results |
@@ -79,12 +80,6 @@ the epics are in [epics.yml](epics.yml).
 | [V372-013](v372-013-planner-facts-one-source.yml) | chore | P3 | — | Take Planner refs and facts from the descriptor registry in Go, the composition and Studio |
 | [V372-014](v372-014-execution-config-patch-strict-decode.yml) | chore | P3 | — | Decode executionConfig patch members with strictjson |
 | [V372-015](v372-015-config-split-leftovers.yml) | chore | P3 | — | Stop locals from shadowing the resolved package and drop config's copy of clone.Map |
-
-### Projects, artifacts and lifecycle controls (`projects-artifacts`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V371-019](v371-019-audit-namespace-prefix-rule.yml) | chore | P3 | — | Use artifactpolicy's Audit namespace rule in the Audit namespace purge |
 
 ### Audits (`audits`)
 

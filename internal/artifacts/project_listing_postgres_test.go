@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	. "github.com/grauwolf32/contractor/internal/artifacts"
 	postgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -122,6 +123,23 @@ FROM pg_stat_xact_user_tables WHERE relname = 'artifact_bindings'`).Scan(&bindin
 	if len(scans) != 1 || scans[0].IndexName != "artifact_bindings_project_listing_idx" ||
 		scans[0].RowsRemovedByFilter != 0 || scans[0].ActualRows > 3 {
 		t.Fatalf("Project listing reads artifact_bindings with %+v, want one listing index scan of at most 3 rows\n%s", scans, plan)
+	}
+}
+
+// The generic Project listing SQL spells the listing index predicate
+// literally, so it is the one Go string that repeats the reserved Audit
+// Namespace prefix. It must hide exactly artifactpolicy's prefix (ART-R26),
+// which therefore holds no LIKE metacharacter; the index scan test above pins
+// the same SQL to artifact_bindings_project_listing_idx.
+func TestProjectListingSQLHidesArtifactPolicyAuditPrefix(t *testing.T) {
+	prefix := artifactpolicy.AuditManagedProjectNamespacePrefix
+	if prefix == "" || strings.ContainsAny(prefix, `%_\'`) {
+		t.Fatalf("Audit Namespace prefix %q cannot be a literal LIKE prefix", prefix)
+	}
+	predicate := "AND binding.namespace NOT LIKE '" + prefix + "%'"
+	if strings.Count(ListProjectMetadataSQL, "NOT LIKE") != 1 ||
+		!strings.Contains(ListProjectMetadataSQL, predicate) {
+		t.Fatalf("Project listing SQL does not hide exactly %q:\n%s", prefix, ListProjectMetadataSQL)
 	}
 }
 
