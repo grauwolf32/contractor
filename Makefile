@@ -23,6 +23,19 @@ runtime-venv:
 	cd runtime && uv sync --locked
 	cd runtime && uv run python -c 'from contractor_runtime.toolsets.code_analysis.languages import PARSER_NAMES; from tree_sitter_language_pack import prefetch; prefetch(sorted(set(PARSER_NAMES.values())))'
 
+# Go's t.TempDir and os.TempDir return $TMPDIR as given. On macOS the default
+# TMPDIR lies under /var/folders, and /var (like /tmp) is a symlink into
+# /private, while the filesystem blob store refuses a directory with a symlink
+# component (docs/spec/artifacts/blob-storage.md). Every recipe therefore gets
+# the symlink-free spelling of the same directory; where it has no symlink, as
+# on the Linux CI runners, nothing changes. A directory that cannot be resolved
+# is passed on unchanged so its own error surfaces. docs/testing/README.md says
+# what a direct `go test` on macOS needs instead.
+CANONICAL_TMPDIR := $(realpath $(or $(TMPDIR),/tmp))
+ifneq ($(CANONICAL_TMPDIR),)
+export TMPDIR := $(CANONICAL_TMPDIR)
+endif
+
 # Family targets retain their focused Go suites when invoked directly. The
 # release gate runs their union once through dedicated aggregate targets.
 run-family-test = $(if $(filter 1,$(RELEASE_CONSOLIDATED)),:,$(1))

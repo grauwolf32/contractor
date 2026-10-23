@@ -6,7 +6,7 @@ epic: quality
 kind: defect
 introduced_by: V34-002
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, makefile, markdown]
 goal: "make test-go and the documented Go test commands pass on a macOS host with the default TMPDIR, without weakening the filesystem blob store's refusal of symlinked directories."

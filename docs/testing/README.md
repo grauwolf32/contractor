@@ -28,6 +28,25 @@ at most once per invocation.
 Gate definitions describe what a command checks; completed results are
 recorded in the corresponding task files.
 
+## Temporary directory on macOS
+
+Go's `t.TempDir()` uses `TMPDIR` as given. The default macOS `TMPDIR` lies
+under `/var/folders`, and `/var`, like `/tmp`, is a symlink into `/private`.
+The filesystem Artifact blob store refuses a directory with a symlink
+component, so every test that roots one in a temporary directory fails there
+with `invalid artifact blob directory: artifact blob storage I/O failed`. The
+[Makefile](../../Makefile) therefore exports the symlink-free form of `TMPDIR`
+(`/tmp` when it is unset) to every recipe; on Linux, where neither has a
+symlink, this changes nothing. A `go test` run outside make on macOS, such as
+a task's focused test command, needs the same resolution in its shell first:
+
+```shell
+export TMPDIR="$(cd "${TMPDIR:-/tmp}" && pwd -P)"
+```
+
+Do not work around the failure by relaxing the blob store's symlink check; a
+symlinked blob directory stays refused in production.
+
 ## Release gate stages
 
 `make release-verify` runs the stages below in this order, cheapest first, so

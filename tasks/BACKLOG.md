@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-77 open tasks: 5 in progress, 47 pending, 25 deferred. 959 finished: 956 completed, 3 archived.
+77 open tasks: 6 in progress, 46 pending, 25 deferred. 959 finished: 956 completed, 3 archived.
 
 ## In progress
 
@@ -16,6 +16,7 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
 | [V401-003](v401-003-lease-user-timeout-platforms.yml) | persistence | defect | P3 | State and test the lease session's user timeout only where PostgreSQL supports it |
+| [V401-004](v401-004-canonical-test-tmpdir.yml) | quality | defect | P3 | Run the filesystem blob tests from a symlink-free temporary directory on macOS |
 
 ## Pending
 
@@ -138,7 +139,6 @@ the epics are in [epics.yml](epics.yml).
 | [V372-024](v372-024-audit-item-attempts-fake.yml) | chore | P3 | — | Make the Audit item attempt fake answer like the store and keep the item list schema-valid without it |
 | [V372-029](v372-029-shared-fixture-gate-scope.yml) | chore | P3 | — | Extend the shared fixture gate to every cross-language fixture and keep slow store suites out of it |
 | [V372-030](v372-030-shrink-test-only-export-baseline.yml) | chore | P3 | — | Resolve the exported identifiers that only tests use and empty the test-only export baseline |
-| [V401-004](v401-004-canonical-test-tmpdir.yml) | defect | P3 | — | Run the filesystem blob tests from a symlink-free temporary directory on macOS |
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | chore | P3 | — | Find out why about a hundred Runtime tests fail on a macOS host and make each one pass or declare its platform |
 
 ## Deferred
