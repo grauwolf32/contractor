@@ -10,7 +10,7 @@
 
 ## Status (2026-10-23)
 
-All findings open. Tasks V409-001 … V409-013 (milestone `sql-review-2026-10`); V409-013 verifies the static claims on a real database and closes the review.
+All findings open. Tasks V409-001 … V409-014 (milestone `sql-review-2026-10`); V409-013 verifies the static claims on a real database and closes the review.
 
 | Section | Findings | Tasks |
 | --- | --- | --- |
@@ -22,10 +22,11 @@ All findings open. Tasks V409-001 … V409-013 (milestone `sql-review-2026-10`);
 | A top, B | A6, A7, B triggers | V409-006 |
 | A top, B | A8, A9, B dead and redundant indexes, B keyset/index mismatches, B audit_findings collation | V409-007 |
 | B | B state CHECK sets | V409-008 |
-| A top, C | A10, C PublishView, C comparison pages, C nextMembers, C recovery() per member | V409-009 |
+| A top, C | A10, C PublishView, C nextMembers | V409-009 |
 | D | D ListRunEvents bytes, D GetPlannerSessions, D PurgeRun transaction | V409-010 |
-| D | D N+1 and duplicates, D FindEvalReceipt, D metrics_batch lenient read, D credential OR | V409-011 |
+| D | D N+1 and duplicates, D metrics_batch lenient read, D credential OR | V409-011 |
 | B, C | B migrations hygiene, C advanceUpdatedAt, C SQL placement | V409-012 |
+| C, D | C comparison pages, C recovery() per member, D FindEvalReceipt | V409-014 |
 | F | open questions | V409-013 |
 
 The findings below describe the reviewed revision.

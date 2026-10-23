@@ -7,7 +7,7 @@ kind: chore
 introduced_by: V397-004
 priority: P2
 status: pending
-depends_on: []
+depends_on: [V407-025, V409-002, V409-004, V409-006]
 languages: [sql, go]
 goal: >-
   Resolve the reviewed index candidates with recorded reader, catalog and

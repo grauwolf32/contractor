@@ -193,8 +193,8 @@ separately; neither is a whole-database cardinality bound.
 **Verdict and reopening.** Keep this as an optional chore proposal owned by
 the Eval store/service area. Reopen when the constraint and lock design above
 is available and measured benefits justify it. Coordinate with V407-028/029
-and V409-009/011 if their changes land first: V409-009 now owns bounded purge;
-V409-011 owns safe page/query optimizations. Neither promises a replacement
+and V409-009/014 if their changes land first: V409-009 now owns bounded purge;
+V409-014 owns safe Eval page/query optimizations. Neither promises a replacement
 for the member projection documents. Deferring this proposal does not change
 any task's status or require a migration merely to reach a table-count target.
 
@@ -637,9 +637,10 @@ a task ID supplies a design or a performance improvement.
 | [V409-006](../../tasks/v409-006-trigger-column-scoping.yml) | Scoped trigger work preserving admission and projection side effects. StageExecution triggers belong to V407-025; this task does not establish that parent-inline claims are cheap. |
 | [V409-007](../../tasks/v409-007-dead-and-redundant-indexes.yml) | Per-candidate index preflight and justified decisions, including telemetry cleanup readers. Reuse the evidence and preserve required indexes; no predetermined DROP or cleanup-plan outcome. |
 | [V409-009](../../tasks/v409-009-eval-store-bounds.yml) | Bounded, restartable Eval purge. Any Eval/claim consolidation must preserve its dependent-row/byte budgets and phases if it lands first, or have those changes explicitly rebased onto the selected schema. No projection redesign is supplied. |
-| [V409-011](../../tasks/v409-011-execution-store-n1-and-duplicates.yml) | Safe query/round-trip improvements, including retained Eval comparison/recovery work; complete-view redesign remains excluded. Recheck the actual statements after it lands. |
+| [V409-011](../../tasks/v409-011-execution-store-n1-and-duplicates.yml) | Safe execution-side query/round-trip improvements (binding, principal and release-marker batching). Recheck the actual statements after it lands. |
+| [V409-014](../../tasks/v409-014-eval-comparison-and-recovery-queries.yml) | Safe Eval comparison-page and composed recovery-query improvements; complete-view redesign remains excluded. Recheck the actual statements after it lands. |
 | [V409-012](../../tasks/v409-012-migration-and-sql-hygiene.yml) | Upgrade tests for 000008/000014 and migration-budget/ledger documentation. No baseline regeneration or historical-migration rewrite. |
-| [V409-013](../../tasks/v409-013-verify-sql-review-on-database.yml) | Final SQL-review gate after V409-001…012. It is neither stage-zero preflight nor a harness prerequisite; no implementation dependency may point back to this exit task. |
+| [V409-013](../../tasks/v409-013-verify-sql-review-on-database.yml) | Final SQL-review gate after V409-001…012 and V409-014. It is neither stage-zero preflight nor a harness prerequisite; no implementation dependency may point back to this exit task. |
 
 Proposed sequence, only if a candidate is later selected:
 

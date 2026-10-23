@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-128 open tasks: 4 in progress, 99 pending, 25 deferred. 989 finished: 986 completed, 3 archived.
+129 open tasks: 4 in progress, 100 pending, 25 deferred. 989 finished: 986 completed, 3 archived.
 
 ## In progress
 
@@ -32,7 +32,7 @@ the epics are in [epics.yml](epics.yml).
 | [V407-017](v407-017-startup-lease-tolerance.yml) | chore | P3 | — | Document and test inherited startup lease connection and query budgets |
 | [V409-003](v409-003-runstore-lock-order-and-cas.yml) | defect | P2 | — | Lock the owning Run before the Stage in StartPlanner |
 | [V409-010](v409-010-byte-bounded-run-reads.yml) | chore | P2 | — | Bound internal Run event fetches by bytes while preserving complete replay |
-| [V409-011](v409-011-execution-store-n1-and-duplicates.yml) | chore | P3 | — | Reduce execution and Eval query round trips while preserving lock and recovery contracts |
+| [V409-011](v409-011-execution-store-n1-and-duplicates.yml) | chore | P3 | V407-016 | Reduce execution query round trips while preserving lock and recovery contracts |
 
 ### Planners and the Worker model boundary (`planner-worker`)
 
@@ -65,7 +65,7 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V407-034](v407-034-workspace-listing-and-export-cost.yml) | chore | P2 | — | Reduce repeated workspace glob work and export comparisons without changing snapshot semantics |
+| [V407-034](v407-034-workspace-listing-and-export-cost.yml) | chore | P2 | V407-038 | Reduce repeated workspace glob work and export comparisons without changing snapshot semantics |
 
 ### Code analysis and taint annotations (`code-analysis`)
 
@@ -111,7 +111,7 @@ the epics are in [epics.yml](epics.yml).
 | [V372-013](v372-013-planner-facts-one-source.yml) | chore | P3 | — | Take Planner refs and facts from the descriptor registry in Go, the composition and Studio |
 | [V372-014](v372-014-execution-config-patch-strict-decode.yml) | chore | P3 | — | Decode executionConfig patch members with strictjson |
 | [V372-015](v372-015-config-split-leftovers.yml) | chore | P3 | — | Stop locals from shadowing the resolved package and drop config's copy of clone.Map |
-| [V407-031](v407-031-document-session-off-loop.yml) | defect | P1 | — | Offload OpenAPI document preparation and avoid repeated validation while preserving session ownership |
+| [V407-031](v407-031-document-session-off-loop.yml) | defect | P1 | V407-024 | Offload OpenAPI document preparation and avoid repeated validation while preserving session ownership |
 
 ### Projects, artifacts and lifecycle controls (`projects-artifacts`)
 
@@ -141,6 +141,7 @@ the epics are in [epics.yml](epics.yml).
 | [V407-029](v407-029-eval-reads-plan-metadata.yml) | chore | P2 | — | Use bounded Eval plan metadata and precomputed readiness for polled views |
 | [V407-030](v407-030-eval-preparing-lifecycle-and-usage.yml) | defect | P3 | — | Make Eval usage aggregation deterministic when counters overflow |
 | [V409-009](v409-009-eval-store-bounds.yml) | defect | P2 | — | Purge drained Eval data in bounded, restartable transactions |
+| [V409-014](v409-014-eval-comparison-and-recovery-queries.yml) | chore | P3 | V407-028, V407-029, V409-009 | Reduce Eval comparison-page and composed recovery query round trips |
 
 ### Web UI (`ui`)
 
@@ -178,13 +179,13 @@ the epics are in [epics.yml](epics.yml).
 | [V372-010](v372-010-erd-usage-from-ownership-scan.yml) | chore | P3 | — | Take the ERD's code-usage lists from the ownership scan and document the new-table workflow |
 | [V407-025](v407-025-persistence-indexes-and-triggers.yml) | chore | P2 | — | Reduce Project-drain and held-Audit query work and scope Stage triggers |
 | [V407-026](v407-026-store-error-classes-and-event-validation.yml) | defect | P3 | — | Classify missing Project references at the Run-store boundary |
-| [V407-027](v407-027-shared-controller-claim-loop.yml) | chore | P3 | — | Share controller claim-lifecycle plumbing without merging distinct scheduling policies |
+| [V407-027](v407-027-shared-controller-claim-loop.yml) | chore | P3 | V407-003 | Share controller claim-lifecycle plumbing without merging distinct scheduling policies |
 | [V408-002](v408-002-shared-postgres-test-schema.yml) | chore | P2 | V408-001 | Apply migrations once per package: one shared PostgreSQL test helper with per-test truncation |
-| [V409-006](v409-006-trigger-column-scoping.yml) | chore | P2 | — | Scope unnecessary trigger work while preserving admission and projection effects |
-| [V409-007](v409-007-dead-and-redundant-indexes.yml) | chore | P2 | — | Consolidate indexes only where reader and constraint evidence permits it |
+| [V409-006](v409-006-trigger-column-scoping.yml) | chore | P2 | V407-025 | Scope unnecessary trigger work while preserving admission and projection effects |
+| [V409-007](v409-007-dead-and-redundant-indexes.yml) | chore | P2 | V407-025, V409-002, V409-004, V409-006 | Consolidate indexes only where reader and constraint evidence permits it |
 | [V409-008](v409-008-state-set-schema-tests.yml) | chore | P3 | — | Extend migrated-schema state-set parity tests to the remaining reviewed owners |
 | [V409-012](v409-012-migration-and-sql-hygiene.yml) | chore | P3 | — | Test the revision-count and controller-claim backfills and document migration budgets |
-| [V409-013](v409-013-verify-sql-review-on-database.yml) | chore | P2 | V409-001, V409-002, V409-003, V409-004, V409-005, V409-006, V409-007, V409-008, V409-009, V409-010, V409-011, V409-012 | Verify retained SQL-review changes and record evidence for every accepted or declined claim |
+| [V409-013](v409-013-verify-sql-review-on-database.yml) | chore | P2 | V409-001, V409-002, V409-003, V409-004, V409-005, V409-006, V409-007, V409-008, V409-009, V409-010, V409-011, V409-012, V409-014 | Verify retained SQL-review changes and record evidence for every accepted or declined claim |
 
 ### Quality, CI and process (`quality`)
 
@@ -257,7 +258,7 @@ tasks in `introduced_by`.
 | Workflow catalog and document workflows (`workflows`) | 4 | 14 | 14 | 12 | 15 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 30 | 33 | 6 | 37 |
 | Audits (`audits`) | 24 | 53 | 72 | 22 | 91 |
-| Evaluations (`evals`) | 6 | 21 | 34 | 7 | 40 |
+| Evaluations (`evals`) | 7 | 21 | 34 | 8 | 41 |
 | Podman sandbox (`sandbox`) | 0 | 9 | 2 | 1 | 3 |
 | Web UI (`ui`) | 3 | 24 | 58 | 12 | 53 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 16 | 33 | 6 | 10 |

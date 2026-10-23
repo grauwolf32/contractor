@@ -7,7 +7,8 @@ kind: defect
 introduced_by: V2-003
 priority: P1
 status: pending
-depends_on: []
+depends_on:
+- V407-024
 languages:
 - python
 goal: Parse, validate and serialize bounded documents outside the Runtime event loop without changing

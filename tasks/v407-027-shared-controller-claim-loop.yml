@@ -7,7 +7,8 @@ kind: chore
 introduced_by: V38-004
 priority: P3
 status: pending
-depends_on: []
+depends_on:
+- V407-003
 languages:
 - go
 goal: Audit and Eval reuse common claim execution/release plumbing and injectable timing while retaining

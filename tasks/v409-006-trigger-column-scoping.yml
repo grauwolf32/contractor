@@ -7,7 +7,7 @@ kind: chore
 introduced_by: V39-002
 priority: P2
 status: pending
-depends_on: []
+depends_on: [V407-025]
 languages: [sql, go]
 goal: >-
   Updates unrelated to a guard avoid its work, while relevant updates keep

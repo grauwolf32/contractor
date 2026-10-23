@@ -47,7 +47,7 @@ context:
     boundary.
   decisions:
   - The no-behavior comparison-page and existing-transaction recovery-query work from the original
-    V409-009 is owned by V409-011; member INSERT batching remains V407-028 and metadata-only FrozenPlan
+    V409-009 is owned by V409-014; member INSERT batching remains V407-028 and metadata-only FrozenPlan
     reads remain V407-029.
   - 'Full PublishView projection redesign is outside this task: complete-matrix denominators, atomic
     generation publication and selected-document content identity are required by EVM-R164-R168.
@@ -115,7 +115,7 @@ scope:
   - Real PostgreSQL tests on standalone and Project deletion paths, including receipt lifetime and
     recovery after partial progress.
   out:
-  - Query/projection/reconciliation optimizations assigned to V409-011 or declined in context.decisions;
+  - Query/projection/reconciliation optimizations assigned to V409-014 or declined in context.decisions;
     V407-028/029 work.
   - Whole-tick transactions, new execution retry policy, changed comparison semantics, new receipt
     tables, ordinary Run/Audit purge ownership or a new public lifecycle state.
