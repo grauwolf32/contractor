@@ -119,7 +119,9 @@ every Server and writer before taking the backup. Keep writers stopped until
 both snapshots finish. A PostgreSQL dump and an independently changing blob
 directory are not a consistent backup.
 
-1. Make a PostgreSQL custom-format dump (`pg_dump --format=custom --no-owner`).
+1. Make a PostgreSQL custom-format dump (`pg_dump --format=custom --no-owner`)
+   with a `pg_dump` whose major version is at least the server's; `pg_dump`
+   refuses a server of a newer major version.
    Supply connection credentials through protected PostgreSQL connection
    settings, not a password in command arguments.
 2. If the registry contains any filesystem blobs, copy the complete dedicated
@@ -133,7 +135,9 @@ directory are not a consistent backup.
    be recovered from PostgreSQL. Restore keys securely; the database cannot
    recover them.
 4. Restore into an empty replacement database with
-   `pg_restore --exit-on-error --no-owner --dbname=<replacement> <archive>`.
+   `pg_restore --exit-on-error --no-owner --dbname=<replacement> <archive>`,
+   using a `pg_restore` whose major version is at least the replacement
+   server's.
    Restore the matching filesystem snapshot to the configured dedicated path
    whenever retained blobs use it. Each restored blob keeps its recorded backend;
    the startup policy applies only to new payloads.
@@ -143,11 +147,14 @@ directory are not a consistent backup.
    and require login after restart. Forward-only upgrades require a matching
    binary/schema pair; restoring a backup is distinct from schema rollback.
 
-The automated disposable rehearsal requires `pg_dump`, `pg_restore` and a test
-PostgreSQL role allowed to create databases:
+The automated disposable rehearsal requires `psql`, a `pg_dump` and a
+`pg_restore` whose major version is at least the test server's, and a test
+PostgreSQL role allowed to create databases. The target compares both tools
+with `SHOW server_version_num` before it creates a database and fails with a
+message that names both versions:
 
 ```shell
-go test -tags=integration -race -count=1 ./tests/integration/restore
+make test-backup-restore
 ```
 
 Set `CONTRACTOR_TEST_DATABASE_URL` to an isolated PostgreSQL installation. The
