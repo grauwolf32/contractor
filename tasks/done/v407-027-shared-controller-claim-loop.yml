@@ -6,7 +6,7 @@ epic: persistence
 kind: chore
 introduced_by: V38-004
 priority: P3
-status: in_progress
+status: completed
 depends_on:
 - V407-003
 languages:
@@ -109,3 +109,43 @@ decisions:
   banning time.Now by grep). The durable sweep controller (internal/scancontroller/controller.go) leases
   one sweep per tick, joins that tick through Drain and discards release errors; moving it onto claimpass
   would start reporting its release failures, a behaviour change outside this chore.
+verification:
+  date: '2026-10-23'
+  environment: macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local), Node 24.20.0 with pnpm, the locked Runtime
+    venv; isolated PostgreSQL 17.11 database contractor_test_b with per-test schemas and all migrations;
+    worktree branch claude/rv-b at base 37378d06.
+  commands:
+  - go test -count=1 ./internal/auditcontroller/... ./internal/evalcoordinator/... ./internal/evalservice/...
+    ./internal/planner/... ./internal/archtest/... (plus ./internal/claimpass/...) with CONTRACTOR_TEST_DATABASE_URL
+    set passed for every package.
+  - go test -tags integration -race -count=1 ./internal/auditcontroller/ ./internal/evalcoordinator/
+    ./internal/evalservice/ ./internal/claimpass/ passed.
+  - go test -tags integration -count=1 -v ./internal/auditcontroller/ ./internal/evalservice/ passed 137
+    top-level tests (87 PostgreSQL-backed) with none skipped, including the new
+    TestPostgresControllerReleasesTheClaimOfACancelledStep, TestPostgresControllerPassToleratesAClaimTakenOverDuringItsStep,
+    TestSharedPostgresCoordinatorReleasesTheClaimOfACancelledTick, TestSharedPostgresCoordinatorPassToleratesAClaimTakenOverDuringItsTick
+    and TestSharedPostgresCancellationReplaysItsJournaledRequestTime (workflow and audit), and the
+    retained fairness, wake, batch and replay suites (for example TestPostgresControllerSecondAuditProgressesBesideALargeDrain,
+    TestPostgresControllerDrainBatchStopsAtALostClaim, TestPostgresControllersConvergeWithoutDuplicateExecutionAttempts,
+    TestSharedPostgresNativeEightMembersRecoverLostResponsesAndRestart and TestSharedPostgresNativeBatchAdmissionTwoCoordinatorsDoNotOverfill).
+  - go test -race -count=1 ./internal/httpapi/public -run Eval passed (coordinator construction in the
+    public API harness).
+  - go test -count=1 ./internal/app/... passed (composition of both controllers with production defaults).
+  - 'Mutation checks on internal/claimpass, each restored before committing: releasing under the pass
+    context failed the join tests of claimpass, both consumers'' fake tests and both real-PostgreSQL
+    cancelled-pass tests; reporting a lost claim on release failed the per-claim failure tests and both
+    takeover tests; handling claims sequentially failed the three concurrency tests. A release triggered
+    concurrently by cancellation is caught only when it runs before the handler ends; the lifecycle calls
+    Release in the handler''s goroutine after Handle returns, which the order checks pin.'
+  - make lint passed, including go vet, staticcheck U1000, testonlyexports, the layer tests through
+    archtest, check_spec, the dependency graph check and check_tasks.
+  database_tests_configured: true
+  evidence: >-
+    No sleeps or elapsed-time assertions: the join tests hold handlers on channels past the pass's
+    cancellation, the pacing tests drive the Run loops through injected clocks that record each wait,
+    and the concurrency tests use a meeting barrier whose operation budget only turns a sequential
+    implementation into an error.
+  declined:
+  - >-
+    Planner clock injection and moving the durable sweep controller onto claimpass (see decisions).
+implementation_commit: 55b523c2fd2463127f7f40f03fc01b60dbae44d7
