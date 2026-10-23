@@ -810,8 +810,8 @@ never executes or loads embedded resources. Binary data is labelled and can
 be downloaded. The original saved exchange remains downloadable at its exact
 revision, including when it is too large for preview.
 
-**UI-R194.** Preview reads keep the existing 256 KiB text payload admission
-limit (LIM-UI-12). Display of each body is at most 8192 Unicode characters
+**UI-R194.** Preview reads admit at most 1 MiB of text payload
+(LIM-UI-12). Display of each body is at most 8192 Unicode characters
 (LIM-UI-13); longer content is explicitly shortened with a download action.
 At most 50 structured headers are displayed at once (LIM-UI-14), with all
 header pages reachable. Raw Caido header previews are bounded and the raw

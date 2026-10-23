@@ -9,6 +9,7 @@ import {
   canPreviewArtifact,
   HTTP_EXCHANGE_MEDIA_TYPE,
   MAXIMUM_PREVIEW_BYTES,
+  PREVIEW_LIMIT_LABEL,
   type ArtifactMetadata,
 } from "../../api/artifacts";
 import { ErrorNotice } from "../../app/error-notice";
@@ -20,7 +21,7 @@ import "./materials.css";
 /**
  * Bounded preview of one exact revision: a ZIP or Skill package opens the
  * archive browser (with a scope), any other previewable format loads up to
- * 256 KiB of text and picks its renderer by media type.
+ * MAXIMUM_PREVIEW_BYTES of text and picks its renderer by media type.
  */
 export function ArtifactPreviewPanel({
   archiveScope,
@@ -121,14 +122,14 @@ function TextArtifactPreviewPanel({
       {canPreview ? (
         <p className="ui-caption">
           {automatic
-            ? "Text files up to 256 KiB are shown here."
-            : "Text files up to 256 KiB. The preview loads only when you ask for it."}
+            ? `Text files up to ${PREVIEW_LIMIT_LABEL} are shown here.`
+            : `Text files up to ${PREVIEW_LIMIT_LABEL}. The preview loads only when you ask for it.`}
         </p>
       ) : (
         <p className="ui-caption">
           {metadata.mediaType === HTTP_EXCHANGE_MEDIA_TYPE &&
           metadata.size > MAXIMUM_PREVIEW_BYTES
-            ? "This HTTP exchange exceeds the 256 KiB preview limit. Download this revision to inspect the complete saved request and available response."
+            ? `This HTTP exchange exceeds the ${PREVIEW_LIMIT_LABEL} preview limit. Download this revision to inspect the complete saved request and available response.`
             : unavailableCopy}
         </p>
       )}

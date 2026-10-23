@@ -2746,7 +2746,7 @@ type ArtifactArchiveEntry struct {
 // ArtifactArchiveEntryKind defines model for ArtifactArchiveEntry.Kind.
 type ArtifactArchiveEntryKind string
 
-// ArtifactArchiveFile Complete UTF-8 text, capped at 256 KiB actual output and 1 MiB compressed input with CRC validation. No recursive archive expansion or execution.
+// ArtifactArchiveFile Complete UTF-8 text, capped at 1 MiB actual output and 4 MiB compressed input with CRC validation. No recursive archive expansion or execution.
 type ArtifactArchiveFile struct {
 	Artifact ExactArtifactRef `json:"artifact"`
 	Path     string           `json:"path"`

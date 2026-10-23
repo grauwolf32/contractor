@@ -198,8 +198,8 @@ var (
 		"The previewed archive is malformed, unsupported or contains unsafe entries; the original stays downloadable.",
 		link("API-R73", publicAPI))
 	ArchivePreviewLimit = define("archive_preview_limit", http.StatusUnprocessableEntity, false,
-		"Archive preview limit exceeded. Text files must fit 256 KiB; the original archive remains downloadable.",
-		"The archive exceeds a preview bound, or a previewed file exceeds 256 KiB of text.",
+		"Archive preview limit exceeded. Text files must fit 1 MiB; the original archive remains downloadable.",
+		"The archive exceeds a preview bound, or a previewed file exceeds 1 MiB of text or 4 MiB of compressed input.",
 		link("API-R73", publicAPI))
 	ArchiveFileNotText = define("archive_file_not_text", http.StatusUnprocessableEntity, false,
 		"This file is not supported UTF-8 text. Download the original archive to view it separately.",

@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useId, useMemo, useState } from "react";
 
 import {
+  ARCHIVE_TEXT_LIMIT_LABEL,
   archiveQueryKey,
   getArtifactArchive,
   getArtifactArchiveFile,
@@ -67,7 +68,8 @@ function ArchiveTree({
 /**
  * Read-only browser of a ZIP or Skill package at one exact revision. Loads on
  * request (or on mount), opens SKILL.md first and previews text files up to
- * 256 KiB; nothing in the archive is executed or loaded from the network.
+ * the Server's archive text bound; nothing in the archive is executed or
+ * loaded from the network.
  */
 export function ArchivePreviewPanel({
   metadata,
@@ -159,8 +161,8 @@ export function ArchivePreviewPanel({
         </Button>
       </div>
       <p className="ui-caption">
-        Browse the files inside without extracting them. Text files up to 256
-        KiB open as a preview.
+        Browse the files inside without extracting them. Text files up to{" "}
+        {ARCHIVE_TEXT_LIMIT_LABEL} open as a preview.
       </p>
       {archive.error === null ? null : <ErrorNotice error={archive.error} />}
       {entries?.length === 0 ? (

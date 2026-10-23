@@ -7653,8 +7653,8 @@
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ExactArtifactRef"
         },
         "path": { "type": "string", "minLength": 1, "maxLength": 1024 },
-        "size": { "type": "integer", "minimum": 0, "maximum": 262144 },
-        "text": { "type": "string", "maxLength": 262144 }
+        "size": { "type": "integer", "minimum": 0, "maximum": 1048576 },
+        "text": { "type": "string", "maxLength": 1048576 }
       }
     },
     "ArtifactMetadata": {

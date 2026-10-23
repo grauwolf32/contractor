@@ -5,7 +5,9 @@ import { invalidAPIResponse, PublicAPIError, requireData } from "./error";
 import type { components } from "./generated/public";
 
 export const MAXIMUM_ARTIFACT_BYTES = 64 * 1024 * 1024;
-export const MAXIMUM_PREVIEW_BYTES = 256 * 1024;
+// One inline text preview, HTTP exchanges included (LIM-UI-12).
+export const MAXIMUM_PREVIEW_BYTES = 1024 * 1024;
+export const PREVIEW_LIMIT_LABEL = `${MAXIMUM_PREVIEW_BYTES / (1024 * 1024)} MiB`;
 export const ARTIFACT_PAGE_SIZE = 50;
 // An ArtifactWriteResponse is a few hundred bytes.
 const MAXIMUM_WRITE_RESPONSE_BYTES = 64 * 1024;

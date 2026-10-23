@@ -313,7 +313,7 @@ The codes of the public API's HTTP error envelope and WebSocket error frames
 | `archive_file_not_text` | 422 | no | A previewed archive file is not UTF-8 text. | [API-R73](../api/public-api.md) |
 | `archive_invalid` | 422 | no | The previewed archive is malformed, unsupported or contains unsafe entries; the original stays downloadable. | [API-R73](../api/public-api.md) |
 | `archive_media_type` | 415 | no | An archive preview (getArtifactArchive and its Project and Run variants) names an Artifact that is not a ZIP or Skill package. | [API-R73](../api/public-api.md) |
-| `archive_preview_limit` | 422 | no | The archive exceeds a preview bound, or a previewed file exceeds 256 KiB of text. | [API-R73](../api/public-api.md) |
+| `archive_preview_limit` | 422 | no | The archive exceeds a preview bound, or a previewed file exceeds 1 MiB of text or 4 MiB of compressed input. | [API-R73](../api/public-api.md) |
 | `artifact_content_corrupt` | 503 | no | Referenced payload content failed its digest or size verification, or an exact binding holds other content; no retry repairs it. | [BLB-R46](../artifacts/blob-storage.md) |
 | `artifact_content_missing` | 503 | no | Referenced payload content is missing, or a live read lost the race with registry deletion; never an empty success, a silent revision replacement or an automatic Git refetch. | [BLB-R46](../artifacts/blob-storage.md) |
 | `artifact_frozen` | 409 | no | A write targets a frozen binding, which never advances, so neither a re-read nor a retry can succeed; returned on the public and private Artifact APIs whatever the write precondition. | [ART-R59](../artifacts/artifact-store.md) |

@@ -2,7 +2,10 @@ import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import captures from "../../../../../api/testdata/http-capture-cases.json";
-import { HTTP_EXCHANGE_MEDIA_TYPE } from "../../../api/artifacts";
+import {
+  HTTP_EXCHANGE_MEDIA_TYPE,
+  MAXIMUM_PREVIEW_BYTES,
+} from "../../../api/artifacts";
 import type { HTTPExchangeDocument } from "../../../api/http-exchange";
 import HTTPExchangePreview from "./http-exchange";
 import { saveBlob } from "../../../app/download";
@@ -218,7 +221,7 @@ describe("HTTP exchange preview", () => {
             revision: "exact",
           },
           mediaType: HTTP_EXCHANGE_MEDIA_TYPE,
-          size: 256 * 1024 + 1,
+          size: MAXIMUM_PREVIEW_BYTES + 1,
           current: true,
           frozen: true,
           createdAt: "2026-10-13T00:00:00Z",
@@ -228,7 +231,7 @@ describe("HTTP exchange preview", () => {
         unavailableCopy="Download the saved exchange"
       />,
     );
-    expect(screen.getByText(/exceeds the 256 KiB preview limit/)).toBeVisible();
+    expect(screen.getByText(/exceeds the 1 MiB preview limit/)).toBeVisible();
     expect(load).not.toHaveBeenCalled();
   });
 });
