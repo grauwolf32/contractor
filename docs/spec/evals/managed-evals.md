@@ -362,19 +362,21 @@ Rationale: reads do not revalidate up to 1 MiB, the [portable
 format](format.md) document bound (LIM-EVF-3), on every coordinator tick,
 admission or collection.
 
-**EVM-R241.** Freezing a plan or registration validates every expected member
-before it writes, then stores the whole member set with one database
-statement in the freeze transaction. Each member's projection row is created
-once and the experiment's projection queue is created or advanced once per
-freeze, not once per member. The statement carries each projected case and
-each variant once, so its size follows the document bounds (LIM-EVF-3,
-LIM-EVM-4) rather than the member count times the recipe size. A rejected
-member or a failed transaction leaves no plan, member, projection row or
-receipt.
+**EVM-R241.** The transaction that freezes a plan or registration validates
+every expected member before it writes the plan, then stores the whole member
+set with one database statement; it validates every plan resource before
+storing them all with one more statement. Each member's projection row is
+created once, and the experiment's projection queue is created or advanced
+once per freeze, not once per member. The member statement carries each
+projected case and each variant once, so its size follows the document bounds
+(LIM-EVF-3, LIM-EVM-4) rather than the member count times the recipe size. A
+rejected member or a failed transaction leaves no plan, member, projection
+row, resource or receipt.
 
-Rationale: a native plan admits up to 1,000 members (LIM-EVM-3) and an
-external registration as many as fit its 1 MiB document; one insert per
-member repeated the projection work for every member.
+Rationale: a native plan admits up to 1,000 members (LIM-EVM-3) and about as
+many case and input resources; an external registration admits as many
+members as fit its 1 MiB document. One insert per row repeated the projection
+work for every member and held the freeze locks for every round trip.
 
 **EVM-R41.** Secret values do not enter public DTOs, logs, cursors or error
 text.

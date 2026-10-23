@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"reflect"
 	"regexp"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -18,30 +20,31 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// memberInsertTracer counts client statements that insert eval_members rows.
-// The projection trigger's inserts run inside the server and are not counted.
-type memberInsertTracer struct {
+// freezeInsertTracer counts client statements that insert member or plan
+// resource rows, by table. The projection trigger's inserts run inside the
+// server and are not counted.
+type freezeInsertTracer struct {
 	mu         sync.Mutex
-	statements int
+	statements map[string]int
 }
 
-var memberInsertStatement = regexp.MustCompile(`(?i)^\s*insert\s+into\s+eval_members\s*\(`)
+var freezeInsertStatement = regexp.MustCompile(`(?i)^\s*insert\s+into\s+(eval_members|eval_plan_resources)\s*\(`)
 
-func (m *memberInsertTracer) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
-	if memberInsertStatement.MatchString(data.SQL) {
-		m.mu.Lock()
-		m.statements++
-		m.mu.Unlock()
+func (f *freezeInsertTracer) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
+	if match := freezeInsertStatement.FindStringSubmatch(data.SQL); match != nil {
+		f.mu.Lock()
+		f.statements[strings.ToLower(match[1])]++
+		f.mu.Unlock()
 	}
 	return ctx
 }
-func (*memberInsertTracer) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndData) {}
+func (*freezeInsertTracer) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndData) {}
 
-// memberInsertStatements runs fn with the service on a traced pool and
-// returns the number of member INSERT statements it sent.
-func (h *serviceHarness) memberInsertStatements(t *testing.T, fn func()) int {
+// freezeInserts runs fn with the service on a traced pool and returns the
+// member and plan resource INSERT statements it sent, by table.
+func (h *serviceHarness) freezeInserts(t *testing.T, fn func()) map[string]int {
 	t.Helper()
-	trace := &memberInsertTracer{}
+	trace := &freezeInsertTracer{statements: map[string]int{}}
 	config := h.pool.Config()
 	config.ConnConfig.Tracer = trace
 	traced, err := pgxpool.NewWithConfig(t.Context(), config)
@@ -55,7 +58,22 @@ func (h *serviceHarness) memberInsertStatements(t *testing.T, fn func()) int {
 	fn()
 	trace.mu.Lock()
 	defer trace.mu.Unlock()
-	return trace.statements
+	return maps.Clone(trace.statements)
+}
+
+// assertOneInsertPerTable requires one member INSERT and, when the plan has
+// resources, one resource INSERT for the whole freeze.
+func assertOneInsertPerTable(t *testing.T, pool *pgxpool.Pool, id string, statements map[string]int) {
+	t.Helper()
+	var members, resources int
+	if err := pool.QueryRow(t.Context(), `SELECT (SELECT count(*) FROM eval_members WHERE experiment_id = $1), (SELECT count(*) FROM eval_plan_resources WHERE experiment_id = $1)`, id).Scan(&members, &resources); err != nil {
+		t.Fatal(err)
+	}
+	wantResources := min(resources, 1)
+	if statements["eval_members"] != 1 || statements["eval_plan_resources"] != wantResources {
+		t.Errorf("want one INSERT statement per table, got %v", statements)
+	}
+	t.Logf("froze %d members and %d plan resources with %v INSERT statements", members, resources, statements)
 }
 
 // projectionQueue reads the experiment's projection queue row. During a
@@ -232,7 +250,7 @@ func (h *serviceHarness) externalAtByteCeiling(t *testing.T) (evaldomain.Frozen,
 		}
 		pre[v.ID] = p
 	}
-	bundle, err := BuildPlan(portable, time.Now(), draft, data, pre)
+	bundle, err := BuildPlan(portable, time.Date(2026, 10, 23, 0, 0, 0, 0, time.UTC), draft, data, pre)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -319,7 +337,7 @@ func TestSharedPostgresExternalByteCeilingFreezesMembersInOneStatement(t *testin
 	h := newHarness(t)
 	doc, cases, members := h.externalAtByteCeiling(t)
 	var receipt evalstore.Receipt
-	statements := h.memberInsertStatements(t, func() {
+	statements := h.freezeInserts(t, func() {
 		var err error
 		receipt, err = h.service.Create(t.Context(), h.scope, doc, identity(t, "external-byte-ceiling", 0, doc))
 		if err != nil {
@@ -334,9 +352,7 @@ func TestSharedPostgresExternalByteCeilingFreezesMembersInOneStatement(t *testin
 	if e.State != evaldomain.StateReady || e.Expected != members {
 		t.Fatalf("registration: state=%s members=%d, want ready with %d", e.State, e.Expected, members)
 	}
-	if statements != 1 {
-		t.Errorf("registration of %d members sent %d member INSERT statements, want 1", members, statements)
-	}
+	assertOneInsertPerTable(t, h.pool, e.ID, statements)
 	if revision, published, exists := projectionQueue(t, h.pool, e.ID); !exists || revision != 1 || published != 0 {
 		t.Errorf("initial projection queue row: exists=%v revision=%d published=%d, want created once at revision 1", exists, revision, published)
 	}

@@ -18,7 +18,8 @@ import (
 
 // preparedAtNativeCeiling freezes a workflow plan with MaxNativeMembers members
 // whose cases share one input artifact through the production prepare path,
-// and checks that the freeze inserts the whole matrix with one statement.
+// and checks that the freeze inserts the whole matrix and its plan resources
+// with one statement each.
 func (h *serviceHarness) preparedAtNativeCeiling(t *testing.T, capacity int) evalstore.Experiment {
 	t.Helper()
 	draft, data, _ := planInputs(t)
@@ -72,7 +73,7 @@ func (h *serviceHarness) preparedAtNativeCeiling(t *testing.T, capacity int) eva
 		t.Fatal(err)
 	}
 	before, _, _ := projectionQueue(t, h.pool, e.ID)
-	statements := h.memberInsertStatements(t, func() {
+	statements := h.freezeInserts(t, func() {
 		h.command(t, e, "prepare")
 		tick(t, h.coordinator(t, "prepare"))
 	})
@@ -80,9 +81,7 @@ func (h *serviceHarness) preparedAtNativeCeiling(t *testing.T, capacity int) eva
 	if e.State != evaldomain.StateReady || e.Expected != evaldomain.MaxNativeMembers {
 		t.Fatalf("prepare: state=%s members=%d diagnostic=%s", e.State, e.Expected, e.Diagnostic)
 	}
-	if statements != 1 {
-		t.Errorf("preparing %d members sent %d member INSERT statements, want 1", e.Expected, statements)
-	}
+	assertOneInsertPerTable(t, h.pool, e.ID, statements)
 	if after, _, _ := projectionQueue(t, h.pool, e.ID); after != before+1 {
 		t.Errorf("projection queue revision %d -> %d, want one advance for the frozen matrix", before, after)
 	}
