@@ -6,7 +6,8 @@ epic: quality
 kind: chore
 introduced_by: V155-001
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 0a2bb8e27b2b4c27c1f6b26ad5a3a96df7d11c88
 depends_on: []
 languages: [make, python]
 goal: "Inside release-verify family targets do not repeat canonical Go or Runtime executions, and warnings-as-errors covers the whole Runtime suite."
@@ -72,11 +73,11 @@ tests:
     covers: [A3]
 
 verification:
-  - "Dedicated worktree /Users/ruslan/.codex/worktrees/v408-005-family-tests/contractor; branch codex/v408-005-family-tests. The earlier worktree was left unchanged after transferring this task's patch."
-  - "make lint passed in the dedicated worktree, including all 131 script regressions and the full compiled release-graph guard. All 46 Go selections captured before editing remain covered."
-  - "make test-runtime-hardening passed on Linux with its own Python 3.13 environment: 4375 passed, 55 existing optional skips; canonical Audit/findings JUnit verification passed."
-  - "Actual canonical shared reports verified 249 fixtures, 229 Go shared tests and 184 Python shared tests without rerunning them. The seven tagged configuration fixtures and the full untagged tests/e2e package also passed."
-  - "Broader Go unit verification remains red at unchanged base paths: TestReservedNamespacesAreNamedOnlyByArtifactPolicy and TestSQLAccessFollowsTableOwnership. Initial resource/contention errors were rechecked: full internal/app and internal/performance packages passed serially on an isolated PostgreSQL database."
-  - "make test-release-integration on isolated PostgreSQL remains red: TestPostgresPublicPagedListsAcceptTheLargestPage lacks request paths for listScanSweeps and listScanSweepMembers."
-  - "All four findings process tests migrated to shard C executed and passed against isolated PostgreSQL. The broad shard hit the existing fixed Skills-list failure and was stopped after obtaining that evidence; it is not a passing full shard."
-  - "Keep in_progress: required broad integration/process checks do not yet pass on base e4480ace. No merge or CI run was performed. Raw logs remain under /private/tmp/v408-*.log."
+  - "All task commands passed on the branch integrated with current main: make lint, make test-runtime-hardening, make test-release-integration and make test-release-process-e2e-c."
+  - "Runtime ran once with -W error on Linux/Python 3.13: 4375 passed and 55 existing optional skips. The Audit/findings required-case JUnit validators passed."
+  - "The complete 13-test process shard C and its mandatory findings report validator passed on isolated PostgreSQL. The consolidated integration pass passed under -race -p 2 with its mandatory Audit report validator."
+  - "Current shared evidence verified 249 fixtures, 231 Go shared tests and 184 Python shared tests using one focused Go run and the existing full Runtime read log."
+  - "Compiled coverage guard passed: 99 race packages, 25 process tests, seven configuration fixtures, 49 tagged e2e tests (eight opt-in), 159 integration-selection names and both blob backend modes. Consolidated families execute no Go/pytest/test-script drivers; direct family suites remain available."
+  - "Existing sweep-page fixture repair arrived from main as V405-006. Two test-only blockers were repaired and verified separately as V408-008 and V408-009; no production validation was loosened."
+  - "Broader unrelated namespace-literal and SQL-ownership guards still fail on unchanged base paths, reconfirmed separately. This closure does not claim a green complete release-verify or a CI run; Runtime acceptance and all commands listed above passed."
+  - "User explicitly requested closure and merge after the implementation report. Raw verification logs remain outside git under /private/tmp/v408-close-*.log."
