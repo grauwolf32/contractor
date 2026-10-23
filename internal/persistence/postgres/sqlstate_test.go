@@ -103,6 +103,26 @@ func TestClassifySeparatesStoredBoundsFromProgramLimits(t *testing.T) {
 	}
 }
 
+// The constraint a condition names survives every wrapper; an error without
+// a PostgreSQL condition names none.
+func TestConstraintNameReadsTheWrappedCondition(t *testing.T) {
+	for _, test := range []struct {
+		err  error
+		want string
+	}{
+		{fmt.Errorf("insert: %w", WrapError("safe", &pgconn.PgError{
+			Code: "23503", ConstraintName: "workflow_runs_project_owner_fkey",
+		})), "workflow_runs_project_owner_fkey"},
+		{&pgconn.PgError{Code: "23514"}, ""},
+		{errors.New("not a database condition"), ""},
+		{nil, ""},
+	} {
+		if got := ConstraintName(test.err); got != test.want {
+			t.Errorf("ConstraintName(%v) = %q, want %q", test.err, got, test.want)
+		}
+	}
+}
+
 func TestClassifyTransportAndContextFailures(t *testing.T) {
 	for _, test := range []struct {
 		name string
