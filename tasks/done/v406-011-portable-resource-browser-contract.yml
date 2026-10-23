@@ -6,7 +6,7 @@ epic: ui
 kind: defect
 introduced_by: V396-001
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V396-001]
 languages: [typescript]
 goal: Let the real UI gate validate the current Linux and macOS process-resource contract without expecting obsolete unsupported-host reports.
@@ -30,3 +30,9 @@ tests:
   covers: [A1, A2]
 - command: make lint
   covers: [A1, A2]
+implementation_commit: 8d4ae5375e7e72f1ed29de6ba222268b5664ac7c
+verification:
+  date: '2026-10-23'
+  passed:
+  - make test-ui-stack-operations passed in 157.24 seconds on native macOS, including both resource views.
+  - make lint passed.
