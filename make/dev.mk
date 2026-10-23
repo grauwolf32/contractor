@@ -2,7 +2,7 @@
 # public API and the architecture model to the specifications.
 
 .PHONY: fmt lint ui-gates generate-public-client generate-public-client-check verify-architecture docs-erd \
-	docs-error-registry verify-public-api verify-public-api-postgres run-local tasks-backlog test-ansible
+	docs-error-registry verify-public-api verify-public-api-postgres run-local tasks-backlog test-ansible test-hybrid
 
 fmt:
 	gofmt -w cmd internal tests tools
@@ -21,6 +21,7 @@ lint: generate-public-client-check docs-dependencies-check model-config-check ui
 	cd runtime && uv run python -m unittest discover -s ../scripts -p 'test_*.py'
 	sh deploy/phoenix/test-run.sh
 	sh deploy/ansible/tests/run.sh
+	sh deploy/hybrid/test.sh
 	python3 scripts/check_release_verify_graph.py
 	cd runtime && uv run python ../scripts/check_tasks.py
 	python3 scripts/check_spec.py
@@ -34,6 +35,9 @@ lint: generate-public-client-check docs-dependencies-check model-config-check ui
 # make lint runs the same script.
 test-ansible:
 	sh deploy/ansible/tests/run.sh
+
+test-hybrid:
+	sh deploy/hybrid/test.sh
 
 # The UI's dead-code and building-block gates (V385-001; ui/src/ui/README.md,
 # "Gates"). They need the UI dependencies (make ui-install): the probes of the

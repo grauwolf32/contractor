@@ -5,6 +5,10 @@ or more Runtime Agents (one allocation slot each) and every prerequisite of the
 capabilities you choose per host or per process. The Server, PostgreSQL, the
 UI and the LLM Gateway are out of scope; see [deployment](../../docs/deployment.md).
 
+For an existing local Control Plane and cloud Runtime hosts, see the
+[hybrid deployment scripts](../hybrid/README.md). They configure WireGuard
+separately and generate an inventory for this role.
+
 A run fails unless every process it started or restarted registered with the
 Control Plane and reported an available probe for each capability it was
 configured for.
