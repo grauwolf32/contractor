@@ -53,7 +53,7 @@ contractor_runtime_pki_issue: true
 #   port (required)  listen and advertised port
 #   state            present (default) or absent: stop and remove the unit,
 #                    keep certificates and work roots
-#   listen_host, advertise_host, cert_dns, cert_ips, labels, adapters,
+#   listen_host, advertise_host, cert_dns, cert_ips, labels, placement_labels, adapters,
 #   allowed_target_networks, log_level, extra_args, extra_environment,
 #   workspace_limits, podman_limits, podman_owner
 #   capabilities     overrides of the effective capability switches below
@@ -71,6 +71,9 @@ contractor_runtime_cert_ips: []
 # Startup labels seed a previously unseen principal only. Each must already be
 # bound on the Server, or registration fails with invalid_runtime_labels.
 contractor_runtime_labels: []
+# Location declaration for this process incarnation; no Server binding needed.
+# Example: [cloud/hetzner] or [local/lab]. Instance placement_labels overrides it.
+contractor_runtime_placement_labels: []
 # null probes every built-in RuntimeAdapter; a list selects a non-empty subset.
 contractor_runtime_adapters: null
 contractor_runtime_allowed_target_networks: []

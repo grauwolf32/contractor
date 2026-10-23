@@ -226,6 +226,18 @@ configuration supplied by Control Plane) is specified in
 the allocation-scoped telemetry exporter credential is
 [SCH-R74](scheduler.md).
 
+### Startup placement declaration
+
+**RTA-R114.** Repeated `--placement-label` arguments declare process location.
+Without these arguments, `CONTRACTOR_PLACEMENT_LABELS` supplies a comma-separated
+list; an unset or empty value declares no location. Explicit arguments replace
+the environment selection. Startup sorts the values and rejects duplicates,
+invalid paths, incompatible branches and limit violations before registration,
+using the shared placement grammar owned by
+[CTL-R156](control-plane.md) and LIM-CTL-11/LIM-CTL-12. It publishes the
+same declaration for every registration of this process incarnation. These
+arguments are separate from configuration-label seeds (`--initial-label`).
+
 ### Startup capability discovery
 
 **RTA-R6.** An installed factory and a usable capability are

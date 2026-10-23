@@ -24,6 +24,10 @@ defines source-optional web/API auditing, enforced scope, isolated identities,
 typed evidence, independent replay, recovery, budgets and acceptance gates; it
 is not yet implemented.
 
+[Runtime placement labels](proposals/0043-runtime-placement-labels.md) records
+the selected `cloud` and `local` namespaces, startup declarations and dynamic
+parent matching for WorkflowRun and Audit launches; it is not yet implemented.
+
 Accepted contracts belong in the specification; implementation status belongs
 in [task files](../tasks/) governed by [tasks/index.yml](../tasks/index.yml).
 The following are non-normative, and a historical report does not establish

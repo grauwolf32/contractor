@@ -211,6 +211,21 @@
     },
     "supportedPerformanceMetricsVersions": {
       "$ref": "performance.schema.json#/$defs/supportedPerformanceMetricsVersions"
+    },
+    "placementLabels": {
+      "type": "array",
+      "maxItems": 32,
+      "uniqueItems": true,
+      "description": "Sorted paths forming one ancestor chain in cloud or local; startup-owned and immutable per instanceId. Omission declares no location.",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 63,
+        "pattern": "^(cloud|local)(/[a-z][a-z0-9_-]*)*$",
+        "not": {
+          "pattern": "[^a-z0-9_/-]"
+        }
+      }
     }
   },
   "required": [

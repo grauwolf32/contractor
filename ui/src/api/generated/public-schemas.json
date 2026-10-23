@@ -10900,6 +10900,18 @@
         }
       }
     },
+    "PlacementLabels": {
+      "type": "array",
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 63,
+        "pattern": "^(cloud|local)(/[a-z][a-z0-9_-]*)*$",
+        "not": { "pattern": "[^a-z0-9_/-]" }
+      }
+    },
     "RuntimeAgentObservation": {
       "type": "object",
       "additionalProperties": false,
@@ -10914,6 +10926,9 @@
         "slotState"
       ],
       "properties": {
+        "placementLabels": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PlacementLabels"
+        },
         "instanceId": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
         },

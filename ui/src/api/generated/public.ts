@@ -5901,7 +5901,10 @@ export interface components {
             modes: ("direct" | "overlay")[];
             limits: components["schemas"]["WorkspaceLimits"];
         };
+        /** @description Sorted unique cloud/local paths forming one ancestor chain. Empty means no location declaration or requirement. */
+        PlacementLabels: string[];
         RuntimeAgentObservation: {
+            placementLabels?: components["schemas"]["PlacementLabels"];
             instanceId: components["schemas"]["ResourceId"];
             softwareVersion: string;
             supportedRuntimes: components["schemas"]["RuntimeCapabilityRef"][];

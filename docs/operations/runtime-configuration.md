@@ -174,3 +174,20 @@ The process gate exercises default-isolated and explicit-shared Stages through
 the real Scheduler, Control Plane, private allocation transport and Python
 Runtime, including sequential invocations, allocation cleanup and Runtime-slot
 reuse.
+
+## Process location labels
+
+Declare an instance's location with repeated `--placement-label` arguments or
+`CONTRACTOR_PLACEMENT_LABELS=cloud/hetzner`. Explicit arguments replace the
+comma-separated environment list. Accepted namespaces are `cloud` and `local`;
+examples are `cloud/aws`, `cloud/hetzner` and `local/lab`. A bare root is also
+valid. Values are case-sensitive, use lowercase identifier segments separated
+by `/`, and contain no wildcard. The list may contain at most 32 unique labels
+of at most 63 ASCII bytes each, and all values must form one ancestor chain.
+
+The Runtime publishes its location at registration, and Operations returns it
+as `live.placementLabels` on the Runtime principal. Changing the declaration
+requires a new process incarnation. It needs no RuntimeConfig binding and is
+independent of the durable configuration labels seeded by `--initial-label`.
+For Ansible, set `contractor_runtime_placement_labels` at host/group level or
+`placement_labels` on an instance.

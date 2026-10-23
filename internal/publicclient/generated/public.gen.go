@@ -6521,6 +6521,9 @@ type PinnedRuntimeConfig struct {
 	Label           ConfigId         `json:"label"`
 }
 
+// PlacementLabels Sorted unique cloud/local paths forming one ancestor chain. Empty means no location declaration or requirement.
+type PlacementLabels = []string
+
 // PlannerDispatch defines model for PlannerDispatch.
 type PlannerDispatch struct {
 	CallId     string   `json:"callId"`
@@ -6809,20 +6812,23 @@ type RuntimeAgentLabelsMutation struct {
 
 // RuntimeAgentObservation defines model for RuntimeAgentObservation.
 type RuntimeAgentObservation struct {
-	AuthoritativeAllocationId *ResourceId                `json:"authoritativeAllocationId,omitempty"`
-	ConfirmedLeaseUntil       *time.Time                 `json:"confirmedLeaseUntil,omitempty"`
-	CurrentAllocationId       *ResourceId                `json:"currentAllocationId,omitempty"`
-	InstanceId                ResourceId                 `json:"instanceId"`
-	LastAcceptedHeartbeat     *time.Time                 `json:"lastAcceptedHeartbeat,omitempty"`
-	ObservedState             interface{}                `json:"observedState"`
-	ReconciliationReason      *SafeReason                `json:"reconciliationReason,omitempty"`
-	SlotState                 interface{}                `json:"slotState"`
-	SoftwareVersion           string                     `json:"softwareVersion"`
-	SupportedRuntimeAdapters  []RuntimeCapabilityRef     `json:"supportedRuntimeAdapters"`
-	SupportedRuntimes         []RuntimeCapabilityRef     `json:"supportedRuntimes"`
-	SupportedSandboxProfiles  []RuntimeCapabilityRef     `json:"supportedSandboxProfiles"`
-	SupportedToolsets         []RuntimeToolsetCapability `json:"supportedToolsets"`
-	WorkspaceCapabilities     *WorkspaceCapabilities     `json:"workspaceCapabilities,omitempty"`
+	AuthoritativeAllocationId *ResourceId `json:"authoritativeAllocationId,omitempty"`
+	ConfirmedLeaseUntil       *time.Time  `json:"confirmedLeaseUntil,omitempty"`
+	CurrentAllocationId       *ResourceId `json:"currentAllocationId,omitempty"`
+	InstanceId                ResourceId  `json:"instanceId"`
+	LastAcceptedHeartbeat     *time.Time  `json:"lastAcceptedHeartbeat,omitempty"`
+	ObservedState             interface{} `json:"observedState"`
+
+	// PlacementLabels Sorted unique cloud/local paths forming one ancestor chain. Empty means no location declaration or requirement.
+	PlacementLabels          *PlacementLabels           `json:"placementLabels,omitempty"`
+	ReconciliationReason     *SafeReason                `json:"reconciliationReason,omitempty"`
+	SlotState                interface{}                `json:"slotState"`
+	SoftwareVersion          string                     `json:"softwareVersion"`
+	SupportedRuntimeAdapters []RuntimeCapabilityRef     `json:"supportedRuntimeAdapters"`
+	SupportedRuntimes        []RuntimeCapabilityRef     `json:"supportedRuntimes"`
+	SupportedSandboxProfiles []RuntimeCapabilityRef     `json:"supportedSandboxProfiles"`
+	SupportedToolsets        []RuntimeToolsetCapability `json:"supportedToolsets"`
+	WorkspaceCapabilities    *WorkspaceCapabilities     `json:"workspaceCapabilities,omitempty"`
 }
 
 // RuntimeAgentPage defines model for RuntimeAgentPage.

@@ -49,6 +49,27 @@ def test_initial_labels_are_sorted_and_environment_is_used_without_cli(tmp_path:
     assert settings.initial_labels == ("caido", "debug")
 
 
+def test_placement_labels_environment_and_cli_override(tmp_path: Path) -> None:
+    args = base_arguments(tmp_path)
+    settings = parse_settings(args, {"CONTRACTOR_PLACEMENT_LABELS": "cloud/aws,cloud"})
+    assert settings.placement_labels == ("cloud", "cloud/aws")
+    settings = parse_settings(
+        [*args, "--placement-label", "local/lab"],
+        {"CONTRACTOR_PLACEMENT_LABELS": "cloud/aws"},
+    )
+    assert settings.placement_labels == ("local/lab",)
+    assert parse_settings(args, {}).placement_labels == ()
+
+
+@pytest.mark.parametrize(
+    "labels",
+    ["cloud/*", "region/eu", "cloud/aws,local/lab", "cloud/aws,cloud/hetzner", "cloud,cloud"],
+)
+def test_invalid_placement_labels_fail_startup(tmp_path: Path, labels: str) -> None:
+    with pytest.raises(SystemExit):
+        parse_settings(base_arguments(tmp_path), {"CONTRACTOR_PLACEMENT_LABELS": labels})
+
+
 def test_runtime_adapter_environment_is_sorted_and_unset_means_all(tmp_path: Path) -> None:
     configured = parse_settings(
         base_arguments(tmp_path),

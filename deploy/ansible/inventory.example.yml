@@ -4,6 +4,7 @@
 # from the repository root (or set ANSIBLE_CONFIG=deploy/ansible/ansible.cfg).
 contractor_runtime:
   vars:
+    contractor_runtime_placement_labels: [cloud/hetzner]
     # The Server's private Control Plane listener.
     contractor_runtime_control_plane_url: https://10.0.0.5:8443
     # `contractor pki` and the deployment CA live on the controller here.

@@ -80,6 +80,9 @@ execution_policy:
     P3: Low-impact correction with no user-visible failure, such as documentation, dead code or test hygiene.
 
 milestones:
+  - id: runtime-placement-labels-2026-10
+    exit_task: V405-005
+    outcome: Startup-owned cloud and local labels dynamically constrain WorkflowRun and Audit Worker placement through UI selections, with immutable launch requirements and retained allocation provenance.
   - id: runtime-host-provisioning-2026-10
     exit_task: V402-001
     outcome: One Ansible run provisions a Linux host with the Runtime Agents and the capability prerequisites chosen per host or per process, and fails unless each process registered and probed what it was configured for.

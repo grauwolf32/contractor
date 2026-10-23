@@ -12,6 +12,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from contractor_runtime.contracts import WorkspaceStorage
+from contractor_runtime.contracts.placement import validate_placement_labels
 from contractor_runtime.core.target_policy import IPNetwork, parse_allowed_networks
 from contractor_runtime.projectfs.config import (
     DEFAULT_WORKSPACE_OPERATION_TIMEOUT_SECONDS,
@@ -39,6 +40,7 @@ class Settings:
     certificate_file: Path
     private_key_file: Path = field(repr=False)
     initial_labels: tuple[str, ...] = ()
+    placement_labels: tuple[str, ...] = ()
     enabled_runtime_adapters: tuple[str, ...] | None = None
     workspace: WorkspaceSettings | None = None
     podman: PodmanSettings = field(default_factory=PodmanSettings)
@@ -77,6 +79,7 @@ def parse_settings(
         default=values.get("CONTRACTOR_CERT_EXPIRY_WARNING_DAYS", "30"),
     )
     parser.add_argument("--initial-label", action="append", default=None)
+    parser.add_argument("--placement-label", action="append", default=None)
     parser.add_argument("--runtime-adapter", action="append", default=None)
     parser.add_argument("--allowed-target-network", action="append", default=None)
     parser.add_argument(
@@ -172,6 +175,7 @@ def parse_settings(
     if work_root == Path(work_root.anchor):
         parser.error("--work-root must not be a filesystem root")
     initial_labels = _initial_labels(parser, args.initial_label, values)
+    placement_labels = _placement_labels(parser, args.placement_label, values)
     enabled_runtime_adapters = _runtime_adapters(parser, args.runtime_adapter, values)
     allowed_target_networks = _allowed_target_networks(parser, args.allowed_target_network, values)
     workspace = _workspace_settings(parser, args)
@@ -193,6 +197,7 @@ def parse_settings(
         certificate_file=certificate_file,
         private_key_file=private_key_file,
         initial_labels=initial_labels,
+        placement_labels=placement_labels,
         enabled_runtime_adapters=enabled_runtime_adapters,
         workspace=workspace,
         podman=podman,
@@ -251,6 +256,21 @@ def _positive(parser: argparse.ArgumentParser, option: str, value: float) -> flo
     if value <= 0 or not math.isfinite(value):
         parser.error(f"{option} must be positive")
     return value
+
+
+def _placement_labels(
+    parser: argparse.ArgumentParser,
+    cli_values: list[str] | None,
+    environ: Mapping[str, str],
+) -> tuple[str, ...]:
+    raw = environ.get("CONTRACTOR_PLACEMENT_LABELS", "") if cli_values is None else ""
+    candidates = ([] if raw == "" else raw.split(",")) if cli_values is None else cli_values
+    labels = sorted(candidates)
+    try:
+        validate_placement_labels(labels)
+    except ValueError as error:
+        parser.error(f"--placement-label: {error}")
+    return tuple(labels)
 
 
 _RUNTIME_LABEL_PATTERN = re.compile(r"^[a-z][a-z0-9_-]*$")

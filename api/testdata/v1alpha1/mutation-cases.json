@@ -78,6 +78,10 @@
           "maxLength": 256
         },
         {
+          "pointer": "/placementLabels/0",
+          "maxLength": 63
+        },
+        {
           "pointer": "/softwareVersion",
           "maxLength": 128
         },
@@ -110,6 +114,11 @@
         {
           "pointer": "/instanceId",
           "maxLength": 256,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/placementLabels/0",
+          "maxLength": 63,
           "verdict": "reject"
         },
         {

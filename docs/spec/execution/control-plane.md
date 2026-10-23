@@ -737,6 +737,33 @@ sharing an unfenced `runtime_agents` table. The single active Control Plane
 instance per PostgreSQL database, on which the in-memory Registry and its lock
 rely, is specified in [persistence](../platform/persistence.md).
 
+### Runtime placement declarations
+
+**CTL-R156.** A process may advertise an optional non-null `placementLabels`
+array. Its only namespaces are `cloud` and `local`; a label is either the root
+or slash-separated non-empty segments matching `[a-z][a-z0-9_-]*`. Labels
+obey LIM-CTL-11 and LIM-CTL-12, are sorted and unique, and form one ancestor
+chain: each later label begins with the preceding label plus `/`. Disjoint
+provider/site branches and mixed roots are invalid. Omission or an empty
+array declares no location; it never infers `local` from the host or endpoint.
+Wildcards, case aliases, leading/trailing slashes and empty segments are invalid.
+
+**CTL-R157.** Startup arguments own `placementLabels` for one authenticated
+Runtime process incarnation. Placement labels participate in the immutable
+registration fingerprint, so changing them under the same `instanceId` is a
+registration conflict. A new incarnation can declare a new location under the
+same principal once the ordinary registration and lease rules permit it.
+These values never seed, read or mutate the durable principal's RuntimeConfig
+labels (CTL-R26), and require no RuntimeConfig binding. A location is an
+operator declaration from an authenticated deployment peer, not independent
+cloud-provider attestation or a new authorization role.
+
+**CTL-R158.** Operations exposes an incarnation's actual `placementLabels`
+as a detached optional array in its Runtime Agent observation. Observation
+validation uses the same grammar as registration; changing a returned
+registration or observation must not mutate the Registry's stored declaration.
+Declarations follow the existing incarnation retirement lifecycle.
+
 ### Capability-aware placement
 
 **CTL-R70.** The currently connected fleet is not consulted while
@@ -778,8 +805,8 @@ model-free Stage the Agent must also not be held for a waiting model Stage
 adapters, change Worker behavior nor become model-visible; extra advertised
 tools are never exposed implicitly.
 
-**CTL-R75.** Placement never requires a Run label name to appear in
-the candidate's Agent label set: labels are configuration inputs, never an
+**CTL-R75.** Placement never requires a Run RuntimeConfig label name to appear in
+the candidate's Agent RuntimeConfig label set: these labels are configuration inputs, never an
 equality or affinity predicate between Run and Runtime Agent. A Run `debug`
 configuration applies to an unlabeled Runtime Agent when that process
 advertises the resulting required adapter; Agent labels are only the

@@ -43,6 +43,17 @@ func TestSharedPrivateRegistrationNormalizationFingerprintAndProjection(t *testi
 	if third == first {
 		t.Fatal("adapter capability change did not change the registration fingerprint")
 	}
+	changedPlacement := registration
+	changedPlacement.PlacementLabels = []string{"cloud/hetzner"}
+	withPlacement, err := AgentRegistrationFingerprint(changedPlacement)
+	if err != nil || withPlacement == first {
+		t.Fatalf("placement declaration did not change immutable fingerprint: %v", err)
+	}
+	normalizedPlacement := NormalizeAgentRegistration(changedPlacement)
+	normalizedPlacement.PlacementLabels[0] = "local/lab"
+	if changedPlacement.PlacementLabels[0] != "cloud/hetzner" {
+		t.Fatal("normalized placement labels alias registration memory")
+	}
 	projection := RuntimeAdapterCapabilityProjection(registration)
 	if fmt.Sprint(projection) != "[caido-graphql@1 http-proxy@1 otlp-http@1]" {
 		t.Fatalf("unexpected Operations projection: %v", projection)
