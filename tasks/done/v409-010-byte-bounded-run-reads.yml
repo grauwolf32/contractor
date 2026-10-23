@@ -7,7 +7,7 @@ kind: chore
 introduced_by: V3-009
 priority: P2
 status: completed
-implementation_commit: 7b6b58c34c5eb7ad59c0e1a2cb03cc85b5459c99
+implementation_commit: 89c8038f3c5f94811c06a3ac52a8287f67dd7de8
 depends_on: []
 languages:
 - go
@@ -245,4 +245,21 @@ verification:
     LIM-API-24 (8 MiB persisted event data per Run event read) and LIM-API-25
     (2 MiB persisted data of one Run event, previously enforced but
     unregistered), both owned by the new API-R110 in docs/spec/api/public-api.md.
+  review_follow_up: >-
+    Review found that LIM-API-25 and the maxRunEventDataBytes comment said
+    every enforcer counts the stored data text. 89c8038f corrects both: the
+    workflow_run_events CHECK on octet_length(data::text) is authoritative
+    and is what LIM-API-24 relies on; the Server append check measures the
+    submitted JSON bytes and is only a pre-check; the read check counts the
+    stored text; the constant also pre-checks Planner session state (stored
+    bound planner_session_state_size, the unregistered 2 MiB session JSON of
+    WFL-R87). A real-PostgreSQL probe (not committed) appended plan data of
+    2,097,121 compact bytes whose stored text is 2,097,652 bytes: the
+    pre-check passed, the CHECK rejected the statement with SQLSTATE 23514
+    and nothing was written (the Run event cursor stayed at 6). The store
+    returns that rejection unwrapped, not as ErrInvalid like the pre-check,
+    but no caller distinguishes them: Begin, the ADK and scan appends only
+    test ErrConflict, and streamline maps every RecordPlan/RecordFact error
+    to planner_plan_persistence_failed. So nothing is misclassified and
+    behaviour is unchanged.
   remaining: None for this task.
