@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-134 open tasks: 5 in progress, 104 pending, 25 deferred. 981 finished: 978 completed, 3 archived.
+133 open tasks: 4 in progress, 104 pending, 25 deferred. 982 finished: 979 completed, 3 archived.
 
 ## In progress
 
@@ -15,7 +15,6 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
-| [V406-004](v406-004-durable-scope-sweeps.yml) | scan-tools | feature | P2 | Coordinate durable bounded Nuclei sweeps over Project scopes |
 
 ## Pending
 
@@ -88,7 +87,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V55-009](v55-009-scan-candidate-ranking.yml) | feature | P2 | — | Optionally rank existing scan candidates with an LLM |
-| [V406-007](v406-007-web-scan-release-gate.yml) | chore | P2 | V406-004, V406-005, V406-006 | Gate the complete web scan and rule sweep journeys |
+| [V406-007](v406-007-web-scan-release-gate.yml) | chore | P2 | V406-005, V406-006 | Gate the complete web scan and rule sweep journeys |
 | [V407-006](v407-006-scanplan-prepare-once.yml) | defect | P2 | — | Parse and digest an Audit OpenAPI source once per settings document, not once per operation |
 | [V407-007](v407-007-scan-output-off-loop.yml) | defect | P3 | — | Parse scanner output and prepare scan inputs off the Runtime event loop |
 
@@ -153,7 +152,7 @@ the epics are in [epics.yml](epics.yml).
 | [V403-003](v403-003-openapi-preview-at-1mib.yml) | defect | P3 | — | Keep a 1 MiB OpenAPI preview from blocking the page |
 | [V405-004](v405-004-placement-label-picker-ui.yml) | feature | P2 | V405-002, V405-003 | Select Runtime placement labels in Workflow and Audit launch forms |
 | [V406-005](v406-005-web-scan-settings-ui.yml) | feature | P2 | — | Launch a web scan with rule settings and owner rulepack selection |
-| [V406-006](v406-006-scope-sweep-ui-cli.yml) | feature | P2 | V406-004, V406-005 | Launch and follow durable rule sweeps from UI and CLI |
+| [V406-006](v406-006-scope-sweep-ui-cli.yml) | feature | P2 | V406-005 | Launch and follow durable rule sweeps from UI and CLI |
 
 ### Operations, authentication, CLI and deployment (`operations`)
 
@@ -258,7 +257,7 @@ tasks in `introduced_by`.
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 13 | 4 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 14 | 2 | 19 |
 | HTTP and Caido tools (`http-tools`) | 2 | 11 | 15 | 4 | 16 |
-| Scanner tool Workers and scan planning (`scan-tools`) | 5 | 14 | 6 | 4 | 9 |
+| Scanner tool Workers and scan planning (`scan-tools`) | 4 | 14 | 6 | 4 | 9 |
 | Findings tools and collections (`findings`) | 10 | 14 | 8 | 6 | 11 |
 | Workflow catalog and document workflows (`workflows`) | 4 | 14 | 14 | 12 | 15 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 30 | 34 | 5 | 36 |

@@ -5,7 +5,8 @@ milestone: web-nuclei-rule-sweeps-2026-10
 epic: scan-tools
 kind: feature
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 248e91a408c4b27fec7809919b6bd4d1957c1175
 depends_on:
 - V406-002
 - V406-003
@@ -154,8 +155,7 @@ progress:
     regression verifies bounded rows read for visible entries.
   - Updated owning specs, failure/lifecycle/limit registries, table ownership and architecture; ERD
     regenerated from a scratch PostgreSQL database at migration 31. Architecture validation passed.
-  remaining_work:
-  - Record implementation commit, move task to done and land the branch.
+  remaining_work: []
 verification:
   date: '2026-10-23'
   outcome: All A1-A4 acceptance criteria and listed gates passed.
