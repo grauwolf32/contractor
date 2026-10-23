@@ -6,7 +6,8 @@ epic: execution-core
 kind: chore
 introduced_by: V3-009
 priority: P2
-status: pending
+status: completed
+implementation_commit: 89c8038f3c5f94811c06a3ac52a8287f67dd7de8
 depends_on: []
 languages:
 - go
@@ -138,3 +139,127 @@ manual_verification:
   covers:
   - A1
   - A4
+verification:
+  date: '2026-10-23'
+  environment: >-
+    macOS arm64; Go 1.26.9; locked Node 24.20 and Runtime venv; local
+    PostgreSQL 17.11 database contractor_test_e with isolated per-test schemas
+    and all 32 migrations; TMPDIR resolved to its symlink-free /private/var
+    path.
+  re_verification: >-
+    The finding held on base 376a1f92: ListRunEvents
+    (internal/runstore/run_event_store.go:435-478) validated limit<=1000 and
+    read LIMIT $3 rows with no aggregate byte bound, and the only production
+    caller, the shared Run poller (internal/httpapi/public/events/run_poller.go:14,137,145-146),
+    read 128-row pages and ended a catch-up at any page shorter than 128.
+    workflow_run_events is read nowhere else in production code. The per-row
+    bound is the CHECK octet_length(data::text) <= 2097152 of
+    000001_baseline.sql, the measure the new budget uses.
+  design_decision: >-
+    The page statement (listRunEventsSQL in run_event_store_sql.go) walks the
+    primary key one event at a time in a recursive CTE and continues from an
+    event only while it is within the requested count and, counting it, the
+    8 MiB budget. Every walked event is a result row and the first one
+    outside both bounds is the look-ahead, returned without data, so the
+    statement measures exactly the returned events plus at most one, under
+    one snapshot. Rejected alternative: LIMIT limit+1 candidates with a
+    running sum(octet_length) window, the readExactBatchSQL pattern; it is
+    bounded by limit+1 too but detoasts and measures every candidate, up to
+    128 events of 2 MiB to return four. Cost of the walk: one index probe per
+    event, 1.3 ms for a 129-event page of 4 KiB events in the plan below.
+    Reopen if probe cost on small-event pages is measured to matter; the
+    window form is then the fallback, with the same result contract.
+  regression_before_fix: >-
+    With the new tests in place and listRunEventsSQL temporarily replaced by
+    the original row-only read (LIMIT limit+1, every row returned within the
+    count), TestPostgresListRunEventsBoundsPageDataBytes failed: the page
+    after start returned p1..p7 with 8,396,800 data bytes where p1..p4 with
+    6,295,552 and More were required, the exact-budget page returned
+    8,392,704 bytes, the replay page from 0 returned 8,397,381 bytes, and the
+    plan had no bounded walk. With the poller's termination temporarily
+    restored to len(page.Events) < runReplayPageSize,
+    TestRunCatchUpContinuesAcrossByteShortPages read once instead of five
+    times, TestRunCatchUpEndsAtTheLastCommittedEvent read twice instead of
+    once, the cursor, gap, undeliverable-event and failed-read tests behind
+    a byte-short page timed out waiting for frames that only another wake-up
+    would deliver, and the socket-closed and Hub-shutdown cases read once
+    instead of twice. Both temporary changes were reverted before commit.
+  manual_verification: >-
+    EXPLAIN (ANALYZE) of listRunEventsSQL on the real schema (3 events of
+    4 KiB, 5 of 2 MiB, 200 of 4 KiB; ANALYZE run): after 0 with limit 128,
+    Recursive Union actual rows=13 (12 returned plus the look-ahead), its
+    non-recursive Limit -> Index Scan using workflow_run_events_pkey rows=1,
+    and the recursive Nested Loop -> WorkTable Scan filtered by
+    position <= 128 AND cumulative_data_bytes <= 8388608 -> Limit -> Index
+    Scan using workflow_run_events_pkey (sequence_number > walk.sequence_number)
+    loops=12; the page returned 12 events, 6,304,315 data bytes, More. After
+    14 with limit 128: Recursive Union rows=129, index probes loops=128,
+    128 events, 524,288 data bytes, More. No plan node reads the history
+    beyond the look-ahead. The budget counts octet_length(data::text) of
+    returned events only; it is not the Server heap (pgx row buffers, the
+    copied json.RawMessage, decoded validation values) nor a WebSocket frame,
+    which LIM-API-9 bounds separately; API-R110 and LIM-API-24 say so.
+    Preserved, unimplemented dispositions: GetPlannerSessions still reads
+    full state (no projection or extra query, RUN-R89 one-query rule
+    unchanged); PurgeRun keeps its transactional version/blob metadata GC; no
+    per-Run append or history cap was added. Their tests ran unchanged as
+    preservation evidence only.
+  commands:
+    - >-
+      CONTRACTOR_TEST_DATABASE_URL=postgres://ruslan@localhost:5432/contractor_test_e?sslmode=disable
+      go test -tags=integration -count=1 ./internal/runstore/...
+      ./internal/runservice/... ./internal/httpapi/public/...
+      ./internal/planner/session/... ./internal/artifacts/...
+      ./internal/rundeletion/... passed; the same run with -json reported
+      1227 passed tests, 0 skipped and 0 failed, including
+      TestPostgresListRunEventsBoundsPageDataBytes,
+      TestPostgresListRunEventsFailsOnInvalidStoredEventsAndKeepsGaps, the
+      new poller tests and the preservation tests
+      TestPostgresRunRevisionLimitAndBoundedPurge (50000 revisions),
+      TestPostgresRunDetailFixedBatchQueries,
+      TestPostgresRunDetailReadsStateAndCursorFromOneSnapshot and
+      TestPostgresRunDetailResponseKeepsStateWithItsCursor.
+    - go test -race -count=1 ./internal/httpapi/public/events/ passed.
+    - make verify-public-api passed.
+    - >-
+      go test -count=1 ./tests/integration/streamline/ passed, and
+      go test -tags=e2e -count=1 -run
+      '^(TestLocalGoToPythonArtifactCopy|TestRoutingAndEscalationProductionBoundaries)$'
+      ./tests/e2e passed (the touched whole-history readers, which now also
+      require More=false).
+    - >-
+      make lint passed. go test ./internal/persistence fails only
+      TestSQLAccessFollowsTableOwnership at internal/cli/scan_sweep_remote.go:196,
+      the known pre-existing failure from b76026f9; SQL placement passes with
+      the new statement in run_event_store_sql.go.
+  database_tests_configured: true
+  siblings_reviewed: >-
+    workflow_run_events has one production reader, ListRunEvents, and one
+    caller, the shared Run poller; GetRunEventCursor reads only the counter.
+    Every implementation of events.RunRepository (PostgresStore, the events
+    test fakes and the public handler fake) returns the page with More; the
+    Run detail cursor tests and every whole-history test reader now require
+    More=false, and the Planner session page test requires More at its
+    count bound. Read validation is unchanged for every returned event.
+  limits_registered: >-
+    LIM-API-24 (8 MiB persisted event data per Run event read) and LIM-API-25
+    (2 MiB persisted data of one Run event, previously enforced but
+    unregistered), both owned by the new API-R110 in docs/spec/api/public-api.md.
+  review_follow_up: >-
+    Review found that LIM-API-25 and the maxRunEventDataBytes comment said
+    every enforcer counts the stored data text. 89c8038f corrects both: the
+    workflow_run_events CHECK on octet_length(data::text) is authoritative
+    and is what LIM-API-24 relies on; the Server append check measures the
+    submitted JSON bytes and is only a pre-check; the read check counts the
+    stored text; the constant also pre-checks Planner session state (stored
+    bound planner_session_state_size, the unregistered 2 MiB session JSON of
+    WFL-R87). A real-PostgreSQL probe (not committed) appended plan data of
+    2,097,121 compact bytes whose stored text is 2,097,652 bytes: the
+    pre-check passed, the CHECK rejected the statement with SQLSTATE 23514
+    and nothing was written (the Run event cursor stayed at 6). The store
+    returns that rejection unwrapped, not as ErrInvalid like the pre-check,
+    but no caller distinguishes them: Begin, the ADK and scan appends only
+    test ErrConflict, and streamline maps every RecordPlan/RecordFact error
+    to planner_plan_persistence_failed. So nothing is misclassified and
+    behaviour is unchanged.
+  remaining: None for this task.

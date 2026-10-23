@@ -5,8 +5,8 @@ import { Link } from "react-router";
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
 import {
-  CANCELLATION_REASON_LIMIT,
-  cancellationReasonLength,
+  CANCELLATION_REASON_BYTES,
+  validCancellationReason,
   cancelRun,
   getRunRepeatDraft,
   isTerminalRunState,
@@ -316,10 +316,11 @@ function useCancelRun(
   async function submit(): Promise<void> {
     mutation.reset();
     const normalized = reason.trim();
-    const length = cancellationReasonLength(normalized);
-    if (length === 0 || length > CANCELLATION_REASON_LIMIT) {
+    if (!validCancellationReason(normalized)) {
       setValidationError(
-        `Give a cancellation reason of 1–${CANCELLATION_REASON_LIMIT} characters.`,
+        normalized === ""
+          ? "Give a cancellation reason."
+          : `Shorten the reason to at most ${CANCELLATION_REASON_BYTES} bytes. Letters outside the Latin alphabet and emoji take 2 to 4 bytes each.`,
       );
       return;
     }
@@ -361,7 +362,7 @@ function useCancelRun(
     overlay: open ? (
       <CancelRunDialog
         reason={reason}
-        maxLength={CANCELLATION_REASON_LIMIT}
+        maxLength={CANCELLATION_REASON_BYTES}
         onReasonChange={(value) => {
           setReason(value);
           setValidationError(undefined);

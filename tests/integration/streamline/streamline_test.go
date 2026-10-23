@@ -108,11 +108,11 @@ func TestPostgresGatewayWorkerFlowRecoversWithoutSemanticReplay(t *testing.T) {
 		t.Fatalf("StageExecution = (%+v, %v)", execution, err)
 	}
 	runEvents, err := store.ListRunEvents(ctx, execution.RunID, 0, 1000)
-	if err != nil {
-		t.Fatalf("list Run events: %v", err)
+	if err != nil || runEvents.More {
+		t.Fatalf("list Run events: more=%t, %v", runEvents.More, err)
 	}
 	var events []runstore.WorkflowRunEvent
-	for _, event := range runEvents {
+	for _, event := range runEvents.Events {
 		if strings.HasPrefix(string(event.Kind), "planner.") {
 			events = append(events, event)
 		}
@@ -142,7 +142,7 @@ func TestPostgresGatewayWorkerFlowRecoversWithoutSemanticReplay(t *testing.T) {
 		plan.Subtasks[1].Status != planner.PlannerSubtaskSucceeded {
 		t.Fatalf("typed durable plan = (%+v, %t, %v)", plan, ok, err)
 	}
-	for index, event := range runEvents {
+	for index, event := range runEvents.Events {
 		payload := string(event.Data)
 		for _, forbidden := range []string{
 			gatewayToken, "sensitive objective", "sensitive planner guidance",

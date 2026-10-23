@@ -631,7 +631,7 @@ a task ID supplies a design or a performance improvement.
 | Existing work | Actual scope and relationship to this proposal |
 | --- | --- |
 | [V407-025](../../tasks/v407-025-persistence-indexes-and-triggers.yml) | Stage trigger scoping plus measured query/index work. Sequence a Stage fold after it if relying on its scoped definitions; add separate guards for new receipt tuples. |
-| [V407-028](../../tasks/v407-028-eval-member-bulk-freeze.yml), [V407-029](../../tasks/v407-029-eval-reads-plan-metadata.yml) | Bounded member-freeze batching and metadata-only plan reads; preserve their limits and remaining full-document readers in any Eval design. |
+| [V407-028](../../tasks/done/v407-028-eval-member-bulk-freeze.yml), [V407-029](../../tasks/v407-029-eval-reads-plan-metadata.yml) | Bounded member-freeze batching and metadata-only plan reads; preserve their limits and remaining full-document readers in any Eval design. |
 | [V409-001](../../tasks/done/v409-001-finding-correlation-project-lock.yml) | Finite retries around existing finding import/retention transactions, retaining the Project fence/revision. It supplies no new counter table or counter-home decision. |
 | [V409-003](../../tasks/done/v409-003-runstore-lock-order-and-cas.yml) | Correct Run-before-Stage locking in StartPlanner. Keep this defect separate; coordinate any Stage lock design with its corrected order and regression coverage. |
 | [V409-006](../../tasks/v409-006-trigger-column-scoping.yml) | Scoped trigger work preserving admission and projection side effects. StageExecution triggers belong to V407-025; this task does not establish that parent-inline claims are cheap. |

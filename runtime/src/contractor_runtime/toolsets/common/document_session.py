@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from contractor_runtime.artifacts import ArtifactClient, ArtifactResponseLimitError
 from contractor_runtime.contracts import ArtifactRef
 from contractor_runtime.core.input_errors import ToolInputError
+from contractor_runtime.threads import to_thread_until_done
 from contractor_runtime.toolsets.common.artifact_visibility import require_model_visible_binding
 from contractor_runtime.toolsets.common.document_write import write_document_exact
 
@@ -18,6 +19,9 @@ class DocumentSession[D]:
 
     Subclasses decode seeds, serialize documents and project the document
     state; loading, CAS writes, validation-task tracking and close are shared.
+    Work whose cost grows with the document or an argument runs through
+    ``_prepare`` in a worker thread while the operation holds the session
+    lock (RTA-R115).
     """
 
     media_type: str
@@ -41,14 +45,20 @@ class DocumentSession[D]:
         self._revision: str | None = None
 
     def _decode_seed(self, data: bytes) -> D:
+        """Decode and completely validate seed bytes; runs in a worker thread."""
+
         raise NotImplementedError
 
     def _serialize(self, document: D) -> bytes:
+        """Render a document that is already validated; runs in a worker thread."""
+
         raise NotImplementedError
 
     def _document_state(
-        self, artifact: ArtifactRef, target_name: str, document: D, *, changed: bool, copied: bool
+        self, artifact: ArtifactRef, target_name: str, size: int, *, changed: bool, copied: bool
     ) -> dict[str, Any]:
+        """Project the state of the stored document of ``size`` UTF-8 bytes."""
+
         raise NotImplementedError
 
     async def load(
@@ -79,34 +89,49 @@ class DocumentSession[D]:
                 raise ValueError("Artifact API did not preserve the requested exact revision")
             if value.media_type not in self.seed_media_types:
                 raise ToolInputError(self.seed_media_type_message)
-            document = self._decode_seed(value.data)
+            document = await self._prepare(self._decode_seed, value.data)
             same_binding = namespace == self._namespace and name == target_name
             if same_binding and value.media_type == self.media_type:
                 self._remember(document, target_name, value.artifact)
                 return self._document_state(
-                    value.artifact, target_name, document, changed=False, copied=False
+                    value.artifact, target_name, len(value.data), changed=False, copied=False
                 )
+            data = await self._prepare(self._serialize, document)
             written = await self._write(
-                document,
+                data,
                 target_name=target_name,
                 expected_revision=(value.artifact.revision if same_binding else expected_revision),
             )
             self._remember(document, target_name, written.artifact)
             return self._document_state(
-                written.artifact, target_name, document, changed=True, copied=True
+                written.artifact, target_name, len(data), changed=True, copied=True
             )
 
     async def close(self) -> None:
         task = self._validation_task
         if task is not None and task is not asyncio.current_task():
             task.cancel()
+        # An operation keeps the lock until its preparation thread has returned.
         async with self._lock:
             self._document = None
             self._target_name = None
             self._revision = None
 
+    async def _prepare[T](self, function: Callable[..., T], *args: Any) -> T:
+        """Run preparation in a worker thread and join it, even when cancelled.
+
+        The caller holds the session lock and waits until the thread returns,
+        so neither another operation nor ``close()`` can pass a running
+        preparation. The function returns new values from its arguments; the
+        session adopts a candidate only after its write succeeds.
+        """
+
+        if not self._lock.locked():
+            raise RuntimeError("document preparation requires the session lock")
+        return await to_thread_until_done(function, *args, name="document-preparation")
+
     async def _validating[T](self, operation: Awaitable[T]) -> T:
-        """Await a validator so close() can cancel it from another task."""
+        """Await a validation so close() can cancel it from another task."""
 
         self._validation_task = asyncio.current_task()
         try:
@@ -135,12 +160,13 @@ class DocumentSession[D]:
 
     async def _write(
         self,
-        document: D,
+        data: bytes,
         *,
         target_name: str,
         expected_revision: str | None,
     ) -> Any:
-        data = self._serialize(document)
+        """Write bytes that a preparation rendered from a validated document."""
+
         require_model_visible_binding(self._namespace, target_name)
         return await write_document_exact(
             self._client,

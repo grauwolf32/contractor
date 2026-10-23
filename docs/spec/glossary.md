@@ -264,7 +264,7 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Credential-encryption master key** — The 256-bit bootstrap key, kept outside PostgreSQL, that encrypts stored credential secrets. Owner: [Security](platform/security.md).
 
-**Credential-lifecycle barrier** — The lock shared by Run initialization, binding and Agent-label mutation, allocation config pinning and credential deletion so that no Run pins a key being deleted. Owner: [Runtime configuration, labels, credentials and Gateways](configuration/runtime-config.md).
+**Credential-lifecycle barrier** — The lock shared by Run initialization, RuntimeConfig publication and binding mutation, Project target attachment, allocation config pinning, Runtime credential use and credential deletion so that no Run pins a key being deleted. Owner: [Runtime configuration, labels, credentials and Gateways](configuration/runtime-config.md).
 
 **CSRF token** — The session-bound 32-byte random token that a cookie-authenticated non-safe request presents in X-CSRF-Token. Owner: [Public API](api/public-api.md).
 

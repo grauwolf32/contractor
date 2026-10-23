@@ -36,6 +36,14 @@ export const MAXIMUM_PROJECT_DESCRIPTION_LENGTH = schemaLimit(
   "properties",
   "description",
 );
+// The Server bounds the name and description in UTF-8 bytes, which these
+// rules check next to the character bounds of the form fields.
+const PROJECT_NAME = stringRule("CreateProjectRequest", "properties", "name");
+const PROJECT_DESCRIPTION = stringRule(
+  "CreateProjectRequest",
+  "properties",
+  "description",
+);
 // The Server bounds the target URL in UTF-8 bytes.
 const MAXIMUM_PROJECT_TARGET_URL_BYTES = schemaLimit(
   "ProjectHTTPTarget",
@@ -117,9 +125,8 @@ export function normalizeProjectRequest(
   const description = request.description?.trim() ?? "";
   if (
     !conformsTo("ProjectKind", request.kind) ||
-    name.length === 0 ||
-    name.length > MAXIMUM_PROJECT_NAME_LENGTH ||
-    description.length > MAXIMUM_PROJECT_DESCRIPTION_LENGTH
+    !PROJECT_NAME.test(name) ||
+    !PROJECT_DESCRIPTION.test(description)
   ) {
     throw new TypeError("Project metadata is invalid");
   }
@@ -269,10 +276,8 @@ export async function updateProject(
   const targetPresent = Object.hasOwn(options.request, "httpTarget");
   const httpTarget = options.request.httpTarget;
   if (
-    (name !== undefined &&
-      (name.length === 0 || name.length > MAXIMUM_PROJECT_NAME_LENGTH)) ||
-    (description !== undefined &&
-      description.length > MAXIMUM_PROJECT_DESCRIPTION_LENGTH)
+    (name !== undefined && !PROJECT_NAME.test(name)) ||
+    (description !== undefined && !PROJECT_DESCRIPTION.test(description))
   ) {
     throw new TypeError("Project metadata is invalid");
   }

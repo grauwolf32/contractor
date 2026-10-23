@@ -17,7 +17,9 @@ import (
 )
 
 // preparedAtNativeCeiling freezes a workflow plan with MaxNativeMembers members
-// whose cases share one input artifact.
+// whose cases share one input artifact through the production prepare path,
+// and checks the exact bounded number of member and plan resource INSERT
+// statements of the freeze.
 func (h *serviceHarness) preparedAtNativeCeiling(t *testing.T, capacity int) evalstore.Experiment {
 	t.Helper()
 	draft, data, _ := planInputs(t)
@@ -65,12 +67,33 @@ func (h *serviceHarness) preparedAtNativeCeiling(t *testing.T, capacity int) eva
 		t.Fatal(err)
 	}
 	e := h.get(t, ref.ExperimentID)
-	h.command(t, e, "prepare")
-	tick(t, h.coordinator(t, "prepare"))
+	// A projection queue row that exists before the freeze advances once per
+	// member INSERT statement, here once; the per-member loop advanced it once
+	// per member.
+	if _, err = h.pool.Exec(t.Context(), `INSERT INTO eval_projection_queue(experiment_id) VALUES ($1)`, e.ID); err != nil {
+		t.Fatal(err)
+	}
+	before, _, _ := projectionQueue(t, h.pool, e.ID)
+	statements := h.freezeInserts(t, func() {
+		h.command(t, e, "prepare")
+		tick(t, h.coordinator(t, "prepare"))
+	})
 	e = h.get(t, e.ID)
 	if e.State != evaldomain.StateReady || e.Expected != evaldomain.MaxNativeMembers {
 		t.Fatalf("prepare: state=%s members=%d diagnostic=%s", e.State, e.Expected, e.Diagnostic)
 	}
+	// 1,000 small recipes fit one member batch; 1,005 case, input, suite,
+	// binding and private resources take two (1,000 + 5 rows).
+	assertFreezeStatements(t, h.pool, e.ID, statements, 1, 2)
+	if after, _, _ := projectionQueue(t, h.pool, e.ID); after != before+1 {
+		t.Errorf("projection queue revision %d -> %d, want one advance for the one member statement", before, after)
+	}
+	assertMemberProjections(t, h.pool, e.ID, evaldomain.MaxNativeMembers)
+	byID := make(map[string]evaldomain.Case, len(data.Cases))
+	for _, c := range data.Cases {
+		byID[c.ID] = c
+	}
+	assertFrozenMembers(t, h.pool, e, byID)
 	return e
 }
 

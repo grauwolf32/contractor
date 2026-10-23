@@ -183,7 +183,7 @@ func validateActionDecision(params DecideActionReviewParams) error {
 	if !auditstore.ValidReviewIdentity(params.OwnerID, 256) || !auditstore.ValidReviewIdentity(params.AuditID, 256) ||
 		!auditstore.ValidReviewIdentity(params.RequestID, 256) || !auditstore.ValidReviewIdentity(params.DecisionID, 256) ||
 		params.ExpectedRequestRevision == 0 || !params.Action.Valid() ||
-		!validIdempotencyKey(params.IdempotencyKey) || !contentdigest.Valid(params.RequestDigest) ||
+		!contracts.ValidIdempotencyKey(params.IdempotencyKey) || !contentdigest.Valid(params.RequestDigest) ||
 		!validRationale(params.Rationale) {
 		return auditstore.ErrInvalid
 	}

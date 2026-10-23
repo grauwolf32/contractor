@@ -113,20 +113,31 @@ func (s *Scheduler) fenceRecordedAllocations(
 	if err != nil {
 		failures = append(failures, err)
 	} else {
-		for _, allocation := range allocations {
-			if _, ok := seen[allocation.AllocationID]; ok {
-				continue
-			}
-			if _, err := s.allocator.GetGrant(allocation.AllocationID); errors.Is(err, controlplane.ErrAllocationNotFound) {
-				continue
-			} else if err != nil {
-				failures = append(failures, err)
-				continue
-			}
-			if err := s.allocator.SetWriteFence(allocation.AllocationID); err != nil &&
-				!errors.Is(err, controlplane.ErrAllocationNotFound) {
-				failures = append(failures, err)
-			}
+		failures = append(failures, s.fenceLiveAllocations(allocations, seen))
+	}
+	return errors.Join(failures...)
+}
+
+// fenceLiveAllocations write-fences every durable allocation that still has a
+// live grant, except those already fenced through a reservation in seen.
+func (s *Scheduler) fenceLiveAllocations(
+	allocations []runstore.StageAllocation,
+	seen map[string]struct{},
+) error {
+	var failures []error
+	for _, allocation := range allocations {
+		if _, ok := seen[allocation.AllocationID]; ok {
+			continue
+		}
+		if _, err := s.allocator.GetGrant(allocation.AllocationID); errors.Is(err, controlplane.ErrAllocationNotFound) {
+			continue
+		} else if err != nil {
+			failures = append(failures, err)
+			continue
+		}
+		if err := s.allocator.SetWriteFence(allocation.AllocationID); err != nil &&
+			!errors.Is(err, controlplane.ErrAllocationNotFound) {
+			failures = append(failures, err)
 		}
 	}
 	return errors.Join(failures...)

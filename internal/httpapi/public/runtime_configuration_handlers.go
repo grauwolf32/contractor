@@ -481,11 +481,9 @@ func (h *runtimeConfigurationHandlers) deleteRuntimeCredential(w http.ResponseWr
 	}
 	// The tombstone makes deletion idempotent by credential ID, so the key is
 	// optional and not bound; a supplied one must still be well formed.
-	if len(r.Header.Values(idempotencyKeyHeader)) != 0 {
-		if _, err := requireIdempotencyKey(r); err != nil {
-			handleError(w, err)
-			return
-		}
+	if err := validateOptionalIdempotencyKey(r); err != nil {
+		handleError(w, err)
+		return
 	}
 	result, err := h.RuntimeCredentials.Delete(
 		r.Context(), id, principalUserID(r.Context()),
