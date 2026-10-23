@@ -149,6 +149,12 @@ To enable all five scanners, both validators, and offline/networked rootless
 Podman on the existing cloud hosts, rerun the deployment with the same pinned
 revision and add `--full-capabilities`:
 
+The full wrapper profile enables exact systemd scope bounds for the dedicated
+Runtime account (needed by Ubuntu 24.04 / Podman 4.9). CPU, memory and PID
+defaults come from the deployed Runtime parser; slots sharing that account
+must use the same resource bounds. Ansible prepares cold keep-id image layers
+before starting the Runtime, without starting a container or binding host data.
+
 ```sh
 python3 deploy/hybrid/runtime.py \
   --contractor /absolute/path/existing/bin/contractor \

@@ -17,6 +17,7 @@ uvx --from "$ansible_core" ansible-playbook -i tests/inventory.yml tests/resolve
 # With no executables on PATH the Runtime's own probes must advertise neither
 # validator nor any scanner; instance.yml relies on this output shape.
 python=$(cd "$repo_dir/runtime" && uv run --locked python -c 'import sys; print(sys.executable)')
+"$python" -I tests/test_scope_policy.py
 probe=$(env -i PATH=/nonexistent LANG=C.UTF-8 HOME=/nonexistent \
   "$python" -I roles/contractor_runtime/files/probe_tools.py)
 printf '%s' "$probe" | "$python" -I -c '

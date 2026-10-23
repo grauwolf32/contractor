@@ -61,12 +61,22 @@ Then check placement in **Operations → Runtime Agents** or with
 5. **Podman.** Checks `podman info` (rootless, cgroup v2, systemd cgroup
    manager, seccomp) and `pasta`, then builds `deploy/podman` offline as the
    service account and uses the image's `repository@sha256` digest, unless
-   `contractor_runtime_podman_image` names one.
+   `contractor_runtime_podman_image` names one. Prepares the image's keep-id
+   layers with an unstarted provisioning container, without host binds or
+   inherited credentials (300 s create budget, 30 s removal budget). This
+   avoids spending the Runtime self-test budget on the first image copy.
+   Only that exact provisioning container is removed. On uncertain failure,
+   deployment stops and reports its name for reconciliation.
 6. **Instances.** For each instance: issue its certificate once on the PKI
    host and copy it, create its roots, link the executables of its enabled
    capabilities into a bin directory named by their digest, run the Runtime's
    own `parse_settings` over the exact argv and the Runtime's tool probes
-   under the instance's `PATH`, and write its user unit.
+   under the instance's `PATH`, and write its user unit. When enabled, derive
+   shared Podman scope bounds with the deployed parser and reject mixed
+   CPU/memory/PID policies before changing the scope configuration. The scope
+   option applies to a dedicated account only; setting it back to false leaves
+   the existing host policy unmanaged. Remove that drop-in explicitly after
+   draining the account if it is no longer needed.
 7. **Start.** Stops and removes instances marked `state: absent`, then starts
    stopped instances and restarts changed ones one at a time, each verified
    from its journal before the next.
@@ -112,6 +122,7 @@ ones most inventories set:
 | `contractor_runtime_adapters` | `null` | `null` probes every built-in adapter; a list selects a subset. |
 | `contractor_runtime_allowed_target_networks` | `[]` | CIDRs passed as `--allowed-target-network`. |
 | `contractor_runtime_workspace_limits`, `contractor_runtime_podman_limits` | `{}` | `--workspace-<key>` / `--podman-<key>` settings, e.g. `{cpus: 4}`. |
+| `contractor_runtime_podman_scope_limits` | `false` | Set CPU, memory, swap and PID bounds on all `libpod-*.scope` units of the dedicated Runtime account. Needed on Ubuntu 24.04 with Podman 4.9. All Podman instances in that account must have identical CPU, memory and PID limits; the deployed Runtime parser supplies defaults and validates this before the scope policy changes. |
 | `contractor_runtime_extra_args`, `contractor_runtime_extra_environment` | empty | Further Runtime flags and environment. |
 | `contractor_runtime_version` | `HEAD` | Commit-ish of `contractor_runtime_source_repo` to deploy. |
 | `contractor_runtime_pki_host`, `contractor_runtime_pki_root`, `contractor_runtime_pki_command` | `localhost`, `<repo>/.local/pki`, `contractor` | Where certificates are issued. |

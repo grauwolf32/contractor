@@ -121,6 +121,11 @@ contractor_runtime_podman_image_repository: localhost/contractor-supervisor
 # Pull the digest-pinned base image named in the Containerfile when missing.
 # Set false on an air-gapped host and load it into the account's store first.
 contractor_runtime_podman_pull_base_image: true
+# Set exact resource bounds on libpod scopes of this dedicated account.
+# Required by e.g. Ubuntu 24.04 / Podman 4.9; all enabled instances must then
+# use identical CPU, memory and PID limits (checked with the Runtime parser).
+# Do not enable for an account used by other Podman applications.
+contractor_runtime_podman_scope_limits: false
 
 # Service ---------------------------------------------------------------------
 
