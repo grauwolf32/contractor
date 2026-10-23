@@ -111,10 +111,15 @@ class ProjectGlob:
     """
 
     pattern: str
-    # One fnmatchcase matcher per component, or None for "**".
+    # One fnmatchcase matcher per component, or None for "**". A run of "**"
+    # components means the same as one and is compiled as one, so no two
+    # adjacent entries are None.
     _components: tuple[Callable[[str], object] | None, ...] = field(repr=False)
-    # The component indices reachable from each index by letting "**"
-    # components match nothing; index len(_components) means a full match.
+    # The component indices reachable from each index by letting a "**"
+    # component match nothing; index len(_components) means a full match.
+    # Without adjacent "**" entries each closure holds at most two indices,
+    # so one path component costs O(len(_components)) and a path
+    # O(path components x glob components).
     _closures: tuple[frozenset[int], ...] = field(repr=False)
 
     def matches(self, path: str) -> bool:
@@ -145,10 +150,13 @@ def compile_project_glob(value: str) -> ProjectGlob:
     """Normalize ``value`` once, as normalize_project_glob does, and compile it."""
 
     pattern = normalize_project_glob(value)
-    components = tuple(
-        None if part == "**" else re.compile(fnmatch_translate(part)).match
-        for part in pattern.split("/")
-    )
+    compiled: list[Callable[[str], object] | None] = []
+    for part in pattern.split("/"):
+        if part != "**":
+            compiled.append(re.compile(fnmatch_translate(part)).match)
+        elif not compiled or compiled[-1] is not None:
+            compiled.append(None)
+    components = tuple(compiled)
     closures: list[frozenset[int]] = []
     for index in range(len(components) + 1):
         reachable = [index]

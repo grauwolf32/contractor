@@ -4,6 +4,7 @@ import itertools
 import unicodedata
 from fnmatch import fnmatchcase
 from functools import cache
+from typing import Any
 
 import pytest
 
@@ -108,6 +109,46 @@ def test_compiled_glob_matches_exactly_like_per_path_matching() -> None:
             assert glob.matches(path) is reference_glob_matches(path, pattern), (path, pattern)
             checked += 1
     assert checked > 250_000
+
+
+@pytest.mark.parametrize(
+    ("pattern", "components"),
+    [
+        ("/".join(["**"] * 128), 1),
+        ("/".join(["**"] * 127 + ["zz"]), 2),
+        ("a/**/**/b/**/**/**", 4),
+        ("/".join(["**", "*a"] * 32), 64),
+    ],
+)
+def test_double_star_runs_compile_once_and_bound_matching_work(
+    pattern: str, components: int
+) -> None:
+    glob = compile_project_glob(pattern)
+    # The normalized pattern, and so every cursor query digest, is unchanged.
+    assert glob.pattern == normalize_project_glob(pattern)
+    assert len(glob._components) == components
+    assert max(len(closure) for closure in glob._closures) <= 2
+    counting = _CountingClosures(glob._closures)
+    object.__setattr__(glob, "_closures", counting)
+    for depth in (20, 60, 120):
+        middle = [f"d{index}a" for index in range(depth - 3)]
+        for last in ("zz", "yy"):
+            path = "/".join(["a", *middle, "b", last])
+            counting.transitions = 0
+            assert glob.matches(path) is reference_glob_matches(path, pattern)
+            # A path component unions at most two indices for each live state.
+            assert counting.transitions <= 2 + 2 * (components + 1) * depth
+
+
+class _CountingClosures(tuple[frozenset[int], ...]):
+    """A compiled closure table that counts the state indices matching unions."""
+
+    transitions = 0
+
+    def __getitem__(self, index: Any) -> Any:
+        closure = super().__getitem__(index)
+        self.transitions += len(closure)
+        return closure
 
 
 def _valid_glob(pattern: str) -> bool:
