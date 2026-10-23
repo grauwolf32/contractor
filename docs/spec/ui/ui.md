@@ -1256,3 +1256,13 @@ It reports actual Server admission and Run states, without interpreting a
 completed sweep as clean coverage. Cancellation retains Server state; terminal
 purge requires confirmation and preserves child Runs/reports and owner inputs.
 Reads reuse the response ceiling LIM-SCN-79 and no page fetches the full sweep.
+
+**UI-R206.** Specialized scanner result and Audit input views are bundled
+widgets too. Result dispatch uses the report's tool and supported schema,
+independently of its originating Workflow; shared error outcomes remain one
+definition. ffuf completeness and Katana discovery presentation belong to their
+registered adapters. Audit Nuclei/SQLMap widgets own prepared-target labels and
+coverage kind identity; hosts retain authorized evidence links and receipts.
+Unknown reports keep raw preview; unsupported scanner input views remain
+explicit and preserve evidence access. Generic lifecycle and format-based
+OpenAPI/LikeC4 previews remain shared.

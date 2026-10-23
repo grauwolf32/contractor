@@ -1,6 +1,6 @@
 import type { Audit } from "../../../api/audits";
 import { ContextLink } from "../../../app/context-navigation";
-import { Facts, StatusChip, TechnicalDetails } from "../../../ui";
+import { AuditScanInputsWidget } from "../../../widgets/audit-scans/view";
 import { exactArtifactLink } from "./artifact-links";
 import type { CheckEntry } from "./check-model";
 import { AuditMaterial } from "./material";
@@ -63,107 +63,48 @@ export function ScanInputs({
       ? `result/${entry.item.lastExecutionItemId}`
       : undefined;
   return (
-    <section
-      className="checks-scan-inputs"
-      aria-label="Scan inputs and evidence"
-    >
-      <div className="ui-toolbar" data-justify="between">
-        <h3>
-          {scan.scanner === "nuclei"
-            ? "Nuclei · URL template check"
-            : "SQLMap · Request check"}
-        </h3>
-        <StatusChip tone={scan.runnable ? "info" : "blocked"}>
-          {scan.runnable ? "Input prepared" : "Input incomplete"}
-        </StatusChip>
-      </div>
-      <p>
-        {scan.scanner === "nuclei"
-          ? "Checks templates against the fixed URL. It does not replay the OpenAPI method, request body or authenticated session."
-          : "Checks the prepared request and selected test parameters. A finished scan leaves security coverage inconclusive until its observations are verified."}
-      </p>
-      <ol className="checks-input-chain">
-        <li>
-          <ScanSource audit={audit} artifact={scan.source} label="API spec" />
-          <span className="ui-caption">Exact source of this endpoint</span>
-        </li>
-        <li>
-          <ScanSource
-            audit={audit}
-            artifact={scan.settings}
-            label="Scan settings"
-          />
-          <span className="ui-caption">Pinned operation bindings</span>
-        </li>
-        <li>
-          <strong>
-            {scan.scanner === "nuclei" ? "Fixed URL" : "Prepared request"}
-          </strong>
-          <span className="ui-caption">
-            {scan.scanner === "nuclei"
-              ? (scan.targetUrl ?? "Unavailable")
-              : scan.testParameters.join(", ") || "No test parameters"}
-          </span>
-        </li>
-        <li>
-          {receipt === undefined || result === undefined ? (
-            <span className="ui-caption">No loaded accepted report</span>
-          ) : (
-            <>
-              <AuditMaterial
-                auditId={audit.auditId}
-                artifact={result}
-                receipt={receipt}
-                label="Saved result package"
-              />
-              {entry.row.details?.evidence
-                .filter((evidence) => evidence.contentMemberId !== undefined)
-                .map((evidence) => (
-                  <AuditMaterial
-                    key={evidence.id}
-                    auditId={audit.auditId}
-                    artifact={result}
-                    receipt={receipt}
-                    member={evidence.contentMemberId}
-                    label={
-                      evidence.kind === "scanner-report"
-                        ? "Scanner report"
-                        : evidence.summary
-                    }
-                  />
-                ))}
-            </>
-          )}
-        </li>
-      </ol>
-      {scan.gaps.length === 0 ? null : (
-        <ul className="checks-string-list">
-          {scan.gaps.map((gap) => (
-            <li key={gap}>{gap}</li>
-          ))}
-        </ul>
-      )}
-      <TechnicalDetails summary="Exact scan provenance">
-        <Facts
-          size="sm"
-          items={[
-            { term: "Operation", value: <code>{scan.operation}</code> },
-            {
-              term: "Preparation",
-              value: <code>{scan.preparationDigest}</code>,
-            },
-            {
-              term: "Request",
-              value:
-                scan.requestDigest === undefined ? (
-                  "URL mode"
-                ) : (
-                  <code>{scan.requestDigest}</code>
-                ),
-            },
-          ]}
+    <AuditScanInputsWidget
+      scan={scan}
+      source={
+        <ScanSource audit={audit} artifact={scan.source} label="API spec" />
+      }
+      settings={
+        <ScanSource
+          audit={audit}
+          artifact={scan.settings}
+          label="Scan settings"
         />
-      </TechnicalDetails>
-    </section>
+      }
+      result={
+        receipt === undefined || result === undefined ? (
+          <span className="ui-caption">No loaded accepted report</span>
+        ) : (
+          <>
+            <AuditMaterial
+              auditId={audit.auditId}
+              artifact={result}
+              receipt={receipt}
+              label="Saved result package"
+            />
+            {entry.row.details?.evidence
+              .filter((evidence) => evidence.contentMemberId !== undefined)
+              .map((evidence) => (
+                <AuditMaterial
+                  key={evidence.id}
+                  auditId={audit.auditId}
+                  artifact={result}
+                  receipt={receipt}
+                  member={evidence.contentMemberId}
+                  label={
+                    evidence.kind === "scanner-report"
+                      ? "Scanner report"
+                      : evidence.summary
+                  }
+                />
+              ))}
+          </>
+        )
+      }
+    />
   );
 }
