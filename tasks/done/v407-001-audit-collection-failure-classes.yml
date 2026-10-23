@@ -6,7 +6,7 @@ epic: audits
 kind: defect
 introduced_by: V45-004
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - go
@@ -96,3 +96,66 @@ tests:
   - A2
   - A3
   - A4
+implementation_commit: 784dd2e5ca533951aa135277cf14c6d9daac1c21
+verification:
+  date: '2026-10-23'
+  environment: macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local); PostgreSQL 17.11 database contractor_test_a
+    with disposable per-test databases and schemas; locked Runtime venv and UI dependencies.
+  commands:
+  - test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1 ./internal/auditimport/...
+    ./internal/auditscan/... ./internal/auditcontroller/... passed with no skipped test (checked with -v).
+  - go test -count=1 ./internal/auditimport/... ./internal/auditscan/... ./internal/auditcontroller/...
+    passed.
+  - go test -tags=integration -count=1 ./internal/planner/scan/... ./internal/planner/session/... passed
+    (planner/scan also calls auditscan.BuildResult).
+  - make lint passed, including staticcheck U1000, testonlyexports, spec and task checks.
+  database_tests_configured: true
+  evidence:
+  - 'Regression tests fail on base ac982d28 (new tests copied into a temporary base worktree, since removed):
+    TestCollectionKeepsPinnedStandardFailureClassAfterProposalsWereRetained (transient read and both invalid-pin
+    cases committed invalid-result), TestPostgresStandardReadFailureAfterRetentionKeepsExecutionCollecting
+    (attempt 2 committed a receipt), TestPostgresScanRecoveryCollectionKeepsFailureClasses (invalid plan and
+    report returned "retained scan plan/scanner report is invalid" on every reconcile) and
+    TestImporterSettlesFailedPreparationWithInvalidPinnedProfileAsContractInvalid (plain decode error). The
+    auditscan tests use the new ErrInvalid and do not compile on the base.'
+  - 'The completion fixture baseline lacked labels and requiredPlacementLabels, so on the base every
+    PostgreSQL test using it failed in Run creation with "stored Audit placement requirements are invalid"
+    (TestAuditCompletionRuntimeZIPImporter, the report-retention tests and
+    TestPostgresContractInvalidCollectionRetainsProposalAfterRunDeletion). The fixture now pins both, empty;
+    those tests run and pass again.'
+  siblings_changed:
+  - check_results.go resolveMemberProposals (finding claim at check_results.go:240-244) now propagates
+    standard-loader errors unchanged; a task/standard mismatch is ErrPermanent; only proposal standard
+    references are invalid-result (validateResolvedProposalStandards).
+  - auditscan evidence.go plan/report decode (finding at evidence.go:62-64,112-113), result.go assignment,
+    journal and package assembly, and an oversize retained artifact now return auditscan.ErrInvalid; reads and
+    cancellation return unchanged.
+  - scan_recovery.go maps auditscan.ErrInvalid, a manifest that does not decode and a scan Run whose Audit
+    execution or Project differs to ErrPermanent (finding at scan_recovery.go:79-86).
+  - scan_retention.go assembled package decode and semantic coverage, and preparation.go:23-25 AuditProfile
+    decode, are ErrPermanent. The task's claim that preparation.go is protected by an earlier decode is wrong
+    for failed and cancelled preparation executions, which reach commitRoleFailure without decoding the
+    profile first (tested).
+  siblings_ruled_out:
+  - standards.go loader errors on the retention path already propagate unchanged; check_results.go:73-75
+    (manifest) and importer.go prepareMembers task decode, collectSucceeded and collectSucceededRole profile
+    decodes already return ErrPermanent.
+  - Scan journal plan and report references are exact (planner session validateScanState on every encode and
+    decode), so ErrExactRevisionRequired cannot reach collection; the pinned manifest and task are read by
+    digest after Round materialization validated them, so their ErrPermanent branches and the scan Run
+    identity checks are defensive.
+  - artifacts.ErrArtifactIntegrity and every other read error stay retryable, per scope.out.
+  - '"Audit scan attempt is not terminal" (Scheduler-owned Stage state) and decode errors inside
+    planner/session ReadAuditScanHistory (shared with dispatch recovery and validated on write) are left
+    retryable; finding-task proposal resolution (finding-task-proposal-invalid) is unchanged.'
+  declined:
+  - planner/scan finishAudit still maps every BuildResult error, transient reads included, to the
+    non-retryable audit_scan_result_invalid Stage failure; that Planner classification belongs to V407-008,
+    and collection recovers the scan from its journal either way.
+  - Equal batch constants (pagelimit and receipt batch, both 200) are out of scope.
+  observations:
+  - While writing the PostgreSQL A1 test, repeating Collect with the same stale snapshot after an
+    accepted-result commit with a finding association returned auditstore.ErrConflict (request digest
+    differed) instead of replaying. The Controller does not repeat Collect for a collected execution, so no
+    reconcile path reaches it; the cause was not investigated. The contract-invalid replay is tested and
+    replays the one receipt.
