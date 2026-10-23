@@ -295,7 +295,8 @@ best-effort A2A cancellation. Externally requested cancellation is never
 reported as `worker_timeout`, a sandbox failure keeps its own code, and the
 timeout of a nested operation, such as the Gateway attempt series (WRK-R13,
 WRK-R157), keeps that operation's failure. A summarizer call cut off by the
-deadline is recorded with the `cancelled` cause (WRK-R155).
+deadline, and a summarization request the deadline overtakes before that call
+starts, are recorded with the `cancelled` cause (WRK-R107, WRK-R155).
 
 **WRK-R168.** The deadline bounds the semantic work of WRK-R158 and WRK-R167,
 not what follows its outcome. Pre-terminal workspace auto-export
@@ -940,7 +941,12 @@ history. Allocation-wide metrics continue across sequential invocations.
 provider prompt-token count in invocation metrics and a required closed
 summarizer section. The section is `disabled` when the pinned AgentTemplate has
 no summarizer; otherwise it moves monotonically through
-`not_requested -> requested -> succeeded|failed`.
+`not_requested -> requested -> succeeded|failed`. No completed invocation
+keeps a `requested` section: when an invocation ends after the request and
+before the summarizer records its outcome, for example through its deadline,
+cancellation or a sandbox failure, completing it closes the section as
+`failed` with the `cancelled` cause and no summarizer usage, and the summarizer
+aggregate (WRK-R155) counts that cancelled attempt.
 
 **WRK-R108.** The summarizer section retains only the normal-loop
 state revision that caused the request, bounded one-call numeric summarizer

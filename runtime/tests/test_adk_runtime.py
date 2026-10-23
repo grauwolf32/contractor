@@ -2952,6 +2952,9 @@ def test_deadline_during_an_ordinary_phase_cancels_and_joins_its_work(
         if phase == "summarizer":
             assert completed["summarizer"]["phase"] == "failed"
             assert completed["summarizer"]["failureCode"] == "cancelled"
+        # The terminal revision satisfies the Worker State contract.
+        agent_state = await runtime.agent_state_snapshot()
+        assert agent_state.state.last_completed_invocation is not None
         if phase in {"model", "result_finalizer"}:
             model_spans = [
                 span for span in instrumentation.spans if span.name == "contractor.worker.model"
@@ -2966,7 +2969,7 @@ def test_deadline_during_an_ordinary_phase_cancels_and_joins_its_work(
     run_with_advanceable_clock(scenario())
 
 
-@pytest.mark.parametrize("boundary", ["next_model_call", "result_finalizer", "summarizer"])
+@pytest.mark.parametrize("boundary", ["next_model_call", "result_finalizer"])
 def test_deadline_passing_at_a_step_boundary_starts_no_next_call(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, boundary: str
 ) -> None:
@@ -2981,26 +2984,14 @@ def test_deadline_passing_at_a_step_boundary_starts_no_next_call(
 
         state = WorkerState()
         instrumentation = RecordingInstrumentation()
-        summary_model = None
         if boundary == "next_model_call":
             model = scripted_model(
                 [tool_call("probe", {}, call_id="probe-1"), terminal_text("late")]
             )
-        elif boundary == "result_finalizer":
-            model = scripted_model([terminal_text("late")])
         else:
-            model = scripted_model([tool_call("probe", {}, call_id="probe-before-summary")])
-            summary_model = scripted_model(
-                [structured_result("late")], model="worker-summary-model"
-            )
+            model = scripted_model([terminal_text("late")])
         runtime = await create_runtime(
-            tmp_path,
-            state,
-            {"probe": probe},
-            model,
-            instrumentation=instrumentation,
-            summary_model=summary_model,
-            cumulative_budget=10 if summary_model is not None else None,
+            tmp_path, state, {"probe": probe}, model, instrumentation=instrumentation
         )
         if boundary == "next_model_call":
 
@@ -3010,20 +3001,13 @@ def test_deadline_passing_at_a_step_boundary_starts_no_next_call(
                     advance_clock(PAST_STAGE_DEADLINE_SECONDS)
 
             monkeypatch.setattr(runtime._plugin, "on_event_callback", on_event)
-        elif boundary == "result_finalizer":
+        else:
 
             async def after_run(*, invocation_context: Any) -> None:
                 del invocation_context
                 advance_clock(PAST_STAGE_DEADLINE_SECONDS)
 
             monkeypatch.setattr(runtime._plugin, "after_run_callback", after_run)
-        else:
-            # ADK reports the summarization request as a run error from this task.
-            async def on_run_error(*, invocation_context: Any, error: Exception) -> None:
-                del invocation_context, error
-                advance_clock(PAST_STAGE_DEADLINE_SECONDS)
-
-            monkeypatch.setattr(runtime._plugin, "on_run_error_callback", on_run_error)
 
         # The guard outlives the clock jump that happens during the invocation.
         completion = await asyncio.wait_for(
@@ -3032,7 +3016,7 @@ def test_deadline_passing_at_a_step_boundary_starts_no_next_call(
 
         assert_worker_timeout(completion)
         # A call counts as started before the provider sees it: only the first
-        # main model call started, and no model, finalizer or summarizer followed.
+        # main model call started, and no model or finalizer call followed.
         assert state.metrics.counters["llm_calls"] == 1
         assert len(model.requests) == 1
         model_spans = [
@@ -3040,21 +3024,98 @@ def test_deadline_passing_at_a_step_boundary_starts_no_next_call(
         ]
         assert len(model_spans) == 1
         assert model_spans[0].outcome == "succeeded"
-        snapshot = await state.snapshot()
-        completed = snapshot["lastCompletedInvocation"]
-        if boundary == "summarizer":
-            assert summary_model is not None and summary_model.requests == []
-            assert completed["summarizer"]["phase"] == "requested"
-            assert (
-                state.metrics.build_report(
-                    report_id="worker-report", duration_ms=1
-                ).metrics.summarizer
-                is None
-            )
-        else:
-            assert tool_calls == ([] if boundary == "result_finalizer" else ["probe"])
+        assert tool_calls == ([] if boundary == "result_finalizer" else ["probe"])
         assert_slot_released(runtime)
         await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    run_with_advanceable_clock(scenario())
+
+
+@pytest.mark.parametrize("ending", ["deadline_check", "deadline_timer", "cancellation"])
+def test_an_invocation_ending_before_its_summarizer_starts_closes_the_request(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ending: str
+) -> None:
+    """The request is committed; the invocation ends before the summarizer runs."""
+
+    async def scenario() -> None:
+        async def probe() -> dict[str, bool]:
+            return {"ok": True}
+
+        state = WorkerState()
+        instrumentation = RecordingInstrumentation()
+        model = scripted_model([tool_call("probe", {}, call_id="probe-before-summary")])
+        summary_model = scripted_model([structured_result("late")], model="worker-summary-model")
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {"probe": probe},
+            model,
+            instrumentation=instrumentation,
+            summary_model=summary_model,
+            cumulative_budget=10,
+        )
+        parked = asyncio.Event()
+        never_released = asyncio.Event()
+
+        # ADK reports the committed summarization request as a run error from
+        # the invocation's own task, before Runtime starts the summarizer.
+        async def on_run_error(*, invocation_context: Any, error: Exception) -> None:
+            del invocation_context, error
+            if ending == "deadline_check":
+                # The deadline passes without this task yielding to its timer.
+                advance_clock(PAST_STAGE_DEADLINE_SECONDS)
+                return
+            parked.set()
+            await never_released.wait()
+
+        monkeypatch.setattr(runtime._plugin, "on_run_error_callback", on_run_error)
+        invocation = asyncio.create_task(runtime.invoke(stage_request()))
+        if ending != "deadline_check":
+            await asyncio.wait_for(parked.wait(), timeout=5)
+            if ending == "deadline_timer":
+                advance_clock(PAST_STAGE_DEADLINE_SECONDS)
+            else:
+                runtime.cancel_active(invocation)
+
+        if ending == "cancellation":
+            with pytest.raises(asyncio.CancelledError):
+                await asyncio.wait_for(invocation, timeout=5)
+            expected_phase = "cancelled"
+        else:
+            # The guard outlives the clock jump that happens during the invocation.
+            assert_worker_timeout(
+                await asyncio.wait_for(invocation, timeout=PAST_STAGE_DEADLINE_SECONDS + 10)
+            )
+            expected_phase = "failed"
+
+        # No summarizer call started, and the request did not stay pending.
+        assert summary_model.requests == []
+        assert len(model.requests) == 1
+        snapshot = await state.snapshot()
+        completed = snapshot["lastCompletedInvocation"]
+        assert completed["phase"] == expected_phase
+        summarizer = completed["summarizer"]
+        assert summarizer["phase"] == "failed"
+        assert summarizer["failureCode"] == "cancelled"
+        assert summarizer["modelCalls"] == 0
+        summary_metrics = state.metrics.build_report(
+            report_id="worker-report", duration_ms=1
+        ).metrics.summarizer
+        assert summary_metrics is not None
+        assert (summary_metrics.attempts, summary_metrics.failed) == (1, 1)
+        assert summary_metrics.model_calls == 0
+        assert summary_metrics.failure_codes == {"cancelled": 1}
+        # GET Worker State validates the terminal revision instead of failing.
+        agent_state = await runtime.agent_state_snapshot()
+        assert agent_state.state.last_completed_invocation is not None
+        assert agent_state.state.last_completed_invocation.phase == expected_phase
+        assert agent_state.state.last_completed_invocation.summarizer.phase == "failed"
+        if ending == "cancellation":
+            assert not runtime._invoke_lock.locked()
+            await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+        else:
+            assert_slot_released(runtime)
+            await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
     run_with_advanceable_clock(scenario())
 
