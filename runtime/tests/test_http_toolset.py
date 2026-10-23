@@ -478,7 +478,13 @@ def test_malformed_urls_fail_before_send_without_proxy_retries(
 
 @pytest.mark.parametrize(
     ("route", "injection"),
-    [("direct", "transport"), ("direct", "capture"), ("proxy", "capture")],
+    [
+        ("direct", "transport"),
+        ("direct", "client"),
+        ("proxy", "client"),
+        ("direct", "capture"),
+        ("proxy", "capture"),
+    ],
 )
 def test_unexpected_send_exception_reaches_tool_error_callback_unclassified(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, route: str, injection: str
@@ -507,11 +513,21 @@ def test_unexpected_send_exception_reaches_tool_error_callback_unclassified(
                 raise TypeError(f"injected implementation failure {SECRET}")
             return original_from_request(cls, request, target_credential=target_credential)
 
+        original_extract_cookies = httpx.Cookies.extract_cookies
+
+        def failing_extract_cookies(cookies: httpx.Cookies, response: httpx.Response) -> None:
+            # httpx client code that runs after the transport on both routes.
+            if response.request.url.path == "/bug":
+                raise TypeError(f"injected implementation failure {SECRET}")
+            original_extract_cookies(cookies, response)
+
         monkeypatch.setattr(http_tools, "_retry_sleep", record_retry)
         if injection == "capture":
             monkeypatch.setattr(
                 http_tools.CapturedAttempt, "from_request", classmethod(failing_from_request)
             )
+        if injection == "client":
+            monkeypatch.setattr(httpx.Cookies, "extract_cookies", failing_extract_cookies)
         state = WorkerState()
         proxy_client: httpx.AsyncClient | None = None
         if route == "direct":
@@ -551,7 +567,7 @@ def test_unexpected_send_exception_reaches_tool_error_callback_unclassified(
                 },
             }
             assert delays == []
-            assert calls == (["/bug"] if injection == "transport" else [])
+            assert calls == ([] if injection == "capture" else ["/bug"])
 
             # A known connection failure keeps its classified retryability and
             # the idempotent retry policy.
@@ -572,10 +588,10 @@ def test_unexpected_send_exception_reaches_tool_error_callback_unclassified(
             assert raised is None
             assert response["request_id"] == 3
             history = {item["request_id"]: item for item in await tools["http_history"]()}
-            if injection == "transport":
-                assert history[1]["error"] == "transport_error"
-            else:
+            if injection == "capture":
                 assert 1 not in history
+            else:
+                assert history[1]["error"] == "transport_error"
             assert history[2]["error"] == "transport_error"
             assert history[3]["status"] == 200
             retained = repr(state.metrics)

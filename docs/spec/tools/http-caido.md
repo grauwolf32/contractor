@@ -921,10 +921,13 @@ variables or arbitrary server text.
 their error codes: their own errors, Artifact client errors, capture
 validation, the `httpx` and operating-system transport errors of the Caido
 adapter, and the `httpx` errors and `tool-http` route failure of
-`http_request`. Any other exception is an implementation failure. It keeps its
-type, is never reported or retried as a transport failure, and reaches the
-Worker's tool-error handling, which answers the model with the non-retryable
-`tool_call_failed` that names only the tool and the exception class
+`http_request`. Every failure inside the route's transport, which the model
+Gateway shares, is a route failure; building a request is not routing, so
+input that cannot form one is invalid (HTP-R33) on both routes. Any other
+exception is an implementation failure. It keeps its type, is never reported
+or retried as a transport failure, and reaches the Worker's tool-error
+handling, which answers the model with the non-retryable `tool_call_failed`
+that names only the tool and the exception class
 ([OBS-R32](../platform/observability.md)). The Caido adapter still records the
 failed operation. A Caido mutation that fails this way is not retried and its
 request tag is not reused (HTP-R99, HTP-R108). An `http_request` attempt that
