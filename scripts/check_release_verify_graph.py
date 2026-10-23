@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Keep the release gate's deduplicated Go suites complete."""
 
+from __future__ import annotations
+
 import importlib.util
 import os
 import re
@@ -10,7 +12,7 @@ from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
-from release_integration_tests import BUILD_TAG, EXCEPTIONS, TEST, discover
+from release_integration_tests import BUILD_TAG, EXCEPTIONS, TEST, discover, release_selection
 from release_race_packages import EXCEPTIONS as RACE_EXCEPTIONS
 from release_race_packages import packages_with_tests
 
@@ -297,14 +299,15 @@ def check_release_graph() -> list[str]:
         )
     if len(races) != 2:
         raise SystemExit(f"release gate has {len(races)} untagged race commands, want the explicit and discovered passes")
-    if process_commands != 3 or set(process_tests) != EXPECTED_PROCESS_TESTS or any(
+    expected_process = EXPECTED_PROCESS_TESTS | set(load_script("scripts/test-findings-e2e.py").PROCESS_TESTS)
+    if process_commands != 3 or set(process_tests) != expected_process or any(
         count != 1 for count in process_tests.values()
     ):
         raise SystemExit(
             "release process test set changed: "
             f"commands={process_commands}, "
-            f"missing={sorted(EXPECTED_PROCESS_TESTS - set(process_tests))}, "
-            f"added={sorted(set(process_tests) - EXPECTED_PROCESS_TESTS)}, "
+            f"missing={sorted(expected_process - set(process_tests))}, "
+            f"added={sorted(set(process_tests) - expected_process)}, "
             f"duplicates={sorted(name for name, count in process_tests.items() if count != 1)}"
         )
     if config_commands != 1 or set(config_tests) != EXPECTED_CONFIG_TESTS or any(
@@ -405,7 +408,9 @@ def parse_go_test(command: str, source: str) -> GoTest | None:
     if "go test" not in command:
         return None
     tokens = shlex.split(command)
-    start = next(index for index in range(len(tokens)) if tokens[index : index + 2] == ["go", "test"])
+    start = next((index for index in range(len(tokens)) if tokens[index : index + 2] == ["go", "test"]), None)
+    if start is None:
+        return None
     environment = frozenset(token for token in tokens[:start] if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", token))
     arguments = tokens[start + 2 :]
     tags: frozenset[str] = frozenset()
@@ -417,7 +422,7 @@ def parse_go_test(command: str, source: str) -> GoTest | None:
             run = arguments[index + 1]
         elif token.startswith("-run="):
             run = token.removeprefix("-run=")
-    packages = tuple(token for token in arguments if token.startswith("./"))
+    packages = tuple(sorted(substituted_packages(command))) if "$(" in command else tuple(token for token in arguments if token.startswith("./"))
     return GoTest(source, tags, packages, run, "-race" in arguments, environment)
 
 
@@ -458,6 +463,57 @@ def selections(*targets: str) -> list[GoTest]:
         for script in SCRIPT_GATE.findall(command):
             found.extend(script_go_tests(script))
     return found
+
+
+def check_family_commands(commands: list[str]) -> None:
+    """Consolidated families may verify matrices but must not execute test suites."""
+    repeated = [command for command in commands if re.search(
+        r"\bgo test\b|\bpytest\b|scripts/test-[\w-]+\.py|scripts/shared_fixture_gate\.py(?!.*--sources-only)", command
+    )]
+    if repeated:
+        raise SystemExit(f"consolidated families repeat test execution: {repeated}")
+
+
+def check_runtime_commands(commands: list[str]) -> None:
+    runtime = [shlex.split(command) for command in commands if "pytest" in command]
+    arguments = runtime[0][runtime[0].index("pytest") + 1:] if len(runtime) == 1 else []
+    if (
+        len(arguments) != 4 or arguments[:3] != ["-W", "error", "tests"]
+        or not arguments[3].startswith("--junitxml=") or not arguments[3].removeprefix("--junitxml=")
+    ):
+        raise SystemExit("release must run the full Runtime suite once with -W error and JUnit evidence, without filters")
+    for marker in (
+        "release_test_reports.py verify-runtime", "release_test_reports.py verify-audit",
+        "release_test_reports.py verify-findings", "shared_fixture_gate.py --go-report",
+    ):
+        if not any(marker in command for command in commands):
+            raise SystemExit(f"release lost executed-report verification: {marker}")
+
+
+def check_family_coverage(family: list[GoTest], release: list[GoTest], inventory: Inventory) -> None:
+    """Each selected test must exist in a canonical build with its required race/backend mode."""
+    missing = []
+    wanted: dict[frozenset[str], set[str]] = {}
+    for test in family + release:
+        wanted.setdefault(test.tags, set()).update(inventory.packages(test.tags, test.packages))
+    for tags, packages in wanted.items():
+        inventory.tests(tags, tuple(sorted(packages)))
+    for focused in family:
+        for package in inventory.packages(focused.tags, focused.packages):
+            required = {name for name in inventory.tests(focused.tags, (package,))[package] if selects(focused, name)}
+            covered = set()
+            for canonical in release:
+                if focused.race and not canonical.race:
+                    continue
+                # Explicit backend modes carry behavior; ordinary DB assignments do not change selection.
+                if FILESYSTEM_BACKEND in focused.environment and FILESYSTEM_BACKEND not in canonical.environment:
+                    continue
+                if package in inventory.packages(canonical.tags, canonical.packages):
+                    covered.update(name for name in inventory.tests(canonical.tags, (package,))[package] if selects(canonical, name))
+            if required - covered:
+                missing.append(f"{focused.source}: {package}: {sorted(required - covered)}")
+    if missing:
+        raise SystemExit("family coverage lost from canonical stages:\n  " + "\n  ".join(missing))
 
 
 def split_top(pattern: str, separator: str) -> list[str]:
@@ -803,7 +859,7 @@ def check_database_tests_fail_closed() -> None:
 
 
 def check_integration_graph() -> int:
-    selected = discover()
+    selected = release_selection()
     # The non-race budget pass is checked by check_non_race_passes.
     commands = [
         shlex.split(command)
@@ -811,7 +867,7 @@ def check_integration_graph() -> int:
         if "go test" in command and "-tags=integration" in command and "-race" in shlex.split(command)
     ]
     consolidated = [tokens for tokens in commands if "-v" in tokens and "-p" in tokens]
-    if len(commands) != 4 or len(consolidated) != 1:
+    if len(commands) != 1 or len(consolidated) != 1:
         raise SystemExit(
             "release integration graph changed: "
             f"{len(commands)} visible commands, {len(consolidated)} complete discovery gates"
@@ -844,7 +900,7 @@ def check_integration_graph() -> int:
         for source in (ROOT / package.removeprefix("./")).glob("*_test.go"):
             data = source.read_text()
             if BUILD_TAG.search(data.split("\npackage ", 1)[0]) is None:
-                repeated = expected.intersection(TEST.findall(data))
+                repeated = expected.intersection(TEST.findall(data)) - selected[package]
                 if repeated:
                     raise SystemExit(f"integration regex also selects untagged tests in {source}: {sorted(repeated)}")
     for (source, name), (target, reason) in EXCEPTIONS.items():
@@ -876,9 +932,14 @@ if __name__ == "__main__":
     integration_raced = {MODULE + package.removeprefix("./") for package in discover()}
     raced = check_race_coverage(race_command_packages(races), with_tests, tagged_only, integration_raced, RACE_EXCEPTIONS)
     check_family_entry_points()
+    check_family_commands(dry_run("release-verify-families", "RELEASE_CONSOLIDATED=1"))
+    check_runtime_commands(dry_run("release-verify"))
     inventory = Inventory()
     release = selections("release-verify")
     opt_in = {target: selections(target) for target in sorted({target for target, _ in OPT_IN_E2E_TESTS.values()})}
+    family = selections("release-verify-families", "RELEASE_CONSOLIDATED=0")
+    check_selected_tests_exist(family, inventory)
+    check_family_coverage(family, release, inventory)
     named = check_selected_tests_exist(release + [test for tests in opt_in.values() for test in tests], inventory)
     tagged = check_e2e_reachable(e2e_tagged_tests(inventory), release, opt_in, inventory)
     check_non_race_passes(race_constrained_packages(), release, inventory)
@@ -887,8 +948,8 @@ if __name__ == "__main__":
     count = check_integration_graph()
     check_database_tests_fail_closed()
     print(
-        f"release graph: {len(stages)} stages in CI order, {raced} race packages, 19 process tests, "
-        f"6 fixture tests, {named} existing -run selections, {tagged} tagged e2e tests "
+        f"release graph: {len(stages)} stages in CI order, {raced} race packages, {len(EXPECTED_PROCESS_TESTS | set(load_script('scripts/test-findings-e2e.py').PROCESS_TESTS))} process tests, "
+        f"{len(EXPECTED_CONFIG_TESTS)} fixture tests, {named} existing -run selections, {tagged} tagged e2e tests "
         f"({len(OPT_IN_E2E_TESTS)} opt-in), {count} integration tests, {backends} packages on the "
         "filesystem blob backend, and the catalog and ERD checks covered"
     )

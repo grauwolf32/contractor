@@ -114,3 +114,50 @@ parallel integration log contains no skipped tests.
 
 Raw per-target logs, the JSON timing/connection summaries and the RSS
 summary remain outside git under `/private/tmp/contractor-v408-*`.
+
+
+## V408-005 implementation and verification (2026-10-23)
+
+The consolidated family dry run previously contained 12 visible Go commands,
+17 pytest commands, two gate-script invocations and the shared-fixture runner.
+The updated family graph contains no Go, pytest or test-script executions.
+Direct family targets retain their focused suites. The guard also compares
+compiled test inventories across direct families and canonical stages, retaining
+race coverage and explicit filesystem-backend modes. All 46 Go selections
+captured before the change remain covered.
+
+The unit stage runs the complete Runtime suite once with `-W error`, captures
+JUnit and verifies the existing Audit and findings minimum case counts and
+no-skip requirements. The intentionally malformed duplicate ZIP fixture now
+explicitly expects zipfile's warning instead of failing during fixture creation.
+Shared-fixture validation consumes canonical Go events and actual Go/Python read
+records without rerunning tests. The tagged configuration fixtures run once in
+the unit stage; untagged e2e gate tests join its ordinary Go pass. Audit completion
+selection joins the canonical integration pass, and the four findings process
+tests join process shard C. Report capture replaces stale files, propagates child
+failure, redacts database credentials and joins the owned process group on
+cancellation. Reports remain ignored local artifacts under `reports/`.
+
+The graph retains 99 race packages, 24 process tests, seven tagged configuration
+fixtures, 47 tagged e2e tests (eight opt-in), 159 integration-selection names and
+both Artifact backend modes. These counts describe selection, not a green full
+release gate. No CI speedup or full release pass is claimed from dry-run counts.
+
+The complete Linux Runtime gate passed with 4375 tests and 55 existing optional
+skips; mandatory Audit/findings scopes had no skips. Script regressions passed
+(131 tests), including transitive unwrapped commands, lost tags/race/backend
+coverage, filtered Runtime runs, missing cases, skips, stale reports, subprocess
+failure, secret redaction and cancellation. Shared evidence verified 249
+fixtures, 229 Go shared tests and 184 Python shared tests.
+
+Broader checks also exposed existing failures at base `e4480ace`, in unchanged
+Go paths: the namespace-constant source guard; SQL table ownership for the new
+sweep CLI; the public paging inventory missing `listScanSweeps` and
+`listScanSweepMembers`; and the skills process test expecting a fixed catalog
+list. Resource-related lease/performance failures from overlapping local sweeps
+passed when both complete packages were rerun serially on a separate database.
+These broader failures are retained as failures; V408-005 remains in progress
+until its required broad checks can pass. The original worktree's Make fragment
+was repeatedly overwritten externally, so final work continues in the dedicated
+`v408-005-family-tests` worktree. Raw verification logs remain outside git under
+`/private/tmp/v408-*.log`.
