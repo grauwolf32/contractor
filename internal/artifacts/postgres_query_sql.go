@@ -84,10 +84,13 @@ LIMIT $8`
 // ProjectScope $1, which hides the Server-reserved audit- namespaces
 // (ART-R26): only namespace $2 when it is not NULL, without namespace $3 when
 // it is not NULL, after the key ($4, $5) when $4 is not empty, without the
-// hidden namespace $7 when it is not empty, at most $6 rows. Its literal scope kind and namespace predicate repeat the predicate
-// of artifact_bindings_project_listing_idx, so PostgreSQL scans that index of
+// hidden namespace $7 when it is not empty, at most $6 rows. Its literal scope
+// kind and namespace predicate repeat the predicate of
+// artifact_bindings_project_listing_idx, so PostgreSQL scans that index of
 // exactly the listable Project bindings and a page never reads an
-// Audit-managed binding (ART-R115). Used by PostgresRepository.ListMetadata.
+// Audit-managed binding (ART-R115); a test pins that literal prefix to
+// artifactpolicy.AuditManagedProjectNamespacePrefix. Used by
+// PostgresRepository.ListMetadata.
 var listProjectMetadataSQL = `
 SELECT binding.namespace, binding.name, revision.revision,
        version.media_type, blob.size_bytes, true, binding.frozen, revision.created_at, ` + gitSourceProjection + `
