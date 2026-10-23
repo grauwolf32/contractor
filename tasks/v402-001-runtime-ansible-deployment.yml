@@ -6,7 +6,7 @@ epic: operations
 kind: feature
 priority: P2
 status: in_progress
-depends_on: []
+depends_on: [V402-002]
 languages: [yaml, markdown]
 goal: >-
   An operator deploys one or more single-slot Runtime Agents to a Linux host

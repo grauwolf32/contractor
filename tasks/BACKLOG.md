@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-78 open tasks: 5 in progress, 48 pending, 25 deferred. 959 finished: 956 completed, 3 archived.
+79 open tasks: 6 in progress, 48 pending, 25 deferred. 959 finished: 956 completed, 3 archived.
 
 ## In progress
 
@@ -16,6 +16,7 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
 | [V402-001](v402-001-runtime-ansible-deployment.yml) | operations | feature | P2 | Provision Runtime Agent hosts with a configurable Ansible role that installs every capability prerequisite |
+| [V402-002](v402-002-podman-network-startup-probe-order.yml) | sandbox | defect | P1 | Advertise podman-network@1 from startup discovery after its own network probe |
 
 ## Pending
 
@@ -193,7 +194,7 @@ tasks in `introduced_by`.
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 30 | 33 | 5 | 36 |
 | Audits (`audits`) | 18 | 51 | 70 | 17 | 83 |
 | Evaluations (`evals`) | 4 | 21 | 31 | 5 | 34 |
-| Podman sandbox (`sandbox`) | 0 | 9 | 1 | 1 | 2 |
+| Podman sandbox (`sandbox`) | 1 | 9 | 2 | 1 | 3 |
 | Web UI (`ui`) | 1 | 21 | 56 | 12 | 50 |
 | Operations, authentication, CLI and deployment (`operations`) | 2 | 14 | 32 | 5 | 9 |
 | Public API and wire contracts (`api-contracts`) | 4 | 1 | 30 | 20 | 8 |

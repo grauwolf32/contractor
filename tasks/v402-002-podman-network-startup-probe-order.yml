@@ -1,0 +1,59 @@
+schema_version: "1.0"
+id: V402-002
+title: "Advertise podman-network@1 from startup discovery after its own network probe"
+milestone: runtime-host-provisioning-2026-10
+epic: sandbox
+kind: defect
+introduced_by: V381-001
+priority: P1
+status: in_progress
+depends_on: []
+languages: [python]
+goal: >-
+  A Runtime started with --podman-network-enabled true advertises
+  podman-network@1 whenever its networked startup probe succeeded, and never
+  otherwise.
+context:
+  severity: high
+  specification: "docs/spec/tools/code-execution.md#EXE-R124"
+  finding: >-
+    runtime/src/contractor_runtime/capabilities.py discover_capabilities probed
+    every sandbox profile except podman@1 in its first loop, before
+    _probe_podman ran. The podman-network@1 factory
+    (runtime/src/contractor_runtime/factories.py PodmanWorkdirFactory with
+    available=execution_lifecycle.network_probe_available) therefore read the
+    lifecycle before any probe result existed and always reported
+    unavailable, so no Runtime ever advertised the networked profile.
+    Reproduced on 2026-10-23 while verifying the V402-001 role on a Debian 13
+    host with rootless Podman 5 and pasta: the journal logged
+    "Runtime capability probe unavailable" for podman-network@1 after 0 ms,
+    eight seconds before the Podman probe verified the effective policy.
+    runtime/tests/test_podman_network.py called the factory directly after
+    the lifecycle probe and never went through discovery.
+  siblings: >-
+    The final pairing check in discover_capabilities removed only podman@1
+    when code-execution@1 was missing; it now removes both Podman profiles,
+    since the networked profile shares the execution channel (EXE-R123).
+    allocation/service.py reads sandbox profiles only after startup and is
+    unaffected. The Server does not probe sandbox profiles.
+scope:
+  in:
+    - "Skip both Podman profiles in the generic sandbox loop and probe podman-network@1 after podman@1 was probed and advertised."
+    - "Drop both Podman profiles when code execution cannot be paired."
+    - "A regression test through discover_capabilities with the network probe succeeding, failing and disabled."
+  out:
+    - "Changing the probe itself or the lifecycle's network probe semantics."
+acceptance_criteria:
+  - id: A1
+    text: "With the network enabled and both probes available, discovery advertises podman@1, podman-network@1 and code-execution@1."
+  - id: A2
+    text: "With a failed network probe discovery advertises podman@1 only; with the network disabled the networked profile is absent and its probe never runs."
+  - id: A3
+    text: "The regression test fails on the unfixed discovery (the enabled and available case) and passes after the fix."
+tests:
+  - command: "cd runtime && uv run pytest tests/test_podman_network.py tests/test_podman_capabilities.py tests/test_capabilities.py"
+    covers: [A1, A2, A3]
+  - command: make test-runtime
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2, A3]
