@@ -6,7 +6,7 @@ epic: memory
 kind: chore
 introduced_by: V9-002
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages:
 - python
@@ -80,3 +80,109 @@ tests:
   - A2
   - A3
   - A4
+reassessment:
+  date: '2026-10-23'
+  revision: d7b825c452998186456275e6223779442f4053b9
+  outcome: >-
+    Blocked before implementation. Overlapping Worker note reads conflicts with
+    the Server's process-wide Artifact transfer admission, so A1 cannot be met
+    without breaking A2 and the goal's "preserve outcomes" requirement. No code,
+    spec or test was changed; the task stays in_progress until the user chooses
+    a disposition.
+  source_lines_rechecked: >-
+    The finding still matches the code.
+    runtime/src/contractor_runtime/toolsets/memory/tools.py:211-237 lists the
+    prefix and then reads up to 128 payloads one at a time. The callers are
+    list_memories :136-139, write_memory create :159-161, search_memory
+    :199-204 and list_memory_tags :206-209, all under the session lock. Reads
+    map errors through _mapped_client_error :734-744.
+  evidence:
+  - >-
+    LIM-BLB-1 and docs/spec/artifacts/blob-storage.md BLB-R24 to BLB-R26 allow
+    four simultaneous full-payload transfers per Server process. Private
+    Worker reads share that limit with every other Worker, Planner, public
+    upload or download and Git import. When all four slots are taken, the next
+    request fails at once with the retryable 503 artifact_transfer_capacity
+    (FAIL-BLB-1, errors.md). It is not queued.
+  - >-
+    The code works the same way. internal/artifacts/blob_context.go:85 creates
+    `make(chan struct{}, 4)`, and :136-140 acquires a slot without waiting or
+    returns ErrTransferCapacity.
+    internal/httpapi/privateartifacts/artifact_handlers.go:113 takes one slot
+    for each private GET until its response is written. internal/app/app.go:172
+    and internal/app/system.go:63 install that limit for the private listener.
+    internal/apierror/registry.go:160 maps the error to 503 with retryable
+    true.
+  - >-
+    Existing Server test TestPrivateArtifactStalledDownloadsReleaseTransferSlots
+    (internal/httpapi/privateartifacts/artifact_transfer_deadline_test.go:62)
+    holds four private downloads, and a fifth private GET then gets 503. It
+    was re-run on this revision (see verification) and passed.
+  - >-
+    The Runtime never retries a capacity rejection. `grep -rn
+    artifact_transfer_capacity runtime/src` finds nothing.
+    ArtifactClient.read_artifact raises ArtifactAPIError(503,
+    artifact_transfer_capacity), and tools.py:734-744 turns it into the
+    model-facing memory_unavailable.
+  - >-
+    A Memory operation holds one transfer slot everywhere else. The
+    Server-side Planner adapter loads every note in one ReadPrefixBatch under
+    a single slot (internal/memory/postgres.go:40-53,
+    internal/artifacts/postgres_read_batch.go:46). The serial Worker loop holds
+    at most one slot at a time. No Runtime toolset sends concurrent
+    full-payload Artifact reads (no gather or TaskGroup over read_artifact in
+    runtime/src).
+  consequence: >-
+    With eight overlapping reads, one list_memories, search_memory,
+    list_memory_tags or create would ask for up to eight of the Server's four
+    slots. Even on an idle Server, any moment when more than four of those
+    GETs are inside their slot window rejects the extra reads. The tool call
+    then fails with memory_unavailable intermittently, which the serial loop
+    never causes. A bound of two to four removes the self-rejection but
+    multiplies one tool call's share of the shared limit. Other Workers'
+    Artifact reads and writes, finding submissions, Planner Memory batches and
+    UI transfers that start meanwhile then fail with
+    artifact_transfer_capacity. The latency gain would be paid for with
+    model-visible failures and spent tool budget. That contradicts the goal
+    (preserve outcomes), A2 (keep existing outcomes) and AGENTS 3.2. The
+    2026-10-23 review (G14) did not consider LIM-BLB-1.
+  alternatives_considered:
+  - >-
+    Lower the bound to four or less. Rejected because the limit is per Server
+    process and shared, and the Runtime cannot see the other users of it. No
+    bound above one keeps current outcomes for every caller.
+  - >-
+    Retry artifact_transfer_capacity with backoff inside the loader. Rejected
+    because this is a new retry policy with its own attempts, backoff and
+    deadline, outside scope.in. It would still take slots from callers that do
+    not retry, and it amplifies load under exactly the contention it reacts
+    to.
+  - >-
+    Add a private Worker batch read that holds one slot per Memory operation,
+    as the Planner adapter does, or let small reads queue on the Server.
+    Rejected for this task because scope.out excludes a new private batch API
+    and the other option changes the Server admission contract. Either needs
+    its own design task.
+  proposed_disposition: >-
+    Decline and archive V407-036 with this evidence. In the same metadata
+    change, remove it from V407-039 depends_on and record G14 in the review
+    ledger as declined, because serial Worker note reads are the intended
+    one-slot-per-operation rule. Optionally state that rule as a MEM
+    requirement so the optimisation is not proposed again.
+  reopen_when: >-
+    Reopen when the Server can serve small private reads without fail-fast
+    contention for the shared four slots, or when a private Worker batch-read
+    operation lets one Memory operation hold one slot. Then measure with a
+    real Server and Runtime, not with a fake client.
+  decision_needed: >-
+    The user decides between archiving the task (proposed_disposition) and a
+    separate design task for a batch read or an admission change. Under the
+    brief, an agent cannot archive or widen the task.
+  verification:
+  - command: cd runtime && uv run --locked pytest -q tests/test_memory_toolset.py
+    result: 68 passed on the unchanged code (baseline; no implementation was made)
+  - command: >-
+      go test -count=1 -run
+      'TestPrivateArtifactStalledDownloadsReleaseTransferSlots|TestTransferBudgetIsBoundedReentrantAndReleased'
+      ./internal/httpapi/privateartifacts/ ./internal/artifacts/
+    result: passed (shows the fail-fast four-slot limit that blocks the task)
