@@ -8408,9 +8408,11 @@ type DeleteRuntimeLabelParams struct {
 // PutRuntimeLabelParams defines parameters for PutRuntimeLabel.
 type PutRuntimeLabelParams struct {
 	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
-	IdempotencyKey IdempotencyKey                    `json:"Idempotency-Key"`
-	IfMatch        *IfMatch                          `json:"If-Match,omitempty"`
-	IfNoneMatch    *PutRuntimeLabelParamsIfNoneMatch `json:"If-None-Match,omitempty"`
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+
+	// IfMatch One strong quoted positive decimal revision, as `RequiredIfMatch`. Any other value is 400 `invalid_request`, never a CAS conflict.
+	IfMatch     *IfMatch                          `json:"If-Match,omitempty"`
+	IfNoneMatch *PutRuntimeLabelParamsIfNoneMatch `json:"If-None-Match,omitempty"`
 
 	// Origin Required with exact allowlist match when sessionCookie authenticates an unsafe request.
 	Origin *OptionalOrigin `json:"Origin,omitempty"`

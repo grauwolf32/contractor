@@ -6551,7 +6551,8 @@ components:
       name: If-Match
       in: header
       required: false
-      schema: {type: string, pattern: '^"[^"\\]+"$'}
+      description: One strong quoted positive decimal revision, as `RequiredIfMatch`. Any other value is 400 `invalid_request`, never a CAS conflict.
+      schema: {type: string, pattern: '^"[1-9][0-9]{0,19}"$'}
     ArtifactIfMatch:
       name: If-Match
       in: header

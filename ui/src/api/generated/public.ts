@@ -6750,6 +6750,7 @@ export interface components {
         IdempotencyKey: string;
         /** @description Accepted for uniform mutation headers; the operation is idempotent by resource identity and does not bind the key. */
         OptionalIdempotencyKey: string;
+        /** @description One strong quoted positive decimal revision, as `RequiredIfMatch`. Any other value is 400 `invalid_request`, never a CAS conflict. */
         IfMatch: string;
         /** @description One strong quoted Artifact revision in the `Revision` grammar. A malformed revision is 400 `invalid_request`, never a CAS conflict. */
         ArtifactIfMatch: string;
@@ -11533,6 +11534,7 @@ export interface operations {
             header: {
                 /** @description Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request. */
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                /** @description One strong quoted positive decimal revision, as `RequiredIfMatch`. Any other value is 400 `invalid_request`, never a CAS conflict. */
                 "If-Match"?: components["parameters"]["IfMatch"];
                 "If-None-Match"?: components["parameters"]["IfNoneMatch"];
                 /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
