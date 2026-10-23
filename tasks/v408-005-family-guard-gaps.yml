@@ -1,0 +1,48 @@
+schema_version: "1.0"
+id: V408-005
+title: "Close the family-target guard gaps and run the Runtime suite once with warnings as errors"
+milestone: test-gate-cost-2026-10
+epic: quality
+kind: chore
+introduced_by: V155-001
+priority: P2
+status: pending
+depends_on: []
+languages: [go, python]
+goal: "Inside release-verify every Go package and every Runtime test file runs exactly once, and warnings-as-errors covers the whole Runtime suite."
+context:
+  review: "docs/research/2026-10-23-test-gate-cost-review.md, finding T4"
+  finding: >-
+    Makefile:41 run-family-test replaces a family suite with a no-op when
+    RELEASE_CONSOLIDATED is set, but these lines are not wrapped and run
+    again inside release-verify-families: make/features.mk:15 and :40 (audit
+    hardening under -race -tags=integration), make/platform.mk:22, :25, :83,
+    :119, :134, :138, :139, make/toolsets.mk:84, :107, :108. All 20 uv run
+    pytest lines in make/features.mk, make/toolsets.mk and make/platform.mk
+    are unwrapped: tests/test_allocation.py runs 7 times,
+    tests/test_lease_watchdog.py 5, tests/test_adk_runtime.py 3,
+    tests/test_adapter_host.py 3. make/core.mk:18 test-runtime-hardening
+    (pytest -W error over the suite) is called by no stage, so -W error
+    coverage is only the union of the family subsets.
+plan:
+  - "Wrap every listed go test and uv run pytest line in run-family-test; where a family's Go selection is not already covered by the race, integration or process passes, add the missing test names to the consolidated union in make/release.mk (the release-graph guard tells you)."
+  - "Replace test-runtime in release-verify-unit with test-runtime-hardening (-W error over the whole suite) and make test-runtime an alias for local use; keep the family pytest subsets for direct invocation only."
+  - "Extend scripts/check_release_verify_graph.py (or a new source check in make lint) to fail on an unwrapped go test or pytest line inside a target that release-verify-families depends on."
+  - "Update the stage table in docs/testing/README.md (make lint checks it)."
+scope:
+  in:
+    - "Guard wrapping, consolidated union additions, one -W error run, guard check, docs table."
+  out:
+    - "Removing any family target from direct invocation."
+acceptance_criteria:
+  - id: A1
+    text: "make -n release-verify-families RELEASE_CONSOLIDATED=1 prints no go test and no pytest command; the new lint check fails on an unwrapped line."
+  - id: A2
+    text: "release-verify-unit runs pytest -W error over the full Runtime suite and passes."
+  - id: A3
+    text: "Every test selected by a family target before the change is still selected by some stage (release-graph guard passes)."
+tests:
+  - command: make lint
+    covers: [A1, A3]
+  - command: make test-runtime-hardening
+    covers: [A2]

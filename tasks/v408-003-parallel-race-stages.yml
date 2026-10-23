@@ -1,0 +1,42 @@
+schema_version: "1.0"
+id: V408-003
+title: "Run race stages with package parallelism and mark schema-isolated tests parallel"
+milestone: test-gate-cost-2026-10
+epic: quality
+kind: chore
+introduced_by: V340-001
+priority: P2
+status: pending
+depends_on: [V408-002]
+languages: [go]
+goal: "The three race stages use the runner's cores instead of one package at a time, without two packages sharing a schema or exceeding the database connection limit."
+context:
+  review: "docs/research/2026-10-23-test-gate-cost-review.md, finding T2"
+  finding: >-
+    make/release.mk test-release-go-race, test-release-go-race-discovered and
+    test-release-integration run go test -p 1 -race. V340-001 recorded 204 s
+    for the discovered packages at -p 2; the stages' CI timeouts are 45-50
+    minutes. Inside packages, 2 of 171 PostgreSQL test files call
+    t.Parallel(). Each package's schema is unique (V408-002), so packages do
+    not conflict on data; the only shared resource is the connection limit
+    of the test database.
+plan:
+  - "Compute the connection budget: packages x MaxConns per pool must stay below max_connections of the CI PostgreSQL service; set -p to a value derived from nproc (make variable RACE_PACKAGE_PARALLELISM, default 4) and raise the CI service's max_connections in ci.yml if needed."
+  - "Add t.Parallel() to tests whose only shared state is their own schema (start with the five largest packages); leave tests that use process-wide singletons (advisory key registries, global clocks) serial and list them in the task log."
+  - "Keep scripts/release_race_packages.py and check_release_verify_graph.py satisfied (each package raced exactly once)."
+  - "Record per-stage time before and after with the V408-001 script."
+scope:
+  in:
+    - "Package parallelism in the three race stages, connection budget, t.Parallel on isolated tests."
+  out:
+    - "Changing which packages are raced."
+acceptance_criteria:
+  - id: A1
+    text: "The three race stages pass at the chosen -p on CI three runs in a row (no flakes), and the race guards in make lint still pass."
+  - id: A2
+    text: "Measured race-stage wall time drops by at least 40 percent against the baseline, recorded in the report."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> make test-release-go-race test-release-go-race-discovered"
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1]

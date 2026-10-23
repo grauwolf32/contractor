@@ -1,0 +1,48 @@
+schema_version: "1.0"
+id: V408-002
+title: "Apply migrations once per package: one shared PostgreSQL test helper with per-test truncation"
+milestone: test-gate-cost-2026-10
+epic: persistence
+kind: chore
+priority: P2
+status: pending
+depends_on: [V408-001]
+languages: [go, sql]
+goal: "A PostgreSQL-backed Go test costs a truncate, not a schema plus 31 migrations, and the isolation helper has one definition."
+context:
+  review: "docs/research/2026-10-23-test-gate-cost-review.md, finding T1"
+  specification: docs/spec/platform/persistence.md
+  finding: >-
+    34 test files carry their own copy of an isolated*Pool helper that runs
+    CREATE SCHEMA and persistencepostgres.ApplyMigrations (31 migrations,
+    baseline 250 KB) for every test; about 341 call sites
+    (internal/runstore/postgres_integration_test.go:1775-1792 is one copy).
+    Every full gate repeats this three times (unit, race, integration).
+    Only 2 of 171 such files use t.Parallel(), and the helpers pin
+    MaxConns = 1 or 2. AGENTS 3.1: one rule, one definition; AGENTS 3.5:
+    the real store stays mandatory.
+plan:
+  - "Create internal/persistence/postgres/postgrestest (a *test helper package, AGENTS 3.7): Schema(t) returns a pool bound to a schema created and migrated once per package in TestMain (sync.Once keyed by package), and resets state between tests with TRUNCATE of every table except the migration ledger, RESTART IDENTITY CASCADE, in dependency-safe order generated from information_schema at first use; expose an option for tests that must own a fresh schema (trigger and advisory-lock tests, migration tests) so they keep the old behaviour explicitly."
+  - "Keep MaxConns configurable per call with the current defaults; keep search_path binding and the Cleanup that drops the package schema at the end."
+  - "Replace the 34 helpers package by package (runstore, artifacts, scheduler, auditservice, httpapi/public, auditstore/pgstore, controlplane, credentials, memory, findingintake, telemetry, settingsstore, rundeletion, projectlifecycle, evalstore, evalservice, runtimeconfig, agentprincipal, gatewayrecovery, app, tests/integration/*); delete each local copy; make lint (tools/testonlyexports baseline) must shrink, not grow."
+  - "Add a source test (pattern: the SQL placement test) that fails when a *_test.go outside postgrestest contains CREATE SCHEMA or calls ApplyMigrations, so the copies do not come back."
+  - "Measure with the V408-001 script: per-package time before and after for the five largest PostgreSQL packages; record in the report."
+scope:
+  in:
+    - "One helper, per-package schema, per-test truncate, explicit opt-out for fresh-schema tests, source guard, measurement."
+  out:
+    - "Changing any test's assertions; migration tests keep fresh schemas."
+acceptance_criteria:
+  - id: A1
+    text: "grep finds CREATE SCHEMA and ApplyMigrations in test code only inside postgrestest and the migration tests; the source guard fails on a reintroduced copy."
+  - id: A2
+    text: "make test-postgres and the integration stage pass unchanged on real PostgreSQL; tests that assert triggers, advisory locks or migrations still run on a fresh schema."
+  - id: A3
+    text: "Measured time of the five largest PostgreSQL packages drops by at least half against the V408-001 baseline, recorded in the report."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> make test-postgres"
+    covers: [A2]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> make test-release-integration"
+    covers: [A2]
+  - command: make lint
+    covers: [A1]

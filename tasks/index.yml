@@ -80,6 +80,9 @@ execution_policy:
     P3: Low-impact correction with no user-visible failure, such as documentation, dead code or test hygiene.
 
 milestones:
+  - id: test-gate-cost-2026-10
+    exit_task: V408-007
+    outcome: The release gate and the local test targets check the same things in a fraction of the time, with per-package test schemas, parallel race passes, one build per process suite, no repeated family runs, and recorded before and after durations.
   - id: server-runtime-review-2026-10
     exit_task: V407-039
     outcome: Every defect, cost problem and duplicated rule found by the 2026-10-23 Server and Runtime review is fixed with a regression test or declined with a recorded reason.
