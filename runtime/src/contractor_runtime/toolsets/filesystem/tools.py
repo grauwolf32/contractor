@@ -45,6 +45,7 @@ from contractor_runtime.toolsets.common.cursors import (
     require_limit,
 )
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
+from contractor_runtime.toolsets.common.filesystem_errors import FilesystemToolError
 from contractor_runtime.workspace import AllocationWorkspace
 
 MAX_PAGE_ITEMS = 100
@@ -59,14 +60,6 @@ DEFAULT_READ_LINES = 200
 MAX_READ_BYTES = 128 * 1024
 MAX_READ_SCAN_BYTES = 16 * 1024 * 1024
 REGEX_LINE_TIMEOUT_SECONDS = 0.01
-
-
-class FilesystemToolError(RuntimeError):
-    """Stable model-facing failure without content or physical backend detail."""
-
-    def __init__(self, code: str) -> None:
-        self.code = code
-        super().__init__(f"Filesystem operation failed ({code})")
 
 
 class FilesystemToolsetFactory:

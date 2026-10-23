@@ -24,10 +24,8 @@ import contractor_runtime.toolsets.taint_annotations.tools as annotations_module
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.projectfs.config import WorkspaceLimits
 from contractor_runtime.toolsets.code_analysis.tools import CodeAnalysisError
-from contractor_runtime.toolsets.filesystem.tools import (
-    FilesystemToolError,
-    FilesystemToolsetFactory,
-)
+from contractor_runtime.toolsets.common.filesystem_errors import FilesystemToolError
+from contractor_runtime.toolsets.filesystem.tools import FilesystemToolsetFactory
 from contractor_runtime.toolsets.taint_annotations.tools import TaintAnnotationError
 from contractor_runtime.worker.instrumentation import WorkerInstrumentationPlugin
 from contractor_runtime.worker.observations import lean_workspace_summary
