@@ -72,9 +72,18 @@ decisions:
   same scanplan constants and parseDocument, so they are covered. openapi-operations@1
   (auditdomain.parseJSONOrYAML: 8 MiB LIM-AUD-14, depth 64 LIM-AUD-17 with the same depth convention,
   250,000 value nodes) encloses these bounds, so every document within LIM-SCN-39/41/42 also fits it
-  (LIM-R6); no change. Residual outside this task: its 64 KiB per-string bound (MaximumStringBytes) has
-  no openapi@1 counterpart, so an authored document with a longer string passes authoring and scan
-  preparation but fails that inventory; a separate quantity, to be filed as its own task (review Q4).
+  (LIM-R6); no change.
+- >-
+  Open residuals outside this task's byte, depth and node bounds; the integrator files them as
+  follow-up tasks. (a) openapi-operations@1 caps every string and member name at 64 KiB
+  (internal/auditdomain/canonical.go MaximumStringBytes), while openapi@1 and internal/scanplan accept
+  longer strings, so an authored document with a longer string passes authoring and scan preparation
+  but fails that inventory (review Q4). (b) YAML 1.1/1.2 interop: openapi@1 parses and dumps with
+  PyYAML (YAML 1.1) and scanplan reads with go-yaml v4 (YAML 1.2). openapi@1 writes the strings 0o17
+  and 1e3 as plain scalars, which scanplan reads as the numbers 15 and 1000, or rejects as
+  invalid_document when 0o17 is a mapping key; an application/yaml seed with a merge key such as
+  `<<: {a: 1}` is accepted and merged by openapi@1 while scanplan rejects the same bytes as
+  invalid_document (!!merge key). Both were confirmed on 6d0467c0 and predate this task.
 - >-
   Validation dispositions confirmed on ac982d28: the 16 KiB Worker summary (LIM-AWC-2) and the
   TestBundledCWEClassificationMatchesRuntime byte-equality gate are unchanged and pass; finding-ID regex
