@@ -111,6 +111,22 @@ func TestFilesystemBlobRejectsEscapesCorruptionAndCancellation(t *testing.T) {
 	if _, err := OpenFilesystemBlobStore(ctx, link); err == nil {
 		t.Fatal("symlink root accepted")
 	}
+	// A symlink above the directory is refused as well, whether the directory
+	// already exists behind it or would be created. Test temporary directories
+	// are symlink-free (docs/testing/README.md), so only this case covers an
+	// ancestor symlink.
+	parent := filepath.Join(t.TempDir(), "parent-link")
+	if err := os.Symlink(filepath.Dir(path), parent); err != nil {
+		t.Fatal(err)
+	}
+	for _, configured := range []string{filepath.Join(parent, filepath.Base(path)), filepath.Join(parent, "created")} {
+		if _, err := OpenFilesystemBlobStore(ctx, configured); !errors.Is(err, ErrBlobIO) {
+			t.Fatalf("blob directory below a symlink %s = %v", configured, err)
+		}
+	}
+	if _, err := os.Lstat(filepath.Join(filepath.Dir(path), "created")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("refused blob directory was created: %v", err)
+	}
 }
 
 func TestFilesystemBlobUnwritableRoot(t *testing.T) {

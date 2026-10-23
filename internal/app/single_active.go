@@ -27,7 +27,7 @@ const controlPlaneLeasePoll = time.Second
 // before the lease is declared lost. A probe that merely stalls (no bytes for
 // a short while) completes late instead of being cancelled, so a transient
 // client-to-database stall does not cancel the Server. It is kept well below
-// the server-side keepalive bound (tcp_user_timeout 30 s) so a genuinely
+// the server-side keepalive bound (about half a minute, PER-R6) so a genuinely
 // disconnected active Server stops before PostgreSQL releases the advisory
 // lock and a standby can acquire it.
 const controlPlaneLeaseTolerance = 10 * time.Second
@@ -51,7 +51,9 @@ type controlPlaneLease struct {
 // PostgreSQL keeps a session advisory lock until it notices the session is
 // gone. When the active Server's host vanishes without closing the connection,
 // server-side keepalives bound that to about half a minute instead of the
-// operating system's two-hour default, so a standby can take over. They are
+// operating system's two-hour default, so a standby can take over. PostgreSQL
+// applies tcp_user_timeout only where its operating system has
+// TCP_USER_TIMEOUT (Linux) and reads it back as 0 elsewhere (PER-R6). They are
 // set after connecting because session poolers reject unknown startup
 // parameters.
 const controlPlaneLeaseKeepalives = `
