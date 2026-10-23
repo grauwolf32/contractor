@@ -108,10 +108,82 @@ func (a *PlacementAllocator) ReserveAllContext(
 	if refreshErr != nil {
 		return nil, refreshErr
 	}
-	if !changed {
-		return nil, err
+	if changed {
+		reservations, err = a.reserveAllContext(ctx, request)
 	}
-	return a.reserveAllContext(ctx, request)
+	if errors.Is(err, ErrInsufficientCapacity) && !request.ModelFree && ctx.Err() == nil {
+		a.holdForWaitingModelStage(ctx, request)
+	}
+	return reservations, err
+}
+
+// holdForWaitingModelStage holds the live Agents that a model Stage waiting for
+// allocated capacity could use (CTL-R155). The hold is advisory: an error
+// while resolving it holds nothing and never changes the Stage's own
+// placement outcome, and the Stage's next failed attempt computes it again.
+func (a *PlacementAllocator) holdForWaitingModelStage(ctx context.Context, request ReservationRequest) {
+	if request.RuntimeConfig == nil {
+		return
+	}
+	edges, _, err := a.candidateEdges(ctx, request, a.registry.liveCandidates())
+	if err != nil {
+		return
+	}
+	_ = a.registry.holdForModelStage(request, edges)
+}
+
+// candidateEdges resolves every compatible binding and candidate pair outside
+// the Registry lock, sharing one read cache, and returns the edges with the
+// Runtime configuration resolved for each.
+func (a *PlacementAllocator) candidateEdges(
+	ctx context.Context,
+	request ReservationRequest,
+	candidates []AgentSnapshot,
+) ([]CandidateEdge, map[string]runtimeconfig.ResolvedRuntimeConfig, error) {
+	optimistic := make(map[string]runtimeconfig.ResolvedRuntimeConfig)
+	cache := &placementReadCache{agentLabels: make(map[string]placementCachedValue[runtimeconfig.PinnedRuntimeConfig])}
+	lookups := placementCredentialLookups{
+		llm: a.llmCredentials, runtime: a.runtimeCredentials,
+		llmCache:     make(map[string]placementCachedValue[runtimeconfig.LLMCredentialAuthorization]),
+		runtimeCache: make(map[string]placementCachedValue[runtimesettings.RuntimeCredentialKind]),
+	}
+	edges := make([]CandidateEdge, 0, len(request.Bindings)*len(candidates))
+	for _, binding := range request.Bindings {
+		toolAdapters, err := resolved.RequiredRuntimeAdaptersForTemplate(binding.AgentTemplate)
+		if err != nil {
+			return nil, nil, fmt.Errorf("%w: AgentTemplate infrastructure requirements are invalid", ErrInvalidRequest)
+		}
+		for _, candidate := range candidates {
+			if !isBindingCompatible(candidate.Registration, binding) {
+				continue
+			}
+			resolved, err := a.resolveCandidateWithCache(ctx, a.pool, request, binding, candidate.Principal, lookups, cache)
+			if err != nil {
+				if contextError := ctx.Err(); contextError != nil {
+					return nil, nil, contextError
+				}
+				if candidateResolutionUnavailable(err) {
+					continue
+				}
+				return nil, nil, err
+			}
+			if !containsRuntimeAdapters(candidate.Registration.SupportedRuntimeAdapters, resolved.RequiredRuntimeAdapters) {
+				continue
+			}
+			if !containsRuntimeAdapters(resolved.RequiredRuntimeAdapters, toolAdapters) {
+				continue
+			}
+			key := placementResolutionKey(binding.LogicalAgentName, candidate.Registration.InstanceID)
+			optimistic[key] = resolved
+			edges = append(edges, CandidateEdge{
+				LogicalAgentName: binding.LogicalAgentName, RuntimeAgentID: candidate.Principal.RuntimeAgentID,
+				RuntimeAgentInstanceID:    candidate.Registration.InstanceID,
+				RuntimeAgentLabelRevision: candidate.Principal.LabelRevision,
+				RequiredRuntimeAdapters:   append([]runtimesettings.RuntimeAdapterRef{}, resolved.RequiredRuntimeAdapters...),
+			})
+		}
+	}
+	return edges, optimistic, nil
 }
 
 func (a *PlacementAllocator) refreshCandidatePrincipals(ctx context.Context, candidates []AgentSnapshot) (bool, error) {
@@ -162,49 +234,9 @@ func (a *PlacementAllocator) reserveAllContext(
 	if len(candidates) == 0 {
 		return nil, ErrInsufficientCapacity
 	}
-
-	optimistic := make(map[string]runtimeconfig.ResolvedRuntimeConfig)
-	cache := &placementReadCache{agentLabels: make(map[string]placementCachedValue[runtimeconfig.PinnedRuntimeConfig])}
-	lookups := placementCredentialLookups{
-		llm: a.llmCredentials, runtime: a.runtimeCredentials,
-		llmCache:     make(map[string]placementCachedValue[runtimeconfig.LLMCredentialAuthorization]),
-		runtimeCache: make(map[string]placementCachedValue[runtimesettings.RuntimeCredentialKind]),
-	}
-	edges := make([]CandidateEdge, 0, len(request.Bindings)*len(candidates))
-	for _, binding := range request.Bindings {
-		toolAdapters, err := resolved.RequiredRuntimeAdaptersForTemplate(binding.AgentTemplate)
-		if err != nil {
-			return nil, fmt.Errorf("%w: AgentTemplate infrastructure requirements are invalid", ErrInvalidRequest)
-		}
-		for _, candidate := range candidates {
-			if !isBindingCompatible(candidate.Registration, binding) {
-				continue
-			}
-			resolved, err := a.resolveCandidateWithCache(ctx, a.pool, request, binding, candidate.Principal, lookups, cache)
-			if err != nil {
-				if contextError := ctx.Err(); contextError != nil {
-					return nil, contextError
-				}
-				if candidateResolutionUnavailable(err) {
-					continue
-				}
-				return nil, err
-			}
-			if !containsRuntimeAdapters(candidate.Registration.SupportedRuntimeAdapters, resolved.RequiredRuntimeAdapters) {
-				continue
-			}
-			if !containsRuntimeAdapters(resolved.RequiredRuntimeAdapters, toolAdapters) {
-				continue
-			}
-			key := placementResolutionKey(binding.LogicalAgentName, candidate.Registration.InstanceID)
-			optimistic[key] = resolved
-			edges = append(edges, CandidateEdge{
-				LogicalAgentName: binding.LogicalAgentName, RuntimeAgentID: candidate.Principal.RuntimeAgentID,
-				RuntimeAgentInstanceID:    candidate.Registration.InstanceID,
-				RuntimeAgentLabelRevision: candidate.Principal.LabelRevision,
-				RequiredRuntimeAdapters:   append([]runtimesettings.RuntimeAdapterRef{}, resolved.RequiredRuntimeAdapters...),
-			})
-		}
+	edges, optimistic, err := a.candidateEdges(ctx, request, candidates)
+	if err != nil {
+		return nil, err
 	}
 	if len(edges) == 0 {
 		return nil, ErrInsufficientCapacity

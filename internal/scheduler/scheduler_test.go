@@ -2822,6 +2822,8 @@ type memoryAllocator struct {
 	// released holds Stages whose committed reservation was released; like
 	// the production Registry it cannot be reserved again.
 	released map[string]bool
+	// modelFree records ReservationRequest.ModelFree of every call.
+	modelFree []bool
 }
 
 // pinStageAllocations records placement rows as production placement does.
@@ -2843,6 +2845,7 @@ func (a *memoryAllocator) ReserveAllContext(ctx context.Context, request control
 		return nil, err
 	}
 	a.reserveCalls++
+	a.modelFree = append(a.modelFree, request.ModelFree)
 	a.events.add("reserve")
 	if a.reserveError != nil {
 		return nil, a.reserveError

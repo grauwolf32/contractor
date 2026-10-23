@@ -653,19 +653,7 @@ func (f *placementFixture) registerCandidateWithLabels(
 	labels []string,
 ) string {
 	t.Helper()
-	runtimeAgentID := strings.Repeat(idDigit, 64)
-	now := time.Now().UTC()
-	principal := agentprincipal.Principal{
-		RuntimeAgentID: runtimeAgentID, Labels: append([]string{}, labels...), LabelRevision: 1,
-		CreatedBy: "runtime-registration", CreatedAt: now,
-		UpdatedBy: "runtime-registration", UpdatedAt: now,
-	}
-	if _, err := agentprincipal.NewRepository(f.pool).Insert(ctx, principal); err != nil {
-		t.Fatal(err)
-	}
 	registration := control.AgentRegistration{
-		APIVersion: contracts.APIVersion, InstanceID: instanceID, SoftwareVersion: "1.0.0", StartedAt: now,
-		ControlURL: "https://" + instanceID + ".test", A2AURL: "https://" + instanceID + ".test",
 		InitialLabels:     append([]string{}, labels...),
 		SupportedRuntimes: []string{f.template.Runtime.RuntimeID + "@" + f.template.Runtime.Version},
 		SupportedToolsets: []control.ToolsetCapability{{
@@ -676,8 +664,35 @@ func (f *placementFixture) registerCandidateWithLabels(
 			f.template.SandboxProfile.SandboxProfileID + "@" + f.template.SandboxProfile.Version,
 		},
 		SupportedRuntimeAdapters: append([]runtimesettings.RuntimeAdapterRef{}, adapters...),
-		ObservedState:            control.AgentIdle,
 	}
+	return f.registerProcess(t, ctx, instanceID, idDigit, labels, registration)
+}
+
+// registerProcess stores the principal of idDigit and registers one idle
+// process with registration's capabilities and a confirmed control lease.
+func (f *placementFixture) registerProcess(
+	t *testing.T,
+	ctx context.Context,
+	instanceID string,
+	idDigit string,
+	labels []string,
+	registration control.AgentRegistration,
+) string {
+	t.Helper()
+	runtimeAgentID := strings.Repeat(idDigit, 64)
+	now := time.Now().UTC()
+	principal := agentprincipal.Principal{
+		RuntimeAgentID: runtimeAgentID, Labels: append([]string{}, labels...), LabelRevision: 1,
+		CreatedBy: "runtime-registration", CreatedAt: now,
+		UpdatedBy: "runtime-registration", UpdatedAt: now,
+	}
+	if _, err := agentprincipal.NewRepository(f.pool).Insert(ctx, principal); err != nil {
+		t.Fatal(err)
+	}
+	registration.APIVersion, registration.InstanceID = contracts.APIVersion, instanceID
+	registration.SoftwareVersion, registration.StartedAt = "1.0.0", now
+	registration.ControlURL, registration.A2AURL = "https://"+instanceID+".test", "https://"+instanceID+".test"
+	registration.ObservedState = control.AgentIdle
 	authenticated := AuthenticatedPrincipal{
 		RuntimeAgentID: runtimeAgentID, Labels: append([]string{}, labels...), LabelRevision: 1,
 	}

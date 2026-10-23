@@ -188,6 +188,11 @@ func TestSchedulerHandsTheRunToTheModelPoolAfterAToolStage(t *testing.T) {
 		t.Fatalf("claims = %v with %d deferrals, want %v without deferral",
 			harness.store.claimedClasses, harness.store.deferrals, want)
 	}
+	// The tool Stage asks for model-free placement, which never takes an
+	// Agent held for a waiting model Stage; the model Stage does not (CTL-R155).
+	if !slices.Equal(harness.allocator.modelFree, []bool{true, false}) {
+		t.Fatalf("placement requests ModelFree = %v, want [true false]", harness.allocator.modelFree)
+	}
 }
 
 // A stored lane class that disagrees with the Stage the Run progresses is a

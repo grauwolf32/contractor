@@ -604,6 +604,8 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Model consumer** — A modeled user of a ModelPolicy (an `adk@1` Worker, a Worker summarizer, or a `streamline@1` or `router@1` Planner) that declares which ModelPolicy fields it requires. Owner: [Agent templates](configuration/agent-templates.md).
 
+**Model Stage hold** — A process-local mark that keeps model-free placement off a live Runtime Agent for the hold window after a model Stage that could use it failed placement. Owner: [Control Plane](execution/control-plane.md).
+
 **Model-backed Planner** — A streamline@1 or router@1 Planner, which runs one Google ADK Go LlmAgent inside Server. Owner: [Planners](execution/planners.md).
 
 **Model-visible error vocabulary** — The set of error codes a toolset returns to the model. Owner: [Error and stop codes](platform/errors.md).

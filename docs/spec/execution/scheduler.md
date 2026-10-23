@@ -341,6 +341,24 @@ capability that is not yet represented in the live fleet.
 **SCH-R20.** Capacity backoff while preparing one attempt is an infrastructure
 concern and does not consume another Workflow attempt.
 
+**SCH-R176.** On a Runtime Agent that both lane pools can use, a `model`
+Stage comes first. Every placement request of a StageExecution carries its
+lane class (SCH-R175), and Control Plane keeps the Agents that a `model`
+Stage waiting for allocated capacity could use away from `tool` placement
+([CTL-R155](control-plane.md)). A waiting Stage retries placement whenever a
+free `model` lane claims it again (SCH-R122, SCH-R123), which with a free lane
+and no other runnable work happens at every Scheduler poll, and each failed
+attempt extends the hold. A Stage that
+stops waiting, because it is placed, cancelled, aborted, past its deadline,
+paused by its owner's queue, denied by a blocked model route or left without
+a free `model` lane, stops extending it, and the hold lapses within the hold
+window (LIM-CTL-10). The rule delays only the placement of new `tool` Stages:
+running `tool` Stages, their cancellation, finalization, release and recovery
+are unaffected. A `tool` Stage that finds no unheld compatible Agent waits as
+SCH-R19 describes, and its own deadline still applies; a `tool` Stage that
+fits an Agent no waiting `model` Stage can use, such as a dedicated scan
+Agent, is placed as usual.
+
 Stage admission, `admitted_at` and when the Stage wall-clock budget starts are
 specified in [RUN-R28](runs.md).
 
@@ -1483,7 +1501,7 @@ Errors ([registry](../platform/errors.md)):
 
 Failure outcomes ([failure model](../platform/failure-model.md)):
 
-- FAIL-SCH-1 — Runtime capacity for a Stage (SCH-R19).
+- FAIL-SCH-1 — Runtime capacity for a Stage (SCH-R19, SCH-R176).
 - FAIL-SCH-2 — allocation batch initialization (SCH-R23).
 - FAIL-SCH-3 — StageContext resolution (SCH-R17).
 - FAIL-SCH-4 — Planner invocation (SCH-R37).
@@ -1584,6 +1602,9 @@ These properties follow from the cited requirements, which are authoritative.
     freezes the Run's output bindings in the same transaction, including the
     end of an unprogressable Run (SCH-R102) and of a cancelling Run without
     an active StageExecution ([ART-R92, ART-R94](../artifacts/artifact-store.md)).
+16. A `tool` placement never reserves an idle Runtime Agent that a `model`
+    Stage waiting for allocated capacity could use, and only the placement of
+    new `tool` Stages waits for such a hold (SCH-R176).
 
 ## Examples
 

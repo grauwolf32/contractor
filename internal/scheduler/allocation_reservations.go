@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/controlplane"
@@ -47,11 +48,9 @@ func (s *Scheduler) liveOrNewReservations(
 			}
 		}
 		if lost {
-			reservations, reserveErr := s.allocator.ReserveAllContext(ctx, controlplane.ReservationRequest{
-				RunID: run.RunID, StageExecutionID: execution.StageExecutionID,
-				RunMetadataLabels: run.MetadataLabels.Clone(),
-				Bindings:          requirements, RuntimeConfig: &run.RuntimeConfig,
-			})
+			reservations, reserveErr := s.allocator.ReserveAllContext(
+				ctx, stagePlacementRequest(run, workflow, execution, requirements),
+			)
 			if reserveErr != nil {
 				return nil, false, &allocationLostError{reason: lossReason}
 			}
@@ -65,20 +64,17 @@ func (s *Scheduler) liveOrNewReservations(
 			return nil, false, err
 		}
 	}
-	reservations, err := s.allocator.ReserveAllContext(ctx, controlplane.ReservationRequest{
-		RunID: run.RunID, StageExecutionID: execution.StageExecutionID,
-		RunMetadataLabels: run.MetadataLabels.Clone(),
-		Bindings:          requirements, RuntimeConfig: &run.RuntimeConfig,
-		// Gateway admission runs before placement is durable: a denial must not
-		// leave pinned allocation rows without live grants behind.
-		Admit: func(ctx context.Context, candidates []controlplane.Reservation) error {
-			allowed, err := s.admitModelRoutes(ctx, run, workflow.stage, candidates)
-			if err == nil && !allowed {
-				err = ErrDeferred
-			}
-			return err
-		},
-	})
+	request := stagePlacementRequest(run, workflow, execution, requirements)
+	// Gateway admission runs before placement is durable: a denial must not
+	// leave pinned allocation rows without live grants behind.
+	request.Admit = func(ctx context.Context, candidates []controlplane.Reservation) error {
+		allowed, err := s.admitModelRoutes(ctx, run, workflow.stage, candidates)
+		if err == nil && !allowed {
+			err = ErrDeferred
+		}
+		return err
+	}
+	reservations, err := s.allocator.ReserveAllContext(ctx, request)
 	if err != nil {
 		return nil, false, err
 	}
@@ -91,6 +87,23 @@ func (s *Scheduler) liveOrNewReservations(
 		}
 	}
 	return reservations, len(recorded) == 0, nil
+}
+
+// stagePlacementRequest is the placement request of execution. Every request
+// of a Stage carries its lane class (SCH-R175), so a model-free Stage never
+// holds Runtime Agents for itself through a replay path (CTL-R155).
+func stagePlacementRequest(
+	run runstore.WorkflowRun,
+	workflow executableWorkflow,
+	execution runstore.StageExecution,
+	requirements []controlplane.BindingRequirement,
+) controlplane.ReservationRequest {
+	return controlplane.ReservationRequest{
+		RunID: run.RunID, StageExecutionID: execution.StageExecutionID,
+		RunMetadataLabels: run.MetadataLabels.Clone(),
+		Bindings:          requirements, RuntimeConfig: &run.RuntimeConfig,
+		ModelFree: resolved.StageLaneClass(workflow.stage) == resolved.LaneClassTool,
+	}
 }
 
 // allocationLossFailure maps a lost-allocation error to a Stage termination
@@ -245,11 +258,7 @@ func (s *Scheduler) existingLiveReservations(
 			return nil
 		}
 	}
-	reservations, err := s.allocator.ReserveAllContext(ctx, controlplane.ReservationRequest{
-		RunID: run.RunID, StageExecutionID: execution.StageExecutionID,
-		RunMetadataLabels: run.MetadataLabels.Clone(),
-		Bindings:          requirements, RuntimeConfig: &run.RuntimeConfig,
-	})
+	reservations, err := s.allocator.ReserveAllContext(ctx, stagePlacementRequest(run, workflow, execution, requirements))
 	if err != nil || verifyReservations(run, workflow, execution, recorded, reservations) != nil {
 		return nil
 	}

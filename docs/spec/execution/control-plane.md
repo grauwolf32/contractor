@@ -106,6 +106,9 @@ document owns are:
   `idle`.
 - **Insufficient compatible capacity.** The temporary placement result
   returned when no complete matching currently exists.
+- **Model Stage hold.** A process-local mark that keeps model-free placement
+  off a live Runtime Agent for the hold window after a model Stage that could
+  use it failed placement (CTL-R155).
 
 ## Model
 
@@ -767,7 +770,9 @@ superset of every selected tool for each exact Toolset ref, its advertised
 adapter set contains every adapter required after combining that principal's
 Agent labels with the pinned Run labels, and it satisfies the binding's
 workspace requirements of CTL-R71. Placement checks the explicitly
-reported exact runtime, tool, sandbox and adapter capabilities.
+reported exact runtime, tool, sandbox and adapter capabilities. For a
+model-free Stage the Agent must also not be held for a waiting model Stage
+(CTL-R155).
 
 **CTL-R74.** Extra capabilities neither activate settings or
 adapters, change Worker behavior nor become model-visible; extra advertised
@@ -830,7 +835,28 @@ This is not a Stage failure: the StageExecution remains `preparing`, no slot is
 reserved and the Scheduler's bounded capacity backoff applies until capacity
 appears, the execution deadline expires or cancellation is requested
 ([scheduler](scheduler.md)). It covers both busy compatible agents and an
-environment capability that is not yet represented in the live fleet.
+environment capability that is not yet represented in the live fleet, and,
+for a model-free Stage, compatible idle Agents held for a waiting model Stage
+(CTL-R155).
+
+**CTL-R155.** On a Runtime Agent that model and model-free Stages share, a
+model Stage comes first ([SCH-R176](scheduler.md)). A placement request
+states whether its Stage is model-free, that is of lane class `tool`
+(SCH-R175); a model-free request that binds a model Worker is invalid. When
+placement of a Stage that is not model-free returns insufficient compatible
+capacity, Control Plane resolves the Stage's placement requirements against
+every live Runtime Agent, idle or allocated, exactly as placement resolves
+them (CTL-R71 to CTL-R83). If a complete matching exists among those Agents,
+every live Agent that some binding of the Stage could use is held for the
+hold window (LIM-CTL-10); otherwise nothing is held, so a Stage that could not
+be placed even with every allocation released never holds an Agent.
+Placement of a model-free Stage treats a held Agent as unavailable; placement
+of any other Stage, and the replay of a reservation that already exists,
+ignore holds. Only a later failed placement of a model Stage extends a hold,
+and nothing ends it early. A hold is advisory, process-local Registry state
+like a reservation: it reaches no database, Runtime or public API, a Server
+restart clears it, and a failure while computing it holds nothing and never
+changes the placement outcome of the Stage that triggered it.
 
 **CTL-R85.** Planner never chooses, observes or changes physical
 placement.
@@ -1291,13 +1317,15 @@ The private live-state route is
   interval requested in `AllocationSpec` (CTL-R133).
 - [LIM-CTL-9](../platform/limits.md): Runtime capability and identity bounds
   of one registration (CTL-R148).
+- [LIM-CTL-10](../platform/limits.md): a hold window of five Scheduler poll
+  intervals, 5 seconds by default (CTL-R155).
 - [FAIL-CTL-1](../platform/failure-model.md): Runtime Agent registration and
   re-registration (CTL-R12, CTL-R34,
   CTL-R50).
 - [FAIL-CTL-2](../platform/failure-model.md): the heartbeat round trip
   (CTL-R44).
 - [FAIL-CTL-3](../platform/failure-model.md): Stage preparation
-  (CTL-R84, CTL-R94, CTL-R95, CTL-R147).
+  (CTL-R84, CTL-R94, CTL-R95, CTL-R147, CTL-R155).
 - [FAIL-CTL-4](../platform/failure-model.md): the allocation-pinning
   transaction (CTL-R90).
 - [FAIL-CTL-5](../platform/failure-model.md): Worker finalization

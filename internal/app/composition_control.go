@@ -69,7 +69,12 @@ func configureControlPlane(
 		cfg.CertificateExpiryWarningWindow, time.Now); err != nil {
 		return controlServices{}, err
 	}
-	registry, err := controlplane.NewRegistry(controlplane.RegistryOptions{})
+	// A waiting model Stage retries placement once per Scheduler poll while a
+	// model lane is free; five polls keep its hold across slow attempts and
+	// let it lapse soon after the Stage stops waiting (CTL-R155).
+	registry, err := controlplane.NewRegistry(controlplane.RegistryOptions{
+		ModelStageHold: 5 * cfg.Operations.Scheduler.PollInterval,
+	})
 	if err != nil {
 		return controlServices{}, fmt.Errorf("configure Control Plane registry: %w", err)
 	}

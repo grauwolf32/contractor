@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-69 open tasks: 4 in progress, 40 pending, 25 deferred. 960 finished: 957 completed, 3 archived.
+69 open tasks: 5 in progress, 39 pending, 25 deferred. 960 finished: 957 completed, 3 archived.
 
 ## In progress
 
@@ -15,6 +15,7 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
+| [V400-002](v400-002-model-first-shared-agents.yml) | execution-core | feature | P2 | Resolve shared Runtime Agent conflicts in favour of model Stages |
 
 ## Pending
 
@@ -25,7 +26,6 @@ the epics are in [epics.yml](epics.yml).
 | [V371-014](v371-014-scheduler-stage-history-reads.yml) | defect | P3 | — | Read only the Stage history fields escalation counting and cancellation cleanup use |
 | [V372-007](v372-007-terminal-stage-state-set.yml) | chore | P3 | — | Define the terminal StageExecution states once and hold SQL and the UI to them |
 | [V372-028](v372-028-runstore-strict-snapshot-reads.yml) | chore | P3 | — | Decode persisted Run, Stage and allocation snapshots strictly in runstore |
-| [V400-002](v400-002-model-first-shared-agents.yml) | feature | P2 | — | Resolve shared Runtime Agent conflicts in favour of model Stages |
 
 ### Planners and the Worker model boundary (`planner-worker`)
 
