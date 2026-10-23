@@ -4,8 +4,10 @@ title: Move the shared filesystem tool error type into toolsets.common
 milestone: server-runtime-review-2026-10
 epic: quality
 kind: chore
+introduced_by: V366-005
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: df1271b407db1de37ea6c1e9b9b451c3c7dbd078
 depends_on: []
 languages:
 - python
@@ -72,3 +74,40 @@ tests:
   - A1
   - A2
   - A3
+verification:
+  date: '2026-10-23'
+  revision: df1271b407db1de37ea6c1e9b9b451c3c7dbd078
+  environment: Worktree contractor-wt/r3, branch claude/rv-r3 on base ac982d28, macOS arm64 (Darwin),
+    Python 3.13 via uv sync --locked, Node 24.20 with Corepack pnpm. No PostgreSQL tests are in scope
+    (Python-only refactor), so CONTRACTOR_TEST_DATABASE_URL was not used.
+  database_tests_configured: false
+  introduced_by_note: V366-005 declared edit_files, workspace_changes -> filesystem as a protected
+    chain instead of moving the shared error type into toolsets.common; the import itself predates
+    task tracking (a224c0c7).
+  results:
+  - 'A1: FilesystemToolError is defined once, in runtime/src/contractor_runtime/toolsets/common/filesystem_errors.py
+    (class body unchanged). filesystem, edit_files and workspace_changes import it from there; no module
+    or test imports it from toolsets.filesystem. filesystem moved to the concrete-toolsets layer and
+    the toolsets-chain-filesystem protected contract was deleted (runtime/pyproject.toml, docs/development.md).'
+  - 'A1 mutation: restoring the old import in edit_files/tools.py makes uv run lint-imports report
+    "contractor_runtime.toolsets.edit_files is not allowed to import contractor_runtime.toolsets.filesystem"
+    (3 kept, 1 broken); with the change, 4 kept, 0 broken.'
+  - 'A2: class name (used in tool error messages and error_type telemetry), code attribute, message
+    and the absent retryable attribute (non-retryable tool responses) are unchanged; only import paths
+    changed in production and tests. The layers contract stays exhaustive and the taint_annotations
+    -> code_analysis chain is KEPT.'
+  - 'A3: openapi/tools.py, internal/config/resolved/descriptors.go and api/testdata/toolset-descriptors.json
+    are untouched; read_openapi_document remains registered, selectable and named in CAS guidance.'
+  - 'cd runtime && uv run --locked pytest -q tests/test_filesystem_toolset.py tests/test_edit_files_toolset.py
+    tests/test_workspace_changes_toolset.py tests/test_openapi_toolset.py: 91 passed.'
+  - 'Sibling suites using the error type (test_numbered_file_reads, test_toolset_cursors, test_local_direct_tool_consumers,
+    test_filesystem_observations, test_projectfs_legacy_parity): 43 passed.'
+  - 'make lint: passed (ruff, import-linter 4 kept / 0 broken, check_tasks, release graph and the rest).'
+  - 'make test-runtime: 4286 passed, 105 failed, 39 skipped. All 105 failures are macOS environment
+    failures (61 OSError Errno 43 Protocol not supported for Linux socket types, pidfd_open missing,
+    Podman sandbox, Linux address-space limits) in podman_*, tool_process, trailmark_child, projectfs_local_*,
+    local_direct_faults and code_analysis_graph tests. The same command on unmodified base ac982d28 in
+    a temporary worktree failed the same 105 tests plus the timing-sensitive test_code_analysis_shallow
+    event-loop-gap test (106 failed, 4285 passed); none involves the moved type.'
+  declined:
+  - Removing or wiring read_openapi_document and any shipped-selection gate are out of scope (scope.out).
