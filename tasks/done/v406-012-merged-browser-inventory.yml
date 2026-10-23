@@ -6,7 +6,7 @@ epic: ui
 kind: defect
 introduced_by: V405-005
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V405-005]
 languages: [typescript]
 goal: Keep the fail-closed browser inventory complete after integrating placement work with the basic scanner widgets.
@@ -30,3 +30,10 @@ tests:
   covers: [A1, A2]
 - command: make lint
   covers: [A1, A2]
+implementation_commit: 8a96fb05caa0dd8552b20b02fb187603f0accbc6
+verification:
+  date: '2026-10-23'
+  passed:
+  - The unfixed inventory failed with unlisted=e2e/audit-labels.spec.ts before any browser scenario ran.
+  - make ui-browser-mocked; 91 passing cases across 23 specs, including the three Audit-label themes; no skipped or flaky cases.
+  - make lint
