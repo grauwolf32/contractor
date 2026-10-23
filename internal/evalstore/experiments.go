@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"reflect"
+	"slices"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
@@ -121,6 +122,9 @@ func (s *Store) UpdateDraft(ctx context.Context, scope Scope, id string, documen
 	})
 }
 
+// Recipe is a member's execution recipe. persistPlan stores it as the
+// json.Marshal encoding of this struct, assembled from memberRows' case and
+// variant parts; a change to its fields or tags changes that split too.
 type Recipe struct {
 	Case    evaldomain.ExecutionCase `json:"case"`
 	Variant evaldomain.Variant       `json:"variant"`
@@ -279,13 +283,17 @@ func (s *Store) persistPlan(ctx context.Context, e Experiment, document evaldoma
 		}
 		ordinals[id] = i
 	}
+	rows, err := prepareMembers(e, manifest.Members, cases, settings.Variants, ordinals, reasons)
+	if err != nil {
+		return err
+	}
 	change := observe
 	if e.ControlMode == evaldomain.ControlExternal {
 		// External registration authors the plan within Create, and its accepted
 		// revision has always named the second authority write.
 		change = advance
 	}
-	_, err := s.db.Exec(ctx, `UPDATE eval_experiments SET state='ready',diagnostic=NULL,expected_count=$2,`+change+` WHERE experiment_id=$1`, e.ID, len(manifest.Members))
+	_, err = s.db.Exec(ctx, `UPDATE eval_experiments SET state='ready',diagnostic=NULL,expected_count=$2,`+change+` WHERE experiment_id=$1`, e.ID, len(manifest.Members))
 	if err != nil {
 		return err
 	}
@@ -293,40 +301,104 @@ func (s *Store) persistPlan(ctx context.Context, e Experiment, document evaldoma
 	if err != nil {
 		return normalize(err)
 	}
-	for _, m := range manifest.Members {
+	_, err = s.db.Exec(ctx, insertMembersSQL, rows.arguments(e.ID)...)
+	return normalize(err)
+}
+
+// memberRows is the expected matrix as one array per eval_members column,
+// validated before any write. It has one row per manifest member, at most
+// the setup's maxMembers budget (LIM-EVF-8). A stored recipe is
+// bytesOf(Recipe{case, variant}), whose encoding is the case part
+// {"case":<case>,"variant": followed by the variant part <variant>}. Each
+// distinct projected case and each variant is kept once, so the insert's
+// parameters follow the document and dataset byte bounds (LIM-EVF-3) rather
+// than members times recipe bytes.
+type memberRows struct {
+	ids, pairs, suites, caseIDs, variantIDs  []string
+	eligibility, kinds, keys                 []string
+	caseDigests, bindingDigests              []string
+	ordinals, samples, caseRefs, variantRefs []int
+	reasons                                  []*string
+	caseParts, variantParts                  [][]byte
+}
+
+func prepareMembers(e Experiment, members []evaldomain.PublicMember, cases map[string]evaldomain.Case, variants []evaldomain.Variant, ordinals map[string]int, reasons map[string]*string) (memberRows, error) {
+	n := len(members)
+	rows := memberRows{
+		ids: make([]string, 0, n), pairs: make([]string, 0, n), suites: make([]string, 0, n),
+		caseIDs: make([]string, 0, n), variantIDs: make([]string, 0, n), eligibility: make([]string, 0, n),
+		kinds: make([]string, 0, n), keys: make([]string, 0, n), caseDigests: make([]string, 0, n),
+		bindingDigests: make([]string, 0, n), ordinals: make([]int, 0, n), samples: make([]int, 0, n),
+		caseRefs: make([]int, 0, n), variantRefs: make([]int, 0, n), reasons: make([]*string, 0, n),
+	}
+	variantRef := make(map[string]int, len(variants))
+	kinds := make(map[string]string, len(variants))
+	for _, v := range variants {
+		rows.variantParts = append(rows.variantParts, append(bytesOf(v), '}'))
+		variantRef[v.ID] = len(rows.variantParts)
+		kinds[v.ID] = "run"
+		if v.Kind == "audit" {
+			kinds[v.ID] = "audit"
+		}
+	}
+	caseRef := map[string]int{}
+	for _, m := range members {
 		c, ok := cases[m.MemberID]
 		if !ok || c.ID != m.CaseID {
-			return evaldomain.Failure("eval_member_conflict")
+			return memberRows{}, evaldomain.Failure("eval_member_conflict")
 		}
-		v, ok := variants[m.VariantID]
+		variant, ok := variantRef[m.VariantID]
 		if !ok {
-			return evaldomain.Failure("eval_member_conflict")
+			return memberRows{}, evaldomain.Failure("eval_member_conflict")
 		}
 		ordinal, ok := ordinals[m.MemberID]
 		if !ok {
-			return evaldomain.Failure("eval_member_conflict")
+			return memberRows{}, evaldomain.Failure("eval_member_conflict")
 		}
-		visible, err := evaldomain.ExecutionProjection(c)
-		if err != nil {
-			return err
-		}
-		kind := "run"
-		if v.Kind == "audit" {
-			kind = "audit"
+		// ExecutionProjection depends only on the case's JSON encoding, so
+		// members that share a case share one validated case part.
+		encoded := string(bytesOf(c))
+		part, ok := caseRef[encoded]
+		if !ok {
+			visible, err := evaldomain.ExecutionProjection(c)
+			if err != nil {
+				return memberRows{}, err
+			}
+			rows.caseParts = append(rows.caseParts, slices.Concat([]byte(`{"case":`), bytesOf(visible), []byte(`,"variant":`)))
+			part = len(rows.caseParts)
+			caseRef[encoded] = part
 		}
 		pair, err := evaldomain.PairID(e.PortableID, m.SuiteID, m.CaseID, m.Sample)
 		if err != nil {
-			return err
+			return memberRows{}, err
 		}
 		// Scope the effect key by the server identity, not the portable ID alone.
 		key := "eval-" + evaldomain.Digest(bytesOf([]string{e.ID, m.MemberID}))[7:]
-		_, err = s.db.Exec(ctx, `
-INSERT INTO eval_members(experiment_id, member_id, pair_id, ordinal, suite_id, case_id, sample, variant_id, eligibility, execution_kind, recipe, submission_key, case_sha256, binding_sha256, eligibility_reason)
-VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-`, e.ID, m.MemberID, pair, ordinal, m.SuiteID, m.CaseID, m.Sample, m.VariantID, m.Eligibility, kind, bytesOf(Recipe{visible, v}), key, m.CaseSHA256, m.BindingSHA256, reasons[m.MemberID])
-		if err != nil {
-			return normalize(err)
-		}
+		rows.ids = append(rows.ids, m.MemberID)
+		rows.pairs = append(rows.pairs, pair)
+		rows.ordinals = append(rows.ordinals, ordinal)
+		rows.suites = append(rows.suites, m.SuiteID)
+		rows.caseIDs = append(rows.caseIDs, m.CaseID)
+		rows.samples = append(rows.samples, m.Sample)
+		rows.variantIDs = append(rows.variantIDs, m.VariantID)
+		rows.eligibility = append(rows.eligibility, m.Eligibility)
+		rows.kinds = append(rows.kinds, kinds[m.VariantID])
+		rows.keys = append(rows.keys, key)
+		rows.caseDigests = append(rows.caseDigests, m.CaseSHA256)
+		rows.bindingDigests = append(rows.bindingDigests, m.BindingSHA256)
+		rows.reasons = append(rows.reasons, reasons[m.MemberID])
+		rows.caseRefs = append(rows.caseRefs, part)
+		rows.variantRefs = append(rows.variantRefs, variant)
 	}
-	return nil
+	return rows, nil
+}
+
+// arguments returns insertMembersSQL's parameters in placeholder order.
+func (r memberRows) arguments(experimentID string) []any {
+	return []any{
+		experimentID, r.ids, r.pairs, r.ordinals, r.suites, r.caseIDs,
+		r.samples, r.variantIDs, r.eligibility, r.kinds, r.keys,
+		r.caseDigests, r.bindingDigests, r.reasons, r.caseRefs, r.variantRefs,
+		r.caseParts, r.variantParts,
+	}
 }
