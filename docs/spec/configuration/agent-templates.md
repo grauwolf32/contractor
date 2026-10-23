@@ -299,6 +299,12 @@ The resolved content contributes to the enclosing AgentTemplate digest and is
 sent inside the complete template in AllocationSpec, so Runtime Agent requires
 no catalog or filesystem access.
 
+**TPL-R114.** ADK receives the resolved Worker instructions literally, as
+TPL-R51 requires for summarizer instructions. Braces, repeated braces and JSON
+examples are ordinary text: the instruction has no placeholder grammar, neither
+Server nor Runtime Agent rejects braces, and no session State or artifact value
+is substituted into the text ([Worker](../execution/worker.md), WRK-R166).
+
 **TPL-R9.** ModelPolicy, Toolset selections and SandboxProfile are
 framework-neutral Contractor data. An ADK Worker adapter translates them into
 runtime configuration only when an allocation is prepared.

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import asyncio
 import base64
 import json
@@ -23,9 +24,11 @@ from fakes.telemetry import SERVER_EXPORT
 from google.adk.models.base_llm import BaseLlm
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
+from google.adk.sessions import InMemorySessionService
 from google.genai import types
 from pydantic import Field
 
+import contractor_runtime
 from contractor_runtime.adapters import (
     AdapterHandles,
     RuntimeInstrumentation,
@@ -70,6 +73,7 @@ from contractor_runtime.llm.openai import (
 from contractor_runtime.toolsets.memory.tools import MemoryToolsetFactory
 from contractor_runtime.toolsets.run_artifacts.tools import RunArtifactsToolsetFactory
 from contractor_runtime.worker.factory import AdkWorkerRuntimeFactory
+from contractor_runtime.worker.finalizer import _SYSTEM_INSTRUCTION as FINALIZER_INSTRUCTION
 from contractor_runtime.worker.runtime import AdkWorkerRuntime, _summarizer_secrets
 from contractor_runtime.worker.sessions import WorkerSessionLifecycleError
 from contractor_runtime.workspace import AllocationWorkspace
@@ -304,6 +308,138 @@ def test_adk_worker_rejects_oversized_stage_content_before_creating_session(
         await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
     asyncio.run(scenario())
+
+
+def adk_system_instruction(instruction: str, *, agent: str, description: str) -> str:
+    """The exact system instruction ADK 2.8 sends: the text, then its identity line."""
+
+    identity = f'You are an agent. Your internal name is "{agent}".'
+    return f'{instruction}\n\n{identity} The description about you is "{description}".'
+
+
+@pytest.mark.parametrize(
+    "instruction",
+    [
+        "Inspect the literal {path}.",
+        "Keep {{path}}, {{{path}}}, {path?}, { path } and {artifact.report} as written.",
+        'Return JSON such as {"path": "src/app.py", "lines": [1, 2]} or {}.',
+        "The session key {contractor} is ordinary text here.",
+    ],
+)
+def test_adk_worker_sends_authored_instruction_literally(tmp_path: Path, instruction: str) -> None:
+    async def scenario() -> None:
+        model = scripted_model([terminal_text("done")])
+        runtime = await create_runtime(tmp_path, WorkerState(), {}, model, instruction=instruction)
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.failure is None
+        assert completion.result is not None
+        assert completion.result.result == "done"
+        worker_request, finalizer_request = model.requests
+        # The Worker session always holds the `contractor` State subtree, so
+        # ADK templating would have replaced {contractor} with its value.
+        assert worker_request["systemInstruction"] == adk_system_instruction(
+            instruction, agent="contractor_worker", description="Build artifacts"
+        )
+        assert finalizer_request["systemInstruction"] == adk_system_instruction(
+            FINALIZER_INSTRUCTION,
+            agent="contractor_worker_result_finalizer",
+            description="Serialize one already completed Worker result.",
+        )
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+class SeededSessionService(InMemorySessionService):
+    """Creates every session with extra State keys next to Runtime's own."""
+
+    def __init__(self, seeded: dict[str, str]) -> None:
+        super().__init__()
+        self._seeded = seeded
+
+    async def create_session(
+        self,
+        *,
+        app_name: str,
+        user_id: str,
+        state: dict[str, Any] | None = None,
+        session_id: str | None = None,
+    ) -> Any:
+        return await super().create_session(
+            app_name=app_name,
+            user_id=user_id,
+            state={**(state or {}), **self._seeded},
+            session_id=session_id,
+        )
+
+
+def test_adk_worker_instruction_ignores_matching_session_state_keys(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        instruction = 'Inspect {path}, {{path}} and {path?}; answer {"path": "{path}"}.'
+        model = scripted_model([terminal_text("done"), terminal_text("again")])
+        context = replace(build_context(tmp_path, WorkerState(), {}), instruction=instruction)
+        runtime = AdkWorkerRuntime(
+            context,
+            model,
+            session_service=SeededSessionService({"path": "session-path-value"}),
+        )
+
+        # The shared session is reused, so the second invocation renders the
+        # instruction again from a session that already holds the key.
+        for expected in ("done", "again"):
+            completion = await runtime.invoke(stage_request())
+            assert completion.failure is None
+            assert completion.result is not None
+            assert completion.result.result == expected
+
+        session_id = runtime._session_lifecycle.shared_session_id
+        assert session_id is not None
+        session = await runtime._session_service.get_session(
+            app_name=runtime._app_name, user_id=runtime._user_id, session_id=session_id
+        )
+        assert session is not None
+        assert session.state["path"] == "session-path-value"
+        worker_requests = [
+            request
+            for request in model.requests
+            if request["systemInstruction"].startswith(instruction)
+        ]
+        assert len(worker_requests) == 2
+        for request in worker_requests:
+            assert request["systemInstruction"] == adk_system_instruction(
+                instruction, agent="contractor_worker", description="Build artifacts"
+            )
+        assert all("session-path-value" not in r["systemInstruction"] for r in model.requests)
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_every_runtime_llm_agent_receives_a_literal_instruction_provider() -> None:
+    """A string instruction would be ADK State templating; only a provider is literal."""
+
+    root = Path(contractor_runtime.__file__).parent
+    sites: dict[str, list[str]] = {}
+    for path in sorted(root.rglob("*.py")):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if not isinstance(node, ast.Call):
+                continue
+            name = node.func.attr if isinstance(node.func, ast.Attribute) else None
+            if isinstance(node.func, ast.Name):
+                name = node.func.id
+            if name not in {"Agent", "LlmAgent"}:
+                continue
+            keywords = {keyword.arg: keyword.value for keyword in node.keywords}
+            literal = isinstance(keywords.get("instruction"), ast.Lambda) and not (
+                {"global_instruction", "static_instruction", None} & keywords.keys()
+            )
+            sites.setdefault(path.relative_to(root).as_posix(), []).append(
+                f"line {node.lineno}: {'literal' if literal else 'NOT literal'}"
+            )
+    assert {"worker/runtime.py", "worker/finalizer.py", "worker/summarizer.py"} <= sites.keys()
+    assert all("NOT literal" not in site for lines in sites.values() for site in lines), sites
 
 
 def test_adk_worker_emits_content_free_model_tool_and_a2a_hooks(tmp_path: Path) -> None:
@@ -2669,10 +2805,13 @@ async def create_runtime(
     context_window_ratio: float = 0.9,
     session_mode: WorkerSessionMode = WorkerSessionMode.SHARED,
     settings: RuntimeSettings | None = None,
+    instruction: str | None = None,
 ) -> AdkWorkerRuntime:
     tmp_path.mkdir(parents=True, exist_ok=True)
     context = build_context(tmp_path, state, tools)
     context = replace(context, worker_session_mode=session_mode)
+    if instruction is not None:
+        context = replace(context, instruction=instruction)
     if settings is not None:
         context = replace(context, runtime_settings=settings)
     if instrumentation is not None:
