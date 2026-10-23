@@ -1,6 +1,10 @@
 package public
 
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
+)
 
 // route is one operation of the public contract: its method, its OpenAPI
 // path template (also the ServeMux pattern, so handlers read OpenAPI's
@@ -197,26 +201,17 @@ func (c contextHandlers) routes() []route {
 	}
 }
 
-// register serves routes, answers another method of a route's path with 405
-// and any other path with 404. ServeMux lets a GET pattern serve HEAD too, and
-// no operation of the contract defines HEAD, so every path with a GET route
-// also gets an explicit HEAD pattern: HEAD is 405 before any operation handler
-// runs (API-R111). Authentication and authorization wrap the mux, so they
-// still answer first, as they do for GET.
+// register serves routes through the routing rule the private API shares:
+// another method of a route's path, HEAD included, is 405 before any
+// operation handler runs (API-R73, API-R111), and any other path is 404.
+// Authentication and authorization wrap the mux, so they still answer first,
+// as they do for GET.
 func register(mux *http.ServeMux, routes []route) {
-	paths, gets := map[string]bool{}, map[string]bool{}
+	served := make([]httpx.Route, 0, len(routes))
 	for _, route := range routes {
-		mux.HandleFunc(route.method+" "+route.path, route.handler)
-		paths[route.path] = true
-		gets[route.path] = gets[route.path] || route.method == http.MethodGet
+		served = append(served, httpx.Route{Method: route.method, Path: route.path, Handler: route.handler})
 	}
-	for path := range paths {
-		if gets[path] {
-			mux.HandleFunc(http.MethodHead+" "+path, methodNotAllowed)
-		}
-		mux.HandleFunc(path, methodNotAllowed)
-	}
-	mux.HandleFunc("/", notFound)
+	httpx.ServeRoutes(mux, served, methodNotAllowed, notFound)
 }
 
 // evalRoute keeps every Eval response out of caches.

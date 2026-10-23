@@ -212,7 +212,9 @@ capability `403`, exactly as `GET` on the same path
 ([SEC-R45](../platform/security.md)); only an authorized `HEAD` reaches the
 `405`, and an authorized `HEAD` on a path that is no operation's gets the
 `404 not_found` of API-R73. `HEAD` therefore discloses no more about the
-routes than another undeclared method already does.
+routes than another undeclared method already does. The private allocation
+API registers its routes through the same rule
+([ART-R120](../artifacts/artifact-store.md)).
 
 The UI's supported-version check and the rule that additive changes within a
 supported version need no coordinated release are in UI
