@@ -8,6 +8,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
+from fakes.artifact_reads import CountingPayload, count_derivations
 
 import contractor_runtime.toolsets.run_artifacts.tools as run_artifacts
 from contractor_runtime.allocation import WorkerState
@@ -119,6 +120,42 @@ def test_read_artifact_pages_large_payloads() -> None:
                 await tools["read_artifact"]("inputs", "source", **arguments)
         with pytest.raises(ToolInputError, match="offset exceeds"):
             await tools["read_artifact"]("inputs", "source", offset=len(client.read_data) + 1)
+
+    asyncio.run(scenario())
+
+
+def test_ten_byte_pages_of_a_32_mib_artifact_validate_utf8_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def scenario() -> None:
+        line = "äöü € 😀 0123456789\n".encode()
+        payload = CountingPayload(line * (32 * 1024 * 1024 // len(line) + 1))
+        counted = count_derivations(monkeypatch)
+        client = FakeArtifactClient()
+        client.read_data = payload
+        factory = RunArtifactsToolsetFactory(lambda _allocation, _settings: client)
+        read = (await create_tools(factory, WorkerState(), ["read_artifact"]))["read_artifact"]
+
+        chunk = run_artifacts.MAX_READ_CHUNK_BYTES
+        offsets = [index * chunk for index in range(8)] + [len(payload) // 2 + 1]
+        offsets.append(len(payload) - 7)
+        for offset in offsets:
+            page = await read("inputs", "source", "revision-read", offset=offset)
+            assert base64.b64decode(page["dataBase64"]) == payload[offset : offset + chunk]
+            assert page["size"] == len(payload) and page["offset"] == offset
+        assert page["nextOffset"] is None and page["length"] == 7
+        # One download and one UTF-8 validation serve all ten pages; byte
+        # pages need no line index, and no page decodes the whole payload.
+        assert client.read_calls == 1
+        assert (counted.validations, counted.indexes, payload.decodes) == (1, 0, 0)
+
+        client.read_data = CountingPayload(payload[:-1] + b"\xff")
+        await read.close()
+        for _ in range(2):
+            with pytest.raises(ToolInputError, match=r"binary \(text/plain\)") as caught:
+                await read("inputs", "source", "revision-read")
+            assert "filesystem or source tools" in str(caught.value)
+        assert client.read_calls == 2 and counted.validations == 2
 
     asyncio.run(scenario())
 

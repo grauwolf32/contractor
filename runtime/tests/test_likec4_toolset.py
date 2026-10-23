@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import subprocess
 import time
@@ -383,6 +384,18 @@ def test_read_never_reports_a_later_line_as_partially_returned(tmp_path: Path) -
         assert (filled["endLine"], filled["partialLine"], filled["truncated"]) == (1, False, True)
 
     asyncio.run(scenario())
+
+
+def test_read_likec4_keeps_its_prefix_only_long_line_interface() -> None:
+    # A line beyond the output limit is returned as a prefix with partialLine;
+    # read_likec4 has no line_offset continuation (read_text_artifact has).
+    assert list(inspect.signature(likec4_module.ReadLikeC4Tool.__call__).parameters) == [
+        "self",
+        "start_line",
+        "max_lines",
+    ]
+    description = " ".join(likec4_module.ReadLikeC4Tool.description.split())
+    assert "partialLine means one line alone exceeds the limit and only its prefix" in description
 
 
 def test_json_fallback_is_bounded_and_rejects_deep_nesting() -> None:

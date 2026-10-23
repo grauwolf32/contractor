@@ -12,12 +12,12 @@ from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.core.input_errors import ToolInputError
-from contractor_runtime.core.lines import split_lines
 from contractor_runtime.core.tool_metrics import ToolMetrics
 from contractor_runtime.redaction import runtime_secrets
 from contractor_runtime.toolsets.common.artifact_media import is_binary_media_type
 from contractor_runtime.toolsets.common.artifact_read_cache import (
     ExactArtifactReadCache,
+    LineIndex,
     allocation_artifact_read_cache,
 )
 from contractor_runtime.toolsets.common.artifact_visibility import (
@@ -143,7 +143,7 @@ class ReadTextArtifactTool(ArtifactTool):
             _validate_line_window(start_line, max_lines)
             if isinstance(line_offset, bool) or not isinstance(line_offset, int) or line_offset < 0:
                 raise ToolInputError("line_offset must be a non-negative integer")
-            value = await self._cache.read(
+            read = await self._cache.read(
                 self._client,
                 ArtifactRef(
                     namespace=namespace,
@@ -151,18 +151,21 @@ class ReadTextArtifactTool(ArtifactTool):
                     **({"revision": revision} if revision is not None else {}),
                 ),
                 accept=_refuse_binary_media_type,
+                lines=True,
             )
-            try:
-                content = value.data.decode("utf-8", errors="strict")
-            except UnicodeDecodeError as error:
-                raise ToolInputError("artifact is not valid UTF-8") from error
+            value, lines = read.value, read.lines
+            if lines is None:
+                raise ToolInputError("artifact is not valid UTF-8")
             # Same boundaries as read_file and grep, so line numbers agree.
-            lines = split_lines(content, keepends=True)
-            total_lines = len(lines)
+            total_lines = lines.total_lines
             if total_lines > 0 and start_line > total_lines:
                 raise ToolInputError("start_line exceeds artifact line count")
             window = _bounded_lines(
-                lines, start_line=start_line, max_lines=max_lines, line_offset=line_offset
+                value.data,
+                lines,
+                start_line=start_line,
+                max_lines=max_lines,
+                line_offset=line_offset,
             )
             selected, end_line, partial_line = window.text, window.end_line, window.partial_line
             truncated = partial_line or end_line < total_lines
@@ -291,38 +294,28 @@ class _LineWindow:
 
 
 def _bounded_lines(
-    lines: list[str], *, start_line: int, max_lines: int, line_offset: int = 0
+    data: bytes, lines: LineIndex, *, start_line: int, max_lines: int, line_offset: int = 0
 ) -> _LineWindow:
-    if not lines:
+    # Works on the UTF-8 bytes of a validated payload and decodes only the
+    # returned window, so a page costs its window, not the whole artifact.
+    if lines.total_lines == 0:
         if line_offset:
             raise ToolInputError("line_offset exceeds the line length")
         return _LineWindow("", 0, False, 1, 0)
-    first = lines[start_line - 1].encode("utf-8")
-    if line_offset and line_offset >= len(first):
+    line_start, line_end = lines.line_span(start_line)
+    first = line_start + line_offset
+    if line_offset and first >= line_end:
         raise ToolInputError("line_offset exceeds the line length")
-    if line_offset and (first[line_offset] & 0xC0) == 0x80:
+    if line_offset and (data[first] & 0xC0) == 0x80:
         raise ToolInputError("line_offset must start a UTF-8 character")
-    window = [
-        first[line_offset:],
-        *(line.encode("utf-8") for line in lines[start_line : start_line - 1 + max_lines]),
-    ]
-    result: list[bytes] = []
-    size = 0
-    for encoded in window:
-        remaining = MAX_VISIBLE_TEXT_BYTES - size
-        if len(encoded) <= remaining:
-            result.append(encoded)
-            size += len(encoded)
-            continue
-        if not result:
-            # Cut on a UTF-8 boundary so the continuation offset starts a character.
-            cut = remaining
-            while cut > 0 and (encoded[cut] & 0xC0) == 0x80:
-                cut -= 1
-            consumed = line_offset + cut
-            return _LineWindow(
-                encoded[:cut].decode("utf-8"), start_line, True, start_line, consumed
-            )
-        break
-    end_line = start_line + len(result) - 1
-    return _LineWindow(b"".join(result).decode("utf-8"), end_line, False, end_line + 1, 0)
+    limit = first + MAX_VISIBLE_TEXT_BYTES
+    if line_end > limit:
+        # Cut on a UTF-8 boundary so the continuation offset starts a character.
+        cut = limit
+        while cut > first and (data[cut] & 0xC0) == 0x80:
+            cut -= 1
+        return _LineWindow(lines.text(first, cut), start_line, True, start_line, cut - line_start)
+    end, end_line = lines.extend_whole_lines(
+        line_end, limit=limit, line=start_line, count=max_lines - 1
+    )
+    return _LineWindow(lines.text(first, end), end_line, False, end_line + 1, 0)
