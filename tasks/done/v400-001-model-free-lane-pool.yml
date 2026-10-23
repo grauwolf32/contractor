@@ -5,7 +5,8 @@ milestone: model-free-stage-lanes-2026-10
 epic: execution-core
 kind: feature
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: "8f23ddc2acb2235d304bd9ac81b3f0c8f228bace"
 depends_on: []
 languages: [go, sql]
 goal: >-
@@ -152,3 +153,23 @@ tests:
     covers: [A5]
   - command: make lint
     covers: [A1, A2, A3, A4, A5, A6, A7]
+verification:
+  date: "2026-10-23"
+  revision: "8f23ddc2acb2235d304bd9ac81b3f0c8f228bace"
+  environment: >-
+    Branch feat/model-free-stage-lanes on main @ 68b553de, macOS arm64, Go
+    1.26.9, Node 24.20.0, pnpm 11.24.0, disposable PostgreSQL 17
+    (CONTRACTOR_TEST_DATABASE_URL set) and TMPDIR under /private/tmp.
+  results:
+    - "A1: TestStageLaneClass, TestStageLaneClassIgnoresExecutionConfiguration and TestWorkflowLaneClassAndToolWorkers in internal/config/resolved; runservice and evalservice suites pass on the shared predicate."
+    - "A2: TestSchedulerSupervisorRunsSeparateModelAndToolPools (memory) and TestPostgresSchedulerSupervisorRunsSeparatePools (real claims) hold at most one model and two tool lanes; TestPostgresClaimReadsTenThousandRunsInClaimOrder explains the claim of both classes over 10,000 Runs without a sort."
+    - "A3: TestSchedulerHandsTheRunToTheModelPoolAfterAToolStage: a tool claim, then a model claim, no deferral; TestPostgresStageCreationCarriesTheLaneClassToTheRun covers the creating statement on PostgreSQL."
+    - "A4: the tool pool drains alone in TestSchedulerSupervisorRunsSeparateModelAndToolPools; TestSchedulerSupervisorRejectsInvalidToolPoolSizeBeforeAnyClaim and TestPostgresSchedulerSettingsToolLanes cover restart and validation."
+    - "A5: TestSchedulerSettingsReplaceKeepsOrChangesToolLanes and the invalid-request cases; make verify-public-api and make verify-public-api-postgres passed."
+    - "A6: TestSchedulerFailsRunWhoseStoredLaneClassDisagrees and TestPostgresSchedulerFailsRunWhoseStoredLaneClassDisagrees (entry and active Stage); both fail when the check in checkLaneClass is disabled."
+    - "A7: TestSchedulerSupervisorClaimsCancellingToolRunInToolPool."
+    - "Migration: TestPostgresModelFreeLanePoolMigrationClassifiesExistingRuns checks the SQL copy of the rule against resolved.StageLaneClass."
+    - "make test-go: every package passed except internal/app TestPostgresControlPlaneLeaseSessionDetectsVanishedHolder, which fails the same way on main because macOS PostgreSQL does not support tcp_user_timeout."
+    - "go test -race on scheduler, runstore, settingsstore, config/resolved, runservice and evalservice passed; go test -tags=integration on every touched integration package passed."
+    - "go test -tags=e2e ./tests/e2e -run TestSchedulerConcurrencyAcrossProductionProcesses passed."
+    - "make ui-verify passed (2,260 UI tests); make lint passed."
