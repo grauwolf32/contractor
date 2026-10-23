@@ -20,6 +20,7 @@ MODULE = "github.com/grauwolf32/contractor/"
 
 # Union of the process e2e names selected by release-verify before V155.
 EXPECTED_PROCESS_TESTS = {
+    "TestNucleiWebWithDeterministicScannerAcrossProcesses",
     "TestAgentSkillsMVPProcesses",
     "TestAuditProgramCatalogReplacementRestartsServer",
     "TestAuditProgramsAcrossProductionProcesses",
@@ -67,7 +68,7 @@ EXPECTED_CONFIG_TESTS = {
 # other e2e-tagged test must be selected by release-verify.
 OPT_IN_E2E_TESTS = {
     "TestNucleiWebAcrossProductionProcesses": (
-        "test-nuclei-web-e2e",
+        "test-nuclei-web-installed",
         "requires the real nuclei scanner on PATH",
     ),
     "TestAuditCompositionAcrossProductionProcesses": (

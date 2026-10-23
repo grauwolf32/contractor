@@ -311,6 +311,28 @@ and an exact `template_manifest` containing package file digests, engine-selecte
 template IDs/content digests and engine version. Empty selections fail. A model
 is never called and a completed scan does not establish a secure target.
 
+To scan a selected scope of Projects through ordinary Project Runs:
+
+```shell
+contractor scan-sweep create sweep.json --project PROJECT_A --project PROJECT_B \
+  --param template_ids=CVE-example --param rate_limit=10
+contractor scan-sweep resume sweep.json
+contractor scan-sweep status sweep.json
+```
+
+Use `--all` instead of repeated `--project` only when every Project page should
+be selected (maximum 1000). The mode-0600 manifest records target URLs and exact
+input revisions before the first Run POST; resume never refreshes those inputs.
+Use a new file/create invocation for new inputs. `--timeout` bounds an API
+attempt; `--deadline` bounds the command (default 30m, maximum 24h). Known
+permanent errors and missing/deleting/targetless Projects retain explicit member
+reasons; unknown/permanent failures produce a nonzero exit after other eligible
+members progress. `created` means accepted: inspect `contractor run get RUN_ID`
+for actual execution/results. The Unix lock sidecar releases on process exit;
+remove the manifest and its `.lock` sidecar only while no command is active.
+Neither file deletion nor command cancellation deletes or cancels created Runs.
+
+
 See upstream CLI references for [nuclei](https://github.com/projectdiscovery/nuclei),
 [sqlmap](https://github.com/sqlmapproject/sqlmap/wiki/usage) and
 [naabu](https://github.com/projectdiscovery/naabu).

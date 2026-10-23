@@ -254,3 +254,18 @@ func checkLargestPublicPage(t *testing.T, handler http.Handler, paths map[string
 		})
 	}
 }
+
+func TestPublicOpenAPICursorMatchesSharedBound(t *testing.T) {
+	document := loadPublicOpenAPI(t)
+	parameter := document.Components.Parameters["Cursor"]
+	if parameter == nil || parameter.Value == nil || parameter.Value.Schema == nil || parameter.Value.Schema.Value == nil {
+		t.Fatal("cursor schema missing")
+	}
+	if parameter.Value.Schema.Value.MaxLength == nil || *parameter.Value.Schema.Value.MaxLength != pagelimit.MaxCursorBytes {
+		t.Fatal("Cursor parameter drift")
+	}
+	page := document.Components.Schemas["PageInfo"].Value.Properties["nextCursor"].Value
+	if page.MaxLength == nil || *page.MaxLength != pagelimit.MaxCursorBytes {
+		t.Fatal("PageInfo cursor drift")
+	}
+}

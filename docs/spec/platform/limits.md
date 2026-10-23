@@ -196,6 +196,7 @@ its owning requirement.
 | `LIM-API-20` | 1 to 128 characters in `[A-Za-z0-9][A-Za-z0-9_.-]*` | Public `ConfigId` and `ArtifactName` values (principal user ID, diagnostic code, Artifact namespace and name, Stage and logical Agent names) | Server handlers, authentication and stores (contracts.ValidName) | [API-R70](../api/public-api.md) |
 | `LIM-API-21` | 1 second | Interval after which a Run with live subscriptions catches up without a wake-up while Server has no established Run event notification listener | Server live event WebSocket | [API-R72](../api/public-api.md) |
 | `LIM-API-22` | 15 seconds | Interval after which a Run with live subscriptions catches up without a wake-up while the Run event notification listener is established; bounds the delivery delay of a lost notification | Server live event WebSocket | [API-R72](../api/public-api.md) |
+| `LIM-API-23` | 512 bytes | shared public list continuation cursor | Server pagination and CLI, tested against OpenAPI Cursor/PageInfo | [API-R67](../api/public-api.md) |
 | `LIM-ART-1` | 1 to 128 characters | ArtifactRef `namespace` and `name` (case-sensitive ASCII, `[A-Za-z0-9][A-Za-z0-9_.-]{0,127}`) | Workflow validation, wire DTOs, ArtifactStore, public and private Artifact APIs | [ART-R11](../artifacts/artifact-store.md) |
 | `LIM-ART-2` | at most 255 characters | Artifact media type (canonical lowercase `type/subtype`, no parameters, RFC 6838 restricted-name parts) | Artifact API / ArtifactStore; the same cases (api/testdata/v1alpha1/media-type-cases.json) are shared by Audit packages, schemas, Runtime and UI | [ART-R63](../artifacts/artifact-store.md) |
 | `LIM-ART-3` | 1 to 256 refs per request (integer `limit`, required) | Private allocation listing `GET /private/v1/allocations/{allocationID}/artifacts`, both the paged model-visible form and the `namePrefix` form; bounds the response independently of the Run's binding count | Server private Artifact API and ArtifactStore (MaxBindingListLimit), Runtime ArtifactClient (MAX_BINDING_LIST_LIMIT); the value is pinned by api/testdata/v1alpha1/artifact-list-cases.json | [ART-R47](../artifacts/artifact-store.md) |
@@ -697,6 +698,11 @@ its owning requirement.
 | `LIM-SCN-73` | 100000 entries | pinned Nuclei package tree including directories | Runtime private snapshot traversal | [SCN-R227](../tools/scanners.md) |
 | `LIM-SCN-74` | 64 directories | pinned Nuclei package nesting depth | Runtime private snapshot traversal | [SCN-R227](../tools/scanners.md) |
 | `LIM-SCN-75` | 1024 UTF-8 bytes | pinned Nuclei package-relative path | Runtime private snapshot traversal | [SCN-R227](../tools/scanners.md) |
+| `LIM-SCN-76` | 1000 unique Projects | client scan-sweep selection | CLI capture and strict manifest reader | [SCN-R234](../tools/scanners.md) |
+| `LIM-SCN-77` | 8 MiB | local client sweep manifest and each replacement | CLI capture/read/atomic persistence | [SCN-R234](../tools/scanners.md) |
+| `LIM-SCN-78` | 16 KiB | one captured sweep child CreateRunRequest | CLI capture and strict manifest reader | [SCN-R234](../tools/scanners.md) |
+| `LIM-SCN-79` | 4 MiB | each client sweep API response | CLI bounded response decoder | [SCN-R234](../tools/scanners.md) |
+| `LIM-SCN-80` | default 30 minutes; maximum 24 hours | one scan-sweep command invocation | CLI overall deadline, independent of API attempt timeout | [SCN-R235](../tools/scanners.md) |
 | `LIM-SEC-1` | 256 bits (exactly 32 decoded bytes) | Credential-encryption master key in the --credential-master-key-file (RFC 4648 base64) | Server startup (master key loader) | [SEC-R17](security.md) |
 | `LIM-SEC-2` | at most 1 trailing newline | Content of the credential master key file | Server startup (master key loader) | [SEC-R17](security.md) |
 | `LIM-SEC-3` | 1 active master key | Credential-encryption keyring | Server | [SEC-R20](security.md) |

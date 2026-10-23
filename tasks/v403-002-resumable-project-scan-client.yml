@@ -5,15 +5,15 @@ milestone: web-nuclei-rule-sweeps-2026-10
 epic: operations
 kind: feature
 priority: P2
-status: pending
+status: in_progress
 depends_on:
 - V403-001
 languages:
 - go
 - python
-goal: An operator selects Projects and a rule once, saves an immutable local sweep manifest and
-  resumes partial fan-out without duplicate Runs or changed targets. This is the Phase 1 client
-  convenience before the server resource.
+goal: An operator selects Projects and a rule once, saves an immutable local sweep manifest and resumes
+  partial fan-out without duplicate Runs or changed targets. This is the Phase 1 client convenience before
+  the server resource.
 context:
   proposal: docs/proposals/0041-web-nuclei-scanning-and-rule-sweeps.md
   specification:
@@ -23,15 +23,14 @@ context:
   - docs/spec/api/public-api.md
 scope:
   in:
-  - Implement a documented CLI command or script using the public Project/Run APIs, with create
-    and resume modes and a local versioned manifest.
-  - Capture Project IDs, httpTarget.url, exact source refs, supplied params, per-member keys,
-    skipped reasons and returned Run IDs before and during dispatch.
-  - Page all Project reads; one ordinary Project Run per selected Project; show Run membership
-    and results through existing APIs.
+  - Implement a documented CLI command or script using the public Project/Run APIs, with create and resume
+    modes and a local versioned manifest.
+  - Capture Project IDs, httpTarget.url, exact source refs, supplied params, per-member keys, skipped
+    reasons and returned Run IDs before and during dispatch.
+  - Page all Project reads; one ordinary Project Run per selected Project; show Run membership and results
+    through existing APIs.
   - Add a real Server/Runtime process gate for the shipped web Workflow and include it in deterministic
-    release verification without requiring host scanners; retain an explicit installed-Nuclei
-    smoke test.
+    release verification without requiring host scanners; retain an explicit installed-Nuclei smoke test.
   out:
   - 'Server-owned sweep persistence/controller: V403-004.'
   - 'Custom rulepack transport: V403-003.'
@@ -41,26 +40,26 @@ requirements:
   text: Default to explicit selected Project IDs; an all-Projects mode must finish all owner-authorized
     pages before snapshotting. The scope is at most 1000 unique Projects.
 - id: R2
-  text: Manifest writes are atomic and versioned; resume validates strict schema and digests,
-    reuses captured values/keys and never rebuilds inputs from current Project targets.
+  text: Manifest writes are atomic and versioned; resume validates strict schema and digests, reuses captured
+    values/keys and never rebuilds inputs from current Project targets.
 - id: R3
-  text: Record deleting or targetless Projects as skipped; a permanent member error does not block
-    remaining Projects; new inputs require a new sweep identity.
+  text: Record deleting or targetless Projects as skipped; a permanent member error does not block remaining
+    Projects; new inputs require a new sweep identity.
 - id: R4
-  text: A lost create acknowledgement retries the exact captured child request; never append a
-    second unkeyed Run.
+  text: A lost create acknowledgement retries the exact captured child request; never append a second
+    unkeyed Run.
 failure_outcomes:
 - operation: Project listing, local manifest write and per-member Run POST
-  permanent: Invalid or changed manifest and changed input under a reused key fail explicitly;
-    Project deletion/missing target is a recorded member skip.
-  retryable: Respect Retry-After and existing retryable API classifications with at most 5 attempts
-    per invocation and bounded backoff; saved state permits later explicit resume.
-  ambiguous: Replay the exact child POST/key; atomic local replacement preserves either previous
-    or next valid manifest.
-  cancelled: Stop dispatch, join the current request, persist known/unknown member outcome and
-    leave existing Runs governed by ordinary lifecycle.
-  timeout: Separate API request timeout and total invocation deadline; a timeout cannot discard
-    the saved child key.
+  permanent: Invalid or changed manifest and changed input under a reused key fail explicitly; Project
+    deletion/missing target is a recorded member skip.
+  retryable: Respect Retry-After and existing retryable API classifications with at most 5 attempts per
+    invocation and bounded backoff; saved state permits later explicit resume.
+  ambiguous: Replay the exact child POST/key; atomic local replacement preserves either previous or next
+    valid manifest.
+  cancelled: Stop dispatch, join the current request, persist known/unknown member outcome and leave existing
+    Runs governed by ordinary lifecycle.
+  timeout: Separate API request timeout and total invocation deadline; a timeout cannot discard the saved
+    child key.
 cardinality:
 - collection: Selected Projects and child requests
   expected: '7'
@@ -75,13 +74,13 @@ acceptance_criteria:
 - id: A1
   given: 7 and 1000 selected Projects across several API pages
   when: a client sweep runs
-  then: one grouped Project Run is created per eligible Project, limits hold and skipped members
-    have reasons
+  then: one grouped Project Run is created per eligible Project, limits hold and skipped members have
+    reasons
 - id: A2
   given: an acknowledgement is lost and the process stops after several members
   when: resume runs after Project targets and artifact bindings have changed
-  then: captured requests replay to the same Runs, pending requests keep original inputs and changed
-    inputs require a new sweep
+  then: captured requests replay to the same Runs, pending requests keep original inputs and changed inputs
+    require a new sweep
 - id: A3
   given: malformed/oversized manifests, transient errors and deleting/targetless Projects
   when: the client dispatches
@@ -89,10 +88,10 @@ acceptance_criteria:
 - id: A4
   given: the actual shipped Workflow with disposable PostgreSQL and deterministic scanner fixture
   when: the required process gate runs
-  then: Server/Runtime admission, execution, report publication and replay are covered by a nonempty
-    release-gated selection
+  then: Server/Runtime admission, execution, report publication and replay are covered by a nonempty release-gated
+    selection
 tests:
-- command: go test ./internal/cli/... ./internal/publicclient/...
+- command: go test ./internal/cli/... ./internal/publicclient/... ./internal/pagelimit/... ./internal/httpapi/public/...
   covers: &id001
   - A1
   - A2
@@ -100,7 +99,47 @@ tests:
   - A4
 - command: make test-nuclei-web-e2e
   covers: *id001
+- command: make test-nuclei-web-installed
+  covers: *id001
 - command: make test-scan-e2e
   covers: *id001
 - command: make lint
   covers: *id001
+progress:
+  completed_work:
+  - Added contractor scan-sweep create/resume/status using the existing owner-bound public client and
+    ordinary Project Run endpoints. Complete immutable snapshots precede every child POST; only pending/unknown
+    members are replayed.
+  - Captured explicit Project URLs, supplied string parameters, exact ProjectScope input revisions, canonical
+    child requests/digests and sweep-scoped deterministic keys. Added a metadata label for grouping; status
+    prints membership and ordinary run get exposes results.
+  - Implemented strict bounded manifest decoding, 0600 atomic/fsynced create-only/replacement writes and
+    Unix kernel sidecar locks that release on process exit. Cancellation, unknown delivery, malformed/tampered
+    files, duplicate selection and byte/row limits are covered.
+  - Reused the existing three-attempt idempotent transport, now respecting Retry-After without early retry;
+    long delays retain a resumable unknown result. Permanent member errors do not block others and unresolved
+    members produce a nonzero exit after output.
+  - Reused common page/cursor bounds in CLI and Server, checked against the existing OpenAPI schemas.
+    Documented that the Phase 1 client freezes requests/Artifact revisions while ordinary admission still
+    resolves catalog content; server sweeps own resolved configuration pins.
+  - Added a deterministic production-process scanner fixture and seven-Project fan-out with a dropped
+    committed create acknowledgement. The gate runs through release process group C; explicit installed-Nuclei
+    coverage remains independently selectable.
+  remaining_work: []
+verification:
+  date: '2026-10-23'
+  environment: Isolated codex/web-nuclei-sweeps worktree; Go 1.26.9, locked Runtime, installed host scanners
+    and disposable PostgreSQL 17, independent of demo data.
+  results:
+  - 'go test ./internal/cli/... ./internal/publicclient/... ./internal/pagelimit/... ./internal/httpapi/public/...:
+    passed, PostgreSQL URL set. CLI boundary cases include 7/1000/1001 Projects, response loss, changed
+    targets/revisions, permanent/retryable member errors, missing inputs, malformed/oversized manifests
+    and atomic/lock safety.'
+  - 'make test-nuclei-web-e2e: passed on final code (114.701s), actual Server/Scheduler/Runtime and deterministic
+    scanner fixture; 7 Projects, 3 eligible Runs, 4 explicit targetless skips, lost committed acknowledgement
+    replay and no repeated scan on resume.'
+  - 'make test-nuclei-web-installed: passed (114.690s), actual Nuclei engine and shipped Workflow.'
+  - 'make test-scan-e2e: passed (180.707s), real Nuclei/SQLMap/Naabu/ffuf/Katana process acceptance.'
+  - 'make lint: passed, including shared page-bound enforcement, OpenAPI cursor contract, generated-client
+    checks, release-verify graph, Go layers and Python import contracts.'
+  - make tasks-backlog docs-dependencies, specification checker and git diff --check passed.

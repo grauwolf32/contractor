@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -28,9 +29,10 @@ func (t *checkedTransport) RoundTrip(request *http.Request) (*http.Response, err
 	if replayableRequest(request) {
 		limit = maximumRequestAttempts
 	}
+	minimumDelay := time.Duration(0)
 	for attempt := 0; attempt < limit; attempt++ {
 		if attempt > 0 {
-			if err := waitForRetry(request.Context(), attempt); err != nil {
+			if err := waitForRetryAfter(request.Context(), attempt, minimumDelay); err != nil {
 				return nil, err
 			}
 		}
@@ -49,6 +51,12 @@ func (t *checkedTransport) RoundTrip(request *http.Request) (*http.Response, err
 			continue
 		}
 		if attempt+1 < limit && retryableResponse(response) {
+			minimumDelay = retryAfterDelay(response.Header.Get("Retry-After"), time.Now())
+			// Long server waits require explicit later resume. Never retry
+			// earlier than Retry-After merely to fit a local backoff ceiling.
+			if minimumDelay > 30*time.Second {
+				return response, nil
+			}
 			_ = response.Body.Close()
 			continue
 		}
@@ -89,8 +97,32 @@ func replayableRequest(request *http.Request) bool {
 	return request.Body == nil || request.Body == http.NoBody || request.GetBody != nil
 }
 
-func waitForRetry(ctx context.Context, attempt int) error {
+func retryAfterDelay(value string, now time.Time) time.Duration {
+	decimal := value != ""
+	for _, char := range value {
+		if char < '0' || char > '9' {
+			decimal = false
+			break
+		}
+	}
+	if decimal {
+		seconds, err := strconv.ParseUint(value, 10, 64)
+		if err != nil || seconds > 30 {
+			return 31 * time.Second
+		}
+		return time.Duration(seconds) * time.Second
+	}
+	if date, err := http.ParseTime(value); err == nil && date.After(now) {
+		return date.Sub(now)
+	}
+	return 0
+}
+
+func waitForRetryAfter(ctx context.Context, attempt int, minimum time.Duration) error {
 	delay := time.Duration(75*(1<<(attempt-1))+rand.IntN(25)) * time.Millisecond
+	if minimum > delay {
+		delay = minimum
+	}
 	timer := time.NewTimer(delay)
 	defer timer.Stop()
 	select {

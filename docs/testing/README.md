@@ -204,7 +204,11 @@ For versioned datasets and reproducible comparisons, use the
 [instruction-evaluation guide](../../tests/eval/agent_instructions/README.md).
 Offline conformance checks do not measure model quality.
 
-`make test-nuclei-web-e2e` requires PostgreSQL and the installed Nuclei engine.
-It runs the shipped model-free web Workflow through Server/Scheduler/Runtime,
-checks omitted and individual knobs against a loopback HTTP fixture, exact
-package/template provenance, admission refusal and changed-package refusal.
+`make test-nuclei-web-e2e` requires PostgreSQL and runs a deterministic scanner
+protocol fixture through the actual shipped Workflow, Server, Scheduler and
+Runtime. It also launches a seven-Project client sweep and drops one committed
+create acknowledgement to prove replay and stable membership. It is selected
+by the consolidated release process group C without host scanner requirements.
+`make test-nuclei-web-installed` is the explicit real Nuclei engine smoke for
+all individual knobs, exact package/template provenance, invalid admission and
+changed-package refusal.

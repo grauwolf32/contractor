@@ -499,6 +499,74 @@ and invalid selection as incomplete through the shared outcome table. Timeout,
 process/output failure, cancellation and ambiguous receipt delivery retain their
 existing outcomes; none implies a clean scan or automatic rescan (FAIL-SCN-12).
 
+### Resumable client Project sweeps
+
+**SCN-R232.** `contractor scan-sweep create MANIFEST` captures a bounded
+selection of explicit `--project` IDs or every owner-authorized Project page
+with `--all`, before any child POST. The default Workflow is `nuclei-web@1`;
+`--workflow` requires an exact selector. Capture Project IDs, explicit target
+URLs from `httpTarget.url`, supplied `--param` values, exact ProjectScope input
+Artifact revisions from `--artifact`, child requests and per-member create keys.
+Target cannot be supplied through `--param`. Runs use the ordinary Project Run
+API and include a `scan-sweep` metadata label. Missing/deleting/targetless
+Projects and inaccessible required source refs are explicit member skips; no
+Project credential material enters the manifest.
+
+**SCN-R233.** The version-1 local manifest contains one immutable snapshot
+(Server origin, sweep ID and ordered members), its RFC 8785 SHA-256 digest,
+per-request digests and mutable member outcomes. The strict reader rejects
+unknown/duplicate/case-aliased fields, malformed/nonexact inputs, altered
+requests/keys/digests and other Server origins before dispatch. A request is
+canonical CreateRunRequest JSON, not a lossy re-creation from a Project. The
+checksum detects accidental modification; this owner-controlled local file is
+not an authorization boundary. Changed inputs require a new `create` invocation,
+new sweep identity and new keys. `resume` accepts no input/selection flags.
+This client freezes requests and Artifact revisions; ordinary Run admission
+still resolves the selected catalog content. The operator keeps published
+catalog content stable during a client sweep; per-Run package digests in the
+reports detect drift. Server-owned sweeps must pin resolved configuration to
+remove that pre-production operational condition.
+
+**SCN-R234.** A client scope contains at most 1000 unique Projects
+(LIM-SCN-76); the manifest is at most 8 MiB (LIM-SCN-77), each captured child
+request 16 KiB (LIM-SCN-78) and each API response 4 MiB (LIM-SCN-79). Every
+Project page requests at most 200 rows; duplicate members, repeated/empty
+continuation cursors and empty continuing pages fail. Only one child request
+runs at a time. Capture completes before the first POST; local outcome writes
+replace at most 8 MiB after each member (at most 1001 bounded writes for a full
+invocation). The expected scope is about 7 Projects.
+
+**SCN-R235.** The existing Go public client retries replayable calls at most
+three times (within the sweep's five-attempt ceiling) using the unchanged body
+and idempotency key. Respect a valid Retry-After in seconds or HTTP-date;
+waiting more than 30 seconds returns the retryable response for explicit later
+resume rather than retrying early. API attempts retain the CLI `--timeout`;
+`--deadline` independently bounds the whole invocation (default 30 minutes,
+maximum 24 hours; LIM-SCN-80). Exhausted/ambiguous calls leave a member unknown;
+resume repeats only pending/unknown requests with the original key. Permanent
+member failures never block other eligible Projects and are not automatically
+resubmitted. Create/resume prints the bounded outcomes and exits nonzero if
+unknown/permanently failed members remain. `created` means Run accepted, not
+scan completed (FAIL-SCN-13).
+
+**SCN-R236.** Publish the initial manifest create-only before dispatch; each
+update uses a mode-0600 temporary file, fsync, atomic replacement and directory
+sync. A persistent sidecar inode and Unix advisory lock exclude concurrent CLI
+writers; process death releases the kernel lock. Never remove that sidecar
+while a command is active. Cancellation joins the in-flight HTTP call and saves
+its known/unknown outcome; if local persistence fails, the previous valid file
+still preserves the child key/request for idempotent resume. The operator owns
+manifest/sidecar removal while idle, independently of ordinary Run retention
+(LIFE-SCN-8). `status` reads local membership; ordinary Run/Project APIs show
+execution and reports.
+
+**SCN-R237.** A required production-process gate exercises the shipped web
+Workflow and client sweep with a deterministic scanner protocol fixture,
+without host scanner dependencies. It covers admission, HTTP invocation,
+exact report/manifest publication, Project grouping, lost-create acknowledgement
+and settled-member replay. A separate explicit gate retains real installed
+Nuclei smoke coverage. A zero-test or skipped acceptance selection is not a pass.
+
 ### SQLMap HTTP request artifacts
 
 **SCN-R58.** `scan_sqlmap(request_ref=...)` accepts one prepared HTTP request

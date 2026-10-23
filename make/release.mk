@@ -34,7 +34,7 @@ release-verify-families: ui-install verify-public-api-postgres \
 	test-worker-session-modes-e2e test-project-workspaces-release \
 	test-lifecycle-controls-release test-scheduler-concurrency-e2e \
 	test-audit-program-library-e2e test-audit-completion-e2e \
-	test-findings-e2e test-performance-metrics
+	test-findings-e2e test-performance-metrics test-nuclei-web-e2e
 
 release-verify-browser-a: ui-browser-mocked test-release-ui-stack-a
 
@@ -91,7 +91,7 @@ test-release-non-race: require-database
 # separate runners. Keep the full local test-e2e command below.
 RELEASE_E2E_TESTS_A := TestAuditProgramsAcrossProductionProcesses|TestMemoryMVPProcesses|TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses|TestGatewayRecoveryKeepsThreeQueuedRunsAcrossProcesses|TestLocalGoToPythonArtifactCopy
 RELEASE_E2E_TESTS_B := TestWorkerSummarizerProductionBoundaries|TestRoutingAndEscalationProductionBoundaries|TestLabelDrivenRuntimeConfigurationAcrossProcesses|TestRunMetadataLabelsAcrossProcesses|TestSchedulerConcurrencyAcrossProductionProcesses|TestTaintAnnotationsAcrossRealRuntimeProcess|TestAuditProgramCatalogReplacementRestartsServer
-RELEASE_E2E_TESTS_C := TestAgentSkillsMVPProcesses|TestProjectWorkspaceLifecycleAcrossProductionProcesses|TestProductionMemoryTemplatesAcrossProcesses|TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses|TestWorkerSessionModesAcrossProductionProcesses|TestHeterogeneousRuntimeCapabilityPlacement|TestGatewayRecoveryCancellationAndPermanentErrorAcrossProcesses
+RELEASE_E2E_TESTS_C := TestNucleiWebWithDeterministicScannerAcrossProcesses|TestAgentSkillsMVPProcesses|TestProjectWorkspaceLifecycleAcrossProductionProcesses|TestProductionMemoryTemplatesAcrossProcesses|TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses|TestWorkerSessionModesAcrossProductionProcesses|TestHeterogeneousRuntimeCapabilityPlacement|TestGatewayRecoveryCancellationAndPermanentErrorAcrossProcesses
 RELEASE_E2E_TESTS := $(RELEASE_E2E_TESTS_A)|$(RELEASE_E2E_TESTS_B)|$(RELEASE_E2E_TESTS_C)
 
 test-release-process-e2e: require-database runtime-venv
