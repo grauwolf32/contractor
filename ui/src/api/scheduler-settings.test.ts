@@ -19,6 +19,7 @@ function settingsResponse(
   return new Response(
     JSON.stringify({
       maxConcurrentRuns,
+      maxConcurrentToolRuns: 2,
       revision,
       updatedAt: "2026-09-06T01:00:00Z",
       ...overrides,
@@ -54,6 +55,7 @@ describe("Scheduler settings API", () => {
     expect(current).toEqual({
       resource: {
         maxConcurrentRuns: 1,
+        maxConcurrentToolRuns: 2,
         revision: "7",
         updatedAt: "2026-09-06T01:00:00Z",
       },

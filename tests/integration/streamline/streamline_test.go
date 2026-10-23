@@ -393,7 +393,8 @@ func exactRef(namespace, name, revision string) contracts.ArtifactRef {
 func createStage(t *testing.T, ctx context.Context, store *runstore.PostgresStore) {
 	t.Helper()
 	if _, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
-		RunID: "run-streamline", OwnerID: "user", WorkflowName: "workflow", WorkflowVersion: "1",
+		LaneClass: resolved.LaneClassModel,
+		RunID:     "run-streamline", OwnerID: "user", WorkflowName: "workflow", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{"name":"workflow"}`),
 		Parameters:    map[string]string{"mode": "strict-secret-value"},
 		RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
@@ -411,6 +412,7 @@ func createStage(t *testing.T, ctx context.Context, store *runstore.PostgresStor
 		t.Fatal(err)
 	}
 	if _, err := store.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
+		LaneClass:        resolved.LaneClassModel,
 		StageExecutionID: "stage-streamline", RunID: "run-streamline", StageName: "plan", Attempt: 1,
 		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: json.RawMessage(`{"objective":"plan","session":"isolated"}`),
 		StageContextSchemaVersion: contracts.APIVersion,

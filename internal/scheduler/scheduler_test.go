@@ -993,7 +993,8 @@ func TestTerminalReleaseFailureDoesNotBlockClaimPath(t *testing.T) {
 	if err != nil || worked {
 		t.Fatalf("RunOnce with failed cleanup = (%v, %v)", worked, err)
 	}
-	if harness.store.claimCalls != 1 || harness.workers.releaseCalls != 1 {
+	// RunOnce tries one claim per lane pool.
+	if harness.store.claimCalls != len(resolved.LaneClasses) || harness.workers.releaseCalls != 1 {
 		t.Fatalf("failed cleanup blocked claim path: claims=%d releases=%d",
 			harness.store.claimCalls, harness.workers.releaseCalls)
 	}
@@ -1853,6 +1854,7 @@ func installHarnessWorkflow(t *testing.T, harness *schedulerHarness) {
 		t.Fatal(err)
 	}
 	harness.store.run.WorkflowSnapshot = encoded
+	harness.store.run.SchedulerLaneClass = resolved.EntryLaneClass(harness.workflow)
 	harness.allocator.workflow = harness.workflow
 }
 
@@ -1887,7 +1889,7 @@ func newSchedulerHarness(t *testing.T) *schedulerHarness {
 		RunID: "run-1", OwnerID: "user-1", WorkflowName: workflow.Ref.Name,
 		WorkflowVersion: workflow.Ref.Version, WorkflowSchemaVersion: contracts.APIVersion,
 		WorkflowSnapshot: encoded, Parameters: map[string]string{"objective": "copy exactly"},
-		State: runstore.RunRunning,
+		State: runstore.RunRunning, SchedulerLaneClass: resolved.EntryLaneClass(workflow),
 	}, events: events}
 	resolver := &memoryArtifactResolver{
 		current: map[string]string{"run-1/inputs/source": "input-r1"},
@@ -2042,6 +2044,10 @@ type memorySchedulerStore struct {
 	reportError    error
 	claimID        string
 	claimCalls     int
+	// claimedClasses lists the lane class of each successful claim and
+	// deferrals counts deferred releases.
+	claimedClasses []resolved.LaneClass
+	deferrals      int
 	// activeStageReads and stageListReads count the Stage reads, so a test
 	// can prove a progression attempt reads one Stage, not the history.
 	activeStageReads int
@@ -2077,17 +2083,25 @@ func (i *memoryRunSkillInitializer) InitializeRunSkills(
 	)
 }
 
+// ClaimRunnableRun claims the Run only for a lane of its stored class, which
+// the memory persistence keeps as the PostgreSQL statements do.
 func (s *memorySchedulerStore) ClaimRunnableRun(
 	_ context.Context, claimID string, duration time.Duration, excludedRunIDs []string,
+	laneClass resolved.LaneClass,
 ) (runstore.WorkflowRun, error) {
+	if !laneClass.Valid() {
+		return runstore.WorkflowRun{}, runstore.ErrInvalid
+	}
 	s.claimCalls++
 	pendingSkills := s.run.State == runstore.RunInitializing &&
 		s.run.StateReason.Code == runstore.SkillInitializationPendingReason
 	if s.run.State != runstore.RunRunning && s.run.State != runstore.RunPending && s.run.State != runstore.RunWaiting && s.run.State != runstore.RunCancelling && !pendingSkills ||
+		s.run.SchedulerLaneClass != laneClass ||
 		s.claimID != "" || duration <= 0 || slices.Contains(excludedRunIDs, s.run.RunID) {
 		return runstore.WorkflowRun{}, runstore.ErrNoWork
 	}
 	s.claimID = claimID
+	s.claimedClasses = append(s.claimedClasses, laneClass)
 	return s.run, nil
 }
 
@@ -2111,7 +2125,11 @@ func (s *memorySchedulerStore) ReleaseRunClaim(_ context.Context, runID, claimID
 }
 
 func (s *memorySchedulerStore) DeferRunClaim(ctx context.Context, runID, claimID string) error {
-	return s.ReleaseRunClaim(ctx, runID, claimID)
+	if err := s.ReleaseRunClaim(ctx, runID, claimID); err != nil {
+		return err
+	}
+	s.deferrals++
+	return nil
 }
 
 func (s *memorySchedulerStore) GetRun(_ context.Context, runID string) (runstore.WorkflowRun, error) {
@@ -2396,12 +2414,16 @@ func (p *memoryAtomicPersistence) checkTerminalTransition(value StageProgression
 func (p *memoryAtomicPersistence) CreateStageWithContext(
 	_ context.Context, params runstore.CreateStageExecutionParams, _ []ContextPin,
 ) (runstore.StageExecution, error) {
+	if !params.LaneClass.Valid() {
+		return runstore.StageExecution{}, runstore.ErrInvalid
+	}
 	if !p.runIn(params.RunID, stageCreationRunStates) {
 		return runstore.StageExecution{}, runstore.ErrConflict
 	}
 	if p.queuePaused {
 		return runstore.StageExecution{}, runstore.ErrQueuePaused
 	}
+	p.store.run.SchedulerLaneClass = params.LaneClass
 	execution := runstore.StageExecution{
 		StageExecutionID: params.StageExecutionID, RunID: params.RunID, StageName: params.StageName,
 		Attempt: params.Attempt, PreviousExecutionID: params.PreviousExecutionID,
@@ -2555,6 +2577,7 @@ func (p *memoryAtomicPersistence) commitProgression(value StageProgression) {
 	p.decisions = append(p.decisions, decision)
 	if value.NextStage != nil {
 		params := value.NextStage.Params
+		p.store.run.SchedulerLaneClass = params.LaneClass
 		p.store.stages = append(p.store.stages, runstore.StageExecution{
 			StageExecutionID: params.StageExecutionID, RunID: params.RunID,
 			StageName: params.StageName, Attempt: params.Attempt,
@@ -2799,6 +2822,8 @@ type memoryAllocator struct {
 	// released holds Stages whose committed reservation was released; like
 	// the production Registry it cannot be reserved again.
 	released map[string]bool
+	// modelFree records ReservationRequest.ModelFree of every call.
+	modelFree []bool
 }
 
 // pinStageAllocations records placement rows as production placement does.
@@ -2820,6 +2845,7 @@ func (a *memoryAllocator) ReserveAllContext(ctx context.Context, request control
 		return nil, err
 	}
 	a.reserveCalls++
+	a.modelFree = append(a.modelFree, request.ModelFree)
 	a.events.add("reserve")
 	if a.reserveError != nil {
 		return nil, a.reserveError

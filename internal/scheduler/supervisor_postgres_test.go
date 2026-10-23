@@ -3,12 +3,14 @@ package scheduler
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
@@ -29,7 +31,8 @@ func TestPostgresSchedulerSupervisorBoundsRealRunClaims(t *testing.T) {
 	}
 	for _, runID := range []string{"run-lane-1", "run-lane-2", "run-lane-3"} {
 		if _, err := runstoretest.CreateRun(ctx, postgresStore, runstore.CreateRunParams{
-			RunID: runID, OwnerID: "user-lanes", WorkflowName: workflow.Ref.Name,
+			LaneClass: resolved.LaneClassModel,
+			RunID:     runID, OwnerID: "user-lanes", WorkflowName: workflow.Ref.Name,
 			WorkflowVersion: workflow.Ref.Version, WorkflowSchemaVersion: contracts.APIVersion,
 			WorkflowSnapshot: workflowJSON, Parameters: map[string]string{"objective": "hold lane"},
 			RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
@@ -117,7 +120,8 @@ func TestPostgresSchedulerSupervisorResizesAndDrainsDurableLanes(t *testing.T) {
 	}
 	for _, runID := range []string{"run-resize-1", "run-resize-2", "run-resize-3", "run-resize-4"} {
 		if _, err := runstoretest.CreateRun(ctx, postgresStore, runstore.CreateRunParams{
-			RunID: runID, OwnerID: "user-resize", WorkflowName: workflow.Ref.Name,
+			LaneClass: resolved.LaneClassModel,
+			RunID:     runID, OwnerID: "user-resize", WorkflowName: workflow.Ref.Name,
 			WorkflowVersion: workflow.Ref.Version, WorkflowSchemaVersion: contracts.APIVersion,
 			WorkflowSnapshot: workflowJSON, Parameters: map[string]string{"objective": "hold lane"},
 			RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
@@ -210,6 +214,7 @@ func TestPostgresSchedulerSupervisorResizesAndDrainsDurableLanes(t *testing.T) {
 }
 
 type postgresLaneState struct {
+	class       resolved.LaneClass
 	gate        chan struct{}
 	unblockOnce sync.Once
 	once        sync.Once
@@ -220,18 +225,21 @@ type postgresLaneState struct {
 
 type postgresLaneBlockingStore struct {
 	*runstore.PostgresStore
-	mu           sync.Mutex
-	lanes        map[string]*postgresLaneState
-	active       int
-	maximum      int
-	releaseCount int
-	claimed      chan string
-	released     chan int
+	mu            sync.Mutex
+	lanes         map[string]*postgresLaneState
+	active        int
+	maximum       int
+	activeByClass map[resolved.LaneClass]int
+	maxByClass    map[resolved.LaneClass]int
+	releaseCount  int
+	claimed       chan string
+	released      chan int
 }
 
 func newPostgresLaneBlockingStore(store *runstore.PostgresStore) *postgresLaneBlockingStore {
 	return &postgresLaneBlockingStore{
 		PostgresStore: store, lanes: make(map[string]*postgresLaneState),
+		activeByClass: make(map[resolved.LaneClass]int), maxByClass: make(map[resolved.LaneClass]int),
 		claimed: make(chan string, 8), released: make(chan int, 8),
 	}
 }
@@ -241,17 +249,23 @@ func (s *postgresLaneBlockingStore) ClaimRunnableRun(
 	claimID string,
 	lease time.Duration,
 	excludedRunIDs []string,
+	laneClass resolved.LaneClass,
 ) (runstore.WorkflowRun, error) {
-	run, err := s.PostgresStore.ClaimRunnableRun(ctx, claimID, lease, excludedRunIDs)
+	run, err := s.PostgresStore.ClaimRunnableRun(ctx, claimID, lease, excludedRunIDs, laneClass)
 	if err != nil {
 		return run, err
 	}
+	if run.SchedulerLaneClass != laneClass {
+		return run, fmt.Errorf("lane of class %s claimed Run %s of class %s", laneClass, run.RunID, run.SchedulerLaneClass)
+	}
 	s.mu.Lock()
-	s.lanes[run.RunID] = &postgresLaneState{gate: make(chan struct{})}
+	s.lanes[run.RunID] = &postgresLaneState{gate: make(chan struct{}), class: laneClass}
 	s.active++
 	if s.active > s.maximum {
 		s.maximum = s.active
 	}
+	s.activeByClass[laneClass]++
+	s.maxByClass[laneClass] = max(s.maxByClass[laneClass], s.activeByClass[laneClass])
 	s.mu.Unlock()
 	s.claimed <- run.RunID
 	return run, nil
@@ -307,6 +321,7 @@ func (s *postgresLaneBlockingStore) ReleaseRunClaim(
 	if lane := s.lanes[runID]; lane != nil && !lane.released {
 		lane.released = true
 		s.active--
+		s.activeByClass[lane.class]--
 		s.releaseCount++
 		s.released <- s.releaseCount
 	}
@@ -347,6 +362,13 @@ func (s *postgresLaneBlockingStore) counts() (int, int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.active, s.maximum
+}
+
+// classMaximum is the largest number of claims lanes of class held at once.
+func (s *postgresLaneBlockingStore) classMaximum(class resolved.LaneClass) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.maxByClass[class]
 }
 
 var _ Store = (*postgresLaneBlockingStore)(nil)

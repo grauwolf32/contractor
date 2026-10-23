@@ -60,7 +60,8 @@ func TestPostgresRunSkillInitializerUsesCommittedExactSelection(t *testing.T) {
 			return err
 		}
 		if _, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
-			RunID: "run-skill-init", OwnerID: "owner-1",
+			LaneClass: resolved.LaneClassModel,
+			RunID:     "run-skill-init", OwnerID: "owner-1",
 			WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
 			WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: workflowSnapshot,
 			Parameters: map[string]string{}, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
@@ -262,7 +263,8 @@ func createAppSkillRunSelection(
 			return err
 		}
 		if _, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
-			RunID: runID, OwnerID: "owner-1",
+			LaneClass: resolved.LaneClassModel,
+			RunID:     runID, OwnerID: "owner-1",
 			WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
 			WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: workflowSnapshot,
 			Parameters: map[string]string{}, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),

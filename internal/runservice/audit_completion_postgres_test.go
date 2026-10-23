@@ -207,7 +207,7 @@ func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T)
 		t.Fatalf("a Run event append on a Run with a completion fired the triggers %v", fired)
 	}
 	stageBytes, _ := json.Marshal(stage)
-	executionStage, err := runs.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{StageExecutionID: "stage", RunID: "run", StageName: "check", Attempt: 1, StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: stageBytes, StageContextSchemaVersion: contracts.APIVersion, StageContext: runstore.StageContextSnapshot{Parameters: map[string]string{}, Artifacts: map[string]runstore.PinnedContextArtifact{"task": {Required: true, Artifact: &completion.Contract.Task}, "manifest": {Required: true, Artifact: &completion.Contract.ExecutionManifest}}}})
+	executionStage, err := runs.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{LaneClass: resolved.LaneClassModel, StageExecutionID: "stage", RunID: "run", StageName: "check", Attempt: 1, StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: stageBytes, StageContextSchemaVersion: contracts.APIVersion, StageContext: runstore.StageContextSnapshot{Parameters: map[string]string{}, Artifacts: map[string]runstore.PinnedContextArtifact{"task": {Required: true, Artifact: &completion.Contract.Task}, "manifest": {Required: true, Artifact: &completion.Contract.ExecutionManifest}}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -241,7 +241,7 @@ func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T)
 	}
 	abort("stage")
 	previous := "stage"
-	nextStage, err := runs.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{StageExecutionID: "stage-retry", RunID: "run", StageName: "check", Attempt: 2, PreviousExecutionID: &previous, StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: stageBytes, StageContextSchemaVersion: contracts.APIVersion, StageContext: executionStage.StageContext})
+	nextStage, err := runs.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{LaneClass: resolved.LaneClassModel, StageExecutionID: "stage-retry", RunID: "run", StageName: "check", Attempt: 2, PreviousExecutionID: &previous, StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: stageBytes, StageContextSchemaVersion: contracts.APIVersion, StageContext: executionStage.StageContext})
 	if err != nil {
 		t.Fatal(err)
 	}

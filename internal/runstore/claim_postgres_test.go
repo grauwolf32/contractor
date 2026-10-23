@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"strings"
 	"testing"
 	"time"
@@ -22,14 +23,15 @@ const claimQueueSize = 10000
 
 // populateClaimQueueSQL loads $2 claimable Runs over $3 owners, oldest first:
 // a tenth running, a tenth waiting, a tenth with Skill initialization pending
-// and the rest pending. Every 13th was deferred just now and every 97th holds
-// a live claim. $1 is a valid RuntimeConfig snapshot.
+// and the rest pending. Every fifth is of lane class tool, every 13th was
+// deferred just now and every 97th holds a live claim. $1 is a valid
+// RuntimeConfig snapshot.
 const populateClaimQueueSQL = `
 INSERT INTO workflow_runs (
     run_id, owner_id, workflow_name, workflow_version, workflow_schema_version,
     workflow_snapshot, parameters, runtime_labels, runtime_config_snapshot,
     state, state_reason_code, created_at, updated_at, started_at, scheduler_deferred,
-    scheduler_claim_id, scheduler_claimed_at, scheduler_claim_expires_at
+    scheduler_claim_id, scheduler_claimed_at, scheduler_claim_expires_at, scheduler_lane_class
 )
 SELECT 'run-claim-' || lpad(i::text, 5, '0'), 'owner-' || (i % $3),
        'claim', '1', 'contractor/v1alpha1', '{}'::jsonb, '{}'::jsonb, '{}'::text[], $1::jsonb,
@@ -41,7 +43,8 @@ SELECT 'run-claim-' || lpad(i::text, 5, '0'), 'owner-' || (i % $3),
        i % 13 = 0,
        CASE WHEN i % 97 = 0 THEN 'claim-held-' || i END,
        CASE WHEN i % 97 = 0 THEN clock_timestamp() END,
-       CASE WHEN i % 97 = 0 THEN clock_timestamp() + interval '1 hour' END
+       CASE WHEN i % 97 = 0 THEN clock_timestamp() + interval '1 hour' END,
+       CASE WHEN i % 5 = 0 THEN 'tool' ELSE 'model' END
 FROM generate_series(1, $2) AS i
 CROSS JOIN LATERAL (
     SELECT CASE i % 10
@@ -99,12 +102,13 @@ func loadWithoutLifecycleEvents(
 	}
 }
 
-// TestPostgresClaimReadsTenThousandRunsInClaimOrder explains the claim over
-// ten thousand claimable Runs, one owner's Queue paused: both the custom and
-// the generic plan read the Runs in claim order from the claim indexes and
-// stop at the first one they can lock, with no sort of the candidates and no
-// scan of workflow_runs. The claims then follow that order: cancelling first,
-// then the oldest admitted Run, skipping deferred and claimed ones.
+// TestPostgresClaimReadsTenThousandRunsInClaimOrder explains the claim of
+// each lane class over ten thousand claimable Runs, one owner's Queue paused:
+// both the custom and the generic plan read the Runs in claim order from the
+// claim indexes and stop at the first one they can lock, with no sort of the
+// candidates and no scan of workflow_runs. The claims then follow that order
+// within each class: cancelling first, then the oldest admitted Run, skipping
+// deferred and claimed ones and Runs of the other class.
 func TestPostgresClaimReadsTenThousandRunsInClaimOrder(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
@@ -115,19 +119,21 @@ func TestPostgresClaimReadsTenThousandRunsInClaimOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	excluded := make([]string, settingsstore.MaximumConcurrentRuns)
+	excluded := make([]string, settingsstore.MaximumLanes)
 	for index := range excluded {
 		excluded[index] = fmt.Sprintf("run-claim-%05d", index+1)
 	}
-	claim := captureStatement(t, func(store *PostgresStore) error {
-		_, err := store.ClaimRunnableRun(ctx, "claim-plan", time.Minute, excluded)
-		return err
-	})
-	assertPlanUsesIndexes(t, ctx, pool, "Scheduler claim over the queue", claim,
-		"workflow_runs_claim_idx", "workflow_runs_deferred_claim_idx")
-	for _, generic := range []bool{false, true} {
-		if plan := explainPlan(t, ctx, pool, claim, generic); strings.Contains(plan, "Sort") {
-			t.Errorf("claim (generic plan %v) sorts its candidates:\n%s", generic, plan)
+	for _, class := range resolved.LaneClasses {
+		claim := captureStatement(t, func(store *PostgresStore) error {
+			_, err := store.ClaimRunnableRun(ctx, "claim-plan", time.Minute, excluded, class)
+			return err
+		})
+		assertPlanUsesIndexes(t, ctx, pool, "Scheduler claim of class "+string(class)+" over the queue", claim,
+			"workflow_runs_claim_idx", "workflow_runs_deferred_claim_idx")
+		for _, generic := range []bool{false, true} {
+			if plan := explainPlan(t, ctx, pool, claim, generic); strings.Contains(plan, "Sort") {
+				t.Errorf("claim of class %s (generic plan %v) sorts its candidates:\n%s", class, generic, plan)
+			}
 		}
 	}
 
@@ -137,12 +143,20 @@ func TestPostgresClaimReadsTenThousandRunsInClaimOrder(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	// run-claim-00001 is the oldest admitted Run (waiting) and neither
-	// deferred nor claimed.
-	for _, want := range []string{cancelling.RunID, "run-claim-00001"} {
-		claimed, err := store.ClaimRunnableRun(ctx, "claim-"+want, time.Minute, nil)
-		if err != nil || claimed.RunID != want {
-			t.Fatalf("claim = (%s, %v), want %s", claimed.RunID, err, want)
+	// run-claim-00001 is the oldest admitted model Run (waiting) and neither
+	// deferred nor claimed; run-claim-00010 is the oldest admitted tool Run
+	// (running).
+	for _, want := range []struct {
+		runID string
+		class resolved.LaneClass
+	}{
+		{runID: cancelling.RunID, class: resolved.LaneClassModel},
+		{runID: "run-claim-00010", class: resolved.LaneClassTool},
+		{runID: "run-claim-00001", class: resolved.LaneClassModel},
+	} {
+		claimed, err := store.ClaimRunnableRun(ctx, "claim-"+want.runID, time.Minute, nil, want.class)
+		if err != nil || claimed.RunID != want.runID || claimed.SchedulerLaneClass != want.class {
+			t.Fatalf("claim of class %s = (%s, %v), want %s", want.class, claimed.RunID, err, want.runID)
 		}
 	}
 }
@@ -167,11 +181,11 @@ SET scheduler_deferred = $1, updated_at = clock_timestamp(),
     scheduler_claim_expires_at = CASE WHEN run_id = 'run-live' THEN clock_timestamp() - interval '1 minute' END`, deferred); err != nil {
 				t.Fatal(err)
 			}
-			claimed, err := store.ClaimRunnableRun(ctx, "peer-lane", time.Minute, []string{"run-live"})
+			claimed, err := store.ClaimRunnableRun(ctx, "peer-lane", time.Minute, []string{"run-live"}, resolved.LaneClassModel)
 			if err != nil || claimed.RunID != "run-peer" {
 				t.Fatalf("claim excluding live owner = %s, %v", claimed.RunID, err)
 			}
-			if _, err := store.ClaimRunnableRun(ctx, "no-work", time.Minute, []string{"run-live"}); !errors.Is(err, ErrNoWork) {
+			if _, err := store.ClaimRunnableRun(ctx, "no-work", time.Minute, []string{"run-live"}, resolved.LaneClassModel); !errors.Is(err, ErrNoWork) {
 				t.Fatalf("remaining locally active Run was claimed: %v", err)
 			}
 			if _, err := store.RenewRunClaim(ctx, "run-live", "original-lane", time.Minute); err != nil {
@@ -223,7 +237,7 @@ func TestPostgresClaimSkipsPendingRunsOfPausedOwners(t *testing.T) {
 	}
 	claim := func(want string) {
 		t.Helper()
-		claimed, err := store.ClaimRunnableRun(ctx, "claim-"+want, time.Minute, nil)
+		claimed, err := store.ClaimRunnableRun(ctx, "claim-"+want, time.Minute, nil, resolved.LaneClassModel)
 		if err != nil || claimed.RunID != want {
 			t.Fatalf("claim = (%s, %v), want %s", claimed.RunID, err, want)
 		}
@@ -276,7 +290,7 @@ func TestPostgresClaimSkipsPendingRunsOfPausedOwners(t *testing.T) {
 	claim(placed.RunID)
 	claim(aborting.RunID)
 	claim(other.RunID)
-	if run, err := store.ClaimRunnableRun(ctx, "claim-paused", time.Minute, nil); !errors.Is(err, ErrNoWork) {
+	if run, err := store.ClaimRunnableRun(ctx, "claim-paused", time.Minute, nil, resolved.LaneClassModel); !errors.Is(err, ErrNoWork) {
 		t.Fatalf("claim while the owner's Queue is paused = (%s, %v), want no work", run.RunID, err)
 	}
 
@@ -390,6 +404,7 @@ func TestPostgresActiveStageReadUsesActiveStageIndex(t *testing.T) {
 
 func testActiveStageParams(runID, stageExecutionID, stageName string) CreateStageExecutionParams {
 	return CreateStageExecutionParams{
+		LaneClass:        resolved.LaneClassModel,
 		StageExecutionID: stageExecutionID, RunID: runID, StageName: stageName, Attempt: 1,
 		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: json.RawMessage(`{}`),
 		StageContextSchemaVersion: contracts.APIVersion, StageContext: StageContextSnapshot{},
@@ -410,5 +425,58 @@ func testStageAllocation(stageExecutionID, allocationID string) StageAllocation 
 		RuntimeConfigurationSchemaVersion: AllocationRuntimeConfigurationSchemaVersion,
 		RuntimeConfiguration:              testAllocationRuntimeConfiguration(),
 		PerformanceCollectionPolicy:       reporting.PerformanceCollectionDisabled,
+	}
+}
+
+// TestPostgresStageCreationCarriesTheLaneClassToTheRun creates a model Run,
+// then a tool StageExecution: the same statement moves the Run to the tool
+// pool, whose lanes alone claim it, and a failed insert changes nothing
+// (SCH-R175). An invalid class is refused before storage.
+func TestPostgresStageCreationCarriesTheLaneClassToTheRun(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedRunStorePool(t, ctx)
+	store := NewPostgresStore(pool)
+	invalid := testRunParams("run-lane-invalid")
+	invalid.LaneClass = "scan"
+	if _, err := createRun(ctx, store, invalid); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("create Run with an invalid lane class = %v, want ErrInvalid", err)
+	}
+	run := createTestRun(t, ctx, store, "run-lane-handoff")
+	if run.SchedulerLaneClass != resolved.LaneClassModel {
+		t.Fatalf("created Run lane class = %q", run.SchedulerLaneClass)
+	}
+	if _, err := admitTestRun(ctx, store, run.RunID); err != nil {
+		t.Fatal(err)
+	}
+	stage := testActiveStageParams(run.RunID, "stage-lane-scan", "scan")
+	stage.LaneClass = ""
+	if _, err := store.CreateStageExecution(ctx, stage); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("create StageExecution without a lane class = %v, want ErrInvalid", err)
+	}
+	stage.LaneClass = resolved.LaneClassTool
+	created, err := store.CreateStageExecution(ctx, stage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored, err := store.GetRun(ctx, run.RunID); err != nil || stored.SchedulerLaneClass != resolved.LaneClassTool {
+		t.Fatalf("Run after a tool StageExecution = (%q, %v)", stored.SchedulerLaneClass, err)
+	}
+	duplicate := testActiveStageParams(run.RunID, created.StageExecutionID, "review")
+	if _, err := store.CreateStageExecution(ctx, duplicate); !errors.Is(err, ErrConflict) {
+		t.Fatalf("duplicate StageExecution = %v, want ErrConflict", err)
+	}
+	if stored, err := store.GetRun(ctx, run.RunID); err != nil || stored.SchedulerLaneClass != resolved.LaneClassTool {
+		t.Fatalf("Run after a failed StageExecution insert = (%q, %v)", stored.SchedulerLaneClass, err)
+	}
+	if _, err := store.ClaimRunnableRun(ctx, "model-lane", time.Minute, nil, resolved.LaneClassModel); !errors.Is(err, ErrNoWork) {
+		t.Fatalf("model lane claimed a tool Run: %v", err)
+	}
+	claimed, err := store.ClaimRunnableRun(ctx, "tool-lane", time.Minute, nil, resolved.LaneClassTool)
+	if err != nil || claimed.RunID != run.RunID {
+		t.Fatalf("tool lane claim = (%s, %v)", claimed.RunID, err)
+	}
+	if _, err := store.ClaimRunnableRun(ctx, "unknown-lane", time.Minute, nil, "scan"); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("claim of an invalid class = %v, want ErrInvalid", err)
 	}
 }

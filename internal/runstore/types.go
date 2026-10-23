@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
@@ -131,10 +132,13 @@ type WorkflowRun struct {
 	CancellationSchemaVersion *string
 	Cancellation              *WorkflowRunCancellation
 	SchedulerClaim            *SchedulerClaim
-	CreatedAt                 time.Time
-	UpdatedAt                 time.Time
-	StartedAt                 *time.Time
-	FinishedAt                *time.Time
+	// SchedulerLaneClass is the lane class of the StageExecution the
+	// Scheduler progresses next: the active one, otherwise the entry Stage.
+	SchedulerLaneClass resolved.LaneClass
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	StartedAt          *time.Time
+	FinishedAt         *time.Time
 }
 
 // WorkflowRunSummary is the bounded owner-list projection. In particular it
@@ -271,6 +275,10 @@ type CreateRunParams struct {
 	MetadataLabels        RunMetadataLabels
 	RuntimeConfig         runtimeconfig.RunSnapshot
 	ProjectHTTPTarget     *runtimesettings.HTTPOriginTargetRef
+	// LaneClass is the lane class of the Workflow's entry Stage
+	// (resolved.EntryLaneClass), which the Run carries until the Scheduler
+	// creates its first StageExecution (SCH-R175).
+	LaneClass resolved.LaneClass
 }
 
 type CreateRunIdempotentParams struct {
@@ -363,6 +371,10 @@ type CreateStageExecutionParams struct {
 	StageSpecSnapshot         json.RawMessage
 	StageContextSchemaVersion string
 	StageContext              StageContextSnapshot
+	// LaneClass is resolved.StageLaneClass of the effective Stage spec. The
+	// statement that creates the StageExecution stores it on the Run, which
+	// the pool of that class then claims (SCH-R175).
+	LaneClass resolved.LaneClass
 }
 
 // StageExecutionConfigVariant identifies which already-pinned Stage

@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"encoding/json"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"testing"
 	"time"
 
@@ -126,6 +127,7 @@ func advanceRecoveryStage(t *testing.T, ctx context.Context, f finalizingFixture
 				TargetStageName: &stageName, TargetExecutionID: stringPointer(nextID),
 			},
 			NextStage: &NextStageCreation{Params: runstore.CreateStageExecutionParams{
+				LaneClass:        resolved.LaneClassModel,
 				StageExecutionID: nextID, RunID: "run-1", StageName: stageName, Attempt: 2, PreviousExecutionID: &f.executionID,
 				ExecutionConfigVariant: runstore.StageExecutionConfigBase,
 				StageSpecSchemaVersion: previous.StageSpecSchemaVersion, StageSpecSnapshot: previous.StageSpecSnapshot,

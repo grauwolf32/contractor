@@ -159,7 +159,7 @@ FROM inserted_run`,
 		record.WorkflowSchemaVersion, []byte(record.WorkflowSnapshot), encodedParameters,
 		record.RuntimeConfig.ExplicitLabels(), encodedRuntimeConfig, encodedProjectHTTPTarget, encodedMetadataLabels,
 		record.idempotencyKey, record.requestDigest,
-		string(publicationMode), record.auditExecutionID, record.auditSubmissionKey,
+		string(publicationMode), record.auditExecutionID, record.auditSubmissionKey, string(record.LaneClass),
 	))
 	switch {
 	case err == nil:
@@ -447,14 +447,20 @@ func (s *PostgresStore) RequestRunCancellation(
 	return s.GetRun(ctx, runID)
 }
 
+// ClaimRunnableRun leases the first runnable Run of lane class laneClass in
+// claim order; each Scheduler lane pool claims only its own class.
 func (s *PostgresStore) ClaimRunnableRun(
 	ctx context.Context,
 	claimID string,
 	duration time.Duration,
 	excludedRunIDs []string,
+	laneClass resolved.LaneClass,
 ) (WorkflowRun, error) {
 	if err := validateOpaque("claimID", claimID); err != nil {
 		return WorkflowRun{}, err
+	}
+	if !laneClass.Valid() {
+		return WorkflowRun{}, invalidf("Scheduler lane class is invalid")
 	}
 	if duration <= 0 {
 		return WorkflowRun{}, invalidf("claim duration must be positive")
@@ -463,7 +469,7 @@ func (s *PostgresStore) ClaimRunnableRun(
 	if microseconds <= 0 {
 		return WorkflowRun{}, invalidf("claim duration must be at least one microsecond")
 	}
-	result, err := scanWorkflowRun(s.db.QueryRow(ctx, claimRunnableRunSQL+prefixedWorkflowRunColumns("run"), claimID, microseconds, deferredClaimYield.Microseconds(), excludedRunIDs))
+	result, err := scanWorkflowRun(s.db.QueryRow(ctx, claimRunnableRunSQL+prefixedWorkflowRunColumns("run"), claimID, microseconds, deferredClaimYield.Microseconds(), excludedRunIDs, string(laneClass)))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return WorkflowRun{}, ErrNoWork
 	}
@@ -553,6 +559,9 @@ RETURNING state`,
 func validateCreateRun(params CreateRunParams) error {
 	if err := validateResourceID("runID", params.RunID); err != nil {
 		return err
+	}
+	if !params.LaneClass.Valid() {
+		return invalidf("laneClass is invalid")
 	}
 	for field, value := range map[string]string{
 		"ownerID":      params.OwnerID,

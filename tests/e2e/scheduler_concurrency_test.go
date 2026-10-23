@@ -97,7 +97,7 @@ func TestSchedulerConcurrencyAcrossProductionProcesses(t *testing.T) {
 	waitForHTTP(t, ctx, server, publicClient, publicBaseURL+"/readyz", http.StatusOK)
 
 	initialSettings, initialETag := getSchedulerSettings(t, publicClient, publicBaseURL)
-	if initialSettings.Maximum != 1 || initialSettings.Revision != "1" || initialETag != `"1"` {
+	if initialSettings.Maximum != 1 || initialSettings.ToolMaximum != 2 || initialSettings.Revision != "1" || initialETag != `"1"` {
 		t.Fatalf("fresh Scheduler settings = (%+v, %q), want default one", initialSettings, initialETag)
 	}
 
@@ -163,7 +163,8 @@ func TestSchedulerConcurrencyAcrossProductionProcesses(t *testing.T) {
 	}
 
 	updated := replaceSchedulerSettings(t, publicClient, publicBaseURL, initialETag, 2)
-	if updated.Maximum != 2 || updated.Revision != "2" {
+	// The request omits the tool pool size, which keeps its stored value.
+	if updated.Maximum != 2 || updated.ToolMaximum != 2 || updated.Revision != "2" {
 		t.Fatalf("updated Scheduler settings = %+v", updated)
 	}
 
@@ -222,7 +223,7 @@ func TestSchedulerConcurrencyAcrossProductionProcesses(t *testing.T) {
 	)
 	waitForHTTP(t, ctx, server, publicClient, publicBaseURL+"/readyz", http.StatusOK)
 	restarted, restartedETag := getSchedulerSettings(t, publicClient, publicBaseURL)
-	if restarted.Maximum != 2 || restarted.Revision != "2" || restartedETag != `"2"` {
+	if restarted.Maximum != 2 || restarted.ToolMaximum != 2 || restarted.Revision != "2" || restartedETag != `"2"` {
 		t.Fatalf("restarted Scheduler settings = (%+v, %q), want durable two", restarted, restartedETag)
 	}
 
@@ -242,9 +243,10 @@ func TestSchedulerConcurrencyAcrossProductionProcesses(t *testing.T) {
 }
 
 type schedulerSettingsPayload struct {
-	Maximum   int       `json:"maxConcurrentRuns"`
-	Revision  string    `json:"revision"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	Maximum     int       `json:"maxConcurrentRuns"`
+	ToolMaximum int       `json:"maxConcurrentToolRuns"`
+	Revision    string    `json:"revision"`
+	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
 func getSchedulerSettings(

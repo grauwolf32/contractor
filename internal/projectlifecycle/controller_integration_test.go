@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"os"
 	"strings"
@@ -114,6 +115,7 @@ INSERT INTO runtime_credentials (
 		t.Fatal(err)
 	}
 	execution, err := runs.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
+		LaneClass:        resolved.LaneClassModel,
 		StageExecutionID: "stage-active", RunID: active.RunID, StageName: "build", Attempt: 1,
 		StageSpecSchemaVersion:    contracts.APIVersion,
 		StageSpecSnapshot:         json.RawMessage(`{"objective":"build"}`),
@@ -829,7 +831,8 @@ func createProjectRun(
 
 func projectRunParams(runID, projectID string) runstore.CreateRunParams {
 	return runstore.CreateRunParams{
-		RunID: runID, OwnerID: "user-1", ProjectID: &projectID,
+		LaneClass: resolved.LaneClassModel,
+		RunID:     runID, OwnerID: "user-1", ProjectID: &projectID,
 		WorkflowName: "artifact-copy", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion,
 		WorkflowSnapshot:      json.RawMessage(`{"ref":{"name":"artifact-copy","version":"1"}}`),

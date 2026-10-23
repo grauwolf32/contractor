@@ -154,7 +154,8 @@ func TestPostgresTrustedAuditRunIsAtomicReplayableAndPinsExactSkill(t *testing.T
 	}
 	if _, err := runstore.NewPostgresStore(pool).CreateAuditRun(ctx, runstore.CreateAuditRunParams{
 		CreateRunParams: runstore.CreateRunParams{
-			RunID: "run-orphan-must-rollback", OwnerID: project.OwnerID, ProjectID: &project.ProjectID,
+			LaneClass: resolved.LaneClassModel,
+			RunID:     "run-orphan-must-rollback", OwnerID: project.OwnerID, ProjectID: &project.ProjectID,
 			WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
 			WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: workflowSnapshot,
 			Parameters: map[string]string{"objective": "check"}, MetadataLabels: runstore.RunMetadataLabels{},

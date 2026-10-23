@@ -259,7 +259,8 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 		t.Fatalf("PostgreSQL repeat draft = %d %s", repeatResponse.Code, repeatResponse.Body.String())
 	}
 	if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{
-		RunID: "run-lineage-two", OwnerID: "user-1", WorkflowName: "artifact-copy", WorkflowVersion: "1",
+		LaneClass: resolved.LaneClassModel,
+		RunID:     "run-lineage-two", OwnerID: "user-1", WorkflowName: "artifact-copy", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`),
 		Parameters:    map[string]string{},
 		RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
@@ -343,7 +344,8 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 	}
 
 	if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{
-		RunID: "run-foreign", OwnerID: "user-2", WorkflowName: "artifact-copy", WorkflowVersion: "1",
+		LaneClass: resolved.LaneClassModel,
+		RunID:     "run-foreign", OwnerID: "user-2", WorkflowName: "artifact-copy", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`),
 		Parameters:    map[string]string{},
 		RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),

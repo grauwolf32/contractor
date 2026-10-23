@@ -34,7 +34,8 @@ It leaves to other documents:
   sets `audit-managed`: [projects](../artifacts/projects.md);
   hard deletion of an Audit-bound Run: [retention and
   deletion](../artifacts/retention-and-deletion.md).
-- The global `maxConcurrentRuns` limit and the owner Queue Pause gate:
+- The global `maxConcurrentRuns` and `maxConcurrentToolRuns` limits and the
+  owner Queue Pause gate:
   [scheduler](../execution/scheduler.md); WorkflowRuns:
   [runs](../execution/runs.md).
 - The Audit pause wording: [ui](../ui/ui.md); the Start and Continue
@@ -153,9 +154,10 @@ flowchart TD
 ### Execution capacity
 
 **AUX-R1.** Audit uses ordinary WorkflowRuns and the existing owner queue. The
-global `maxConcurrentRuns` setting ([SCH-R127](../execution/scheduler.md),
-[SCH-R128](../execution/scheduler.md)) is the only execution limit and the sole
-execution-concurrency authority for Audit and non-Audit Runs alike;
+global `maxConcurrentRuns` and `maxConcurrentToolRuns` settings
+([SCH-R127](../execution/scheduler.md), [SCH-R128](../execution/scheduler.md))
+are the only execution limits and the sole execution-concurrency authority for
+Audit and non-Audit Runs alike;
 AuditProfile has no WorkflowRun concurrency limit and no simultaneous-Run
 maximum ([AUD-R26](audits.md)).
 
@@ -720,7 +722,8 @@ proposal holds (LIFE-REV-3) in
 [review and reports](review-and-reports.md); Audit-bound Run deletion before
 collection (FAIL-DEL-1) and AuditExecution retention (LIFE-DEL-7) in
 [retention and deletion](../artifacts/retention-and-deletion.md); and the
-`maxConcurrentRuns` bounds in [scheduler](../execution/scheduler.md).
+`maxConcurrentRuns` and `maxConcurrentToolRuns` bounds in
+[scheduler](../execution/scheduler.md).
 
 ## Security
 
@@ -756,8 +759,8 @@ Controller logs the full error (AUX-R67). Shared rules are in
    terminal observation and a collection receipt (AUX-R28).
 5. Replay never consumes budget twice, and each distinct retained evidence
    revision is charged once (AUX-R82, AUX-R45).
-6. The dispatch look-ahead never bounds execution: `maxConcurrentRuns` is the
-   only execution limit (AUX-R1, AUX-R5).
+6. The dispatch look-ahead never bounds execution: `maxConcurrentRuns` and
+   `maxConcurrentToolRuns` are the only execution limits (AUX-R1, AUX-R5).
 7. No work is silently dropped and no proposal is silently ignored (AUX-R87,
    AUX-R55).
 8. No network or model call runs under a database row lock (AUX-R75).

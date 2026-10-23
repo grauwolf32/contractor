@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"reflect"
 	"slices"
 	"strings"
@@ -39,6 +40,7 @@ func failedResumeFixture(t *testing.T, ctx context.Context, pool *pgxpool.Pool, 
 	}
 	priorID := runID + "-success"
 	_, err = store.CreateStageExecution(ctx, CreateStageExecutionParams{
+		LaneClass:        resolved.LaneClassModel,
 		StageExecutionID: priorID, RunID: runID, StageName: "analyze", Attempt: 1,
 		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: json.RawMessage(`{"objective":"analyze"}`),
 		StageContextSchemaVersion: contracts.APIVersion,
@@ -61,7 +63,9 @@ func failedResumeFixture(t *testing.T, ctx context.Context, pool *pgxpool.Pool, 
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The failed Stage is a tool Stage, so the Run waits in the tool pool.
 	_, err = store.CreateStageExecution(ctx, CreateStageExecutionParams{
+		LaneClass:        resolved.LaneClassTool,
 		StageExecutionID: stageID, RunID: runID, StageName: "build", Attempt: 1,
 		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: json.RawMessage(`{"objective":"build"}`),
 		StageContextSchemaVersion: contracts.APIVersion, StageContext: StageContextSnapshot{Parameters: run.Parameters, Artifacts: map[string]PinnedContextArtifact{"upstream": {Required: true, Artifact: &written.Ref}}},
@@ -196,6 +200,9 @@ func TestPostgresResumeFailedStageIsAtomicAndIdempotent(t *testing.T) {
 	if next.State != StagePreparing || next.Attempt != 2 || next.PreviousExecutionID == nil || *next.PreviousExecutionID != *source || next.PlannerSessionID != nil || !reflect.DeepEqual(next.StageContext, previous.StageContext) || !reflect.DeepEqual(next.StageSpecSnapshot, previous.StageSpecSnapshot) {
 		t.Fatalf("new attempt: %+v", next)
 	}
+	if resumed, err := store.GetRun(ctx, before.RunID); err != nil || resumed.SchedulerLaneClass != resolved.LaneClassTool {
+		t.Fatalf("resumed Run lane class = (%q, %v), want the failed Stage's tool class", resumed.SchedulerLaneClass, err)
+	}
 	decisions, err := store.ListStageTransitionDecisions(ctx, before.RunID)
 	decision := slices.IndexFunc(decisions, func(decision StageTransitionDecision) bool {
 		return decision.SourceExecutionID == *source
@@ -284,6 +291,7 @@ func TestPostgresResumeRequiresExactStageContextArtifacts(t *testing.T) {
 		}
 		stageID := runID + "-stage"
 		if _, err := store.CreateStageExecution(ctx, CreateStageExecutionParams{
+			LaneClass:        resolved.LaneClassModel,
 			StageExecutionID: stageID, RunID: runID, StageName: "build", Attempt: 1,
 			StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: json.RawMessage(`{"objective":"build"}`),
 			StageContextSchemaVersion: contracts.APIVersion,

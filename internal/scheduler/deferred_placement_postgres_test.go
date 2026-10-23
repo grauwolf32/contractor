@@ -63,7 +63,8 @@ func TestPostgresDeferredRunningRunYieldsToPendingOtherOwner(t *testing.T) {
 				t.Fatal(err)
 			}
 			other, err := runstoretest.CreateRun(ctx, h.store, runstore.CreateRunParams{
-				RunID: "run-other-owner", OwnerID: "user-2", WorkflowName: h.workflow.Ref.Name,
+				LaneClass: resolved.LaneClassModel,
+				RunID:     "run-other-owner", OwnerID: "user-2", WorkflowName: h.workflow.Ref.Name,
 				WorkflowVersion: h.workflow.Ref.Version, WorkflowSchemaVersion: contracts.APIVersion,
 				WorkflowSnapshot: workflowJSON, Parameters: map[string]string{"objective": "other owner's work"},
 				RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
@@ -76,7 +77,7 @@ func TestPostgresDeferredRunningRunYieldsToPendingOtherOwner(t *testing.T) {
 				runstore.Reason{Code: "awaiting_admission"}); err != nil {
 				t.Fatal(err)
 			}
-			claimed, err := h.store.ClaimRunnableRun(ctx, "next-poll", time.Minute, nil)
+			claimed, err := h.store.ClaimRunnableRun(ctx, "next-poll", time.Minute, nil, resolved.LaneClassModel)
 			if err != nil || claimed.RunID != other.RunID {
 				t.Fatalf("next lane claim = (%+v, %v), want other owner's pending Run", claimed, err)
 			}
@@ -269,7 +270,8 @@ func TestPostgresPausedFinalizingRunYieldsToPendingOtherOwner(t *testing.T) {
 		t.Fatal(err)
 	}
 	other, err := runstoretest.CreateRun(ctx, h.store, runstore.CreateRunParams{
-		RunID: "run-other-owner", OwnerID: "user-2", WorkflowName: h.workflow.Ref.Name,
+		LaneClass: resolved.LaneClassModel,
+		RunID:     "run-other-owner", OwnerID: "user-2", WorkflowName: h.workflow.Ref.Name,
 		WorkflowVersion: h.workflow.Ref.Version, WorkflowSchemaVersion: contracts.APIVersion,
 		WorkflowSnapshot: workflowJSON, Parameters: map[string]string{"objective": "other owner's work"},
 		RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
@@ -282,7 +284,7 @@ func TestPostgresPausedFinalizingRunYieldsToPendingOtherOwner(t *testing.T) {
 		runstore.Reason{Code: "awaiting_admission"}); err != nil {
 		t.Fatal(err)
 	}
-	claimed, err := h.store.ClaimRunnableRun(ctx, "next-poll", time.Minute, nil)
+	claimed, err := h.store.ClaimRunnableRun(ctx, "next-poll", time.Minute, nil, resolved.LaneClassModel)
 	if err != nil || claimed.RunID != other.RunID {
 		t.Fatalf("next claim = (%+v, %v), want other owner's pending Run", claimed, err)
 	}

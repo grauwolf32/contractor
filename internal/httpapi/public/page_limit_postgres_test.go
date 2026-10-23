@@ -55,7 +55,8 @@ func TestPostgresPublicPagedListsAcceptTheLargestPage(t *testing.T) {
 	runs := runstore.NewPostgresStore(pool)
 	project := projectID
 	if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{
-		RunID: runID, OwnerID: owner, ProjectID: &project,
+		LaneClass: resolved.LaneClassModel,
+		RunID:     runID, OwnerID: owner, ProjectID: &project,
 		WorkflowName: "artifact-copy", WorkflowVersion: "1", WorkflowSchemaVersion: contracts.APIVersion,
 		WorkflowSnapshot: json.RawMessage(`{"ref":{"name":"artifact-copy","version":"1"}}`),
 		Parameters:       map[string]string{}, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),

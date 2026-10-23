@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"slices"
 	"strings"
 	"testing"
@@ -92,7 +93,8 @@ func createParityRunInState(
 	t.Helper()
 	store := runstore.NewPostgresStore(pool)
 	if _, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
-		RunID: runID, OwnerID: "user-parity", WorkflowName: "artifact-copy", WorkflowVersion: "1",
+		LaneClass: resolved.LaneClassModel,
+		RunID:     runID, OwnerID: "user-parity", WorkflowName: "artifact-copy", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`),
 		RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 	}); err != nil {

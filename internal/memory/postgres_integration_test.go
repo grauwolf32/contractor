@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"log/slog"
 	"os"
 	"reflect"
@@ -699,7 +700,8 @@ func createRunningMemoryStage(
 	t.Helper()
 	store := runstore.NewPostgresStore(pool)
 	_, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
-		RunID: runID, OwnerID: "memory-test-user", WorkflowName: "memory-test", WorkflowVersion: "1",
+		LaneClass: resolved.LaneClassModel,
+		RunID:     runID, OwnerID: "memory-test-user", WorkflowName: "memory-test", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion,
 		WorkflowSnapshot:      json.RawMessage(`{"name":"memory-test"}`),
 		Parameters:            map[string]string{},
@@ -720,6 +722,7 @@ func createRunningMemoryStage(
 		t.Fatal(err)
 	}
 	if _, err := store.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
+		LaneClass:        resolved.LaneClassModel,
 		StageExecutionID: stageID, RunID: runID, StageName: "memory", Attempt: 1,
 		StageSpecSchemaVersion:    contracts.APIVersion,
 		StageSpecSnapshot:         json.RawMessage(`{"objective":"memory test","session":"isolated"}`),

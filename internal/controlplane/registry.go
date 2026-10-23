@@ -39,6 +39,10 @@ type RegistryOptions struct {
 	MonotonicNow      func() time.Duration
 	NewID             func(string) (string, error)
 	AgentOrderKey     func(control.AgentRegistration) string
+	// ModelStageHold is how long an Agent stays held after the last failed
+	// placement of a model Stage that could use it (CTL-R155). Zero selects
+	// five seconds, five default Scheduler poll intervals.
+	ModelStageHold time.Duration
 }
 
 type AgentSnapshot struct {
@@ -67,6 +71,7 @@ type InMemoryRegistry struct {
 	monotonicNow               func() time.Duration
 	newID                      func(string) (string, error)
 	agentOrderKey              func(control.AgentRegistration) string
+	modelStageHold             time.Duration
 	principalDeletions         map[string]struct{}
 	pendingLosses              []AllocationLoss
 	operationsGeneration       string
@@ -100,6 +105,9 @@ type agentEntry struct {
 	issuedAcks                map[uint64]struct{}
 	heartbeatResponses        map[uint64]control.HeartbeatResponse
 	heartbeatOrder            []uint64
+	// modelStageHeldUntil is the monotonic instant until which model-free
+	// placement must not select this Agent (CTL-R155).
+	modelStageHeldUntil time.Duration
 }
 
 type stageReservation struct {
@@ -112,6 +120,7 @@ type stageReservation struct {
 const (
 	defaultHeartbeatInterval = 10 * time.Second
 	defaultConfirmedLease    = 60 * time.Second
+	defaultModelStageHold    = 5 * time.Second
 )
 
 func NewRegistry(options RegistryOptions) (*InMemoryRegistry, error) {
@@ -124,6 +133,12 @@ func NewRegistry(options RegistryOptions) (*InMemoryRegistry, error) {
 	if options.HeartbeatInterval < time.Second || options.ConfirmedLease <= options.HeartbeatInterval ||
 		options.HeartbeatInterval%time.Second != 0 || options.ConfirmedLease%time.Second != 0 {
 		return nil, fmt.Errorf("%w: heartbeat and lease durations must be whole seconds and lease must exceed interval", ErrInvalidRequest)
+	}
+	if options.ModelStageHold == 0 {
+		options.ModelStageHold = defaultModelStageHold
+	}
+	if options.ModelStageHold < 0 {
+		return nil, fmt.Errorf("%w: model Stage hold must be positive", ErrInvalidRequest)
 	}
 	if options.Now == nil {
 		options.Now = time.Now
@@ -150,6 +165,7 @@ func NewRegistry(options RegistryOptions) (*InMemoryRegistry, error) {
 		heartbeatInterval: options.HeartbeatInterval, confirmedLease: options.ConfirmedLease,
 		now: options.Now, monotonicNow: options.MonotonicNow,
 		newID: options.NewID, agentOrderKey: options.AgentOrderKey,
+		modelStageHold:       options.ModelStageHold,
 		operationsGeneration: operationsGeneration,
 		operationsWatchers:   make(map[uint64]chan struct{}),
 		principalDeletions:   make(map[string]struct{}),
@@ -332,6 +348,68 @@ func (r *InMemoryRegistry) PlacementCandidates() []AgentSnapshot {
 	return result
 }
 
+// liveCandidates returns detached snapshots of every slot that placement
+// could use once its current allocation, if any, is released. Only a model
+// Stage hold reads them (CTL-R155); they grant no capacity.
+func (r *InMemoryRegistry) liveCandidates() []AgentSnapshot {
+	monotonicNow := r.monotonicNow()
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	result := make([]AgentSnapshot, 0, len(r.agents))
+	for _, entry := range r.agents {
+		r.expireEntry(entry, monotonicNow)
+		if isCapacityLive(entry, monotonicNow) {
+			result = append(result, snapshotAgent(entry))
+		}
+	}
+	return result
+}
+
+// holdForModelStage keeps every live slot that the model Stage of request
+// could use away from model-free placement for the hold window (CTL-R155).
+// edges are resolved for live slots, idle or allocated, exactly as placement
+// resolves them. A Stage with no complete matching among live slots, which
+// could not be placed even with every allocation released, holds nothing.
+func (r *InMemoryRegistry) holdForModelStage(request ReservationRequest, edges []CandidateEdge) error {
+	if request.ModelFree {
+		return fmt.Errorf("%w: a model-free Stage holds no Agent", ErrInvalidRequest)
+	}
+	_, bindings, err := normalizeReservationRequest(request)
+	if err != nil {
+		return err
+	}
+	if err := validateCandidateEdges(bindings, edges); err != nil {
+		return err
+	}
+	monotonicNow := r.monotonicNow()
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	live := make([]*agentEntry, 0, len(r.agents))
+	for _, entry := range r.agents {
+		r.expireEntry(entry, monotonicNow)
+		if isCapacityLive(entry, monotonicNow) {
+			live = append(live, entry)
+		}
+	}
+	if len(bindings) > len(live) {
+		return nil
+	}
+	candidates, complete := buildCapabilityCandidates(live, bindings, edges)
+	if !complete {
+		return nil
+	}
+	if _, complete := matchCapabilityCandidates(candidates, len(live)); !complete {
+		return nil
+	}
+	heldUntil := monotonicNow + r.modelStageHold
+	for _, agentIndexes := range candidates {
+		for _, agentIndex := range agentIndexes {
+			live[agentIndex].modelStageHeldUntil = max(live[agentIndex].modelStageHeldUntil, heldUntil)
+		}
+	}
+	return nil
+}
+
 // MarkPrincipalMissing excludes an instance whose durable principal was
 // deleted on another Server. A later authenticated registration may restore
 // it only after reading a principal from the database.
@@ -420,7 +498,8 @@ func (r *InMemoryRegistry) reserveAll(
 
 	available := make([]*agentEntry, 0, len(r.agents))
 	for _, entry := range r.agents {
-		if isPlacementEligible(entry, monotonicNow) {
+		if isPlacementEligible(entry, monotonicNow) &&
+			(!request.ModelFree || entry.modelStageHeldUntil <= monotonicNow) {
 			available = append(available, entry)
 		}
 	}
@@ -1109,6 +1188,13 @@ func isPlacementEligible(entry *agentEntry, monotonicNow time.Duration) bool {
 		entry.confirmedLeaseDeadline > monotonicNow
 }
 
+// isCapacityLive reports whether entry is a slot that placement could use
+// once its current allocation, if any, is released.
+func isCapacityLive(entry *agentEntry, monotonicNow time.Duration) bool {
+	return !entry.leaseExpired && !entry.superseded && !entry.principalMissing &&
+		entry.blockedByInstanceID == nil && entry.confirmedLeaseDeadline > monotonicNow
+}
+
 func isBindingCompatible(registration control.AgentRegistration, binding BindingRequirement) bool {
 	return resolved.ValidateWorkerCompletionSelection(binding.CompletionContract, binding.Namespace, binding.AgentTemplate) == nil &&
 		contracts.SupportsWorkerCompletion(registration.Capabilities, binding.CompletionContract) &&
@@ -1217,6 +1303,9 @@ func normalizeReservationRequest(request ReservationRequest) (string, []BindingR
 		}
 		if binding.AgentTemplate.IsToolWorker() != (binding.ExecutionConfig == (AllocationExecutionConfig{})) {
 			return "", nil, fmt.Errorf("%w: execution config does not match Worker runtime", ErrInvalidRequest)
+		}
+		if request.ModelFree && !binding.AgentTemplate.IsToolWorker() {
+			return "", nil, fmt.Errorf("%w: a model-free Stage binds only tool Workers", ErrInvalidRequest)
 		}
 		if binding.Workspace != nil {
 			if err := binding.Workspace.Validate(); err != nil {

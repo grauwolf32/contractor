@@ -112,7 +112,8 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 	runs := runstore.NewPostgresStore(pool)
 	projectRef := projectID
 	if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{
-		RunID: runID, OwnerID: ownerID, ProjectID: &projectRef,
+		LaneClass: resolved.LaneClassModel,
+		RunID:     runID, OwnerID: ownerID, ProjectID: &projectRef,
 		WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
 		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: workflowJSON,
 		Parameters: map[string]string{}, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
@@ -130,6 +131,7 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 		t.Fatal(err)
 	}
 	if _, err := runs.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
+		LaneClass:        resolved.LaneClassModel,
 		StageExecutionID: stageID, RunID: runID, StageName: workflow.EntryStage, Attempt: 1,
 		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: stageJSON,
 		StageContextSchemaVersion: contracts.APIVersion,

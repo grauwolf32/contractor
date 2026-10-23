@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"os"
 	"sort"
 	"strings"
@@ -765,7 +766,8 @@ func lifecycleTestPool(t *testing.T) (*pgxpool.Pool, context.Context) {
 
 func pinnedRunParams(runID, credentialID string) runstore.CreateRunParams {
 	return runstore.CreateRunParams{
-		RunID: runID, OwnerID: "user-1", WorkflowName: "workflow", WorkflowVersion: "1",
+		LaneClass: resolved.LaneClassModel,
+		RunID:     runID, OwnerID: "user-1", WorkflowName: "workflow", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion,
 		WorkflowSnapshot: json.RawMessage(fmt.Sprintf(
 			`{"stages":{"build":{"executionConfig":{"agents":{"worker":{"credential":{"credentialId":%q}}}}}}}`,

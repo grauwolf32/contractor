@@ -68,6 +68,7 @@ for (const theme of ["light", "dark", "black"]) {
           route,
           {
             maxConcurrentRuns: 1,
+            maxConcurrentToolRuns: 2,
             revision: "1",
             updatedAt: "2026-10-21T00:00:00Z",
           },

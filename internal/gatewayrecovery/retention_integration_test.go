@@ -7,6 +7,7 @@ import (
 	cryptorand "crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"os"
 	"strings"
 	"testing"
@@ -74,7 +75,8 @@ func createPendingRun(t *testing.T, pool *pgxpool.Pool, runID string) {
 	t.Helper()
 	runs := runstore.NewPostgresStore(pool)
 	if _, err := runstoretest.CreateRun(t.Context(), runs, runstore.CreateRunParams{
-		RunID: runID, OwnerID: "user-1", WorkflowName: "test", WorkflowVersion: "1",
+		LaneClass: resolved.LaneClassModel,
+		RunID:     runID, OwnerID: "user-1", WorkflowName: "test", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`),
 		RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 	}); err != nil {

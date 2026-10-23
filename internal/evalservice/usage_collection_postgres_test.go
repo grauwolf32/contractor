@@ -3,6 +3,7 @@ package evalservice
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"reflect"
 	"testing"
 	"time"
@@ -21,7 +22,8 @@ func TestEvalObservedLegacyPlannerCountersUseImmutableStageIdentity(t *testing.T
 	runs := runstore.NewPostgresStore(pool)
 	for _, planner := range []string{"passthrough", "streamline"} {
 		_, err := runstoretest.CreateRun(t.Context(), runs, runstore.CreateRunParams{
-			RunID: planner, OwnerID: "owner", WorkflowName: "fixture", WorkflowVersion: "1",
+			LaneClass: resolved.LaneClassModel,
+			RunID:     planner, OwnerID: "owner", WorkflowName: "fixture", WorkflowVersion: "1",
 			WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{"name":"fixture"}`),
 			Parameters: map[string]string{}, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 		})
@@ -40,6 +42,7 @@ func TestEvalObservedLegacyPlannerCountersUseImmutableStageIdentity(t *testing.T
 			t.Fatal(err)
 		}
 		_, err = runs.CreateStageExecution(t.Context(), runstore.CreateStageExecutionParams{
+			LaneClass:        resolved.LaneClassModel,
 			StageExecutionID: planner, RunID: planner, StageName: "fixture", Attempt: 1,
 			StageSpecSchemaVersion:    contracts.APIVersion,
 			StageSpecSnapshot:         json.RawMessage(`{"planner":{"plannerId":"` + planner + `","version":"1"}}`),
@@ -95,7 +98,8 @@ func TestSharedEvalObservedAuditUsageCountsStagesOnceAndKeepsParentDuration(t *t
 			continue
 		}
 		_, err = runstoretest.CreateRun(t.Context(), runs, runstore.CreateRunParams{
-			RunID: ref.ID, OwnerID: "owner", WorkflowName: "fixture", WorkflowVersion: "1",
+			LaneClass: resolved.LaneClassModel,
+			RunID:     ref.ID, OwnerID: "owner", WorkflowName: "fixture", WorkflowVersion: "1",
 			WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{"name":"fixture"}`),
 			Parameters: map[string]string{}, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 		})
@@ -118,6 +122,7 @@ func TestSharedEvalObservedAuditUsageCountsStagesOnceAndKeepsParentDuration(t *t
 	for _, attempt := range input.Attempts {
 		if !seen[attempt.StageExecutionID] {
 			_, err = runs.CreateStageExecution(t.Context(), runstore.CreateStageExecutionParams{
+				LaneClass:        resolved.LaneClassModel,
 				StageExecutionID: attempt.StageExecutionID, RunID: attempt.RunID, StageName: attempt.StageExecutionID,
 				Attempt: 1, StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: json.RawMessage(`{"objective":"fixture"}`),
 				StageContextSchemaVersion: contracts.APIVersion, StageContext: runstore.StageContextSnapshot{},

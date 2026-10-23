@@ -17,6 +17,7 @@ function schedulerSettings(maxConcurrentRuns: number, revision: string) {
   return json(
     conforming("SchedulerSettings", {
       maxConcurrentRuns,
+      maxConcurrentToolRuns: 2,
       revision,
       updatedAt: `2026-09-06T01:00:0${revision}Z`,
     }),

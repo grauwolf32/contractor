@@ -119,6 +119,7 @@ async function fixture(
       if (path === "/v1/operations/settings/scheduler")
         return reply(route, {
           maxConcurrentRuns: 1,
+          maxConcurrentToolRuns: 2,
           revision: "1",
           updatedAt: timestamp,
         });

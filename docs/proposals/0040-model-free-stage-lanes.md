@@ -1,7 +1,10 @@
 # Separate lanes for model-free Stages
 
-Proposal 0040 · Status: **Draft; design decisions taken on 2026-10-23
-([Decisions](#decisions)); implementation not scheduled.**
+Proposal 0040 · Status: **Accepted on 2026-10-23
+([Decisions](#decisions)); in progress. V400-001 implements sections 1 to 3
+and the `maxConcurrentToolRuns` setting, V400-002 section 4; V400-003 and
+V400-004 remain ([Proposed tasks](#proposed-tasks)). The specification already
+states the implemented part (SCH-R175, SCH-R176, CTL-R155).**
 
 Recorded on 2026-10-23 and checked against `main @ 63aa62b4`. Scanner Stages
 make no model calls, yet each one holds one of the `maxConcurrentRuns`
@@ -131,30 +134,41 @@ resolved in favour of the model Stage. Without this rule, each slot that frees
 up goes to the next scan, and a model Stage that needs several slots at once
 (SCH-R23) can wait indefinitely.
 
-The rule: while a `model` Stage is deferred because compatible Agents exist
-but are all reserved, tool placement does not reserve an Agent compatible with
-the oldest such Stage. A tool Stage that fits on an Agent the waiting model
-Stage cannot use, such as a dedicated scan Agent, is placed as usual.
+The rule, as implemented by V400-002 (SCH-R176, CTL-R155): when placement of a
+`model` Stage finds no complete matching, Control Plane checks whether one
+exists among all live Agents, idle or allocated. If it does, every live Agent
+the Stage could use is held for a hold window of five Scheduler poll
+intervals; tool placement does not reserve a held Agent, and model placement
+ignores holds. A tool Stage that fits on an Agent no waiting model Stage can
+use, such as a dedicated scan Agent, is placed as usual.
 
 - It holds back only placement of new tool Stages; running tool Stages,
   cancellation, finalization, release and recovery continue.
-- It ends when that model Stage is placed, cancelled, aborted or reaches its
-  Stage deadline; the next oldest waiting model Stage then takes its place.
-- Only the oldest waiting model Stage is considered, so each tool placement
-  checks one requirement set, derived from that Stage's pinned execution config
-  as its own placement derives it, against its candidate Agents. Waiting model
-  Stages compete among themselves as they do today (SCH-R121, SCH-R123).
+- Each failed attempt of the waiting Stage extends the hold. A Stage that is
+  placed, cancelled, aborted, past its deadline, paused, denied by a blocked
+  model route or left without a free model lane stops extending it, and the
+  hold lapses within the window.
+- A model Stage that could not be placed even with every allocation released
+  holds nothing.
+- Every waiting model Stage holds the Agents it could use, not only the oldest
+  one: that is the decision taken literally, and it needs no ordering. Waiting
+  model Stages compete among themselves as they do today (SCH-R121, SCH-R123).
+- A hold is process-local Registry state, like a reservation: one deadline per
+  Agent entry, cleared by a Server restart until the next failed attempt.
 
-It needs two facts the Server does not record today:
+The first design recorded a deferral cause on `workflow_runs` and read the
+oldest capacity-waiting model Run with SQL before each tool placement. It was
+dropped: a durable cause outlives the attempts that justify it, so a model Run
+waiting for a free model lane, when no lane could use an Agent, would still
+keep scans off idle Agents, and it needed a migration, an index and a second
+derivation of the Stage's placement requirements.
 
-- the deferral cause and time, separating `capacity` from `queue_paused` and
-  `model_route` (today all three set `scheduler_deferred`), so the oldest
-  capacity-waiting model Stage is one indexed read; and
-- from Control Plane, whether compatible Agents exist but are busy, separate
-  from no compatible Agent at all (today both are `ErrInsufficientCapacity`).
-
-A model Stage with no compatible registered Agent never holds Agents back, and
-neither does a paused owner or a blocked model route.
+Accepted risks: Operations shows a held Agent as idle while a scan waits for
+capacity; and a model Stage that needs several Agents keeps the ones that free
+up idle until the rest free up, bounded by its deadline, so scans on shared
+Agents may wait longer and reach their own deadline. Reopen the first when
+operators need to see why a scan waits on an idle Agent, the second if scans
+miss deadlines in practice.
 
 Operators who want physical separation can still have it without code:
 install scanners only in a dedicated Runtime image. An Agent advertises only
@@ -196,8 +210,9 @@ AuditProfile knob (SCH-R142).
 - A Run whose stored class disagrees with the class recomputed from its
   StageExecution is a storage invariant failure, not a hint to correct
   silently.
-- Lane work per tick stays bounded by the pool sizes, and the existence check
-  of section 4 reads one index entry.
+- Lane work per tick stays bounded by the pool sizes, and a hold of section 4
+  is one deadline per Agent entry, computed from the live Agents of one
+  failed model placement.
 
 ## Alternatives
 
@@ -213,8 +228,8 @@ AuditProfile knob (SCH-R142).
 
 - **Guarantee.** At most `maxConcurrentRuns` Runs progress model Stages and at
   most `maxConcurrentToolRuns` Runs progress model-free Stages at once. Tool
-  placement never reserves a Runtime Agent that the oldest model Stage waiting
-  for capacity could use.
+  placement never reserves a Runtime Agent that a model Stage waiting for
+  allocated capacity could use.
 - **Evidence.** SCH-R127, SCH-R128 and SCH-R139 and the code cited above; no
   load measurement yet.
 - **Reversal condition.** Return to one pool if Server lane overhead at the
@@ -241,12 +256,11 @@ Taken by the user on 2026-10-23:
   6, LIM-AUX-1.
 - [planners](../spec/execution/planners.md): each strategy declares whether it
   needs a model client.
-- [control plane](../spec/execution/control-plane.md): placement reports busy
-  compatible capacity separately from no compatible Agent.
+- [control plane](../spec/execution/control-plane.md): CTL-R155 model Stage
+  holds, CTL-R73, CTL-R84 and LIM-CTL-10.
 - OpenAPI Scheduler settings resource; the Operations settings page in the UI.
 - Migration: `scheduler_settings.max_concurrent_tool_runs`,
-  `workflow_runs.scheduler_lane_class`, the deferral cause and the rebuilt
-  claim indexes.
+  `workflow_runs.scheduler_lane_class` and the rebuilt claim indexes.
 
 ## Verification
 
@@ -258,11 +272,11 @@ All on real PostgreSQL unless stated otherwise:
   between pools without holding two lanes, and cancellation reaches a Run in
   either pool;
 - decrease drain, restart and CAS for both settings;
-- section 4: a model Stage waiting on busy compatible Agents keeps tool
-  placement off the Agents it could use; a tool Stage still lands on an Agent
-  that Stage cannot use; a model Stage with no compatible Agent, a paused owner
-  and a blocked model route hold nothing back; a model Stage needing two slots
-  is placed while scans keep arriving;
+- section 4: a model Stage waiting on allocated compatible Agents keeps tool
+  placement off the Agents it could use, and a released Agent goes to it, not
+  to the next scan; a tool Stage still lands on an Agent that Stage cannot
+  use; a model Stage with no complete matching among live Agents holds
+  nothing; a hold lapses with its window;
 - Audit dispatch keeps separate outstanding counts per class and never
   overfills either window across two Controllers (AUX-R4);
 - a load gate for claim, renewal and connection-pool cost at 32 + 32 lanes,
@@ -270,9 +284,11 @@ All on real PostgreSQL unless stated otherwise:
 
 ## Proposed tasks
 
-1. Server: the lane class, the second pool, the settings field, migration,
-   OpenAPI and specification changes, and the section 4 rule with its Control
-   Plane distinction. The setting has no caller without the pool, so they land
-   together (AGENTS.md §3.7).
-2. UI: the `maxConcurrentToolRuns` field on the Operations settings page.
-3. Audit Controller: per-class dispatch windows and outstanding counts.
+1. V400-001, Server: the lane class, the second pool, the settings field,
+   migration, OpenAPI and specification changes. The setting has no caller
+   without the pool, so they land together (AGENTS.md §3.7).
+2. V400-002, Server: the section 4 rule, model Stage holds in Control Plane.
+3. V400-003, UI: the `maxConcurrentToolRuns` field on the Operations settings
+   page.
+4. V400-004, Audit Controller: per-class dispatch windows and outstanding
+   counts.

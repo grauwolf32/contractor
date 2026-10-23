@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"strings"
 	"testing"
 	"time"
@@ -157,7 +158,8 @@ func TestPostgresPurgeWaitsForRetainingPublication(t *testing.T) {
 	}
 	runs := runstore.NewPostgresStore(pool)
 	if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{
-		RunID: "publish-run", OwnerID: "user-1", ProjectID: &projectID, WorkflowName: "copy", WorkflowVersion: "1",
+		LaneClass: resolved.LaneClassModel,
+		RunID:     "publish-run", OwnerID: "user-1", ProjectID: &projectID, WorkflowName: "copy", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`), RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 	}); err != nil {
 		t.Fatal(err)

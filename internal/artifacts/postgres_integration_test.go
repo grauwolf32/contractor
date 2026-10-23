@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"os"
 	"strings"
 	"sync"
@@ -225,7 +226,8 @@ func TestPostgresIntegrationProjectInputForkPinsExactAndCurrentRevisions(t *test
 	}
 	for _, runID := range []string{"run-project-exact", "run-project-current"} {
 		_, err := runstoretest.CreateRun(ctx, runstore.NewPostgresStore(pool), runstore.CreateRunParams{
-			RunID: runID, OwnerID: "user-1", ProjectID: &projectID,
+			LaneClass: resolved.LaneClassModel,
+			RunID:     runID, OwnerID: "user-1", ProjectID: &projectID,
 			WorkflowName: "artifact-copy", WorkflowVersion: "1",
 			WorkflowSchemaVersion: "contractor/v1alpha1",
 			WorkflowSnapshot:      json.RawMessage(`{"ref":{"name":"artifact-copy","version":"1"}}`),
@@ -380,7 +382,8 @@ func TestPostgresIntegrationPublishesExactFrozenRunOutputToOwningProject(t *test
 		t.Fatal(err)
 	}
 	_, err = runstoretest.CreateRun(ctx, runstore.NewPostgresStore(pool), runstore.CreateRunParams{
-		RunID: "run-project-output", OwnerID: "user-1", ProjectID: &projectID,
+		LaneClass: resolved.LaneClassModel,
+		RunID:     "run-project-output", OwnerID: "user-1", ProjectID: &projectID,
 		WorkflowName: "artifact-copy", WorkflowVersion: "1",
 		WorkflowSchemaVersion: "contractor/v1alpha1",
 		WorkflowSnapshot:      json.RawMessage(`{"ref":{"name":"artifact-copy","version":"1"}}`),
@@ -450,7 +453,8 @@ func TestPostgresIntegrationDeletesReleasedTerminalRunWithoutSharedArtifacts(t *
 	runID := "run-delete-complete"
 	runParams := runstore.CreateRunIdempotentParams{
 		CreateRunParams: runstore.CreateRunParams{
-			RunID: runID, OwnerID: "user-1", ProjectID: &projectID,
+			LaneClass: resolved.LaneClassModel,
+			RunID:     runID, OwnerID: "user-1", ProjectID: &projectID,
 			WorkflowName: "artifact-copy", WorkflowVersion: "1",
 			WorkflowSchemaVersion: contracts.APIVersion,
 			WorkflowSnapshot:      json.RawMessage(`{"ref":{"name":"artifact-copy","version":"1"}}`),
@@ -530,6 +534,7 @@ func TestPostgresIntegrationDeletesReleasedTerminalRunWithoutSharedArtifacts(t *
 	}
 
 	execution, err := runs.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
+		LaneClass:        resolved.LaneClassModel,
 		StageExecutionID: "stage-run-delete", RunID: runID, StageName: "copy", Attempt: 1,
 		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: json.RawMessage(`{}`),
 		StageContextSchemaVersion: contracts.APIVersion, StageContext: runstore.StageContextSnapshot{},
@@ -1074,7 +1079,8 @@ func createArtifactRun(
 	t.Helper()
 	store := runstore.NewPostgresStore(pool)
 	_, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
-		RunID: runID, OwnerID: "user-1", WorkflowName: "artifact-copy", WorkflowVersion: "1",
+		LaneClass: resolved.LaneClassModel,
+		RunID:     runID, OwnerID: "user-1", WorkflowName: "artifact-copy", WorkflowVersion: "1",
 		WorkflowSchemaVersion: "contractor/v1alpha1",
 		WorkflowSnapshot:      json.RawMessage(`{"ref":{"name":"artifact-copy","version":"1"}}`),
 		RuntimeConfig:         runtimeconfigtest.BuiltInRunSnapshot(),

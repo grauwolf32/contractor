@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"slices"
 	"testing"
 	"time"
@@ -240,6 +241,7 @@ func TestMemorySchedulerStoreActiveStageMatchesPostgres(t *testing.T) {
 				StageExecutionID: stageID(runID, index), RunID: runID, State: state,
 			})
 			if _, err := store.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
+				LaneClass:        resolved.LaneClassModel,
 				StageExecutionID: stageID(runID, index), RunID: runID, StageName: fmt.Sprintf("copy-%d", index), Attempt: 1,
 				StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: json.RawMessage(`{}`),
 				StageContextSchemaVersion: contracts.APIVersion, StageContext: runstore.StageContextSnapshot{},
@@ -283,7 +285,8 @@ func createParityRun(
 	t.Helper()
 	store := runstore.NewPostgresStore(pool)
 	if _, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
-		RunID: runID, OwnerID: "user-parity", WorkflowName: "artifact-copy", WorkflowVersion: "1",
+		LaneClass: resolved.LaneClassModel,
+		RunID:     runID, OwnerID: "user-parity", WorkflowName: "artifact-copy", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`),
 		RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 	}); err != nil {
@@ -295,6 +298,7 @@ func createParityRun(
 			stageID = "stage-parity"
 		}
 		if _, err := store.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
+			LaneClass:        resolved.LaneClassModel,
 			StageExecutionID: stageID, RunID: runID, StageName: "copy", Attempt: 1,
 			StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: json.RawMessage(`{}`),
 			StageContextSchemaVersion: contracts.APIVersion, StageContext: runstore.StageContextSnapshot{},

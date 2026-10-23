@@ -3,6 +3,7 @@ package runstore
 import (
 	"context"
 	"errors"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"testing"
 	"time"
 
@@ -199,6 +200,7 @@ func TestStageExecutionInputValidation(t *testing.T) {
 	t.Parallel()
 
 	valid := CreateStageExecutionParams{
+		LaneClass:        resolved.LaneClassModel,
 		StageExecutionID: "stage-1", RunID: "run-1", StageName: "build", Attempt: 1,
 		StageSpecSchemaVersion: "v1", StageSpecSnapshot: []byte(`{"objective":"build"}`),
 		StageContextSchemaVersion: "v1", StageContext: StageContextSnapshot{},
@@ -293,7 +295,7 @@ func TestTypedConflictAndNoWorkResults(t *testing.T) {
 	if !errors.As(err, &conflict) || conflict.Expected != string(RunInitializing) {
 		t.Fatalf("TransitionRun conflict = %#v", conflict)
 	}
-	_, err = store.ClaimRunnableRun(context.Background(), "claim-1", time.Second, nil)
+	_, err = store.ClaimRunnableRun(context.Background(), "claim-1", time.Second, nil, resolved.LaneClassModel)
 	if !errors.Is(err, ErrNoWork) {
 		t.Fatalf("ClaimRunnableRun error = %v, want ErrNoWork", err)
 	}

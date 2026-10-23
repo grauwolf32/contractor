@@ -7087,9 +7087,13 @@ type SafeReason struct {
 
 // SchedulerSettings defines model for SchedulerSettings.
 type SchedulerSettings struct {
-	MaxConcurrentRuns int       `json:"maxConcurrentRuns"`
-	Revision          string    `json:"revision"`
-	UpdatedAt         time.Time `json:"updatedAt"`
+	// MaxConcurrentRuns Runs that may progress a Stage using a model at the same time.
+	MaxConcurrentRuns int `json:"maxConcurrentRuns"`
+
+	// MaxConcurrentToolRuns Runs that may progress a Stage without a model, such as a scanner Stage, at the same time.
+	MaxConcurrentToolRuns int       `json:"maxConcurrentToolRuns"`
+	Revision              string    `json:"revision"`
+	UpdatedAt             time.Time `json:"updatedAt"`
 }
 
 // Selector defines model for Selector.
@@ -7314,6 +7318,9 @@ type UpdateProjectRequest struct {
 // UpdateSchedulerSettingsRequest defines model for UpdateSchedulerSettingsRequest.
 type UpdateSchedulerSettingsRequest struct {
 	MaxConcurrentRuns int `json:"maxConcurrentRuns"`
+
+	// MaxConcurrentToolRuns Omit to keep the stored value.
+	MaxConcurrentToolRuns *int `json:"maxConcurrentToolRuns,omitempty"`
 }
 
 // WorkerCompletionDiagnostics Latest Worker invocation facts. Published packages are not accepted Audit evidence.

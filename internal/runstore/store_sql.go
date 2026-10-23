@@ -55,7 +55,8 @@ LIMIT $2`
 // $14, NULL on the other paths), its publication mode ($15) and, for an
 // Audit-managed Run, AuditExecution $16 and submission key $17; a deferred
 // constraint requires that AuditExecution to point back to the Run before
-// commit. A Project-deletion trigger rejects the insert with SQLSTATE 55000.
+// commit. $18 is the lane class of the entry Stage (SCH-R175). A
+// Project-deletion trigger rejects the insert with SQLSTATE 55000.
 // ON CONFLICT DO NOTHING turns any unique conflict into no row, which the
 // caller resolves: a keyed create looks up the Run that holds its key, the
 // other paths report a conflict. It is a prefix: the caller appends the
@@ -67,10 +68,10 @@ INSERT INTO workflow_runs (
     workflow_schema_version, workflow_snapshot, parameters,
     runtime_labels, runtime_config_snapshot, project_http_target_snapshot, metadata_labels,
     request_idempotency_key, request_digest,
-    publication_mode, audit_execution_id, audit_submission_key,
+    publication_mode, audit_execution_id, audit_submission_key, scheduler_lane_class,
     state, state_reason_code, state_reason_message
 ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, $10::jsonb, $11::jsonb, $12::jsonb,
-          $13, $14, $15, $16, $17, 'initializing', 'created', '')
+          $13, $14, $15, $16, $17, $18, 'initializing', 'created', '')
 ON CONFLICT DO NOTHING
 RETURNING *
 )
@@ -153,8 +154,8 @@ SET state = 'cancelling',
 WHERE run_id = $1 AND state IN ('initializing', 'pending', 'running', 'waiting')
 RETURNING `
 
-// claimRunnableRunSQL leases one runnable Run that holds no live Scheduler
-// claim, in claim order (SCH-R121, SCH-R123): by scheduler_claim_tier
+// claimRunnableRunSQL leases one runnable Run of lane class $5 that holds no
+// live Scheduler claim, in claim order (SCH-R121, SCH-R123): by scheduler_claim_tier
 // (cancelling, then running and waiting, then pending Runs and Runs whose
 // Skill initialization is pending), then updated_at, created_at and run_id.
 // A Run deferred within the last $3 µs ranks behind all of them unless it is
@@ -169,17 +170,19 @@ RETURNING `
 // The ready probe reads claim order from workflow_runs_claim_idx and stops at
 // the first Run it can lock; the deferred probe, read from
 // workflow_runs_deferred_claim_idx, runs only when the ready probe found
-// none. Neither sorts the candidates (SCH-R164). FOR UPDATE SKIP LOCKED keeps
+// none. Both indexes lead with the lane class, so each pool reads only its
+// own Runs, and neither probe sorts the candidates (SCH-R164). FOR UPDATE SKIP LOCKED keeps
 // concurrent Schedulers off the same row. Sets claim $1 with a $2 µs lease;
 // the caller appends the RETURNING columns.
 // $4 excludes Runs still owned by live lanes of this Server, even if a host
 // suspension expired their SQL lease before renewal resumed. The list is bounded
-// by the Scheduler lane limit. Used by PostgresStore.ClaimRunnableRun.
+// by the lanes of both Scheduler pools. Used by PostgresStore.ClaimRunnableRun.
 var claimRunnableRunSQL = `
 WITH ready AS (
     SELECT run.run_id
     FROM workflow_runs AS run
-    WHERE run.scheduler_claim_tier IS NOT NULL
+    WHERE run.scheduler_lane_class = $5
+      AND run.scheduler_claim_tier IS NOT NULL
       AND (run.scheduler_claim_id IS NULL OR run.scheduler_claim_expires_at <= clock_timestamp())
       AND NOT (run.run_id = ANY(COALESCE($4::text[], '{}'::text[])))
       AND NOT (run.scheduler_claim_tier > 0 AND run.scheduler_deferred
@@ -202,7 +205,8 @@ WITH ready AS (
 ), deferred AS (
     SELECT run.run_id
     FROM workflow_runs AS run
-    WHERE run.scheduler_deferred AND run.scheduler_claim_tier > 0
+    WHERE run.scheduler_lane_class = $5
+      AND run.scheduler_deferred AND run.scheduler_claim_tier > 0
       AND run.updated_at > statement_timestamp() - ($3::bigint * interval '1 microsecond')
       AND (run.scheduler_claim_id IS NULL OR run.scheduler_claim_expires_at <= clock_timestamp())
       AND NOT (run.run_id = ANY(COALESCE($4::text[], '{}'::text[])))

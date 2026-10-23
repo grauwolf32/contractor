@@ -35,7 +35,8 @@ func TestPostgresSchedulerDecodesAStoredSnapshotAtItsBound(t *testing.T) {
 	store := runstore.NewPostgresStore(isolatedSchedulerPool(t, ctx))
 	const runID = "run-snapshot-at-bound"
 	if _, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
-		RunID: runID, OwnerID: "owner", WorkflowName: workflow.Ref.Name,
+		LaneClass: resolved.LaneClassModel,
+		RunID:     runID, OwnerID: "owner", WorkflowName: workflow.Ref.Name,
 		WorkflowVersion: workflow.Ref.Version, WorkflowSchemaVersion: contracts.APIVersion,
 		WorkflowSnapshot: encoded, Parameters: map[string]string{"objective": "bound"},
 		RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),

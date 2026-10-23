@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
@@ -264,19 +265,23 @@ func (c *unsynchronizedLaneClock) After(duration time.Duration) <-chan time.Time
 }
 
 type mutableSchedulerSettings struct {
-	mu      sync.Mutex
-	value   settingsstore.SchedulerSettings
-	err     error
-	reads   chan int
-	advance time.Duration
+	mu        sync.Mutex
+	value     settingsstore.SchedulerSettings
+	err       error
+	reads     chan int
+	toolReads chan int
+	advance   time.Duration
 }
 
+// newMutableSchedulerSettings sizes the model pool to value and the tool
+// pool to one lane; reads and toolReads report each read of the model and
+// the tool pool size.
 func newMutableSchedulerSettings(value int, advance time.Duration) *mutableSchedulerSettings {
 	return &mutableSchedulerSettings{
 		value: settingsstore.SchedulerSettings{
-			MaxConcurrentRuns: value, Revision: 1, UpdatedAt: time.Now().UTC(),
+			MaxConcurrentRuns: value, MaxConcurrentToolRuns: 1, Revision: 1, UpdatedAt: time.Now().UTC(),
 		},
-		reads: make(chan int, 64), advance: advance,
+		reads: make(chan int, 64), toolReads: make(chan int, 64), advance: advance,
 	}
 }
 
@@ -291,12 +296,25 @@ func (s *mutableSchedulerSettings) GetSchedulerSettings(ctx context.Context) (se
 	case s.reads <- value.MaxConcurrentRuns:
 	default:
 	}
+	select {
+	case s.toolReads <- value.MaxConcurrentToolRuns:
+	default:
+	}
 	return value, err
 }
 
 func (s *mutableSchedulerSettings) set(value int) {
 	s.mu.Lock()
 	s.value.MaxConcurrentRuns = value
+	s.value.Revision++
+	s.value.UpdatedAt = s.value.UpdatedAt.Add(s.advance)
+	s.err = nil
+	s.mu.Unlock()
+}
+
+func (s *mutableSchedulerSettings) setToolLanes(value int) {
+	s.mu.Lock()
+	s.value.MaxConcurrentToolRuns = value
 	s.value.Revision++
 	s.value.UpdatedAt = s.value.UpdatedAt.Add(s.advance)
 	s.err = nil
@@ -313,6 +331,7 @@ func (s *mutableSchedulerSettings) drainReads() {
 	for {
 		select {
 		case <-s.reads:
+		case <-s.toolReads:
 		default:
 			return
 		}
@@ -321,16 +340,26 @@ func (s *mutableSchedulerSettings) drainReads() {
 
 func (s *mutableSchedulerSettings) waitRead(t *testing.T, value int, timeout time.Duration) {
 	t.Helper()
+	waitSettingRead(t, s.reads, "maxConcurrentRuns", value, timeout)
+}
+
+func (s *mutableSchedulerSettings) waitToolRead(t *testing.T, value int, timeout time.Duration) {
+	t.Helper()
+	waitSettingRead(t, s.toolReads, "maxConcurrentToolRuns", value, timeout)
+}
+
+func waitSettingRead(t *testing.T, reads <-chan int, name string, value int, timeout time.Duration) {
+	t.Helper()
 	deadline := time.NewTimer(timeout)
 	defer deadline.Stop()
 	for {
 		select {
-		case read := <-s.reads:
+		case read := <-reads:
 			if read == value {
 				return
 			}
 		case <-deadline.C:
-			t.Fatalf("Scheduler did not read setting %d", value)
+			t.Fatalf("Scheduler did not read %s %d", name, value)
 		}
 	}
 }
@@ -345,6 +374,9 @@ type laneTestStore struct {
 	deferred      map[string]bool
 	wasDeferred   map[string]bool
 	states        map[string]runstore.WorkflowRunState
+	classes       map[string]resolved.LaneClass
+	activeByClass map[resolved.LaneClass]int
+	maxByClass    map[resolved.LaneClass]int
 	active        int
 	maximum       int
 	claimCount    int
@@ -359,6 +391,8 @@ func newLaneTestStore(runIDs ...string) *laneTestStore {
 		claims: make(map[string]string), gates: make(map[string]chan struct{}),
 		unblocked: make(map[string]bool), deferred: make(map[string]bool),
 		wasDeferred: make(map[string]bool), states: make(map[string]runstore.WorkflowRunState),
+		classes: make(map[string]resolved.LaneClass), activeByClass: make(map[resolved.LaneClass]int),
+		maxByClass:    make(map[resolved.LaneClass]int),
 		claimed:       make(chan string, len(runIDs)+8),
 		releasedCount: make(chan int, len(runIDs)+8),
 	}
@@ -368,8 +402,10 @@ func newLaneTestStore(runIDs ...string) *laneTestStore {
 	return store
 }
 
+// ClaimRunnableRun claims only Runs of laneClass; a Run is of class model
+// unless toolRuns marked it.
 func (s *laneTestStore) ClaimRunnableRun(
-	ctx context.Context, claimID string, _ time.Duration, excludedRunIDs []string,
+	ctx context.Context, claimID string, _ time.Duration, excludedRunIDs []string, laneClass resolved.LaneClass,
 ) (runstore.WorkflowRun, error) {
 	if err := ctx.Err(); err != nil {
 		return runstore.WorkflowRun{}, err
@@ -391,7 +427,8 @@ func (s *laneTestStore) ClaimRunnableRun(
 	}
 	chosen, rank := "", 4
 	for _, runID := range s.runs {
-		if !s.started[runID] && !slices.Contains(excludedRunIDs, runID) && priority(runID) < rank {
+		if !s.started[runID] && !slices.Contains(excludedRunIDs, runID) && s.classOf(runID) == laneClass &&
+			priority(runID) < rank {
 			chosen, rank = runID, priority(runID)
 		}
 	}
@@ -403,6 +440,8 @@ func (s *laneTestStore) ClaimRunnableRun(
 		if s.active > s.maximum {
 			s.maximum = s.active
 		}
+		s.activeByClass[laneClass]++
+		s.maxByClass[laneClass] = max(s.maxByClass[laneClass], s.activeByClass[laneClass])
 		s.claimed <- runID
 		ownerID := "runnable-owner"
 		if s.deferred[runID] {
@@ -412,9 +451,32 @@ func (s *laneTestStore) ClaimRunnableRun(
 		if state == "" {
 			state = runstore.RunRunning
 		}
-		return runstore.WorkflowRun{RunID: runID, OwnerID: ownerID, State: state}, nil
+		return runstore.WorkflowRun{RunID: runID, OwnerID: ownerID, State: state, SchedulerLaneClass: laneClass}, nil
 	}
 	return runstore.WorkflowRun{}, runstore.ErrNoWork
+}
+
+func (s *laneTestStore) classOf(runID string) resolved.LaneClass {
+	if class, ok := s.classes[runID]; ok {
+		return class
+	}
+	return resolved.LaneClassModel
+}
+
+func (s *laneTestStore) toolRuns(runIDs ...string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, runID := range runIDs {
+		s.classes[runID] = resolved.LaneClassTool
+	}
+}
+
+// classCounts returns the active and the largest number of claims held at
+// once by lanes of class.
+func (s *laneTestStore) classCounts(class resolved.LaneClass) (int, int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.activeByClass[class], s.maxByClass[class]
 }
 
 func (s *laneTestStore) RenewRunClaim(context.Context, string, string, time.Duration) (runstore.WorkflowRunState, error) {
@@ -437,6 +499,7 @@ func (s *laneTestStore) releaseRunClaim(runID, claimID string, deferred bool) er
 	}
 	delete(s.claims, runID)
 	s.active--
+	s.activeByClass[s.classOf(runID)]--
 	s.wasDeferred[runID] = deferred
 	if s.deferred[runID] {
 		s.started[runID] = false
@@ -487,6 +550,14 @@ func (s *laneTestStore) deferRuns(runIDs ...string) {
 	defer s.mu.Unlock()
 	for _, runID := range runIDs {
 		s.deferred[runID] = true
+	}
+}
+
+func (s *laneTestStore) cancellingRuns(runIDs ...string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, runID := range runIDs {
+		s.states[runID] = runstore.RunCancelling
 	}
 }
 

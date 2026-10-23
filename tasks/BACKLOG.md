@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-71 open tasks: 4 in progress, 42 pending, 25 deferred. 965 finished: 962 completed, 3 archived.
+69 open tasks: 4 in progress, 40 pending, 25 deferred. 967 finished: 964 completed, 3 archived.
 
 ## In progress
 
@@ -25,8 +25,6 @@ the epics are in [epics.yml](epics.yml).
 | [V371-014](v371-014-scheduler-stage-history-reads.yml) | defect | P3 | — | Read only the Stage history fields escalation counting and cancellation cleanup use |
 | [V372-007](v372-007-terminal-stage-state-set.yml) | chore | P3 | — | Define the terminal StageExecution states once and hold SQL and the UI to them |
 | [V372-028](v372-028-runstore-strict-snapshot-reads.yml) | chore | P3 | — | Decode persisted Run, Stage and allocation snapshots strictly in runstore |
-| [V400-001](v400-001-model-free-lane-pool.yml) | feature | P2 | — | Run model-free Stages in a separate Scheduler lane pool |
-| [V400-002](v400-002-model-first-shared-agents.yml) | feature | P2 | V400-001 | Resolve shared Runtime Agent conflicts in favour of model Stages |
 
 ### Planners and the Worker model boundary (`planner-worker`)
 
@@ -80,7 +78,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V371-009](v371-009-audit-list-preparation-batch.yml) | defect | P3 | — | Read the preparation state of a whole Audit page in bounded statements |
-| [V400-004](v400-004-audit-dispatch-per-lane-class.yml) | feature | P2 | V400-001, V400-002, V400-003 | Pace Audit dispatch separately for model and model-free roles |
+| [V400-004](v400-004-audit-dispatch-per-lane-class.yml) | feature | P2 | V400-003 | Pace Audit dispatch separately for model and model-free roles |
 
 ### Evaluations (`evals`)
 
@@ -92,7 +90,7 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V400-003](v400-003-tool-lanes-settings-ui.yml) | feature | P2 | V400-001 | Edit the model-free lane limit on the Operations settings page |
+| [V400-003](v400-003-tool-lanes-settings-ui.yml) | feature | P2 | — | Edit the model-free lane limit on the Operations settings page |
 
 ### Public API and wire contracts (`api-contracts`)
 
@@ -162,7 +160,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 5 | 38 | 50 | 11 | 66 |
+| Run execution core (`execution-core`) | 3 | 38 | 50 | 11 | 66 |
 | Planners and the Worker model boundary (`planner-worker`) | 3 | 27 | 37 | 14 | 55 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 10 | 25 | 12 | 3 | 37 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 1 | 11 |

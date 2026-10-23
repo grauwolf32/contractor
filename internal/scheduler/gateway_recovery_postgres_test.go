@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"reflect"
 	"sync"
 	"testing"
@@ -36,7 +37,7 @@ func newRecoveryFixture(t *testing.T) recoveryFixture {
 }
 func (f recoveryFixture) run(t *testing.T, id string, routes ...gatewayrecovery.Route) *gatewayrecovery.Participant {
 	t.Helper()
-	if _, err := runstoretest.CreateRun(t.Context(), f.runs, runstore.CreateRunParams{RunID: id, OwnerID: "owner", WorkflowName: "test", WorkflowVersion: "1", WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`), RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot()}); err != nil {
+	if _, err := runstoretest.CreateRun(t.Context(), f.runs, runstore.CreateRunParams{LaneClass: resolved.LaneClassModel, RunID: id, OwnerID: "owner", WorkflowName: "test", WorkflowVersion: "1", WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`), RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot()}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := f.runs.TransitionRun(t.Context(), id, runstore.RunInitializing, runstore.RunPending, runstore.Reason{Code: "initialized"}); err != nil {
@@ -181,6 +182,7 @@ SELECT automatic_until,next_probe_at FROM gateway_recovery_routes WHERE route_ke
 		},
 		NextStage: &NextStageCreation{
 			Params: runstore.CreateStageExecutionParams{
+				LaneClass:        resolved.LaneClassModel,
 				StageExecutionID: nextID, RunID: "run-1", StageName: nextStageName,
 				Attempt: 2, PreviousExecutionID: &previous,
 				ExecutionConfigVariant: runstore.StageExecutionConfigBase,

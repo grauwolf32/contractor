@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"strings"
 	"testing"
 	"time"
@@ -218,7 +219,8 @@ func auditSubmissionGrant(
 		runs := runstore.NewPostgresStore(tx)
 		if _, err := runs.CreateAuditRun(ctx, runstore.CreateAuditRunParams{
 			CreateRunParams: runstore.CreateRunParams{
-				RunID: runID, OwnerID: ownerID, ProjectID: &project,
+				LaneClass: resolved.LaneClassModel,
+				RunID:     runID, OwnerID: ownerID, ProjectID: &project,
 				WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
 				WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: workflowJSON,
 				Parameters: map[string]string{}, MetadataLabels: runstore.RunMetadataLabels{},
@@ -248,6 +250,7 @@ func auditSubmissionGrant(
 	runs := runstore.NewPostgresStore(pool)
 	stageID, allocationID := runID+"-stage", runID+"-allocation"
 	if _, err := runs.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
+		LaneClass:        resolved.LaneClassModel,
 		StageExecutionID: stageID, RunID: runID, StageName: workflow.EntryStage, Attempt: 1,
 		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: stageJSON,
 		StageContextSchemaVersion: contracts.APIVersion,

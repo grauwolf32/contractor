@@ -101,7 +101,7 @@ func (b *preflightBinding) pinDependencies(ctx context.Context, tx pgx.Tx, servi
 			skillRefs[ref.Name] = ref
 		}
 		skillSets = append(skillSets, resolved.WorkflowSkillSets(workflow)...)
-		modelFree = modelFree && workflowModelFree(workflow)
+		modelFree = modelFree && resolved.WorkflowToolWorkersOnly(workflow)
 	}
 	runtime, err := runtimeconfig.PinRunSnapshot(
 		ctx, tx, v.RuntimeLabels, credentials.NewRuntimeCredentialRepository(tx), lookup, modelFree,
@@ -135,17 +135,6 @@ func (b *preflightBinding) pinDependencies(ctx context.Context, tx pgx.Tx, servi
 		}
 	}
 	return nil
-}
-
-func workflowModelFree(workflow resolved.ResolvedWorkflow) bool {
-	for _, stage := range workflow.Stages {
-		for _, agent := range stage.Agents {
-			if !agent.Template.IsToolWorker() {
-				return false
-			}
-		}
-	}
-	return true
 }
 
 func (b preflightBinding) capabilities() []string {

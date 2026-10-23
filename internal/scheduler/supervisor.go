@@ -7,20 +7,24 @@ import (
 	"sync"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
 )
 
-// Run supervises the PostgreSQL-authoritative number of concurrent Run lanes.
-// Each lane owns at most one durable claim, while maintenance remains outside
-// the semantic execution limit so cancellation and release can always drain.
+// Run supervises two lane pools of PostgreSQL-authoritative sizes: one for
+// Runs whose next Stage uses a model (maxConcurrentRuns) and one for Runs
+// whose next Stage does not (maxConcurrentToolRuns, SCH-R175). Each lane owns
+// at most one durable claim of its pool's class, while maintenance remains
+// outside the semantic execution limits so cancellation and release can
+// always drain.
 func (s *Scheduler) Run(ctx context.Context) error {
 	if !s.beginProductionRun() {
 		return errors.New("Workflow Scheduler is already running")
 	}
 	defer s.endProductionRun()
 
-	desired, err := s.readConcurrentRunLimit(ctx)
+	desired, err := s.readLaneLimits(ctx)
 	if ctx.Err() != nil {
 		return nil
 	}
@@ -40,25 +44,29 @@ func (s *Scheduler) Run(ctx context.Context) error {
 	}()
 
 	type laneResult struct {
+		class  resolved.LaneClass
 		worked bool
 		err    error
 	}
-	results := make(chan laneResult, settingsstore.MaximumConcurrentRuns)
+	results := make(chan laneResult, settingsstore.MaximumLanes)
 	var lanes sync.WaitGroup
-	activeLanes := 0
+	activeLanes := make(map[resolved.LaneClass]int, len(resolved.LaneClasses))
 	admissionHealthy := true
-	startLane := func() {
-		activeLanes++
+	startLane := func(class resolved.LaneClass) {
+		activeLanes[class]++
 		lanes.Add(1)
 		go func() {
 			defer lanes.Done()
-			worked, laneErr := s.progressOneClaim(ctx)
-			results <- laneResult{worked: worked, err: laneErr}
+			worked, laneErr := s.progressOneClaim(ctx, class)
+			results <- laneResult{class: class, worked: worked, err: laneErr}
 		}()
 	}
+	// Each pool resizes and drains on its own (SCH-R134, SCH-R135).
 	fillLanes := func() {
-		for admissionHealthy && ctx.Err() == nil && activeLanes < desired {
-			startLane()
+		for _, class := range resolved.LaneClasses {
+			for admissionHealthy && ctx.Err() == nil && activeLanes[class] < desired[class] {
+				startLane(class)
+			}
 		}
 	}
 	defer func() {
@@ -73,19 +81,20 @@ func (s *Scheduler) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case result := <-results:
-			activeLanes--
+			activeLanes[result.class]--
 			if result.err != nil && !errors.Is(result.err, ErrDeferred) && ctx.Err() == nil {
-				s.options.Logger.Error("Workflow Scheduler lane failed", "error", result.err)
+				s.options.Logger.Error("Workflow Scheduler lane failed", "lane_class", string(result.class), "error", result.err)
 			}
 			// Preserve the serial loop's eager progression only after useful,
 			// successful work. No-work and deferred attempts wait for a bounded
-			// poll/wake so incompatible Runs cannot create a hot loop.
+			// poll/wake so incompatible Runs cannot create a hot loop. A Run
+			// handed to the other pool is claimed there on its next refill.
 			if result.worked && result.err == nil && admissionHealthy &&
-				ctx.Err() == nil && activeLanes < desired {
-				startLane()
+				ctx.Err() == nil && activeLanes[result.class] < desired[result.class] {
+				startLane(result.class)
 			}
 		case <-s.wake:
-			next, refreshErr := s.readConcurrentRunLimit(ctx)
+			next, refreshErr := s.readLaneLimits(ctx)
 			if refreshErr != nil {
 				admissionHealthy = false
 				if ctx.Err() == nil {
@@ -97,7 +106,7 @@ func (s *Scheduler) Run(ctx context.Context) error {
 			fillLanes()
 		case <-refresh:
 			refresh = s.after(s.options.PollInterval)
-			next, refreshErr := s.readConcurrentRunLimit(ctx)
+			next, refreshErr := s.readLaneLimits(ctx)
 			if refreshErr != nil {
 				admissionHealthy = false
 				if ctx.Err() == nil {
@@ -111,9 +120,10 @@ func (s *Scheduler) Run(ctx context.Context) error {
 	}
 }
 
-// progressOneClaim is the production lane primitive. It owns exactly one
-// claim/progression/release cycle and performs no global maintenance.
-func (s *Scheduler) progressOneClaim(ctx context.Context) (bool, error) {
+// progressOneClaim is the production lane primitive of the pool of class. It
+// owns exactly one claim/progression/release cycle of a Run of that class and
+// performs no global maintenance.
+func (s *Scheduler) progressOneClaim(ctx context.Context, class resolved.LaneClass) (bool, error) {
 	claimID, err := s.newID("claim_")
 	if err != nil {
 		return false, fmt.Errorf("generate Scheduler claim ID: %w", err)
@@ -125,7 +135,7 @@ func (s *Scheduler) progressOneClaim(ctx context.Context) (bool, error) {
 	defer cancelExecution(nil)
 	claimContext, cancelClaim := context.WithTimeout(ctx, s.options.OperationTimeout)
 	leaseExpiresAt := s.now().Add(s.options.ClaimDuration)
-	run, err := s.claimRun(claimContext, claimID, cancelExecution)
+	run, err := s.claimRun(claimContext, claimID, cancelExecution, class)
 	cancelClaim()
 	if errors.Is(err, runstore.ErrNoWork) {
 		return false, nil
@@ -148,7 +158,7 @@ func (s *Scheduler) progressOneClaim(ctx context.Context) (bool, error) {
 		s.renewClaim(renewalContext, cancelOwnership, cancelExecution, stopRenewal, run.RunID, claimID, run.State, leaseExpiresAt)
 	}()
 
-	err = s.executeRun(executionContext, run, claimID)
+	err = s.executeRun(executionContext, run, claimID, class)
 	if errors.Is(err, runstore.ErrQueuePaused) {
 		err = ErrDeferred
 	}
@@ -161,9 +171,13 @@ func (s *Scheduler) progressOneClaim(ctx context.Context) (bool, error) {
 		cancelLoad()
 		if loadErr != nil {
 			err = loadErr
+		} else if current.SchedulerLaneClass != class {
+			// The interrupted attempt handed the Run to the other pool, which
+			// claims it in its own claim order (SCH-R121).
+			err = nil
 		} else if current.State == runstore.RunCancelling ||
 			(errors.Is(cause, ErrAllocationLeaseLost) && (current.State == runstore.RunRunning || current.State == runstore.RunWaiting)) {
-			err = s.executeRun(ownershipContext, current, claimID)
+			err = s.executeRun(ownershipContext, current, claimID, class)
 		} else {
 			err = nil
 		}
@@ -198,12 +212,15 @@ func (s *Scheduler) progressOneClaim(ctx context.Context) (bool, error) {
 	return true, err
 }
 
-// claimRun excludes every lane that has not joined its work yet. A host pause
+// claimRun claims a Run of class and excludes every lane of either pool that
+// has not joined its work yet. A host pause
 // may expire SQL leases while those lanes still have live Planner invocations.
 // Serialize selection through registration so a second claim cannot miss a
 // returned-but-not-yet-registered owner. Cancellation and renewal never take
 // claimMu, and activeMu is held only while copying the bounded lane registry.
-func (s *Scheduler) claimRun(ctx context.Context, claimID string, cancel context.CancelCauseFunc) (runstore.WorkflowRun, error) {
+func (s *Scheduler) claimRun(
+	ctx context.Context, claimID string, cancel context.CancelCauseFunc, class resolved.LaneClass,
+) (runstore.WorkflowRun, error) {
 	s.claimMu.Lock()
 	defer s.claimMu.Unlock()
 	if err := ctx.Err(); err != nil {
@@ -215,26 +232,33 @@ func (s *Scheduler) claimRun(ctx context.Context, claimID string, cancel context
 		excluded = append(excluded, runID)
 	}
 	s.activeMu.Unlock()
-	run, err := s.store.ClaimRunnableRun(ctx, claimID, s.options.ClaimDuration, excluded)
+	run, err := s.store.ClaimRunnableRun(ctx, claimID, s.options.ClaimDuration, excluded, class)
 	if err == nil {
 		s.registerActiveRun(run.RunID, claimID, cancel)
 	}
 	return run, err
 }
 
-func (s *Scheduler) readConcurrentRunLimit(ctx context.Context) (int, error) {
+// readLaneLimits reads the size of each lane pool from the one durable
+// settings row; an invalid row is never replaced by a guessed default.
+func (s *Scheduler) readLaneLimits(ctx context.Context) (map[resolved.LaneClass]int, error) {
 	readContext, cancel := context.WithTimeout(ctx, s.options.OperationTimeout)
 	defer cancel()
 	settings, err := s.options.Settings.GetSchedulerSettings(readContext)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	if settings.MaxConcurrentRuns < settingsstore.MinimumConcurrentRuns ||
 		settings.MaxConcurrentRuns > settingsstore.MaximumConcurrentRuns ||
+		settings.MaxConcurrentToolRuns < settingsstore.MinimumConcurrentToolRuns ||
+		settings.MaxConcurrentToolRuns > settingsstore.MaximumConcurrentToolRuns ||
 		settings.Revision == 0 || settings.UpdatedAt.IsZero() {
-		return 0, settingsstore.ErrInvariant
+		return nil, settingsstore.ErrInvariant
 	}
-	return settings.MaxConcurrentRuns, nil
+	return map[resolved.LaneClass]int{
+		resolved.LaneClassModel: settings.MaxConcurrentRuns,
+		resolved.LaneClassTool:  settings.MaxConcurrentToolRuns,
+	}, nil
 }
 
 func (s *Scheduler) beginProductionRun() bool {

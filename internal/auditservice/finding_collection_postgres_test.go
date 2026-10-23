@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"os"
 	"sync"
 	"testing"
@@ -63,7 +64,8 @@ func seedCollectionRun(t *testing.T, ctx context.Context, pool *pgxpool.Pool, ow
 		t.Fatal(err)
 	}
 	_, err = runstoretest.CreateRun(ctx, runstore.NewPostgresStore(pool), runstore.CreateRunParams{
-		RunID: runID, OwnerID: owner, WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
+		LaneClass: resolved.LaneClassModel,
+		RunID:     runID, OwnerID: owner, WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
 		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: encoded, Parameters: map[string]string{}, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 	})
 

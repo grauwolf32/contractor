@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"errors"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"sync"
 	"testing"
 	"time"
@@ -36,7 +37,7 @@ func TestPostgresClaimLossDuringFinalizationPreventsReportAndProgression(t *test
 	done := make(chan error, 1)
 	go func() {
 		defer close(done)
-		_, err := s.progressOneClaim(ctx)
+		_, err := s.progressOneClaim(ctx, resolved.LaneClassModel)
 		done <- err
 	}()
 	defer func() {
@@ -96,7 +97,7 @@ SET scheduler_claimed_at = clock_timestamp() - interval '2 minutes',
 WHERE run_id = $1`, runID); err != nil {
 		t.Fatal(err)
 	}
-	claimed, err := runstore.NewPostgresStore(tx).ClaimRunnableRun(ctx, "competing-lane", time.Minute, nil)
+	claimed, err := runstore.NewPostgresStore(tx).ClaimRunnableRun(ctx, "competing-lane", time.Minute, nil, resolved.LaneClassModel)
 	if err != nil || claimed.RunID != runID {
 		t.Fatalf("replacement claim = %+v, %v", claimed, err)
 	}

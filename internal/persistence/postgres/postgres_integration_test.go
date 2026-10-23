@@ -75,29 +75,29 @@ func TestPostgresIntegrationMigrationsAndConstraints(t *testing.T) {
 INSERT INTO workflow_runs (
     run_id, owner_id, workflow_name, workflow_version,
     workflow_schema_version, workflow_snapshot, parameters,
-    runtime_labels, runtime_config_snapshot,
+    runtime_labels, runtime_config_snapshot, scheduler_lane_class,
     state, state_reason_code
-) VALUES ('invalid-state', 'user', 'workflow', '1', 'v1', '{}', '{}', '{}', $1::jsonb, 'bogus', 'test')`, builtInRunRuntimeSnapshot)
+) VALUES ('invalid-state', 'user', 'workflow', '1', 'v1', '{}', '{}', '{}', $1::jsonb, 'model', 'bogus', 'test')`, builtInRunRuntimeSnapshot)
 	assertSQLState(t, err, SQLStateCheckViolation)
 
 	_, err = first.Exec(ctx, `
 INSERT INTO workflow_runs (
     run_id, owner_id, workflow_name, workflow_version,
     workflow_schema_version, workflow_snapshot, parameters,
-    runtime_labels, runtime_config_snapshot,
+    runtime_labels, runtime_config_snapshot, scheduler_lane_class,
     state, state_reason_code
-) VALUES ('run-terminal-shape', 'user', 'workflow', '1', 'v1', '{}', '{}', '{}', $1::jsonb, 'succeeded', 'test')`, builtInRunRuntimeSnapshot)
+) VALUES ('run-terminal-shape', 'user', 'workflow', '1', 'v1', '{}', '{}', '{}', $1::jsonb, 'model', 'succeeded', 'test')`, builtInRunRuntimeSnapshot)
 	assertSQLState(t, err, SQLStateCheckViolation)
 
 	_, err = first.Exec(ctx, `
 INSERT INTO workflow_runs (
     run_id, owner_id, workflow_name, workflow_version,
     workflow_schema_version, workflow_snapshot, parameters,
-    runtime_labels, runtime_config_snapshot,
+    runtime_labels, runtime_config_snapshot, scheduler_lane_class,
     state, state_reason_code
 ) VALUES (
     'run-invalid-runtime-snapshot', 'user', 'workflow', '1', 'v1', '{}', '{}', '{}',
-    jsonb_set($1::jsonb, '{llmCredentialIds}', '[null]'::jsonb), 'initializing', 'test'
+    jsonb_set($1::jsonb, '{llmCredentialIds}', '[null]'::jsonb), 'model', 'initializing', 'test'
 )`, builtInRunRuntimeSnapshot)
 	assertSQLState(t, err, SQLStateCheckViolation)
 
@@ -105,9 +105,9 @@ INSERT INTO workflow_runs (
 INSERT INTO workflow_runs (
     run_id, owner_id, workflow_name, workflow_version,
     workflow_schema_version, workflow_snapshot, parameters,
-    runtime_labels, runtime_config_snapshot,
+    runtime_labels, runtime_config_snapshot, scheduler_lane_class,
     state, state_reason_code
-) VALUES ('run-for-stage', 'user', 'workflow', '1', 'v1', '{}', '{}', '{}', $1::jsonb, 'initializing', 'test')`, builtInRunRuntimeSnapshot)
+) VALUES ('run-for-stage', 'user', 'workflow', '1', 'v1', '{}', '{}', '{}', $1::jsonb, 'model', 'initializing', 'test')`, builtInRunRuntimeSnapshot)
 	if err != nil {
 		t.Fatalf("insert valid parent Run: %v", err)
 	}

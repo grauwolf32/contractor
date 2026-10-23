@@ -3,6 +3,7 @@ package runstore
 import (
 	"context"
 	"encoding/json"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"maps"
 	"testing"
 	"time"
@@ -118,6 +119,7 @@ func TestPostgresRunEventAppendsFireNoWorkflowRunTrigger(t *testing.T) {
 		t.Fatal(err)
 	}
 	execution, err := store.CreateStageExecution(ctx, CreateStageExecutionParams{
+		LaneClass:        resolved.LaneClassModel,
 		StageExecutionID: "stage-event-triggers", RunID: run.RunID, StageName: "copy", Attempt: 1,
 		StageSpecSchemaVersion:    contracts.APIVersion,
 		StageSpecSnapshot:         json.RawMessage(`{"objective":"copy"}`),

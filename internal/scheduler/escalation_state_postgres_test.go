@@ -130,6 +130,7 @@ func (f escalationFixture) attempt(
 		t.Fatal(err)
 	}
 	return runstore.CreateStageExecutionParams{
+		LaneClass:        resolved.LaneClassModel,
 		StageExecutionID: id, RunID: "run-1", StageName: f.workflow.EntryStage, Attempt: attempt,
 		PreviousExecutionID: previous, ExecutionConfigVariant: variant, EscalationOrdinal: ordinal,
 		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: spec,

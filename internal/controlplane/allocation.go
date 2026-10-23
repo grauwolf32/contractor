@@ -47,6 +47,11 @@ type ReservationRequest struct {
 	// Runtime configuration before placement becomes durable. An error
 	// discards the candidates, so a deferred Stage leaves no allocation behind.
 	Admit func(context.Context, []Reservation) error
+	// ModelFree marks a Stage of the `tool` lane class (SCH-R175). Its
+	// placement never selects an Agent held for a waiting model Stage, and a
+	// failed placement of any other Stage holds the Agents it could use
+	// (CTL-R155).
+	ModelFree bool
 }
 
 // CandidateEdge is one already-resolved, non-secret compatibility edge. The

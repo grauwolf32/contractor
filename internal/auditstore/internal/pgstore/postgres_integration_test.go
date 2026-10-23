@@ -839,10 +839,10 @@ INSERT INTO workflow_runs (
     run_id, owner_id, project_id, workflow_name, workflow_version,
     workflow_schema_version, workflow_snapshot, parameters,
     runtime_labels, runtime_config_snapshot, publication_mode,
-    audit_execution_id, audit_submission_key, state, state_reason_code
+    audit_execution_id, audit_submission_key, scheduler_lane_class, state, state_reason_code
 ) VALUES ($1, $2, $3, 'audit-check', '1', 'contractor/v1alpha1',
           '{}'::jsonb, '{}'::jsonb, ARRAY[]::text[], $4::jsonb,
-          $5, $6, $7, 'initializing', 'created')`,
+          $5, $6, $7, 'model', 'initializing', 'created')`,
 		runID, ownerID, projectID, auditTestRuntimeSnapshot,
 		publicationMode, executionID, submissionKey,
 	)

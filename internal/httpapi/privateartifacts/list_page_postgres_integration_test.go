@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"net/http"
 	"os"
 	"strconv"
@@ -213,7 +214,8 @@ func createPrivateArtifactRun(t *testing.T, ctx context.Context, pool *pgxpool.P
 	t.Helper()
 	store := runstore.NewPostgresStore(pool)
 	if _, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
-		RunID: runID, OwnerID: "user-1", WorkflowName: "artifact-list", WorkflowVersion: "1",
+		LaneClass: resolved.LaneClassModel,
+		RunID:     runID, OwnerID: "user-1", WorkflowName: "artifact-list", WorkflowVersion: "1",
 		WorkflowSchemaVersion: "contractor/v1alpha1",
 		WorkflowSnapshot:      json.RawMessage(`{"ref":{"name":"artifact-list","version":"1"}}`),
 		RuntimeConfig:         runtimeconfigtest.BuiltInRunSnapshot(),
