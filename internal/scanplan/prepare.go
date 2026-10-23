@@ -25,27 +25,12 @@ type preparer struct {
 	gapExhausted    bool
 }
 
-func prepare(data []byte, mediaType string, source contracts.ArtifactRef, options Options, selection operationSelection) (scan.HTTPRequestSet, error) {
+// prepare prepares one selected operation of a parsed source. Everything it
+// accumulates (options, reference and concrete-hint budgets, gaps, coverage)
+// belongs to this operation; the source is only read.
+func prepare(document *sourceDocument, options Options, selection operationSelection) (scan.HTTPRequestSet, error) {
 	empty := scan.HTTPRequestSet{}
-	if source.ValidateExact() != nil {
-		return empty, failure("invalid_source_ref")
-	}
-	// Retain the exact revision value without aliasing a caller-owned pointer.
-	revision := *source.Revision
-	source.Revision = &revision
-	root, err := parseDocument(data, mediaType)
-	if err != nil {
-		return empty, err
-	}
-	version, _ := root["openapi"].(string)
-	if !supportedOpenAPIVersion(version) {
-		return empty, failure("unsupported_openapi_version")
-	}
-	paths, ok := root["paths"].(map[string]any)
-	if !ok {
-		return empty, failure("invalid_document")
-	}
-	options, err = normalizeOptions(options)
+	options, err := normalizeOptions(options)
 	if err != nil {
 		return empty, err
 	}
@@ -57,13 +42,13 @@ func prepare(data []byte, mediaType string, source contracts.ArtifactRef, option
 			return empty, failure("unassigned_operation_binding")
 		}
 	}
-	p := &preparer{root: root, options: options, gaps: []scan.PreparationGap{}, gapKeys: map[scan.PreparationGap]bool{}}
+	p := &preparer{root: document.root, options: options, gaps: []scan.PreparationGap{}, gapKeys: map[scan.PreparationGap]bool{}}
 	if selection.mode == "url-target" {
 		p.gap(selection.pointer, "url_template_scan_only")
 	}
 	set := scan.HTTPRequestSet{
 		SchemaVersion: 1,
-		Source:        scan.RequestSetSource{Artifact: source, ContentDigest: contentdigest.Bytes(data)},
+		Source:        document.requestSetSource(),
 		Requests:      []scan.RequestSetEntry{},
 	}
 	basis, err := strictjson.Canonical(struct {
@@ -71,7 +56,7 @@ func prepare(data []byte, mediaType string, source contracts.ArtifactRef, option
 		Source        scan.RequestSetSource `json:"source"`
 		MediaType     string                `json:"mediaType"`
 		Options       revealedOptions       `json:"options"`
-	}{2, set.Source, mediaType, options.revealed()})
+	}{2, set.Source, document.mediaType, options.revealed()})
 	if err != nil {
 		return empty, failure("invalid_options")
 	}
@@ -89,81 +74,17 @@ func prepare(data []byte, mediaType string, source contracts.ArtifactRef, option
 	}
 	set.PreparationDigest = contentdigest.Bytes(basis)
 	found := false
-	for _, path := range slices.Sorted(maps.Keys(paths)) {
-		if strings.HasPrefix(path, "x-") {
-			continue
-		}
-		pointer := "#/paths/" + escapePointer(path)
-		if pointer != selection.pathPointer() {
-			continue
-		}
+	// The index replaces a walk over every path key: at most one key has the
+	// selected path-item pointer, and only that path item is read.
+	pointer := selection.pathPointer()
+	if path, exists := document.pathKeys[pointer]; exists {
 		if !strings.HasPrefix(path, "/") || len(path) > 8192 {
 			return empty, failure("invalid_document")
 		}
 		if len(pointer)+8 > 8192 {
 			return empty, failure("invalid_document")
 		}
-		item, code := p.resolve(paths[path], nil)
-		if code != "" {
-			p.gap(pointer, code)
-			set.Coverage.Operations = 1
-			found = true
-			continue
-		}
-		for _, key := range slices.Sorted(maps.Keys(item)) {
-			if !strings.HasPrefix(key, "x-") && !knownPathField(key) {
-				p.gap(pointer, "unsupported_path_item_field")
-			}
-		}
-		for _, method := range []string{"delete", "get", "head", "options", "patch", "post", "put", "trace"} {
-			opPointer := pointer + "/" + method
-			if opPointer != selection.pointer {
-				continue
-			}
-			raw, exists := item[method]
-			if !exists {
-				continue
-			}
-			set.Coverage.Operations = 1
-			found = true
-			if method == "trace" {
-				p.gap(opPointer, "unsupported_method")
-				continue
-			}
-			op, ok := raw.(map[string]any)
-			if !ok {
-				p.gap(opPointer, "invalid_operation")
-				continue
-			}
-			if _, exists := op["$ref"]; exists {
-				p.gap(opPointer, "unsupported_operation_reference")
-				continue
-			}
-			unknown := false
-			for _, key := range slices.Sorted(maps.Keys(op)) {
-				if !strings.HasPrefix(key, "x-") && !knownOperationField(key) {
-					unknown = true
-				}
-			}
-			if unknown {
-				p.gap(opPointer, "unsupported_operation_field")
-			}
-			if _, exists := op["callbacks"]; exists {
-				p.gap(opPointer, "unsupported_callbacks")
-			}
-			request, code := p.prepareOperation(path, strings.ToUpper(method), item, op, opPointer, selection.mode == "url-target")
-			if code != "" {
-				p.gap(opPointer, code)
-				continue
-			}
-			contentDigest, err := scan.RequestContentDigest(request)
-			if err != nil {
-				p.gap(opPointer, "invalid_prepared_request")
-				continue
-			}
-			set.Requests = append(set.Requests, scan.RequestSetEntry{ID: "request-" + strings.TrimPrefix(contentDigest, "sha256:"), ContentDigest: contentDigest, Request: request, Origins: []scan.RequestOrigin{{Pointer: opPointer}}})
-			set.Coverage.Prepared = 1
-		}
+		found = p.preparePathItem(&set, path, document.paths[path], pointer, selection)
 	}
 	if p.exhausted {
 		return empty, failure("reference_limit_exceeded")
@@ -195,6 +116,73 @@ func prepare(data []byte, mediaType string, source contracts.ArtifactRef, option
 		return empty, failure("request_set_limit_or_contract_error")
 	}
 	return set, nil
+}
+
+// preparePathItem prepares the selected operation of the path item at
+// pointer and reports whether the selection exists in the source.
+func (p *preparer) preparePathItem(set *scan.HTTPRequestSet, path string, raw any, pointer string, selection operationSelection) bool {
+	item, code := p.resolve(raw, nil)
+	if code != "" {
+		p.gap(pointer, code)
+		set.Coverage.Operations = 1
+		return true
+	}
+	for _, key := range slices.Sorted(maps.Keys(item)) {
+		if !strings.HasPrefix(key, "x-") && !knownPathField(key) {
+			p.gap(pointer, "unsupported_path_item_field")
+		}
+	}
+	found := false
+	for _, method := range []string{"delete", "get", "head", "options", "patch", "post", "put", "trace"} {
+		opPointer := pointer + "/" + method
+		if opPointer != selection.pointer {
+			continue
+		}
+		raw, exists := item[method]
+		if !exists {
+			continue
+		}
+		set.Coverage.Operations = 1
+		found = true
+		if method == "trace" {
+			p.gap(opPointer, "unsupported_method")
+			continue
+		}
+		op, ok := raw.(map[string]any)
+		if !ok {
+			p.gap(opPointer, "invalid_operation")
+			continue
+		}
+		if _, exists := op["$ref"]; exists {
+			p.gap(opPointer, "unsupported_operation_reference")
+			continue
+		}
+		unknown := false
+		for _, key := range slices.Sorted(maps.Keys(op)) {
+			if !strings.HasPrefix(key, "x-") && !knownOperationField(key) {
+				unknown = true
+			}
+		}
+		if unknown {
+			p.gap(opPointer, "unsupported_operation_field")
+		}
+		if _, exists := op["callbacks"]; exists {
+			p.gap(opPointer, "unsupported_callbacks")
+		}
+		request, code := p.prepareOperation(path, strings.ToUpper(method), item, op, opPointer, selection.mode == "url-target")
+		if code != "" {
+			p.gap(opPointer, code)
+			continue
+		}
+		contentDigest, err := scan.RequestContentDigest(request)
+		if err != nil {
+			p.gap(opPointer, "invalid_prepared_request")
+			continue
+		}
+		set.Requests = append(set.Requests, scan.RequestSetEntry{ID: "request-" + strings.TrimPrefix(contentDigest, "sha256:"), ContentDigest: contentDigest, Request: request, Origins: []scan.RequestOrigin{{Pointer: opPointer}}})
+		set.Coverage.Prepared = 1
+	}
+	return found
 }
 
 func supportedOpenAPIVersion(version string) bool {
