@@ -6,7 +6,7 @@ epic: api-contracts
 kind: defect
 introduced_by: V370-009
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - go
@@ -100,3 +100,58 @@ tests:
   covers:
   - A1
   - A4
+implementation_commit: ec6aacbd00e8a63e6730095333ee7f1df8e889e5
+verification:
+  date: '2026-10-24'
+  environment: macOS arm64; Go 1.26.9, Node 24.20.0, pnpm 11.24.0 and the locked Runtime venv; isolated PostgreSQL
+    17.11 database contractor_test_g with all 32 migrations.
+  commands:
+  - go test -count=1 ./internal/httpapi/... ./internal/contracts/... ./internal/evaldomain/... ./internal/projectstore/...
+    ./internal/auditstore/... ./internal/credentials/... ./internal/publicclient/... ./internal/cli/... passed with
+    CONTRACTOR_TEST_DATABASE_URL set.
+  - The integration command (go test -tags=integration -count=1 ./internal/httpapi/public/... ./internal/projectstore/...
+    ./internal/auditstore/... ./internal/evalstore/... ./internal/credentials/...) passed against the database.
+  - 'Full suites of the other touched packages with -tags=integration (contracts, evaldomain, evalstore, runstore, auditservice,
+    config, runtimeconfig, archtest, persistence/..., apierror, cli) passed, except internal/persistence TestSQLAccessFollowsTableOwnership,
+    which fails identically on the base ac982d28 (internal/cli/scan_sweep_remote.go reads projects; not touched here).'
+  - make verify-public-api and make verify-public-api-postgres passed; the new contract tests are in the verify-public-api
+    selection.
+  - 'make ui-verify passed: generated checks, lint, typecheck, 192 files with 2371 tests passed and one existing expected
+    failure, 17 server tests, and build.'
+  - 'make test-wire-cross-language passed: 251 fixtures, 247 Go and 184 Python shared tests.'
+  - make lint passed (after make docs-dependencies regenerated the dependency graph for the spec changes).
+  - V371-016 commands also passed (its go test packages above, cd ui && corepack pnpm test --run src/mutations, make lint).
+  - 'A5 on a temporary worktree at ac982d28 with the new tests and fixtures copied in: TestSharedIdempotencyKeyCasesGateEvalMutations
+    (a!b, a/b, -a and duplicate headers reached the Eval service), TestPublicRequestBodyBoundsMatchHandlers, TestSharedUTF8ByteBoundsAreDeclared,
+    the evaldomain, evalstore (PostgreSQL), runtimeconfig and CLI shared key tests, the grammar scan (seven Go copies) and three
+    UI tests (contract byte bounds, cancellation reason bytes, Idempotency-Key cases) failed; TestSharedIdempotencyKeyCasesGateOptionalKeys
+    fails without the cancelScanSweep fix. Preservation tests (415 media types, allocation history 100, Project, Audit and
+    label byte bounds, PostgreSQL key CHECKs, every keyed operation) pass on both revisions, as A5 allows.'
+  database_tests_configured: true
+  decisions:
+  - A1 status. An invalid Eval key answers the route's documented 422 eval_invalid before any receipt is read or written,
+    not 400; API-R70 and the Eval error enum fix that status, and scope.out excludes forcing one status on JSON handlers.
+    API-R69 states both.
+  - Sibling found and fixed. cancelScanSweep takes OptionalIdempotencyKey but ignored the header; it now validates a supplied
+    key like RuntimeCredential deletion, and API-R28 names both operations.
+  - 'New limits: LIM-API-24 (Idempotency-Key), LIM-AUD-28 (Audit start/resume body), LIM-AUD-29 (Audit scope field bytes),
+    LIM-GIT-21 (Git key body), LIM-PRJ-5 (Project description bytes), LIM-REV-11 (rationale bytes), LIM-RUN-10 (cancellation
+    reason bytes); LIM-PRJ-3 now states its 160-byte bound. No migration and no new error code.'
+  declined:
+  - 'No PostgreSQL grammar CHECK for the eval family of mutation_receipts (it bounds the key to 1-128 octets only). evalstore
+    validates every key before it reads or writes a receipt, tested on PostgreSQL; a CHECK needs a migration redefining
+    the family check that other families also change. Reopen if anything writes eval receipts outside evalstore.'
+  - 'x-max-utf8-bytes is declared for the reviewed human free-text fields only. Machine values bounded in bytes (credential
+    material, OTLP header values, caBundlePem, Git ref, repositoryUrl and privateKey, scan sweep parameter values, Gateway
+    failure signature, archive paths, Audit artifact key/revision/member, query parameters, cursors) are ASCII or opaque
+    and not edited as text in the UI; a follow-up task should decide them.'
+  - The Audit start form does not pre-check scope field bytes; the Server's 400 is shown. UI Run label key and count literals
+    are a separate rule and were left.
+  v371_016:
+  - A1 satisfied. Invalid keys and duplicate headers sent to every keyed Run, Project, Audit, credential, configuration,
+    RuntimeConfig and scan sweep operation answer 400 invalid_request before the dependency is reached; Eval mutations answer
+    their invalid-request error, 422 eval_invalid, and write no receipt on PostgreSQL.
+  - A2 satisfied. The source scan finds no second Go definition; it now also reports a second same-language pattern in a
+    listed file.
+  - A3 satisfied. The shared cases get one verdict from contracts.ValidIdempotencyKey, the OpenAPI parameter schemas, the
+    PostgreSQL CHECK patterns, the CLI and the UI stringRule, keyring and request-header check.
