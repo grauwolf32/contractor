@@ -6,7 +6,8 @@ epic: quality
 kind: chore
 introduced_by: V405-003
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 241d3d0c33f43c5a30134f2a4160010e3c453da7
 depends_on: [V405-003]
 languages: [go]
 goal: "The real-store Audit completion importer fixture carries the explicit empty labels and placement selection required by the current baseline contract."
@@ -31,3 +32,8 @@ tests:
     covers: [A1, A2]
   - command: make lint
     covers: [A1, A2]
+
+verification:
+  - "Full go test -tags=integration -count=1 ./internal/auditimport passed on isolated PostgreSQL (31.520 s)."
+  - "make test-release-integration passed at -race -p 2 with the canonical Audit required-case report verifier."
+  - "make lint passed, including 131 script regressions and compiled release coverage checks. No production validation was changed."
