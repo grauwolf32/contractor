@@ -9,13 +9,13 @@ priority: P2
 status: in_progress
 depends_on: [V405-003]
 languages: [go]
-goal: "The real-store Audit completion importer fixture carries the explicit empty placement selection required by the current baseline contract."
+goal: "The real-store Audit completion importer fixture carries the explicit empty labels and placement selection required by the current baseline contract."
 context:
-  finding: "internal/auditimport/completion_integration_test.go:244 builds a baseline without requiredPlacementLabels. V405-003 now rejects this invalid persisted snapshot during trusted child Run creation, so seven integration cases fail before testing the importer."
+  finding: "internal/auditimport/completion_integration_test.go:244 builds a baseline without labels or requiredPlacementLabels. V405-003 now rejects this invalid persisted snapshot during trusted child Run creation, so seven integration cases fail before testing the importer."
   siblings: "All completion importer modes and interactive/report-acceptance variants share this constructor; there are no other BaselineSnapshot literals in the auditimport tests."
 scope:
   in:
-    - "Add the explicit empty requiredPlacementLabels array to the test-only baseline."
+    - "Add the explicit empty labels object and requiredPlacementLabels array to the test-only baseline."
     - "Run all integration-tagged auditimport tests and the canonical integration gate against real PostgreSQL."
   out:
     - "Changing production validation or introducing legacy fallback behavior."
