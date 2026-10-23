@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-128 open tasks: 4 in progress, 99 pending, 25 deferred. 989 finished: 986 completed, 3 archived.
+126 open tasks: 4 in progress, 97 pending, 25 deferred. 994 finished: 991 completed, 3 archived.
 
 ## In progress
 
@@ -85,7 +85,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V55-009](v55-009-scan-candidate-ranking.yml) | feature | P2 | — | Optionally rank existing scan candidates with an LLM |
-| [V406-007](v406-007-web-scan-release-gate.yml) | chore | P2 | V406-005, V406-006 | Gate the complete web scan and rule sweep journeys |
+| [V406-007](v406-007-web-scan-release-gate.yml) | chore | P2 | — | Gate the complete web scan and rule sweep journeys |
 | [V407-006](v407-006-scanplan-prepare-once.yml) | chore | P2 | — | Reuse one parsed OpenAPI source across an Audit inventory operation batch |
 | [V407-007](v407-007-scan-output-off-loop.yml) | defect | P3 | — | Offload scanner parsing and filesystem preparation with joined cancellation |
 
@@ -147,8 +147,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V403-003](v403-003-openapi-preview-at-1mib.yml) | defect | P3 | — | Keep a 1 MiB OpenAPI preview from blocking the page |
-| [V406-005](v406-005-web-scan-settings-ui.yml) | feature | P2 | — | Launch a web scan with rule settings and owner rulepack selection |
-| [V406-006](v406-006-scope-sweep-ui-cli.yml) | feature | P2 | V406-005 | Launch and follow durable rule sweeps from the UI |
 
 ### Operations, authentication, CLI and deployment (`operations`)
 
@@ -244,7 +242,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 11 | 41 | 51 | 18 | 72 |
+| Run execution core (`execution-core`) | 11 | 41 | 51 | 18 | 73 |
 | Planners and the Worker model boundary (`planner-worker`) | 8 | 27 | 40 | 16 | 59 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 12 | 25 | 13 | 4 | 40 |
 | Shared Memory tools (`memory`) | 1 | 6 | 9 | 2 | 12 |
@@ -259,8 +257,8 @@ tasks in `introduced_by`.
 | Audits (`audits`) | 24 | 53 | 72 | 22 | 91 |
 | Evaluations (`evals`) | 6 | 21 | 34 | 7 | 40 |
 | Podman sandbox (`sandbox`) | 0 | 9 | 2 | 1 | 3 |
-| Web UI (`ui`) | 3 | 24 | 58 | 12 | 53 |
-| Operations, authentication, CLI and deployment (`operations`) | 1 | 16 | 33 | 6 | 10 |
+| Web UI (`ui`) | 1 | 24 | 60 | 13 | 53 |
+| Operations, authentication, CLI and deployment (`operations`) | 1 | 16 | 33 | 6 | 11 |
 | Public API and wire contracts (`api-contracts`) | 8 | 1 | 34 | 20 | 11 |
 | PostgreSQL persistence and schema (`persistence`) | 13 | 0 | 21 | 41 | 9 |
 | Quality, CI and process (`quality`) | 18 | 1 | 21 | 87 | 20 |

@@ -99,6 +99,10 @@ func TestBrowserOperationsStack(t *testing.T) {
 	runBrowserStack(t, "")
 }
 
+func TestBrowserScanWidgetsStack(t *testing.T) {
+	runBrowserStack(t, "widgets")
+}
+
 func TestManagedEvalsNativeStack(t *testing.T) {
 	runBrowserStack(t, "native")
 }
@@ -108,7 +112,8 @@ func TestManagedEvalsExternalStack(t *testing.T) {
 }
 
 func runBrowserStack(t *testing.T, evalMode string) {
-	managedEvals := evalMode != ""
+	managedEvals := evalMode == "native" || evalMode == "external"
+	widgets := evalMode == "widgets"
 	if testing.Short() {
 		t.Skip("browser end-to-end process test")
 	}
@@ -321,6 +326,9 @@ func runBrowserStack(t *testing.T, evalMode string) {
 		"e2e/performance.spec.ts",
 		"e2e/studio-catalog.spec.ts",
 	}
+	if widgets {
+		requiredBrowserSpecs = []string{"e2e/stack.spec.ts"}
+	}
 	browserReport := filepath.Join(temporaryRoot, "browser-report.json")
 	if evidence := os.Getenv("CONTRACTOR_UI_EVIDENCE_DIR"); evidence != "" {
 		directory, err := filepath.Abs(evidence)
@@ -354,9 +362,21 @@ func runBrowserStack(t *testing.T, evalMode string) {
 	}, "PATH", "HOME", "XDG_CACHE_HOME", "COREPACK_HOME", "TMPDIR", "LANG", "LC_ALL", "TZ")
 	assertEnvironmentHasNoSecrets(t, playwrightEnvironment, secrets)
 	browserArgs := append([]string{"pnpm", "exec", "playwright", "test", "--reporter=line,json"}, requiredBrowserSpecs...)
+	if widgets {
+		browserArgs = append(browserArgs, "--grep", "widget:")
+	} else {
+		browserArgs = append(browserArgs, "--grep-invert", "widget:")
+	}
 	runChecked(t, filepath.Join(repositoryRoot, "ui"), playwrightEnvironment, "corepack", browserArgs...)
 	assertBrowserReport(t, browserReport, requiredBrowserSpecs)
 	t.Logf("Playwright execution report: %s", browserReport)
+	if widgets {
+		calls, completedStages, failures := modelGateway.snapshot()
+		if calls != 0 || completedStages != 0 || len(failures) != 0 {
+			t.Fatalf("model-free widgets called the model: calls=%d completed=%d failures=%v", calls, completedStages, failures)
+		}
+		return
+	}
 	tracePaths := filesNamed(t, playwrightOutput, "trace.zip")
 
 	stack.assertRunOwnerBoundaries(userID)
