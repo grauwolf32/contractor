@@ -5,7 +5,7 @@ milestone: web-nuclei-rule-sweeps-2026-10
 epic: operations
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V406-004
 languages: [go]
@@ -84,3 +84,15 @@ tests:
   covers: [A1, A2, A3]
 - command: make lint
   covers: [A1, A2, A3]
+implementation_commit: b76026f99f0f9a122d202a7ea01d37e40e6dff60
+verification:
+  date: '2026-10-23'
+  results:
+  - Full internal/cli and internal/publicclient suites passed, including stable keyed replay,
+    1000-member pagination, malformed responses, response-size bounds and purge confirmation.
+  - make test-nuclei-web-e2e passed in 175.219s through the production Server and Runtime
+    processes with the deterministic scanner. CLI creation replayed a committed lost response,
+    retained the original owner rulepack after source advancement, and preserved child reports after purge.
+  - make verify-public-api passed.
+  - make lint passed after regenerating the dependency graph.
+  - Full release-verify was not invoked. No new UI or Studio surface was added.

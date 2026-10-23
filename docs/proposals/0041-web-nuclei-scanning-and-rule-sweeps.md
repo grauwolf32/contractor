@@ -538,5 +538,5 @@ Task records state the independent package, snapshot, tick and page bounds;
 the owning specification registries acquire them with each implementation.
 
 The core-first implementation keeps UI/Studio work separate: CLI access to the
-durable server resource is tracked by [V406-009](../../tasks/v406-009-durable-sweep-cli.yml),
+durable server resource is tracked by [V406-009](../../tasks/done/v406-009-durable-sweep-cli.yml),
 which depends only on the completed server sweep. The UI tasks remain planned.
