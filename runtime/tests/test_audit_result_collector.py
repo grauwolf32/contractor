@@ -689,3 +689,28 @@ def test_shared_discard_waits_for_in_flight_admission_encoding(monkeypatch):
             await collector.snapshot()
 
     asyncio.run(scenario())
+
+
+def test_shared_errors_and_reads_never_expose_the_allocation_decoding():
+    async def scenario():
+        expected, inputs = assigned()
+        encoder = CanonicalAuditPackageEncoder()
+        collector = InvocationAuditCollector(inputs, encoder)
+        tool = SubmitCheckResultTool(collector, WorkerState().metrics)
+        item = expected.items[0].value
+        reply = await tool(CONTEXT, **{**arguments(item), "completed": ["foreign-coverage"]})
+        assert reply["error"]["allowedValues"] == ["source-trace"]
+        reply["error"]["allowedValues"].clear()
+        tasks = await collector.read_tasks(CONTEXT.invocation_id)
+        tasks["requestedCoverage"][0].clear()
+        tasks["task"]["checklist"]["required_evidence"].clear()
+        await collector.discard()
+        # The next invocation of the allocation sees the pinned task unchanged.
+        next_inputs = replace(inputs, owner=replace(inputs.owner, invocation_id="invocation-2"))
+        fresh = InvocationAuditCollector(next_inputs, encoder)
+        tasks = await fresh.read_tasks("invocation-2")
+        assert tasks["requestedCoverage"] == [["source-trace"]]
+        assert tasks["task"]["checklist"]["required_evidence"] == ["source-trace"]
+        assert (await fresh.record(item)).complete
+
+    asyncio.run(scenario())

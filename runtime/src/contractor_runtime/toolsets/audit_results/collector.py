@@ -222,7 +222,8 @@ class InvocationAuditCollector:
                     details={
                         "index": index,
                         "invalidValue": value[:160],
-                        "allowedValues": requested,
+                        # A copy: the decoded task is shared by the allocation.
+                        "allowedValues": list(requested),
                     },
                 )
         if task.get("operation") is not None:
