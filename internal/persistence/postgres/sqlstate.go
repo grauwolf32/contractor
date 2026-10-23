@@ -151,6 +151,19 @@ func Classify(err error) Class {
 	return ClassNone
 }
 
+// ConstraintName returns the constraint that the PostgreSQL condition in
+// err's chain names, or "" when err carries no condition or the condition
+// names none. Classify decides the outcome; a store that must tell one
+// rejection of a class from the others, such as the missing parent of one
+// foreign key among several, also compares this name.
+func ConstraintName(err error) string {
+	var postgresError *pgconn.PgError
+	if errors.As(err, &postgresError) {
+		return postgresError.ConstraintName
+	}
+	return ""
+}
+
 func classifySQLState(code, constraint string) Class {
 	switch code {
 	case SQLStateCheckViolation:

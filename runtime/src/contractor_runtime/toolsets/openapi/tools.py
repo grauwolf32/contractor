@@ -29,6 +29,7 @@ from contractor_runtime.projectfs.storage import (
     WorkspaceStorageError,
 )
 from contractor_runtime.redaction import runtime_secrets
+from contractor_runtime.threads import to_thread_until_done
 from contractor_runtime.toolsets.common.artifacts import (
     ArtifactClientFactory,
     _unconfigured_client,
@@ -221,23 +222,24 @@ class _OpenAPISession(DocumentSession[dict[str, Any]]):
         self._launcher = launcher
 
     def _decode_seed(self, data: bytes) -> dict[str, Any]:
+        # _parse_document already checked the bounds and the JSON value types.
         document = _parse_document(data)
-        _validate_document(document, require_provenance=False)
+        _validate_structure(document, require_provenance=False)
         return document
 
     def _serialize(self, document: dict[str, Any]) -> bytes:
-        _validate_document(document, require_provenance=False)
         return _dump_document(document)
 
     def _document_state(
         self,
         artifact: ArtifactRef,
         target_name: str,
-        document: dict[str, Any],
+        size: int,
         *,
         changed: bool,
         copied: bool,
     ) -> dict[str, Any]:
+        del size
         return _document_state(artifact, target_name, changed=changed, copied=copied)
 
     async def initialize(
@@ -255,8 +257,9 @@ class _OpenAPISession(DocumentSession[dict[str, Any]]):
         document = copy.deepcopy(BASE_DOCUMENT)
         document["info"] = {"title": title, "description": description, "version": version}
         async with self._lock:
+            data = await self._prepare(_prepare_document, document)
             written = await self._write(
-                document, target_name=target_name, expected_revision=expected_revision
+                data, target_name=target_name, expected_revision=expected_revision
             )
             self._remember(document, target_name, written.artifact)
             return _document_state(written.artifact, target_name, changed=True, copied=False)
@@ -264,8 +267,7 @@ class _OpenAPISession(DocumentSession[dict[str, Any]]):
     async def get_info(self) -> dict[str, Any]:
         async with self._lock:
             document, artifact = self._require_document()
-            value = copy.deepcopy(document["info"])
-            _bound_targeted_result(value)
+            value = await self._prepare(_targeted_copy, document["info"])
             return {"artifact": artifact.model_dump(by_alias=True), "info": value}
 
     async def set_info(
@@ -297,40 +299,39 @@ class _OpenAPISession(DocumentSession[dict[str, Any]]):
     async def list_servers(self) -> dict[str, Any]:
         async with self._lock:
             document, artifact = self._require_document()
-            servers = copy.deepcopy(document.get("servers", []))
-            _bound_targeted_result(servers)
+            servers = await self._prepare(_targeted_copy, document.get("servers", []))
             return {"artifact": artifact.model_dump(by_alias=True), "servers": servers}
 
     async def set_servers(self, servers: list[dict[str, Any]]) -> dict[str, Any]:
-        _validate_json_tree(servers)
-        normalized = _validate_servers(servers)
-        return await self._mutate(
-            lambda document: document.__setitem__("servers", normalized),
-            operation="set_servers",
-        )
+        async with self._lock:
+            normalized = await self._prepare(_checked_servers, servers)
+            return await self._mutate_locked(
+                lambda document: document.__setitem__("servers", normalized),
+                operation="set_servers",
+            )
 
     async def list_tags(self) -> dict[str, Any]:
         async with self._lock:
             document, artifact = self._require_document()
-            tags = copy.deepcopy(document.get("tags", []))
-            _bound_targeted_result(tags)
+            tags = await self._prepare(_targeted_copy, document.get("tags", []))
             return {"artifact": artifact.model_dump(by_alias=True), "tags": tags}
 
     async def set_tags(self, tags: list[dict[str, Any]]) -> dict[str, Any]:
-        _validate_json_tree(tags)
-        normalized = _validate_tags(tags)
-        return await self._mutate(
-            lambda document: document.__setitem__("tags", normalized),
-            operation="set_tags",
-        )
+        async with self._lock:
+            normalized = await self._prepare(_checked_tags, tags)
+            return await self._mutate_locked(
+                lambda document: document.__setitem__("tags", normalized),
+                operation="set_tags",
+            )
 
     async def list_paths(self) -> dict[str, Any]:
         async with self._lock:
             document, artifact = self._require_document()
-            return _bounded_name_listing(
+            return await self._prepare(
+                _bounded_name_listing,
                 {"artifact": artifact.model_dump(by_alias=True)},
                 "paths",
-                sorted(document["paths"]),
+                document["paths"],
             )
 
     async def get_path(self, path: str) -> dict[str, Any]:
@@ -339,8 +340,7 @@ class _OpenAPISession(DocumentSession[dict[str, Any]]):
             document, artifact = self._require_document()
             if normalized not in document["paths"]:
                 raise ToolInputError("OpenAPI path is absent", code="openapi_path_not_found")
-            value = copy.deepcopy(document["paths"][normalized])
-            _bound_targeted_result(value)
+            value = await self._prepare(_targeted_copy, document["paths"][normalized])
             return {
                 "artifact": artifact.model_dump(by_alias=True),
                 "path": normalized,
@@ -353,17 +353,15 @@ class _OpenAPISession(DocumentSession[dict[str, Any]]):
         normalized = _validate_api_path(path)
         if not isinstance(path_item, dict):
             raise ToolInputError("path_item must be an object")
-        _validate_json_tree(path_item)
-        validated_evidence = await self._validate_evidence(evidence_files)
-        candidate = copy.deepcopy(path_item)
-        candidate["x-path-files"] = validated_evidence
+        evidence = await self._validate_patch(path_item, evidence_files)
 
         def modify(document: dict[str, Any]) -> None:
-            current = document["paths"].get(normalized, {})
             # The supplied object is a merge patch, not a standalone Path
-            # Item. Validate the complete merged candidate before publishing.
-            document["paths"][normalized] = _deep_merge(current, candidate)
-            _validate_path_item(document["paths"][normalized])
+            # Item. The merged candidate is validated with the whole document.
+            current = document["paths"].get(normalized, {})
+            document["paths"][normalized] = _deep_merge(
+                current, {**path_item, "x-path-files": evidence}
+            )
 
         result = await self._mutate(modify, operation="upsert_path")
         result["path"] = normalized
@@ -385,10 +383,11 @@ class _OpenAPISession(DocumentSession[dict[str, Any]]):
         normalized = _validate_component_section(section)
         async with self._lock:
             document, artifact = self._require_document()
-            return _bounded_name_listing(
+            return await self._prepare(
+                _bounded_name_listing,
                 {"artifact": artifact.model_dump(by_alias=True), "section": normalized},
                 "components",
-                sorted(document.get("components", {}).get(normalized, {})),
+                document.get("components", {}).get(normalized, {}),
             )
 
     async def get_component(self, section: str, name: str) -> dict[str, Any]:
@@ -401,8 +400,7 @@ class _OpenAPISession(DocumentSession[dict[str, Any]]):
                 raise ToolInputError(
                     "OpenAPI component is absent", code="openapi_component_not_found"
                 )
-            value = copy.deepcopy(components[name])
-            _bound_targeted_result(value)
+            value = await self._prepare(_targeted_copy, components[name])
             return {
                 "artifact": artifact.model_dump(by_alias=True),
                 "section": normalized,
@@ -421,19 +419,17 @@ class _OpenAPISession(DocumentSession[dict[str, Any]]):
         _validate_component_name(name)
         if not isinstance(component, dict):
             raise ToolInputError("component must be an object")
-        _validate_json_tree(component)
-        validated_evidence = await self._validate_evidence(evidence_files)
-        candidate = copy.deepcopy(component)
+        evidence = await self._validate_patch(component, evidence_files)
 
         def modify(document: dict[str, Any]) -> None:
-            update = copy.deepcopy(candidate)
+            update = dict(component)
             # A 3.0 Reference Object cannot carry extension siblings. The
             # evidence is checked above, but the alias must stay a pure $ref.
             if not _reference_only_component(update, document["openapi"]):
-                update["x-component-files"] = validated_evidence
+                update["x-component-files"] = evidence
+            # The merged candidate is validated with the whole document.
             values = document.setdefault("components", {}).setdefault(normalized, {})
             values[name] = _deep_merge(values.get(name, {}), update)
-            _validate_component(normalized, values[name])
 
         result = await self._mutate(modify, operation="upsert_component")
         result.update({"section": normalized, "name": name})
@@ -458,9 +454,7 @@ class _OpenAPISession(DocumentSession[dict[str, Any]]):
     async def read_document(self) -> dict[str, Any]:
         async with self._lock:
             document, artifact = self._require_document()
-            rendered = _dump_document(document).decode("utf-8")
-            if len(rendered.encode("utf-8")) > MAX_TARGETED_RESULT_BYTES:
-                raise ToolInputError("OpenAPI document exceeds the full-read model output limit")
+            rendered = await self._prepare(_render_full_read, document)
             return {
                 "artifact": artifact.model_dump(by_alias=True),
                 "mediaType": TARGET_MEDIA_TYPE,
@@ -470,65 +464,85 @@ class _OpenAPISession(DocumentSession[dict[str, Any]]):
     async def validate(self) -> dict[str, Any]:
         project_evidence_paths = await self._project_evidence_paths()
         async with self._lock:
-            document, artifact = self._require_document()
-            # The document bounds fail the call before Vacuum runs; only the
-            # structure checks below are reported beside its findings.
-            rendered = _dump_document(document).decode("utf-8")
-            _validate_json_tree(document)
-            structural_errors: list[str] = []
-            try:
-                _validate_structure(document, require_provenance=True)
-                self._validate_current_provenance(document, project_evidence_paths)
-            except ValueError as error:
-                structural_errors.append(str(error))
-            vacuum = await self._validating(
-                _run_vacuum(rendered)
-                if self._launcher is None
-                else _run_vacuum(rendered, self._launcher)
-            )
-            valid = (
-                not structural_errors
-                and vacuum["available"]
-                and vacuum["executionError"] is None
-                and not vacuum["issues"]
-            )
-            return {
-                "artifact": artifact.model_dump(by_alias=True),
-                "valid": valid,
-                "structuralErrors": structural_errors,
-                "validator": "vacuum",
-                "validatorAvailable": vacuum["available"],
-                "validatorExecutionError": vacuum["executionError"],
-                "issues": vacuum["issues"],
-                "issuesTruncated": vacuum["truncated"],
-            }
+            # close() cancels this task from its preparation through Vacuum.
+            return await self._validating(self._validate_current(project_evidence_paths))
+
+    async def _validate_current(
+        self, project_evidence_paths: frozenset[str] | None
+    ) -> dict[str, Any]:
+        document, artifact = self._require_document()
+        rendered, structural_errors = await self._prepare(
+            self._validation_input, document, project_evidence_paths
+        )
+        if self._launcher is None:
+            vacuum = await _run_vacuum(rendered)
+        else:
+            vacuum = await _run_vacuum(rendered, self._launcher)
+        valid = (
+            not structural_errors
+            and vacuum["available"]
+            and vacuum["executionError"] is None
+            and not vacuum["issues"]
+        )
+        return {
+            "artifact": artifact.model_dump(by_alias=True),
+            "valid": valid,
+            "structuralErrors": structural_errors,
+            "validator": "vacuum",
+            "validatorAvailable": vacuum["available"],
+            "validatorExecutionError": vacuum["executionError"],
+            "issues": vacuum["issues"],
+            "issuesTruncated": vacuum["truncated"],
+        }
+
+    def _validation_input(
+        self, document: dict[str, Any], project_evidence_paths: frozenset[str] | None
+    ) -> tuple[str, list[str]]:
+        # The document bounds fail the call before Vacuum runs; only the
+        # structure checks below are reported beside its findings.
+        rendered = _dump_document(document).decode("utf-8")
+        _validate_json_tree(document)
+        structural_errors: list[str] = []
+        try:
+            _validate_structure(document, require_provenance=True)
+            self._validate_current_provenance(document, project_evidence_paths)
+        except ValueError as error:
+            structural_errors.append(str(error))
+        return rendered, structural_errors
 
     async def _mutate(
         self, modifier: Callable[[dict[str, Any]], None], *, operation: str
     ) -> dict[str, Any]:
         async with self._lock:
-            document, artifact = self._require_document()
-            working = copy.deepcopy(document)
-            modifier(working)
-            _validate_document(working, require_provenance=False)
-            if working == document:
-                return _document_state(
-                    artifact, self._target_name or DEFAULT_TARGET_NAME, changed=False, copied=False
-                ) | {"operation": operation}
-            target_name, revision = self._require_target()
-            written = await self._write(
-                working, target_name=target_name, expected_revision=revision
-            )
-            self._remember(working, target_name, written.artifact)
-            return _document_state(written.artifact, target_name, changed=True, copied=False) | {
-                "operation": operation
-            }
+            return await self._mutate_locked(modifier, operation=operation)
 
-    async def _validate_evidence(self, evidence_files: list[str]) -> list[str]:
-        return self._validate_evidence_from_paths(
-            evidence_files,
-            await self._project_evidence_paths(),
-        )
+    async def _mutate_locked(
+        self, modifier: Callable[[dict[str, Any]], None], *, operation: str
+    ) -> dict[str, Any]:
+        document, artifact = self._require_document()
+        prepared = await self._prepare(_prepare_mutation, document, modifier)
+        if prepared is None:
+            return _document_state(
+                artifact, self._target_name or DEFAULT_TARGET_NAME, changed=False, copied=False
+            ) | {"operation": operation}
+        working, data = prepared
+        target_name, revision = self._require_target()
+        written = await self._write(data, target_name=target_name, expected_revision=revision)
+        self._remember(working, target_name, written.artifact)
+        return _document_state(written.artifact, target_name, changed=True, copied=False) | {
+            "operation": operation
+        }
+
+    async def _validate_patch(self, patch: dict[str, Any], evidence_files: list[str]) -> list[str]:
+        """Check a merge patch, then its source evidence; return the evidence paths."""
+
+        async with self._lock:
+            await self._prepare(_validate_json_tree, patch)
+        project_evidence_paths = await self._project_evidence_paths()
+        async with self._lock:
+            return await self._prepare(
+                self._validate_evidence_from_paths, evidence_files, project_evidence_paths
+            )
 
     async def _project_evidence_paths(self) -> frozenset[str] | None:
         if self._project_workspace is None:
@@ -1106,16 +1120,43 @@ class ValidateOpenAPITool(_BaseOpenAPITool):
         )
 
 
-class _UniqueSafeLoader(yaml.SafeLoader):
-    """SafeLoader with JSON-compatible scalar resolution.
+class _StrictSafeLoader(yaml.SafeLoader):
+    """SafeLoader that reads an OpenAPI document in one bounded pass.
 
-    JSON has no date type, so unquoted dates such as ``version: 2023-01-01``
-    stay strings instead of resolving to ``datetime.date``. An explicit
-    ``!!timestamp`` tag still produces a date and is rejected.
+    Composition rejects anchors and aliases and stops at the first node beyond
+    the depth or node bound, before PyYAML composes a deeper or larger tree.
+    A node is one deeper than the collections open around it, so a mapping key
+    is a node at the depth of its value, as in _validate_json_tree; the count
+    covers every document of the stream.
+
+    Scalar resolution is JSON-compatible. JSON has no date type, so unquoted
+    dates such as ``version: 2023-01-01`` stay strings instead of resolving to
+    ``datetime.date``. An explicit ``!!timestamp`` tag still produces a date
+    and is rejected.
     """
 
+    def __init__(self, stream: str) -> None:
+        super().__init__(stream)
+        self._open_collections = 0
+        self._nodes = 0
 
-_UniqueSafeLoader.yaml_implicit_resolvers = {
+    def compose_node(self, parent: yaml.Node | None, index: Any) -> yaml.Node:
+        event = self.peek_event()
+        if getattr(event, "anchor", None) is not None:
+            raise ToolInputError("OpenAPI YAML aliases and anchors are not supported")
+        self._nodes += 1
+        if self._open_collections + 1 > MAX_DOCUMENT_DEPTH:
+            raise ToolInputError(DOCUMENT_DEPTH_MESSAGE)
+        if self._nodes > MAX_DOCUMENT_NODES:
+            raise ToolInputError(DOCUMENT_NODES_MESSAGE)
+        self._open_collections += 1
+        try:
+            return super().compose_node(parent, index)
+        finally:
+            self._open_collections -= 1
+
+
+_StrictSafeLoader.yaml_implicit_resolvers = {
     first: [(tag, pattern) for tag, pattern in resolvers if tag != "tag:yaml.org,2002:timestamp"]
     for first, resolvers in yaml.SafeLoader.yaml_implicit_resolvers.items()
 }
@@ -1136,7 +1177,7 @@ class _NoAliasSafeDumper(yaml.SafeDumper):
 
 
 def _construct_unique_mapping(
-    loader: _UniqueSafeLoader, node: yaml.MappingNode, deep: bool = False
+    loader: _StrictSafeLoader, node: yaml.MappingNode, deep: bool = False
 ) -> dict[Any, Any]:
     loader.flatten_mapping(node)
     result: dict[Any, Any] = {}
@@ -1155,55 +1196,37 @@ def _construct_unique_mapping(
     return result
 
 
-_UniqueSafeLoader.add_constructor(
+_StrictSafeLoader.add_constructor(
     yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _construct_unique_mapping
 )
 
 
 def _parse_document(data: bytes) -> dict[str, Any]:
+    """Parse document bytes once and check its bounds and JSON value types."""
+
     if len(data) > MAX_DOCUMENT_BYTES:
         raise ToolInputError(DOCUMENT_BYTES_MESSAGE)
     try:
         text = data.decode("utf-8", errors="strict")
     except UnicodeDecodeError as error:
         raise ToolInputError("OpenAPI document must be valid UTF-8") from error
+    loader = _StrictSafeLoader(text)
     try:
-        _check_event_bounds(yaml.parse(text, Loader=yaml.SafeLoader))
-        documents = list(yaml.load_all(text, Loader=_UniqueSafeLoader))
+        # Compose the whole stream under the bounds before constructing any
+        # value, so a later document's anchor or bound fails first.
+        nodes = []
+        while loader.check_node():
+            nodes.append(loader.get_node())
+        documents = [loader.construct_document(node) for node in nodes]
     except yaml.YAMLError as error:
         raise ToolInputError("OpenAPI document is not valid YAML or JSON") from error
+    finally:
+        loader.dispose()
     if len(documents) != 1 or not isinstance(documents[0], dict):
         raise ToolInputError("OpenAPI artifact must contain exactly one object document")
     document = documents[0]
     _validate_json_tree(document)
     return document
-
-
-def _check_event_bounds(events: Iterable[yaml.Event]) -> None:
-    """Reject anchors and nodes beyond the depth or node bound while PyYAML parses.
-
-    A node event (scalar, alias, mapping or sequence start) is one node at one
-    more than the number of collections open around it, so a mapping key is a
-    node at the depth of its value, as in _validate_json_tree. The check stops
-    at the first such event, before PyYAML composes a recursive tree.
-    """
-    open_collections = 0
-    nodes = 0
-    for event in events:
-        if isinstance(event, yaml.CollectionEndEvent):
-            open_collections -= 1
-            continue
-        if not isinstance(event, yaml.NodeEvent):
-            continue
-        if event.anchor is not None:
-            raise ToolInputError("OpenAPI YAML aliases and anchors are not supported")
-        nodes += 1
-        if open_collections + 1 > MAX_DOCUMENT_DEPTH:
-            raise ToolInputError(DOCUMENT_DEPTH_MESSAGE)
-        if nodes > MAX_DOCUMENT_NODES:
-            raise ToolInputError(DOCUMENT_NODES_MESSAGE)
-        if isinstance(event, yaml.CollectionStartEvent):
-            open_collections += 1
 
 
 def _validate_json_tree(value: Any) -> None:
@@ -1555,6 +1578,47 @@ def _validate_tags(value: Any) -> list[dict[str, Any]]:
     return result
 
 
+def _prepare_document(document: dict[str, Any]) -> bytes:
+    """Validate a complete new document once and render it for writing."""
+
+    _validate_document(document, require_provenance=False)
+    return _dump_document(document)
+
+
+def _prepare_mutation(
+    document: dict[str, Any], modifier: Callable[[dict[str, Any]], None]
+) -> tuple[dict[str, Any], bytes] | None:
+    """Apply a modifier to a copy, validate the whole result once and render it.
+
+    Returns None when the valid result equals the current document. The
+    current document is only read, and the copy is new.
+    """
+
+    working = copy.deepcopy(document)
+    modifier(working)
+    _validate_document(working, require_provenance=False)
+    if working == document:
+        return None
+    return working, _dump_document(working)
+
+
+def _checked_servers(value: Any) -> list[dict[str, Any]]:
+    _validate_json_tree(value)
+    return _validate_servers(value)
+
+
+def _checked_tags(value: Any) -> list[dict[str, Any]]:
+    _validate_json_tree(value)
+    return _validate_tags(value)
+
+
+def _render_full_read(document: dict[str, Any]) -> str:
+    rendered = _dump_document(document)
+    if len(rendered) > MAX_TARGETED_RESULT_BYTES:
+        raise ToolInputError("OpenAPI document exceeds the full-read model output limit")
+    return rendered.decode("utf-8")
+
+
 def _dump_document(document: dict[str, Any]) -> bytes:
     rendered = yaml.dump(
         document,
@@ -1624,18 +1688,24 @@ def _require_nonempty(field: str, value: Any) -> None:
         raise ToolInputError(f"{field} must be a non-empty string")
 
 
-def _bound_targeted_result(value: Any) -> None:
+def _targeted_copy(value: Any) -> Any:
+    """Return a copy of one document value that fits model output."""
+
     if _encoded_size(value) > MAX_TARGETED_RESULT_BYTES:
         raise ToolInputError("targeted OpenAPI result exceeds the model output limit")
+    return copy.deepcopy(value)
 
 
 def _encoded_size(value: Any) -> int:
     return len(json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
 
 
-def _bounded_name_listing(envelope: dict[str, Any], field: str, names: list[str]) -> dict[str, Any]:
+def _bounded_name_listing(
+    envelope: dict[str, Any], field: str, keys: Iterable[str]
+) -> dict[str, Any]:
     """Return the longest sorted prefix whose complete result fits model output."""
 
+    names = sorted(keys)
     selected: list[str] = []
     # "truncated": false is the longer encoding, so the sized envelope never
     # grows when the final flag is filled in.
@@ -1699,14 +1769,28 @@ async def _run_vacuum(
             "issues": [],
             "truncated": False,
         }
-    if process.returncode not in {0, 1}:
+    # Parsing the output and cutting snippets scale with the output and the
+    # document; a cancelled caller still waits for the thread.
+    return await to_thread_until_done(
+        _vacuum_report,
+        process.returncode,
+        process.stdout,
+        source_text,
+        name="openapi-validator-output",
+    )
+
+
+def _vacuum_report(returncode: int, stdout: bytes, source_text: str) -> dict[str, Any]:
+    """Turn a finished Vacuum process into the bounded validator result."""
+
+    if returncode not in {0, 1}:
         return {
             "available": True,
             "executionError": "Vacuum returned an execution failure",
             "issues": [],
             "truncated": False,
         }
-    if not process.stdout or len(process.stdout) > MAX_VACUUM_OUTPUT_BYTES:
+    if not stdout or len(stdout) > MAX_VACUUM_OUTPUT_BYTES:
         return {
             "available": True,
             "executionError": "Vacuum returned empty or oversized output",
@@ -1714,7 +1798,7 @@ async def _run_vacuum(
             "truncated": False,
         }
     try:
-        parsed = json.loads(process.stdout)
+        parsed = json.loads(stdout)
     except (UnicodeDecodeError, json.JSONDecodeError):
         return {
             "available": True,

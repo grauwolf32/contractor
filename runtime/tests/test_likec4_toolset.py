@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import subprocess
+import threading
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -11,6 +12,12 @@ from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
+from document_preparation_probes import (
+    PreparationGate,
+    loop_callback,
+    observe_threads,
+    yield_to_loop,
+)
 from document_write_faults import FaultInjectingArtifactClient
 
 import contractor_runtime.toolsets.likec4.tools as likec4_module
@@ -698,6 +705,115 @@ def test_likec4_definite_rejection_is_not_replayed(tmp_path: Path, failure: str,
         assert rejected.value.code == code
         assert len(client.attempts) == before + 1
         assert client.inner.write_count == 1
+
+    asyncio.run(scenario())
+
+
+def test_likec4_document_work_runs_on_worker_threads_while_the_loop_runs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        order: list[str] = []
+        gate = PreparationGate(likec4_module._decode_document, "decoded", order)
+        threads = observe_threads(
+            monkeypatch,
+            likec4_module,
+            {
+                "_decode_document": ("decode", gate),
+                "_validate_document": ("serialize", None),
+                "_append_candidate": ("append", None),
+                "_replace_candidate": ("replace", None),
+                "_read_window": ("read", None),
+                "_likec4_report": ("validator output", None),
+            },
+        )
+        monkeypatch.setattr(likec4_module.shutil, "which", lambda _name: "/opt/bin/likec4")
+        monkeypatch.setattr(
+            "contractor_runtime.core.process.run_command",
+            AsyncMock(
+                return_value=subprocess.CompletedProcess(
+                    ["likec4"], 0, b'{"valid": true, "errors": []}', b""
+                )
+            ),
+        )
+        client = MemoryArtifactClient()
+        seed = client.seed("inputs", "seed", "text/plain", BASE_DOCUMENT.encode())
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="architecture")
+
+        load = asyncio.create_task(tools["load_likec4"]("inputs", "seed", seed.revision))
+        try:
+            await gate.wait_entered(load)
+            await loop_callback(order)
+            assert not load.done()
+        finally:
+            gate.release.set()
+        loaded = await load
+        assert order == ["loop callback", "decoded"]
+
+        appended = await tools["append_likec4"]("// é\n")
+        replaced = await tools["replace_likec4"]("Application", "Backend Application")
+        read = await tools["read_likec4"](start_line=2, max_lines=3)
+        assert (await tools["validate_likec4"]())["valid"] is True
+        written = await tools["write_likec4"]("model {}\n")
+        assert set(threads) == {
+            "decode",
+            "serialize",
+            "append",
+            "replace",
+            "read",
+            "validator output",
+        }
+        assert all(threading.get_ident() not in seen for seen in threads.values()), threads
+
+        # Sizes come from the validated bytes the call wrote or read.
+        size = len(BASE_DOCUMENT.encode())
+        assert (loaded["utf8Size"], loaded["copied"]) == (size, True)
+        assert (appended["utf8Size"], appended["appendedUtf8Bytes"]) == (size + 6, 6)
+        assert replaced["utf8Size"] == size + 14
+        assert (replaced["replacementCount"], replaced["matchingOccurrences"]) == (1, 1)
+        assert read["utf8Size"] == size + 14
+        assert read["text"] == "  element actor\n  element system\n}\n"
+        assert written["utf8Size"] == len(b"model {}\n")
+        assert client.bindings[("architecture", "architecture")].data == b"model {}\n"
+
+    asyncio.run(scenario())
+
+
+def test_likec4_close_joins_a_cancelled_edit_preparation_before_clearing_the_session(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        client = MemoryArtifactClient()
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="architecture")
+        session = tools["append_likec4"]._session
+        written = await tools["write_likec4"](BASE_DOCUMENT)
+        writes = client.write_count
+        order: list[str] = []
+        gate = PreparationGate(likec4_module._append_candidate, "prepared", order)
+        monkeypatch.setattr(likec4_module, "_append_candidate", gate)
+
+        async def close() -> None:
+            await tools["append_likec4"].close()
+            order.append("closed")
+
+        append = asyncio.create_task(tools["append_likec4"]("// cancelled\n"))
+        try:
+            await gate.wait_entered(append)
+            append.cancel()
+            closing = asyncio.create_task(close())
+            await yield_to_loop()
+            # The cancelled call keeps the lock, so close() waits for the thread.
+            assert not append.done()
+            assert not closing.done()
+            assert session._revision == written["artifact"]["revision"]
+        finally:
+            gate.release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await append
+        await closing
+        assert order == ["prepared", "closed"]
+        assert client.write_count == writes
+        assert session._document is None and session._revision is None
 
     asyncio.run(scenario())
 

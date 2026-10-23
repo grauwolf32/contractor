@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 
 import eventDocument from "../../../api/events/contractor-events-v1.schema.json";
+import byteBounds from "../../../api/testdata/public/utf8-byte-bound-cases.json";
 import {
   conformsTo,
   eventFrameViolation,
@@ -295,5 +296,28 @@ describe("contract rules", () => {
     ).toBe(32);
     expect(() => stringRule("ProjectKind")).not.toThrow();
     expect(() => schemaEnum("ResourceId")).toThrow();
+  });
+});
+
+describe("shared UTF-8 byte bounds", () => {
+  const encoder = new TextEncoder();
+
+  it("checks each byte-bounded string in UTF-8 bytes, as the Server does", () => {
+    expect(byteBounds.fields.length).toBeGreaterThan(0);
+    for (const field of byteBounds.fields) {
+      const where = `${field.schema}/${field.path.join("/")}`;
+      const rule = stringRule(field.schema as PublicSchemaName, ...field.path);
+      expect(rule.maxBytes, where).toBe(field.maxBytes);
+      expect(rule.maxLength, where).toBe(field.maxBytes);
+      for (const character of byteBounds.characters) {
+        const width = encoder.encode(character).length;
+        const at =
+          character.repeat(Math.floor(field.maxBytes / width)) +
+          "a".repeat(field.maxBytes % width);
+        expect(encoder.encode(at).length, where).toBe(field.maxBytes);
+        expect(rule.test(at), `${where} ${character}`).toBe(true);
+        expect(rule.test(`${at}a`), `${where} ${character}`).toBe(false);
+      }
+    }
   });
 });

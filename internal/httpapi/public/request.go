@@ -22,17 +22,28 @@ const maxJSONRequestSize = 1 << 20
 
 const idempotencyKeyHeader = "Idempotency-Key"
 
+// validateOptionalIdempotencyKey checks the OptionalIdempotencyKey of an
+// operation that is idempotent by resource identity and binds no key
+// (API-R28): it may be absent, and a supplied one is one header in the
+// Idempotency-Key grammar.
+func validateOptionalIdempotencyKey(r *http.Request) error {
+	if len(r.Header.Values(idempotencyKeyHeader)) == 0 {
+		return nil
+	}
+	_, err := requireIdempotencyKey(r)
+	return err
+}
+
+// requireIdempotencyKey returns the request's one Idempotency-Key header in
+// the public IdempotencyKey grammar (API-R69).
 func requireIdempotencyKey(r *http.Request) (string, error) {
 	values := r.Header.Values(idempotencyKeyHeader)
-	if len(values) != 1 || len(values[0]) == 0 || len(values[0]) > 128 {
-		return "", fmt.Errorf("%w: exactly one bounded Idempotency-Key is required", errInvalidRequest)
+	if len(values) != 1 {
+		return "", fmt.Errorf("%w: exactly one Idempotency-Key is required", errInvalidRequest)
 	}
-	for index, character := range values[0] {
-		valid := character >= 'a' && character <= 'z' || character >= 'A' && character <= 'Z' ||
-			character >= '0' && character <= '9' || index > 0 && strings.ContainsRune("._:-", character)
-		if !valid {
-			return "", fmt.Errorf("%w: Idempotency-Key contains an invalid character", errInvalidRequest)
-		}
+	if !contracts.ValidIdempotencyKey(values[0]) {
+		return "", fmt.Errorf("%w: Idempotency-Key must be 1 to %d characters [A-Za-z0-9][A-Za-z0-9._:-]*",
+			errInvalidRequest, contracts.MaxIdempotencyKeyLength)
 	}
 	return values[0], nil
 }

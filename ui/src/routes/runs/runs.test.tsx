@@ -1269,9 +1269,7 @@ describe("Run routes", () => {
     });
     await user.click(button);
     expect(
-      await screen.findByText(
-        "Give a cancellation reason of 1–4096 characters.",
-      ),
+      await screen.findByText("Give a cancellation reason."),
     ).toBeInTheDocument();
     expect(cancellations()).toHaveLength(0);
     await user.type(

@@ -556,6 +556,12 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
    (PER-R13, PER-R14); test
    `TestClassifyPostgreSQLConditionsOnTheMigratedSchema` in
    [`internal/persistence/postgres/sqlstate_postgres_test.go`](../../../internal/persistence/postgres/sqlstate_postgres_test.go).
+   Run creation derives not-found from the reference violation of the
+   Project foreign key alone, so an unknown or another owner's Project is not
+   found and stores nothing ([PRJ-R5](../artifacts/projects.md)), while the
+   reference violation of the trusted Audit association keeps its class
+   (PER-R13); test `TestPostgresRunCreationClassifiesTheMissingProjectParent`
+   in [`internal/runstore/run_creation_postgres_test.go`](../../../internal/runstore/run_creation_postgres_test.go).
 8. A CHECK rejection of a telemetry report stays a permanent invalid report
    (PER-R15); test `TestReportWriteKeepsDatabaseRejectionsPermanent` in
    [`internal/telemetry/write_classification_postgres_test.go`](../../../internal/telemetry/write_classification_postgres_test.go).

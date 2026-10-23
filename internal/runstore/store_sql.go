@@ -56,8 +56,9 @@ LIMIT $2`
 // Audit-managed Run, AuditExecution $16 and submission key $17; a deferred
 // constraint requires that AuditExecution to point back to the Run before
 // commit. $18 is the lane class of the entry Stage (SCH-R175), and $19 pins
-// the normalized placement requirements (RUN-R108). A
-// Project-deletion trigger rejects the insert with SQLSTATE 55000.
+// the normalized placement requirements (RUN-R108). A Project-deletion
+// trigger rejects the insert with SQLSTATE 55000, and the foreign key
+// runProjectOwnerConstraint rejects a Project $3 that owner $2 does not have.
 // ON CONFLICT DO NOTHING turns any unique conflict into no row, which the
 // caller resolves: a keyed create looks up the Run that holds its key, the
 // other paths report a conflict. It is a prefix: the caller appends the

@@ -561,7 +561,39 @@ bindings ([ART-R91](../artifacts/artifact-store.md)).
 finalizing or aborting. It is not embedded into, or used to rewrite, the stored
 StageResult or StageTermination, and missing telemetry never invalidates an
 otherwise valid StageResult or StageTermination. Report shapes are specified in
-[Observability](../platform/observability.md).
+[Observability](../platform/observability.md). Each report-persistence phase
+rebuilds StageMetrics once, after its last report write: a completed Planner
+invocation after its Planner report, so the metrics show the Planner while the
+Stage finalizes or aborts; finalizing or aborting after the Planner placeholder
+([OBS-R37](../platform/observability.md)) and every allocation report or
+placeholder. A phase rebuilds when it recorded the Planner report or listed the
+Stage's allocations, even if one allocation report write failed; a phase that
+recorded nothing rebuilds nothing.
+
+**SCH-R178.** Report persistence removes from a live allocation's report the
+secret values of the RuntimeSettings that allocation was prepared with
+([OBS-R30](../platform/observability.md)). The Scheduler keeps the values it
+materialized for a Stage's Worker preparation in process memory, only as
+self-redacting values ([SEC-R88](../platform/security.md)), and the Stage's
+report persistence in the same process redacts with exactly those values
+instead of resolving and decrypting the pinned credentials again. The values
+are kept from that materialization, including when the preparation then fails,
+until the Stage's terminal release begins or terminal release recovery selects
+the Stage (LIFE-SCH-6), for at most LIM-SCH-19 Stages; beyond that the least
+recently stored Stage is evicted. A Stage without kept values, after a Server
+restart, an eviction or a recovery directly into `finalizing` or `aborting`,
+resolves its pinned credentials again; when that resolution fails, the report
+is redacted with the deployment secrets and whichever of the RuntimeSettings
+and the Project HTTP target credential did resolve, and is still persisted
+([OBS-R38](../platform/observability.md)). Nothing durable, logged or exported
+carries the kept values: the kept store and each of its entries redact
+themselves as a whole in formatted, JSON and log output. Decision: keeping the
+values in memory replaces a second credential decryption per Stage without
+adding a durable secret, and redacts what the Runtime Agent actually received
+even if a credential changed after preparation. The alternative, resolving
+again at report persistence, remains the restart path. Reopen this decision if
+allocations can receive credentials after preparation, since the kept values
+would then no longer cover them.
 
 ### Entering aborting
 
@@ -707,6 +739,17 @@ release-completion metadata separately from its immutable provenance
 least-recently-attempted batch of incomplete terminal releases. It retries each
 still-live allocation independently, so one member of a partially released
 multi-Agent Stage cannot hide another (FAIL-SCH-9).
+
+**SCH-R179.** A cancelling Run without an active StageExecution ends after the
+Scheduler has fenced and released the live allocations of its earlier
+attempts. It reads only the attempts that have an allocation whose release is
+incomplete, and their allocation rows in one statement, never the attempts
+whose release completed, so its work grows with the incomplete releases, not
+with the Stage history (LIM-RUN-2). A failed read of those attempts keeps the
+Run `cancelling` for its next claim. A failed allocation read, fence or
+release, or an unreadable Workflow snapshot, does not hold the cancellation:
+the Run ends `cancelled` and terminal release recovery (SCH-R71) completes the
+release.
 
 **SCH-R72.** A cleanup error is reported and retried but never prevents
 Scheduler from claiming an unrelated WorkflowRun.
@@ -1227,7 +1270,8 @@ state and its one active StageExecution (SCH-R114), not the Run's Stage
 history of up to 1,024 attempts (LIM-RUN-2); it reads the whole Run again only
 when its state changed since the claim. Only a Run without an active
 StageExecution, whose first Stage is not yet created or whose state the
-Scheduler cannot progress, has its Stage history read.
+Scheduler cannot progress, has its Stage history read; a cancelling one reads
+only the attempts whose allocation release is incomplete (SCH-R179).
 
 **SCH-R125.** Focused tests drive the Scheduler through `RunOnce`, a
 deterministic single-claim helper that only the Scheduler's tests compile and
@@ -1499,6 +1543,8 @@ Limits ([registry](../platform/limits.md)):
   StageTermination and no accepted StageResult (SCH-R43).
 - LIM-SCH-16 — decoded Workflow snapshots kept per Server process: at most 128
   Runs and 128 MiB of stored snapshot text (SCH-R167).
+- LIM-SCH-19 — Stages whose preparation secrets one Server process keeps for
+  report redaction: at most 128 (SCH-R178).
 - Used here, owned elsewhere: concurrent A2A Tasks per Worker
   ([LIM-CTL-6](../platform/limits.md), SCH-R10), slots per Runtime Agent
   process ([LIM-CTL-4](../platform/limits.md), SCH-R139), the
@@ -1554,6 +1600,8 @@ Lifecycle ([registry](../platform/lifecycle.md)):
 - LIFE-SCH-1 — StageExecution (SCH-R44, SCH-R45).
 - LIFE-SCH-2 — durable Stage allocation and its grant (SCH-R70).
 - LIFE-SCH-3 — Run claim (SCH-R116).
+- LIFE-SCH-6 — Worker-preparation secret values kept for report redaction
+  (SCH-R178).
 - Run hard deletion, which removes StageExecutions and durable allocation rows
   with all other execution state once allocation release has completed, is
   owned by
@@ -1569,6 +1617,9 @@ Lifecycle ([registry](../platform/lifecycle.md)):
   ([ART-R83](../artifacts/artifact-store.md)).
 - A Runtime Agent holds no PostgreSQL or long-lived telemetry credential
   (SCH-R74).
+- Secret values kept from a Stage's Worker preparation for report redaction
+  stay in process memory as self-redacting values, at most LIM-SCH-19 Stages
+  and only until the Stage's terminal release (SCH-R178).
 - `OwnerQueueControl` is keyed by an owner derived from authentication
   (SCH-R145); the concurrency settings API is Operations-authorized and
   CSRF-protected (SCH-R143).
@@ -1579,7 +1630,8 @@ Lifecycle ([registry](../platform/lifecycle.md)):
 ## Observability
 
 - StageMetrics is a separate StageExecution field populated while finalizing or
-  aborting; missing telemetry never invalidates a terminal fact (SCH-R51).
+  aborting and rebuilt once per report-persistence phase; missing telemetry
+  never invalidates a terminal fact (SCH-R51).
 - Memory content never enters durable session facts or execution telemetry
   (SCH-R61).
 - The cause of a Run the Scheduler could not progress is observable in one

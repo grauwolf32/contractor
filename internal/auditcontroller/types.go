@@ -25,6 +25,14 @@ const (
 	// A deletion attempt uses the Artifact cleanup budget under a renewed
 	// lease twice as long, rather than the ordinary reconcile deadline.
 	deletionClaimLease = 4 * time.Minute
+	// maxDrainMutationsPerStep is the fixed number of drain mutations one
+	// claimed reconcile step commits in its batched phase: terminal
+	// observations, failures of unbound intents, child Run cancellation
+	// requests or deletions of released terminal child Runs (LIM-AUX-14,
+	// AUX-R97). It does not depend on the Audit's size and stays below
+	// auditstore.MaxReconcileRows, the snapshot window its candidates come
+	// from.
+	maxDrainMutationsPerStep = 32
 )
 
 var (
@@ -161,6 +169,9 @@ type Controller struct {
 	initialRoundBuilder InitialRoundBuilder
 	notifier            RunNotifier
 	options             Options
+	// drainLimit is maxDrainMutationsPerStep, the bound of every batched
+	// drain phase of a reconcile step.
+	drainLimit int
 
 	runMu   sync.Mutex
 	running bool
@@ -218,7 +229,7 @@ func New(
 	return &Controller{
 		store: store, reads: reads, runs: runs, deleter: deleter, creator: creator, builder: builder,
 		collector: options.Collector, roundBuilder: options.RoundBuilder, initialRoundBuilder: options.InitialRoundBuilder,
-		notifier: notifier, options: options,
+		notifier: notifier, options: options, drainLimit: maxDrainMutationsPerStep,
 	}, nil
 }
 

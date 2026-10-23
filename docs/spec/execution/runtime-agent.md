@@ -778,6 +778,32 @@ idempotent finalization and replay is specified in
 and carried State, which must be cleared before the slot is reused, are
 [WRK-R75 to WRK-R77](worker.md).
 
+### Toolset document sessions
+
+**RTA-R115.** A Toolset document session, the one current document behind
+`openapi@1` or `likec4@1`, does its work on that document and on structured
+arguments in a worker thread, never on the asyncio event-loop thread: decoding
+and parsing, copying, merging, validation, serialization, full and targeted
+reads, checks of patches and lists the model supplies, and parsing the
+external validator's output. The operation holds the session lock while such a
+thread runs and joins the thread on success, failure and every cancellation
+before it releases the lock or reports cancellation. A prepared candidate
+becomes the session's document only after its CAS write is confirmed, so a
+failed or cancelled preparation leaves the document and its revision
+unchanged. Closing the session cancels a running validation, from its
+preparation through the external validator, and then waits for the lock, so
+the session is cleared only after every started preparation and validator has
+finished; close does not cancel a mutation, which completes or fails first.
+
+Rationale: an OpenAPI document may reach 2 MiB
+([LIM-SCN-39](../platform/limits.md)), and parsing or validating it on the
+loop stalls heartbeats and every other Task of the process. Python cannot
+interrupt a thread inside a parser, so ownership waits for the thread instead
+of abandoning it; the finalization deadline (RTA-R88) fences a Runtime whose
+thread never returns. Offloading does not shorten one preparation, and the
+thread still shares the interpreter lock, so pauses such as garbage collection
+reach the loop; the requirement promises no heartbeat or lease timing.
+
 ### Release
 
 **RTA-R90.** After the terminal Stage outcome is committed, an
@@ -1025,6 +1051,16 @@ The security model, mutual TLS and the trust boundary are specified in
    RTA-R26, RTA-R28).
 4. A slot whose allocation cleanup failed stays fenced and cannot reuse dirty
    state (RTA-R51, RTA-R91).
+5. A Toolset document session does its document work off the event-loop
+   thread, adopts no candidate that was not written, and is cleared only after
+   every started preparation and validator has finished (RTA-R115). Owning
+   tests: `test_openapi_document_work_runs_on_worker_threads_while_the_loop_runs`,
+   `test_close_joins_a_cancelled_mutation_preparation_before_clearing_the_session`
+   and `test_close_cancels_validation_after_joining_its_preparation` in
+   [runtime/tests/test_openapi_toolset.py](../../../runtime/tests/test_openapi_toolset.py),
+   and `test_likec4_document_work_runs_on_worker_threads_while_the_loop_runs`
+   and `test_likec4_close_joins_a_cancelled_edit_preparation_before_clearing_the_session`
+   in [runtime/tests/test_likec4_toolset.py](../../../runtime/tests/test_likec4_toolset.py).
 
 The invariants on one slot and one Worker per process, immutability of the
 process environment, label changes, proxy bypass and identity separation are
