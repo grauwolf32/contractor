@@ -758,7 +758,7 @@ its owning requirement.
 | `LIM-UI-9` | 25 Runs per page | Project Runs section | Web UI Project Runs section | [UI-R121](../ui/ui.md) |
 | `LIM-UI-10` | exactly 1 local file per selection | shared file-drop component for UserScope and ProjectScope uploads | Web UI file-drop component | [UI-R132](../ui/ui.md) |
 | `LIM-UI-11` | 50 events per read | Audit All activity | Web UI Audit activity view | [UI-R153](../ui/ui.md) |
-| `LIM-UI-12` | 256 KiB | One inline text artifact preview, including selected HTTP exchange JSON | Web UI preview eligibility and strict HTTP decoder; larger evidence remains downloadable | [UI-R194](../ui/ui.md) |
+| `LIM-UI-12` | 1 MiB | One inline text artifact preview, including selected HTTP exchange JSON | Web UI preview eligibility and strict HTTP decoder; larger evidence remains downloadable | [UI-R194](../ui/ui.md) |
 | `LIM-UI-13` | 8192 Unicode characters | Displayed text of one HTTP request or response body | Web UI HTTP preview; explicit shortening and complete body download | [UI-R194](../ui/ui.md) |
 | `LIM-UI-14` | 50 rows | Structured HTTP headers displayed at once | Web UI HTTP preview, with Previous/Next header pages | [UI-R194](../ui/ui.md) |
 | `LIM-UI-15` | 20 pages per read | One load-all read of a cursor-paged list (owner-wide Checks, Issues, Reports, Inbox sections, pickers and inventories) | Web UI shared page reader; the view reports an incomplete list, pickers refuse a partial one | [UI-R197](../ui/ui.md) |

@@ -77,7 +77,7 @@ for (const width of [1440, 390]) {
               {
                 path: "package/assets/large.txt",
                 kind: "file",
-                size: 300000,
+                size: 1100000,
                 previewable: false,
               },
             ],

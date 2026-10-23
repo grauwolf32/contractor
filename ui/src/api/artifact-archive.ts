@@ -2,12 +2,11 @@ import {
   ARTIFACT_NAME_PATTERN,
   ARTIFACT_REVISION_PATTERN,
   MAXIMUM_ARTIFACT_BYTES,
-  MAXIMUM_PREVIEW_BYTES,
   type ArtifactMetadata,
   type ExactArtifactRef,
 } from "./artifacts";
 import type { PublicAPI } from "./client";
-import type { ResponseOperation } from "./contract";
+import { schemaLimit, type ResponseOperation } from "./contract";
 import { invalidAPIResponse, PublicAPIError } from "./error";
 import type { components } from "./generated/public";
 import { PROJECT_ID_PATTERN } from "./projects";
@@ -17,6 +16,15 @@ type ArtifactArchive = components["schemas"]["ArtifactArchive"];
 export type ArtifactArchiveEntry =
   components["schemas"]["ArtifactArchiveEntry"];
 type ArtifactArchiveFile = components["schemas"]["ArtifactArchiveFile"];
+// The Server's text bound for one archive file, read from its schema.
+const MAXIMUM_ARCHIVE_TEXT_BYTES = schemaLimit(
+  "ArtifactArchiveFile",
+  "maximum",
+  "properties",
+  "size",
+);
+export const ARCHIVE_TEXT_LIMIT_LABEL = `${MAXIMUM_ARCHIVE_TEXT_BYTES / (1024 * 1024)} MiB`;
+
 export type ArtifactArchiveScope =
   | { kind: "user" }
   | { kind: "project"; id: string }
@@ -130,7 +138,7 @@ async function readArchiveJSON<T extends { artifact: ExactArtifactRef }>(
         message:
           path === undefined
             ? "This archive exceeds the browsing limits for its entries or expanded content. Download the original archive to inspect it."
-            : "This file exceeds the preview limits (256 KiB of text or 1 MiB of compressed input). Download the original archive to inspect it.",
+            : `This file exceeds the ${ARCHIVE_TEXT_LIMIT_LABEL} text preview limit. Download the original archive to inspect it.`,
         ...(error.requestId === undefined
           ? {}
           : { requestId: error.requestId }),
@@ -143,11 +151,14 @@ async function readArchiveJSON<T extends { artifact: ExactArtifactRef }>(
     await response.body?.cancel();
     throw invalidResponse(response.status);
   }
-  // 4096 paths of 1024 bytes can expand sixfold under JSON's HTML escaping.
+  // 4096 paths of 1024 bytes, or one file's text, can expand sixfold under
+  // JSON's HTML escaping; 64 KiB covers the rest of a file response.
   const data = await api.readJSON<T>(
     archiveOperation(scope, path !== undefined),
     response,
-    path === undefined ? 32 * 1024 * 1024 : 2 * 1024 * 1024,
+    path === undefined
+      ? 32 * 1024 * 1024
+      : 6 * MAXIMUM_ARCHIVE_TEXT_BYTES + 64 * 1024,
   );
   // Cross-field: the Server answered for the requested Artifact revision.
   if (
@@ -174,7 +185,7 @@ export async function getArtifactArchive(
     if (
       kinds.has(entry.path) ||
       (entry.previewable &&
-        (entry.kind !== "file" || entry.size > MAXIMUM_PREVIEW_BYTES))
+        (entry.kind !== "file" || entry.size > MAXIMUM_ARCHIVE_TEXT_BYTES))
     )
       throw invalidResponse(200);
     kinds.set(entry.path, entry.kind);

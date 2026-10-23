@@ -1,6 +1,7 @@
 import { screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { MAXIMUM_PREVIEW_BYTES } from "../../api/artifacts";
 import type { RunStatus } from "../../api/runs";
 import { conforming } from "../../test/builders";
 import { workflowResource } from "../../test/builders-execution";
@@ -166,7 +167,7 @@ describe("Run primary output preview", () => {
       { report: REPORT },
       {
         "GET /v1/runs/{runId}/artifacts/{namespace}/{name}/metadata": () =>
-          json(metadata(REPORT, "text/plain", 256 * 1024 + 1)),
+          json(metadata(REPORT, "text/plain", MAXIMUM_PREVIEW_BYTES + 1)),
       },
     );
     await screen.findAllByText("Declared primary result");

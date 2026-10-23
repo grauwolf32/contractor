@@ -13574,14 +13574,14 @@ components:
         entries: {type: array, maxItems: 4096, items: {$ref: '#/components/schemas/ArtifactArchiveEntry'}}
     ArtifactArchiveFile:
       type: object
-      description: Complete UTF-8 text, capped at 256 KiB actual output and 1 MiB compressed input with CRC validation. No recursive archive expansion or execution.
+      description: Complete UTF-8 text, capped at 1 MiB actual output and 4 MiB compressed input with CRC validation. No recursive archive expansion or execution.
       additionalProperties: false
       required: [artifact, path, size, text]
       properties:
         artifact: {$ref: '#/components/schemas/ExactArtifactRef'}
         path: {type: string, minLength: 1, maxLength: 1024}
-        size: {type: integer, minimum: 0, maximum: 262144}
-        text: {type: string, maxLength: 262144}
+        size: {type: integer, minimum: 0, maximum: 1048576}
+        text: {type: string, maxLength: 1048576}
     ArtifactMetadata:
       type: object
       additionalProperties: false

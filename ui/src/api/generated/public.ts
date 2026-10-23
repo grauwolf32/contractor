@@ -4699,7 +4699,7 @@ export interface components {
             artifact: components["schemas"]["ExactArtifactRef"];
             entries: components["schemas"]["ArtifactArchiveEntry"][];
         };
-        /** @description Complete UTF-8 text, capped at 256 KiB actual output and 1 MiB compressed input with CRC validation. No recursive archive expansion or execution. */
+        /** @description Complete UTF-8 text, capped at 1 MiB actual output and 4 MiB compressed input with CRC validation. No recursive archive expansion or execution. */
         ArtifactArchiveFile: {
             artifact: components["schemas"]["ExactArtifactRef"];
             path: string;

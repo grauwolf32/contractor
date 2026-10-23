@@ -20,8 +20,8 @@ const (
 	MaximumArchiveBytes        = 64 << 20
 	MaximumEntries             = 4096 // Includes implicit parent directories in the response.
 	MaximumExpandedBytes       = 256 << 20
-	MaximumTextBytes           = 256 << 10
-	MaximumCompressedTextBytes = 1 << 20
+	MaximumTextBytes           = 1 << 20 // The public ArtifactArchiveFile schema repeats it; a contract test pins both.
+	MaximumCompressedTextBytes = 4 << 20
 	MaximumPathBytes           = 1024
 	MaximumPathDepth           = 32
 )

@@ -15,6 +15,8 @@ const runtimeConfig = {
 };
 const signal = () => new AbortController().signal;
 const entry = { path: "SKILL.md", kind: "file", size: 4, previewable: true };
+// The Server's archive text bound in the public schema (ArtifactArchiveFile).
+const ARCHIVE_TEXT_BYTES = 1024 * 1024;
 
 function response(value: unknown, etag = '"r:1"') {
   return new Response(JSON.stringify(value), {
@@ -60,7 +62,7 @@ describe("Archive API", () => {
     ).rejects.toMatchObject({
       status: 413,
       code: "archive_preview_limit",
-      message: expect.stringContaining("256 KiB"),
+      message: expect.stringContaining("1 MiB text preview limit"),
     });
   });
   it.each<{ scope: ArtifactArchiveScope; prefix: string }>([
@@ -115,7 +117,10 @@ describe("Archive API", () => {
     { artifact: ref, entries: [{ ...entry, path: "../secret" }] },
     { artifact: ref, entries: [{ ...entry, path: "missing/parent.txt" }] },
     { artifact: ref, entries: [{ ...entry, kind: "symlink" }] },
-    { artifact: ref, entries: [{ ...entry, size: 262145 }] },
+    {
+      artifact: ref,
+      entries: [{ ...entry, size: ARCHIVE_TEXT_BYTES + 1 }],
+    },
   ])("rejects malformed or mismatched directories: %j", async (body) => {
     const api = new PublicAPI(
       runtimeConfig,
@@ -124,6 +129,56 @@ describe("Archive API", () => {
     await expect(
       getArtifactArchive(api, { kind: "user" }, ref, signal()),
     ).rejects.toMatchObject({ code: "invalid_api_response" });
+  });
+
+  it("takes the archive text bound of 1 MiB from the public schema", async () => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () =>
+        response({
+          artifact: ref,
+          entries: [{ ...entry, size: ARCHIVE_TEXT_BYTES }],
+        }),
+      ),
+    );
+    await expect(
+      getArtifactArchive(api, { kind: "user" }, ref, signal()),
+    ).resolves.toMatchObject({
+      entries: [{ size: ARCHIVE_TEXT_BYTES, previewable: true }],
+    });
+  });
+
+  it("admits a file at the text bound after JSON's sixfold escaping", async () => {
+    const text = "<".repeat(ARCHIVE_TEXT_BYTES);
+    // The Server escapes every angle bracket as \u003c, as Go's encoder does.
+    const body = JSON.stringify({
+      artifact: ref,
+      path: "SKILL.md",
+      size: text.length,
+      text,
+    }).replaceAll("<", "\\u003c");
+    expect(body.length).toBeGreaterThan(6 * ARCHIVE_TEXT_BYTES);
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(
+        async () =>
+          new Response(body, {
+            headers: {
+              "Content-Type": "application/json",
+              ETag: '"r:1"',
+              "X-Contractor-API-Version": "contractor.public.v1",
+            },
+          }),
+      ),
+    );
+    const file = await getArtifactArchiveFile(
+      api,
+      { kind: "user" },
+      ref,
+      "SKILL.md",
+      signal(),
+    );
+    expect(file.text).toBe(text);
   });
 
   it("rejects a mismatched ETag and text byte count", async () => {

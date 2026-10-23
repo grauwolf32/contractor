@@ -12,6 +12,7 @@ import (
 
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
+	"github.com/grauwolf32/contractor/internal/artifactpreview"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -166,7 +167,7 @@ func TestArtifactArchiveErrorsAreBounded(t *testing.T) {
 		{"invalid", "application/zip", "../unsafe-private-name", "", "/archive", "archive_invalid", 422},
 		{"media", "text/plain", "file", "text", "/archive", "archive_media_type", 415},
 		{"binary", "application/zip", "file", "\x00\xff", "/archive/file", "archive_file_not_text", 422},
-		{"large", "application/zip", "file", strings.Repeat("a", 256*1024+1), "/archive/file", "archive_preview_limit", 422},
+		{"large", "application/zip", "file", strings.Repeat("a", artifactpreview.MaximumTextBytes+1), "/archive/file", "archive_preview_limit", 422},
 		{"missing", "application/zip", "another", "text", "/archive/file", "not_found", 404},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -189,5 +190,66 @@ func TestArtifactArchiveErrorsAreBounded(t *testing.T) {
 				t.Fatal("parser details leaked")
 			}
 		})
+	}
+}
+
+// A file of exactly the text bound previews through the public contract and
+// one byte more is the bounded 422. Angle brackets are the largest escaped
+// response the UI has to admit: JSON writes each as six bytes.
+func TestArtifactArchiveFilePreviewsUpToTheTextBound(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	router, err := gorillamux.NewRouter(loadPublicOpenAPI(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, _ := fixture.artifacts.User("user-1")
+	for _, tc := range []struct {
+		name   string
+		size   int
+		status int
+	}{
+		{"at-bound", artifactpreview.MaximumTextBytes, http.StatusOK},
+		{"above-bound", artifactpreview.MaximumTextBytes + 1, http.StatusUnprocessableEntity},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			text := strings.Repeat("<", tc.size)
+			written, err := store.Write(t.Context(), contracts.ArtifactRef{Namespace: "files", Name: tc.name},
+				artifacts.Payload{MediaType: "application/zip", Data: archiveFixtureBytes(t, "file", text)}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			path := "/v1/artifacts/files/" + tc.name + "/archive/file?revision=" + url.QueryEscape(*written.Ref.Revision) + "&path=file"
+			response := serveAndValidatePublicContract(t, router, fixture.handler,
+				newPublicContractRequest(http.MethodGet, path, nil), true)
+			if response.Code != tc.status {
+				t.Fatalf("status = %d, want %d", response.Code, tc.status)
+			}
+			if tc.status != http.StatusOK {
+				var body errorResponse
+				if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil || body.Code != "archive_preview_limit" {
+					t.Fatalf("error = %+v (%v)", body, err)
+				}
+				return
+			}
+			var body artifactArchiveFileResponse
+			if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil || body.Size != tc.size || body.Text != text {
+				t.Fatalf("file size = %d, text %d bytes (%v)", body.Size, len(body.Text), err)
+			}
+		})
+	}
+}
+
+// One rule, one definition: the Server's text bound and the public schema
+// the UI reads it from must not drift apart.
+func TestArtifactArchiveFileBoundMatchesPublicContract(t *testing.T) {
+	t.Parallel()
+	properties := loadPublicOpenAPI(t).Components.Schemas["ArtifactArchiveFile"].Value.Properties
+	size, text := properties["size"].Value, properties["text"].Value
+	if size.Max == nil || text.MaxLength == nil {
+		t.Fatal("ArtifactArchiveFile size and text are unbounded")
+	}
+	if *size.Max != artifactpreview.MaximumTextBytes || *text.MaxLength != artifactpreview.MaximumTextBytes {
+		t.Errorf("ArtifactArchiveFile size maximum %.0f and text maxLength %d, want %d",
+			*size.Max, *text.MaxLength, artifactpreview.MaximumTextBytes)
 	}
 }
