@@ -153,6 +153,13 @@ func (r *createRuntimeCredentialRequest) UnmarshalJSON(data []byte) error {
 		if err = strictjson.Decode(envelope.Material, &value); err == nil {
 			material, err = credentials.NewCaidoBearerCredential(value.Token)
 		}
+	case credentials.RuntimeCredentialInteractshToken:
+		var value struct {
+			Token string `json:"token"`
+		}
+		if err = strictjson.Decode(envelope.Material, &value); err == nil {
+			material, err = credentials.NewInteractshTokenCredential(value.Token)
+		}
 	case credentials.RuntimeCredentialOriginBasic:
 		var value struct {
 			Username string `json:"username"`

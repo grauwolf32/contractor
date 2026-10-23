@@ -12,10 +12,11 @@ import (
 )
 
 const (
-	CredentialKindOTLPHeaders = "otlp-headers@1"
-	CredentialKindProxyBasic  = "http-proxy-basic@1"
-	CredentialKindProxyBearer = "http-proxy-bearer@1"
-	CredentialKindCaidoBearer = "caido-bearer@1"
+	CredentialKindOTLPHeaders     = "otlp-headers@1"
+	CredentialKindProxyBasic      = "http-proxy-basic@1"
+	CredentialKindProxyBearer     = "http-proxy-bearer@1"
+	CredentialKindCaidoBearer     = "caido-bearer@1"
+	CredentialKindInteractshToken = "interactsh-token@1"
 )
 
 type RuntimeCredentialValidator interface {
@@ -122,6 +123,12 @@ func validateSpecRuntimeCredentials(
 		requirements = append(requirements, requirement{
 			credentialID: spec.Worker.Caido.Value.Credential,
 			allowedKinds: []string{CredentialKindCaidoBearer},
+		})
+	}
+	if spec.Worker.Interactsh.Present && !spec.Worker.Interactsh.Clear && spec.Worker.Interactsh.Value.Credential != "" {
+		requirements = append(requirements, requirement{
+			credentialID: spec.Worker.Interactsh.Value.Credential,
+			allowedKinds: []string{CredentialKindInteractshToken},
 		})
 	}
 	if spec.Planner.Telemetry.Present && !spec.Planner.Telemetry.Clear && spec.Planner.Telemetry.Value.Credential != "" {

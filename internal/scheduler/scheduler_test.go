@@ -3316,3 +3316,50 @@ func (p *memoryAtomicPersistence) AdmitStage(_ context.Context, runID, stageID s
 	}
 	return runstore.StageExecution{}, runstore.ErrNotFound
 }
+
+func TestSchedulerMaterializesAndErasesPinnedInteractshToken(t *testing.T) {
+	const secret = "interactsh-private-allocation-secret"
+	harness := newSchedulerHarness(t)
+	harness.scheduler.options.RuntimeCredentials = runtimeCredentialResolverFunc(func(
+		_ context.Context,
+		credentialID string,
+		allowed []runtimesettings.RuntimeCredentialKind,
+		consumer func(runtimesettings.RuntimeCredentialKind, []byte) error,
+	) error {
+		if credentialID != "interactsh-lab" ||
+			!reflect.DeepEqual(allowed, []runtimesettings.RuntimeCredentialKind{runtimesettings.RuntimeCredentialInteractshToken}) {
+			return errors.New("unexpected Runtime credential selection")
+		}
+		return consumer(runtimesettings.RuntimeCredentialInteractshToken, []byte(`{"token":"`+secret+`"}`))
+	})
+	resolved, err := schedulerTestResolvedWorkerConfig(
+		harness.workflow.Stages[harness.workflow.EntryStage].ExecutionConfig.Agents["builder"],
+		false,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolved.Interactsh = &runtimeconfig.InteractshConfig{
+		Adapter: string(runtimesettings.RuntimeAdapterInteractshHTTP), Endpoint: "https://interactsh.example/prefix",
+		Credential: "interactsh-lab", RequestTimeoutSeconds: 120,
+	}
+	settings, err := harness.scheduler.materializeRuntimeSettings(t.Context(), resolved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if settings.Interactsh == nil || settings.Interactsh.Token == nil ||
+		settings.Interactsh.Token.Reveal() != secret ||
+		settings.Interactsh.RequestTimeoutSeconds != settings.RequestTimeoutSeconds {
+		t.Fatalf("materialized Interactsh settings = %+v", settings.Interactsh)
+	}
+	if strings.Contains(fmt.Sprintf("%+v", settings), secret) {
+		t.Fatal("formatted Runtime settings exposed Interactsh bearer")
+	}
+	workerSettings := map[string]runtimesettings.WorkerExecutionSettings{
+		"builder": {RuntimeSettings: settings},
+	}
+	clearWorkerExecutionSettings(workerSettings)
+	if workerSettings["builder"].RuntimeSettings.Interactsh.Token != nil {
+		t.Fatal("Interactsh bearer survived Worker execution settings erasure")
+	}
+}

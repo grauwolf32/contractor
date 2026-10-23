@@ -247,3 +247,32 @@ func TestRuntimeMACDerivationDoesNotChangeLegacyLiteLLMCiphertext(t *testing.T) 
 		t.Fatal("legacy LiteLLM ciphertext contract changed after Runtime MAC derivation")
 	}
 }
+
+func TestInteractshTokenCredentialRoundTripsOnlyUnderExactKindAndIdentity(t *testing.T) {
+	t.Parallel()
+	cipher, err := NewTokenCipher(bytes.Repeat([]byte{0x39}, 32))
+	if err != nil {
+		t.Fatal(err)
+	}
+	material, _ := NewInteractshTokenCredential("interactsh-exact-secret")
+	envelope, err := cipher.SealRuntimeCredential("interactsh-auth", material)
+	if err != nil {
+		t.Fatal(err)
+	}
+	opened, err := cipher.OpenRuntimeCredential("interactsh-auth", RuntimeCredentialInteractshToken, envelope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer opened.Destroy()
+	if err := opened.WithPlaintext(func(kind RuntimeCredentialKind, plaintext []byte) error {
+		if kind != RuntimeCredentialInteractshToken || string(plaintext) != `{"token":"interactsh-exact-secret"}` {
+			return errors.New("Interactsh material differs")
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cipher.OpenRuntimeCredential("interactsh-auth", RuntimeCredentialProxyBearer, envelope); !errors.Is(err, ErrCrypto) {
+		t.Fatalf("cross-kind Interactsh open error = %v", err)
+	}
+}

@@ -53,6 +53,7 @@ func TestRuntimeCredentialPostgresLifecycleReplayAndSecretBoundary(t *testing.T)
 	otlp, _ := NewOTLPHeadersCredential(map[string]string{"Authorization": otlpSecret, "X-Tenant": "tenant-a"})
 	basic, _ := NewHTTPProxyBasicCredential("proxy-user", "basic-secret-never-persist")
 	bearer, _ := NewHTTPProxyBearerCredential("bearer-secret-never-persist")
+	interactsh, _ := NewInteractshTokenCredential("interactsh-secret-never-persist")
 	caido, _ := NewCaidoBearerCredential("caido-secret-never-persist")
 	tests := []struct {
 		id       string
@@ -63,6 +64,7 @@ func TestRuntimeCredentialPostgresLifecycleReplayAndSecretBoundary(t *testing.T)
 		{id: "proxy-basic", key: "runtime-create-basic", material: basic},
 		{id: "proxy-bearer", key: "runtime-create-bearer", material: bearer},
 		{id: "caido-bearer", key: "runtime-create-caido", material: caido},
+		{id: "interactsh-token", key: "runtime-create-interactsh", material: interactsh},
 	}
 	for _, test := range tests {
 		request := RuntimeCredentialCreateRequest{
@@ -98,9 +100,9 @@ func TestRuntimeCredentialPostgresLifecycleReplayAndSecretBoundary(t *testing.T)
 		}
 	}
 	listed, err := service.List(ctx, "", 10)
-	if err != nil || len(listed) != 4 || listed[0].CredentialID != "caido-bearer" ||
-		listed[1].CredentialID != "otel-auth" || listed[2].CredentialID != "proxy-basic" ||
-		listed[3].CredentialID != "proxy-bearer" {
+	if err != nil || len(listed) != 5 || listed[0].CredentialID != "caido-bearer" ||
+		listed[1].CredentialID != "interactsh-token" || listed[2].CredentialID != "otel-auth" || listed[3].CredentialID != "proxy-basic" ||
+		listed[4].CredentialID != "proxy-bearer" {
 		t.Fatalf("safe Runtime credential list = (%+v, %v)", listed, err)
 	}
 	if err := repository.VerifyStoredKey(ctx, cipher.KeyID()); err != nil {
@@ -203,7 +205,7 @@ INSERT INTO runtime_credentials (
 	if _, err := repository.GetAnyRecord(ctx, "proxy-bearer"); err != nil {
 		t.Fatalf("ambiguous-delete retention row missing: %v", err)
 	}
-	if stored, err := repository.CountStored(ctx); err != nil || stored != 5 {
+	if stored, err := repository.CountStored(ctx); err != nil || stored != 6 {
 		t.Fatalf("stored Runtime credential count after tombstone = (%d, %v)", stored, err)
 	}
 	if err := repository.VerifyStoredKey(ctx, wrongCipher.KeyID()); !errors.Is(err, ErrKeyUnavailable) {
@@ -221,7 +223,7 @@ INSERT INTO runtime_credentials (
 	}); err != nil || !replay.Replayed {
 		t.Fatalf("original create replay after delete = (%+v, %v)", replay, err)
 	}
-	for _, credentialID := range []string{"caido-bearer", "otel-auth", "proxy-basic"} {
+	for _, credentialID := range []string{"caido-bearer", "interactsh-token", "otel-auth", "proxy-basic"} {
 		if result, err := service.Delete(ctx, credentialID, "operator"); err != nil || result.Replayed {
 			t.Fatalf("delete %s = (%+v, %v)", credentialID, result, err)
 		}
@@ -591,4 +593,135 @@ func assertRuntimeCredentialSQLState(t *testing.T, err error, want string) {
 	if !errors.As(err, &postgresError) || postgresError.Code != want {
 		t.Fatalf("PostgreSQL error = %v, want SQLSTATE %s", err, want)
 	}
+}
+
+func TestInteractshCredentialDeletionIsFencedByPublishedBindings(t *testing.T) {
+	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedCredentialPool(t, ctx, databaseURL)
+	barrier := NewLifecycleBarrier()
+	repository := NewRuntimeCredentialRepository(pool)
+	cipher, _ := NewTokenCipher(bytes.Repeat([]byte{0x73}, 32))
+	now := time.Date(2026, 8, 31, 19, 0, 0, 0, time.UTC)
+	service, err := NewRuntimeCredentialService(RuntimeCredentialServiceOptions{
+		Pool: pool, Cipher: cipher, Usage: repository, Audits: staticAuditDispatchHolds{}, Barrier: barrier,
+		Now: func() time.Time { return now },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	publisher, err := runtimeconfig.NewPublisher(runtimeconfig.PublisherOptions{
+		Pool: pool, RuntimeCredentials: service, Now: func() time.Time { return now },
+		PlannerTelemetryAdapters: runtimeconfig.PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	bindings, err := runtimeconfig.NewBindingService(service)
+	if err != nil {
+		t.Fatal(err)
+	}
+	management, err := runtimeconfig.NewManagementService(pool, publisher, bindings, agentprincipal.LabelHolders{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	createCredential := func(id string) {
+		t.Helper()
+		material, _ := NewInteractshTokenCredential(id + "-secret")
+		if _, err := service.Create(ctx, RuntimeCredentialCreateRequest{
+			CredentialID: id, Material: material, IdempotencyKey: "create-" + id, ActorID: "operator",
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	publishConfig := func(name, credentialID string) runtimeconfig.Ref {
+		t.Helper()
+		document := []byte(fmt.Sprintf(`{
+  "apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig",
+  "metadata":{"name":%q,"version":"1"},
+  "spec":{"worker":{"interactsh":{"adapter":"interactsh-http@1","endpoint":"https://oast.example","credential":%q}}}
+}`, name, credentialID))
+		published, err := publisher.Publish(ctx, document, "publish-"+name, "operator")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return published.Version.Ref
+	}
+	wrongKindMaterial, _ := NewHTTPProxyBasicCredential("proxy-user", "proxy-secret")
+	if _, err := service.Create(ctx, RuntimeCredentialCreateRequest{
+		CredentialID: "wrong-otel-kind", Material: wrongKindMaterial,
+		IdempotencyKey: "create-wrong-otel-kind", ActorID: "operator",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	wrongKindDocument := []byte(`{
+  "apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig",
+  "metadata":{"name":"wrong-otel-kind","version":"1"},
+  "spec":{"worker":{"interactsh":{"adapter":"interactsh-http@1","endpoint":"https://oast.example","credential":"wrong-otel-kind"}}}
+}`)
+	if _, err := publisher.Publish(ctx, wrongKindDocument, "publish-wrong-otel-kind", "operator"); !errors.Is(err, runtimeconfig.ErrInvalid) {
+		t.Fatalf("wrong-kind RuntimeConfig publication error = %v", err)
+	}
+	if _, err := runtimeconfig.NewRepository(pool).GetVersion(ctx, "wrong-otel-kind", "1"); !errors.Is(err, runtimeconfig.ErrNotFound) {
+		t.Fatalf("wrong-kind RuntimeConfig was persisted: %v", err)
+	}
+
+	createCredential("active-debug")
+	activeRef := publishConfig("active-debug", "active-debug")
+	activeCreated, err := management.CreateBinding(ctx, "debug", activeRef, "create-active-debug", "operator", now)
+	if err != nil || activeCreated.Binding == nil {
+		t.Fatalf("create active binding = (%+v, %v)", activeCreated, err)
+	}
+	if _, err := service.Delete(ctx, "active-debug", "operator"); !errors.Is(err, ErrRuntimeCredentialInUse) {
+		t.Fatalf("delete active binding error = %v", err)
+	}
+	if _, err := management.DeleteBinding(
+		ctx, activeCreated.Binding.Label, activeCreated.Binding.Revision, "delete-active-debug", "operator", now.Add(time.Second),
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Delete(ctx, "active-debug", "operator"); err != nil {
+		t.Fatalf("delete after unbind: %v", err)
+	}
+	if _, err := management.CreateBinding(
+		ctx, "stale-debug", activeRef, "create-stale-debug", "operator", now.Add(time.Second),
+	); !errors.Is(err, runtimeconfig.ErrInvalid) {
+		t.Fatalf("binding a config with a deleted credential error = %v", err)
+	}
+
+	createCredential("default-debug")
+	defaultRef := publishConfig("default-debug", "default-debug")
+	defaultBinding, err := runtimeconfig.NewRepository(pool).GetBinding(ctx, runtimeconfig.DefaultLabel)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defaultRebound, err := management.Rebind(
+		ctx, runtimeconfig.DefaultLabel, defaultBinding.Revision, defaultRef,
+		"rebind-default-debug", "operator", now.Add(2*time.Second),
+	)
+	if err != nil || defaultRebound.Binding == nil {
+		t.Fatalf("bind default RuntimeConfig: (%+v, %v)", defaultRebound, err)
+	}
+	defaultBinding = *defaultRebound.Binding
+	if _, err := service.Delete(ctx, "default-debug", "operator"); !errors.Is(err, ErrRuntimeCredentialInUse) {
+		t.Fatalf("delete credential referenced by default binding error = %v", err)
+	}
+	builtInRef := runtimeconfig.Ref{
+		Name: runtimeconfig.BuiltInName, Version: runtimeconfig.BuiltInVersion, Digest: runtimeconfig.BuiltInDigest,
+	}
+	if _, err := management.Rebind(
+		ctx, runtimeconfig.DefaultLabel, defaultBinding.Revision, builtInRef,
+		"restore-default-debug", "operator", now.Add(3*time.Second),
+	); err != nil {
+		t.Fatalf("restore default RuntimeConfig: %v", err)
+	}
+	if _, err := service.Delete(ctx, "default-debug", "operator"); err != nil {
+		t.Fatalf("delete after restoring default binding: %v", err)
+	}
+
 }

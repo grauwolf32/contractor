@@ -165,6 +165,10 @@ export function RuntimeConfigDetailRoute() {
                 value={data.document.spec.worker?.caido}
               />
               <OptionalBlock
+                title="Worker Interactsh"
+                value={data.document.spec.worker?.interactsh}
+              />
+              <OptionalBlock
                 title="Planner telemetry"
                 value={data.document.spec.planner?.telemetry}
               />

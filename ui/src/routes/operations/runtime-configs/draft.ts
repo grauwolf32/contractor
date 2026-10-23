@@ -39,6 +39,12 @@ export const emptyConfigDraft = () => ({
   plannerTelemetryCredential: "",
   plannerTelemetryTimeout: "10",
   plannerTelemetryCaptureContent: false,
+  interactsh: false,
+  interactshClear: false,
+  interactshEndpoint: "",
+  interactshCredential: "",
+  interactshCA: "",
+  interactshTimeout: "",
   httpProxy: false,
   proxyURL: "",
   proxyCredential: "",
@@ -180,7 +186,8 @@ function draftErrors(
     !draft.gateway &&
     !draft.workerTelemetry &&
     !draft.plannerTelemetry &&
-    !draft.httpProxy
+    !draft.httpProxy &&
+    !draft.interactsh
   ) {
     errors.push("Select at least one RuntimeConfig block.");
   }
@@ -189,6 +196,11 @@ function draftErrors(
   }
   for (const [enabled, endpoint, label] of [
     [draft.workerTelemetry, draft.workerTelemetryEndpoint, "Worker telemetry"],
+    [
+      draft.interactsh && !draft.interactshClear,
+      draft.interactshEndpoint,
+      "Interactsh",
+    ],
     [
       draft.plannerTelemetry,
       draft.plannerTelemetryEndpoint,
@@ -231,6 +243,23 @@ function draftErrors(
   if (draft.httpProxy && draft.proxyTargets.length === 0) {
     errors.push("HTTP proxy requires at least one explicit traffic target.");
   }
+  if (
+    draft.interactsh &&
+    !draft.interactshClear &&
+    draft.interactshTimeout !== ""
+  ) {
+    const timeout = Number(draft.interactshTimeout);
+    const range = bounds("RuntimeInteractshConfig", "requestTimeoutSeconds");
+    if (
+      !Number.isInteger(timeout) ||
+      timeout < range.minimum ||
+      timeout > range.maximum
+    ) {
+      errors.push(
+        `Interactsh timeout must be an integer from ${range.minimum} to ${range.maximum}.`,
+      );
+    }
+  }
   return errors;
 }
 
@@ -248,6 +277,25 @@ export function buildDocument(
   const errors = draftErrors(draft, gateway);
   if (errors.length > 0) return { errors };
   const worker: WorkerPatch = {
+    ...(draft.interactsh
+      ? {
+          interactsh: draft.interactshClear
+            ? null
+            : {
+                adapter: "interactsh-http@1" as const,
+                endpoint: draft.interactshEndpoint,
+                ...(draft.interactshCredential === ""
+                  ? {}
+                  : { credential: draft.interactshCredential }),
+                ...(draft.interactshCA === ""
+                  ? {}
+                  : { caBundlePem: draft.interactshCA }),
+                ...(draft.interactshTimeout === ""
+                  ? {}
+                  : { requestTimeoutSeconds: Number(draft.interactshTimeout) }),
+              },
+        }
+      : {}),
     ...(draft.gateway && gateway !== undefined
       ? {
           llmGateway: {

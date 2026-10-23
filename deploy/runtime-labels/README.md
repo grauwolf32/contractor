@@ -41,3 +41,13 @@ are all enabled by default. To expose a deliberate subset, repeat
 `--runtime-adapter http-proxy@1` and `--runtime-adapter caido-graphql@1` when an
 explicit subset is used. This narrows the factory/probe surface and never makes
 an unavailable implementation pass.
+
+For `interactsh-lab@1`, create a write-only `interactsh-token@1` credential
+named `interactsh-api` with material `{"token":"<operator secret>"}` using the
+same Operations credential API. Publish the example RuntimeConfig, bind a label
+and select it on a Run or assign it to an enabled Runtime Agent. The Runtime
+must advertise `interactsh-http@1`; a Worker must independently select the exact
+`interactsh@1` tools, for example the shipped `interactsh_analyst@1` assignment.
+The endpoint hostname must be the server's served callback domain. Configure
+upstream retention and CA trust explicitly. Contractor supports the pinned
+Interactsh v1.4.1 protocol; run `make test-interactsh-protocol` when upgrading it.

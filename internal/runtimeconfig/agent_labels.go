@@ -95,7 +95,7 @@ func validateAgentLayer(ctx context.Context, repository *Repository, bindings []
 			return err
 		}
 		worker := version.Spec.Worker
-		if !worker.LLMGateway.Present && !worker.Telemetry.Present && !worker.HTTPProxy.Present && !worker.Caido.Present {
+		if !worker.LLMGateway.Present && !worker.Telemetry.Present && !worker.HTTPProxy.Present && !worker.Caido.Present && !worker.Interactsh.Present {
 			return ErrAgentLabelNotApplicable
 		}
 		entries = append(entries, LayerEntry{

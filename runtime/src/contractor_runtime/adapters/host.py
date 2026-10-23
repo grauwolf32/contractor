@@ -16,6 +16,7 @@ from contractor_runtime.contracts import (
     CaidoSettings,
     DroppedSpanCounts,
     HTTPProxySettings,
+    InteractshSettings,
     RuntimeAdapterMetrics,
     RuntimeAdapterRef,
     RuntimeSettings,
@@ -43,6 +44,7 @@ class AdapterHandles:
     tool_http: Any | None = field(default=None, repr=False)
     tool_subprocess: Any | None = field(default=None, repr=False)
     caido_graphql: Any | None = field(default=None, repr=False)
+    interactsh: Any | None = field(default=None, repr=False)
     instrumentation: RuntimeInstrumentation | None = field(default=None, repr=False)
 
     def merge(self, other: AdapterHandles) -> AdapterHandles:
@@ -52,6 +54,7 @@ class AdapterHandles:
             "tool_http",
             "tool_subprocess",
             "caido_graphql",
+            "interactsh",
             "instrumentation",
         ):
             current = getattr(self, name)
@@ -68,6 +71,7 @@ class AdapterHandles:
                 self.tool_subprocess if "runtime-subprocess-launcher" in channels else None
             ),
             caido_graphql=(self.caido_graphql if "caido-graphql-client" in channels else None),
+            interactsh=(self.interactsh if "interactsh-client" in channels else None),
         )
 
     def for_worker(self) -> AdapterHandles:
@@ -85,6 +89,7 @@ class AdapterHandles:
                 "tool_http",
                 "tool_subprocess",
                 "caido_graphql",
+                "interactsh",
                 "instrumentation",
             )
             if getattr(self, name) is not None
@@ -213,7 +218,7 @@ class AllocationAdapter(Protocol):
     async def close(self) -> None: ...
 
 
-AdapterSettings = TelemetrySettings | HTTPProxySettings | CaidoSettings
+AdapterSettings = TelemetrySettings | HTTPProxySettings | CaidoSettings | InteractshSettings
 
 
 class RuntimeAdapterFactory(Protocol):
@@ -452,6 +457,8 @@ def _selected_settings(settings: RuntimeSettings) -> dict[str, AdapterSettings]:
         selected[settings.http_proxy.adapter] = settings.http_proxy
     if settings.caido is not None:
         selected[settings.caido.adapter] = settings.caido
+    if settings.interactsh is not None:
+        selected[settings.interactsh.adapter] = settings.interactsh
     return selected
 
 
@@ -490,6 +497,7 @@ def _validate_typed_handles(settings: AdapterSettings, handles: AdapterHandles) 
                     handles.tool_http,
                     handles.tool_subprocess,
                     handles.caido_graphql,
+                    handles.interactsh,
                 )
             )
             or handles.instrumentation is None
@@ -507,7 +515,24 @@ def _validate_typed_handles(settings: AdapterSettings, handles: AdapterHandles) 
                     handles.instrumentation,
                 )
             )
+            or handles.interactsh is not None
             or handles.caido_graphql is None
+        ):
+            raise AdapterFactoryError(retryable=False)
+        return
+    if isinstance(settings, InteractshSettings):
+        if (
+            any(
+                value is not None
+                for value in (
+                    handles.model_http,
+                    handles.tool_http,
+                    handles.tool_subprocess,
+                    handles.instrumentation,
+                )
+            )
+            or handles.caido_graphql is not None
+            or handles.interactsh is None
         ):
             raise AdapterFactoryError(retryable=False)
         return
@@ -527,6 +552,7 @@ def _validate_typed_handles(settings: AdapterSettings, handles: AdapterHandles) 
     if (
         handles.instrumentation is not None
         or handles.caido_graphql is not None
+        or handles.interactsh is not None
         or actual != expected
     ):
         raise AdapterFactoryError(retryable=False)

@@ -283,6 +283,42 @@ func (s *Scheduler) materializeRuntimeSettings(
 		}
 		result.Caido = caido
 	}
+	if resolved.Interactsh != nil {
+		timeout := resolved.Interactsh.RequestTimeoutSeconds
+		if timeout == 0 || timeout > result.RequestTimeoutSeconds {
+			timeout = result.RequestTimeoutSeconds
+		}
+		if timeout > runtimesettings.MaxInteractshRequestTimeoutSeconds {
+			timeout = runtimesettings.MaxInteractshRequestTimeoutSeconds
+		}
+		interactsh := &runtimesettings.InteractshSettings{
+			Adapter: runtimesettings.RuntimeAdapterInteractshHTTP, Endpoint: resolved.Interactsh.Endpoint,
+			RequestTimeoutSeconds: timeout,
+		}
+		if resolved.Interactsh.CABundlePEM != "" {
+			bundle := resolved.Interactsh.CABundlePEM
+			interactsh.CABundlePEM = &bundle
+		}
+		if credentialID := resolved.Interactsh.Credential; credentialID != "" {
+			if err := s.useRuntimeCredential(
+				ctx, credentialID, []runtimesettings.RuntimeCredentialKind{runtimesettings.RuntimeCredentialInteractshToken},
+				func(kind runtimesettings.RuntimeCredentialKind, plaintext []byte) error {
+					var material struct {
+						Token string `json:"token"`
+					}
+					if kind != runtimesettings.RuntimeCredentialInteractshToken || strictjson.Decode(plaintext, &material) != nil {
+						return errors.New("invalid Interactsh credential material")
+					}
+					token := contracts.NewSecretString(material.Token)
+					interactsh.Token = &token
+					return nil
+				},
+			); err != nil {
+				return runtimesettings.RuntimeSettings{}, persistencepostgres.WrapError("Worker Interactsh credential is unavailable", err)
+			}
+		}
+		result.Interactsh = interactsh
+	}
 	if err := result.Validate(); err != nil {
 		return runtimesettings.RuntimeSettings{}, fmt.Errorf("materialized Runtime settings are invalid")
 	}
@@ -313,6 +349,9 @@ func clearWorkerExecutionSettings(settings map[string]runtimesettings.WorkerExec
 		}
 		if value.RuntimeSettings.Caido != nil {
 			value.RuntimeSettings.Caido.BearerToken = nil
+		}
+		if value.RuntimeSettings.Interactsh != nil {
+			value.RuntimeSettings.Interactsh.Token = nil
 		}
 		if value.RuntimeSettings.HTTPOriginTarget != nil {
 			value.RuntimeSettings.HTTPOriginTarget.BasicAuth = nil

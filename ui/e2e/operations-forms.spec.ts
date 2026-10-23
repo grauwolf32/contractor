@@ -302,3 +302,91 @@ test("Operations forms are unavailable without the actual session capability", a
   ).toHaveCount(0);
   expect(writes).toEqual([]);
 });
+
+for (const theme of ["light", "dark", "black"]) {
+  test(`Interactsh configuration and explicit clear at 390px in ${theme}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.addInitScript(
+      (value) => localStorage.setItem("contractor.theme", value),
+      theme,
+    );
+    const writes = await installOperations(page);
+    await page.goto("/operations/configuration");
+    await page
+      .getByRole("button", { name: "Publish RuntimeConfig", exact: true })
+      .click();
+    const dialog = page.getByRole("dialog", {
+      name: "Publish RuntimeConfig",
+      exact: true,
+    });
+    await dialog
+      .getByLabel("RuntimeConfig name", { exact: true })
+      .fill("oast-lab");
+    await dialog
+      .getByRole("checkbox", { name: "Worker Interactsh", exact: true })
+      .check();
+    await dialog
+      .getByLabel("Interactsh endpoint", { exact: true })
+      .fill("https://oast.example");
+    await dialog
+      .getByLabel("Interactsh credential ID", { exact: true })
+      .fill("oast-token");
+    await dialog
+      .getByLabel("Interactsh request timeout (seconds)", { exact: true })
+      .fill("30");
+    await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    await page.screenshot({
+      path: `/tmp/v382-interactsh-${theme}.png`,
+      fullPage: true,
+    });
+    await dialog
+      .getByRole("button", { name: "Publish RuntimeConfig", exact: true })
+      .click();
+    await expect(
+      dialog.getByText(/This immutable version already exists/),
+    ).toBeVisible();
+    const authored = writes.filter(
+      (write) => write.path === "/v1/operations/runtime-configs",
+    );
+    expect(authored[0]?.body).toMatchObject({
+      spec: {
+        worker: {
+          interactsh: {
+            adapter: "interactsh-http@1",
+            endpoint: "https://oast.example",
+            credential: "oast-token",
+            requestTimeoutSeconds: 30,
+          },
+        },
+      },
+    });
+    await dialog
+      .getByRole("checkbox", {
+        name: "Clear inherited Interactsh configuration",
+      })
+      .check();
+    await dialog
+      .getByRole("button", { name: "Publish RuntimeConfig", exact: true })
+      .click();
+    await expect
+      .poll(
+        () =>
+          writes.filter(
+            (write) => write.path === "/v1/operations/runtime-configs",
+          ).length,
+      )
+      .toBe(2);
+    expect(
+      writes.filter(
+        (write) => write.path === "/v1/operations/runtime-configs",
+      )[1]?.body,
+    ).toMatchObject({ spec: { worker: { interactsh: null } } });
+  });
+}

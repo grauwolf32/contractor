@@ -17,6 +17,7 @@ const (
 	channelRuntimeHTTPClient         infrastructureChannel = "runtime-http-client"
 	channelRuntimeSubprocessLauncher infrastructureChannel = "runtime-subprocess-launcher"
 	channelCaidoGraphQLClient        infrastructureChannel = "caido-graphql-client"
+	channelInteractshClient          infrastructureChannel = "interactsh-client"
 	channelSandboxExecution          infrastructureChannel = "sandbox-execution"
 )
 
@@ -139,6 +140,13 @@ func builtInDescriptors() descriptorTable {
 			"security-findings-http@1": {
 				Tools:                []string{"finding"},
 				FindingProposalTools: []string{"finding"},
+			},
+			"interactsh@1": {
+				Tools: []string{"interactsh_poll", "interactsh_register"},
+				InfrastructureChannels: map[string][]infrastructureChannel{
+					"interactsh_poll":     {channelInteractshClient},
+					"interactsh_register": {channelInteractshClient},
+				},
 			},
 			"caido@1": {
 				Tools: []string{
@@ -352,6 +360,9 @@ func RequiredRuntimeAdaptersForTemplate(
 				continue
 			}
 			for _, channel := range channels {
+				if channel == channelInteractshClient {
+					selected[runtimesettings.RuntimeAdapterInteractshHTTP] = struct{}{}
+				}
 				if channel == channelCaidoGraphQLClient {
 					selected[runtimesettings.RuntimeAdapterCaidoGraphQL] = struct{}{}
 				}
@@ -492,7 +503,7 @@ func normalizeToolsetDescriptor(raw string, descriptor toolsetDescriptor, sandbo
 		sort.Slice(selected, func(i, j int) bool { return selected[i] < selected[j] })
 		for index, channel := range selected {
 			if channel != channelRuntimeHTTPClient && channel != channelRuntimeSubprocessLauncher &&
-				channel != channelCaidoGraphQLClient && channel != channelSandboxExecution {
+				channel != channelCaidoGraphQLClient && channel != channelInteractshClient && channel != channelSandboxExecution {
 				return toolsetDescriptor{}, fmt.Errorf("Toolset descriptor %q has invalid channel for tool %q", raw, tool)
 			}
 			if index > 0 && channel == selected[index-1] {

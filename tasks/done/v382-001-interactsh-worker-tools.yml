@@ -5,7 +5,8 @@ milestone: interactsh-worker-tools-2026-10
 epic: http-tools
 kind: feature
 priority: P1
-status: pending
+status: completed
+implementation_commit: 1bf48a1ea8a8b9c4f663f7a4d754b52ef6906083
 depends_on: []
 languages: [go, python, typescript, markdown]
 goal: >-
@@ -18,6 +19,7 @@ context:
     On 2026-10-15 the user requested a separate task for Interactsh Worker tools
     and configurability comparable to Caido, LLM Gateways and HTTP proxies.
   specification:
+    - docs/spec/tools/interactsh.md
     - docs/spec/tools/http-caido.md
     - docs/spec/tools/toolsets.md
     - docs/spec/configuration/runtime-config.md
@@ -53,14 +55,14 @@ requirements:
 failure_outcomes:
   - operation: Registration, polling and deregistration against Interactsh
     permanent: Invalid input, unknown handles, authentication denial and incompatible protocol return stable classified tool errors without blind retries.
-    retryable: Bounded polling retries honor finite attempt/deadline limits and Retry-After; registration retries require reconciliation of the same owned identity.
+    retryable: One finite network poll per call, no automatic retry of the upstream destructive read; explicit subsequent polls honor local rate bounds and a bounded Retry-After hint. Registration response loss reconciles the same owned identity.
     ambiguous: Preserve the generated registration identity and reconcile a response-lost registration or deregistration through upstream semantics; report outcome unknown when reconciliation cannot prove the result.
     cancelled: Allocation teardown cancels and joins adapter work before dropping credentials and registration ownership.
     timeout: Give registration, one poll and cleanup independent finite budgets; retain uncertainty without fabricating absent callbacks.
 cardinality:
   - collection: Registrations and interactions per allocation
     expected: A small number of registrations with bounded incremental polling.
-    maximum: Specify finite caps before implementation and record them in docs/spec/platform/limits.md.
+    maximum: 16 registrations, 100 event candidates per poll, 1 MiB response, 64 KiB event, 2 MiB exact evidence and at most 48 MiB pending buffers (LIM-INT-1 through LIM-INT-9).
     bound: Bound each tool call by events and serialized bytes; cap accumulated in-memory events and never rescan all retained Run artifacts on a poll.
 lifecycle:
   - entity: Interactsh registration and callback evidence
@@ -81,9 +83,36 @@ acceptance_criteria:
     when: The real adapter processes each outcome.
     then: Stable errors, bounded work, reconciliation and joined cleanup are verified without leaking keys or credentials.
 tests:
+  - command: make test-interactsh-protocol
+    covers: [A2, A3]
   - command: make test-wire-cross-language verify-public-api
     covers: [A1, A2, A3]
-  - command: make test-runtime ui-verify
+  - command: make test-runtime
     covers: [A1, A2, A3]
+  - command: make ui-verify
+    covers: [A1]
+  - command: make ui-browser-mocked
+    covers: [A1]
+  - command: go test -count=1 ./internal/contracts/... ./internal/runtimeconfig ./internal/config/... ./internal/credentials ./internal/scheduler ./internal/controlplane ./internal/agentprincipal ./internal/httpapi/public ./internal/persistence/...
+    covers: [A1, A3]
+  - command: make verify-architecture
+    covers: [A1]
   - command: make lint
     covers: [A1, A2, A3]
+
+verification:
+  date: "2026-10-23"
+  runtime_environment: Linux arm64, Python 3.13.12, unprivileged uid 1000 in a disposable container with read-only source mounts.
+  database_environment: Disposable PostgreSQL 17 with UTF-8; CONTRACTOR_TEST_DATABASE_URL set for every database-backed Go and shared-fixture gate.
+  results:
+    - Full make test-runtime passed with 4307 passed and 57 skipped; the real Interactsh protocol suite was run separately without skips.
+    - make test-interactsh-protocol passed against pinned upstream v1.4.1 with actual DNS, HTTP and SMTP callbacks, decrypted exact evidence and confirmed upstream deregistration.
+    - make test-wire-cross-language verify-public-api passed, including all shared fixture readers and public operation coverage.
+    - The full Go command above passed, including real-store credential replay, encryption, label binding deletion fences, snapshot paths and migration suites.
+    - make ui-verify and make ui-browser-mocked passed; 81 browser tests include Interactsh publication and explicit clear at 390 px in light, dark and black themes.
+    - make lint, make verify-architecture and shipped configuration validation passed.
+  decisions:
+    - Polling is a destructive upstream read, so no automatic retry can fabricate complete coverage after a lost response. A sticky gap survives subsequent successful polls.
+    - Callback events retain an unverified trigger relation and never become machine proof solely through availability.
+    - Unknown remote deregistration expires through operator-owned upstream retention; local work is joined and private material erased before release.
+  delivery: Merged codex/interactsh-worker-tools into main with --no-ff on 2026-10-23. User-owned untracked files were preserved in the primary checkout.

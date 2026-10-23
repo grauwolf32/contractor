@@ -91,6 +91,7 @@ Toolsets available to Workers.
 | [Run workspaces and filesystem tools](tools/workspace.md) | `WSP` | Run workspaces, hydration, direct and overlay modes, filesystem and edit tools |
 | [Code analysis](tools/code-analysis.md) | `CAN` | Tree-sitter and Trailmark tools, taint annotations |
 | [HTTP and Caido tools](tools/http-caido.md) | `HTP` | HTTP tools, forward proxy, Caido tools |
+| [Interactsh](tools/interactsh.md) | `INT` | Owned callback registrations, bounded polling and exact evidence |
 | [Scanners](tools/scanners.md) | `SCN` | Tool Workers, scanner adapters, scan request preparation and scan planning |
 | [Code execution](tools/code-execution.md) | `EXE` | Podman sandbox and code execution |
 

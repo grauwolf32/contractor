@@ -63,6 +63,7 @@ type ResolvedRuntimeConfigOrigins struct {
 	WorkerTelemetry  *RuntimeFieldOrigin `json:"workerTelemetry,omitempty"`
 	HTTPProxy        *RuntimeFieldOrigin `json:"httpProxy,omitempty"`
 	Caido            *RuntimeFieldOrigin `json:"caido,omitempty"`
+	Interactsh       *RuntimeFieldOrigin `json:"interactsh,omitempty"`
 	PlannerTelemetry *RuntimeFieldOrigin `json:"plannerTelemetry,omitempty"`
 }
 
@@ -76,6 +77,7 @@ func (o ResolvedRuntimeConfigOrigins) Validate() error {
 		{path: "worker.telemetry", origin: o.WorkerTelemetry},
 		{path: "worker.httpProxy", origin: o.HTTPProxy},
 		{path: "worker.caido", origin: o.Caido},
+		{path: "worker.interactsh", origin: o.Interactsh},
 		{path: "planner.telemetry", origin: o.PlannerTelemetry},
 	}
 	for _, field := range fields {
@@ -168,6 +170,7 @@ type ResolvedRuntimeConfig struct {
 	WorkerTelemetry          *TelemetryConfig                                `json:"workerTelemetry,omitempty"`
 	HTTPProxy                *HTTPProxyConfig                                `json:"httpProxy,omitempty"`
 	Caido                    *CaidoConfig                                    `json:"caido,omitempty"`
+	Interactsh               *InteractshConfig                               `json:"interactsh,omitempty"`
 	PlannerTelemetry         *TelemetryConfig                                `json:"plannerTelemetry,omitempty"`
 	PlannerRuntimeCredential *runtimesettings.RuntimeCredentialRef           `json:"plannerRuntimeCredential,omitempty"`
 	RequiredRuntimeAdapters  []runtimesettings.RuntimeAdapterRef             `json:"requiredRuntimeAdapters"`
@@ -213,12 +216,13 @@ type effectiveRuntimeConfig struct {
 	workerTelemetry  *TelemetryConfig
 	httpProxy        *HTTPProxyConfig
 	caido            *CaidoConfig
+	interactsh       *InteractshConfig
 	plannerTelemetry *TelemetryConfig
 	origins          ResolvedRuntimeConfigOrigins
 }
 
 type layerOrigins struct {
-	gateway, credential, workerTelemetry, httpProxy, caido, plannerTelemetry *RuntimeFieldOrigin
+	gateway, credential, workerTelemetry, httpProxy, caido, interactsh, plannerTelemetry *RuntimeFieldOrigin
 }
 
 // ResolveRuntimeConfig applies the normative precedence order without I/O.
@@ -326,6 +330,7 @@ func ResolveRuntimeConfig(input ResolveRuntimeConfigInput) (ResolvedRuntimeConfi
 		WorkerTelemetry:          cloneTelemetry(effective.workerTelemetry),
 		HTTPProxy:                cloneHTTPProxy(effective.httpProxy),
 		Caido:                    clone.Pointer(effective.caido),
+		Interactsh:               clone.Pointer(effective.interactsh),
 		PlannerTelemetry:         cloneTelemetry(effective.plannerTelemetry),
 		PlannerRuntimeCredential: plannerCredential,
 		RequiredRuntimeAdapters:  append([]runtimesettings.RuntimeAdapterRef{}, adapters...),
@@ -494,6 +499,15 @@ func applyWorkerSpec(target *effectiveRuntimeConfig, patch WorkerPatch, origins 
 		}
 		target.origins.Caido = cloneOrigin(origins.caido)
 	}
+	if patch.Interactsh.Present {
+		if patch.Interactsh.Clear {
+			target.interactsh = nil
+		} else {
+			value := patch.Interactsh.Value
+			target.interactsh = &value
+		}
+		target.origins.Interactsh = cloneOrigin(origins.interactsh)
+	}
 }
 
 func applyPlannerSpec(target *effectiveRuntimeConfig, patch PlannerPatch, origins layerOrigins) {
@@ -598,6 +612,22 @@ func validateAdapterSettings(
 			workerCredentials = append(workerCredentials, ref)
 		}
 	}
+	if effective.interactsh != nil {
+		if err := validateInteractshConfig(*effective.interactsh); err != nil {
+			return nil, nil, nil, err
+		}
+		adapters = append(adapters, runtimesettings.RuntimeAdapterInteractshHTTP)
+		if effective.interactsh.Credential != "" {
+			ref, err := requireRuntimeCredential(
+				input.RuntimeCredentials, effective.interactsh.Credential,
+				"worker.interactsh.credential", runtimesettings.RuntimeCredentialInteractshToken,
+			)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			workerCredentials = append(workerCredentials, ref)
+		}
+	}
 	var plannerCredential *runtimesettings.RuntimeCredentialRef
 	if effective.plannerTelemetry != nil {
 		if err := validateTelemetryConfig(*effective.plannerTelemetry, "planner.telemetry"); err != nil {
@@ -679,6 +709,27 @@ func validateCaidoConfig(value CaidoConfig) error {
 	return nil
 }
 
+func validateInteractshConfig(value InteractshConfig) error {
+	if value.Adapter != string(runtimesettings.RuntimeAdapterInteractshHTTP) ||
+		value.RequestTimeoutSeconds < 0 || value.RequestTimeoutSeconds > 120 {
+		return resolutionError(ResolutionInvalid, "worker.interactsh", ErrInvalid)
+	}
+	if _, err := validateURL("worker.interactsh.endpoint", value.Endpoint); err != nil {
+		return resolutionError(ResolutionInvalid, "worker.interactsh", ErrInvalid)
+	}
+	if value.CABundlePEM != "" && validateCABundle("worker.interactsh.caBundlePem", value.CABundlePEM) != nil {
+		return resolutionError(ResolutionInvalid, "worker.interactsh", ErrInvalid)
+	}
+	timeout := value.RequestTimeoutSeconds
+	if timeout == 0 {
+		timeout = runtimesettings.MaxInteractshRequestTimeoutSeconds
+	}
+	if err := (runtimesettings.InteractshSettings{Adapter: runtimesettings.RuntimeAdapterInteractshHTTP, Endpoint: value.Endpoint, RequestTimeoutSeconds: timeout}).Validate(); err != nil {
+		return resolutionError(ResolutionInvalid, "worker.interactsh", ErrInvalid)
+	}
+	return nil
+}
+
 func requireRuntimeCredential(
 	catalog map[string]runtimesettings.RuntimeCredentialKind,
 	credentialID, path string,
@@ -734,6 +785,9 @@ func originsForPinned(layer RuntimeLayer, entries []PinnedRuntimeConfig) layerOr
 		caido: selectOrigin(func(spec Spec) bool {
 			return spec.Worker.Caido.Present
 		}),
+		interactsh: selectOrigin(func(spec Spec) bool {
+			return spec.Worker.Interactsh.Present
+		}),
 		plannerTelemetry: selectOrigin(func(spec Spec) bool {
 			return spec.Planner.Telemetry.Present
 		}),
@@ -758,7 +812,7 @@ func bindingProvenanceList(values []PinnedRuntimeConfig) []runtimesettings.Runti
 }
 
 func workerApplicable(value WorkerPatch) bool {
-	return value.LLMGateway.Present || value.Telemetry.Present || value.HTTPProxy.Present || value.Caido.Present
+	return value.LLMGateway.Present || value.Telemetry.Present || value.HTTPProxy.Present || value.Caido.Present || value.Interactsh.Present
 }
 
 func containsModelPolicy(values []contracts.ModelPolicyRef, expected contracts.ModelPolicyRef) bool {
@@ -832,6 +886,7 @@ func cloneOrigins(value ResolvedRuntimeConfigOrigins) ResolvedRuntimeConfigOrigi
 		WorkerTelemetry:  cloneOrigin(value.WorkerTelemetry),
 		HTTPProxy:        cloneOrigin(value.HTTPProxy),
 		Caido:            cloneOrigin(value.Caido),
+		Interactsh:       cloneOrigin(value.Interactsh),
 		PlannerTelemetry: cloneOrigin(value.PlannerTelemetry),
 	}
 }
@@ -851,6 +906,7 @@ func (r ResolvedRuntimeConfig) Clone() ResolvedRuntimeConfig {
 	result.WorkerTelemetry = cloneTelemetry(r.WorkerTelemetry)
 	result.HTTPProxy = cloneHTTPProxy(r.HTTPProxy)
 	result.Caido = clone.Pointer(r.Caido)
+	result.Interactsh = clone.Pointer(r.Interactsh)
 	result.PlannerTelemetry = cloneTelemetry(r.PlannerTelemetry)
 	result.PlannerRuntimeCredential = clone.Pointer(r.PlannerRuntimeCredential)
 	result.RequiredRuntimeAdapters = append([]runtimesettings.RuntimeAdapterRef{}, r.RequiredRuntimeAdapters...)

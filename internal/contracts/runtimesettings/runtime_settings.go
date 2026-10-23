@@ -6,6 +6,8 @@ package runtimesettings
 // Mirrors the Python runtime's contracts/settings.py.
 
 import (
+	"net"
+	"net/url"
 	"regexp"
 	"strings"
 
@@ -129,6 +131,51 @@ func (s CaidoSettings) Validate() error {
 	return nil
 }
 
+// MaxInteractshRequestTimeoutSeconds bounds the Interactsh GraphQL request contract.
+const MaxInteractshRequestTimeoutSeconds = 120
+
+type InteractshSettings struct {
+	Adapter               RuntimeAdapterRef       `json:"adapter" strictjson:"required"`
+	Endpoint              string                  `json:"endpoint" strictjson:"required"`
+	Token                 *contracts.SecretString `json:"token,omitempty" strictjson:"nullable"`
+	CABundlePEM           *string                 `json:"caBundlePem,omitempty" strictjson:"nullable"`
+	RequestTimeoutSeconds int                     `json:"requestTimeoutSeconds" strictjson:"required"`
+}
+
+func (s InteractshSettings) Validate() error {
+	if s.Adapter != RuntimeAdapterInteractshHTTP {
+		return contracts.Invalidf("Interactsh adapter must be interactsh-http@1")
+	}
+	if err := validateRuntimeEndpoint("interactsh.endpoint", s.Endpoint); err != nil {
+		return err
+	}
+	parsed, _ := url.Parse(s.Endpoint)
+	host := parsed.Hostname()
+	if net.ParseIP(host) != nil || strings.Trim(host, "0123456789.") == "" || len(host) > 219 || !regexp.MustCompile(`^[a-zA-Z0-9](?:[a-zA-Z0-9.-]*[a-zA-Z0-9])?$`).MatchString(host) {
+		return contracts.Invalidf("Interactsh endpoint requires a callback DNS hostname")
+	}
+	for _, label := range strings.Split(host, ".") {
+		if len(label) == 0 || len(label) > 63 || strings.HasPrefix(label, "-") || strings.HasSuffix(label, "-") {
+			return contracts.Invalidf("Interactsh callback hostname is invalid")
+		}
+	}
+	if s.Token != nil {
+		value := s.Token.Reveal()
+		if len(value) < 1 || len([]byte(value)) > 8192 || strings.ContainsAny(value, "\r\n") {
+			return contracts.Invalidf("Interactsh token is outside its size bound")
+		}
+	}
+	if s.CABundlePEM != nil {
+		if err := validateCABundle("Interactsh", *s.CABundlePEM); err != nil {
+			return err
+		}
+	}
+	if s.RequestTimeoutSeconds < 1 || s.RequestTimeoutSeconds > MaxInteractshRequestTimeoutSeconds {
+		return contracts.Invalidf("Interactsh requestTimeoutSeconds must be from 1 through 120")
+	}
+	return nil
+}
+
 func (s HTTPProxySettings) Validate() error {
 	if s.Adapter != RuntimeAdapterHTTPProxy {
 		return contracts.Invalidf("HTTP proxy adapter must be http-proxy@1")
@@ -186,6 +233,7 @@ type RuntimeSettings struct {
 	Telemetry                   *TelemetrySettings                   `json:"telemetry,omitempty" strictjson:"nullable"`
 	HTTPProxy                   *HTTPProxySettings                   `json:"httpProxy,omitempty" strictjson:"nullable"`
 	Caido                       *CaidoSettings                       `json:"caido,omitempty" strictjson:"nullable"`
+	Interactsh                  *InteractshSettings                  `json:"interactsh,omitempty" strictjson:"nullable"`
 	HTTPOriginTarget            *HTTPOriginTargetSettings            `json:"httpOriginTarget,omitempty" strictjson:"nullable"`
 	RequestTimeoutSeconds       int                                  `json:"requestTimeoutSeconds" strictjson:"required"`
 }
@@ -215,6 +263,9 @@ func (s RuntimeSettings) SecretValues() []string {
 	}
 	if s.Caido != nil && s.Caido.BearerToken != nil {
 		result = append(result, s.Caido.BearerToken.Reveal())
+	}
+	if s.Interactsh != nil && s.Interactsh.Token != nil {
+		result = append(result, s.Interactsh.Token.Reveal())
 	}
 	if s.HTTPOriginTarget != nil {
 		if s.HTTPOriginTarget.BasicAuth != nil {
@@ -269,6 +320,11 @@ func (s RuntimeSettings) Validate() error {
 	}
 	if s.Caido != nil {
 		if err := s.Caido.Validate(); err != nil {
+			return err
+		}
+	}
+	if s.Interactsh != nil {
+		if err := s.Interactsh.Validate(); err != nil {
 			return err
 		}
 	}

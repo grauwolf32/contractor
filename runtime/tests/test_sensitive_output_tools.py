@@ -29,6 +29,7 @@ from contractor_runtime.sandbox.podman.settings import PodmanSettings
 from contractor_runtime.state import RuntimeState
 from contractor_runtime.toolsets.caido.tools import CAIDO_TOOL_NAMES
 from contractor_runtime.toolsets.http.tools import HTTPToolsetFactory
+from contractor_runtime.toolsets.interactsh.tools import TOOL_NAMES as INTERACTSH_TOOL_NAMES
 from contractor_runtime.workspace import LocalWorkdirFactory
 
 # worker/runtime.py UNDECLARED_SENSITIVE_OUTPUT_TOOLS before the declaration
@@ -65,10 +66,12 @@ def test_production_registry_derives_exactly_the_previous_sensitive_output_tools
     )
     assert ("code-execution@1" in registry.toolsets) is with_execution
 
-    assert registry.sensitive_output_tools == PREVIOUS_UNDECLARED_SENSITIVE_OUTPUT_TOOLS
+    assert registry.sensitive_output_tools == (
+        PREVIOUS_UNDECLARED_SENSITIVE_OUTPUT_TOOLS | INTERACTSH_TOOL_NAMES
+    )
     # The previous definition, which also covered tools added to either toolset later.
     assert registry.sensitive_output_tools == frozenset(
-        HTTPToolsetFactory.exported_tools | CAIDO_TOOL_NAMES
+        HTTPToolsetFactory.exported_tools | CAIDO_TOOL_NAMES | INTERACTSH_TOOL_NAMES
     )
     declaring = {
         ref: declared_sensitive_output_tools(factory)
@@ -78,6 +81,7 @@ def test_production_registry_derives_exactly_the_previous_sensitive_output_tools
     assert declaring == {
         "http-tools@1": HTTPToolsetFactory.exported_tools,
         "caido@1": CAIDO_TOOL_NAMES,
+        "interactsh@1": INTERACTSH_TOOL_NAMES,
     }
 
 

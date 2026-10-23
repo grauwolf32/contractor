@@ -915,3 +915,26 @@ class LeakingCardTextRuntimeFactory(ProductionCardRuntimeFactory):
         runtime = await super().create(context)
         runtime._agent_card["description"] = self.card_text
         return runtime
+
+
+def test_shared_interactsh_channel_without_private_configuration_fails_before_resources(
+    tmp_path: Path,
+) -> None:
+    toolset = CapturingToolset()
+    toolset.infrastructure_channels = MappingProxyType(
+        {"read_artifact": frozenset({"interactsh-client"})}
+    )
+
+    async def scenario() -> None:
+        state, service = await make_service(
+            tmp_path,
+            runtime_adapters={},
+            toolset=toolset,
+        )
+        with pytest.raises(AllocationError) as failure:
+            await service.prepare(configured_spec())
+        assert failure.value.code == "interactsh_not_configured"
+        assert await service.snapshot() is None
+        assert (await state.snapshot()).process_state is ProcessState.IDLE
+
+    asyncio.run(scenario())

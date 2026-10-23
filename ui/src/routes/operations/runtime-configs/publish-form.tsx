@@ -155,6 +155,7 @@ export function RuntimeConfigPublishForm({
             onClose: onClose,
           }}
         />
+
         <p className="ops-dialog-note">
           Values become active only through a label binding. Publishing another
           version never mutates existing Runs or allocations.
@@ -339,6 +340,79 @@ export function RuntimeConfigPublishForm({
               </label>
             ))}
           </div>
+        </fieldset>
+
+        <fieldset className="ops-config-block" disabled={mutation.isPending}>
+          <BlockSwitch
+            checked={draft.interactsh}
+            onChange={(value) => update("interactsh", value)}
+          >
+            Worker Interactsh
+          </BlockSwitch>
+          {draft.interactsh && (
+            <>
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={draft.interactshClear}
+                  onChange={(event) =>
+                    update("interactshClear", event.target.checked)
+                  }
+                />
+                Clear inherited Interactsh configuration
+              </label>
+              {!draft.interactshClear && (
+                <>
+                  <Field label="Interactsh endpoint">
+                    {(control) => (
+                      <input
+                        {...control}
+                        value={draft.interactshEndpoint}
+                        onChange={(event) =>
+                          update("interactshEndpoint", event.target.value)
+                        }
+                        placeholder="https://oast.example"
+                      />
+                    )}
+                  </Field>
+                  <Field label="Interactsh credential ID">
+                    {(control) => (
+                      <input
+                        {...control}
+                        value={draft.interactshCredential}
+                        onChange={(event) =>
+                          update("interactshCredential", event.target.value)
+                        }
+                      />
+                    )}
+                  </Field>
+                  <Field label="Interactsh CA bundle PEM">
+                    {(control) => (
+                      <textarea
+                        {...control}
+                        value={draft.interactshCA}
+                        onChange={(event) =>
+                          update("interactshCA", event.target.value)
+                        }
+                      />
+                    )}
+                  </Field>
+                  <Field label="Interactsh request timeout (seconds)">
+                    {(control) => (
+                      <input
+                        {...control}
+                        inputMode="numeric"
+                        value={draft.interactshTimeout}
+                        onChange={(event) =>
+                          update("interactshTimeout", event.target.value)
+                        }
+                      />
+                    )}
+                  </Field>
+                </>
+              )}
+            </>
+          )}
         </fieldset>
 
         <details className="optional-settings">

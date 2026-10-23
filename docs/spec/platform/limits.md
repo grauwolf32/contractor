@@ -808,5 +808,14 @@ its owning requirement.
 | `LIM-WSP-13` | 65536 bytes (default `max_bytes`) | output of `diff` | workspace-changes@1 diff | [WSP-R134](../tools/workspace.md) |
 | `LIM-WSP-14` | 16 MiB | overlay workspace state export and decode budget, independent of the generic Artifact payload ceiling (LIM-ART-4, currently 64 MiB); the exporter uses the minimum of this ceiling and the generic Artifact transport limit | Runtime overlay exporter and state decoder | [WSP-R141](../tools/workspace.md) |
 | `LIM-WSP-15` | 30 seconds (default); finite and positive | process-local `operation_timeout_seconds` of local direct filesystem work | Runtime workspace provider; set by --workspace-operation-timeout-seconds or CONTRACTOR_WORKSPACE_OPERATION_TIMEOUT_SECONDS | [WSP-R155](../tools/workspace.md) |
+| `LIM-INT-1` | 16 | Registrations over one allocation lifetime | Interactsh adapter | [INT-R4](../tools/interactsh.md) |
+| `LIM-INT-2` | 100 | Decrypted event candidates per poll | Interactsh adapter | [INT-R7](../tools/interactsh.md) |
+| `LIM-INT-3` | 1 MiB response, 64 KiB event, 2 MiB evidence; 48 MiB pending buffers | Callback transport, exact evidence and allocation memory | Interactsh adapter and Toolset | [INT-R7](../tools/interactsh.md), [INT-R8](../tools/interactsh.md), [INT-R9](../tools/interactsh.md) |
+| `LIM-INT-4` | 3600 s | Local registration lifetime | Interactsh adapter | [INT-R5](../tools/interactsh.md) |
+| `LIM-INT-5` | 2 s minimum; Retry-After hint 2..120 s | Per-handle network poll rate | Interactsh adapter | [INT-R5](../tools/interactsh.md) |
+| `LIM-INT-6` | 1..120 s register/poll/publication; default allocation timeout capped at 120 s; 10 s total cleanup | Independent call deadlines | Server and Interactsh adapter | [INT-R2](../tools/interactsh.md), [INT-R11](../tools/interactsh.md) |
+| `LIM-INT-7` | 1..1024 UTF-8 bytes | Intended action description | Interactsh Toolset | [INT-R5](../tools/interactsh.md) |
+| `LIM-INT-8` | 64 KiB | Serialized public poll result | Interactsh Toolset | [INT-R8](../tools/interactsh.md) |
+| `LIM-INT-9` | 219 ASCII bytes | Callback domain, leaving room for correlation and nonce in a 253-byte DNS name | Server and Runtime | [INT-R2](../tools/interactsh.md) |
 
 <!-- /registry-table -->

@@ -419,6 +419,8 @@ def runtime_service_urls(settings: RuntimeSettings) -> tuple[str, ...]:
         values.append(settings.http_proxy.proxy_url)
     if settings.caido is not None:
         values.append(settings.caido.endpoint)
+    if settings.interactsh is not None:
+        values.append(settings.interactsh.endpoint)
     return tuple(values)
 
 

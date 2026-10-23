@@ -15,6 +15,7 @@ from contractor_runtime.adapters import (
 from contractor_runtime.adapters.caido_graphql import CaidoGraphQLAdapterFactory
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.adapters.http_proxy import HTTPProxyAdapterFactory
+from contractor_runtime.adapters.interactsh import InteractshHTTPAdapterFactory
 from contractor_runtime.adapters.otlp_http import OTLPHTTPAdapterFactory
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import (
@@ -42,6 +43,7 @@ from contractor_runtime.toolsets.code_execution.tools import CodeExecutionToolse
 from contractor_runtime.toolsets.edit_files.tools import EditFilesToolsetFactory
 from contractor_runtime.toolsets.filesystem.tools import FilesystemToolsetFactory
 from contractor_runtime.toolsets.http.tools import HTTPToolsetFactory
+from contractor_runtime.toolsets.interactsh.tools import InteractshToolsetFactory
 from contractor_runtime.toolsets.likec4.tools import LikeC4ToolsetFactory
 from contractor_runtime.toolsets.memory.tools import MemoryToolsetFactory
 from contractor_runtime.toolsets.openapi.tools import OpenAPIToolsetFactory
@@ -183,6 +185,7 @@ class SandboxFactory(Protocol):
 
 InfrastructureChannel = Literal[
     "caido-graphql-client",
+    "interactsh-client",
     "runtime-http-client",
     "runtime-subprocess-launcher",
     "sandbox-execution",
@@ -190,6 +193,7 @@ InfrastructureChannel = Literal[
 INFRASTRUCTURE_CHANNELS = frozenset(
     {
         "caido-graphql-client",
+        "interactsh-client",
         "runtime-http-client",
         "runtime-subprocess-launcher",
         "sandbox-execution",
@@ -242,6 +246,7 @@ def built_in_factories(
         target_policy=target_policy, artifact_client_factory=artifact_client_factory
     )
     caido_toolset = CaidoToolsetFactory(artifact_client_factory, target_policy=target_policy)
+    interactsh_toolset = InteractshToolsetFactory(artifact_client_factory)
     code_analysis_toolset = CodeAnalysisToolsetFactory(
         workspace_storage=workspace_settings.storage if workspace_settings is not None else None,
         graph_probe_root=work_root if workspace_settings is not None else None,
@@ -269,7 +274,13 @@ def built_in_factories(
     telemetry = OTLPHTTPAdapterFactory()
     proxy = HTTPProxyAdapterFactory()
     caido = CaidoGraphQLAdapterFactory()
-    runtime_adapters = {caido.ref: caido, proxy.ref: proxy, telemetry.ref: telemetry}
+    interactsh = InteractshHTTPAdapterFactory()
+    runtime_adapters = {
+        caido.ref: caido,
+        interactsh.ref: interactsh,
+        proxy.ref: proxy,
+        telemetry.ref: telemetry,
+    }
     if enabled_runtime_adapters is not None:
         enabled = frozenset(enabled_runtime_adapters)
         unknown = enabled - runtime_adapters.keys()
@@ -302,6 +313,7 @@ def built_in_factories(
             CodeFindingsToolsetFactory.ref: CodeFindingsToolsetFactory(artifact_client_factory),
             HTTPFindingsToolsetFactory.ref: HTTPFindingsToolsetFactory(artifact_client_factory),
             caido_toolset.ref: caido_toolset,
+            interactsh_toolset.ref: interactsh_toolset,
             code_analysis_toolset.ref: code_analysis_toolset,
             edit_files_toolset.ref: edit_files_toolset,
             filesystem_toolset.ref: filesystem_toolset,

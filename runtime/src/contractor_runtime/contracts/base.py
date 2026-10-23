@@ -232,7 +232,9 @@ def _require_state_workspace_path(value: str) -> str:
     return value
 
 
-RUNTIME_ADAPTER_REFS = frozenset({"caido-graphql@1", "http-proxy@1", "otlp-http@1"})
+RUNTIME_ADAPTER_REFS = frozenset(
+    {"caido-graphql@1", "interactsh-http@1", "http-proxy@1", "otlp-http@1"}
+)
 _RUNTIME_AGENT_ID_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _HEADER_NAME_PATTERN = re.compile(r"^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$")
 _RUNTIME_ADAPTER_ERROR_CODES = frozenset(
@@ -275,6 +277,7 @@ _FORBIDDEN_RUNTIME_HEADERS = frozenset(
 )
 RuntimeCredentialKind = Literal[
     "caido-bearer@1",
+    "interactsh-token@1",
     "http-origin-basic@1",
     "http-origin-bearer@1",
     "http-proxy-basic@1",

@@ -29,12 +29,13 @@ const (
 type RuntimeCredentialKind string
 
 const (
-	RuntimeCredentialOTLPHeaders  RuntimeCredentialKind = "otlp-headers@1"
-	RuntimeCredentialProxyBasic   RuntimeCredentialKind = "http-proxy-basic@1"
-	RuntimeCredentialProxyBearer  RuntimeCredentialKind = "http-proxy-bearer@1"
-	RuntimeCredentialCaidoBearer  RuntimeCredentialKind = "caido-bearer@1"
-	RuntimeCredentialOriginBasic  RuntimeCredentialKind = "http-origin-basic@1"
-	RuntimeCredentialOriginBearer RuntimeCredentialKind = "http-origin-bearer@1"
+	RuntimeCredentialOTLPHeaders     RuntimeCredentialKind = "otlp-headers@1"
+	RuntimeCredentialProxyBasic      RuntimeCredentialKind = "http-proxy-basic@1"
+	RuntimeCredentialProxyBearer     RuntimeCredentialKind = "http-proxy-bearer@1"
+	RuntimeCredentialCaidoBearer     RuntimeCredentialKind = "caido-bearer@1"
+	RuntimeCredentialInteractshToken RuntimeCredentialKind = "interactsh-token@1"
+	RuntimeCredentialOriginBasic     RuntimeCredentialKind = "http-origin-basic@1"
+	RuntimeCredentialOriginBearer    RuntimeCredentialKind = "http-origin-bearer@1"
 )
 
 var (
@@ -111,6 +112,15 @@ func NewCaidoBearerCredential(token string) (RuntimeCredentialMaterial, error) {
 		return RuntimeCredentialMaterial{}, runtimeInvalid("Caido bearer credential is invalid")
 	}
 	return newRuntimeCredentialMaterial(RuntimeCredentialCaidoBearer, struct {
+		Token string `json:"token"`
+	}{Token: token})
+}
+
+func NewInteractshTokenCredential(token string) (RuntimeCredentialMaterial, error) {
+	if !validBoundedSecret(token, MaximumRuntimeSecretBytes) {
+		return RuntimeCredentialMaterial{}, runtimeInvalid("Interactsh bearer credential is invalid")
+	}
+	return newRuntimeCredentialMaterial(RuntimeCredentialInteractshToken, struct {
 		Token string `json:"token"`
 	}{Token: token})
 }
@@ -322,6 +332,14 @@ func runtimeCredentialMaterialFromCanonical(kind RuntimeCredentialKind, canonica
 			return RuntimeCredentialMaterial{}, ErrCrypto
 		}
 		material, _ = NewCaidoBearerCredential(source.Token)
+	case RuntimeCredentialInteractshToken:
+		var source struct {
+			Token string `json:"token"`
+		}
+		if strictjson.Decode(canonical, &source) != nil {
+			return RuntimeCredentialMaterial{}, ErrCrypto
+		}
+		material, _ = NewInteractshTokenCredential(source.Token)
 	case RuntimeCredentialOriginBasic:
 		var source struct {
 			Password string `json:"password"`
@@ -351,7 +369,7 @@ func runtimeCredentialMaterialFromCanonical(kind RuntimeCredentialKind, canonica
 
 func validRuntimeCredentialKind(kind RuntimeCredentialKind) bool {
 	return kind == RuntimeCredentialOTLPHeaders || kind == RuntimeCredentialProxyBasic ||
-		kind == RuntimeCredentialProxyBearer || kind == RuntimeCredentialCaidoBearer ||
+		kind == RuntimeCredentialProxyBearer || kind == RuntimeCredentialCaidoBearer || kind == RuntimeCredentialInteractshToken ||
 		kind == RuntimeCredentialOriginBasic || kind == RuntimeCredentialOriginBearer
 }
 

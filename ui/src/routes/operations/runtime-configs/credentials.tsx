@@ -36,6 +36,7 @@ const KIND_LABELS: Record<CredentialKind, string> = {
   "http-proxy-basic@1": "HTTP proxy basic auth",
   "http-proxy-bearer@1": "HTTP proxy bearer token",
   "caido-bearer@1": "Caido bearer token",
+  "interactsh-token@1": "Interactsh server token",
   "http-origin-basic@1": "HTTP origin basic auth",
   "http-origin-bearer@1": "HTTP origin bearer token",
 };
@@ -109,7 +110,7 @@ export function RuntimeCredentialCreateForm({
         : { credentialId, kind, material: { username, password } };
     }
     return token === ""
-      ? new Error("Bearer token is required.")
+      ? new Error("Token is required.")
       : { credentialId, kind, material: { token } };
   }
 
@@ -288,7 +289,13 @@ export function RuntimeCredentialCreateForm({
             </Field>
           </div>
         ) : (
-          <Field label="Bearer token · write only">
+          <Field
+            label={
+              kind === "interactsh-token@1"
+                ? "Server token · write only"
+                : "Bearer token · write only"
+            }
+          >
             {(control) => (
               <input
                 {...control}
@@ -358,7 +365,7 @@ export function RuntimeCredentialList({
       id="runtime-credentials-heading"
       titleAs="h3"
       title="Runtime credentials"
-      description="Secrets for telemetry sinks, HTTP proxies, Caido and project live targets (HTTP origins). Values are write-only; only safe metadata is listed."
+      description="Secrets for telemetry sinks, HTTP proxies, Caido, Interactsh and project live targets (HTTP origins). Values are write-only; only safe metadata is listed."
       aside={
         credentials.data === undefined
           ? undefined

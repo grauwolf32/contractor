@@ -233,6 +233,7 @@ func collectCredentialIDs(spec Spec, llm, runtime map[string]struct{}) {
 		atomicTelemetryCredential(spec.Worker.Telemetry),
 		atomicProxyCredential(spec.Worker.HTTPProxy),
 		atomicCaidoCredential(spec.Worker.Caido),
+		atomicInteractshCredential(spec.Worker.Interactsh),
 		atomicTelemetryCredential(spec.Planner.Telemetry),
 	} {
 		if credentialID != "" {
@@ -256,6 +257,13 @@ func atomicProxyCredential(value AtomicPatch[HTTPProxyConfig]) string {
 }
 
 func atomicCaidoCredential(value AtomicPatch[CaidoConfig]) string {
+	if value.Present && !value.Clear {
+		return value.Value.Credential
+	}
+	return ""
+}
+
+func atomicInteractshCredential(value AtomicPatch[InteractshConfig]) string {
 	if value.Present && !value.Clear {
 		return value.Value.Credential
 	}

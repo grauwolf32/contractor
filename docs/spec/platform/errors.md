@@ -248,6 +248,13 @@ are owned by [Security](security.md) (SEC-R78). The conditions that raise the
 other codes and their retryability are owned by
 [HTTP and Caido tools](../tools/http-caido.md).
 
+### Interactsh tool errors
+
+**ERR-R22.** Interactsh returns stable bounded tool error objects. Their codes,
+retryability and incomplete-result semantics belong to
+[Interactsh tools](../tools/interactsh.md). Python bugs remain exceptions rather
+than fabricated no-interaction results.
+
 ### Public API error codes
 
 **ERR-R14.** The public API answers every failure, in its HTTP error envelope
@@ -599,5 +606,16 @@ Assembled from every document.
 | `workspace_state_invalid` | — | no | Invalid workspace state | [ERR-R10](errors.md), [WSP-R174](../tools/workspace.md) |
 | `workspace_type_conflict` | — | not specified | Workspace type conflict | [ERR-R10](errors.md), [WSP-R89](../tools/workspace.md) |
 | `workspace_unavailable` | — | not specified | Bounded filesystem acquisition, I/O or mutation failure | [ERR-R10](errors.md), [WSP-R173](../tools/workspace.md) |
+| `interactsh_auth_failed` | — | no | Configured collector rejected authentication | [Interactsh](../tools/interactsh.md) |
+| `interactsh_evidence_unconfirmed` | — | yes | Exact evidence publication could not be confirmed | [Interactsh](../tools/interactsh.md) |
+| `interactsh_handle_invalid` | — | no | Handle is unknown, unowned or released | [Interactsh](../tools/interactsh.md) |
+| `interactsh_limit_exceeded` | — | no | Allocation registration limit reached | [Interactsh](../tools/interactsh.md) |
+| `interactsh_not_configured` | — | no | Required private adapter is absent | [Interactsh](../tools/interactsh.md) |
+| `interactsh_rate_limited` | — | yes | Poll rate limited, with a bounded retry hint | [Interactsh](../tools/interactsh.md) |
+| `interactsh_registration_expired` | — | no | Registration expired locally or upstream | [Interactsh](../tools/interactsh.md) |
+| `interactsh_request_failed` | — | yes | Collector transport or server failure; coverage may be incomplete | [Interactsh](../tools/interactsh.md) |
+| `interactsh_request_invalid` | — | no | Invalid input or incompatible request | [Interactsh](../tools/interactsh.md) |
+| `interactsh_response_invalid` | — | no | Malformed, incompatible or unsafe callback response | [Interactsh](../tools/interactsh.md) |
+| `interactsh_response_too_large` | — | no | Callback response exceeds its byte bound | [Interactsh](../tools/interactsh.md) |
 
 <!-- /registry-table -->

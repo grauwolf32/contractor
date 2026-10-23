@@ -24,6 +24,7 @@ func (s RuntimeSettings) RevealJSON() ([]byte, error) {
 		Telemetry        *revealedTelemetry        `json:"telemetry,omitempty"`
 		HTTPProxy        *revealedHTTPProxy        `json:"httpProxy,omitempty"`
 		Caido            *revealedCaido            `json:"caido,omitempty"`
+		Interactsh       *revealedInteractsh       `json:"interactsh,omitempty"`
 		HTTPOriginTarget *revealedHTTPOriginTarget `json:"httpOriginTarget,omitempty"`
 	}{
 		plain:            plain(s),
@@ -31,6 +32,7 @@ func (s RuntimeSettings) RevealJSON() ([]byte, error) {
 		Telemetry:        revealTelemetry(s.Telemetry),
 		HTTPProxy:        revealHTTPProxy(s.HTTPProxy),
 		Caido:            revealCaido(s.Caido),
+		Interactsh:       revealInteractsh(s.Interactsh),
 		HTTPOriginTarget: revealHTTPOriginTarget(s.HTTPOriginTarget),
 	})
 }
@@ -55,6 +57,13 @@ type plainCaido CaidoSettings
 type revealedCaido struct {
 	plainCaido
 	BearerToken *string `json:"bearerToken,omitempty"`
+}
+
+type plainInteractsh InteractshSettings
+
+type revealedInteractsh struct {
+	plainInteractsh
+	Token *string `json:"token,omitempty"`
 }
 
 type plainHTTPOriginTarget HTTPOriginTargetSettings
@@ -115,6 +124,13 @@ func revealCaido(settings *CaidoSettings) *revealedCaido {
 		return nil
 	}
 	return &revealedCaido{plainCaido: plainCaido(*settings), BearerToken: revealSecret(settings.BearerToken)}
+}
+
+func revealInteractsh(settings *InteractshSettings) *revealedInteractsh {
+	if settings == nil {
+		return nil
+	}
+	return &revealedInteractsh{plainInteractsh: plainInteractsh(*settings), Token: revealSecret(settings.Token)}
 }
 
 func revealHTTPOriginTarget(settings *HTTPOriginTargetSettings) *revealedHTTPOriginTarget {

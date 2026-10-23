@@ -58,3 +58,35 @@ describe("RuntimeConfig draft", () => {
     );
   });
 });
+
+describe("Interactsh infrastructure draft", () => {
+  it("authors an atomic configuration, preserves clear and enforces timeout bounds", () => {
+    const draft = {
+      ...emptyConfigDraft(),
+      name: "oast-lab",
+      interactsh: true,
+      interactshEndpoint: "https://oast.example/prefix",
+      interactshCredential: "oast-token",
+      interactshTimeout: "30",
+    };
+    expect(buildDocument(draft, []).document?.spec.worker?.interactsh).toEqual({
+      adapter: "interactsh-http@1",
+      endpoint: draft.interactshEndpoint,
+      credential: "oast-token",
+      requestTimeoutSeconds: 30,
+    });
+    expect(
+      buildDocument({ ...draft, interactshClear: true }, []).document?.spec
+        .worker?.interactsh,
+    ).toBeNull();
+    expect(
+      buildDocument({ ...draft, interactshTimeout: "121" }, []).errors,
+    ).not.toEqual([]);
+    expect(
+      buildDocument(
+        { ...draft, interactshEndpoint: "https://user:secret@oast.example" },
+        [],
+      ).errors,
+    ).not.toEqual([]);
+  });
+});

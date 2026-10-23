@@ -1082,6 +1082,7 @@
         "kind": {
           "enum": [
             "caido-bearer@1",
+            "interactsh-token@1",
             "http-origin-basic@1",
             "http-origin-bearer@1",
             "http-proxy-basic@1",
@@ -1282,6 +1283,17 @@
           "exclusiveMinimum": 0,
           "title": "Requesttimeoutseconds",
           "type": "integer"
+        },
+        "interactsh": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InteractshSettings"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -1398,6 +1410,58 @@
         "maxBackoffMilliseconds"
       ],
       "title": "TelemetryRetrySettings",
+      "type": "object"
+    },
+    "InteractshSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "adapter": {
+          "title": "Adapter",
+          "type": "string"
+        },
+        "endpoint": {
+          "title": "Endpoint",
+          "type": "string"
+        },
+        "caBundlePem": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cabundlepem"
+        },
+        "requestTimeoutSeconds": {
+          "maximum": 120,
+          "minimum": 1,
+          "title": "Requesttimeoutseconds",
+          "type": "integer"
+        },
+        "token": {
+          "anyOf": [
+            {
+              "format": "password",
+              "type": "string",
+              "writeOnly": true
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bearertoken"
+        }
+      },
+      "required": [
+        "adapter",
+        "endpoint",
+        "requestTimeoutSeconds"
+      ],
+      "title": "InteractshSettings",
       "type": "object"
     }
   },

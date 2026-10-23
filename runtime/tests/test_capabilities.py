@@ -160,6 +160,7 @@ def test_builtin_discovery_keeps_editing_tools_without_optional_validators(
         assert snapshot.runtime_adapters == (
             "caido-graphql@1",
             "http-proxy@1",
+            "interactsh-http@1",
             "otlp-http@1",
         )
         assert snapshot.workspace is None

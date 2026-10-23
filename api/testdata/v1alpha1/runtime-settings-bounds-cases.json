@@ -79,6 +79,15 @@
     {"name": "maxEntries zero", "set": {"/sourceArchiveLimits": {"maxExpandedBytes": 67108864, "maxFileBytes": 4194304, "maxEntries": 0}}, "valid": false},
     {"name": "maxEntries negative", "set": {"/sourceArchiveLimits": {"maxExpandedBytes": 67108864, "maxFileBytes": 4194304, "maxEntries": -1}}, "valid": false},
     {"name": "maxEntries above maximum", "set": {"/sourceArchiveLimits": {"maxExpandedBytes": 67108864, "maxFileBytes": 4194304, "maxEntries": 50001}}, "valid": false},
-    {"name": "maxEntries fractional", "set": {"/sourceArchiveLimits": {"maxExpandedBytes": 67108864, "maxFileBytes": 4194304, "maxEntries": 1.5}}, "valid": false}
+    {"name": "maxEntries fractional", "set": {"/sourceArchiveLimits": {"maxExpandedBytes": 67108864, "maxFileBytes": 4194304, "maxEntries": 1.5}}, "valid": false},
+    {"name": "Interactsh timeout 0", "set": {"/interactsh/requestTimeoutSeconds": 0}, "valid": false},
+    {"name": "Interactsh timeout 1", "set": {"/interactsh/requestTimeoutSeconds": 1}, "valid": true},
+    {"name": "Interactsh timeout 120", "set": {"/interactsh/requestTimeoutSeconds": 120}, "valid": true},
+    {"name": "Interactsh timeout 121", "set": {"/interactsh/requestTimeoutSeconds": 121}, "valid": false},
+    {"name": "Interactsh invalid adapter 4", "set": {"/interactsh/adapter": "caido-graphql@1"}, "valid": false, "crossField": true},
+    {"name": "Interactsh invalid token 5", "set": {"/interactsh/token": ""}, "valid": false, "crossField": true},
+    {"name": "Interactsh invalid endpoint 6", "set": {"/interactsh/endpoint": "https://user:secret@oast.example"}, "valid": false, "crossField": true},
+    {"name": "Interactsh invalid token 7", "set": {"/interactsh/token": "line\nbreak"}, "valid": false, "crossField": true},
+    {"name":"Interactsh literal endpoint", "set":{"/interactsh/endpoint":"http://127.1"}, "valid":false, "crossField":true}
   ]
 }

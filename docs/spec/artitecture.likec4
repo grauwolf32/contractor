@@ -261,6 +261,10 @@ model {
     #external #optional
   }
 
+  interactshService = system 'Interactsh — optional owned callback collector' {
+    #external #optional
+  }
+
   caidoService = system 'Caido — optional forward proxy and GraphQL control API' {
     #external #optional
   }
@@ -848,7 +852,7 @@ model {
     allocationCapabilities = component 'Allocation Capabilities — narrowed tools, adapters and disposable workspace' {
       #contractor
 
-      adapterHost = component 'Allocation Adapter Host — OTLP / HTTP proxy / Caido clients' {
+      adapterHost = component 'Allocation Adapter Host — OTLP / HTTP proxy / Caido / Interactsh clients' {
         #contractor
       }
 
@@ -889,6 +893,10 @@ model {
       }
 
       trailmarkChild = component 'Allocation-local Trailmark child — bounded and killable' {
+        #contractor #optional
+      }
+
+      interactshTools = component 'Selected interactsh@1 tools — owned registrations, bounded polling and unverified callback evidence' {
         #contractor #optional
       }
 
@@ -1011,6 +1019,10 @@ model {
     allocationCapabilities.workspaceProvider -> allocationCapabilities.artifactClient 'Read exact ZIP/state; overlay auto-export keeps independent 16 MiB ceiling despite 64 MiB Artifact transport'
     allocationCapabilities.workspaceProvider -> runtimeWorkspaceStorage 'Create isolated disposable allocation storage'
     allocationCapabilities.httpCaidoTools -> allocationCapabilities.artifactClient 'Persist selected HTTP evidence and same-Run target cookies as ordinary artifacts'
+    workerExecution.workerRuntime -> allocationCapabilities.interactshTools 'Construct only explicitly selected callback tools'
+    allocationCapabilities.adapterHost -> allocationCapabilities.interactshTools 'Inject mandatory allocation-owned Interactsh client'
+    allocationCapabilities.interactshTools -> interactshService 'Register and poll same owned identity; bounded cleanup and private keys'
+    allocationCapabilities.interactshTools -> allocationCapabilities.artifactClient 'Retain exact callback evidence; unverified trigger relation'
     allocationCapabilities.httpCaidoTools -> caidoService 'Target HTTP via optional proxy; call static GraphQL operations through typed adapter'
   }
 
@@ -2319,6 +2331,12 @@ views {
     include llmGateway with {
       title 'LLM Gateway'
     }
+    include interactshService
+    include runtimeAgent.allocationCapabilities.interactshTools
+    include runtimeAgent.workerExecution.workerRuntime -> runtimeAgent.allocationCapabilities.interactshTools
+    include runtimeAgent.allocationCapabilities.adapterHost -> runtimeAgent.allocationCapabilities.interactshTools
+    include runtimeAgent.allocationCapabilities.interactshTools -> interactshService
+    include runtimeAgent.allocationCapabilities.interactshTools -> runtimeAgent.allocationCapabilities.artifactClient
     include caidoService with {
       title 'Caido (optional)'
     }

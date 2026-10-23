@@ -62,6 +62,7 @@ type workerSource struct {
 	Telemetry  optional[telemetrySource]  `json:"telemetry"`
 	HTTPProxy  optional[httpProxySource]  `json:"httpProxy"`
 	Caido      optional[caidoSource]      `json:"caido"`
+	Interactsh optional[interactshSource] `json:"interactsh"`
 }
 
 type plannerSource struct {
@@ -111,6 +112,14 @@ type caidoSource struct {
 	RequestTimeoutSeconds optional[int]    `json:"requestTimeoutSeconds"`
 }
 
+type interactshSource struct {
+	Adapter               string           `json:"adapter"`
+	Endpoint              string           `json:"endpoint"`
+	Credential            optional[string] `json:"credential"`
+	CABundlePEM           optional[string] `json:"caBundlePem"`
+	RequestTimeoutSeconds optional[int]    `json:"requestTimeoutSeconds"`
+}
+
 // Credential members of a canonical RuntimeConfig document, as PostgreSQL
 // text-array paths. Credential deletion checks read them from stored
 // versions, so renaming a member must change its path; internal/persistence
@@ -120,6 +129,7 @@ const (
 	WorkerTelemetryCredentialPath  = "{spec,worker,telemetry,credential}"
 	WorkerHTTPProxyCredentialPath  = "{spec,worker,httpProxy,credential}"
 	WorkerCaidoCredentialPath      = "{spec,worker,caido,credential}"
+	WorkerInteractshCredentialPath = "{spec,worker,interactsh,credential}"
 	PlannerTelemetryCredentialPath = "{spec,planner,telemetry,credential}"
 )
 
@@ -419,6 +429,15 @@ func materializeWorker(source workerSource, author bool, gatewayRefs map[string]
 		canonical["caido"] = value
 		operations++
 	}
+	if source.Interactsh.present {
+		patch, value, err := materializeInteractsh(source.Interactsh)
+		if err != nil {
+			return WorkerPatch{}, nil, 0, err
+		}
+		result.Interactsh = patch
+		canonical["interactsh"] = value
+		operations++
+	}
 	return result, canonical, operations, nil
 }
 
@@ -611,6 +630,67 @@ func materializeCaido(source optional[caidoSource]) (AtomicPatch[CaidoConfig], a
 	patch.Value = CaidoConfig{
 		Adapter: value.Adapter, Endpoint: endpoint, Credential: value.Credential.value,
 		CABundlePEM: value.CABundlePEM.value, RequestTimeoutSeconds: timeout,
+	}
+	canonical := map[string]any{"adapter": value.Adapter, "endpoint": endpoint}
+	if value.Credential.present {
+		canonical["credential"] = value.Credential.value
+	}
+	if value.CABundlePEM.present {
+		canonical["caBundlePem"] = value.CABundlePEM.value
+	}
+	if value.RequestTimeoutSeconds.present {
+		canonical["requestTimeoutSeconds"] = timeout
+	}
+	return patch, canonical, nil
+}
+
+func materializeInteractsh(source optional[interactshSource]) (AtomicPatch[InteractshConfig], any, error) {
+	patch := AtomicPatch[InteractshConfig]{Present: true}
+	if source.null {
+		patch.Clear = true
+		return patch, nil, nil
+	}
+	value := source.value
+	if value.Adapter != string(runtimesettings.RuntimeAdapterInteractshHTTP) {
+		return AtomicPatch[InteractshConfig]{}, nil, invalid("spec.worker.interactsh.adapter must be interactsh-http@1")
+	}
+	endpoint, err := validateURL("spec.worker.interactsh.endpoint", value.Endpoint)
+	if err != nil {
+		return AtomicPatch[InteractshConfig]{}, nil, err
+	}
+	if value.Credential.present && value.Credential.null {
+		return AtomicPatch[InteractshConfig]{}, nil, invalid("spec.worker.interactsh.credential cannot be null")
+	}
+	if value.Credential.present {
+		if err := validateID("spec.worker.interactsh.credential", value.Credential.value, 128); err != nil {
+			return AtomicPatch[InteractshConfig]{}, nil, err
+		}
+	}
+	if value.CABundlePEM.present && value.CABundlePEM.null {
+		return AtomicPatch[InteractshConfig]{}, nil, invalid("spec.worker.interactsh.caBundlePem cannot be null")
+	}
+	if value.CABundlePEM.present {
+		if err := validateCABundle("spec.worker.interactsh.caBundlePem", value.CABundlePEM.value); err != nil {
+			return AtomicPatch[InteractshConfig]{}, nil, invalid("spec.worker.interactsh.caBundlePem is invalid")
+		}
+	}
+	timeout := 0
+	if value.RequestTimeoutSeconds.present {
+		if value.RequestTimeoutSeconds.null || value.RequestTimeoutSeconds.value < 1 || value.RequestTimeoutSeconds.value > runtimesettings.MaxInteractshRequestTimeoutSeconds {
+			return AtomicPatch[InteractshConfig]{}, nil, invalid("spec.worker.interactsh.requestTimeoutSeconds must be from 1 through 120")
+		}
+		timeout = value.RequestTimeoutSeconds.value
+	}
+	patch.Value = InteractshConfig{
+		Adapter: value.Adapter, Endpoint: endpoint, Credential: value.Credential.value,
+		CABundlePEM: value.CABundlePEM.value, RequestTimeoutSeconds: timeout,
+	}
+	timeoutForValidation := timeout
+	if timeoutForValidation == 0 {
+		timeoutForValidation = runtimesettings.MaxInteractshRequestTimeoutSeconds
+	}
+	if err := (runtimesettings.InteractshSettings{Adapter: runtimesettings.RuntimeAdapterInteractshHTTP, Endpoint: endpoint, RequestTimeoutSeconds: timeoutForValidation}).Validate(); err != nil {
+		return AtomicPatch[InteractshConfig]{}, nil, invalid("spec.worker.interactsh.endpoint requires a callback DNS hostname")
 	}
 	canonical := map[string]any{"adapter": value.Adapter, "endpoint": endpoint}
 	if value.Credential.present {

@@ -71,6 +71,26 @@
       "findingProposalTools": [],
       "requiredWorkflowInputs": {}
     },
+    "interactsh@1": {
+      "tools": [
+        "interactsh_poll",
+        "interactsh_register"
+      ],
+      "infrastructureChannels": {
+        "interactsh_poll": [
+          "interactsh-client"
+        ],
+        "interactsh_register": [
+          "interactsh-client"
+        ]
+      },
+      "requiresWorkspace": false,
+      "requiredSandboxProfiles": [],
+      "activeCheckTools": [],
+      "sandboxActiveCheckTools": {},
+      "findingProposalTools": [],
+      "requiredWorkflowInputs": {}
+    },
     "likec4@1": {
       "tools": ["append_likec4", "load_likec4", "read_likec4", "replace_likec4", "validate_likec4", "write_likec4"],
       "infrastructureChannels": {"validate_likec4": ["runtime-subprocess-launcher"]},

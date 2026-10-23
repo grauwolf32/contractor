@@ -837,6 +837,18 @@ kind `caido-bearer@1`. Absence means explicitly unauthenticated or guest
 access. The resolved token is a `SecretString` only in private
 `RuntimeSettings`; provenance carries the credential ID and kind, never bytes.
 
+### Interactsh adapter
+
+**RCF-R183.** `worker.interactsh` is an atomic block or explicit null with
+`adapter: interactsh-http@1`, `endpoint` and optional `credential`,
+`caBundlePem`, `requestTimeoutSeconds`. The credential kind is
+`interactsh-token@1`; private RuntimeSettings use secret `token`, never a
+RuntimeConfig inline token. Publication, merge, snapshots, provenance, binding
+and credential deletion fences apply identically to the other atomic Worker
+adapters. Operations authoring and detail preserve clear versus omission.
+Protocol, endpoint domain, timeouts and evidence belong to
+[Interactsh](../tools/interactsh.md#INT-R2).
+
 ### Runtime credentials
 
 **RCF-R110.** RuntimeConfig stores only exact credential references. Secret
@@ -845,6 +857,7 @@ generalized for versioned adapter-owned credential schemas.
 
 **RCF-R111.** Infrastructure credential kinds include:
 
+- `interactsh-token@1`: a bounded token for `interactsh-http@1`;
 - `otlp-headers@1`: a bounded secret HTTP header mapping for `otlp-http@1`;
 - `http-proxy-basic@1`: username and password for `http-proxy@1`;
 - `http-proxy-bearer@1`: a bearer token for `http-proxy@1`;
@@ -1101,7 +1114,7 @@ depth:
 - `worker.llmGateway.gateway` and `worker.llmGateway.credential` are
   independent leaves; `credential: null` explicitly clears an inherited
   credential and an omitted value inherits it;
-- `worker.telemetry`, `worker.httpProxy`, `worker.caido` and
+- `worker.telemetry`, `worker.httpProxy`, `worker.caido`, `worker.interactsh` and
   `planner.telemetry` are atomic blocks. A higher layer replaces the complete
   block or clears it with JSON `null`, so endpoints, credentials and trust or
   capture policy cannot be assembled accidentally from different deployments
