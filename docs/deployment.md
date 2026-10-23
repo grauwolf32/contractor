@@ -16,7 +16,10 @@ to a ten-second tolerance window, so a brief client-to-database stall does not
 stop the Server. Once a probe fails within that window, the Server closes both
 listeners and stops the Scheduler. The window stays below the server-side
 keepalive bound, so the Server stops before PostgreSQL releases the lock to a
-standby. A standby that hits a transient acquisition stall reconnects and keeps
+standby. PostgreSQL applies the lease session's 30-second TCP user timeout only
+on Linux; with PostgreSQL on another operating system, takeover after the
+active Server's host vanishes can take minutes instead of about half a minute.
+A standby that hits a transient acquisition stall reconnects and keeps
 polling rather than exiting.
 
 ## Install the release

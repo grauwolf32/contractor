@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -46,13 +48,62 @@ func TestPostgresControlPlaneLeaseSessionDetectsVanishedHolder(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer lease.Close()
+	var version string
+	if err := lease.conn.QueryRow(t.Context(), "SELECT version()").Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	userTimeout, err := leaseUserTimeoutOn(version)
+	if err != nil {
+		t.Fatal(err)
+	}
 	for name, want := range map[string]string{
 		"tcp_keepalives_idle": "10", "tcp_keepalives_interval": "5",
-		"tcp_keepalives_count": "3", "tcp_user_timeout": "30000",
+		"tcp_keepalives_count": "3", "tcp_user_timeout": userTimeout,
 	} {
 		var got string
 		if err := lease.conn.QueryRow(t.Context(), "SELECT current_setting($1)", name).Scan(&got); err != nil || got != want {
-			t.Errorf("%s = (%q, %v), want %q", name, got, err, want)
+			t.Errorf("%s = (%q, %v), want %q on %q", name, got, err, want, version)
+		}
+	}
+}
+
+// leaseUserTimeoutOn returns the tcp_user_timeout the lease session must read
+// back from a server whose version() is version (PER-R6). PostgreSQL applies
+// the setting only where the operating system has TCP_USER_TIMEOUT, which is
+// Linux, and reads it as 0 elsewhere. Deciding from the build platform rather
+// than from a probe keeps the assertion able to fail on Linux: a lease session
+// that stopped requesting the timeout reads the kernel default 0 there.
+func leaseUserTimeoutOn(version string) (string, error) {
+	build, _, compiled := strings.Cut(version, ", compiled by ")
+	at := strings.LastIndex(build, " on ")
+	if !compiled || at < 0 || !strings.HasPrefix(build, "PostgreSQL ") {
+		return "", fmt.Errorf("unrecognised PostgreSQL version() %q", version)
+	}
+	if strings.Contains(build[at+len(" on "):], "-linux") {
+		return "30000", nil
+	}
+	return "0", nil
+}
+
+func TestControlPlaneLeaseUserTimeoutFollowsServerPlatform(t *testing.T) {
+	for version, want := range map[string]string{
+		"PostgreSQL 17.6 (Debian 17.6-1.pgdg120+1) on x86_64-pc-linux-gnu, compiled by gcc (Debian 12.2.0-14) 12.2.0, 64-bit": "30000",
+		"PostgreSQL 17.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 14.2.0) 14.2.0, 64-bit":                       "30000",
+		"PostgreSQL 17.6 on x86_64-linux, compiled by gcc-14.2.0, 64-bit":                                                     "30000",
+		"PostgreSQL 17.11 (Homebrew) on aarch64-apple-darwin27.0.0, compiled by Apple clang version 21.0.0, 64-bit":           "0",
+		"PostgreSQL 17.2 on amd64-portbld-freebsd14.1, compiled by FreeBSD clang version 18.1.5, 64-bit":                      "0",
+		"PostgreSQL 17.2 on x86_64-windows, compiled by msvc-19.42.34435, 64-bit":                                             "0",
+	} {
+		if got, err := leaseUserTimeoutOn(version); err != nil || got != want {
+			t.Errorf("leaseUserTimeoutOn(%q) = (%q, %v), want %q", version, got, err, want)
+		}
+	}
+	for _, version := range []string{
+		"", "PostgreSQL 17.6 on x86_64-pc-linux-gnu", "PostgreSQL 15.4, compiled by Visual C++ build 1914, 64-bit",
+		"Server 1.0 on x86_64-pc-linux-gnu, compiled by gcc, 64-bit",
+	} {
+		if got, err := leaseUserTimeoutOn(version); err == nil {
+			t.Errorf("leaseUserTimeoutOn(%q) = %q, want an unrecognised-version error", version, got)
 		}
 	}
 }

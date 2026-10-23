@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-77 open tasks: 4 in progress, 48 pending, 25 deferred. 959 finished: 956 completed, 3 archived.
+77 open tasks: 5 in progress, 47 pending, 25 deferred. 959 finished: 956 completed, 3 archived.
 
 ## In progress
 
@@ -15,6 +15,7 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
+| [V401-003](v401-003-lease-user-timeout-platforms.yml) | persistence | defect | P3 | State and test the lease session's user timeout only where PostgreSQL supports it |
 
 ## Pending
 
@@ -124,7 +125,6 @@ the epics are in [epics.yml](epics.yml).
 | [V372-008](v372-008-upward-table-reads.yml) | chore | P3 | — | Remove the table reads that point up the layer stack or name who owns each one |
 | [V372-009](v372-009-ownership-check-blind-spots.yml) | chore | P3 | — | Close the blind spots of the table ownership check |
 | [V372-010](v372-010-erd-usage-from-ownership-scan.yml) | chore | P3 | — | Take the ERD's code-usage lists from the ownership scan and document the new-table workflow |
-| [V401-003](v401-003-lease-user-timeout-platforms.yml) | defect | P3 | — | State and test the lease session's user timeout only where PostgreSQL supports it |
 
 ### Quality, CI and process (`quality`)
 

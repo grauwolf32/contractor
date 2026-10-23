@@ -6,7 +6,7 @@ epic: persistence
 kind: defect
 introduced_by: V168-001
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, markdown]
 goal: "PER-R6 and TestPostgresControlPlaneLeaseSessionDetectsVanishedHolder state and check the lease session's keepalive settings truthfully on every PostgreSQL platform: the 30 s user timeout where the server supports TCP_USER_TIMEOUT, the keepalive probes everywhere."
