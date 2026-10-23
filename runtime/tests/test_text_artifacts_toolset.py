@@ -334,22 +334,30 @@ def test_concurrent_first_reads_share_one_preparation(
         held = hold_preparation(monkeypatch)
         client = MemoryArtifactClient()
         source = client.seed("inputs", "log", "text/plain", b"one\ntwo\n")
-        read = (await make_tools(tmp_path, client, WorkerState()))["read_text_artifact"]
+        other = client.seed("inputs", "other", "text/plain", b"other\n")
+        state = WorkerState()
+        read = (await make_tools(tmp_path, client, state))["read_text_artifact"]
         cursor = client.observation_cursor
 
         first = asyncio.create_task(read("inputs", "log", source.revision))
         second = asyncio.create_task(read("inputs", "log", start_line=2))
+        # A read of another revision waits too: it cannot evict the entry
+        # while its preparation runs.
+        replacing = asyncio.create_task(read("inputs", "other", other.revision))
         assert await asyncio.to_thread(held.started.wait, 60)
         for _ in range(5):
             await asyncio.sleep(0)
-        assert not first.done() and not second.done()
+        assert not first.done() and not second.done() and not replacing.done()
         held.release.set()
 
         assert (await first)["text"] == "one\ntwo\n"
         assert (await second)["text"] == "two\n"
-        assert held.calls == 1 and client.read_calls == 1
-        # The download and the cached read are both content observations.
-        assert client.observed_exact_refs_since(cursor) == (source, source)
+        assert (await replacing)["text"] == "other\n"
+        assert held.calls == 2 and client.read_calls == 2
+        # The download and the cached read of the log are content observations.
+        assert client.observed_exact_refs_since(cursor) == (source, source, other)
+        entry = state._artifact_read_cache._entry
+        assert entry is not None and entry.value.artifact == other
 
     asyncio.run(scenario())
 
