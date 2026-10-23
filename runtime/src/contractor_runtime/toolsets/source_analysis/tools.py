@@ -31,8 +31,8 @@ from contractor_runtime.core.lines import split_lines
 from contractor_runtime.projectfs.operation_guard import WorkspaceOperationGuard
 from contractor_runtime.projectfs.paths import (
     ProjectPathError,
+    compile_project_glob,
     normalize_project_glob,
-    project_glob_matches,
 )
 from contractor_runtime.redaction import runtime_secrets
 from contractor_runtime.toolsets.common.artifact_visibility import (
@@ -265,7 +265,8 @@ class _SourceArchiveSession:
         _validate_page(offset, limit)
         async with self._lock:
             self._require_open()
-            matched = [item for item in self._files.values() if _path_matches(item.path, pattern)]
+            matches = _path_matcher(pattern)
+            matched = [item for item in self._files.values() if matches(item.path)]
             matched.sort(key=lambda item: item.path)
             page = matched[offset : offset + limit]
             return {
@@ -288,10 +289,11 @@ class _SourceArchiveSession:
         _validate_search(query, path_pattern, regex, case_sensitive, max_results)
         async with self._lock:
             self._require_open()
+            matches = _path_matcher(path_pattern)
             files = tuple(
                 item
                 for item in sorted(self._files.values(), key=lambda item: item.path)
-                if _path_matches(item.path, path_pattern)
+                if matches(item.path)
             )
             return await self._guard.run(
                 lambda: self._search_files(files, query, regex, case_sensitive, max_results),
@@ -762,13 +764,23 @@ def _validate_pattern(pattern: str) -> None:
         ) from None
 
 
-def _path_matches(path: str, pattern: str) -> bool:
+def _path_matcher(pattern: str) -> Callable[[str], bool]:
+    """Compile ``pattern`` once; a path that is no project path never matches."""
+
     if pattern in {"**", "**/*"}:
-        return True
+        return lambda _path: True
     try:
-        return project_glob_matches(path, pattern)
+        glob = compile_project_glob(pattern)
     except ProjectPathError:
-        return False
+        return lambda _path: False
+
+    def matches(path: str) -> bool:
+        try:
+            return glob.matches(path)
+        except ProjectPathError:
+            return False
+
+    return matches
 
 
 def _validate_page(offset: int, limit: int) -> None:

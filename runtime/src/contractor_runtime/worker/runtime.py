@@ -1103,6 +1103,10 @@ class AdkWorkerRuntime:
                 except Exception as error:
                     failures.append(error)
         finally:
+            exporter = self._workspace_exporter
+            self._workspace_exporter = None
+            if exporter is not None:
+                exporter.release()
             model = self._model
             self._model = None
             if isinstance(model, OpenAICompatibleGatewayLlm):
@@ -1114,7 +1118,6 @@ class AdkWorkerRuntime:
             self._result_finalizer = None
             self._instrumentation = None
             self._agent_skills = None
-            self._workspace_exporter = None
             self._context = None  # type: ignore[assignment]
         if failures:
             raise failures[0]

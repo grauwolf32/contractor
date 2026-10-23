@@ -876,6 +876,22 @@ sequenceDiagram
     end
 ```
 
+**WSP-R178.** Each write of WSP-R146 first resolves the binding's current
+exact revision, media type and size through the metadata read
+([ART-R116](../artifacts/artifact-store.md)). A missing binding is created
+with `If-None-Match: *`. A different media type or size proves different
+content, so the binding is updated with `If-Match` on the observed revision
+without downloading it. When media type and size are equal, the Runtime reads
+that exact revision, bounded by its size, and compares it byte for byte,
+unless it wrote or compared that same exact revision before and recorded the
+digest of its immutable content ([ART-R49](../artifacts/artifact-store.md));
+equal content is reused as the exact ref without a write. A conflict starts
+again from a fresh metadata read, and a failed read is classified like a
+failed write and never treated as permission to overwrite. Neither the opaque
+revision nor a matching size is taken as content identity. The Runtime keeps,
+per export binding, only the last exact revision whose content it wrote or
+compared, and forgets it when the Worker is finalized or aborted.
+
 **WSP-R150.** Both artifacts bind the same `resultWorkspaceDigest`;
 diff metadata may carry the digest outside the diff text.
 
@@ -1138,7 +1154,7 @@ Failure outcomes ([failure model](../platform/failure-model.md)):
   WSP-R83, WSP-R159).
 - FAIL-WSP-4 — local direct atomic text replacement commit (WSP-R96).
 - FAIL-WSP-5 — overlay mutation and change operations (WSP-R99).
-- FAIL-WSP-6 — auto-export artifact writes (WSP-R151, WSP-R152).
+- FAIL-WSP-6 — auto-export artifact writes (WSP-R151, WSP-R152, WSP-R178).
 - FAIL-WSP-7 — release cleanup and workspace disposal (WSP-R165, WSP-R170,
   WSP-R172).
 - FAIL-WSP-8 — startup stale-directory cleanup (WSP-R166).
