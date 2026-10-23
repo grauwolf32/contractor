@@ -17,6 +17,12 @@ type route struct {
 // (TestMain).
 func (c contextHandlers) routes() []route {
 	return []route{
+		{"POST", "/v1/scan-sweeps", "createScanSweep", c.scanSweeps.create},
+		{"GET", "/v1/scan-sweeps", "listScanSweeps", c.scanSweeps.list},
+		{"GET", "/v1/scan-sweeps/{sweepId}", "getScanSweep", c.scanSweeps.get},
+		{"GET", "/v1/scan-sweeps/{sweepId}/members", "listScanSweepMembers", c.scanSweeps.members},
+		{"POST", "/v1/scan-sweeps/{sweepId}/cancel", "cancelScanSweep", c.scanSweeps.cancel},
+		{"DELETE", "/v1/scan-sweeps/{sweepId}", "purgeScanSweep", c.scanSweeps.purge},
 		{"POST", "/v1/auth/login", "login", c.session.login},
 		{"GET", "/v1/auth/session", "getSession", c.session.getSession},
 		{"POST", "/v1/auth/logout", "logout", c.session.logout},

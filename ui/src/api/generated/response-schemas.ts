@@ -8,6 +8,11 @@ export const EVENT_SCHEMA_ID =
 
 /** A schema under $defs of public-schemas.json. */
 export type PublicSchemaName =
+  | "CreateScanSweepRequest"
+  | "ScanSweep"
+  | "ScanSweepMember"
+  | "ScanSweepPage"
+  | "ScanSweepMemberPage"
   | "FindingCorrelationReadScope"
   | "FindingComparisonProfile"
   | "FindingComparisonAudit"
@@ -1962,6 +1967,72 @@ export const RESPONSE_SCHEMAS = {
     "500": "Error",
     "503": "Error",
   },
+  "GET /v1/scan-sweeps": {
+    "200": "ScanSweepPage",
+    "400": "Error",
+    "401": "Error",
+    "403": "Error",
+    "404": "Error",
+    "409": "Error",
+    "413": "Error",
+    "500": "Error",
+    "503": "Error",
+  },
+  "POST /v1/scan-sweeps": {
+    "201": "ScanSweep",
+    "400": "Error",
+    "401": "Error",
+    "403": "Error",
+    "404": "Error",
+    "409": "Error",
+    "413": "Error",
+    "500": "Error",
+    "503": "Error",
+  },
+  "GET /v1/scan-sweeps/{sweepId}": {
+    "200": "ScanSweep",
+    "400": "Error",
+    "401": "Error",
+    "403": "Error",
+    "404": "Error",
+    "409": "Error",
+    "413": "Error",
+    "500": "Error",
+    "503": "Error",
+  },
+  "DELETE /v1/scan-sweeps/{sweepId}": {
+    "204": null,
+    "400": "Error",
+    "401": "Error",
+    "403": "Error",
+    "404": "Error",
+    "409": "Error",
+    "413": "Error",
+    "500": "Error",
+    "503": "Error",
+  },
+  "GET /v1/scan-sweeps/{sweepId}/members": {
+    "200": "ScanSweepMemberPage",
+    "400": "Error",
+    "401": "Error",
+    "403": "Error",
+    "404": "Error",
+    "409": "Error",
+    "413": "Error",
+    "500": "Error",
+    "503": "Error",
+  },
+  "POST /v1/scan-sweeps/{sweepId}/cancel": {
+    "200": "ScanSweep",
+    "400": "Error",
+    "401": "Error",
+    "403": "Error",
+    "404": "Error",
+    "409": "Error",
+    "413": "Error",
+    "500": "Error",
+    "503": "Error",
+  },
 } as const satisfies Record<string, Record<string, PublicSchemaName | null>>;
 
 export type ResponseOperation = keyof typeof RESPONSE_SCHEMAS;
@@ -2207,6 +2278,7 @@ export const REQUEST_HEADER_SCHEMAS = {
     "Sec-WebSocket-Protocol":
       "connectEventsWebSocketSecWebSocketProtocolHeader",
   },
+  "POST /v1/scan-sweeps": { "Idempotency-Key": "IdempotencyKeyHeader" },
 } as const satisfies Partial<
   Record<ResponseOperation, Record<string, PublicSchemaName>>
 >;

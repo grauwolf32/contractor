@@ -38,6 +38,7 @@ if TYPE_CHECKING:
 
 MAX_INPUT_BYTES = 64 * 1024
 MAX_REPORT_BYTES = 512 * 1024
+MAX_ADDITIONAL_ARTIFACT_BYTES = 16 * 1024 * 1024
 MAX_ADDITIONAL_ARTIFACTS = 16
 MAX_ADDITIONAL_REF_BYTES = 8192
 MAX_RECEIPT_BYTES = 16 * 1024
@@ -146,6 +147,11 @@ class ToolWorkerRuntime:
         self._input = create_model(
             "ToolWorkerInput", __config__=ConfigDict(strict=True, extra="forbid"), **fields
         )
+        for name, binding in execution.arguments.items():
+            if binding.optional and (
+                name not in fields or self._input.model_fields[name].is_required()
+            ):
+                raise ValueError("optional artifact binding requires a callable default")
         self._state = context.state
         self.allocation_id = context.allocation_id
         self._active: asyncio.Task | None = None
@@ -178,14 +184,20 @@ class ToolWorkerRuntime:
 
     def _resolve(self, request: StageContentRequest):
         arguments = {}
+        omitted = set()
         for name, binding in self._execution.arguments.items():
             if binding.source == "parameter":
-                arguments[name] = request.parameters[binding.name]
+                arguments[name] = binding.resolve_parameter(request.parameters)
             elif binding.source == "artifact":
-                arguments[name] = request.artifacts[binding.name].model_dump(by_alias=True)
+                if binding.optional and binding.name not in request.artifacts:
+                    omitted.add(name)
+                else:
+                    arguments[name] = request.artifacts[binding.name].model_dump(by_alias=True)
             else:
                 arguments[name] = binding.value
         arguments = self._input.model_validate(arguments).model_dump()
+        for name in omitted:
+            arguments.pop(name, None)
         target = request.result_artifacts[self._execution.result_artifact]
         if target.namespace != self._context.namespace or target.name.startswith(RECEIPT_PREFIX):
             raise ValueError("invalid tool output namespace or reserved binding")
@@ -254,7 +266,7 @@ class ToolWorkerRuntime:
         # Tools have their own Artifact clients, so a ref in a JSON observation
         # is not proof of publication. Exact reads verify existence and revision.
         for ref in refs.values():
-            await self._client.read_artifact(ref, max_bytes=MAX_REPORT_BYTES)
+            await self._client.read_artifact(ref, max_bytes=MAX_ADDITIONAL_ARTIFACT_BYTES)
 
     async def invoke(self, request: StageContentRequest) -> WorkerCompletion:
         if not self._accepting:

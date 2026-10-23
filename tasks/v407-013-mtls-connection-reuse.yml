@@ -1,0 +1,66 @@
+schema_version: "1.0"
+id: V407-013
+title: "Reuse verified mTLS connections between Server and Runtime instead of one handshake per request"
+milestone: server-runtime-review-2026-10
+epic: execution-core
+kind: defect
+introduced_by: V8-004
+priority: P1
+status: pending
+depends_on: []
+languages: [go, python]
+goal: "Control Plane calls, A2A polls and Runtime private calls reuse a verified connection per peer; a 100 ms poll no longer costs a TLS handshake."
+context:
+  review: "docs/research/2026-10-23-server-runtime-review.md, findings D2 and F6; file:line as of 39d89438, re-verify on main"
+  specification: docs/spec/execution/control-plane.md
+  severity: medium
+  finding: >-
+    Server: internal/controlplane/runtime_client.go:438-453 builds a new
+    http.Transport and http.Client with DisableKeepAlives true for every
+    Prepare, Finalize, Abort, Release and ReadWorkerState, so each does a
+    fresh TCP connect and a full mTLS 1.3 handshake, and the Transport is
+    never reused or closed. internal/planner/a2a/client.go:133-144 has the
+    same pattern, and the A2A task poll runs every a2a.pollInterval = 100 ms
+    by default (app/operational_settings.go:157): about 10 handshakes per
+    second per running Worker for the whole Stage, on both sides.
+    mtls.BindRuntimeAgentPrincipal only varies by RuntimeAgentID. Runtime:
+    _https.py:120-150 opens a fresh TLS 1.3 connection per private call and
+    both transports send Connection: close (artifacts.py:465,
+    control_client.py:170), so every artifact read, write and list page,
+    finding proposal, recovery acquire/failed/succeeded update and heartbeat
+    pays a handshake; the design reason (verify the Control Plane URI SAN
+    before the first byte) needs one check per connection, not per request.
+  siblings: >-
+    Any other per-request Transport in internal/ (grep DisableKeepAlives and
+    '&http.Transport{'): credentials/litellm/manager.go, gitimport/client.go,
+    telemetry exporters; list each and state whether it is per request by
+    design.
+plan:
+  - "Server: add a small bounded cache in internal/mtls or controlplane keyed by RuntimeAgentID -> *http.Transport (keep-alives on, MaxConnsPerHost bounded, IdleConnTimeout, CloseIdleConnections on principal deletion or eviction); use it in runtime_client.go and planner/a2a/client.go; keep the per-request timeouts on the request context, not the Transport."
+  - "Record in docs/spec/execution/control-plane.md that principal binding is verified per connection and that a principal change (re-registration with a new certificate) evicts the cached Transport; add the eviction to the registration path."
+  - "Runtime: keep one verified asyncio connection per transport (artifacts, control client) with re-verification of the SAN on reconnect; drop Connection: close; keep the strict HTTP/1.1 parser; bound idle lifetime; make sure cancellation closes the connection (threads/guards already in place)."
+  - "Tests: Go httptest with a TLS server counting handshakes across 10 sequential calls (expect 1); a Runtime test with the existing private HTTPS test server counting handshakes across 10 artifact reads (expect 1), and a test that a changed server certificate is refused on reconnect."
+scope:
+  in:
+    - "Transport reuse per principal on the Server; connection reuse per transport in the Runtime."
+    - "Eviction on principal change; handshake-count tests."
+  out:
+    - "Changing poll intervals or the private wire contract."
+acceptance_criteria:
+  - id: A1
+    text: "Ten sequential control-plane or A2A calls to one Runtime perform one TLS handshake (test counts handshakes)."
+  - id: A2
+    text: "Ten sequential Runtime private calls perform one handshake; a changed peer certificate is refused on reconnect."
+  - id: A3
+    text: "Deleting or re-registering a principal evicts its Transport (test)."
+  - id: A4
+    text: "Handshake-count tests fail on the unfixed code."
+tests:
+  - command: "go test -count=1 ./internal/controlplane/... ./internal/planner/a2a/... ./internal/mtls/..."
+    covers: [A1, A3, A4]
+  - command: "cd runtime && uv run --locked pytest -q tests/test_https.py tests/test_artifacts.py tests/test_control_client.py"
+    covers: [A2, A4]
+  - command: make test-e2e
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1]

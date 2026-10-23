@@ -1,0 +1,44 @@
+schema_version: "1.0"
+id: V409-013
+title: "Verify the SQL review's static claims on a real database and close the review"
+milestone: sql-review-2026-10
+epic: persistence
+kind: chore
+priority: P2
+status: pending
+depends_on: []
+languages: [go, sql]
+goal: "Every dead-index and plan-shape claim of the review is confirmed or refuted with EXPLAIN and pg_stat_user_indexes evidence, and the report's Status names the closing task or decision per finding."
+context:
+  review: "docs/research/2026-10-23-sql-review.md, section F"
+  finding: >-
+    The review was static: no EXPLAIN, no pg_stat_user_indexes. Open
+    questions: plan choices for the ($n = '' OR col = $n) filter pattern
+    under pgx prepared statements; whether claimAuditSQL and
+    nextLiveRunForDeletionSQL pick their partial indexes; actual usage of
+    the ten candidate dead indexes; the contention rate of finding A1; real
+    sizes of eval_view_pairs.document, eval_member_projections.document and
+    audit_report_pages.content (readReportSectionsSQL string_aggs up to
+    4096 pages x 64 MB); the count of workflow_run_events per Run.
+plan:
+  - "On the demo database (read-only queries only) and on a test database seeded by the e2e suite, collect pg_stat_user_indexes for the candidate dead indexes and EXPLAIN (ANALYZE, BUFFERS) for the listed statements; record the plans in the report."
+  - "Add an EXPLAIN-based test harness helper (internal/persistence/postgres/postgrestest or the existing TestProbeHolderLookupUsesItsIndex pattern) that other V409 tasks reuse."
+  - "Answer the size and count questions with queries on the demo database; file follow-up tasks for anything that turns out worse than assumed."
+  - "At the end of the milestone, fill the report's Status section with the closing task or decision per finding."
+scope:
+  in:
+    - "Evidence collection, EXPLAIN helper, follow-ups, status."
+  out:
+    - "Any schema change."
+acceptance_criteria:
+  - id: A1
+    text: "The report lists pg_stat_user_indexes counts for every candidate dead index and the plan for every statement named in section F."
+  - id: A2
+    text: "The EXPLAIN helper exists with one test using it."
+  - id: A3
+    text: "Every finding in sections A to D has a closing task ID or a recorded decision."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/persistence/postgres/..."
+    covers: [A2]
+  - command: make lint
+    covers: [A3]

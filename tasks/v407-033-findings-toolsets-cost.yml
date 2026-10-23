@@ -1,0 +1,65 @@
+schema_version: "1.0"
+id: V407-033
+title: "Bound finding toolset cost: encode audit results off the collector lock, cache the exact source ZIP per allocation, and page list_findings linearly"
+milestone: server-runtime-review-2026-10
+epic: findings
+kind: defect
+introduced_by: V39-003
+priority: P2
+status: pending
+depends_on: []
+languages: [python]
+goal: "Submitting results and findings costs work proportional to the submission, not to everything submitted before, and page assembly uses the shared cursor and size helpers."
+context:
+  review: "docs/research/2026-10-23-server-runtime-review.md, findings G4, G6, G11; file:line as of 39d89438, re-verify on main"
+  specification: docs/spec/findings/findings.md
+  severity: medium
+  finding: >-
+    (1) runtime/src/contractor_runtime/toolsets/audit_results/collector.py:306-307
+    _admit -> encoder.encode inside async with self._lock;
+    encoding.py:59-61 re-runs _decode_task_input (zip parse, json.loads plus
+    jcs.canonicalize of up to 8 MiB per nested document,
+    packages.py:324-333) and canonicalises every result and evidence item,
+    then writes a ZIP, per submit_check_result; no file under audit_results/
+    uses to_thread_until_done; the same decode repeats in
+    completion.py:122,131 (three times), collector.py:78-79 (begin) and
+    publication.py:109. Work is O(items^2) over a batch. (2)
+    security_findings/anchors.py:47-59: per submission one serial
+    read_artifact_metadata per evidence ref (up to 32) and a read_artifact of
+    up to 8 MiB, then a full tree-sitter parse in a thread, all inside the
+    30 s asyncio.timeout at line 23; a Worker recording 30 findings against
+    one exact ZIP transfers about 240 MiB and parses 30 times, and on a slow
+    Server the derivation silently degrades to input_limit. FND-R169 forbids
+    keeping an AST across publications, not caching immutable exact bytes.
+    (3) security_findings/reader.py:243-247: each candidate re-canonicalises
+    the whole accumulated page to check MAX_PAGE_BYTES, O(page^2) JCS on the
+    loop; reader.py:258-294 hand-rolls an unsigned cursor codec and a 1..100
+    limit check instead of common/cursors.py.
+  siblings: >-
+    code_analysis/tools.py _fit_result_page is the linear page-fitting model;
+    common/artifact_read_cache.py is the cache precedent; text and run
+    artifact readers (V407-035) share the paging class.
+plan:
+  - "Decode the immutable task inputs once in prepare() and pass decoded records to the encoder; run encode in a thread outside the lock and re-check _items identity before the atomic swap at collector.py:364; reuse the decoded inputs in completion, begin and publication."
+  - "Add an allocation-scoped one-entry cache (exact ref -> bytes) for the source ZIP in anchors derivation, and gather the metadata reads with asyncio.gather under the existing deadline."
+  - "Canonicalise each candidate once, keep a running byte sum plus a fixed envelope allowance (as _fit_result_page does), and switch the reader to common/cursors encode_cursor, decode_cursor and require_limit."
+  - "Tests: a batch of 64 results with 8 MiB task documents decodes the inputs once (hook count) and keeps loop gaps under 100 ms; 30 findings against one ZIP perform one read_artifact (fake artifact client call count); list_findings with 100 items x 256 evidence refs canonicalises each item once."
+scope:
+  in:
+    - "Decode-once and threaded encode; exact-bytes cache; linear paging; shared cursor helpers."
+  out:
+    - "Result package format, finding schema, FND-R169 AST rule."
+acceptance_criteria:
+  - id: A1
+    text: "Task inputs are decoded once per allocation and encode runs outside the collector lock with loop gaps under 100 ms for a 64-item batch."
+  - id: A2
+    text: "Thirty findings against one exact ZIP read the artifact once; the 30 s deadline is no longer hit in the slow-server test."
+  - id: A3
+    text: "list_findings page assembly canonicalises each item once and uses common/cursors; cursors remain accepted by the existing tests."
+  - id: A4
+    text: "Count tests fail on the unfixed code."
+tests:
+  - command: "cd runtime && uv run --locked pytest -q tests/test_audit_results_toolset.py tests/test_security_findings_toolset.py tests/test_findings_reader_toolset.py tests/test_finding_anchors.py"
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A3]

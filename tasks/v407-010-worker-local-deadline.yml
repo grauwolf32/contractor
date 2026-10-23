@@ -1,0 +1,53 @@
+schema_version: "1.0"
+id: V407-010
+title: "Enforce the Stage deadline locally for every Worker invocation, not only Audit completions"
+milestone: server-runtime-review-2026-10
+epic: planner-worker
+kind: defect
+introduced_by: V2-010
+priority: P2
+status: pending
+depends_on: []
+languages: [python]
+goal: "A Worker stops spending model calls at its deadline even if the Server's cancel is lost."
+context:
+  review: "docs/research/2026-10-23-server-runtime-review.md, finding F5; file:line as of 39d89438, re-verify on main"
+  specification: docs/spec/execution/worker.md
+  severity: low
+  finding: >-
+    runtime/src/contractor_runtime/worker/runtime.py:621-632 computes deadline
+    from request.deadline but only enforces it via asyncio.timeout_at when
+    completion is not None, so an ordinary (non-Audit) Worker has no local
+    wall-clock bound and worker_timeout (handled at runtime.py:703-707) is
+    unreachable for it. The Server's A2A client sends a best-effort
+    CancelTask when its own deadline expires
+    (internal/planner/a2a/client.go:157-163), so in practice the Worker is
+    cancelled, but if that cancel is lost the Worker keeps spending model
+    calls until abort. WRK-R6 says the request carries the Planner's effective
+    Worker-call deadline.
+  siblings: >-
+    The summarizer and finalizer have their own budgets; check that the local
+    deadline wraps the whole invocation including terminal summarization or
+    that the spec states which budget owns each phase (one timeout per
+    operation, AGENTS 3.2).
+plan:
+  - "Apply asyncio.timeout_at(deadline) around the invocation for both paths and map TimeoutError to worker_timeout through the existing handler; decide in docs/spec/execution/worker.md whether terminal summarization runs inside or after the deadline and implement that."
+  - "Test with an injected clock or a short deadline: a Worker whose fake model never returns ends with worker_timeout without a CancelTask."
+scope:
+  in:
+    - "Local deadline enforcement for ordinary Workers."
+    - "Spec statement on which budget owns summarization."
+  out:
+    - "Changing Server-side deadline computation."
+acceptance_criteria:
+  - id: A1
+    text: "An ordinary Worker with a passed deadline and no cancel ends with worker_timeout."
+  - id: A2
+    text: "Audit completion behaviour (WRK-R158) is unchanged; its tests pass."
+  - id: A3
+    text: "The new test fails on the unfixed code."
+tests:
+  - command: "cd runtime && uv run --locked pytest -q tests/test_adk_runtime.py"
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A2]

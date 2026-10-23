@@ -63,7 +63,7 @@ func (c *CLI) Run(ctx context.Context, args []string) error {
 	if command != "context" && command != "contexts" && command != "workflow" && command != "workflows" &&
 		command != "project" && command != "projects" && command != "artifact" && command != "artifacts" &&
 		command != "source" && command != "run" && command != "runs" && command != "queue" &&
-		command != "ops" && command != "operations" && command != "check" {
+		command != "ops" && command != "operations" && command != "check" && command != "scan-sweep" {
 		return &UsageError{Message: fmt.Sprintf("unknown command %q", command)}
 	}
 
@@ -95,6 +95,8 @@ func (c *CLI) Run(ctx context.Context, args []string) error {
 		return c.runQueue(ctx, client, printer, commandArgs)
 	case "ops", "operations":
 		return c.runOperations(ctx, client, printer, commandArgs)
+	case "scan-sweep":
+		return c.runScanSweep(ctx, client, printer, commandArgs)
 	case "check":
 		return c.checkContext(ctx, client, printer, selected)
 	default:
@@ -255,6 +257,7 @@ Commands:
   check       Verify connectivity, authentication, and API compatibility
   workflow    List and inspect published Workflows
   project     Manage Projects and Project-scoped resources
+  scan-sweep  Capture and resume ordinary Project scan Runs
   artifact    Manage User, Project, and Run Artifacts
   source      Package and upload a source directory
   run         Create, inspect, watch, cancel, and download Run outputs

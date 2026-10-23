@@ -1,0 +1,35 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+metadata: {name: nuclei-web, version: "1"}
+spec:
+  parameters:
+    target: {required: true}
+    template_ids: {required: false}
+    tags: {required: false}
+    severity: {required: false}
+    rate_limit: {required: false}
+  inputs:
+    rulepack: {required: false, sourceScope: user, mediaTypes: [application/yaml, application/vnd.contractor.nuclei-rulepack+zip]}
+  outputs:
+    report: {required: true, primary: true, mediaTypes: [application/json]}
+    template_manifest: {required: true, mediaTypes: [application/vnd.contractor.nuclei-manifest+json]}
+  entryStage: scan
+  stages:
+    scan:
+      objective: Check the supplied HTTP target with the pinned Nuclei rules
+      instructions: {ref: instructions/nuclei-web.md}
+      planner: passthrough@1
+      agents:
+        scanner: {template: nuclei-web-scan@1}
+      context:
+        artifacts:
+          rulepack: {namespace: inputs, name: rulepack, required: false}
+      result:
+        artifacts:
+          report: {required: true, mediaTypes: [application/json], from: {namespace: scanner, name: report}}
+          template_manifest: {required: true, mediaTypes: [application/vnd.contractor.nuclei-manifest+json], from: {namespace: scanner, name: template-manifest}}
+      workflowOutputs: {report: report, template_manifest: template_manifest}
+      on:
+        succeeded: {succeed: {}}
+        failed: {fail: {}}
+        interrupted: {fail: {}}

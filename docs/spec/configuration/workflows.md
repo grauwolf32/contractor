@@ -741,6 +741,14 @@ Stages pin an exact AgentTemplate body is listed by the read-only
 workflow-bindings endpoint owned by
 [TPL-R109 and TPL-R110](agent-templates.md).
 
+**WFL-R88.** Only the optional Workflow input named `rulepack` may declare
+`sourceScope: user`, with one or both custom Nuclei media types from SCN-R239.
+It must be consumed by a `tool@1` `scan_nuclei` optional artifact argument
+`rulepack_ref`, mapped through optional context to `inputs/rulepack`.
+Other explicit sourceScope values, outputs, Stage results and Audit profile
+slots reject this field. Absent sourceScope preserves endpoint source semantics.
+Authored and retained resolved Workflows validate this same restriction.
+
 ## Limits, failures and errors
 
 Limits ([registry](../platform/limits.md)):

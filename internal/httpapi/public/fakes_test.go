@@ -530,7 +530,8 @@ func (f *fakeArtifactRepository) ListRefs(
 	defer f.mu.Unlock()
 	result := make([]artifacts.ArtifactRef, 0)
 	for key := range f.current {
-		if key.kind != scope.Kind() || key.id != scope.ID() || query.Namespace != nil && key.namespace != *query.Namespace ||
+		if key.kind != scope.Kind() || key.id != scope.ID() ||
+			query.Namespace != nil && key.namespace != *query.Namespace ||
 			query.ModelVisible && artifactpolicy.IsModelHiddenBinding(key.namespace, key.name) ||
 			key.namespace < query.AfterNamespace || key.namespace == query.AfterNamespace && key.name <= query.AfterName {
 			continue
@@ -633,6 +634,7 @@ func (f *fakeArtifactRepository) ListMetadata(
 	result := make([]artifacts.Metadata, 0)
 	for key, read := range f.current {
 		if key.kind != scope.Kind() || key.id != scope.ID() ||
+			scope.Kind() == artifacts.ScopeUser && artifactpolicy.IsRunSystemNamespace(key.namespace) ||
 			query.Namespace != nil && key.namespace != *query.Namespace ||
 			query.ExcludeNamespace != nil && key.namespace == *query.ExcludeNamespace ||
 			query.HiddenNamespace != "" && key.namespace == query.HiddenNamespace ||

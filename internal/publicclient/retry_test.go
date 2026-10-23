@@ -264,3 +264,39 @@ func TestServerRetryableFlagDecidesRetriesOnEveryStatus(t *testing.T) {
 		t.Fatal("intermediary errors are not classified by status")
 	}
 }
+
+func TestRetryAfterDelayUsesServerTimeWithoutWallClockAssertions(t *testing.T) {
+	now := time.Date(2026, 10, 23, 10, 0, 0, 0, time.UTC)
+	for _, c := range []struct {
+		value string
+		want  time.Duration
+	}{{"", 0}, {"0", 0}, {"2", 2 * time.Second}, {"-1", 0}, {"garbage", 0}, {"999999999999999999999999999999", 31 * time.Second}, {now.Add(3 * time.Second).Format(http.TimeFormat), 3 * time.Second}, {now.Add(-time.Second).Format(http.TimeFormat), 0}} {
+		if got := retryAfterDelay(c.value, now); got != c.want {
+			t.Fatalf("Retry-After %q = %s, want %s", c.value, got, c.want)
+		}
+	}
+}
+
+func TestLongRetryAfterReturnsForExplicitResumeWithoutEarlyRetry(t *testing.T) {
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		w.Header().Set(APIVersionHeader, APIVersion)
+		w.Header().Set("Retry-After", "3600")
+		w.WriteHeader(503)
+		_, _ = io.WriteString(w, `{"code":"storage_transaction_conflict","message":"retry","retryable":true}`)
+	}))
+	defer server.Close()
+	client, err := New(Options{Server: server.URL, Token: "fixture", Timeout: time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := client.API.GetProject(t.Context(), "project")
+	if err != nil {
+		t.Fatal(err)
+	}
+	response.Body.Close()
+	if response.StatusCode != 503 || calls.Load() != 1 {
+		t.Fatal("client ignored a long server Retry-After")
+	}
+}

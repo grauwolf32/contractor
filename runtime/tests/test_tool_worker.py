@@ -1132,3 +1132,99 @@ def test_shared_ffuf_request_failure_publishes_partial_report_without_rescan(tmp
             await release_scanner_allocation(service, spec)
 
     asyncio.run(scenario())
+
+
+def test_shared_tool_parameter_bindings():
+    from private_schemas import private_validator
+    from pydantic import ValidationError
+
+    cases = json.loads((ROOT / "api/testdata/tool-parameter-binding-cases.json").read_text())
+    schema = private_validator("common.schema.json#/$defs/toolExecution")
+    assert cases["bindings"] and cases["projections"]
+    for case in cases["bindings"]:
+        config = {
+            "tool": "scan_nuclei",
+            "arguments": {"rate_limit": case["binding"]},
+            "resultArtifact": "report",
+            "timeoutSeconds": 60,
+        }
+        assert schema.is_valid(config) == case["valid"], case["name"]
+        try:
+            binding = ToolArgumentBinding.model_validate(case["binding"])
+        except ValidationError:
+            accepted = False
+        else:
+            accepted = True
+            assert binding.model_dump(by_alias=True) == case["binding"], case["name"]
+        assert accepted == case["valid"], case["name"]
+    for case in cases["projections"]:
+        binding = ToolArgumentBinding.model_validate(case["binding"])
+        before = dict(case["parameters"])
+        try:
+            value = binding.resolve_parameter(case["parameters"])
+        except ValueError:
+            accepted = False
+        else:
+            accepted = True
+            assert value == case["expected"], case["name"]
+            assert type(value) is type(case["expected"]), case["name"]
+        assert accepted == case["valid"], case["name"]
+        assert case["parameters"] == before
+
+
+def test_shared_tool_parameter_binding_defaults_and_typed_receipt(tmp_path):
+    async def scenario():
+        store, tool, spec = ArtifactStore(), FixtureTool(), tool_spec()
+        spec.agent_template.execution.arguments["rate_limit"] = ToolArgumentBinding(
+            source="parameter", name="rate", parse="integer", default=7
+        )
+        runtime = await worker(tmp_path, store, tool, spec=spec)
+        original = request(spec)
+        original.parameters["rate"] = "7"
+        completion = await runtime.invoke(original)
+        assert completion.failure is None
+        assert tool.calls == [(original.parameters["target"], 7)]
+        assert type(tool.calls[0][1]) is int
+        assert original.parameters["rate"] == "7"
+        defaulted = request(spec)
+        assert await runtime.invoke(defaulted) == completion
+        assert len(tool.calls) == 1
+        recreated = await worker(tmp_path, store, tool, spec=spec)
+        replay = await recreated.invoke(defaulted)
+        assert replay.result.artifacts == completion.result.artifacts
+        assert len(tool.calls) == 1
+        changed = request(spec)
+        changed.parameters["rate"] = "8"
+        assert (await recreated.invoke(changed)).failure.code == "tool_input_conflict"
+        for invalid in ["", "07", "7.0", "+7", "7 "]:
+            bad = request(spec)
+            bad.parameters["rate"] = invalid
+            assert (await runtime.invoke(bad)).failure.code == "tool_input_invalid"
+        assert len(tool.calls) == 1
+
+    asyncio.run(scenario())
+
+
+def test_shared_optional_artifact_binding_omits_callable_argument_and_checks_default(tmp_path):
+    class OptionalTool(FixtureTool):
+        async def __call__(
+            self, url: str, rate_limit: int = 10, rulepack_ref: dict[str, str] | None = None
+        ) -> dict:
+            self.calls.append(rulepack_ref)
+            return self.result
+
+    async def scenario():
+        store, tool, spec = ArtifactStore(), OptionalTool(), tool_spec()
+        spec.agent_template.execution.arguments["rulepack_ref"] = ToolArgumentBinding(
+            source="artifact", name="rulepack", optional=True
+        )
+        runtime = await worker(tmp_path, store, tool, spec=spec)
+        result = await runtime.invoke(request(spec))
+        assert result.failure is None, result
+        assert tool.calls == [None]
+        with pytest.raises(
+            ValueError, match="optional artifact binding requires a callable default"
+        ):
+            await worker(tmp_path, ArtifactStore(), FixtureTool(), spec=spec)
+
+    asyncio.run(scenario())

@@ -83,14 +83,25 @@ available through a tag or a manual full-gate run before a PR is merged.
 | `release-verify-race` | The deduplicated Go race pass over the platform packages named in `make/release.mk` |
 | `release-verify-race-discovered` | The Go race pass over every other package with tests, discovered by [`scripts/release_race_packages.py`](../../scripts/release_race_packages.py), so a new package is raced automatically |
 | `release-verify-integration` | Every PostgreSQL-only integration-tagged Go test under the race detector, a pass without it for packages whose tests relax a budget under the race detector, such as the 10-second finding-collection deadline, and every package whose tests take their Artifact blob backend from `CONTRACTOR_TEST_ARTIFACT_BACKEND`, run whole on the filesystem backend (`make test-artifact-filesystem`) |
-| `release-verify-process-a` | The first shard of the 20 process e2e tests |
-| `release-verify-process-b` | The second shard of the 20 process e2e tests |
-| `release-verify-process-c` | The third shard of the 20 process e2e tests |
+| `release-verify-process-a` | The first shard of the 21 process e2e tests |
+| `release-verify-process-b` | The second shard of the 21 process e2e tests |
+| `release-verify-process-c` | The third shard of the 21 process e2e tests |
 
 The process and browser shards run on separate CI runners. `make test-e2e`
-still runs all 19 process tests in one local command, and `make test-ui-stack`
+still runs all 21 process tests in one local command, and `make test-ui-stack`
 still runs the full browser stack locally. The release-graph guard checks that
 each selected process and browser test runs exactly once.
+
+The three aggregate race targets (`test-release-go-race`,
+`test-release-go-race-discovered`, `test-release-integration`) run at most two
+package binaries concurrently by default. Set `RACE_PACKAGE_PARALLELISM=1`
+when diagnosing contention or reproducing serial execution, for example
+`make test-release-go-race RACE_PACKAGE_PARALLELISM=1`. This setting changes
+package scheduling only; tests inside each package keep their existing
+scheduling. Before increasing it, measure peak PostgreSQL connections
+(including admin pools and direct connections), memory and elapsed time on
+the runner. PostgreSQL advisory locks also require checking their database
+scope; separate schemas alone do not isolate every resource.
 
 Inside the stages, family targets skip their own Go suites and browser stack
 in favor of the race, integration, process and browser passes; running a
@@ -204,3 +215,12 @@ For versioned datasets and reproducible comparisons, use the
 [fixture catalog](../../configs/evals/README.md) and
 [instruction-evaluation guide](../../tests/eval/agent_instructions/README.md).
 Offline conformance checks do not measure model quality.
+
+`make test-nuclei-web-e2e` requires PostgreSQL and runs a deterministic scanner
+protocol fixture through the actual shipped Workflow, Server, Scheduler and
+Runtime. It also launches a seven-Project client sweep and drops one committed
+create acknowledgement to prove replay and stable membership. It is selected
+by the consolidated release process group C without host scanner requirements.
+`make test-nuclei-web-installed` is the explicit real Nuclei engine smoke for
+all individual knobs, exact package/template provenance, invalid admission and
+changed-package refusal.

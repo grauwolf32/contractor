@@ -163,6 +163,9 @@ var layers = []layerSpec{
 			"internal/projectstore",
 			"internal/rundeletion",
 			"internal/runservice",
+			"internal/scanstore",
+			"internal/scanservice",
+			"internal/scancontroller",
 		},
 	},
 	{

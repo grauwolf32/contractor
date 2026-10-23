@@ -1,0 +1,59 @@
+schema_version: "1.0"
+id: V409-002
+title: "Serve the Audit finding inbox and the per-Run proposal bound from indexes"
+milestone: sql-review-2026-10
+epic: findings
+kind: defect
+introduced_by: V369-005
+priority: P1
+status: pending
+depends_on: []
+languages: [go, sql]
+goal: "A finding inbox page reads only that Audit's receipts and holds, and submitting a proposal does not count the Run's receipts."
+context:
+  review: "docs/research/2026-10-23-sql-review.md, finding A2 and section C (count per submission)"
+  specification: docs/spec/findings/findings.md
+  severity: high
+  finding: >-
+    internal/findingintake/postgres_sql.go:39-52 listAuditInboxSQL filters
+    receipt.owner_id = $1 AND ((receipt.audit_id = $2 AND
+    source_run_deleted_at IS NULL) OR EXISTS (SELECT 1 FROM
+    finding_proposal_audit_holds ... WHERE hold.receipt_id =
+    receipt.receipt_id AND hold.audit_id = $2 ...)). finding_proposal_receipts
+    has no index on owner_id (indexes: audit_idx (audit_id, created_at,
+    receipt_id), run_idx, project_idx from 000010), and an EXISTS inside an
+    OR cannot become a semi-join or BitmapOr, so the plan is a sequential
+    scan of every receipt of every owner and Run retained until Project
+    purge, filtered row by row, then sorted for ORDER BY created_at,
+    receipt_id LIMIT $5. This serves GET .../audits/{id}/findings
+    (internal/httpapi/public/finding_handlers.go:89) on every page.
+    listAuditHeldInboxSQL (lines 58-68) already has the indexed shape for
+    the holds branch. Separately, internal/findingintake/service.go:173
+    runs count(*) over the Run's receipts on every SubmitProposal to enforce
+    maxProposalsPerRun = 4096, O(n) per submission and O(n^2) per Run at
+    the limit.
+  siblings: >-
+    listOwnerFindingsSQL and listOwnerReviewsSQL in auditstore use a global
+    created_at index with a per-row owner probe; V409-013 checks their
+    plans.
+plan:
+  - "Rewrite listAuditInboxSQL as a UNION of two keyset branches, each with its own LIMIT: native receipts via finding_proposal_receipts_audit_idx, held receipts via finding_proposal_audit_holds_audit_idx joined to receipts by primary key; order and limit the union; keep owner_id as a verification predicate on each branch."
+  - "Replace the count(*) with a counter on workflow_runs (incremented in the same statement that inserts the receipt, under the Run lock the service already holds) or with EXISTS ... OFFSET maxProposalsPerRun-1; keep the bound value in one place."
+  - "Add EXPLAIN-based index-use tests for both statements (pattern: TestProbeHolderLookupUsesItsIndex) seeded with receipts of two owners and two Audits, and a 4096-receipt submission test asserting constant statement cost."
+scope:
+  in:
+    - "Index-driven inbox statement, O(1) proposal bound, EXPLAIN tests."
+  out:
+    - "Inbox response shape and cursor format."
+acceptance_criteria:
+  - id: A1
+    text: "EXPLAIN of the inbox statement on a seeded database shows no sequential scan of finding_proposal_receipts; pages are identical to the current output for the fixtures."
+  - id: A2
+    text: "The 4096th submission of a Run issues the same number of statements as the first."
+  - id: A3
+    text: "The EXPLAIN test fails on the unfixed statement."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/findingintake/... ./internal/httpapi/public/..."
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1]

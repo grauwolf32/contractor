@@ -14,7 +14,6 @@ import (
 
 const (
 	defaultPageLimit = 50
-	maxCursorBytes   = 512
 	pageCursorV1     = 1
 )
 
@@ -61,7 +60,7 @@ func parsePageQuery(values url.Values) (url.Values, int, string, error) {
 	var cursor string
 	if entries, present := values["cursor"]; present {
 		cursor = entries[0]
-		if cursor == "" || len(cursor) > maxCursorBytes {
+		if cursor == "" || len(cursor) > pagelimit.MaxCursorBytes {
 			return nil, 0, "", fmt.Errorf("%w: cursor is empty or too large", errInvalidRequest)
 		}
 	}
@@ -104,7 +103,7 @@ func (c pageCursors) encodePageCursor(kind string, values ...string) (string, er
 		return "", fmt.Errorf("encode page cursor: %w", err)
 	}
 	encoded := c.seal("", payload)
-	if len(encoded) > maxCursorBytes {
+	if len(encoded) > pagelimit.MaxCursorBytes {
 		return "", fmt.Errorf("encode page cursor: result is too large")
 	}
 	return encoded, nil

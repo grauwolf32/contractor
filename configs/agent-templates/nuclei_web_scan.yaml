@@ -1,0 +1,26 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata: {name: nuclei-web-scan, version: "1"}
+spec:
+  description: Scan one HTTP target with a verified private Nuclei rules package.
+  runtime: tool@1
+  sandboxProfile: local-workdir@1
+  toolsets:
+    - ref: scan@1
+      tools: [scan_nuclei]
+  execution:
+    tool: scan_nuclei
+    arguments:
+      url: {source: parameter, name: target}
+      template_ids: {source: parameter, name: template_ids, default: ""}
+      tags: {source: parameter, name: tags, default: ""}
+      severity: {source: parameter, name: severity, default: ""}
+      rate_limit: {source: parameter, name: rate_limit, parse: integer, default: 10}
+      # Canonical package manifest of the Ansible-provisioned v10.5.0 release.
+      # Recompute this literal when provisioning a different installed package.
+      templates_digest: {source: literal, value: "sha256:51a3bd4eef14e95bdeb0bad14ca4bd9bd455479a7044b244b76dee8f6dba5014"}
+      rulepack_ref: {source: artifact, name: rulepack, optional: true}
+      timeout_seconds: {source: literal, value: 300}
+    resultArtifact: report
+    # Allow the adapter to return a timeout diagnostic and publish its report.
+    timeoutSeconds: 330

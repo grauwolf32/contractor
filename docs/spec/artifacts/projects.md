@@ -41,8 +41,8 @@ Each term is defined once in the [glossary](../glossary.md).
 - **ProjectScope** — the ArtifactStore structural scope that holds one
   Project's artifact bindings, `ProjectScope(project_id)`.
 - **Project Run** — a WorkflowRun created through
-  `POST /v1/projects/{project_id}/runs`; its artifact refs resolve in
-  ProjectScope. A Run created without a Project is a standalone Run
+  `POST /v1/projects/{project_id}/runs`; its ordinary artifact refs resolve in
+  ProjectScope, with the declared rulepack exception in PRJ-R29. A Run created without a Project is a standalone Run
   ([Runs](../execution/runs.md)).
 - **Project output binding** — the binding
   `ProjectScope(project_id): outputs/<slot>` that automatic publication creates
@@ -299,8 +299,11 @@ a standalone Run.
 authority.
 
 **PRJ-R29.** A Project Run must not source an input directly
-from another Project or mix UserScope and ProjectScope refs in one request. The
-user may explicitly fork or upload the desired artifact into the Project first.
+from another Project. Ordinary input slots resolve in ProjectScope; the user
+may explicitly fork or upload desired content into the Project first. The narrow
+optional Nuclei rulepack slot declared `sourceScope: user` resolves in the
+authenticated owner UserScope and is forked by trusted admission even alongside
+ProjectScope inputs ([SCN-R238](../tools/scanners.md)).
 
 **PRJ-R30.** Global Skills are the deliberate exception, handled
 by trusted Run initialization: for a Project Run too, it resolves the

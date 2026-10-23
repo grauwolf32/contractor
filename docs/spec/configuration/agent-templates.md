@@ -266,6 +266,12 @@ this document describe `adk@1` and are absent in the tool variant. The `adk@1`
 requirements are unchanged by the tool variant, and `execution` is forbidden
 for every runtime other than `tool@1`.
 
+An artifact argument may declare `optional: true` only when its Stage context
+is optional and the callable has a default. Absence omits that argument from the
+call and invocation input digest; a supplied malformed or inaccessible artifact
+fails. Explicit false/null, optional on other source kinds, and silent missing
+required arguments are invalid. The shared binding fixtures cover every side.
+
 **TPL-R6.** ResolvedAgentTemplate embeds a `tool@1` template's `execution`
 unchanged. Its canonical digest uses the sorted toolsets, runtime, sandbox and
 description projection, omits instructions and modelPolicy, and adds

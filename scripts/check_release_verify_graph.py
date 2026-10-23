@@ -20,6 +20,7 @@ MODULE = "github.com/grauwolf32/contractor/"
 
 # Union of the process e2e names selected by release-verify before V155.
 EXPECTED_PROCESS_TESTS = {
+    "TestNucleiWebWithDeterministicScannerAcrossProcesses",
     "TestAgentSkillsMVPProcesses",
     "TestAuditProgramCatalogReplacementRestartsServer",
     "TestAuditProgramsAcrossProductionProcesses",
@@ -67,6 +68,10 @@ EXPECTED_CONFIG_TESTS = {
 # opt-in target that selects it and why release-verify cannot run it; every
 # other e2e-tagged test must be selected by release-verify.
 OPT_IN_E2E_TESTS = {
+    "TestNucleiWebAcrossProductionProcesses": (
+        "test-nuclei-web-installed",
+        "requires the real nuclei scanner on PATH",
+    ),
     "TestAuditCompositionAcrossProductionProcesses": (
         "test-audit-composition-e2e",
         "requires the real nuclei/sqlmap scanners and Chromium",
@@ -813,8 +818,11 @@ def check_integration_graph() -> int:
             f"{len(commands)} visible commands, {len(consolidated)} complete discovery gates"
         )
     tokens = consolidated[0]
-    if any(flag not in tokens for flag in ("-race", "-v", "-count=1", "-p", "1", "-run")):
-        raise SystemExit("release integration command lost race, verbose evidence, count, serial or selection")
+    if any(flag not in tokens for flag in ("-race", "-v", "-count=1", "-p", "-run")):
+        raise SystemExit("release integration command lost race, verbose evidence, count, parallelism or selection")
+    parallelism_index = tokens.index("-p") + 1
+    if parallelism_index >= len(tokens) or re.fullmatch(r"[1-9][0-9]*", tokens[parallelism_index]) is None:
+        raise SystemExit("release integration package parallelism must be a positive integer")
     packages = {token for token in tokens if token.startswith("./")}
     if packages != selected.keys():
         raise SystemExit(

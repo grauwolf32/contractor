@@ -1,0 +1,68 @@
+schema_version: "1.0"
+id: V409-003
+title: "Lock the Run before the Stage in StartPlanner, carry the CAS in resume, and use one clock per statement family"
+milestone: sql-review-2026-10
+epic: execution-core
+kind: defect
+introduced_by: V365-002
+priority: P2
+status: pending
+depends_on: []
+languages: [go, sql]
+goal: "Every runstore statement that touches a Run and its Stage locks them in the RUN-R29 order, every transition carries its state CAS, and the release timestamps come from one clock."
+context:
+  review: "docs/research/2026-10-23-sql-review.md, finding A3 and section D (resume CAS, planner append fence, two clocks)"
+  specification: docs/spec/execution/runs.md
+  severity: medium
+  finding: >-
+    (1) internal/runstore/stage_store_sql.go:92 startPlannerSQL does UPDATE
+    stage_executions (Stage row lock) -> INSERT planner_sessions -> UPDATE
+    workflow_runs (Run row lock) in one statement, called from
+    internal/planner/session/service.go:105 on a pool-backed store
+    (internal/app/composition_execution.go:62), so no enclosing transaction
+    holds the Run first. Every other commit point locks Run then Stage
+    (run_failure_store.go:30-33, scheduler/postgres.go:41,84,122-145,
+    memory/postgres.go lockActiveStage). A second Run-first locker on a
+    preparing Stage (abort racing Planner start) yields 40P01, which
+    service.go:118 reports as a non-conflict error. (2)
+    internal/runstore/resume_store.go:97-99 UPDATE workflow_runs SET
+    state='pending' WHERE run_id=$1 carries no state='failed' predicate;
+    safe only because ResumableStage is re-read under FOR UPDATE in the
+    same transaction, unlike transitionRunSQL and requestRunCancellationSQL.
+    (3) internal/runstore/allocation_store.go:312-315 sets
+    release_attempted_at = clock_timestamp() while 332-336 sets
+    release_attempted_at/release_completed_at = statement_timestamp();
+    CHECK stage_allocation_release_timestamps requires completed >=
+    attempted. (4) internal/runstore/planner_store_sql.go:10
+    appendPlannerEventSQL requires scheduler_claim_expires_at >
+    clock_timestamp() when a claim ID is passed; between a missed renewal
+    and the lane giving up (SCH-R120, SCH-R166) a late renewal turns a
+    journal append into ErrConflict and fails the scan Stage while the lane
+    still owns it. Either the fence is intended and belongs in the spec, or
+    the statement should check scheduler_claim_id only.
+  siblings: >-
+    Grep every statement in internal/runstore and internal/scheduler that
+    updates both workflow_runs and stage_executions for lock order; grep
+    every UPDATE workflow_runs SET state for a missing CAS.
+plan:
+  - "Run StartPlanner through persistencepostgres.InTx with LockRunState(preparing-compatible states) first, as CreateStageWithContext does (scheduler/postgres.go:33-45), or add a leading CTE SELECT ... FROM workflow_runs WHERE run_id = $1 FOR UPDATE that the Stage UPDATE depends on; add a real-store deadlock test (abort vs Planner start) with a bounded wait."
+  - "Add AND state = 'failed' to the resume UPDATE and map 0 rows to ErrConflict; test on the real store."
+  - "Use clock_timestamp() in both release statements (every other store statement uses it); add a test that attempted and completed are ordered when set in two statements within one microsecond."
+  - "Decide the planner-append fence with the user: record it next to SCH-R120 in docs/spec/execution/scheduler.md or relax the statement to scheduler_claim_id = $11; add the test for the chosen behaviour."
+scope:
+  in:
+    - "Lock order in StartPlanner, resume CAS, one clock, planner-append fence decision."
+  out:
+    - "Claim renewal cadence."
+acceptance_criteria:
+  - id: A1
+    text: "An abort racing StartPlanner on the same Stage never deadlocks on real PostgreSQL (bounded test); every statement touching Run and Stage locks the Run first (source test over *_sql.go)."
+  - id: A2
+    text: "Resume of a Run that is no longer failed returns ErrConflict."
+  - id: A3
+    text: "Release timestamps use one clock; the planner-append fence is documented or relaxed, with a test."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/runstore/... ./internal/planner/session/... ./internal/scheduler/..."
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1]

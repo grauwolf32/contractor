@@ -1,0 +1,43 @@
+schema_version: "1.0"
+id: V408-004
+title: "Build the Server binary and the test PKI once per e2e package and right-size per-test budgets"
+milestone: test-gate-cost-2026-10
+epic: quality
+kind: chore
+priority: P2
+status: pending
+depends_on: [V408-001]
+languages: [go]
+goal: "A process e2e test pays for its own scenario, not for compiling the Server and minting certificates again."
+context:
+  review: "docs/research/2026-10-23-test-gate-cost-review.md, finding T3"
+  finding: >-
+    Each of the 19 tagged tests in tests/e2e runs go build -o
+    ./cmd/contractor-server (21 files call runChecked with go build, e.g.
+    tests/e2e/e2e_test.go:136), runs the migrate subcommand, generates a CA
+    and two leaf certificates with localpki, then starts the Server and the
+    Python Runtime. Per-test budgets range from 110 s to 7 min; the three CI
+    shards have 80-minute timeouts. The Go build cache makes repeated builds
+    cheaper but each still re-links a large binary.
+plan:
+  - "Add TestMain to tests/e2e that builds the Server binary once into a package temp dir (or honours CONTRACTOR_E2E_SERVER_BINARY to reuse a prebuilt one from make) and generates one CA; tests take the binary path and the CA from package-level accessors, issuing only their own leaves when a test needs distinct identities."
+  - "Apply the same to tests/ui-stack and the opt-in process targets (scan, git, blob backends, Podman)."
+  - "Using the V408-001 per-test durations, set each test's context budget to about twice its measured time and lower the shard timeouts in scripts/select_ci_stages.py accordingly; rebalance RELEASE_E2E_TESTS_A/B/C."
+  - "Keep check_release_verify_graph.py satisfied (every tagged test runs exactly once)."
+scope:
+  in:
+    - "One build and one CA per package, prebuilt-binary override, budget and shard rebalancing."
+  out:
+    - "Changing what the process tests assert; the deterministic loopback Gateway."
+acceptance_criteria:
+  - id: A1
+    text: "A full make test-e2e run performs one go build of the Server (asserted by a counter in the harness log or by the absence of go build calls in test bodies via a source test)."
+  - id: A2
+    text: "Every process e2e test passes within its new budget on CI three runs in a row; shard timeouts are lowered and the release-graph guard passes."
+  - id: A3
+    text: "Measured process-shard wall time drops against the baseline, recorded in the report."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> make test-e2e"
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2]

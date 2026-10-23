@@ -64,7 +64,7 @@ def _ascii(value: object, limit: int, diagnostic: str, *, empty: bool = False) -
     return value
 
 
-def _url(value: object) -> tuple[str, str]:
+def validate_http_url(value: object) -> tuple[str, str]:
     url = _ascii(value, MAX_URL_BYTES, "request url must be a bounded HTTP(S) URL")
     if " " in url or "\\" in url or "#" in url or re.search(r"%(?![0-9A-Fa-f]{2})", url):
         raise HTTPRequestInputError("request url contains unsupported characters")
@@ -205,7 +205,7 @@ def parse_http_request(data: bytes) -> PreparedHTTPRequest:
     method = request["method"]
     if not isinstance(method, str) or method not in _METHODS:
         raise HTTPRequestInputError("request method is unsupported")
-    url, authority = _url(request["url"])
+    url, authority = validate_http_url(request["url"])
     body = _body(request["body"])
     if "*" in url or b"*" in body:
         raise HTTPRequestInputError("request contains unsupported injection markers")

@@ -34,7 +34,7 @@ release-verify-families: ui-install verify-public-api-postgres \
 	test-worker-session-modes-e2e test-project-workspaces-release \
 	test-lifecycle-controls-release test-scheduler-concurrency-e2e \
 	test-audit-program-library-e2e test-audit-completion-e2e \
-	test-findings-e2e test-performance-metrics
+	test-findings-e2e test-performance-metrics test-nuclei-web-e2e
 
 release-verify-browser-a: ui-browser-mocked test-release-ui-stack-a
 
@@ -63,13 +63,19 @@ RELEASE_RACE_PATTERNS := \
 	./internal/runtimeconfig/... ./internal/scheduler/... ./internal/telemetry/... \
 	./tests/integration/lease ./tools/performancebench
 
+# Keep database-backed package binaries bounded independently of the runner's
+# CPU count. Existing tests keep their own scheduling and isolated schemas.
+# Use RACE_PACKAGE_PARALLELISM=1 for serial diagnosis; raise it only after
+# measuring database connections and memory on the runner.
+RACE_PACKAGE_PARALLELISM ?= 2
+
 test-release-go-race: require-database runtime-venv
-	go test -p 1 -race -count=1 -timeout=20m $$(go list $(RELEASE_RACE_PATTERNS) | sort -u)
+	go test -p $(RACE_PACKAGE_PARALLELISM) -race -count=1 -timeout=20m $$(go list $(RELEASE_RACE_PATTERNS) | sort -u)
 
 # Every other package with tests, discovered so new packages are raced too;
 # exceptions and their reasons live in scripts/release_race_packages.py.
 test-release-go-race-discovered: require-database runtime-venv
-	go test -p 1 -race -count=1 -timeout=30m $$(python3 scripts/release_race_packages.py --exclude $(RELEASE_RACE_PATTERNS))
+	go test -p $(RACE_PACKAGE_PARALLELISM) -race -count=1 -timeout=30m $$(python3 scripts/release_race_packages.py --exclude $(RELEASE_RACE_PATTERNS))
 
 # Discover exact names from integration-tagged files. This adds complete tagged
 # coverage without replacing family commands that also race-test untagged cases.
@@ -77,7 +83,7 @@ RELEASE_INTEGRATION_PACKAGES := $(shell python3 scripts/release_integration_test
 RELEASE_INTEGRATION_TESTS := $(shell python3 scripts/release_integration_tests.py --regex)
 
 test-release-integration: require-database runtime-venv
-	go test -p 1 -race -tags=integration -v -count=1 -timeout=20m $(RELEASE_INTEGRATION_PACKAGES) -run '$(RELEASE_INTEGRATION_TESTS)'
+	go test -p $(RACE_PACKAGE_PARALLELISM) -race -tags=integration -v -count=1 -timeout=20m $(RELEASE_INTEGRATION_PACKAGES) -run '$(RELEASE_INTEGRATION_TESTS)'
 
 # Packages with race-constrained test files relax a budget under the race
 # detector (findingintake doubles its 10-second production collection
@@ -91,7 +97,7 @@ test-release-non-race: require-database
 # separate runners. Keep the full local test-e2e command below.
 RELEASE_E2E_TESTS_A := TestAuditProgramsAcrossProductionProcesses|TestMemoryMVPProcesses|TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses|TestGatewayRecoveryKeepsThreeQueuedRunsAcrossProcesses|TestLocalGoToPythonArtifactCopy
 RELEASE_E2E_TESTS_B := TestWorkerSummarizerProductionBoundaries|TestRoutingAndEscalationProductionBoundaries|TestLabelDrivenRuntimeConfigurationAcrossProcesses|TestRunMetadataLabelsAcrossProcesses|TestSchedulerConcurrencyAcrossProductionProcesses|TestTaintAnnotationsAcrossRealRuntimeProcess|TestAuditProgramCatalogReplacementRestartsServer
-RELEASE_E2E_TESTS_C := TestAgentSkillsMVPProcesses|TestProjectWorkspaceLifecycleAcrossProductionProcesses|TestProductionMemoryTemplatesAcrossProcesses|TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses|TestWorkerSessionModesAcrossProductionProcesses|TestHeterogeneousRuntimeCapabilityPlacement|TestGatewayRecoveryCancellationAndPermanentErrorAcrossProcesses|TestRuntimePlacementAcrossProductionProcesses
+RELEASE_E2E_TESTS_C := TestNucleiWebWithDeterministicScannerAcrossProcesses|TestAgentSkillsMVPProcesses|TestProjectWorkspaceLifecycleAcrossProductionProcesses|TestProductionMemoryTemplatesAcrossProcesses|TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses|TestWorkerSessionModesAcrossProductionProcesses|TestHeterogeneousRuntimeCapabilityPlacement|TestGatewayRecoveryCancellationAndPermanentErrorAcrossProcesses|TestRuntimePlacementAcrossProductionProcesses
 RELEASE_E2E_TESTS := $(RELEASE_E2E_TESTS_A)|$(RELEASE_E2E_TESTS_B)|$(RELEASE_E2E_TESTS_C)
 
 test-release-process-e2e: require-database runtime-venv

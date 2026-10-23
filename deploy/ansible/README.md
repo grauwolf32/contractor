@@ -193,6 +193,11 @@ principal. Delete them by hand once the instance is gone for good.
   image named in `deploy/podman/Containerfile` into the service account's
   store, or provide `contractor_runtime_podman_image` as `repository@sha256:…`.
 - Point `contractor_runtime_nuclei_templates_dir` at templates you manage.
+  The shipped `nuclei-web@1` Workflow pins the complete default v10.5.0 package.
+  After changing that package, compute its canonical manifest digest with
+  `uv run python -m contractor_runtime.toolsets.scan.nuclei_package DIRECTORY`
+  from `runtime/` and update the AgentTemplate literal before creating new Runs.
+  Extra or changed files, including resources, change the pin.
 
 ## Updating pins
 

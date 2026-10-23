@@ -1,0 +1,60 @@
+schema_version: "1.0"
+id: V407-005
+title: "Fail closed on preparation Workflow comparison and remove unreachable Audit domain code"
+milestone: server-runtime-review-2026-10
+epic: audits
+kind: defect
+introduced_by: V62-002
+priority: P3
+status: pending
+depends_on: []
+languages: [go]
+goal: "A marshal failure can no longer make the preparation Workflow check pass, and the Audit domain carries no unreachable branches or repeated reads."
+context:
+  review: "docs/research/2026-10-23-server-runtime-review.md, finding E15 and E13; file:line as of 39d89438, re-verify on main"
+  severity: low
+  finding: >-
+    internal/runservice/audit.go:234-236 discards both json.Marshal errors, so
+    a failed marshal compares nil == nil and accepts a mismatched
+    preparation Workflow. Unreachable or redundant code:
+    internal/auditimport/importer.go:277-280 (second if source == nil cannot
+    be reached; source is set in the same iteration);
+    check_results.go:325-328 (DecodeCheckResultPackage already rejects
+    unreferenced evidence at auditdomain/result_package.go:58-60);
+    internal/auditservice/finding_comparisons.go:277-279 (len(window)+len(ids)+3
+    > FindingComparisonWorkRows can never be true given
+    FindingCandidateWindowRows = WorkRows - MaximumLimit - 3, and it would map a
+    server work bound to ErrInvalid/400) and lines 593 and 606
+    (finishCorrelationRead runs twice in FindingGroupMembers);
+    internal/findingintake/anchors.go:42, fingerprint.go:22 and service.go:303
+    read the same StageExecution three times per Submit.
+    internal/auditpriority has no production caller (only
+    internal/archtest/layers_test.go imports it; four exports sit in
+    tools/testonlyexports/baseline.txt:69-72); Confidence is parsed and
+    ignored by selection.go:31-92.
+  siblings: >-
+    Other json.Marshal comparisons in internal/runservice and
+    internal/auditservice must be grepped for the same discarded-error shape.
+plan:
+  - "In runservice/audit.go, return a classified error when either marshal fails; add a unit test with a value that cannot be marshalled (a channel field via a test type or a Marshaler that errors)."
+  - "Delete the unreachable branches listed above; where a check documents an invariant, replace it with a comment pointing at the owning validation."
+  - "Read the StageExecution once in findingintake Submit and pass it to anchors and fingerprint derivation."
+  - "For auditpriority: do not add code; add a note in docs/research/2026-09-20-audit-check-prioritization-review.md Status that V64-003..006 must wire a caller, that Confidence is unused by ranking, and record the ranking rule in docs/spec/audits/audits.md when a caller lands. Leave the package in place."
+scope:
+  in:
+    - "Fail-closed marshal check with test."
+    - "Dead-branch removal and single StageExecution read."
+  out:
+    - "auditpriority behaviour (documented only)."
+acceptance_criteria:
+  - id: A1
+    text: "A marshal failure in the preparation Workflow comparison returns an error and the test fails on the unfixed code."
+  - id: A2
+    text: "The listed unreachable branches are gone; existing tests pass unchanged."
+  - id: A3
+    text: "Submit reads the StageExecution once (asserted through the fake store call count)."
+tests:
+  - command: "go test -count=1 ./internal/runservice/... ./internal/auditimport/... ./internal/auditservice/... ./internal/findingintake/..."
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A2]

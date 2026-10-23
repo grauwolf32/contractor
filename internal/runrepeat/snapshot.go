@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -15,27 +16,32 @@ import (
 )
 
 const (
-	SchemaVersion   = "contractor.run-repeat-request/v1"
+	SchemaVersion   = "contractor.run-repeat-request/v2"
 	MaxSnapshotSize = 1 << 20
 )
 
 var ErrInvalidSnapshot = errors.New("Run repeat request snapshot is invalid")
 
-// Snapshot is the retained authority for exact input sources and requested
-// execution overrides. Credential values are identities, never token bytes.
-// Inputs are the original source-scope refs, not RunScope forks.
+// InputSource retains an exact original reference and its authorized scope kind.
+type InputSource struct {
+	SourceScope artifacts.ScopeKind   `json:"sourceScope"`
+	Artifact    contracts.ArtifactRef `json:"artifact"`
+}
+
+// Snapshot is the retained authority for source inputs and requested execution
+// overrides. Credential values are identities, never token bytes.
 type Snapshot struct {
-	SchemaVersion   string                           `json:"schemaVersion"`
-	Workflow        resolved.WorkflowRef             `json:"workflow"`
-	ProjectID       *string                          `json:"projectId,omitempty"`
-	Inputs          map[string]contracts.ArtifactRef `json:"inputs"`
-	ExecutionConfig resolved.ExecutionConfigPatch    `json:"executionConfig"`
+	SchemaVersion   string                        `json:"schemaVersion"`
+	Workflow        resolved.WorkflowRef          `json:"workflow"`
+	ProjectID       *string                       `json:"projectId,omitempty"`
+	Inputs          map[string]InputSource        `json:"inputs"`
+	ExecutionConfig resolved.ExecutionConfigPatch `json:"executionConfig"`
 }
 
 func Encode(snapshot Snapshot) ([]byte, error) {
 	snapshot.SchemaVersion = SchemaVersion
 	snapshot.ProjectID = clone.Pointer(snapshot.ProjectID)
-	snapshot.Inputs = contracts.CloneArtifactRefs(snapshot.Inputs)
+	snapshot.Inputs = cloneInputSources(snapshot.Inputs)
 	if err := validate(snapshot); err != nil {
 		return nil, err
 	}
@@ -55,11 +61,11 @@ func Decode(encoded []byte) (Snapshot, error) {
 	}
 	// A missing patch is not an explicitly retained empty patch.
 	var stored struct {
-		SchemaVersion   string                           `json:"schemaVersion"`
-		Workflow        resolved.WorkflowRef             `json:"workflow"`
-		ProjectID       *string                          `json:"projectId,omitempty"`
-		Inputs          map[string]contracts.ArtifactRef `json:"inputs"`
-		ExecutionConfig *resolved.ExecutionConfigPatch   `json:"executionConfig"`
+		SchemaVersion   string                         `json:"schemaVersion"`
+		Workflow        resolved.WorkflowRef           `json:"workflow"`
+		ProjectID       *string                        `json:"projectId,omitempty"`
+		Inputs          map[string]InputSource         `json:"inputs"`
+		ExecutionConfig *resolved.ExecutionConfigPatch `json:"executionConfig"`
 	}
 	if err := strictjson.Decode(encoded, &stored); errors.Is(err, strictjson.ErrTrailingData) {
 		return Snapshot{}, fmt.Errorf("%w: trailing JSON value", ErrInvalidSnapshot)
@@ -77,7 +83,7 @@ func Decode(encoded []byte) (Snapshot, error) {
 		return Snapshot{}, err
 	}
 	snapshot.ProjectID = clone.Pointer(snapshot.ProjectID)
-	snapshot.Inputs = contracts.CloneArtifactRefs(snapshot.Inputs)
+	snapshot.Inputs = cloneInputSources(snapshot.Inputs)
 	return snapshot, nil
 }
 
@@ -92,10 +98,26 @@ func validate(snapshot Snapshot) error {
 	if snapshot.Inputs == nil {
 		return fmt.Errorf("%w: inputs must be an object", ErrInvalidSnapshot)
 	}
-	for slot, ref := range snapshot.Inputs {
-		if contracts.ValidateArtifactName(slot) != nil || ref.Validate() != nil || ref.Revision == nil {
+	for slot, source := range snapshot.Inputs {
+		if (source.SourceScope != artifacts.ScopeUser && source.SourceScope != artifacts.ScopeProject) || (source.SourceScope == artifacts.ScopeProject && snapshot.ProjectID == nil) || (source.SourceScope == artifacts.ScopeUser && snapshot.ProjectID != nil && slot != "rulepack") {
+			return fmt.Errorf("%w: invalid input scope", ErrInvalidSnapshot)
+		}
+		ref := source.Artifact
+		if contracts.ValidateArtifactName(slot) != nil || ref.ValidateExact() != nil {
 			return fmt.Errorf("%w: input %q is not exact", ErrInvalidSnapshot, slot)
 		}
 	}
 	return nil
+}
+
+func cloneInputSources(source map[string]InputSource) map[string]InputSource {
+	if source == nil {
+		return nil
+	}
+	result := make(map[string]InputSource, len(source))
+	for name, input := range source {
+		input.Artifact = input.Artifact.Clone()
+		result[name] = input
+	}
+	return result
 }

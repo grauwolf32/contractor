@@ -1,0 +1,41 @@
+schema_version: "1.0"
+id: V407-038
+title: "Remove unselected Runtime tool surface and the edit_files to filesystem import chain"
+milestone: server-runtime-review-2026-10
+epic: quality
+kind: chore
+priority: P3
+status: pending
+depends_on: []
+languages: [python]
+goal: "Every shipped Runtime tool is selected by a manifest, and toolsets share code only through toolsets.common."
+context:
+  review: "docs/research/2026-10-23-server-runtime-review.md, finding G15; file:line as of 39d89438, re-verify on main"
+  finding: >-
+    read_openapi_document is selected by no manifest under configs/ (grep: 0
+    hits; agent-templates/workspace_openapi_validator_v3_memory.yaml:34-46
+    lists the other openapi tools) and refuses rather than pages documents
+    whose YAML exceeds 256 KiB. The edit_files -> filesystem import chain
+    declared in runtime/pyproject.toml [tool.importlinter] exists only to
+    share FilesystemToolError (edit_files/tools.py:23). AGENTS 3.7: build
+    only what has a caller; toolsets share code only through
+    toolsets.common.
+plan:
+  - "Remove read_openapi_document and its tests, or give it a caller in a manifest with paging; record the decision in docs/spec/tools/workspace.md (openapi tools section)."
+  - "Move FilesystemToolError to toolsets/common and delete the edit_files -> filesystem chain from the import-linter contract."
+  - "Add a test (runtime/tests) that every tool name exported by a toolset is referenced by at least one manifest fixture in runtime/tests/testdata or by the shipped catalog validation (contractor server config validate), so unselected tools are caught (new file runtime/tests/test_tool_selection.py)."
+scope:
+  in:
+    - "Dead tool removal or wiring, exception relocation, selection gate."
+  out:
+    - "Other openapi tools."
+acceptance_criteria:
+  - id: A1
+    text: "No toolset exports a tool that no manifest selects (gate passes); import-linter has no edit_files -> filesystem chain."
+  - id: A2
+    text: "Existing toolset tests pass unchanged except for the moved symbol; contractor server config validate --root ./configs passes."
+tests:
+  - command: "cd runtime && uv run --locked pytest -q tests/test_openapi_toolset.py tests/test_edit_files_toolset.py tests/test_tool_selection.py"
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]

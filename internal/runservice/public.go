@@ -13,6 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/contracts/scan"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -20,6 +21,18 @@ import (
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
+
+// CreatePublicIn uses the ordinary admission path with a trusted transaction
+// boundary. A controller can fence its parent and bind the resulting Run in
+// the very transaction that creates it. The Service itself is never mutated.
+func (s *Service) CreatePublicIn(ctx context.Context, params PublicCreateParams, transaction PublicTransaction) (CreateResult, error) {
+	if transaction == nil {
+		return CreateResult{}, ErrNotConfigured
+	}
+	bound := *s
+	bound.publicTransaction = transaction
+	return bound.CreatePublic(ctx, params)
+}
 
 // CreatePublic preserves the public create/replay contract while keeping all
 // mutable resolution behind a replay-first boundary. A committed response-loss
@@ -96,6 +109,9 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 					return projectstore.ErrDeleting
 				}
 				projectTarget = project.HTTPTarget.Clone()
+				if normalized.CapturedTargetURL != "" {
+					projectTarget = &runtimesettings.HTTPOriginTargetRef{URL: normalized.CapturedTargetURL}
+				}
 				if projectTarget != nil && projectTarget.Credential != nil {
 					// The target was authorized when it was attached; pinning it
 					// re-checks that the requesting owner may still use it.
@@ -118,9 +134,13 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 				if catalogErr != nil {
 					return catalogErr
 				}
-				runtimeSnapshot, pinErr := runs.PinRuntimeLabels(
-					ctx, normalized.RuntimeLabels, resolved.WorkflowToolWorkersOnly(workflow),
-				)
+				var runtimeSnapshot runtimeconfig.RunSnapshot
+				var pinErr error
+				if normalized.PinnedRuntimeConfig != nil {
+					runtimeSnapshot = normalized.PinnedRuntimeConfig.Clone()
+				} else {
+					runtimeSnapshot, pinErr = runs.PinRuntimeLabels(ctx, normalized.RuntimeLabels, resolved.WorkflowToolWorkersOnly(workflow))
+				}
 				if pinErr != nil {
 					return pinErr
 				}
@@ -165,9 +185,9 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 						return err
 					}
 				}
-				exactSources := make(map[string]contracts.ArtifactRef, len(normalized.Inputs))
+				exactSources := make(map[string]runrepeat.InputSource, len(normalized.Inputs))
 				for _, slot := range sortedInputSlots(normalized.Inputs) {
-					sourceScope, scopeErr := inputSourceScope(normalized.OwnerID, normalized.ProjectID)
+					sourceScope, scopeErr := inputSourceScope(normalized.OwnerID, normalized.ProjectID, workflow.Inputs[slot].SourceScope)
 					if scopeErr != nil {
 						return scopeErr
 					}
@@ -178,7 +198,13 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 					if !contracts.AcceptsMediaType(workflow.Inputs[slot].MediaTypes, fork.MediaType) {
 						return fmt.Errorf("%w: input %q has unsupported media type", ErrInvalid, slot)
 					}
-					exactSources[slot] = fork.SourceRef
+					if workflow.Inputs[slot].SourceScope == "user" && (fork.Size > scan.MaxNucleiRulepackZIPBytes || (fork.MediaType == "application/yaml" && fork.Size > scan.MaxNucleiRulepackFileBytes)) {
+						return fmt.Errorf("%w: rulepack input exceeds its byte limit", ErrInvalid)
+					}
+					exactSources[slot] = runrepeat.InputSource{SourceScope: sourceScope.Kind(), Artifact: fork.SourceRef}
+					if original, ok := normalized.OriginalInputSources[slot]; ok {
+						exactSources[slot] = original
+					}
 				}
 				repeatRequest, encodeErr := runrepeat.Encode(runrepeat.Snapshot{
 					Workflow: workflow.Ref, ProjectID: normalized.ProjectID,
@@ -233,6 +259,27 @@ func normalizePublicCreate(params PublicCreateParams) (PublicCreateParams, error
 		pinned := params.PinnedWorkflow.Clone()
 		params.PinnedWorkflow = &pinned
 	}
+	if params.CapturedTargetURL != "" {
+		if params.PinnedWorkflow == nil || !resolved.WorkflowToolWorkersOnly(*params.PinnedWorkflow) || params.Parameters["target"] != params.CapturedTargetURL || scan.ValidateNucleiArguments(map[string]any{"url": params.CapturedTargetURL}) != nil {
+			return PublicCreateParams{}, ErrInvalid
+		}
+	}
+	if params.PinnedRuntimeConfig != nil {
+		if params.PinnedWorkflow == nil || !resolved.WorkflowToolWorkersOnly(*params.PinnedWorkflow) || params.PinnedRuntimeConfig.Validate() != nil {
+			return PublicCreateParams{}, ErrInvalid
+		}
+		pin := params.PinnedRuntimeConfig.Clone()
+		params.PinnedRuntimeConfig = &pin
+	}
+	originalSources := make(map[string]runrepeat.InputSource, len(params.OriginalInputSources))
+	for slot, source := range params.OriginalInputSources {
+		if slot != "rulepack" || source.SourceScope != artifacts.ScopeUser || source.Artifact.ValidateExact() != nil || params.Inputs[slot].Namespace != "contractor-system" || params.PinnedWorkflow == nil {
+			return PublicCreateParams{}, ErrInvalid
+		}
+		source.Artifact = source.Artifact.Clone()
+		originalSources[slot] = source
+	}
+	params.OriginalInputSources = originalSources
 	labels, err := runtimeconfig.NormalizeRunLabels(params.RuntimeLabels)
 	if err != nil {
 		return PublicCreateParams{}, err
@@ -274,6 +321,34 @@ func validateWorkflowInputs(
 			return fmt.Errorf("%w: required parameter %q is missing", ErrInvalid, name)
 		}
 	}
+	for _, stage := range workflow.Stages {
+		if stage.ScanPlan != nil {
+			continue // The scan Planner owns its generated per-job parameters.
+		}
+		for _, agent := range stage.Agents {
+			if !agent.Template.IsToolWorker() || agent.Template.Execution == nil {
+				continue
+			}
+			arguments := map[string]any{}
+			for name, argument := range agent.Template.Execution.Arguments {
+				switch argument.Source {
+				case "parameter":
+					value, err := argument.ResolveParameter(parameters)
+					if err != nil {
+						return fmt.Errorf("%w: invalid bound tool parameter", ErrInvalid)
+					}
+					arguments[name] = value
+				case "literal":
+					arguments[name] = argument.Value
+				}
+			}
+			if agent.Template.Execution.Tool == "scan_nuclei" {
+				if err := scan.ValidateNucleiArguments(arguments); err != nil {
+					return fmt.Errorf("%w: invalid Nuclei inputs", ErrInvalid)
+				}
+			}
+		}
+	}
 	for name, ref := range inputs {
 		if _, ok := workflow.Inputs[name]; !ok {
 			return fmt.Errorf("%w: unknown input artifact %q", ErrInvalid, name)
@@ -313,10 +388,13 @@ func forkInput(
 	})
 }
 
-// inputSourceScope is the scope public Run creation forks inputs from: the
-// owner's UserScope for a standalone Run, the ProjectScope for a Project Run.
-func inputSourceScope(ownerID string, projectID *string) (artifacts.Scope, error) {
-	if projectID == nil {
+// inputSourceScope derives scope from authenticated owner and validated catalog
+// authority. Only the narrow rulepack override changes a Project input source.
+func inputSourceScope(ownerID string, projectID *string, override string) (artifacts.Scope, error) {
+	if override != "" && override != "user" {
+		return artifacts.Scope{}, ErrInvalid
+	}
+	if projectID == nil || override == "user" {
 		return artifacts.UserScope(ownerID)
 	}
 	return artifacts.ProjectScope(*projectID)

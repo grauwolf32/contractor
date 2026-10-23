@@ -2,6 +2,168 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://contractor.local/schemas/contractor-public-v1.json",
   "$defs": {
+    "CreateScanSweepRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "projectIds": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1000,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+          }
+        },
+        "allProjects": { "type": "boolean" },
+        "workflow": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Selector"
+        },
+        "parameters": {
+          "type": "object",
+          "maxProperties": 32,
+          "additionalProperties": { "type": "string", "maxLength": 2048 }
+        },
+        "rulepack": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ExactArtifactRef"
+        }
+      }
+    },
+    "ScanSweep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sweepId",
+        "workflow",
+        "snapshotDigest",
+        "state",
+        "counts",
+        "createdAt",
+        "settledAt"
+      ],
+      "properties": {
+        "sweepId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        },
+        "workflow": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Selector"
+        },
+        "snapshotDigest": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Digest"
+        },
+        "state": {
+          "type": "string",
+          "enum": ["active", "cancelling", "completed", "cancelled"]
+        },
+        "counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "total",
+            "pending",
+            "admitted",
+            "skipped",
+            "failed",
+            "cancelled",
+            "unsettled"
+          ],
+          "properties": {
+            "total": { "type": "integer", "minimum": 0, "maximum": 1000 },
+            "pending": { "type": "integer", "minimum": 0, "maximum": 1000 },
+            "admitted": { "type": "integer", "minimum": 0, "maximum": 1000 },
+            "skipped": { "type": "integer", "minimum": 0, "maximum": 1000 },
+            "failed": { "type": "integer", "minimum": 0, "maximum": 1000 },
+            "cancelled": { "type": "integer", "minimum": 0, "maximum": 1000 },
+            "unsettled": { "type": "integer", "minimum": 0, "maximum": 1000 }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "settledAt": {
+          "oneOf": [
+            { "type": "string", "format": "date-time" },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+    "ScanSweepMember": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ordinal",
+        "projectId",
+        "target",
+        "state",
+        "reason",
+        "runId",
+        "runState",
+        "settled"
+      ],
+      "properties": {
+        "ordinal": { "type": "integer", "minimum": 0, "maximum": 999 },
+        "projectId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        },
+        "target": { "type": "string", "maxLength": 2048 },
+        "state": {
+          "type": "string",
+          "enum": ["pending", "admitted", "skipped", "failed", "cancelled"]
+        },
+        "reason": { "type": "string", "maxLength": 128 },
+        "runId": {
+          "oneOf": [
+            {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+            },
+            { "type": "null" }
+          ]
+        },
+        "runState": {
+          "oneOf": [
+            {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/WorkflowRunState"
+            },
+            { "type": "null" }
+          ]
+        },
+        "settled": { "type": "boolean" }
+      }
+    },
+    "ScanSweepPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["items", "page"],
+      "properties": {
+        "items": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ScanSweep"
+          }
+        },
+        "page": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PageInfo"
+        }
+      }
+    },
+    "ScanSweepMemberPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["items", "page"],
+      "properties": {
+        "items": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ScanSweepMember"
+          }
+        },
+        "page": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PageInfo"
+        }
+      }
+    },
     "FindingCorrelationReadScope": {
       "oneOf": [
         {
@@ -9730,6 +9892,7 @@
       "additionalProperties": false,
       "required": ["required", "mediaTypes"],
       "properties": {
+        "sourceScope": { "type": "string", "enum": ["user"] },
         "required": { "type": "boolean" },
         "mediaTypes": {
           "type": "array",
@@ -10466,11 +10629,50 @@
                 "additionalProperties": false,
                 "required": ["source", "name"],
                 "properties": {
-                  "source": {
+                  "source": { "type": "string", "const": "parameter" },
+                  "name": {
                     "type": "string",
-                    "enum": ["parameter", "artifact"]
+                    "minLength": 1,
+                    "maxLength": 128
                   },
-                  "name": { "type": "string", "minLength": 1, "maxLength": 128 }
+                  "default": {
+                    "type": "string",
+                    "maxLength": 8192,
+                    "x-maxBytes": 8192
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["source", "name", "parse"],
+                "properties": {
+                  "source": { "type": "string", "const": "parameter" },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "parse": { "type": "string", "const": "integer" },
+                  "default": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["source", "name"],
+                "properties": {
+                  "source": { "type": "string", "const": "artifact" },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "optional": { "type": "boolean", "const": true }
                 }
               },
               {

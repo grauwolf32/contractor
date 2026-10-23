@@ -127,7 +127,13 @@ func TestRuntimePlacementAcrossProductionProcesses(t *testing.T) {
 		h.stopRuntime("placement-cloud-prefix")
 		h.stopRuntime("placement-cloud-no-tool")
 		h.stopRuntime("placement-cloud")
-		h.startRuntime("placement-undeclared", "", true)
+		undeclared := h.startRuntime("placement-undeclared", "", true)
+		// Stopping a process does not revoke its Server-confirmed lease. Wait
+		// for the ordinary retirement boundary before testing an unrestricted
+		// launch against the sole remaining live process.
+		waitForObservedRuntimeAgents(t, h.ctx, h.server, []*childProcess{undeclared}, h.operations.client, h.operations.baseURL, func(agents []observedRuntimeAgent) bool {
+			return len(agents) == 1 && agents[0].ConfirmedLeaseUntil != nil && agents[0].SlotState == "idle"
+		})
 		h.complete(t, h.create(t, map[string]string{"team": "appsec"}, ""), "")
 	})
 }
@@ -330,7 +336,12 @@ func (h *placementProcessHarness) terminal(t *testing.T, runID, state string) ru
 	for _, process := range h.runtimes {
 		runtimes = append(runtimes, process)
 	}
-	return waitForRunStateAcross(t, h.ctx, h.server, runtimes, h.operations.client, h.operations.baseURL, runID, state)
+	status := waitForRunTerminalAcross(t, h.ctx, h.server, runtimes, h.operations.client, h.operations.baseURL, runID)
+	if status.State != state {
+		attempts, _ := json.Marshal(status.Attempts)
+		t.Fatalf("Run %s reached %s, want %s; attempts=%s", runID, status.State, state, attempts)
+	}
+	return status
 }
 
 func (h *placementProcessHarness) complete(t *testing.T, runID, placement string) runstore.StageAllocation {

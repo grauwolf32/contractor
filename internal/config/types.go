@@ -181,10 +181,11 @@ type parameterSlotSource struct {
 }
 
 type artifactSlotSource struct {
-	Required   *bool                  `yaml:"required"`
-	MediaTypes []string               `yaml:"mediaTypes"`
-	From       *artifactBindingSource `yaml:"from,omitempty"`
-	Primary    *bool                  `yaml:"primary,omitempty"`
+	SourceScope yaml.Node              `yaml:"sourceScope,omitempty"`
+	Required    *bool                  `yaml:"required"`
+	MediaTypes  []string               `yaml:"mediaTypes"`
+	From        *artifactBindingSource `yaml:"from,omitempty"`
+	Primary     *bool                  `yaml:"primary,omitempty"`
 }
 
 type artifactBindingSource struct {

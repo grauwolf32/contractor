@@ -179,14 +179,6 @@ func auditRequestDigest(action, auditID string, revision uint64, seconds ...*int
 	return contentdigest.Bytes(encoded)
 }
 
-func requireEmptyBody(w http.ResponseWriter, r *http.Request) error {
-	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1))
-	if err != nil || len(data) != 0 {
-		return fmt.Errorf("%w: request body must be empty", errInvalidRequest)
-	}
-	return nil
-}
-
 func pointerString(value *string) string {
 	if value == nil {
 		return ""

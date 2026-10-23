@@ -1,0 +1,62 @@
+schema_version: "1.0"
+id: V407-032
+title: "Decode and redact Caido payloads off the loop, and let only transport errors become retryable HTTP and Caido tool errors"
+milestone: server-runtime-review-2026-10
+epic: http-tools
+kind: defect
+introduced_by: V12-004
+priority: P2
+status: pending
+depends_on: []
+languages: [python]
+goal: "A 64 MiB captured message never blocks the Runtime loop, and a code defect in the HTTP or Caido tools surfaces as a non-retryable tool failure instead of a retryable transport error."
+context:
+  review: "docs/research/2026-10-23-server-runtime-review.md, findings G3, G8 (http, caido), G9 (http); file:line as of 39d89438, re-verify on main"
+  specification: docs/spec/tools/http-caido.md
+  severity: medium
+  finding: >-
+    runtime/src/contractor_runtime/toolsets/caido/tools.py:471-475
+    (request_detail), 606-607 (replay poll loop) and 944 (workflow_run) call
+    _blob() (2122-2133: base64 decode plus a full re-encode comparison,
+    bounded only by MAX_ARTIFACT_BYTES = 64 MiB), _CaidoRedaction.message()
+    (230-250: split on newlines plus one replace per secret over the whole
+    payload) and _raw_preview() (2100-2119: full UTF-8 decode) inline under
+    self._lock; only the later _remember_exchange encode is threaded.
+    http/tools.py:721-724 (_send_once: except Exception ->
+    HTTPToolError("http_request_failed"), retryable True) and 990-993
+    (bound_error maps any non-HTTPToolError the same way), caido/tools.py:1131-1132
+    and 2359-2360 (caido_request_failed, retryable True): an AttributeError
+    or TypeError from a defect is reported as a retryable transport failure,
+    so the model retries a deterministic bug and events never distinguish
+    it; worker/instrumentation.py _safe_tool_response already produces a
+    bounded non-retryable code for uncaught exceptions. _HTTPSession.request
+    holds self._lock for up to 120 s, blocking http_history and
+    http_session_get.
+  siblings: >-
+    filesystem/tools.py:321-322,331-332 and code_analysis/tools.py:1024-1025
+    have the same except-Exception shape (V407-034, V407-037); interactsh
+    adapter error mapping should be checked for the same pattern.
+plan:
+  - "Do blob decode, redaction and preview in one to_thread_until_done callable (as _remember_exchange does); drop the re-encode comparison in favour of validate=True base64 decoding."
+  - "Catch concrete transport families only: httpx.HTTPError, ProxyRequestError, CaidoClientError (and asyncio.TimeoutError where it is a transport timeout); let everything else propagate to _safe_tool_response. Add a test with a fake transport raising TypeError that expects a non-retryable tool failure code and an infrastructure event."
+  - "For the HTTP session lock: snapshot history and session state under the lock and serve reads without waiting on an in-flight request, or record the hold as an accepted risk (AGENTS 3.9) in docs/spec/tools/http-caido.md with the reason; prefer the former."
+  - "Gap test with a 32 MiB synthetic Caido message in request_detail (loop gaps under 100 ms)."
+scope:
+  in:
+    - "Thread offload for Caido payload work; exception class narrowing; HTTP session read path."
+  out:
+    - "Target policy, redirect handling, capture formats."
+acceptance_criteria:
+  - id: A1
+    text: "request_detail on a 32 MiB message keeps loop gaps under 100 ms."
+  - id: A2
+    text: "A TypeError inside the HTTP or Caido send path yields a non-retryable tool failure and an infrastructure error event; a connection error still yields the retryable transport code."
+  - id: A3
+    text: "http_history returns while an http_request is in flight (or the accepted risk is recorded)."
+  - id: A4
+    text: "The gap and classification tests fail on the unfixed code."
+tests:
+  - command: "cd runtime && uv run --locked pytest -q tests/test_caido_read_tools.py tests/test_caido_action_tools.py tests/test_http_toolset.py tests/test_http_caido_security.py"
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A2]

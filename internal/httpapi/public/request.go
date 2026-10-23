@@ -192,3 +192,11 @@ func validatePublicRevision(value string) error {
 	}
 	return nil
 }
+
+func requireEmptyBody(w http.ResponseWriter, r *http.Request) error {
+	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1))
+	if err != nil || len(data) != 0 {
+		return fmt.Errorf("%w: request body must be empty", errInvalidRequest)
+	}
+	return nil
+}

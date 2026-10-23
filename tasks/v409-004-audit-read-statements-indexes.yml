@@ -1,0 +1,73 @@
+schema_version: "1.0"
+id: V409-004
+title: "Make Audit read statements use their indexes: item pages, workspace counts, execution probes, review joins"
+milestone: sql-review-2026-10
+epic: audits
+kind: defect
+introduced_by: V367-009
+priority: P2
+status: pending
+depends_on: []
+languages: [go, sql]
+goal: "Polled Audit reads cost an index probe and a page, not a sort or count over the whole Audit."
+context:
+  review: "docs/research/2026-10-23-sql-review.md, findings A4, A5 and section C (state <> 'collected', review-request index, keyset on expression, listItems dead branch, ListExecutions)"
+  specification: docs/spec/audits/review-and-reports.md
+  severity: medium
+  finding: >-
+    (1) internal/auditstore/internal/pgstore/read_sql.go:46-57
+    listItemsPageSQL orders by round.ordinal, item.ordinal, item.item_id;
+    no audit_items index supplies round.ordinal, so all items of the Audit
+    (up to 100,000) are joined and sorted per page before LIMIT; the state
+    and subject_key filters have no index either (audit_items_dispatch_idx
+    is partial on state <> 'settled'). read.go:141-167 listItems orders by
+    (state='awaiting_review'), round.ordinal, item.ordinal every tick and
+    carries a dead $2 = 0 branch with LIMIT 100001. (2)
+    workspace_sql.go:13-32 getWorkspaceSQL runs count(*) over all
+    audit_findings of the Audit twice (total, current_decision_id IS NULL),
+    count(*) over pending audit_review_requests and a five-way count(*)
+    FILTER over the current round's items on every workspace GET that the
+    UI polls (UI-R155); finding_reads_sql.go:47-56 findingPageBasisSQL and
+    reviewPageBasisSQL repeat the pattern per list page with verdict and
+    severity filters that join audit_review_decisions per finding. (3)
+    report_review_sql.go:94-97, report_sql.go:39-42, lifecycle_sql.go:165-168
+    use state <> 'collected', which the planner cannot prove implies
+    audit_executions_reconcile_idx's partial predicate state IN
+    ('intent','submitted','collecting'). (4)
+    item_review_renewal_sql.go:13-43 and claimAuditSQL:50-77 join
+    audit_review_requests on (subject_kind, subject_id) which is indexed
+    only for state='pending' (audit_review_requests_pending_subject_unique).
+    (5) internal/evalstore/inventory_pages_sql.go:39-52
+    inventoryPageAuditExecutionsSQL keys on the expression '1' ||
+    execution_id > $3. (6) read.go:199-221 QueryStore.ListExecutions reads
+    every execution with preparation_snapshot (LIMIT 1000001) and has no
+    production caller (tools/testonlyexports/baseline.txt:43). (7)
+    round_sql.go:193 acceptNextRoundSQL recounts all items that
+    CountItems (round_items.go:11-17) just counted.
+  siblings: >-
+    settleUndispatchedSQL (lifecycle_sql.go:33-38) orders (round_id,
+    ordinal, item_id) under a 3-state IN against audit_items_dispatch_idx;
+    bounded, but check it in the same EXPLAIN pass.
+plan:
+  - "Item pages: rounds are at most 32, so walk rounds in ordinal order with a LATERAL per-round keyset over audit_items_round_ordinal (round_id, ordinal), or denormalise round_ordinal onto audit_items with an index (audit_id, round_ordinal, ordinal, item_id); delete the dead $2 = 0 branch."
+  - "Workspace counts: maintain the counters on audits in the statements that already update findings and review requests (admission, decision, expiry, purge), or add partial indexes (audit_id) WHERE current_decision_id IS NULL and (audit_id) WHERE state = 'pending'; drop per-page totals the API does not need (check the UI)."
+  - "Rewrite state <> 'collected' as the explicit IN list the CHECK allows; add index (audit_id, subject_kind, subject_id, kind) on audit_review_requests; compare the bare execution_id in the inventory keyset."
+  - "Move ListExecutions to a *test helper package (baseline shrinks); drop CountItems or keep item_count on audits."
+  - "EXPLAIN-based tests for each rewritten statement on a seeded Audit with 32 rounds and 10,000 items, and a test that workspace counters equal a recount after a sequence of admissions, decisions and purges."
+scope:
+  in:
+    - "The seven statements above, counters or indexes, EXPLAIN tests."
+  out:
+    - "Review semantics and the workspace response shape."
+acceptance_criteria:
+  - id: A1
+    text: "EXPLAIN of item pages, workspace basis, execution probes and review joins shows index scans without a sort over the whole Audit on the seeded database."
+  - id: A2
+    text: "Workspace counts match a recount after the mutation sequence; existing Audit tests pass unchanged."
+  - id: A3
+    text: "ListExecutions is gone from the testonlyexports baseline; the EXPLAIN tests fail on the unfixed statements."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/auditstore/... ./internal/auditservice/... ./internal/auditcontroller/... ./internal/evalstore/..."
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A3]

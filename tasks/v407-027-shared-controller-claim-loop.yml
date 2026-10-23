@@ -1,0 +1,44 @@
+schema_version: "1.0"
+id: V407-027
+title: "Share one controller claim loop with an injected clock between the Audit controller and the Eval coordinator"
+milestone: server-runtime-review-2026-10
+epic: persistence
+kind: chore
+introduced_by: V38-004
+priority: P3
+status: pending
+depends_on: []
+languages: [go]
+goal: "One claim -> goroutine -> release loop serves both controllers and no controller or adapter reads the wall clock directly."
+context:
+  review: "docs/research/2026-10-23-server-runtime-review.md, finding E14; file:line as of 39d89438, re-verify on main"
+  finding: >-
+    internal/evalcoordinator/coordinator.go:112-153 and
+    internal/auditcontroller/controller.go:21-77 implement the same claim ->
+    per-claim goroutine -> release-with-ErrClaimLost-ignored loop with
+    different option names and bounds; the eval coordinator sleeps on
+    time.NewTimer while the audit controller has an injected Clock.
+    time.Now() is used directly in internal/evalservice/audit_adapter.go:185,
+    workflow_adapter.go:108 (cancellation RequestedAt; replay-safe because
+    the request is journaled first) and in the planner
+    (passthrough.go:73,99,113, 50 ms backoff at session_lifecycle.go:144),
+    whereas evalservice.Service and auditservice.Service carry now.
+plan:
+  - "Extract the loop into persistencepostgres (next to ControllerClaims) or a small controller package below both: options (poll interval, max claims, clock), a claim source and a per-claim handler; both controllers use it; keep V407-003 and V259-001 pacing."
+  - "Thread Now into the eval Driver and adapters and a Clock into the planner; replace the direct time.Now and time.NewTimer uses; keep the layer tests green."
+  - "Existing controller tests pass unchanged; add one test that the shared loop honours the injected clock for both controllers."
+scope:
+  in:
+    - "Shared loop, injected clocks."
+  out:
+    - "Any change to claim semantics or tick bounds."
+acceptance_criteria:
+  - id: A1
+    text: "Both controllers use the shared loop; grep finds no second copy and no time.Now in the listed files."
+  - id: A2
+    text: "Existing Audit controller and Eval coordinator tests pass unchanged; the layer test accepts the new package placement."
+tests:
+  - command: "go test -count=1 ./internal/auditcontroller/... ./internal/evalcoordinator/... ./internal/evalservice/... ./internal/planner/... ./internal/archtest/..."
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]

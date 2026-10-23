@@ -35,7 +35,9 @@ func (r *PostgresRepository) ListMetadata(
 ) ([]Metadata, error) {
 	var rows pgx.Rows
 	var err error
-	if scope.kind == ScopeProject &&
+	if scope.kind == ScopeUser && query.HiddenNamespace == artifactpolicy.AuditStandardCatalogNamespace && query.ExcludeNamespacePrefix == "" {
+		rows, err = r.db.Query(ctx, listUserMetadataSQL, scope.id, query.Namespace, query.ExcludeNamespace, query.AfterNamespace, query.AfterName, query.Limit, query.HiddenNamespace)
+	} else if scope.kind == ScopeProject &&
 		query.ExcludeNamespacePrefix == artifactpolicy.AuditManagedProjectNamespacePrefix {
 		// The generic Project listing skips the Audit-managed namespaces by
 		// index; a prefix filter would read every Audit binding (ART-R115).
