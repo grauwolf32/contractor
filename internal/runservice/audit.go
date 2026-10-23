@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"slices"
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
@@ -71,7 +72,8 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 			}
 			run, createErr := runs.CreateAuditRun(ctx, runstore.CreateAuditRunParams{
 				CreateRunParams: runstore.CreateRunParams{
-					RunID: runID, OwnerID: intent.OwnerID, ProjectID: &intent.ProjectID,
+					RequiredPlacementLabels: append([]string{}, normalized.RequiredPlacementLabels...),
+					RunID:                   runID, OwnerID: intent.OwnerID, ProjectID: &intent.ProjectID,
 					WorkflowName:          normalized.Workflow.Ref.Name,
 					WorkflowVersion:       normalized.Workflow.Ref.Version,
 					WorkflowSchemaVersion: contracts.APIVersion,
@@ -165,6 +167,10 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 }
 
 func normalizeAuditCreate(params AuditCreateParams) (AuditCreateParams, json.RawMessage, error) {
+	if err := contracts.ValidatePlacementLabels(params.RequiredPlacementLabels); err != nil {
+		return AuditCreateParams{}, nil, fmt.Errorf("%w: Audit placement requirements are invalid", ErrInvalid)
+	}
+	params.RequiredPlacementLabels = append([]string{}, params.RequiredPlacementLabels...)
 	if params.ExecutionID == "" || params.RequestDigest == "" || params.NewRunID == nil ||
 		params.Claim.AuditID == "" || params.Claim.HolderID == "" || params.Claim.Epoch == 0 {
 		return AuditCreateParams{}, nil, fmt.Errorf("%w: Audit Run identity is incomplete", ErrInvalid)
@@ -218,6 +224,9 @@ func normalizeAuditCreate(params AuditCreateParams) (AuditCreateParams, json.Raw
 }
 
 func validateAuditIntent(intent auditstore.RunCreationIntent, params AuditCreateParams) error {
+	if !slices.Equal(intent.RequiredPlacementLabels, params.RequiredPlacementLabels) {
+		return fmt.Errorf("%w: Audit placement requirements differ from the immutable baseline", auditstore.ErrConflict)
+	}
 	execution := intent.Execution
 	if execution.ExecutionID != params.ExecutionID || execution.AuditID != params.Claim.AuditID ||
 		execution.RequestDigest != params.RequestDigest ||
@@ -275,7 +284,8 @@ func auditRunLabels(intent auditstore.RunCreationIntent) (runstore.RunMetadataLa
 }
 
 func matchingAuditRun(run runstore.WorkflowRun, intent auditstore.RunCreationIntent) bool {
-	return run.PublicationMode == runstore.PublicationAuditManaged &&
+	return slices.Equal(run.RequiredPlacementLabels, intent.RequiredPlacementLabels) &&
+		run.PublicationMode == runstore.PublicationAuditManaged &&
 		run.AuditExecutionID != nil && *run.AuditExecutionID == intent.Execution.ExecutionID &&
 		run.AuditSubmissionKey != nil && *run.AuditSubmissionKey == intent.Execution.SubmissionKey &&
 		run.OwnerID == intent.OwnerID && run.ProjectID != nil && *run.ProjectID == intent.ProjectID

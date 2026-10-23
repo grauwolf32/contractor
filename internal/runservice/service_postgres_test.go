@@ -8,6 +8,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -91,7 +92,7 @@ func TestPostgresTrustedAuditRunIsAtomicReplayableAndPinsExactSkill(t *testing.T
 	if _, _, err := audits.MaterializeRound(ctx, auditstore.MaterializeRoundParams{
 		OwnerID: draft.OwnerID, AuditID: draft.AuditID, ExpectedRevision: draft.Revision,
 		RoundID: roundID, RoundOrdinal: 1, Manifest: manifest,
-		BaselineSnapshot: []byte(`{"baseline":"pinned"}`), DeadlineAt: time.Now().Add(time.Hour),
+		BaselineSnapshot: []byte(`{"baseline":"pinned","requiredPlacementLabels":["cloud/aws"]}`), DeadlineAt: time.Now().Add(time.Hour),
 		Items: []auditstore.MaterializedItem{{
 			ItemID: "item-run-service", ItemKey: "check-1", Ordinal: 0, Kind: "test",
 			SubjectKey: "subject-1", Task: task, Origin: runServiceAuditOrigin("check-1", task), WorkflowRole: "check",
@@ -191,7 +192,8 @@ func TestPostgresTrustedAuditRunIsAtomicReplayableAndPinsExactSkill(t *testing.T
 		t.Fatal(err)
 	}
 	params := AuditCreateParams{
-		Claim: claim, ExecutionID: execution.ExecutionID, Workflow: workflow,
+		RequiredPlacementLabels: []string{"cloud/aws"},
+		Claim:                   claim, ExecutionID: execution.ExecutionID, Workflow: workflow,
 		RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(), Skills: []agentskills.RunSkillSnapshot{skillSnapshot},
 		Parameters: map[string]string{"objective": "check"}, Inputs: map[string]auditstore.ExactArtifact{"source": source},
 		ExecutionManifest: manifest, RequestDigest: execution.RequestDigest,
@@ -223,6 +225,9 @@ func TestPostgresTrustedAuditRunIsAtomicReplayableAndPinsExactSkill(t *testing.T
 		t.Fatalf("concurrent create results = %+v / %+v, generated=%d", results[0], results[1], generated.Load())
 	}
 	stored, err := runstore.NewPostgresStore(pool).GetRun(ctx, results[0].Run.RunID)
+	if err != nil || !slices.Equal(stored.RequiredPlacementLabels, []string{"cloud/aws"}) {
+		t.Fatalf("child placement requirement = %v, %v", stored.RequiredPlacementLabels, err)
+	}
 	if err != nil || stored.PublicationMode != runstore.PublicationAuditManaged ||
 		stored.AuditExecutionID == nil || *stored.AuditExecutionID != execution.ExecutionID ||
 		stored.AuditSubmissionKey == nil || *stored.AuditSubmissionKey != execution.SubmissionKey ||
@@ -239,6 +244,10 @@ func TestPostgresTrustedAuditRunIsAtomicReplayableAndPinsExactSkill(t *testing.T
 	replay, err := service.CreateAudit(ctx, params)
 	if err != nil || !replay.Replayed || replay.Run.RunID != stored.RunID {
 		t.Fatalf("trusted response-loss replay = (%+v, %v)", replay, err)
+	}
+	params.RequiredPlacementLabels = []string{"local"}
+	if _, err := service.CreateAudit(ctx, params); !errors.Is(err, auditstore.ErrConflict) {
+		t.Fatalf("changed placement replay = %v", err)
 	}
 }
 

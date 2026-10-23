@@ -1724,7 +1724,8 @@ func newPostgresControllerHarnessWithPolicy(
 		t.Fatal(err)
 	}
 	draft, _, err := auditService.CreateDraft(ctx, auditservice.CreateDraftParams{
-		AuditID: "audit-controller", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
+		RequiredPlacementLabels: []string{"cloud", "cloud/aws"},
+		AuditID:                 "audit-controller", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
 		Profile:       auditservice.ProfileSelector{Name: "test-checklist", Version: "1"},
 		Inputs:        inputRefs,
 		RuntimeLabels: []string{}, Scope: auditservice.Scope{Objective: "Verify the test checklist"},

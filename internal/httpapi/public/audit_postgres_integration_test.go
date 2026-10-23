@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"testing"
 	"time"
@@ -81,7 +82,8 @@ func TestAuditPostgresPublicCreateStartAndQuery(t *testing.T) {
 	h := auditTestHandler(audits)
 	h.Projects = projects
 	requestBody, err := json.Marshal(createAuditRequest{
-		Profile: auditProfileSelectorRequest{Name: "public-checklist", Version: "1"},
+		RequiredPlacementLabels: []string{"cloud/aws", "cloud"},
+		Profile:                 auditProfileSelectorRequest{Name: "public-checklist", Version: "1"},
 		Inputs: map[string]contracts.ArtifactRef{
 			"source": source.Ref, "checklist": checklist.Ref,
 		},
@@ -102,11 +104,12 @@ func TestAuditPostgresPublicCreateStartAndQuery(t *testing.T) {
 	// The same key with another request is permanent; it never creates a
 	// second draft or changes the first.
 	changedBody, err := json.Marshal(createAuditRequest{
-		Profile: auditProfileSelectorRequest{Name: "public-checklist", Version: "1"},
+		RequiredPlacementLabels: []string{"local"},
+		Profile:                 auditProfileSelectorRequest{Name: "public-checklist", Version: "1"},
 		Inputs: map[string]contracts.ArtifactRef{
 			"source": source.Ref, "checklist": checklist.Ref,
 		},
-		RuntimeLabels: []string{}, Scope: auditservice.Scope{Objective: "Review authorization"},
+		RuntimeLabels: []string{}, Scope: auditservice.Scope{Objective: "Review authentication"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -120,6 +123,7 @@ func TestAuditPostgresPublicCreateStartAndQuery(t *testing.T) {
 	assertIdempotencyConflict(t, reusedCreated)
 	var draft auditResponse
 	if err := json.Unmarshal(created.Body.Bytes(), &draft); err != nil || draft.State != auditstore.AuditDraft ||
+		!slices.Equal(draft.RequiredPlacementLabels, []string{"cloud", "cloud/aws"}) ||
 		draft.Inputs["source"].Ref.Revision == nil || draft.Baseline != nil {
 		t.Fatalf("draft response = (%+v, %v)", draft, err)
 	}
@@ -138,6 +142,9 @@ func TestAuditPostgresPublicCreateStartAndQuery(t *testing.T) {
 		started.Audit.State != auditstore.AuditActive || started.Audit.HoldState != auditstore.HoldHeld ||
 		started.Audit.Baseline == nil || len(started.Items) != 1 || started.Round.ExpectedItemCount != 1 {
 		t.Fatalf("started response = (%+v, %v)", started, err)
+	}
+	if !slices.Equal(started.Audit.Baseline.RequiredPlacementLabels, draft.RequiredPlacementLabels) {
+		t.Fatalf("start lost placement selection: %+v", started.Audit.Baseline)
 	}
 
 	replay := auditAuthenticatedRequest(http.MethodPost, "/v1/audits/"+draft.AuditID+"/start", nil)

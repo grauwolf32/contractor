@@ -122,7 +122,7 @@ func TestResolveInputsForksTrustedExecutionManifestWithoutSelfReference(t *testi
 			"execution_manifest": {Source: auditprofile.AuditInputFromExecutionManifest},
 		},
 	}
-	baseline := auditservice.BaselineSnapshot{
+	baseline := auditservice.BaselineSnapshot{RequiredPlacementLabels: []string{},
 		Inputs: map[string]auditstore.ExactArtifact{"source": source},
 	}
 	manifest := auditdomain.ExecutionItem{Inputs: []auditdomain.ExactInput{{
@@ -168,7 +168,7 @@ func TestResolveRoleInputsPinsRetainedDependencyByRoundAndLogicalName(t *testing
 
 	inputs, err := builder.resolveRoleInputs(
 		context.Background(), snapshot, "assess", binding,
-		auditservice.BaselineSnapshot{Inputs: map[string]auditstore.ExactArtifact{"source": baselineInput}},
+		auditservice.BaselineSnapshot{RequiredPlacementLabels: []string{}, Inputs: map[string]auditstore.ExactArtifact{"source": baselineInput}},
 		execution,
 	)
 	if err != nil {

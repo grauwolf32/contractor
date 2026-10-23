@@ -140,23 +140,25 @@ func (b *PinnedSubmissionBuilder) PrepareRole(
 	)
 	submissionKey := auditdomain.DeterministicID("audit-role-submission", executionID, manifestDigest)
 	requestDigest, err := submissionDigest(struct {
-		Schema        string                               `json:"schema"`
-		AuditID       string                               `json:"auditId"`
-		RoundID       *string                              `json:"roundId,omitempty"`
-		ExecutionID   string                               `json:"executionId"`
-		Kind          auditstore.ExecutionRole             `json:"kind"`
-		WorkflowRole  string                               `json:"workflowRole"`
-		Attempt       int                                  `json:"attempt"`
-		ProfileDigest string                               `json:"profileDigest"`
-		Manifest      auditstore.ExactArtifact             `json:"manifest"`
-		Workflow      resolved.ResolvedWorkflow            `json:"workflow"`
-		Parameters    map[string]string                    `json:"parameters"`
-		Inputs        map[string]auditstore.ExactArtifact  `json:"inputs"`
-		RuntimeConfig any                                  `json:"runtimeConfig"`
-		Skills        []agentskills.RunSkillSnapshot       `json:"skills"`
-		ProjectTarget *runtimesettings.HTTPOriginTargetRef `json:"projectTarget,omitempty"`
+		RequiredPlacementLabels []string                             `json:"requiredPlacementLabels"`
+		Schema                  string                               `json:"schema"`
+		AuditID                 string                               `json:"auditId"`
+		RoundID                 *string                              `json:"roundId,omitempty"`
+		ExecutionID             string                               `json:"executionId"`
+		Kind                    auditstore.ExecutionRole             `json:"kind"`
+		WorkflowRole            string                               `json:"workflowRole"`
+		Attempt                 int                                  `json:"attempt"`
+		ProfileDigest           string                               `json:"profileDigest"`
+		Manifest                auditstore.ExactArtifact             `json:"manifest"`
+		Workflow                resolved.ResolvedWorkflow            `json:"workflow"`
+		Parameters              map[string]string                    `json:"parameters"`
+		Inputs                  map[string]auditstore.ExactArtifact  `json:"inputs"`
+		RuntimeConfig           any                                  `json:"runtimeConfig"`
+		Skills                  []agentskills.RunSkillSnapshot       `json:"skills"`
+		ProjectTarget           *runtimesettings.HTTPOriginTargetRef `json:"projectTarget,omitempty"`
 	}{
-		Schema: "contractor.audit.role-submission.v1", AuditID: audit.AuditID,
+		RequiredPlacementLabels: append([]string{}, baseline.RequiredPlacementLabels...),
+		Schema:                  "contractor.audit.role-submission.v1", AuditID: audit.AuditID,
 		RoundID: roundID, ExecutionID: executionID, Kind: kind,
 		WorkflowRole: workflowRole, Attempt: attempt, ProfileDigest: audit.Profile.Digest,
 		Manifest: manifestArtifact, Workflow: binding.Workflow, Parameters: parameters,
@@ -181,7 +183,8 @@ func (b *PinnedSubmissionBuilder) PrepareRole(
 			RequestDigest: requestDigest, Members: []auditstore.ExecutionMemberIntent{},
 		},
 		Run: runservice.AuditCreateParams{
-			ExecutionID: executionID, Workflow: binding.Workflow,
+			RequiredPlacementLabels: append([]string{}, baseline.RequiredPlacementLabels...),
+			ExecutionID:             executionID, Workflow: binding.Workflow,
 			RuntimeConfig: baseline.RuntimeConfig, Skills: skills,
 			ProjectHTTPTarget: baseline.ProjectHTTPTarget,
 			Parameters:        parameters, Inputs: runInputs,
@@ -427,20 +430,22 @@ func (b *PinnedSubmissionBuilder) PrepareBatch(
 	submissionKey := auditdomain.DeterministicID("audit-submission", executionID, manifestDigest)
 	roundID := snapshot.Round.RoundID
 	requestDigest, err := submissionDigest(struct {
-		Schema        string                               `json:"schema"`
-		AuditID       string                               `json:"auditId"`
-		ExecutionID   string                               `json:"executionId"`
-		Members       []auditstore.ExecutionMemberIntent   `json:"members"`
-		ProfileDigest string                               `json:"profileDigest"`
-		Manifest      auditstore.ExactArtifact             `json:"manifest"`
-		Workflow      resolved.ResolvedWorkflow            `json:"workflow"`
-		Parameters    map[string]string                    `json:"parameters"`
-		Inputs        map[string]auditstore.ExactArtifact  `json:"inputs"`
-		RuntimeConfig any                                  `json:"runtimeConfig"`
-		Skills        []agentskills.RunSkillSnapshot       `json:"skills"`
-		ProjectTarget *runtimesettings.HTTPOriginTargetRef `json:"projectTarget,omitempty"`
+		RequiredPlacementLabels []string                             `json:"requiredPlacementLabels"`
+		Schema                  string                               `json:"schema"`
+		AuditID                 string                               `json:"auditId"`
+		ExecutionID             string                               `json:"executionId"`
+		Members                 []auditstore.ExecutionMemberIntent   `json:"members"`
+		ProfileDigest           string                               `json:"profileDigest"`
+		Manifest                auditstore.ExactArtifact             `json:"manifest"`
+		Workflow                resolved.ResolvedWorkflow            `json:"workflow"`
+		Parameters              map[string]string                    `json:"parameters"`
+		Inputs                  map[string]auditstore.ExactArtifact  `json:"inputs"`
+		RuntimeConfig           any                                  `json:"runtimeConfig"`
+		Skills                  []agentskills.RunSkillSnapshot       `json:"skills"`
+		ProjectTarget           *runtimesettings.HTTPOriginTargetRef `json:"projectTarget,omitempty"`
 	}{
-		Schema: "contractor.audit.submission.v1", AuditID: audit.AuditID,
+		RequiredPlacementLabels: append([]string{}, baseline.RequiredPlacementLabels...),
+		Schema:                  "contractor.audit.submission.v1", AuditID: audit.AuditID,
 		ExecutionID: executionID, Members: members,
 		ProfileDigest: audit.Profile.Digest, Manifest: manifestArtifact,
 		Workflow: binding.Workflow, Parameters: parameters, Inputs: runInputs,
@@ -457,7 +462,8 @@ func (b *PinnedSubmissionBuilder) PrepareBatch(
 		Members: members,
 	}
 	run := runservice.AuditCreateParams{
-		ExecutionID: executionID, Workflow: binding.Workflow,
+		RequiredPlacementLabels: append([]string{}, baseline.RequiredPlacementLabels...),
+		ExecutionID:             executionID, Workflow: binding.Workflow,
 		RuntimeConfig: baseline.RuntimeConfig, Skills: skills,
 		ProjectHTTPTarget: baseline.ProjectHTTPTarget,
 		Parameters:        parameters, Inputs: runInputs,

@@ -6,8 +6,10 @@ import (
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -150,8 +152,9 @@ func (s *ClaimStore) GetRunCreationIntent(
 		return auditstore.RunCreationIntent{}, err
 	}
 	var result auditstore.RunCreationIntent
+	var placement []byte
 	execution, err := scanExecution(withColumns{row: s.db.QueryRow(ctx, `
-SELECT audit.owner_id, audit.project_id, `+profileRoleSQL("#>", "execution.workflow_role")+`, `+prefixedExecutionColumns("execution")+`
+SELECT audit.owner_id, audit.project_id, audit.baseline_snapshot->'requiredPlacementLabels', `+profileRoleSQL("#>", "execution.workflow_role")+`, `+prefixedExecutionColumns("execution")+`
   FROM audit_executions AS execution
   JOIN audits AS audit USING (audit_id)
   JOIN audit_controller_claims AS claim USING (audit_id)
@@ -159,7 +162,7 @@ SELECT audit.owner_id, audit.project_id, `+profileRoleSQL("#>", "execution.workf
    AND `+auditClaims.LiveCondition("claim", "$2", "$3")+`
  FOR UPDATE OF claim, audit, execution`,
 		claim.AuditID, claim.HolderID, claim.Epoch, executionID,
-	), before: []any{&result.OwnerID, &result.ProjectID, &result.WorkflowBinding}})
+	), before: []any{&result.OwnerID, &result.ProjectID, &placement, &result.WorkflowBinding}})
 	if errors.Is(err, pgx.ErrNoRows) {
 		if live, liveErr := s.claimLive(ctx, claim); liveErr != nil {
 			return auditstore.RunCreationIntent{}, liveErr
@@ -170,6 +173,10 @@ SELECT audit.owner_id, audit.project_id, `+profileRoleSQL("#>", "execution.workf
 	}
 	if err != nil {
 		return auditstore.RunCreationIntent{}, fmt.Errorf("read Audit Run creation intent: %w", err)
+	}
+	if strictjson.Decode(placement, &result.RequiredPlacementLabels) != nil || result.RequiredPlacementLabels == nil ||
+		contracts.ValidatePlacementLabels(result.RequiredPlacementLabels) != nil {
+		return auditstore.RunCreationIntent{}, invalidf("stored Audit placement requirements are invalid")
 	}
 	result.Execution = execution
 	result.Items, err = s.listExecutionItems(ctx, executionID)

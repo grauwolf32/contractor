@@ -86,7 +86,7 @@ func TestPostgresPublicPagedListsAcceptTheLargestPage(t *testing.T) {
 			input = written
 		}
 	}
-	selection, err := json.Marshal(auditservice.DraftSelection{
+	selection, err := json.Marshal(auditservice.DraftSelection{RequiredPlacementLabels: []string{},
 		Schema: auditservice.DraftSelectionSchema,
 		Inputs: map[string]auditstore.ExactArtifact{"source": {
 			Ref: input.Ref, Digest: auditHandlerDigest("page"), MediaType: input.MediaType, SizeBytes: input.Size,

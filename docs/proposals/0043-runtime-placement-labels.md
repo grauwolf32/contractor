@@ -1,8 +1,8 @@
 # Runtime placement labels: cloud and local
 
 Proposal 0043 · Status: **Partially implemented. Startup declarations,
-Operations observations and Run placement requirements/matching are delivered;
-Audit propagation, UI selection and the process release gate remain planned.**
+Operations observations, Run/Audit placement requirements and matching are delivered;
+UI selection and the process release gate remain planned.**
 Recorded on 2026-10-23 from the user's decisions.
 
 ## 1. Accepted direction

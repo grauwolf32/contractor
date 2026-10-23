@@ -198,4 +198,6 @@ Runtime or `["cloud/aws"]` for one provider. All Workers in that Run keep the
 same requirement across retries and manual resume. An offline location is a
 valid selection and waits for matching capacity. Inspect the Run's selection
 and each Stage allocation's actual `placementLabels` through the Run detail
-API. UI controls and Audit selection are tracked separately in proposal 0043.
+API. Audit draft creation accepts the same field; start pins it in the baseline
+for all preparation and later child Runs. UI controls are tracked separately
+in proposal 0043.

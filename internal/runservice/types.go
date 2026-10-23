@@ -132,17 +132,18 @@ type PublicCreateParams struct {
 // immutable Workflow/Runtime/Project snapshots; raw secret bytes cannot enter
 // this boundary.
 type AuditCreateParams struct {
-	Claim             auditstore.ControllerClaim
-	ExecutionID       string
-	Workflow          resolved.ResolvedWorkflow
-	RuntimeConfig     runtimeconfig.RunSnapshot
-	Skills            []agentskills.RunSkillSnapshot
-	ProjectHTTPTarget *runtimesettings.HTTPOriginTargetRef
-	Parameters        map[string]string
-	Inputs            map[string]auditstore.ExactArtifact
-	ExecutionManifest auditstore.ExactArtifact
-	RequestDigest     string
-	NewRunID          func() (string, error)
+	RequiredPlacementLabels []string
+	Claim                   auditstore.ControllerClaim
+	ExecutionID             string
+	Workflow                resolved.ResolvedWorkflow
+	RuntimeConfig           runtimeconfig.RunSnapshot
+	Skills                  []agentskills.RunSkillSnapshot
+	ProjectHTTPTarget       *runtimesettings.HTTPOriginTargetRef
+	Parameters              map[string]string
+	Inputs                  map[string]auditstore.ExactArtifact
+	ExecutionManifest       auditstore.ExactArtifact
+	RequestDigest           string
+	NewRunID                func() (string, error)
 }
 
 type CreateResult struct {

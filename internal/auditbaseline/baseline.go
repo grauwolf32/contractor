@@ -56,16 +56,17 @@ type DerivedInventory struct {
 }
 
 type BaselineSnapshot struct {
-	Schema               string                               `json:"schema"`
-	ActiveChecks         contracts.ActiveChecksPolicy         `json:"activeChecks"`
-	Inputs               map[string]auditstore.ExactArtifact  `json:"inputs"`
-	Scope                Scope                                `json:"scope"`
-	RuntimeLabels        []string                             `json:"runtimeLabels"`
-	RuntimeConfig        runtimeconfig.RunSnapshot            `json:"runtimeConfig"`
-	Skills               []agentskills.RunSkillSnapshot       `json:"skills"`
-	LLMCredentialIDs     []string                             `json:"llmCredentialIds"`
-	RuntimeCredentialIDs []string                             `json:"runtimeCredentialIds"`
-	ProjectHTTPTarget    *runtimesettings.HTTPOriginTargetRef `json:"projectHttpTarget,omitempty"`
-	Standards            []auditstandards.PinnedPackage       `json:"standards"`
-	Inventory            *BaselineInventory                   `json:"inventory,omitempty"`
+	RequiredPlacementLabels []string                             `json:"requiredPlacementLabels"`
+	Schema                  string                               `json:"schema"`
+	ActiveChecks            contracts.ActiveChecksPolicy         `json:"activeChecks"`
+	Inputs                  map[string]auditstore.ExactArtifact  `json:"inputs"`
+	Scope                   Scope                                `json:"scope"`
+	RuntimeLabels           []string                             `json:"runtimeLabels"`
+	RuntimeConfig           runtimeconfig.RunSnapshot            `json:"runtimeConfig"`
+	Skills                  []agentskills.RunSkillSnapshot       `json:"skills"`
+	LLMCredentialIDs        []string                             `json:"llmCredentialIds"`
+	RuntimeCredentialIDs    []string                             `json:"runtimeCredentialIds"`
+	ProjectHTTPTarget       *runtimesettings.HTTPOriginTargetRef `json:"projectHttpTarget,omitempty"`
+	Standards               []auditstandards.PinnedPackage       `json:"standards"`
+	Inventory               *BaselineInventory                   `json:"inventory,omitempty"`
 }

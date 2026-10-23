@@ -169,7 +169,8 @@ func (h *auditHandlers) createAudit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	audit, created, err := h.Audits.CreateDraft(r.Context(), auditservice.CreateDraftParams{
-		AuditID: auditID, OwnerID: principalUserID(r.Context()), ProjectID: projectID,
+		RequiredPlacementLabels: append([]string{}, request.RequiredPlacementLabels...),
+		AuditID:                 auditID, OwnerID: principalUserID(r.Context()), ProjectID: projectID,
 		Profile: auditservice.ProfileSelector{Name: request.Profile.Name, Version: request.Profile.Version},
 		Inputs:  request.Inputs, RuntimeLabels: labels, Scope: request.Scope,
 		IdempotencyKey: key, RequestDigest: digest,

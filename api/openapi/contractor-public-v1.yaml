@@ -12148,6 +12148,7 @@ components:
       additionalProperties: false
       required: [profile, inputs]
       properties:
+        requiredPlacementLabels: {$ref: '#/components/schemas/PlacementLabels'}
         profile: {$ref: '#/components/schemas/AuditProfileSelector'}
         inputs:
           type: object
@@ -12223,6 +12224,7 @@ components:
       additionalProperties: false
       required: [inputs, scope, activeChecks, runtimeLabels, runtimeConfig, skills, standards]
       properties:
+        requiredPlacementLabels: {$ref: '#/components/schemas/PlacementLabels'}
         activeChecks: {$ref: '#/components/schemas/ActiveChecksPolicy'}
         inputs:
           type: object
@@ -12346,6 +12348,7 @@ components:
       additionalProperties: false
       required: [auditId, projectId, profile, inputs, scope, runtimeLabels, state, phase, revision, dispatchState, holdState, limits, reservedRunCount, submittedRunCount, outstandingRunCount, retainedEvidenceBytes, eventSequence, createdAt, updatedAt]
       properties:
+        requiredPlacementLabels: {$ref: '#/components/schemas/PlacementLabels'}
         auditId: {$ref: '#/components/schemas/ResourceId'}
         projectId: {$ref: '#/components/schemas/ResourceId'}
         profile: {$ref: '#/components/schemas/AuditProfileIdentity'}

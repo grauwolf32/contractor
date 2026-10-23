@@ -2888,22 +2888,25 @@ type Audit struct {
 	OutstandingRunCount int                           `json:"outstandingRunCount"`
 
 	// PausedAt Time when the remaining Audit allowance was frozen.
-	PausedAt              *time.Time                `json:"pausedAt,omitempty"`
-	Phase                 AuditPhase                `json:"phase"`
-	Preparation           *AuditPreparation         `json:"preparation,omitempty"`
-	Profile               AuditProfileIdentity      `json:"profile"`
-	ProjectId             ResourceId                `json:"projectId"`
-	ReservedRunCount      int                       `json:"reservedRunCount"`
-	RetainedEvidenceBytes int                       `json:"retainedEvidenceBytes"`
-	Revision              int                       `json:"revision"`
-	RuntimeLabels         []RuntimeInfrastructureId `json:"runtimeLabels"`
-	Scope                 AuditScope                `json:"scope"`
-	StartedAt             *time.Time                `json:"startedAt,omitempty"`
-	State                 AuditState                `json:"state"`
-	StopReason            *AuditStopReason          `json:"stopReason,omitempty"`
-	SubmittedRunCount     int                       `json:"submittedRunCount"`
-	UpdatedAt             time.Time                 `json:"updatedAt"`
-	union                 json.RawMessage
+	PausedAt    *time.Time           `json:"pausedAt,omitempty"`
+	Phase       AuditPhase           `json:"phase"`
+	Preparation *AuditPreparation    `json:"preparation,omitempty"`
+	Profile     AuditProfileIdentity `json:"profile"`
+	ProjectId   ResourceId           `json:"projectId"`
+
+	// RequiredPlacementLabels Sorted unique cloud/local paths forming one ancestor chain. Empty means no location declaration or requirement.
+	RequiredPlacementLabels *PlacementLabels          `json:"requiredPlacementLabels,omitempty"`
+	ReservedRunCount        int                       `json:"reservedRunCount"`
+	RetainedEvidenceBytes   int                       `json:"retainedEvidenceBytes"`
+	Revision                int                       `json:"revision"`
+	RuntimeLabels           []RuntimeInfrastructureId `json:"runtimeLabels"`
+	Scope                   AuditScope                `json:"scope"`
+	StartedAt               *time.Time                `json:"startedAt,omitempty"`
+	State                   AuditState                `json:"state"`
+	StopReason              *AuditStopReason          `json:"stopReason,omitempty"`
+	SubmittedRunCount       int                       `json:"submittedRunCount"`
+	UpdatedAt               time.Time                 `json:"updatedAt"`
+	union                   json.RawMessage
 }
 
 // Audit0 defines model for Audit.0.
@@ -2941,11 +2944,14 @@ type AuditBaseline struct {
 	Inputs            map[string]AuditExactArtifact `json:"inputs"`
 	Inventory         *AuditBaselineInventory       `json:"inventory,omitempty"`
 	ProjectHttpTarget *ProjectHTTPTarget            `json:"projectHttpTarget,omitempty"`
-	RuntimeConfig     AuditRuntimeSnapshot          `json:"runtimeConfig"`
-	RuntimeLabels     []RuntimeInfrastructureId     `json:"runtimeLabels"`
-	Scope             AuditScope                    `json:"scope"`
-	Skills            []AuditSkill                  `json:"skills"`
-	Standards         []AuditPinnedStandard         `json:"standards"`
+
+	// RequiredPlacementLabels Sorted unique cloud/local paths forming one ancestor chain. Empty means no location declaration or requirement.
+	RequiredPlacementLabels *PlacementLabels          `json:"requiredPlacementLabels,omitempty"`
+	RuntimeConfig           AuditRuntimeSnapshot      `json:"runtimeConfig"`
+	RuntimeLabels           []RuntimeInfrastructureId `json:"runtimeLabels"`
+	Scope                   AuditScope                `json:"scope"`
+	Skills                  []AuditSkill              `json:"skills"`
+	Standards               []AuditPinnedStandard     `json:"standards"`
 }
 
 // AuditBaselineInventory defines model for AuditBaselineInventory.
@@ -3989,10 +3995,13 @@ type CreateAuditFindingReviewRequest struct {
 
 // CreateAuditRequest defines model for CreateAuditRequest.
 type CreateAuditRequest struct {
-	Inputs        map[string]ExactArtifactRef `json:"inputs"`
-	Profile       AuditProfileSelector        `json:"profile"`
-	RuntimeLabels *[]RuntimeInfrastructureId  `json:"runtimeLabels,omitempty"`
-	Scope         *AuditScope                 `json:"scope,omitempty"`
+	Inputs  map[string]ExactArtifactRef `json:"inputs"`
+	Profile AuditProfileSelector        `json:"profile"`
+
+	// RequiredPlacementLabels Sorted unique cloud/local paths forming one ancestor chain. Empty means no location declaration or requirement.
+	RequiredPlacementLabels *PlacementLabels           `json:"requiredPlacementLabels,omitempty"`
+	RuntimeLabels           *[]RuntimeInfrastructureId `json:"runtimeLabels,omitempty"`
+	Scope                   *AuditScope                `json:"scope,omitempty"`
 }
 
 // CreateCredentialRequest defines model for CreateCredentialRequest.
@@ -9231,6 +9240,13 @@ func (t Audit) MarshalJSON() ([]byte, error) {
 		return nil, fmt.Errorf("error marshaling 'projectId': %w", err)
 	}
 
+	if t.RequiredPlacementLabels != nil {
+		object["requiredPlacementLabels"], err = json.Marshal(t.RequiredPlacementLabels)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'requiredPlacementLabels': %w", err)
+		}
+	}
+
 	object["reservedRunCount"], err = json.Marshal(t.ReservedRunCount)
 	if err != nil {
 		return nil, fmt.Errorf("error marshaling 'reservedRunCount': %w", err)
@@ -9432,6 +9448,13 @@ func (t *Audit) UnmarshalJSON(b []byte) error {
 		err = json.Unmarshal(raw, &t.ProjectId)
 		if err != nil {
 			return fmt.Errorf("error reading 'projectId': %w", err)
+		}
+	}
+
+	if raw, found := object["requiredPlacementLabels"]; found {
+		err = json.Unmarshal(raw, &t.RequiredPlacementLabels)
+		if err != nil {
+			return fmt.Errorf("error reading 'requiredPlacementLabels': %w", err)
 		}
 	}
 

@@ -627,11 +627,12 @@ type BindRunParams struct {
 // trusted Run Service. It contains no secret material and is never exposed by
 // the owner-facing repository or public API.
 type RunCreationIntent struct {
-	WorkflowBinding json.RawMessage
-	OwnerID         string
-	ProjectID       string
-	Execution       Execution
-	Items           []ExecutionItem
+	RequiredPlacementLabels []string
+	WorkflowBinding         json.RawMessage
+	OwnerID                 string
+	ProjectID               string
+	Execution               Execution
+	Items                   []ExecutionItem
 }
 
 type ObserveTerminalParams struct {

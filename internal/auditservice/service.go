@@ -79,6 +79,10 @@ func (s *Service) CreateDraft(
 	if err := validateCreateParams(params); err != nil {
 		return auditstore.Audit{}, false, err
 	}
+	placement, err := contracts.NormalizePlacementLabels(params.RequiredPlacementLabels)
+	if err != nil {
+		return auditstore.Audit{}, false, fmt.Errorf("%w: Audit placement requirements are invalid: %v", ErrInvalid, err)
+	}
 	if replay, found, err := s.owners().LookupMutationReplay(
 		ctx, params.OwnerID, auditstore.MutationCreate,
 		params.IdempotencyKey, params.RequestDigest,
@@ -87,7 +91,6 @@ func (s *Service) CreateDraft(
 	}
 	selector, _ := normalizeProfileSelector(params.Profile)
 	var profile auditprofile.ResolvedAuditProfile
-	var err error
 	if params.PinnedProfile != nil {
 		if !contentdigest.Valid(params.ExpectedProfileSHA256) || params.PinnedProfile.Ref.Name+"@"+params.PinnedProfile.Ref.Version != selector {
 			return auditstore.Audit{}, false, ErrInvalid
@@ -139,7 +142,8 @@ func (s *Service) CreateDraft(
 		return auditstore.Audit{}, false, fmt.Errorf("encode AuditProfile snapshot: %w", err)
 	}
 	selection, err := encodeDraftSelection(DraftSelection{
-		Schema: DraftSelectionSchema, Inputs: inputs,
+		RequiredPlacementLabels: placement,
+		Schema:                  DraftSelectionSchema, Inputs: inputs,
 		RuntimeLabels: labels, Scope: scope,
 	})
 	if err != nil {

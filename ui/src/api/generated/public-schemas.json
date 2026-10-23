@@ -4568,6 +4568,9 @@
       "additionalProperties": false,
       "required": ["profile", "inputs"],
       "properties": {
+        "requiredPlacementLabels": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PlacementLabels"
+        },
         "profile": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditProfileSelector"
         },
@@ -4716,6 +4719,9 @@
         "standards"
       ],
       "properties": {
+        "requiredPlacementLabels": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PlacementLabels"
+        },
         "activeChecks": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ActiveChecksPolicy"
         },
@@ -4992,6 +4998,9 @@
         "updatedAt"
       ],
       "properties": {
+        "requiredPlacementLabels": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PlacementLabels"
+        },
         "auditId": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
         },

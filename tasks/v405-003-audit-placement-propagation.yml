@@ -5,7 +5,7 @@ milestone: runtime-placement-labels-2026-10
 epic: audits
 kind: feature
 priority: P2
-status: pending
+status: in_progress
 depends_on:
 - V405-002
 languages:
@@ -71,6 +71,10 @@ acceptance_criteria:
   then: Existing controller and Run lifecycle semantics hold, no Run escapes the placement requirement,
     and the selection adds no retained side table.
 tests:
+- command: go test -tags=integration ./internal/auditcontroller ./internal/auditstore/...
+  covers:
+  - A1
+  - A2
 - command: go test ./internal/auditservice ./internal/auditcontroller ./internal/auditstore/... ./internal/runservice
     ./internal/httpapi/public
   covers:

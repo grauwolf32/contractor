@@ -83,7 +83,7 @@ func conformAuditOperations(t *testing.T, router routers.Router) {
 		Ref:    contracts.ArtifactRef{Namespace: "inputs", Name: "checklist", Revision: &revision},
 		Digest: auditHandlerDigest("checklist"), MediaType: "application/json", SizeBytes: 64,
 	}
-	selection, err := json.Marshal(auditservice.DraftSelection{
+	selection, err := json.Marshal(auditservice.DraftSelection{RequiredPlacementLabels: []string{},
 		Schema:        auditservice.DraftSelectionSchema,
 		Inputs:        map[string]auditstore.ExactArtifact{"checklist": input},
 		RuntimeLabels: []string{}, Scope: auditservice.Scope{Objective: "Review the service"},

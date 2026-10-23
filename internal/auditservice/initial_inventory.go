@@ -91,7 +91,8 @@ func (s *Service) prepareInitialInventory(ctx context.Context, claim auditstore.
 	if err != nil || baseline.Inventory != nil {
 		return auditstore.AcceptInitialRoundParams{}, inconsistentRound("the original preparation baseline is invalid", err)
 	}
-	selection := DraftSelection{Inputs: baseline.Inputs, Scope: baseline.Scope, RuntimeLabels: baseline.RuntimeLabels}
+	selection := DraftSelection{Inputs: baseline.Inputs, Scope: baseline.Scope, RuntimeLabels: baseline.RuntimeLabels,
+		RequiredPlacementLabels: append([]string{}, baseline.RequiredPlacementLabels...)}
 	service := artifacts.NewService(artifacts.NewPostgresRepository(s.pool))
 	original, err := readAndVerifyInputs(ctx, service, audit.ProjectID, profile, selection)
 	if err != nil {

@@ -70,10 +70,11 @@ type ProfileSelector struct {
 type Scope = auditbaseline.Scope
 
 type DraftSelection struct {
-	Schema        string                              `json:"schema"`
-	Inputs        map[string]auditstore.ExactArtifact `json:"inputs"`
-	RuntimeLabels []string                            `json:"runtimeLabels"`
-	Scope         Scope                               `json:"scope"`
+	RequiredPlacementLabels []string                            `json:"requiredPlacementLabels"`
+	Schema                  string                              `json:"schema"`
+	Inputs                  map[string]auditstore.ExactArtifact `json:"inputs"`
+	RuntimeLabels           []string                            `json:"runtimeLabels"`
+	Scope                   Scope                               `json:"scope"`
 }
 
 type BaselineInventory = auditbaseline.BaselineInventory
@@ -91,6 +92,7 @@ type ProfileProjection struct {
 }
 
 type CreateDraftParams struct {
+	RequiredPlacementLabels []string
 	// PinnedProfile is trusted server-side Eval preparation, never a public field.
 	PinnedProfile         *auditprofile.ResolvedAuditProfile
 	ExpectedProfileSHA256 string

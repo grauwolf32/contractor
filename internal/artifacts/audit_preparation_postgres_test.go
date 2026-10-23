@@ -112,7 +112,7 @@ func newPreparationFixture(t *testing.T, dependency bool) preparationFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	baseline, _ := json.Marshal(map[string]any{"schema": "contractor.audit.baseline.v1", "inputs": inputs,
+	baseline, _ := json.Marshal(map[string]any{"schema": "contractor.audit.baseline.v1", "requiredPlacementLabels": []string{}, "inputs": inputs,
 		"scope": map[string]string{}, "llmCredentialIds": []string{"preparation-credential"}, "runtimeCredentialIds": []string{}})
 	start := auditstore.StartPreparationParams{OwnerID: audit.OwnerID, AuditID: audit.AuditID, ExpectedRevision: audit.Revision,
 		BaselineSnapshot: baseline, DeadlineAt: time.Now().Add(time.Hour), IdempotencyKey: "start", RequestDigest: prepDigest("start")}

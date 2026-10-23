@@ -275,6 +275,10 @@ func TestPostgresGeneratedChecklistRunsChecksAndPublishesReport(t *testing.T) {
 		if check.RunID == nil {
 			t.Fatalf("check %d was not submitted: %+v", index, executions)
 		}
+		run, err := h.runs.GetRun(ctx, *check.RunID)
+		if err != nil || len(run.RequiredPlacementLabels) != 2 || run.RequiredPlacementLabels[1] != "cloud/aws" {
+			t.Fatalf("check Run lost baseline placement: %+v, %v", run, err)
+		}
 		finishGeneratedChecklistCheck(t, ctx, h, check)
 		preparationStep(t, ctx, c)
 		preparationStep(t, ctx, c)

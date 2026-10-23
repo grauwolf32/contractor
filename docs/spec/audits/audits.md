@@ -735,6 +735,27 @@ revalidates both.
 
 ### Baseline and scope
 
+**AUD-R229.** Audit draft creation accepts optional non-null
+`requiredPlacementLabels` with the cloud/local grammar and limits of
+[CTL-R156](../execution/control-plane.md). Server clones, sorts and validates
+the selection; omission and an empty array both impose no location restriction.
+The normalized non-empty selection participates in the draft request digest.
+The draft selection and start baseline retain a non-null canonical array;
+readers reject missing, malformed or inconsistent stored selections. Start
+pins the draft revision's requirement atomically with the existing baseline
+and receipt. Changing the requirement after start requires a new Audit.
+
+**AUD-R230.** Every ordinary child Run inherits exactly the baseline's
+`requiredPlacementLabels`, including preparation, initial and subsequent
+inventories, check, discovery and assessment roles, retries, later rounds and
+recovered dispatch. Submission digests include the pinned selection. Trusted
+Run creation compares the submitted selection and any replayed Run with the
+claim-bound baseline before creating or returning a child. Current fleet
+availability never rewrites the selection; matching and capacity waiting use
+[RUN-R107–RUN-R109](../execution/runs.md) and
+[CTL-R159–CTL-R161](../execution/control-plane.md). Pause, cancel and purge
+follow the owning Audit and Run lifecycles without another placement entity.
+
 **AUD-R95.** At `start`, one transaction freezes (FAIL-AUD-4):
 
 - exact ProjectScope ArtifactRefs for source, OpenAPI, checklist, finding, and
@@ -742,6 +763,7 @@ revalidates both.
 - a bounded target/scope snapshot, selected assets, exclusions, and permitted
   methods;
 - non-secret credential identities plus durable usage holds;
+- the normalized required placement labels, reused by every child Run;
 - the resolved AuditProfile, every child ResolvedWorkflow closure, and one
   exact Run RuntimeConfig snapshot (default plus Audit-selected Runtime labels)
   reused by every child Run; physical Agent labels still resolve only after

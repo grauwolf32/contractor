@@ -3655,6 +3655,7 @@ export interface components {
             authorizationScope?: string;
         };
         CreateAuditRequest: {
+            requiredPlacementLabels?: components["schemas"]["PlacementLabels"];
             profile: components["schemas"]["AuditProfileSelector"];
             inputs: {
                 [key: string]: components["schemas"]["ExactArtifactRef"];
@@ -3697,6 +3698,7 @@ export interface components {
             worklist: components["schemas"]["AuditExactArtifact"];
         };
         AuditBaseline: {
+            requiredPlacementLabels?: components["schemas"]["PlacementLabels"];
             activeChecks: components["schemas"]["ActiveChecksPolicy"];
             inputs: {
                 [key: string]: components["schemas"]["AuditExactArtifact"];
@@ -3781,6 +3783,7 @@ export interface components {
             message: string;
         };
         Audit: {
+            requiredPlacementLabels?: components["schemas"]["PlacementLabels"];
             auditId: components["schemas"]["ResourceId"];
             projectId: components["schemas"]["ResourceId"];
             profile: components["schemas"]["AuditProfileIdentity"];

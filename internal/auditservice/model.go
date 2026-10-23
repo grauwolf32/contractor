@@ -50,6 +50,9 @@ func DecodeBaseline(data []byte) (BaselineSnapshot, error) {
 }
 
 func validateDraftSelection(value DraftSelection) error {
+	if value.RequiredPlacementLabels == nil || contracts.ValidatePlacementLabels(value.RequiredPlacementLabels) != nil {
+		return fmt.Errorf("%w: Audit placement requirements are invalid", ErrInvalid)
+	}
 	if value.Schema != DraftSelectionSchema || len(value.Inputs) == 0 {
 		return fmt.Errorf("%w: Audit input selection is invalid", ErrInvalid)
 	}
@@ -65,6 +68,9 @@ func validateDraftSelection(value DraftSelection) error {
 }
 
 func ValidateBaseline(value BaselineSnapshot) error {
+	if value.RequiredPlacementLabels == nil || contracts.ValidatePlacementLabels(value.RequiredPlacementLabels) != nil {
+		return fmt.Errorf("%w: Audit baseline placement requirements are invalid", ErrInvalid)
+	}
 	if value.Schema != BaselineSchema || !value.ActiveChecks.Valid() || len(value.Inputs) == 0 ||
 		value.RuntimeLabels == nil || value.Skills == nil || value.LLMCredentialIDs == nil ||
 		value.RuntimeCredentialIDs == nil || value.Standards == nil {
@@ -197,6 +203,7 @@ func mergeIDs(sets ...[]string) []string {
 
 func cloneBaseline(source BaselineSnapshot) BaselineSnapshot {
 	result := source
+	result.RequiredPlacementLabels = slices.Clone(source.RequiredPlacementLabels)
 	result.Inputs = contracts.CloneExactArtifacts(source.Inputs)
 	result.RuntimeLabels = slices.Clone(source.RuntimeLabels)
 	result.RuntimeConfig = source.RuntimeConfig.Clone()

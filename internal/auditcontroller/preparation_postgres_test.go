@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -135,6 +136,10 @@ func finishPreparationRun(t *testing.T, ctx context.Context, h *postgresControll
 		t.Fatalf("execution has no Run: %+v", execution)
 	}
 	runID := *execution.RunID
+	run, err := h.runs.GetRun(ctx, runID)
+	if err != nil || !slices.Equal(run.RequiredPlacementLabels, []string{"cloud", "cloud/aws"}) {
+		t.Fatalf("preparation Run lost baseline placement: %+v, %v", run, err)
+	}
 	if outcome == runstore.RunSucceeded {
 		runArtifacts, _ := h.artifacts.Run(runID)
 		baseline, _ := auditservice.DecodeBaseline(h.started.Audit.BaselineSnapshot)

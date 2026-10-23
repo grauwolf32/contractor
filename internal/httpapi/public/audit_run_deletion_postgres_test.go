@@ -78,7 +78,7 @@ func TestPublicAuditSourceRunDeletionInvalidatesReadContexts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	selection, err := json.Marshal(auditservice.DraftSelection{
+	selection, err := json.Marshal(auditservice.DraftSelection{RequiredPlacementLabels: []string{},
 		Schema:        auditservice.DraftSelectionSchema,
 		Inputs:        map[string]auditstore.ExactArtifact{"source": {Ref: input.Ref, Digest: auditHandlerDigest("source"), MediaType: input.MediaType, SizeBytes: input.Size}},
 		RuntimeLabels: []string{},
