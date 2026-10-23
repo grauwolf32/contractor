@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"os"
 	"path/filepath"
@@ -20,6 +19,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
@@ -133,7 +133,7 @@ func (f preparationFixture) intent(role string, attempt int) auditstore.CreateEx
 	revision := "manifest-revision"
 	id := auditdomain.DeterministicID("prepare", f.audit.AuditID, role, string(rune('0'+attempt)))
 	return auditstore.CreateExecutionIntentParams{
-		Claim: f.claim, ExecutionID: id, Role: auditstore.ExecutionPrepare, WorkflowRole: role, RoleAttempt: &attempt,
+		Claim: f.claim, ExecutionID: id, Role: auditstore.ExecutionPrepare, WorkflowRole: role, LaneClass: resolved.LaneClassModel, RoleAttempt: &attempt,
 		Manifest:      auditstore.ExactArtifact{Ref: ArtifactRef{Namespace: auditdomain.ArtifactNamespace(f.audit.AuditID), Name: "empty-manifest", Revision: &revision}, Digest: prepDigest("manifest")},
 		SubmissionKey: id, RequestDigest: prepDigest(id),
 		Preparation: &auditstore.PreparationSnapshot{Inputs: map[string]auditstore.ExactArtifact{"source": f.input}, Parameters: map[string]string{}},

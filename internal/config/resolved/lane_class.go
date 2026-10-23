@@ -37,6 +37,18 @@ func EntryLaneClass(workflow ResolvedWorkflow) LaneClass {
 	return StageLaneClass(workflow.Stages[workflow.EntryStage])
 }
 
+// WorkflowLaneClass is the class an Audit counts a child Run of workflow
+// against (AUX-R3): `tool` when every Stage of workflow is `tool`, otherwise
+// `model`, so a Workflow that scans and then calls a model counts as `model`.
+func WorkflowLaneClass(workflow ResolvedWorkflow) LaneClass {
+	for _, stage := range workflow.Stages {
+		if StageLaneClass(stage) != LaneClassTool {
+			return LaneClassModel
+		}
+	}
+	return LaneClassTool
+}
+
 // StageToolWorkersOnly reports whether every Worker bound in stage is a tool
 // Worker, which calls no model.
 func StageToolWorkersOnly(stage ResolvedStage) bool {

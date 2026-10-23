@@ -4,11 +4,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, type ReactNode, useState } from "react";
 import { Link } from "react-router";
 
-import { schemaLimit } from "../../../api/contract";
 import { usePublicAPI } from "../../../api/context";
 import {
   getSchedulerSettings,
   replaceSchedulerSettings,
+  schedulerLimitBounds,
+  type SchedulerLimits,
   type SchedulerSettingsSnapshot,
 } from "../../../api/operations";
 import { queryKeys } from "../../../api/query-keys";
@@ -22,30 +23,53 @@ import { AppearanceSettings } from "../../settings/appearance";
 import { GitKeySettings } from "../../settings/git-key";
 import { SettingSection } from "../../settings/section";
 
-// The admission ceiling's bounds, as UpdateSchedulerSettingsRequest has them.
-const MINIMUM = schemaLimit(
-  "UpdateSchedulerSettingsRequest",
-  "minimum",
-  "properties",
-  "maxConcurrentRuns",
-);
-const MAXIMUM = schemaLimit(
-  "UpdateSchedulerSettingsRequest",
-  "maximum",
-  "properties",
-  "maxConcurrentRuns",
-);
+// Each limit sizes one Scheduler lane pool (SCH-R175); its bounds come from
+// UpdateSchedulerSettingsRequest.
+const LIMITS = (
+  [
+    {
+      name: "maxConcurrentRuns",
+      pool: "model",
+      label: "Concurrent Runs using a model",
+      fact: "Using a model",
+      hint: "Runs whose current step calls a model, such as analysis or review. This bounds the load on the LLM Gateway.",
+    },
+    {
+      name: "maxConcurrentToolRuns",
+      pool: "tool",
+      label: "Concurrent Runs without a model",
+      fact: "Without a model",
+      hint: "Runs whose current step calls no model, such as a scanner. Free Runtime Agents bound them as well.",
+    },
+  ] as const
+).map((limit) => ({ ...limit, ...schedulerLimitBounds(limit.name) }));
 
-function validateMaximum(value: string): string | undefined {
+type LimitDraft = Record<keyof SchedulerLimits, string>;
+
+function savedDraft(settings: SchedulerSettingsSnapshot): LimitDraft {
+  return {
+    maxConcurrentRuns: String(settings.resource.maxConcurrentRuns),
+    maxConcurrentToolRuns: String(settings.resource.maxConcurrentToolRuns),
+  };
+}
+
+function sameDraft(left: LimitDraft, right: LimitDraft): boolean {
+  return LIMITS.every(({ name }) => left[name] === right[name]);
+}
+
+function validateLimit(
+  { label, minimum, maximum }: (typeof LIMITS)[number],
+  value: string,
+): string | undefined {
   if (value.trim() === "") {
-    return `Enter a maximum from ${MINIMUM} through ${MAXIMUM}.`;
+    return `Enter a maximum from ${minimum} through ${maximum}.`;
   }
   if (!/^[0-9]+$/.test(value)) {
-    return "Maximum concurrent Workflow Runs must be a whole number.";
+    return `${label} must be a whole number.`;
   }
   const parsed = Number(value);
-  if (!Number.isSafeInteger(parsed) || parsed < MINIMUM || parsed > MAXIMUM) {
-    return `Maximum concurrent Workflow Runs must be from ${MINIMUM} through ${MAXIMUM}.`;
+  if (!Number.isSafeInteger(parsed) || parsed < minimum || parsed > maximum) {
+    return `${label} must be from ${minimum} through ${maximum}.`;
   }
   return undefined;
 }
@@ -57,7 +81,9 @@ function SchedulerSettings() {
     queryKey: queryKeys.operations.schedulerSettings,
     queryFn: () => getSchedulerSettings(api),
   });
-  const [draft, setDraft] = useState<string>();
+  // One draft holds both limits: a save always sends the pair the operator
+  // sees, against the revision the edit started from.
+  const [draft, setDraft] = useState<LimitDraft>();
   const [editBaseline, setEditBaseline] = useState<SchedulerSettingsSnapshot>();
   const [conflict, setConflict] = useState<string>();
   const [saved, setSaved] = useState<{
@@ -66,8 +92,8 @@ function SchedulerSettings() {
   }>();
 
   const mutation = useMutation({
-    mutationFn: ({ value, etag }: { value: number; etag: string }) =>
-      replaceSchedulerSettings(api, value, etag),
+    mutationFn: ({ limits, etag }: { limits: SchedulerLimits; etag: string }) =>
+      replaceSchedulerSettings(api, limits, etag),
     onSuccess: (current) => {
       queryClient.setQueryData(queryKeys.operations.schedulerSettings, current);
       setEditBaseline(undefined);
@@ -75,14 +101,14 @@ function SchedulerSettings() {
       setConflict(undefined);
       setSaved({
         revision: current.resource.revision,
-        message: `Saved maximum ${current.resource.maxConcurrentRuns} at revision ${current.resource.revision}.`,
+        message: `Saved ${current.resource.maxConcurrentRuns} using a model and ${current.resource.maxConcurrentToolRuns} without a model.`,
       });
     },
     onError: (error) => {
       setSaved(undefined);
       if (writeConflict(error) === "stale") {
         setConflict(
-          "Another operator saved Scheduler settings first. The saved value is being reloaded; no overwrite occurred.",
+          "Another operator saved Scheduler settings first. The saved values are being reloaded; no overwrite occurred.",
         );
         void query.refetch();
       }
@@ -92,9 +118,17 @@ function SchedulerSettings() {
   const displayedDraft =
     draft ??
     (query.data === undefined
-      ? ""
-      : String(query.data.resource.maxConcurrentRuns));
-  const validationError = validateMaximum(displayedDraft);
+      ? { maxConcurrentRuns: "", maxConcurrentToolRuns: "" }
+      : savedDraft(query.data));
+  const validationErrors = Object.fromEntries(
+    LIMITS.map((limit) => [
+      limit.name,
+      validateLimit(limit, displayedDraft[limit.name]),
+    ]),
+  ) as Record<keyof SchedulerLimits, string | undefined>;
+  const invalid = LIMITS.some(
+    ({ name }) => validationErrors[name] !== undefined,
+  );
   const stale =
     query.data !== undefined &&
     editBaseline !== undefined &&
@@ -103,18 +137,18 @@ function SchedulerSettings() {
   const dirty =
     draft !== undefined &&
     editBaseline !== undefined &&
-    draft !== String(editBaseline.resource.maxConcurrentRuns);
+    !sameDraft(draft, savedDraft(editBaseline));
   const conflictMessage =
     conflict ??
     (stale
-      ? "Scheduler settings changed on the Server while this form was being edited. Reset to the saved value before making a new update."
+      ? "Scheduler settings changed on the Server while this form was being edited. Reset to the saved values before making a new update."
       : undefined);
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSaved(undefined);
     if (
-      validationError !== undefined ||
+      invalid ||
       editBaseline === undefined ||
       query.data === undefined ||
       stale
@@ -122,7 +156,10 @@ function SchedulerSettings() {
       return;
     }
     mutation.mutate({
-      value: Number(displayedDraft),
+      limits: {
+        maxConcurrentRuns: Number(displayedDraft.maxConcurrentRuns),
+        maxConcurrentToolRuns: Number(displayedDraft.maxConcurrentToolRuns),
+      },
       etag: editBaseline.etag,
     });
   };
@@ -147,17 +184,20 @@ function SchedulerSettings() {
       about={
         <>
           <p>
-            Set the admission ceiling for active Scheduler lanes. Actual
-            throughput can be lower when compatible Runtime Agent slots are
-            unavailable, and one Workflow Run may require several agents.
+            Set how many Runs the Scheduler progresses at once. Runs using a
+            model and Runs without one, such as scans, have separate limits, so
+            scans never wait behind model work. Actual throughput can be lower
+            when compatible Runtime Agent slots are unavailable, and one
+            Workflow Run may require several agents.
           </p>
           <div className="ops-callout">
             <StatusGlyph tone="info" size={15} />
             <div>
               <strong>Admission, not capacity.</strong>
               <p>
-                Lowering the limit drains existing work naturally. It never
-                cancels active Runs or allocations.
+                Lowering a limit drains existing work naturally. It never
+                cancels active Runs or allocations. When both kinds of Run wait
+                for the same Runtime Agent, the Run using a model gets it.
               </p>
             </div>
           </div>
@@ -182,50 +222,69 @@ function SchedulerSettings() {
               className="ops-glance"
               aria-label="Saved Scheduler settings"
               items={[
-                { term: "Saved limit", value: data.resource.maxConcurrentRuns },
-                {
-                  term: "Revision",
-                  value: <code>{data.resource.revision}</code>,
-                },
+                ...LIMITS.map(({ name, fact }) => ({
+                  term: fact,
+                  value: data.resource[name],
+                })),
                 {
                   term: "Last updated",
                   value: formatTimestamp(data.resource.updatedAt),
                 },
               ]}
+              technical={[
+                ...LIMITS.map(({ name, fact, pool }) => ({
+                  term: fact,
+                  value: (
+                    <>
+                      <code>{name}</code>, the <code>{pool}</code> lane pool
+                    </>
+                  ),
+                })),
+                {
+                  term: "Revision",
+                  value: <code>{data.resource.revision}</code>,
+                },
+              ]}
             />
-            <Field
-              className="ops-number-field"
-              label="Maximum concurrent Workflow Runs"
-              hint={`A whole number from ${MINIMUM} through ${MAXIMUM}.`}
-              error={validationError}
-            >
-              {(control) => (
-                <input
-                  {...control}
-                  name="maxConcurrentRuns"
-                  type="number"
-                  inputMode="numeric"
-                  min={MINIMUM}
-                  max={MAXIMUM}
-                  step={1}
-                  required
-                  value={displayedDraft}
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    if (value === String(data.resource.maxConcurrentRuns)) {
-                      setDraft(undefined);
-                      setEditBaseline(undefined);
-                      setConflict(undefined);
-                    } else {
-                      setEditBaseline((current) => current ?? data);
-                      setDraft(value);
-                    }
-                    setSaved(undefined);
-                    mutation.reset();
-                  }}
-                />
-              )}
-            </Field>
+            {LIMITS.map((limit) => (
+              <Field
+                key={limit.name}
+                className="ops-number-field"
+                label={limit.label}
+                hint={`${limit.hint} A whole number from ${limit.minimum} through ${limit.maximum}.`}
+                error={validationErrors[limit.name]}
+              >
+                {(control) => (
+                  <input
+                    {...control}
+                    name={limit.name}
+                    type="number"
+                    inputMode="numeric"
+                    min={limit.minimum}
+                    max={limit.maximum}
+                    step={1}
+                    required
+                    value={displayedDraft[limit.name]}
+                    onChange={(event) => {
+                      const next = {
+                        ...displayedDraft,
+                        [limit.name]: event.target.value,
+                      };
+                      if (sameDraft(next, savedDraft(data))) {
+                        setDraft(undefined);
+                        setEditBaseline(undefined);
+                        setConflict(undefined);
+                      } else {
+                        setEditBaseline((current) => current ?? data);
+                        setDraft(next);
+                      }
+                      setSaved(undefined);
+                      mutation.reset();
+                    }}
+                  />
+                )}
+              </Field>
+            ))}
             {conflictMessage === undefined ? null : (
               <div className="notice notice-warning" role="alert">
                 {conflictMessage}
@@ -246,14 +305,14 @@ function SchedulerSettings() {
               <Button
                 variant="primary"
                 type="submit"
-                disabled={validationError !== undefined || !dirty || stale}
+                disabled={invalid || !dirty || stale}
                 pending={mutation.isPending}
                 pendingLabel="Saving…"
               >
-                Save scheduling limit
+                Save scheduling limits
               </Button>
               <Button
-                aria-label="Reset to saved value"
+                aria-label="Reset to saved values"
                 disabled={mutation.isPending || (!dirty && !stale)}
                 onClick={reset}
               >
@@ -267,7 +326,7 @@ function SchedulerSettings() {
                 pendingLabel="Reloading…"
                 onClick={() => void query.refetch()}
               >
-                Reload saved value
+                Reload saved values
               </Button>
             </div>
           </form>

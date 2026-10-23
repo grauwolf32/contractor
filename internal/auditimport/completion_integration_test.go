@@ -280,7 +280,7 @@ func (f *completionFixture) createRun(t *testing.T, attempt int) {
 	for i, task := range f.tasks {
 		members = append(members, auditstore.ExecutionMemberIntent{ExecutionItemID: id + "-" + f.keys[i], ItemID: f.id + "-" + f.keys[i], BatchOrdinal: i, ItemAttempt: attempt, Task: task, Inputs: []auditstore.ExactArtifact{f.source, f.taskSet}})
 	}
-	execution, _, err := f.audits.CreateExecutionIntent(f.ctx, auditstore.CreateExecutionIntentParams{Claim: f.claim, ExecutionID: id, RoundID: &f.id, Role: auditstore.ExecutionCheck, WorkflowRole: "check", Manifest: f.manifest, SubmissionKey: id, RequestDigest: completionDigest([]byte(id)), Members: members})
+	execution, _, err := f.audits.CreateExecutionIntent(f.ctx, auditstore.CreateExecutionIntentParams{Claim: f.claim, ExecutionID: id, RoundID: &f.id, Role: auditstore.ExecutionCheck, WorkflowRole: "check", LaneClass: resolved.LaneClassModel, Manifest: f.manifest, SubmissionKey: id, RequestDigest: completionDigest([]byte(id)), Members: members})
 	mustCompletion(t, err)
 	created, err := f.service.CreateAudit(f.ctx, runservice.AuditCreateParams{Claim: f.claim, ExecutionID: id, Workflow: f.profile.Workflows["check"].Workflow, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(), Parameters: map[string]string{}, Inputs: map[string]auditstore.ExactArtifact{"source": f.source, "task": f.taskSet, "execution_manifest": f.manifest}, ExecutionManifest: f.manifest, RequestDigest: execution.RequestDigest, NewRunID: func() (string, error) { return id, nil }})
 	mustCompletion(t, err)

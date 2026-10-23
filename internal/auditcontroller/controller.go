@@ -13,6 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -213,7 +214,7 @@ func (c *Controller) reconcileRolePhase(
 				Message: "The Audit child Run submission budget was exhausted before a required role completed.",
 			}, nil
 		}
-		if snapshot.MaxConcurrentRuns < 1 || snapshot.Audit.OutstandingRunCount >= snapshot.MaxConcurrentRuns {
+		if !snapshot.DispatchWindowOpen(resolved.WorkflowLaneClass(profile.Workflows[workflowRole].Workflow)) {
 			return false, false, nil, nil
 		}
 		return c.dispatchRole(ctx, claim, snapshot, workflowRole, attempt)

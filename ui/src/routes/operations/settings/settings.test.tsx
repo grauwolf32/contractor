@@ -13,11 +13,15 @@ import { conforming } from "../../../test/builders";
 import type { Routes } from "../../../test/fake-server";
 import { json, preconditionFailed } from "../../../test/responses";
 
-function schedulerSettings(maxConcurrentRuns: number, revision: string) {
+function schedulerSettings(
+  maxConcurrentRuns: number,
+  revision: string,
+  maxConcurrentToolRuns = 2,
+) {
   return json(
     conforming("SchedulerSettings", {
       maxConcurrentRuns,
-      maxConcurrentToolRuns: 2,
+      maxConcurrentToolRuns,
       revision,
       updatedAt: `2026-09-06T01:00:0${revision}Z`,
     }),
@@ -156,10 +160,11 @@ describe("Operations Scheduler settings", () => {
       },
     });
     const puts = () => sent("PUT", "/v1/operations/settings/scheduler");
-    const input = await screen.findByLabelText(
-      "Maximum concurrent Workflow Runs",
-    );
+    const input = await screen.findByLabelText("Concurrent Runs using a model");
     expect(input).toHaveValue(1);
+    expect(
+      screen.getByLabelText("Concurrent Runs without a model"),
+    ).toHaveValue(2);
     expect(screen.getByText("Admission, not capacity.")).toBeInTheDocument();
     expect(
       screen.getByText(/one Workflow Run may require several agents/),
@@ -171,28 +176,114 @@ describe("Operations Scheduler settings", () => {
     ).toBeInTheDocument();
     expect(puts()).toHaveLength(0);
     fireEvent.change(input, { target: { value: "1.5" } });
-    expect(screen.getByText(/must be a whole number/)).toBeInTheDocument();
+    expect(
+      screen.getByText("Concurrent Runs using a model must be a whole number."),
+    ).toBeInTheDocument();
     fireEvent.change(input, { target: { value: "33" } });
-    expect(screen.getByText(/must be from 1 through 32/)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Concurrent Runs using a model must be from 1 through 32.",
+      ),
+    ).toBeInTheDocument();
 
     fireEvent.change(input, { target: { value: "2" } });
     await user.click(
-      screen.getByRole("button", { name: "Save scheduling limit" }),
+      screen.getByRole("button", { name: "Save scheduling limits" }),
     );
     expect(screen.getByRole("button", { name: "Saving…" })).toBeDisabled();
     await waitFor(() => expect(puts()).toHaveLength(1));
     const put = puts()[0];
     expect(put?.headers.get("If-Match")).toBe('"1"');
-    await expect(put?.json()).resolves.toEqual({ maxConcurrentRuns: 2 });
+    await expect(put?.json()).resolves.toEqual({
+      maxConcurrentRuns: 2,
+      maxConcurrentToolRuns: 2,
+    });
 
     finishPut?.(schedulerSettings(2, "2"));
     expect(
-      await screen.findByText("Saved maximum 2 at revision 2."),
+      await screen.findByText("Saved 2 using a model and 2 without a model."),
     ).toBeInTheDocument();
     expect(input).toHaveValue(2);
     expect(
-      screen.getByRole("button", { name: "Save scheduling limit" }),
+      screen.getByRole("button", { name: "Save scheduling limits" }),
     ).toBeDisabled();
+  });
+
+  it("explains both limits and keeps their setting names under Technical details", async () => {
+    renderApplication("/operations/settings", {
+      server: {
+        ...common,
+        "GET /v1/operations/settings/scheduler": () =>
+          schedulerSettings(3, "4", 7),
+      },
+    });
+    const saved = await screen.findByLabelText("Saved Scheduler settings");
+    expect(
+      within(saved).getByText("Using a model").nextSibling,
+    ).toHaveTextContent("3");
+    expect(
+      within(saved).getByText("Without a model").nextSibling,
+    ).toHaveTextContent("7");
+    expect(
+      screen.getByLabelText("Concurrent Runs using a model"),
+    ).toHaveAccessibleDescription(/current step calls a model.*1 through 32/);
+    expect(
+      screen.getByLabelText("Concurrent Runs without a model"),
+    ).toHaveAccessibleDescription(/current step calls no model.*1 through 32/);
+    const details = screen
+      .getByText("Technical details")
+      .closest("details") as HTMLElement;
+    expect(details).not.toHaveAttribute("open");
+    expect(details).toHaveTextContent("maxConcurrentRuns, the model lane pool");
+    expect(details).toHaveTextContent(
+      "maxConcurrentToolRuns, the tool lane pool",
+    );
+    expect(details).toHaveTextContent("Revision4");
+    expect(saved).not.toHaveTextContent("maxConcurrent");
+  });
+
+  it("saves a changed model-free limit with both values and shows the Server's answer", async () => {
+    const { sent, user } = renderApplication("/operations/settings", {
+      server: {
+        ...common,
+        "GET /v1/operations/settings/scheduler": () =>
+          schedulerSettings(1, "1", 2),
+        // The Server's answer, not the draft, is what the page shows.
+        "PUT /v1/operations/settings/scheduler": () =>
+          schedulerSettings(1, "2", 6),
+      },
+    });
+    const input = await screen.findByLabelText(
+      "Concurrent Runs without a model",
+    );
+    const save = screen.getByRole("button", { name: "Save scheduling limits" });
+    fireEvent.change(input, { target: { value: "0" } });
+    expect(
+      screen.getByText(
+        "Concurrent Runs without a model must be from 1 through 32.",
+      ),
+    ).toBeInTheDocument();
+    expect(save).toBeDisabled();
+    fireEvent.change(input, { target: { value: "2" } });
+    expect(save).toBeDisabled();
+    fireEvent.change(input, { target: { value: "6" } });
+    await user.click(save);
+
+    expect(
+      await screen.findByText("Saved 1 using a model and 6 without a model."),
+    ).toBeInTheDocument();
+    const puts = sent("PUT", "/v1/operations/settings/scheduler");
+    expect(puts).toHaveLength(1);
+    expect(puts[0]?.headers.get("If-Match")).toBe('"1"');
+    await expect(puts[0]?.json()).resolves.toEqual({
+      maxConcurrentRuns: 1,
+      maxConcurrentToolRuns: 6,
+    });
+    expect(input).toHaveValue(6);
+    expect(screen.getByLabelText("Concurrent Runs using a model")).toHaveValue(
+      1,
+    );
+    expect(save).toBeDisabled();
   });
 
   it("reloads after a 412 and preserves the unsaved draft without overwriting", async () => {
@@ -212,12 +303,12 @@ describe("Operations Scheduler settings", () => {
         },
       },
     });
-    const input = await screen.findByLabelText(
-      "Maximum concurrent Workflow Runs",
-    );
+    const input = await screen.findByLabelText("Concurrent Runs using a model");
+    const toolInput = screen.getByLabelText("Concurrent Runs without a model");
     fireEvent.change(input, { target: { value: "2" } });
+    fireEvent.change(toolInput, { target: { value: "5" } });
     await user.click(
-      screen.getByRole("button", { name: "Save scheduling limit" }),
+      screen.getByRole("button", { name: "Save scheduling limits" }),
     );
 
     expect(
@@ -225,15 +316,17 @@ describe("Operations Scheduler settings", () => {
     ).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText("3")).toBeInTheDocument());
     expect(input).toHaveValue(2);
+    expect(toolInput).toHaveValue(5);
     expect(puts).toBe(1);
     expect(
-      screen.getByRole("button", { name: "Save scheduling limit" }),
+      screen.getByRole("button", { name: "Save scheduling limits" }),
     ).toBeDisabled();
 
     await user.click(
-      screen.getByRole("button", { name: "Reset to saved value" }),
+      screen.getByRole("button", { name: "Reset to saved values" }),
     );
     expect(input).toHaveValue(3);
+    expect(toolInput).toHaveValue(2);
     expect(
       screen.queryByText(/changed on the Server|Another operator/),
     ).not.toBeInTheDocument();
@@ -289,7 +382,7 @@ describe("Operations Scheduler settings", () => {
     );
     await waitFor(() =>
       expect(
-        screen.getByLabelText("Maximum concurrent Workflow Runs"),
+        screen.getByLabelText("Concurrent Runs using a model"),
       ).toHaveValue(4),
     );
     expect(screen.getByText("4")).toBeInTheDocument();

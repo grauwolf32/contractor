@@ -359,6 +359,15 @@ SCH-R19 describes, and its own deadline still applies; a `tool` Stage that
 fits an Agent no waiting `model` Stage can use, such as a dedicated scan
 Agent, is placed as usual.
 
+Accepted risk: scans send active traffic, and per-job rate limits such as the
+ffuf `rate` (LIM-SCN-28) do not combine across parallel jobs, so parallel
+`tool` Stages that scan one target multiply its load. No per-target limit is
+enforced; the bound is `maxConcurrentToolRuns` (default 2), which also paces
+an Audit's scan roles (AUX-R3). Reopen when that default is raised above 4 or
+when scans may target fragile or production systems; the fix then is a
+per-host concurrency limit at tool placement, not an AuditProfile setting
+(SCH-R142).
+
 Stage admission, `admitted_at` and when the Stage wall-clock budget starts are
 specified in [RUN-R28](runs.md).
 
@@ -1314,8 +1323,9 @@ either configured limit.
 
 **SCH-R142.** Audit child Runs consume the same lane pools as every other
 Run, by the lane class of the Stage each progresses (SCH-R175). AuditProfile contains no concurrency knob; its internal dispatch
-look-ahead follows the current global setting, and its total submitted-Run
-budget remains independent ([Audit execution](../audits/execution.md)).
+look-ahead follows the current global settings, one window per role lane class,
+and its total submitted-Run budget remains independent
+([Audit execution](../audits/execution.md)).
 
 **SCH-R143.** The concurrency settings API is Operations-authorized, strict,
 CSRF-protected, CAS-safe, restart-durable, audited and represented by the exact

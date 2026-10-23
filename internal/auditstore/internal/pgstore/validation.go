@@ -668,6 +668,9 @@ func validateExecutionIntent(params auditstore.CreateExecutionIntentParams) erro
 	if err := validateText("execution Workflow role", params.WorkflowRole, 128, true); err != nil {
 		return err
 	}
+	if !params.LaneClass.Valid() {
+		return invalidf("execution lane class is invalid")
+	}
 	if params.Role == auditstore.ExecutionCheck {
 		if params.RoundID == nil || params.RoleAttempt != nil || len(params.Members) < 1 {
 			return invalidf("check execution shape is invalid")

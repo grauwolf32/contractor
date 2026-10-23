@@ -9,6 +9,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
 	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -58,7 +59,7 @@ WHERE a.state = 'active' LIMIT 1`).Scan(&auditID, &memberID)
 	item := snapshot.Items[0]
 	execution, _, err := audits.CreateExecutionIntent(t.Context(), auditstore.CreateExecutionIntentParams{
 		Claim: claim, ExecutionID: "projection-race-execution", RoundID: &snapshot.Round.RoundID,
-		Role: auditstore.ExecutionCheck, WorkflowRole: item.WorkflowRole, Manifest: snapshot.Round.Manifest,
+		Role: auditstore.ExecutionCheck, WorkflowRole: item.WorkflowRole, LaneClass: resolved.LaneClassModel, Manifest: snapshot.Round.Manifest,
 		SubmissionKey: "projection-race-submission", RequestDigest: evaldomain.Digest([]byte("execution")),
 		Members: []auditstore.ExecutionMemberIntent{{ExecutionItemID: "projection-race-item", ItemID: item.ItemID,
 			ItemAttempt: 1, Task: item.Task, Inputs: []auditstore.ExactArtifact{}}},

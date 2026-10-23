@@ -70,10 +70,10 @@ coverage_status,coverage_requested,coverage_completed,coverage_gaps
 FROM audit_items WHERE item_id=$2`, encoded, items[0].ItemID)
 				} else {
 					_, err = tx.Exec(ctx, `INSERT INTO audit_executions (
-execution_id,audit_id,round_id,role,workflow_role,manifest_ref,manifest_digest,
+lane_class,execution_id,audit_id,round_id,role,workflow_role,manifest_ref,manifest_digest,
 submission_key,request_digest,run_id,state,terminal_outcome,terminal_run_generation,
 terminal_run_sequence,terminal_observed_at,run_provenance,run_deleted_at)
-SELECT 'historical-execution',audit_id,round_id,'check',workflow_role,task_ref,task_digest,
+SELECT 'model','historical-execution',audit_id,round_id,'check',workflow_role,task_ref,task_digest,
 'historical-submission',task_digest,'deleted-run','collected','succeeded','generation',1,
 clock_timestamp(),$1::jsonb,clock_timestamp() FROM audit_items WHERE item_id=$2`, encoded, items[0].ItemID)
 				}

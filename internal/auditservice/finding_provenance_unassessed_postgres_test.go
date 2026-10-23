@@ -143,12 +143,12 @@ SELECT $1, $2, 'round-unassessed', $3, $4, 'check', $5,
 		}
 		if _, err := pool.Exec(ctx, `
 INSERT INTO audit_executions (
-    execution_id, audit_id, round_id, role, workflow_role,
+    lane_class, execution_id, audit_id, round_id, role, workflow_role,
     manifest_ref, manifest_digest, submission_key, request_digest,
     run_id, state, terminal_outcome, terminal_run_generation,
     terminal_run_sequence, terminal_observed_at, run_deleted_at, run_provenance
 ) VALUES (
-    $1, $2, 'round-unassessed', 'check', 'check-role',
+    'model', $1, $2, 'round-unassessed', 'check', 'check-role',
     $3::jsonb, $4, $5, $6,
     $7, 'collected', $8, 'generation-one', $9, clock_timestamp(), $10, $11::jsonb
 )`, executionID, auditID, taskRef, serviceTestDigest("manifest-"+key),

@@ -7,6 +7,7 @@ import {
   RUNTIME_CREDENTIAL_ID,
   RUNTIME_INFRASTRUCTURE_ID,
   schemaEnum,
+  schemaLimit,
   stringRule,
 } from "./contract";
 import { invalidAPIResponse, publicAPIError, requireData } from "./error";
@@ -321,33 +322,71 @@ export async function getSchedulerSettings(
   return requireSchedulerSettings(requireData(result), result.response);
 }
 
+/** The two lane pool sizes a Scheduler settings replacement sets together. */
+export type SchedulerLimits = Pick<
+  SchedulerSettings,
+  "maxConcurrentRuns" | "maxConcurrentToolRuns"
+>;
+
+const SCHEDULER_LIMITS = [
+  "maxConcurrentRuns",
+  "maxConcurrentToolRuns",
+] as const;
+
+/** The inclusive bounds of one limit, as UpdateSchedulerSettingsRequest has them. */
+export function schedulerLimitBounds(name: keyof SchedulerLimits): {
+  minimum: number;
+  maximum: number;
+} {
+  return {
+    minimum: schemaLimit(
+      "UpdateSchedulerSettingsRequest",
+      "minimum",
+      "properties",
+      name,
+    ),
+    maximum: schemaLimit(
+      "UpdateSchedulerSettingsRequest",
+      "maximum",
+      "properties",
+      name,
+    ),
+  };
+}
+
 export async function replaceSchedulerSettings(
   api: PublicAPI,
-  maxConcurrentRuns: number,
+  limits: SchedulerLimits,
   etag: string,
 ): Promise<SchedulerSettingsSnapshot> {
-  if (
-    !Number.isInteger(maxConcurrentRuns) ||
-    maxConcurrentRuns < 1 ||
-    maxConcurrentRuns > 32
-  ) {
-    throw new TypeError(
-      "Maximum concurrent Workflow Runs must be an integer from 1 through 32",
-    );
+  for (const name of SCHEDULER_LIMITS) {
+    const { minimum, maximum } = schedulerLimitBounds(name);
+    const value = limits[name];
+    if (!Number.isInteger(value) || value < minimum || value > maximum) {
+      throw new TypeError(
+        `${name} must be an integer from ${minimum} through ${maximum}`,
+      );
+    }
   }
-  // The client checks the If-Match value against the operation's schema.
+  // Both limits are sent, so the replacement never keeps a stored value the
+  // operator did not see. The client checks If-Match against the schema.
   const result = await api.request((client) =>
     client.PUT("/v1/operations/settings/scheduler", {
       params: { header: { "If-Match": etag } },
-      body: { maxConcurrentRuns },
+      body: {
+        maxConcurrentRuns: limits.maxConcurrentRuns,
+        maxConcurrentToolRuns: limits.maxConcurrentToolRuns,
+      },
     }),
   );
   const settings = requireSchedulerSettings(
     requireData(result),
     result.response,
   );
-  // The replacement answers with the value it was asked to set.
-  if (settings.resource.maxConcurrentRuns !== maxConcurrentRuns) {
+  // The replacement answers with the values it was asked to set.
+  if (
+    SCHEDULER_LIMITS.some((name) => settings.resource[name] !== limits[name])
+  ) {
     throw invalidAPIResponse(
       result.response.status,
       "Server returned a different Scheduler setting after replacement",

@@ -797,6 +797,220 @@ func TestPostgresDispatchReservationOrdersWithSettingsDecrease(t *testing.T) {
 	}
 }
 
+// Each lane class has its own dispatch window on PostgreSQL: concurrent
+// reservations fill neither beyond its setting, lowering one setting cancels
+// nothing and holds back only its class until that class drains below the new
+// value, and an execution leaves the count it entered (AUX-R3, AUX-R4,
+// AUX-R7). The class of an intent is the builder's; here the test sets it to
+// stand for a scan role.
+func TestPostgresDispatchWindowsCountEachLaneClass(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	harness := newPostgresControllerHarness(t, ctx, 8)
+	settings := settingsstore.NewPostgresStore(harness.pool)
+	toolRuns := 2
+	current, err := settings.UpdateSchedulerSettings(ctx, settingsstore.UpdateSchedulerSettingsParams{
+		MaxConcurrentRuns: 1, MaxConcurrentToolRuns: &toolRuns, ExpectedRevision: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims, err := harness.audits.Claim(ctx, auditstore.ClaimParams{
+		HolderID: "postgres-class-controller", Lease: time.Minute, Limit: 1,
+	})
+	if err != nil || len(claims) != 1 {
+		t.Fatalf("claim Audit = (%+v, %v)", claims, err)
+	}
+	claim := claims[0]
+	if _, err := harness.audits.TransitionRound(ctx, auditstore.RoundTransitionParams{
+		Claim: claim, RoundID: harness.started.Round.RoundID,
+		ExpectedRevision: harness.started.Round.Revision,
+		ExpectedState:    auditstore.RoundAccepted, TargetState: auditstore.RoundExecuting,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := harness.audits.GetReconcileSnapshot(ctx, claim)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.MaxConcurrentRuns != 1 || snapshot.MaxConcurrentToolRuns != 2 {
+		t.Fatalf("snapshot windows = (%d, %d), want (1, 2)", snapshot.MaxConcurrentRuns, snapshot.MaxConcurrentToolRuns)
+	}
+	builder := harness.builder(t).WithClaim(claim)
+	intents := make([]auditstore.CreateExecutionIntentParams, len(snapshot.Items))
+	for index, item := range snapshot.Items {
+		prepared, err := builder.PrepareBatch(ctx, snapshot, []CheckExecutionMember{{Item: item, Attempt: 1}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if prepared.Intent.LaneClass != resolved.LaneClassModel {
+			t.Fatalf("checklist intent class = %q, want model", prepared.Intent.LaneClass)
+		}
+		prepared.Intent.Claim = claim
+		if index%2 == 0 {
+			prepared.Intent.LaneClass = resolved.LaneClassTool
+		}
+		intents[index] = prepared.Intent
+	}
+	reserve := func(intent auditstore.CreateExecutionIntentParams) bool {
+		t.Helper()
+		_, inserted, err := harness.audits.CreateExecutionIntent(ctx, intent)
+		if err != nil && !errors.Is(err, auditstore.ErrPrecondition) {
+			t.Fatalf("reserve %s: %v", intent.ExecutionID, err)
+		}
+		return inserted
+	}
+	counts := func() (int, int) {
+		t.Helper()
+		stored, err := harness.audits.GetReconcileSnapshot(ctx, claim)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return stored.Audit.OutstandingRunCount - stored.Audit.OutstandingToolRunCount, stored.Audit.OutstandingToolRunCount
+	}
+
+	// Six reservations race, three of each class.
+	type raceResult struct {
+		intent   auditstore.CreateExecutionIntentParams
+		inserted bool
+		err      error
+	}
+	start := make(chan struct{})
+	results := make(chan raceResult, 6)
+	for _, intent := range intents[:6] {
+		go func() {
+			<-start
+			_, inserted, err := harness.audits.CreateExecutionIntent(ctx, intent)
+			results <- raceResult{intent: intent, inserted: inserted, err: err}
+		}()
+	}
+	close(start)
+	reserved := map[resolved.LaneClass][]string{}
+	var pending []auditstore.CreateExecutionIntentParams
+	for range 6 {
+		result := <-results
+		switch {
+		case result.err != nil && !errors.Is(result.err, auditstore.ErrPrecondition):
+			t.Fatalf("racing reservation %s: %v", result.intent.ExecutionID, result.err)
+		case result.inserted:
+			reserved[result.intent.LaneClass] = append(reserved[result.intent.LaneClass], result.intent.ExecutionID)
+		default:
+			pending = append(pending, result.intent)
+		}
+	}
+	if len(reserved[resolved.LaneClassModel]) != 1 || len(reserved[resolved.LaneClassTool]) != 2 {
+		t.Fatalf("racing reservations won %v, want one model and two tool", reserved)
+	}
+	if model, tool := counts(); model != 1 || tool != 2 {
+		t.Fatalf("outstanding (model, tool) = (%d, %d), want (1, 2)", model, tool)
+	}
+	var storedClasses []string
+	rows, err := harness.pool.Query(ctx, `SELECT lane_class FROM audit_executions WHERE audit_id = $1 ORDER BY lane_class`, harness.started.Audit.AuditID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		var class string
+		if err := rows.Scan(&class); err != nil {
+			t.Fatal(err)
+		}
+		storedClasses = append(storedClasses, class)
+	}
+	if rows.Close(); rows.Err() != nil || strings.Join(storedClasses, ",") != "model,tool,tool" {
+		t.Fatalf("stored execution classes = %v (%v)", storedClasses, rows.Err())
+	}
+
+	// Lowering the tool window below its count cancels nothing and blocks
+	// only tool reservations; raising the model window lets model work go on.
+	toolRuns = 1
+	if _, err := settings.UpdateSchedulerSettings(ctx, settingsstore.UpdateSchedulerSettingsParams{
+		MaxConcurrentRuns: 2, MaxConcurrentToolRuns: &toolRuns, ExpectedRevision: current.Revision,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	pendingOf := func(class resolved.LaneClass) auditstore.CreateExecutionIntentParams {
+		t.Helper()
+		for index, intent := range pending {
+			if intent.LaneClass == class {
+				pending = append(pending[:index], pending[index+1:]...)
+				return intent
+			}
+		}
+		t.Fatalf("no pending %s intent", class)
+		return auditstore.CreateExecutionIntentParams{}
+	}
+	nextTool := pendingOf(resolved.LaneClassTool)
+	if reserve(nextTool) {
+		t.Fatal("a tool reservation passed a window lowered below the outstanding count")
+	}
+	if !reserve(pendingOf(resolved.LaneClassModel)) {
+		t.Fatal("model dispatch stopped while only the tool window was lowered")
+	}
+	executions, err := harness.audits.ListExecutions(ctx, harness.started.Audit.AuditID)
+	if err != nil || len(executions) != 4 {
+		t.Fatalf("executions after lowering = (%d, %v), want the four reserved, none cancelled", len(executions), err)
+	}
+
+	// The tool class submits again only below the new value.
+	for index, executionID := range reserved[resolved.LaneClassTool] {
+		if _, err := harness.audits.ObserveSubmissionFailure(ctx, auditstore.ObserveSubmissionFailureParams{
+			Claim: claim, ExecutionID: executionID,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if model, tool := counts(); model != 2 || tool != 1-index {
+			t.Fatalf("after releasing tool execution %d: outstanding (model, tool) = (%d, %d)", index, model, tool)
+		}
+		if got := reserve(nextTool); got != (index == 1) {
+			t.Fatalf("tool reservation with %d outstanding tool Runs and window 1 = %t", 1-index, got)
+		}
+	}
+	if model, tool := counts(); model != 2 || tool != 1 {
+		t.Fatalf("outstanding before Runs exist = (%d, %d), want (2, 1)", model, tool)
+	}
+
+	// The Controller submits Runs for the reserved intents; observing the
+	// tool Run's terminal state releases the tool count as well.
+	if err := harness.audits.ReleaseClaim(ctx, claim); err != nil {
+		t.Fatal(err)
+	}
+	controller := harness.controller(t)
+	for step := 0; step < 10; step++ {
+		if worked, err := controller.RunOnce(ctx); err != nil {
+			t.Fatal(err)
+		} else if !worked {
+			break
+		}
+	}
+	executions, err = harness.audits.ListExecutions(ctx, harness.started.Audit.AuditID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var toolRunID string
+	for _, execution := range executions {
+		if execution.ExecutionID == nextTool.ExecutionID && execution.RunID != nil {
+			toolRunID = *execution.RunID
+		}
+	}
+	if toolRunID == "" {
+		t.Fatalf("the tool intent has no Run after reconciliation: %+v", executions)
+	}
+	if _, err := harness.runs.TransitionRun(ctx, toolRunID, runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "test_admitted"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := harness.runs.TransitionRun(ctx, toolRunID, runstore.RunRunning, runstore.RunSucceeded, runstore.Reason{Code: "test_succeeded"}); err != nil {
+		t.Fatal(err)
+	}
+	if worked, err := controller.RunOnce(ctx); err != nil || !worked {
+		t.Fatalf("observe the tool Run = (%t, %v)", worked, err)
+	}
+	audit, err := harness.audits.Get(ctx, harness.started.Audit.OwnerID, harness.started.Audit.AuditID)
+	if err != nil || audit.OutstandingRunCount != 2 || audit.OutstandingToolRunCount != 0 {
+		t.Fatalf("after the tool Run finished: outstanding %d, tool %d (%v); want 2 and 0",
+			audit.OutstandingRunCount, audit.OutstandingToolRunCount, err)
+	}
+}
+
 func TestPostgresControllersConvergeWithoutDuplicateExecutionAttempts(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()

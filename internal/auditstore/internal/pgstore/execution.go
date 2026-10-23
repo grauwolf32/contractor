@@ -27,8 +27,9 @@ func (s *ClaimStore) CreateExecutionIntent(
 	var execution auditstore.Execution
 	err := persistencepostgres.Within(ctx, s.db, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		// The reservation holds the Scheduler settings row until it commits,
-		// so a settings change is ordered before or after it (AUX-R6), and
-		// takes that lock before its claim, Audit and Round locks.
+		// so a change of either window is ordered before or after it
+		// (AUX-R6), and takes that lock before its claim, Audit and Round
+		// locks.
 		settings, err := settingsstore.NewPostgresTxStore(tx).LockSchedulerSettings(ctx)
 		if err != nil {
 			return fmt.Errorf("lock Audit dispatch window: %w", err)
@@ -39,6 +40,7 @@ func (s *ClaimStore) CreateExecutionIntent(
 			prepared.manifestRef, params.Manifest.Digest, params.SubmissionKey,
 			params.RequestDigest, prepared.members,
 			params.WorkflowRole, prepared.preparation, settings.MaxConcurrentRuns,
+			settings.MaxConcurrentToolRuns, string(params.LaneClass),
 		))
 		return err
 	})

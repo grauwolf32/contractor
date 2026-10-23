@@ -83,7 +83,8 @@ var terminalObservedEvents = auditEvents(auditEvent(
 // observeTerminalSQL records that Run $5 of submitted execution $4 finished at
 // event generation $6 and last sequence $7, under the live controller claim
 // ($1-$3). It moves the execution and its submitted items to collecting, stores
-// the terminal outcome, decrements outstanding_run_count and records
+// the terminal outcome, decrements outstanding_run_count, and
+// outstanding_tool_run_count for a `tool` execution, and records
 // execution.terminal_observed; the caller completes the trailing SELECT.
 // Used by ClaimStore.ObserveTerminal.
 var observeTerminalSQL = `
@@ -132,6 +133,8 @@ WITH live_claim AS MATERIALIZED (
 ), advanced_audit AS (
     UPDATE audits AS audit
        SET outstanding_run_count = audit.outstanding_run_count - 1,
+           outstanding_tool_run_count = audit.outstanding_tool_run_count
+               - CASE WHEN changed.lane_class = 'tool' THEN 1 ELSE 0 END,
            ` + terminalObservedEvents.advance() + `,
            updated_at = GREATEST(clock_timestamp(), audit.updated_at + interval '1 microsecond')
       FROM changed
@@ -149,7 +152,8 @@ var submissionFailedEvents = auditEvents(auditEvent(
 // observeSubmissionFailureSQL closes intent execution $4 that never got a Run,
 // under the live controller claim ($1-$3): the execution and its submitted
 // items move to collecting with outcome submission-failed,
-// outstanding_run_count is decremented and execution.terminal_observed is
+// outstanding_run_count, and outstanding_tool_run_count for a `tool`
+// execution, is decremented and execution.terminal_observed is
 // recorded. The caller completes the trailing SELECT.
 // Used by ClaimStore.ObserveSubmissionFailure.
 var observeSubmissionFailureSQL = `
@@ -186,6 +190,8 @@ WITH live_claim AS MATERIALIZED (
 ), advanced_audit AS (
     UPDATE audits AS audit
        SET outstanding_run_count = audit.outstanding_run_count - 1,
+           outstanding_tool_run_count = audit.outstanding_tool_run_count
+               - CASE WHEN changed.lane_class = 'tool' THEN 1 ELSE 0 END,
            ` + submissionFailedEvents.advance() + `,
            updated_at = GREATEST(clock_timestamp(), audit.updated_at + interval '1 microsecond')
       FROM changed

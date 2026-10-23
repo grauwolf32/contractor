@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-69 open tasks: 4 in progress, 40 pending, 25 deferred. 969 finished: 966 completed, 3 archived.
+67 open tasks: 4 in progress, 38 pending, 25 deferred. 971 finished: 968 completed, 3 archived.
 
 ## In progress
 
@@ -78,19 +78,12 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V371-009](v371-009-audit-list-preparation-batch.yml) | defect | P3 | — | Read the preparation state of a whole Audit page in bounded statements |
-| [V400-004](v400-004-audit-dispatch-per-lane-class.yml) | feature | P2 | V400-003 | Pace Audit dispatch separately for model and model-free roles |
 
 ### Evaluations (`evals`)
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V40-003](v40-003-agent-instruction-eval-decision.yml) | feature | P1 | V40-002 | Evaluate instruction candidates and record evidence-based adoption decisions |
-
-### Operations, authentication, CLI and deployment (`operations`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V400-003](v400-003-tool-lanes-settings-ui.yml) | feature | P2 | — | Edit the model-free lane limit on the Operations settings page |
 
 ### Public API and wire contracts (`api-contracts`)
 
@@ -172,11 +165,11 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 7 | 14 | 5 | 6 | 9 |
 | Workflow catalog and document workflows (`workflows`) | 3 | 14 | 13 | 12 | 12 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 30 | 33 | 5 | 36 |
-| Audits (`audits`) | 18 | 51 | 70 | 17 | 83 |
+| Audits (`audits`) | 17 | 51 | 70 | 17 | 83 |
 | Evaluations (`evals`) | 2 | 21 | 31 | 5 | 34 |
 | Podman sandbox (`sandbox`) | 0 | 9 | 2 | 1 | 3 |
 | Web UI (`ui`) | 0 | 21 | 56 | 12 | 50 |
-| Operations, authentication, CLI and deployment (`operations`) | 1 | 14 | 32 | 5 | 9 |
+| Operations, authentication, CLI and deployment (`operations`) | 0 | 14 | 32 | 5 | 9 |
 | Public API and wire contracts (`api-contracts`) | 4 | 1 | 30 | 20 | 8 |
 | PostgreSQL persistence and schema (`persistence`) | 4 | 0 | 20 | 33 | 8 |
 | Quality, CI and process (`quality`) | 11 | 1 | 21 | 79 | 16 |

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -277,7 +278,7 @@ INSERT INTO audit_review_requests (
 		failedTask := testExact("audits", "dense-accept-pending-task", "task-r1")
 		failed, _, err := f.store.CreateExecutionIntent(f.ctx, auditstore.CreateExecutionIntentParams{
 			Claim: f.claim, ExecutionID: "execution-dense-failed", RoundID: &roundID, Role: auditstore.ExecutionCheck,
-			WorkflowRole: "check", Manifest: testExact("audits", "dense-failed-execution", "manifest-r1"),
+			WorkflowRole: "check", LaneClass: resolved.LaneClassModel, Manifest: testExact("audits", "dense-failed-execution", "manifest-r1"),
 			SubmissionKey: "submission-dense-failed", RequestDigest: testDigest("a"),
 			Members: []auditstore.ExecutionMemberIntent{{
 				ExecutionItemID: "member-dense-failed", ItemID: "pending-item-dense-accept", BatchOrdinal: 0,

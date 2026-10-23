@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 )
 
 // injectUniqueViolationSQL makes every statement that writes audits fail with
@@ -109,7 +110,7 @@ func TestPostgresRecoveryPathsRunInsideACallerTransaction(t *testing.T) {
 		{"CreateExecutionIntent", auditstore.ErrConflict, func(ctx context.Context, s *testStore) error {
 			_, _, err := s.CreateExecutionIntent(ctx, auditstore.CreateExecutionIntentParams{
 				Claim: f.claim, ExecutionID: "execution-txrecovery-pending", RoundID: &roundID,
-				Role: auditstore.ExecutionCheck, WorkflowRole: "check",
+				Role: auditstore.ExecutionCheck, WorkflowRole: "check", LaneClass: resolved.LaneClassModel,
 				Manifest:      testExact("audits", "txrecovery-pending-execution", "manifest-r1"),
 				SubmissionKey: "submission-txrecovery-pending", RequestDigest: testDigest("6"),
 				Members: []auditstore.ExecutionMemberIntent{{

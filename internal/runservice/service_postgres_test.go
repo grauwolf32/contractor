@@ -118,7 +118,7 @@ func TestPostgresTrustedAuditRunIsAtomicReplayableAndPinsExactSkill(t *testing.T
 	}
 	execution, _, err := audits.CreateExecutionIntent(ctx, auditstore.CreateExecutionIntentParams{
 		Claim: claim, ExecutionID: "execution-run-service", RoundID: &roundID,
-		Role: auditstore.ExecutionCheck, WorkflowRole: "check", Manifest: manifest,
+		Role: auditstore.ExecutionCheck, WorkflowRole: "check", LaneClass: resolved.LaneClassModel, Manifest: manifest,
 		SubmissionKey: "audit-run-service-check-1-attempt-1", RequestDigest: testDigest("5"),
 		Members: []auditstore.ExecutionMemberIntent{{
 			ExecutionItemID: "execution-item-run-service", ItemID: "item-run-service",

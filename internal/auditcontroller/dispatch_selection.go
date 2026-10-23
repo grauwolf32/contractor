@@ -6,6 +6,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 )
 
 func (c *Controller) dispatchReadyBatch(ctx context.Context, claim auditstore.ControllerClaim, snapshot auditstore.ReconcileSnapshot) (bool, error) {
@@ -14,10 +15,10 @@ func (c *Controller) dispatchReadyBatch(ctx context.Context, claim auditstore.Co
 		snapshot.Round.State != auditstore.RoundExecuting {
 		return false, nil
 	}
-	if snapshot.MaxConcurrentRuns < 1 {
+	if snapshot.MaxConcurrentRuns < 1 || snapshot.MaxConcurrentToolRuns < 1 {
 		return false, errors.New("Audit dispatch window is invalid")
 	}
-	if audit.OutstandingRunCount >= snapshot.MaxConcurrentRuns {
+	if !snapshot.DispatchWindowOpen(resolved.LaneClassModel) && !snapshot.DispatchWindowOpen(resolved.LaneClassTool) {
 		return false, nil
 	}
 
@@ -59,10 +60,11 @@ func (c *Controller) dispatchReadyBatch(ctx context.Context, claim auditstore.Co
 }
 
 // batchCandidates is the ordered check batch the next dispatch may reserve:
-// the lowest-ordinal ready item of the current Round and the later ready items
-// that share its batch and parameter envelope, up to the batch size. Their
-// next attempts are read together, so selecting a batch costs one statement
-// whatever its size.
+// the lowest-ordinal ready item of the current Round whose role's lane class
+// has an open dispatch window (AUX-R3), and the later ready items that share
+// its batch and parameter envelope, up to the batch size. A full window of
+// one class therefore never holds back the other. Their next attempts are
+// read together, so selecting a batch costs one statement whatever its size.
 func batchCandidates(snapshot auditstore.ReconcileSnapshot) []auditstore.Item {
 	audit := snapshot.Audit
 	limit := min(audit.Limits.BatchSize, auditstore.MaxCollectionItems)
@@ -71,6 +73,9 @@ func batchCandidates(snapshot auditstore.ReconcileSnapshot) []auditstore.Item {
 	}
 	candidates := make([]auditstore.Item, 0, limit)
 	var binding auditprofile.ResolvedAuditWorkflowBinding
+	// An item of an undecodable profile, or of a role the profile lacks, still
+	// leads a batch, so the builder rejects it as an invalid submission and
+	// stops the Audit instead of the item waiting forever.
 	profile, profileErr := auditprofile.DecodeResolvedAuditProfileSnapshot(audit.ProfileSnapshot)
 	for _, item := range snapshot.ReadyItems {
 		if item.State != auditstore.ItemReady || item.RoundID != snapshot.Round.RoundID {
@@ -81,7 +86,11 @@ func batchCandidates(snapshot auditstore.ReconcileSnapshot) []auditstore.Item {
 			continue
 		}
 		if len(candidates) == 0 && profileErr == nil {
-			binding = profile.Workflows[item.WorkflowRole]
+			var found bool
+			binding, found = profile.Workflows[item.WorkflowRole]
+			if found && !snapshot.DispatchWindowOpen(resolved.WorkflowLaneClass(binding.Workflow)) {
+				continue
+			}
 		}
 		candidates = append(candidates, item)
 		if len(candidates) == limit {

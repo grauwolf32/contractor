@@ -378,7 +378,7 @@ UPDATE audit_review_requests SET expires_at = clock_timestamp() - interval '1 se
 	_, inserted, err := auditstoretest.NewStore(pool).CreateExecutionIntent(ctx,
 		auditstore.CreateExecutionIntentParams{
 			Claim: manualClaim, ExecutionID: "execution-expired-approval",
-			RoundID: &roundID, Role: auditstore.ExecutionCheck, WorkflowRole: "check",
+			RoundID: &roundID, Role: auditstore.ExecutionCheck, WorkflowRole: "check", LaneClass: resolved.LaneClassModel,
 			Manifest:      manualStarted.Round.Manifest,
 			SubmissionKey: "expired-approval", RequestDigest: serviceTestDigest("expired-approval"),
 			Members: []auditstore.ExecutionMemberIntent{{
@@ -1317,12 +1317,12 @@ INSERT INTO audit_items (
 			})
 			if _, err := tx.Exec(ctx, `
 INSERT INTO audit_executions (
-    execution_id, audit_id, round_id, role, workflow_role, manifest_ref, manifest_digest,
+    lane_class, execution_id, audit_id, round_id, role, workflow_role, manifest_ref, manifest_digest,
     submission_key, request_digest, run_id, state, terminal_outcome,
     terminal_run_generation, terminal_run_sequence, terminal_observed_at,
     run_provenance, run_deleted_at
 ) VALUES (
-    $1, $2, 'round-finding-attempts', 'check', 'check-role',
+    'model', $1, $2, 'round-finding-attempts', 'check', 'check-role',
     '{"namespace":"audit-executions","name":"check-one","revision":"execution-r1"}'::jsonb,
     $3, $4, $5, $6, 'collected', $7, 'generation-one', $8,
     clock_timestamp(), $9::jsonb, clock_timestamp()

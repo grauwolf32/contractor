@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"strings"
 	"testing"
 	"time"
@@ -14,6 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
@@ -204,7 +204,7 @@ func auditSubmissionGrant(
 	}
 	execution, _, err := audits.CreateExecutionIntent(ctx, auditstore.CreateExecutionIntentParams{
 		Claim: claim, ExecutionID: runID + "-execution", RoundID: &roundID,
-		Role: auditstore.ExecutionCheck, WorkflowRole: "check", Manifest: manifest,
+		Role: auditstore.ExecutionCheck, WorkflowRole: "check", LaneClass: resolved.LaneClassModel, Manifest: manifest,
 		SubmissionKey: runID + "-submission", RequestDigest: digest("execution"),
 		Members: []auditstore.ExecutionMemberIntent{{
 			ExecutionItemID: runID + "-member", ItemID: itemID, BatchOrdinal: 0, ItemAttempt: 1,
