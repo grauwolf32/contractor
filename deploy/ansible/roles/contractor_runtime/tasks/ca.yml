@@ -9,6 +9,7 @@
   loop:
     - {path: "{{ contractor_runtime_config_dir }}", group: root, mode: "0755"}
     - {path: "{{ contractor_runtime_config_dir }}/pki", group: "{{ contractor_runtime_group }}", mode: "0750"}
+    - {path: "{{ contractor_runtime_config_dir }}/restart-pending", group: root, mode: "0755"}
 
 - name: Read the deployment CA certificate
   ansible.builtin.slurp:

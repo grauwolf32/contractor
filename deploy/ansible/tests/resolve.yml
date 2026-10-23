@@ -138,6 +138,25 @@
           - __contractor_runtime_host.tools | sort == ['katana', 'likec4', 'node', 'nuclei', 'nuclei_templates', 'uv', 'vacuum'] | sort
         quiet: true
 
+- name: Accept a quiet log level when verification is off as an extra-vars string
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    # ansible-playbook -e contractor_runtime_verify=false passes a string.
+    contractor_runtime_verify: "false"
+    contractor_runtime_log_level: warning
+  tasks:
+    - name: Resolve
+      ansible.builtin.include_role:
+        name: contractor_runtime
+        tasks_from: resolve
+
+    - name: Check the log level
+      ansible.builtin.assert:
+        that: __contractor_runtime_instances[0].log_level == 'warning'
+        quiet: true
+
 - name: Reject duplicate ports
   hosts: localhost
   connection: local

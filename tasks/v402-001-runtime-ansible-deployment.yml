@@ -45,7 +45,7 @@ requirements:
   - id: R2
     text: "Every downloaded artifact is fetched by exact version and verified by sha256 before use; likec4 is installed with npm ci from a committed lockfile."
   - id: R3
-    text: "An instance is restarted only when its unit, its executable links or its certificate changed, or it is not running; restarts are sequential so the host keeps the other slots."
+    text: "An instance is restarted only when its unit, its executable links or its certificate changed, a restart of it was deferred earlier, or it is not running; restarts are sequential so the host keeps the other slots. A deferred restart (contractor_runtime_restart false) is recorded on the host and blocks release pruning until a later run restarts the instance."
   - id: R4
     text: "A started instance passes only when its journal shows registration and every expected capability probe as available; a startup failure, a missing or non-available expected probe, or the timeout fails the run."
 failure_outcomes:
@@ -64,7 +64,7 @@ failure_outcomes:
   - operation: "Instance restart"
     permanent: "A parse_settings error or failed tool probe stops before the restart; a startup failure or non-available expected probe fails the host after the restart and leaves the unit for inspection."
     retryable: "Rerun the playbook after fixing the host."
-    ambiguous: "Registration not observed within contractor_runtime_verify_timeout_seconds fails the run; the process keeps running."
+    ambiguous: "Registration not observed within contractor_runtime_verify_timeout_seconds fails the run; the process keeps running. A deferred restart survives the run as <config_dir>/restart-pending/<name>."
     cancelled: "systemd stops the Runtime with its own kill policy (KillMode=mixed, SendSIGKILL=no)."
     timeout: "contractor_runtime_verify_timeout_seconds owns verification; TimeoutStopSec owns stop."
 cardinality:

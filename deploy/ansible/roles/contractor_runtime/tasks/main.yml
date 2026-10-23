@@ -65,6 +65,7 @@
     loop_var: __contractor_runtime_absent_name
   vars:
     __contractor_runtime_unit_path: "{{ contractor_runtime_home }}/.config/systemd/user/contractor-runtime-{{ __contractor_runtime_absent_name }}.service"
+    __contractor_runtime_marker: "{{ contractor_runtime_config_dir }}/restart-pending/{{ __contractor_runtime_absent_name }}"
 
 - name: Reload the user manager
   ansible.builtin.command:
@@ -77,6 +78,8 @@
   loop_control:
     loop_var: __contractor_runtime_instance
     label: "{{ __contractor_runtime_instance.name }}"
+  vars:
+    __contractor_runtime_marker: "{{ contractor_runtime_config_dir }}/restart-pending/{{ __contractor_runtime_instance.name }}"
 
 - name: Prune old releases
   ansible.builtin.include_tasks: prune.yml

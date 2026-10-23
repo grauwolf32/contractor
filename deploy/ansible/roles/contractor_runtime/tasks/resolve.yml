@@ -183,7 +183,7 @@
   loop_control:
     loop_var: __contractor_runtime_instance
     label: "{{ __contractor_runtime_instance.name }}"
-  when: contractor_runtime_verify
+  when: contractor_runtime_verify | bool
   vars:
     __contractor_runtime_level: "{{ __contractor_runtime_instance.log_level }}"
 

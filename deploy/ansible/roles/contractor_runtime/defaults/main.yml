@@ -14,7 +14,7 @@ contractor_runtime_version: HEAD
 contractor_runtime_controller_work_dir: "{{ lookup('ansible.builtin.env', 'TMPDIR') | default('/tmp', true) }}/contractor-runtime-ansible"
 contractor_runtime_python_version: "3.13"
 # Extra uv environment for the venv build, for example
-# {UV_INDEX_URL: https://pypi.mirror.example/simple}.
+# {UV_PYTHON_INSTALL_MIRROR: https://python.mirror.example/, HTTPS_PROXY: http://proxy:3128}.
 contractor_runtime_uv_environment: {}
 contractor_runtime_keep_releases: 3
 
@@ -68,7 +68,8 @@ contractor_runtime_advertise_host: ""
 # advertise host plus localhost, 127.0.0.1 and ::1.
 contractor_runtime_cert_dns: []
 contractor_runtime_cert_ips: []
-# Startup labels seed a previously unseen principal only.
+# Startup labels seed a previously unseen principal only. Each must already be
+# bound on the Server, or registration fails with invalid_runtime_labels.
 contractor_runtime_labels: []
 # null probes every built-in RuntimeAdapter; a list selects a non-empty subset.
 contractor_runtime_adapters: null

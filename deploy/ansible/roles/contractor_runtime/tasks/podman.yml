@@ -71,7 +71,7 @@
       ansible.builtin.set_fact:
         __contractor_runtime_base_image: >-
           {{ __contractor_runtime_containerfile.content | b64decode
-             | regex_search('(?m)^FROM\\s+(\\S+)', '\\1') | first }}
+             | regex_findall('(?m)^FROM[ \t]+([^ \t\r\n]+)') | first }}
         __contractor_runtime_image_tag: >-
           {{ contractor_runtime_podman_image_repository }}:{{
              ((__contractor_runtime_containerfile.content ~ __contractor_runtime_init.content) | hash('sha256'))[:16] }}
@@ -88,7 +88,7 @@
 
     - name: Require the base image or permission to pull it
       ansible.builtin.assert:
-        that: __contractor_runtime_base_exists.rc == 0 or contractor_runtime_podman_pull_base_image
+        that: __contractor_runtime_base_exists.rc == 0 or contractor_runtime_podman_pull_base_image | bool
         fail_msg: >-
           {{ __contractor_runtime_base_image }} is not in the image store of {{ contractor_runtime_user }};
           load it there or set contractor_runtime_podman_pull_base_image.

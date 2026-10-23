@@ -20,3 +20,8 @@
       ansible.builtin.file:
         path: "{{ __contractor_runtime_unit_path }}"
         state: absent
+
+- name: Clear a deferred restart of {{ __contractor_runtime_absent_name }}
+  ansible.builtin.file:
+    path: "{{ __contractor_runtime_marker }}"
+    state: absent

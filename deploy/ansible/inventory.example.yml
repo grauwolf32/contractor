@@ -20,7 +20,8 @@ contractor_runtime:
         - {name: runtime-a-2, port: 9444}
 
     # A scanner host: no Podman sandbox, no validators, in-memory workspaces,
-    # and a label the Operations page can bind a proxy RuntimeConfig to.
+    # and a startup label. Bind site-proxy to a RuntimeConfig on the Server
+    # first; registration with an unbound label is rejected.
     runtime-b.example:
       contractor_runtime_advertise_host: 10.0.0.12
       contractor_runtime_capabilities:

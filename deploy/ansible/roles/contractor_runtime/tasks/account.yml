@@ -99,7 +99,7 @@
     owner: root
     group: root
     mode: "0755"
-  when: __contractor_runtime_host.podman and contractor_runtime_manage_cgroup_delegation
+  when: __contractor_runtime_host.podman and contractor_runtime_manage_cgroup_delegation | bool
 
 - name: Delegate cgroup controllers to user managers
   ansible.builtin.copy:
@@ -113,7 +113,7 @@
     group: root
     mode: "0644"
   notify: Restart the user manager
-  when: __contractor_runtime_host.podman and contractor_runtime_manage_cgroup_delegation
+  when: __contractor_runtime_host.podman and contractor_runtime_manage_cgroup_delegation | bool
 
 - name: Enable linger for the service account
   ansible.builtin.command:

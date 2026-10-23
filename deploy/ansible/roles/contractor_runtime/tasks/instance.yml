@@ -17,7 +17,7 @@
   delegate_to: "{{ contractor_runtime_pki_host }}"
   become: false
   throttle: 1
-  when: contractor_runtime_pki_issue
+  when: contractor_runtime_pki_issue | bool
 
 - name: Read the certificate of {{ __contractor_runtime_instance.name }}
   ansible.builtin.slurp:
