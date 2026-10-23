@@ -1,0 +1,183 @@
+schema_version: '1.0'
+id: V407-031
+title: Offload OpenAPI document preparation and avoid repeated validation while preserving session ownership
+milestone: server-runtime-review-2026-10
+epic: workflows
+kind: defect
+introduced_by: V2-003
+priority: P1
+status: completed
+implementation_commit: 9d2c3a99b618e86e63fad53862eb0a33b804129c
+depends_on:
+- V407-024
+languages:
+- python
+goal: Parse, validate and serialize bounded documents outside the Runtime event loop without changing
+  document results, session serialization or cancellation ownership.
+context:
+  review: docs/research/2026-10-23-server-runtime-review.md (corrected dispositions, verified on main
+    dc7012e8; recheck source lines before implementation)
+  specification:
+  - docs/spec/execution/runtime-agent.md
+  - docs/spec/tools/toolsets.md
+  - docs/spec/tools/workspace.md
+  severity: medium
+  finding: runtime/src/contractor_runtime/toolsets/common/document_session.py:73-82 and 143 call decode
+    and serialize synchronously. openapi/tools.py:1158-1161 runs an anchor-rejection parse followed by
+    yaml.load_all; :498-506 and :218-220 validate the whole mutation candidate twice, and :356 validates
+    the changed PathItem once more. This CPU work runs on the event loop. LikeC4 uses the same session
+    base for bounded UTF-8 document preparation, while its external CLI and filesystem preparation are
+    already asynchronous/threaded (likec4/tools.py:523,544). Validators hold the session lock, but common/document_session.py:99-115
+    cancels the tracked task and core/process.py:144-156 joins subprocess cleanup. The supported defect
+    is synchronous document CPU work and redundant validation, not a missing validator cancellation mechanism.
+  siblings: OpenAPI initialize/load, path and component upserts, other mutations, validation rendering
+    and full-document reads; LikeC4 shared decode/serialization paths. Preserve provenance validation
+    and its project workspace acquisition. Server OpenAPI preview is a separate path.
+  validation: 'Partially confirmed on dc7012e8: a valid near-4-MiB OpenAPI seed blocked the loop; one
+    upsert validated the document twice and its changed PathItem three times. DocumentSession.close already
+    cancels the validator before joining its lock; waiting for its full subprocess timeout was not reproduced.'
+plan:
+- Factor pure bounded document preparation so decode, copying, validation and serialization used by the
+  owning session run through threads.to_thread_until_done. Keep ownership until the thread joins on success,
+  failure or cancellation; never expose a mutable in-progress candidate.
+- Give every write entry point a validated candidate and serialize that candidate without another whole-document
+  walk. Keep load/initialize and direct write validation strict, and keep no-op/CAS/provenance behavior
+  unchanged. Merge path/component patches before their single final structural validation.
+- Reject anchors and aliases within the strict YAML loader during its single parse, preserving duplicate-key,
+  unknown-format, depth, item-count and byte-limit rejection. Do not replace strict parsing with a permissive
+  fast path.
+- Keep the current validator lock and cancellation model. Add deterministic tests using worker-thread
+  identity, barriers and execution ordering to prove event-loop progress during blocked preparation and
+  that cancellation joins preparation/validator cleanup. Do not use elapsed-time or heartbeat-gap thresholds.
+- Count whole-document and changed-entry validation calls for path/component mutations and parse passes
+  for seed loads; run unchanged format, provenance, CAS and cancellation tests. Record the off-loop ownership
+  guarantee in the owning specification.
+- Record any new shared document-session cancellation/off-loop guarantee under the Runtime Agent lifecycle
+  owner; use Toolsets for its shared call boundary and Workspace only for OpenAPI provenance. Keep one
+  owning requirement and cross-reference it.
+decisions:
+- >-
+  Findings re-verified on base 2f5334c8 (after V407-024), whose line numbers differ from dc7012e8:
+  DocumentSession.load decoded synchronously (common/document_session.py:82) and _write serialized
+  synchronously (:143); _parse_document ran yaml.parse for the anchor and bound check and then
+  yaml.load_all (openapi/tools.py:1171-1172); an accepted path upsert validated the whole document in
+  _mutate (:513) and again in _serialize (:229), and the changed Path Item in modify (:366) and in both
+  whole-document passes. LikeC4 encoded every written document twice (write/_commit_current and
+  _serialize). With V407-024 the seed bound is 2 MiB, so the review's near-4-MiB seed is now rejected;
+  a valid near-2-MiB seed (3,600 paths, 2,000,098 stored bytes) reproduced the stall: load plus one
+  upsert held the loop for 4.0-5.0 s on the base.
+- >-
+  Ownership: DocumentSession._prepare runs work through threads.to_thread_until_done and refuses to
+  run unless the session lock is held, so the operation keeps the lock until the thread returns on
+  success, failure and every cancellation, and close(), which takes the lock, clears the session only
+  afterwards. A candidate is built on a copy in the thread and remembered only after its CAS write.
+  Merge-patch bound checks keep their place before the project snapshot and the evidence checks in
+  their own short locked section, so error precedence is unchanged; the project snapshot is still
+  acquired outside the lock. validate_openapi now enters _validating before its preparation, so
+  close() cancels a validation from preparation onwards; before, the preparation ran synchronously
+  and could not interleave with close(). Mutations are still not cancelled by close(). Rejected
+  alternative: a separate registry of preparation tasks joined by close(); the session lock already
+  provides that join.
+- >-
+  Single strict parse: _StrictSafeLoader.compose_node checks anchors and aliases, depth and nodes at
+  each node while composing, and _parse_document composes the whole stream before constructing any
+  value, which keeps the old verdict precedence (a later document's anchor still wins over an earlier
+  duplicate key). 431 inputs (bounds, anchors, aliases, tags, multi-document streams, syntax errors
+  before and after violations and 400 random fragments) give byte-identical verdicts on the base and
+  the new parser, and the shared bounds fixture test passes unchanged.
+- >-
+  Class siblings also moved off the loop because they scale with the document under the same lock:
+  targeted reads and listings, read_openapi_document, the server/tag/patch argument checks, the
+  provenance checks (including the filesystem checks without a project workspace) and the Vacuum and
+  LikeC4 output parsing (JSON decoding, banner-tolerant extraction, snippets). Left on the loop: constant
+  or argument-string checks (path and name grammar, LikeC4 old/new comparison) and the stdin encoding of
+  the rendered document for Vacuum (one linear copy). Server OpenAPI preview stays out of scope.
+- >-
+  Evidence only, not a gate (wall-clock): with the same near-2-MiB seed, load plus one upsert took
+  2.6-3.0 s with a longest loop gap of 95-125 ms, against 4.0-5.0 s fully blocking on the base. The
+  remaining gaps are interpreter pauses such as garbage collection while the thread holds the GIL;
+  RTA-R115 states this and promises no heartbeat or lease timing.
+scope:
+  in:
+  - Document-session CPU offload with joined cancellation; single strict YAML parse; one complete structural
+    validation per prepared mutation candidate; deterministic regression tests.
+  out:
+  - Document limits, accepted formats, tool signatures and output shapes; V407-024 limit alignment.
+  - Changing validator serialization, concurrent read semantics, subprocess deadlines or claiming guaranteed
+    heartbeat/lease timings.
+  - Server-side OpenAPI preview or unrelated workspace snapshot optimization.
+acceptance_criteria:
+- id: A1
+  text: Decode, candidate preparation and serialization are observed on a worker thread; a barrier-controlled
+    preparation allows an independent loop callback to run before its release. The test fails if preparation
+    is moved inline.
+- id: A2
+  text: An accepted path or component mutation performs one whole-document validation after merge and
+    does not repeat its changed-entry validation; an OpenAPI seed is parsed once. Existing invalid-document,
+    duplicate-key, anchor/alias and bound cases remain rejected.
+- id: A3
+  text: Cancellation leaves no preparation or validator work running after close returns; a started preparation
+    is joined before session state is cleared, and the existing validator cancellation behavior is preserved.
+    Tests use synchronization and completion ordering, not time thresholds.
+- id: A4
+  text: Existing document bytes, no-op handling, provenance, CAS reconciliation, tool schemas and validator
+    result shapes remain unchanged for OpenAPI and LikeC4.
+tests:
+- command: cd runtime && uv run --locked pytest -q tests/test_openapi_toolset.py tests/test_likec4_toolset.py
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make lint
+  covers:
+  - A2
+  - A4
+verification:
+  date: '2026-10-23'
+  revision: 9d2c3a99b618e86e63fad53862eb0a33b804129c
+  environment: >-
+    Worktree branch claude/rv-r2 on base 2f5334c8, macOS arm64, Go 1.26.9 (GOTOOLCHAIN=local), Python
+    3.13 with the locked Runtime venv, Node 24.20, local PostgreSQL 17.11 database contractor_test_r2
+    (CONTRACTOR_TEST_DATABASE_URL set for make test-wire-cross-language).
+  database_tests_configured: true
+  results:
+  - 'cd runtime && uv run --locked pytest -q tests/test_openapi_toolset.py tests/test_likec4_toolset.py:
+    103 passed (A1-A4).'
+  - 'make lint: passed after make docs-dependencies and make tasks-backlog.'
+  - 'make test-wire-cross-language: passed; the shared fixture gate ran 233 Go and 185 Python shared
+    tests over 250 fixtures, including test_shared_openapi_document_bounds_match_scan_preparation.'
+  - 'make test-runtime: 4310 passed, 39 skipped, 106 failed. The failures are the macOS-only Podman set
+    (96) plus tool_process (2), trailmark_child (2), test_code_analysis_graph encoded ceiling, the 100 ms
+    four-MiB parser loop-gap test, test_local_direct_faults[socket] and three projectfs local tests; the
+    ten non-Podman ones fail identically on base 2f5334c8 (temporary worktree). No OpenAPI, LikeC4 or
+    tool-ownership test failed; test_tool_operation_ownership passes, including close and cancel of a
+    real Vacuum and LikeC4 validator child.'
+  - 'A1: test_openapi_document_work_runs_on_worker_threads_while_the_loop_runs and
+    test_likec4_document_work_runs_on_worker_threads_while_the_loop_runs hold seed decoding at a
+    threading.Event barrier while a loop callback runs first (order ["loop callback", "decoded"]), and
+    record worker-thread identity for decoding, initialization, mutation, serialization, targeted and
+    full reads, listings, validation and validator output. Making _prepare call the function inline
+    fails both at once (gate raises on the loop thread) instead of hanging.'
+  - 'A2: test_accepted_upsert_validates_its_merged_document_once[path|component] counts exactly one
+    whole-document tree walk, one structure check and one rendering, and one validation of the changed
+    Path Item or component; restoring the per-entry check or the second whole-document pass fails it.
+    test_openapi_seed_is_parsed_and_validated_once[yaml|json] counts one PyYAML Reader per load, one tree
+    walk, one structure check and one rendering for a copy, and none for a resume; restoring the event
+    pass or the second seed validation fails it. Anchor, alias (including undefined, key and later-document
+    anchors), duplicate-key, bound and invalid-document cases remain rejected.'
+  - 'A3: test_close_joins_a_cancelled_mutation_preparation_before_clearing_the_session and the LikeC4
+    edit counterpart cancel a call whose preparation thread is held, start close(), and show both stay
+    pending, the revision unchanged, completion order ["prepared", "closed"], no write and a cleared
+    session. test_close_cancels_validation_after_joining_its_preparation[preparation] shows close()
+    cancels the validation, joins its preparation and never starts Vacuum; [vacuum] keeps the existing
+    cancellation of a running Vacuum. Replacing to_thread_until_done with asyncio.to_thread, or entering
+    _validating only around Vacuum, fails these tests. No elapsed-time assertion is used.'
+  - 'A4: test_openapi_written_bytes_and_noop_results_are_unchanged pins the bytes the base wrote for a
+    JSON seed copy, info, servers, tags, path merges with stale x-path-files, component upserts including a
+    3.0 alias, a no-op and a removal; a probe of every write hash, no-op flag and LikeC4 result
+    (utf8Size, appendedUtf8Bytes, replacement counts, read window) was identical on base 2f5334c8 and on
+    9d2c3a99. Tool signatures and descriptions are unchanged; existing provenance, CAS reconciliation
+    and validator result tests pass unchanged.'
+  - 'Spec: RTA-R115 (new, docs/spec/execution/runtime-agent.md, with invariant 5 naming the owning
+    tests); docs/spec/tools/toolsets.md and docs/spec/tools/workspace.md cross-reference it.'
