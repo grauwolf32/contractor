@@ -166,12 +166,14 @@ func (h *serviceHarness) planBytes(t *testing.T, e evalstore.Experiment) []byte 
 
 // Observe actual PostgreSQL projections at the 1,000-member ceiling. Publishing
 // a comparison may read the plan once; individual members must use metadata.
+// A full read selects the document column, aliased or not; document_kind and
+// document_sha256 are metadata.
 type planTransferTracer struct {
 	mu             sync.Mutex
 	full, metadata int
 }
 
-var fullPlanProjection = regexp.MustCompile(`\bp\.document\b`)
+var fullPlanProjection = regexp.MustCompile(`\bdocument\b`)
 
 func (p *planTransferTracer) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
 	query := strings.ToLower(data.SQL)

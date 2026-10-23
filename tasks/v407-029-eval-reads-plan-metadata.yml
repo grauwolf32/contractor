@@ -6,7 +6,7 @@ epic: evals
 kind: chore
 introduced_by: V38-005
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages:
 - go
@@ -74,3 +74,55 @@ tests:
   - A1
   - A3
   - A4
+decisions:
+- >-
+  Finding re-verified on 9cc34c0b: Service.Get read FrozenPlan (internal/evalservice/public.go:84) and
+  rebuilt readiness from the whole document on every poll (nativeReadiness, readiness.go:34-84);
+  withSelectedView (selected_views.go:61), Report (selected_views.go:166), Review (review.go:78) and
+  GetCommand (public.go:224) loaded the document although they use only Setup and SHA256. They now read
+  FrozenPlanMetadata, and Get reads the new FrozenPlanView. Response validation of the assembled
+  Experiment (public.go:136) is unchanged.
+- >-
+  Inventory of the remaining FrozenPlan callers: CollectView's comparison publication
+  (internal/evalservice/collection.go:51) reads the native pins from the document to verify the
+  required-equal dimensions (collection_pins.go) once per publication, which
+  TestSharedPostgresNativeTickTrustsStoredPlanAtMemberCeiling already bounds to one full read per tick;
+  it is no polled view and stays a genuine document reader. Tests use FrozenPlan to inspect stored
+  bytes. Every other plan reader already used FrozenPlanMetadata (service.go:296, record_ingestion.go:32,
+  collection.go:92, evalstore selections.go:45, records.go:100, commands.go:40, submissions.go:73), and
+  the summary page SQL selects only setup.
+- >-
+  Materialized readiness lives in the owned eval_frozen_plans row (new nullable column readiness,
+  migration 000033_eval_plan_readiness.sql), written by persistPlan in the same INSERT as the plan, so
+  the freeze transaction and its rollback cover it and eval_plans_immutable protects it. The readiness
+  computation and its types moved from evalservice to evaldomain (NativeReadiness, Readiness), so the
+  store derives readiness from the very document it stores and validates it against the closed
+  Readiness schema before any freeze write. Checks: native plans have readiness and registrations have
+  none (eval_frozen_plans_readiness_kind_check); 2 to 1,048,576 bytes (eval_frozen_plans_readiness_check).
+  Rejected: computing readiness in the service and passing it to FreezePrepared (the store could not
+  guarantee it matches the document); aggregating eval_members on every read (a scan of up to 1,000
+  rows per poll that still derives pins from the document); a side table (scope.out and AGENTS 3.7).
+- >-
+  Read validation: FrozenPlanView decodes the stored readiness with strictjson and required tags
+  (unknown, duplicate, missing members and trailing data fail) and returns an unclassified error, so a
+  corrupt row answers 500 instead of leaking or being reported as a client error. The closed schema is
+  still enforced at the response boundary by Validate("Experiment"), which rejects a decodable but
+  schema-invalid readiness with eval_invalid as before. Validating the schema in the reader as well
+  would repeat that work on every poll.
+- >-
+  One rule, three implementations (AGENTS 3.1): evaldomain.NativeReadiness, the freeze write path and
+  the SQL backfill of migration 000033 are all held to the new shared fixture
+  api/testdata/evals/readiness-cases.json (covered by the existing evals/ readers entry). Its mixed case
+  orders the dimensions a-b, a.b, a0, a_b, ab, which en_US collation sorts differently, so the backfill's
+  COLLATE "C" is tested; it also covers operator_supplied and unavailable origins, missing pins, null
+  and empty values, a dimension only one arm pins and a required dimension no arm pins.
+- >-
+  Bounds (LIM-EVM-19, EVM-R242): a native plan pins at most 1,024 dimensions for each of its two arms, so
+  the stored readiness has at most 2,048 pins and 2 arm rows whatever the member count; with every
+  string at its schema maximum it encodes to 543,169 bytes, within the 1 MiB column bound. A plan that
+  pins more dimensions under further variants yields a readiness the schema rejects, so the freeze
+  fails instead of storing it. At the 1,000-member native ceiling Get transfers about 6.2 KB of setup
+  and 2.0 KB of readiness instead of the 444 KB document.
+- >-
+  Report keeps a second FrozenPlanMetadata read inside withSelectedView instead of changing the
+  callback signature of five views; both reads are bounded metadata in one snapshot.
