@@ -37,3 +37,34 @@ ON CONFLICT (stage_execution_id) DO UPDATE SET
     updated_at = clock_timestamp(),
     expires_at = GREATEST(stage_metrics.expires_at, EXCLUDED.expires_at)
 RETURNING metrics_schema_version, metrics, summary, updated_at, expires_at`
+
+// cleanupStageMetricsSQL settles at most $2 StageMetrics rows that expired by
+// $1 and belong to terminal StageExecutions, oldest expiry first. A row of a
+// Run that an existing Eval member executed (contractor_eval_run_members) is
+// renewed through the column default, one more retention period, instead of
+// deleted (OBS-R43). The renewal leaves the expired range, so later passes
+// spend their budget on other rows. Returns the number of rows deleted or
+// renewed. Used by Repository.CleanupExpired.
+var cleanupStageMetricsSQL = `
+WITH expired AS (
+    SELECT m.stage_execution_id, e.run_id FROM stage_metrics m
+    JOIN stage_executions e USING (stage_execution_id)
+    WHERE m.expires_at <= $1
+      AND e.state IN ('succeeded', 'failed', 'interrupted', 'cancelled')
+    ORDER BY m.expires_at, m.stage_execution_id LIMIT $2
+    FOR UPDATE OF m SKIP LOCKED
+), classified AS (
+    SELECT stage_execution_id,
+           EXISTS (SELECT 1 FROM contractor_eval_run_members(run_id)) AS retained
+    FROM expired
+), renewed AS (
+    UPDATE stage_metrics m SET expires_at = DEFAULT
+    FROM classified c
+    WHERE m.stage_execution_id = c.stage_execution_id AND c.retained
+    RETURNING 1
+), deleted AS (
+    DELETE FROM stage_metrics m USING classified c
+    WHERE m.stage_execution_id = c.stage_execution_id AND NOT c.retained
+    RETURNING 1
+)
+SELECT (SELECT count(*) FROM renewed) + (SELECT count(*) FROM deleted)`

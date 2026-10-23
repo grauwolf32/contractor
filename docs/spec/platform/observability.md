@@ -471,11 +471,17 @@ The shared `execution-error-cases.json` fixture pins both diagnostic bounds.
 
 **OBS-R43.** Durable telemetry expires after 30 days (LIM-OBS-8). Cleanup
 is batch-bounded and may delete only telemetry that belongs to a terminal
-StageExecution (LIFE-OBS-2).
+StageExecution (LIFE-OBS-2). Expired StageMetrics of a Run that an existing
+Eval member executed, directly or as a child Run of the Audit it executed,
+are renewed for another retention period instead of deleted
+([EVM-R239](../evals/managed-evals.md)). A renewal changes only the expiry,
+so it does not mark the member for recollection, and it takes the row out of
+the expired range, so later passes do not scan it again.
 
-**OBS-R44.** Each telemetry table has a bounded deletion budget.
-Full batches are drained with a short pause before the next retention interval,
-so a metrics backlog cannot starve reports.
+**OBS-R44.** Each telemetry table has a bounded deletion budget; StageMetrics
+renewals count against the StageMetrics budget. Full batches are drained with
+a short pause before the next retention interval, so a metrics backlog cannot
+starve reports.
 
 ### Trace export with `otlp-http@1`
 
