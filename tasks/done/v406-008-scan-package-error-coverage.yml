@@ -6,7 +6,7 @@ epic: scan-tools
 kind: chore
 introduced_by: V406-001
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V406-001
 - V406-003
@@ -62,3 +62,4 @@ verification:
     4285 passes and 39 skips. This task fixes the scanner coverage failure; other failing files are unchanged
     platform/code-analysis modules, with platform classes tracked by V401-007. The broad Runtime gate
     is not reported as passed.
+implementation_commit: 6c0ecc21a859a9ea9527b2499618dae0de72af83
