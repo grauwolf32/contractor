@@ -15,6 +15,14 @@ info:
     Operations tagged `implemented` exist in the current Go Server. Operations
     tagged `planned` reserve the first Operations/UI slice contract and return
     no implementation guarantee until their corresponding task lands.
+
+    A standby Server, one that waits while another Server holds the
+    database's single-active lease, answers every operation of this contract,
+    the event upgrade included, without authenticating or routing the
+    request: `503` with the error code `server_standby`, retryable true,
+    `X-Request-ID`, `X-Contractor-API-Version` and `Cache-Control: no-store`.
+    Clients back off and retry until the standby takes over or they reach
+    the active Server (PER-R3).
   license:
     name: Apache-2.0
 

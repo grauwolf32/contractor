@@ -13,6 +13,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	publicapi "github.com/grauwolf32/contractor/internal/httpapi/public"
 )
 
 // The lock is scoped by PostgreSQL to its database. A dedicated session owns
@@ -193,6 +195,19 @@ func (lease *controlPlaneLease) Close() {
 	})
 }
 
+// newStandbyHandler serves a standby Server's listener (PER-R3): public
+// health, 503 readiness and, for every /v1 path, the retryable
+// server_standby error envelope instead of a plain-text 404 that a client
+// would read as a missing resource.
+func newStandbyHandler() http.Handler {
+	return newProcessHandler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = io.WriteString(w, "{\"status\":\"unavailable\"}\n")
+	}), publicapi.NewStandbyHandler())
+}
+
 func awaitControlPlaneLease(ctx context.Context, pool *pgxpool.Pool, publicAddress string, shutdownTimeout time.Duration, logger *slog.Logger) (*controlPlaneLease, error) {
 	lease, err := openControlPlaneLease(ctx, pool)
 	if err != nil {
@@ -218,12 +233,7 @@ func awaitControlPlaneLease(ctx context.Context, pool *pgxpool.Pool, publicAddre
 		return nil, fmt.Errorf("listen for standby readiness on %q: %w", publicAddress, err)
 	}
 	standbyCtx, stopStandby := context.WithCancel(ctx)
-	ready := newProcessHandler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Cache-Control", "no-store")
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusServiceUnavailable)
-		_, _ = io.WriteString(w, "{\"status\":\"unavailable\"}\n")
-	}))
+	ready := newStandbyHandler()
 	done := make(chan error, 1)
 	go func() { done <- serveHandler(standbyCtx, listener, shutdownTimeout, logger, ready) }()
 	stop := func() error {

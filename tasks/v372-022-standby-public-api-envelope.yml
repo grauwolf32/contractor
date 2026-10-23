@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: api-contracts
 kind: defect
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, yaml, markdown]
 goal: "A standby Server answers every /v1 request with a registered, retryable error in the public error envelope, so clients see a temporary unavailability instead of a plain-text 404 that reads as a missing resource."

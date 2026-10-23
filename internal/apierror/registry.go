@@ -115,6 +115,12 @@ var (
 		"A definite PostgreSQL transaction conflict (serialization failure or deadlock), including one that outlasts "+
 			"the bounded transaction retries of its operation; nothing committed, so the request may be repeated.",
 		link("PER-R16", "persistence.md"))
+	ServerStandby = define("server_standby", http.StatusServiceUnavailable, true,
+		"Server is standing by for the active Server; retry shortly",
+		"This Server is a standby: another Server holds the database's single-active lease, so it answers every "+
+			"public API request, the event upgrade included, without authenticating or routing it, until it takes "+
+			"over or the client reaches the active Server; nothing changes.",
+		link("PER-R3", "persistence.md"))
 	InternalError = define("internal_error", http.StatusInternalServerError, true,
 		"request could not be processed",
 		"An unclassified failure, answered without its cause. The Server cannot tell a transient failure from a "+
