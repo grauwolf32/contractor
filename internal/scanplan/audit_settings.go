@@ -188,7 +188,7 @@ func (s AuditScanSettings) PrepareOperation(data []byte, mediaType string, sourc
 
 // PrepareOperations prepares every selected operation, in Operations order,
 // from one parse and one content digest of the exact source of this call
-// (SCN-R254). Each result and error equals PrepareOperation's for the same
+// (SCN-R256). Each result and error equals PrepareOperation's for the same
 // source and operation: a source failure comes first, as it does there,
 // because decoded settings hold no binding that a URL target rejects. The
 // sequence stops after the first error. The parsed source lives only while

@@ -120,7 +120,7 @@ verification:
     PrepareOperation for that input and carries that input''s identity, and caller ref mutation does not
     reach results. TestPrepareOperationsConcurrentBatchesShareNoMutableState runs 15 concurrent batches of
     5 sources under -race with sequential-equal results and no shared revision, request or gap storage.'
-  - 'A4: sourceDocument (internal/scanplan/source.go) and SCN-R254 state the lifetime (one call or one
+  - 'A4: sourceDocument (internal/scanplan/source.go) and SCN-R256 state the lifetime (one call or one
     PrepareOperations batch, never cached on settings or across calls, inventories or Runs) and bounds (one
     document within LIM-SCN-39/41/42, a path-key index, at most 1,000 operations by LIM-ASC-12).
     TestSingleOperationPreparationParsesItsOwnSource shows PrepareOpenAPIScanTask and
@@ -129,6 +129,9 @@ verification:
     1000 operations, source close to 2 MiB): base d7b825c4 JSON 16.2 s/op, 7.06 GB/op, 162.1 M allocs/op;
     YAML 29.6 s/op, 15.6 GB/op, 159.1 M allocs/op (YAML fixture then encoded by the YAML library at the same
     size). After: JSON 0.40-0.50 s/op, 0.30 GB/op, 5.5 M allocs/op; YAML 0.39 s/op, 0.31 GB/op, 5.5 M allocs/op.'
+  - 'Requirement ID: added as SCN-R254 in 7ca9628c (its commit message still says so) and renumbered to
+    SCN-R256 after merging claude/review-v407-v409, where V407-007 owns SCN-R254 and SCN-R255. The task
+    command, go test -race ./internal/scanplan/ and make lint passed again after the merge.'
   siblings_changed:
   - scanplan.PrepareOperation and PrepareOperationTarget share parseSource (ref, bounded parse, version,
     paths, digest, index) and prepare; AuditScanSettings.PrepareOperation and PrepareOperations share

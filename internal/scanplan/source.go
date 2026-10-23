@@ -13,7 +13,7 @@ import (
 // the digest of the supplied bytes), the media type that selected the parser
 // and an index from each canonical path-item pointer to its key in paths.
 //
-// Lifetime and bounds (SCN-R254): one value serves one preparation call, either
+// Lifetime and bounds (SCN-R256): one value serves one preparation call, either
 // one operation or the operations of one AuditScanSettings.PrepareOperations
 // batch, and nothing caches it across calls, settings or Runs. It holds one
 // source within the document bounds (LIM-SCN-39, LIM-SCN-41, LIM-SCN-42) and

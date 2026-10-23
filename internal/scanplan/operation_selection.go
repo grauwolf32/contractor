@@ -56,7 +56,7 @@ func (s operationSelection) valid() bool {
 // source. Other operations neither consume its request budget nor contribute gaps.
 // Bindings for other operations are rejected, never silently broadened.
 // Each call parses its own source; AuditScanSettings.PrepareOperations prepares
-// several operations of one source from one parse (SCN-R254).
+// several operations of one source from one parse (SCN-R256).
 func PrepareOperation(data []byte, mediaType string, source contracts.ArtifactRef, options Options, pointer string) (scan.HTTPRequestSet, error) {
 	document, err := parseSource(data, mediaType, source)
 	if err != nil {

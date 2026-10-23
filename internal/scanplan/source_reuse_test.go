@@ -13,7 +13,7 @@ import (
 )
 
 // An inventory of 1000 selected operations parses its source and computes the
-// source content digest once for preparation (SCN-R254). The inventory's own
+// source content digest once for preparation (SCN-R256). The inventory's own
 // source digest, computed while packaging tasks, is auditdomain work and is
 // checked separately against the prepared digest.
 func TestLargeInventoryParsesAndDigestsSourceOnce(t *testing.T) {

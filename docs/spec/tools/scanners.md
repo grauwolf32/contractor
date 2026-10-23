@@ -1021,7 +1021,7 @@ selected revision.
 The production caller is the OpenAPI Audit scan adapter ([Audit
 scans](../audits/scans.md)), which prepares SQLMap requests or fixed Nuclei
 targets with `AuditScanSettings.PrepareOperations` when it builds the inventory
-(SCN-R254) and with `AuditScanSettings.PrepareOperation` when it reproduces one
+(SCN-R256) and with `AuditScanSettings.PrepareOperation` when it reproduces one
 accepted task.
 
 **SCN-R220.** The `request-set-scan@1` Workflow consumes a separately supplied
@@ -1266,7 +1266,7 @@ skipped operation with diagnostics, never an empty success.
 entire document; reference expansion and request preparation concern only the
 assigned operation.
 
-**SCN-R254.** `AuditScanSettings.PrepareOperations` prepares every operation
+**SCN-R256.** `AuditScanSettings.PrepareOperations` prepares every operation
 that one settings artifact selects, in pointer order, from one exact source:
 it validates the ref, parses and checks the document and computes the source
 content digest once, then prepares each operation from that parsed source.

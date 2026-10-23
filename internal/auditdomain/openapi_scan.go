@@ -48,7 +48,7 @@ func BuildOpenAPIScanInventory(source []byte, sourceMediaType string, settingsDa
 	}
 	basis := inventoryBasis{Schema: InventoryBasisSchema, Kind: "openapi-scans", Subjects: []map[string]any{}, Gaps: []string{}}
 	subjects := []inventorySubject{}
-	// One parse and one source digest serve every selected operation (SCN-R254).
+	// One parse and one source digest serve every selected operation (SCN-R256).
 	for prepared, err := range settings.PrepareOperations(source, normalizedMediaType(sourceMediaType), options.SourceRef) {
 		if err != nil {
 			var failure *scanplan.PreparationError
