@@ -25,7 +25,8 @@
 /* Buttons: <button class="ui-btn" data-variant="primary|secondary|danger|ghost|link"
    data-size="sm|xs">, and links that look like one. The class carries the
    whole look (src/styles.css leaves a bare button unstyled); hover states
-   skip disabled buttons. */
+   skip disabled buttons, also those that are only aria-disabled to keep
+   focus (the decision bar's Record button while it records). */
 .ui-btn {
   display: inline-flex;
   align-items: center;
@@ -50,11 +51,12 @@
     transform 140ms ease;
 }
 
-.ui-btn:not(:disabled):active {
+.ui-btn:not(:disabled, [aria-disabled="true"]):active {
   transform: translateY(1px);
 }
 
-.ui-btn:disabled {
+.ui-btn:disabled,
+.ui-btn[aria-disabled="true"] {
   cursor: not-allowed;
   opacity: 0.58;
 }
@@ -79,7 +81,7 @@
   flex: none;
 }
 
-.ui-btn:not(:disabled):hover {
+.ui-btn:not(:disabled, [aria-disabled="true"]):hover {
   background: var(--surface-hover);
 }
 
@@ -90,7 +92,7 @@
   font-weight: 800;
 }
 
-.ui-btn[data-variant="primary"]:not(:disabled):hover {
+.ui-btn[data-variant="primary"]:not(:disabled, [aria-disabled="true"]):hover {
   border-color: var(--primary-hover);
   background: var(--primary-hover);
 }
@@ -100,7 +102,7 @@
   color: var(--danger);
 }
 
-.ui-btn[data-variant="danger"]:not(:disabled):hover {
+.ui-btn[data-variant="danger"]:not(:disabled, [aria-disabled="true"]):hover {
   background: var(--danger-bg);
 }
 
@@ -110,14 +112,14 @@
   color: var(--muted);
 }
 
-.ui-btn[data-variant="ghost"]:not(:disabled):hover {
+.ui-btn[data-variant="ghost"]:not(:disabled, [aria-disabled="true"]):hover {
   background: var(--surface-hover);
   color: var(--text);
 }
 
 /* A chosen toggle (aria-pressed) reads like a selected row. */
 .ui-btn[aria-pressed="true"],
-.ui-btn[aria-pressed="true"]:not(:disabled):hover {
+.ui-btn[aria-pressed="true"]:not(:disabled, [aria-disabled="true"]):hover {
   border-color: var(--sel-bar);
   background: var(--sel);
   color: var(--text);
@@ -148,12 +150,13 @@
   font-weight: 700;
 }
 
-.ui-btn[data-variant="link"]:not(:disabled):hover {
+.ui-btn[data-variant="link"]:not(:disabled, [aria-disabled="true"]):hover {
   background: none;
   text-decoration: underline;
 }
 
-/* A request in flight: the button stays readable while it is disabled. */
+/* A request in flight: the button stays readable while it is disabled. Later
+   than the disabled look, so the progress cursor wins. */
 .ui-btn[aria-busy="true"] {
   cursor: progress;
 }
