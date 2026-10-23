@@ -17,10 +17,13 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/settingsstore"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -185,18 +188,18 @@ func (r *drainRecorder) until(done func() bool) []drainPass {
 
 // drainProfile summarizes passes: the mutation count of every pass of each
 // batched phase, the passes of every other kind, the reconcile snapshots
-// read and, per batched phase, the most statements one of its passes issued.
+// read and, per batched phase, the statements of its passes by batch size.
 type drainProfile struct {
-	batches       map[string][]int
-	passes        map[string]int
-	snapshots     int
-	maxStatements map[string]int
+	batches    map[string][]int
+	passes     map[string]int
+	snapshots  int
+	statements map[string]map[int][]int
 }
 
 func profileDrain(t *testing.T, passes []drainPass) drainProfile {
 	t.Helper()
 	profile := drainProfile{
-		batches: map[string][]int{}, passes: map[string]int{}, maxStatements: map[string]int{},
+		batches: map[string][]int{}, passes: map[string]int{}, statements: map[string]map[int][]int{},
 	}
 	for _, pass := range passes {
 		profile.snapshots += pass.counts[snapshotStatement]
@@ -209,8 +212,12 @@ func profileDrain(t *testing.T, passes []drainPass) drainProfile {
 			}
 		case purgeStatement, "other":
 		default:
-			profile.batches[kind] = append(profile.batches[kind], pass.counts[kind])
-			profile.maxStatements[kind] = max(profile.maxStatements[kind], pass.statements)
+			size := pass.counts[kind]
+			profile.batches[kind] = append(profile.batches[kind], size)
+			if profile.statements[kind] == nil {
+				profile.statements[kind] = map[int][]int{}
+			}
+			profile.statements[kind][size] = append(profile.statements[kind][size], pass.statements)
 		}
 	}
 	return profile
@@ -241,69 +248,33 @@ func requireBatches(t *testing.T, profile drainProfile, fragment string, want []
 	}
 }
 
-// clearOutstanding lets the next dispatch of a controlled fixture reserve
-// beyond the dispatch window. The window (LIM-AUX-1) never holds more than
-// 32 outstanding children per lane class, so a fixture with more submitted
-// or intended children clears the counter before each dispatch and
-// restoreOutstanding sets it to the true count afterwards; every intent, Run
-// and binding still comes from the ordinary paths.
-func (h *postgresControllerHarness) clearOutstanding(t *testing.T, ctx context.Context) {
+// drainWindow is the dispatch window of each lane class in the drain
+// fixtures: the largest value the scheduler settings accept (LIM-OPS-7,
+// LIM-OPS-34), so an Audit holds at most 32 outstanding model and 32
+// outstanding tool children.
+const drainWindow = 32
+
+// openDispatchWindows sets both scheduler windows to drainWindow.
+func (h *postgresControllerHarness) openDispatchWindows(t *testing.T, ctx context.Context) {
 	t.Helper()
-	if _, err := h.pool.Exec(ctx, `
-UPDATE audits SET outstanding_run_count = 0, outstanding_tool_run_count = 0
- WHERE audit_id = $1`, h.started.Audit.AuditID); err != nil {
+	toolRuns := drainWindow
+	if _, err := settingsstore.NewPostgresStore(h.pool).UpdateSchedulerSettings(ctx, settingsstore.UpdateSchedulerSettingsParams{
+		MaxConcurrentRuns: drainWindow, MaxConcurrentToolRuns: &toolRuns, ExpectedRevision: 1,
+	}); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func (h *postgresControllerHarness) restoreOutstanding(t *testing.T, ctx context.Context) {
+// createIntents opens the dispatch windows, activates the Round and records
+// model and tool execution intents, one item each, through the claimed
+// store as a dispatch does before its Run exists; the classes alternate
+// while both remain. The checklist profile has model checks only, so a tool
+// intent stands for a scan role, as in
+// TestPostgresDispatchWindowsCountEachLaneClass; the store's reservation
+// statement admits each class only within its window.
+func (h *postgresControllerHarness) createIntents(t *testing.T, ctx context.Context, model, tool int) {
 	t.Helper()
-	if _, err := h.pool.Exec(ctx, `
-UPDATE audits SET outstanding_run_count = (
-       SELECT count(*) FROM audit_executions
-        WHERE audit_id = $1 AND state IN ('intent', 'submitted'))
- WHERE audit_id = $1`, h.started.Audit.AuditID); err != nil {
-		t.Fatal(err)
-	}
-}
-
-// submitChildren activates the Round and submits one child Run per item
-// through the ordinary Controller dispatch, and returns the Runs in
-// submission order.
-func (h *postgresControllerHarness) submitChildren(t *testing.T, ctx context.Context, children int) []string {
-	t.Helper()
-	dispatcher := h.controller(t)
-	dispatcher.options.OperationTimeout = 10 * time.Second
-	dispatcher.options.ClaimLease = 20 * time.Second
-	if worked, err := dispatcher.RunOnce(ctx); err != nil || !worked {
-		t.Fatalf("activate Round = (%t, %v)", worked, err)
-	}
-	for child := range children {
-		h.clearOutstanding(t, ctx)
-		if worked, err := dispatcher.RunOnce(ctx); err != nil || !worked {
-			t.Fatalf("submit child %d = (%t, %v)", child, worked, err)
-		}
-	}
-	h.restoreOutstanding(t, ctx)
-	executions, err := h.audits.ListExecutions(ctx, h.started.Audit.AuditID)
-	if err != nil || len(executions) != children {
-		t.Fatalf("submitted executions = (%d, %v), want %d", len(executions), err, children)
-	}
-	runIDs := make([]string, children)
-	for index, execution := range executions {
-		if execution.State != auditstore.ExecutionSubmitted || execution.RunID == nil {
-			t.Fatalf("execution %s is %s, want a submitted child", execution.ExecutionID, execution.State)
-		}
-		runIDs[index] = *execution.RunID
-	}
-	return runIDs
-}
-
-// createUnboundIntents activates the Round and records one execution intent
-// per item through the claimed store, as a dispatch does before its Run
-// exists.
-func (h *postgresControllerHarness) createUnboundIntents(t *testing.T, ctx context.Context, intents int) {
-	t.Helper()
+	h.openDispatchWindows(t, ctx)
 	if worked, err := h.controller(t).RunOnce(ctx); err != nil || !worked {
 		t.Fatalf("activate Round = (%t, %v)", worked, err)
 	}
@@ -315,8 +286,8 @@ func (h *postgresControllerHarness) createUnboundIntents(t *testing.T, ctx conte
 	}
 	claim := claims[0]
 	builder := h.builder(t).WithClaim(claim)
-	for intent := range intents {
-		h.clearOutstanding(t, ctx)
+	models, tools := 0, 0
+	for intent := range model + tool {
 		snapshot, err := h.audits.GetReconcileSnapshot(ctx, claim)
 		if err != nil || len(snapshot.ReadyItems) == 0 {
 			t.Fatalf("intent %d snapshot = (%d ready, %v)", intent, len(snapshot.ReadyItems), err)
@@ -328,14 +299,47 @@ func (h *postgresControllerHarness) createUnboundIntents(t *testing.T, ctx conte
 			t.Fatal(err)
 		}
 		prepared.Intent.Claim = claim
+		if tools < tool && (models == model || intent%2 == 1) {
+			prepared.Intent.LaneClass = resolved.LaneClassTool
+			tools++
+		} else {
+			models++
+		}
 		if _, created, err := h.audits.CreateExecutionIntent(ctx, prepared.Intent); err != nil || !created {
 			t.Fatalf("intent %d = (%t, %v)", intent, created, err)
 		}
 	}
-	h.restoreOutstanding(t, ctx)
 	if err := h.audits.ReleaseClaim(ctx, claim); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// submitChildren records model and tool intents and lets the ordinary
+// Controller resume each into its child Run, one per pass, and returns the
+// Runs in submission order.
+func (h *postgresControllerHarness) submitChildren(t *testing.T, ctx context.Context, model, tool int) []string {
+	t.Helper()
+	h.createIntents(t, ctx, model, tool)
+	dispatcher := h.controller(t)
+	dispatcher.options.OperationTimeout = 10 * time.Second
+	dispatcher.options.ClaimLease = 20 * time.Second
+	for child := range model + tool {
+		if worked, err := dispatcher.RunOnce(ctx); err != nil || !worked {
+			t.Fatalf("submit child %d = (%t, %v)", child, worked, err)
+		}
+	}
+	executions, err := h.audits.ListExecutions(ctx, h.started.Audit.AuditID)
+	if err != nil || len(executions) != model+tool {
+		t.Fatalf("submitted executions = (%d, %v), want %d", len(executions), err, model+tool)
+	}
+	runIDs := make([]string, len(executions))
+	for index, execution := range executions {
+		if execution.State != auditstore.ExecutionSubmitted || execution.RunID == nil {
+			t.Fatalf("execution %s is %s, want a submitted child", execution.ExecutionID, execution.State)
+		}
+		runIDs[index] = *execution.RunID
+	}
+	return runIDs
 }
 
 // ownerMutation applies the owner's cancel or delete to the Audit's current
@@ -410,69 +414,112 @@ SELECT (SELECT count(*) FROM audit_executions
 	}
 }
 
-// fullBatchStatements records, per batched phase, the statements of the
-// largest pass of each size of Audit, to show that a pass's cost does not
-// grow with the Audit beyond its fixed bound.
-type fullBatchStatements struct {
+// fixedCostStatements are the batched mutations whose statements do not
+// depend on the child they change. A Run deletion also purges the Run's
+// binding revisions in batches of at most 1,000 (LIM-DEL-2), so its cost
+// grows with the Run up to LIM-ART-6; it is measured separately.
+var fixedCostStatements = []string{cancellationStatement, observationStatement, submissionFailureStatement}
+
+// batchStatements collects, across Audit sizes, lane mixes and bounds, the
+// statements of every pass of a fixed-cost phase by its batch size.
+type batchStatements struct {
 	mu     sync.Mutex
-	byKind map[string]map[int]int
+	bySize map[string]map[int]map[int]bool
 }
 
-func (s *fullBatchStatements) record(children int, profile drainProfile) {
+func newBatchStatements() *batchStatements {
+	return &batchStatements{bySize: map[string]map[int]map[int]bool{}}
+}
+
+func (s *batchStatements) record(profiles ...drainProfile) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for kind, statements := range profile.maxStatements {
-		if s.byKind[kind] == nil {
-			s.byKind[kind] = map[int]int{}
+	for _, profile := range profiles {
+		for _, kind := range fixedCostStatements {
+			for size, statements := range profile.statements[kind] {
+				if s.bySize[kind] == nil {
+					s.bySize[kind] = map[int]map[int]bool{}
+				}
+				if s.bySize[kind][size] == nil {
+					s.bySize[kind][size] = map[int]bool{}
+				}
+				for _, count := range statements {
+					s.bySize[kind][size][count] = true
+				}
+			}
 		}
-		s.byKind[kind][children] = max(s.byKind[kind][children], statements)
 	}
 }
 
-// drainCase is one Audit size and the drain bound a test applies to it; a
-// bound of one reproduces the earlier one-mutation-per-pass baseline.
-type drainCase struct {
-	children int
-	limit    int
+// requireIndependentOfAudit checks that every pass of a fixed-cost phase with
+// the same batch size issued the same statements, whatever the Audit's size,
+// and that a full batch was measured: a pass's work is bounded by its batch,
+// not by the Audit.
+func (s *batchStatements) requireIndependentOfAudit(t *testing.T) {
+	t.Helper()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, kind := range fixedCostStatements {
+		bySize := s.bySize[kind]
+		if len(bySize) == 0 {
+			continue
+		}
+		for size, counts := range bySize {
+			if len(counts) != 1 {
+				t.Fatalf("%q passes of %d mutations issued %v statements, want one count", kind, size, counts)
+			}
+		}
+		full := bySize[maxDrainMutationsPerStep]
+		if len(full) == 0 {
+			t.Fatalf("no full %q batch was measured", kind)
+		}
+		t.Logf("%q: a full batch issues %v statements, one mutation per pass %v", kind, full, bySize[1])
+	}
 }
+
+// drainCase is one Audit's outstanding model and tool children and the drain
+// bound a test applies to it; a bound of one reproduces the earlier
+// one-mutation-per-pass baseline.
+type drainCase struct {
+	model, tool, limit int
+}
+
+func (c drainCase) children() int { return c.model + c.tool }
 
 func (c drainCase) name() string {
+	name := fmt.Sprintf("%d model and %d tool children", c.model, c.tool)
 	if c.limit == 1 {
-		return fmt.Sprintf("%d children one per pass", c.children)
+		name += " one per pass"
 	}
-	return fmt.Sprintf("%d children", c.children)
+	return name
 }
 
+// drainCases run from one child to both lane windows full, the most
+// outstanding children an Audit can hold, with a tail in every phase that
+// drains all but one child.
 var drainCases = []drainCase{
-	{children: 1, limit: maxDrainMutationsPerStep},
-	{children: 50, limit: maxDrainMutationsPerStep},
-	{children: 200, limit: maxDrainMutationsPerStep},
-	{children: 50, limit: 1},
+	{model: 1, limit: maxDrainMutationsPerStep},
+	{model: drainWindow, limit: maxDrainMutationsPerStep},
+	{model: drainWindow, tool: drainWindow, limit: maxDrainMutationsPerStep},
+	{model: drainWindow, tool: drainWindow, limit: 1},
 }
 
-// requireImprovement compares the snapshots of the bounded drain of each
-// size with its one-per-pass baseline: equal for one child, and fewer by
-// exactly the passes the batches saved otherwise.
+// requireImprovement checks that every multi-child drain saves passes and
+// that its snapshots fall short of its measured one-per-pass baseline by
+// exactly the passes the batches saved.
 func requireImprovement(t *testing.T, snapshots map[drainCase]int, saved map[drainCase]int) {
 	t.Helper()
 	for _, candidate := range drainCases {
 		if candidate.limit == 1 {
 			continue
 		}
-		baseline, measured := snapshots[drainCase{children: candidate.children, limit: 1}]
-		batched := snapshots[candidate]
-		if !measured {
-			continue
+		if candidate.children() > 1 && saved[candidate] <= 0 {
+			t.Fatalf("%s saved %d snapshots, want fewer than one per mutation", candidate.name(), saved[candidate])
 		}
-		if baseline-batched != saved[candidate] {
-			t.Fatalf("%d children read %d snapshots one per pass and %d in batches, want %d saved",
-				candidate.children, baseline, batched, saved[candidate])
-		}
-	}
-	for _, candidate := range drainCases {
-		if candidate.limit != 1 && candidate.children > 1 && saved[candidate] <= 0 {
-			t.Fatalf("%d children saved %d snapshots, want fewer than one per mutation",
-				candidate.children, saved[candidate])
+		baseline, measured := snapshots[drainCase{model: candidate.model, tool: candidate.tool, limit: 1}]
+		if measured && baseline-snapshots[candidate] != saved[candidate] {
+			t.Fatalf("%s read %d snapshots one per pass and %d in batches, want %d saved",
+				candidate.name(), baseline, snapshots[candidate], saved[candidate])
 		}
 	}
 }
@@ -490,23 +537,23 @@ func savedPasses(phases ...[]int) int {
 }
 
 // TestPostgresControllerDrainBatchesCancellationObservationAndDeletion
-// deletes an active Audit with 1, 50 and 200 running children. Each
-// claimed pass requests at most the fixed bound of cancellations, records at
-// most that many terminal observations and deletes at most that many
-// released Runs, while collection, transitions and purge batches keep their
-// own passes. Nonterminal children keep the settlement barrier closed until
-// the test transitions them, and every child is observed and collected
-// exactly once before the Audit leaves cancelling.
+// deletes an active Audit with one running child, a full model window and
+// both full lane windows. Each claimed pass requests at most the fixed bound
+// of cancellations, records at most that many terminal observations and
+// deletes at most that many released Runs, while collection, transitions and
+// purge batches keep their own passes. Nonterminal children keep the
+// settlement barrier closed until the test transitions them, and every child
+// is observed and collected exactly once before the Audit leaves cancelling.
 func TestPostgresControllerDrainBatchesCancellationObservationAndDeletion(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
 	defer cancel()
-	statements := &fullBatchStatements{byKind: map[string]map[int]int{}}
+	statements := newBatchStatements()
 	snapshots, saved := map[drainCase]int{}, map[drainCase]int{}
 	for _, drain := range drainCases {
 		t.Run(drain.name(), func(t *testing.T) {
-			children := drain.children
+			children := drain.children()
 			harness := newPostgresControllerReviewHarness(t, ctx, 0, children)
-			runIDs := harness.submitChildren(t, ctx, children)
+			runIDs := harness.submitChildren(t, ctx, drain.model, drain.tool)
 			harness.ownerMutation(t, ctx, "delete")
 			recorder := harness.drainRecorder(t, ctx, "drain-controller", drain.limit)
 
@@ -585,50 +632,32 @@ func TestPostgresControllerDrainBatchesCancellationObservationAndDeletion(t *tes
 				batchSizes(children, drain.limit), batchSizes(len(early), drain.limit),
 				batchSizes(children, drain.limit),
 			)
-			if drain.limit != 1 {
-				for _, profile := range []drainProfile{requests, finished, settled, deleted} {
-					statements.record(children, profile)
-				}
-			}
-			t.Logf("%s: %d snapshots; cancellations %v, observations %v and %v, deletions %v, %d purge passes; "+
-				"most statements per batched pass %v %v %v",
+			statements.record(requests, finished, settled)
+			t.Logf("%s: %d snapshots; cancellations %v, observations %v and %v, deletions %v, %d purge passes",
 				drain.name(), total, requests.batches[cancellationStatement],
 				finished.batches[observationStatement], settled.batches[observationStatement],
-				deleted.batches[runDeletionStatement], deleted.passes[purgeStatement],
-				requests.maxStatements, finished.maxStatements, deleted.maxStatements)
+				deleted.batches[runDeletionStatement], deleted.passes[purgeStatement])
 		})
 	}
 	requireImprovement(t, snapshots, saved)
-	statements.requireConstant(t)
-}
-
-// requireConstant checks that full batches of 50- and 200-child Audits cost
-// the same statements: a pass's work is bounded by its batch, not the Audit.
-func (s *fullBatchStatements) requireConstant(t *testing.T) {
-	t.Helper()
-	for kind, bySize := range s.byKind {
-		if bySize[50] != bySize[200] {
-			t.Fatalf("the largest %q pass issued %d statements with 50 children and %d with 200",
-				kind, bySize[50], bySize[200])
-		}
-	}
+	statements.requireIndependentOfAudit(t)
 }
 
 // TestPostgresControllerDrainBatchesUnboundIntentFailures cancels an Audit
-// whose 1, 50 or 200 execution intents never got a child Run. Each claimed
-// pass fails at most the fixed bound of them; each failed intent is then
-// collected in its own pass, and the Audit settles as cancelled with one
-// receipt per execution.
+// whose execution intents, up to both full lane windows, never got a child
+// Run. Each claimed pass fails at most the fixed bound of them; each failed
+// intent is then collected in its own pass, and the Audit settles as
+// cancelled with one receipt per execution.
 func TestPostgresControllerDrainBatchesUnboundIntentFailures(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
 	defer cancel()
-	statements := &fullBatchStatements{byKind: map[string]map[int]int{}}
+	statements := newBatchStatements()
 	snapshots, saved := map[drainCase]int{}, map[drainCase]int{}
 	for _, drain := range drainCases {
 		t.Run(drain.name(), func(t *testing.T) {
-			children := drain.children
+			children := drain.children()
 			harness := newPostgresControllerReviewHarness(t, ctx, 0, children)
-			harness.createUnboundIntents(t, ctx, children)
+			harness.createIntents(t, ctx, drain.model, drain.tool)
 			harness.ownerMutation(t, ctx, "cancel")
 			recorder := harness.drainRecorder(t, ctx, "intent-drain-controller", drain.limit)
 
@@ -642,24 +671,22 @@ func TestPostgresControllerDrainBatchesUnboundIntentFailures(t *testing.T) {
 				t.Fatalf("drained Audit is %q, want cancelled", state)
 			}
 			harness.requireReceipts(t, ctx, children)
-			wantTotal := len(failures) + children + profile.passes["other"]
-			if profile.snapshots != wantTotal || profile.passes["other"] != intentSettlementPasses {
+			if profile.snapshots != len(failures)+children+intentSettlementPasses ||
+				profile.passes["other"] != intentSettlementPasses {
 				t.Fatalf("drain read %d snapshots with %d other passes, want %d with %d",
 					profile.snapshots, profile.passes["other"], len(failures)+children+intentSettlementPasses,
 					intentSettlementPasses)
 			}
 			snapshots[drain] = profile.snapshots
 			saved[drain] = savedPasses(failures)
-			if drain.limit != 1 {
-				statements.record(children, profile)
-			}
-			t.Logf("%s: %d snapshots; failures %v, %d collections, %d other passes; most statements per batched pass %v",
+			statements.record(profile)
+			t.Logf("%s: %d snapshots; failures %v, %d collections, %d other passes",
 				drain.name(), profile.snapshots, failures, profile.passes[collectionStatement],
-				profile.passes["other"], profile.maxStatements)
+				profile.passes["other"])
 		})
 	}
 	requireImprovement(t, snapshots, saved)
-	statements.requireConstant(t)
+	statements.requireIndependentOfAudit(t)
 }
 
 // intentSettlementPasses are the passes after the last collection of a
@@ -667,6 +694,110 @@ func TestPostgresControllerDrainBatchesUnboundIntentFailures(t *testing.T) {
 // receipts returned to ready (at most 200 per pass), the dispatch hold
 // release and the transition to cancelled.
 const intentSettlementPasses = 3
+
+// boundChildRuns lists the child Runs bound to the harness Audit's
+// executions; state, when not empty, keeps only Runs in that state.
+func (h *postgresControllerHarness) boundChildRuns(
+	t *testing.T, ctx context.Context, state runstore.WorkflowRunState,
+) []string {
+	t.Helper()
+	rows, err := h.pool.Query(ctx, `
+SELECT run.run_id FROM audit_executions AS execution
+  JOIN workflow_runs AS run ON run.run_id = execution.run_id
+ WHERE execution.audit_id = $1 AND ($2 = '' OR run.state = $2)
+ ORDER BY execution.created_at, execution.execution_id`,
+		h.started.Audit.AuditID, string(state))
+	if err != nil {
+		t.Fatal(err)
+	}
+	runIDs, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		t.Fatal(err)
+	}
+	return runIDs
+}
+
+// releaseChildRuns drives an ordinary collecting Controller and fails each
+// child Run it submits until the Audit has bound total child Runs. Failed
+// checks are collected and retried within their attempt policy, so the
+// Audit's released Runs outnumber its dispatch windows, as they do over an
+// Audit's life, while it never holds more outstanding children than the
+// windows admit.
+func (h *postgresControllerHarness) releaseChildRuns(t *testing.T, ctx context.Context, total int) {
+	t.Helper()
+	h.openDispatchWindows(t, ctx)
+	driver := h.collectingController(t, h.pool, "released-run-fixture", 1)
+	failPending := func() int {
+		pending := h.boundChildRuns(t, ctx, runstore.RunPending)
+		h.finishRuns(t, ctx, pending, runstore.RunPending, runstore.RunFailed)
+		return len(pending)
+	}
+	for pass := 0; len(h.boundChildRuns(t, ctx, "")) < total; pass++ {
+		if pass > 10*total {
+			t.Fatalf("the fixture bound %d of %d child Runs after %d passes", len(h.boundChildRuns(t, ctx, "")), total, pass)
+		}
+		worked, err := driver.RunOnce(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !worked && failPending() == 0 {
+			t.Fatalf("the fixture stalled with %d child Runs", len(h.boundChildRuns(t, ctx, "")))
+		}
+	}
+	failPending()
+}
+
+// TestPostgresControllerDeletesReleasedRunsInBoundedBatches deletes an Audit
+// that has released 200 terminal child Runs over its life. Each claimed pass
+// deletes at most the fixed bound of them, and the purge follows in its own
+// passes once a pass finds no child Run left.
+func TestPostgresControllerDeletesReleasedRunsInBoundedBatches(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
+	defer cancel()
+	released := 200
+	harness := newPostgresControllerReviewHarness(t, ctx, 0, released)
+	harness.releaseChildRuns(t, ctx, released)
+	runIDs := harness.boundChildRuns(t, ctx, "")
+	if len(runIDs) != released {
+		t.Fatalf("released child Runs = %d, want %d", len(runIDs), released)
+	}
+	harness.ownerMutation(t, ctx, "delete")
+	recorder := harness.drainRecorder(t, ctx, "deletion-controller", maxDrainMutationsPerStep)
+	settled := profileDrain(t, recorder.until(func() bool {
+		return harness.auditState(t, ctx) == auditstore.AuditDeleting
+	}))
+	if settled.passes[runDeletionStatement] != 0 {
+		t.Fatalf("settlement passes = %v, want no deletion before the Audit is deleting", settled.passes)
+	}
+
+	deleted := profileDrain(t, recorder.untilIdle())
+	deletions := batchSizes(released, maxDrainMutationsPerStep)
+	requireBatches(t, deleted, runDeletionStatement, deletions)
+	if deleted.passes[purgeStatement] < 1 || len(deleted.passes) != 2 ||
+		deleted.snapshots != len(deletions)+deleted.passes[purgeStatement] {
+		t.Fatalf("deletion passes = %v with %d snapshots, want %d deletion passes and the purge",
+			deleted.passes, deleted.snapshots, len(deletions))
+	}
+	if state := harness.auditState(t, ctx); state != "" {
+		t.Fatalf("deleted Audit is %q", state)
+	}
+	for _, runID := range runIDs {
+		if _, err := harness.runs.GetRun(ctx, runID); !errors.Is(err, runstore.ErrNotFound) {
+			t.Fatalf("deleted child Run %s lookup = %v", runID, err)
+		}
+	}
+	// These Runs are alike, so every full batch costs the same; a Run with
+	// more binding revisions adds purge batches (LIM-DEL-2), up to LIM-ART-6.
+	full := deleted.statements[runDeletionStatement][maxDrainMutationsPerStep]
+	for _, statements := range full {
+		if statements != full[0] {
+			t.Fatalf("full deletion batches of alike Runs issued %v statements, want one count", full)
+		}
+	}
+	t.Logf("%d released Runs: %d deletion passes instead of %d one per pass, %d purge passes; "+
+		"a full batch of alike Runs issues %d statements",
+		released, len(deletions), released, deleted.passes[purgeStatement], full[0])
+}
 
 // observationHookStore runs hook once, after the batch committed a number of
 // terminal observations, while the Controller still reconciles.
@@ -715,7 +846,7 @@ func TestPostgresControllerDrainBatchStopsAtALostClaim(t *testing.T) {
 	defer cancel()
 	children := 12
 	harness := newPostgresControllerReviewHarness(t, ctx, 0, children)
-	runIDs := harness.submitChildren(t, ctx, children)
+	runIDs := harness.submitChildren(t, ctx, children, 0)
 	harness.finishRuns(t, ctx, runIDs, runstore.RunPending, runstore.RunFailed)
 
 	first := harness.collectingController(t, harness.pool, "first-holder", 1)
@@ -803,7 +934,7 @@ func TestPostgresControllerDrainBatchKeepsRevisionFencedWorkForAFreshSnapshot(t 
 	defer cancel()
 	children := 12
 	harness := newPostgresControllerReviewHarness(t, ctx, 0, children)
-	runIDs := harness.submitChildren(t, ctx, children)
+	runIDs := harness.submitChildren(t, ctx, children, 0)
 	cancelled := harness.ownerMutation(t, ctx, "cancel")
 
 	controller := harness.collectingController(t, harness.pool, "revision-controller", 1)
@@ -902,7 +1033,7 @@ func (h *postgresControllerHarness) startSecondAudit(
 }
 
 // TestPostgresControllerSecondAuditProgressesBesideALargeDrain claims two
-// Audits per pass: one with forty terminal children to observe and collect,
+// Audits per pass: one with both lane windows of terminal children to observe,
 // one that still has to start its checks. Every pass gives each claimed
 // Audit its turn, and the draining Audit's turn never exceeds the fixed
 // bound of observations, so the other Audit activates its Round and submits
@@ -910,9 +1041,9 @@ func (h *postgresControllerHarness) startSecondAudit(
 func TestPostgresControllerSecondAuditProgressesBesideALargeDrain(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	children := 40
+	children := 2 * drainWindow
 	harness := newPostgresControllerReviewHarness(t, ctx, 0, children)
-	runIDs := harness.submitChildren(t, ctx, children)
+	runIDs := harness.submitChildren(t, ctx, drainWindow, drainWindow)
 	harness.finishRuns(t, ctx, runIDs, runstore.RunPending, runstore.RunFailed)
 	second := harness.startSecondAudit(t, ctx, "audit-controller-second", 2)
 	controller := harness.collectingController(t, harness.pool, "two-audit-controller", 2)

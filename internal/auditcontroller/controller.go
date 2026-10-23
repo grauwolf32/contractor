@@ -101,6 +101,7 @@ func (c *Controller) reconcile(
 			return false, err
 		}
 		ctx, cancel = persistencepostgres.WithCleanupBudget(ctx)
+		defer c.reportLongDeletionStep(claim, c.now())
 	} else {
 		// Ordinary work keeps sharing one budget with its snapshot read.
 		ctx, cancel = readContext, cancelRead
@@ -139,6 +140,18 @@ func (c *Controller) reconcile(
 		return result.changed, result.err
 	}
 	return c.dispatchReadyBatch(ctx, claim, snapshot)
+}
+
+// reportLongDeletionStep logs a deleting Audit's step that outlasted the
+// ordinary operation budget. Such a step deletes up to the drain bound of
+// child Runs under the cleanup budget, and the Audits claimed with it wait
+// for the pass to end; the log is how that accepted risk is detected
+// (AUX-R97).
+func (c *Controller) reportLongDeletionStep(claim auditstore.ControllerClaim, started time.Time) {
+	if elapsed := c.now().Sub(started); elapsed > c.options.OperationTimeout {
+		c.options.Logger.Warn("Audit deletion step outlasted the ordinary operation budget",
+			"audit_id", claim.AuditID, "duration", elapsed, "operation_timeout", c.options.OperationTimeout)
+	}
 }
 
 // reconcileResult distinguishes continuing a phase from stopping without a change.

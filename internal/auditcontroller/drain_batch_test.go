@@ -1,9 +1,14 @@
 package auditcontroller
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
+	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -309,5 +314,79 @@ func TestControllerDeletionBatchStopsAtABlockedRun(t *testing.T) {
 	}
 	if state := harness.store.auditSnapshot().State; state != auditstore.AuditCompleted {
 		t.Fatalf("purged fake Audit is %s", state)
+	}
+}
+
+// steppingClock is a test clock that moves only when the test advances it.
+type steppingClock struct {
+	mu  sync.Mutex
+	now time.Time
+}
+
+func (c *steppingClock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.now
+}
+
+func (c *steppingClock) After(time.Duration) <-chan time.Time { return make(chan time.Time) }
+
+func (c *steppingClock) advance(duration time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.now = c.now.Add(duration)
+}
+
+// slowDeleter takes step of the clock for every child Run deletion.
+type slowDeleter struct {
+	RunDeleter
+	clock *steppingClock
+	step  time.Duration
+}
+
+func (d *slowDeleter) DeleteReleasedTerminalRun(ctx context.Context, ownerID, runID string) error {
+	d.clock.advance(d.step)
+	return d.RunDeleter.DeleteReleasedTerminalRun(ctx, ownerID, runID)
+}
+
+// A deleting step that outlasts the ordinary operation budget is logged with
+// its Audit, so the delay it imposes on the Audits claimed with it is
+// detected; a step within the budget logs nothing.
+func TestControllerLogsADeletionStepBeyondTheOperationBudget(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		step time.Duration
+		want bool
+	}{
+		{name: "within the budget", step: 10 * time.Millisecond, want: false},
+		{name: "beyond the budget", step: 50 * time.Millisecond, want: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			children := 4
+			harness := newControllerHarness(t, children, children)
+			for _, runID := range harness.submitFakeChildren(t, children) {
+				harness.runs.finish(runID, runstore.RunCancelled)
+			}
+			harness.store.mu.Lock()
+			harness.store.audit.State = auditstore.AuditDeleting
+			harness.store.audit.Dispatch = auditstore.DispatchClosed
+			harness.store.audit.OutstandingRunCount = 0
+			harness.store.items, harness.store.executions = nil, nil
+			harness.store.mu.Unlock()
+			clock := &steppingClock{now: time.Date(2026, 10, 24, 0, 0, 0, 0, time.UTC)}
+			var logs bytes.Buffer
+			harness.controller.options.Clock = clock
+			harness.controller.options.Logger = slog.New(slog.NewTextHandler(&logs, nil))
+			harness.controller.deleter = &slowDeleter{RunDeleter: harness.runs, clock: clock, step: test.step}
+
+			if worked, err := harness.controller.RunOnce(harness.ctx); err != nil || !worked {
+				t.Fatalf("deletion pass = (%t, %v)", worked, err)
+			}
+			logged := strings.Contains(logs.String(), "Audit deletion step outlasted the ordinary operation budget")
+			if logged != test.want || (logged && !strings.Contains(logs.String(), "audit_id="+harness.store.audit.AuditID)) {
+				t.Fatalf("deletion of %d Runs taking %s each logged %q, want a warning: %t",
+					children, test.step, logs.String(), test.want)
+			}
+		})
 	}
 }
