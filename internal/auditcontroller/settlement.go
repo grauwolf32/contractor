@@ -13,11 +13,11 @@ import (
 
 func (c *Controller) settleClosedAudit(ctx context.Context, claim auditstore.ControllerClaim, snapshot auditstore.ReconcileSnapshot) (bool, error) {
 	audit := snapshot.Audit
-	if changed, err := c.failOneUnboundIntent(ctx, claim, snapshot); changed || err != nil {
+	if changed, err := c.failUnboundIntentBatch(ctx, claim, snapshot); changed || err != nil {
 		return changed, err
 	}
 	if audit.State == auditstore.AuditCancelling || audit.State == auditstore.AuditDeleting {
-		if changed, err := c.cancelOneSubmittedRun(ctx, snapshot); changed || err != nil {
+		if changed, err := c.requestCancellationBatch(ctx, snapshot); changed || err != nil {
 			return changed, err
 		}
 	}
@@ -75,20 +75,46 @@ func (c *Controller) settleClosedAudit(ctx context.Context, claim auditstore.Con
 		})
 		return err == nil, err
 	case auditstore.AuditDeleting:
-		runID, found, err := c.store.NextLiveRunForDeletion(ctx, claim)
-		if err != nil {
-			return false, err
-		}
-		if found {
-			err = c.deleter.DeleteReleasedTerminalRun(ctx, audit.OwnerID, runID)
-			var blocked *rundeletion.NotDeletableError
-			if errors.As(err, &blocked) || errors.Is(err, runstore.ErrNotFound) {
-				return false, nil
-			}
-			return err == nil, err
+		deleted, drained, err := c.deleteReleasedRunBatch(ctx, claim, audit.OwnerID)
+		if deleted || !drained || err != nil {
+			return deleted, err
 		}
 		err = c.store.PurgeClaimed(ctx, claim, auditdomain.ArtifactNamespace(audit.AuditID))
 		return err == nil, err
 	}
 	return false, nil
+}
+
+// deleteReleasedRunBatch deletes up to the batch bound of the deleting
+// Audit's remaining child Runs, each in its own atomic deletion. Every
+// candidate comes from a fresh claim-proven read, so a lost claim ends the
+// batch before the next deletion. A Run that is not deletable yet, or that
+// vanished, ends the batch; it is not progress. drained reports that the
+// batch proved no child Run is left, so this step may purge: a step that
+// deleted a Run leaves the purge, a separate barrier, to the next step.
+func (c *Controller) deleteReleasedRunBatch(
+	ctx context.Context, claim auditstore.ControllerClaim, ownerID string,
+) (bool, bool, error) {
+	batch := c.newDrainBatch()
+	for batch.open(ctx) {
+		runID, found, err := c.store.NextLiveRunForDeletion(ctx, claim)
+		if err != nil {
+			deleted, err := batch.stop(ctx, err)
+			return deleted, false, err
+		}
+		if !found {
+			return batch.committed > 0, true, nil
+		}
+		err = c.deleter.DeleteReleasedTerminalRun(ctx, ownerID, runID)
+		var blocked *rundeletion.NotDeletableError
+		if errors.As(err, &blocked) || errors.Is(err, runstore.ErrNotFound) {
+			break
+		}
+		if err != nil {
+			deleted, err := batch.stop(ctx, err)
+			return deleted, false, err
+		}
+		batch.commit()
+	}
+	return batch.committed > 0, false, nil
 }
