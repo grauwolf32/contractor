@@ -525,9 +525,9 @@ identifies the artifact-preview work on main:
   rulepacks and exact authorized input forks.
 - [V406-004](../../tasks/done/v406-004-durable-scope-sweeps.yml): durable bounded
   server sweep and recovery/cancellation/purge.
-- [V406-005](../../tasks/v406-005-web-scan-settings-ui.yml): single-scan form
+- [V406-005](../../tasks/done/v406-005-web-scan-settings-ui.yml): single-scan form
   and owner rulepack selection/upload.
-- [V406-006](../../tasks/v406-006-scope-sweep-ui-cli.yml): sweep UI (later UI step).
+- [V406-006](../../tasks/done/v406-006-scope-sweep-ui-cli.yml): sweep UI (completed).
 - [V406-007](../../tasks/v406-007-web-scan-release-gate.yml): milestone exit
   and complete process/browser/release evidence.
 
@@ -539,4 +539,10 @@ the owning specification registries acquire them with each implementation.
 
 The core-first implementation keeps UI/Studio work separate: CLI access to the
 durable server resource is tracked by [V406-009](../../tasks/done/v406-009-durable-sweep-cli.yml),
-which depends only on the completed server sweep. The UI tasks remain planned.
+which depends only on the completed server sweep. The basic scan and sweep UI
+is implemented; the final milestone gate remains pending.
+
+Workflow-specific UI controls are bundled widgets, reused by single scans and
+sweeps. The follow-up [V406-010](../../tasks/done/v406-010-scanner-widget-boundaries.yml)
+isolates the existing scanner report and Audit input views behind the same
+explicit widget ownership rules, without new Studio capabilities.

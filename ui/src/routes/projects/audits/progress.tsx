@@ -1,6 +1,7 @@
 import type { UseQueryResult } from "@tanstack/react-query";
 import { Link, type To } from "react-router";
 
+import { auditScanWidget } from "../../../widgets/audit-scans/registry";
 import type { Audit, AuditWorkspace } from "../../../api/audits";
 import { itemNoun, type ItemKind } from "../../../app/vocabulary";
 import {
@@ -149,13 +150,13 @@ export function CheckProgress({
   const done = source?.completedChecks ?? entries.filter(isConcluded).length;
   const noun = itemNoun(kind, total);
   const pluralNoun = itemNoun(kind, 2);
-  const completedScans = entries.filter((entry) =>
-    entry.row.coverage.completed.includes(
-      entry.row.details?.scan?.scanner === "nuclei"
-        ? "nuclei-url-template-scan"
-        : "sqlmap-request-scan",
-    ),
-  ).length;
+  const completedScans = entries.filter((entry) => {
+    const widget = auditScanWidget(entry.row.details?.scan?.scanner);
+    return (
+      widget !== undefined &&
+      entry.row.coverage.completed.includes(widget.coverageKind)
+    );
+  }).length;
   const headline =
     audit.state === "draft"
       ? "Not started"

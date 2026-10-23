@@ -10,6 +10,7 @@ import type {
   AuditItem,
   AuditWorkspace,
 } from "../../../api/audits";
+import { auditScanWidget } from "../../../widgets/audit-scans/registry";
 import type { StatusTone } from "../../../app/status-tone";
 import {
   checkItemKind,
@@ -59,13 +60,11 @@ function itemStatus(
   item: Pick<AuditItem, "state"> | undefined,
 ): ItemStatus {
   const status = row.coverage.status;
-  const scanner = row.details?.scan?.scanner;
+  const widget = auditScanWidget(row.details?.scan?.scanner);
   if (
-    scanner !== undefined &&
+    widget !== undefined &&
     status === "inconclusive" &&
-    row.coverage.completed.includes(
-      scanner === "nuclei" ? "nuclei-url-template-scan" : "sqlmap-request-scan",
-    )
+    row.coverage.completed.includes(widget.coverageKind)
   )
     return {
       label: "Scan completed",
