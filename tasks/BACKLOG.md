@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-68 open tasks: 5 in progress, 38 pending, 25 deferred. 973 finished: 970 completed, 3 archived.
+67 open tasks: 4 in progress, 38 pending, 25 deferred. 974 finished: 971 completed, 3 archived.
 
 ## In progress
 
@@ -15,7 +15,6 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
-| [V404-001](v404-001-eval-stage-metrics-retention.yml) | evals | defect | P2 | Keep the StageMetrics of Eval member Runs while the member exists |
 
 ## Pending
 
@@ -172,7 +171,7 @@ tasks in `introduced_by`.
 | Workflow catalog and document workflows (`workflows`) | 3 | 14 | 13 | 12 | 12 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 30 | 33 | 5 | 36 |
 | Audits (`audits`) | 17 | 51 | 70 | 17 | 83 |
-| Evaluations (`evals`) | 3 | 21 | 32 | 5 | 35 |
+| Evaluations (`evals`) | 2 | 21 | 32 | 5 | 35 |
 | Podman sandbox (`sandbox`) | 0 | 9 | 2 | 1 | 3 |
 | Web UI (`ui`) | 0 | 22 | 56 | 12 | 50 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 14 | 33 | 5 | 10 |

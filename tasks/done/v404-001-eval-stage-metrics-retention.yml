@@ -6,7 +6,8 @@ epic: evals
 kind: defect
 introduced_by: V38-006
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: "6128e6dc6e88b40ab7b22191aace83cdfa260582"
 depends_on: []
 languages: [go, sql, markdown]
 goal: "Telemetry retention never removes StageMetrics that an existing Eval member reads, so a finished experiment keeps its results, assessments and observed usage after LIM-OBS-8, and a late external result is checked against the same observation."
@@ -71,3 +72,30 @@ tests:
     covers: [A1, A2, A3, A4]
   - command: make lint
     covers: [A1, A2, A3, A4]
+verification:
+  date: "2026-10-23"
+  revision: "6128e6dc6e88b40ab7b22191aace83cdfa260582"
+  environment: >-
+    Branch fix/telemetry-retention on macOS arm64 with Go 1.26.9 and
+    disposable PostgreSQL 17.11 (CONTRACTOR_TEST_DATABASE_URL set).
+    First verified, mutations included, as V403-001 at
+    9e7624347cdc915cf1b2187b9763bd699fcd11bd. After the branch was rebased
+    onto main 99964a6c and renumbered V404-001 with migration 000029, the
+    task commands passed again.
+  reproduction: >-
+    Before the fix, TestSharedPostgresEvalKeepsMemberStageMetricsPastTelemetryRetention
+    failed at the retention check: cleanup deleted all 8 member metric rows.
+    With that check relaxed, the coordinator saved 32 records instead of 16,
+    republished the view (projection revision 40 to 56) and every member's
+    recomputed usage became unavailable.
+  task_commands:
+    - "go test -count=1 ./internal/evalservice ./internal/telemetry ./internal/persistence/postgres passed (A1-A4)."
+    - "make test-go passed (94 packages ok), including internal/evalservice, internal/evalstore, internal/telemetry and internal/persistence/postgres against PostgreSQL."
+    - "make test-postgres passed."
+    - "make lint passed."
+  mutations:
+    - "contractor_eval_run_members without the Audit child branch failed A2."
+    - "The projection trigger on every UPDATE failed A1 (projection revision changed)."
+    - "The projection trigger without UPDATE failed the content-change check."
+    - "A renewal that keeps expires_at failed A1 and A4."
+    - "Nothing retained failed A1; everything retained failed A3."
