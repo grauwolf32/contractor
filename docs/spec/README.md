@@ -17,7 +17,7 @@ Runtime Agents.
 
 | Document | Read it for |
 | --- | --- |
-| [System overview](overview.md) | Purpose, deployables, single-host topology, trust boundaries and the end-to-end path of one Run |
+| [System overview](overview.md) | Purpose, deployables, local/cloud topology, trust boundaries and the end-to-end path of one Run |
 | [Conventions](conventions.md) | What belongs in the specification, document shape, requirement IDs, registries |
 | [Glossary](glossary.md) | One definition per term, linked to the document that owns it |
 

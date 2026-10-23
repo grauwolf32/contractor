@@ -11,7 +11,7 @@ assessment with shared scope, evidence, findings, coverage and review.
 
 This document owns the system-level view of Contractor: the split of
 responsibility between Workflows, the Workflow Scheduler, Planners and Workers;
-the generic execution core; the deployables and the single-host topology; the
+the generic execution core; the deployables and local/cloud topology; the
 trust boundaries between deployables; and the end-to-end path of one
 WorkflowRun, including the Stage aborting path and the race between Run
 cancellation and success.
@@ -99,7 +99,7 @@ them:
 
 A deployment consists of the Contractor Server with its Control Plane,
 PostgreSQL, one or more single-slot Runtime Agent processes and the UI static
-service (SYS-R10 to SYS-R17). The diagram shows the single-host topology and
+service (SYS-R10 to SYS-R17). The diagram shows the single-host baseline and
 the transport rules between deployables (SYS-R15, SYS-R18, SYS-R19).
 
 ```mermaid
@@ -242,12 +242,17 @@ An AuditProfile defines how selected Workflows participate in an assessment;
 
 ### Deployment topology
 
-**SYS-R9.** The target deployment is one VM or one physical host (LIM-SYS-1).
+**SYS-R9.** The baseline deployment is one VM or one physical host (LIM-SYS-1).
+Runtime Agents may additionally execute on remote local hosts or cloud VMs,
+using the same private mTLS control, A2A and artifact transports. Their
+advertised endpoints must be reachable from the Server; placement follows
+the authenticated startup declarations in CTL-R156 through CTL-R161.
 
 **SYS-R10.** One active Server/Control Plane (LIM-SYS-2; one active Server per
 PostgreSQL database is [LIM-PER-1](platform/limits.md),
 [PER-R1](platform/persistence.md)), PostgreSQL and one or more lightweight
 Runtime Agent processes (LIM-SYS-3) may all run on, and share, that host.
+Remote Runtime processes preserve the same single-active-Server authority.
 
 **SYS-R11.** Each Runtime Agent has a single slot
 ([LIM-CTL-4](platform/limits.md), [CTL-R112](execution/control-plane.md)).
@@ -315,8 +320,8 @@ committed transition wins (FAIL-SYS-2). The per-order effects are in
 
 Registry entries owned by this document:
 
-- [LIM-SYS-1](platform/limits.md): one host, a VM or a physical host, per
-  target deployment (SYS-R9).
+- [LIM-SYS-1](platform/limits.md): one host, a VM or a physical host, for the
+  baseline deployment; remote Runtime hosts are permitted (SYS-R9).
 - [LIM-SYS-2](platform/limits.md): one active Server/Control Plane on the
   deployment host, enforced by the advisory lease of
   [PER-R2](platform/persistence.md) (SYS-R10); see also LIM-PER-1.

@@ -201,3 +201,18 @@ accepts 28 user labels, reserving four of the Run's 32 entries for provenance.
 The derived `requiredPlacementLabels` is visible in read projections. An
 offline selection waits for matching capacity. Inspect each Stage allocation's
 actual `placementLabels` through Run detail. UI uses the ordinary label editors.
+
+Cloud VMs use the same authenticated private transports as local Runtime
+hosts. Advertise control and A2A addresses reachable from the Server, and
+allow the Runtime to reach the Server's private artifact API. A loopback
+address is suitable only when both peers share a host. Keep certificate SANs
+consistent with the advertised addresses; cloud/local labels declare location
+and do not replace mTLS identity or target authorization.
+
+`make test-runtime-placement-e2e` runs real Server and Python Runtime
+processes against a disposable PostgreSQL schema. It covers parent matching,
+provider boundaries, tool capability filtering, late connection, cancellation,
+restart, retained allocation history and failed-Run resume, with a deterministic
+test-only scanner executable and no model calls. The same target runs the
+PostgreSQL Audit preparation/check/round inheritance suites. Real scanner
+behaviour remains covered by the separate scanner process gates.

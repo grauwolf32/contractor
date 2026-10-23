@@ -732,7 +732,7 @@ its owning requirement.
 | `LIM-SKL-24` | 256 MiB stored package bytes | Complete skill union of one Run | Server before scheduling | [SKL-R77](../tools/skills.md) |
 | `LIM-SKL-25` | 512 MiB decompressed bytes | Complete skill union of one Run | Server before scheduling | [SKL-R77](../tools/skills.md) |
 | `LIM-SKL-26` | 16 MiB per allocation lifetime | Disclosure budget shared by `list_skills`, `load_skill` and `load_skill_resource` | Runtime-owned ADK callback before native dispatch | [SKL-R98](../tools/skills.md) |
-| `LIM-SYS-1` | 1 host (one VM or one physical host) per target deployment | target deployment | not specified (deployment topology) | [SYS-R9](../overview.md) |
+| `LIM-SYS-1` | 1 host (one VM or one physical host) for the baseline; additional remote local/cloud Runtime hosts are permitted | baseline deployment | not specified (deployment topology) | [SYS-R9](../overview.md) |
 | `LIM-SYS-2` | 1 active Server/Control Plane on the deployment host | Server/Control Plane instances of a deployment | session-level PostgreSQL advisory lease (PER-R2); per PostgreSQL database the bound is LIM-PER-1 | [SYS-R10](../overview.md) |
 | `LIM-SYS-3` | 1 or more Runtime Agent processes; in the single-VM baseline a second one only if concurrency is needed | Runtime Agent processes on the deployment host | not specified (deployment topology) | [overview](../overview.md) |
 | `LIM-SYS-5` | 1 process for a Runtime Agent and its Worker runtime (Worker runtime in-process) | Runtime Agent and its Worker runtime | Runtime Agent | [SYS-R12](../overview.md) |

@@ -5,7 +5,7 @@ milestone: runtime-placement-labels-2026-10
 epic: execution-core
 kind: feature
 priority: P2
-status: pending
+status: in_progress
 depends_on:
 - V405-001
 - V405-002
@@ -23,8 +23,10 @@ scope:
   in:
   - Process coverage for broad cloud, provider-specific, local and empty selection with heterogeneous
     capabilities.
+  - A test-only scanner executable supplies deterministic tool observations; this gate verifies placement and lifecycle, while the separate scanner gates verify real scanner behaviour.
   - Audit preparation/check/round propagation, capacity deferral, late Runtime connection, registration
     restart, retry/resume, cancellation and retained allocation provenance.
+  - Audit role/round inheritance uses the real PostgreSQL controller suites in the same gate; the process suite exercises ordinary Run dispatch and lifecycle with model-free Workers.
   - Release-verify graph integration and nonzero test-selection checks.
   - Fold proposal 0043 into current specifications and update operator examples and topology statements
     affected by remote Runtime deployment.
@@ -53,7 +55,7 @@ cardinality:
   maximum: 32 labels of at most 63 ASCII bytes each
   bound: Canonical sorted unique arrays, one compatible ancestor chain; no fleet IDs copied into launch
     snapshots.
-- collection: Runtime fleet and UI inventory
+- collection: Runtime fleet
   expected: A few local and cloud instances
   maximum: Existing bounded registry capacity times the per-instance label bound
   bound: Reuse registry limits and public pagination; no unbounded history scan or external lookup per

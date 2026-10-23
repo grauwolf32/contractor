@@ -610,7 +610,8 @@ execution path are specified in [Runs](../execution/runs.md) (RUN-R74,
 RUN-R76).
 
 **UI-R203.** The Audit start form offers ordinary `labels` as editable
-key/value chips with quick cloud/local additions and a visible bound, using the shared metadata grammar and
+key/value chips with quick cloud/local additions and a visible bound, using
+the shared metadata grammar and
 reserved cloud/local validation. `cloud` selects any cloud, `cloud:aws`
 selects cloud/aws, and `local:lab` selects local/lab. The UI uses this label
 field for placement and has no separate location selector or fleet-availability

@@ -1,8 +1,8 @@
 # Runtime placement labels: cloud and local
 
-Proposal 0043 · Status: **Partially implemented. Startup declarations,
-Operations observations, Run/Audit labels, inheritance, matching and UI are delivered;
-the process release gate remains planned.**
+Proposal 0043 · Status: **Implemented.** Startup declarations,
+Operations observations, Run/Audit labels, inheritance, matching, UI and the
+deterministic process release gate are delivered.
 Recorded on 2026-10-23 from the user's decisions.
 
 ## 1. Accepted direction
@@ -100,7 +100,7 @@ checks still apply to every candidate.
   another namespace. The UI explains the wait. Queue waiting does not consume
   the Stage execution budget before admission ([RUN-R28](../spec/execution/runs.md)).
 
-## 5. Existing contracts and implementation follow-up
+## 5. Contract ownership
 
 Runtime startup `placementLabels` remain a separate incarnation declaration
 from RuntimeConfig `runtimeLabels`. Launch placement is derived from the
@@ -124,7 +124,10 @@ incompatible-chain rejection are defined by CTL-R156. Run and Audit requests
 use `labels`; read/repeat projections expose the derived requirement. Apply
 matching at candidate construction, final reservation and model-capacity
 holds, retain actual allocation labels, and verify lifecycle guarantees on
-real stores and processes. Owning specifications record the implemented rules.
+real stores and processes. Current guarantees belong to CTL-R156–161,
+RUN-R107–109, AUD-R229–232, UI-R203 and SYS-R9 in their owning specifications.
+`make test-runtime-placement-e2e` is included in the release process selections;
+the graph guard rejects a missing or empty test selection.
 
 ## 6. Implementation tasks
 

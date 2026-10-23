@@ -523,7 +523,7 @@ and advance the revision by one. A missing or invalid singleton is a storage inv
 failure, not an invitation to guess a default at runtime
 (LIFE-OPS-5).
 
-Rationale: the upper bound of 32 is a deliberately finite single-host bound,
+Rationale: the upper bound of 32 is a deliberately finite Server admission bound,
 not an estimate derived from the current number of agents. Raising it requires
 an explicit contract and a load and recovery gate rather than an unbounded
 integer accepted by old Servers.

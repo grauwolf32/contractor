@@ -112,6 +112,19 @@ for (const theme of ["light", "dark", "black"] as const) {
       }),
     ).toBeVisible();
     await expect(start).toBeDisabled();
+    await page
+      .getByRole("button", { name: "Remove label 3", exact: true })
+      .click();
+    await expect(start).toBeEnabled();
+    await page
+      .getByRole("button", { name: "+ Add label", exact: true })
+      .click();
+    await expect(page.getByLabel("Label key 3", { exact: true })).toBeFocused();
+    await expect(start).toBeDisabled();
+    await page
+      .getByRole("button", { name: "Remove label 3", exact: true })
+      .click();
+    await expect(start).toBeEnabled();
     expect(errors).toEqual([]);
   });
 }

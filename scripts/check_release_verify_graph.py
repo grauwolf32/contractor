@@ -34,6 +34,7 @@ EXPECTED_PROCESS_TESTS = {
     "TestProjectWorkspaceLifecycleAcrossProductionProcesses",
     "TestRoutingAndEscalationProductionBoundaries",
     "TestRunMetadataLabelsAcrossProcesses",
+    "TestRuntimePlacementAcrossProductionProcesses",
     "TestSchedulerConcurrencyAcrossProductionProcesses",
     "TestMemoryMVPProcesses",
     "TestTaintAnnotationsAcrossRealRuntimeProcess",
@@ -871,7 +872,8 @@ if __name__ == "__main__":
     inventory = Inventory()
     release = selections("release-verify")
     opt_in = {target: selections(target) for target in sorted({target for target, _ in OPT_IN_E2E_TESTS.values()})}
-    named = check_selected_tests_exist(release + [test for tests in opt_in.values() for test in tests], inventory)
+    focused = selections("test-runtime-placement-e2e")
+    named = check_selected_tests_exist(release + focused + [test for tests in opt_in.values() for test in tests], inventory)
     tagged = check_e2e_reachable(e2e_tagged_tests(inventory), release, opt_in, inventory)
     check_non_race_passes(race_constrained_packages(), release, inventory)
     backends = check_artifact_backend_matrix(artifact_backend_packages(), release, inventory)
@@ -879,7 +881,7 @@ if __name__ == "__main__":
     count = check_integration_graph()
     check_database_tests_fail_closed()
     print(
-        f"release graph: {len(stages)} stages in CI order, {raced} race packages, 19 process tests, "
+        f"release graph: {len(stages)} stages in CI order, {raced} race packages, {len(EXPECTED_PROCESS_TESTS)} process tests, "
         f"6 fixture tests, {named} existing -run selections, {tagged} tagged e2e tests "
         f"({len(OPT_IN_E2E_TESTS)} opt-in), {count} integration tests, {backends} packages on the "
         "filesystem blob backend, and the catalog and ERD checks covered"
