@@ -126,12 +126,45 @@ type Service struct {
 
 	lifecycleMu sync.Mutex
 	barrier     *LifecycleBarrier
-	// deleteDirty is set only when a delete's durable intent may or may not
-	// exist. A durable prepared delete fences only its own credential ID,
-	// through EncryptedProvider lookups, instead of every Run creation.
-	deleteDirty bool
-	ready       atomic.Bool
+	// uncertainDelete names the credential of a delete whose prepared intent
+	// may or may not be durable: the transaction that inserted it failed
+	// without a definite outcome. While it is set, both reference guards
+	// refuse every new reference, because the per-credential prepared-delete
+	// lookup cannot see an intent that is still committing. A durable
+	// prepared delete otherwise fences only its own credential ID, through
+	// EncryptedProvider lookups, instead of every Run creation.
+	//
+	// Only Delete records it, under lifecycleMu and the barrier's write side.
+	// settleUncertainDeleteLocked clears it once durable state proves that no
+	// prepared deletion of the credential remains, and a completed delete of
+	// that credential clears it. fenceMu serializes reconciliation with every
+	// write; a guard reads the pointer without a lock, so the clean guard does
+	// no extra work. Lock order: lifecycleMu, then the barrier, then fenceMu.
+	fenceMu         sync.Mutex
+	uncertainDelete atomic.Pointer[uncertainDelete]
+	ready           atomic.Bool
 }
+
+// uncertainDelete identifies a delete intent whose durable outcome is unknown.
+type uncertainDelete struct {
+	credentialID string
+}
+
+// deleteIntentState is what durable state says about an uncertain delete.
+type deleteIntentState int
+
+const (
+	// deleteIntentResolved: no prepared deletion of the credential remains,
+	// so the intent never became durable or its deletion has completed.
+	deleteIntentResolved deleteIntentState = iota
+	// deleteIntentPrepared: a prepared deletion of the credential is durable;
+	// the same request or recovery must complete it.
+	deleteIntentPrepared
+	// deleteIntentUnsettled: the transaction that inserted the intent, or a
+	// reference to the credential, may still hold its deletion lock, so a
+	// negative read would prove nothing.
+	deleteIntentUnsettled
+)
 
 func NewService(options ServiceOptions) (*Service, error) {
 	if options.Pool == nil || options.Gateways == nil || options.Managers == nil || options.Runs == nil {
@@ -173,17 +206,124 @@ func (s *Service) GetCredential(ctx context.Context, credentialID string) (Recor
 // WithRunCreation holds the shared side of the deletion barrier while a Run
 // revalidates credential metadata and commits its immutable snapshot. A
 // credential with a prepared delete is rejected by its metadata lookup, so
-// such a delete does not block Runs that pin other credentials.
+// such a delete does not block Runs that pin other credentials. While a
+// delete's outcome is uncertain, every reference waits for its durable
+// reconciliation.
 func (s *Service) WithRunCreation(ctx context.Context, fn func() error) error {
 	if fn == nil {
 		return ErrInvalid
 	}
 	return s.barrier.WithCredentialReferences(ctx, func() error {
-		if !s.ready.Load() || s.deleteDirty {
+		if !s.ready.Load() {
 			return ErrRecoveryRequired
+		}
+		if s.uncertainDelete.Load() != nil {
+			if err := s.reconcileForReferences(ctx); err != nil {
+				return err
+			}
 		}
 		return fn()
 	})
+}
+
+// reconcileForReferences lets a reference guard clear an uncertain delete
+// that durable state has resolved. The caller holds the barrier's shared
+// side, so no Delete can record another intent meanwhile; a concurrent guard
+// waits for the reconciliation in progress and then finds the fence cleared
+// or reconciles again. The work is one short transaction that never waits for
+// a database lock, whatever the size of the operation journal.
+func (s *Service) reconcileForReferences(ctx context.Context) error {
+	s.fenceMu.Lock()
+	defer s.fenceMu.Unlock()
+	state, err := s.settleUncertainDeleteLocked(ctx)
+	if err != nil {
+		return reconciliationFailure(ctx, err)
+	}
+	if state != deleteIntentResolved {
+		return ErrRecoveryRequired
+	}
+	return nil
+}
+
+// errReconciliationUnreadable reports a reconciliation that could not read
+// durable state. Its public outcome is the retryable credential_recovery_required.
+var errReconciliationUnreadable = fmt.Errorf(
+	"%w: the uncertain credential deletion could not be reconciled with durable state", ErrRecoveryRequired,
+)
+
+// reconciliationFailure answers a reconciliation that failed for a guard or a
+// delete. The fence stays closed either way. A live caller gets the retryable
+// credential_recovery_required of RCF-R53 rather than a storage failure; the
+// storage cause is not kept, so a timeout inside the database read cannot pass
+// for the caller's own cancellation. A cancelled or expired caller keeps its
+// context error.
+func reconciliationFailure(ctx context.Context, err error) error {
+	if ctx.Err() != nil {
+		return persistencepostgres.WrapError("reconcile uncertain LLM credential deletion", err)
+	}
+	return errReconciliationUnreadable
+}
+
+// settleUncertainDeleteLocked reconciles the uncertain delete, if any, with
+// durable state and clears it when no prepared deletion of its credential
+// remains. The caller holds fenceMu.
+//
+// The transaction that inserted the intent held the credential's deletion
+// lock from before its INSERT until it ended, so only after this transaction
+// takes that lock is a negative read proof that the intent did not commit; a
+// bare negative read could race a COMMIT still in flight. The lock is tried,
+// never awaited, so a caller does not queue behind an open transaction. The
+// read is a later statement of a READ COMMITTED transaction, so its snapshot
+// is taken after the lock and sees whatever that transaction committed.
+func (s *Service) settleUncertainDeleteLocked(ctx context.Context) (deleteIntentState, error) {
+	intent := s.uncertainDelete.Load()
+	if intent == nil {
+		return deleteIntentResolved, nil
+	}
+	state := deleteIntentUnsettled
+	err := persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{IsoLevel: pgx.ReadCommitted}, func(tx pgx.Tx) error {
+		locked, err := runtimeconfig.TryLockLLMCredentialDeletion(ctx, tx, intent.credentialID)
+		if err != nil || !locked {
+			return err
+		}
+		prepared, err := NewRepository(tx).HasPreparedDelete(ctx, intent.credentialID)
+		if err != nil {
+			return err
+		}
+		state = deleteIntentResolved
+		if prepared {
+			state = deleteIntentPrepared
+		}
+		return nil
+	})
+	if err != nil {
+		return deleteIntentUnsettled, err
+	}
+	if state == deleteIntentResolved {
+		s.uncertainDelete.Store(nil)
+	}
+	return state, nil
+}
+
+// recordUncertainDelete fences every new reference until reconciliation
+// settles a delete intent whose insert or commit outcome is unknown. Delete
+// settles any earlier intent before it prepares another, so at most one is
+// outstanding.
+func (s *Service) recordUncertainDelete(credentialID string) {
+	s.fenceMu.Lock()
+	defer s.fenceMu.Unlock()
+	s.uncertainDelete.Store(&uncertainDelete{credentialID: credentialID})
+}
+
+// resolveUncertainDelete clears the uncertain delete of credentialID after a
+// delete of that credential completed: at most one deletion of a credential
+// is prepared at a time, so none of it remains.
+func (s *Service) resolveUncertainDelete(credentialID string) {
+	s.fenceMu.Lock()
+	defer s.fenceMu.Unlock()
+	if intent := s.uncertainDelete.Load(); intent != nil && intent.credentialID == credentialID {
+		s.uncertainDelete.Store(nil)
+	}
 }
 
 // WithAllocationReferences uses the same recovery-aware shared fence as Run
@@ -194,19 +334,44 @@ func (s *Service) WithAllocationReferences(ctx context.Context, fn func() error)
 	return s.WithRunCreation(ctx, fn)
 }
 
+// Recover completes every prepared operation of the journal before it marks
+// the Service ready. An empty journal does not prove that an uncertain delete
+// of this process left no intent, because its transaction may still commit;
+// Recover settles that delete through durable reconciliation, completes an
+// intent that turns out durable, and keeps the fence while the outcome is
+// still unsettled.
 func (s *Service) Recover(ctx context.Context) error {
 	s.lifecycleMu.Lock()
 	defer s.lifecycleMu.Unlock()
 	s.ready.Store(false)
+	settledPrepared := false
 	for {
 		operations, err := s.repository.ListPreparedOperations(ctx, maximumPreparedOperationBatch)
 		if err != nil {
 			return err
 		}
 		if len(operations) == 0 {
+			s.fenceMu.Lock()
+			state, err := s.settleUncertainDeleteLocked(ctx)
+			s.fenceMu.Unlock()
+			if err != nil {
+				return persistencepostgres.WrapError("reconcile uncertain LLM credential deletion", err)
+			}
+			if state == deleteIntentPrepared {
+				// The intent committed after the journal was read; the next
+				// pass completes it. A second such answer after an empty read
+				// means the journal reads disagree, which recovery must not
+				// paper over.
+				if settledPrepared {
+					return errors.New("prepared credential deletion is missing from the operation journal")
+				}
+				settledPrepared = true
+				continue
+			}
 			s.ready.Store(true)
 			return nil
 		}
+		settledPrepared = false
 		for _, operation := range operations {
 			switch operation.Kind {
 			case OperationCreate:
@@ -345,7 +510,7 @@ func (s *Service) Delete(ctx context.Context, request DeleteRequest) (DeleteResu
 		}
 		err = s.executeDelete(ctx, *prepared, storedRequest)
 		if err == nil {
-			s.deleteDirty = false
+			s.resolveUncertainDelete(prepared.CredentialID)
 		}
 		return DeleteResult{}, err
 	}
@@ -355,11 +520,11 @@ func (s *Service) Delete(ctx context.Context, request DeleteRequest) (DeleteResu
 		if existing.RequestHash != requestHash || existing.CredentialID != request.CredentialID {
 			return DeleteResult{}, errDeleteKeyReused
 		}
-		// A completed delete operation is the credential's tombstone.
+		// A completed delete operation is the credential's tombstone. Its
+		// replay proves nothing about another delete's uncertain intent.
 		if existing.Phase != OperationCompleted {
 			return DeleteResult{}, ErrConflict
 		}
-		s.deleteDirty = false
 		return DeleteResult{Replayed: true}, nil
 	}
 	if !errors.Is(err, ErrNotFound) {
@@ -379,9 +544,22 @@ func (s *Service) Delete(ctx context.Context, request DeleteRequest) (DeleteResu
 	if err != nil {
 		return DeleteResult{}, err
 	}
+	// An earlier delete whose intent may still commit is settled before
+	// another intent is prepared: the journal read above cannot see an
+	// uncommitted intent, and at most one uncertain delete is tracked.
+	s.fenceMu.Lock()
+	earlier, err := s.settleUncertainDeleteLocked(ctx)
+	s.fenceMu.Unlock()
+	if err != nil {
+		return DeleteResult{}, reconciliationFailure(ctx, err)
+	}
+	if earlier != deleteIntentResolved {
+		return DeleteResult{}, ErrRecoveryRequired
+	}
 	// Once the prepared intent is durable, lookups of this credential fail
-	// until the operation completes. If the insert outcome is unknown, fence
-	// every new reference until a delete completes.
+	// until the operation completes. If the insert or commit outcome is
+	// unknown, fence every new reference until reconciliation proves that no
+	// prepared deletion remains or a delete of the credential completes.
 	var operation Operation
 	var storedRequest deleteOperationRequest
 	attemptedInsert := false
@@ -432,15 +610,11 @@ func (s *Service) Delete(ctx context.Context, request DeleteRequest) (DeleteResu
 	if err != nil {
 		var inUse *CredentialInUseError
 		if attemptedInsert && !errors.Is(err, ErrConflict) && !errors.Is(err, ErrInvalid) && !errors.As(err, &inUse) {
-			s.deleteDirty = true
+			s.recordUncertainDelete(request.CredentialID)
 		}
 		return DeleteResult{}, err
 	}
-	err = s.executeDelete(ctx, operation, storedRequest)
-	if err == nil {
-		s.deleteDirty = false
-	}
-	return DeleteResult{}, err
+	return DeleteResult{}, s.executeDelete(ctx, operation, storedRequest)
 }
 
 type createOperationRequest struct {

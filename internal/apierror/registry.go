@@ -308,7 +308,7 @@ var (
 	CredentialRecoveryRequired = define("credential_recovery_required", http.StatusServiceUnavailable, true,
 		"credential operation recovery is in progress",
 		"An earlier credential operation ended ambiguously, so new Run initialization and credential changes wait "+
-			"until the same request or startup recovery resolves it.",
+			"until the same request, startup recovery or a reconciliation with durable state resolves it.",
 		link("RCF-R53", runtimeCfg))
 )
 
