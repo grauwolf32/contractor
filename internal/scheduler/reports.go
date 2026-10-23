@@ -24,16 +24,34 @@ func (s *Scheduler) persistReports(
 	// A crash can resume directly in finalizing/aborting without recreating the
 	// Planner instance. Ensure its durable session still has a report record;
 	// an already persisted complete report wins over this placeholder.
-	s.persistPlannerReport(ctx, execution, nil, nil)
+	plannerRecorded := s.recordPlannerReport(ctx, execution, nil, nil)
+	allocationsListed := s.recordAllocationReports(ctx, run, workflow, execution, reservations, reports)
+	// The phase rebuilds StageMetrics once, after its last report (SCH-R51).
+	if plannerRecorded || allocationsListed {
+		s.rebuildStageMetrics(ctx, execution.StageExecutionID)
+	}
+}
+
+// recordAllocationReports records a report, or an incomplete placeholder,
+// for every durable allocation of the Stage, and reports whether the Stage
+// listed any allocation to record.
+func (s *Scheduler) recordAllocationReports(
+	ctx context.Context,
+	run runstore.WorkflowRun,
+	workflow executableWorkflow,
+	execution runstore.StageExecution,
+	reservations []controlplane.Reservation,
+	reports map[string]reporting.AllocationFinalReport,
+) bool {
 	listContext, cancelList := s.terminalOperationContext(ctx)
 	allocations, err := s.store.ListStageAllocations(listContext, execution.StageExecutionID)
 	cancelList()
 	if err != nil {
 		s.options.Logger.Warn("list allocations for reports failed", "stage_execution_id", execution.StageExecutionID)
-		return
+		return false
 	}
 	if len(allocations) == 0 {
-		return
+		return false
 	}
 	byName := make(map[string]controlplane.Reservation, len(reservations))
 	for _, reservation := range reservations {
@@ -75,9 +93,15 @@ func (s *Scheduler) persistReports(
 		}
 		secrets := s.telemetrySecrets()
 		if live && validReport {
-			resolutionContext, cancelResolution := s.terminalOperationContext(ctx)
-			secrets = s.allocationReportSecrets(resolutionContext, run, workflow, reservation)
-			cancelResolution()
+			if prepared, kept := s.preparedSecrets.lookup(execution.StageExecutionID, allocation.AllocationID); kept {
+				secrets = append(secrets, prepared...)
+			} else {
+				// Restart or eviction lost the preparation's values: resolve the
+				// pinned credentials again (SCH-R178).
+				resolutionContext, cancelResolution := s.terminalOperationContext(ctx)
+				secrets = s.allocationReportSecrets(resolutionContext, run, workflow, reservation)
+				cancelResolution()
+			}
 		}
 		operationContext, cancel := s.terminalOperationContext(ctx)
 		err := s.options.Reports.RecordAllocationReport(operationContext, telemetry.AllocationReportEnvelope{
@@ -95,17 +119,34 @@ func (s *Scheduler) persistReports(
 			)
 		}
 	}
-	s.rebuildStageMetrics(ctx, execution.StageExecutionID)
+	return true
 }
 
+// persistPlannerReport records the Planner report of a completed invocation
+// and rebuilds StageMetrics, so they show the Planner before finalizing or
+// aborting records the allocation reports.
 func (s *Scheduler) persistPlannerReport(
 	ctx context.Context,
 	execution runstore.StageExecution,
 	instance planner.Planner,
 	exportResult *telemetry.PlannerExportResult,
 ) {
+	if s.recordPlannerReport(ctx, execution, instance, exportResult) {
+		s.rebuildStageMetrics(ctx, execution.StageExecutionID)
+	}
+}
+
+// recordPlannerReport records the Planner report, or its incomplete
+// placeholder when instance provides none, and reports whether it recorded
+// one. A Stage whose Planner never started has no report to record.
+func (s *Scheduler) recordPlannerReport(
+	ctx context.Context,
+	execution runstore.StageExecution,
+	instance planner.Planner,
+	exportResult *telemetry.PlannerExportResult,
+) bool {
 	if execution.PlannerSessionID == nil || execution.PlannerInvocationID == nil {
-		return
+		return false
 	}
 	report := reporting.ExecutionReport{
 		ReportID:  "planner-missing-" + *execution.PlannerSessionID,
@@ -145,9 +186,9 @@ func (s *Scheduler) persistPlannerReport(
 			"Planner report persistence failed",
 			"stage_execution_id", execution.StageExecutionID,
 		)
-		return
+		return false
 	}
-	s.rebuildStageMetrics(ctx, execution.StageExecutionID)
+	return true
 }
 
 func applyPlannerTelemetryResult(
