@@ -53,6 +53,7 @@ func cloneHeartbeatResponse(source control.HeartbeatResponse) control.HeartbeatR
 
 func cloneReservation(source Reservation) Reservation {
 	result := source
+	result.PlacementLabels = append([]string{}, source.PlacementLabels...)
 	result.CompletionContract = contracts.CloneWorkerCompletionContract(source.CompletionContract)
 	if source.CompletionCapabilities != nil {
 		value := *source.CompletionCapabilities

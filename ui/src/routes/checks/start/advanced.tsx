@@ -1,9 +1,10 @@
 import { auditPresetPath } from "../../../api/audit-presets";
+import { AUDIT_LABEL_LIMIT } from "../../../api/audit-labels";
 import { ContextLink } from "../../../app/context-navigation";
 import { compactDigest } from "../../../app/format";
 import { Icon } from "../../../app/icon";
 import { checkItemKind, itemCount } from "../../../app/vocabulary";
-import { Facts, Field, TechnicalDetails } from "../../../ui";
+import { Facts, Field, LabelsEditor, TechnicalDetails } from "../../../ui";
 import { MODE_LABELS } from "./check-types";
 import { TextAreaField, TextField } from "./fields";
 import { SCOPE_TEXT_LIMITS } from "./request";
@@ -33,10 +34,7 @@ export function AdvancedOptions({ model }: { model: StartCheck }) {
           <Icon name="chevron-right" size={13} strokeWidth={2} />
           Advanced options
         </span>
-        <span className="ui-caption">
-          Version, limits, standards, runtime labels and more. The defaults suit
-          most checks.
-        </span>
+        <span className="ui-caption">Labels, version and check limits.</span>
       </summary>
       <div className="start-advanced-body">
         <Facts
@@ -80,6 +78,14 @@ export function AdvancedOptions({ model }: { model: StartCheck }) {
           </div>
         )}
         <div className="start-fields">
+          <LabelsEditor
+            entries={model.labels}
+            onChange={model.setLabels}
+            maximum={AUDIT_LABEL_LIMIT}
+            suggestions={["cloud", "local"]}
+            hint="cloud or local chooses where to run. Add a value for a provider or site, such as aws or lab. Labels are fixed at start and passed to every step."
+            error={model.labelError}
+          />
           {selectable ? (
             <Field label="Check type version">
               {(control) => (
@@ -122,18 +128,6 @@ export function AdvancedOptions({ model }: { model: StartCheck }) {
               hint="Optional. What you are allowed to test, saved with the check."
             />
           )}
-          <TextField
-            label="Runtime labels"
-            value={model.runtimeLabels}
-            onChange={model.setRuntimeLabels}
-            placeholder="debug, caido"
-            hint="Separate labels with commas or spaces. They choose the runtime configuration."
-            error={
-              invalidLabels.length === 0
-                ? undefined
-                : `Not a runtime label: ${invalidLabels.join(", ")}. Labels start with a lowercase letter and use a–z, 0–9, - and _.`
-            }
-          />
         </div>
         <p className="start-tight">
           <ContextLink
@@ -144,6 +138,18 @@ export function AdvancedOptions({ model }: { model: StartCheck }) {
           </ContextLink>
         </p>
         <TechnicalDetails description="For admins and debugging.">
+          <TextField
+            label="Runtime configuration labels"
+            value={model.runtimeLabels}
+            onChange={model.setRuntimeLabels}
+            placeholder="debug, caido"
+            hint="Comma-separated configuration bindings."
+            error={
+              invalidLabels.length === 0
+                ? undefined
+                : `Not a runtime label: ${invalidLabels.join(", ")}. Labels start with a lowercase letter and use a–z, 0–9, - and _.`
+            }
+          />
           <Facts
             size="sm"
             items={[

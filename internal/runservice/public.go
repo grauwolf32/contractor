@@ -164,7 +164,8 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 				}
 				stored, created, err = runs.CreateRunIdempotent(ctx, runstore.CreateRunIdempotentParams{
 					CreateRunParams: runstore.CreateRunParams{
-						RunID: runID, OwnerID: normalized.OwnerID, ProjectID: normalized.ProjectID,
+						RequiredPlacementLabels: append([]string{}, normalized.requiredPlacementLabels...),
+						RunID:                   runID, OwnerID: normalized.OwnerID, ProjectID: normalized.ProjectID,
 						WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
 						WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: workflowSnapshot,
 						Parameters: clone.Map(normalized.Parameters), MetadataLabels: normalized.MetadataLabels,
@@ -288,6 +289,10 @@ func normalizePublicCreate(params PublicCreateParams) (PublicCreateParams, error
 		return PublicCreateParams{}, err
 	}
 	params.RuntimeLabels = labels
+	params.requiredPlacementLabels, err = metadata.PlacementRequirements()
+	if err != nil {
+		return PublicCreateParams{}, fmt.Errorf("%w: invalid required placement labels: %v", ErrInvalid, err)
+	}
 	params.MetadataLabels = metadata
 	params.Parameters = clone.Map(params.Parameters)
 	params.Inputs = contracts.CloneArtifactRefs(params.Inputs)

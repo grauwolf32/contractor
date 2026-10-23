@@ -92,6 +92,7 @@ One Workflow invocation creates one WorkflowRun. A Run durably records:
 - the immutable Workflow parameters;
 - the normalized executionConfig;
 - the pinned default and Run-selected Runtime-label configurations;
+- the immutable required placement labels (RUN-R107–RUN-R109);
 - the immutable metadata labels;
 - the exact input and Agent Skill forks in its RunScope;
 - the nullable `project_id`, which is immutable membership and query
@@ -177,13 +178,14 @@ class WorkflowRunCancellation(BaseModel):
 | `executionConfig` | optional top-level object with the `planner`/`workers`/`stages` shape | Reference-only execution override | [AgentTemplates](../configuration/agent-templates.md) |
 | `Idempotency-Key` header | exactly one bounded key | Create idempotency | this document; header conventions in [Public API](../api/public-api.md) |
 
-### Two label domains
+### Label domains
 
-There are two deliberately separate label domains:
+The label domains have separate purposes:
 
 | Field | Shape | Meaning |
 | --- | --- | --- |
 | `runtimeLabels` | sorted unique array of names | Selects and pins RuntimeConfig bindings such as `debug` or `caido` under [RuntimeConfig](../configuration/runtime-config.md) |
+| `requiredPlacementLabels` | canonical ancestor chain of placement paths | Restricts assignments to matching current Runtime instances under [Control Plane](control-plane.md) |
 | `labels` | key/value string map | Immutable metadata describing one WorkflowRun |
 
 ### Run creation
@@ -248,6 +250,33 @@ Run is standalone, and Server creates no default Project for it
 ([PRJ-R1](../artifacts/projects.md)). A Project Run is created through
 `POST /v1/projects/{project_id}/runs` with the ordinary create-Run body and
 idempotency header ([PRJ-R22, PRJ-R97](../artifacts/projects.md)).
+
+### Placement requirements
+
+**RUN-R107.** Ordinary `labels` select placement through the reserved keys
+`cloud` and `local`. An empty value selects the whole namespace; a non-empty
+value appends a slash and the provider/site path: `cloud=aws` derives
+`cloud/aws`, and `local=lab` derives `local/lab`. Derived paths obey
+[CTL-R156](control-plane.md). Both keys together, wildcard syntax, malformed
+paths and oversized paths are invalid before mutation. Other label keys have
+no placement meaning. Selection needs no RuntimeConfig binding or Workflow
+field. Public create requests use `labels`; `requiredPlacementLabels` is a
+read-only projection of the derived immutable requirement.
+
+**RUN-R108.** All labels participate in the canonical public request digest;
+omission and an empty map are equivalent. Identical replay uses the keyed
+Run before mutable dependency reads. Changing a label under the same key is
+`idempotency_conflict`. Server pins the derived canonical requirement in the
+Run transaction, validates it against the labels on write and read, and retains
+both across retry, manual resume and restart. Corrupt or inconsistent stored
+values never become an unrestricted empty selection.
+
+**RUN-R109.** Create/read responses expose derived `requiredPlacementLabels`.
+The retained repeat draft copies the ordinary `labels` and the derived
+requirement; the new launch uses its editable labels. Actual allocation
+placement labels are exposed as `placementLabels` in each Stage
+runtime-configuration allocation, including released allocations. Parent purge
+removes these fields with the owning rows (LIFE-DEL-1).
 
 ### Workflow parameters
 
@@ -568,8 +597,8 @@ sequenceDiagram
 ### Metadata labels
 
 **RUN-R58.** `POST /v1/runs` accepts the metadata `labels` map
-independently of `runtimeLabels`. Labels are used only to identify, group and
-query concrete Runs.
+independently of `runtimeLabels`. Labels identify, group and query concrete
+Runs; `cloud` and `local` additionally derive placement under RUN-R107.
 
 Rationale: the first motivating use is evaluation. One eval invocation may
 create many ordinary WorkflowRuns for fixtures, cases, repeated samples and A/B
@@ -580,10 +609,10 @@ this remains an owner-facing grouping and does not alter the generic label or
 execution contract.
 
 **RUN-R59.** Runtime labels may change infrastructure
-resolution. Metadata labels never change Workflow semantics, configuration
-resolution, Scheduler eligibility, queue priority, placement, Runtime
-capabilities, authorization, budgets, tools, Skills, model selection or
-artifact access.
+resolution. Reserved `cloud`/`local` metadata labels restrict placement
+(RUN-R107). Labels grant no authorization and never change Workflow semantics,
+configuration resolution, queue priority, Runtime capabilities, budgets, tools,
+Skills, model selection or artifact access.
 
 **RUN-R60.** Omitting `labels` is equivalent to an empty map.
 Explicit `null`, an array or non-string values are invalid.
@@ -843,7 +872,7 @@ shared conventions are in the [Public API](../api/public-api.md).
 | `GET /v1/runs/{runId}/repeat-draft` | Repeat draft of a terminal Run | RUN-R97 |
 | `POST /v1/projects/{project_id}/runs` | Create a Project Run ([Projects](../artifacts/projects.md)) | RUN-R9 |
 
-Public fields owned here: `parameters`, `runtimeLabels`, `labels`,
+Public fields owned here: `parameters`, `runtimeLabels`, `requiredPlacementLabels`, `labels`,
 `RunStatus.recovery`, `RunStatus.resumeStageExecutionId`,
 `StageAttempt.runtimeConfiguration` and `AttemptDiagnostics`.
 
@@ -949,10 +978,12 @@ rules, including report envelopes and label propagation, are in
 
 ## Invariants
 
-1. `runtimeLabels` configure infrastructure; `labels` describe one Run.
+1. `runtimeLabels` configure infrastructure; `requiredPlacementLabels` select
+   Runtime locations; `labels` describe one Run.
 2. Metadata labels are immutable, owner-scoped, bounded and atomically durable
    with Run creation.
-3. Metadata labels are neither authorization claims nor Scheduler inputs.
+3. Labels grant no authorization; only the reserved cloud/local keys derive
+   placement requirements. Other labels are descriptive metadata.
 4. An eval sample is an ordinary WorkflowRun; eval adds no hidden execution
    path to Scheduler, Control Plane or Runtime.
 5. Planner and Runtime may attach labels to traces but never expose them to the

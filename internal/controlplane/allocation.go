@@ -35,10 +35,11 @@ type BindingRequirement struct {
 }
 
 type ReservationRequest struct {
-	RunID             string
-	StageExecutionID  string
-	RunMetadataLabels runlabels.RunMetadataLabels
-	Bindings          []BindingRequirement
+	RequiredPlacementLabels []string
+	RunID                   string
+	StageExecutionID        string
+	RunMetadataLabels       runlabels.RunMetadataLabels
+	Bindings                []BindingRequirement
 	// RuntimeConfig is nil only for the in-process Registry surface used
 	// by focused capacity tests. Production placement always supplies the
 	// immutable Run snapshot.
@@ -113,6 +114,7 @@ type AllocationLoss struct {
 }
 
 type Reservation struct {
+	PlacementLabels             []string
 	CompletionContract          *contracts.WorkerCompletionContract
 	CompletionCapabilities      *contracts.RuntimeCompletionCapabilities
 	Grant                       AllocationGrant

@@ -40,7 +40,8 @@ current readiness:
   [run-scoped toolset configuration](plans/2026-09-19-toolset-runtime-configuration.md) (V61),
   [Audit preparation and Workflow composition](plans/2026-09-20-audit-workflow-composition.md) (V62),
   [contextual checklist prioritization](plans/2026-09-20-audit-check-prioritization.md) (V64)
-  and [schema reduction](plans/2026-10-04-schema-reduction.md) (V365).
+  [schema reduction](plans/2026-10-04-schema-reduction.md) (V365)
+  and [schema reduction, round two](plans/2026-10-23-schema-reduction-round-2.md) (analysis, no task yet).
 - [Research](research/README.md) holds dated reviews that open or deferred
   tasks still cite.
 - [Evals experience design](evals-experience-design.md) records the selected

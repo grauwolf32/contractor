@@ -3,6 +3,7 @@ package public
 import (
 	"context"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 	"github.com/grauwolf32/contractor/internal/scanservice"
 	"github.com/grauwolf32/contractor/internal/scanstore"
 	"time"
@@ -16,10 +17,16 @@ func (*fakeScanSweeps) Create(context.Context, string, string, scanservice.Reque
 func (*fakeScanSweeps) Get(context.Context, string, string) (scanstore.Sweep, error) {
 	return fakeSweep(), nil
 }
-func (*fakeScanSweeps) List(context.Context, string, string, int) ([]scanstore.Sweep, error) {
+func (*fakeScanSweeps) List(_ context.Context, _, _ string, limit int) ([]scanstore.Sweep, error) {
+	if !pagelimit.ValidFetch(limit) {
+		return nil, scanstore.ErrInvalid
+	}
 	return []scanstore.Sweep{fakeSweep()}, nil
 }
-func (*fakeScanSweeps) Members(context.Context, string, string, int, int) ([]scanstore.Member, error) {
+func (*fakeScanSweeps) Members(_ context.Context, _, _ string, after, limit int) ([]scanstore.Member, error) {
+	if after < -1 || !pagelimit.ValidFetch(limit) {
+		return nil, scanstore.ErrInvalid
+	}
 	return []scanstore.Member{{Ordinal: 0, ProjectID: "project-one", Target: "", State: "skipped", Reason: "target_missing", Settled: true}}, nil
 }
 func (*fakeScanSweeps) Cancel(context.Context, string, string) (scanstore.Sweep, error) {

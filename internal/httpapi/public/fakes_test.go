@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -1163,6 +1164,12 @@ func (f *fakeRunStore) ListRunQueue(
 }
 
 func (f *fakeRunStore) CreateRun(_ context.Context, params runstore.CreateRunParams) (runstore.WorkflowRun, error) {
+	if contracts.ValidatePlacementLabels(params.RequiredPlacementLabels) != nil {
+		return runstore.WorkflowRun{}, runstore.ErrInvalid
+	}
+	if derived, err := params.MetadataLabels.PlacementRequirements(); err != nil || !slices.Equal(derived, params.RequiredPlacementLabels) {
+		return runstore.WorkflowRun{}, runstore.ErrInvalid
+	}
 	if _, exists := f.runs[params.RunID]; exists {
 		return runstore.WorkflowRun{}, runstore.ErrConflict
 	}
@@ -1174,8 +1181,9 @@ func (f *fakeRunStore) CreateRun(_ context.Context, params runstore.CreateRunPar
 		Parameters:     clone.Map(params.Parameters),
 		MetadataLabels: params.MetadataLabels.Clone(),
 		RuntimeLabels:  params.RuntimeConfig.ExplicitLabels(), RuntimeConfig: params.RuntimeConfig.Clone(),
-		ProjectHTTPTarget: params.ProjectHTTPTarget.Clone(),
-		State:             runstore.RunInitializing, CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		RequiredPlacementLabels: append([]string{}, params.RequiredPlacementLabels...),
+		ProjectHTTPTarget:       params.ProjectHTTPTarget.Clone(),
+		State:                   runstore.RunInitializing, CreatedAt: time.Now(), UpdatedAt: time.Now(),
 	}
 	f.runs[params.RunID] = cloneFakeWorkflowRun(run)
 	return cloneFakeWorkflowRun(run), nil
@@ -1185,6 +1193,12 @@ func (f *fakeRunStore) CreateRunIdempotent(
 	ctx context.Context,
 	params runstore.CreateRunIdempotentParams,
 ) (runstore.WorkflowRun, bool, error) {
+	if contracts.ValidatePlacementLabels(params.RequiredPlacementLabels) != nil {
+		return runstore.WorkflowRun{}, false, runstore.ErrInvalid
+	}
+	if derived, err := params.MetadataLabels.PlacementRequirements(); err != nil || !slices.Equal(derived, params.RequiredPlacementLabels) {
+		return runstore.WorkflowRun{}, false, runstore.ErrInvalid
+	}
 	key := params.OwnerID + "\x00" + params.IdempotencyKey
 	if existing, ok := f.idempotencyClaims[key]; ok {
 		if existing.digest != params.RequestDigest {
@@ -1249,6 +1263,7 @@ func cloneFakeWorkflowRun(run runstore.WorkflowRun) runstore.WorkflowRun {
 	run.ProjectHTTPTarget = run.ProjectHTTPTarget.Clone()
 	run.MetadataLabels = run.MetadataLabels.Clone()
 	run.RuntimeLabels = append([]string{}, run.RuntimeLabels...)
+	run.RequiredPlacementLabels = append([]string{}, run.RequiredPlacementLabels...)
 	run.Parameters = clone.Map(run.Parameters)
 	return run
 }

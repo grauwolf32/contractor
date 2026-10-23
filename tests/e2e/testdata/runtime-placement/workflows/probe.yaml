@@ -1,0 +1,26 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+metadata: {name: placement-probe, version: "1"}
+spec:
+  parameters:
+    target: {required: true}
+  inputs: {}
+  outputs:
+    report: {required: true, primary: true, mediaTypes: [application/json]}
+  entryStage: probe
+  stages:
+    probe:
+      objective: Verify allocation placement without a model
+      instructions: {ref: instructions/probe.md}
+      planner: passthrough@1
+      agents:
+        scanner: {template: placement-probe@1}
+      context: {artifacts: {}}
+      result:
+        artifacts:
+          report: {required: true, mediaTypes: [application/json], from: {namespace: scanner, name: report}}
+      workflowOutputs: {report: report}
+      on:
+        succeeded: {succeed: {}}
+        failed: {fail: {}}
+        interrupted: {fail: {}}

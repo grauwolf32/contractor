@@ -1,186 +1,185 @@
 # Server and Runtime review — 2026-10-23
 
-**Revision reviewed:** `39d89438` (branch `codex/run-placement-requirements`,
-same tree as `main` `cba266ed` except the nuclei scan work and the
-uncommitted V405-002 placement changes). File:line references are as of that
-revision; re-verify on current `main` before fixing.
+## Проверенная база и статус
 
-**Scope:** the Go Server (`internal/`, `cmd/`) and the Python Runtime Agent
-(`runtime/src/`). The UI was excluded at the user's request.
+Первоначальный обзор был сделан на `39d89438` с незакоммиченными изменениями
+V405-002. Повторная проверка выполнена на неизменяемом `main`
+`dc7012e8b1dc11efb1be4505f3c31a7d743a04f4`. Последующий `725b863e` добавил
+только материалы V408 и не изменил проверенный код Server/Runtime.
+Описание ниже заменяет исходные утверждения и оценки этого обзора. Номера
+B1–G15 сохранены для связи с задачами; номера строк в задачах относятся к
+проверенной базе и требуют сверки перед реализацией.
 
-**Method:** six parallel read-only reviewers by area (HTTP API and contracts;
-persistence; Scheduler, Control Plane and credentials; Audit, Eval and
-Planner domain; Runtime core; Runtime toolsets), checked against AGENTS.md
-section 3. The top findings were re-verified by hand. No Go toolchain was
-available, so Go code was read, not built. For the Runtime: `ruff check src`
-clean, `lint-imports` 5 contracts kept, `pytest` 4219 passed / 108 failed /
-6 errors / 39 skipped, the failures being macOS environment (Podman AF_UNIX,
-no `go` on PATH, Linux-only parametrizations); three `test_projectfs_*`
-failures deserve a Linux run.
+Область: Go Server (`internal/`, `cmd/`) и Python Runtime (`runtime/src/`).
+UI не проверялся; изменения публичных контрактов в будущем должны учитывать
+его потребителей. Метод: четыре независимых разбора по областям, проверка
+спецификаций, существующих тестов и production-путей, затем совместная сверка
+и локальные диагностические пробы. Это проверка утверждений, не полный
+security scan и не доказательство отсутствия других дефектов.
 
-**Outcome:** about 75 findings, no exploitable security defect found. The
-biggest classes are misclassified failure outcomes in Audit collection and
-Planner result verification, O(N²) Worker State publication, event-loop
-blocking in the openapi, Caido and audit_results toolsets, one TLS handshake
-per Server↔Runtime request, and six-fold duplication of the Idempotency-Key
-grammar.
+**V407-001…039 остаются pending. Исправлены описания, планы, границы и
+критерии приёмки; исправления кода ещё не выполнялись.**
 
-## Status (2026-10-23)
+- `defect` (15): 001, 007–010, 019, 021–024, 026, 030–032, 037.
+- `chore` (24): 002–006, 011–018, 020, 025, 027–029, 033–036, 038–039.
+  Сюда входят оптимизации без изменения контрактов, рефакторинг,
+  характеристические тесты, проектное исследование 018 и exit gate 039.
+- Изменение credential lifecycle в 018 — возможное расширение поведения,
+  а не доказанный дефект. Текущая задача готовит предложение; реализация
+  потребует отдельного принятого решения и отдельной задачи.
 
-All findings are open. Tasks V407-001 … V407-038 own them (milestone
-`server-runtime-review-2026-10`); V407-039 closes the review and must record
-here, per finding, the closing task or the decision that declined it.
+Подтверждённая лишняя работа не означает измеренный production impact.
+Критерии оптимизаций проверяют число операций, ограниченность памяти,
+сохранение поведения и отмену; они не обещают неподтверждённые миллисекунды
+или недостижимые размеры входов. Проверки PostgreSQL требуют непустой
+`CONTRACTOR_TEST_DATABASE_URL` отдельной тестовой базы: пропуск не является
+успешной проверкой.
 
-| Section | Findings | Tasks |
+## B. HTTP API и контракты
+
+| Finding | Проверенный результат и решение | Задача |
 | --- | --- | --- |
-| B HTTP API and contracts | B1–B13 | V407-004 (B4), V407-021 (B2, B3, B7, B11, B12), V407-022 (B1), V407-023 (B5, B6, B8, B9, B10, B13) |
-| C Persistence | C1–C9 | V407-028 (C1), V407-025 (C2, C5, C9), V407-024 (C3), V407-002 (C4), V407-026 (C6, C7, C8) |
-| D Scheduler, Control Plane, credentials | D1–D13 | V407-018 (D1, D13), V407-013 (D2), V407-014 (D3), V407-020 (D4, D8 sentinel, D10), V407-015 (D5, D12), V407-019 (D6, D8 classifiers), V407-016 (D7, D9), V407-017 (D11) |
-| E Audit, Eval, Planner | E1–E15 | V407-001 (E1, E3, E11), V407-008 (E2, E9), V407-006 (E4), V407-002 (E5, E6), V407-029 (E7), V407-003 (E8), V407-030 (E10, E12), V407-005 (E13, E15), V407-027 (E14) |
-| F Runtime core | F1–F10 | V407-011 (F1, F2, F4), V407-009 (F3), V407-010 (F5), V407-013 (F6), V407-034 (F7), V407-012 (F8, F9, F10) |
-| G Runtime toolsets | G1–G15 | V407-024 (G1, G13), V407-031 (G2, G9 openapi/likec4), V407-032 (G3, G8 http/caido, G9 http), V407-033 (G4, G6, G11), V407-034 (G5, G8 filesystem), V407-035 (G7), V407-037 (G8, G9 code_analysis, G10), V407-007 (G12, G15 katana), V407-036 (G14), V407-038 (G15) |
-| H Tooling | — | No task: `regexp2` is a legitimate test-only dependency; stale `.claude/worktrees` are local |
-| I Open questions | 7 | V407-039 |
+| B1 | HEAD действительно доходит до public GET handlers, включая Audit review. Ответ зависит от входа: возможен 400, а не только 200. Нужен ранний 405 после существующей auth-проверки; нельзя приписывать всем private endpoints тот же контракт. | V407-022 defect |
+| B2 | Eval допускает `a!b` и `a/b`, которые общая грамматика Idempotency-Key отвергает. Объединить правило и проверить всех потребителей общей фикстурой. | V407-021 defect |
+| B3 | Login читает 8192 bytes при объявленных 2048; часть Git body limits не объявлена. Согласовать фактический и публичный контракт, включая представление максимальных строк. | V407-021 defect |
+| B4 | Дополнительная гидратация есть для preparing/inventory Audit. GeneratedInventory защищён фазой rounds: чтение его payload из списка не подтвердилось. Нужна пакетная гидратация с сохранением всех полей ответа, не урезание list DTO. | V407-004 chore |
+| B5 | Обрыв RuntimeConfig publish body (`unexpected EOF`) превращается в 500. Классифицировать как ошибку запроса, сохранив отдельный oversized-body outcome. | V407-023 defect |
+| B6 | Project lookup выполняется до проверки query, имени артефакта, media type и preconditions. Уточнить порядок валидации без изменения auth, ownership и согласованных статусов. | V407-023 defect |
+| B7 | HTTP 415 для неверного media type предусмотрен OPS-R60. Унификация к 400 исключена; устаревшее описание реестра можно исправить. | V407-021, сохранение контракта |
+| B8 | Разные JSON helpers сами по себе не доказывают ошибку. Обязательное объединение удалено из defect scope. | V407-023, исключено |
+| B9 | Избыточные nil checks — локальный cleanup, не основание для mutation defect. Обязательная зачистка исключена. | V407-023, исключено |
+| B10 | Вложенные Git deadlines не складываются; handler дополнительно владеет socket deadline. Удаление таймаутов как «трёх одинаковых ожиданий» исключено. | V407-023, исключено |
+| B11 | UTF-8 byte bounds отличаются от OpenAPI maxLength в code points. Описать и проверить обе границы, включая многобайтный ввод. | V407-021 defect |
+| B12 | Лимит 100 у Operations предусмотрен OPS-R168. Общая замена на 200 исключена; совпадение некоторых чисел не делает все page contracts одинаковыми. | V407-021, сохранение контракта |
+| B13 | Некоторые mutation handlers буферизуют тело до проверки обязательных заголовков. Исправить конкретные пути и precedence; общий универсальный preamble не является обязательным дизайном. | V407-023 defect |
 
-The findings below describe the reviewed revision.
+## C. Persistence
 
----
+| Finding | Проверенный результат и решение | Задача |
+| --- | --- | --- |
+| C1 | Построчный persistPlan и statement-trigger на каждый INSERT подтверждены. 10 000 public members не помещаются в документ 1 MiB; native максимум 1000. Production preparation test на 1000 уже есть: расширить его счётчиками и rollback cases. | V407-028 chore |
+| C2 | Project-only lookup имеет возможность улучшить индексный доступ. Seq scan на каждом poll не измерен: сначала EXPLAIN на реалистичном наборе, затем обоснованный predicate/index. | V407-025 chore |
+| C3 | Placement SQL grammar из V405-002 отсутствует на проверенном main. Не считать дефектом main, не удалять SQL validation; проверить committed реализацию при завершении V405. | V407-024, вне текущего scope |
+| C4 | CollectionReceiptIDs делает отдельные запросы на entries; результат ограничен 256. Пакетировать с сохранением ownership и лимитов. | V407-002 chore |
+| C5 | Held-Audit credential lookup допускает оптимизацию. Нужность GIN/другого индекса подтвердить планом и размером данных, а не требованием «всегда index scan». | V407-025 chore |
+| C6 | Предложенная two-writer artifact race не воспроизведена на PostgreSQL. Не менять ClassReferenceViolation mapping без отдельного доказательства и точного constraint. | V407-026, не подтверждено / вне scope |
+| C7 | Run store возвращает неклассифицированную ссылку на отсутствующий Project. Публичный путь уже проверяет Project и возвращает 404; это store-boundary defect, не доказанный public 500. | V407-026 defect |
+| C8 | Строгая валидация Run events на чтении соответствует правилу репозитория. Не удалять её на основании immutability. | V407-026, сохранение контракта |
+| C9 | Stage triggers назначены на любой UPDATE. Сузить только несущественные обновления; старый тест отсутствия lifecycle event уже проходит, поэтому проверять реальные вызовы/определение триггера и существенные изменения. | V407-025 chore |
 
+## D. Scheduler, Control Plane, credentials и telemetry
 
-## A. Самое важное (сводный топ)
+| Finding | Проверенный результат и решение | Задача |
+| --- | --- | --- |
+| D1 | Эксклюзивный barrier удерживается через remote delete, как требует RCF-R52. Меньшая область блокировки требует доказательства безопасности всех reference writers. Подготовить сравнение вариантов, без реализации нового поведения. | V407-018 chore / proposal |
+| D2 | Control Plane создаёт Transport на вызов; A2A — на Invoke, но keep-alive отключён и при polling. Повторные TLS connections подтверждены, утечка idle connections — нет. | V407-013 chore |
+| D3 | Перекрывающиеся placement resolutions есть, но не всегда ровно 2×N. GetRun/gofmt из незакоммиченного V405 отсутствуют на базе. Повторное использование ограничить попыткой; Operations revision меняется и на heartbeat и сам по себе не обосновывает cross-poll cache. | V407-014 chore |
+| D4 | Go trimming повторяет полную сериализацию; Runtime private wire ограничен 1 MiB, поэтому 4 MiB report через него не проходит. Локальные Server producers/redaction рассматриваются отдельно. Python build_report включён в scope. | V407-020 chore |
+| D5 | Повторная материализация credentials и сборка metrics есть на normal path; после restart восстановление необходимо. Оптимизировать с сохранением redaction и recovery. | V407-015 chore |
+| D6 | deleteDirty может остаться после неоднозначного DB INSERT; Recover его не снимает. Обычная ошибка manager.Delete не воспроизводит этот путь. Перед снятием fence надо доказать завершение неоднозначной транзакции. | V407-019 defect |
+| D7 | Idle claim probes растут с числом lanes. Объединение должно сохранить независимые model/tool pools, fairness и доступную конкуренцию. | V407-016 chore |
+| D8 | Дубли нормализации resource sentinel можно объединить при сохранении semantics. Credential classifiers имеют разные роли; доказанной ошибки классификации ErrKeyUnavailable/ErrCrypto здесь нет. | V407-020 chore; classifier часть исключена из 019 |
+| D9 | Terminal release последователен и допускает head-of-line blocking на медленном вызове. Быстрый 409 не тратит 30 секунд. Проверять управление concurrency и retry/backoff, не N×timeout без условий. | V407-016 chore |
+| D10 | Operations history копируется при heartbeat; ring ограничен 255. Сократить копирование без изменения cursor overflow/snapshot semantics. | V407-020 chore |
+| D11 | Startup использует copied pool config: connect timeout 5 s и query tracer 20 s уже ограничивают ожидание. Пробы опровергли бесконечное зависание. Зафиксировать владельцев бюджетов и покрыть startup тестами; не объявлять новый SLA. | V407-017 chore |
+| D12 | История Stage читается на cancelling path без active Stage, не на каждом tick. Оптимизировать этот условный путь с сохранением завершения и cleanup. | V407-015 chore |
+| D13 | Gateway outage препятствует startup recovery только при существующей prepared operation. Recovery-before-traffic задан RCF-R72. Restricted startup — отдельный проектный вариант, не автоматически разрешённое изменение. | V407-018 chore / proposal |
 
-| # | Где | Что | Класс |
-|---|-----|-----|-------|
-| 1 | `internal/auditimport/check_results.go:240-244`, `standards.go:60-66` | Транзиентная ошибка чтения эталона (`ReadProjectExact`) при повторной попытке превращается в постоянный `finding-proposal-standard-reference-invalid` и сжигает попытку | bug, high |
-| 2 | `runtime/.../worker/state.py:236-252`, `instrumentation.py:665` (9 вызовов) | Полная публикация Worker State после каждого tool/model колбэка: `model_dump` до 1000 записей + два `deepcopy` до 4 MiB на event loop, O(N²) за инвокацию | perf, high |
-| 3 | `runtime/.../toolsets/openapi/tools.py:50-52` vs `internal/scanplan/types.go:7-10` | Лимиты Runtime (4 MiB / глубина 128) шире серверных (2 MiB / 64): документ валиден для инструмента и отвергается сервером | drift, high |
-| 4 | `runtime/.../toolsets/openapi/tools.py` | Весь парсинг/валидация/дамп YAML до 4 MiB выполняется на event loop под локом сессии, дважды | bug, high |
-| 5 | `internal/credentials/lifecycle.go:321-329` → `executeDelete` → `manager.Delete` | Эксклюзивный lifecycle-барьер удерживается через сетевой вызов LiteLLM (до 2 мин); блокирует подготовку Worker'ов, placement и создание Run'ов | bug/perf, medium |
-| 6 | `internal/controlplane/runtime_client.go:438-453`, `internal/planner/a2a/client.go:139-144` | Новый `http.Transport` с `DisableKeepAlives` на каждый запрос; A2A-опрос каждые 100 мс = ~10 mTLS-хендшейков/с на Worker | perf, medium |
-| 7 | `internal/planner/result.go:56-63`, `streamline/tools.go:437-442` | Любая ошибка `Inspect`, включая `ErrArtifactNotFound`/`ErrInvalidName`, помечается retryable; Scheduler (`stage_finalization.go:146-151`) те же ошибки считает постоянными | bug/drift, medium |
-| 8 | `internal/auditimport/scan_recovery.go`, `auditscan/result.go:82-97`, `preparation.go:23-26` | Ошибки декодирования закреплённых данных возвращаются «сырыми», контроллер повторяет их каждый тик бесконечно; Audit не падает и не завершается | bug, medium |
-| 9 | `internal/httpapi/public/audit_review_handlers.go` (6 GET) | HEAD обслуживается (полное чтение, пустое тело) вместо 405, в отличие от всех соседей | bug/contract, medium |
-| 10 | Idempotency-Key: `public/request.go:25-37`, `evaldomain/mutation.go:18-25`, ещё три regex-копии | Шесть определений; Eval уже принимает `a!b`, `a/b`, которые контракт и другие стора отвергают | drift, medium |
+## E. Audit, Eval и Planner
 
----
+| Finding | Проверенный результат и решение | Задача |
+| --- | --- | --- |
+| E1 | Ошибка standard loader при сверке уже сохранённых proposals превращается в permanent invalid. Сохранить transient class; permanent validation должна использовать существующие receipt outcomes. | V407-001 defect |
+| E2 | Missing/invalid result artifact ошибочно получает retryable. Классифицировать по причине и стабилизировать выбор ошибки; bounded attempt policy не означает бесконечный retry. | V407-008 defect |
+| E3 | Часть повреждённых pinned scan data возвращается как обычная retryable ошибка. Missing plan/report уже дают coverage gap; часть decode paths защищена раньше. ErrPermanent приводит к collection-contract-invalid receipt, не обязательно Audit failed. | V407-001 defect |
+| E4 | При подготовке inventory один OpenAPI повторно разбирается и хешируется на operation. Переиспользовать подготовленный source в batch; единичный Run caller уже обрабатывает одну operation. | V407-006 chore |
+| E5 | Дескрипторы читаются вместе с payload и retention выполняется отдельно. Реальные границы: 4096 evidence links на результат, 1024 retained links в receipt; не 16 384. | V407-002 chore |
+| E6 | ResolveAuditProposals имеет N+1, но batch ограничен 128, а proposals на Run — 4096. Счётчики и тесты должны следовать этим границам. | V407-002 chore |
+| E7 | Metadata callers читают полный FrozenPlan, GET повторяет nativeReadiness. Validate("Experiment") проверяет собранный ответ, не portable plan. Сохранить строгие read/output проверки. | V407-029 chore |
+| E8 | Один progress на snapshot подтверждён, но RunOnce сразу повторяет шаг. Fixed-budget batching полезен; завершение cancel/delete зависит от асинхронных детей и barriers, поэтому обещание ≤3 passes исключено. | V407-003 chore |
+| E9 | Passthrough может отклонить candidate, но оставить invokeFailure пустым. ExecutionReport ошибочно считает tool invocation успешным; остальной report не обязательно успешен или пуст. | V407-008 defect |
+| E10 | Preparing retry при инфраструктурной ошибке предусмотрен EVM-R90; Duplicate при наличии draft разрешён. Новый Cancel или предел числа retries — изменение продукта, исключённое из overflow defect. | V407-030, сохранение контракта |
+| E11 | Оба batch limits сейчас равны 200. Это риск будущего drift, не текущий неправильный размер. Связать/test invariant, не заявлять воспроизведённый retry loop. | V407-001, защитный invariant |
+| E12 | Overflow в usage aggregation зависит от map order; расхождение воспроизведено. P3: практический объём недостижим, но обработка границы должна быть детерминированной. | V407-030 defect |
+| E13 | auditpriority не интегрирован в production; Confidence не участвует в ranking. Это не неправильное ранжирование работающих Audits. Сохранить отложенное решение V64. | V407-005, documented non-goal |
+| E14 | Общую claim lifecycle plumbing можно выделить, но политика wake/fairness/budgets различается. Прямой time.Now сам по себе не доказывает runtime bug. | V407-027 chore |
+| E15 | Есть повторные checks/reads. Marshal fail-open не достижим через нормализацию конкретного Workflow type; transaction-local provenance read имеет самостоятельную роль и не удаляется. | V407-005 chore |
 
-## B. Server: HTTP API и контракты
+## F. Runtime core
 
-1. **HEAD на GET-маршрутах Audit review** (bug, medium). `audit_review_handlers.go:47,122,178,303,424,438`, `event_handlers.go:12` (HEAD на `/v1/events/ws` → 400). Go 1.22 `ServeMux` матчит GET-паттерн и для HEAD. Тест `TestQueryRoutesDoNotImplicitlyServeHEAD` проверяет 12 ручных путей. Фикс: один отказ HEAD в `register` (`routes.go:~205`) для всех GET, удалить ~70 `rejectHead` по хендлерам, тест по `routes()`.
-2. **Idempotency-Key шесть раз** (drift, medium). См. топ-10. Фикс: `contracts.ValidIdempotencyKey`, общая фикстура, расширить `TestPublicIdentifierGrammarsHaveOneGoDefinition`.
-3. **Лимит тела login** (drift, medium). `auth_handlers.go:22` = 8192, OpenAPI `x-max-request-body-bytes: 2048`; при 2048 пароль максимальной длины не помещается. `git_import_handlers.go:55` и `git_key_handlers.go:48` (64 KiB) лимит не декларируют. Нужен контрактный тест operationId → константа.
-4. **`listProjectAudits`/`listOwnerAudits` N+1** (perf, medium). `audit_handlers.go:245-251` → `auditDetailReadModel` на каждый элемент: ~6 запросов + чтение inventory-артефакта. Страница 200 строк ≈ 1200 запросов. Фикс: summary-проекция в списке, детали в `getAudit`; тест на 200 строк со счётчиком запросов.
-5. **RuntimeConfig publish: обрыв тела → 500** (bug, low-medium). `runtime_configuration_handlers.go:556-571` возвращает неклассифицированную ошибку; сосед `decodeJSONBounded` отвечает `invalid_request`.
-6. **`putProjectArtifact` читает Project до валидации** (low). `project_artifact_handlers.go:47-78` против `artifact_handlers.go:438`.
-7. **415 vs 400 на неверный media type** (drift, low). `scheduler_settings_handlers.go:40`, `model_selection_handlers.go:45` отдают 415, остальные 400; текст реестра `apierror/registry.go` устарел.
-8. **Три техники декодирования массивов/объектов** (simpl, low). `types_run_project.go:38-105`, `types_configuration.go:228`.
-9. **Мёртвые nil-проверки** `model_selection_handlers.go:24,55` (`requireServices` уже отвергает nil).
-10. **Git import: три одинаковых таймаута** `git_import_handlers.go:21`, `gitimport/importer.go:84`, `gitimport/client.go:214`.
-11. **Байты vs code points**: `run_handlers.go:339` (4096 байт) и `audit_artifact_handlers.go:17` против `maxLength` в OpenAPI.
-12. **Отдельный лимит страницы** `performance_handlers.go:38` (`> 100`) мимо `pagelimit`; аналогично `evaldomain.MaxPageSize`, `FindingComparisonMaximumLimit`.
-13. **Заголовки проверяются после буферизации тела** в 5 хендлерах (`run_handlers.go:242-258` и др.); общий «preamble» хелпер убрал бы ~15 копий.
+| Finding | Проверенный результат и решение | Задача |
+| --- | --- | --- |
+| F1 | Повторные полные metric dumps дают квадратичное накопление работы: 100/200 records в пробе дали 10 000/40 000 сериализаций. Уменьшить повторную работу без изменения публикации состояния. | V407-011 chore |
+| F2 | Session deepcopy существует, но immutable строки не означают повторное копирование всех payload bytes. Subtree contractor требуется WRK-R105; отсутствие найденного reader не разрешает удалить его. | V407-011, сохранение контракта |
+| F3 | Обычный Worker передаёт authored string в ADK: `{path}` вызывает ошибку до model call. Нужен literal instruction provider. Finalizer использует фиксированный безопасный текст; нового запрета фигурных скобок не нужно. | V407-009 defect |
+| F4 | TranscriptRecorder делает ненужную работу при отключённом summarizer. Ограничить её, сохранив enabled path и cleanup. | V407-011 chore |
+| F5 | Ordinary Worker не применяет effective call deadline локально; probe с истёкшим deadline сделал model calls. Audit completion path уже защищён, другие budgets существуют. | V407-010 defect |
+| F6 | Runtime private HTTPS закрывает соединения. Нужен bounded reuse с проверкой identity, lifecycle и cancellation, без новых retries неидемпотентных вызовов. | V407-013 chore |
+| F7 | Exporter скачивает прежний payload для сравнения. ArtifactReadResult не содержит digest, revision opaque. Использовать только доказанные size/media fast paths и bounded exact-revision comparison cache; неизвестные равные размеры требуют чтения. | V407-034 chore |
+| F8 | Повторные helpers не все эквивалентны: JSON fallback и UTF-8 suffix policy различаются. Объединять только эквивалентные части, сохраняя различия явно. | V407-012 chore |
+| F9 | Небольшие синхронные filesystem операции есть. Переносить с joined cancellation и сохранением ownership, не обещая измеренный выигрыш. | V407-012 chore |
+| F10 | Prepare удерживает allocation lock, но heartbeat работает независимо, а lease expiry сначала ставит fence. Общий heartbeat deadlock не доказан; сохранить эти гарантии при рефакторинге. | V407-012 chore |
 
-Крепко: auth middleware (constant-time compare, CSRF/Origin, лимитер логина), HMAC-курсоры с привязкой к фильтрам, ZIP/Git импорт (ZIP64/метод/флаги, `..`, симлинки, submodules, LFS, бомбы, redirect off), transfer-слоты.
+## G. Runtime toolsets
 
-## C. Server: хранилища и миграции
+| Finding | Проверенный результат и решение | Задача |
+| --- | --- | --- |
+| G1 | OpenAPI parser принимает 4 MiB/depth 128, Server — 2 MiB/64; различается подсчёт keys в node bound. Scanner bounds уже есть в LIM-SCN-39/41/42. Согласовать документные bounds и общие boundary fixtures, сохранив разные semantic validators. | V407-024 defect |
+| G2 | Синхронные YAML parse/serialize/validation блокируют loop. В пробе две проверки всего документа и три PathItem, не три whole-document passes. Устранить повторную работу и offload с сохранением lock ownership. | V407-031 defect |
+| G3 | Caido decode/redaction/preview выполняются inline. Adapter ограничивает весь JSON 16 MiB, raw base64 меньше 12 MiB: 32–64 MiB fake обходит настоящий вход. Re-encode проверяет canonical pad bits; эту проверку сохранить. | V407-032 defect |
+| G4 | Admission повторяет decode immutable ZIP и encode растущего набора до 64 items. Кэшировать immutable input, вынести CPU с loop, сохранив atomic collector lock и реальную стоимость output encoding. | V407-033 chore |
+| G5 | Snapshot читает content для binary classification и content-based cursor; stat-only listing нарушает WSP-R91/R69. Disk I/O уже threaded. Оптимизировать glob matching и доказанные export comparisons; 88 ms не повторно измерены. | V407-034 chore |
+| G6 | 30 findings из одного ZIP дали 30 metadata/payload reads и anchor derivations. Переиспользовать bounded immutable bytes; AST не хранить между файлами (FND-R169). Timeout anchors не означает потерю finding. | V407-033 chore |
+| G7 | Payload cache работает, но 10 страниц дали 10 полных decodes при одном download. Кэшировать decoded representation с общей memory accounting. Новый LikeC4 line_offset — отдельная capability, не исправление честно описанного long-line ограничения. | V407-035 chore |
+| G8 | HTTP/Caido TypeError превращается в retryable tool error. Code analysis TypeError становится parseErrors/incomplete; filesystem error уже retryable=false. Исправлять подтверждённые error boundaries, не объявлять все случаи одинаковыми. | V407-032 и 037 defect; filesystem часть исключена из 034 |
+| G9 | Document close уже отменяет validator и joins process cleanup до lock: полного timeout ждать не требуется. HTTP request serialization задана HTP-R75/R129. Для code analysis не доказано превышение shutdown budget. Сохранить гарантии; общий unlock переписыванием не предписывать. | V407-031/032/037, уточнение scope |
+| G10 | `.hh` объявлен C++ для graph, но отсутствует в shallow parser map; list_symbols пропускает header. Исправить с regression на настоящем reader. | V407-037 defect |
+| G11 | Repeated page canonicalization квадратична; заменить точным incremental sizing. Unsigned cursor намеренно предусмотрен FND-R137–141; common HMAC codec имеет другой контракт и не подставляется. | V407-033 chore |
+| G12 | Scanner parsing и часть prepare/cleanup I/O выполняются на loop. Offload синхронную работу с joined cancellation; async publication остаётся await. | V407-007 defect |
+| G13 | Worker summary 16 KiB уже описан LIM-AWC-2/AWC-R60; generic 64 KiB не доказывает drift. CWE equality gate уже существует. ID regex duplication — cleanup; LikeC4 уже пользуется common line window. | V407-024, неподтверждённые подпункты исключены |
+| G14 | До 128 payload reads Memory выполняются последовательно. Внутри serialized operation допустим bounded concurrency; MEM-R49 и последовательность writes сохраняются. Готового private Worker batch endpoint нет. | V407-036 chore |
+| G15 | read_openapi_document доступен custom templates и упоминается production guidance; отсутствие shipped selection не доказывает dead API. Оставить tool. Общий exception перенести для filesystem, edit_files и workspace_changes; katana existence read проверить только на реально существующем артефакте. | V407-038 chore; katana — V407-007 |
 
-1. **`evalstore/experiments.go:296-330` persistPlan** (perf, medium). До 10 000 `INSERT` по одному в транзакции под `FOR SHARE` Project и `FOR UPDATE` эксперимента; на каждую строку триггеры `contractor_eval_member_bound` и `contractor_eval_members_inserted`. Тест на реальном размере (`comparison_pages_postgres_test.go`) сидит bulk-insert'ом мимо продакшен-пути. Фикс: `INSERT … SELECT FROM unnest(...)`.
-2. **`projectlifecycle/controller_sql.go:9-24` и `controller.go:390-394`** (perf, medium). Фильтр `workflow_runs` только по `project_id`, индекса с ведущим `project_id` нет; при дренировании Project seq scan каждую секунду. Фикс: добавить `owner_id = $2` или частичный индекс.
-3. **Грамматика placement-labels дважды** (drift, medium). `migrations/000031_runtime_placement_labels.sql:3-24` (PL/pgSQL CHECK) vs `contracts/placement_labels.go:40-65`; SQL-копия не тестируется фикстурой `placement-label-cases.json`. Это ваша текущая ветка.
-4. **`pgstore/finding_collection.go:19-43` CollectionReceiptIDs** (perf, low-medium). Два запроса на finding, до 512 round trips.
-5. **`pgstore/store.go` listHeldAuditIDsByCredential** (perf, low). `baseline_snapshot ? $1` без GIN-индекса.
-6. **`artifacts/postgres_write_sql.go:37-52`** (bug, low, plausible). Гонка при смене filesystem key: FK 23503 → `ErrInvalidScope` вместо конфликта.
-7. **`runstore/store.go:165-174` insertRun** (low). Несуществующий Project → сырое `ClassReferenceViolation`, соседи маппят в `ErrNotFound`.
-8. **`runstore/run_event_store.go:469-475`** (perf, low). Повторная строгая валидация иммутабельных событий на каждое чтение страницы.
-9. **Триггеры `stage_executions`** (`000001_baseline.sql:2166-2170`) срабатывают на любой UPDATE; `000012` починил это для `workflow_runs`.
+## H. Обвязка и ограничения проверки
 
-Крепко: один классификатор SQLSTATE, `KeyedMutation`/`ControllerClaims` переиспользуются, порядок локов Run/Stage, `SKIP LOCKED` без сортировки, purge артефактов батчами.
+`regexp2` имеет test-only caller; оснований удалять его нет. Локальные
+брошенные worktrees не являются дефектом репозитория. Семейные gates могут
+пропускать повторный Go run внутри release-verify согласно существующему
+контракту; сам по себе этот механизм не является новым V407 defect.
 
-## D. Server: Scheduler, Control Plane, Credentials, Telemetry
+При повторной проверке прошли Go packages `internal/evaldomain`,
+`internal/scanplan`, выбранные Audit/Planner suites и целевые overlay probes.
+Полные public HTTP и часть Planner suites были ограничены sandbox-запретом
+localhost bind и не считаются прошедшими.
 
-1. **Lifecycle-барьер через сетевой вызов** (bug/perf, medium). `credentials/lifecycle.go:321-329` → `executeDelete` → `manager.Delete`. Spec RCF-R52 это предписывает, так что нужна правка спеки и кода: держать write-сторону только вокруг проверок и prepared-intent, дальше опираться на строковый fence (`HasPreparedDelete`).
-2. **Transport на каждый запрос** (perf, medium). `controlplane/runtime_client.go:438-453`, `planner/a2a/client.go:139-144`. Один bound Transport на RuntimeAgentID с keep-alive.
-3. **Per-poll работа для ждущего model Stage** (perf, medium-low). `controlplane/placement.go` ~95-136, 195-224: `candidateEdges` дважды со свежим кэшем, `refreshCandidatePrincipals` на каждый опрос. В незакоммиченном диффе `pinReservations` читает полный Run (со snapshot Workflow) ради сравнения `RequiredPlacementLabels`; строка `if err != nil { return err }` не отформатирована gofmt.
-4. **`telemetry/policy.go:58-70,130-145`** (perf, low-medium). Усечение отчёта: по одной записи за итерацию с полной перекодировкой ~1 MiB.
-5. **`scheduler/reports.go:60-66,195-225`** (perf, low). Повторная расшифровка всех credential'ов при завершении Stage ради списка редакции; `rebuildStageMetrics` трижды.
-6. **Sticky `deleteDirty`** (bug, low-medium). `credentials/lifecycle.go:182,435`: после одной неоднозначной вставки все Run'ы блокируются до успешного повторного Delete или рестарта; `Recover` флаг не сбрасывает.
-7. **Idle polling по числу lane'ов** `scheduler/supervisor.go:57-66,100-110`.
-8. **Дубли**: `sanitizeRuntimeResources` (`controlplane/runtime_client.go:391-406`) = `normalizeAllocationResources` (`telemetry/repository.go:141-157`); три классификатора credential-ошибок (`execution_preparation.go:444`, `placement.go:809`, `credentials/composite.go`) уже расходятся по `ErrKeyUnavailable`/`ErrCrypto`.
-9. **Серийный terminal release** `scheduler/allocation_release.go:92-118`: N застрявших Stage × 30 с.
-10. **Копия истории на каждый heartbeat** `controlplane/operations.go:415-441`.
-11. **Стартовый lease без tolerance** `app/single_active.go:216-229`: зависший PostgreSQL на старте вешает процесс.
-12. **`executeCancelling` сканирует всю историю Stage** `scheduler/run_execution.go:175-190`.
-13. **Recover при старте роняет весь Server** (accepted risk без владельца, 3.9). `app/composition_credentials.go:126`: недоступный LiteLLM → crash-loop, недоступны Audits/UI/Run'ы без managed credential.
+Runtime: core группа — 213 passed и три заблокированные сетевые fixtures
+(отдельный повтор с явным deselect: 213 passed); Worker State/metrics —
+18 passed. Toolset группы — 280 passed / 1 failed и 250 passed / 3 failed.
+Они пересекаются, поэтому числа нельзя складывать. Повторяющееся падение —
+существующий wall-clock parser-gap threshold 100 ms (наблюдались 126/204 ms).
+Ещё два падения — обращения теста к Linux `/proc/self/fd` на macOS. Они не
+скрыты и не объявлены исправлениями текущего пакета.
 
-Крепко: claim lifecycle (renewal на 1/3 lease, cleanup context, CAS release), Registry write-gate, Gateway recovery lock order, lease session, shutdown ordering, strictjson на приватной границе.
+PostgreSQL URL не был задан: integration tests, EXPLAIN и artifact two-writer
+race не выполнялись. Live models и release-verify не запускались. Число
+SQL-запросов, production latency, последствия clock skew и platform-specific
+сценарии ниже остаются предметом будущей проверки. Точные команды и результаты
+закрывающих запусков должны быть внесены в этот отчёт задачей V407-039.
 
-## E. Server: Audit / Eval / Planner
+## I. Вопросы, оставленные закрывающей проверке
 
-1. **Транзиентная ошибка → постоянная invalid** (bug, high). `auditimport/check_results.go:240-244`. Фикс: пробрасывать ошибки loader'а как есть, оборачивать в `invalidCheckResults` только результат `validateProposalStandardRefs`; тест с падением чтения на второй попытке.
-2. **`planner/result.go:56-63` retryable для детерминированных ошибок** (bug, medium). Stage с `on.interrupted: retry` переповторяет баг Worker'а до `MaxAttempts`. Код `result_artifact_unavailable` не зарегистрирован в `docs/spec/platform/errors.md`; итерация по map даёт недетерминированное имя артефакта.
-3. **Scan recovery без `ErrPermanent`** (bug, medium). `auditimport/scan_recovery.go:30-51,79-86`, `scan_retention.go:26-36`, `auditscan/result.go:82-97`, `evidence.go:63-64,112-113`, `preparation.go:23-26`. `internal/auditscan` без тестов.
-4. **`scanplan/audit_settings.go:166-202` PrepareOperation** (perf, medium). Полный парс OpenAPI + SHA-256 по 2 MiB на каждую из 1000 операций; O(ops × размер) и при подготовке Audit, и при каждом Run.
-5. **`auditimport/check_results.go:134,306-337`** (perf, medium). `ReadRunExact` с полным payload ради дескриптора; `RetainRunExact` в отдельной транзакции с `FOR UPDATE` на `audits` на каждый источник: до 16 384 чтений и транзакций за тик.
-6. **`findingintake/postgres.go:257-312` ResolveAuditProposals N+1** (perf, medium): до ~32k statements за Collect, хотя батчевые `hydrateAuditReceiptBatch` уже есть.
-7. **`evalservice/selected_views.go:61,166`, `public.go:84-136,224`, `review.go:78`** (perf, medium). Полный `FrozenPlan` (до 1 MiB) вместо `FrozenPlanMetadata`; `Get` пересчитывает Readiness и гоняет `evaldomain.Validate` на каждый GET, который UI опрашивает.
-8. **Контроллер Audit: одна мутация за проход** (perf, low-medium). `auditcontroller/controller.go:360-389,580-611`, `settlement.go:76-90`: отмена/удаление Audit с N Run'ами = N полных `GetReconcileSnapshot`.
-9. **`planner/passthrough.go:150-156`** (bug, low). При отклонении кандидата не выставляется `invokeFailure`; ExecutionReport говорит «успех» при abort.
-10. **Eval в `preparing` нельзя отменить** (lifecycle, low). `evaldomain/lifecycle.go:97-100`; неклассифицированная ошибка подготовки повторяется каждый тик без предела.
-11. **`pagelimit.MaxRows` (200) vs `MaxAuditReceiptBatchSize` (200)** — два литерала, при расхождении бесконечный retry (`auditimport/importer.go:318,369`).
-12. **Переполнение int64 в `evaldomain/usage.go:129-147`** зависит от порядка map (теоретически).
-13. **`internal/auditpriority` без продакшен-вызова** (3.7); `Confidence` парсится и игнорируется.
-14. **Дубли контроллерных циклов** `evalcoordinator/coordinator.go:112-153` vs `auditcontroller/controller.go:21-77`; `time.Now()` напрямую в `evalservice/audit_adapter.go:185`, `workflow_adapter.go:108`, `planner/passthrough.go:73,99,113`.
-15. **Мёртвый код**: `auditimport/importer.go:277-280`, `check_results.go:325-328`, `auditservice/finding_comparisons.go:277-279,593,606`; `findingintake` читает один StageExecution трижды за Submit; `runservice/audit.go:234-236` игнорирует ошибки `json.Marshal` (при сбое `nil == nil` принимает несовпадающий Workflow).
+| ID | Текущий ответ | Что требуется для закрытия |
+| --- | --- | --- |
+| Q1 | Preparing/inventory list hydration делает дополнительную работу; точное число SQL queries не измерялось. | V407-004: real-store counters на реалистичной странице, включая остальные фазы. |
+| Q2 | Локальный deadline ordinary Worker действительно отсутствует; удалённая отмена его не заменяет. | V407-010: deterministic expiry/cancellation tests и joined cleanup. |
+| Q3 | Production reader ADK subtree не найден, но WRK-R105 требует зеркало. | V407-011: сохранить контракт и проверить bounded publication; удаление не входит в scope. |
+| Q4 | Bounds отдельного Audit inventory generator не доказаны этой проверкой целиком. | V407-024/039: trace producer-to-consumer, JSON/YAML byte/depth/node cases; новый подтверждённый gap оформить отдельно, если не покрыт 024. |
+| Q5 | Document close уже отменяет validator; HTTP/Memory serialization намеренна. Shutdown bound code analysis не воспроизведён. | V407-031/032/037/039: сохранить cancellation ownership; для оставшейся гипотезы дать synchronized test либо явный disposition с условием пересмотра. |
+| Q6 | Client/DB clock skew в renewClaim остался гипотезой. | V407-039: deterministic skew/takeover test, затем defect task при подтверждении; не считать гипотезу исправленной другими chores. |
+| Q7 | Две projectfs ошибки объясняются Linux-only `/proc` на macOS; первоначальный третий случай не подтверждён как product defect. | V407-039: Linux run и раздельная классификация тестовой переносимости, flaky threshold и runtime failures. |
 
-Вопрос по текущей ветке: `runservice.CreateAudit` (`audit.go:72-86`) не выставляет `RequiredPlacementLabels` для Run'ов, созданных Audit'ом. Так задумано для V405-002?
-
-## F. Runtime: ядро
-
-1. **Публикация State на каждый колбэк** (perf, high). `worker/state.py:236-252`, `instrumentation.py:665-682`, `telemetry/metrics.py:425-450`. Фикс: публиковать метрики текущей инвокации, кэшировать проекцию с инвалидацией в `record_*`, либо coarse-кэденс.
-2. **Полный снапшот в ADK-сессию** (perf, medium). `instrumentation.py:706-714`, `runtime.py:1169-1192`. ADK 2.8.0 `InMemorySessionService` делает `deepcopy` сессии на каждый `run_async`; в shared-режиме копируются все накопленные снапшоты. Если никто не читает `session.state["contractor"]`, зеркало можно убрать.
-3. **Bare `{identifier}` в инструкции Worker'а** (bug latent, medium). `worker/runtime.py:215`, `finalizer.py:96` передают строку; summarizer (`summarizer.py:232-234`) уже использует `lambda _: text`. Ничего не валидирует фигурные скобки в `configs/instructions`.
-4. **TranscriptRecorder без summarizer'а** (perf, medium). `runtime.py:616-650`: redaction + `json.dumps` каждого события впустую.
-5. **Deadline применяется только с `completion`** (bug, low-medium). `runtime.py:621-632`: обычный Worker полагается на удалённый `CancelTask`.
-6. **Новое TLS-соединение на каждый приватный вызов** (perf, low-medium). `_https.py:120-150`, `artifacts.py:465`, `control_client.py:170` (`Connection: close`).
-7. **`projectfs/exporter.py:124-131`** скачивает старый payload до 64 MiB ради побайтового сравнения.
-8. **Дубли**: четыре exception-chain walker'а в `runtime.py:1362-1478`; `_start_span`/`_end_span` в `runtime.py` и `instrumentation.py`; `_consume_background_task` ×3; `_truncate_utf8` ×2 (уже расходятся: одна добавляет `…`).
-9. **Мелкий sync I/O на loop**: `workspace.py:57-59`, `projectfs/provider.py:118-122`, `agent_skills/runtime.py:573-583`.
-10. **`allocation/service.py:184-380` prepare() под общим локом** с обходами в `expire_control_lease`/`reconcile_drain`; стоит флаг «prepare in progress».
-
-Крепко: lifecycle аллокации (rollback, shielded cleanup, кэш терминального ответа, `_force_exit(70)`), Gateway-клиент (bounded retries, Retry-After cap, без тел провайдера), projectfs (`O_NOFOLLOW`, dir_fd, NFC), bounded HTTP-тела.
-
-## G. Runtime: тулсеты
-
-1. **openapi лимиты шире серверных** (drift, high). `openapi/tools.py:50-52` vs `scanplan/types.go:7-10`; нет записи в `docs/spec/platform/limits.md`, нет фикстуры в `api/testdata`.
-2. **openapi парсинг на loop под локом** (bug, high). Ни одного `to_thread_until_done` в `openapi/`; валидация трижды за мутацию (`_mutate`, `_serialize`, `upsert_path` ~356). Лучше всего чинить в `common/document_session.py`, likec4 унаследует.
-3. **Caido до 64 MiB на loop** (bug, medium). `caido/tools.py:471-475,606-607,944`: `_blob()` (decode + re-encode сравнение), `_CaidoRedaction.message()`, `_raw_preview()` под `self._lock`.
-4. **audit_results: re-decode пакета и сборка ZIP под локом** (perf, medium). `collector.py:306-307`, `encoding.py:59-61`, `packages.py:324-333`; тот же decode повторяется в `completion.py:122,131`, `collector.py:78-79`, `publication.py:109`. O(items²).
-5. **`ls`/`glob` читают и хэшируют все файлы** (perf, medium). `filesystem/tools.py:143,169` → `snapshot()` → `scan(contents=True)`; `glob` 88 мс на 20k путей на loop. `scan(contents=False)` уже есть.
-6. **Каждый `finding` заново качает и парсит source ZIP** (perf, medium). `security_findings/anchors.py:47-59`: 30 findings = ~240 MiB трафика и 30 парсов; есть прецедент `common/artifact_read_cache.py`.
-7. **Пагинация больших артефактов O(size) на страницу** `text_artifacts/tools.py:156-160`, `run_artifacts/tools.py:208`.
-8. **Инфраструктурные баги замаскированы под retryable tool-ошибки** (bug, medium). `http/tools.py:721-724,990-993`, `caido/tools.py:1131-1132,2359-2360`, `code_analysis/tools.py:1024-1025`, `filesystem/tools.py:321-322,331-332`: `except Exception` → retryable. Ловить конкретные семейства (`httpx.HTTPError`, `CaidoClientError`, tree-sitter), остальное отдавать `_safe_tool_response`.
-9. **Валидаторы держат лок сессии через 30-с subprocess** `openapi/tools.py` ~461-475, `likec4/tools.py:261-265`; аналогично `code_analysis/tools.py:309-340` (до 120 с), `_HTTPSession.request` (до 120 с). Если намеренно, зафиксировать как accepted risk.
-10. **`.hh` не парсится** (bug, low). `code_analysis/languages.py:92` vs `EXTENSION_LANGUAGES :51-86`.
-11. **`list_findings` O(page²) канонизация** `security_findings/reader.py:243-247`; свой cursor-кодек вместо `common/cursors.py`.
-12. **Разбор вывода сканеров на loop** `scan/tools.py:124`, `ffuf.py:100-155`, `katana.py:80-226`.
-13. **Дубли грамматик**: идентификатор `^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$` в 4 файлах + Go; `MAX_SUMMARY_BYTES` 16 KiB vs Go 64 KiB; line-window в `text_artifacts`, `likec4` и `common/line_window.py`.
-14. **memory `_load_all`: 1 + N последовательных чтений** `memory/tools.py:211-237`.
-15. **Мёртвое**: `read_openapi_document` не выбран ни одним манифестом; цепочка `edit_files → filesystem` ради одного класса исключения; `katana prepare` качает 128 KiB ради проверки существования.
-
-Крепко: пути (`normalize_project_path`, `O_NOFOLLOW`, ZIP-члены), SSRF/egress (проверка каждого hop'а, strip auth off-origin, argv без shell), CAS-записи, HMAC-курсоры, `_safe_tool_response` не пропускает трейсбеки, нет `assert`.
-
-## H. Обвязка (проверено лично)
-
-- `github.com/dlclark/regexp2` в `go.mod` используется только `internal/contracts/fixture_index_test.go`.
-- В `.claude/worktrees/` около десяти брошенных worktree прошлых агентов (не в git).
-- 176 make-целей в `make/*.mk`; семейные `test-*-e2e` цели в `release-verify` пропускают Go-сьюты (`RELEASE_CONSOLIDATED=1`), что AGENTS уже отмечает.
-
-## I. Открытые вопросы (нужен запуск кода или решение)
-
-- Реальное число запросов `listProjectAudits` на страницу preparing-аудитов (счётчик на PostgreSQL).
-- Достаточно ли серверного `CancelTask` по дедлайну для обычных Worker'ов, или Runtime должен сам применять `StageContentRequest.deadline` (WRK-R6).
-- Читает ли кто-то `session.state["contractor"]` из ADK.
-- Применяет ли `openapi-operations@1` генератор Audit (`auditdomain/canonical.go:73`) те же 2 MiB / глубина 64.
-- Намеренны ли долгие удержания локов валидаторами openapi/likec4 и `_CodeAnalysisSession`.
-- `renewClaim` сравнивает клиентское время с `clock_timestamp()` БД; при skew > `claimDuration/3` lane может считать claim своим после takeover.
-- Три падения `test_projectfs_*` на macOS: перепроверить на Linux.
+V407-039 закрывает только проверенные и реализованные решения. Если отдельная
+задача целиком отклонена, её архивирование с причиной и удаление соответствующей
+dependency выполняются согласованно: archived/deferred не считаются completed.
+Принятый риск получает владельца, механизм контроля и условие пересмотра.
+Редактура этого отчёта и задач не заменяет implementation commits или release gate.

@@ -6,6 +6,8 @@
  */
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
+import { auditLabels } from "../../../api/audit-labels";
+import type { LabelEntry } from "../../../ui";
 
 import type { ArtifactMetadata } from "../../../api/artifacts";
 import type {
@@ -137,6 +139,9 @@ function usesOf(profile: AuditProfile, needsLiveTarget: boolean): string[] {
 const NO_CHOICES: Readonly<Record<string, string>> = {};
 
 export interface StartCheck {
+  readonly labels: readonly LabelEntry[];
+  readonly setLabels: (value: LabelEntry[]) => void;
+  readonly labelError: string | undefined;
   readonly projectId: string;
   readonly project: Project | undefined;
   readonly href: (
@@ -218,6 +223,8 @@ export function useStartCheck(
   const [target, setTarget] = useState<string>();
   const [authorizationScope, setAuthorizationScope] = useState("");
   const [runtimeLabels, setRuntimeLabels] = useState("");
+  const [labels, setLabels] = useState<LabelEntry[]>([]);
+  const parsedAuditLabels = auditLabels(labels);
   const [timeLimit, setTimeLimit] = useState<TimeLimitState>({
     choice: DEFAULT_TIME_LIMIT,
     hours: "24",
@@ -465,6 +472,8 @@ export function useStartCheck(
     authorizationScope.trim() === ""
   )
     draftBlocker = "Describe the authorization scope.";
+  else if (parsedAuditLabels.error !== undefined)
+    draftBlocker = parsedAuditLabels.error;
   else if (parsedLabels.invalid.length > 0)
     draftBlocker = "Fix the runtime labels.";
   else if (parsedLabels.labels.length > MAX_RUNTIME_LABELS)
@@ -484,6 +493,7 @@ export function useStartCheck(
       target: effectiveTarget,
       authorizationScope,
       runtimeLabels: parsedLabels.labels,
+      labels: parsedAuditLabels.labels,
     });
   }
   // What the page's earlier attempts mean for this one.
@@ -564,6 +574,9 @@ export function useStartCheck(
     authorizationScope,
     setAuthorizationScope,
     runtimeLabels,
+    labels,
+    setLabels,
+    labelError: parsedAuditLabels.error,
     setRuntimeLabels,
     parsedLabels,
     timeLimit,

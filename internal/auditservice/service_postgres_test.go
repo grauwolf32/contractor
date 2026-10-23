@@ -8,6 +8,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -81,6 +82,7 @@ func TestAuditDraftStartReplayAndAtomicUnsupportedRollback(t *testing.T) {
 	manual := writeChecklist(t, ctx, projectArtifacts, "manual", "manual")
 
 	draftParams := CreateDraftParams{
+		Labels:  map[string]string{"cloud": "aws", "team": "appsec"},
 		AuditID: "audit-api-one", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
 		Profile:       ProfileSelector{Name: "test-checklist", Version: "1"},
 		Inputs:        map[string]contracts.ArtifactRef{"checklist": automatic.Ref},
@@ -107,6 +109,32 @@ func TestAuditDraftStartReplayAndAtomicUnsupportedRollback(t *testing.T) {
 		t.Fatalf("start = (%+v, %v)", started, err)
 	}
 	baseline, err := DecodeBaseline(started.Audit.BaselineSnapshot)
+	if err != nil || !slices.Equal(baseline.RequiredPlacementLabels, []string{"cloud/aws"}) {
+		t.Fatalf("pinned placement requirement = %v, %v", baseline.RequiredPlacementLabels, err)
+	}
+	for _, source := range []json.RawMessage{draft.InputSelection, started.Audit.BaselineSnapshot} {
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(source, &fields); err != nil {
+			t.Fatal(err)
+		}
+		for _, invalid := range []json.RawMessage{nil, json.RawMessage(`null`), json.RawMessage(`["cloud","local"]`), json.RawMessage(`["cloud/*"]`)} {
+			fields["requiredPlacementLabels"] = invalid
+			if invalid == nil {
+				delete(fields, "requiredPlacementLabels")
+			}
+			payload, err := json.Marshal(fields)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if fields["schema"] != nil && string(fields["schema"]) == `"`+DraftSelectionSchema+`"` {
+				if _, err := DecodeDraftSelection(payload); !errors.Is(err, ErrInvalid) {
+					t.Fatalf("draft accepted invalid placement %s: %v", invalid, err)
+				}
+			} else if _, err := DecodeBaseline(payload); !errors.Is(err, ErrInvalid) {
+				t.Fatalf("baseline accepted invalid placement %s: %v", invalid, err)
+			}
+		}
+	}
 	if err != nil || len(baseline.LLMCredentialIDs) != 1 || baseline.LLMCredentialIDs[0] != "development-worker" ||
 		baseline.Inventory.Worklist.Ref.Revision == nil || len(baseline.Skills) != 0 {
 		t.Fatalf("baseline = (%+v, %v)", baseline, err)

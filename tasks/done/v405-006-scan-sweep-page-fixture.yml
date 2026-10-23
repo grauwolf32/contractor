@@ -1,0 +1,33 @@
+schema_version: '1.0'
+id: V405-006
+title: Restore ScanSweep maximum-page contract coverage on PostgreSQL
+milestone: web-nuclei-rule-sweeps-2026-10
+epic: scan-tools
+kind: chore
+introduced_by: V406-004
+priority: P2
+status: completed
+depends_on: [V406-004]
+languages: [go]
+goal: The shared maximum-page gate covers both new ScanSweep lists on real PostgreSQL and their fakes enforce the repository read bound.
+context:
+  finding: "internal/httpapi/public/page_limit_postgres_test.go:160 omits listScanSweeps and listScanSweepMembers, so the integration gate fails after the current main merge. The fake lists also ignore the fetch bound."
+scope:
+  in:
+  - Add both paths to the operation-complete page fixture and use real scanstore readers.
+  - Seed 201 sweeps and 201 members in one sweep to exercise the limit+1 look-ahead at limit=200.
+  - Make both fake list methods enforce the same bound and cover them in the existing fake conformance test.
+  out:
+  - Production API, scanner execution, sweep state transitions or schema changes.
+acceptance_criteria:
+- id: A1
+  text: Both sweep list operations return a full 200-row page and a next cursor from PostgreSQL, and reject limit=201 through the public API.
+- id: A2
+  text: Both fake lists accept 201-row internal fetches and reject 202, matching real scanstore validation; the full public package and lint pass.
+tests:
+- command: go test -tags=integration ./internal/httpapi/public
+  covers: [A1, A2]
+- command: make lint
+  covers: [A1, A2]
+
+implementation_commit: 900f0791761ce479641bc088785ca8b89e6fdc27

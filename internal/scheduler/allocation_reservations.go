@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -99,7 +100,8 @@ func stagePlacementRequest(
 	requirements []controlplane.BindingRequirement,
 ) controlplane.ReservationRequest {
 	return controlplane.ReservationRequest{
-		RunID: run.RunID, StageExecutionID: execution.StageExecutionID,
+		RequiredPlacementLabels: append([]string{}, run.RequiredPlacementLabels...),
+		RunID:                   run.RunID, StageExecutionID: execution.StageExecutionID,
 		RunMetadataLabels: run.MetadataLabels.Clone(),
 		Bindings:          requirements, RuntimeConfig: &run.RuntimeConfig,
 		ModelFree: resolved.StageLaneClass(workflow.stage) == resolved.LaneClassTool,
@@ -177,6 +179,7 @@ func verifyReservations(
 		resolved := reservation.ResolvedRuntimeConfig
 		selection := workflow.stage.ExecutionConfig.Agents[grant.LogicalAgentName]
 		if resolved == nil || resolved.Validate() != nil || resolved.ModelFree != binding.Template.IsToolWorker() || resolved.ModelPolicy.Ref != selection.ModelPolicy.Ref ||
+			!contracts.PlacementLabelsMatch(run.RequiredPlacementLabels, reservation.PlacementLabels) ||
 			reservation.RuntimeAgentLabelRevision == 0 || grant.RuntimeAgentID == "" ||
 			reservation.PerformanceCollectionPolicy.ValidatePinned() != nil ||
 			(reservation.PerformanceCollectionPolicy == reporting.PerformanceCollectionRequested) !=
@@ -199,6 +202,7 @@ func verifyReservations(
 				persisted.WorkerRuntimeRef != binding.Template.Runtime ||
 				persisted.RuntimeAgentID != grant.RuntimeAgentID ||
 				persisted.RuntimeAgentLabelRevision != reservation.RuntimeAgentLabelRevision ||
+				!slices.Equal(persisted.RuntimePlacementLabels, reservation.PlacementLabels) ||
 				persisted.PerformanceCollectionPolicy != reservation.PerformanceCollectionPolicy ||
 				persisted.RuntimeConfigurationSchemaVersion != runstore.AllocationRuntimeConfigurationSchemaVersion ||
 				!samePersistedRuntimeConfiguration(persisted.RuntimeConfiguration, reservation.ResolvedRuntimeConfig)) {

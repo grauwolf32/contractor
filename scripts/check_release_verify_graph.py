@@ -37,6 +37,7 @@ EXPECTED_PROCESS_TESTS = {
     "TestProjectWorkspaceLifecycleAcrossProductionProcesses",
     "TestRoutingAndEscalationProductionBoundaries",
     "TestRunMetadataLabelsAcrossProcesses",
+    "TestRuntimePlacementAcrossProductionProcesses",
     "TestSchedulerConcurrencyAcrossProductionProcesses",
     "TestMemoryMVPProcesses",
     "TestTaintAnnotationsAcrossRealRuntimeProcess",
@@ -940,7 +941,8 @@ if __name__ == "__main__":
     family = selections("release-verify-families", "RELEASE_CONSOLIDATED=0")
     check_selected_tests_exist(family, inventory)
     check_family_coverage(family, release, inventory)
-    named = check_selected_tests_exist(release + [test for tests in opt_in.values() for test in tests], inventory)
+    focused = selections("test-runtime-placement-e2e")
+    named = check_selected_tests_exist(release + focused + [test for tests in opt_in.values() for test in tests], inventory)
     tagged = check_e2e_reachable(e2e_tagged_tests(inventory), release, opt_in, inventory)
     check_non_race_passes(race_constrained_packages(), release, inventory)
     backends = check_artifact_backend_matrix(artifact_backend_packages(), release, inventory)

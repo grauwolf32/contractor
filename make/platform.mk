@@ -5,7 +5,7 @@
 	test-runtime-configuration-matrix test-runtime-configuration-hardening \
 	test-runtime-configuration-e2e test-run-metadata-labels-matrix \
 	test-run-metadata-labels-hardening test-run-metadata-labels-e2e \
-	test-runtime-labels-e2e test-project-workspaces-matrix \
+	test-runtime-labels-e2e test-runtime-placement-e2e test-project-workspaces-matrix \
 	test-local-direct-workspace test-project-workspaces-hardening \
 	test-project-workspaces-e2e test-project-workspaces-release \
 	test-lifecycle-controls-matrix test-lifecycle-controls-hardening \
@@ -44,6 +44,13 @@ test-run-metadata-labels-e2e: require-database test-run-metadata-labels-hardenin
 
 test-runtime-labels-e2e: require-database runtime-venv
 	$(call run-family-test,go test -tags=e2e -count=1 -timeout=7m ./tests/e2e -run '^TestLabelDrivenRuntimeConfigurationAcrossProcesses$$')
+
+# The process test uses model-free Workers; the real-store companion covers
+# Audit preparation, checks, later rounds and trusted inheritance boundaries.
+test-runtime-placement-e2e: require-database runtime-venv
+	$(call run-family-test,go test -tags=e2e ./tests/e2e -list '^TestRuntimePlacementAcrossProductionProcesses$$' | grep -Fx 'TestRuntimePlacementAcrossProductionProcesses')
+	$(call run-family-test,go test -tags=e2e -count=1 -timeout=7m ./tests/e2e -run '^TestRuntimePlacementAcrossProductionProcesses$$')
+	$(call run-family-test,go test -tags=integration -count=1 ./internal/auditservice ./internal/auditcontroller ./internal/runservice ./internal/controlplane ./internal/runstore ./internal/httpapi/public)
 
 test-project-workspaces-matrix: test-hardening-matrices
 

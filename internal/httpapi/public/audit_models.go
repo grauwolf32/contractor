@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
@@ -46,8 +47,10 @@ func auditReadModel(source auditstore.Audit) (auditResponse, error) {
 		return auditResponse{}, err
 	}
 	result := auditResponse{
-		Phase:   auditdomain.AuditPhaseNotStarted,
-		AuditID: source.AuditID, ProjectID: source.ProjectID,
+		Labels:                  selection.Labels.Clone(),
+		RequiredPlacementLabels: append([]string{}, selection.RequiredPlacementLabels...),
+		Phase:                   auditdomain.AuditPhaseNotStarted,
+		AuditID:                 source.AuditID, ProjectID: source.ProjectID,
 		Profile: auditProfileIdentityResponse{
 			Name: source.Profile.Name, Version: source.Profile.Version, Digest: source.Profile.Digest,
 		},
@@ -89,8 +92,10 @@ func auditReadModel(source auditstore.Audit) (auditResponse, error) {
 			})
 		}
 		result.Baseline = &auditBaselineResponse{
-			ActiveChecks: baseline.ActiveChecks,
-			Inputs:       baseline.Inputs, Scope: baseline.Scope,
+			Labels:                  baseline.Labels.Clone(),
+			RequiredPlacementLabels: append([]string{}, baseline.RequiredPlacementLabels...),
+			ActiveChecks:            baseline.ActiveChecks,
+			Inputs:                  baseline.Inputs, Scope: baseline.Scope,
 			RuntimeLabels: baseline.RuntimeLabels,
 			RuntimeConfig: auditRuntimeSnapshotResponse{
 				Default: baseline.RuntimeConfig.Default, Labels: baseline.RuntimeConfig.Labels,
@@ -142,13 +147,18 @@ func createAuditRequestDigest(projectID string, request createAuditRequest) (str
 	if err != nil {
 		return "", nil, err
 	}
+	metadata, err := runlabels.NormalizeAuditLabels(request.Labels)
+	if err != nil {
+		return "", nil, fmt.Errorf("%w: invalid Audit labels: %v", errInvalidRequest, err)
+	}
 	canonical := struct {
+		Labels        runlabels.RunMetadataLabels      `json:"labels,omitempty"`
 		ProjectID     string                           `json:"projectId"`
 		Profile       auditProfileSelectorRequest      `json:"profile"`
 		Inputs        map[string]contracts.ArtifactRef `json:"inputs"`
 		RuntimeLabels []string                         `json:"runtimeLabels"`
 		Scope         auditservice.Scope               `json:"scope"`
-	}{projectID, request.Profile, request.Inputs, labels, request.Scope}
+	}{metadata, projectID, request.Profile, request.Inputs, labels, request.Scope}
 	digest, err := contentdigest.JSON(canonical)
 	if err != nil {
 		return "", nil, err

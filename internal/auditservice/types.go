@@ -12,6 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore/querystore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -70,10 +71,12 @@ type ProfileSelector struct {
 type Scope = auditbaseline.Scope
 
 type DraftSelection struct {
-	Schema        string                              `json:"schema"`
-	Inputs        map[string]auditstore.ExactArtifact `json:"inputs"`
-	RuntimeLabels []string                            `json:"runtimeLabels"`
-	Scope         Scope                               `json:"scope"`
+	Labels                  runlabels.RunMetadataLabels         `json:"labels"`
+	RequiredPlacementLabels []string                            `json:"requiredPlacementLabels"`
+	Schema                  string                              `json:"schema"`
+	Inputs                  map[string]auditstore.ExactArtifact `json:"inputs"`
+	RuntimeLabels           []string                            `json:"runtimeLabels"`
+	Scope                   Scope                               `json:"scope"`
 }
 
 type BaselineInventory = auditbaseline.BaselineInventory
@@ -91,6 +94,7 @@ type ProfileProjection struct {
 }
 
 type CreateDraftParams struct {
+	Labels runlabels.RunMetadataLabels
 	// PinnedProfile is trusted server-side Eval preparation, never a public field.
 	PinnedProfile         *auditprofile.ResolvedAuditProfile
 	ExpectedProfileSHA256 string

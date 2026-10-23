@@ -1776,3 +1776,53 @@
     transition-duration: 0.01ms !important;
   }
 }
+.ui-labels-editor {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.ui-labels-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.ui-labels-toolbar > .ui-caption {
+  margin-inline-end: auto;
+}
+
+.ui-labels-list {
+  display: grid;
+  gap: 8px;
+}
+
+.ui-labels-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1.3fr) auto;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--chrome);
+}
+
+.ui-labels-row:focus-within {
+  border-color: var(--focus);
+}
+
+.ui-field .ui-labels-row input {
+  min-width: 0;
+  width: 100%;
+  padding: 5px 3px;
+  border-color: transparent;
+  background: transparent;
+}
+
+.ui-labels-empty {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}

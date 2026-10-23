@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 	"strconv"
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
@@ -39,22 +40,14 @@ func (s *PostgresStore) RecordStageAllocation(ctx context.Context, allocation St
 		}
 	}
 	var insertedID string
-	err = s.db.QueryRow(ctx, `
-INSERT INTO stage_allocations (
-    allocation_id, stage_execution_id, logical_agent_name, namespace,
-    agent_template_ref, worker_runtime_ref,
-    runtime_agent_id, runtime_agent_instance_id, runtime_agent_label_revision,
-    runtime_configuration_schema_version, runtime_configuration,
-    performance_collection_policy, completion_contract
-) VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8, $9, $10, $11::jsonb, $12, $13::jsonb)
-ON CONFLICT DO NOTHING
-RETURNING allocation_id`,
+	err = s.db.QueryRow(ctx, recordStageAllocationSQL,
 		allocation.AllocationID, allocation.StageExecutionID, allocation.LogicalAgentName,
 		allocation.Namespace, templateRef, runtimeRef,
 		allocation.RuntimeAgentID, allocation.RuntimeAgentInstanceID,
 		strconv.FormatUint(allocation.RuntimeAgentLabelRevision, 10),
 		allocation.RuntimeConfigurationSchemaVersion, runtimeConfiguration,
 		allocation.PerformanceCollectionPolicy, completion,
+		append([]string{}, allocation.RuntimePlacementLabels...),
 	).Scan(&insertedID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		existing, loadErr := s.ListStageAllocations(ctx, allocation.StageExecutionID)
@@ -90,6 +83,9 @@ RETURNING allocation_id`,
 // it returns ErrInvalid for an allocation the store refuses. Test doubles of
 // RecordStageAllocation apply it too, so they reject what the store rejects.
 func (allocation StageAllocation) Validate() error {
+	if err := contracts.ValidatePlacementLabels(allocation.RuntimePlacementLabels); err != nil {
+		return invalidf("allocation placement labels are invalid: %v", err)
+	}
 	for field, value := range map[string]string{
 		"allocationID":           allocation.AllocationID,
 		"stageExecutionID":       allocation.StageExecutionID,
@@ -144,7 +140,7 @@ func (allocation StageAllocation) Validate() error {
 }
 
 func sameStageAllocation(left, right StageAllocation) bool {
-	return reflect.DeepEqual(left.CompletionContract, right.CompletionContract) && left.AllocationID == right.AllocationID &&
+	return slices.Equal(left.RuntimePlacementLabels, right.RuntimePlacementLabels) && reflect.DeepEqual(left.CompletionContract, right.CompletionContract) && left.AllocationID == right.AllocationID &&
 		left.StageExecutionID == right.StageExecutionID &&
 		left.LogicalAgentName == right.LogicalAgentName &&
 		left.Namespace == right.Namespace &&
@@ -202,16 +198,7 @@ func (s *PostgresStore) listStageAllocations(ctx context.Context, stageExecution
 	if len(stageExecutionIDs) == 0 {
 		return nil, nil
 	}
-	rows, err := s.db.Query(ctx, `
-SELECT allocation_id, stage_execution_id, logical_agent_name, namespace,
-       agent_template_ref, worker_runtime_ref,
-       runtime_agent_id, runtime_agent_instance_id, runtime_agent_label_revision::text,
-       runtime_configuration_schema_version, runtime_configuration,
-       performance_collection_policy, completion_contract, created_at,
-       release_attempted_at, release_completed_at
-FROM stage_allocations
-WHERE stage_execution_id = ANY($1::text[])
-ORDER BY stage_execution_id, logical_agent_name`, stageExecutionIDs)
+	rows, err := s.db.Query(ctx, listStageAllocationsSQL, stageExecutionIDs)
 	if err != nil {
 		return nil, fmt.Errorf("list StageExecution allocations: %w", err)
 	}
@@ -233,6 +220,7 @@ ORDER BY stage_execution_id, logical_agent_name`, stageExecutionIDs)
 			&runtimeConfigurationVersion, &runtimeConfiguration, &performanceCollectionPolicy, &completion,
 			&allocation.CreatedAt,
 			&allocation.ReleaseAttemptedAt, &allocation.ReleaseCompletedAt,
+			&allocation.RuntimePlacementLabels,
 		); err != nil {
 			return nil, fmt.Errorf("scan StageExecution allocation: %w", err)
 		}
@@ -243,6 +231,9 @@ ORDER BY stage_execution_id, logical_agent_name`, stageExecutionIDs)
 			if allocation.CompletionContract == nil || allocation.CompletionContract.Validate() != nil {
 				return nil, invalidf("invalid persisted completion contract")
 			}
+		}
+		if allocation.RuntimePlacementLabels == nil || contracts.ValidatePlacementLabels(allocation.RuntimePlacementLabels) != nil {
+			return nil, fmt.Errorf("invalid persisted allocation placement labels")
 		}
 		if err := json.Unmarshal(templateRef, &allocation.AgentTemplateRef); err != nil {
 			return nil, fmt.Errorf("decode persisted AgentTemplate ref: %w", err)

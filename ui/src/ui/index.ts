@@ -22,6 +22,7 @@ export {
   type ProgressSegment,
 } from "./status";
 export { MethodChip, Kbd, IdChip } from "./chips";
+export { LabelsEditor, type LabelEntry } from "./labels-editor";
 export {
   TechnicalDetails,
   ActivityLog,
