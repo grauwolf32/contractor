@@ -6,7 +6,8 @@ epic: projects-artifacts
 kind: defect
 introduced_by: V376-003
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: "7f34866a8601cf6a3476a9dd58f40d165c389f8c"
 depends_on: []
 languages: [go, python, typescript]
 goal: "No production source outside its one definition per side spells a reserved Artifact Namespace, and the source scans that V372-018 added cover every reserved Namespace on every side, the UI included."
@@ -72,3 +73,16 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
+verification:
+  date: "2026-10-23"
+  revision: "7f34866a8601cf6a3476a9dd58f40d165c389f8c"
+  environment: >-
+    Integration branch integration/v401-findings on macOS arm64 with Go 1.26.9,
+    Node 24.20.0, pnpm 11.24.0 and disposable PostgreSQL 17.11
+    (CONTRACTOR_TEST_DATABASE_URL set), TMPDIR left at the shell default.
+  merged_run:
+    - "make -k verify: test-go passed with no failing package, ui-verify passed (2,271 UI tests), build and test-config passed; ui-gates failed only because ui/node_modules was not installed yet, and make lint passed in full after installing it."
+    - "make test-runtime: 101 failures, all among the 102 that fail identically on main on this host (V401-007)."
+    - "make test-wire-cross-language (245 fixtures), make verify-public-api and make ui-browser-mocked (75 of 75) passed."
+  task_commands:
+    - "make test-wire-cross-language passed after the readers.json entry (245 fixtures); the Go, Runtime and UI scans each failed with a removed literal put back."

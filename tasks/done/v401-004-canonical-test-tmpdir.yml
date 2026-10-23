@@ -6,7 +6,8 @@ epic: quality
 kind: defect
 introduced_by: V34-002
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: "492c21ea1fffa0f6f0aa0d1cffcf8a4bf0ad6a0d"
 depends_on: []
 languages: [go, makefile, markdown]
 goal: "make test-go and the documented Go test commands pass on a macOS host with the default TMPDIR, without weakening the filesystem blob store's refusal of symlinked directories."
@@ -49,3 +50,16 @@ tests:
     covers: [A2]
   - command: make lint
     covers: [A1, A2]
+verification:
+  date: "2026-10-23"
+  revision: "7f34866a8601cf6a3476a9dd58f40d165c389f8c"
+  environment: >-
+    Integration branch integration/v401-findings on macOS arm64 with Go 1.26.9,
+    Node 24.20.0, pnpm 11.24.0 and disposable PostgreSQL 17.11
+    (CONTRACTOR_TEST_DATABASE_URL set), TMPDIR left at the shell default.
+  merged_run:
+    - "make -k verify: test-go passed with no failing package, ui-verify passed (2,271 UI tests), build and test-config passed; ui-gates failed only because ui/node_modules was not installed yet, and make lint passed in full after installing it."
+    - "make test-runtime: 101 failures, all among the 102 that fail identically on main on this host (V401-007)."
+    - "make test-wire-cross-language (245 fixtures), make verify-public-api and make ui-browser-mocked (75 of 75) passed."
+  task_commands:
+    - "make test-go passed every filesystem blob test with the shell's default TMPDIR (/var/folders/...), which the Makefile now resolves to /private/var/folders/...; the ancestor-symlink refusal test passes."

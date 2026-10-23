@@ -5,7 +5,8 @@ milestone: hub-audit-defects-2026-10
 epic: ui
 kind: defect
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: "16b2c31f577e37d57374a2a5e5587f3123d4f5e1"
 depends_on: []
 languages: [typescript]
 goal: "A keyboard user who records a decision keeps focus inside the decision bar while the request is in flight, in a real browser, until V372-005's focus move to the next item or the decision group takes over."
@@ -52,3 +53,16 @@ tests:
     covers: [A1, A2]
   - command: "make ui-verify"
     covers: [A1, A3]
+verification:
+  date: "2026-10-23"
+  revision: "7f34866a8601cf6a3476a9dd58f40d165c389f8c"
+  environment: >-
+    Integration branch integration/v401-findings on macOS arm64 with Go 1.26.9,
+    Node 24.20.0, pnpm 11.24.0 and disposable PostgreSQL 17.11
+    (CONTRACTOR_TEST_DATABASE_URL set), TMPDIR left at the shell default.
+  merged_run:
+    - "make -k verify: test-go passed with no failing package, ui-verify passed (2,271 UI tests), build and test-config passed; ui-gates failed only because ui/node_modules was not installed yet, and make lint passed in full after installing it."
+    - "make test-runtime: 101 failures, all among the 102 that fail identically on main on this host (V401-007)."
+    - "make test-wire-cross-language (245 fixtures), make verify-public-api and make ui-browser-mocked (75 of 75) passed."
+  task_commands:
+    - "make ui-browser-mocked: 75 of 75 specs passed, including the ten decision-focus cases; eight of them failed on the unfixed component."
