@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-127 open tasks: 5 in progress, 97 pending, 25 deferred. 992 finished: 989 completed, 3 archived.
+128 open tasks: 6 in progress, 97 pending, 25 deferred. 992 finished: 989 completed, 3 archived.
 
 ## In progress
 
@@ -16,6 +16,7 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
 | [V406-010](v406-010-scanner-widget-boundaries.yml) | ui | chore | P2 | Isolate specialized scanner views behind widget registries |
+| [V406-012](v406-012-merged-browser-inventory.yml) | ui | defect | P2 | Include the merged Audit-label browser journey in the mandatory inventory |
 
 ## Pending
 
@@ -243,7 +244,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 11 | 41 | 51 | 18 | 72 |
+| Run execution core (`execution-core`) | 11 | 41 | 51 | 18 | 73 |
 | Planners and the Worker model boundary (`planner-worker`) | 8 | 27 | 40 | 16 | 59 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 12 | 25 | 13 | 4 | 40 |
 | Shared Memory tools (`memory`) | 1 | 6 | 9 | 2 | 12 |
@@ -258,7 +259,7 @@ tasks in `introduced_by`.
 | Audits (`audits`) | 24 | 53 | 72 | 22 | 91 |
 | Evaluations (`evals`) | 6 | 21 | 34 | 7 | 40 |
 | Podman sandbox (`sandbox`) | 0 | 9 | 2 | 1 | 3 |
-| Web UI (`ui`) | 2 | 24 | 59 | 13 | 53 |
+| Web UI (`ui`) | 3 | 24 | 60 | 13 | 53 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 16 | 33 | 6 | 11 |
 | Public API and wire contracts (`api-contracts`) | 8 | 1 | 34 | 20 | 11 |
 | PostgreSQL persistence and schema (`persistence`) | 13 | 0 | 21 | 41 | 9 |
