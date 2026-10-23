@@ -742,8 +742,12 @@ neither membership nor revision/events. Keep Run then Audit authority order;
 import acquires a nonblocking Project `FOR NO KEY UPDATE NOWAIT` before any
 retained artifact admission. Other child mutations also acquire this fence
 without waiting; contention becomes the existing retryable SQLSTATE `40001`,
-finite transaction retries and HTTP `503 storage_transaction_conflict` with
-`Retry-After`. No new claim or advisory lock is introduced. The revision is an
+finite transaction retries and the retryable HTTP `503
+storage_transaction_conflict` (PER-R16). Owner import and each bounded
+collection transaction replay only the whole transaction that aborted, at most
+three transactions within the caller's context and budget; a permanent,
+cancelled or uncertain outcome is never replayed (FAIL-REV-7, FAIL-AUX-3).
+No new claim or advisory lock is introduced. The revision is an
 exact integer in 1..9007199254740991 and cannot decrease or skip an increment.
 A finding page's Audit revision still fences its own observations; the explicit
 Project revision fences current correlation, which may change when another
@@ -774,7 +778,8 @@ source finding/receipt, exact selection, limit and policy. Project-wide reads
 fence the dedicated Project revision; Audit and pair restrictions fence only
 their selected Audit revisions. Recheck around bounded hydration; a changed
 fence requires restarting. Missing or foreign sources use the same 404.
-Existing classified storage conflicts retain retryable 503/Retry-After.
+Existing classified storage conflicts retain the retryable 503
+`storage_transaction_conflict`.
 
 **FND-R180.** Candidate scope defaults to Project; `scope=audit` restricts to
 the source Audit. A selected target Audit belongs to the same owned Project.
