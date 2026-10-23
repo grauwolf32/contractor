@@ -691,21 +691,6 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
     and `TestSQLAccessScanReadsStatementsAsTheRepositoryWritesThem` in
     [`internal/persistence/sql_access_test.go`](../../../internal/persistence/sql_access_test.go)
     for how SQL text is read.
-19. The lease session carries the working pool's connect timeout, query
-    budget tracer and server-side timeouts; each startup lease step runs under
-    its configured budget, or exactly under an earlier caller deadline; a
-    standby acquisition probe runs under the tolerance window when that ends
-    first; and the liveness probe runs outside the client query budget
-    (PER-R26, PER-R27); test
-    `TestPostgresControlPlaneLeaseSessionInheritsStartupBudgets` in
-    [`internal/app/single_active_budget_postgres_test.go`](../../../internal/app/single_active_budget_postgres_test.go).
-    A stalled handshake, keepalive configuration or first acquisition ends at
-    its configured budget under a process context without a deadline, or at
-    the caller's earlier deadline or cancellation, and the Server cancels the
-    stalled statement with the session's backend key and closes the session
-    (PER-R26, FAIL-PER-3); test
-    `TestControlPlaneLeaseStartupStallEndsAtItsBudgetOwner` in
-    [`internal/app/single_active_budget_test.go`](../../../internal/app/single_active_budget_test.go).
 19. The registry, `scripts/erd/meta.json` with its groups and the
     [Table owners](#table-owners) index name the same relations and owners
     (PER-R23); test `TestTableOwnershipMatchesTheSchemaDocuments` in
@@ -735,6 +720,23 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
     are lost, and a release accepts its holder's ended lease (PER-R25); test
     `TestPostgresControllerClaimsLeaseProveAndRelease` in
     [`internal/persistence/postgres/receipts_postgres_test.go`](../../../internal/persistence/postgres/receipts_postgres_test.go).
+22. The lease session carries the working pool's connect timeout, query
+    budget tracer and server-side timeouts; each startup lease step runs under
+    its configured budget, or exactly under an earlier caller deadline; a
+    standby acquisition probe and a standby reconnect run under the tolerance
+    window when that ends first; and the liveness probe runs outside the
+    client query budget (PER-R26, PER-R27); test
+    `TestPostgresControlPlaneLeaseSessionInheritsStartupBudgets` in
+    [`internal/app/single_active_budget_postgres_test.go`](../../../internal/app/single_active_budget_postgres_test.go).
+    A stalled handshake, keepalive configuration, first acquisition or holder
+    lookup ends at its configured budget under a process context without a
+    deadline, or at the caller's earlier deadline or cancellation; the Server
+    cancels the stalled statement with the session's backend key and closes
+    the session; only after a stalled holder lookup does it stand by, logging
+    an unknown holder, and its next acquisition probe reconnects the session
+    (PER-R26, FAIL-PER-3); test
+    `TestControlPlaneLeaseStartupStallEndsAtItsBudgetOwner` in
+    [`internal/app/single_active_budget_test.go`](../../../internal/app/single_active_budget_test.go).
 
 ## Non-goals
 

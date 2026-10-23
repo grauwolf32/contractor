@@ -126,7 +126,8 @@ WHERE name IN ('statement_timeout', 'lock_timeout', 'idle_in_transaction_session
 	}
 
 	// After startup the tolerance window bounds each standby acquisition
-	// probe when it ends before the inherited query budget.
+	// probe and each reconnect of its lock-free session when it ends before
+	// the inherited budgets.
 	standby.tolerance = 90 * time.Second
 	traced = len(recorder.queriesSince(0))
 	before = time.Now()
@@ -135,4 +136,12 @@ WHERE name IN ('statement_timeout', 'lock_timeout', 'idle_in_transaction_session
 	}
 	after = time.Now()
 	assertBudgetDeadlines(t, "standby acquisition probe", recorder.queriesSince(traced), standby.tolerance, before, after)
+	dials, traced = len(recorder.dialsSince(0)), len(recorder.queriesSince(0))
+	before = time.Now()
+	if err := standby.reconnect(ctx); err != nil {
+		t.Fatal(err)
+	}
+	after = time.Now()
+	assertBudgetDeadlines(t, "standby reconnect", recorder.dialsSince(dials), standby.tolerance, before, after)
+	assertBudgetDeadlines(t, "standby reconnect keepalives", recorder.queriesSince(traced), standby.tolerance, before, after)
 }
