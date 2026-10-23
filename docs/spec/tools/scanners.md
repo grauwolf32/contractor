@@ -172,7 +172,7 @@ exactly one source:
 
 | `source` | Required payload | Resolved value |
 | --- | --- | --- |
-| `parameter` | `name`, 1–128 non-whitespace characters (LIM-SCN-4) | The unchanged `StageContentRequest.parameters` string |
+| `parameter` | `name`, 1–128 non-whitespace characters (LIM-SCN-4) | The supplied `StageContentRequest.parameters` string, or explicitly parsed/defaulted value (SCN-R222) |
 | `artifact` | `name`, with the same bounds | The exact ArtifactRef object from `StageContentRequest.artifacts` |
 | `literal` | `value` | A non-null JSON string, boolean or finite number |
 
@@ -183,11 +183,35 @@ other sources.
 must be finite and, when integral, within the exactly representable integer
 range ±9007199254740991 (LIM-SCN-6).
 
-**SCN-R9.** There is no string interpolation and no implicit JSON or type
-coercion.
+**SCN-R9.** There is no string interpolation or implicit JSON/type coercion.
+Only an explicit `parameter` binding's `parse: integer` performs conversion
+(SCN-R222); the public Run parameter mapping remains unchanged.
 
-**SCN-R10.** Numeric limits can be pinned as literals; omitted arguments use
-the callable's defaults.
+**SCN-R10.** Numeric limits can be pinned as literals or supplied through an
+explicit integer parameter binding. Callable defaults apply to arguments absent
+from `execution.arguments`; parameter binding defaults follow SCN-R223.
+
+**SCN-R222.** A `parameter` binding may declare `parse: integer`. Supplied
+text must match the complete ASCII grammar `0|[1-9][0-9]*` and represent an
+integer from zero through 9007199254740991 (LIM-SCN-6). Validate its length
+before conversion. Signs, whitespace, leading zeroes, fractions, exponents and
+empty strings fail. Without `parse`, supplied strings pass through unchanged.
+The callable or scanner owns any narrower domain range.
+
+**SCN-R223.** A `parameter` binding may declare a non-null `default`. It is a
+string within LIM-SCN-5 without `parse`, or an exact nonnegative integer within
+LIM-SCN-6 with `parse: integer`. It applies only when the named parameter is
+absent; explicitly supplied empty/invalid text never selects it. A missing
+parameter without a default fails. Other sources forbid `parse` and `default`;
+explicit null, unknown options and unknown parsers fail strict decoding.
+
+**SCN-R224.** Server validates bound parameter projections at ordinary tool
+Workflow admission, and Runtime uses the same projection before strict callable
+validation. `scan-plan@1` retains ownership of generated per-job parameters.
+Neither projection modifies the supplied durable Run string map. Resolved
+arguments, including typed defaults, enter the ordinary tool input digest.
+Bindings remain bounded by LIM-SCN-2 and LIM-SCN-9; errors do not echo supplied
+values.
 
 **SCN-R11.** Artifacts remain refs for adapters to resolve, never local paths
 or model context.
@@ -990,6 +1014,8 @@ scanner may have only one Worker. Workers use `tool@1`, `scan@1` and the
 
 **SCN-R174.** All extra tool arguments are pinned scalar literals in the
 resolved AgentTemplate, so policy cannot override template-owned scanner flags.
+The fixed dynamic-input bindings have no parser or default; the Planner owns
+and supplies those exact per-job values.
 
 **SCN-R175.** Worker allocation, readiness, leases and placement remain
 Scheduler responsibilities ([Scheduler](../execution/scheduler.md)). All

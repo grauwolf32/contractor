@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"math"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"go.yaml.in/yaml/v4"
@@ -33,26 +34,117 @@ func (t *ResolvedAgentTemplate) UnmarshalJSON(data []byte) error {
 }
 
 type ToolArgumentBinding struct {
-	Source string `json:"source" yaml:"source" strictjson:"required"`
-	Name   string `json:"name,omitempty" yaml:"name,omitempty"`
-	Value  any    `json:"value,omitempty" yaml:"value,omitempty"`
+	Source  string `json:"source" yaml:"source" strictjson:"required"`
+	Name    string `json:"name,omitempty" yaml:"name,omitempty"`
+	Value   any    `json:"value,omitempty" yaml:"value,omitempty"`
+	Parse   string `json:"parse,omitempty" yaml:"parse,omitempty"`
+	Default any    `json:"default,omitempty" yaml:"default,omitempty"`
 }
 
 func (b *ToolArgumentBinding) UnmarshalJSON(data []byte) error {
 	type plain ToolArgumentBinding
 	var value plain
-	if err := json.Unmarshal(data, &value); err != nil {
+	fields, err := DecodeStrictObject(data, &value)
+	if err != nil {
 		return err
 	}
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(data, &fields); err != nil {
-		return err
-	}
-	if len(fields) != 2 || fields["source"] == nil || (value.Source == "literal" && fields["value"] == nil) || (value.Source != "literal" && fields["name"] == nil) {
+	if value.Source == "parameter" {
+		if fields["name"] == nil || fields["value"] != nil ||
+			(fields["default"] != nil && value.Default == nil) ||
+			(fields["parse"] != nil && value.Parse == "") {
+			return Invalidf("parameter tool argument requires name and forbids null default or value")
+		}
+	} else if len(fields) != 2 || fields["source"] == nil ||
+		(value.Source == "literal" && fields["value"] == nil) ||
+		(value.Source != "literal" && fields["name"] == nil) {
 		return Invalidf("tool argument must select exactly one source and its payload")
 	}
-	*b = ToolArgumentBinding(value)
+	result := ToolArgumentBinding(value)
+	if err := result.validateParameterOptions(); err != nil {
+		return err
+	}
+	*b = result
 	return nil
+}
+
+// ResolveParameter projects an explicitly bound string without changing the
+// persisted parameter map. Parsing is opt-in; defaults apply only to absence.
+func (b ToolArgumentBinding) ResolveParameter(parameters map[string]string) (any, error) {
+	if b.Source != "parameter" || !validToolBindingName(b.Name) {
+		return nil, Invalidf("invalid parameter tool argument")
+	}
+	if err := b.validateParameterOptions(); err != nil {
+		return nil, err
+	}
+	value, present := parameters[b.Name]
+	if !present {
+		if b.Default == nil {
+			return nil, Invalidf("required bound tool parameter is missing")
+		}
+		if b.Parse == "integer" {
+			return toolDefaultInteger(b.Default)
+		}
+		return b.Default, nil
+	}
+	if b.Parse == "" {
+		return value, nil
+	}
+	// Safe JSON integers have at most 16 decimal digits. Bound conversion work
+	// before parsing; the scanner applies its narrower argument range later.
+	if len(value) == 0 || len(value) > 16 || (len(value) > 1 && value[0] == '0') {
+		return nil, Invalidf("tool parameter must be a canonical unsigned integer")
+	}
+	for _, digit := range value {
+		if digit < '0' || digit > '9' {
+			return nil, Invalidf("tool parameter must be a canonical unsigned integer")
+		}
+	}
+	number, err := strconv.ParseUint(value, 10, 53)
+	if err != nil || number > 9007199254740991 {
+		return nil, Invalidf("tool parameter exceeds the exact integer bound")
+	}
+	return int64(number), nil
+}
+
+func (b ToolArgumentBinding) validateParameterOptions() error {
+	if b.Source != "parameter" {
+		if b.Parse != "" || b.Default != nil {
+			return Invalidf("parse and default require a parameter binding")
+		}
+		return nil
+	}
+	if b.Parse != "" && b.Parse != "integer" {
+		return Invalidf("unsupported tool parameter parser")
+	}
+	if b.Default == nil {
+		return nil
+	}
+	if b.Parse == "integer" {
+		_, err := toolDefaultInteger(b.Default)
+		return err
+	}
+	value, ok := b.Default.(string)
+	if !ok || len(value) > 8192 {
+		return Invalidf("unparsed parameter default must be a bounded string")
+	}
+	return nil
+}
+
+func toolDefaultInteger(value any) (int64, error) {
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return 0, Invalidf("invalid integer tool parameter default")
+	}
+	var decoded any
+	if err := json.Unmarshal(encoded, &decoded); err != nil {
+		return 0, Invalidf("invalid integer tool parameter default")
+	}
+	number, ok := decoded.(float64)
+	if !ok || math.IsNaN(number) || math.IsInf(number, 0) || number < 0 ||
+		number > 9007199254740991 || math.Trunc(number) != number {
+		return 0, Invalidf("integer tool parameter default must be an exact nonnegative integer")
+	}
+	return int64(number), nil
 }
 
 func (b *ToolArgumentBinding) UnmarshalYAML(node *yaml.Node) error {
@@ -86,6 +178,9 @@ func (e ToolExecutionConfig) Validate() error {
 		return Invalidf("invalid tool execution selector, bindings or deadline")
 	}
 	for key, binding := range e.Arguments {
+		if err := binding.validateParameterOptions(); err != nil {
+			return err
+		}
 		if !toolArgumentName.MatchString(key) {
 			return Invalidf("invalid tool argument name")
 		}

@@ -5763,8 +5763,20 @@ export interface components {
             timeoutSeconds: number;
             arguments: {
                 [key: string]: {
-                    /** @enum {string} */
-                    source: "parameter" | "artifact";
+                    /** @constant */
+                    source: "parameter";
+                    name: string;
+                    default?: string;
+                } | {
+                    /** @constant */
+                    source: "parameter";
+                    name: string;
+                    /** @constant */
+                    parse: "integer";
+                    default?: number;
+                } | {
+                    /** @constant */
+                    source: "artifact";
                     name: string;
                 } | {
                     /** @constant */

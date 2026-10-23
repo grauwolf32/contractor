@@ -180,7 +180,7 @@ class ToolWorkerRuntime:
         arguments = {}
         for name, binding in self._execution.arguments.items():
             if binding.source == "parameter":
-                arguments[name] = request.parameters[binding.name]
+                arguments[name] = binding.resolve_parameter(request.parameters)
             elif binding.source == "artifact":
                 arguments[name] = request.artifacts[binding.name].model_dump(by_alias=True)
             else:

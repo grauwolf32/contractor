@@ -272,3 +272,17 @@ func TestScanPlanModelOverridesAndAuthoringUnknownFieldsAreRejected(t *testing.T
 		}
 	}
 }
+
+func TestScanPlanDynamicTargetsForbidParameterProjectionOptions(t *testing.T) {
+	for _, change := range []contracts.ToolArgumentBinding{
+		{Source: "parameter", Name: "target", Parse: "integer"},
+		{Source: "parameter", Name: "target", Default: "https://unexpected.test/"},
+	} {
+		workflow := scanPlanWorkflow(t, "target-scan-plan@1")
+		stage := workflow.Stages["scan"]
+		stage.Agents["nuclei"].Template.Execution.Arguments["url"] = change
+		if err := resolved.ValidateScanPlanStage(stage); err == nil {
+			t.Fatalf("accepted scan-plan dynamic input options: %+v", change)
+		}
+	}
+}

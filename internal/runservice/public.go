@@ -269,6 +269,23 @@ func validateWorkflowInputs(
 			return fmt.Errorf("%w: required parameter %q is missing", ErrInvalid, name)
 		}
 	}
+	for _, stage := range workflow.Stages {
+		if stage.ScanPlan != nil {
+			continue // The scan Planner owns its generated per-job parameters.
+		}
+		for _, agent := range stage.Agents {
+			if !agent.Template.IsToolWorker() || agent.Template.Execution == nil {
+				continue
+			}
+			for _, argument := range agent.Template.Execution.Arguments {
+				if argument.Source == "parameter" {
+					if _, err := argument.ResolveParameter(parameters); err != nil {
+						return fmt.Errorf("%w: invalid bound tool parameter", ErrInvalid)
+					}
+				}
+			}
+		}
+	}
 	for name, ref := range inputs {
 		if _, ok := workflow.Inputs[name]; !ok {
 			return fmt.Errorf("%w: unknown input artifact %q", ErrInvalid, name)

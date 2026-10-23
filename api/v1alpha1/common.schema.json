@@ -149,7 +149,15 @@
           "additionalProperties": {
             "oneOf": [
               {"type": "object", "additionalProperties": false, "required": ["source", "name"], "properties": {
-                "source": {"enum": ["parameter", "artifact"]}, "name": {"type": "string", "minLength": 1, "maxLength": 128, "x-maxBytes": 128}
+                "source": {"const": "parameter"}, "name": {"type": "string", "minLength": 1, "maxLength": 128, "x-maxBytes": 128},
+                "default": {"type": "string", "maxLength": 8192, "x-maxBytes": 8192}
+              }},
+              {"type": "object", "additionalProperties": false, "required": ["source", "name", "parse"], "properties": {
+                "source": {"const": "parameter"}, "name": {"type": "string", "minLength": 1, "maxLength": 128, "x-maxBytes": 128},
+                "parse": {"const": "integer"}, "default": {"type": "integer", "minimum": 0, "maximum": 9007199254740991}
+              }},
+              {"type": "object", "additionalProperties": false, "required": ["source", "name"], "properties": {
+                "source": {"const": "artifact"}, "name": {"type": "string", "minLength": 1, "maxLength": 128, "x-maxBytes": 128}
               }},
               {"type": "object", "additionalProperties": false, "required": ["source", "value"], "properties": {
                 "source": {"const": "literal"}, "value": {"oneOf": [

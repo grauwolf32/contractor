@@ -113,8 +113,8 @@ acceptance_criteria:
   then: bounded exact manifest provenance survives; scratch is removed after joining work; failures/unknown
     outcomes never become clean scans or implicit rescans
 tests:
-- command: go test ./internal/contracts/... ./internal/config/... ./internal/runservice/... ./internal/planner/...
-    ./internal/httpapi/public/...
+- command: go test ./internal/contracts/... ./internal/config/... ./internal/runservice/... ./internal/scanplan/...
+    ./internal/planner/... ./internal/httpapi/public/...
   covers: &id001
   - A1
   - A2
@@ -134,3 +134,45 @@ tests:
   covers: *id001
 - command: make lint
   covers: *id001
+progress:
+  completed_work:
+  - Implemented strict Go/Python parameter bindings with explicit integer parsing and absence-only
+    typed defaults; admission and Worker projection preserve the supplied string mapping.
+  - Updated private/OpenAPI schemas, generated public clients/validators, Studio validation and
+    UI patch version; added 32 shared binding cases and 24 projection cases read by Go, Python
+    and UI.
+  - Added Worker receipt/recreated-allocation replay regressions and a real PostgreSQL admission
+    test that proves invalid projections create no Run and valid/omitted parameters retain their
+    supplied string representation.
+  - Kept scan-plan dynamic inputs exact and unparsed/default-free in catalog validation and plan
+    codec/builder; covered huge numeric values and UTF-8 default byte bounds.
+  remaining_work:
+  - Implement scanner-owned Server validation of Nuclei URL/filter/severity/rate ranges and matching
+    shared fixtures; generic binding projection alone does not complete A2.
+  - Implement pinned installed-package manifests, bounded private snapshots, mismatch refusal
+    and exact selected-template/engine provenance.
+  - Ship the loaded nuclei-web@1 Workflow and nuclei-web-scan@1 caller with installed content
+    pin; existing Audit fixtures stay unchanged.
+  - Complete the real new-Workflow Server/Runtime execution, cancellation/replacement/report evidence
+    and all remaining listed task checks before marking the task completed.
+verification:
+  date: '2026-10-23'
+  scope: Partial contract-foundation checkpoint only. V403-001 remains in_progress; the shipped
+    web Workflow and installed-package pin acceptance criteria are not yet complete.
+  environment: Isolated codex/web-nuclei-sweeps worktree from main 9a5083ffd73e06ea577048bcec2ed89997f22b83;
+    macOS arm64, Go 1.26.9, Node 24.20.0, locked Python 3.13 Runtime and a separate disposable
+    PostgreSQL 17 instance.
+  results:
+  - 'go test ./internal/contracts/... ./internal/config/... ./internal/runservice/... ./internal/scanplan/...
+    ./internal/publicclient/...: passed with CONTRACTOR_TEST_DATABASE_URL set; the new PostgreSQL
+    regression ran without a skip.'
+  - 'cd runtime && uv run pytest tests/test_contracts.py tests/test_tool_worker.py: 307 passed.'
+  - 'make ui-verify: passed; 190 files, 2312 tests passed and 1 existing expected failure; 17
+    Node server tests passed; lint/typecheck/generated checks/build passed.'
+  - 'make test-wire-cross-language: passed; 246 fixtures, 224 Go and 175 Python shared tests;
+    final shared Runtime selection 1147 passed and 3219 deselected.'
+  - 'make verify-public-api verify-public-api-postgres: passed.'
+  - 'make lint: passed after using the available local toolchains and permitting metadata lookup
+    for the pinned staticcheck tool.'
+  - Generated dependency graph was rebuilt with make docs-dependencies; only its source fingerprint
+    changed. git diff --check passed.

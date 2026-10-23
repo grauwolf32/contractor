@@ -259,8 +259,10 @@ missing required parameters, unknown names and every non-string value,
 including numbers, booleans, arrays, objects and null.
 
 **RUN-R12.** Server performs no coercion, trimming,
-interpolation or structured parsing of parameters. An empty string is a valid
-supplied string.
+interpolation or structured parsing of the stored parameter mapping. An empty
+string is a valid supplied string. Explicit tool-argument parsing and defaults
+are a separate validation projection (SCN-R222 to SCN-R224 in
+[Scanners](../tools/scanners.md)); they never rewrite the accepted mapping.
 
 **RUN-R13.** The exact validated mapping is stored durably with the
 Run and is immutable for its lifetime (LIFE-RUN-1). Retrying a Stage does not

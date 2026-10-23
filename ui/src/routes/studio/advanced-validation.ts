@@ -313,13 +313,41 @@ export function validateAdvanced(draft: Draft): Problem[] {
               error(p, "Use an argument identifier of up to 64 characters.");
             if (!map(value, p)) continue;
             const literal = arg.source === "literal",
-              keys = Object.keys(arg);
+              parameter = arg.source === "parameter",
+              keys = Object.keys(arg),
+              allowed = parameter
+                ? ["source", "name", "parse", "default"]
+                : ["source", literal ? "value" : "name"];
             if (
-              keys.length !== 2 ||
+              keys.some((key) => !allowed.includes(key)) ||
               !keys.includes("source") ||
               !keys.includes(literal ? "value" : "name")
             )
-              error(p, "Each argument needs exactly a source and its payload.");
+              error(
+                p,
+                "Each argument needs exactly a source and its payload; only parameters accept parse/default.",
+              );
+            if (parameter) {
+              if (keys.includes("parse") && arg.parse !== "integer")
+                error(
+                  [...p, "parse"],
+                  "Choose the explicit integer parser or omit parse.",
+                );
+              if (keys.includes("default")) {
+                const value = arg.default;
+                const valid =
+                  arg.parse === "integer"
+                    ? typeof value === "number" &&
+                      Number.isSafeInteger(value) &&
+                      value >= 0
+                    : typeof value === "string" && bytes(value) <= 8192;
+                if (!valid)
+                  error(
+                    [...p, "default"],
+                    "Use a bounded default of the projected parameter type.",
+                  );
+              }
+            }
             if (literal) {
               const value = arg.value;
               if (!(
