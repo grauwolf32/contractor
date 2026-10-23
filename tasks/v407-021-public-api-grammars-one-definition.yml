@@ -1,0 +1,79 @@
+schema_version: "1.0"
+id: V407-021
+title: "Give every public API grammar and bound one definition: Idempotency-Key, body limits, media-type status, string units, page sizes"
+milestone: server-runtime-review-2026-10
+epic: api-contracts
+kind: defect
+introduced_by: V370-009
+priority: P1
+status: pending
+depends_on: []
+languages: [go]
+goal: "The OpenAPI document and every Go implementation agree on each constrained public value, proven by a shared fixture and a contract test."
+context:
+  review: "docs/research/2026-10-23-server-runtime-review.md, findings B2, B3, B7, B11, B12; file:line as of 39d89438, re-verify on main"
+  specification: docs/spec/api/public-api.md
+  severity: medium
+  finding: >-
+    (1) Idempotency-Key grammar is defined six times:
+    internal/httpapi/public/request.go:25-37 (hand-written loop),
+    internal/evaldomain/mutation.go:18-25 (accepts any ASCII 33-126, e.g.
+    'a!b', 'a/b'), internal/projectstore/store.go:21,
+    internal/auditstore/internal/pgstore/validation.go:20,
+    internal/credentials/repository.go:33 (three regex copies of
+    ^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$) and the OpenAPI
+    #/components/parameters/IdempotencyKey (pattern without the 128 bound).
+    /v1/eval-experiments accepts and binds keys the contract forbids.
+    TestPublicIdentifierGrammarsHaveOneGoDefinition ignores patterns with
+    another bound. (2) auth_handlers.go:22 maximumLoginBodyBytes = 8192 vs
+    OpenAPI x-max-request-body-bytes: 2048 at the login operation; the code
+    comment computes that a 1024-byte password needs up to 6237 JSON bytes,
+    so 2048 cannot admit a maximum-length password. git_import_handlers.go:55
+    and git_key_handlers.go:48 (64 KiB) declare no bound at all; no test
+    compares the extension to handler constants. (3)
+    scheduler_settings_handlers.go:40 and model_selection_handlers.go:45
+    answer 415 on a wrong media type while every other JSON handler answers
+    400 invalid_request; apierror/registry.go says only the Scheduler
+    settings update does this. (4) run_handlers.go:339 bounds the cancel
+    reason in bytes (4096) and audit_artifact_handlers.go:17 bounds key,
+    revision and member in bytes, while the schemas say maxLength (code
+    points). (5) performance_handlers.go:38 adds limit > 100 after
+    parsePageQuery (pagelimit, 200) and the OpenAPI inlines maximum: 100;
+    evaldomain.MaxPageSize and FindingComparisonMaximumLimit are further
+    separate bounds.
+  siblings: >-
+    internal/publicclient (hand-written) and internal/cli validate some of
+    these client-side; the UI validates Idempotency-Key generation in
+    ui/src/mutations; update both from the same fixture.
+plan:
+  - "Add contracts.ValidIdempotencyKey (grammar plus 128 bound) and use it in the handler, the three stores and evaldomain; add api/testdata/idempotency-key-cases.json consumed by Go and the UI test; extend the grammar-owner scan test to this grammar."
+  - "Decide the login bound (8192 admits the maximum password; set the OpenAPI value to 8192), declare x-max-request-body-bytes on the Git import and key operations, and add a contract test mapping each operationId with the extension to the handler constant (one table in internal/httpapi/public)."
+  - "Pick one wrong-media-type rule (400 invalid_request, matching the majority), change the two 415 handlers, update apierror/registry.go and the OpenAPI responses; regenerate docs/spec/platform/errors.md."
+  - "State the unit: either count runes in the handlers or declare x-max-utf8-bytes in the schemas as LoginRequest.password does; apply one rule to every bounded string field (grep 'len(' in handlers against maxLength)."
+  - "Name per-domain page bounds in one place (pagelimit or the owning domain package) and reference them from the OpenAPI via $ref; remove the ad-hoc 100 check."
+  - "Run make verify-public-api and make verify-public-api-postgres; regenerate ui and publicclient generated code."
+scope:
+  in:
+    - "One definition per listed grammar and bound, shared fixture, contract tests, OpenAPI alignment (additive), generated clients."
+  out:
+    - "New grammars; changing identifier grammars beyond Idempotency-Key."
+acceptance_criteria:
+  - id: A1
+    text: "An Eval mutation with Idempotency-Key 'a!b' is rejected with 400 like every other mutation; the fixture cases pass in Go and in the UI test."
+  - id: A2
+    text: "Every operation whose handler bounds the body declares the same x-max-request-body-bytes, asserted by the contract test; a 1024-byte password logs in."
+  - id: A3
+    text: "All JSON handlers answer the same status on a wrong media type; the registry and the OpenAPI document say so."
+  - id: A4
+    text: "A 4096-character non-ASCII cancel reason is accepted (or the schema declares bytes); page bounds are referenced, not inlined."
+  - id: A5
+    text: "Each new test fails on the unfixed code."
+tests:
+  - command: "go test -count=1 ./internal/httpapi/... ./internal/contracts/... ./internal/evaldomain/... ./internal/projectstore/... ./internal/auditstore/... ./internal/credentials/..."
+    covers: [A1, A2, A3, A4, A5]
+  - command: make verify-public-api
+    covers: [A2, A3, A4]
+  - command: make ui-verify
+    covers: [A1]
+  - command: make lint
+    covers: [A1, A3]

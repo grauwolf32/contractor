@@ -1,0 +1,51 @@
+schema_version: "1.0"
+id: V407-006
+title: "Parse and digest an Audit OpenAPI source once per settings document, not once per operation"
+milestone: server-runtime-review-2026-10
+epic: scan-tools
+kind: defect
+introduced_by: V62-001
+priority: P2
+status: pending
+depends_on: []
+languages: [go]
+goal: "Preparing N operations of one OpenAPI document costs one parse and one digest plus N pointer lookups."
+context:
+  review: "docs/research/2026-10-23-server-runtime-review.md, finding E4; file:line as of 39d89438, re-verify on main"
+  specification: docs/spec/tools/scanners.md
+  severity: medium
+  finding: >-
+    internal/scanplan/audit_settings.go:166-202 AuditScanSettings.PrepareOperation
+    is called once per operation pointer by
+    internal/auditdomain/openapi_scan.go:51-52 (up to MaxOperations = 1000).
+    Each call runs prepare() (prepare.go:36-92), which re-parses the whole
+    OpenAPI document (YAML or JSON up to MaxSourceBytes = 2 MiB),
+    re-normalizes options, recomputes contentdigest.Bytes(data) over the full
+    source and re-walks every sorted path to find one pointer. Cost per
+    inventory is O(operations x document size): up to about 2 GB of YAML
+    parsing and 1000 SHA-256 passes over 2 MiB inside one Audit preparation,
+    repeated per item by PrepareOpenAPIScanTask at Run time.
+  siblings: >-
+    PrepareOpenAPIScanTask (Run-time path) and any other caller of prepare()
+    found by grep; the Runtime openapi toolset parses per call too (V407-031).
+plan:
+  - "Introduce a prepared-source type in internal/scanplan holding the parsed root, the source digest, the normalized options and a pointer index (pointer -> path, item) built once from the sorted paths."
+  - "Make AuditScanSettings carry or lazily build that prepared source (sync.Once or built in the constructor) and make PrepareOperation resolve the selected item from the index; keep the digest basis byte-identical so existing golden fixtures do not change."
+  - "Apply the same prepared source to PrepareOpenAPIScanTask so a Run-time item does one parse per task package."
+  - "Add a test that prepares 1000 operations of a 2 MiB fixture and asserts one parse and one digest through a counting hook in export_test.go, plus a benchmark in tools/performancebench or the package."
+scope:
+  in:
+    - "Prepared-source cache for settings and task preparation."
+    - "Test proving one parse per document."
+  out:
+    - "Changing plan digests, fixtures or the scan request format."
+acceptance_criteria:
+  - id: A1
+    text: "Preparing 1000 operations parses and digests the source once; existing golden plan fixtures are unchanged."
+  - id: A2
+    text: "The counting test fails on the unfixed code."
+tests:
+  - command: "go test -count=1 ./internal/scanplan/... ./internal/auditdomain/..."
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1]

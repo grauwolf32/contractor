@@ -1,0 +1,58 @@
+schema_version: "1.0"
+id: V407-031
+title: "Run OpenAPI and LikeC4 document parsing, validation and serialization off the event loop and validate once per mutation"
+milestone: server-runtime-review-2026-10
+epic: workflows
+kind: defect
+introduced_by: V2-003
+priority: P1
+status: pending
+depends_on: []
+languages: [python]
+goal: "A multi-MiB OpenAPI or LikeC4 seed never stalls heartbeats or leases, each mutation validates once, and external validators do not hold the session lock."
+context:
+  review: "docs/research/2026-10-23-server-runtime-review.md, findings G2 and G9 (openapi, likec4); file:line as of 39d89438, re-verify on main"
+  specification: docs/spec/tools/workspace.md
+  severity: high
+  finding: >-
+    runtime/src/contractor_runtime/toolsets/openapi/tools.py never imports
+    to_thread_until_done (likec4 does). _decode_seed -> _parse_document
+    (about 1150-1172) runs PyYAML yaml.parse and yaml.load_all over up to 4
+    MiB twice (anchor rejection pass plus load); _mutate (about 493-512)
+    deep-copies, runs _validate_document (five tree walks plus
+    PathItem.model_validate per path), then _serialize validates again and
+    yaml.dumps, and upsert_path validates a third time (about 356). All of
+    this runs on the event loop under the session lock (WSP-R74, AGENTS
+    section 6). validate() (about 461-475) and likec4/tools.py:261-265 run
+    _run_vacuum / _run_likec4 (30 s subprocess timeouts) inside async with
+    self._lock, so a get_openapi_path or read_likec4 in the same ADK turn
+    waits behind the validator and close() waits for the lock after
+    cancelling.
+  siblings: >-
+    common/document_session.py is the shared base; likec4 inherits whatever
+    it offloads. The Server-side OpenAPI preview (V403) parses separately
+    and is out of scope.
+plan:
+  - "In common/document_session.py run decode, validate and serialize callables through threads.to_thread_until_done; reject anchors inside _UniqueSafeLoader.compose_node instead of a second yaml.parse pass."
+  - "Validate once per mutation: _mutate validates the candidate; _serialize and upsert_path trust it (keep a debug assertion-free check behind a test hook)."
+  - "For validators: snapshot (document, revision) under the lock, release it, run the CLI, report against that revision; if the document changed meanwhile, say so in the result."
+  - "Tests: a 4 MiB seed is decoded with loop gaps under 100 ms (pattern: test_code_analysis_shallow gap test); validation call count per upsert is 1 (hook); a get_openapi_path issued during a slow validator returns before the validator finishes; the openapi provenance snapshot count test (tests/test_openapi_toolset.py:187) is updated deliberately if the count changes."
+scope:
+  in:
+    - "Thread offload in the shared document session; single validation; validators outside the lock."
+  out:
+    - "Document formats, provenance rules, limits (V407-024)."
+acceptance_criteria:
+  - id: A1
+    text: "Decoding and serializing a 4 MiB seed keeps event-loop gaps under 100 ms in the gap test."
+  - id: A2
+    text: "One validation per mutation (hook count) and one YAML parse per decode."
+  - id: A3
+    text: "A read tool call during a running validator completes before the validator; close() during a validator does not wait for the subprocess timeout."
+  - id: A4
+    text: "The gap and count tests fail on the unfixed code."
+tests:
+  - command: "cd runtime && uv run --locked pytest -q tests/test_openapi_toolset.py tests/test_likec4_toolset.py"
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A2]

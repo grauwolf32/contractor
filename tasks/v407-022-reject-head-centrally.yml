@@ -1,0 +1,48 @@
+schema_version: "1.0"
+id: V407-022
+title: "Reject HEAD once at route registration for every GET operation"
+milestone: server-runtime-review-2026-10
+epic: api-contracts
+kind: defect
+introduced_by: V370-009
+priority: P2
+status: pending
+depends_on: []
+languages: [go]
+goal: "No GET route serves HEAD unless the operation defines it, enforced by one rule and one test over the route table."
+context:
+  review: "docs/research/2026-10-23-server-runtime-review.md, finding B1; file:line as of 39d89438, re-verify on main"
+  specification: docs/spec/api/public-api.md
+  severity: medium
+  finding: >-
+    Go 1.22 ServeMux matches a GET pattern for HEAD too.
+    internal/httpapi/public/audit_review_handlers.go:47 (listAuditFindings),
+    122 (getAuditFinding), 178 (listAuditReviews), 303
+    (listAuditFindingProvenance), 424 (getAuditWorkspace) and 438
+    (getAuditReview) do not call rejectHead, so they run the full store reads
+    and answer 200 with an empty body; event_handlers.go:12 answers HEAD on
+    /v1/events/ws with 400 via ErrInvalidHandshake instead of 405. Every
+    sibling calls rejectHead and the method_not_allowed registry entry
+    promises 405 including HEAD. TestQueryRoutesDoNotImplicitlyServeHEAD
+    (query_handlers_test.go:761) pins a hand-picked list of 12 paths.
+  siblings: >-
+    The private API router (internal/httpapi/privateartifacts and the
+    control-plane routes) must be checked for the same ServeMux behaviour.
+plan:
+  - "In register (routes.go about line 205) wrap every GET handler so HEAD answers method_not_allowed unless the route opts in; delete the per-handler rejectHead calls (about 70)."
+  - "Make the HEAD test iterate routes() and assert 405 for every GET route and for the WebSocket route; apply the same wrapper or test to the private router."
+scope:
+  in:
+    - "Central HEAD rejection, route-table test, private router check."
+  out:
+    - "Adding HEAD support to any operation."
+acceptance_criteria:
+  - id: A1
+    text: "HEAD on every GET route of the public and private routers answers 405 method_not_allowed without running the handler (store call count zero in the test)."
+  - id: A2
+    text: "No handler calls rejectHead; the route-table test fails on the unfixed code for the six Audit review routes."
+tests:
+  - command: "go test -count=1 ./internal/httpapi/..."
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A2]

@@ -1,0 +1,50 @@
+schema_version: "1.0"
+id: V407-029
+title: "Read Eval plan metadata instead of the frozen document and stop re-validating the plan on every GET"
+milestone: server-runtime-review-2026-10
+epic: evals
+kind: defect
+introduced_by: V38-005
+priority: P2
+status: pending
+depends_on: []
+languages: [go]
+goal: "Polled Eval pages read bounded metadata, and readiness is computed once when the plan is frozen."
+context:
+  review: "docs/research/2026-10-23-server-runtime-review.md, finding E7; file:line as of 39d89438, re-verify on main"
+  specification: docs/spec/evals/managed-evals.md
+  severity: medium
+  finding: >-
+    internal/evalservice/selected_views.go:61,166, public.go:224 and
+    review.go:78 call st.FrozenPlan (full document column, up to 1 MiB,
+    cloned by Restore) but read only plan.Setup and plan.SHA256;
+    FrozenPlanMetadata (evalstore/experiments.go:170) returns exactly those
+    and is what collectMember uses. public.go:84-136 Service.Get unmarshals
+    the entire portable plan on every read to recompute Readiness (a pure
+    function of the frozen plan) and then re-runs
+    evaldomain.Validate("Experiment", raw) (strict parse, JSON Schema and
+    semantic check) on every GET, which the UI polls.
+  siblings: >-
+    Any other FrozenPlan caller (grep) that uses only metadata.
+plan:
+  - "Switch the four call sites to FrozenPlanMetadata."
+  - "Compute readiness at FreezePrepared/BuildPlan and store it beside setup (new column in a migration, or a derived field in the metadata row); Get returns the stored value."
+  - "Remove the per-read self-validation; keep it behind an export_test.go hook used by the conformance tests."
+  - "Tests: a counting fake store asserts Get and the selected views read no document; a PostgreSQL test that readiness after freeze equals the previously computed value for the fixtures."
+scope:
+  in:
+    - "Metadata reads, stored readiness, no per-GET validation."
+  out:
+    - "The public experiment shape (readiness stays in the response)."
+acceptance_criteria:
+  - id: A1
+    text: "GET experiment and the selected views perform no frozen-document read and no JSON Schema validation (asserted through the fake store and a hook)."
+  - id: A2
+    text: "Readiness values for the conformance fixtures are unchanged."
+  - id: A3
+    text: "The no-document-read test fails on the unfixed code."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/evalservice/... ./internal/evalstore/..."
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1]

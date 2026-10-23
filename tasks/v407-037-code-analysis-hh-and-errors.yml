@@ -1,0 +1,57 @@
+schema_version: "1.0"
+id: V407-037
+title: "Parse .hh headers as C++ and stop masking parser defects as incomplete coverage"
+milestone: server-runtime-review-2026-10
+epic: code-analysis
+kind: defect
+introduced_by: V314-001
+priority: P2
+status: pending
+depends_on: []
+languages: [python]
+goal: "Every extension the analysis claims as C++ evidence is parsed, and a parser or language-table defect surfaces as a tool failure instead of parse_error coverage."
+context:
+  review: "docs/research/2026-10-23-server-runtime-review.md, findings G10, G8 (code_analysis), G9 (code_analysis); file:line as of 39d89438, re-verify on main"
+  specification: docs/spec/tools/code-analysis.md
+  severity: low
+  finding: >-
+    runtime/src/contractor_runtime/toolsets/code_analysis/languages.py:92
+    lists .hh in CPP_SOURCE_EXTENSIONS (and line 116 in the graph table), but
+    EXTENSION_LANGUAGES (51-86) maps .hpp and .hxx only, so
+    graph_only_source() reports every .hh as unsupportedSourceFiles for
+    list_symbols and search_def while .hpp in the same project is parsed;
+    tests/test_code_analysis_shallow.py:347 tests only the header-majority
+    vote. code_analysis/tools.py:1024-1025 _symbols_for_file turns any
+    exception from the parser or languages.py into parse_error=True
+    coverage, a silent incomplete result. _CodeAnalysisSession
+    (tools.py:309-340) holds _lock across snapshot, up to 10 s parse and up
+    to 120 s graph build; close() at 272 must wait for it. _symbol_id
+    validation is duplicated inline at tools.py:467-473 and 1573-1581.
+  siblings: >-
+    Each supported language's extension table must be cross-checked against
+    its evidence table (add a test that every extension in a *_SOURCE_EXTENSIONS
+    set has an EXTENSION_LANGUAGES entry).
+plan:
+  - "Add '.hh': Language.CPP and a per-language consistency test over the extension tables."
+  - "Catch only tree-sitter parse errors and decoding errors in _symbols_for_file; let other exceptions propagate to _safe_tool_response; add a test with a monkeypatched parser raising TypeError expecting a tool failure."
+  - "Record the session lock hold as an accepted risk in docs/spec/tools/code-analysis.md (reason, detection: build duration metric, reopen condition) or release the lock during the graph build with a build-in-progress state; prefer the latter if close() can cancel the build."
+  - "Share one _symbol_id validator."
+scope:
+  in:
+    - "Extension table fix and consistency test, exception narrowing, lock-hold decision, validator dedup."
+  out:
+    - "Graph semantics and symbol formats."
+acceptance_criteria:
+  - id: A1
+    text: "A project with a.hh and b.hpp parses both; the extension consistency test passes for every language."
+  - id: A2
+    text: "A TypeError in the parser path yields a tool failure, not parse_error coverage."
+  - id: A3
+    text: "The lock hold is either released during builds (test: list_symbols returns during a long build) or recorded with a detection signal."
+  - id: A4
+    text: "The .hh and TypeError tests fail on the unfixed code."
+tests:
+  - command: "cd runtime && uv run --locked pytest -q tests/test_code_analysis_shallow.py tests/test_code_analysis_faults.py tests/test_code_analysis_graph.py"
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A1]

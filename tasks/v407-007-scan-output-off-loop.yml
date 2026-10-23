@@ -1,0 +1,52 @@
+schema_version: "1.0"
+id: V407-007
+title: "Parse scanner output and prepare scan inputs off the Runtime event loop"
+milestone: server-runtime-review-2026-10
+epic: scan-tools
+kind: defect
+priority: P3
+status: pending
+depends_on: []
+languages: [python]
+goal: "Scanner observation parsing, temporary directories and input file writes never block the Runtime event loop, and katana prepare reads only artifact metadata."
+context:
+  review: "docs/research/2026-10-23-server-runtime-review.md, findings G12 and G15 (katana); file:line as of 39d89438; scan/tools.py changed on main after that commit, re-locate by function name"
+  specification: docs/spec/tools/scanners.md
+  severity: low
+  finding: >-
+    runtime/src/contractor_runtime/toolsets/scan/tools.py invocation() runs
+    tool.observation(result) synchronously: _json_lines, ffuf_observation
+    (ffuf.py:100-155), katana_observation (katana.py:80-226, per-line
+    strict_json_loads plus canonical_url with IDNA) and the _sqlmap_techniques
+    regex over up to 1 MiB of stdout and stderr. tempfile.TemporaryDirectory,
+    prepare() and the small input writes in each scanner's prepare are
+    blocking disk calls on the loop. katana prepare downloads up to 128 KiB
+    of the targets artifact only to test existence; read_artifact_metadata
+    suffices. Section 6 of AGENTS.md requires blocking I/O and CPU-heavy
+    parsing to run through threads.to_thread_until_done.
+  siblings: >-
+    Every scanner module under toolsets/scan (ffuf, katana, sqlmap, nuclei and
+    the nuclei package code added on main) must be covered.
+plan:
+  - "Move observation and finalize parsing into one to_thread_until_done callable per invocation; keep the result assembly on the loop."
+  - "Run TemporaryDirectory creation and input writes in a thread; keep the cancellation semantics of threads.to_thread_until_done (the thread finishes before cleanup)."
+  - "Replace the katana prepare download with read_artifact_metadata."
+  - "Add a test with a 1 MiB synthetic ffuf or katana output asserting event-loop gaps stay below the existing 100 ms budget (pattern: test_code_analysis_shallow real-parser gap test), and a test that katana prepare does not call read_artifact."
+scope:
+  in:
+    - "Thread offload for scanner parsing and input preparation."
+    - "Metadata-only existence check in katana prepare."
+  out:
+    - "Scanner argv construction, target validation and result schemas."
+acceptance_criteria:
+  - id: A1
+    text: "A 1 MiB scanner output is parsed with loop gaps under 100 ms in the gap test."
+  - id: A2
+    text: "katana prepare performs no payload read."
+  - id: A3
+    text: "ruff and import-linter pass; existing scan toolset tests pass unchanged."
+tests:
+  - command: "cd runtime && uv run --locked pytest -q tests/test_scan_toolset.py tests/test_scan_error_codes.py"
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A3]

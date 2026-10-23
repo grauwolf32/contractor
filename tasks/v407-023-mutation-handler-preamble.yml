@@ -1,0 +1,67 @@
+schema_version: "1.0"
+id: V407-023
+title: "Share one mutation preamble and one bounded JSON decoder across public handlers"
+milestone: server-runtime-review-2026-10
+epic: api-contracts
+kind: defect
+introduced_by: V370-009
+priority: P3
+status: pending
+depends_on: []
+languages: [go]
+goal: "Every mutation handler validates headers, media type, body bound and JSON the same way, in the same order, through one helper."
+context:
+  review: "docs/research/2026-10-23-server-runtime-review.md, findings B5, B6, B8, B9, B10, B13; file:line as of 39d89438, re-verify on main"
+  specification: docs/spec/api/public-api.md
+  severity: low
+  finding: >-
+    runtime_configuration_handlers.go:556-571 readBoundedRuntimeJSON returns
+    an unclassified error when io.ReadAll fails for a reason other than the
+    size limit (client abort, bad chunked framing); handleError (errors.go:22)
+    turns it into 500 internal_error retryable and the request-id middleware
+    logs a server failure, while decodeJSONBounded (request.go:57) answers
+    invalid_request. project_artifact_handlers.go:47-78 reads the Project
+    before validating query, name, media type and preconditions, unlike
+    putArtifact (artifact_handlers.go:438): a malformed request hits
+    PostgreSQL and error precedence differs (409 before 400).
+    types_run_project.go:38-105 and types_configuration.go:228 decode sibling
+    array and object fields with three techniques (strictjson.Decode,
+    json.Unmarshal, a hand-rolled token loop re-implementing the duplicate-key
+    check). model_selection_handlers.go:24,55 test h.ModelSelection == nil
+    although requireServices (router.go:124) refuses a nil field, and the
+    fallback returns a different shape. git_import_handlers.go:21,
+    gitimport/importer.go:84 and gitimport/client.go:214 each apply the same
+    timeout from cfg.GitImport.EffectiveLimits().Timeout (plus 120 s socket
+    deadlines on a 64 KiB body). run_handlers.go:242-258,
+    project_handlers.go:47-64, audit_handlers.go:139-154,
+    configuration_handlers.go:105-125 and credential_handlers.go:86-102
+    decode up to 1 MiB before requireIdempotencyKey, while the
+    Runtime-configuration handlers check headers first.
+  siblings: >-
+    Every POST/PUT/PATCH/DELETE handler under internal/httpapi/public (list
+    them in the task log) and the private artifact PUT.
+plan:
+  - "Add mutationPreamble(w, r, opts) in internal/httpapi/public that checks, in this order: query, media type, Idempotency-Key and preconditions, body bound, strict JSON decode; return classified errors. Replace the per-handler sequences (about 15)."
+  - "Make readBoundedRuntimeJSON use decodeJSONBounded with json.RawMessage; make every sibling-field decode use strictjson.Decode with explicit null rejection; delete the token loop and the dead nil checks."
+  - "Reorder putProjectArtifact to validate before the Project read."
+  - "Let gitimport.DoImport own the import timeout; remove the two outer WithTimeout copies and set the socket deadline from the body bound, documenting which timeout owns what in docs/spec/artifacts/git-import.md."
+  - "Tests: client body abort on RuntimeConfig publish answers 400; a malformed putProjectArtifact request issues no store call; a table test of error precedence for one representative mutation per family."
+scope:
+  in:
+    - "Preamble helper, decoder unification, ordering, Git import timeout ownership."
+  out:
+    - "Changing any accepted request shape."
+acceptance_criteria:
+  - id: A1
+    text: "An aborted body on RuntimeConfig publish answers 400 invalid_request, not 500."
+  - id: A2
+    text: "Every mutation handler goes through the preamble (grep shows no direct requireIdempotencyKey or media-type check outside it) and the precedence table test passes."
+  - id: A3
+    text: "Git import has one timeout owner; existing import tests pass."
+  - id: A4
+    text: "The abort and no-store-call tests fail on the unfixed code."
+tests:
+  - command: "go test -count=1 ./internal/httpapi/... ./internal/gitimport/..."
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A2]

@@ -1,0 +1,53 @@
+schema_version: "1.0"
+id: V407-016
+title: "Probe idle lanes once per class and release stuck terminal Stages concurrently"
+milestone: server-runtime-review-2026-10
+epic: execution-core
+kind: defect
+introduced_by: V400-001
+priority: P3
+status: pending
+depends_on: []
+languages: [go]
+goal: "Idle polling cost scales with work found, and N stuck terminal Stages do not serialize into N cleanup timeouts."
+context:
+  review: "docs/research/2026-10-23-server-runtime-review.md, findings D7 and D9; file:line as of 39d89438, re-verify on main"
+  specification: docs/spec/execution/scheduler.md
+  severity: low
+  finding: >-
+    internal/scheduler/supervisor.go:57-66,100-110 fillLanes starts
+    desired[class] lanes on every poll or wake even when the last poll found
+    nothing; each lane runs the claim CTE (claimRunnableRunSQL, two
+    sub-selects with EXISTS over owner_queue_controls and stage_executions)
+    serialized under claimMu: 3 claims per second at the default lanes, 64
+    per second at the maximum.
+    internal/scheduler/allocation_release.go:92-118 recoverTerminalRelease
+    returns after the first execution that worked, and releaseTerminalOwned ->
+    ReleaseAll can take the full cleanup timeout (30 s) for an unreachable or
+    conflicting Runtime, so N stuck terminal Stages cost N x 30 s per pass
+    with healthy ones queued behind them; a live Runtime answering 409 until
+    its next heartbeat drain is the slow case.
+  siblings: >-
+    The eval coordinator has its own fill loop (V259-001); confirm it already
+    probes once per poll.
+plan:
+  - "In fillLanes, start one lane per class per poll; fan out to desired[class] only after a successful claim (the loop already restarts eagerly on worked). Record the pacing rule in docs/spec/execution/scheduler.md."
+  - "In recoverTerminalRelease, process the batch with a small bounded concurrency (for example 4) under the existing per-execution operation budget, and do not return after the first failure; keep the release_attempted_at rotation."
+  - "Tests with the injected clock and fake store: idle supervisor issues one claim per class per poll; three stuck executions and one healthy one release the healthy one within one cleanup timeout."
+scope:
+  in:
+    - "Idle probe pacing; bounded-concurrency terminal release."
+  out:
+    - "Claim semantics, lease durations, Runtime release protocol."
+acceptance_criteria:
+  - id: A1
+    text: "An idle Scheduler with 1 model lane and 2 tool lanes issues 2 claim statements per poll, not 3; with work present all lanes fill."
+  - id: A2
+    text: "With three executions whose Runtime never answers and one healthy execution, the healthy one is released within one cleanup timeout."
+  - id: A3
+    text: "Both tests fail on the unfixed code."
+tests:
+  - command: "go test -count=1 ./internal/scheduler/..."
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1]

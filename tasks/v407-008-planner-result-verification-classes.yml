@@ -1,0 +1,65 @@
+schema_version: "1.0"
+id: V407-008
+title: "Classify Planner result verification failures once: contract violations are permanent, storage faults retryable"
+milestone: server-runtime-review-2026-10
+epic: planner-worker
+kind: defect
+introduced_by: MVP-013
+priority: P1
+status: pending
+depends_on: []
+languages: [go]
+goal: "A Worker that names a missing or invalid result artifact fails its Stage permanently with the same classification the Scheduler applies, and the invocation metrics record that failure."
+context:
+  review: "docs/research/2026-10-23-server-runtime-review.md, findings E2 and E9; file:line as of 39d89438, re-verify on main"
+  specification: docs/spec/execution/planners.md
+  severity: medium
+  finding: >-
+    internal/planner/result.go:56-63 (sibling
+    internal/planner/streamline/tools.go:437-442) turns every inspector.Inspect
+    error into result_artifact_unavailable with Retryable true, including
+    artifacts.ErrArtifactNotFound, ErrInvalidName and the "ArtifactStore
+    resolved a different artifact revision" error (artifact_inspector.go:79-81),
+    all deterministic contract violations. The Scheduler's re-validation
+    (internal/scheduler/stage_finalization.go:146-151) treats exactly these as
+    non-retryable and wraps only other errors as retryable
+    candidateVerificationError, so one rule has two definitions. The planner
+    path runs first (passthrough.go:150-156 -> p.fail -> Termination.Retryable),
+    so a Stage with on.interrupted: retry re-dispatches a Worker bug until
+    MaxAttempts is exhausted. result_artifact_unavailable is not registered in
+    docs/spec/platform/errors.md, and result.Artifacts is iterated in map order
+    so the reported artifact name is nondeterministic. Separately,
+    passthrough.go:150-156 ends the span as rejected but, unlike the sibling
+    branches at 134-149, never sets invokeFailure, so finishReport (208-227)
+    records a2a.invoke as succeeded with Failed 0 while the Run is aborted.
+  siblings: >-
+    streamline/tools.go:437-442 and the Scheduler's stage_finalization.go
+    classification; the Runtime finalizer reports the same artifact set and
+    must stay unchanged.
+plan:
+  - "Add one classifier in internal/planner (or contracts) resultVerificationFailure(err) that maps ErrArtifactNotFound, ErrInvalidName and revision mismatch to a non-retryable result_contract_violation and everything else to retryable result_artifact_unavailable; call it from result.go and streamline/tools.go and from scheduler/stage_finalization.go so there is one definition."
+  - "Iterate result.Artifacts in sorted name order in both planner paths."
+  - "Register result_artifact_unavailable and the contract-violation code in internal/apierror or the error registry that generates docs/spec/platform/errors.md and run the registry docs target."
+  - "Set invokeFailure in the rejected branch of passthrough.go and extend passthrough_test.go to assert Failed 1 in the a2a.invoke metrics."
+  - "Tests: inspector returning ErrArtifactNotFound yields non-retryable termination in passthrough, streamline and Scheduler finalization; a storage error stays retryable; the deterministic-order assertion."
+scope:
+  in:
+    - "One classifier used by both Planners and the Scheduler."
+    - "Error code registration and spec update."
+    - "invokeFailure on rejection."
+  out:
+    - "Changing retry policy semantics of on.interrupted."
+acceptance_criteria:
+  - id: A1
+    text: "A missing result artifact ends the Stage with a non-retryable termination in passthrough, streamline and Scheduler re-validation; a storage error stays retryable."
+  - id: A2
+    text: "The rejected-candidate path records one failed a2a.invoke in the ExecutionReport."
+  - id: A3
+    text: "docs/spec/platform/errors.md lists both codes and make lint accepts it."
+  - id: A4
+    text: "New tests fail on the unfixed code."
+tests:
+  - command: "go test -count=1 ./internal/planner/... ./internal/scheduler/..."
+    covers: [A1, A2, A4]
+  - command: make lint
+    covers: [A3]

@@ -1,0 +1,45 @@
+schema_version: "1.0"
+id: V407-036
+title: "Read Memory notes with bounded concurrency instead of serially under the lock"
+milestone: server-runtime-review-2026-10
+epic: memory
+kind: defect
+introduced_by: V9-002
+priority: P3
+status: pending
+depends_on: []
+languages: [python]
+goal: "Listing or searching 128 notes costs a handful of round-trip latencies, not 129."
+context:
+  review: "docs/research/2026-10-23-server-runtime-review.md, finding G14; file:line as of 39d89438, re-verify on main"
+  specification: docs/spec/tools/memory.md
+  severity: low
+  finding: >-
+    runtime/src/contractor_runtime/toolsets/memory/tools.py:211-237 _load_all
+    lists notes then awaits read_artifact for each of up to 128 serially
+    under the toolset lock; list_memories, search_memory, list_memory_tags
+    and a new write_memory all pay it. One binding per note is specified
+    (MEM-R45, MEM-R47); serial reads are not. V407-013 reduces the
+    per-request handshake but not the serialization.
+  siblings: >-
+    The Server-side Planner Memory notebook read was made one call in
+    V252-001; check whether a Worker-side batch read exists on the private
+    artifact API before adding concurrency.
+plan:
+  - "If the private API offers a batch read, use it; otherwise gather reads with an asyncio.Semaphore(8) and keep deterministic ordering of results."
+  - "Test with a fake artifact client that records concurrency: 128 notes load with at most 8 in flight and in at most ceil(128/8) rounds."
+scope:
+  in:
+    - "Bounded concurrent note loading."
+  out:
+    - "Note limits, formats and bindings."
+acceptance_criteria:
+  - id: A1
+    text: "Loading 128 notes performs reads with bounded concurrency and the listing order is unchanged."
+  - id: A2
+    text: "The concurrency test fails on the unfixed code (1 in flight)."
+tests:
+  - command: "cd runtime && uv run --locked pytest -q tests/test_memory_toolset.py"
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1]

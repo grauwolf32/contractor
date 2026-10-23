@@ -21,6 +21,7 @@ task owns it. The findings below that section describe the reviewed revision.
 | [Maintenance backlog — 2026-10-09](2026-10-09-maintenance-backlog.md) | V261-001, V341-001, V347-001 |
 | [`main` branch protection request](2026-10-09-main-protection.json) | V347-001 |
 | [v2 research hypotheses — 2026-10-23](2026-10-23-v2-research-hypotheses.md) | Experiment planning; no task yet |
+| [Server and Runtime review — 2026-10-23](2026-10-23-server-runtime-review.md) | V407-001 … V407-039 (milestone `server-runtime-review-2026-10`) |
 
 Evaluation methodology lives in the [portable evaluation specification](../spec/evals/format.md),
 the [instruction-evaluation fixtures](../../tests/eval/agent_instructions/README.md)

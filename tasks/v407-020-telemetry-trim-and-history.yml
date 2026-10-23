@@ -1,0 +1,55 @@
+schema_version: "1.0"
+id: V407-020
+title: "Trim telemetry reports by prefix sum, ring-buffer the operations history and keep one resource sentinel"
+milestone: server-runtime-review-2026-10
+epic: operations
+kind: defect
+introduced_by: V1-004
+priority: P2
+status: pending
+depends_on: []
+languages: [go]
+goal: "Shrinking a report encodes it a constant number of times, a heartbeat does not copy the operations history, and the performance-collection sentinel has one definition."
+context:
+  review: "docs/research/2026-10-23-server-runtime-review.md, findings D4, D10, D8 (sentinel); file:line as of 39d89438, re-verify on main"
+  specification: docs/spec/platform/observability.md
+  severity: low
+  finding: >-
+    internal/telemetry/policy.go:58-70 and about 130-145:
+    NormalizeExecutionReport and NormalizeAllocationReport drop one tool
+    call or error per iteration and re-encode the whole report (encodedSize
+    -> full json.Encode) each time; with up to 1000 tool calls x 4 KiB
+    arguments and a 1 MiB cap this is hundreds of 1 MiB encodes on the
+    Scheduler lane at every Stage end, plus a separate encodedSize(arguments)
+    and valueSize per record. internal/controlplane/operations.go:415-441:
+    once operationsHistory exceeds 255 entries every heartbeat, registration
+    or allocation change reallocates and copies the 255-entry slice under the
+    Registry mutex. internal/controlplane/runtime_client.go:391-406
+    sanitizeRuntimeResources and internal/telemetry/repository.go:141-157
+    normalizeAllocationResources are byte-for-byte the same sentinel
+    construction for the performance-collection policy.
+  siblings: >-
+    Other trim loops in internal/telemetry and internal/contracts/reporting
+    (grep encodedSize).
+plan:
+  - "Compute per-record encoded sizes once, trim by prefix sum from the end (or halve), then verify once with a final encode; keep the output identical for the existing fixtures."
+  - "Replace the history slice copy with a fixed-size ring (head index plus length) and a snapshot method that copies only on read."
+  - "Move the sentinel construction to internal/contracts/reporting and call it from both places."
+  - "Tests: a 1000-call report trimmed to 1 MiB encodes at most 3 times (count through a hook) and produces the same output as before; a benchmark for the ring; a test that the two sentinel callers produce identical values."
+scope:
+  in:
+    - "Prefix-sum trimming, ring buffer, one sentinel."
+  out:
+    - "Report caps, retention and the public metrics API."
+acceptance_criteria:
+  - id: A1
+    text: "Trimming a 1000-call report performs a constant number of full encodes and yields byte-identical output for the fixtures."
+  - id: A2
+    text: "Appending a history change at capacity allocates no new backing array (allocation-count test)."
+  - id: A3
+    text: "The sentinel has one definition; the encode-count test fails on the unfixed code."
+tests:
+  - command: "go test -count=1 ./internal/telemetry/... ./internal/controlplane/... ./internal/contracts/..."
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A3]

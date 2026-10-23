@@ -80,6 +80,9 @@ execution_policy:
     P3: Low-impact correction with no user-visible failure, such as documentation, dead code or test hygiene.
 
 milestones:
+  - id: server-runtime-review-2026-10
+    exit_task: V407-039
+    outcome: Every defect, cost problem and duplicated rule found by the 2026-10-23 Server and Runtime review is fixed with a regression test or declined with a recorded reason.
   - id: runtime-placement-labels-2026-10
     exit_task: V405-005
     outcome: Startup-owned cloud and local labels dynamically constrain WorkflowRun and Audit Worker placement through UI selections, with immutable launch requirements and retained allocation provenance.

@@ -1,0 +1,56 @@
+schema_version: "1.0"
+id: V407-012
+title: "Fold duplicated Runtime core helpers and move small prepare-path disk writes off the loop"
+milestone: server-runtime-review-2026-10
+epic: planner-worker
+kind: chore
+priority: P3
+status: pending
+depends_on: []
+languages: [python]
+goal: "Each Runtime helper rule has one definition, and no prepare path performs filesystem syscalls on the event loop."
+context:
+  review: "docs/research/2026-10-23-server-runtime-review.md, findings F8, F9, F10; file:line as of 39d89438, re-verify on main"
+  finding: >-
+    Duplicates: four identical exception-chain walkers in
+    worker/runtime.py:1362-1388, 1390-1400, 1468-1478 (_worker_budget_error,
+    _worker_summarization_request, _result_finalizer_error,
+    _gateway_model_error) differ only in the isinstance target;
+    _start_span/_end_span/_safe_error_type in worker/runtime.py:1328-1361 and
+    worker/instrumentation.py:741-775; _consume_background_task in
+    allocation/cleanup.py:45, control_client.py:414 and adapters/host.py:611;
+    _metric_identifier in telemetry/metrics.py:659 and
+    telemetry/invocations.py:85; _json_size in telemetry/metrics.py:642 and
+    worker/summarizer.py:509; _truncate_utf8 in telemetry/metrics.py:634 and
+    adapters/otlp_http.py:736 (already differ: one appends an ellipsis).
+    Blocking syscalls on the loop: workspace.py:57-59 (_write_owner_marker and
+    mkdir in LocalWorkdirFactory.prepare), projectfs/provider.py:118-122
+    (mkdir, write_text, chmod in LocalWorkspaceProvider.create),
+    agent_skills/runtime.py:573-583 (tempfile and write_text in the startup
+    probe). allocation/service.py:184-380 prepare() holds the allocation lock
+    across hydration, adapter creation and Podman prepare; snapshot(),
+    active_a2a_application(), agent_state_snapshot() and release() wait on it
+    and expire_control_lease (611) and reconcile_drain (628) carry
+    workarounds.
+plan:
+  - "Add core/errors.py find_cause(error, type) and core/text.py truncate_utf8 (choose one ellipsis rule and record it), core/tasks.py consume_background_task; replace the copies; keep import-linter layering (core is the bottom layer)."
+  - "Share _start_span/_end_span/_safe_error_type through telemetry/spans.py."
+  - "Wrap the three prepare-path syscalls in threads.to_thread_until_done."
+  - "For prepare(): introduce a preparing flag set under the lock and released after prepare so read-only entry points return a snapshot without waiting; remove the two workarounds if the flag makes them unnecessary; add a test that snapshot() returns during a slow prepare."
+scope:
+  in:
+    - "Helper consolidation, thread offload, preparing flag."
+  out:
+    - "Any change to State, telemetry or allocation wire formats."
+acceptance_criteria:
+  - id: A1
+    text: "Each listed helper has one definition; grep finds no second copy."
+  - id: A2
+    text: "snapshot() during a blocked prepare returns within the test's deadline."
+  - id: A3
+    text: "Existing tests pass unchanged except for moved symbols; ruff and import-linter pass."
+tests:
+  - command: "cd runtime && uv run --locked pytest -q tests/test_allocation.py tests/test_adk_runtime.py tests/test_metrics.py"
+    covers: [A2, A3]
+  - command: make lint
+    covers: [A1, A3]
