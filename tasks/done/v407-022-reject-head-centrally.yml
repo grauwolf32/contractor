@@ -7,7 +7,7 @@ kind: defect
 introduced_by: V370-009
 priority: P2
 status: completed
-implementation_commit: 5ea08420f5d176d36f7575e7d917d5aa312a4f1b
+implementation_commit: 83bbc7046851ade0217fb1b54507a9595fdfe445
 depends_on: []
 languages:
 - go
@@ -75,6 +75,10 @@ verification:
   - go test -count=1 ./internal/app/... ./internal/controlplane/... passed; go vet -tags e2e,integration
     ./internal/httpapi/... ./internal/app/... ./tests/... passed.
   - make lint passed, including staticcheck U1000, testonlyexports, spec and task checks.
+  - 'Review follow-up (after merging claude/review-v407-v409 at 17030baa and the private change 83bbc704): the same
+    go test -count=1 ./internal/httpapi/... with and without -tags=integration against contractor_test_g2 (no SKIP in
+    public and privateartifacts), make verify-public-api, go test ./internal/app/... ./internal/controlplane/..., the
+    tagged go vet and make lint passed again.'
   database_tests_configured: true
   evidence:
   - 'Finding re-verified on e29f0b35: routes.go registered "GET <path>" patterns, which ServeMux also matches for HEAD;
@@ -98,29 +102,43 @@ verification:
     event_handlers_test.go handshake tests (real server) pass.'
   - 'Behaviour note: a HEAD 405 no longer carries the Cache-Control: no-store that evalRoute and a few handlers set
     before their own HEAD check; it is now the same response as any other undeclared method on that path (API-R73),
-    and /v1/auth/ paths still get no-store from the middleware. OpenAPI declares no HEAD operation and no 405
-    response, so it is unchanged.'
+    and /v1/auth/ paths still get no-store from the middleware. OpenAPI declares no HEAD operation; the 22 Eval
+    operations declare a 405 response (for example api/openapi/contractor-public-v1.yaml:146), and those 405
+    responses declare no headers, so the document is unchanged.'
   spec:
   - 'New requirement API-R111 in docs/spec/api/public-api.md: HEAD is 405 from the route table before any handler,
     after API version, request ID, origin, authentication and Operations authorization (401/403 exactly as GET);
     invariant 9 names the two tests. The method_not_allowed registry row (API-R73) already covered HEAD and is unchanged.'
+  - 'New requirement ART-R120 in docs/spec/artifacts/artifact-store.md (and an "Other methods" row in the private
+    interface table, invariant 21): the private allocation API serves exactly its routes, another method on their
+    paths is 405 method_not_allowed, any other path 404, and HEAD on a GET path is 405 from the router after the
+    mTLS and Runtime instance checks and before the grant check, any store read and any transfer slot (LIM-BLB-1).'
   siblings_changed:
   - 'All public GET routes: the router owns HEAD; the 73 per-handler checks (rejectHead calls, inline r.Method ==
-    HEAD checks, the git key and evalRoute checks; the implementation commit message says 71) and rejectHead itself are removed. TestQueryRoutesDoNotImplicitlyServeHEAD
-    (twelve hand-picked paths) is replaced by the route-table tests; the direct listAuditEvents HEAD call in
+    HEAD checks, the git key and evalRoute checks; the 5ea08420 commit message says 71) and rejectHead itself
+    are removed. TestQueryRoutesDoNotImplicitlyServeHEAD (twelve hand-picked paths) is replaced by the route-table tests; the direct listAuditEvents HEAD call in
     TestAuditEventPaginationAndCursorBinding is removed because the handler no longer owns the rule.'
+  - 'Private Artifact API (internal/httpapi/privateartifacts/handler.go, three GET routes: list, raw read, metadata
+    read): ServeMux matched HEAD with their GET patterns, so an authorized Runtime HEAD ran the grant check and the
+    full read, a payload read holding a transfer slot (LIM-BLB-1), before net/http dropped the body. Fixed by the
+    same mechanism: the routing rule moved to httpx.ServeRoutes (the foundation package both adapters already
+    import), which the public register and the private handler''s new route table both call. Side effect: Gateway
+    recovery, which had no method-less pattern, now answers its undeclared methods with 405 like every other private
+    path instead of falling through to 404 (stated in ART-R120). The only client transport,
+    runtime/src/contractor_runtime/artifacts.py:457, accepts only GET, PUT and POST, and the Artifact, finding
+    proposal (finding_proposals.py:55-57) and Gateway recovery (llm/recovery.py:135-137) clients all use it, so the
+    Runtime never sends HEAD. Tests: TestServeRoutesAnswersOnlyDeclaredMethods (httpx),
+    TestPrivateHeadNeverReachesARouteHandler (private route table with recording handlers) and
+    TestPrivateHeadIsRejectedAfterMTLSAndBeforeTheStore (NewHandler, granted allocation with a seeded Artifact:
+    unauthenticated HEAD and GET are 401 mtls_required, authorized HEAD with valid and malformed queries is 405
+    with zero list, metadata and payload reads, and GET afterwards still reads the payload). With the HEAD pattern
+    removed from ServeRoutes all three fail; the end-to-end test reports 1 list, 2 metadata and 2 payload reads.'
   siblings_ruled_out:
   - 'Control Plane private API (internal/controlplane/http.go:64-68): no GET family; only POST register and
-    heartbeat, and the method-less patterns already answer HEAD with 405 method_not_allowed. No change, no new test.'
-  - 'Private Artifact API (internal/httpapi/privateartifacts/handler.go:63-73): three GET routes (list, raw read,
-    metadata read) also serve HEAD through ServeMux, after mTLS, the instance header and the allocation grant
-    check, with the GET authority. Its contract (artifact-store.md ART-R40 to ART-R48, ART-R56, ART-R116 and the
-    private interface table) declares only GET and states no method or HEAD policy, so there is no contract
-    violation and changing it would be private method policy without a contract basis (scope.out). The only client,
-    runtime/src/contractor_runtime/artifacts.py:457, sends only GET, PUT and POST. Accepted cost: a HEAD by an
-    authorized Runtime costs the same reads as GET. Reopen when the private contract declares a method policy or a
-    non-Runtime client can reach the private listener. No test added.'
+    heartbeat, and the method-less patterns already answer HEAD with 405 method_not_allowed. No contract violation,
+    so no change and no new test (A3).'
   - 'Process routes GET /healthz and GET /readyz (internal/app/app.go:316-317) and the Runtime agent-state route
     (runtime/src/contractor_runtime/server.py:349-352, Starlette adds HEAD to GET routes): their contracts
-    (PER-R3/OPS-R115, WRK-R112 to WRK-R122) define no method policy; outside this Go public-route task. No change.'
+    (PER-R3/OPS-R115, WRK-R112 to WRK-R122) define no method policy; health probes conventionally accept HEAD and
+    the agent-state route is served by the Python Runtime, not a Server adapter. No change.'
   - 'Standby Server (standby.go) answers every /v1 request, HEAD included, with 503 server_standby like GET.'
