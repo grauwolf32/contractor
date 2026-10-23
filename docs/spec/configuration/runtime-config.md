@@ -475,10 +475,29 @@ deletion and local tombstone commit.
 **RCF-R53.** If a delete call has an ambiguous Gateway or database result, the
 encrypted row remains active and inspectable, the write intent remains
 prepared, and new Run initialization is rejected until the same request or
-startup recovery resolves it (FAIL-RCF-2).
+startup recovery resolves it (FAIL-RCF-2). A durable prepared intent rejects
+only references to its own credential. If the transaction that records the
+intent fails without a definite outcome, Server instead rejects Run
+initialization and allocation references to every credential with
+`credential_recovery_required` until it reconciles that transaction with
+durable state: it takes the credential's deletion lock without waiting, which
+proves that the transaction has ended, and only then reads whether a prepared
+deletion of the credential remains. When none remains, references are admitted
+again in the same process without a delete retry or restart. A prepared
+deletion keeps them rejected until the same request or recovery completes it.
+A lock still held, a failed read or cancellation keeps them rejected; the next
+reference, the next delete or recovery reconciles again, and a delete of
+another credential is rejected with `credential_recovery_required` rather than
+running beside the unsettled one.
 
 Rationale: this prevents a newly committed Run from pinning a remote key that
-may already have been deleted.
+may already have been deleted. A journal read taken without the deletion lock
+cannot prove absence, because the COMMIT of the recording transaction may still
+be in flight. Reconciliation runs only while such an outcome is uncertain, so an
+ordinary reference performs no extra query. Keeping every reference rejected
+while a durable prepared intent exists, instead of narrowing the fence to its
+credential once reconciliation finds it, preserves the earlier guarantee
+until that deletion completes; narrowing it is a separate decision.
 
 **RCF-R54.** The deletion fence of RCF-R48, RCF-R52 and RCF-R128 applies to
 both LLM credentials and runtime credentials.
