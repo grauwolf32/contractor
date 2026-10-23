@@ -23,6 +23,7 @@ const (
 	AllocationResourceUnavailable AllocationResourceStatus = "unavailable"
 
 	AllocationResourceReportMissing AllocationResourceReason = "report_missing"
+	AllocationResourceReportExpired AllocationResourceReason = "report_expired"
 )
 
 type AllocationResourceSummary struct {
@@ -137,13 +138,13 @@ func scanAllocationResourceSummaries(rows pgx.Rows) ([]AllocationResourceSummary
 		var item AllocationResourceSummary
 		var persistedPolicy string
 		var releaseCompletedAt *time.Time
-		var hasReport bool
+		var reportReceived, hasReport bool
 		var reportedAllocationID *string
 		var encodedResources []byte
 		if err := rows.Scan(
 			&item.AllocationID, &item.RunID, &item.StageExecutionID,
 			&item.Stage, &item.LogicalAgent, &item.Outcome, &item.FinishedAt,
-			&persistedPolicy, &releaseCompletedAt, &hasReport,
+			&persistedPolicy, &releaseCompletedAt, &reportReceived, &hasReport,
 			&reportedAllocationID, &encodedResources,
 		); err != nil {
 			return nil, fmt.Errorf("scan allocation resource summary: %w", err)
@@ -167,7 +168,7 @@ func scanAllocationResourceSummaries(rows pgx.Rows) ([]AllocationResourceSummary
 				}
 			}
 		}
-		projectAllocationResources(&item, releaseCompletedAt, hasReport, resources)
+		projectAllocationResources(&item, releaseCompletedAt, reportReceived, hasReport, resources)
 		result = append(result, item)
 	}
 	if err := rows.Err(); err != nil {
@@ -176,10 +177,14 @@ func scanAllocationResourceSummaries(rows pgx.Rows) ([]AllocationResourceSummary
 	return result, nil
 }
 
+// projectAllocationResources sets the status of item from its pinned policy
+// and its best unexpired report (hasReport, resources). Without one, a report
+// the allocation stored earlier (reportReceived) has expired under LIM-OBS-8;
+// otherwise the report is still pending release or never arrived (OPS-R183).
 func projectAllocationResources(
 	item *AllocationResourceSummary,
 	releaseCompletedAt *time.Time,
-	hasReport bool,
+	reportReceived, hasReport bool,
 	resources *reporting.RuntimeResources,
 ) {
 	switch item.CollectionPolicy {
@@ -191,9 +196,13 @@ func projectAllocationResources(
 		return
 	}
 	if !hasReport {
-		if releaseCompletedAt == nil {
+		switch {
+		case reportReceived:
+			item.Status = AllocationResourceUnavailable
+			item.Reason = allocationResourceReason(AllocationResourceReportExpired)
+		case releaseCompletedAt == nil:
 			item.Status = AllocationResourcePending
-		} else {
+		default:
 			item.Status = AllocationResourceUnavailable
 			item.Reason = allocationResourceReason(AllocationResourceReportMissing)
 		}

@@ -527,6 +527,15 @@ remain incomplete.
 result changes only through explicit selection, which preserves result and
 assessment history.
 
+**EVM-R239.** The StageMetrics that a member's observed usage and token
+budget read are retained while the member exists
+([OBS-R43](../platform/observability.md)). Recollecting a terminal member
+after the telemetry retention period (LIM-OBS-8) therefore reproduces its
+usage and creates no new result revision, and an external result is checked
+against the same observation (EVM-R163). Once the experiment is purged they
+expire like other telemetry, at the latest one retention period after their
+last renewal, unless their Run is deleted first.
+
 **EVM-R83.** `wall_ms` runs from the parent execution's `createdAt` to its
 confirmed `finishedAt`, for both Run and Audit, matching the existing
 Contractor provider interval. It includes queue and hold time and excludes

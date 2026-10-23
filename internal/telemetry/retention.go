@@ -8,8 +8,9 @@ import (
 )
 
 // Durable telemetry retention (OBS-R43, OBS-R44): one cleanup pass per
-// retentionInterval deletes at most retentionBatch expired rows from each
-// telemetry table. When a pass deletes a full batch, expired rows may remain,
+// retentionInterval settles at most retentionBatch expired rows of each
+// telemetry table: it deletes them, or renews StageMetrics an Eval member
+// reads. When a pass settles a full batch, expired rows may remain,
 // so the loop drains them after retentionDrainPause instead of waiting for the
 // next interval.
 const (
@@ -56,15 +57,15 @@ func (r *Retention) Run(ctx context.Context) error {
 			return nil
 		}
 		passContext, cancel := context.WithTimeout(ctx, r.passTimeout)
-		deleted, err := r.cleaner.CleanupExpired(passContext, r.now(), retentionBatch)
+		settled, err := r.cleaner.CleanupExpired(passContext, r.now(), retentionBatch)
 		cancel()
 		if err != nil && ctx.Err() == nil {
 			r.logger.Warn("telemetry retention cleanup failed", "error", err)
-		} else if deleted > 0 {
-			r.logger.Info("expired telemetry removed", "rows", deleted)
+		} else if settled > 0 {
+			r.logger.Info("expired telemetry cleaned up", "rows", settled)
 		}
 		wait := retentionInterval
-		if err == nil && deleted >= retentionBatch {
+		if err == nil && settled >= retentionBatch {
 			wait = retentionDrainPause
 		}
 		select {

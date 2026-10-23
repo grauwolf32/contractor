@@ -27,6 +27,7 @@ func TestAllocationResourceProjectionPreservesOptionalResourceStates(t *testing.
 		report       bool
 		released     bool
 		expired      bool
+		cleaned      bool
 		resources    string
 		wantStatus   telemetry.AllocationResourceStatus
 		wantReason   telemetry.AllocationResourceReason
@@ -46,7 +47,11 @@ func TestAllocationResourceProjectionPreservesOptionalResourceStates(t *testing.
 		{name: "unsupported", policy: reporting.PerformanceCollectionUnsupported, wantStatus: telemetry.AllocationResourceUnsupported},
 		{name: "pending", wantStatus: telemetry.AllocationResourcePending},
 		{name: "missing", released: true, wantStatus: telemetry.AllocationResourceUnavailable, wantReason: telemetry.AllocationResourceReportMissing},
-		{name: "expired", report: true, expired: true, released: true, resources: `{"version":1,"scope":"runtime_process","status":"partial"}`, wantStatus: telemetry.AllocationResourceUnavailable, wantReason: telemetry.AllocationResourceReportMissing},
+		// A report that was received and has expired is not a missing one,
+		// whether cleanup has deleted it yet or not, and before release too.
+		{name: "expired", report: true, expired: true, released: true, resources: `{"version":1,"scope":"runtime_process","status":"partial"}`, wantStatus: telemetry.AllocationResourceUnavailable, wantReason: telemetry.AllocationResourceReportExpired},
+		{name: "expired-cleaned", report: true, expired: true, cleaned: true, released: true, resources: `{"version":1,"scope":"runtime_process","status":"partial"}`, wantStatus: telemetry.AllocationResourceUnavailable, wantReason: telemetry.AllocationResourceReportExpired},
+		{name: "expired-unreleased", report: true, expired: true, resources: `{"version":1,"scope":"runtime_process","status":"partial"}`, wantStatus: telemetry.AllocationResourceUnavailable, wantReason: telemetry.AllocationResourceReportExpired},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			policy := test.policy
@@ -90,6 +95,15 @@ func TestAllocationResourceProjectionPreservesOptionalResourceStates(t *testing.
 					t.Fatal(err)
 				}
 				insertAllocationResourceFixture(t, ctx, pool, envelope, payload, test.expired)
+			}
+			if test.cleaned {
+				if _, err := reports.CleanupExpired(ctx, time.Now().UTC(), 10_000); err != nil {
+					t.Fatal(err)
+				}
+				var stored int
+				if err := pool.QueryRow(ctx, `SELECT count(*) FROM allocation_execution_reports WHERE allocation_id = $1`, allocation).Scan(&stored); err != nil || stored != 0 {
+					t.Fatalf("cleanup kept %d reports (%v)", stored, err)
+				}
 			}
 
 			history, err := reports.ListAllocationResourceHistory(ctx, telemetry.AllocationResourceHistoryParams{OwnerID: "user", Limit: 101})

@@ -316,8 +316,10 @@ func (r *Repository) RebuildStageMetrics(
 	return result, nil
 }
 
-// CleanupExpired removes only telemetry for semantically terminal executions.
-// The explicit batch cap applies across all telemetry tables.
+// CleanupExpired removes only telemetry for semantically terminal executions,
+// at most batchSize rows of each telemetry table, and returns the number of
+// expired rows it settled: deleted, or renewed StageMetrics that an Eval
+// member reads (cleanupStageMetricsSQL).
 func (r *Repository) CleanupExpired(
 	ctx context.Context,
 	now time.Time,
@@ -329,16 +331,13 @@ func (r *Repository) CleanupExpired(
 	if batchSize <= 0 || batchSize > 10_000 {
 		return 0, fmt.Errorf("%w: cleanup batch must be between 1 and 10000", ErrInvalid)
 	}
+	// Each table gets its own bounded budget. A large metrics backlog must
+	// not starve expired allocation and Planner reports.
+	var settled int64
+	if err := r.db.QueryRow(ctx, cleanupStageMetricsSQL, now.UTC(), batchSize).Scan(&settled); err != nil {
+		return 0, fmt.Errorf("cleanup expired telemetry: %w", err)
+	}
 	queries := []string{
-		`WITH doomed AS (
-            SELECT m.stage_execution_id FROM stage_metrics m
-            JOIN stage_executions e USING (stage_execution_id)
-            WHERE m.expires_at <= $1
-              AND e.state IN ('succeeded', 'failed', 'interrupted', 'cancelled')
-            ORDER BY m.expires_at, m.stage_execution_id LIMIT $2
-            FOR UPDATE OF m SKIP LOCKED
-        ) DELETE FROM stage_metrics m USING doomed d
-          WHERE m.stage_execution_id = d.stage_execution_id`,
 		`WITH doomed AS (
             SELECT r.report_id FROM allocation_execution_reports r
             JOIN stage_executions e USING (stage_execution_id)
@@ -358,17 +357,14 @@ func (r *Repository) CleanupExpired(
         ) DELETE FROM planner_execution_reports r USING doomed d
           WHERE r.report_id = d.report_id`,
 	}
-	var deleted int64
 	for _, query := range queries {
-		// Each table gets its own bounded budget. A large metrics backlog must
-		// not starve expired allocation and Planner reports.
 		command, err := r.db.Exec(ctx, query, now.UTC(), batchSize)
 		if err != nil {
-			return deleted, fmt.Errorf("cleanup expired telemetry: %w", err)
+			return settled, fmt.Errorf("cleanup expired telemetry: %w", err)
 		}
-		deleted += command.RowsAffected()
+		settled += command.RowsAffected()
 	}
-	return deleted, nil
+	return settled, nil
 }
 
 func (r *Repository) allocationReportForIdentity(

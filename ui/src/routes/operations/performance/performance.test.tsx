@@ -345,6 +345,18 @@ describe("Operations performance views", () => {
                   status: "unavailable",
                   reason: "report_missing",
                 }),
+                conforming("AllocationResourceSummary", {
+                  allocationId: "allocation-expired",
+                  runId: "run-expired",
+                  stageExecutionId: "stage-execution-expired",
+                  stage: "document",
+                  logicalAgent: "writer",
+                  outcome: "succeeded",
+                  finishedAt: "2026-08-01T11:00:00Z",
+                  collectionPolicy: "requested",
+                  status: "unavailable",
+                  reason: "report_expired",
+                }),
               ]),
             ),
         },
@@ -370,6 +382,10 @@ describe("Operations performance views", () => {
       screen.getByRole("button", { name: "Metrics for allocation-missing" }),
     );
     expect(screen.getAllByText("report missing").length).toBeGreaterThan(0);
+    await user.click(
+      screen.getByRole("button", { name: "Metrics for allocation-expired" }),
+    );
+    expect(screen.getAllByText("report expired").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Unavailable").length).toBeGreaterThan(0);
     expect(
       screen.queryByRole("button", { name: /force|idle|reassign|release/i }),

@@ -11949,7 +11949,8 @@
             "sampling_gap",
             "counter_reset",
             "invalid_report",
-            "report_missing"
+            "report_missing",
+            "report_expired"
           ]
         },
         "resources": {

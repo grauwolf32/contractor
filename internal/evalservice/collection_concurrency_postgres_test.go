@@ -16,7 +16,11 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func collectingEvalAudit(t *testing.T) (*serviceHarness, evalstore.Experiment, evalstore.Claim, string, auditstore.CollectParams) {
+// evalAuditExecution starts an audit experiment until one member's Audit is
+// active, moves its Round to executing and creates a check execution intent
+// for its only item. It returns the member and the Audit claim that owns the
+// intent.
+func evalAuditExecution(t *testing.T) (*serviceHarness, evalstore.Experiment, string, auditstore.ControllerClaim, auditstore.Execution) {
 	t.Helper()
 	h := newHarness(t)
 	e := h.prepared(t, "audit")
@@ -36,10 +40,6 @@ WHERE a.state = 'active' LIMIT 1`).Scan(&auditID, &memberID)
 		}
 	}
 	e = h.get(t, e.ID)
-	claims, err := evalstore.NewPostgresStore(h.pool).Claim(t.Context(), "projection-race-collector", 5*time.Minute, 1)
-	if err != nil || len(claims) != 1 {
-		t.Fatalf("claim Eval: %v %v", claims, err)
-	}
 	audits := auditstoretest.NewStore(h.pool)
 	auditClaims, err := audits.Claim(t.Context(), auditstore.ClaimParams{HolderID: "projection-race-audit", Lease: 5 * time.Minute, Limit: 1})
 	if err != nil || len(auditClaims) != 1 || auditClaims[0].AuditID != auditID {
@@ -67,7 +67,17 @@ WHERE a.state = 'active' LIMIT 1`).Scan(&auditID, &memberID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := audits.ObserveSubmissionFailure(t.Context(), auditstore.ObserveSubmissionFailureParams{
+	return h, e, memberID, claim, execution
+}
+
+func collectingEvalAudit(t *testing.T) (*serviceHarness, evalstore.Experiment, evalstore.Claim, string, auditstore.CollectParams) {
+	t.Helper()
+	h, e, memberID, claim, execution := evalAuditExecution(t)
+	claims, err := evalstore.NewPostgresStore(h.pool).Claim(t.Context(), "projection-race-collector", 5*time.Minute, 1)
+	if err != nil || len(claims) != 1 {
+		t.Fatalf("claim Eval: %v %v", claims, err)
+	}
+	if _, err := auditstoretest.NewStore(h.pool).ObserveSubmissionFailure(t.Context(), auditstore.ObserveSubmissionFailureParams{
 		Claim: claim, ExecutionID: execution.ExecutionID,
 	}); err != nil {
 		t.Fatal(err)

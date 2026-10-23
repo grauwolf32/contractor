@@ -2745,7 +2745,9 @@ type AllocationResourceSummary struct {
 	FinishedAt       time.Time           `json:"finishedAt"`
 	LogicalAgent     ConfigId            `json:"logicalAgent"`
 	Outcome          StageExecutionState `json:"outcome"`
-	Reason           interface{}         `json:"reason,omitempty"`
+
+	// Reason Why resources are partial or unavailable. `report_missing`: the released allocation has no report with usable resources; `report_expired`: its report was received and has since expired under the 30-day telemetry retention.
+	Reason interface{} `json:"reason,omitempty"`
 
 	// Resources Allocation-local CPU deltas and observed RSS of the entire Runtime process, not child/container resources or a guaranteed RSS peak. Unknowns are omitted. Go/Python additionally validate boundary/count/peak and duration/gap consistency.
 	Resources        *RuntimeResourceSummary `json:"resources,omitempty"`
