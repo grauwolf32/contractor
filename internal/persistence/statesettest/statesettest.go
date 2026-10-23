@@ -536,12 +536,31 @@ func intersection(left, right []string) []string {
 	return slices.DeleteFunc(sortedSet(left), func(value string) bool { return !slices.Contains(right, value) })
 }
 
-// DeclaredValues returns the values of every constant of the string type
-// typeName declared in the non-test Go files of the package in dir, a
-// repository-relative path such as "internal/runstore". It fails t when the
-// package does not declare the type, declares no constant of it, or declares
-// one whose value is not a string literal, so the result is the owning
-// declaration's whole set rather than a handwritten copy.
+// DeclaredValues returns the values of the constants of the string type
+// typeName that the package in dir declares, where dir is a
+// repository-relative path such as "internal/runstore". It reads the
+// non-test Go files of the package and accepts package-level constants
+// written as `Name typeName = "value"` or `Name = typeName("value")`, so the
+// result is the owning declaration's whole set rather than a handwritten
+// copy.
+//
+// It fails t instead of returning part of the set when the package does not
+// declare typeName as a defined string type or declares no constant of it,
+// and when the package, at package level or inside a function, declares
+//
+//   - an alias of typeName (`type a = typeName`), through which constants of
+//     the type could be declared unseen;
+//   - a constant of typeName, or a type named typeName, inside a function;
+//   - a constant of typeName whose value is not a string literal, an implicit
+//     repetition of one, or an untyped constant whose expression mentions
+//     typeName in any other form, such as typeName("a") + "b";
+//   - two constants of typeName with one value.
+//
+// Out of scope: a constant of typeName declared in another package through a
+// qualified type, such as `const x runstore.StageExecutionState = "x"` outside
+// runstore, and an alias declared there; finding them would mean parsing every
+// package. Constants of a distinct type defined from typeName (`type sub
+// typeName`) are values of that other type and are not read.
 func DeclaredValues(t testing.TB, dir, typeName string) []string {
 	t.Helper()
 	values, err := declaredValues(contractstest.Path(t, strings.Split(dir, "/")...), typeName)
@@ -576,11 +595,16 @@ func declaredValues(dir, typeName string) ([]string, error) {
 			switch general.Tok {
 			case token.TYPE:
 				for _, spec := range general.Specs {
-					if spec := spec.(*ast.TypeSpec); spec.Name.Name == typeName {
-						if !isIdentifier(spec.Type, "string") || spec.Assign.IsValid() {
+					spec := spec.(*ast.TypeSpec)
+					switch {
+					case spec.Name.Name == typeName:
+						if !isIdentifier(spec.Type, "string") || spec.Assign.IsValid() || spec.TypeParams != nil {
 							return nil, fmt.Errorf("%s: %s is not a defined string type", fileSet.Position(spec.Pos()), typeName)
 						}
 						typeDeclared = true
+					case spec.Assign.IsValid() && isIdentifier(spec.Type, typeName):
+						return nil, fmt.Errorf("%s: %s is an alias of %s; declare its constants with %s itself",
+							fileSet.Position(spec.Pos()), spec.Name.Name, typeName, typeName)
 					}
 				}
 			case token.CONST:
@@ -590,6 +614,9 @@ func declaredValues(dir, typeName string) ([]string, error) {
 				}
 				values = append(values, constants...)
 			}
+		}
+		if err := localDeclarations(fileSet, file, typeName); err != nil {
+			return nil, err
 		}
 	}
 	switch {
@@ -605,9 +632,44 @@ func declaredValues(dir, typeName string) ([]string, error) {
 	return values, nil
 }
 
+// localDeclarations fails on a declaration inside a function that could
+// hold a value of typeName unseen: a constant of the type, an alias of it or
+// a local type of the same name.
+func localDeclarations(fileSet *token.FileSet, file *ast.File, typeName string) error {
+	var failure error
+	ast.Inspect(file, func(node ast.Node) bool {
+		statement, ok := node.(*ast.DeclStmt)
+		if failure != nil || !ok {
+			return failure == nil
+		}
+		general := statement.Decl.(*ast.GenDecl)
+		switch general.Tok {
+		case token.TYPE:
+			for _, spec := range general.Specs {
+				spec := spec.(*ast.TypeSpec)
+				if spec.Name.Name == typeName || spec.Assign.IsValid() && isIdentifier(spec.Type, typeName) {
+					failure = fmt.Errorf("%s: function-local type %s shadows or aliases %s", fileSet.Position(spec.Pos()), spec.Name.Name, typeName)
+				}
+			}
+		case token.CONST:
+			constants, err := typedConstants(fileSet, general, typeName)
+			switch {
+			case err != nil:
+				failure = err
+			case len(constants) > 0:
+				failure = fmt.Errorf("%s: function-local constant of type %s; declare it at package level",
+					fileSet.Position(general.Pos()), typeName)
+			}
+		}
+		return failure == nil
+	})
+	return failure
+}
+
 // typedConstants returns the values of the constants of typeName in one
 // const declaration, written as `Name typeName = "value"` or
-// `Name = typeName("value")`.
+// `Name = typeName("value")`, and fails on a constant of the type, or an
+// untyped one mentioning it, written in any other form.
 func typedConstants(fileSet *token.FileSet, declaration *ast.GenDecl, typeName string) ([]string, error) {
 	var values []string
 	previousTyped := false
@@ -631,6 +693,10 @@ func typedConstants(fileSet *token.FileSet, declaration *ast.GenDecl, typeName s
 				value, typed, previousTyped = call.Args[0], true, true
 			}
 			if !typed {
+				if spec.Type == nil && mentions(value, typeName) {
+					return nil, fmt.Errorf("%s: constant %s uses %s in an expression the declaration check cannot read",
+						fileSet.Position(name.Pos()), name.Name, typeName)
+				}
 				continue
 			}
 			text, ok := value.(*ast.BasicLit)
@@ -645,6 +711,18 @@ func typedConstants(fileSet *token.FileSet, declaration *ast.GenDecl, typeName s
 		}
 	}
 	return values, nil
+}
+
+// mentions reports whether expression refers to the identifier name.
+func mentions(expression ast.Expr, name string) bool {
+	found := false
+	ast.Inspect(expression, func(node ast.Node) bool {
+		if identifier, ok := node.(*ast.Ident); ok && identifier.Name == name {
+			found = true
+		}
+		return !found
+	})
+	return found
 }
 
 func isIdentifier(expression ast.Expr, name string) bool {

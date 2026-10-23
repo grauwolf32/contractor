@@ -295,7 +295,9 @@ func TestPostgresReadReportsTheCatalogForm(t *testing.T) {
 // TestDeclaredValuesReadsTheWholeDeclaration reads every constant of the
 // type, in either form, and nothing else: not another type's constant with
 // the same word, an untyped constant, a variable or a test file's constant.
-// A declaration it cannot read whole fails instead of returning part of it.
+// A declaration it cannot read whole fails instead of returning part of it:
+// a non-literal or implicitly repeated value, an untyped expression of the
+// type, an alias of the type, or a constant or alias inside a function.
 func TestDeclaredValuesReadsTheWholeDeclaration(t *testing.T) {
 	t.Parallel()
 	if got := mustDeclaredValues(t, "declared"); !slices.Equal(got, []string{"closed", "held", "open"}) {
@@ -305,11 +307,15 @@ func TestDeclaredValuesReadsTheWholeDeclaration(t *testing.T) {
 		t.Errorf("added = %v", got)
 	}
 	for fixture, want := range map[string]string{
-		"computed":  "constant Open of type State is not a string literal",
-		"implicit":  "constant Held repeats a State value implicitly",
-		"duplicate": "two constants of type State share a value",
-		"untyped":   "declares no type State",
-		"missing":   "no such file or directory",
+		"computed":   "constant Open of type State is not a string literal",
+		"implicit":   "constant Held repeats a State value implicitly",
+		"expression": "constant Open uses State in an expression the declaration check cannot read",
+		"alias":      "parked is an alias of State; declare its constants with State itself",
+		"local":      "function-local constant of type State; declare it at package level",
+		"localtype":  "function-local type parked shadows or aliases State",
+		"duplicate":  "two constants of type State share a value",
+		"untyped":    "declares no type State",
+		"missing":    "no such file or directory",
 	} {
 		if values, err := declaredValues(filepath.Join("testdata", fixture), "State"); err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("%s: (%v, %v), want an error containing %q", fixture, values, err, want)
