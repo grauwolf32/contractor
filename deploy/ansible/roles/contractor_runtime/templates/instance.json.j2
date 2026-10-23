@@ -41,6 +41,9 @@
 {%- for label in e.labels | default(contractor_runtime_labels) -%}
 {%-   set ns.args = ns.args + ['--initial-label', label] -%}
 {%- endfor -%}
+{%- for label in e.placement_labels | default(contractor_runtime_placement_labels) -%}
+{%-   set ns.args = ns.args + ['--placement-label', label] -%}
+{%- endfor -%}
 {%- for adapter in adapters or [] -%}
 {%-   set ns.args = ns.args + ['--runtime-adapter', adapter] -%}
 {%- endfor -%}

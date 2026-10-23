@@ -1,0 +1,262 @@
+{
+  "description": "Canonical startup-owned placement labels; Go and Python share grammar, bounds and ancestor-chain consistency. Parent matching cases are added by the Run-placement task.",
+  "maxLabels": 32,
+  "maxLabelBytes": 63,
+  "cases": [
+    {
+      "name": "empty",
+      "labels": [],
+      "valid": true
+    },
+    {
+      "name": "cloud",
+      "labels": [
+        "cloud"
+      ],
+      "valid": true
+    },
+    {
+      "name": "local",
+      "labels": [
+        "local"
+      ],
+      "valid": true
+    },
+    {
+      "name": "provider",
+      "labels": [
+        "cloud/aws"
+      ],
+      "valid": true
+    },
+    {
+      "name": "site",
+      "labels": [
+        "local/lab"
+      ],
+      "valid": true
+    },
+    {
+      "name": "ancestors",
+      "labels": [
+        "cloud",
+        "cloud/aws",
+        "cloud/aws/eu-central"
+      ],
+      "valid": true
+    },
+    {
+      "name": "longest-label",
+      "labels": [
+        "cloud/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      ],
+      "valid": true
+    },
+    {
+      "name": "longest-chain",
+      "labels": [
+        "cloud",
+        "cloud/a",
+        "cloud/a/a",
+        "cloud/a/a/a",
+        "cloud/a/a/a/a",
+        "cloud/a/a/a/a/a",
+        "cloud/a/a/a/a/a/a",
+        "cloud/a/a/a/a/a/a/a",
+        "cloud/a/a/a/a/a/a/a/a",
+        "cloud/a/a/a/a/a/a/a/a/a",
+        "cloud/a/a/a/a/a/a/a/a/a/a",
+        "cloud/a/a/a/a/a/a/a/a/a/a/a",
+        "cloud/a/a/a/a/a/a/a/a/a/a/a/a",
+        "cloud/a/a/a/a/a/a/a/a/a/a/a/a/a",
+        "cloud/a/a/a/a/a/a/a/a/a/a/a/a/a/a",
+        "cloud/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a",
+        "cloud/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a",
+        "cloud/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a",
+        "cloud/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a",
+        "cloud/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a",
+        "cloud/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a",
+        "cloud/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a",
+        "cloud/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a",
+        "cloud/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a",
+        "cloud/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a",
+        "cloud/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a",
+        "cloud/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a",
+        "cloud/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a",
+        "cloud/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a",
+        "cloud/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a"
+      ],
+      "valid": true
+    },
+    {
+      "name": "unknown",
+      "labels": [
+        "region/eu"
+      ],
+      "valid": false
+    },
+    {
+      "name": "similar-root",
+      "labels": [
+        "cloud-test"
+      ],
+      "valid": false
+    },
+    {
+      "name": "case",
+      "labels": [
+        "Cloud"
+      ],
+      "valid": false
+    },
+    {
+      "name": "leading-slash",
+      "labels": [
+        "/cloud"
+      ],
+      "valid": false
+    },
+    {
+      "name": "trailing-slash",
+      "labels": [
+        "cloud/"
+      ],
+      "valid": false
+    },
+    {
+      "name": "empty-segment",
+      "labels": [
+        "cloud//aws"
+      ],
+      "valid": false
+    },
+    {
+      "name": "wildcard",
+      "labels": [
+        "cloud/*"
+      ],
+      "valid": false
+    },
+    {
+      "name": "bad-segment",
+      "labels": [
+        "cloud/1aws"
+      ],
+      "valid": false
+    },
+    {
+      "name": "unicode",
+      "labels": [
+        "cloud/é"
+      ],
+      "valid": false
+    },
+    {
+      "name": "newline",
+      "labels": [
+        "cloud/aws\n"
+      ],
+      "valid": false
+    },
+    {
+      "name": "space",
+      "labels": [
+        "cloud/aws "
+      ],
+      "valid": false
+    },
+    {
+      "name": "empty-label",
+      "labels": [
+        ""
+      ],
+      "valid": false
+    },
+    {
+      "name": "oversized",
+      "labels": [
+        "cloud/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      ],
+      "valid": false
+    },
+    {
+      "name": "duplicates",
+      "labels": [
+        "cloud",
+        "cloud"
+      ],
+      "valid": false
+    },
+    {
+      "name": "unsorted",
+      "labels": [
+        "cloud/aws",
+        "cloud"
+      ],
+      "valid": false
+    },
+    {
+      "name": "mixed-roots",
+      "labels": [
+        "cloud",
+        "local"
+      ],
+      "valid": false
+    },
+    {
+      "name": "providers",
+      "labels": [
+        "cloud/aws",
+        "cloud/hetzner"
+      ],
+      "valid": false
+    },
+    {
+      "name": "prefix-not-parent",
+      "labels": [
+        "cloud/aws",
+        "cloud/aws-test"
+      ],
+      "valid": false
+    },
+    {
+      "name": "too-many",
+      "labels": [
+        "cloud",
+        "cloud",
+        "cloud",
+        "cloud",
+        "cloud",
+        "cloud",
+        "cloud",
+        "cloud",
+        "cloud",
+        "cloud",
+        "cloud",
+        "cloud",
+        "cloud",
+        "cloud",
+        "cloud",
+        "cloud",
+        "cloud",
+        "cloud",
+        "cloud",
+        "cloud",
+        "cloud",
+        "cloud",
+        "cloud",
+        "cloud",
+        "cloud",
+        "cloud",
+        "cloud",
+        "cloud",
+        "cloud",
+        "cloud",
+        "cloud",
+        "cloud",
+        "cloud"
+      ],
+      "valid": false
+    }
+  ]
+}

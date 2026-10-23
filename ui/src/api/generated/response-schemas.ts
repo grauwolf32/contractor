@@ -465,6 +465,7 @@ export type PublicSchemaName =
   | "RuntimeToolsetCapability"
   | "WorkspaceLimits"
   | "WorkspaceCapabilities"
+  | "PlacementLabels"
   | "RuntimeAgentObservation"
   | "RuntimeAgentPrincipalAvailability"
   | "RuntimeAgentPrincipal"

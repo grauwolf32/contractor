@@ -15269,11 +15269,23 @@ components:
           uniqueItems: true
           items: {enum: [direct, overlay]}
         limits: {$ref: '#/components/schemas/WorkspaceLimits'}
+    PlacementLabels:
+      type: array
+      description: Sorted unique cloud/local paths forming one ancestor chain. Empty means no location declaration or requirement.
+      maxItems: 32
+      uniqueItems: true
+      items:
+        type: string
+        minLength: 1
+        maxLength: 63
+        pattern: '^(cloud|local)(/[a-z][a-z0-9_-]*)*$'
+        not: {pattern: '[^a-z0-9_/-]'}
     RuntimeAgentObservation:
       type: object
       additionalProperties: false
       required: [instanceId, softwareVersion, supportedRuntimes, supportedToolsets, supportedSandboxProfiles, supportedRuntimeAdapters, observedState, slotState]
       properties:
+        placementLabels: {$ref: '#/components/schemas/PlacementLabels'}
         instanceId: {$ref: '#/components/schemas/ResourceId'}
         softwareVersion: {type: string, minLength: 1, maxLength: 128, pattern: '^[A-Za-z0-9][A-Za-z0-9._+-]*$'}
         supportedRuntimes:

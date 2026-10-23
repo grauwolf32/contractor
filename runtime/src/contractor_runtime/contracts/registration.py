@@ -29,6 +29,7 @@ from contractor_runtime.contracts.base import (
     _require_text,
     _require_url,
 )
+from contractor_runtime.contracts.placement import validate_placement_labels
 from contractor_runtime.contracts.workspace import WorkspaceCapabilities
 
 
@@ -147,6 +148,9 @@ class AgentRegistration(VersionedWireModel):
     allocation_id: str | None = None
     capabilities: RuntimeCompletionCapabilities | None = None
     initial_labels: list[str] = Field(max_length=32)
+    placement_labels: list[str] = Field(
+        default_factory=list, max_length=32, exclude_if=lambda value: not value
+    )
     supported_runtime_adapters: list[RuntimeAdapterRef] = Field(max_length=64)
     workspace_capabilities: WorkspaceCapabilities | None = None
     supported_performance_metrics_versions: list[Annotated[int, Field(strict=True, ge=1, le=1)]] = (
@@ -169,6 +173,7 @@ class AgentRegistration(VersionedWireModel):
 
     @model_validator(mode="after")
     def validate_runtime_capabilities(self) -> Self:
+        validate_placement_labels(self.placement_labels)
         for label in self.initial_labels:
             _require_runtime_label("initialLabels", label)
         _require_sorted_unique("initialLabels", self.initial_labels, maximum=32)

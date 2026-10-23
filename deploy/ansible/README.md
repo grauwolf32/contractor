@@ -119,6 +119,7 @@ ones most inventories set:
 | `contractor_runtime_advertise_host` | listen host | Address the Server dials; part of the certificate SANs. |
 | `contractor_runtime_capabilities` | `{}` | Host or group overrides of the switches above. |
 | `contractor_runtime_labels` | `[]` | Startup labels; they seed a previously unseen principal only. Bind each label on the Server first (**Operations → Runtime labels**): an unbound one fails registration with `invalid_runtime_labels`. |
+| `contractor_runtime_placement_labels` | `[]` | Process location, e.g. `[cloud/hetzner]` or `[local/lab]`, passed as `--placement-label`. No RuntimeConfig binding is needed; changes take effect after restarting the instance. |
 | `contractor_runtime_adapters` | `null` | `null` probes every built-in adapter; a list selects a subset. |
 | `contractor_runtime_allowed_target_networks` | `[]` | CIDRs passed as `--allowed-target-network`. |
 | `contractor_runtime_workspace_limits`, `contractor_runtime_podman_limits` | `{}` | `--workspace-<key>` / `--podman-<key>` settings, e.g. `{cpus: 4}`. |
@@ -130,7 +131,7 @@ ones most inventories set:
 | `contractor_runtime_verify`, `contractor_runtime_verify_timeout_seconds` | `true`, `180` | Journal verification after each start. |
 
 Per instance you can set `listen_host`, `advertise_host`, `cert_dns`,
-`cert_ips`, `labels`, `adapters`, `allowed_target_networks`, `log_level`,
+`cert_ips`, `labels`, `placement_labels`, `adapters`, `allowed_target_networks`, `log_level`,
 `extra_args`, `extra_environment`, `workspace_limits`, `podman_limits`,
 `podman_owner` and `capabilities`.
 

@@ -26,6 +26,7 @@ type AgentRegistration struct {
 	ControlURL                          string                               `json:"controlUrl" strictjson:"required"`
 	A2AURL                              string                               `json:"a2aUrl" strictjson:"required"`
 	InitialLabels                       []string                             `json:"initialLabels" strictjson:"required"`
+	PlacementLabels                     []string                             `json:"placementLabels,omitempty"`
 	SupportedRuntimes                   []string                             `json:"supportedRuntimes" strictjson:"required"`
 	SupportedToolsets                   []ToolsetCapability                  `json:"supportedToolsets" strictjson:"required"`
 	SupportedSandboxProfiles            []string                             `json:"supportedSandboxProfiles" strictjson:"required"`
@@ -68,6 +69,9 @@ func (r AgentRegistration) Validate() error {
 		return err
 	}
 	if err := validateSortedLabels("initialLabels", r.InitialLabels, 32, false); err != nil {
+		return err
+	}
+	if err := contracts.ValidatePlacementLabels(r.PlacementLabels); err != nil {
 		return err
 	}
 	if err := runtimesettings.ValidateRuntimeAdapterRefs(r.SupportedRuntimeAdapters); err != nil {
@@ -121,6 +125,7 @@ func NormalizeAgentRegistration(source AgentRegistration) AgentRegistration {
 		result.Capabilities = &value
 	}
 	result.InitialLabels = append([]string{}, source.InitialLabels...)
+	result.PlacementLabels = append([]string{}, source.PlacementLabels...)
 	result.SupportedRuntimes = append([]string{}, source.SupportedRuntimes...)
 	result.SupportedSandboxProfiles = append([]string{}, source.SupportedSandboxProfiles...)
 	result.SupportedRuntimeAdapters = append([]runtimesettings.RuntimeAdapterRef{}, source.SupportedRuntimeAdapters...)
@@ -137,6 +142,7 @@ func NormalizeAgentRegistration(source AgentRegistration) AgentRegistration {
 		sort.Strings(result.SupportedToolsets[index].Tools)
 	}
 	sort.Strings(result.InitialLabels)
+	sort.Strings(result.PlacementLabels)
 	sort.Strings(result.SupportedRuntimes)
 	sort.Strings(result.SupportedSandboxProfiles)
 	sort.Slice(result.SupportedRuntimeAdapters, func(i, j int) bool {
@@ -149,7 +155,8 @@ func NormalizeAgentRegistration(source AgentRegistration) AgentRegistration {
 }
 
 // AgentRegistrationFingerprint excludes mutable observation and startup
-// labels. It is not the TLS principal fingerprint.
+// configuration-label seeds. Placement labels are immutable and remain in the
+// fingerprint. It is not the TLS principal fingerprint.
 func AgentRegistrationFingerprint(source AgentRegistration) (string, error) {
 	normalized := NormalizeAgentRegistration(source)
 	normalized.InitialLabels = nil

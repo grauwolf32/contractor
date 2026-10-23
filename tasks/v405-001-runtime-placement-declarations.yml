@@ -95,7 +95,7 @@ tests:
   - A2
   - A3
 - command: cd runtime && uv run pytest tests/test_settings.py tests/test_contracts.py tests/test_state.py
-    tests/test_shared_placement_labels.py
+    tests/test_shared_placement_labels.py tests/test_shared_mutation_cases.py
   covers:
   - A1
   - A2

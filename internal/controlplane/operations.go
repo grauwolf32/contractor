@@ -131,6 +131,7 @@ func (c OperationsCursor) MarshalJSON() ([]byte, error) {
 }
 
 type RuntimeAgentObservation struct {
+	PlacementLabels           []string                         `json:"placementLabels,omitempty"`
 	InstanceID                string                           `json:"instanceId"`
 	SoftwareVersion           string                           `json:"softwareVersion"`
 	SupportedRuntimes         []string                         `json:"supportedRuntimes"`
@@ -202,6 +203,9 @@ func (s OperationsSnapshot) Validate() error {
 }
 
 func (o RuntimeAgentObservation) Validate() error {
+	if err := contracts.ValidatePlacementLabels(o.PlacementLabels); err != nil {
+		return err
+	}
 	if !contracts.ValidResourceID(o.InstanceID) ||
 		len(o.SoftwareVersion) > 128 || !contracts.ValidVersion(o.SoftwareVersion) || o.LastAcceptedHeartbeat != nil &&
 		o.LastAcceptedHeartbeat.IsZero() || o.ConfirmedLeaseUntil != nil && o.ConfirmedLeaseUntil.IsZero() {
@@ -509,6 +513,7 @@ func (r *InMemoryRegistry) RecordAllocationReport(
 
 func runtimeObservation(entry *agentEntry) RuntimeAgentObservation {
 	result := RuntimeAgentObservation{
+		PlacementLabels:           append([]string{}, entry.registration.PlacementLabels...),
 		InstanceID:                entry.registration.InstanceID,
 		SoftwareVersion:           entry.registration.SoftwareVersion,
 		SupportedRuntimes:         append([]string{}, entry.registration.SupportedRuntimes...),

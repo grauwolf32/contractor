@@ -112,6 +112,7 @@ class RuntimeState:
                 controlUrl=settings.advertised_control_url,
                 a2aUrl=settings.advertised_a2a_url,
                 initialLabels=list(settings.initial_labels),
+                placementLabels=list(settings.placement_labels),
                 supportedRuntimes=list(capabilities.runtimes),
                 supportedToolsets=capabilities.wire_toolsets(),
                 capabilities=(

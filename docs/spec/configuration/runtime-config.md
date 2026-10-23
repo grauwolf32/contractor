@@ -1094,7 +1094,7 @@ Runtime labels, executionConfig and that principal's Agent labels. Those higher
 infrastructure layers may also override an explicitly selected physical route
 without changing ModelPolicy.
 
-**RCF-R149.** Run and Agent label names do not need to match: placement never
+**RCF-R149.** Run and Agent RuntimeConfig label names do not need to match: placement never
 requires a Run label name to appear in the candidate's Agent label set.
 
 **RCF-R181.** A Run `debug` configuration applies to an unlabeled Runtime Agent
@@ -1105,7 +1105,7 @@ reports temporary insufficient compatible capacity (FAIL-RCF-9).
 
 **RCF-R182.** If the candidate instead carries an Agent label whose config
 supplies `worker.telemetry`, that higher layer replaces the Run's telemetry
-block. Labels are configuration inputs, never an equality or affinity
+block. RuntimeConfig labels are configuration inputs, never an equality or affinity
 predicate between Run and Runtime Agent.
 
 **RCF-R150.** Merge units are explicit rather than inferred from arbitrary JSON

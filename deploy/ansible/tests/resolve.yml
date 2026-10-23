@@ -63,10 +63,12 @@
     contractor_runtime_capabilities:
       podman_network: false
     contractor_runtime_podman_limits: {cpus: 4, memory_bytes: 4294967296}
+    contractor_runtime_placement_labels: [local/lab]
     contractor_runtime_instances:
       - name: scan-1
         port: 9443
         labels: [scan, site-a]
+        placement_labels: [cloud/hetzner]
         adapters: [http-proxy@1]
         allowed_target_networks: [127.0.0.0/8]
         capabilities:
@@ -105,6 +107,7 @@
           - "'--workspace-work-root' not in _scan.args"
           - "'--podman-enabled' not in _scan.args"
           - _scan.args | select('equalto', '--initial-label') | list | length == 2
+          - _scan.args[_scan.args.index('--placement-label') + 1] == 'cloud/hetzner'
           - _scan.args[_scan.args.index('--runtime-adapter') + 1] == 'http-proxy@1'
           - _scan.args[_scan.args.index('--allowed-target-network') + 1] == '127.0.0.0/8'
         quiet: true
@@ -122,6 +125,7 @@
           - "'NUCLEI_TEMPLATES_DIR' not in _exec.environment"
           - "'podman-network@1' not in _exec.probe_refs and 'scan@1' not in _exec.probe_refs"
           - _exec.args[_exec.args.index('--podman-network-enabled') + 1] == 'false'
+          - _exec.args[_exec.args.index('--placement-label') + 1] == 'local/lab'
           - _exec.args[_exec.args.index('--podman-cpus') + 1] == '8'
           - _exec.args[_exec.args.index('--podman-memory-bytes') + 1] == '4294967296'
           - _exec.args[_exec.args.index('--workspace-max-files') + 1] == '1000'
