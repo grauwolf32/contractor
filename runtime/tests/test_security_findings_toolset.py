@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import ast
 import asyncio
 import json
 from pathlib import Path
 
 import pytest
 
+import contractor_runtime
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import (
     ArtifactClient,
@@ -13,6 +15,10 @@ from contractor_runtime.artifacts import (
     ArtifactTransportError,
 )
 from contractor_runtime.contracts import RuntimeSettings
+from contractor_runtime.contracts.artifacts import (
+    FINDING_PROPOSAL_NAMESPACE,
+    PURPOSE_RESERVED_NAMESPACES,
+)
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.finding_proposals import FindingProposalClient
 from contractor_runtime.toolsets.common.cwe import (
@@ -195,6 +201,58 @@ def test_finding_transport_loss_retries_byte_identical_submission() -> None:
         assert transport.bodies[0] == transport.bodies[1]
 
     asyncio.run(scenario())
+
+
+def _finding_proposal_namespace_copies(source: str) -> list[int]:
+    """Return the lines of Runtime source that spell the finding-proposals Namespace.
+
+    The private route segment, an argument of allocation_path, names the
+    endpoint, another rule, and is not reported.
+    """
+
+    tree = ast.parse(source)
+    routes = {
+        id(argument)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "allocation_path"
+        for argument in node.args
+    }
+    return sorted(
+        node.lineno
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Constant)
+        and node.value == FINDING_PROPOSAL_NAMESPACE
+        and id(node) not in routes
+    )
+
+
+def test_finding_proposal_namespace_is_named_only_by_contracts() -> None:
+    """Runtime code names the Namespace through contracts.artifacts (ART-R114)."""
+
+    assert FINDING_PROPOSAL_NAMESPACE in PURPOSE_RESERVED_NAMESPACES
+    package = Path(contractor_runtime.__file__).parent
+    owner = package / "contracts"
+    sources = [path for path in package.rglob("*.py") if owner not in path.parents]
+    assert len(sources) > 100
+    copies = {
+        str(path.relative_to(package)): lines
+        for path in sources
+        if (lines := _finding_proposal_namespace_copies(path.read_text(encoding="utf-8")))
+    }
+    assert copies == {}, "use contracts.artifacts.FINDING_PROPOSAL_NAMESPACE"
+
+
+def test_finding_proposal_namespace_scan_reports_copies_not_routes() -> None:
+    source = (
+        'path = allocation_path(allocation_id, "finding-proposals")\n'
+        'if ref.namespace != "finding-proposals":\n'
+        "    pass\n"
+        'derived = "audit-finding-proposals"\n'
+        'joined = "finding-" "proposals"\n'
+    )
+    assert _finding_proposal_namespace_copies(source) == [2, 5]
 
 
 class FakeToolContext:

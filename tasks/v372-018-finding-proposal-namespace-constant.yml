@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: findings
 kind: chore
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, python]
 goal: "Go code names the reserved finding-proposals Namespace only through artifactpolicy.FindingProposalNamespace, and the Runtime's comparisons use its one reserved-Namespace definition."

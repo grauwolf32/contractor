@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/apierror"
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -229,7 +230,7 @@ func canonicalize(input Submission) (canonicalSubmission, error) {
 	refs := append([]contracts.ArtifactRef(nil), input.EvidenceRefs...)
 	for _, ref := range refs {
 		if err := ref.ValidateExact(); err != nil ||
-			ref.Namespace == "finding-proposals" && !strings.HasPrefix(ref.Name, "http.exchange.") {
+			ref.Namespace == artifactpolicy.FindingProposalNamespace && !strings.HasPrefix(ref.Name, "http.exchange.") {
 			return canonicalSubmission{}, fmt.Errorf("%w: evidence reference", ErrInvalid)
 		}
 	}
