@@ -16,11 +16,12 @@ var executionIntentEvents = auditEvents(auditEvent(
 // createExecutionIntentSQL keeps reservation and complete-batch submission in
 // one statement. live_claim, claim_gate and round_gate preserve authority and
 // lock order; eligible_members validates exact tasks, approval and attempts.
-// reserved gates budgets and round state, with the dispatch window $15 that
-// the caller read from the Scheduler settings row it holds locked, before
-// inserted_execution, members, item transitions and the event can become
-// durable. Replay is checked on both sides of this statement by
-// CreateExecutionIntent.
+// reserved gates budgets and round state, and the dispatch window of the
+// intent's lane class $17: outstanding `tool` Runs below $16, or outstanding
+// `model` Runs below $15, both read by the caller from the Scheduler settings
+// row it holds locked (AUX-R3, AUX-R6). Only then can inserted_execution,
+// members, item transitions and the event become durable. Replay is checked
+// on both sides of this statement by CreateExecutionIntent.
 var createExecutionIntentSQL = `
 WITH member_input AS MATERIALIZED (
     SELECT * FROM jsonb_to_recordset($12::jsonb) AS member(
@@ -31,8 +32,9 @@ WITH member_input AS MATERIALIZED (
     ` + auditClaims.LiveClaimSQL("$1", "$2", "$3") + `
 ), claim_gate AS MATERIALIZED (
     SELECT audit.audit_id, audit.current_round_id, audit.batch_size,
-           audit.reserved_run_count, audit.outstanding_run_count,
+           audit.reserved_run_count, audit.outstanding_run_count, audit.outstanding_tool_run_count,
            audit.max_submitted_runs, $15::integer AS max_concurrent_runs,
+           $16::integer AS max_concurrent_tool_runs,
 	       audit.profile_snapshot,
            contractor_require_active_audit_project(audit.project_id, audit.owner_id)
       FROM audits AS audit
@@ -76,14 +78,21 @@ WITH member_input AS MATERIALIZED (
     UPDATE audits AS audit
        SET reserved_run_count = audit.reserved_run_count + 1,
            outstanding_run_count = audit.outstanding_run_count + 1,
+           outstanding_tool_run_count = audit.outstanding_tool_run_count
+               + CASE WHEN $17::text = 'tool' THEN 1 ELSE 0 END,
            ` + executionIntentEvents.advance() + `,
            updated_at = GREATEST(clock_timestamp(), audit.updated_at + interval '1 microsecond')
       FROM claim_gate, eligible_members
      WHERE audit.audit_id = claim_gate.audit_id
        AND audit.reserved_run_count = claim_gate.reserved_run_count
        AND audit.outstanding_run_count = claim_gate.outstanding_run_count
+       AND audit.outstanding_tool_run_count = claim_gate.outstanding_tool_run_count
        AND audit.reserved_run_count < audit.max_submitted_runs
-       AND audit.outstanding_run_count < claim_gate.max_concurrent_runs
+       AND CASE $17::text
+               WHEN 'tool' THEN audit.outstanding_tool_run_count < claim_gate.max_concurrent_tool_runs
+               WHEN 'model' THEN audit.outstanding_run_count - audit.outstanding_tool_run_count
+                                 < claim_gate.max_concurrent_runs
+           END
        AND audit.state = 'active' AND audit.dispatch_state = 'open'
        AND (audit.deadline_at IS NULL OR audit.deadline_at > clock_timestamp())
 	       AND (
@@ -131,9 +140,10 @@ WITH member_input AS MATERIALIZED (
 ), inserted_execution AS (
     INSERT INTO audit_executions (
         execution_id, audit_id, round_id, role, workflow_role, role_attempt,
-        manifest_ref, manifest_digest, submission_key, request_digest, preparation_snapshot
+        manifest_ref, manifest_digest, submission_key, request_digest, preparation_snapshot,
+        lane_class
     )
-    SELECT $4, audit_id, $6, $5, $13, $7, $8::jsonb, $9, $10, $11, $14::jsonb
+    SELECT $4, audit_id, $6, $5, $13, $7, $8::jsonb, $9, $10, $11, $14::jsonb, $17
       FROM reserved
     RETURNING *
 ), inserted_members AS (

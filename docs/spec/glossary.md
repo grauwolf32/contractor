@@ -310,7 +310,7 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Dispatch hold** — A credential usage hold that Audit start adds for future child Runs and that ends once dispatch is durably closed and all submission intents are resolved. Owner: [Audits](audits/audits.md).
 
-**Dispatch look-ahead** — The Server-owned per-Audit window, equal to the current global maxConcurrentRuns, that bounds an Audit's outstanding count. Owner: [Audit execution](audits/execution.md).
+**Dispatch look-ahead** — The Server-owned per-Audit windows, one per role lane class, that bound an Audit's outstanding count of that class: the current global maxConcurrentToolRuns for roles whose Workflow has only `tool` Stages, maxConcurrentRuns for every other role. Owner: [Audit execution](audits/execution.md).
 
 **Displaced generation** — A previously attached filesystem object whose blob now points at a replacement upload candidate; it is not eagerly unlinked. Owner: [Artifact blob storage](artifacts/blob-storage.md).
 

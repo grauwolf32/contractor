@@ -104,7 +104,7 @@ func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T)
 	if _, err := audits.TransitionRound(ctx, auditstore.RoundTransitionParams{Claim: claim, RoundID: roundID, ExpectedRevision: 1, ExpectedState: auditstore.RoundAccepted, TargetState: auditstore.RoundExecuting}); err != nil {
 		t.Fatal(err)
 	}
-	execution, _, err := audits.CreateExecutionIntent(ctx, auditstore.CreateExecutionIntentParams{Claim: claim, ExecutionID: "execution", RoundID: &roundID, Role: auditstore.ExecutionCheck, WorkflowRole: "check", Manifest: manifest, SubmissionKey: "submission", RequestDigest: testDigest("5"), Members: []auditstore.ExecutionMemberIntent{{ExecutionItemID: "member", ItemID: "item", BatchOrdinal: 0, ItemAttempt: 1, Task: task, Inputs: []auditstore.ExactArtifact{source}}}})
+	execution, _, err := audits.CreateExecutionIntent(ctx, auditstore.CreateExecutionIntentParams{Claim: claim, ExecutionID: "execution", RoundID: &roundID, Role: auditstore.ExecutionCheck, WorkflowRole: "check", LaneClass: resolved.LaneClassModel, Manifest: manifest, SubmissionKey: "submission", RequestDigest: testDigest("5"), Members: []auditstore.ExecutionMemberIntent{{ExecutionItemID: "member", ItemID: "item", BatchOrdinal: 0, ItemAttempt: 1, Task: task, Inputs: []auditstore.ExactArtifact{source}}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -268,7 +268,7 @@ func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T)
 	if _, _, err := audits.Collect(ctx, auditstore.CollectParams{Claim: claim, ReceiptID: "receipt", ExecutionID: execution.ExecutionID, Disposition: auditstore.CollectionExecutionFailed, ErrorCode: &failureCode, RequestDigest: testDigest("6"), Items: []auditstore.CollectionItem{{ExecutionItemID: "member", Disposition: auditstore.CollectionExecutionFailed, Retryable: true, FinalDisposition: auditstore.FinalExecutionFailed, Coverage: auditstore.Coverage{Status: auditstore.CoverageBlocked, Requested: []string{}, Completed: []string{}, Gaps: []string{"failed"}}}}}); err != nil {
 		t.Fatal(err)
 	}
-	retriedExecution, _, err := audits.CreateExecutionIntent(ctx, auditstore.CreateExecutionIntentParams{Claim: claim, ExecutionID: "execution-retry", RoundID: &roundID, Role: auditstore.ExecutionCheck, WorkflowRole: "check", Manifest: manifest, SubmissionKey: "submission-retry", RequestDigest: testDigest("7"), Members: []auditstore.ExecutionMemberIntent{{ExecutionItemID: "member-retry", ItemID: "item", BatchOrdinal: 0, ItemAttempt: 2, Task: task, Inputs: []auditstore.ExactArtifact{source}}}})
+	retriedExecution, _, err := audits.CreateExecutionIntent(ctx, auditstore.CreateExecutionIntentParams{Claim: claim, ExecutionID: "execution-retry", RoundID: &roundID, Role: auditstore.ExecutionCheck, WorkflowRole: "check", LaneClass: resolved.LaneClassModel, Manifest: manifest, SubmissionKey: "submission-retry", RequestDigest: testDigest("7"), Members: []auditstore.ExecutionMemberIntent{{ExecutionItemID: "member-retry", ItemID: "item", BatchOrdinal: 0, ItemAttempt: 2, Task: task, Inputs: []auditstore.ExactArtifact{source}}}})
 	if err != nil {
 		t.Fatal(err)
 	}

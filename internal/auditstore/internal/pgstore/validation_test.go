@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -116,7 +117,7 @@ func TestMaterializationAndExecutionRejectDuplicateMembership(t *testing.T) {
 	intent := auditstore.CreateExecutionIntentParams{
 		Claim:       auditstore.ControllerClaim{AuditID: "audit", HolderID: "controller", Epoch: 1},
 		ExecutionID: "execution-1", RoundID: &roundID, Role: auditstore.ExecutionCheck,
-		WorkflowRole:  "check",
+		WorkflowRole: "check", LaneClass: resolved.LaneClassModel,
 		Manifest:      testExact("audit", "execution", "r1"),
 		SubmissionKey: "submission-1", RequestDigest: testDigest("3"),
 		Members: []auditstore.ExecutionMemberIntent{

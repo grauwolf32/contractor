@@ -176,8 +176,8 @@ func (b *PinnedSubmissionBuilder) PrepareRole(
 	return PreparedSubmission{
 		Intent: auditstore.CreateExecutionIntentParams{
 			ExecutionID: executionID, RoundID: roundID, Role: kind, Preparation: preparation,
-			WorkflowRole: workflowRole, RoleAttempt: &attempt,
-			Manifest: manifestArtifact, SubmissionKey: submissionKey,
+			WorkflowRole: workflowRole, LaneClass: resolved.WorkflowLaneClass(binding.Workflow),
+			RoleAttempt: &attempt, Manifest: manifestArtifact, SubmissionKey: submissionKey,
 			RequestDigest: requestDigest, Members: []auditstore.ExecutionMemberIntent{},
 		},
 		Run: runservice.AuditCreateParams{
@@ -452,8 +452,8 @@ func (b *PinnedSubmissionBuilder) PrepareBatch(
 
 	intent := auditstore.CreateExecutionIntentParams{
 		ExecutionID: executionID, RoundID: &roundID, Role: auditstore.ExecutionCheck,
-		WorkflowRole: first.Item.WorkflowRole,
-		Manifest:     manifestArtifact, SubmissionKey: submissionKey, RequestDigest: requestDigest,
+		WorkflowRole: first.Item.WorkflowRole, LaneClass: resolved.WorkflowLaneClass(binding.Workflow),
+		Manifest: manifestArtifact, SubmissionKey: submissionKey, RequestDigest: requestDigest,
 		Members: members,
 	}
 	run := runservice.AuditCreateParams{

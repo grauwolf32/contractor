@@ -15,6 +15,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
@@ -107,6 +109,63 @@ func TestControllerDispatchesThroughWindowAndOnlyObservesTerminal(t *testing.T) 
 	}
 	if got := harness.store.maximumOutstanding(); got != 2 {
 		t.Fatalf("maximum outstanding after refill = %d, want 2", got)
+	}
+}
+
+// Scan items and model check items fill their own windows: scans ahead in
+// the Round never hold back model checks, and each class refills as its Runs
+// finish (AUX-R3, AUX-R4). Which Workflows count as `tool` is
+// resolved.WorkflowLaneClass.
+func TestControllerFillsEachClassDispatchWindowIndependently(t *testing.T) {
+	harness := newControllerHarness(t, 24, 1)
+	harness.store.toolWindow = 2
+	harness.store.assignRoles(t, func(index int) string {
+		if index < 14 {
+			return "scan"
+		}
+		return "check"
+	})
+	harness.runUntilIdle(t)
+	if got := harness.store.outstandingClasses(); got != [2]int{1, 2} {
+		t.Fatalf("outstanding (model, tool) = %v, want one model and two tool Runs", got)
+	}
+	if roles := harness.store.executionRoles(); roles["scan"] != 2 || roles["check"] != 1 {
+		t.Fatalf("dispatched roles = %v, want two scans and one check", roles)
+	}
+
+	harness.finishOldest(t, runstore.RunSucceeded)
+	harness.runUntilIdle(t)
+	if got, roles := harness.store.outstandingClasses(), harness.store.executionRoles(); got != [2]int{1, 2} || roles["scan"] != 3 {
+		t.Fatalf("after a scan finished: outstanding %v, roles %v; want the tool window refilled", got, roles)
+	}
+	for harness.runs.oldestActive() != "" {
+		harness.finishOldest(t, runstore.RunSucceeded)
+		harness.runUntilIdle(t)
+	}
+	if got := harness.store.executionCount(); got != 24 {
+		t.Fatalf("executions = %d, want one per item", got)
+	}
+	if got := harness.store.maximumOutstandingByClass(); got != [2]int{1, 2} {
+		t.Fatalf("maximum outstanding (model, tool) = %v, want the windows 1 and 2", got)
+	}
+}
+
+// A pinned profile that no longer decodes cannot place an item in a lane
+// class, yet the item still reaches the builder, which rejects it and stops
+// the Audit; the Controller does not fail every reconcile instead.
+func TestControllerStopsAuditWhoseProfileCannotClassifyDispatch(t *testing.T) {
+	harness := newControllerHarness(t, 2, 1)
+	if worked, err := harness.controller.RunOnce(harness.ctx); err != nil || !worked {
+		t.Fatalf("activate round = (%t, %v)", worked, err)
+	}
+	harness.store.audit.ProfileSnapshot = json.RawMessage(`{"name":"undecodable"}`)
+	if worked, err := harness.controller.RunOnce(harness.ctx); err != nil || !worked {
+		t.Fatalf("dispatch with an undecodable profile = (%t, %v)", worked, err)
+	}
+	audit := harness.store.auditSnapshot()
+	if audit.State != auditstore.AuditFinalizing || audit.StopReason == nil ||
+		audit.StopReason.Code != "dispatch_contract_invalid" || harness.store.executionCount() != 0 {
+		t.Fatalf("undecodable profile did not stop dispatch: %+v, %d executions", audit, harness.store.executionCount())
 	}
 }
 
@@ -641,6 +700,14 @@ func (fakeSubmissionBuilder) PrepareBatch(
 	if len(selected) == 0 {
 		return PreparedSubmission{}, ErrInvalidSubmission
 	}
+	profile, err := auditprofile.DecodeResolvedAuditProfileSnapshot(snapshot.Audit.ProfileSnapshot)
+	if err != nil {
+		return PreparedSubmission{}, ErrInvalidSubmission
+	}
+	binding, found := profile.Workflows[selected[0].Item.WorkflowRole]
+	if !found {
+		return PreparedSubmission{}, ErrInvalidSubmission
+	}
 	identity := selected[0].Item.ItemID
 	for _, member := range selected {
 		identity += fmt.Sprintf("-%s-%d", member.Item.ItemID, member.Attempt)
@@ -664,8 +731,8 @@ func (fakeSubmissionBuilder) PrepareBatch(
 	return PreparedSubmission{
 		Intent: auditstore.CreateExecutionIntentParams{
 			ExecutionID: executionID, RoundID: &roundID, Role: auditstore.ExecutionCheck,
-			WorkflowRole: selected[0].Item.WorkflowRole,
-			Manifest:     manifest, SubmissionKey: "submission-" + executionID,
+			WorkflowRole: selected[0].Item.WorkflowRole, LaneClass: resolved.WorkflowLaneClass(binding.Workflow),
+			Manifest: manifest, SubmissionKey: "submission-" + executionID,
 			RequestDigest: requestDigest,
 			Members:       members,
 		},
@@ -691,19 +758,24 @@ func (prefixSubmissionBuilder) PrepareRole(
 }
 
 type fakeControllerStore struct {
-	mu                  sync.Mutex
-	audit               auditstore.Audit
-	round               auditstore.Round
-	items               []auditstore.Item
-	executions          []auditstore.Execution
-	members             map[string][]auditstore.ExecutionItem
-	held                bool
-	epoch               uint64
-	window              int
-	maxOutstanding      int
-	nextAttemptReads    int
-	expiredReportReview bool
-	nextRoundAcceptErr  error
+	mu             sync.Mutex
+	audit          auditstore.Audit
+	round          auditstore.Round
+	items          []auditstore.Item
+	executions     []auditstore.Execution
+	members        map[string][]auditstore.ExecutionItem
+	held           bool
+	epoch          uint64
+	window         int
+	toolWindow     int
+	maxOutstanding int
+	// executionClasses and maxOutstandingByClass mirror the store's
+	// per-class dispatch windows (AUX-R3).
+	executionClasses      map[string]resolved.LaneClass
+	maxOutstandingByClass map[resolved.LaneClass]int
+	nextAttemptReads      int
+	expiredReportReview   bool
+	nextRoundAcceptErr    error
 	// runs supplies the child Run states of the snapshot, as the store's
 	// join of workflow_runs does.
 	runs *fakeControllerRuns
@@ -744,7 +816,8 @@ func newFakeControllerStore(t *testing.T, itemCount, window int) *fakeController
 			RoundID: roundID, AuditID: "audit-test", Ordinal: 1,
 			State: auditstore.RoundAccepted, Revision: 1, ExpectedItemCount: itemCount,
 		},
-		window: window, members: make(map[string][]auditstore.ExecutionItem),
+		window: window, toolWindow: 2, members: make(map[string][]auditstore.ExecutionItem),
+		executionClasses: map[string]resolved.LaneClass{}, maxOutstandingByClass: map[resolved.LaneClass]int{},
 	}
 	for index := range itemCount {
 		revision := fmt.Sprintf("task-r%d", index)
@@ -858,7 +931,7 @@ func (s *fakeControllerStore) GetReconcileSnapshot(_ context.Context, claim audi
 		}
 	}
 	return auditstore.ReconcileSnapshot{
-		Audit: s.audit, MaxConcurrentRuns: s.window, Round: &round,
+		Audit: s.audit, MaxConcurrentRuns: s.window, MaxConcurrentToolRuns: s.toolWindow, Round: &round,
 		Items:              append([]auditstore.Item(nil), s.items...),
 		Executions:         append([]auditstore.Execution(nil), s.executions...),
 		RunStates:          s.runs.states(s.executions),
@@ -911,8 +984,16 @@ func (s *fakeControllerStore) CreateExecutionIntent(_ context.Context, params au
 			return existing, false, nil
 		}
 	}
+	if !params.LaneClass.Valid() {
+		return auditstore.Execution{}, false, fmt.Errorf("%w: execution lane class is invalid", auditstore.ErrInvalid)
+	}
+	// Each class has its own window, as the reservation statement gates it.
+	windowFull := s.audit.OutstandingToolRunCount >= s.toolWindow
+	if params.LaneClass == resolved.LaneClassModel {
+		windowFull = s.audit.OutstandingRunCount-s.audit.OutstandingToolRunCount >= s.window
+	}
 	if params.Claim.Epoch != s.epoch || s.audit.State != auditstore.AuditActive ||
-		s.audit.Dispatch != auditstore.DispatchOpen || s.audit.OutstandingRunCount >= s.window ||
+		s.audit.Dispatch != auditstore.DispatchOpen || windowFull ||
 		s.audit.ReservedRunCount >= s.audit.Limits.MaxSubmittedRuns || len(params.Members) == 0 ||
 		len(params.Members) > s.audit.Limits.BatchSize {
 		return auditstore.Execution{}, false, auditstore.ErrPrecondition
@@ -948,6 +1029,17 @@ func (s *fakeControllerStore) CreateExecutionIntent(_ context.Context, params au
 	s.audit.OutstandingRunCount++
 	if s.audit.OutstandingRunCount > s.maxOutstanding {
 		s.maxOutstanding = s.audit.OutstandingRunCount
+	}
+	s.executionClasses[execution.ExecutionID] = params.LaneClass
+	if params.LaneClass == resolved.LaneClassTool {
+		s.audit.OutstandingToolRunCount++
+	}
+	outstanding := map[resolved.LaneClass]int{
+		resolved.LaneClassTool:  s.audit.OutstandingToolRunCount,
+		resolved.LaneClassModel: s.audit.OutstandingRunCount - s.audit.OutstandingToolRunCount,
+	}
+	if outstanding[params.LaneClass] > s.maxOutstandingByClass[params.LaneClass] {
+		s.maxOutstandingByClass[params.LaneClass] = outstanding[params.LaneClass]
 	}
 	s.audit.Revision++
 	return execution, true, nil
@@ -1031,7 +1123,7 @@ func (s *fakeControllerStore) ObserveTerminal(_ context.Context, params auditsto
 		itemIndex := s.findItem(s.members[params.ExecutionID][memberIndex].ItemID)
 		s.items[itemIndex].State = auditstore.ItemCollecting
 	}
-	s.audit.OutstandingRunCount--
+	s.leaveDispatchWindow(params.ExecutionID)
 	s.audit.Revision++
 	return s.executions[index], nil
 }
@@ -1050,8 +1142,17 @@ func (s *fakeControllerStore) ObserveSubmissionFailure(_ context.Context, params
 		itemIndex := s.findItem(member.ItemID)
 		s.items[itemIndex].State = auditstore.ItemCollecting
 	}
-	s.audit.OutstandingRunCount--
+	s.leaveDispatchWindow(params.ExecutionID)
 	return s.executions[index], nil
+}
+
+// leaveDispatchWindow releases an execution's reservation from the count of
+// the class it entered.
+func (s *fakeControllerStore) leaveDispatchWindow(executionID string) {
+	s.audit.OutstandingRunCount--
+	if s.executionClasses[executionID] == resolved.LaneClassTool {
+		s.audit.OutstandingToolRunCount--
+	}
 }
 
 func (s *fakeControllerStore) SettleUndispatched(
@@ -1225,6 +1326,101 @@ func (s *fakeControllerStore) auditSnapshot() auditstore.Audit {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.audit
+}
+
+// assignRoles gives item index the role roleOf returns, after adding to the
+// pinned profile a `scan` role that runs a Workflow with only tool Stages.
+func (s *fakeControllerStore) assignRoles(t *testing.T, roleOf func(int) string) {
+	t.Helper()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	profile, err := auditprofile.DecodeResolvedAuditProfileSnapshot(s.audit.ProfileSnapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog, err := configload.Load("../../testdata/configs-scan")
+	if err != nil {
+		t.Fatal(err)
+	}
+	nuclei, err := catalog.Workflow("audit-openapi-nuclei-scan@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	scan := profile.Workflows["check"]
+	scan.WorkerCompletion, scan.Workflow = nil, nuclei
+	// The scan reads its target from the inventory source and its settings
+	// from an Audit input of their own, as a scan profile maps them.
+	profile.Inputs["scan-settings"] = auditprofile.AuditProfileInput{Required: true, MediaTypes: []string{"application/json"}}
+	profile.Inventory.Implementation = auditprofile.AuditInventoryOpenAPIScans
+	profile.Inventory.ItemWorkflowRole = "scan"
+	profile.Inventory.Settings = &auditprofile.AuditWorkflowInputMapping{
+		Source: profile.Inventory.Source.Source, Name: "scan-settings",
+	}
+	scan.Inputs = map[string]auditprofile.AuditWorkflowInputMapping{
+		"task": scan.Inputs["task"], "execution_manifest": scan.Inputs["execution_manifest"],
+		"openapi": *profile.Inventory.Source, "settings": *profile.Inventory.Settings,
+	}
+	if resolved.WorkflowLaneClass(scan.Workflow) != resolved.LaneClassTool ||
+		resolved.WorkflowLaneClass(profile.Workflows["check"].Workflow) != resolved.LaneClassModel {
+		t.Fatal("role fixtures do not have the intended lane classes")
+	}
+	profile.Workflows["scan"] = scan
+	// A scan executor takes one item per Run, as the harness Audit does, and
+	// sends active traffic.
+	profile.Execution.BatchSize = 1
+	profile.Interaction.ActiveChecks = auditprofile.AuditActiveChecksAutomatic
+	if profile.Ref.Digest, err = auditprofile.Digest(profile); err != nil {
+		t.Fatal(err)
+	}
+	s.audit.Profile.Digest = profile.Ref.Digest
+	if s.audit.ProfileSnapshot, err = json.Marshal(profile); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := auditprofile.DecodeResolvedAuditProfileSnapshot(s.audit.ProfileSnapshot); err != nil {
+		t.Fatal(err)
+	}
+	for index := range s.items {
+		s.items[index].WorkflowRole = roleOf(index)
+	}
+}
+
+// outstandingClasses is the Audit's outstanding (model, tool) child Runs.
+func (s *fakeControllerStore) outstandingClasses() [2]int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return [2]int{s.audit.OutstandingRunCount - s.audit.OutstandingToolRunCount, s.audit.OutstandingToolRunCount}
+}
+
+func (s *fakeControllerStore) maximumOutstandingByClass() [2]int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return [2]int{s.maxOutstandingByClass[resolved.LaneClassModel], s.maxOutstandingByClass[resolved.LaneClassTool]}
+}
+
+// executionRoles counts the executions of each Workflow role.
+func (s *fakeControllerStore) executionRoles() map[string]int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	roles := map[string]int{}
+	for _, execution := range s.executions {
+		roles[execution.WorkflowRole]++
+	}
+	return roles
+}
+
+// runUntilIdle reconciles until a pass changes nothing.
+func (h *controllerHarness) runUntilIdle(t *testing.T) {
+	t.Helper()
+	for range 100 {
+		worked, err := h.controller.RunOnce(h.ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !worked {
+			return
+		}
+	}
+	t.Fatal("the Controller kept working after 100 passes")
 }
 
 func (s *fakeControllerStore) executionCount() int {

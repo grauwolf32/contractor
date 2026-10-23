@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -95,7 +96,7 @@ func TestPostgresAuditBatchFailureRequeuesEveryMemberAndAllowsRegrouping(t *test
 	}
 	firstIntent := auditstore.CreateExecutionIntentParams{
 		Claim: claim, ExecutionID: "batch-execution-one", RoundID: &roundID, Role: auditstore.ExecutionCheck,
-		WorkflowRole: "check", Manifest: testExact("audits", "batch-execution-one", "manifest-r1"),
+		WorkflowRole: "check", LaneClass: resolved.LaneClassModel, Manifest: testExact("audits", "batch-execution-one", "manifest-r1"),
 		SubmissionKey: "batch-submission-one", RequestDigest: testDigest("5"),
 		Members: []auditstore.ExecutionMemberIntent{
 			{ExecutionItemID: "batch-member-one", ItemID: items[0].ItemID, BatchOrdinal: 0, ItemAttempt: 1, Task: tasks[0], Inputs: []auditstore.ExactArtifact{}},
@@ -152,7 +153,7 @@ func TestPostgresAuditBatchFailureRequeuesEveryMemberAndAllowsRegrouping(t *test
 
 	regrouped := auditstore.CreateExecutionIntentParams{
 		Claim: claim, ExecutionID: "batch-execution-two", RoundID: &roundID, Role: auditstore.ExecutionCheck,
-		WorkflowRole: "check", Manifest: testExact("audits", "batch-execution-two", "manifest-r1"),
+		WorkflowRole: "check", LaneClass: resolved.LaneClassModel, Manifest: testExact("audits", "batch-execution-two", "manifest-r1"),
 		SubmissionKey: "batch-submission-two", RequestDigest: testDigest("7"),
 		Members: []auditstore.ExecutionMemberIntent{
 			{ExecutionItemID: "batch-member-one-retry", ItemID: items[0].ItemID, BatchOrdinal: 0, ItemAttempt: 2, Task: tasks[0], Inputs: []auditstore.ExactArtifact{}},
@@ -383,7 +384,7 @@ SELECT count(*) FROM audit_artifact_links
 	}
 	execution, inserted, err := store.CreateExecutionIntent(ctx, auditstore.CreateExecutionIntentParams{
 		Claim: claim, ExecutionID: "execution-one", RoundID: &roundID, Role: auditstore.ExecutionCheck,
-		WorkflowRole:  "check",
+		WorkflowRole: "check", LaneClass: resolved.LaneClassModel,
 		Manifest:      testExact("audits", "execution-one", "manifest-r1"),
 		SubmissionKey: "audit-one-round-one-item-one-attempt-one", RequestDigest: testDigest("5"),
 		Members: []auditstore.ExecutionMemberIntent{{ExecutionItemID: "execution-item-one", ItemID: "item-one", BatchOrdinal: 0, ItemAttempt: 1, Task: itemOneTask, Inputs: []auditstore.ExactArtifact{}}},
@@ -430,7 +431,7 @@ SELECT count(*) FROM audit_artifact_links
 
 	executionTwo, _, err := store.CreateExecutionIntent(ctx, auditstore.CreateExecutionIntentParams{
 		Claim: claim, ExecutionID: "execution-two", RoundID: &roundID, Role: auditstore.ExecutionCheck,
-		WorkflowRole:  "check",
+		WorkflowRole: "check", LaneClass: resolved.LaneClassModel,
 		Manifest:      testExact("audits", "execution-two", "manifest-r1"),
 		SubmissionKey: "audit-one-round-one-item-one-attempt-two", RequestDigest: testDigest("7"),
 		Members: []auditstore.ExecutionMemberIntent{{ExecutionItemID: "execution-item-two", ItemID: "item-one", BatchOrdinal: 0, ItemAttempt: 2, Task: itemOneTask, Inputs: []auditstore.ExactArtifact{}}},
@@ -476,8 +477,8 @@ SELECT count(*) FROM audit_artifact_links
 	newClaim := supersedeBlockedClaim(t, ctx, pool, claim, func(blockedStore *testStore) error {
 		_, _, mutationErr := blockedStore.CreateExecutionIntent(ctx, auditstore.CreateExecutionIntentParams{
 			Claim: claim, ExecutionID: "stale-execution", RoundID: &roundID, Role: auditstore.ExecutionCheck,
-			WorkflowRole: "check",
-			Manifest:     testExact("audits", "stale", "manifest-r1"), SubmissionKey: "stale-submission", RequestDigest: testDigest("9"),
+			WorkflowRole: "check", LaneClass: resolved.LaneClassModel,
+			Manifest: testExact("audits", "stale", "manifest-r1"), SubmissionKey: "stale-submission", RequestDigest: testDigest("9"),
 			Members: []auditstore.ExecutionMemberIntent{{ExecutionItemID: "stale-member", ItemID: "item-two", BatchOrdinal: 0, ItemAttempt: 1, Task: itemTwoTask, Inputs: []auditstore.ExactArtifact{}}},
 		})
 		return mutationErr
@@ -488,14 +489,14 @@ SELECT count(*) FROM audit_artifact_links
 	intentCandidates := []auditstore.CreateExecutionIntentParams{
 		{
 			Claim: newClaim, ExecutionID: "execution-three-a", RoundID: &roundID, Role: auditstore.ExecutionCheck,
-			WorkflowRole:  "check",
+			WorkflowRole: "check", LaneClass: resolved.LaneClassModel,
 			Manifest:      testExact("audits", "execution-three-a", "manifest-r1"),
 			SubmissionKey: "audit-one-round-one-item-two-attempt-one-a", RequestDigest: testDigest("e"),
 			Members: []auditstore.ExecutionMemberIntent{{ExecutionItemID: "execution-item-three-a", ItemID: "item-two", BatchOrdinal: 0, ItemAttempt: 1, Task: itemTwoTask, Inputs: []auditstore.ExactArtifact{}}},
 		},
 		{
 			Claim: newClaim, ExecutionID: "execution-three-b", RoundID: &roundID, Role: auditstore.ExecutionCheck,
-			WorkflowRole:  "check",
+			WorkflowRole: "check", LaneClass: resolved.LaneClassModel,
 			Manifest:      testExact("audits", "execution-three-b", "manifest-r1"),
 			SubmissionKey: "audit-one-round-one-item-two-attempt-one-b", RequestDigest: testDigest("f"),
 			Members: []auditstore.ExecutionMemberIntent{{ExecutionItemID: "execution-item-three-b", ItemID: "item-two", BatchOrdinal: 0, ItemAttempt: 1, Task: itemTwoTask, Inputs: []auditstore.ExactArtifact{}}},
@@ -700,13 +701,13 @@ SELECT finding.state, finding.revision,
 	for _, invalid := range []auditstore.CreateExecutionIntentParams{
 		{
 			Claim: newClaim, ExecutionID: "late-discovery", RoundID: &roundID,
-			Role: auditstore.ExecutionDiscovery, WorkflowRole: "discovery", RoleAttempt: intPointer(1),
+			Role: auditstore.ExecutionDiscovery, WorkflowRole: "discovery", LaneClass: resolved.LaneClassModel, RoleAttempt: intPointer(1),
 			Manifest:      testExact("audits", "late-discovery", "manifest-r1"),
 			SubmissionKey: "late-discovery-submission", RequestDigest: testDigest("a"),
 		},
 		{
 			Claim: newClaim, ExecutionID: "over-budget-assessment", RoundID: &roundID,
-			Role: auditstore.ExecutionAssessment, WorkflowRole: "assessment", RoleAttempt: intPointer(3),
+			Role: auditstore.ExecutionAssessment, WorkflowRole: "assessment", LaneClass: resolved.LaneClassModel, RoleAttempt: intPointer(3),
 			Manifest:      testExact("audits", "over-budget-assessment", "manifest-r1"),
 			SubmissionKey: "over-budget-assessment-submission", RequestDigest: testDigest("b"),
 		},
@@ -717,8 +718,8 @@ SELECT finding.state, finding.revision,
 	}
 	fencedIntent, _, err := store.CreateExecutionIntent(ctx, auditstore.CreateExecutionIntentParams{
 		Claim: newClaim, ExecutionID: "execution-project-fence", RoundID: &roundID, Role: auditstore.ExecutionAssessment,
-		WorkflowRole: "assessment",
-		RoleAttempt:  intPointer(1), Manifest: testExact("audits", "fenced-intent", "manifest-r1"),
+		WorkflowRole: "assessment", LaneClass: resolved.LaneClassModel,
+		RoleAttempt: intPointer(1), Manifest: testExact("audits", "fenced-intent", "manifest-r1"),
 		SubmissionKey: "fenced-intent-submission", RequestDigest: testDigest("1"),
 		Members: []auditstore.ExecutionMemberIntent{},
 	})
@@ -758,8 +759,8 @@ SELECT finding.state, finding.revision,
 	}
 	_, _, err = store.CreateExecutionIntent(ctx, auditstore.CreateExecutionIntentParams{
 		Claim: newClaim, ExecutionID: "fenced-execution", RoundID: &roundID, Role: auditstore.ExecutionAssessment, RoleAttempt: intPointer(1),
-		WorkflowRole: "assessment",
-		Manifest:     testExact("audits", "fenced", "manifest-r1"), SubmissionKey: "fenced-submission", RequestDigest: testDigest("b"),
+		WorkflowRole: "assessment", LaneClass: resolved.LaneClassModel,
+		Manifest: testExact("audits", "fenced", "manifest-r1"), SubmissionKey: "fenced-submission", RequestDigest: testDigest("b"),
 		Members: []auditstore.ExecutionMemberIntent{},
 	})
 	if !errors.Is(err, auditstore.ErrProjectDeleting) {

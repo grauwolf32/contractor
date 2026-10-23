@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-68 open tasks: 4 in progress, 39 pending, 25 deferred. 968 finished: 965 completed, 3 archived.
+68 open tasks: 5 in progress, 38 pending, 25 deferred. 968 finished: 965 completed, 3 archived.
 
 ## In progress
 
@@ -15,6 +15,7 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
+| [V400-004](v400-004-audit-dispatch-per-lane-class.yml) | audits | feature | P2 | Pace Audit dispatch separately for model and model-free roles |
 
 ## Pending
 
@@ -78,7 +79,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V371-009](v371-009-audit-list-preparation-batch.yml) | defect | P3 | — | Read the preparation state of a whole Audit page in bounded statements |
-| [V400-004](v400-004-audit-dispatch-per-lane-class.yml) | feature | P2 | — | Pace Audit dispatch separately for model and model-free roles |
 
 ### Evaluations (`evals`)
 

@@ -167,12 +167,7 @@ SELECT `+prefixedItemColumns("item")+`
 }
 
 func (s *ClaimStore) listReadyItems(ctx context.Context, auditID, roundID string) ([]auditstore.Item, error) {
-	rows, err := s.db.Query(ctx, `
-SELECT `+prefixedItemColumns("item")+`
-  FROM audit_items AS item
- WHERE item.audit_id = $1 AND item.round_id = $2 AND item.state = 'ready'
- ORDER BY item.ordinal, item.item_id
- LIMIT $3`, auditID, roundID, auditstore.MaxReconcileRows)
+	rows, err := s.db.Query(ctx, listReadyItemsSQL, auditID, roundID, auditstore.MaxReconcileRows)
 	if err != nil {
 		return nil, fmt.Errorf("list ready Audit items: %w", err)
 	}
@@ -619,6 +614,7 @@ SELECT `+prefixedAuditColumns("audit")+`
 		return auditstore.ReconcileSnapshot{}, fmt.Errorf("read Audit dispatch window: %w", err)
 	}
 	result.MaxConcurrentRuns = settings.MaxConcurrentRuns
+	result.MaxConcurrentToolRuns = settings.MaxConcurrentToolRuns
 	if audit.CurrentRoundID != nil {
 		round, roundErr := s.getRound(ctx, audit.AuditID, *audit.CurrentRoundID)
 		if roundErr != nil {

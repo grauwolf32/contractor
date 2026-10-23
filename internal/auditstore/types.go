@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -237,33 +238,37 @@ type StopReason struct {
 }
 
 type Audit struct {
-	AuditID               string
-	OwnerID               string
-	ProjectID             string
-	Profile               ProfileIdentity
-	ProfileSnapshot       json.RawMessage
-	InputSelection        json.RawMessage
-	BaselineSnapshot      json.RawMessage
-	State                 AuditState
-	Phase                 auditdomain.AuditPhase
-	Revision              uint64
-	CurrentRoundID        *string
-	Dispatch              DispatchState
-	Hold                  HoldState
-	DeadlineAt            *time.Time
-	PausedAt              *time.Time
-	Limits                Limits
-	ReservedRunCount      int
-	SubmittedRunCount     int
-	OutstandingRunCount   int
-	RetainedEvidenceBytes int64
-	EventSequence         uint64
-	StopReason            *StopReason
-	CreatedAt             time.Time
-	UpdatedAt             time.Time
-	StartedAt             *time.Time
-	FinishedAt            *time.Time
-	DeletionRequestedAt   *time.Time
+	AuditID           string
+	OwnerID           string
+	ProjectID         string
+	Profile           ProfileIdentity
+	ProfileSnapshot   json.RawMessage
+	InputSelection    json.RawMessage
+	BaselineSnapshot  json.RawMessage
+	State             AuditState
+	Phase             auditdomain.AuditPhase
+	Revision          uint64
+	CurrentRoundID    *string
+	Dispatch          DispatchState
+	Hold              HoldState
+	DeadlineAt        *time.Time
+	PausedAt          *time.Time
+	Limits            Limits
+	ReservedRunCount  int
+	SubmittedRunCount int
+	// OutstandingRunCount counts every child Run that holds a dispatch
+	// reservation; OutstandingToolRunCount is its `tool` class part
+	// (AUX-R3).
+	OutstandingRunCount     int
+	OutstandingToolRunCount int
+	RetainedEvidenceBytes   int64
+	EventSequence           uint64
+	StopReason              *StopReason
+	CreatedAt               time.Time
+	UpdatedAt               time.Time
+	StartedAt               *time.Time
+	FinishedAt              *time.Time
+	DeletionRequestedAt     *time.Time
 }
 
 type CreateDraftParams struct {
@@ -534,11 +539,15 @@ type ExecutionMemberIntent struct {
 }
 
 type CreateExecutionIntentParams struct {
-	Claim         ControllerClaim
-	ExecutionID   string
-	RoundID       *string
-	Role          ExecutionRole
-	WorkflowRole  string
+	Claim        ControllerClaim
+	ExecutionID  string
+	RoundID      *string
+	Role         ExecutionRole
+	WorkflowRole string
+	// LaneClass is the class of WorkflowRole's pinned Workflow
+	// (resolved.WorkflowLaneClass), whose dispatch window the intent
+	// reserves (AUX-R3).
+	LaneClass     resolved.LaneClass
 	RoleAttempt   *int
 	Manifest      ExactArtifact
 	SubmissionKey string
@@ -868,12 +877,15 @@ type CoverageEvidence struct {
 
 type ReconcileSnapshot struct {
 	Audit Audit
-	// MaxConcurrentRuns is a preflight hint from Scheduler settings. The
-	// CreateExecutionIntent SQL gate remains authoritative under races.
-	MaxConcurrentRuns int
-	Round             *Round
-	Items             []Item
-	Executions        []Execution
+	// MaxConcurrentRuns and MaxConcurrentToolRuns are preflight hints from
+	// Scheduler settings, the dispatch windows of the `model` and `tool`
+	// classes. The CreateExecutionIntent SQL gate remains authoritative under
+	// races.
+	MaxConcurrentRuns     int
+	MaxConcurrentToolRuns int
+	Round                 *Round
+	Items                 []Item
+	Executions            []Execution
 	// RunStates is the lifecycle state of the Run bound to each execution in
 	// Executions, keyed by Run ID and read in the same snapshot. A Run whose
 	// row no longer exists has no entry.
@@ -882,7 +894,10 @@ type ReconcileSnapshot struct {
 	Receipts       []CollectionReceiptSummary
 	RoleReceipts   []CollectionReceiptSummary
 	// ReadyItems are the current Round's dispatchable items, read directly so
-	// that items awaiting review ahead of them cannot starve dispatch.
+	// that items awaiting review ahead of them cannot starve dispatch. Each
+	// Workflow role contributes its first MaxReconcileRows items, so the lane
+	// class whose window is full cannot starve the other one; they are in item
+	// order.
 	ReadyItems     []Item
 	MoreItems      bool
 	MoreExecutions bool
@@ -890,6 +905,21 @@ type ReconcileSnapshot struct {
 	// OnlyAwaitingReview is counted over every non-settled item, independent
 	// of the bounded Items window.
 	OnlyAwaitingReview bool
+}
+
+// DispatchWindowOpen reports whether the Audit may reserve another child Run
+// of class: its outstanding Runs of that class are below the class's window
+// (AUX-R3, AUX-R7). An unknown class or a window below one never opens.
+func (s ReconcileSnapshot) DispatchWindowOpen(class resolved.LaneClass) bool {
+	switch class {
+	case resolved.LaneClassTool:
+		return s.MaxConcurrentToolRuns >= 1 && s.Audit.OutstandingToolRunCount < s.MaxConcurrentToolRuns
+	case resolved.LaneClassModel:
+		return s.MaxConcurrentRuns >= 1 &&
+			s.Audit.OutstandingRunCount-s.Audit.OutstandingToolRunCount < s.MaxConcurrentRuns
+	default:
+		return false
+	}
 }
 
 // RoleOutputLogicalKey is the stable Audit-owned address of one accepted

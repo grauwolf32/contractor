@@ -17,7 +17,8 @@ var auditColumnList = []string{
 	"baseline_snapshot", "state", "revision", "current_round_id", "dispatch_state", "hold_state",
 	"deadline_at", "max_rounds", "batch_size", "max_items_per_round", "max_items_total",
 	"max_submitted_runs", "max_item_run_attempts", "max_evidence_bytes",
-	"reserved_run_count", "submitted_run_count", "outstanding_run_count", "retained_evidence_bytes",
+	"reserved_run_count", "submitted_run_count", "outstanding_run_count", "outstanding_tool_run_count",
+	"retained_evidence_bytes",
 	"next_event_sequence - 1", "stop_reason_code", "stop_reason_message",
 	"created_at", "updated_at", "started_at", "finished_at", "deletion_requested_at", "paused_at", "phase",
 }

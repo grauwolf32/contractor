@@ -133,11 +133,11 @@ INSERT INTO audit_items (
 			[]any{audit.AuditID, taskRef, digest, origin}},
 		{`
 INSERT INTO audit_executions (
-    execution_id, audit_id, round_id, role, workflow_role, manifest_ref, manifest_digest,
+    lane_class, execution_id, audit_id, round_id, role, workflow_role, manifest_ref, manifest_digest,
     submission_key, request_digest, run_id, state, terminal_outcome,
     terminal_run_generation, terminal_run_sequence, terminal_observed_at,
     run_provenance, run_deleted_at
-) VALUES ('execution-decided', $1, 'round-decided', 'check', 'check-role',
+) VALUES ('model', 'execution-decided', $1, 'round-decided', 'check', 'check-role',
           '{"namespace":"audit-executions","name":"check-decided","revision":"execution-r1"}'::jsonb,
           $2, 'submission-decided', $2, 'deleted-run-decided', 'collected', 'succeeded',
           'generation-one', 1, clock_timestamp(), $3::jsonb, clock_timestamp())`,

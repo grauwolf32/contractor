@@ -56,10 +56,15 @@ document owns are:
 - **Submission identity.** The submission key derived from `audit_id`,
   round/role, the immutable ordered execution-item/attempt set and the
   execution manifest digest.
-- **Dispatch look-ahead.** The Server-owned per-Audit window, equal to the
-  current global `maxConcurrentRuns`, that bounds an Audit's outstanding count.
+- **Dispatch look-ahead.** The Server-owned per-Audit windows, one per lane
+  class: the current global `maxConcurrentToolRuns` bounds the outstanding
+  count of `tool` roles and the current global `maxConcurrentRuns` that of
+  every other role.
 - **Outstanding count.** An Audit's reserved submission intents plus its
-  associated nonterminal child Runs.
+  associated nonterminal child Runs, kept in total and for the `tool` class.
+- **Role lane class.** `tool` when every Stage of the role's pinned Workflow is
+  `tool` ([SCH-R175](../execution/scheduler.md)), otherwise `model`; an
+  execution keeps the class it was reserved with.
 - **Candidate batch.** The ordered set of compatible ready items that
   selection forms before the submission builder applies the `item-task-set`
   byte envelope.
@@ -168,25 +173,34 @@ capacity or bypasses queue ordering.
 
 **AUX-R3.** The Controller must nevertheless avoid eagerly filling the queue by
 materializing every item as a queued Run. It uses a Server-owned per-Audit
-dispatch look-ahead equal to the current global `maxConcurrentRuns`
-(LIM-AUX-1).
+dispatch look-ahead per role lane class: a role whose pinned Workflow has only
+`tool` Stages is paced by the current global `maxConcurrentToolRuns`, every
+other role by the current global `maxConcurrentRuns` (LIM-AUX-1). A Workflow
+that scans and then calls a model is `model`. The windows fill independently:
+a full window of one class never holds back the ready items of the other, and
+the reconcile snapshot reads the first ready items of each Workflow role
+separately, so the items of one role cannot hide another role's.
 
-**AUX-R4.** The window counts both reserved submission intents and associated
-nonterminal child Runs and is enforced transactionally across Controller
-instances, so two Controller instances cannot overfill it through a crash or
-race.
+**AUX-R4.** Each window counts both reserved submission intents and
+associated nonterminal child Runs of its class and is enforced transactionally
+across Controller instances, so two Controller instances cannot overfill
+either through a crash or race. An execution records the class it was
+reserved with, and its terminal observation releases that class, so it leaves
+the count it entered. A role whose pinned Workflow cannot be classified is a
+storage invariant failure of the Audit, never a default class.
 
-**AUX-R5.** The window is internal producer backpressure: it is not a second
-execution limit, not AuditProfile policy and not reproducible Audit policy. It
-is not pinned at Audit start and changes dynamically with the global setting.
+**AUX-R5.** The windows are internal producer backpressure: they are not a
+second execution limit, not AuditProfile policy and not reproducible Audit
+policy. They are not pinned at Audit start and change dynamically with the
+global settings.
 
 **AUX-R6.** The settings row and an Audit dispatch reservation have a defined
 PostgreSQL ordering (FAIL-AUX-6).
 
-**AUX-R7.** Lowering the global value never cancels already submitted child
-Runs. If it falls below an Audit's current outstanding count, that Audit
-submits no additional Run until the count drains below the new window
-(FAIL-AUX-6).
+**AUX-R7.** Lowering either global value never cancels already submitted child
+Runs. If it falls below an Audit's current outstanding count of that class,
+that Audit submits no additional Run of the class until its count drains below
+the new window, while the other class keeps dispatching (FAIL-AUX-6).
 
 **AUX-R8.** An increase may wake Audit reconciliation, while periodic
 reconciliation remains authoritative.
@@ -658,7 +672,8 @@ check child Run uses ordinary Workflow slots:
 Registry entries owned by this document:
 
 - [LIM-AUX-1](../platform/limits.md): per-Audit dispatch look-ahead equal to
-  the current `maxConcurrentRuns` (AUX-R3).
+  the current `maxConcurrentToolRuns` for `tool` roles and the current
+  `maxConcurrentRuns` for every other role (AUX-R3).
 - [LIM-AUX-2](../platform/limits.md): one stable idempotency key per
   submission intent until the original Run is recovered (AUX-R26).
 - [LIM-AUX-3](../platform/limits.md): exactly one `AuditCollectionReceipt`
@@ -694,7 +709,8 @@ Registry entries owned by this document:
 - [FAIL-AUX-5](../platform/failure-model.md): next-Round building
   (AUX-R65 to AUX-R68).
 - [FAIL-AUX-6](../platform/failure-model.md): a change of the global
-  `maxConcurrentRuns` against Audit dispatch reservations (AUX-R6, AUX-R7).
+  `maxConcurrentRuns` or `maxConcurrentToolRuns` against Audit dispatch
+  reservations (AUX-R6, AUX-R7).
 - [FAIL-AUX-7](../platform/failure-model.md): Worker death after a `finding`
   call (AUX-R76).
 - [LIFE-AUX-1](../platform/lifecycle.md): committed finding proposal receipts

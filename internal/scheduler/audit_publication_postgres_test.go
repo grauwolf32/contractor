@@ -88,7 +88,7 @@ func TestAuditManagedRunSkipsGenericProjectOutputPublication(t *testing.T) {
 	}
 	execution, _, err := store.CreateExecutionIntent(ctx, auditstore.CreateExecutionIntentParams{
 		Claim: claim, ExecutionID: "execution-audit-publication", RoundID: &roundID,
-		Role: auditstore.ExecutionCheck, WorkflowRole: "check", Manifest: manifest,
+		Role: auditstore.ExecutionCheck, WorkflowRole: "check", LaneClass: resolved.LaneClassModel, Manifest: manifest,
 		SubmissionKey: "audit-publication-submission", RequestDigest: schedulerAuditDigest("7"),
 		Members: []auditstore.ExecutionMemberIntent{{
 			ExecutionItemID: "execution-item-audit-publication", ItemID: "item-audit-publication",

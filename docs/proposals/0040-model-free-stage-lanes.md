@@ -1,10 +1,16 @@
 # Separate lanes for model-free Stages
 
-Proposal 0040 · Status: **Accepted on 2026-10-23
-([Decisions](#decisions)); in progress. V400-001 implements sections 1 to 3
-and the `maxConcurrentToolRuns` setting, V400-002 section 4; V400-003 and
-V400-004 remain ([Proposed tasks](#proposed-tasks)). The specification already
-states the implemented part (SCH-R175, SCH-R176, CTL-R155).**
+Proposal 0040 · Status: **Folded on 2026-10-23. Accepted the same day
+([Decisions](#decisions)) and implemented by V400-001 (sections 1 to 3 and the
+`maxConcurrentToolRuns` setting), V400-002 (section 4), V400-003 (the
+Operations settings page) and V400-004 (section 5). The specification owns the
+behaviour: SCH-R175, SCH-R176 and SCH-R142 in
+[scheduler](../spec/execution/scheduler.md), CTL-R155 in
+[control plane](../spec/execution/control-plane.md), OPS-R64 in
+[operations](../spec/operations/operations.md), and AUX-R3 to AUX-R7 with
+LIM-AUX-1 and FAIL-AUX-6 in [Audit execution](../spec/audits/execution.md).
+The section 6 accepted risk is recorded after SCH-R176. The rest of this page
+is the design record.**
 
 Recorded on 2026-10-23 and checked against `main @ 63aa62b4`. Scanner Stages
 make no model calls, yet each one holds one of the `maxConcurrentRuns`

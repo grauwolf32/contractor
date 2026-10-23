@@ -34,14 +34,14 @@ func TestSharedEvalPostgresAuditInventoryIncludesNonItemRolesAndDeletedChildren(
 		}
 	}
 	for i, role := range []string{"discovery", "assessment"} {
-		_, err := h.pool.Exec(t.Context(), `INSERT INTO audit_executions(execution_id,audit_id,round_id,role,workflow_role,role_attempt,manifest_ref,manifest_digest,submission_key,request_digest) VALUES($1,$2,$3,$4,$4,$5,'{}'::jsonb,$6,$1,$6)`, "inventory-"+role, audit, fmt.Sprintf("inventory-round-%d", i+1), role, i+1, digest)
+		_, err := h.pool.Exec(t.Context(), `INSERT INTO audit_executions(lane_class,execution_id,audit_id,round_id,role,workflow_role,role_attempt,manifest_ref,manifest_digest,submission_key,request_digest) VALUES('model',$1,$2,$3,$4,$4,$5,'{}'::jsonb,$6,$1,$6)`, "inventory-"+role, audit, fmt.Sprintf("inventory-round-%d", i+1), role, i+1, digest)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
 	_, err := h.pool.Exec(t.Context(), `
-INSERT INTO audit_executions(execution_id,audit_id,round_id,role,workflow_role,manifest_ref,manifest_digest,submission_key,request_digest,run_id,state,terminal_outcome,terminal_run_generation,terminal_run_sequence,terminal_observed_at,run_provenance,run_deleted_at)
-VALUES('inventory-deleted',$1,'inventory-round-1','check','check','{}'::jsonb,$2,'inventory-deleted',$2,'deleted-child','collected','failed','generation',1,clock_timestamp(),'{"schema":"contractor.audit.run-provenance.v1","runId":"deleted-child"}'::jsonb,clock_timestamp())`, audit, digest)
+INSERT INTO audit_executions(lane_class,execution_id,audit_id,round_id,role,workflow_role,manifest_ref,manifest_digest,submission_key,request_digest,run_id,state,terminal_outcome,terminal_run_generation,terminal_run_sequence,terminal_observed_at,run_provenance,run_deleted_at)
+VALUES('model','inventory-deleted',$1,'inventory-round-1','check','check','{}'::jsonb,$2,'inventory-deleted',$2,'deleted-child','collected','failed','generation',1,clock_timestamp(),'{"schema":"contractor.audit.run-provenance.v1","runId":"deleted-child"}'::jsonb,clock_timestamp())`, audit, digest)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +74,7 @@ VALUES('inventory-deleted',$1,'inventory-round-1','check','check','{}'::jsonb,$2
 	if len(roles) != 3 || roles["check"].Available || roles["check"].Execution == nil || roles["check"].Execution.ID != "deleted-child" || roles["discovery"].Execution != nil {
 		t.Fatal("non-item/unresolved/deleted children lost", roles)
 	}
-	_, err = h.pool.Exec(t.Context(), `INSERT INTO audit_executions(execution_id,audit_id,role,workflow_role,role_attempt,manifest_ref,manifest_digest,submission_key,request_digest) VALUES('inventory-retry',$1,'discovery','discovery',2,'{}'::jsonb,$2,'inventory-retry',$2)`, audit, digest)
+	_, err = h.pool.Exec(t.Context(), `INSERT INTO audit_executions(lane_class,execution_id,audit_id,role,workflow_role,role_attempt,manifest_ref,manifest_digest,submission_key,request_digest) VALUES('model','inventory-retry',$1,'discovery','discovery',2,'{}'::jsonb,$2,'inventory-retry',$2)`, audit, digest)
 	if err != nil {
 		t.Fatal(err)
 	}

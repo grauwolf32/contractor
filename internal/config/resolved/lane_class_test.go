@@ -84,6 +84,16 @@ func TestWorkflowLaneClassAndToolWorkers(t *testing.T) {
 	if got := EntryLaneClass(workflow); got != LaneClassTool {
 		t.Fatalf("scan entry Stage class = %q", got)
 	}
+	// An Audit counts a scan-then-triage Workflow as model work (AUX-R3).
+	if got := WorkflowLaneClass(workflow); got != LaneClassModel {
+		t.Fatalf("scan-then-triage Workflow class = %q", got)
+	}
+	scans := ResolvedWorkflow{EntryStage: "scan", Stages: map[string]ResolvedStage{
+		"scan": laneTestStage("scan-plan", "tool", "tool"), "fetch": laneTestStage("passthrough", "tool"),
+	}}
+	if got := WorkflowLaneClass(scans); got != LaneClassTool {
+		t.Fatalf("model-free Workflow class = %q", got)
+	}
 	if WorkflowToolWorkersOnly(workflow) {
 		t.Fatal("a Workflow with an ADK Worker reported tool Workers only")
 	}

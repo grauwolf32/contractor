@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -225,7 +226,7 @@ func TestPostgresCollectionAcceptsBatchedChecksOfOneFindingProposal(t *testing.T
 	}
 	execution, _, err := store.CreateExecutionIntent(ctx, auditstore.CreateExecutionIntentParams{
 		Claim: claim, ExecutionID: "execution-two-checks", RoundID: &round.RoundID, Role: auditstore.ExecutionCheck,
-		WorkflowRole: "verify", Manifest: testExact("audits", "execution-two-checks", "manifest-r1"),
+		WorkflowRole: "verify", LaneClass: resolved.LaneClassModel, Manifest: testExact("audits", "execution-two-checks", "manifest-r1"),
 		SubmissionKey: "submission-two-checks", RequestDigest: testDigest("5"), Members: members,
 	})
 	if err != nil {
@@ -465,7 +466,7 @@ func newCollectingAuditFixture(t *testing.T, name string, maxEvidenceBytes int64
 	memberID := "member-" + name
 	execution, _, err := store.CreateExecutionIntent(ctx, auditstore.CreateExecutionIntentParams{
 		Claim: claim, ExecutionID: "execution-" + name, RoundID: &roundID, Role: auditstore.ExecutionCheck,
-		WorkflowRole: "check", Manifest: testExact("audits", name+"-execution", "manifest-r1"),
+		WorkflowRole: "check", LaneClass: resolved.LaneClassModel, Manifest: testExact("audits", name+"-execution", "manifest-r1"),
 		SubmissionKey: "submission-" + name, RequestDigest: testDigest("7"),
 		Members: []auditstore.ExecutionMemberIntent{{
 			ExecutionItemID: memberID, ItemID: item.ItemID, BatchOrdinal: 0, ItemAttempt: 1,

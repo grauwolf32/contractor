@@ -5,7 +5,7 @@ milestone: model-free-stage-lanes-2026-10
 epic: audits
 kind: feature
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V400-001, V400-002, V400-003]
 languages: [go, sql]
 goal: >-

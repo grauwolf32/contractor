@@ -162,7 +162,7 @@ func scanAudit(row scanner) (auditstore.Audit, error) {
 		&result.Limits.MaxSubmittedRuns,
 		&result.Limits.MaxItemRunAttempts, &result.Limits.MaxEvidenceBytes,
 		&result.ReservedRunCount, &result.SubmittedRunCount, &result.OutstandingRunCount,
-		&result.RetainedEvidenceBytes,
+		&result.OutstandingToolRunCount, &result.RetainedEvidenceBytes,
 		&eventSequence, &stopCode, &stopMessage,
 		&result.CreatedAt, &result.UpdatedAt, &result.StartedAt, &result.FinishedAt,
 		&result.DeletionRequestedAt, &result.PausedAt, &result.Phase,

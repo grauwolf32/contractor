@@ -2,6 +2,41 @@ package pgstore
 
 // SQL statements for read.go.
 
+// listReadyItemsSQL returns the first $3 ready items of each Workflow role in
+// Round $2 of Audit $1, in item order. A role belongs to one lane class, so a
+// class whose dispatch window is full cannot hide the ready items of the other
+// class (AUX-R3), and within a role the lowest ordinals come first (AUX-R13).
+// ready_roles walks the distinct roles through audit_items_ready_role_idx, one
+// index probe per role; at most LIM-ASC-2 roles, so at most 16 * $3 rows.
+// Used by ClaimStore.listReadyItems.
+var listReadyItemsSQL = `
+WITH RECURSIVE ready_roles(workflow_role) AS (
+    (SELECT item.workflow_role
+       FROM audit_items AS item
+      WHERE item.audit_id = $1 AND item.round_id = $2 AND item.state = 'ready'
+      ORDER BY item.workflow_role
+      LIMIT 1)
+    UNION ALL
+    SELECT (SELECT item.workflow_role
+              FROM audit_items AS item
+             WHERE item.audit_id = $1 AND item.round_id = $2 AND item.state = 'ready'
+               AND item.workflow_role > ready_roles.workflow_role
+             ORDER BY item.workflow_role
+             LIMIT 1)
+      FROM ready_roles
+     WHERE ready_roles.workflow_role IS NOT NULL
+)
+SELECT ` + prefixedItemColumns("item") + `
+  FROM ready_roles
+ CROSS JOIN LATERAL (
+       SELECT role_item.*
+         FROM audit_items AS role_item
+        WHERE role_item.audit_id = $1 AND role_item.round_id = $2 AND role_item.state = 'ready'
+          AND role_item.workflow_role = ready_roles.workflow_role
+        ORDER BY role_item.ordinal, role_item.item_id
+        LIMIT $3) AS item
+ ORDER BY item.ordinal, item.item_id`
+
 // listItemsPageSQL returns one page of the items of owner $1's Audit $2 in
 // round ordinal, item ordinal and item ID order. It filters before the
 // keyset: only round $3, state $4 and subject key $5, each when it is not
