@@ -1,0 +1,27 @@
+---
+# Stops and removes the unit of an instance marked absent. Its certificate,
+# key and roots stay: a Podman owner marker or work-root lock is never removed
+# implicitly, and reusing the name would reuse the principal.
+
+- name: Check the unit of {{ __contractor_runtime_absent_name }}
+  ansible.builtin.stat:
+    path: "{{ __contractor_runtime_unit_path }}"
+  register: __contractor_runtime_absent_unit
+
+- name: Remove {{ __contractor_runtime_absent_name }}
+  when: __contractor_runtime_absent_unit.stat.exists
+  block:
+    - name: Stop and disable {{ __contractor_runtime_absent_name }}
+      ansible.builtin.command:
+        argv: "{{ __contractor_runtime_systemctl + ['disable', '--now', 'contractor-runtime-' ~ __contractor_runtime_absent_name ~ '.service'] }}"
+      changed_when: true
+
+    - name: Remove the unit of {{ __contractor_runtime_absent_name }}
+      ansible.builtin.file:
+        path: "{{ __contractor_runtime_unit_path }}"
+        state: absent
+
+- name: Clear a deferred restart of {{ __contractor_runtime_absent_name }}
+  ansible.builtin.file:
+    path: "{{ __contractor_runtime_marker }}"
+    state: absent

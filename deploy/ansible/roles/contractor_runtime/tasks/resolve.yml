@@ -1,0 +1,246 @@
+---
+# Pure: reads variables and facts, sets __contractor_runtime_* facts and fails on a
+# configuration this role cannot apply. Runtime-owned grammars and bounds
+# (labels, adapters, CIDRs, workspace and Podman limits) are left to the
+# Runtime's own parser, which instance.yml runs before any restart.
+
+- name: Start from an empty resolution
+  ansible.builtin.set_fact:
+    __contractor_runtime_instances: []
+    __contractor_runtime_ready: []
+    __contractor_runtime_changed: []
+    __contractor_runtime_pending: []
+
+- name: Require a Linux host with systemd
+  ansible.builtin.assert:
+    that:
+      - ansible_system == 'Linux'
+      - ansible_service_mgr == 'systemd'
+    fail_msg: >-
+      Runtime hosts must be Linux with systemd (found {{ ansible_system }},
+      {{ ansible_service_mgr | default('no service manager') }}).
+    quiet: true
+
+- name: Require at least the deployed release to be kept
+  ansible.builtin.assert:
+    that: contractor_runtime_keep_releases | int >= 1
+    fail_msg: contractor_runtime_keep_releases must be at least 1.
+    quiet: true
+
+- name: Require the Control Plane URL
+  ansible.builtin.assert:
+    that:
+      - contractor_runtime_control_plane_url is string
+      - contractor_runtime_control_plane_url is match('https://')
+    fail_msg: Set contractor_runtime_control_plane_url to the Server's private https:// URL.
+    quiet: true
+
+- name: Require well-formed instance entries
+  ansible.builtin.assert:
+    that:
+      - contractor_runtime_instances is sequence
+      - contractor_runtime_instances is not string
+      - __contractor_runtime_entry is mapping
+      - __contractor_runtime_entry.name | default('') is string
+      - __contractor_runtime_entry.name | default('') is match('^[a-z0-9][a-z0-9_-]{0,62}$')
+      - __contractor_runtime_entry.state | default('present') in ['present', 'absent']
+      - (__contractor_runtime_entry.state | default('present') == 'absent')
+        or (__contractor_runtime_entry.port | default('') | string is match('^[0-9]{1,5}$')
+            and 0 < __contractor_runtime_entry.port | int < 65536)
+    fail_msg: >-
+      Instance {{ __contractor_runtime_entry.name | default(__contractor_runtime_entry) }}: name must match
+      [a-z0-9][a-z0-9_-]{0,62}, state must be present or absent, and a present
+      instance needs a port between 1 and 65535.
+    quiet: true
+  loop: "{{ contractor_runtime_instances }}"
+  loop_control:
+    loop_var: __contractor_runtime_entry
+    label: "{{ __contractor_runtime_entry.name | default('?') }}"
+
+- name: Merge tool pins and package groups
+  ansible.builtin.set_fact:
+    __contractor_runtime_tools: "{{ contractor_runtime_tools_default | combine(contractor_runtime_tools, recursive=true) }}"
+    __contractor_runtime_packages: >-
+      {{ contractor_runtime_system_packages_default[ansible_os_family] | default({})
+         | combine(contractor_runtime_system_packages) }}
+    __contractor_runtime_present_entries: "{{ contractor_runtime_instances | rejectattr('state', 'defined') | list
+                              + contractor_runtime_instances | selectattr('state', 'defined')
+                                | selectattr('state', 'equalto', 'present') | list }}"
+    __contractor_runtime_absent: "{{ contractor_runtime_instances | selectattr('state', 'defined')
+                     | selectattr('state', 'equalto', 'absent') | map(attribute='name') | list }}"
+
+- name: Set the nuclei templates directory
+  ansible.builtin.set_fact:
+    __contractor_runtime_nuclei_templates_dir: >-
+      {{ contractor_runtime_nuclei_templates_dir
+         or contractor_runtime_prefix ~ '/tools/nuclei_templates-' ~ __contractor_runtime_tools.nuclei_templates.version }}
+
+- name: Resolve instances
+  ansible.builtin.set_fact:
+    __contractor_runtime_instances: >-
+      {{ __contractor_runtime_instances + [lookup('ansible.builtin.template', 'instance.json.j2') | from_json] }}
+  loop: "{{ __contractor_runtime_present_entries }}"
+  loop_control:
+    loop_var: __contractor_runtime_entry
+    label: "{{ __contractor_runtime_entry.name }}"
+
+- name: Require at least one present instance
+  ansible.builtin.assert:
+    that: __contractor_runtime_instances | default([]) | length > 0
+    fail_msg: contractor_runtime_instances has no present instance.
+    quiet: true
+
+- name: Require unique instance names and ports on the host
+  ansible.builtin.assert:
+    that:
+      - contractor_runtime_instances | map(attribute='name') | unique | length
+        == contractor_runtime_instances | length
+      - __contractor_runtime_instances | map(attribute='port') | unique | length == __contractor_runtime_instances | length
+    fail_msg: Instance names and ports must be unique on {{ inventory_hostname }}.
+    quiet: true
+
+- name: Require applicable capability switches
+  ansible.builtin.assert:
+    that:
+      - __contractor_runtime_caps.keys() | difference(contractor_runtime_capabilities_default.keys()) | length == 0
+      - __contractor_runtime_caps.workspace_storage in ['local', 'memory', 'none']
+      - __contractor_runtime_caps.openapi_validator is boolean
+      - __contractor_runtime_caps.likec4_validator is boolean
+      - __contractor_runtime_caps.podman is boolean
+      - __contractor_runtime_caps.podman_network is boolean
+      - __contractor_runtime_caps.scanners is sequence and __contractor_runtime_caps.scanners is not string
+      - __contractor_runtime_caps.scanners | difference(__contractor_runtime_scanners) | length == 0
+      - __contractor_runtime_caps.scanners | unique | length == __contractor_runtime_caps.scanners | length
+      - not __contractor_runtime_caps.podman or __contractor_runtime_caps.workspace_storage == 'local'
+      - not __contractor_runtime_caps.podman_network or __contractor_runtime_caps.podman
+    fail_msg: >-
+      Instance {{ __contractor_runtime_instance.name }} has capabilities {{ __contractor_runtime_caps | to_json }}.
+      Known switches are {{ contractor_runtime_capabilities_default.keys() | list | join(', ') }};
+      workspace_storage is local, memory or none; scanners are a subset of
+      {{ __contractor_runtime_scanners | join(', ') }}; podman needs local workspace storage and
+      podman_network needs podman.
+    quiet: true
+  loop: "{{ __contractor_runtime_instances }}"
+  loop_control:
+    loop_var: __contractor_runtime_instance
+    label: "{{ __contractor_runtime_instance.name }}"
+  vars:
+    __contractor_runtime_caps: "{{ __contractor_runtime_instance.capabilities }}"
+    __contractor_runtime_scanners: [nuclei, sqlmap, naabu, ffuf, katana]
+
+- name: Require an explicit adapter decision and a reachable advertise address
+  ansible.builtin.assert:
+    that:
+      - __contractor_runtime_instance.adapters is none
+        or (__contractor_runtime_instance.adapters is sequence and __contractor_runtime_instance.adapters is not string
+            and __contractor_runtime_instance.adapters | length > 0)
+      - __contractor_runtime_instance.advertise_host not in ['', '0.0.0.0', '::']
+    fail_msg: >-
+      Instance {{ __contractor_runtime_instance.name }}: adapters must be null (every built-in
+      adapter) or a non-empty list, and an instance listening on a wildcard
+      address needs advertise_host.
+    quiet: true
+  loop: "{{ __contractor_runtime_instances }}"
+  loop_control:
+    loop_var: __contractor_runtime_instance
+    label: "{{ __contractor_runtime_instance.name }}"
+
+# The unit file passes arguments and environment unquoted; systemd would
+# reinterpret whitespace, quotes, backslashes, '$' and '%' specifiers.
+- name: Require values the unit file can carry literally
+  ansible.builtin.assert:
+    that:
+      - __contractor_runtime_rejected | length == 0
+    fail_msg: >-
+      Instance {{ __contractor_runtime_instance.name }} has an empty argument,
+      environment name or value, one with whitespace, a quote, a backslash, '$',
+      '%' or ';', or an environment name outside [A-Za-z_][A-Za-z0-9_]*:
+      {{ __contractor_runtime_rejected | to_json }}
+    quiet: true
+  loop: "{{ __contractor_runtime_instances }}"
+  loop_control:
+    loop_var: __contractor_runtime_instance
+    label: "{{ __contractor_runtime_instance.name }}"
+  vars:
+    __contractor_runtime_values: >-
+      {{ __contractor_runtime_instance.args + __contractor_runtime_instance.environment.values() | map('string') | list
+         + [contractor_runtime_system_path, contractor_runtime_prefix, contractor_runtime_home] }}
+    __contractor_runtime_rejected: >-
+      {{ __contractor_runtime_values | select('search', __contractor_runtime_unsafe_value) | list
+         + __contractor_runtime_values | select('equalto', '') | list
+         + __contractor_runtime_instance.environment.keys() | reject('match', '^[A-Za-z_][A-Za-z0-9_]*$') | list }}
+
+# verify.yml reads the registration and probe events, which are INFO records.
+- name: Require a log level that keeps the verified events
+  ansible.builtin.assert:
+    that: __contractor_runtime_level in ['debug', 'info']
+    fail_msg: >-
+      Instance {{ __contractor_runtime_instance.name }} logs at
+      '{{ __contractor_runtime_level }}', which hides the events the role verifies;
+      use debug or info, or set contractor_runtime_verify to false.
+    quiet: true
+  loop: "{{ __contractor_runtime_instances }}"
+  loop_control:
+    loop_var: __contractor_runtime_instance
+    label: "{{ __contractor_runtime_instance.name }}"
+  when: contractor_runtime_verify | bool
+  vars:
+    __contractor_runtime_level: "{{ __contractor_runtime_instance.log_level }}"
+
+- name: Summarize host requirements
+  ansible.builtin.set_fact:
+    __contractor_runtime_host:
+      podman: "{{ __contractor_runtime_instances | selectattr('podman') | list | length > 0 }}"
+      podman_network: "{{ __contractor_runtime_instances | selectattr('podman_network') | list | length > 0 }}"
+      tools: >-
+        {{ (['uv'] + __contractor_runtime_tool_union
+            + (['node'] if 'likec4' in __contractor_runtime_tool_union else [])
+            + (['nuclei_templates'] if 'nuclei' in __contractor_runtime_tool_union
+               and not contractor_runtime_nuclei_templates_dir else [])) | unique }}
+    __contractor_runtime_instance_names: "{{ contractor_runtime_instances | map(attribute='name') | list }}"
+  vars:
+    __contractor_runtime_tool_union: "{{ __contractor_runtime_instances | map(attribute='tools') | flatten | unique }}"
+
+- name: Require a package list for this distribution
+  ansible.builtin.assert:
+    that:
+      - __contractor_runtime_packages.base is defined
+      - not __contractor_runtime_host.podman or __contractor_runtime_packages.podman is defined
+      - not __contractor_runtime_host.podman_network or __contractor_runtime_packages.podman_network is defined
+    fail_msg: >-
+      No package groups for OS family {{ ansible_os_family }}; set
+      contractor_runtime_system_packages with base, podman and podman_network.
+    quiet: true
+
+- name: Require a pinned asset for every needed download
+  ansible.builtin.assert:
+    that:
+      - __contractor_runtime_tool.version is defined
+      - __contractor_runtime_tool_name == 'likec4' or __contractor_runtime_asset.url is defined
+      - __contractor_runtime_tool_name == 'likec4' or __contractor_runtime_asset.sha256 | default('') is match('^[0-9a-f]{64}$')
+    fail_msg: >-
+      Tool {{ __contractor_runtime_tool_name }} needs a version and, for {{ ansible_architecture }},
+      an asset with url and a 64-digit lowercase sha256.
+    quiet: true
+  loop: "{{ __contractor_runtime_host.tools }}"
+  loop_control:
+    loop_var: __contractor_runtime_tool_name
+  vars:
+    __contractor_runtime_tool: "{{ __contractor_runtime_tools[__contractor_runtime_tool_name] | default({}) }}"
+    __contractor_runtime_asset: >-
+      {{ __contractor_runtime_tool.assets[ansible_architecture]
+         | default(__contractor_runtime_tool.assets.any | default({}))
+         if __contractor_runtime_tool.assets is defined else {} }}
+
+- name: Require instance names unique across the play
+  ansible.builtin.assert:
+    that: __contractor_runtime_instance_names | intersect(__contractor_runtime_other_names) | length == 0
+    fail_msg: >-
+      Every Runtime needs its own certificate, so instance names must be
+      unique across hosts; {{ __contractor_runtime_instance_names | intersect(__contractor_runtime_other_names) | to_json }}
+      also appear on another host.
+    quiet: true
+  vars:
+    __contractor_runtime_other_names: >-
+      {{ ansible_play_hosts | difference([inventory_hostname])
+         | map('extract', hostvars, '__contractor_runtime_instance_names') | flatten }}

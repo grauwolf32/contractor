@@ -1,0 +1,112 @@
+{#- Resolves one entry of contractor_runtime_instances (__contractor_runtime_entry) into the
+    values every later task uses. It reads variables only; resolve.yml
+    validates the result. The Podman image and the release path are added
+    when the unit is rendered, because they are known only on the host. -#}
+{%- set e = __contractor_runtime_entry -%}
+{%- set caps = contractor_runtime_capabilities_default
+      | combine(contractor_runtime_capabilities, e.capabilities | default({})) -%}
+{%- set port = e.port | default(0) | int -%}
+{%- set log_level = e.log_level | default(contractor_runtime_log_level) -%}
+{%- set listen_host = e.listen_host | default(contractor_runtime_listen_host) | string -%}
+{%- set advertise_host = e.advertise_host | default(contractor_runtime_advertise_host, true)
+      | default(listen_host, true) | string -%}
+{%- set url_host = '[' ~ advertise_host ~ ']' if ':' in advertise_host else advertise_host -%}
+{%- set advertise_is_ip = advertise_host is match('^[0-9.]+$') or ':' in advertise_host -%}
+{%- set cert_dns = e.cert_dns | default(contractor_runtime_cert_dns)
+      or ((([] if advertise_is_ip else [advertise_host]) + ['localhost']) | unique) -%}
+{%- set cert_ips = e.cert_ips | default(contractor_runtime_cert_ips)
+      or ((([advertise_host] if advertise_is_ip else []) + ['127.0.0.1', '::1']) | unique) -%}
+{%- set root = contractor_runtime_home ~ '/instances/' ~ e.name -%}
+{%- set pki = contractor_runtime_config_dir ~ '/pki' -%}
+{%- set storage = caps.workspace_storage | default('') -%}
+{%- set scanners = caps.scanners | default([]) -%}
+{%- set podman = caps.podman | default(false) -%}
+{%- set podman_network = podman and caps.podman_network | default(false) -%}
+{%- set adapters = e.adapters | default(contractor_runtime_adapters) -%}
+{%- set url = 'https://' ~ url_host ~ ':' ~ port -%}
+{%- set ns = namespace(args=[
+      '--control-plane-url', contractor_runtime_control_plane_url,
+      '--advertised-control-url', url,
+      '--advertised-a2a-url', url,
+      '--listen', listen_host ~ ':' ~ port,
+      '--ca-file', pki ~ '/ca.crt',
+      '--certificate-file', pki ~ '/' ~ e.name ~ '.crt',
+      '--private-key-file', pki ~ '/' ~ e.name ~ '.key',
+      '--work-root', root ~ '/work',
+      '--log-level', log_level,
+      '--request-timeout-seconds', contractor_runtime_request_timeout_seconds,
+      '--shutdown-grace-seconds', contractor_runtime_shutdown_grace_seconds,
+      '--cert-expiry-warning-days', contractor_runtime_cert_expiry_warning_days,
+    ]) -%}
+{%- for label in e.labels | default(contractor_runtime_labels) -%}
+{%-   set ns.args = ns.args + ['--initial-label', label] -%}
+{%- endfor -%}
+{%- for adapter in adapters or [] -%}
+{%-   set ns.args = ns.args + ['--runtime-adapter', adapter] -%}
+{%- endfor -%}
+{%- for network in e.allowed_target_networks | default(contractor_runtime_allowed_target_networks) -%}
+{%-   set ns.args = ns.args + ['--allowed-target-network', network] -%}
+{%- endfor -%}
+{%- if storage in ['local', 'memory'] -%}
+{%-   set ns.args = ns.args + ['--workspace-storage', storage] -%}
+{%- endif -%}
+{%- if storage == 'local' -%}
+{%-   set ns.args = ns.args + ['--workspace-work-root', root ~ '/workspaces'] -%}
+{%- endif -%}
+{%- if storage in ['local', 'memory'] -%}
+{%-   for key, value in contractor_runtime_workspace_limits
+        | combine(e.workspace_limits | default({})) | dictsort -%}
+{%-     set ns.args = ns.args + ['--workspace-' ~ key | replace('_', '-'), value] -%}
+{%-   endfor -%}
+{%- endif -%}
+{%- if podman -%}
+{%-   set ns.args = ns.args + [
+        '--podman-enabled', 'true',
+        '--podman-network-enabled', 'true' if podman_network else 'false',
+        '--podman-owner', e.podman_owner | default(e.name),
+      ] -%}
+{%-   for key, value in contractor_runtime_podman_limits
+        | combine(e.podman_limits | default({})) | dictsort -%}
+{%-     set ns.args = ns.args + ['--podman-' ~ key | replace('_', '-'), value] -%}
+{%-   endfor -%}
+{%- endif -%}
+{%- set ns.args = ns.args + e.extra_args | default(contractor_runtime_extra_args) -%}
+{%- set tools = (['vacuum'] if caps.openapi_validator | default(false) else [])
+      + (['likec4'] if caps.likec4_validator | default(false) else [])
+      + scanners -%}
+{#- PATH is added with the instance's bin directory once tools are installed. -#}
+{%- set environment = {'LANG': 'C.UTF-8'} -%}
+{%- if 'nuclei' in scanners -%}
+{%-   set environment = environment | combine({'NUCLEI_TEMPLATES_DIR': __contractor_runtime_nuclei_templates_dir}) -%}
+{%- endif -%}
+{%- set environment = environment
+      | combine(contractor_runtime_extra_environment, e.extra_environment | default({})) -%}
+{%- set probe_refs = ['code-analysis@1', 'taint-annotations@1']
+      + (['workspace-storage', 'filesystem@1', 'edit-files@1', 'workspace-changes@1']
+         if storage in ['local', 'memory'] else [])
+      + (['scan@1'] if scanners else [])
+      + (['podman@1', 'code-execution@1'] if podman else [])
+      + (['podman-network@1'] if podman_network else []) -%}
+{{ {
+  'name': e.name,
+  'port': port,
+  'log_level': log_level,
+  'capabilities': caps,
+  'adapters': adapters,
+  'advertise_host': advertise_host,
+  'advertised_url': url,
+  'cert_dns': cert_dns,
+  'cert_ips': cert_ips,
+  'root': root,
+  'work_root': root ~ '/work',
+  'workspace_root': root ~ '/workspaces' if storage == 'local' else '',
+  'certificate': pki ~ '/' ~ e.name ~ '.crt',
+  'private_key': pki ~ '/' ~ e.name ~ '.key',
+  'unit': 'contractor-runtime-' ~ e.name ~ '.service',
+  'args': ns.args | map('string') | list,
+  'environment': environment,
+  'tools': tools,
+  'podman': podman,
+  'podman_network': podman_network,
+  'probe_refs': probe_refs,
+} | to_json }}

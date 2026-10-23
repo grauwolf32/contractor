@@ -1,0 +1,23 @@
+# Managed by deploy/ansible: Contractor Runtime Agent {{ __contractor_runtime_instance.name }}.
+# Kill policy as in deploy/podman/contractor-runtime.service.example: stop
+# signals the Runtime but must not kill its independently recovering Podman
+# owner and guardian, and restarts stay an operator decision.
+[Unit]
+Description=Contractor Runtime Agent {{ __contractor_runtime_instance.name }}
+
+[Service]
+Type=exec
+WorkingDirectory={{ __contractor_runtime_instance.root }}
+{% for name, value in __contractor_runtime_instance.environment | dictsort %}
+Environment={{ name }}={{ value }}
+{% endfor %}
+ExecStart={{ __contractor_runtime_instance.argv | join(' \\\n  ') }}
+UMask=0077
+Delegate=yes
+KillMode=mixed
+SendSIGKILL=no
+TimeoutStopSec={{ contractor_runtime_shutdown_grace_seconds | int + 15 }}
+Restart=no
+
+[Install]
+WantedBy=default.target

@@ -171,6 +171,7 @@ make release-verify
 | Findings producer/collection/reader | `make test-findings-e2e`; [contract](../spec/findings/findings.md) |
 | Performance collection and profiling | [Operations performance](../operations/performance.md) |
 | Podman execution | [Podman provisioning and verification](../../deploy/podman/README.md) |
+| Runtime host provisioning (Ansible role) | `make test-ansible` (also in `make lint`; needs `uv`); [Ansible guide](../../deploy/ansible/README.md) |
 | PostgreSQL/filesystem artifact payloads | [Blob backend verification](../operations/artifact-blob-storage.md#release-verification) |
 | Git import | [Git artifacts](../guides/git-artifacts.md) |
 | Backup/restore with exact artifact bytes and CAS | `make test-backup-restore`; needs a PostgreSQL role with CREATE/DROP DATABASE, `psql`, and `pg_dump` and `pg_restore` of the server's major version or newer, which the target checks before it creates a database; [offline backup and restore](../operations/artifact-blob-storage.md#offline-backup-and-restore) |

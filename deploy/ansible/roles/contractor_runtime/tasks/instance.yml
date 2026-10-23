@@ -1,0 +1,139 @@
+---
+# Prepares one instance (__contractor_runtime_instance) without touching its running process:
+# certificate, roots, an immutable bin directory, preflight with the Runtime's
+# own parser and probes, and finally the unit file.
+
+- name: Issue the certificate of {{ __contractor_runtime_instance.name }}
+  ansible.builtin.command:
+    argv:
+      - "{{ contractor_runtime_pki_command }}"
+      - pki
+      - issue-runtime
+      - --root={{ contractor_runtime_pki_root }}
+      - --name={{ __contractor_runtime_instance.name }}
+      - --dns={{ __contractor_runtime_instance.cert_dns | join(',') }}
+      - --ip={{ __contractor_runtime_instance.cert_ips | join(',') }}
+    creates: "{{ contractor_runtime_pki_root }}/agents/{{ __contractor_runtime_instance.name }}.crt"
+  delegate_to: "{{ contractor_runtime_pki_host }}"
+  become: false
+  throttle: 1
+  when: contractor_runtime_pki_issue | bool
+
+- name: Read the certificate of {{ __contractor_runtime_instance.name }}
+  ansible.builtin.slurp:
+    src: "{{ contractor_runtime_pki_root }}/agents/{{ __contractor_runtime_instance.name }}.crt"
+  register: __contractor_runtime_certificate
+  delegate_to: "{{ contractor_runtime_pki_host }}"
+  become: false
+
+- name: Read the private key of {{ __contractor_runtime_instance.name }}
+  ansible.builtin.slurp:
+    src: "{{ contractor_runtime_pki_root }}/agents/{{ __contractor_runtime_instance.name }}.key"
+  register: __contractor_runtime_private_key
+  delegate_to: "{{ contractor_runtime_pki_host }}"
+  become: false
+  no_log: true
+
+- name: Install the certificate of {{ __contractor_runtime_instance.name }}
+  ansible.builtin.copy:
+    dest: "{{ __contractor_runtime_instance.certificate }}"
+    content: "{{ __contractor_runtime_certificate.content | b64decode }}"
+    owner: root
+    group: "{{ contractor_runtime_group }}"
+    mode: "0644"
+  register: __contractor_runtime_certificate_file
+
+- name: Install the private key of {{ __contractor_runtime_instance.name }}
+  ansible.builtin.copy:
+    dest: "{{ __contractor_runtime_instance.private_key }}"
+    content: "{{ __contractor_runtime_private_key.content | b64decode }}"
+    owner: "{{ contractor_runtime_user }}"
+    group: "{{ contractor_runtime_group }}"
+    mode: "0600"
+  register: __contractor_runtime_private_key_file
+  no_log: true
+
+# The Runtime refuses a precreated root that is not its own with mode 0700.
+- name: Create the roots of {{ __contractor_runtime_instance.name }}
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ contractor_runtime_user }}"
+    group: "{{ contractor_runtime_group }}"
+    mode: "0700"
+  loop: "{{ [__contractor_runtime_instance.root, __contractor_runtime_instance.work_root, __contractor_runtime_instance.workspace_root] | select | list }}"
+
+# The directory name is a digest of its links, so the links of a directory in
+# use never change; a different tool set is a new directory and a new PATH.
+- name: Create the bin directory of {{ __contractor_runtime_instance.name }}
+  ansible.builtin.file:
+    path: "{{ __contractor_runtime_instance.bin_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Link the executables of {{ __contractor_runtime_instance.name }}
+  ansible.builtin.file:
+    src: "{{ __contractor_runtime_tool_paths[item] }}"
+    dest: "{{ __contractor_runtime_instance.bin_dir }}/{{ item }}"
+    state: link
+    owner: root
+    group: root
+  loop: "{{ __contractor_runtime_instance.tools }}"
+
+- name: Check with the Runtime parser the settings of {{ __contractor_runtime_instance.name }}
+  ansible.builtin.command:
+    argv: >-
+      {{ [__contractor_runtime_python, '-I', '-c',
+          'import sys; from contractor_runtime.settings import parse_settings; parse_settings(sys.argv[1:], {})']
+         + __contractor_runtime_instance.argv[1:] }}
+    chdir: "{{ __contractor_runtime_instance.root }}"
+  become: true
+  become_user: "{{ contractor_runtime_user }}"
+  changed_when: false
+
+- name: Probe the executables of {{ __contractor_runtime_instance.name }}
+  ansible.builtin.command:
+    argv: ["{{ __contractor_runtime_python }}", -I, "{{ contractor_runtime_prefix }}/tools/probe_tools.py"]
+    chdir: "{{ __contractor_runtime_instance.root }}"
+  become: true
+  become_user: "{{ contractor_runtime_user }}"
+  environment: "{{ __contractor_runtime_instance.environment | combine({'HOME': contractor_runtime_home}) }}"
+  register: __contractor_runtime_probe
+  changed_when: false
+
+- name: Require exactly the configured validators and scanners
+  ansible.builtin.assert:
+    that: __contractor_runtime_advertised == __contractor_runtime_expected
+    fail_msg: >-
+      {{ __contractor_runtime_instance.name }} would advertise {{ __contractor_runtime_advertised | to_json }} but is
+      configured for {{ __contractor_runtime_expected | to_json }}. A missing tool failed the
+      Runtime's own probe; an extra one is on contractor_runtime_system_path.
+    quiet: true
+  vars:
+    __contractor_runtime_found: "{{ __contractor_runtime_probe.stdout | from_json }}"
+    __contractor_runtime_advertised: >-
+      {{ (__contractor_runtime_found['openapi@1'] | select('equalto', 'validate_openapi') | list
+          + __contractor_runtime_found['likec4@1'] | select('equalto', 'validate_likec4') | list
+          + __contractor_runtime_found['scan@1']) | sort }}
+    __contractor_runtime_expected: >-
+      {{ ((['validate_openapi'] if __contractor_runtime_instance.capabilities.openapi_validator else [])
+          + (['validate_likec4'] if __contractor_runtime_instance.capabilities.likec4_validator else [])
+          + __contractor_runtime_instance.capabilities.scanners | map('regex_replace', '^', 'scan_') | list) | sort }}
+
+- name: Write the unit of {{ __contractor_runtime_instance.name }}
+  ansible.builtin.template:
+    src: contractor-runtime.service.j2
+    dest: "{{ contractor_runtime_home }}/.config/systemd/user/{{ __contractor_runtime_instance.unit }}"
+    owner: "{{ contractor_runtime_user }}"
+    group: "{{ contractor_runtime_group }}"
+    mode: "0644"
+  register: __contractor_runtime_unit
+
+- name: Record a needed restart of {{ __contractor_runtime_instance.name }}
+  ansible.builtin.set_fact:
+    __contractor_runtime_changed: "{{ __contractor_runtime_changed + [__contractor_runtime_instance.name] }}"
+  when: >-
+    __contractor_runtime_unit is changed or __contractor_runtime_ca is changed
+    or __contractor_runtime_certificate_file is changed or __contractor_runtime_private_key_file is changed

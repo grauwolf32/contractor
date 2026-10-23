@@ -8,7 +8,9 @@ from fakes.podman_lifecycle import owner
 from fakes.podman_probe import install
 from test_podman_allocation import finalization, release, service_for
 from test_podman_engine import IMAGE, ScriptedEngine, deadline
+from test_projectfs_storage import local_settings
 
+from contractor_runtime.capabilities import discover_capabilities
 from contractor_runtime.factories import built_in_factories
 from contractor_runtime.sandbox.contracts import (
     PODMAN_NETWORK_PROFILE,
@@ -61,6 +63,40 @@ def test_network_profile_requires_operator_opt_in_and_its_own_probe(
             ]
             assert networks.count("--network=none") == 2
             assert networks.count("--network=pasta") == (2 if enabled and not failed_network else 0)
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "enabled,network_failure", [(False, None), (True, None), (True, "execution")]
+)
+def test_discovery_advertises_network_profile_only_after_its_own_probe(
+    tmp_path, enabled, network_failure
+):
+    # V402-002: startup discovery read the networked profile before the Podman
+    # probe had run, so podman-network@1 was never advertised.
+    async def scenario():
+        async with owner(tmp_path, network_enabled=enabled) as fixture:
+            networks = []
+
+            async def probe(root, *, deadline, network):
+                networks.append(network)
+                failure = network_failure if network == "pasta" else None
+                return {"available": failure is None, "failure": failure}
+
+            fixture.backend.probe = probe
+            factories = built_in_factories(
+                tmp_path / "scratch",
+                workspace_settings=local_settings(tmp_path / "project"),
+                execution_lifecycle=fixture.lifecycle,
+            )
+            result = await discover_capabilities(factories)
+            assert networks == (["none", "pasta"] if enabled else ["none"])
+            assert PODMAN_PROFILE in result.sandbox_profiles
+            assert (PODMAN_NETWORK_PROFILE in result.sandbox_profiles) == (
+                enabled and network_failure is None
+            )
+            assert result.supports_tools("code-execution@1", ["exec_command"])
 
     asyncio.run(scenario())
 

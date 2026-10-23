@@ -19,7 +19,12 @@ from contractor_runtime.contracts import (
 )
 from contractor_runtime.factories import FactoryRegistry
 from contractor_runtime.projectfs import WorkspaceCapabilitySnapshot
-from contractor_runtime.sandbox.contracts import EXECUTION_TOOLSET, PODMAN_PROFILE
+from contractor_runtime.sandbox.contracts import (
+    EXECUTION_TOOLSET,
+    PODMAN_NETWORK_PROFILE,
+    PODMAN_PROFILE,
+    PODMAN_PROFILES,
+)
 from contractor_runtime.sandbox.podman.probe import PROBE_CLEANUP_SECONDS, PROBE_TIMEOUT_SECONDS
 from contractor_runtime.telemetry.resources import SUPPORTED_PERFORMANCE_METRICS_VERSIONS
 
@@ -168,7 +173,7 @@ async def discover_capabilities(
             runtimes.append(ref)
 
     for ref, factory in sorted(factories.sandbox_profiles.items()):
-        if ref == PODMAN_PROFILE:
+        if ref in PODMAN_PROFILES:
             continue  # requires the real local workspace probe first
         result = await _probe_one(
             "sandbox", ref, factory.probe, deadline, per_factory_timeout_seconds
@@ -201,6 +206,19 @@ async def discover_capabilities(
             )
             if result is True:
                 sandboxes.append(PODMAN_PROFILE)
+        # The networked profile reads the network probe that _probe_podman runs
+        # after the isolated one (EXE-R124) and shares its execution channel.
+        factory = factories.sandbox_profiles.get(PODMAN_NETWORK_PROFILE)
+        if factory is not None and PODMAN_PROFILE in sandboxes:
+            result = await _probe_one(
+                "sandbox",
+                PODMAN_NETWORK_PROFILE,
+                factory.probe,
+                deadline,
+                per_factory_timeout_seconds,
+            )
+            if result is True:
+                sandboxes.append(PODMAN_NETWORK_PROFILE)
 
     for ref, factory in sorted(factories.toolsets.items()):
         if ref == EXECUTION_TOOLSET and PODMAN_PROFILE not in sandboxes:
@@ -229,7 +247,7 @@ async def discover_capabilities(
     if PODMAN_PROFILE in sandboxes and (
         EXECUTION_TOOLSET not in toolsets or not factories.execution_lifecycle.probe_available
     ):
-        sandboxes.remove(PODMAN_PROFILE)
+        sandboxes[:] = [ref for ref in sandboxes if ref not in PODMAN_PROFILES]
         toolsets.pop(EXECUTION_TOOLSET, None)
 
     # AWC-R24: advertise the contract only when a probed WorkerRuntime

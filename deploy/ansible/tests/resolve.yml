@@ -1,0 +1,422 @@
+---
+# Controller-only tests of configuration resolution and validation
+# (V402-001 A1, A2). Run through tests/run.sh.
+
+- name: Resolve the default full capability set
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Resolve
+      ansible.builtin.include_role:
+        name: contractor_runtime
+        tasks_from: resolve
+
+    - name: Check the single default instance
+      ansible.builtin.assert:
+        that:
+          - __contractor_runtime_instances | length == 1
+          - __contractor_runtime_instances[0].name == 'localhost-1'
+          - __contractor_runtime_instances[0].advertised_url == 'https://127.0.0.1:9443'
+          - __contractor_runtime_instances[0].cert_ips == ['127.0.0.1', '::1']
+          - __contractor_runtime_instances[0].cert_dns == ['localhost']
+          - __contractor_runtime_instances[0].tools == ['vacuum', 'likec4', 'nuclei', 'sqlmap', 'naabu', 'ffuf', 'katana']
+          - __contractor_runtime_instances[0].podman and __contractor_runtime_instances[0].podman_network
+          - __contractor_runtime_instances[0].unit == 'contractor-runtime-localhost-1.service'
+          - __contractor_runtime_instances[0].environment.LANG == 'C.UTF-8'
+          - __contractor_runtime_instances[0].environment.NUCLEI_TEMPLATES_DIR == '/opt/contractor-runtime/tools/nuclei_templates-10.5.0'
+          - __contractor_runtime_instances[0].probe_refs | sort == ['code-analysis@1', 'code-execution@1', 'edit-files@1',
+              'filesystem@1', 'podman-network@1', 'podman@1', 'scan@1', 'taint-annotations@1',
+              'workspace-changes@1', 'workspace-storage'] | sort
+          - __contractor_runtime_host.podman and __contractor_runtime_host.podman_network
+          - __contractor_runtime_host.tools | sort == ['ffuf', 'katana', 'likec4', 'naabu', 'node', 'nuclei',
+              'nuclei_templates', 'sqlmap', 'uv', 'vacuum'] | sort
+          - __contractor_runtime_absent == []
+        quiet: true
+
+    - name: Check the default argv
+      ansible.builtin.assert:
+        that:
+          - _args[:8] == ['--control-plane-url', 'https://10.0.0.5:8443',
+              '--advertised-control-url', 'https://127.0.0.1:9443',
+              '--advertised-a2a-url', 'https://127.0.0.1:9443', '--listen', '127.0.0.1:9443']
+          - "'--initial-label' not in _args and '--runtime-adapter' not in _args"
+          - _args[_args.index('--workspace-storage') + 1] == 'local'
+          - _args[_args.index('--workspace-work-root') + 1] == '/var/lib/contractor-runtime/instances/localhost-1/workspaces'
+          - _args[_args.index('--work-root') + 1] == '/var/lib/contractor-runtime/instances/localhost-1/work'
+          - _args[_args.index('--podman-enabled') + 1] == 'true'
+          - _args[_args.index('--podman-network-enabled') + 1] == 'true'
+          - _args[_args.index('--podman-owner') + 1] == 'localhost-1'
+          - _args[_args.index('--private-key-file') + 1] == '/etc/contractor-runtime/pki/localhost-1.key'
+          - "'--podman-image' not in _args"
+        quiet: true
+      vars:
+        _args: "{{ __contractor_runtime_instances[0].args }}"
+
+- name: Resolve per-instance overrides on a remote host
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    contractor_runtime_listen_host: 0.0.0.0
+    contractor_runtime_advertise_host: runtime-a.example
+    contractor_runtime_capabilities:
+      podman_network: false
+    contractor_runtime_podman_limits: {cpus: 4, memory_bytes: 4294967296}
+    contractor_runtime_instances:
+      - name: scan-1
+        port: 9443
+        labels: [scan, site-a]
+        adapters: [http-proxy@1]
+        allowed_target_networks: [127.0.0.0/8]
+        capabilities:
+          workspace_storage: memory
+          podman: false
+          openapi_validator: false
+          likec4_validator: false
+          scanners: [nuclei, katana]
+      - name: exec-1
+        port: 9444
+        advertise_host: 10.0.0.7
+        podman_limits: {cpus: 8}
+        workspace_limits: {max_files: 1000}
+        capabilities:
+          scanners: []
+      - name: old-1
+        state: absent
+  tasks:
+    - name: Resolve
+      ansible.builtin.include_role:
+        name: contractor_runtime
+        tasks_from: resolve
+
+    - name: Check the scanner instance
+      ansible.builtin.assert:
+        that:
+          - _scan.advertised_url == 'https://runtime-a.example:9443'
+          - _scan.cert_dns == ['runtime-a.example', 'localhost']
+          - _scan.cert_ips == ['127.0.0.1', '::1']
+          - _scan.tools == ['nuclei', 'katana']
+          - not _scan.podman
+          - _scan.probe_refs | sort == ['code-analysis@1', 'edit-files@1', 'filesystem@1', 'scan@1',
+              'taint-annotations@1', 'workspace-changes@1', 'workspace-storage'] | sort
+          - _scan.args[_scan.args.index('--listen') + 1] == '0.0.0.0:9443'
+          - _scan.args[_scan.args.index('--workspace-storage') + 1] == 'memory'
+          - "'--workspace-work-root' not in _scan.args"
+          - "'--podman-enabled' not in _scan.args"
+          - _scan.args | select('equalto', '--initial-label') | list | length == 2
+          - _scan.args[_scan.args.index('--runtime-adapter') + 1] == 'http-proxy@1'
+          - _scan.args[_scan.args.index('--allowed-target-network') + 1] == '127.0.0.0/8'
+        quiet: true
+      vars:
+        _scan: "{{ __contractor_runtime_instances[0] }}"
+
+    - name: Check the execution instance
+      ansible.builtin.assert:
+        that:
+          - _exec.advertised_url == 'https://10.0.0.7:9444'
+          - _exec.cert_dns == ['localhost']
+          - _exec.cert_ips == ['10.0.0.7', '127.0.0.1', '::1']
+          - _exec.tools == ['vacuum', 'likec4']
+          - _exec.podman and not _exec.podman_network
+          - "'NUCLEI_TEMPLATES_DIR' not in _exec.environment"
+          - "'podman-network@1' not in _exec.probe_refs and 'scan@1' not in _exec.probe_refs"
+          - _exec.args[_exec.args.index('--podman-network-enabled') + 1] == 'false'
+          - _exec.args[_exec.args.index('--podman-cpus') + 1] == '8'
+          - _exec.args[_exec.args.index('--podman-memory-bytes') + 1] == '4294967296'
+          - _exec.args[_exec.args.index('--workspace-max-files') + 1] == '1000'
+        quiet: true
+      vars:
+        _exec: "{{ __contractor_runtime_instances[1] }}"
+
+    - name: Check the host summary
+      ansible.builtin.assert:
+        that:
+          - __contractor_runtime_instances | map(attribute='name') | list == ['scan-1', 'exec-1']
+          - __contractor_runtime_absent == ['old-1']
+          - __contractor_runtime_host.podman and not __contractor_runtime_host.podman_network
+          - __contractor_runtime_host.tools | sort == ['katana', 'likec4', 'node', 'nuclei', 'nuclei_templates', 'uv', 'vacuum'] | sort
+        quiet: true
+
+- name: Accept a quiet log level when verification is off as an extra-vars string
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    # ansible-playbook -e contractor_runtime_verify=false passes a string.
+    contractor_runtime_verify: "false"
+    contractor_runtime_log_level: warning
+  tasks:
+    - name: Resolve
+      ansible.builtin.include_role:
+        name: contractor_runtime
+        tasks_from: resolve
+
+    - name: Check the log level
+      ansible.builtin.assert:
+        that: __contractor_runtime_instances[0].log_level == 'warning'
+        quiet: true
+
+- name: Reject duplicate ports
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    expected: 'ports must be unique'
+    contractor_runtime_instances: [{name: a, port: 9443}, {name: b, port: 9443}]
+  tasks:
+    - name: Expect the rejection
+      ansible.builtin.include_tasks: expect_failure.yml
+
+- name: Reject duplicate names
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    expected: 'names and ports must be unique'
+    contractor_runtime_instances: [{name: a, port: 9443}, {name: a, port: 9444}]
+  tasks:
+    - name: Expect the rejection
+      ansible.builtin.include_tasks: expect_failure.yml
+
+- name: Reject an instance name the unit and certificate cannot use
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    expected: 'name must match'
+    contractor_runtime_instances: [{name: Runtime_1, port: 9443}]
+  tasks:
+    - name: Expect the rejection
+      ansible.builtin.include_tasks: expect_failure.yml
+
+- name: Reject a present instance without a port
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    expected: 'needs a port'
+    contractor_runtime_instances: [{name: a}]
+  tasks:
+    - name: Expect the rejection
+      ansible.builtin.include_tasks: expect_failure.yml
+
+- name: Reject an unknown state
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    expected: 'state must be present or absent'
+    contractor_runtime_instances: [{name: a, port: 9443, state: stopped}]
+  tasks:
+    - name: Expect the rejection
+      ansible.builtin.include_tasks: expect_failure.yml
+
+- name: Reject only absent instances
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    expected: 'no present instance'
+    contractor_runtime_instances: [{name: a, state: absent}]
+  tasks:
+    - name: Expect the rejection
+      ansible.builtin.include_tasks: expect_failure.yml
+
+- name: Reject Podman without local storage
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    expected: 'podman needs local workspace storage'
+    contractor_runtime_capabilities: {workspace_storage: memory}
+  tasks:
+    - name: Expect the rejection
+      ansible.builtin.include_tasks: expect_failure.yml
+
+- name: Reject the network profile without Podman
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    expected: 'podman_network needs podman'
+    contractor_runtime_capabilities: {podman: false}
+  tasks:
+    - name: Expect the rejection
+      ansible.builtin.include_tasks: expect_failure.yml
+
+- name: Reject an unknown scanner
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    expected: 'scanners are a subset'
+    contractor_runtime_capabilities: {scanners: [nuclei, nmap]}
+  tasks:
+    - name: Expect the rejection
+      ansible.builtin.include_tasks: expect_failure.yml
+
+- name: Reject an unknown capability switch
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    expected: 'Known switches are'
+    contractor_runtime_capabilities: {gpu: true}
+  tasks:
+    - name: Expect the rejection
+      ansible.builtin.include_tasks: expect_failure.yml
+
+- name: Reject a non-boolean switch
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    expected: 'Known switches are'
+    contractor_runtime_capabilities: {openapi_validator: 'yes'}
+  tasks:
+    - name: Expect the rejection
+      ansible.builtin.include_tasks: expect_failure.yml
+
+- name: Reject an empty adapter list
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    expected: 'non-empty list'
+    contractor_runtime_adapters: []
+  tasks:
+    - name: Expect the rejection
+      ansible.builtin.include_tasks: expect_failure.yml
+
+- name: Reject a wildcard listener without an advertise address
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    expected: 'needs advertise_host'
+    contractor_runtime_listen_host: 0.0.0.0
+  tasks:
+    - name: Expect the rejection
+      ansible.builtin.include_tasks: expect_failure.yml
+
+- name: Reject a value with whitespace
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    expected: 'whitespace'
+    contractor_runtime_labels: ['site a']
+  tasks:
+    - name: Expect the rejection
+      ansible.builtin.include_tasks: expect_failure.yml
+
+- name: Reject a value with a systemd specifier
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    expected: 'whitespace'
+    contractor_runtime_extra_environment: {HTTP_PROXY: 'http://p:3128/%h'}
+  tasks:
+    - name: Expect the rejection
+      ansible.builtin.include_tasks: expect_failure.yml
+
+- name: Reject a log level that hides the verified events
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    expected: "logs at 'warning'"
+    contractor_runtime_log_level: warning
+  tasks:
+    - name: Expect the rejection
+      ansible.builtin.include_tasks: expect_failure.yml
+
+- name: Reject an invalid environment name
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    expected: 'BAD-NAME'
+    contractor_runtime_extra_environment: {'BAD-NAME': x}
+  tasks:
+    - name: Expect the rejection
+      ansible.builtin.include_tasks: expect_failure.yml
+
+- name: Reject a missing Control Plane URL
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    expected: 'contractor_runtime_control_plane_url'
+    contractor_runtime_control_plane_url: ''
+  tasks:
+    - name: Expect the rejection
+      ansible.builtin.include_tasks: expect_failure.yml
+
+- name: Reject a plain HTTP Control Plane URL
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    expected: 'contractor_runtime_control_plane_url'
+    contractor_runtime_control_plane_url: http://10.0.0.5:8443
+  tasks:
+    - name: Expect the rejection
+      ansible.builtin.include_tasks: expect_failure.yml
+
+- name: Reject an unknown distribution
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    expected: 'No package groups'
+    ansible_os_family: Suse
+  tasks:
+    - name: Expect the rejection
+      ansible.builtin.include_tasks: expect_failure.yml
+
+- name: Reject a non-Linux host
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    expected: 'must be Linux'
+    ansible_system: Darwin
+  tasks:
+    - name: Expect the rejection
+      ansible.builtin.include_tasks: expect_failure.yml
+
+- name: Reject an unpinned tool override
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    expected: '64-digit lowercase sha256'
+    contractor_runtime_tools: {vacuum: {assets: {x86_64: {sha256: deadbeef}}}}
+  tasks:
+    - name: Expect the rejection
+      ansible.builtin.include_tasks: expect_failure.yml
+
+- name: Reject an architecture without assets
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    expected: 'an asset with url'
+    ansible_architecture: riscv64
+  tasks:
+    - name: Expect the rejection
+      ansible.builtin.include_tasks: expect_failure.yml
+
+- name: Reject an instance name used on two hosts
+  hosts: peers
+  connection: local
+  gather_facts: false
+  vars:
+    expected: unique across hosts
+    contractor_runtime_instances: [{name: shared-1, port: 9443}]
+  tasks:
+    - name: Expect the rejection
+      ansible.builtin.include_tasks: expect_failure.yml

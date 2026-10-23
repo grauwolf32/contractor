@@ -1,0 +1,156 @@
+---
+# Rootless Podman for podman@1 and podman-network@1 (deploy/podman/README.md).
+# Every engine call runs as the service account, never as root, and the role
+# never prunes or removes containers: those belong to the Runtime's owner.
+
+- name: Read the Podman host policy
+  ansible.builtin.command:
+    argv: [podman, --remote=false, info, --format, json]
+  become: true
+  become_user: "{{ contractor_runtime_user }}"
+  environment: "{{ __contractor_runtime_user_env }}"
+  register: __contractor_runtime_podman_info
+  changed_when: false
+
+- name: Require rootless Podman with systemd cgroup v2 and seccomp
+  ansible.builtin.assert:
+    that:
+      - __contractor_runtime_info.host.security.rootless | default(false)
+      - __contractor_runtime_info.host.cgroupVersion | default('') == 'v2'
+      - __contractor_runtime_info.host.cgroupManager | default('') == 'systemd'
+      - __contractor_runtime_info.host.security.seccompEnabled | default(false)
+    fail_msg: >-
+      Podman for {{ contractor_runtime_user }} reports rootless={{ __contractor_runtime_info.host.security.rootless | default('?') }},
+      cgroupVersion={{ __contractor_runtime_info.host.cgroupVersion | default('?') }},
+      cgroupManager={{ __contractor_runtime_info.host.cgroupManager | default('?') }},
+      seccompEnabled={{ __contractor_runtime_info.host.security.seccompEnabled | default('?') }};
+      the sandbox requires true, v2, systemd and true.
+    quiet: true
+  vars:
+    __contractor_runtime_info: "{{ __contractor_runtime_podman_info.stdout | from_json }}"
+
+- name: Require pasta for the networked profile
+  ansible.builtin.command:
+    argv: [pasta, --version]
+  changed_when: false
+  when: __contractor_runtime_host.podman_network
+
+- name: Use the preprovisioned image
+  when: contractor_runtime_podman_image | length > 0
+  block:
+    - name: Inspect the preprovisioned image
+      ansible.builtin.command:
+        argv: [podman, --remote=false, image, inspect, "{{ contractor_runtime_podman_image }}"]
+      become: true
+      become_user: "{{ contractor_runtime_user }}"
+      environment: "{{ __contractor_runtime_user_env }}"
+      changed_when: false
+
+    - name: Record the preprovisioned image
+      ansible.builtin.set_fact:
+        __contractor_runtime_podman_image: "{{ contractor_runtime_podman_image }}"
+
+- name: Build the supervisor image
+  when: contractor_runtime_podman_image | length == 0
+  vars:
+    __contractor_runtime_context: "{{ __contractor_runtime_release_dir }}/deploy/podman"
+  block:
+    - name: Read the Containerfile
+      ansible.builtin.slurp:
+        src: "{{ __contractor_runtime_context }}/Containerfile"
+      register: __contractor_runtime_containerfile
+
+    - name: Read the init script
+      ansible.builtin.slurp:
+        src: "{{ __contractor_runtime_context }}/init.py"
+      register: __contractor_runtime_init
+
+    # The tag is a digest of the build inputs, so an unchanged image is never
+    # rebuilt and a changed one never reuses a tag.
+    - name: Derive the base image and the tag
+      ansible.builtin.set_fact:
+        __contractor_runtime_base_image: >-
+          {{ __contractor_runtime_containerfile.content | b64decode
+             | regex_findall('(?m)^FROM[ \t]+([^ \t\r\n]+)') | first }}
+        __contractor_runtime_image_tag: >-
+          {{ contractor_runtime_podman_image_repository }}:{{
+             ((__contractor_runtime_containerfile.content ~ __contractor_runtime_init.content) | hash('sha256'))[:16] }}
+
+    - name: Check the base image
+      ansible.builtin.command:
+        argv: [podman, --remote=false, image, exists, "{{ __contractor_runtime_base_image }}"]
+      become: true
+      become_user: "{{ contractor_runtime_user }}"
+      environment: "{{ __contractor_runtime_user_env }}"
+      register: __contractor_runtime_base_exists
+      changed_when: false
+      failed_when: __contractor_runtime_base_exists.rc not in [0, 1]
+
+    - name: Require the base image or permission to pull it
+      ansible.builtin.assert:
+        that: __contractor_runtime_base_exists.rc == 0 or contractor_runtime_podman_pull_base_image | bool
+        fail_msg: >-
+          {{ __contractor_runtime_base_image }} is not in the image store of {{ contractor_runtime_user }};
+          load it there or set contractor_runtime_podman_pull_base_image.
+        quiet: true
+
+    - name: Pull the digest-pinned base image
+      ansible.builtin.command:
+        argv: [podman, --remote=false, pull, "{{ __contractor_runtime_base_image }}"]
+      become: true
+      become_user: "{{ contractor_runtime_user }}"
+      environment: "{{ __contractor_runtime_user_env }}"
+      when: __contractor_runtime_base_exists.rc == 1
+      changed_when: true
+
+    - name: Check the supervisor image
+      ansible.builtin.command:
+        argv: [podman, --remote=false, image, exists, "{{ __contractor_runtime_image_tag }}"]
+      become: true
+      become_user: "{{ contractor_runtime_user }}"
+      environment: "{{ __contractor_runtime_user_env }}"
+      register: __contractor_runtime_image_exists
+      changed_when: false
+      failed_when: __contractor_runtime_image_exists.rc not in [0, 1]
+
+    - name: Build the supervisor image offline
+      ansible.builtin.command:
+        argv:
+          - podman
+          - --remote=false
+          - build
+          - --pull=never
+          - --network=none
+          - --tag={{ __contractor_runtime_image_tag }}
+          - --file={{ __contractor_runtime_context }}/Containerfile
+          - "{{ __contractor_runtime_context }}"
+      become: true
+      become_user: "{{ contractor_runtime_user }}"
+      environment: "{{ __contractor_runtime_user_env }}"
+      when: __contractor_runtime_image_exists.rc == 1
+      changed_when: true
+
+    - name: Inspect the supervisor image
+      ansible.builtin.command:
+        argv: [podman, --remote=false, image, inspect, "{{ __contractor_runtime_image_tag }}"]
+      become: true
+      become_user: "{{ contractor_runtime_user }}"
+      environment: "{{ __contractor_runtime_user_env }}"
+      register: __contractor_runtime_image_inspect
+      changed_when: false
+
+    - name: Record the supervisor image digest reference
+      ansible.builtin.set_fact:
+        __contractor_runtime_podman_image: >-
+          {{ (__contractor_runtime_image_inspect.stdout | from_json)[0].RepoDigests | default([])
+             | select('match', (contractor_runtime_podman_image_repository | regex_escape) ~ '@sha256:[0-9a-f]{64}$')
+             | first | default('') }}
+
+    - name: Require a digest reference
+      ansible.builtin.assert:
+        that: __contractor_runtime_podman_image | length > 0
+        fail_msg: >-
+          {{ __contractor_runtime_image_tag }} has no {{ contractor_runtime_podman_image_repository }}@sha256
+          reference. Provision one through your image distribution process and set
+          contractor_runtime_podman_image (deploy/podman/README.md).
+        quiet: true

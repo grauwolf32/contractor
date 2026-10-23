@@ -34,6 +34,8 @@ Server and ordinary Runtime target Linux and macOS. The deterministic CI stack
 runs on Linux; a cross-compiled binary alone does not verify another host.
 Podman execution requires a separately provisioned Linux host with local
 rootless Podman and the cgroup capabilities in the [Podman guide](../deploy/podman/README.md).
+The [Ansible role](../deploy/ansible/README.md) provisions such hosts with the
+Runtime Agents and the prerequisites of the capabilities chosen for them.
 
 ## Services and network
 
@@ -366,7 +368,8 @@ timeouts, credentials, metrics, profiling and cleanup. Use [testing](testing/REA
 to choose release checks. Deployment examples under `deploy/` cover the
 [independent UI](../deploy/ui/README.md), [Server blob storage without PVC](operations/artifact-blob-storage.md#deployment-without-pvc)
 (PostgreSQL by default, with an opt-in filesystem overlay),
-[Runtime labels](../deploy/runtime-labels/README.md) and [Podman](../deploy/podman/README.md);
+[Runtime labels](../deploy/runtime-labels/README.md), [Podman](../deploy/podman/README.md)
+and [Runtime Agent hosts with Ansible](../deploy/ansible/README.md);
 they are component examples and require the remaining services above.
 
 ### Changing the active model selection

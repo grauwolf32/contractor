@@ -1,0 +1,21 @@
+---
+# Keeps the deployed release and the newest others up to
+# contractor_runtime_keep_releases in total. Skipped while any instance still
+# runs an earlier release because its restart is pending.
+
+- name: Prune releases
+  when: __contractor_runtime_pending | length == 0
+  block:
+    - name: Find releases
+      ansible.builtin.find:
+        paths: "{{ contractor_runtime_prefix }}/releases"
+        file_type: directory
+      register: __contractor_runtime_releases
+
+    - name: Remove old releases
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop: >-
+        {{ (__contractor_runtime_releases.files | sort(attribute='mtime', reverse=true) | map(attribute='path')
+            | reject('equalto', __contractor_runtime_release_dir) | list)[contractor_runtime_keep_releases | int - 1:] }}

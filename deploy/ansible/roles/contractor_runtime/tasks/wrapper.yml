@@ -1,0 +1,28 @@
+---
+# Writes an exec launcher for __contractor_runtime_wrapper_tool that runs __contractor_runtime_wrapper_argv
+# with the caller's arguments. The file name carries a digest of its content,
+# so a changed launcher is a new path and never replaces one in use.
+
+- name: Install the launcher of {{ __contractor_runtime_wrapper_tool }}
+  vars:
+    __contractor_runtime_wrapper_content: |
+      #!/bin/sh
+      # Managed by deploy/ansible.
+      exec {{ __contractor_runtime_wrapper_argv | map('quote') | join(' ') }} "$@"
+    __contractor_runtime_wrapper_path: >-
+      {{ contractor_runtime_prefix }}/tools/wrappers/{{ __contractor_runtime_wrapper_tool }}-{{
+         (__contractor_runtime_wrapper_content | hash('sha256'))[:12] }}
+  block:
+    - name: Write the launcher of {{ __contractor_runtime_wrapper_tool }}
+      ansible.builtin.copy:
+        dest: "{{ __contractor_runtime_wrapper_path }}"
+        content: "{{ __contractor_runtime_wrapper_content }}"
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Record the launcher of {{ __contractor_runtime_wrapper_tool }}
+      ansible.builtin.set_fact:
+        __contractor_runtime_tool_paths: >-
+          {{ __contractor_runtime_tool_paths | default({})
+             | combine({__contractor_runtime_wrapper_tool: __contractor_runtime_wrapper_path}) }}

@@ -1,0 +1,55 @@
+---
+# Reads the instance's JSON log since __contractor_runtime_since. A started process is
+# accepted only after "runtime agent registered" (the Control Plane accepted
+# its capability snapshot) and an available probe for every expected ref.
+# The journal shows Toolset-level outcomes; instance.yml checked single tools.
+
+- name: Wait for the registration of {{ __contractor_runtime_instance.name }}
+  ansible.builtin.shell:
+    cmd: >-
+      journalctl --no-pager --output=cat --since=@{{ __contractor_runtime_since }}
+      _SYSTEMD_USER_UNIT={{ __contractor_runtime_instance.unit | quote }} _UID={{ __contractor_runtime_uid }};
+      printf 'STATE=%s\n' "$({{ __contractor_runtime_systemctl | map('quote') | join(' ') }} show
+      --property=ActiveState --value {{ __contractor_runtime_instance.unit | quote }})"
+  register: __contractor_runtime_journal
+  until: >-
+    __contractor_runtime_journal.stdout is search('"message":"runtime agent (registered|failed)')
+    or __contractor_runtime_journal.stdout is search('STATE=(failed|inactive)')
+  retries: "{{ (contractor_runtime_verify_timeout_seconds | int / 3) | round(0, 'ceil') | int }}"
+  delay: 3
+  changed_when: false
+  failed_when: false
+
+- name: Require the registration of {{ __contractor_runtime_instance.name }}
+  ansible.builtin.assert:
+    that:
+      - __contractor_runtime_events | selectattr('message', 'equalto', 'runtime agent registered') | list | length > 0
+      - __contractor_runtime_failures | length == 0
+    fail_msg: >-
+      {{ __contractor_runtime_instance.name }}
+      {{ ('failed: ' ~ (__contractor_runtime_failures | map(attribute='message') | join('; ')))
+         if __contractor_runtime_failures
+         else 'did not register within ' ~ contractor_runtime_verify_timeout_seconds ~ ' s' }}.
+      Last log lines: {{ __contractor_runtime_journal.stdout_lines[-25:] | to_json }}
+    quiet: true
+  vars:
+    __contractor_runtime_events: "{{ __contractor_runtime_journal.stdout_lines | select('match', '^[{]') | map('from_json') | list }}"
+    __contractor_runtime_failures: "{{ __contractor_runtime_events | selectattr('message', 'match', 'runtime agent failed') | list }}"
+
+- name: Require the expected capabilities of {{ __contractor_runtime_instance.name }}
+  ansible.builtin.assert:
+    that: __contractor_runtime_missing | length == 0
+    fail_msg: >-
+      {{ __contractor_runtime_instance.name }} registered without {{ __contractor_runtime_missing | to_json }}.
+      Probe outcomes: {{ __contractor_runtime_outcomes | to_json }}.
+    success_msg: >-
+      {{ __contractor_runtime_instance.name }} registered with {{ __contractor_runtime_instance.probe_refs | sort | join(', ') }}.
+  vars:
+    __contractor_runtime_events: "{{ __contractor_runtime_journal.stdout_lines | select('match', '^[{]') | map('from_json') | list }}"
+    __contractor_runtime_outcomes: >-
+      {{ __contractor_runtime_events | selectattr('probeOutcome', 'defined')
+         | items2dict(key_name='capabilityRef', value_name='probeOutcome') }}
+    __contractor_runtime_missing: >-
+      {{ __contractor_runtime_instance.probe_refs
+         | reject('in', __contractor_runtime_outcomes | dict2items | selectattr('value', 'equalto', 'available')
+                        | map(attribute='key') | list) | list }}

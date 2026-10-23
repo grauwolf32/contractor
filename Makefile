@@ -21,7 +21,7 @@ require-database:
 # every suite reaching Python depends on this, test-go included.
 runtime-venv:
 	cd runtime && uv sync --locked
-	cd runtime && uv run python -c 'from contractor_runtime.toolsets.code_analysis.languages import PARSER_NAMES; from tree_sitter_language_pack import prefetch; prefetch(sorted(set(PARSER_NAMES.values())))'
+	cd runtime && uv run python scripts/prefetch_parsers.py
 
 # Go's t.TempDir and os.TempDir return $TMPDIR as given. On macOS the default
 # TMPDIR lies under /var/folders, and /var (like /tmp) is a symlink into

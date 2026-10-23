@@ -1,0 +1,122 @@
+---
+# A release is the Runtime project and the Podman image sources of one exact
+# commit, with a locked venv built in place. Units point at the release
+# directory itself, so a running process keeps its release until restarted.
+
+- name: Resolve the release commit
+  ansible.builtin.command:
+    argv: [git, -C, "{{ contractor_runtime_source_repo }}", rev-parse, --verify, "{{ contractor_runtime_version }}^{commit}"]
+  register: __contractor_runtime_commit
+  changed_when: false
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+- name: Archive the release on the controller
+  vars:
+    __contractor_runtime_archive: "{{ contractor_runtime_controller_work_dir }}/contractor-runtime-{{ __contractor_runtime_commit.stdout }}.tar.gz"
+  delegate_to: localhost
+  become: false
+  run_once: true
+  block:
+    - name: Create the controller work directory
+      ansible.builtin.file:
+        path: "{{ contractor_runtime_controller_work_dir }}"
+        state: directory
+        mode: "0700"
+
+    - name: Write the release archive
+      ansible.builtin.command:
+        argv:
+          - git
+          - -C
+          - "{{ contractor_runtime_source_repo }}"
+          - archive
+          - --format=tar.gz
+          - --output={{ __contractor_runtime_archive }}
+          - "{{ __contractor_runtime_commit.stdout }}"
+          - runtime/pyproject.toml
+          - runtime/uv.lock
+          - runtime/README.md
+          - runtime/src
+          - runtime/scripts/prefetch_parsers.py
+          - deploy/podman
+        creates: "{{ __contractor_runtime_archive }}"
+
+- name: Record the release
+  ansible.builtin.set_fact:
+    __contractor_runtime_release: "{{ __contractor_runtime_commit.stdout }}"
+    __contractor_runtime_release_dir: "{{ contractor_runtime_prefix }}/releases/{{ __contractor_runtime_commit.stdout }}"
+    __contractor_runtime_python: "{{ contractor_runtime_prefix }}/releases/{{ __contractor_runtime_commit.stdout }}/runtime/.venv/bin/python"
+    __contractor_runtime_executable: "{{ contractor_runtime_prefix }}/releases/{{ __contractor_runtime_commit.stdout }}/runtime/.venv/bin/contractor-runtime"
+
+- name: Check the release
+  ansible.builtin.stat:
+    path: "{{ __contractor_runtime_release_dir }}/.complete"
+  register: __contractor_runtime_release_complete
+
+- name: Install the release
+  when: not __contractor_runtime_release_complete.stat.exists
+  block:
+    - name: Clear an incomplete release
+      ansible.builtin.file:
+        path: "{{ __contractor_runtime_release_dir }}"
+        state: absent
+
+    - name: Create the release directory
+      ansible.builtin.file:
+        path: "{{ __contractor_runtime_release_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Unpack the release
+      ansible.builtin.unarchive:
+        src: "{{ contractor_runtime_controller_work_dir }}/contractor-runtime-{{ __contractor_runtime_release }}.tar.gz"
+        dest: "{{ __contractor_runtime_release_dir }}"
+        owner: root
+        group: root
+
+    # The venv is created at its final path: its scripts name the release
+    # interpreter, which must therefore never move.
+    - name: Build the locked Runtime environment
+      ansible.builtin.command:
+        argv:
+          - "{{ contractor_runtime_prefix }}/tools/uv-{{ __contractor_runtime_tools.uv.version }}/{{ __contractor_runtime_tools.uv.path }}"
+          - sync
+          - --locked
+          - --no-dev
+          - --python
+          - "{{ contractor_runtime_python_version }}"
+          - --project
+          - "{{ __contractor_runtime_release_dir }}/runtime"
+      environment: >-
+        {{ {
+             'UV_PYTHON_INSTALL_DIR': contractor_runtime_prefix ~ '/python',
+             'UV_PYTHON_PREFERENCE': 'only-managed',
+             'UV_CACHE_DIR': contractor_runtime_prefix ~ '/cache/uv',
+             'UV_COMPILE_BYTECODE': '1',
+             'UV_NO_PROGRESS': '1',
+           } | combine(contractor_runtime_uv_environment) }}
+      changed_when: true
+
+    - name: Mark the release complete
+      ansible.builtin.copy:
+        dest: "{{ __contractor_runtime_release_dir }}/.complete"
+        content: "{{ __contractor_runtime_release }}\n"
+        owner: root
+        group: root
+        mode: "0644"
+
+# The parser cache belongs to the account that runs the Runtime. The call is
+# quick when the cache is already complete.
+- name: Prefetch tree-sitter parsers for the service account
+  ansible.builtin.command:
+    argv: ["{{ __contractor_runtime_python }}", -I, "{{ __contractor_runtime_release_dir }}/runtime/scripts/prefetch_parsers.py"]
+    chdir: "{{ contractor_runtime_home }}"
+  become: true
+  become_user: "{{ contractor_runtime_user }}"
+  environment:
+    HOME: "{{ contractor_runtime_home }}"
+  changed_when: false
