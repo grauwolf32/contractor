@@ -586,13 +586,14 @@ resolves its pinned credentials again; when that resolution fails, the report
 is redacted with the deployment secrets and whichever of the RuntimeSettings
 and the Project HTTP target credential did resolve, and is still persisted
 ([OBS-R38](../platform/observability.md)). Nothing durable, logged or exported
-carries the kept values. Decision: keeping the values in memory replaces a
-second credential decryption per Stage without adding a durable secret, and
-redacts what the Runtime Agent actually received even if a credential changed
-after preparation. The alternative, resolving again at report persistence,
-remains the restart path. Reopen this decision if allocations can receive
-credentials after preparation, since the kept values would then no longer cover
-them.
+carries the kept values: the kept store and each of its entries redact
+themselves as a whole in formatted, JSON and log output. Decision: keeping the
+values in memory replaces a second credential decryption per Stage without
+adding a durable secret, and redacts what the Runtime Agent actually received
+even if a credential changed after preparation. The alternative, resolving
+again at report persistence, remains the restart path. Reopen this decision if
+allocations can receive credentials after preparation, since the kept values
+would then no longer cover them.
 
 ### Entering aborting
 

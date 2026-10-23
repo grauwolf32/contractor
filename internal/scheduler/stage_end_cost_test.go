@@ -1,10 +1,13 @@
 package scheduler
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -532,16 +535,6 @@ func TestPreparedSecretCacheIsBounded(t *testing.T) {
 	if _, kept := cache.lookup("stage-1", "unsettled-1"); kept {
 		t.Fatal("an allocation without settings has kept values")
 	}
-	// The kept values are self-redacting (SEC-R88): formatting or encoding
-	// them does not reveal them.
-	keptValues := cache.order.Front().Value.(*preparedSecretEntry).allocations
-	encodedJSON, err := json.Marshal(keptValues)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if encoded := fmt.Sprintf("%v %+v %#v %s", keptValues, keptValues, keptValues, encodedJSON); strings.Contains(encoded, "cache-secret") {
-		t.Fatalf("cached secret is formatted in plaintext: %s", encoded)
-	}
 	cache.forget("stage-1")
 	if _, kept := cache.lookup("stage-1", "allocation-1"); kept || cache.order.Len() != preparedSecretStages-1 {
 		t.Fatal("forgotten Stage is still cached")
@@ -552,4 +545,98 @@ func TestPreparedSecretCacheIsBounded(t *testing.T) {
 	if _, kept := absent.lookup("stage", "allocation-0"); kept {
 		t.Fatal("an absent cache returned values")
 	}
+}
+
+// No form of the cache, its entries or the list elements that hold them
+// reveals a kept value: not fmt with any verb, not encoding/json and not
+// log/slog with either standard handler (SEC-R88).
+func TestPreparedSecretTypesNeverRevealValues(t *testing.T) {
+	const secret = "formatting-secret-value"
+	cache := newPreparedSecretCache(preparedSecretStages)
+	cache.store("stage-format", []controlplane.Reservation{{Grant: controlplane.AllocationGrant{
+		AllocationID: "allocation-format", LogicalAgentName: "builder",
+	}}}, map[string]runtimesettings.WorkerExecutionSettings{"builder": {
+		RuntimeSettings: runtimesettings.RuntimeSettings{LLMGatewayToken: new(contracts.NewSecretString(secret))},
+	}})
+	if values, kept := cache.lookup("stage-format", "allocation-format"); !kept || !slices.Equal(values, []string{secret}) {
+		t.Fatalf("fixture keeps %v, %v", values, kept)
+	}
+	element := cache.order.Front()
+	entry := element.Value.(*preparedSecretEntry)
+	// The cache, its entries and every value that holds them redact
+	// themselves as a whole, so every verb is safe. The kept values alone are
+	// contracts.SecretString, which redacts the string verbs (SEC-R88).
+	allVerbs := []string{"%v", "%+v", "%#v", "%s", "%q", "%x", "%d", "%t", "%o"}
+	stringVerbs := []string{"%v", "%+v", "%#v", "%s", "%q", "%x"}
+	for _, test := range []struct {
+		name  string
+		value any
+		verbs []string
+	}{
+		{"entry", *entry, allVerbs},
+		{"entry pointer", entry, allVerbs},
+		{"list element", element, allVerbs},
+		{"element copy", *element, allVerbs},
+		{"cache", cache, allVerbs},
+		{"cache struct", reflect.ValueOf(cache).Elem(), allVerbs},
+		{"cache entries", cache.entries, allVerbs},
+		{"cache order", cache.order, allVerbs},
+		{"wrapping error", fmt.Errorf("wrapped: %v", entry), allVerbs},
+		{"kept values", entry.allocations, stringVerbs},
+	} {
+		for _, verb := range test.verbs {
+			if formatted := fmt.Sprintf(verb, test.value); strings.Contains(formatted, secret) ||
+				strings.Contains(formatted, fmt.Sprintf("%x", secret)) {
+				t.Fatalf("%s formatted with %s reveals the secret: %s", test.name, verb, formatted)
+			}
+		}
+		encoded, err := json.Marshal(test.value)
+		if err != nil || bytes.Contains(encoded, []byte(secret)) {
+			t.Fatalf("%s encodes as (%s, %v)", test.name, encoded, err)
+		}
+		var logs bytes.Buffer
+		for _, handler := range []slog.Handler{slog.NewTextHandler(&logs, nil), slog.NewJSONHandler(&logs, nil)} {
+			slog.New(handler).Info("prepared secrets", "value", test.value)
+		}
+		if bytes.Contains(logs.Bytes(), []byte(secret)) {
+			t.Fatalf("%s logs as %s", test.name, logs.Bytes())
+		}
+	}
+	if got := fmt.Sprint(entry); got != `preparedSecretEntry("stage-format", 1 allocations, [REDACTED])` {
+		t.Fatalf("entry formats as %q", got)
+	}
+}
+
+// A Stage that ends through failActiveRun is never released by its own lane
+// (SCH-R102), so its preparation secrets end only when terminal release
+// recovery selects it (SCH-R178, LIFE-SCH-6).
+func TestTerminalReleaseRecoveryForgetsPreparationSecrets(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	execution := harness.persistedExecution(t, runstore.StageRunning)
+	harness.store.stages = []runstore.StageExecution{execution}
+	harness.installRecordedReservation(execution.StageExecutionID)
+	reservations := append([]controlplane.Reservation(nil), harness.allocator.cached...)
+	allocationID := reservations[0].Grant.AllocationID
+	harness.scheduler.preparedSecrets.store(execution.StageExecutionID, reservations,
+		map[string]runtimesettings.WorkerExecutionSettings{reservations[0].Grant.LogicalAgentName: {
+			RuntimeSettings: runtimesettings.RuntimeSettings{LLMGatewayToken: new(contracts.NewSecretString("recovery-secret"))},
+		}})
+
+	if err := harness.scheduler.failInvalidRunState(t.Context(), "run-1", errReviewStateInvalid); err != nil {
+		t.Fatal(err)
+	}
+	if harness.store.run.State != runstore.RunFailed || harness.store.stages[0].State != runstore.StageInterrupted ||
+		harness.workers.releaseCalls != 0 {
+		t.Fatalf("ended Run = %s, Stage = %s, releases = %d", harness.store.run.State,
+			harness.store.stages[0].State, harness.workers.releaseCalls)
+	}
+	if _, kept := harness.scheduler.preparedSecrets.lookup(execution.StageExecutionID, allocationID); !kept {
+		t.Fatal("the ending released the secrets itself; this test no longer covers recovery")
+	}
+
+	worked, err := harness.scheduler.recoverTerminalRelease(t.Context())
+	if err != nil || !worked || harness.workers.releaseCalls != 1 {
+		t.Fatalf("terminal release recovery = (%v, %v), releases = %d", worked, err, harness.workers.releaseCalls)
+	}
+	requireNoPreparedSecrets(t, harness.scheduler)
 }

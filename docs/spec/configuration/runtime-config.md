@@ -407,7 +407,10 @@ credential-management boundary has returned the bounded non-secret
 `remote_key_id` and token.
 
 **RCF-R42.** Plaintext is retained only for the bounded encryption or
-decryption operation and the model-client settings that actively need it.
+decryption operation and the model-client settings that actively need it. The
+one longer Server retention is the self-redacting copy of a Stage's
+Worker-preparation values that its report persistence redacts with, kept until
+the Stage's terminal release ([SCH-R178](../execution/scheduler.md)).
 
 **RCF-R43.** An LLM credential read response contains exactly the fields listed
 under [LLM credential read model](#llm-credential-read-model).
@@ -427,7 +430,9 @@ unauthenticated request (FAIL-RCF-3).
 
 **RCF-R46.** Planner construction and Control Plane allocation preparation
 decrypt exactly the credential ID pinned by the Run or by the durable
-allocation-config snapshot, just in time. The token is never copied into
+allocation-config snapshot, just in time; so does a Stage's report persistence
+when it has no values kept from that Stage's preparation
+([SCH-R178](../execution/scheduler.md)). The token is never copied into
 WorkflowRun, StageExecution, Planner Session, audit rows or metrics.
 
 **RCF-R47.** Credential existence is checked again during Run initialization,
@@ -1544,7 +1549,10 @@ Agent](../execution/runtime-agent.md).
 9. Secret material is encrypted at rest, decrypted just in time, transported
    only over mTLS, held in memory for the consumer lifetime and never durable
    execution provenance (RCF-R40, RCF-R46, RCF-R166,
-   [Security](../platform/security.md)).
+   [Security](../platform/security.md)); on the Server, a Stage's
+   Worker-preparation values stay in memory, self-redacting, until the Stage's
+   terminal release for report redaction
+   ([SCH-R178](../execution/scheduler.md)).
 10. Telemetry export is bounded and best-effort; exporter failure never changes
     semantic execution outcome or prevents allocation release
     ([Observability](../platform/observability.md)).

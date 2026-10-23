@@ -2,6 +2,10 @@ package scheduler
 
 import (
 	"container/list"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log/slog"
 	"sync"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -37,6 +41,44 @@ type preparedSecretEntry struct {
 	stageExecutionID string
 	allocations      map[string][]contracts.SecretString
 }
+
+// The cache and its entries never format, encode or log the kept values:
+// fmt cannot reach SecretString's own redaction through their unexported
+// fields, so each type redacts itself as a whole for every verb, for
+// encoding/json and for log/slog (SEC-R88). The entry uses value receivers so
+// that a copied entry redacts too; the cache, which holds a mutex, is only
+// used through its pointer.
+
+func (e preparedSecretEntry) String() string {
+	return fmt.Sprintf("preparedSecretEntry(%q, %d allocations, [REDACTED])", e.stageExecutionID, len(e.allocations))
+}
+
+func (e preparedSecretEntry) GoString() string { return e.String() }
+
+func (e preparedSecretEntry) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, e.String())
+}
+
+func (e preparedSecretEntry) MarshalJSON() ([]byte, error) { return json.Marshal(e.String()) }
+
+func (e preparedSecretEntry) LogValue() slog.Value { return slog.StringValue(e.String()) }
+
+func (c *preparedSecretCache) String() string {
+	if c == nil {
+		return "preparedSecretCache(nil)"
+	}
+	return fmt.Sprintf("preparedSecretCache(at most %d Stages, [REDACTED])", c.maxStages)
+}
+
+func (c *preparedSecretCache) GoString() string { return c.String() }
+
+func (c *preparedSecretCache) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, c.String())
+}
+
+func (c *preparedSecretCache) MarshalJSON() ([]byte, error) { return json.Marshal(c.String()) }
+
+func (c *preparedSecretCache) LogValue() slog.Value { return slog.StringValue(c.String()) }
 
 func newPreparedSecretCache(maxStages int) *preparedSecretCache {
 	return &preparedSecretCache{maxStages: maxStages, entries: make(map[string]*list.Element), order: list.New()}
