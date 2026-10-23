@@ -515,7 +515,7 @@ Project URL explicitly.
 The user authorized task creation and implementation on 2026-10-23. Milestone
 `web-nuclei-rule-sweeps-2026-10` is tracked by:
 
-- [V403-001](../../tasks/v403-001-nuclei-web-parameter-bindings.yml): Phase 1
+- [V403-001](../../tasks/done/v403-001-nuclei-web-parameter-bindings.yml): Phase 1
   bindings, web Workflow and pinned installed-rule execution (in progress).
 - [V403-002](../../tasks/v403-002-resumable-project-scan-client.yml): resumable
   Phase 1 client fan-out and real-process gate.

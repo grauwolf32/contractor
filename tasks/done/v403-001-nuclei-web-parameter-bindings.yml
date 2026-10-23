@@ -5,7 +5,7 @@ milestone: web-nuclei-rule-sweeps-2026-10
 epic: scan-tools
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - go
@@ -161,7 +161,7 @@ progress:
   remaining_work: []
 verification:
   date: '2026-10-23'
-  scope: All acceptance criteria verified; implementation is ready for the terminal task metadata commit.
+  scope: All acceptance criteria and listed checks passed; V403-001 is completed.
   environment: Isolated codex/web-nuclei-sweeps worktree from main 9a5083ffd73e06ea577048bcec2ed89997f22b83;
     macOS arm64, Go 1.26.9, Node 24.20.0, locked Python 3.13 Runtime and a separate disposable PostgreSQL
     17 instance.
@@ -173,9 +173,8 @@ verification:
     375 passed; installed Nuclei tests ran, including a private helper resource.'
   - 'make test-nuclei-web-e2e: passed (115.216s), actual shipped Workflow across real Server/Scheduler/Runtime/Nuclei
     and loopback HTTP; omitted and all individual knobs, invalid admission and changed package refusal.'
-  - 'make test-wire-cross-language: passed; 248 fixtures, 226 Go and 179 Python shared tests; 1154 Runtime
-    shared tests passed, 3230 deselected. The final added cancellation/publication tests also passed in
-    the full Runtime suite.'
+  - 'make test-wire-cross-language: passed; 248 fixtures, 226 Go and 181 Python shared tests; final Runtime
+    shared selection: 1157 passed, 3230 deselected.'
   - 'make verify-public-api verify-public-api-postgres test-config: passed; loaded shipped catalog includes
     22 Workflows and 27 AgentTemplates.'
   - 'make ui-verify: passed; 190 files, 2315 tests passed and 1 existing expected failure, 17 Node server
@@ -187,3 +186,4 @@ verification:
     engine local selection (no target scan): 11925 HTTP templates, 4214853-byte exact manifest.'
   - make docs-dependencies, specification checker, shared-fixture source checker and git diff --check
     passed.
+implementation_commit: 83dcc737cf1a5321d05cbd699173dccd92e0eea9
