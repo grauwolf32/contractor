@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-75 open tasks: 5 in progress, 45 pending, 25 deferred. 980 finished: 977 completed, 3 archived.
+76 open tasks: 6 in progress, 45 pending, 25 deferred. 980 finished: 977 completed, 3 archived.
 
 ## In progress
 
@@ -16,6 +16,7 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
 | [V406-004](v406-004-durable-scope-sweeps.yml) | scan-tools | feature | P2 | Coordinate durable bounded Nuclei sweeps over Project scopes |
+| [V406-008](v406-008-scan-package-error-coverage.yml) | scan-tools | chore | P2 | Include scanner package diagnostics in the shared outcome coverage gate |
 
 ## Pending
 
@@ -54,7 +55,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V55-009](v55-009-scan-candidate-ranking.yml) | feature | P2 | — | Optionally rank existing scan candidates with an LLM |
-| [V406-007](v406-007-web-scan-release-gate.yml) | chore | P2 | V406-004, V406-005, V406-006 | Gate the complete web scan and rule sweep journeys |
+| [V406-007](v406-007-web-scan-release-gate.yml) | chore | P2 | V406-004, V406-005, V406-006, V406-008 | Gate the complete web scan and rule sweep journeys |
 
 ### Findings tools and collections (`findings`)
 
@@ -174,7 +175,7 @@ tasks in `introduced_by`.
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 12 | 4 | 15 |
 | Code analysis and taint annotations (`code-analysis`) | 0 | 14 | 13 | 2 | 18 |
 | HTTP and Caido tools (`http-tools`) | 1 | 11 | 14 | 4 | 15 |
-| Scanner tool Workers and scan planning (`scan-tools`) | 3 | 14 | 4 | 3 | 8 |
+| Scanner tool Workers and scan planning (`scan-tools`) | 4 | 14 | 4 | 4 | 9 |
 | Findings tools and collections (`findings`) | 7 | 14 | 5 | 6 | 9 |
 | Workflow catalog and document workflows (`workflows`) | 3 | 14 | 13 | 12 | 12 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 30 | 33 | 5 | 36 |
