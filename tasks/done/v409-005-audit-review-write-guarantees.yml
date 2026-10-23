@@ -6,7 +6,8 @@ epic: audits
 kind: defect
 introduced_by: V343-001
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: fb838e7e0a8f971c8600bf44e49ff0345f08b57a
 depends_on: []
 languages: [go, sql]
 goal: >-
@@ -98,3 +99,86 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A4]
+verification:
+  date: '2026-10-23'
+  environment: >-
+    macOS arm64; Go 1.26.9; locked Node 24.20 and Runtime venv; local
+    PostgreSQL 17.11 database contractor_test_b2 with isolated per-test
+    schemas and all 32 migrations; base 74254de7.
+  re_verification: >-
+    The finding held on base 74254de7: review_write_sql.go:18-30 inserted the
+    decision in a data-modifying CTE before an outer UPDATE restricted to
+    state='pending', and review_write.go:17-23 discarded the command tag. The
+    service checks cited as siblings are unchanged: finding_review.go locks
+    the request and checks state, revision, kind and database-clock expiry
+    before the write, and action_review.go does the same.
+  regression_before_fix: >-
+    With only the new store test applied to the original statement,
+    TestPostgresReviewDecisionRequiresItsPendingRequest failed in all four
+    refusal cases: the expired request returned nil and inserted a decision
+    while the request stayed expired (A1), the absent request and the Audit
+    mismatch returned an unclassified SQLSTATE 23503 foreign-key error, and
+    the decided request returned ErrConflict from the request_id uniqueness.
+  change: >-
+    recordReviewDecisionSQL now decides request $2 of Audit $3 only while it
+    is pending and inserts the decision from that UPDATE's RETURNING row, so
+    the decision and the decided transition happen together or not at all in
+    one statement; RecordReviewDecision requires one inserted row and returns
+    ErrPrecondition otherwise. Expiry predicates, locks, lock order, the
+    database clock, receipts and artifact links are unchanged. The gate is
+    the stored state only; the services still judge expiry at the PostgreSQL
+    clock under the request lock (REV-R43) before the write.
+  commands:
+    - >-
+      CONTRACTOR_TEST_DATABASE_URL=... go test -tags=integration -count=1
+      ./internal/auditstore/... ./internal/auditservice/... ./internal/auditcontroller/...
+      passed (pgstore 61s, auditservice 208s, auditcontroller 41s).
+    - >-
+      go test -tags=integration -count=5 of the store regressions and
+      go test -race -count=2 of the new service test with the existing
+      expiry tests passed.
+    - >-
+      go test -tags=integration -count=1 ./internal/httpapi/public/ passed.
+      ./internal/auditimport/... fails seven tests (TestAuditCompletionRuntimeZIPImporter,
+      TestImporter* and TestPostgresContractInvalidCollectionRetainsProposalAfterRunDeletion)
+      with "stored Audit placement requirements are invalid"; the same seven
+      fail identically on base 74254de7 in a temporary worktree, so they are
+      pre-existing and unrelated to the review write.
+    - go test -count=1 -run TestSQLPlacement ./internal/persistence/ passed.
+    - make lint passed, including SQL placement, layers, staticcheck, test-only exports and task checks.
+  database_tests_configured: true
+  acceptance:
+    A1: >-
+      TestPostgresReviewDecisionRequiresItsPendingRequest expires a request
+      at the database clock under its lock, then calls the store under the
+      same lock contract: ErrPrecondition and an unchanged review ledger
+      (every request's state, revision and updated_at and every decision).
+    A2: >-
+      The same test refuses an absent request, another Audit's request and a
+      decided request with ErrPrecondition and an unchanged ledger, so the
+      decided request's stored decision stays intact.
+    A3: >-
+      The store test shows one decision and the decided request at revision
+      +1, and a later failure in the caller's transaction undoing both.
+      TestReviewDecisionsCommitWithTheirEffectsOrNotAtAll drives DecideFinding
+      and DecideActionReview with an injected review.decided failure (nothing
+      changes in the Audit, its requests, decisions, finding or items), then
+      commits each with one decision, the decided request, the rejected
+      finding or ready item and one review.decided event, and replays both
+      without writing. Existing replay and expiry tests in the packages pass.
+    A4: make lint passed.
+  test_changes: >-
+    TestPostgresReviewDecisionCheckViolationIsInvalid (V368-023) moved to
+    review_decision_write_postgres_test.go and now targets a pending
+    request: with the gate, an absent request is a precondition failure
+    before any constraint is reached. It still asserts ErrInvalid and now
+    also that nothing was written.
+  siblings_reviewed: >-
+    recordReviewDecisionSQL is the only writer of audit_review_decisions and
+    of the decided request state. The item review renewal UPDATE already
+    requires every locked request to change. ProjectFindingDecision scoping,
+    review reads, collection receipts and artifact-link collisions are out of
+    scope as stated.
+  declined: >-
+    No spec change: REV-R27, REV-R44 and FAIL-REV-1 already require a
+    decision to come from a pending request; the store now enforces it too.
