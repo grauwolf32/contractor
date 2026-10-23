@@ -15,9 +15,17 @@ import (
 )
 
 const (
-	// maxRunEventDataBytes bounds one event's data (LIM-API-25). Append and
-	// read check the bytes they hold; the workflow_run_events CHECK counts
-	// the stored text, the measure of the page budget.
+	// maxRunEventDataBytes is shared by two 2 MiB bounds, each enforced
+	// authoritatively by a PostgreSQL CHECK on octet_length(column::text).
+	// For Run event data (LIM-API-25) that is workflow_run_events_data_check,
+	// the measure the page budget counts. The check at append is a pre-check
+	// on the submitted JSON bytes: jsonb re-serialises the value, adding a
+	// space after every ':' and ',', so data that passes it can still fail
+	// the CHECK, which rejects the whole append. The check at read counts
+	// the stored text. The constant also pre-checks the submitted Planner
+	// session state in StartPlanner and AppendPlannerEvent, which the
+	// planner_session_state_size CHECK bounds in storage; that is the 2 MiB
+	// session JSON of WFL-R87, which has no registry entry.
 	maxRunEventDataBytes = 2 * 1024 * 1024
 	// maxRunEventPageDataBytes is the budget of persisted data one
 	// ListRunEvents page returns (LIM-API-24), counted as the octet length of
