@@ -5,7 +5,8 @@ milestone: model-free-stage-lanes-2026-10
 epic: execution-core
 kind: feature
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: fd2fdaa6596ad1dfaf85376d0a668551a9d2a902
 depends_on: [V400-001]
 languages: [go]
 goal: >-
@@ -150,3 +151,20 @@ tests:
     covers: [A1, A2, A3, A4, A5, A6]
   - command: make lint
     covers: [A1, A2, A3, A4, A5, A6]
+verification:
+  date: "2026-10-23"
+  revision: "fd2fdaa6596ad1dfaf85376d0a668551a9d2a902"
+  environment: >-
+    Branch feat/model-free-stage-lanes on main @ 68b553de, macOS arm64, Go
+    1.26.9, disposable PostgreSQL 17 (CONTRACTOR_TEST_DATABASE_URL set) and
+    TMPDIR under /private/tmp.
+  results:
+    - "A1, A2: TestModelStageHoldPostgresGivesReleasedSharedAgentToWaitingModelStage places through PlacementAllocator on PostgreSQL: the released shared Agent is refused to the next scan, the scan lands on a dedicated Agent and the model Stage takes the shared one; TestModelStageHoldKeepsSharedAgentsFromModelFreePlacement covers A2 in memory."
+    - "A3: TestModelStageHoldIgnoresStageWithoutCompleteLiveMatching (two Workers needing the one code-analysis Agent)."
+    - "A4, A5 and replay: TestModelStageHoldKeepsSharedAgentsFromModelFreePlacement on the Registry clock; a second model Stage takes a held Agent and the running scan's reservation replays unchanged."
+    - "A6: TestSchedulerHandsTheRunToTheModelPoolAfterAToolStage records ModelFree [true false]; TestModelStageHoldValidatesTheLaneClassOfTheRequest rejects a model-free request with a model Worker and a hold for a model-free Stage."
+    - "Mutations: dropping the model-free exclusion, the live matching check, the hold computation, or computing it over idle Agents only each fails a hold test; forcing ModelFree to either constant fails the Scheduler test."
+    - "make test-go: every package passed except internal/app TestPostgresControlPlaneLeaseSessionDetectsVanishedHolder, which fails the same way on main because macOS PostgreSQL does not support tcp_user_timeout."
+    - "go test -race and go test -tags=integration on internal/controlplane and internal/scheduler passed."
+    - "go test -tags=e2e ./tests/e2e passed TestSchedulerConcurrencyAcrossProductionProcesses, TestHeterogeneousRuntimeCapabilityPlacement, TestOpenAPIAuditScanAcrossProductionProcesses, TestKatanaDiscoveryAcrossProductionProcesses and TestAuditCompositionAcrossProductionProcesses."
+    - "make lint and make verify-architecture passed."
