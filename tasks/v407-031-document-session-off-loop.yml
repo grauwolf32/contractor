@@ -1,6 +1,6 @@
-schema_version: "1.0"
+schema_version: '1.0'
 id: V407-031
-title: "Run OpenAPI and LikeC4 document parsing, validation and serialization off the event loop and validate once per mutation"
+title: Offload OpenAPI document preparation and avoid repeated validation while preserving session ownership
 milestone: server-runtime-review-2026-10
 epic: workflows
 kind: defect
@@ -8,51 +8,84 @@ introduced_by: V2-003
 priority: P1
 status: pending
 depends_on: []
-languages: [python]
-goal: "A multi-MiB OpenAPI or LikeC4 seed never stalls heartbeats or leases, each mutation validates once, and external validators do not hold the session lock."
+languages:
+- python
+goal: Parse, validate and serialize bounded documents outside the Runtime event loop without changing
+  document results, session serialization or cancellation ownership.
 context:
-  review: "docs/research/2026-10-23-server-runtime-review.md, findings G2 and G9 (openapi, likec4); file:line as of 39d89438, re-verify on main"
-  specification: docs/spec/tools/workspace.md
-  severity: high
-  finding: >-
-    runtime/src/contractor_runtime/toolsets/openapi/tools.py never imports
-    to_thread_until_done (likec4 does). _decode_seed -> _parse_document
-    (about 1150-1172) runs PyYAML yaml.parse and yaml.load_all over up to 4
-    MiB twice (anchor rejection pass plus load); _mutate (about 493-512)
-    deep-copies, runs _validate_document (five tree walks plus
-    PathItem.model_validate per path), then _serialize validates again and
-    yaml.dumps, and upsert_path validates a third time (about 356). All of
-    this runs on the event loop under the session lock (WSP-R74, AGENTS
-    section 6). validate() (about 461-475) and likec4/tools.py:261-265 run
-    _run_vacuum / _run_likec4 (30 s subprocess timeouts) inside async with
-    self._lock, so a get_openapi_path or read_likec4 in the same ADK turn
-    waits behind the validator and close() waits for the lock after
-    cancelling.
-  siblings: >-
-    common/document_session.py is the shared base; likec4 inherits whatever
-    it offloads. The Server-side OpenAPI preview (V403) parses separately
-    and is out of scope.
+  review: docs/research/2026-10-23-server-runtime-review.md (corrected dispositions, verified on main
+    dc7012e8; recheck source lines before implementation)
+  specification:
+  - docs/spec/execution/runtime-agent.md
+  - docs/spec/tools/toolsets.md
+  - docs/spec/tools/workspace.md
+  severity: medium
+  finding: runtime/src/contractor_runtime/toolsets/common/document_session.py:73-82 and 143 call decode
+    and serialize synchronously. openapi/tools.py:1158-1161 runs an anchor-rejection parse followed by
+    yaml.load_all; :498-506 and :218-220 validate the whole mutation candidate twice, and :356 validates
+    the changed PathItem once more. This CPU work runs on the event loop. LikeC4 uses the same session
+    base for bounded UTF-8 document preparation, while its external CLI and filesystem preparation are
+    already asynchronous/threaded (likec4/tools.py:523,544). Validators hold the session lock, but common/document_session.py:99-115
+    cancels the tracked task and core/process.py:144-156 joins subprocess cleanup. The supported defect
+    is synchronous document CPU work and redundant validation, not a missing validator cancellation mechanism.
+  siblings: OpenAPI initialize/load, path and component upserts, other mutations, validation rendering
+    and full-document reads; LikeC4 shared decode/serialization paths. Preserve provenance validation
+    and its project workspace acquisition. Server OpenAPI preview is a separate path.
+  validation: 'Partially confirmed on dc7012e8: a valid near-4-MiB OpenAPI seed blocked the loop; one
+    upsert validated the document twice and its changed PathItem three times. DocumentSession.close already
+    cancels the validator before joining its lock; waiting for its full subprocess timeout was not reproduced.'
 plan:
-  - "In common/document_session.py run decode, validate and serialize callables through threads.to_thread_until_done; reject anchors inside _UniqueSafeLoader.compose_node instead of a second yaml.parse pass."
-  - "Validate once per mutation: _mutate validates the candidate; _serialize and upsert_path trust it (keep a debug assertion-free check behind a test hook)."
-  - "For validators: snapshot (document, revision) under the lock, release it, run the CLI, report against that revision; if the document changed meanwhile, say so in the result."
-  - "Tests: a 4 MiB seed is decoded with loop gaps under 100 ms (pattern: test_code_analysis_shallow gap test); validation call count per upsert is 1 (hook); a get_openapi_path issued during a slow validator returns before the validator finishes; the openapi provenance snapshot count test (tests/test_openapi_toolset.py:187) is updated deliberately if the count changes."
+- Factor pure bounded document preparation so decode, copying, validation and serialization used by the
+  owning session run through threads.to_thread_until_done. Keep ownership until the thread joins on success,
+  failure or cancellation; never expose a mutable in-progress candidate.
+- Give every write entry point a validated candidate and serialize that candidate without another whole-document
+  walk. Keep load/initialize and direct write validation strict, and keep no-op/CAS/provenance behavior
+  unchanged. Merge path/component patches before their single final structural validation.
+- Reject anchors and aliases within the strict YAML loader during its single parse, preserving duplicate-key,
+  unknown-format, depth, item-count and byte-limit rejection. Do not replace strict parsing with a permissive
+  fast path.
+- Keep the current validator lock and cancellation model. Add deterministic tests using worker-thread
+  identity, barriers and execution ordering to prove event-loop progress during blocked preparation and
+  that cancellation joins preparation/validator cleanup. Do not use elapsed-time or heartbeat-gap thresholds.
+- Count whole-document and changed-entry validation calls for path/component mutations and parse passes
+  for seed loads; run unchanged format, provenance, CAS and cancellation tests. Record the off-loop ownership
+  guarantee in the owning specification.
+- Record any new shared document-session cancellation/off-loop guarantee under the Runtime Agent lifecycle
+  owner; use Toolsets for its shared call boundary and Workspace only for OpenAPI provenance. Keep one
+  owning requirement and cross-reference it.
 scope:
   in:
-    - "Thread offload in the shared document session; single validation; validators outside the lock."
+  - Document-session CPU offload with joined cancellation; single strict YAML parse; one complete structural
+    validation per prepared mutation candidate; deterministic regression tests.
   out:
-    - "Document formats, provenance rules, limits (V407-024)."
+  - Document limits, accepted formats, tool signatures and output shapes; V407-024 limit alignment.
+  - Changing validator serialization, concurrent read semantics, subprocess deadlines or claiming guaranteed
+    heartbeat/lease timings.
+  - Server-side OpenAPI preview or unrelated workspace snapshot optimization.
 acceptance_criteria:
-  - id: A1
-    text: "Decoding and serializing a 4 MiB seed keeps event-loop gaps under 100 ms in the gap test."
-  - id: A2
-    text: "One validation per mutation (hook count) and one YAML parse per decode."
-  - id: A3
-    text: "A read tool call during a running validator completes before the validator; close() during a validator does not wait for the subprocess timeout."
-  - id: A4
-    text: "The gap and count tests fail on the unfixed code."
+- id: A1
+  text: Decode, candidate preparation and serialization are observed on a worker thread; a barrier-controlled
+    preparation allows an independent loop callback to run before its release. The test fails if preparation
+    is moved inline.
+- id: A2
+  text: An accepted path or component mutation performs one whole-document validation after merge and
+    does not repeat its changed-entry validation; an OpenAPI seed is parsed once. Existing invalid-document,
+    duplicate-key, anchor/alias and bound cases remain rejected.
+- id: A3
+  text: Cancellation leaves no preparation or validator work running after close returns; a started preparation
+    is joined before session state is cleared, and the existing validator cancellation behavior is preserved.
+    Tests use synchronization and completion ordering, not time thresholds.
+- id: A4
+  text: Existing document bytes, no-op handling, provenance, CAS reconciliation, tool schemas and validator
+    result shapes remain unchanged for OpenAPI and LikeC4.
 tests:
-  - command: "cd runtime && uv run --locked pytest -q tests/test_openapi_toolset.py tests/test_likec4_toolset.py"
-    covers: [A1, A2, A3, A4]
-  - command: make lint
-    covers: [A2]
+- command: cd runtime && uv run --locked pytest -q tests/test_openapi_toolset.py tests/test_likec4_toolset.py
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make lint
+  covers:
+  - A2
+  - A4

@@ -85,7 +85,7 @@ milestones:
     outcome: The release gate and the local test targets check the same things in a fraction of the time, with per-package test schemas, parallel race passes, one build per process suite, no repeated family runs, and recorded before and after durations.
   - id: server-runtime-review-2026-10
     exit_task: V407-039
-    outcome: Every defect, cost problem and duplicated rule found by the 2026-10-23 Server and Runtime review is fixed with a regression test or declined with a recorded reason.
+    outcome: Every original finding has a verified disposition; retained defects and behavior-preserving improvements are completed with their required evidence, design proposals remain separate from implementation, and declined work is reconciled with exit dependencies.
   - id: runtime-placement-labels-2026-10
     exit_task: V405-005
     outcome: Startup-owned cloud and local labels dynamically constrain WorkflowRun and Audit Worker placement through UI selections, with immutable launch requirements and retained allocation provenance.
