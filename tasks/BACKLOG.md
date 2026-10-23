@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-112 open tasks: 4 in progress, 83 pending, 25 deferred. 1006 finished: 1002 completed, 4 archived.
+111 open tasks: 4 in progress, 82 pending, 25 deferred. 1007 finished: 1003 completed, 4 archived.
 
 ## In progress
 
@@ -104,7 +104,6 @@ the epics are in [epics.yml](epics.yml).
 | [V407-004](v407-004-audit-list-summary-projection.yml) | chore | P2 | — | Batch preparing Audit list hydration without changing the response contract |
 | [V407-005](v407-005-audit-fail-closed-and-dead-code.yml) | chore | P3 | — | Remove redundant Audit checks and share safe intake preparation reads |
 | [V409-004](v409-004-audit-read-statements-indexes.yml) | chore | P2 | — | Reduce avoidable Audit read work while preserving exact totals and expiry |
-| [V409-005](v409-005-audit-review-write-guarantees.yml) | defect | P2 | — | Reject review decision writes when the locked request is not pending |
 
 ### Evaluations (`evals`)
 
@@ -154,7 +153,7 @@ the epics are in [epics.yml](epics.yml).
 | [V409-006](v409-006-trigger-column-scoping.yml) | chore | P2 | V407-025 | Scope unnecessary trigger work while preserving admission and projection effects |
 | [V409-007](v409-007-dead-and-redundant-indexes.yml) | chore | P2 | V407-025, V409-002, V409-004, V409-006 | Consolidate indexes only where reader and constraint evidence permits it |
 | [V409-012](v409-012-migration-and-sql-hygiene.yml) | chore | P3 | — | Test the revision-count and controller-claim backfills and document migration budgets |
-| [V409-013](v409-013-verify-sql-review-on-database.yml) | chore | P2 | V409-001, V409-002, V409-004, V409-005, V409-006, V409-007, V409-009, V409-011, V409-012, V409-014 | Verify retained SQL-review changes and record evidence for every accepted or declined claim |
+| [V409-013](v409-013-verify-sql-review-on-database.yml) | chore | P2 | V409-001, V409-002, V409-004, V409-006, V409-007, V409-009, V409-011, V409-012, V409-014 | Verify retained SQL-review changes and record evidence for every accepted or declined claim |
 
 ### Quality, CI and process (`quality`)
 
@@ -225,7 +224,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 10 | 14 | 6 | 8 | 11 |
 | Workflow catalog and document workflows (`workflows`) | 4 | 14 | 14 | 12 | 15 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 30 | 33 | 6 | 37 |
-| Audits (`audits`) | 23 | 53 | 72 | 22 | 91 |
+| Audits (`audits`) | 22 | 53 | 72 | 22 | 91 |
 | Evaluations (`evals`) | 5 | 21 | 34 | 8 | 41 |
 | Podman sandbox (`sandbox`) | 0 | 9 | 2 | 1 | 3 |
 | Web UI (`ui`) | 3 | 24 | 58 | 12 | 53 |
