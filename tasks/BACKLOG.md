@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-72 open tasks: 5 in progress, 42 pending, 25 deferred. 973 finished: 970 completed, 3 archived.
+71 open tasks: 4 in progress, 42 pending, 25 deferred. 974 finished: 971 completed, 3 archived.
 
 ## In progress
 
@@ -15,7 +15,6 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
-| [V403-002](v403-002-resumable-project-scan-client.yml) | operations | feature | P2 | Launch resumable Project scan sweeps through ordinary Run creation |
 
 ## Pending
 
@@ -53,8 +52,8 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V55-009](v55-009-scan-candidate-ranking.yml) | feature | P2 | — | Optionally rank existing scan candidates with an LLM |
 | [V403-003](v403-003-user-rulepack-inputs.yml) | feature | P2 | — | Run optional custom Nuclei rulepacks from the owner UserScope |
-| [V403-004](v403-004-durable-scope-sweeps.yml) | feature | P2 | V403-002, V403-003 | Coordinate durable bounded Nuclei sweeps over Project scopes |
-| [V403-007](v403-007-web-scan-release-gate.yml) | chore | P2 | V403-002, V403-003, V403-004, V403-005, V403-006 | Gate the complete web scan and rule sweep journeys |
+| [V403-004](v403-004-durable-scope-sweeps.yml) | feature | P2 | V403-003 | Coordinate durable bounded Nuclei sweeps over Project scopes |
+| [V403-007](v403-007-web-scan-release-gate.yml) | chore | P2 | V403-003, V403-004, V403-005, V403-006 | Gate the complete web scan and rule sweep journeys |
 
 ### Findings tools and collections (`findings`)
 
@@ -179,7 +178,7 @@ tasks in `introduced_by`.
 | Evaluations (`evals`) | 2 | 21 | 31 | 5 | 34 |
 | Podman sandbox (`sandbox`) | 0 | 9 | 2 | 1 | 3 |
 | Web UI (`ui`) | 2 | 23 | 56 | 12 | 50 |
-| Operations, authentication, CLI and deployment (`operations`) | 1 | 15 | 32 | 5 | 9 |
+| Operations, authentication, CLI and deployment (`operations`) | 0 | 15 | 32 | 5 | 9 |
 | Public API and wire contracts (`api-contracts`) | 4 | 1 | 30 | 20 | 8 |
 | PostgreSQL persistence and schema (`persistence`) | 4 | 0 | 20 | 33 | 8 |
 | Quality, CI and process (`quality`) | 11 | 1 | 21 | 79 | 16 |

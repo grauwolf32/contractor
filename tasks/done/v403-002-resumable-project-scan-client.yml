@@ -5,7 +5,7 @@ milestone: web-nuclei-rule-sweeps-2026-10
 epic: operations
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V403-001
 languages:
@@ -143,3 +143,4 @@ verification:
   - 'make lint: passed, including shared page-bound enforcement, OpenAPI cursor contract, generated-client
     checks, release-verify graph, Go layers and Python import contracts.'
   - make tasks-backlog docs-dependencies, specification checker and git diff --check passed.
+implementation_commit: 4931f69c3a632c165e398039c8050f49a3d674c3

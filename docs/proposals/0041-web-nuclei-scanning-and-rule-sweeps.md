@@ -517,7 +517,7 @@ The user authorized task creation and implementation on 2026-10-23. Milestone
 
 - [V403-001](../../tasks/done/v403-001-nuclei-web-parameter-bindings.yml): Phase 1
   bindings, web Workflow and pinned installed-rule execution (in progress).
-- [V403-002](../../tasks/v403-002-resumable-project-scan-client.yml): resumable
+- [V403-002](../../tasks/done/v403-002-resumable-project-scan-client.yml): resumable
   Phase 1 client fan-out and real-process gate.
 - [V403-003](../../tasks/v403-003-user-rulepack-inputs.yml): optional UserScope
   rulepacks and exact authorized input forks.
