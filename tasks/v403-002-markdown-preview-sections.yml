@@ -1,0 +1,76 @@
+schema_version: "1.0"
+id: V403-002
+title: "Render large Markdown previews in sections without freezing the page"
+milestone: ui-journey-usability
+epic: ui
+kind: defect
+introduced_by: V403-001
+priority: P2
+status: in_progress
+depends_on: []
+languages: [typescript]
+goal: >-
+  Opening a Markdown preview of up to 1 MiB shows the first part at once and
+  renders the rest in short steps with the same result as a whole-document
+  render, and no single block can hold the page for minutes.
+context:
+  specification:
+    - docs/spec/ui/ui.md#UI-R54
+    - docs/spec/ui/ui.md#UI-R194
+    - docs/spec/platform/limits.md
+  severity: medium
+  finding: >-
+    MarkdownArtifactPreview (ui/src/routes/artifacts/previews/markdown.tsx:6)
+    hands the whole body to react-markdown in one synchronous render. The
+    parse is superlinear in two places: prepareList in mdast-util-from-markdown
+    splices into the event array of the whole document for every list (44%
+    of a 1 MiB profile), and the edit map of micromark-extension-gfm-table
+    (addImplementation, 68% of a 128 KiB table profile) grows with every row
+    of one table. Measured with
+    remark-parse and remark-gfm in Node 24: a sectioned report parses in
+    0.48 s at 256 KiB and 4.8 s at 1 MiB (1.2 s when its sections are parsed
+    separately); one 1 MiB list or paragraph takes 4 s, and one GFM table
+    takes 4.8 s at 256 KiB and 199 s at 1 MiB. Chromium rendered the 1 MiB
+    report in 3.6 s with the page blocked. V403-001 raised LIM-UI-12 from
+    256 KiB to 1 MiB without bounding this work, so the worst single render
+    grew from seconds to minutes.
+  siblings: >-
+    Every Markdown Preview uses the same component: Artifact and archive file
+    previews (loaded-preview.tsx), Run attempt materials (runs/attempt.tsx),
+    Agent instructions (catalog/agent-detail.tsx), decision text
+    (decisions/markdown.tsx) and Audit summaries (projects/audits/shared.tsx);
+    the fix in the component covers all of them. Other renderers at 1 MiB:
+    plain text 162 ms; the diff renderer 884 ms with about 99,000 elements,
+    linear in size (838 ms at 256 KiB), so it stays; OpenAPI is measured in
+    this task and a slow result becomes its own task; LikeC4 already parses
+    in a worker; the HTTP exchange view displays at most LIM-UI-13 per body.
+scope:
+  in:
+    - "Split the Markdown body (after frontmatter) into sections only before an unindented line that follows a blank line and does not start a list item, outside top-level fenced code and HTML blocks; group them into sections of about 16 Ki characters."
+    - "Parse the whole body as one section when a section boundary could change the result: a link reference or footnote definition anywhere, a fence or HTML block opened inside a container whose end cannot be told line by line, or a fence-like line inside a possible HTML block."
+    - "Render the first section with the preview and each further section in a later browser task, with a status line until the last one is shown; sections already shown are not parsed again."
+    - "Show a section longer than 256 Ki characters (LIM-UI-16) as plain text with a notice instead of parsing it; Source keeps the whole document."
+    - "UI-R202 and LIM-UI-16 in the specification; a ui/package.json patch bump."
+    - "A unit test that compares sectioned and whole renders over Markdown that exercises every boundary rule, and a browser regression with a 1 MiB report."
+  out:
+    - "Moving Markdown parsing to a worker: the component keeps react-markdown's sanitising pipeline (skipHtml, URL transform) unchanged instead of re-implementing it."
+    - "Other renderers (diff, OpenAPI, LikeC4, HTTP exchange) except for the OpenAPI measurement."
+    - "Upgrading or patching remark or micromark."
+acceptance_criteria:
+  - id: A1
+    text: "For each case in the boundary corpus (headings, paragraphs, lists, block quotes, tables, top-level and nested fences, HTML blocks of every kind, definitions, footnotes, CRLF), the sectioned render equals the whole render, and the cases that must split do split."
+  - id: A2
+    text: "A 1 MiB report renders in sections no longer than about 16 Ki characters each; a browser test shows its first and last headings and the status line goes away."
+  - id: A3
+    text: "One block longer than 256 Ki characters, such as a 1 MiB GFM table, is shown as text with the notice and is not parsed, while the sections around it render."
+  - id: A4
+    text: "The boundary cases fail when the fence, HTML block, list-marker or definition rule is removed from the splitter."
+tests:
+  - command: "cd ui && corepack pnpm exec vitest run src/routes/artifacts/previews"
+    covers: [A1, A3, A4]
+  - command: make ui-browser-mocked
+    covers: [A2, A3]
+  - command: make ui-verify
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
