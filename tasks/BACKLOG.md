@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-119 open tasks: 5 in progress, 89 pending, 25 deferred. 999 finished: 996 completed, 3 archived.
+118 open tasks: 4 in progress, 89 pending, 25 deferred. 1000 finished: 997 completed, 3 archived.
 
 ## In progress
 
@@ -15,7 +15,6 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
-| [V407-025](v407-025-persistence-indexes-and-triggers.yml) | persistence | chore | P2 | Reduce Project-drain and held-Audit query work and scope Stage triggers |
 
 ## Pending
 
@@ -163,8 +162,8 @@ the epics are in [epics.yml](epics.yml).
 | [V407-026](v407-026-store-error-classes-and-event-validation.yml) | defect | P3 | — | Classify missing Project references at the Run-store boundary |
 | [V407-027](v407-027-shared-controller-claim-loop.yml) | chore | P3 | V407-003 | Share controller claim-lifecycle plumbing without merging distinct scheduling policies |
 | [V408-002](v408-002-shared-postgres-test-schema.yml) | chore | P2 | V408-001 | Apply migrations once per package: one shared PostgreSQL test helper with per-test truncation |
-| [V409-006](v409-006-trigger-column-scoping.yml) | chore | P2 | V407-025 | Scope unnecessary trigger work while preserving admission and projection effects |
-| [V409-007](v409-007-dead-and-redundant-indexes.yml) | chore | P2 | V407-025, V409-002, V409-004, V409-006 | Consolidate indexes only where reader and constraint evidence permits it |
+| [V409-006](v409-006-trigger-column-scoping.yml) | chore | P2 | — | Scope unnecessary trigger work while preserving admission and projection effects |
+| [V409-007](v409-007-dead-and-redundant-indexes.yml) | chore | P2 | V409-002, V409-004, V409-006 | Consolidate indexes only where reader and constraint evidence permits it |
 | [V409-012](v409-012-migration-and-sql-hygiene.yml) | chore | P3 | — | Test the revision-count and controller-claim backfills and document migration budgets |
 | [V409-013](v409-013-verify-sql-review-on-database.yml) | chore | P2 | V409-001, V409-002, V409-004, V409-005, V409-006, V409-007, V409-009, V409-010, V409-011, V409-012, V409-014 | Verify retained SQL-review changes and record evidence for every accepted or declined claim |
 
@@ -181,7 +180,7 @@ the epics are in [epics.yml](epics.yml).
 | [V372-029](v372-029-shared-fixture-gate-scope.yml) | chore | P3 | — | Extend the shared fixture gate to every cross-language fixture and keep slow store suites out of it |
 | [V372-030](v372-030-shrink-test-only-export-baseline.yml) | chore | P3 | — | Resolve the exported identifiers that only tests use and empty the test-only export baseline |
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | chore | P3 | — | Find out why about a hundred Runtime tests fail on a macOS host and make each one pass or declare its platform |
-| [V407-039](v407-039-close-server-runtime-review.yml) | chore | P3 | V407-001, V407-002, V407-003, V407-004, V407-005, V407-006, V407-007, V407-010, V407-011, V407-012, V407-013, V407-014, V407-015, V407-016, V407-017, V407-018, V407-020, V407-021, V407-022, V407-023, V407-025, V407-026, V407-027, V407-028, V407-029, V407-031, V407-032, V407-033, V407-035, V407-036 | Close the validated Server and Runtime review with explicit dispositions and verification |
+| [V407-039](v407-039-close-server-runtime-review.yml) | chore | P3 | V407-001, V407-002, V407-003, V407-004, V407-005, V407-006, V407-007, V407-010, V407-011, V407-012, V407-013, V407-014, V407-015, V407-016, V407-017, V407-018, V407-020, V407-021, V407-022, V407-023, V407-026, V407-027, V407-028, V407-029, V407-031, V407-032, V407-033, V407-035, V407-036 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V408-001](v408-001-gate-duration-baseline.yml) | chore | P2 | — | Record the baseline duration of every release stage and local test target |
 | [V408-004](v408-004-e2e-build-once.yml) | chore | P2 | V408-001 | Build the Server binary and the test PKI once per e2e package and right-size per-test budgets |
 | [V408-005](v408-005-family-guard-gaps.yml) | chore | P2 | — | Close the family-target guard gaps and run the Runtime suite once with warnings as errors |
@@ -243,5 +242,5 @@ tasks in `introduced_by`.
 | Web UI (`ui`) | 3 | 24 | 58 | 12 | 53 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 16 | 33 | 6 | 10 |
 | Public API and wire contracts (`api-contracts`) | 7 | 1 | 34 | 20 | 11 |
-| PostgreSQL persistence and schema (`persistence`) | 12 | 0 | 21 | 41 | 9 |
+| PostgreSQL persistence and schema (`persistence`) | 11 | 0 | 21 | 41 | 9 |
 | Quality, CI and process (`quality`) | 17 | 1 | 21 | 87 | 21 |
