@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-129 open tasks: 5 in progress, 99 pending, 25 deferred. 989 finished: 986 completed, 3 archived.
+128 open tasks: 4 in progress, 99 pending, 25 deferred. 990 finished: 987 completed, 3 archived.
 
 ## In progress
 
@@ -15,7 +15,6 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
-| [V409-003](v409-003-runstore-lock-order-and-cas.yml) | execution-core | defect | P2 | Lock the owning Run before the Stage in StartPlanner |
 
 ## Pending
 
@@ -185,7 +184,7 @@ the epics are in [epics.yml](epics.yml).
 | [V409-007](v409-007-dead-and-redundant-indexes.yml) | chore | P2 | V407-025, V409-002, V409-004, V409-006 | Consolidate indexes only where reader and constraint evidence permits it |
 | [V409-008](v409-008-state-set-schema-tests.yml) | chore | P3 | — | Extend migrated-schema state-set parity tests to the remaining reviewed owners |
 | [V409-012](v409-012-migration-and-sql-hygiene.yml) | chore | P3 | — | Test the revision-count and controller-claim backfills and document migration budgets |
-| [V409-013](v409-013-verify-sql-review-on-database.yml) | chore | P2 | V409-001, V409-002, V409-003, V409-004, V409-005, V409-006, V409-007, V409-008, V409-009, V409-010, V409-011, V409-012, V409-014 | Verify retained SQL-review changes and record evidence for every accepted or declined claim |
+| [V409-013](v409-013-verify-sql-review-on-database.yml) | chore | P2 | V409-001, V409-002, V409-004, V409-005, V409-006, V409-007, V409-008, V409-009, V409-010, V409-011, V409-012, V409-014 | Verify retained SQL-review changes and record evidence for every accepted or declined claim |
 
 ### Quality, CI and process (`quality`)
 
@@ -245,7 +244,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 11 | 41 | 51 | 18 | 72 |
+| Run execution core (`execution-core`) | 10 | 41 | 51 | 18 | 72 |
 | Planners and the Worker model boundary (`planner-worker`) | 8 | 27 | 40 | 16 | 59 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 12 | 25 | 13 | 4 | 40 |
 | Shared Memory tools (`memory`) | 1 | 6 | 9 | 2 | 12 |
