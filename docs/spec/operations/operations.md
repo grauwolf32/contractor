@@ -621,12 +621,18 @@ shows a concurrently saved value after a revision conflict is defined in
 `/operations/settings`. Its first card is `Workflow scheduling`, which
 contains:
 
-- a numeric `Maximum concurrent Workflow Runs` input constrained to 1..32
-  (LIM-OPS-7);
-- the saved value and the unsaved-change state;
-- Save and reset actions with pending, success and safe error feedback;
-- concise copy distinguishing this global bound from owner Queue Pause and
-  Runtime Agent capacity.
+- a numeric `Concurrent Runs using a model` input for `maxConcurrentRuns`
+  constrained to 1..32 (LIM-OPS-7) and a numeric
+  `Concurrent Runs without a model` input for `maxConcurrentToolRuns`
+  constrained to 1..32 (LIM-OPS-34), each explaining which Runs it bounds;
+- the saved values and the unsaved-change state, with the setting names, their
+  lane pools and the revision under Technical details;
+- Save and reset actions with pending, success and safe error feedback; one
+  save sends both values against the revision the edit started from, so it
+  never keeps a stored value the operator did not see;
+- concise copy distinguishing these global bounds from owner Queue Pause and
+  Runtime Agent capacity, and stating that a Run using a model gets a shared
+  Runtime Agent first ([CTL-R155](../execution/control-plane.md)).
 
 How the independently deployed UI handles the setting without guessing an
 effective value is [SCH-R144](../execution/scheduler.md).

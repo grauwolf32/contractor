@@ -24,6 +24,7 @@ const mockedSpecs = [
   "e2e/responsive-layout.spec.ts",
   "e2e/run-drafts.spec.ts",
   "e2e/runs-navigation.spec.ts",
+  "e2e/scheduler-settings.spec.ts",
   "e2e/studio.spec.ts",
 ];
 

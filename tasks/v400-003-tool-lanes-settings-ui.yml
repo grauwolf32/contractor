@@ -5,7 +5,7 @@ milestone: model-free-stage-lanes-2026-10
 epic: operations
 kind: feature
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V400-001]
 languages: [typescript]
 goal: >-
@@ -15,6 +15,7 @@ context:
   proposal: docs/proposals/0040-model-free-stage-lanes.md
   specification:
     - docs/spec/operations/operations.md#OPS-R47
+    - docs/spec/operations/operations.md#OPS-R64
     - docs/spec/ui/ui.md
   design: docs/design/ui/README.md
   current_code: >-
@@ -30,6 +31,7 @@ scope:
     - "Labels and help text in the user's words from docs/design/ui/README.md: the first limit bounds checks that use a model, the second bounds scans and other checks without a model; setting names stay under Technical details."
     - "The existing stale-revision conflict, validation and saved states for both fields."
     - "A ui/package.json patch version bump."
+    - "OPS-R64 lists both inputs."
   out:
     - "Any change to the Scheduler or the API (V400-001)."
 requirements:
@@ -55,9 +57,11 @@ acceptance_criteria:
     when: "the page renders"
     then: "both fields fit without horizontal scrolling."
 tests:
-  - command: "corepack pnpm --dir ui test -- src/api/scheduler-settings.test.ts src/routes/operations/settings/settings.test.tsx"
+  - command: "cd ui && corepack pnpm exec vitest run src/api/scheduler-settings.test.ts src/routes/operations/settings/settings.test.tsx"
     covers: [A1, A2, A3]
   - command: make ui-verify
-    covers: [A1, A2, A3, A4]
+    covers: [A1, A2, A3]
+  - command: "make ui-browser-mocked (e2e/scheduler-settings.spec.ts)"
+    covers: [A2, A4]
   - command: make lint
     covers: [A1, A2, A3, A4]
