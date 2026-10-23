@@ -493,7 +493,10 @@ requires exactly one quoted, strong `If-Match` value containing the expected
 opaque revision, read verbatim in the entity-tag grammar of
 [API-R70](../api/public-api.md). A PUT without one of those preconditions,
 with a weak validator, with a list of validators or with an escaped or
-otherwise quoted value is `400 invalid_request` before the store is read.
+otherwise quoted value is `400 invalid_request` before the store is read. A
+PUT whose namespace or name is not a portable Artifact name is `400
+invalid_request` before the allocation is looked up and before a byte of the
+payload is read, so its answer is the same for an unknown allocation.
 
 **ART-R46.** Successful private reads return the resolved revision in
 `ETag`; successful writes return the same exact revision in both `ETag` and the
