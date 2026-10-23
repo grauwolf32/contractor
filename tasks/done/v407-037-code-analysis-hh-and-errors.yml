@@ -162,4 +162,13 @@ verification:
     broken sources (4 seeds x 19 grammars x 300, about 5% above 64 KiB to use the chunked parse path)
     with parse_symbols and raised no exception.'
   - 'Added assertions use injected failures and deterministic call counts; none measures elapsed time.'
-implementation_commit: d489b60508336d016d9189c052627bca452e37ae
+  - 'Review follow-up (9ab42a92): OBS-R32, the tool_call_failed registry row and FAIL-OBS-3 now own the
+    failed tool result of a raised exception (identifier code or tool_call_failed, retryable only when
+    the exception declares it, message of tool and exception class only), which CAN-R152 cites. New test_instrumentation
+    case pins it for unclassified, retryable code-less, non-identifier-code and classified exceptions;
+    the pending-call close test now keeps its tool contexts alive (id reuse of a freed temporary made it
+    order-dependent). make docs-dependencies and make docs-error-registry produced no change; go test
+    ./internal/apierror passed; affected suites (instrumentation, metrics, adk_runtime, filesystem_observations,
+    telemetry_content and the listed code-analysis/taint suites): 591 passed, 2 failed (the same two pre-existing
+    failures above); make lint passed.'
+implementation_commit: 9ab42a9260faace63c16abdef99c52b70fad8a9c
