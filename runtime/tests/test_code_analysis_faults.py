@@ -2,19 +2,36 @@ from __future__ import annotations
 
 import asyncio
 import sys
+from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import pytest
+from fakes.model import scripted_model, tool_call
+from test_adk_runtime import create_runtime, stage_request, terminal_text
 
+import contractor_runtime.toolsets.code_analysis.languages as code_analysis_languages
 import contractor_runtime.toolsets.code_analysis.tools as code_analysis
-from contractor_runtime.projectfs.storage import WorkspaceSnapshot, WorkspaceTextFile
-from contractor_runtime.toolsets.code_analysis.tools import CodeAnalysisError
+from contractor_runtime.allocation import WorkerState
+from contractor_runtime.contracts import RuntimeSettings
+from contractor_runtime.projectfs.storage import (
+    ManagedWorkspaceTree,
+    WorkspaceSnapshot,
+    WorkspaceTextFile,
+)
+from contractor_runtime.toolsets.code_analysis.tools import (
+    CodeAnalysisError,
+    CodeAnalysisToolsetFactory,
+)
 from contractor_runtime.toolsets.code_analysis.trailmark_host import (
     TrailmarkChildHost,
     TrailmarkHostError,
 )
+from contractor_runtime.workspace import AllocationWorkspace
 
 FAULT_CHILD = Path(__file__).parent / "fixtures" / "trailmark_fault_child.py"
+DEFECT_CANARY = "recognizable-parser-defect-canary"
 
 
 def test_definitely_unprocessed_read_only_build_gets_exactly_one_safe_replay(
@@ -200,6 +217,142 @@ def test_memory_exhaustion_reaches_the_model_as_non_retryable_capacity(tmp_path:
         assert list(tmp_path.iterdir()) == []
 
     asyncio.run(scenario())
+
+
+def _fail_first_parser_acquisition(monkeypatch: pytest.MonkeyPatch) -> list[int]:
+    calls = [0]
+    original = code_analysis_languages.load_parser
+
+    def load_parser(language: code_analysis_languages.Language) -> Any:
+        calls[0] += 1
+        if calls[0] == 1:
+            raise TypeError(f"parser factory defect {DEFECT_CANARY}")
+        return original(language)
+
+    monkeypatch.setattr(code_analysis_languages, "load_parser", load_parser)
+    return calls
+
+
+def _fail_first_name_extraction(monkeypatch: pytest.MonkeyPatch) -> list[int]:
+    calls = [0]
+    original = code_analysis_languages._extract_name
+
+    def extract_name(node: Any, source: bytes, preferred_field: str = "") -> str | None:
+        calls[0] += 1
+        if calls[0] == 1:
+            raise TypeError(f"extraction defect {DEFECT_CANARY}")
+        return original(node, source, preferred_field)
+
+    monkeypatch.setattr(code_analysis_languages, "_extract_name", extract_name)
+    return calls
+
+
+@pytest.mark.parametrize(
+    "inject",
+    [_fail_first_parser_acquisition, _fail_first_name_extraction],
+    ids=["parser-acquisition", "extraction"],
+)
+def test_unexpected_parser_path_failure_is_a_tool_error_not_parse_error_coverage(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    inject: Callable[[pytest.MonkeyPatch], list[int]],
+) -> None:
+    calls = inject(monkeypatch)
+    source = "class Socket {\npublic:\n  int target() const { return 1; }\n};\n"
+
+    async def scenario() -> None:
+        state = WorkerState()
+        reader = _TreeReader({"include/socket.hh": source})
+        tools = await CodeAnalysisToolsetFactory().create_selected(
+            selected=("list_symbols", "search_def"),
+            allocation_id="allocation-parser-defect",
+            run_id="run-parser-defect",
+            namespace="analysis",
+            runtime_settings=RuntimeSettings(
+                llm_gateway_url="https://llm.example/v1",
+                llm_gateway_token="temporary-token",
+                artifact_api_url="https://server.example/private/v1/artifacts",
+                request_timeout_seconds=10,
+            ),
+            workspace=AllocationWorkspace(root=tmp_path, path=tmp_path),
+            state=state,
+            project_workspace=reader,
+        )
+        model = scripted_model(
+            [
+                tool_call("list_symbols", {}, call_id="list-defect"),
+                tool_call("list_symbols", {}, call_id="list-after-defect"),
+                tool_call("search_def", {"symbol": "target"}, call_id="search-after-defect"),
+                terminal_text("Recovered from a Runtime parser defect"),
+            ]
+        )
+        runtime = await create_runtime(tmp_path / "runtime", state, dict(tools), model)
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.result is not None
+        session_id = runtime._session_lifecycle.shared_session_id
+        assert session_id is not None
+        adk_session = await runtime._session_service.get_session(
+            app_name=runtime._app_name,
+            user_id=runtime._user_id,
+            session_id=session_id,
+        )
+        assert adk_session is not None
+        responses = [
+            part.function_response.response
+            for event in adk_session.events
+            for part in (event.content.parts if event.content is not None else [])
+            if part.function_response is not None
+        ]
+        assert len(responses) == 3
+        # The existing Worker tool-error boundary bounds the defect: a stable
+        # non-retryable code and the exception class, never its message.
+        assert responses[0] == {
+            "ok": False,
+            "error": {
+                "code": "tool_call_failed",
+                "message": "list_symbols failed (TypeError)",
+                "retryable": False,
+            },
+        }
+        # Nothing about the failed call was cached as source coverage.
+        listed, found = responses[1:]
+        assert [(item["path"], item["name"]) for item in listed["items"]] == [
+            ("include/socket.hh", "Socket"),
+            ("include/socket.hh", "target"),
+        ]
+        assert [(item["path"], item["name"]) for item in found["items"]] == [
+            ("include/socket.hh", "target")
+        ]
+        for response in (listed, found):
+            assert response["coverage"]["parseErrors"] == 0
+            assert response["coverage"]["incomplete"] is False
+        assert calls[0] > 1
+
+        recorded = state.metrics.tool_calls
+        assert [call.tool for call in recorded] == ["list_symbols", "list_symbols", "search_def"]
+        assert recorded[0].error is not None
+        assert recorded[0].error.code == "tool_call_failed"
+        assert recorded[0].error.retryable is False
+        assert [call.error for call in recorded[1:]] == [None, None]
+        assert DEFECT_CANARY not in repr(adk_session.events) + repr(state.metrics.snapshot())
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+class _TreeReader:
+    def __init__(self, files: dict[str, str]) -> None:
+        directories = {
+            "/".join(path.split("/")[:depth])
+            for path in files
+            for depth in range(1, path.count("/") + 1)
+        }
+        self._tree = ManagedWorkspaceTree(directories=directories, text_files=dict(files))
+
+    async def snapshot(self) -> WorkspaceSnapshot:
+        return self._tree.snapshot()
 
 
 def _fault_host(

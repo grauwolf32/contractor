@@ -56,8 +56,9 @@ func (s *PostgresStore) ListNonTerminalRunIDsByCredential(
 }
 
 // PostgresStore runs most operations on its supplied DBTX. When backed by a
-// pool, ResumeFailedRun starts its own retrying transaction; with a pgx.Tx it
-// joins the caller's transaction. Run deletion locks exist only on
+// pool, ResumeFailedRun and StartPlanner start their own retrying
+// transactions; with a pgx.Tx they join the caller's transaction, and any
+// other DBTX refuses them. Run deletion locks exist only on
 // PostgresTxStore (see internal/rundeletion). Runtime label pinning
 // additionally requires NewRunCreationPostgresStore.
 type PostgresStore struct {

@@ -12,7 +12,7 @@ import (
 type ExecutionObservation struct {
 	MemberID, PairID, SuiteID, CaseID, VariantID, Eligibility, Kind, CaseSHA256, BindingSHA256 string
 	Ordinal, Sample                                                                            int
-	SubmissionState                                                                            *string
+	SubmissionState                                                                            *SubmissionState
 	ExecutionID                                                                                *string
 	OrdinaryState                                                                              *string
 	StartedAt, FinishedAt                                                                      *time.Time

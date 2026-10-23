@@ -13,8 +13,10 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
+from test_filesystem_toolset import create_tools
 from test_projectfs_zip import archive, settings, workspace_inputs
 
+from contractor_runtime.allocation import WorkerState
 from contractor_runtime.projectfs import (
     DirectWorkspaceSession,
     LocalWorkspaceProvider,
@@ -24,6 +26,8 @@ from contractor_runtime.projectfs import (
 )
 from contractor_runtime.projectfs.config import WorkspaceLimits
 from contractor_runtime.projectfs.local_io import RootedLocalFilesystem
+from contractor_runtime.toolsets.common.filesystem_errors import FilesystemToolError
+from contractor_runtime.toolsets.filesystem.tools import FilesystemToolsetFactory
 
 
 @asynccontextmanager
@@ -351,6 +355,54 @@ def test_external_oversize_file_is_an_opaque_leaf_not_a_workspace_failure(
             with pytest.raises(WorkspaceStorageError, match="workspace_type_conflict"):
                 await session.write_text("build.log", "replace")
             assert (root / "build.log").read_bytes() == b"x" * 21
+
+    asyncio.run(scenario())
+
+
+def test_listings_classify_current_content_and_bind_cursors_to_it(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        limits = WorkspaceLimits(
+            max_files=10, max_file_bytes=20, max_expanded_bytes=100, max_managed_text_bytes=100
+        )
+        async with workspace(tmp_path, limits=limits) as (session, root):
+            (root / "build.log").write_bytes(b"x" * 21)
+            (root / "notes.txt").write_bytes(b"plain\n")
+            tools = await create_tools(
+                FilesystemToolsetFactory(),
+                session.reader_view(),
+                WorkerState(),
+                tmp_path,
+                ["ls", "glob"],
+            )
+            try:
+                listed = await tools["ls"]("")
+                # Content, not names or stat data, separates text from binary;
+                # an oversize leaf stays visible as opaque binary.
+                assert listed["entries"] == [
+                    {"path": "binary", "type": "binary", "size": None},
+                    {"path": "build.log", "type": "binary", "size": None},
+                    {"path": "notes.txt", "type": "file", "size": 6},
+                    {"path": "src", "type": "directory", "size": None},
+                ]
+                first = await tools["glob"]("**/*", "", 1)
+                assert first["matches"] == [{"path": "binary", "type": "binary", "size": None}]
+                path = root / "notes.txt"
+                before = path.stat()
+                path.write_bytes(b"\x00lain\n")
+                os.utime(path, ns=(before.st_atime_ns, before.st_mtime_ns))
+                with pytest.raises(FilesystemToolError, match="workspace_cursor_invalid"):
+                    await tools["glob"]("**/*", first["nextCursor"], 1)
+                current = await tools["glob"]("**/*")
+                assert {item["path"]: item["type"] for item in current["matches"]} == {
+                    "binary": "binary",
+                    "build.log": "binary",
+                    "notes.txt": "binary",
+                    "src": "directory",
+                    "src/a.txt": "file",
+                }
+            finally:
+                for tool in tools.values():
+                    await tool.close()
 
     asyncio.run(scenario())
 

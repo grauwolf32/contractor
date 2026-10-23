@@ -134,7 +134,7 @@ verification:
     API-R69 states both.
   - Sibling found and fixed. cancelScanSweep takes OptionalIdempotencyKey but ignored the header; it now validates a supplied
     key like RuntimeCredential deletion, and API-R28 names both operations.
-  - 'New limits: LIM-API-24 (Idempotency-Key), LIM-AUD-28 (Audit start/resume body), LIM-AUD-29 (Audit scope field bytes),
+  - 'New limits: LIM-API-26 (Idempotency-Key), LIM-AUD-28 (Audit start/resume body), LIM-AUD-29 (Audit scope field bytes),
     LIM-GIT-21 (Git key body), LIM-PRJ-5 (Project description bytes), LIM-REV-11 (rationale bytes), LIM-RUN-10 (cancellation
     reason bytes); LIM-PRJ-3 now states its 160-byte bound. No migration and no new error code.'
   declined:

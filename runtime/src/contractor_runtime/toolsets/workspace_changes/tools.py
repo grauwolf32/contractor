@@ -29,7 +29,7 @@ from contractor_runtime.toolsets.common.cursors import (
     require_limit,
 )
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
-from contractor_runtime.toolsets.filesystem.tools import FilesystemToolError
+from contractor_runtime.toolsets.common.filesystem_errors import FilesystemToolError
 from contractor_runtime.workspace import AllocationWorkspace
 
 MAX_PAGE_ITEMS = 100

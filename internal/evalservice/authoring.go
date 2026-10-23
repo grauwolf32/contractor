@@ -121,7 +121,7 @@ func bindingDocument(v evaldomain.Variant, p Preflight) (evaldomain.Frozen, erro
 		Settings:      bindingSettings{Variant: v, Snapshot: p.Snapshot, ObservedPins: p.Pins},
 		InputMapping:  inputs,
 		OutputMapping: outputs,
-		Normalizers:   []normalizerReference{{ID: "contractor-output@1", ImplementationSHA256: NormalizerSHA256()}},
+		Normalizers:   []normalizerReference{{ID: normalizerID, ImplementationSHA256: NormalizerSHA256()}},
 	})
 	if err != nil {
 		return evaldomain.Frozen{}, err

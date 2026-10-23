@@ -6,6 +6,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/clone"
+	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 // The public API answers these errors with the Kind each one reports
@@ -33,6 +34,23 @@ var (
 // already holds other content. It is an integrity failure: retrying the same
 // write can never succeed.
 var ErrAuditArtifactCollision = fmt.Errorf("%w: Audit artifact binding holds other content", ErrArtifactIntegrity)
+
+// IsExactReferenceRejection reports whether err, returned while verifying an
+// exact Artifact reference, rejects the reference itself: its scope,
+// namespace, name or revision is malformed or absent (ErrInvalidScope,
+// ErrInvalidName, ErrExactRevisionRequired, contracts.ErrValidation), its
+// scope holds no such revision (ErrArtifactNotFound), or the store described
+// another revision than the reference names (ErrArtifactIntegrity). Verifying
+// the same reference again gives the same answer. Any other error, such as a
+// database or blob I/O failure or a cancelled or expired context, leaves the
+// reference unverified and is transient. The Planners and the Workflow
+// Scheduler classify every exact reference they verify with it (PLN-R118,
+// SCH-R177).
+func IsExactReferenceRejection(err error) bool {
+	return errors.Is(err, ErrInvalidScope) || errors.Is(err, ErrInvalidName) ||
+		errors.Is(err, ErrExactRevisionRequired) || errors.Is(err, ErrArtifactNotFound) ||
+		errors.Is(err, ErrArtifactIntegrity) || errors.Is(err, contracts.ErrValidation)
+}
 
 type ConflictError struct {
 	Ref              ArtifactRef

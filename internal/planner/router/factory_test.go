@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
@@ -602,8 +603,11 @@ type fakeInspector struct{}
 func (fakeInspector) Inspect(
 	_ context.Context, runID string, ref contracts.ArtifactRef,
 ) (planner.ArtifactMetadata, error) {
-	if runID != "run-router" || ref.Revision == nil {
-		return planner.ArtifactMetadata{}, errors.New("artifact outside RunScope")
+	if runID != "run-router" {
+		return planner.ArtifactMetadata{}, artifacts.ErrInvalidScope
+	}
+	if ref.Revision == nil {
+		return planner.ArtifactMetadata{}, artifacts.ErrExactRevisionRequired
 	}
 	switch ref.Namespace + "/" + ref.Name + "@" + *ref.Revision {
 	case "inputs/source@source-r1":
@@ -611,7 +615,7 @@ func (fakeInspector) Inspect(
 	case "review/report@report-r1":
 		return planner.ArtifactMetadata{MediaType: "application/json"}, nil
 	default:
-		return planner.ArtifactMetadata{}, errors.New("artifact absent")
+		return planner.ArtifactMetadata{}, artifacts.ErrArtifactNotFound
 	}
 }
 

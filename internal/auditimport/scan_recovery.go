@@ -2,6 +2,7 @@ package auditimport
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
@@ -37,7 +38,7 @@ func (i *Importer) scanHistory(ctx context.Context, execution auditstore.Executi
 		return runstore.WorkflowRun{}, nil, err
 	}
 	if run.AuditExecutionID == nil || *run.AuditExecutionID != execution.ExecutionID {
-		return runstore.WorkflowRun{}, nil, fmt.Errorf("Audit scan execution identity differs")
+		return runstore.WorkflowRun{}, nil, fmt.Errorf("%w: Audit scan execution identity differs", ErrPermanent)
 	}
 	history, err := plannersession.ReadAuditScanHistory(ctx, store, run.RunID)
 	if err != nil {
@@ -70,7 +71,7 @@ func (i *Importer) collectScanRecovery(
 		return false, err
 	}
 	if run.ProjectID == nil || *run.ProjectID != snapshot.Audit.ProjectID {
-		return false, fmt.Errorf("Audit scan project identity differs")
+		return false, fmt.Errorf("%w: Audit scan project identity differs", ErrPermanent)
 	}
 	manifestBytes, err := i.artifacts.ReadProjectExact(ctx, snapshot.Audit.ProjectID, execution.Manifest)
 	if err != nil {
@@ -78,10 +79,15 @@ func (i *Importer) collectScanRecovery(
 	}
 	manifest, err := auditdomain.DecodeExecutionManifest(manifestBytes)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("%w: exact execution manifest is invalid", ErrPermanent)
 	}
 	input := auditscan.ResultInput{RunID: run.RunID, Task: members[0].task, Manifest: manifest, Attempts: history}
 	assembled, err := auditscan.BuildResult(ctx, input, i.scanRecoveryReader(run.RunID))
+	if errors.Is(err, auditscan.ErrInvalid) {
+		// The pinned assignment or the exact retained scan content can never
+		// build a result. Read failures stay retryable without a receipt.
+		return false, fmt.Errorf("%w: %w", ErrPermanent, err)
+	}
 	if err != nil {
 		return false, err
 	}
@@ -107,14 +113,13 @@ func scanRecoveryDisposition(execution auditstore.Execution) auditstore.Collecti
 	}
 }
 
+// scanRecoveryReader reads the whole exact revision; BuildResult enforces the
+// artifact's bound and classifies larger immutable content as invalid.
 func (i *Importer) scanRecoveryReader(runID string) auditscan.ArtifactReader {
-	return func(ctx context.Context, ref contracts.ArtifactRef, limit int) (artifacts.Payload, error) {
+	return func(ctx context.Context, ref contracts.ArtifactRef, _ int) (artifacts.Payload, error) {
 		metadata, data, err := i.artifacts.ReadRunExact(ctx, runID, ref)
 		if err != nil {
 			return artifacts.Payload{}, err
-		}
-		if len(data) > limit {
-			return artifacts.Payload{}, fmt.Errorf("retained scan artifact exceeds bound")
 		}
 		return artifacts.Payload{MediaType: metadata.MediaType, Data: data}, nil
 	}

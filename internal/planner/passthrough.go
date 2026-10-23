@@ -150,7 +150,10 @@ func (p *passthroughPlanner) Run(
 	if err := validateCandidate(
 		invokeContext, p.invocation.RunID, p.invocation.Stage.Result.Artifacts, result, p.inspector,
 	); err != nil {
+		// A rejected candidate fails the invocation that produced it, as a
+		// rejected completion does (PLN-R119).
 		failure := FailureFrom(err)
+		invokeFailure = &failure
 		workerSpan.End("rejected", telemetry.PlannerSpanAttributes{ErrorCode: failure.Code})
 		return stageresult.StageContentResult{}, p.fail(ctx, started.Identity, err)
 	}

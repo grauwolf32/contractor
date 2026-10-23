@@ -30,6 +30,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/config"
@@ -171,7 +172,19 @@ func newCompletionFixtureWithReportAcceptance(t *testing.T, pool *pgxpool.Pool, 
 }
 
 func newCompletionFixtureWithInteraction(t *testing.T, pool *pgxpool.Pool, acceptance, findingConfirmation string) *completionFixture {
+	return newCompletionFixtureWithOptions(t, pool, completionOptions{acceptance: acceptance, findingConfirmation: findingConfirmation})
+}
+
+type completionOptions struct {
+	acceptance, findingConfirmation string
+	// standards, when set, retains standard packages in the fixture Project
+	// and returns their pins for the Audit baseline.
+	standards func(*testing.T, *completionFixture) []auditstandards.PinnedPackage
+}
+
+func newCompletionFixtureWithOptions(t *testing.T, pool *pgxpool.Pool, options completionOptions) *completionFixture {
 	t.Helper()
+	acceptance, findingConfirmation := options.acceptance, options.findingConfirmation
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	t.Cleanup(cancel)
 	f := &completionFixture{ctx: ctx, pool: pool, id: fmt.Sprintf("fixture-%d", time.Now().UnixNano()), artifacts: artifacts.NewService(artifacts.NewPostgresRepository(pool)), audits: auditstoretest.NewStore(pool).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch), runs: runstore.NewPostgresStore(pool), keys: []string{"first", "second"}}
@@ -242,7 +255,18 @@ func newCompletionFixtureWithInteraction(t *testing.T, pool *pgxpool.Pool, accep
 	mustCompletion(t, err)
 	draft, _, err := f.audits.CreateDraft(ctx, auditstore.CreateDraftParams{AuditID: f.id, OwnerID: "owner", ProjectID: f.id, Profile: auditstore.ProfileIdentity{Name: f.profile.Ref.Name, Version: f.profile.Ref.Version, Digest: f.profile.Ref.Digest}, ProfileSnapshot: profileBytes, InputSelection: json.RawMessage(`{}`), Limits: auditstore.Limits{MaxRounds: 1, BatchSize: 2, MaxItemsPerRound: 10, MaxItemsTotal: 10, MaxSubmittedRuns: 10, MaxItemRunAttempts: 2, MaxEvidenceBytes: 1 << 20}, IdempotencyKey: f.id, RequestDigest: completionDigest([]byte("audit"))})
 	mustCompletion(t, err)
-	_, _, err = f.audits.MaterializeRound(ctx, auditstore.MaterializeRoundParams{OwnerID: "owner", AuditID: f.id, ExpectedRevision: draft.Revision, RoundID: f.id, RoundOrdinal: 1, Manifest: f.manifest, BaselineSnapshot: json.RawMessage(`{"schema":"contractor.audit.baseline.v1","inventory":{"gaps":[]}}`), DeadlineAt: time.Now().Add(time.Hour), Items: items, IdempotencyKey: f.id, RequestDigest: completionDigest([]byte("round"))})
+	// Run creation copies the Audit's labels and placement requirements from
+	// the baseline, so the fixture pins both, empty.
+	baseline := map[string]any{
+		"schema": "contractor.audit.baseline.v1", "inventory": map[string]any{"gaps": []string{}},
+		"labels": map[string]string{}, "requiredPlacementLabels": []string{},
+	}
+	if options.standards != nil {
+		baseline["standards"] = options.standards(t, f)
+	}
+	baselineSnapshot, err := json.Marshal(baseline)
+	mustCompletion(t, err)
+	_, _, err = f.audits.MaterializeRound(ctx, auditstore.MaterializeRoundParams{OwnerID: "owner", AuditID: f.id, ExpectedRevision: draft.Revision, RoundID: f.id, RoundOrdinal: 1, Manifest: f.manifest, BaselineSnapshot: baselineSnapshot, DeadlineAt: time.Now().Add(time.Hour), Items: items, IdempotencyKey: f.id, RequestDigest: completionDigest([]byte("round"))})
 	mustCompletion(t, err)
 	claims, err := f.audits.Claim(ctx, auditstore.ClaimParams{HolderID: f.id, Lease: 5 * time.Minute, Limit: 100})
 	mustCompletion(t, err)
@@ -306,7 +330,9 @@ func (f *completionFixture) output() (artifacts.ReadResult, error) {
 	return store.Read(f.ctx, f.run.AuditCompletion.Contract.ResultArtifact)
 }
 
-func (f *completionFixture) collect(t *testing.T, outcome runstore.WorkflowRunState, accepted bool) {
+// terminal binds a succeeded Run's output, ends the Run with outcome and
+// observes it, returning the collecting execution and its snapshot.
+func (f *completionFixture) terminal(t *testing.T, outcome runstore.WorkflowRunState) (auditstore.Execution, auditstore.ReconcileSnapshot) {
 	t.Helper()
 	if outcome == runstore.RunSucceeded {
 		value, err := f.output()
@@ -329,6 +355,12 @@ func (f *completionFixture) collect(t *testing.T, outcome runstore.WorkflowRunSt
 	mustCompletion(t, err)
 	snapshot, err := f.audits.GetReconcileSnapshot(f.ctx, f.claim)
 	mustCompletion(t, err)
+	return execution, snapshot
+}
+
+func (f *completionFixture) collect(t *testing.T, outcome runstore.WorkflowRunState, accepted bool) {
+	t.Helper()
+	execution, snapshot := f.terminal(t, outcome)
 	access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(f.pool))
 	mustCompletion(t, err)
 	importer, err := New(f.audits, f.audits, f.runs, access)

@@ -57,7 +57,7 @@ func (i *RunArtifactInspector) Inspect(
 	ctx context.Context, runID string, ref contracts.ArtifactRef,
 ) (ArtifactMetadata, error) {
 	if runID != i.runID {
-		return ArtifactMetadata{}, fmt.Errorf("artifact inspector is bound to another RunScope")
+		return ArtifactMetadata{}, fmt.Errorf("%w: artifact inspector is bound to another RunScope", artifacts.ErrInvalidScope)
 	}
 	result, err := inspectExact(ctx, i.store, ref)
 	if err != nil {
@@ -66,6 +66,10 @@ func (i *RunArtifactInspector) Inspect(
 	return ArtifactMetadata{MediaType: result.MediaType}, nil
 }
 
+// inspectExact reads the metadata of the exact revision ref names. Its errors
+// keep the classification of artifacts.IsExactReferenceRejection: a malformed
+// ref is a contracts validation error, and metadata that describes another
+// revision is ErrArtifactIntegrity, which no repeated read repairs.
 func inspectExact(
 	ctx context.Context, store RunArtifactMetadataReader, ref contracts.ArtifactRef,
 ) (artifacts.Metadata, error) {
@@ -76,9 +80,10 @@ func inspectExact(
 	if err != nil {
 		return artifacts.Metadata{}, err
 	}
-	if result.Ref.Namespace != ref.Namespace || result.Ref.Name != ref.Name ||
-		result.Ref.Revision == nil || ref.Revision == nil || *result.Ref.Revision != *ref.Revision {
-		return artifacts.Metadata{}, fmt.Errorf("ArtifactStore resolved a different artifact revision")
+	if !result.Ref.SameExact(ref) {
+		return artifacts.Metadata{}, fmt.Errorf(
+			"%w: ArtifactStore resolved a different artifact revision", artifacts.ErrArtifactIntegrity,
+		)
 	}
 	return result, nil
 }

@@ -13,21 +13,22 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// workflowRunTriggerProbe is a DBTX over one transaction. It runs each
-// statement first under EXPLAIN ANALYZE in a savepoint that it rolls back,
-// adding up the calls of every trigger of workflow_runs, and then runs the
-// statement itself. EXPLAIN reports the triggers of the statement's own
-// tables, including deferred ones that SET CONSTRAINTS ALL IMMEDIATE runs at
-// the end of the statement, but not those of statements a trigger runs.
+// workflowRunTriggerProbe is one transaction whose statements it probes, so a
+// store operation that joins its caller's transaction runs inside it too. It
+// runs each statement first under EXPLAIN ANALYZE in a savepoint that it
+// rolls back, adding up the calls of every trigger of workflow_runs, and then
+// runs the statement itself. EXPLAIN reports the triggers of the statement's
+// own tables, including deferred ones that SET CONSTRAINTS ALL IMMEDIATE runs
+// at the end of the statement, but not those of statements a trigger runs.
 type workflowRunTriggerProbe struct {
+	pgx.Tx
 	t     *testing.T
-	tx    pgx.Tx
 	fired map[string]int64
 }
 
 func (p *workflowRunTriggerProbe) explain(ctx context.Context, sql string, args ...any) {
 	p.t.Helper()
-	savepoint, err := p.tx.Begin(ctx)
+	savepoint, err := p.Tx.Begin(ctx)
 	if err != nil {
 		p.t.Fatal(err)
 	}
@@ -58,17 +59,17 @@ func (p *workflowRunTriggerProbe) explain(ctx context.Context, sql string, args 
 
 func (p *workflowRunTriggerProbe) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
 	p.explain(ctx, sql, args...)
-	return p.tx.Exec(ctx, sql, args...)
+	return p.Tx.Exec(ctx, sql, args...)
 }
 
 func (p *workflowRunTriggerProbe) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
 	p.explain(ctx, sql, args...)
-	return p.tx.Query(ctx, sql, args...)
+	return p.Tx.Query(ctx, sql, args...)
 }
 
 func (p *workflowRunTriggerProbe) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
 	p.explain(ctx, sql, args...)
-	return p.tx.QueryRow(ctx, sql, args...)
+	return p.Tx.QueryRow(ctx, sql, args...)
 }
 
 // TestPostgresRunEventAppendsFireNoWorkflowRunTrigger requires that the
@@ -91,7 +92,7 @@ func TestPostgresRunEventAppendsFireNoWorkflowRunTrigger(t *testing.T) {
 	if _, err := tx.Exec(ctx, `SET CONSTRAINTS ALL IMMEDIATE`); err != nil {
 		t.Fatal(err)
 	}
-	probe := &workflowRunTriggerProbe{t: t, tx: tx}
+	probe := &workflowRunTriggerProbe{Tx: tx, t: t}
 	probed := NewPostgresStore(probe)
 	expectFired := func(step string, want map[string]int64, action func() error) {
 		t.Helper()
@@ -158,8 +159,9 @@ func TestPostgresRunEventAppendsFireNoWorkflowRunTrigger(t *testing.T) {
 	if err := tx.Commit(ctx); err != nil {
 		t.Fatal(err)
 	}
-	events, err := NewPostgresStore(pool).ListRunEvents(ctx, run.RunID, 0, 20)
-	if err != nil || len(events) < 2 || events[len(events)-2].EventID != "event-triggers-started" ||
+	page, err := NewPostgresStore(pool).ListRunEvents(ctx, run.RunID, 0, 20)
+	events := page.Events
+	if err != nil || len(events) < 2 || page.More || events[len(events)-2].EventID != "event-triggers-started" ||
 		events[len(events)-1].EventID != "event-triggers-request" {
 		t.Fatalf("Run events = (%+v, %v)", events, err)
 	}

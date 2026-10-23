@@ -6,7 +6,8 @@ epic: execution-core
 kind: defect
 introduced_by: V3-009
 priority: P2
-status: pending
+status: completed
+implementation_commit: 793c9d538e7f6af12b15322d9046bae49a026caf
 depends_on: []
 languages: [go, sql]
 goal: "Make StartPlanner obey the Run-before-Stage lock order without changing Planner start, continuation replay or scheduler-claim expiry semantics."
@@ -131,3 +132,67 @@ tests:
     covers: [A1, A2, A3, A4]
   - command: make lint
     covers: [A5]
+verification:
+  date: '2026-10-23'
+  environment: >-
+    macOS arm64; Go 1.26.9; locked Node 24.20 and Runtime venv; local
+    PostgreSQL 17.11 database contractor_test_e with isolated per-test schemas
+    and all 32 migrations; deadlock_timeout 1s.
+  re_verification: >-
+    The finding held on base ac982d28: startPlannerSQL
+    (stage_store_sql.go:87-148) updated stage_executions before
+    workflow_runs, StartPlanner (stage_store.go:179-226) ran it directly on
+    the store's DBTX, and session/service.go:105 calls it on the pool-backed
+    production store. The sibling claims also held unchanged: resume locks the
+    Run FOR UPDATE before the replay lookup (resume_store.go:66-79),
+    allocation completion writes both release timestamps from one
+    statement_timestamp (allocation_store.go:334-335) and
+    appendPlannerEventSQL still requires an unexpired claim
+    (planner_store_sql.go:26-27); none was changed.
+  regression_before_fix: >-
+    With only the new tests applied to the unmodified StartPlanner, the
+    synchronized tests failed as intended: the NOWAIT Stage probe returned
+    SQLSTATE 55P03 while the start waited for the Run row
+    (TestPostgresStartPlannerLocksTheRunBeforeTheStage pool and caller
+    transaction, TestPostgresBeginLocksTheRunBeforeTheStage, the abort and
+    cancellation variants), the second concurrent Begin queued for the Stage
+    row instead of the Run row, and the pool path made one attempt where the
+    shared policy makes three.
+  commands:
+    - >-
+      CONTRACTOR_TEST_DATABASE_URL=... go test -tags=integration -count=1
+      ./internal/runstore/... ./internal/planner/session/... ./internal/scheduler/...
+      ./internal/memory/... ./internal/persistence/postgres/... passed with
+      TMPDIR set to its symlink-free /private/var path. With macOS's default
+      TMPDIR under the /var symlink, three filesystem-blob tests
+      (scheduler TestPostgresSummaryContinuationReconcilesAndRetainsArtifactsAndMemory/filesystem/*,
+      memory TestPostgresPlannerMemoryRemovesDeduplicatedBlobCandidate and
+      TestPostgresPlannerMemoryRetainsTransferLeaseThroughPublish) fail in blob
+      store setup before any Run code ("invalid artifact blob directory"); the
+      same tests fail identically on base ac982d28 in a temporary worktree.
+    - >-
+      go test -count=15 of the new tests and the trigger probe test, and
+      go test -race -count=2 of the new tests, passed.
+    - >-
+      go test -tags=integration -count=1 ./internal/telemetry/... ./internal/planner/...
+      ./internal/runservice/... ./internal/rundeletion/... ./tests/integration/streamline/...
+      passed (the other StartPlanner and Planner session callers).
+    - make lint passed, including SQL placement, table ownership, SQLSTATE literals, layers, staticcheck and test-only exports.
+  database_tests_configured: true
+  siblings_reviewed: >-
+    Every other StageExecution state change whose lifecycle trigger appends a
+    Run event (CreateStageExecution, MarkStageAdmitted, EnterFinalizing,
+    CompleteStageResult, EnterAborting, CompleteStageTermination and the Run
+    failure store) is called in production only inside Run-first transactions:
+    scheduler/postgres.go and admission.go lock the Run with LockRunState
+    first, resume_store.go locks the Run FOR UPDATE, and
+    run_failure_store.go/memory/postgres.go take LockRunState then
+    LockStageState. RecordStageOutputPublicationFailure changes no state and
+    locks no Run; allocation placement locks only the Stage and never the
+    Run; AppendPlannerEvent locks its session then the Run, and no operation
+    locks a session after a Run. None needed a change.
+  remaining: >-
+    None for this task. Those sibling operations remain callable on a
+    pool-backed store, where their trigger-driven Run update would follow the
+    Stage update; production never calls them that way, and moving them to
+    PostgresTxStore is outside this task's scope.

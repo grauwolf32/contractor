@@ -127,22 +127,24 @@ func (p *runPoller) remove(subscriber *runSubscriber) {
 // catchUp delivers every committed event after the last delivered sequence of
 // each subscription. It reads one page at a time from the lowest of those
 // sequences, so idle subscriptions cost one read per round however many
-// there are.
+// there are. A page may end before its event count because of its data
+// budget (API-R110), so only a page that reports no further committed event
+// ends the round; a page that does keeps reading at once.
 func (p *runPoller) catchUp() {
 	for p.ctx.Err() == nil {
 		from, ok := p.lowestDelivered()
 		if !ok {
 			return
 		}
-		events, err := p.hub.runs.ListRunEvents(p.ctx, p.runID, from, runReplayPageSize)
+		page, err := p.hub.runs.ListRunEvents(p.ctx, p.runID, from, runReplayPageSize)
 		if err != nil {
 			if p.ctx.Err() == nil {
 				p.endAll(apierror.Overloaded, "Run stream is temporarily unavailable")
 			}
 			return
 		}
-		p.deliver(from, events)
-		if len(events) < runReplayPageSize {
+		p.deliver(from, page.Events)
+		if !page.More {
 			return
 		}
 	}

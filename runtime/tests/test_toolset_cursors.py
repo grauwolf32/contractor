@@ -13,7 +13,8 @@ import pytest
 from contractor_runtime.projectfs.storage import WorkspaceSnapshot
 from contractor_runtime.toolsets.code_analysis import ids
 from contractor_runtime.toolsets.code_analysis.tools import CodeAnalysisError, _CodeAnalysisSession
-from contractor_runtime.toolsets.filesystem.tools import FilesystemToolError, _FilesystemSession
+from contractor_runtime.toolsets.common.filesystem_errors import FilesystemToolError
+from contractor_runtime.toolsets.filesystem.tools import _FilesystemSession
 from contractor_runtime.toolsets.workspace_changes.tools import _ChangesSession
 
 KEY = bytes(range(32))

@@ -4,12 +4,9 @@ package auditimport
 
 import (
 	"context"
-	"encoding/json"
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -20,7 +17,7 @@ import (
 
 func TestPostgresContractInvalidCollectionRetainsProposalAfterRunDeletion(t *testing.T) {
 	f := newCompletionFixtureWithInteraction(t, completionPool(t), "automatic", "human-required")
-	proposal, err := auditdomain.EncodeFindingProposal(auditdomain.FindingProposal{
+	receiptID := f.proposal(t, "candidate", auditdomain.FindingProposal{
 		Schema: auditdomain.FindingProposalSchema, ClientKey: "candidate",
 		Title: "Candidate", Description: "Check the source behavior",
 		Subject:        &auditdomain.FindingSubject{Kind: "code", Key: "handler"},
@@ -30,49 +27,8 @@ func TestPostgresContractInvalidCollectionRetainsProposalAfterRunDeletion(t *tes
 		ProposedChecks: []auditdomain.ProposedCheck{},
 		Limitations:    []string{},
 	})
-	mustCompletion(t, err)
-	decoded, err := auditdomain.DecodeFindingProposal(proposal)
-	mustCompletion(t, err)
-	projection, err := auditdomain.EncodeFindingReportProjection(auditdomain.ProjectFindingReport(decoded))
-	mustCompletion(t, err)
-	written, err := artifactstest.WriteFindingProposal(f.ctx, f.artifacts, f.run.RunID, "candidate",
-		artifacts.Payload{MediaType: "application/json", Data: proposal})
-	mustCompletion(t, err)
-	proposalRef, err := json.Marshal(written.Ref)
-	mustCompletion(t, err)
-	receiptID := f.id + "-finding-receipt"
-	_, err = f.pool.Exec(f.ctx, `
-INSERT INTO finding_proposal_receipts (
-    receipt_id, proposal_id, allocation_id, runtime_agent_id, runtime_instance_id,
-    stage_execution_id, logical_agent_name, invocation_id, submission_id,
-    client_key, request_digest, run_id, owner_id, project_id,
-    audit_execution_id, audit_id, audit_role, workflow_name, workflow_version,
-    workflow_schema_version, workflow_configuration_ref, workflow_closure_digest,
-    proposal_ref, proposal_digest, proposal_media_type, proposal_size_bytes, evidence,
-    report_projection
-) VALUES (
-    $1, $2, $3, 'runtime', 'instance', 'stage', 'checker', $3, $3,
-    'candidate', $4, $5, 'owner', $6, $7, $6, 'check', $8, $9,
-    'contractor/v1alpha1', '{}', $10, $11::jsonb, $4, 'application/json', $12, '[]', $13
-)`, receiptID, f.id+"-proposal", f.id+"-submission", completionDigest(proposal),
-		f.run.RunID, f.id, f.execution.ExecutionID, f.run.WorkflowName,
-		f.run.WorkflowVersion, completionDigest(f.run.WorkflowSnapshot),
-		string(proposalRef), len(proposal), string(projection))
-	mustCompletion(t, err)
 
-	mustCompletion(t, artifactstest.FreezeOutputs(f.ctx, f.artifacts, f.run.RunID))
-	_, err = f.runs.TransitionRun(f.ctx, f.run.RunID, runstore.RunRunning,
-		runstore.RunFailed, runstore.Reason{Code: "fixture-terminal"})
-	mustCompletion(t, err)
-	cursor, err := f.runs.GetRunEventCursor(f.ctx, f.run.RunID)
-	mustCompletion(t, err)
-	execution, err := f.audits.ObserveTerminal(f.ctx, auditstore.ObserveTerminalParams{
-		Claim: f.claim, ExecutionID: f.execution.ExecutionID,
-		RunID: f.run.RunID, Generation: cursor.Generation, Sequence: uint64(cursor.Sequence),
-	})
-	mustCompletion(t, err)
-	snapshot, err := f.audits.GetReconcileSnapshot(f.ctx, f.claim)
-	mustCompletion(t, err)
+	execution, snapshot := f.terminal(t, runstore.RunFailed)
 	access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(f.pool))
 	mustCompletion(t, err)
 	intake, err := findingintake.New(f.pool)

@@ -9,9 +9,23 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/scanplan"
 )
+
+// readRetained reads one exact retained scan artifact. Its content never
+// changes, so a payload over the artifact's bound is invalid, not retryable.
+func (b *resultBuilder) readRetained(ctx context.Context, ref contracts.ArtifactRef, limit int) (artifacts.Payload, error) {
+	payload, err := b.read(ctx, ref, limit)
+	if err != nil {
+		return artifacts.Payload{}, err
+	}
+	if len(payload.Data) > limit {
+		return artifacts.Payload{}, fmt.Errorf("%w: retained scan artifact exceeds its bound", ErrInvalid)
+	}
+	return payload, nil
+}
 
 func (b *resultBuilder) addEvidence(id, kind string, data []byte) bool {
 	// Reserve the domain's maximum manifest size for the package index and result
@@ -51,7 +65,7 @@ func (b *resultBuilder) addPlan(ctx context.Context, prefix string, state planne
 	if state.Plan == nil {
 		return nil
 	}
-	payload, err := b.read(ctx, *state.Plan, scanplan.MaxPlanBytes)
+	payload, err := b.readRetained(ctx, *state.Plan, scanplan.MaxPlanBytes)
 	if errors.Is(err, artifacts.ErrArtifactNotFound) {
 		b.gaps["scan_plan_unavailable"] = true
 		return nil
@@ -61,7 +75,7 @@ func (b *resultBuilder) addPlan(ctx context.Context, prefix string, state planne
 	}
 	plan, err := scanplan.DecodePlan(payload.Data)
 	if err != nil || payload.MediaType != scanplan.PlanMediaType || contentdigest.Bytes(payload.Data) != state.PlanDigest {
-		return fmt.Errorf("retained scan plan is invalid")
+		return fmt.Errorf("%w: retained scan plan is invalid", ErrInvalid)
 	}
 	for _, candidate := range plan.Candidates {
 		if candidate.Code != "" {
@@ -98,7 +112,7 @@ func (b *resultBuilder) addReport(ctx context.Context, id string, job planner.Sc
 		}
 		return nil
 	}
-	payload, err := b.read(ctx, *job.Report, MaxScannerReportBytes)
+	payload, err := b.readRetained(ctx, *job.Report, MaxScannerReportBytes)
 	if errors.Is(err, artifacts.ErrArtifactNotFound) {
 		b.gaps["scan_report_unavailable"] = true
 		return nil
@@ -110,7 +124,7 @@ func (b *resultBuilder) addReport(ctx context.Context, id string, job planner.Sc
 		Tool string `json:"tool"`
 	}
 	if payload.MediaType != auditdomain.JSONMediaType || json.Unmarshal(payload.Data, &header) != nil || header.Tool != "scan_"+b.input.Task.Scan.Scanner {
-		return fmt.Errorf("retained scanner report is invalid")
+		return fmt.Errorf("%w: retained scanner report is invalid", ErrInvalid)
 	}
 	if b.addEvidence(id, "scanner-report", payload.Data) && job.Status == planner.ScanJobCompleted {
 		b.completed = true

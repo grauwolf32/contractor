@@ -417,7 +417,16 @@ allocation check applies it is specified in the Control Plane document
 
 **OBS-R32.** Tool names and error codes are Runtime vocabulary
 and are never redacted. An error code that is not an identifier, or that
-contains a long secret, is recorded as `tool_call_failed` (FAIL-OBS-3).
+contains a long secret, is recorded as `tool_call_failed` (FAIL-OBS-3). A
+tool call that raises an exception is recorded once as failed, and the Worker
+answers the model with a failed tool result instead of failing the
+invocation. Its code is the exception's own identifier code, or
+`tool_call_failed` when the exception has none; it is retryable only when the
+exception declares itself retryable, so an unclassified exception is
+non-retryable; and its message names only the tool and the exception class,
+as in `list_symbols failed (TypeError)`, never the exception text. Only a tool
+input validation error replaces that message with its bounded Runtime-authored
+diagnostic.
 
 ### Runtime adapter metrics
 

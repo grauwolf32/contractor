@@ -3,6 +3,10 @@ package evaldomain
 import (
 	"encoding/json"
 	"fmt"
+	"math"
+	"reflect"
+	"slices"
+	"strconv"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
@@ -164,6 +168,221 @@ func TestSharedEvalTraceExampleAgreesWithAllSelectedMembers(t *testing.T) {
 		for arm, n := range expected {
 			if numeric(asObject(bin["counts"])[arm]) != float64(n) {
 				t.Fatal("histogram does not match complete pairs")
+			}
+		}
+	}
+}
+
+// permutations returns every order of items, generated deterministically.
+func permutations[T any](items []T) [][]T {
+	if len(items) <= 1 {
+		return [][]T{append([]T{}, items...)}
+	}
+	var out [][]T
+	for i := range items {
+		rest := append(append([]T{}, items[:i]...), items[i+1:]...)
+		for _, tail := range permutations(rest) {
+			out = append(out, append([]T{items[i]}, tail...))
+		}
+	}
+	return out
+}
+
+type wantMeasure struct {
+	value        *float64
+	completeness string
+	missing      []string
+	sources      []string
+}
+
+func checkMeasure(t *testing.T, name string, got Measure, want wantMeasure) {
+	t.Helper()
+	show := func(v *float64) string {
+		if v == nil {
+			return "null"
+		}
+		return strconv.FormatFloat(*v, 'g', -1, 64)
+	}
+	if show(got.Value) != show(want.value) || got.Completeness != want.completeness ||
+		!slices.Equal(got.Scope.Missing, want.missing) || !slices.Equal(got.SourceRefs, want.sources) {
+		t.Fatalf("%s = (%s, %s, missing %v, sources %v), want (%s, %s, missing %v, sources %v)",
+			name, show(got.Value), got.Completeness, got.Scope.Missing, got.SourceRefs,
+			show(want.value), want.completeness, want.missing, want.sources)
+	}
+}
+
+func float(v int64) *float64 { f := float64(v); return &f }
+
+// A counter's usage does not depend on the order of its snapshots: one whose
+// exact sum exceeds the int64 range is unavailable with an overflow gap in
+// every order, instead of the subtotal of whichever snapshots were read first,
+// and the other counters keep their own values and sources (EVM-R240).
+func TestNormalizeUsageCounterOverflowIsOrderIndependent(t *testing.T) {
+	const top = math.MaxInt64
+	source := func(stage string) string { return Digest([]byte(stage)) }
+	attempt := func(stage string, tokens *int64) AttemptObservation {
+		a := AttemptObservation{
+			RunID: "run-1", StageExecutionID: stage, ReportsComplete: true, SourceSHA256: source(stage),
+			Metrics: map[string]int64{"modelCalls": 1},
+		}
+		if tokens != nil {
+			a.Metrics["totalTokens"] = *tokens
+		}
+		return a
+	}
+	tokens := func(v int64) *int64 { return &v }
+	incomplete := attempt("c", tokens(20))
+	incomplete.ReportsComplete = false
+	sorted := func(stages ...string) []string {
+		out := []string{}
+		for _, stage := range stages {
+			out = append(out, source(stage))
+		}
+		slices.Sort(out)
+		return out
+	}
+	for _, tc := range []struct {
+		name     string
+		attempts []AttemptObservation
+		want     wantMeasure
+	}{
+		{
+			name:     "sum beyond range",
+			attempts: []AttemptObservation{attempt("a", tokens(top-100)), attempt("b", tokens(200)), attempt("c", tokens(0))},
+			want:     wantMeasure{completeness: "unavailable", missing: []string{"counter overflow"}, sources: sorted("a", "b", "c")},
+		},
+		{
+			name:     "every contributor at the range",
+			attempts: []AttemptObservation{attempt("a", tokens(top)), attempt("b", tokens(top)), attempt("c", tokens(top))},
+			want:     wantMeasure{completeness: "unavailable", missing: []string{"counter overflow"}, sources: sorted("a", "b", "c")},
+		},
+		{
+			name:     "overflow and a missing counter",
+			attempts: []AttemptObservation{attempt("a", tokens(top)), attempt("b", tokens(1)), attempt("c", nil)},
+			want:     wantMeasure{completeness: "unavailable", missing: []string{"counter overflow", "counter unavailable"}, sources: sorted("a", "b")},
+		},
+		{
+			name:     "sum exactly at the range",
+			attempts: []AttemptObservation{attempt("a", tokens(top-100)), attempt("b", tokens(100)), attempt("c", tokens(0))},
+			want:     wantMeasure{value: float(top), completeness: "complete", missing: []string{}, sources: sorted("a", "b", "c")},
+		},
+		{
+			name:     "normal totals",
+			attempts: []AttemptObservation{attempt("a", tokens(10)), attempt("b", tokens(20)), attempt("c", tokens(30))},
+			want:     wantMeasure{value: float(60), completeness: "complete", missing: []string{}, sources: sorted("a", "b", "c")},
+		},
+		{
+			name:     "known zero",
+			attempts: []AttemptObservation{attempt("a", tokens(0)), attempt("b", tokens(0))},
+			want:     wantMeasure{value: float(0), completeness: "complete", missing: []string{}, sources: sorted("a", "b")},
+		},
+		{
+			name:     "missing counter",
+			attempts: []AttemptObservation{attempt("a", tokens(10)), attempt("b", nil), attempt("c", tokens(20))},
+			want:     wantMeasure{value: float(30), completeness: "partial", missing: []string{"counter unavailable"}, sources: sorted("a", "c")},
+		},
+		{
+			name:     "incomplete report",
+			attempts: []AttemptObservation{attempt("a", tokens(10)), incomplete},
+			want:     wantMeasure{value: float(30), completeness: "partial", missing: []string{"incomplete or truncated execution reports"}, sources: sorted("a", "c")},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var first *Usage
+			for _, order := range permutations(tc.attempts) {
+				in := UsageObservation{
+					MemberID: Digest([]byte("member"))[7:], Parent: ExecutionRef{Kind: "run", ID: "run-1"},
+					Executions: []ExecutionRef{{Kind: "run", ID: "run-1"}}, InventoryComplete: true, Terminal: true,
+					Missing: []string{}, Attempts: order,
+				}
+				out, err := NormalizeUsage(in)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := validateUsage(out, in.MemberID); err != nil {
+					t.Fatalf("usage violates the public contract: %v", err)
+				}
+				checkMeasure(t, "totalTokens", out.TotalTokens, tc.want)
+				// modelCalls stays in range and keeps its own value and sources.
+				stages := []string{}
+				for _, a := range order {
+					stages = append(stages, a.StageExecutionID)
+				}
+				calls := wantMeasure{value: float(int64(len(order))), completeness: "complete", missing: []string{}, sources: sorted(stages...)}
+				if slices.ContainsFunc(order, func(a AttemptObservation) bool { return !a.ReportsComplete }) {
+					calls.completeness, calls.missing = "partial", []string{"incomplete or truncated execution reports"}
+				}
+				checkMeasure(t, "modelCalls", out.ModelCalls, calls)
+				if first == nil {
+					first = &out
+				} else if !reflect.DeepEqual(*first, out) {
+					t.Fatalf("usage depends on snapshot order:\n%+v\n%+v", *first, out)
+				}
+			}
+		})
+	}
+}
+
+// An overflow reported inside one snapshot makes the member's counter
+// unavailable too, and a snapshot cannot both overflow and report a value.
+func TestNormalizeUsageCarriesSnapshotOverflow(t *testing.T) {
+	member := Digest([]byte("member"))[7:]
+	run := ExecutionRef{Kind: "run", ID: "run-1"}
+	observation := func(attempts ...AttemptObservation) UsageObservation {
+		return UsageObservation{
+			MemberID: member, Parent: run, Executions: []ExecutionRef{run}, InventoryComplete: true,
+			Terminal: true, Missing: []string{}, Attempts: attempts,
+		}
+	}
+	overflowed := AttemptObservation{
+		RunID: "run-1", StageExecutionID: "a", ReportsComplete: true, SourceSHA256: Digest([]byte("a")),
+		Metrics: map[string]int64{"modelCalls": 1}, OverflowMetrics: []string{"toolCalls"},
+	}
+	other := AttemptObservation{
+		RunID: "run-1", StageExecutionID: "b", ReportsComplete: true, SourceSHA256: Digest([]byte("b")),
+		Metrics: map[string]int64{"modelCalls": 1, "toolCalls": 3},
+	}
+	for _, order := range permutations([]AttemptObservation{overflowed, other}) {
+		out, err := NormalizeUsage(observation(order...))
+		if err != nil {
+			t.Fatal(err)
+		}
+		sources := []string{overflowed.SourceSHA256, other.SourceSHA256}
+		slices.Sort(sources)
+		checkMeasure(t, "toolCalls", out.ToolCalls, wantMeasure{completeness: "unavailable", missing: []string{"counter overflow"}, sources: sources})
+		checkMeasure(t, "modelCalls", out.ModelCalls, wantMeasure{value: float(2), completeness: "complete", missing: []string{}, sources: sources})
+	}
+	contradictory := overflowed
+	contradictory.Metrics = map[string]int64{"modelCalls": 1, "toolCalls": 1}
+	if _, err := NormalizeUsage(observation(contradictory)); !IsCode(err, "eval_invalid") {
+		t.Fatalf("overflowed counter with a value = %v, want eval_invalid", err)
+	}
+}
+
+// CounterSum reports overflow exactly when the exact sum exceeds the int64
+// range, in every order of the same contributions.
+func TestCounterSumIsOrderIndependent(t *testing.T) {
+	const top = math.MaxInt64
+	for _, tc := range []struct {
+		values []int64
+		want   int64
+		fits   bool
+	}{
+		{values: []int64{top - 100, 200, 0}, fits: false},
+		{values: []int64{top, 1}, fits: false},
+		{values: []int64{top - 100, 100, 0}, want: top, fits: true},
+		{values: []int64{top, 0, 0}, want: top, fits: true},
+		{values: []int64{1, 2, 3}, want: 6, fits: true},
+		{values: []int64{}, want: 0, fits: true},
+	} {
+		for _, order := range permutations(tc.values) {
+			var sum CounterSum
+			for _, v := range order {
+				sum.Add(v)
+			}
+			got, fits := sum.Value()
+			if fits != tc.fits || fits && got != tc.want {
+				t.Fatalf("sum of %v = (%d, %t), want (%d, %t)", order, got, fits, tc.want, tc.fits)
 			}
 		}
 	}

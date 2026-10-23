@@ -12,7 +12,8 @@ This document owns the deterministic scanning path of Contractor:
   `scan_naabu` and `scan_ffuf`;
 - the SQLMap HTTP request artifact and the scanner wordlist artifact;
 - deterministic scan request preparation: RequestSet v1 and single-operation
-  preparation from an OpenAPI document;
+  preparation from an OpenAPI document, including the source-document bounds
+  that the OpenAPI authoring Toolset `openapi@1` shares;
 - deterministic scan planning: the `scan-plan@1` Planner, its plan, its
   journal and its aggregate report.
 
@@ -1274,6 +1275,28 @@ serialized bodies must still fit the 64 KiB wire limit (LIM-SCN-52).
 
 **SCN-R169.** Source-document, reference-work and serialized-output bounds fail
 explicitly rather than returning unaccounted partial data.
+
+**SCN-R253.** The source-document bounds count the UTF-8 bytes of the document
+as stored (LIM-SCN-39); the depth of the parsed document, with the top-level
+value at depth 1 and every member name, member value and array element one
+deeper than its container (LIM-SCN-41); and its nodes, one for every object,
+array, scalar and member name (LIM-SCN-42). A JSON document and a YAML document
+of the same tree count alike. The OpenAPI authoring Toolset `openapi@1`
+enforces the same three bounds, counted the same way, on every document it
+loads, on the result of every mutation, on every document it writes or returns,
+and in `validate_openapi` before the external validator runs, so no document it
+accepts or writes exceeds these byte, depth or node bounds of preparation. The
+shared bounds do not make the two parsers agree on anything else: the Runtime
+reads and writes YAML 1.1 while preparation reads YAML 1.2, so scalars such as
+`0o17` or `1e3` and merge keys can still parse differently or fail preparation
+as `invalid_document`. Preparation
+reports an exceeded bound as `source_limit_exceeded`; `openapi@1` reports it as
+the non-retryable `tool_input_invalid` tool error that names the bound and
+leaves the current document unchanged. Sharing these bounds does not make
+authoring validation a scan-readiness check: reference resolution, operation
+selection and the other bounds of SCN-R167 apply only during preparation. Both
+implementations give the same verdict on the
+[shared boundary cases](../../../api/testdata/openapi-document-bounds.json).
 
 ### Scan planning
 

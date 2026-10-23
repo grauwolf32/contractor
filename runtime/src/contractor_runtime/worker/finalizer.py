@@ -93,7 +93,9 @@ class WorkerResultFinalizer:
             name="contractor_worker_result_finalizer",
             description="Serialize one already completed Worker result.",
             model=model,
-            instruction=_SYSTEM_INSTRUCTION,
+            # Literal like every Runtime instruction (WRK-R166): a later edit
+            # that adds a brace must not become an ADK State placeholder.
+            instruction=lambda _: _SYSTEM_INSTRUCTION,
             tools=[],
             output_schema=WorkerModelResult,
             generate_content_config=generation_config(self._policy),

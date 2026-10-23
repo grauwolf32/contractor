@@ -3,11 +3,15 @@ package evalservice
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"fmt"
+	"math"
 	"reflect"
+	"slices"
+	"strconv"
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
@@ -15,6 +19,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
+	"github.com/jackc/pgx/v5"
 )
 
 func TestEvalObservedLegacyPlannerCountersUseImmutableStageIdentity(t *testing.T) {
@@ -192,5 +197,132 @@ ON CONFLICT(stage_execution_id) DO UPDATE SET metrics=EXCLUDED.metrics`, attempt
 	snapshots, err = evalstore.NewPostgresStore(pool).MetricSnapshots(t.Context(), "foreign", runsRead)
 	if err != nil || len(snapshots) != 0 {
 		t.Fatal("foreign child metrics disclosed", err)
+	}
+}
+
+// Identical overflowing StageMetrics always produce the same usage: a counter
+// whose exact sum exceeds the int64 range, within one snapshot or across a
+// member's snapshots, is unavailable in every collection, so recollecting the
+// unchanged observations appends no native record after the accepted one
+// (EVM-R240, EVM-R82).
+func TestSharedPostgresEvalOverflowingUsageRecollectsWithoutNewRecords(t *testing.T) {
+	h := newHarness(t)
+	e := h.prepared(t, "workflow")
+	h.command(t, e, "start")
+	c := h.coordinator(t, "usage-overflow")
+	store := evalstore.NewPostgresStore(h.pool)
+	top := strconv.FormatInt(math.MaxInt64, 10)
+	nearTop := strconv.FormatInt(math.MaxInt64-100, 10)
+	// The first stage's tools overflow inside its snapshot; its tokens overflow
+	// only together with the second stage's. Small summaries keep the budget's
+	// known lower bound out of this test.
+	documents := []string{
+		`{"planner":{"complete":true,"truncated":false,"metrics":{"modelCalls":1,"inputTokens":` + nearTop +
+			`,"outputTokens":0,"totalTokens":` + nearTop + `,"tools":{"a":{"calls":` + top +
+			`,"failed":0},"b":{"calls":1,"failed":1}}}},"workers":{},"runtime":{}}`,
+		`{"planner":{"complete":true,"truncated":false,"metrics":{"modelCalls":1,"inputTokens":200,"outputTokens":0,"totalTokens":200,"tools":{}}},"workers":{},"runtime":{}}`,
+	}
+	runs := runstore.NewPostgresStore(h.pool)
+	stages := []string{}
+	finished := map[string]bool{}
+	for n := 0; n < 80; n++ {
+		tick(t, c)
+		rows, err := h.pool.Query(t.Context(), `SELECT run_id FROM workflow_runs WHERE state IN ('pending','running') ORDER BY run_id`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		active, err := pgx.CollectRows(rows, pgx.RowTo[string])
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, run := range active {
+			if finished[run] {
+				continue
+			}
+			current, err := runs.GetRun(t.Context(), run)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if current.State == runstore.RunPending {
+				if _, err := runs.TransitionRun(t.Context(), run, runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "fixture_admitted"}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for i, document := range documents {
+				stage := fmt.Sprintf("stage-%s-%d", run, i)
+				finishedStageWithMetricsDocument(t, h.pool, runs, run, stage, stage, document, `{"totalTokens":1}`)
+				stages = append(stages, stage)
+			}
+			finished[run] = true
+		}
+		h.finishRuns(t)
+		e = h.get(t, e.ID)
+		view, err := store.LatestView(t.Context(), e.OwnerID, e.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if e.State == evaldomain.StateFinished && view != nil && view.Freshness == "current" {
+			break
+		}
+	}
+	if e.State != evaldomain.StateFinished || len(stages) == 0 {
+		t.Fatalf("experiment did not finish with member metrics: state=%s stages=%d", e.State, len(stages))
+	}
+	collected := func() map[string]evaldomain.Usage {
+		t.Helper()
+		usage := map[string]evaldomain.Usage{}
+		for _, member := range evalExecutedMembers(t, h.pool, e.ID) {
+			record, err := store.LatestNativeRecord(t.Context(), e.OwnerID, e.ID, member, evaldomain.RecordKindResult)
+			if err != nil || record == nil {
+				t.Fatalf("member %s result = (%v, %v)", member, record, err)
+			}
+			var result evaldomain.ResultInput
+			if err := json.Unmarshal(record.Document.Bytes(), &result); err != nil {
+				t.Fatal(err)
+			}
+			usage[member] = result.Usage
+		}
+		return usage
+	}
+	accepted := collected()
+	for member, usage := range accepted {
+		for name, m := range map[string]evaldomain.Measure{"totalTokens": usage.TotalTokens, "inputTokens": usage.InputTokens, "toolCalls": usage.ToolCalls} {
+			if m.Value != nil || m.Completeness != "unavailable" || !slices.Equal(m.Scope.Missing, []string{"counter overflow"}) || len(m.SourceRefs) != 2 {
+				t.Fatalf("member %s %s = %+v, want unavailable with a counter overflow gap", member, name, m)
+			}
+		}
+		for name, want := range map[string]struct {
+			m     evaldomain.Measure
+			value float64
+		}{"modelCalls": {usage.ModelCalls, 2}, "toolFailures": {usage.ToolFailures, 1}, "outputTokens": {usage.OutputTokens, 0}} {
+			if want.m.Value == nil || *want.m.Value != want.value || want.m.Completeness != "complete" || len(want.m.SourceRefs) != 2 {
+				t.Fatalf("member %s %s = %+v, want complete %v", member, name, want.m, want.value)
+			}
+		}
+	}
+	records := evalRecordCount(t, h.pool, e.ID)
+	for round := range 4 {
+		// Rewriting the same documents marks every member for recollection.
+		if _, err := h.pool.Exec(t.Context(), `UPDATE stage_metrics SET metrics = metrics WHERE stage_execution_id = ANY($1)`, stages); err != nil {
+			t.Fatal(err)
+		}
+		if got := evalProjection(t, h.pool, e.ID); got[0] == got[1] {
+			t.Fatalf("round %d: unchanged metrics did not mark the experiment: %v", round, got)
+		}
+		for n := 0; n < 20; n++ {
+			if got := evalProjection(t, h.pool, e.ID); got[0] == got[1] {
+				break
+			}
+			tick(t, c)
+		}
+		if got := evalProjection(t, h.pool, e.ID); got[0] != got[1] {
+			t.Fatalf("round %d: recollection did not publish: %v", round, got)
+		}
+		if got := evalRecordCount(t, h.pool, e.ID); got != records {
+			t.Fatalf("round %d: recollecting identical observations saved %d records, had %d", round, got, records)
+		}
+		if again := collected(); !reflect.DeepEqual(again, accepted) {
+			t.Fatalf("round %d: recollected usage changed", round)
+		}
 	}
 }
