@@ -1,0 +1,63 @@
+schema_version: "1.0"
+id: V409-005
+title: "Enforce review-write guarantees in SQL: gated decisions, one expiry clock, conflict-safe artifact links"
+milestone: sql-review-2026-10
+epic: audits
+kind: defect
+introduced_by: V343-001
+priority: P2
+status: pending
+depends_on: []
+languages: [go, sql]
+goal: "A review decision cannot commit against a non-pending request, review expiry uses one database clock everywhere, and an artifact-link key collision fails closed with a test."
+context:
+  review: "docs/research/2026-10-23-sql-review.md, section C (recordReviewDecisionSQL, two review clocks, audit_artifact_links)"
+  specification: docs/spec/audits/review-and-reports.md
+  severity: medium
+  finding: >-
+    (1) internal/auditstore/internal/pgstore/review_write_sql.go:18-30
+    recordReviewDecisionSQL inserts the decision in a data-modifying CTE
+    that always executes; the outer UPDATE audit_review_requests ... AND
+    state='pending' affects 0 rows when the request is not pending and
+    review_write.go:17-23 discards the command tag, so a decision row can
+    commit with the request left undecided. The services check the state
+    under LockFindingReview/LockActionReview first
+    (auditservice/finding_review.go:145, action_review.go), so this is
+    defence in depth today. review_write.go:28-33 ProjectFindingDecision
+    updates audit_findings WHERE finding_id=$1 without audit_id. (2)
+    finding_reads_sql.go:127 reviewUnexpiredSQL uses expires_at >
+    statement_timestamp() while audit_live_item_reviews, claimAuditSQL:33-66,
+    expiredItemReviewsSQL:28, expireReportReviewSQL:149 and
+    ExpireReviewAtDatabaseTime use clock_timestamp(); within one long
+    statement a request can be pending in the count and expired in the
+    claim (REV-R43 names one clock). (3) collection_sql.go:226-234,
+    round_sql.go:118-126, preparation_sql.go:33-37, finding_intake_sql.go:9-15
+    insert audit_artifact_links (PK (audit_id, logical_key)) with no ON
+    CONFLICT; a key collision across sources surfaces as ClassDuplicate ->
+    ErrConflict, which a retried collection treats as retryable, parking the
+    execution in collecting forever (AGENTS 3.2).
+  siblings: >-
+    Every other review-write statement in pgstore (assessFindingDirectlySQL,
+    transition*SQL) carries audit_id; grep for WHERE <id>=$1 without the
+    parent scope.
+plan:
+  - "Gate the decision INSERT on the request row (INSERT ... SELECT ... FROM audit_review_requests WHERE request_id=$2 AND audit_id=$3 AND state='pending') and return ErrPrecondition when RowsAffected() != 1; add audit_id to ProjectFindingDecision."
+  - "Define one Go constant for the review clock expression (statement_timestamp() for predicates is the stable choice) and use it in every statement and the view (new migration for the view)."
+  - "Decide the artifact-link collision outcome: ON CONFLICT DO NOTHING with a verification read of the existing link's digest (replay) or a permanent classified error; implement and add a test where two collections retain the same logical key."
+scope:
+  in:
+    - "Gated decision statement, one clock constant and view migration, link collision outcome and test."
+  out:
+    - "Review request lifecycle rules."
+acceptance_criteria:
+  - id: A1
+    text: "Recording a decision against a decided or expired request returns ErrPrecondition and leaves no decision row (real-store test fails on the unfixed statement)."
+  - id: A2
+    text: "grep finds one review clock expression; the pending count and the claim agree in a test with a request expiring during the statement window."
+  - id: A3
+    text: "Two collections retaining the same logical key end in a replay or a permanent classified failure, never a retry loop."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/auditstore/... ./internal/auditservice/... ./internal/auditimport/..."
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A2]

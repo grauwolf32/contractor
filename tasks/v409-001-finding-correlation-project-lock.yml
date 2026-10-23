@@ -1,0 +1,66 @@
+schema_version: "1.0"
+id: V409-001
+title: "Stop finding writes from taking a NOWAIT lock on the Project row that Run creation shares"
+milestone: sql-review-2026-10
+epic: findings
+kind: defect
+introduced_by: V397-003
+priority: P1
+status: pending
+depends_on: []
+languages: [go, sql]
+goal: "A finding write and a Run, AuditExecution or project-artifact write in the same Project never abort each other, and the correlation fence needs no lock on the parent row."
+context:
+  review: "docs/research/2026-10-23-sql-review.md, finding A1"
+  specification: docs/spec/findings/findings.md
+  severity: high
+  finding: >-
+    internal/persistence/migrations/000024_finding_automatic_correlation.sql:147-166
+    contractor_advance_finding_correlation takes projects FOR NO KEY UPDATE
+    NOWAIT and raises a synthetic 40001 when it cannot; it runs from every
+    INSERT, UPDATE and DELETE on audit_findings, every
+    audit_finding_contributions change with relation <> 'first' and every
+    finding_proposal_receipts source-deletion update (000024:168-258), and
+    internal/findingintake/postgres.go:547 takes the same lock explicitly
+    for the whole intake transaction. FOR NO KEY UPDATE conflicts with FOR
+    SHARE, which contractor_require_active_project and
+    contractor_require_active_audit_project (000001_baseline.sql:1349-1389)
+    and the project artifact scope and binding admission
+    (baseline:611-668) take on the same row until commit for every Run
+    insert, AuditExecution or Round insert and project-scope artifact write.
+    So a finding write concurrent with a Run creation in the same Project
+    fails immediately with 40001; two parallel finding writers in one
+    Project (an Audit's parallel Runs) abort one another; and
+    contractor_finding_correlation_updated (000024:191-212) compares
+    revision and updated_at, so review decisions, pointer resets and purge
+    batches take the lock too. Intake uses persistencepostgres.InTx, not
+    InTxWithRetry (postgres.go:372, 445, 699), and the Runtime
+    FindingProposalClient (runtime/src/contractor_runtime/finding_proposals.py:36-70)
+    has no retry, so the abort reaches the model as a failed tool call.
+  siblings: >-
+    artifact_bindings_project_admission (baseline:611-644) takes projects
+    FOR SHARE on every current_revision bump and feeds the same conflict
+    (V409-006 scopes that trigger). Project deletion's parent lock is the
+    reason NOWAIT was chosen; it must keep failing fast during deletion.
+plan:
+  - "Replace the Project-row fence: move finding_correlation_revision to its own one-row-per-Project table (project_correlation_fences) updated with a plain UPDATE (row lock on that table only), or derive the comparison fence from max(audit_findings.updated_at) within the Project; keep the deletion fast-fail by checking projects.lifecycle_state in the trigger without locking the row."
+  - "Restrict contractor_finding_correlation_updated to the correlation columns (UPDATE OF) so review decisions and purge batches do not advance the fence."
+  - "Remove the explicit lock at findingintake/postgres.go:547; wrap intake transactions in InTxWithRetry for any residual 40001; decide and record in docs/spec/findings/findings.md whether the Runtime client retries a retryable intake error once."
+  - "Migration with a *_migration_test.go (data moves from projects to the new table) and a real-store concurrency test: 8 parallel intakes into one Project while a Run and a project artifact are created, expecting zero aborts; a test that intake during Project deletion still fails fast."
+scope:
+  in:
+    - "New fence mechanism, trigger scoping, intake retry policy, migration, concurrency tests."
+  out:
+    - "Correlation semantics (producer keys, anchors) and the comparison API."
+acceptance_criteria:
+  - id: A1
+    text: "Eight concurrent finding intakes into one Project, concurrent with Run creation and a project artifact write, all commit without 40001 on real PostgreSQL."
+  - id: A2
+    text: "Intake into a Project in lifecycle_state deleting fails fast with the existing classified error."
+  - id: A3
+    text: "The migration test proves fence values are preserved; the concurrency test fails on the unfixed schema."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/findingintake/... ./internal/persistence/postgres/... ./internal/runstore/..."
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1]
