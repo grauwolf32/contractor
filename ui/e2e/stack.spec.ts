@@ -36,7 +36,7 @@ test.skip(!enabled, "CONTRACTOR_UI_STACK=1 is required for the real stack");
 async function expectNativeResources(card: Locator): Promise<void> {
   // This harness starts Node and the native Python Runtime on the same host.
   // OPS-R73 keeps unsupported hosts explicit, rather than inventing readings.
-  const supported = process.platform === "linux";
+  const supported = ["linux", "darwin"].includes(process.platform);
   await expect(
     card.getByText(supported ? "available" : "unavailable", { exact: true }),
   ).toBeVisible();

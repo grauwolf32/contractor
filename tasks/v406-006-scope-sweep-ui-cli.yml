@@ -93,7 +93,7 @@ tests:
   covers: *id001
 - command: make ui-browser-mocked
   covers: *id001
-- command: make test-ui-stack
+- command: make test-ui-stack-operations
   covers: *id001
 - command: make verify-public-api
   covers: *id001
