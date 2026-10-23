@@ -41,6 +41,7 @@
     "v1alpha1/config-identity-cases.json": {"readers": ["go", "python", "ui"]},
     "v1alpha1/digest-cases.json": {"readers": ["go", "python", "ui"]},
     "v1alpha1/media-type-cases.json": {"readers": ["go", "python", "ui"]},
+    "v1alpha1/memory-reservation-cases.json": {"readers": ["go", "python", "ui"]},
     "v1alpha1/performance-cases.json": {"readers": ["go", "python", "ui"]},
     "v1alpha1/run-metadata-label-cases.json": {"readers": ["go", "python", "ui"]},
     "v1alpha1/runtime-capability-cases.json": {"readers": ["go", "python", "ui"]},
