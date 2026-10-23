@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-70 open tasks: 4 in progress, 41 pending, 25 deferred. 975 finished: 972 completed, 3 archived.
+70 open tasks: 5 in progress, 40 pending, 25 deferred. 975 finished: 972 completed, 3 archived.
 
 ## In progress
 
@@ -15,6 +15,7 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
+| [V403-004](v403-004-durable-scope-sweeps.yml) | scan-tools | feature | P2 | Coordinate durable bounded Nuclei sweeps over Project scopes |
 
 ## Pending
 
@@ -51,7 +52,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V55-009](v55-009-scan-candidate-ranking.yml) | feature | P2 | — | Optionally rank existing scan candidates with an LLM |
-| [V403-004](v403-004-durable-scope-sweeps.yml) | feature | P2 | — | Coordinate durable bounded Nuclei sweeps over Project scopes |
 | [V403-007](v403-007-web-scan-release-gate.yml) | chore | P2 | V403-004, V403-005, V403-006 | Gate the complete web scan and rule sweep journeys |
 
 ### Findings tools and collections (`findings`)
