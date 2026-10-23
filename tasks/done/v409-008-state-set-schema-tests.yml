@@ -5,7 +5,7 @@ milestone: sql-review-2026-10
 epic: persistence
 kind: chore
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages: [go, sql]
 goal: >-
@@ -177,3 +177,53 @@ decisions:
     production terminal predicate, change the Go switches, scan Go SQL
     literals or check the UI copy; those remain V372-007's scope, and its
     production definition can replace the handwritten subsets once it exists.
+verification:
+  date: '2026-10-24'
+  environment: >-
+    macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local), Node 24.20.0 with pnpm
+    11.24.0, the locked Runtime venv; local PostgreSQL 17.11 database
+    contractor_test_f with per-test schemas and all 32 migrations.
+  commands:
+    - >-
+      CONTRACTOR_TEST_DATABASE_URL=postgres://…/contractor_test_f go test
+      -tags=integration -count=1 ./internal/persistence/... ./internal/runstore/...
+      ./internal/auditstore/... ./internal/projectstore/... ./internal/evalstore/...
+      ./internal/evaldomain/... ./internal/credentials/... — 331 top-level tests
+      passed, 1 failed, 1 skipped. The failure is
+      TestSQLAccessFollowsTableOwnership in internal/persistence
+      (internal/cli/scan_sweep_remote.go:196 reads projects); go test
+      -count=1 -run TestSQLAccessFollowsTableOwnership ./internal/persistence
+      fails identically on the unmodified base 7bcd8fd6 in a temporary
+      worktree, so it is pre-existing and unrelated. The skip is
+      TestPinnedLiteLLMContract (live LiteLLM contract environment not
+      configured), not a database test. Every new test ran against
+      PostgreSQL: TestPostgresStageExecutionStateSetsMatchSchema,
+      TestPostgresAuditStateSetsMatchSchema (5 tables),
+      TestPostgresProjectStateSetsMatchSchema,
+      TestPostgresEvalStateSetsMatchSchema (2 tables),
+      TestPostgresCredentialOperationPhasesMatchSchema,
+      TestCompareReportsDriftWithItsOwner (14 drift cases),
+      TestPostgresReadReportsTheCatalogForm and
+      TestDeclaredValuesReadsTheWholeDeclaration passed, as did the existing
+      TestPostgresRunStateSetsMatchSchema, TestRunStateSetsMatchOpenAPIAndGoSQL,
+      TestSharedLifecycleStatesMatchSharedCases and
+      TestClosedStateAndTransitionValidation.
+    - >-
+      go test -tags=integration -count=1 ./internal/evalservice/...
+      ./internal/evalcoordinator/... ./internal/archtest/... passed (callers of
+      the new SubmissionState); go test -count=1 -run Eval
+      ./internal/httpapi/public and -run
+      TestSharedProjectCollectionExcludesEvalExecutionWorkspacesBeforePagination
+      on the same package passed.
+    - make test-wire-cross-language passed (shared fixture gate 249 fixtures).
+    - >-
+      Can-fail check: removing aborting from the stage "active" subset and the
+      declaration of stage_executions_terminal_history_idx made
+      TestPostgresStageExecutionStateSetsMatchSchema fail with the partition
+      gap, both active-index mismatches and the undeclared index named; the
+      edit was reverted.
+    - >-
+      make lint passed (layers, staticcheck U1000, testonlyexports, task
+      checks, spec checks).
+  database_tests_configured: true
+implementation_commit: 62cc56cd39783c33fb1e07cf3c63c03e36614c37
