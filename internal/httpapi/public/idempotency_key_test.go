@@ -260,3 +260,52 @@ func TestSharedIdempotencyKeyCasesGateOptionalKeys(t *testing.T) {
 		}
 	}
 }
+
+// TestSharedIdempotencyKeyCasesGateEveryKeyedOperation sends each keyed
+// operation other than the Eval mutations (Runs, Projects, Audits and their
+// reviews, configuration, RuntimeConfig, credentials, Runtime Agent
+// principals and scan sweeps) a key outside the grammar of the shared cases,
+// such as a/b or -a, and every duplicate header set. Each is 400
+// invalid_request before its dependency is reached: the dependencies of
+// keyedOperationRequests answer any request that reaches them with an
+// idempotency conflict, which the well formed key still gets.
+func TestSharedIdempotencyKeyCasesGateEveryKeyedOperation(t *testing.T) {
+	fixture, audits, requests := keyedOperationRequests(t)
+	cases := contractstest.ReadIdempotencyKeyCases(t)
+	malformed := cases.DuplicateHeaders
+	for _, key := range cases.Invalid {
+		malformed = append(malformed, []string{key})
+	}
+	for operation, keyed := range requests {
+		t.Run(operation, func(t *testing.T) {
+			send := func(keys ...string) *httptest.ResponseRecorder {
+				request := authenticatedRequest(keyed.method, keyed.path, bytes.NewReader([]byte(keyed.body)))
+				if keyed.body != "" {
+					request.Header.Set("Content-Type", "application/json")
+				}
+				request.Header.Del(idempotencyKeyHeader) // authenticatedRequest keys POST /v1/runs.
+				for _, key := range keys {
+					request.Header.Add(idempotencyKeyHeader, key)
+				}
+				for name, value := range keyed.headers {
+					request.Header.Set(name, value)
+				}
+				response := httptest.NewRecorder()
+				fixture.handler.ServeHTTP(response, request)
+				return response
+			}
+			for _, keys := range malformed {
+				response := send(keys...)
+				var failure errorResponse
+				if err := json.Unmarshal(response.Body.Bytes(), &failure); err != nil ||
+					response.Code != http.StatusBadRequest || failure.Code != "invalid_request" {
+					t.Errorf("Idempotency-Key %q = %d %s, want 400 invalid_request", keys, response.Code, response.Body.String())
+				}
+			}
+			assertIdempotencyConflict(t, send("well-formed"))
+		})
+	}
+	if !audits.reached["DecideFinding"] || !audits.reached["CreateDraft"] {
+		t.Fatalf("Audit mutations were not reached with a well formed key: %v", audits.reached)
+	}
+}
