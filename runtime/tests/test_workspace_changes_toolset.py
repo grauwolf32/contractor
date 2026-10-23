@@ -19,7 +19,7 @@ from contractor_runtime.projectfs import (
 )
 from contractor_runtime.projectfs import overlay as overlay_module
 from contractor_runtime.projectfs.config import WorkspaceLimits, WorkspaceSettings
-from contractor_runtime.toolsets.filesystem.tools import FilesystemToolError
+from contractor_runtime.toolsets.common.filesystem_errors import FilesystemToolError
 from contractor_runtime.toolsets.workspace_changes.tools import WorkspaceChangesToolsetFactory
 from contractor_runtime.workspace import AllocationWorkspace
 

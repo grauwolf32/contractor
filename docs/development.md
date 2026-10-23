@@ -114,10 +114,9 @@ The Runtime's layers run, top to bottom: entry points, orchestration,
 composition (the factory registry), the Worker, toolsets, platform, and the
 kernel (wire contracts and the dependency-free `core` helpers). It has no
 known violations. The Runtime also keeps its toolsets independent: a toolset
-may share code with another only through `toolsets.common`, except for two
-declared chains, `taint_annotations` on `code_analysis` and `edit_files` and
-`workspace_changes` on `filesystem`. A protected contract per chain base names
-its only importers. The Worker may not import any concrete toolset; it learns
+may share code with another only through `toolsets.common`, except for one
+declared chain, `taint_annotations` on `code_analysis`. A protected contract per
+chain base names its only importers. The Worker may not import any concrete toolset; it learns
 what it needs about them, such as the sensitive-output tools that toolset
 factories declare, from its build context. Runtime imports under
 `if TYPE_CHECKING:` are ignored. A failure is one of three kinds:

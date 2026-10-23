@@ -18,10 +18,8 @@ from contractor_runtime.projectfs import (
 )
 from contractor_runtime.projectfs.config import WorkspaceLimits, WorkspaceSettings
 from contractor_runtime.projectfs.storage import WorkspaceSnapshot, WorkspaceTextFile
-from contractor_runtime.toolsets.filesystem.tools import (
-    FilesystemToolError,
-    FilesystemToolsetFactory,
-)
+from contractor_runtime.toolsets.common.filesystem_errors import FilesystemToolError
+from contractor_runtime.toolsets.filesystem.tools import FilesystemToolsetFactory
 from contractor_runtime.workspace import AllocationWorkspace
 
 SECRET_PATTERN = "recognizable-file-content-secret"

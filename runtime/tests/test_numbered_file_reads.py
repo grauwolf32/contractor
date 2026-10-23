@@ -8,6 +8,7 @@ from test_filesystem_toolset import create_tools, workspace
 
 import contractor_runtime.toolsets.filesystem.tools as filesystem
 from contractor_runtime.allocation import WorkerState
+from contractor_runtime.toolsets.common.filesystem_errors import FilesystemToolError
 
 
 @pytest.mark.parametrize("mode", ["direct", "overlay"])
@@ -31,7 +32,7 @@ def test_numbered_reads_preserve_windows_newlines_and_byte_limits(tmp_path, monk
         assert [line["newline"] for line in numbered["lines"]] == ["lf", "none"]
         assert numbered["returnedBytes"] == plain["returnedBytes"] + len("2 | 3 | ")
         assert not numbered["truncated"]
-        with pytest.raises(filesystem.FilesystemToolError):
+        with pytest.raises(FilesystemToolError):
             await read("docs/readme.txt", with_line_numbers="yes")
         monkeypatch.setattr(filesystem, "MAX_READ_BYTES", len("1 | ") - 1)
         bounded = await read("docs/readme.txt", with_line_numbers=True)
