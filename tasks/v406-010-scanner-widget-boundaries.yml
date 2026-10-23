@@ -5,7 +5,7 @@ milestone: web-nuclei-rule-sweeps-2026-10
 epic: ui
 kind: chore
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V406-005, V406-006]
 languages: [typescript]
 goal: Keep Workflow-specific launch fields and scanner-specific result/input presentation in explicit widgets while shared UI owns transport, lifecycle and navigation.

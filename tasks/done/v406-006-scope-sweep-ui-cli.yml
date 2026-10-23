@@ -5,7 +5,7 @@ milestone: web-nuclei-rule-sweeps-2026-10
 epic: ui
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V406-004
 - V406-005
@@ -100,3 +100,14 @@ tests:
   covers: *id001
 - command: make lint
   covers: *id001
+implementation_commit: 80e8d284b42e00e7c87b5014e1a42e0545a49080
+verification:
+  date: '2026-10-23'
+  passed:
+  - make ui-verify; 195 files, 2362 passing tests plus one expected failure; production build passed.
+  - make ui-browser-mocked; 88 cases, including scan/sweep widgets at 390 px in all themes and automatic ZIP rulepack media selection.
+  - make test-web-scan-ui-stack; two real Server/Runtime/browser journeys passed in 17.48 seconds, with zero model calls and preserved child Run and source after purge.
+  - go test ./internal/cli/... ./internal/publicclient/...
+  - make verify-public-api
+  - make lint
+  scope: The focused widget gate is separate from Studio/managed Evals; full release-verify was not invoked.

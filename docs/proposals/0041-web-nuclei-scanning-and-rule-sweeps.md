@@ -527,7 +527,7 @@ identifies the artifact-preview work on main:
   server sweep and recovery/cancellation/purge.
 - [V406-005](../../tasks/done/v406-005-web-scan-settings-ui.yml): single-scan form
   and owner rulepack selection/upload.
-- [V406-006](../../tasks/v406-006-scope-sweep-ui-cli.yml): sweep UI (later UI step).
+- [V406-006](../../tasks/done/v406-006-scope-sweep-ui-cli.yml): sweep UI (later UI step).
 - [V406-007](../../tasks/v406-007-web-scan-release-gate.yml): milestone exit
   and complete process/browser/release evidence.
 
