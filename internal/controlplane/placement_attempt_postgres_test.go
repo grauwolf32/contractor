@@ -252,6 +252,46 @@ func TestPlacementAttemptReusesResolutionsAcrossPassesAndHold(t *testing.T) {
 	}
 }
 
+// A compatible idle candidate that cannot complete a two-Worker matching is
+// resolved once for each binding; the hold reuses those resolutions for it
+// and for an allocated Agent with the same Agent label, and holds both.
+//
+// Cardinalities: two bindings with one ExecutionConfig, the default and one
+// Run label, one idle and one allocated candidate on Agent label "shared".
+// Per attempt: 3 versions, 1 binding, 1 principal, one LLM and one Runtime
+// credential lookup.
+func TestPlacementAttemptReusesCompatibleCandidateResolutionInHold(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedPlacementPool(t, ctx)
+	f := newPlacementFixture(t, ctx, pool, []string{"debug"})
+	f.registry.modelStageHold = time.Hour
+	bindPlacementLabel(t, ctx, pool, "shared", publishPlacementConfig(t, ctx, pool, "shared-agent", credentialPlacementSpec("shared-telemetry")))
+	otlp := []runtimesettings.RuntimeAdapterRef{runtimesettings.RuntimeAdapterOTLPHTTP}
+	f.registerCandidateWithLabels(t, ctx, "runtime-idle", "1", otlp, []string{"shared"})
+	f.occupy(t, "runtime-allocated", f.registerCandidateWithLabels(t, ctx, "runtime-allocated", "2", otlp, []string{"shared"}))
+	trace, llm, runtime := countPlacementReads(t, ctx, f)
+	request := f.request()
+	second := request.Bindings[0]
+	second.LogicalAgentName, second.Namespace = "reviewer", "reviewer"
+	request.Bindings = append(request.Bindings, second)
+
+	if _, err := f.allocator.ReserveAllContext(ctx, request); !errors.Is(err, ErrInsufficientCapacity) {
+		t.Fatalf("two Workers with one idle Agent = %v, want capacity", err)
+	}
+	optimistic, transaction := trace.take()
+	want := placementReadCounts{versions: 3, bindings: 1, principals: 1}
+	if optimistic != want || transaction != (placementReadCounts{}) || llm.count != 1 || runtime.count != 1 {
+		t.Fatalf("attempt reads = optimistic %+v, transaction %+v, LLM %d, Runtime %d; want optimistic %+v, no transaction, LLM 1, Runtime 1",
+			optimistic, transaction, llm.count, runtime.count, want)
+	}
+	for _, instanceID := range []string{"runtime-idle", "runtime-allocated"} {
+		if !modelStageHeld(f.registry, instanceID) {
+			t.Fatalf("hold of the complete live matching omitted %s", instanceID)
+		}
+	}
+}
+
 // A principal refresh proves that a mutation committed after the first pass,
 // so the retry reads every binding and credential again and keeps only the
 // pinned default version. Here the operator rebinds "next" to a configuration
