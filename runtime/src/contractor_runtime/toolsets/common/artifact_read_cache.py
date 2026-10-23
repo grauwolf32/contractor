@@ -64,10 +64,6 @@ class LineIndex:
         self._starts_before_block = starts
         self.total_lines = total
 
-    @property
-    def nbytes(self) -> int:
-        return len(self._starts_before_block) * self._starts_before_block.itemsize
-
     def line_span(self, line: int) -> tuple[int, int]:
         """Return the byte range of 1-based ``line``, including its line break."""
 

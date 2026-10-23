@@ -314,8 +314,10 @@ def test_cache_budget_holds_for_worst_case_inputs_of_the_largest_artifact(
         entry = state._artifact_read_cache._entry
         assert entry is not None and entry.lines is not None and entry.value.data is data
         index_budget = read_cache.MAX_ARTIFACT_READ_CACHE_BYTES - MAX_ARTIFACT_BYTES
-        assert entry.lines.nbytes == index_budget
-        assert len(data) + entry.lines.nbytes <= read_cache.MAX_ARTIFACT_READ_CACHE_BYTES
+        starts = entry.lines._starts_before_block
+        index_bytes = len(starts) * starts.itemsize
+        assert index_bytes == index_budget
+        assert len(data) + index_bytes <= read_cache.MAX_ARTIFACT_READ_CACHE_BYTES
         assert client.read_calls == 1
 
     asyncio.run(scenario())
