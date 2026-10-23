@@ -194,8 +194,10 @@ func (s countingCredentialDeletes) Delete(ctx context.Context, id, actor string)
 // each operation that takes the OptionalIdempotencyKey parameter (API-R28).
 // Such an operation binds no key, so an absent key and every valid key reach
 // its service, but a key outside the grammar and every duplicate header set
-// are 400 invalid_request before the service is called. An operation that
-// takes the parameter but has no request here fails the test.
+// are 400 invalid_request before the service is called. The requests here
+// are exactly the operations that declare the parameter: one that declares
+// it without a request here, or a request whose operation does not declare
+// it, fails the test.
 func TestSharedIdempotencyKeyCasesGateOptionalKeys(t *testing.T) {
 	calls := map[string]*int{"cancelScanSweep": new(int), "deleteRuntimeCredential": new(int)}
 	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil,
@@ -210,15 +212,31 @@ func TestSharedIdempotencyKeyCasesGateOptionalKeys(t *testing.T) {
 		"cancelScanSweep":         {http.MethodPost, "/v1/scan-sweeps/sweep-one/cancel"},
 		"deleteRuntimeCredential": {http.MethodDelete, "/v1/operations/runtime-credentials/otel-debug"},
 	}
-	for path, item := range loadPublicOpenAPI(t).Paths.Map() {
+	document := loadPublicOpenAPI(t)
+	declared := map[string]bool{}
+	for path, item := range document.Paths.Map() {
 		for _, operation := range item.Operations() {
 			for _, parameter := range operation.Parameters {
 				if strings.HasSuffix(parameter.Ref, "/OptionalIdempotencyKey") {
+					declared[operation.OperationID] = true
 					if _, listed := requests[operation.OperationID]; !listed {
 						t.Errorf("%s %s takes OptionalIdempotencyKey but has no request here", operation.OperationID, path)
 					}
 				}
 			}
+		}
+	}
+	router, err := gorillamux.NewRouter(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for operation, target := range requests {
+		route, _, err := router.FindRoute(newPublicContractRequest(target.method, target.path, nil))
+		switch {
+		case err != nil || route.Operation.OperationID != operation:
+			t.Errorf("%s %s is not the %s operation: %v", target.method, target.path, operation, err)
+		case !declared[operation]:
+			t.Errorf("%s binds no key here but does not declare OptionalIdempotencyKey", operation)
 		}
 	}
 	cases := contractstest.ReadIdempotencyKeyCases(t)

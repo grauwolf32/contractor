@@ -12775,7 +12775,10 @@ export interface operations {
     cancelScanSweep: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Accepted for uniform mutation headers; the operation is idempotent by resource identity and does not bind the key. */
+                "Idempotency-Key"?: components["parameters"]["OptionalIdempotencyKey"];
+            };
             path: {
                 sweepId: components["schemas"]["ResourceId"];
             };

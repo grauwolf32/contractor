@@ -6651,6 +6651,7 @@ paths:
         required: true
         schema:
           $ref: '#/components/schemas/ResourceId'
+      - $ref: '#/components/parameters/OptionalIdempotencyKey'
       responses:
         '200':
           description: Owner-authorized sweep result
