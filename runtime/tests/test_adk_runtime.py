@@ -760,6 +760,9 @@ def test_adk_worker_does_not_count_runtime_defects_as_model_errors(tmp_path: Pat
             del outcome
             raise RuntimeError("exporter invariant violated")
 
+        def release(self) -> None:
+            pass
+
     async def scenario() -> None:
         state = WorkerState()
         runtime = await create_runtime(tmp_path, state, {}, scripted_model([terminal_text("ok")]))
@@ -789,6 +792,9 @@ def test_adk_worker_counts_a_gateway_error_missed_by_model_callbacks_once(
         async def export(self, outcome: object) -> object:
             del outcome
             raise GatewayModelError("APIConnectionError", retryable=True)
+
+        def release(self) -> None:
+            pass
 
     async def scenario() -> None:
         state = WorkerState()

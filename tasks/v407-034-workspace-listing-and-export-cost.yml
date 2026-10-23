@@ -6,7 +6,7 @@ epic: workspaces
 kind: chore
 introduced_by: V11-007
 priority: P2
-status: pending
+status: in_progress
 depends_on:
 - V407-038
 languages:

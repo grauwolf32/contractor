@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-128 open tasks: 4 in progress, 99 pending, 25 deferred. 990 finished: 987 completed, 3 archived.
+128 open tasks: 5 in progress, 98 pending, 25 deferred. 990 finished: 987 completed, 3 archived.
 
 ## In progress
 
@@ -15,6 +15,7 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
+| [V407-034](v407-034-workspace-listing-and-export-cost.yml) | workspaces | chore | P2 | Reduce repeated workspace glob work and export comparisons without changing snapshot semantics |
 
 ## Pending
 
@@ -60,12 +61,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V407-036](v407-036-memory-concurrent-reads.yml) | chore | P3 | — | Load Memory note payloads concurrently within the existing serialized operation |
-
-### Run workspaces and project filesystem (`workspaces`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V407-034](v407-034-workspace-listing-and-export-cost.yml) | chore | P2 | — | Reduce repeated workspace glob work and export comparisons without changing snapshot semantics |
 
 ### Code analysis and taint annotations (`code-analysis`)
 
