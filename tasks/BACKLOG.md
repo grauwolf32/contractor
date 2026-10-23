@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-129 open tasks: 4 in progress, 100 pending, 25 deferred. 989 finished: 986 completed, 3 archived.
+129 open tasks: 5 in progress, 99 pending, 25 deferred. 989 finished: 986 completed, 3 archived.
 
 ## In progress
 
@@ -15,6 +15,7 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
+| [V407-030](v407-030-eval-preparing-lifecycle-and-usage.yml) | evals | defect | P3 | Make Eval usage aggregation deterministic when counters overflow |
 
 ## Pending
 
@@ -139,7 +140,6 @@ the epics are in [epics.yml](epics.yml).
 | [V40-003](v40-003-agent-instruction-eval-decision.yml) | feature | P1 | V40-002 | Evaluate instruction candidates and record evidence-based adoption decisions |
 | [V407-028](v407-028-eval-member-bulk-freeze.yml) | chore | P2 | — | Freeze admitted Eval members with one bounded set-based insert |
 | [V407-029](v407-029-eval-reads-plan-metadata.yml) | chore | P2 | — | Use bounded Eval plan metadata and precomputed readiness for polled views |
-| [V407-030](v407-030-eval-preparing-lifecycle-and-usage.yml) | defect | P3 | — | Make Eval usage aggregation deterministic when counters overflow |
 | [V409-009](v409-009-eval-store-bounds.yml) | defect | P2 | — | Purge drained Eval data in bounded, restartable transactions |
 | [V409-014](v409-014-eval-comparison-and-recovery-queries.yml) | chore | P3 | V407-028, V407-029, V409-009 | Reduce Eval comparison-page and composed recovery query round trips |
 

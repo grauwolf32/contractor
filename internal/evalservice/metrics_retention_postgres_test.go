@@ -268,12 +268,21 @@ func finishRunsWithStageMetrics(t *testing.T, h *serviceHarness, stages map[stri
 // runID whose StageMetrics report complete Planner usage of 42 tokens.
 func finishedStageWithMetrics(t *testing.T, pool *pgxpool.Pool, runs *runstore.PostgresStore, runID, stageID string) {
 	t.Helper()
-	if err := runstoretest.CreateRunningStage(t.Context(), runs, runID, stageID, contracts.APIVersion); err != nil {
+	finishedStageWithMetricsDocument(t, pool, runs, runID, stageID, "test",
+		`{"planner":{"complete":true,"truncated":false,"metrics":{"modelCalls":2,"inputTokens":30,"outputTokens":12,"totalTokens":42,"tools":{}}},"workers":{},"runtime":{}}`,
+		`{"totalTokens":42}`)
+}
+
+// finishedStageWithMetricsDocument stores a succeeded first attempt of Stage
+// stageName of running Run runID with the given StageMetrics document and
+// summary.
+func finishedStageWithMetricsDocument(t *testing.T, pool *pgxpool.Pool, runs *runstore.PostgresStore, runID, stageID, stageName, metrics, summary string) {
+	t.Helper()
+	if err := runstoretest.CreateRunningNamedStage(t.Context(), runs, runID, stageID, stageName, contracts.APIVersion); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(t.Context(), `INSERT INTO stage_metrics(stage_execution_id, metrics_schema_version, metrics, summary)
-VALUES($1, $2, '{"planner":{"complete":true,"truncated":false,"metrics":{"modelCalls":2,"inputTokens":30,"outputTokens":12,"totalTokens":42,"tools":{}}},"workers":{},"runtime":{}}',
-       '{"totalTokens":42}')`, stageID, contracts.APIVersion); err != nil {
+VALUES($1, $2, $3::jsonb, $4::jsonb)`, stageID, contracts.APIVersion, metrics, summary); err != nil {
 		t.Fatal(err)
 	}
 	result := stageresult.StageContentResult{

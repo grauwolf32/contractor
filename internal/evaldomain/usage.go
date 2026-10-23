@@ -1,6 +1,7 @@
 package evaldomain
 
 import (
+	"math"
 	"reflect"
 	"slices"
 	"sort"
@@ -8,6 +9,33 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 )
+
+// CounterSum adds nonnegative counter contributions without depending on their
+// order (EVM-R240). Partial sums only grow, so the exact sum exceeds the int64
+// range exactly when some addition would; from then on the sum is overflowed
+// and has no value, whichever contributors came first. Callers reject or mark
+// negative contributions before adding them.
+type CounterSum struct {
+	total      int64
+	overflowed bool
+}
+
+// Add adds one nonnegative contribution.
+func (s *CounterSum) Add(value int64) {
+	if s.overflowed {
+		return
+	}
+	if value > math.MaxInt64-s.total {
+		s.overflowed = true
+		return
+	}
+	s.total += value
+}
+
+// Value returns the exact sum, or false once it exceeds the int64 range.
+func (s *CounterSum) Value() (int64, bool) {
+	return s.total, !s.overflowed
+}
 
 // AttemptObservation is one authoritative cumulative snapshot, not a delta.
 // It deliberately has no Audit parent aggregate counter: only leaf Run stage
@@ -20,6 +48,9 @@ type AttemptObservation struct {
 	Truncated         bool             `json:"truncated"`
 	SourceSHA256      string           `json:"sourceSha256"`
 	IncompleteMetrics []string         `json:"incompleteMetrics,omitempty"`
+	// OverflowMetrics names the counters whose contributions within this
+	// snapshot exceed the int64 range. They have no entry in Metrics.
+	OverflowMetrics []string `json:"overflowMetrics,omitempty"`
 }
 
 type UsageObservation struct {
@@ -93,6 +124,7 @@ func NormalizeUsage(in UsageObservation) (Usage, error) {
 		missing = append(missing, "execution nonterminal")
 	}
 	seen := map[[2]string]AttemptObservation{}
+	attempts := make([]AttemptObservation, 0, len(in.Attempts))
 	observedRuns := map[string]bool{}
 	for _, attempt := range in.Attempts {
 		if !owned[attempt.RunID] || attempt.StageExecutionID == "" || !contentdigest.Valid(attempt.SourceSHA256) {
@@ -110,9 +142,23 @@ func NormalizeUsage(in UsageObservation) (Usage, error) {
 				return Usage{}, Failure("eval_invalid")
 			}
 		}
+		for _, name := range attempt.OverflowMetrics {
+			if _, ok := attempt.Metrics[name]; ok {
+				return Usage{}, Failure("eval_invalid")
+			}
+		}
 		seen[key] = attempt
+		attempts = append(attempts, attempt)
 		observedRuns[attempt.RunID] = true
 	}
+	// Measures fold attempts in identity order, never in input or map order.
+	sort.Slice(attempts, func(i, j int) bool {
+		a, b := attempts[i], attempts[j]
+		if a.RunID != b.RunID {
+			return a.RunID < b.RunID
+		}
+		return a.StageExecutionID < b.StageExecutionID
+	})
 	for run := range owned {
 		if !observedRuns[run] {
 			missing = append(missing, "owned Run metrics unavailable")
@@ -121,30 +167,37 @@ func NormalizeUsage(in UsageObservation) (Usage, error) {
 	if len(owned) == 0 {
 		missing = append(missing, "leaf execution metrics unavailable")
 	}
+	// A counter whose exact sum exceeds the int64 range, within one snapshot or
+	// across them, is unavailable rather than a subtotal of whichever
+	// contributors fit first (EVM-R240). Its sources still name every snapshot
+	// that reported it.
 	metric := func(name, unit string) Measure {
 		gaps := append([]string{}, missing...)
 		sources := []string{}
-		var total int64
+		var sum CounterSum
+		overflowed := false
 		count := 0
-		for _, attempt := range seen {
+		for _, attempt := range attempts {
 			if slices.Contains(attempt.IncompleteMetrics, name) {
 				gaps = append(gaps, "counter incompletely reported")
 			}
 			value, ok := attempt.Metrics[name]
-			if !ok {
+			if slices.Contains(attempt.OverflowMetrics, name) {
+				overflowed = true
+			} else if !ok {
 				gaps = append(gaps, "counter unavailable")
 				continue
 			}
-			if value > 0 && total > int64(^uint64(0)>>1)-value {
-				gaps = append(gaps, "counter overflow")
-				continue
-			}
-			total += value
+			sum.Add(value)
 			count++
 			sources = append(sources, attempt.SourceSHA256)
 			if !attempt.ReportsComplete || attempt.Truncated {
 				gaps = append(gaps, "incomplete or truncated execution reports")
 			}
+		}
+		total, fits := sum.Value()
+		if overflowed || !fits {
+			gaps = append(gaps, "counter overflow")
 		}
 		gaps = BoundedGaps(gaps)
 		sources = uniqueStrings(sources)
@@ -154,7 +207,7 @@ func NormalizeUsage(in UsageObservation) (Usage, error) {
 			SourceRefs:   sources,
 			Scope:        MeasureScope{MemberID: in.MemberID, Kind: kind, Executions: executions, Missing: gaps},
 		}
-		if count > 0 && (len(gaps) == 0 || total > 0) {
+		if !overflowed && fits && count > 0 && (len(gaps) == 0 || total > 0) {
 			value := float64(total)
 			m.Value = &value
 			m.Completeness = "complete"
