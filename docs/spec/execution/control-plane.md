@@ -975,8 +975,10 @@ changed any principal, and a pinning transaction that found a changed
 revision or setting (CTL-R90), prove that a mutation committed after the
 attempt's reads, so the attempt discards every binding, credential and
 resolution observation before its next pass or hold and keeps only the
-immutable pinned versions. A repository or credential backend error still
-ends the attempt with that error. No observation outlives the attempt: the
+immutable pinned versions. A repository or credential backend error in a
+placement pass or the principal re-read still ends the attempt with that
+error; the model Stage hold keeps its own outcome for such an error
+(CTL-R155). No observation outlives the attempt: the
 next attempt, such as the next Scheduler poll of a waiting Stage, reads
 principals, bindings and credentials again, and the pinning transaction
 always re-reads and re-resolves the selected edges under its locks
