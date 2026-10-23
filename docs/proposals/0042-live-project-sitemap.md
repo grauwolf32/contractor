@@ -84,6 +84,21 @@ grouping rules, suppression markers, source summaries and collection gaps.
 It has no executable instructions or stored session credentials. Published
 exact revisions remain immutable; the Project binding advances through CAS.
 
+Every adapter applies `sitemap-safe-projection@1` before constructing public
+keys, examples or artifact bytes. It follows proposal 0033's safe-projection
+principles but also covers ordinary HTTP tools and imported traffic whose
+existing capture does not provide pentest redaction. Remove credentials,
+session/login values and their derived values from headers, query, body and
+path segments; imported URLs and configured structural values have no exemption.
+Retain parameter names, safe shape information and explicitly permitted
+non-secret values, with binding placeholders or omission reasons. Do not retain
+raw-secret hashes, including in IDs, fingerprints or correlation tags. If a
+safe operation/member key cannot be formed, record an omitted observation and
+a gap instead of merging distinct secret-bearing paths under a fabricated key.
+Manual descriptions and structured imports pass the same boundary. Unknown
+sensitive fields are omitted; a model cannot declare them safe. Record the
+projection version and omitted locations/reasons without removed values.
+
 A missing binding means an empty map that can be created conditionally.
 An existing malformed or unsupported document is an explicit error, not an
 empty map or permission to replace it. The reducer validates on read and write.
@@ -107,7 +122,8 @@ every input value.
 | Origin, method, route | Stable operation grouping, with its grouping rule provenance. |
 | Parameter shapes | Observed names, locations, multiplicity and body content types; declarations stay distinguishable. |
 | Declarations | Exact OpenAPI revision and operation pointer, or an explicit manual declaration. |
-| Observations | Source, producer Run/invocation, observation time, HTTP outcome and named identity context when known. |
+| Observations | Trusted source/context keys, producer Run/invocation, observation time, HTTP outcome and deployment/session attribution when known. |
+| Concrete members | A separately bounded inventory of safe concrete operation keys and their observation summaries; representative examples are not this inventory. |
 | Examples | A bounded selection of concrete request descriptors and exact retained evidence refs when available. |
 | Manual metadata | Notes, tags, grouping overrides and exclusion state. |
 | Completeness | Source limits, discarded variants, unavailable response/evidence, parser failures and pending collection. |
@@ -117,10 +133,24 @@ declared and never observed; a live endpoint can be observed and undeclared.
 Unknown authentication context stays unknown rather than being labelled
 anonymous. User A and user B remain separate observation contexts.
 
-Normalize origins using the project's shared URL rules. Preserve concrete
-path case, trailing slashes and encoded reserved characters. Grouping never
-rewrites a stored concrete request. Query order, duplicate values and bodies
-may matter to security testing even when they do not create a new sitemap node.
+An engagement identity context is keyed by its trusted baseline/engagement
+identity plus `identityId`, which is unique only within that engagement.
+Ordinary Runs use Run-scoped identity contexts or an explicit Run-scoped unknown
+context. Names, roles, credential aliases and matching `user-a` labels never
+establish cross-Run equivalence. Equivalence requires an explicit trusted
+principal mapping; it does not erase original context keys or credential
+revision provenance. Preserve deployment attribution and relevant session/state
+generation separately. Unknown deployment or identity is not a match to a known
+one. When context limits are reached, record overflow and retain an unknown
+aggregate containing only omitted counts/gaps, never outcomes attributed to a
+synthetic shared principal; do not combine principals to fit the limit.
+
+Normalize origins using the project's shared URL rules. Within the safe
+projection, preserve concrete path case, trailing slashes and encoded reserved
+characters. Grouping never rewrites a retained concrete request. Query order,
+duplicate values and bodies may matter to security testing even when they do
+not create a new sitemap node; this does not authorize retaining removed secret
+values or claiming that a redacted descriptor is the original request.
 
 ## 5. Source adapters
 
@@ -164,10 +194,23 @@ precedence over a compatible template. Ambiguous template matches remain
 separate/ambiguous until resolved; the model does not choose their identity.
 
 Adding a schema after traffic reindexes group membership deterministically.
-Existing observation IDs, retained evidence refs, notes and exclusions survive
-the regrouping. Conflicting rules or notes produce an explicit conflict rather
-than silently overwriting an edit. Importing a newer schema updates that
-schema source's declarations without erasing independently observed traffic.
+Existing retained member/observation IDs and evidence refs survive regrouping.
+Regrouping uses the concrete-member inventory, not the representative examples.
+Discarded members remain an aggregate with an explicit regrouping gap: a later
+fixed route or template cannot recover their membership or assign their past
+observations to a new group. New observations may establish new membership.
+Member-scoped notes and exclusions follow that member. A group-scoped edit
+records its rule and member selection when made; splitting or merging cannot
+silently widen it to unrelated members. An incompatible mapping is an explicit
+conflict requiring resolution, while existing exclusions remain effective.
+
+Each schema source has a stable Server-authorized `sourceId` with explicit
+deployment attribution, independent of its mutable binding name. A replacement
+names the expected source generation, exact source ref/digest and grouping
+policy digest; creation requires that source to be absent. A new exact schema
+updates only that source's declarations and rules, preserving independent
+observations. Generation order is assigned by accepted publication, never
+inferred from document timestamps, version labels or model-supplied IDs.
 
 Parameter declarations and observed parameter shapes are separate. Preserve
 extra live parameters and missing declared parameters. OpenAPI security
@@ -199,8 +242,9 @@ origin binding and a versioned grouping policy. It:
 1. Validates both documents and builds the declared-operation index.
 2. Adds declared-only operations and attaches their exact schema pointers.
 3. Matches observed operations to declared concrete paths or templates.
-4. Regroups observed concrete paths where the match is unambiguous, preserving
-   concrete examples, observation identities, manual edits and exclusions.
+4. Regroups retained concrete members where the match is unambiguous, preserving
+   their examples, observation identities and applicable manual edits/exclusions;
+   discarded members retain explicit unresolved regrouping gaps.
 5. Reports observed-but-undeclared, declared-but-unobserved, ambiguous matches
    and differences in observed parameter shapes, media types and outcomes.
 6. Emits a canonical enriched map, a bounded source-update patch and a report
@@ -221,10 +265,19 @@ the bounded tool completion/report envelope.
 For a shared map update, the Workflow's publication path applies its typed
 patch through the ordinary sitemap reducer/CAS boundary. If another Worker
 added observations after the input snapshot, preserve them and reapply the
-source/grouping change to the newer revision. Reject conflicting manual edits
-with an explicit conflict. The report retains both computation input refs and
-the actual Project revision updated; never claim that a rebased live update
-is byte-identical to the original snapshot computation.
+source/grouping change only while its per-source preconditions still match.
+A concurrent replacement of the same source or its policy is a conflict, as
+is a conflicting manual edit; an old pinned schema must not be reinterpreted
+as the current source merely because its patch finishes last. Resolving that
+conflict requires an explicitly authorized new source selection and a new
+invocation/patch. Retrying the same Workflow preserves its exact input intent
+and expected predecessor; it cannot adopt the latest generation as a new
+precondition while continuing to publish its old schema. The original private
+computation result may still be retained without updating the shared source.
+Existing keyed receipts replay an already accepted source transition
+without another generation or publication. The report retains both computation
+input refs and the actual Project revision updated; never claim that a rebased
+live update is byte-identical to the original snapshot computation.
 
 An Audit can select the Workflow as:
 
@@ -264,6 +317,11 @@ exact inputs and reconcile publication acknowledgements without target calls.
 4. **Preserve useful diversity.** Select representative examples across
    identity contexts, parameter shapes and outcomes. Response-body equality
    does not prove equal authorization or endpoint behavior.
+   Keep a bounded concrete-member inventory independently of the eight examples.
+   When its limit is reached, preserve accepted members, summarize omitted
+   contributions with bounded counts/gaps, and stop claiming complete member
+   identity or lossless future regrouping. Observation summaries and provenance
+   are bounded too; the map is not an event log.
 5. **Control noise at ingestion as well as display.** Repeated negative fuzz
    probes can be summarized under the scan/root pattern with bounded examples.
    Keep 401/403 observations useful to access-control testing. A 200 status
@@ -304,9 +362,28 @@ reader-only selection grants no collection or edit authority. Precise tool
 selection and Server/Runtime wire changes must be specified together before
 implementation. A Skill or the presence of an input file grants no authority.
 
+Every contribution, including notes and grouping rules, carries trusted
+content-kind and source-mode provenance. Imports validate the caller's source
+authority before reading content and preserve that classification. Blackbox
+list/read, reconciliation and snapshot/export operations exclude unselected
+source-derived content before exposure, including previews, paths, parameter
+names, descriptions and grouping effects. An explicitly authorized OpenAPI
+input remains usable; another Run's source-assisted import does not become an
+authorized blackbox input automatically. Source-assisted manual notes are
+restricted conservatively unless a trusted classification permits disclosure;
+the model cannot relabel them. Form the view using allowed contributions and
+rules, or report an unavailable projection if safe reconstruction is impossible.
+Never fork the raw mixed-source Project map into a blackbox Run. Retained views
+name the original map revision plus the projection policy and selected inputs,
+and expose only authorized consumer refs; they do not claim byte identity with
+the full map.
+
 Removing an entry means removing it from the working map, not rewriting prior
 artifact revisions or deleting finding evidence. Suppression applies to its
 declared group/member identities and survives later reimports/regrouping.
+Its explicit membership/rule selection is retained within the marker budget;
+an ambiguous split/merge cannot silently restore a member or suppress unrelated
+ones. Reject an edit that cannot preserve that selection within the bounds.
 Physical artifact deletion and retained historical refs follow ArtifactStore.
 
 ## 9. Live updates, concurrency and exact evidence
@@ -319,7 +396,8 @@ map with the stale complete map a Worker read at startup.
 Automatic observation updates are deterministic and idempotent: immutable source
 identity, set membership, min/max observation times and bounded representative
 selection. Avoid an exact global traffic counter that requires retaining every
-request forever. Explicit edit ordering is protected by expected revision.
+request forever. Explicit edit ordering is protected by expected revision;
+source replacements additionally enforce their per-source preconditions.
 
 On CAS conflict, reread and reapply the same bounded batch; retry at most three
 times within the operation deadline. Reuse existing keyed mutation receipts
@@ -358,24 +436,58 @@ only with the implementation. They are not current platform limits:
 | --- | --- |
 | Typical Project | 100–1,000 operation groups; 1–10 contributing Workers |
 | Current map | 10,000 groups or 32 MiB encoded JSON, whichever comes first |
+| Concrete members | 64 per group and 50,000 per map; each safe member key at most 8 KiB |
 | Examples | 8 bounded request descriptors per group; at most 2 KiB each |
 | Context summaries | 16 named/unknown observation contexts per group |
+| Member summaries/provenance | 16 source/context/outcome summaries and 8 exact provenance refs per retained member |
+| Source registry / grouping rules / suppression markers | 128 / 256 / 10,000 per map; all count toward the encoded map bound |
+| Manual notes/tags | 4 KiB and 16 tags of at most 64 bytes per group/member; all count toward the map bound |
 | Batch | 100 normalized observations or 256 KiB |
 | Read page | At most 100 entries and 256 KiB |
 | Import step | At most one bounded report page/batch before a checkpoint |
 | CAS retries | 3 within the owning operation deadline |
+| One Run's map publications | 256 accepted revisions or 256 MiB encoded published bytes, whichever comes first |
+| Project-lifetime map publications | Default 2,000 accepted revisions or 1 GiB encoded published bytes; configurable only up to hard ceilings of 20,000 revisions or 8 GiB |
 
 Use a parsed immutable snapshot/index per selected revision for paging; do not
 parse the full map again for every returned page. Cache lifetime and bytes are
 allocation-owned and bounded. Raw output parsing and map reduction run off the
-Runtime event loop. Bound total published bytes/revisions per Run as well as
-current document size; final limits depend on the real workload measurements.
+Runtime event loop. The proposed publication limits above apply independently
+of current-document size and must be checked against real workload measurements.
+
+Reserve Project-lifetime quota, and Run quota for a Run-originated write,
+atomically with the accepted publication under the existing Project/Artifact
+mutation boundary. Charge the complete encoded bytes and one revision for every
+committed revision, even when content
+deduplication reuses identical bytes. A genuine no-op that creates no revision
+uses no quota; receipt replay creates no revision and charges nothing again.
+Failed CAS or rolled-back publication consumes no quota. Keep cumulative usage
+as trusted Project-owned accounting, outside the replaceable map document;
+starting another Run, suppressing entries, replacing/resetting the binding or
+partitioning cannot reset it. The quota follows the Project until its purge.
+The owning Project service enforces this policy for every publication to the
+dedicated sitemap binding, including public Project Artifact API mutations,
+forks and rebinding. Those paths must use the same authorized validation and
+accounting boundary or reject the mutation; raw generic Artifact writes cannot
+bypass it, including before the first sitemap revision exists. Removing/resetting
+an accounting marker is not a public operation; only complete Project purge
+clears usage. Storage remains ordinary ArtifactStore storage, with domain policy
+owned by the Project sitemap service.
+
+Exhaustion preserves the last accepted map and returns a permanent collection
+limit outcome. Readers expose exhaustion from trusted accounting; the producer
+retains its gap in Run collection status/closure without requiring another map
+revision. Target responses remain valid. There is no implicit deletion of old
+revisions or reset to an empty map. Historical compaction/expiry would require
+a separate ArtifactStore retention contract
+that protects exact holds, not a silent implementation detail of this reducer.
 
 Keep the first representation to one bounded artifact. ArtifactStore owners
 must measure publication amplification, retained revision bytes and CAS
-contention with 10,000 groups, ten writers and large imports. If the measured
-budgets cannot hold, partition the same artifact format before implementation
-is accepted; do not raise limits or introduce a second persistence subsystem
+contention with 10,000 groups, ten writers, sequential Runs approaching the
+Project-lifetime quota and large imports. If the measured budgets cannot hold,
+partition the same artifact format before implementation is accepted; do not
+raise limits or introduce a second persistence subsystem
 to conceal failed scaling. Exact partitioning is deliberately undecided.
 
 ## 11. Failure outcomes, lifecycle and required tests
@@ -408,6 +520,14 @@ Include GET versus POST, repeated query parameters, structural values, fixed
 `/users/me` versus `/users/{id}`, multiple identities, wildcard responses,
 suppression followed by reimport, late schema import, invalid document edits,
 partial scanner output and cancellation while publishing.
+Include secret canaries in path/query/body/headers and structural keys for every
+source, source-assisted to blackbox reads/snapshots, repeated identity labels
+across baselines, reversed concurrent schema replacements, regrouping after
+inventory overflow/discarded incoming members, suppression across split/merge,
+and every metadata bound.
+Quota tests cover concurrent last-slot reservations, identical-content new
+revisions, receipt replay after a lost acknowledgement, rollover to another
+Run, binding replacement/partitioning and exhaustion without losing the map.
 
 ## 12. Smallest useful delivery and findings context
 
