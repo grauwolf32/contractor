@@ -72,6 +72,14 @@ func openControlPlaneLease(ctx context.Context, pool *pgxpool.Pool) (*controlPla
 	}, nil
 }
 
+// dialControlPlaneLeaseSession copies the working pool's connection settings,
+// so the session inherits the configured database budgets (PER-R26):
+// database.connectTimeout bounds each connection attempt, the pool's budget
+// tracer bounds each statement by database.queryTimeout, and the startup
+// parameters carry the server-side statement, lock and idle timeouts. Every
+// budget only shortens ctx; none extends an earlier caller deadline. Startup
+// calls it under the process context, so these budgets alone bound it there;
+// a standby reconnect also bounds it by the tolerance window (PER-R27).
 func dialControlPlaneLeaseSession(ctx context.Context, pool *pgxpool.Pool) (*pgx.Conn, error) {
 	conn, err := pgx.ConnectConfig(ctx, pool.Config().ConnConfig.Copy())
 	if err != nil {
@@ -210,6 +218,13 @@ func newStandbyHandler() http.Handler {
 	}), publicapi.NewStandbyHandler())
 }
 
+// awaitControlPlaneLease takes the startup lease steps under the process
+// context: connecting the session, configuring its keepalives, the first
+// acquisition and, when the lease is held elsewhere, the holder lookup. The
+// inherited database budgets bound each of them, not the tolerance window; a
+// failed step other than the holder lookup stops startup (PER-R26). Once
+// standing by, each acquisition probe runs within the tolerance window
+// (PER-R27).
 func awaitControlPlaneLease(ctx context.Context, pool *pgxpool.Pool, publicAddress string, shutdownTimeout time.Duration, logger *slog.Logger) (*controlPlaneLease, error) {
 	lease, err := openControlPlaneLease(ctx, pool)
 	if err != nil {

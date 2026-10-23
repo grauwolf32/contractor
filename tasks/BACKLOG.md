@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-111 open tasks: 4 in progress, 82 pending, 25 deferred. 1007 finished: 1003 completed, 4 archived.
+111 open tasks: 5 in progress, 81 pending, 25 deferred. 1007 finished: 1003 completed, 4 archived.
 
 ## In progress
 
@@ -15,6 +15,7 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
+| [V407-017](v407-017-startup-lease-tolerance.yml) | execution-core | chore | P3 | Document and test inherited startup lease connection and query budgets |
 
 ## Pending
 
@@ -29,7 +30,6 @@ the epics are in [epics.yml](epics.yml).
 | [V407-014](v407-014-placement-per-poll-cost.yml) | chore | P2 | — | Reuse overlapping placement resolution work within a waiting attempt |
 | [V407-015](v407-015-scheduler-stage-end-cost.yml) | chore | P3 | — | Reduce redundant Stage-end work while preserving recovery and redaction |
 | [V407-016](v407-016-scheduler-idle-and-release-pacing.yml) | chore | P3 | — | Reduce idle claim probes and bound terminal-release head-of-line work |
-| [V407-017](v407-017-startup-lease-tolerance.yml) | chore | P3 | — | Document and test inherited startup lease connection and query budgets |
 | [V409-011](v409-011-execution-store-n1-and-duplicates.yml) | chore | P3 | V407-016 | Reduce execution query round trips while preserving lock and recovery contracts |
 
 ### Planners and the Worker model boundary (`planner-worker`)
