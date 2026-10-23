@@ -5,7 +5,7 @@ milestone: web-nuclei-rule-sweeps-2026-10
 epic: ui
 kind: feature
 priority: P2
-status: pending
+status: in_progress
 depends_on:
 - V406-004
 - V406-005
@@ -18,6 +18,7 @@ context:
   proposal: docs/proposals/0041-web-nuclei-scanning-and-rule-sweeps.md
   specification:
   - docs/spec/ui/ui.md
+  - docs/spec/ui/ui.md#UI-R204
   - docs/spec/ui/journeys.md
   - docs/design/ui/README.md
   - ui/src/ui/README.md

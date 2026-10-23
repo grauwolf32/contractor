@@ -525,7 +525,7 @@ identifies the artifact-preview work on main:
   rulepacks and exact authorized input forks.
 - [V406-004](../../tasks/done/v406-004-durable-scope-sweeps.yml): durable bounded
   server sweep and recovery/cancellation/purge.
-- [V406-005](../../tasks/v406-005-web-scan-settings-ui.yml): single-scan form
+- [V406-005](../../tasks/done/v406-005-web-scan-settings-ui.yml): single-scan form
   and owner rulepack selection/upload.
 - [V406-006](../../tasks/v406-006-scope-sweep-ui-cli.yml): sweep UI (later UI step).
 - [V406-007](../../tasks/v406-007-web-scan-release-gate.yml): milestone exit

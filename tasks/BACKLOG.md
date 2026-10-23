@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-134 open tasks: 6 in progress, 103 pending, 25 deferred. 984 finished: 981 completed, 3 archived.
+133 open tasks: 6 in progress, 102 pending, 25 deferred. 985 finished: 982 completed, 3 archived.
 
 ## In progress
 
@@ -15,7 +15,7 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
-| [V406-005](v406-005-web-scan-settings-ui.yml) | ui | feature | P2 | Launch a web scan with rule settings and owner rulepack selection |
+| [V406-006](v406-006-scope-sweep-ui-cli.yml) | ui | feature | P2 | Launch and follow durable rule sweeps from the UI |
 | [V406-011](v406-011-portable-resource-browser-contract.yml) | ui | defect | P2 | Keep the browser resource assertion aligned with portable collection |
 
 ## Pending
@@ -89,7 +89,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V55-009](v55-009-scan-candidate-ranking.yml) | feature | P2 | — | Optionally rank existing scan candidates with an LLM |
-| [V406-007](v406-007-web-scan-release-gate.yml) | chore | P2 | V406-005, V406-006, V406-010 | Gate the complete web scan and rule sweep journeys |
+| [V406-007](v406-007-web-scan-release-gate.yml) | chore | P2 | V406-006, V406-010 | Gate the complete web scan and rule sweep journeys |
 | [V407-006](v407-006-scanplan-prepare-once.yml) | defect | P2 | — | Parse and digest an Audit OpenAPI source once per settings document, not once per operation |
 | [V407-007](v407-007-scan-output-off-loop.yml) | defect | P3 | — | Parse scanner output and prepare scan inputs off the Runtime event loop |
 
@@ -153,8 +153,7 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V403-003](v403-003-openapi-preview-at-1mib.yml) | defect | P3 | — | Keep a 1 MiB OpenAPI preview from blocking the page |
 | [V405-004](v405-004-placement-label-picker-ui.yml) | feature | P2 | V405-002, V405-003 | Select Runtime placement labels in Workflow and Audit launch forms |
-| [V406-006](v406-006-scope-sweep-ui-cli.yml) | feature | P2 | V406-005 | Launch and follow durable rule sweeps from the UI |
-| [V406-010](v406-010-scanner-widget-boundaries.yml) | chore | P2 | V406-005, V406-006 | Isolate specialized scanner views behind widget registries |
+| [V406-010](v406-010-scanner-widget-boundaries.yml) | chore | P2 | V406-006 | Isolate specialized scanner views behind widget registries |
 
 ### Operations, authentication, CLI and deployment (`operations`)
 
@@ -265,7 +264,7 @@ tasks in `introduced_by`.
 | Audits (`audits`) | 25 | 52 | 77 | 17 | 89 |
 | Evaluations (`evals`) | 6 | 21 | 36 | 5 | 40 |
 | Podman sandbox (`sandbox`) | 0 | 9 | 2 | 1 | 3 |
-| Web UI (`ui`) | 6 | 25 | 59 | 13 | 53 |
+| Web UI (`ui`) | 5 | 25 | 59 | 13 | 53 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 16 | 34 | 5 | 12 |
 | Public API and wire contracts (`api-contracts`) | 8 | 1 | 34 | 20 | 11 |
 | PostgreSQL persistence and schema (`persistence`) | 13 | 0 | 23 | 39 | 11 |
