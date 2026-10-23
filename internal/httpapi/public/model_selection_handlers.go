@@ -9,6 +9,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 	"github.com/grauwolf32/contractor/internal/requestid"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
 )
@@ -87,10 +88,10 @@ func modelSelectionPrecondition(r *http.Request) (uint64, string, error) {
 	if len(values) != 1 || len(r.Header.Values("If-None-Match")) != 0 {
 		return 0, "", invalid
 	}
-	if len(values[0]) < 3 || values[0][0] != '"' || values[0][len(values[0])-1] != '"' {
+	value, err := httpx.ParseStrongETag(values[0])
+	if err != nil {
 		return 0, "", invalid
 	}
-	value := values[0][1 : len(values[0])-1]
 	revision, digest, ok := strings.Cut(value, ":")
 	if !ok || len(digest) != 64 || strings.Trim(digest, "0123456789abcdef") != "" {
 		return 0, "", invalid

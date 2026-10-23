@@ -9,7 +9,6 @@ error model and response checks. Finding proposals
 from __future__ import annotations
 
 import asyncio
-import json
 import re
 import ssl
 from collections.abc import Mapping
@@ -39,6 +38,12 @@ MAX_ARTIFACT_JSON_BYTES = 1 << 20
 # api/testdata/v1alpha1/artifact-list-cases.json.
 MAX_BINDING_LIST_LIMIT = 256
 PATH_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
+# The revision a strong entity tag carries verbatim between its double
+# quotes: visible ASCII other than a double quote, a backslash or a comma.
+# An entity tag has no escapes, so If-Match and ETag are never JSON-encoded;
+# the Server reads the same grammar (API-R70,
+# api/testdata/v1alpha1/strong-etag-cases.json).
+STRONG_ETAG_REVISION_PATTERN = re.compile(r"[!#-+\--\[\]-~]+")
 RUNTIME_INSTANCE_HEADER = "X-Contractor-Runtime-Instance-ID"
 BINDING_CREATED_AT_HEADER = "x-contractor-binding-created-at"
 REVISION_CREATED_AT_HEADER = "x-contractor-revision-created-at"
@@ -335,9 +340,9 @@ class ArtifactClient:
         if expected_revision is None:
             headers["If-None-Match"] = "*"
         else:
-            if is_blank(expected_revision) or any(char in expected_revision for char in '\r\n",'):
+            if STRONG_ETAG_REVISION_PATTERN.fullmatch(expected_revision) is None:
                 raise ValueError("expected revision is not a valid strong ETag value")
-            headers["If-Match"] = json.dumps(expected_revision)
+            headers["If-Match"] = f'"{expected_revision}"'
             expected_status = 200
         response = await self._transport.request(
             "PUT",
@@ -507,13 +512,13 @@ def _strong_etag(headers: Mapping[str, str]) -> str:
     value = headers.get("etag", "")
     if not value or value.startswith("W/") or "," in value:
         raise ArtifactTransportError("Artifact API response has no strong revision ETag")
-    try:
-        revision = json.loads(value)
-    except json.JSONDecodeError as error:
-        raise ArtifactTransportError(
-            "Artifact API response has an invalid revision ETag"
-        ) from error
-    if not isinstance(revision, str) or not revision:
+    revision = value[1:-1]
+    if (
+        len(value) < 3
+        or value[0] != '"'
+        or value[-1] != '"'
+        or STRONG_ETAG_REVISION_PATTERN.fullmatch(revision) is None
+    ):
         raise ArtifactTransportError("Artifact API response has an invalid revision ETag")
     return revision
 

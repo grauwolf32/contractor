@@ -2,12 +2,13 @@ package public
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -94,13 +95,14 @@ func (h *queueHandlers) putOwnerQueueControl(w http.ResponseWriter, r *http.Requ
 	writeOwnerQueueControl(w, http.StatusOK, control)
 }
 
+// parseOwnerQueueControlETag reads the one strong If-Match of the owner
+// Queue control, whose revision starts at 0 before the first change.
 func parseOwnerQueueControlETag(raw string) (uint64, error) {
-	if strings.HasPrefix(strings.TrimSpace(raw), "W/") {
+	revision, err := httpx.ParseStrongETag(raw)
+	switch {
+	case errors.Is(err, httpx.ErrWeakETag):
 		return 0, fmt.Errorf("%w: Queue control requires one strong ETag", errInvalidRequest)
-	}
-	value := strings.TrimSpace(raw)
-	revision, err := strconv.Unquote(value)
-	if err != nil || revision == "" {
+	case err != nil:
 		return 0, fmt.Errorf("%w: Queue control revision must be quoted", errInvalidRequest)
 	}
 	parsed, err := strconv.ParseUint(revision, 10, 64)

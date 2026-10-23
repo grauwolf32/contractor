@@ -5,9 +5,9 @@ milestone: hub-audit-defects-2026-10
 epic: api-contracts
 kind: defect
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
-languages: [go]
+languages: [go, python]
 goal: "httpx.ParseStrongETag accepts exactly one strong opaque-tag (DQUOTE *etagc DQUOTE) and no escaped, single-quoted or back-quoted spelling, for every caller."
 context:
   review: "Out-of-scope finding of the hub audit fix batch (group G8), recorded 2026-10-12; verified on a07f5e9"
@@ -36,6 +36,7 @@ scope:
   in:
     - "ParseStrongETag validates the opaque-tag grammar itself; the compensating comparison in public/request.go goes."
     - "Table tests with escaped, single-quoted, back-quoted, empty, weak and list values for every caller."
+    - "Siblings found during implementation: the owner Queue control If-Match (public/queue_handlers.go, its own strconv.Unquote) and the model selection If-Match move onto ParseStrongETag; the Runtime Artifact client writes If-Match and reads ETag in the same grammar instead of JSON encoding, held to the Server by the shared fixture api/testdata/v1alpha1/strong-etag-cases.json."
   out:
     - "Revision grammars and CAS semantics."
 acceptance_criteria:
@@ -50,3 +51,7 @@ tests:
     covers: [A1, A2]
   - command: make lint
     covers: [A1, A2]
+  - command: "cd runtime && uv run pytest tests/test_strong_etag_cases.py tests/test_artifacts.py"
+    covers: [A1]
+  - command: make test-wire-cross-language
+    covers: [A1]
