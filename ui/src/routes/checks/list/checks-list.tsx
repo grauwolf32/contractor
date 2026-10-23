@@ -214,6 +214,9 @@ export function ChecksListPane({
           >
             Web scan
           </ButtonLink>
+          <ButtonLink size="sm" to="/checks/sweeps">
+            Rule sweeps
+          </ButtonLink>
         </div>
       }
       toolbar={

@@ -74,6 +74,27 @@ export function applicationRoutes(): RouteObject[] {
                 "WebScanRoute",
               ),
             },
+            {
+              path: "/checks/sweeps/new",
+              lazy: lazyRoute(
+                () => import("../routes/scans/sweep-new"),
+                "NewSweepRoute",
+              ),
+            },
+            {
+              path: "/checks/sweeps",
+              lazy: lazyRoute(
+                () => import("../routes/scans/sweeps"),
+                "RuleSweepsRoute",
+              ),
+            },
+            {
+              path: "/checks/sweeps/:sweepId",
+              lazy: lazyRoute(
+                () => import("../routes/scans/sweeps"),
+                "RuleSweepsRoute",
+              ),
+            },
             // Issues and Reports keep the selected item in the path. A list
             // and its item route share one component, so selecting an item
             // keeps the list mounted.

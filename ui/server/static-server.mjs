@@ -9,6 +9,8 @@ const CLIENT_ROUTES = new Set([
   "/checks",
   "/checks/new",
   "/checks/web/new",
+  "/checks/sweeps",
+  "/checks/sweeps/new",
   "/issues",
   "/reports",
   "/projects",
@@ -41,6 +43,7 @@ const CONFIG_KINDS =
   "agent-templates|execution-configs|model-policies|llm-gateways";
 
 const CLIENT_ROUTE_PATTERNS = [
+  /^\/checks\/sweeps\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/,
   /^\/issues\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/,
   /^\/reports\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/,
   /^\/evals\/experiments\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}(?:\/(?:overview|comparison|attempts|setup))?$/,

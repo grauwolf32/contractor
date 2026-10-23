@@ -1245,3 +1245,14 @@ authenticated API writes, request keys, navigation and execution lifecycle.
 An incompatible contract cannot launch through the widget; the generic
 Workflow form remains available. A widget may be reused by single-Run and
 sweep launchers. No dynamic plugin loader or Studio editing is required.
+
+**UI-R205.** Basic rule sweeps at `/checks/sweeps` share the registered scan
+widget with single-Run launch. Creation selects explicit paged Projects or all
+owner Projects, captures targets on the Server and pins exact library inputs;
+unchanged retries keep one creation key. The view pages parents and members,
+polls only the selected active parent and visible member page with read-error
+backoff, refreshes members once on settlement and links ordinary Runs/results.
+It reports actual Server admission and Run states, without interpreting a
+completed sweep as clean coverage. Cancellation retains Server state; terminal
+purge requires confirmation and preserves child Runs/reports and owner inputs.
+Reads reuse the response ceiling LIM-SCN-79 and no page fetches the full sweep.

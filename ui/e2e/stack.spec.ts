@@ -1195,3 +1195,144 @@ test("widget: launches the web scan widget with one owner rulepack through the r
   );
   expect([202, 409]).toContain(cancelled);
 });
+
+test("widget: launches and purges a sweep while retaining its Project scan", async ({
+  page,
+}) => {
+  const apiURL = requiredEnvironment("CONTRACTOR_UI_E2E_API_URL");
+  await page.goto("/checks/sweeps/new");
+  await login(
+    page,
+    requiredEnvironment("CONTRACTOR_UI_E2E_USERNAME"),
+    requiredEnvironment("CONTRACTOR_UI_E2E_PASSWORD"),
+  );
+  const ids = await page.evaluate(async (apiURL) => {
+    const session = (await (
+      await fetch(`${apiURL}/v1/auth/session`, { credentials: "include" })
+    ).json()) as { csrfToken: string };
+    const create = async (name: string, key: string) => {
+      const response = await fetch(`${apiURL}/v1/projects`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": session.csrfToken,
+          "Idempotency-Key": key,
+        },
+        body: JSON.stringify({ kind: "project", name }),
+      });
+      if (response.status !== 201)
+        throw new Error(`fixture Project create: ${response.status}`);
+      return response.json() as Promise<{
+        projectId: string;
+        revision: string;
+      }>;
+    };
+    const targeted = await create("Widget target", "widget-target-project");
+    const targetless = await create(
+      "Widget no target",
+      "widget-targetless-project",
+    );
+    const update = await fetch(`${apiURL}/v1/projects/${targeted.projectId}`, {
+      method: "PATCH",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": session.csrfToken,
+        "If-Match": `"${targeted.revision}"`,
+      },
+      body: JSON.stringify({ httpTarget: { url: "http://127.0.0.1:1/" } }),
+    });
+    if (update.status !== 200)
+      throw new Error(`fixture Project target: ${update.status}`);
+    return [targeted.projectId, targetless.projectId];
+  }, apiURL);
+  await page.reload();
+  await page
+    .getByRole("checkbox", {
+      name: /Widget target ·|Widget targethttp|Widget target/,
+    })
+    .first()
+    .check();
+  await page.getByRole("checkbox", { name: /Widget no target/ }).check();
+  await page.getByLabel("Rule source").selectOption("custom");
+  await page
+    .getByRole("button", { name: "Upload rulepack", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Drop a file here").setInputFiles({
+    name: "widget-sweep-rule.yaml",
+    mimeType: "application/yaml",
+    buffer: Buffer.from(
+      "id: widget-sweep-rule\ninfo:\n  name: Widget sweep fixture\n  author: contractor\n  severity: info\nhttp:\n  - method: GET\n    path:\n      - '{{BaseURL}}/'\n",
+    ),
+  });
+  await dialog.getByRole("button", { name: "Upload and select" }).click();
+  await expect(dialog).toHaveCount(0);
+  let sent: string | null = null;
+  await page.route("**/v1/scan-sweeps", async (route) => {
+    if (route.request().method() === "POST") sent = route.request().postData();
+    await route.continue();
+  });
+  const created = page.waitForResponse(
+    (response) =>
+      response.url() === `${apiURL}/v1/scan-sweeps` &&
+      response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "Start sweep", exact: true }).click();
+  const response = await created;
+  expect(response.status()).toBe(201);
+  const body = JSON.parse(sent ?? "null") as {
+    projectIds: string[];
+    rulepack: { namespace: string; name: string; revision: string };
+    parameters: Record<string, string>;
+  };
+  expect(body.projectIds).toEqual([...ids].sort());
+  expect(body.rulepack).toMatchObject({
+    namespace: "inputs",
+    name: "widget-sweep-rule",
+  });
+  expect(body.parameters).not.toHaveProperty("target");
+  const parent = (await response.json()) as { sweepId: string };
+  await expect(page).toHaveURL(new RegExp(`/checks/sweeps/${parent.sweepId}$`));
+  const child = page
+    .getByRole("link", { name: "Open scan and results" })
+    .first();
+  await expect(child).toBeVisible({ timeout: 30_000 });
+  const href = await child.getAttribute("href");
+  expect(href).toMatch(/^\/runs\//);
+  const cancel = page.getByRole("button", {
+    name: "Cancel sweep",
+    exact: true,
+  });
+  if (await cancel.isEnabled()) await cancel.click();
+  await expect(
+    page.getByRole("button", { name: "Delete sweep", exact: true }),
+  ).toBeVisible({ timeout: 45_000 });
+  await page.getByRole("button", { name: "Delete sweep", exact: true }).click();
+  const purge = page.waitForResponse(
+    (response) =>
+      response.url() === `${apiURL}/v1/scan-sweeps/${parent.sweepId}` &&
+      response.request().method() === "DELETE",
+  );
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Delete sweep", exact: true })
+    .click();
+  expect((await purge).status()).toBe(204);
+  await expect(page).toHaveURL(/\/checks\/sweeps$/);
+  const retained = await page.evaluate(
+    async ({ apiURL, href, pack }) => {
+      const run = await fetch(`${apiURL}/v1${href}`, {
+        credentials: "include",
+      });
+      const source = await fetch(
+        `${apiURL}/v1/artifacts/${pack.namespace}/${pack.name}/metadata?revision=${pack.revision}`,
+        { credentials: "include" },
+      );
+      return [run.status, source.status];
+    },
+    { apiURL, href, pack: body.rulepack },
+  );
+  expect(retained).toEqual([200, 200]);
+});
