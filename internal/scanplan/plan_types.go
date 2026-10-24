@@ -19,8 +19,10 @@ type PlanInput struct {
 }
 
 type ToolBinding struct {
-	Namespace string
-	Template  contracts.ResolvedAgentTemplate
+	Namespace  string
+	Template   contracts.ResolvedAgentTemplate
+	Parameters map[string]string
+	Artifacts  map[string]contracts.ArtifactRef
 }
 
 type PlanSource struct {

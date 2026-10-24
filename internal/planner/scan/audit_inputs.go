@@ -12,9 +12,10 @@ import (
 )
 
 type auditScanInputs struct {
-	task     auditdomain.ItemTask
-	manifest auditdomain.ExecutionManifest
-	prepared scanplan.PreparedAuditOperation
+	task      auditdomain.ItemTask
+	manifest  auditdomain.ExecutionManifest
+	prepared  scanplan.PreparedAuditOperation
+	selection *auditdomain.WebScanSettings
 }
 
 func (p *execution) loadAuditInputs(ctx context.Context) error {
@@ -37,11 +38,21 @@ func (p *execution) loadAuditInputs(ctx context.Context) error {
 	if source.MediaType != task.SourceMediaType || settings.MediaType != auditdomain.JSONMediaType {
 		return scanError("audit_scan_input_invalid", nil)
 	}
-	prepared, err := auditdomain.PrepareOpenAPIScanTask(task, source.Data, settings.Data)
+	var prepared scanplan.PreparedAuditOperation
+	var selection *auditdomain.WebScanSettings
+	if task.Kind == "web-scan" {
+		prepared, err = auditdomain.PrepareWebScanTask(task, source.Data, settings.Data)
+		if err == nil {
+			value, decodeErr := auditdomain.DecodeWebScanSettings(settings.Data)
+			selection, err = &value, decodeErr
+		}
+	} else {
+		prepared, err = auditdomain.PrepareOpenAPIScanTask(task, source.Data, settings.Data)
+	}
 	if err != nil {
 		return scanError("audit_scan_preparation_invalid", err)
 	}
-	p.audit = &auditScanInputs{task: task, manifest: manifest, prepared: prepared}
+	p.audit = &auditScanInputs{task: task, manifest: manifest, prepared: prepared, selection: selection}
 	return nil
 }
 
@@ -94,7 +105,7 @@ func (p *execution) readAuditManifest(ctx context.Context, task auditdomain.Item
 	}
 	// Dispatch manifests use Workflow input aliases, while the task retains the
 	// producer's original input identity. Additional inputs may serve other
-	// Stages; only these two are consumed by the scanner executor.
+	// Stages; source/settings and any selected rulepack are checked below.
 	stage := p.invocation.Stage
 	sourceName := stage.Context.Artifacts[stage.ScanPlan.InputArtifact].Name
 	settingsName := stage.Context.Artifacts[stage.AuditScan.SettingsArtifact].Name
@@ -114,6 +125,37 @@ func (p *execution) readAuditManifest(ctx context.Context, task auditdomain.Item
 	}
 	if len(expected) != 0 {
 		return empty, scanError("audit_scan_assignment_invalid", nil)
+	}
+	for _, agent := range stage.Agents {
+		binding, exists := agent.Template.Execution.Arguments["rulepack_ref"]
+		if !exists {
+			continue
+		}
+		name := stage.Context.Artifacts[binding.Name].Name
+		var selected *auditdomain.ExactInput
+		for _, input := range assignment.Inputs {
+			if input.Name == name {
+				value := input
+				selected = &value
+				break
+			}
+		}
+		ref := p.invocation.Context.Artifacts[binding.Name]
+		if (ref == nil) != (selected == nil) {
+			return empty, scanError("audit_scan_assignment_invalid", nil)
+		}
+		if selected == nil {
+			continue
+		}
+		payload, err := p.readAuditInput(ctx, binding.Name, contractscan.MaxNucleiRulepackZIPBytes)
+		if err != nil {
+			return empty, scanError("audit_scan_source_unavailable", err)
+		}
+		if auditdomain.DigestBytes(payload.Data) != selected.Digest ||
+			(payload.MediaType != "application/yaml" && payload.MediaType != contractscan.NucleiRulepackMediaType) ||
+			(payload.MediaType == "application/yaml" && len(payload.Data) > contractscan.MaxNucleiRulepackFileBytes) {
+			return empty, scanError("audit_scan_assignment_invalid", nil)
+		}
 	}
 	return manifest, nil
 }

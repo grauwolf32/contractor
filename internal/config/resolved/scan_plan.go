@@ -118,7 +118,8 @@ func ValidateScanPlanStage(stage ResolvedStage) error {
 			}
 		}
 		for name, source := range execution.Arguments {
-			if _, dynamic := expected[name]; !dynamic && source.Source != "literal" {
+			if _, dynamic := expected[name]; !dynamic && source.Source != "literal" &&
+				!(stage.AuditScan != nil && execution.Tool == "scan_nuclei" && scan.IsNucleiSelectionBinding(name, source)) {
 				return fmt.Errorf("scanPlan additional Worker arguments must be literals")
 			}
 		}
@@ -203,6 +204,20 @@ func validateScanPlanInputMedia(workflow ResolvedWorkflow, stage ResolvedStage) 
 		} {
 			if err := validate(name, media); err != nil {
 				return err
+			}
+		}
+		for _, agent := range stage.Agents {
+			if binding, exists := agent.Template.Execution.Arguments["rulepack_ref"]; exists {
+				context, exists := stage.Context.Artifacts[binding.Name]
+				slot, declared := workflow.Inputs[context.Name]
+				if !exists || !declared || context.Namespace != "inputs" || len(slot.MediaTypes) == 0 || slot.Required != context.Required || context.Required == binding.Optional {
+					return fmt.Errorf("auditScan rulepack must match its immutable input contract")
+				}
+				for _, media := range slot.MediaTypes {
+					if media != "application/yaml" && media != scan.NucleiRulepackMediaType {
+						return fmt.Errorf("auditScan rulepack media type is unsupported")
+					}
+				}
 			}
 		}
 	}

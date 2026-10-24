@@ -131,7 +131,7 @@ type ItemTask struct {
 	Checklist                *ChecklistTask        `json:"checklist,omitempty"`
 	Standard                 *StandardMappingTask  `json:"standard,omitempty"`
 	Operation                *OperationTask        `json:"operation,omitempty"`
-	Scan                     *OpenAPIScanTask      `json:"scan,omitempty"`
+	Scan                     *ScanTask             `json:"scan,omitempty"`
 	Finding                  *FindingTask          `json:"finding,omitempty"`
 }
 

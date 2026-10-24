@@ -12358,12 +12358,36 @@ components:
           maxItems: 32
           uniqueItems: true
           items: {$ref: '#/components/schemas/MediaType'}
+    AuditWebTarget:
+      type: object
+      additionalProperties: false
+      required: [schema, url]
+      properties:
+        schema: {const: contractor.audit.web-target.v1}
+        url: {type: string, minLength: 1, maxLength: 8192, pattern: '^https?://[^\s]+$'}
+    AuditWebScanSettings:
+      type: object
+      additionalProperties: false
+      required: [schema, templateIds, tags, severity, rateLimit]
+      properties:
+        schema: {const: contractor.audit.web-scan-settings.v1}
+        templateIds: {$ref: '#/components/schemas/NucleiRuleFilter'}
+        tags: {$ref: '#/components/schemas/NucleiRuleFilter'}
+        severity:
+          type: string
+          maxLength: 2048
+          pattern: '^(|(info|low|medium|high|critical|unknown)(,(info|low|medium|high|critical|unknown))*)$'
+        rateLimit: {type: integer, minimum: 1, maximum: 1000}
+    NucleiRuleFilter:
+      type: string
+      maxLength: 2048
+      pattern: '^([A-Za-z0-9_*][A-Za-z0-9_.*-]*(,[A-Za-z0-9_*][A-Za-z0-9_.*-]*)*)?$'
     AuditInventory:
       type: object
       additionalProperties: false
       required: [implementation, itemWorkflowRole]
       properties:
-        implementation: {enum: [checklist@1, openapi-operations@1, openapi-scans@1, finding-candidates@1, standard-mappings@1]}
+        implementation: {enum: [checklist@1, openapi-operations@1, openapi-scans@1, web-scans@1, finding-candidates@1, standard-mappings@1]}
         source: {$ref: '#/components/schemas/AuditInventoryArtifact'}
         settings: {$ref: '#/components/schemas/AuditInventoryArtifact'}
         itemWorkflowRole: {$ref: '#/components/schemas/ArtifactName'}
@@ -12372,7 +12396,7 @@ components:
         - properties: {implementation: {const: standard-mappings@1}}
           not:
             anyOf: [{required: [source]}, {required: [settings]}]
-        - properties: {implementation: {const: openapi-scans@1}}
+        - properties: {implementation: {enum: [openapi-scans@1, web-scans@1]}}
           required: [source, settings]
           not: {required: [standardSelection]}
         - properties: {implementation: {enum: [checklist@1, openapi-operations@1, finding-candidates@1]}}

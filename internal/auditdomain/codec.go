@@ -236,10 +236,13 @@ func validateItemTask(value ItemTask) error {
 		return validateOperationTask(*value.Operation)
 	}
 	if value.Scan != nil {
-		if value.Kind != "openapi-scan" {
+		if value.Kind != "openapi-scan" && value.Kind != "web-scan" {
 			return invalid(CodeInvalid, "kind")
 		}
-		return validateOpenAPIScanTask(*value.Scan)
+		if value.Kind == "web-scan" && value.SourceMediaType != JSONMediaType {
+			return invalid(CodeInvalid, "source_media_type")
+		}
+		return validateScanTask(*value.Scan, value.Kind == "web-scan")
 	}
 	if value.Kind != "finding-verification" {
 		return invalid(CodeInvalid, "kind")

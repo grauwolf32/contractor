@@ -180,7 +180,7 @@ outcome-aware retry rules unchanged.
 inventories and absent for `standard-mappings@1`.
 
 **ASC-R12.** `inventory.settings` is required only for
-`openapi-scans@1`; it must accept JSON and must differ from `source`.
+`openapi-scans@1` and `web-scans@1`; it must accept JSON and must differ from `source`.
 
 **ASC-R13.** Both inventory references use
 `{source: audit-input, name}` or `{source: prepare-output, role, name}`.
@@ -844,6 +844,41 @@ or tool-only Worker.
 **ASC-R145.** Trusted result assembly must retain reports for
 failures as well as for successful execution, and must be tested at the
 interruption between scanner completion and package publication (FAIL-ASC-7).
+
+### Direct-target Web scan Audits
+
+**ASC-R151.** `web-scans@1` produces one `web-scan@1` task for an explicit
+HTTP(S) URL. Its source is strict JSON `contractor.audit.web-target.v1` with
+required `schema` and `url`. Its distinct settings input is strict JSON
+`contractor.audit.web-scan-settings.v1`, with required `schema`, `templateIds`,
+`tags`, `severity` strings and integer `rateLimit`. Unknown, duplicate, aliased,
+null, omitted or invalid fields fail inventory admission before traffic. Both
+inputs use the scan options byte ceiling; the shared Nuclei argument validator
+owns URL, filter, severity and rate validation. The public component schemas
+and shared fixtures describe these artifact documents.
+
+**ASC-R152.** The bundled `web-scan@1` AuditProfile runs one target through
+`audit-web-nuclei-scan@1` without a model, source archive or OpenAPI document.
+It accepts an optional exact Project rulepack input. Absence selects the pinned
+installed Nuclei package; presence selects only the supplied YAML/ZIP through
+the existing custom-rulepack adapter, with no installed-rule fallback. Rule
+selection is pinned in the exact settings; the installed package digest stays
+in the resolved template. The task uses kind `web-scan`, operation `target`
+and the existing scan coverage/result shape. Source, settings and baseline
+retain their exact identities. Dispatch re-prepares and compares the entire
+assignment before any scanner invocation.
+
+**ASC-R153.** The trusted scan executor supports a closed set of Nuclei
+parameter bindings (`template_ids`, `tags`, `severity`, integer-parsed
+`rate_limit`) and the optional `rulepack_ref` artifact binding. Only exact
+Audit settings and forked inputs supply them. Plans retain those parameters
+and exact input refs and validate their resolved Nuclei arguments before
+execution. Run/Stage journals, ambiguous-outcome recovery, deadlines,
+active-check approvals, cancellation, evidence collection, inconclusive
+scanner coverage and Audit deletion reuse the ordinary scanner Audit path.
+No new controller, persistence table, receipt or lease is introduced. The
+Web scan profile bounds its inventory to one item, one job per attempt and
+three item attempts, within the existing scanner and Audit limits.
 
 ## Interfaces
 

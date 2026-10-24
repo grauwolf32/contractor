@@ -8,6 +8,9 @@ import (
 // which inventory implementation created the task. Empty selects the generic
 // Audit item/completion contract.
 func (task ItemTask) ExecutionContract() resolved.AuditTaskContract {
+	if task.Kind == "web-scan" {
+		return resolved.AuditTaskWebScanV1
+	}
 	if task.Kind == "openapi-scan" {
 		return resolved.AuditTaskOpenAPIScanV1
 	}

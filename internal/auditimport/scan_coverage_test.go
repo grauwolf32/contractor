@@ -14,7 +14,7 @@ import (
 func TestScanCoverageSeparatesExecutionFromSecurityVerdict(t *testing.T) {
 	for _, scanner := range []string{"sqlmap", "nuclei"} {
 		t.Run(scanner, func(t *testing.T) {
-			task := auditdomain.ItemTask{Scan: &auditdomain.OpenAPIScanTask{Scanner: scanner, Runnable: true, Gaps: []string{}}}
+			task := auditdomain.ItemTask{Scan: &auditdomain.ScanTask{Scanner: scanner, Runnable: true, Gaps: []string{}}}
 			if scanner == "nuclei" {
 				task.Scan.Gaps = []string{"http_method_not_replayed", "url_template_scan_only"}
 			}
@@ -49,7 +49,7 @@ func TestScanCoverageSeparatesExecutionFromSecurityVerdict(t *testing.T) {
 }
 
 func TestScanCoverageKeepsPreparationAndExecutionGaps(t *testing.T) {
-	task := auditdomain.ItemTask{Scan: &auditdomain.OpenAPIScanTask{Scanner: "nuclei", Runnable: false, Gaps: []string{"missing_required_parameter", "url_template_scan_only"}}}
+	task := auditdomain.ItemTask{Scan: &auditdomain.ScanTask{Scanner: "nuclei", Runnable: false, Gaps: []string{"missing_required_parameter", "url_template_scan_only"}}}
 	baseline := baselineCoverage(task)
 	if baseline.Status != auditstore.CoverageNotTested || !slices.Equal(baseline.Requested, []string{"nuclei-url-template-scan"}) || !slices.Equal(baseline.Gaps, task.Scan.Gaps) {
 		t.Fatalf("lost baseline: %+v", baseline)

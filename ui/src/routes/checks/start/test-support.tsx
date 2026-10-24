@@ -7,6 +7,7 @@ import { failure, json, page } from "../../../test/responses";
 import { renderWithAPI } from "../../../test/render";
 import { StartCheckRoute } from "../start";
 import { draftAudit, projectFixture, startResponse } from "./test-fixtures";
+import { artifactMetadata, artifactWrite } from "../../../test/builders";
 
 type Answer = (request: Request, url: URL) => Response | Promise<Response>;
 
@@ -30,6 +31,7 @@ export interface FakeStartServer {
    * answers left it (a draft at revision 1 when they were replaced).
    */
   audit?: Answer;
+  upload?: Answer;
   /** A page whose code loads only once `until` settles: a slow next page. */
   slowPage?: { path: string; until: Promise<void> };
 }
@@ -46,6 +48,20 @@ export function renderStart(path: string, server: FakeStartServer = {}) {
       custom === undefined ? fallback(call) : custom(call.request, call.url);
 
   const fake = fakeServer({
+    "PUT /v1/projects/{projectId}/artifacts/{namespace}/{name}": async ({
+      request,
+      url,
+      params,
+    }) => {
+      if (server.upload !== undefined) return server.upload(request, url);
+      const metadata = artifactMetadata(params.namespace!, params.name!, {
+        mediaType: request.headers.get("content-type")!,
+        size: (await request.arrayBuffer()).byteLength,
+      });
+      return json(artifactWrite(metadata), 201, {
+        ETag: `"${metadata.artifact.revision}"`,
+      });
+    },
     "GET /v1/projects": () => json(page(server.projects ?? [])),
     "GET /v1/projects/{projectId}": ({ params }) =>
       project === null || project.projectId !== params.projectId

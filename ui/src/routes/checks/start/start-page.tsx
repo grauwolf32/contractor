@@ -9,6 +9,9 @@ import {
 import { SetupBody, SetupFooter, SetupHeader } from "./setup";
 import { TypeList } from "./type-list";
 import { useStartCheck } from "./use-start-check";
+import { isWebScanProfile } from "./web-scan-contract";
+import { useWebScanDraft } from "./web-scan-state";
+import { WebScanSetup, WebScanFooter } from "./web-scan-setup";
 
 /**
  * Start a check on one project: check types on the left, grouped by
@@ -25,6 +28,12 @@ export function StartCheckPage({
   const navigate = useNavigate();
   const model = useStartCheck(projectId, initialObjective);
   const { ordered, selection } = model;
+  const webScan = model.exact !== undefined && isWebScanProfile(model.exact);
+  const webDraft = useWebScanDraft(
+    projectId,
+    model.project,
+    webScan ? model.exact : undefined,
+  );
   const { containerProps } = useListNavigation({
     count: model.listReady ? ordered.length : 0,
     index: ordered.findIndex((row) => row.selected),
@@ -53,7 +62,11 @@ export function StartCheckPage({
           header={<SetupHeader model={model} />}
           footer={
             model.listReady && selection !== undefined ? (
-              <SetupFooter model={model} />
+              webScan ? (
+                <WebScanFooter model={webDraft} />
+              ) : (
+                <SetupFooter model={model} />
+              )
             ) : undefined
           }
         >
@@ -72,6 +85,8 @@ export function StartCheckPage({
             <EmptyState title="No check type to set up">
               This server lists no check types yet.
             </EmptyState>
+          ) : webScan ? (
+            <WebScanSetup model={webDraft} materials={model.materials} />
           ) : (
             <SetupBody model={model} />
           )}

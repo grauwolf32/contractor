@@ -1,3 +1,4 @@
+import { isWebScanProfile } from "./web-scan-contract";
 /**
  * State of the Start page: which check type is chosen (the `type` query
  * parameter, else the suggestion for the objective the page opened with,
@@ -128,6 +129,8 @@ function defaultVariant(row: CheckTypeRow): CheckTypeFamily {
 }
 
 function usesOf(profile: AuditProfile, needsLiveTarget: boolean): string[] {
+  if (isWebScanProfile(profile))
+    return ["Target URL", "Installed or custom Nuclei rules"];
   return [
     ...orderedInputs(profile)
       .filter(([, input]) => input.required)

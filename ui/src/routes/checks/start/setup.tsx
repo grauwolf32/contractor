@@ -471,7 +471,11 @@ function UnconfirmedStartNotice({
   );
 }
 
-function LaunchNotices({ model }: { model: StartCheck }) {
+export function LaunchNotices({
+  model,
+}: {
+  model: Pick<StartCheck, "launch" | "request" | "projectId">;
+}) {
   const { launch, request } = model;
   const draft = launch.draft;
   if (launch.pending !== undefined) return null;

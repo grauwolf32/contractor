@@ -6,6 +6,8 @@ import (
 
 // AuditInventoryOpenAPIScans selects a versioned inventory builder, independently
 // of the Workflow that consumes its tasks.
+const AuditInventoryWebScans = "web-scans@1"
+
 const AuditInventoryOpenAPIScans = "openapi-scans@1"
 
 type auditInventoryDescriptor struct {
@@ -17,6 +19,7 @@ type auditInventoryDescriptor struct {
 // A builder without a taskContract produces tasks for the generic Audit item
 // and completion contract; a builder opts in to a typed executor contract here.
 var auditInventories = map[string]auditInventoryDescriptor{
+	AuditInventoryWebScans: {mediaTypes: []string{"application/json"}, taskContract: resolved.AuditTaskWebScanV1, requiresSettings: true},
 	AuditInventoryOpenAPIScans: {
 		mediaTypes:       []string{"application/json", "application/yaml"},
 		taskContract:     resolved.AuditTaskOpenAPIScanV1,

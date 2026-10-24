@@ -47,7 +47,7 @@ func ProfileCompatibility(profile auditprofile.ResolvedAuditProfile) Compatibili
 	return Compatibility{
 		ServerCompatible: len(ordered) == 0,
 		RequiresInputValidation: profile.Inventory.Implementation == "checklist@1" ||
-			profile.Inventory.Implementation == "standard-mappings@1" || profile.Inventory.Implementation == auditprofile.AuditInventoryOpenAPIScans,
+			profile.Inventory.Implementation == "standard-mappings@1" || profile.Inventory.Implementation == auditprofile.AuditInventoryOpenAPIScans || profile.Inventory.Implementation == auditprofile.AuditInventoryWebScans,
 		Reasons: ordered,
 	}
 }

@@ -787,7 +787,7 @@ func validateAuditModeInventory(mode AuditProfileMode, implementation string) er
 	case AuditModeRiskAssessment, AuditModeRequirementsVerification, AuditModeCustomChecklist:
 		valid = implementation == "checklist@1" ||
 			(mode != AuditModeCustomChecklist && implementation == "standard-mappings@1") ||
-			(mode == AuditModeRiskAssessment && implementation == AuditInventoryOpenAPIScans)
+			(mode == AuditModeRiskAssessment && (implementation == AuditInventoryOpenAPIScans || implementation == AuditInventoryWebScans))
 	}
 	if !valid {
 		return fmt.Errorf("spec.inventory.implementation %q is incompatible with mode %q", implementation, mode)

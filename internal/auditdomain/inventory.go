@@ -17,7 +17,7 @@ type inventorySubject struct {
 	checklist  *ChecklistTask
 	standard   *StandardMappingTask
 	operation  *OperationTask
-	scan       *OpenAPIScanTask
+	scan       *ScanTask
 	finding    *FindingTask
 	requested  []string
 	gaps       []string
@@ -169,7 +169,7 @@ func ValidateInventory(value Inventory) error {
 	if err != nil || !bytes.Equal(canonical, value.CanonicalInventory) || !equalStringSlices(basis.Gaps, value.Gaps) ||
 		validateSortedStrings(basis.Gaps, MaximumCoverageValues, "inventory.gaps", false) != nil ||
 		basis.Kind != "checklist" && basis.Kind != "standard-mappings" &&
-			basis.Kind != "openapi-operations" && basis.Kind != "openapi-scans" && basis.Kind != "finding-candidates" {
+			basis.Kind != "web-scans" && basis.Kind != "openapi-operations" && basis.Kind != "openapi-scans" && basis.Kind != "finding-candidates" {
 		return invalid(CodeInventoryInvalid, "inventory.canonical")
 	}
 	if basis.Selection != nil {
@@ -276,8 +276,8 @@ func validateBasisItem(
 ) error {
 	subject := basis.Subjects[index]
 	switch basis.Kind {
-	case "openapi-scans":
-		if task.Scan == nil || item.Kind != "openapi-scan" ||
+	case "openapi-scans", "web-scans":
+		if task.Scan == nil || (basis.Kind == "openapi-scans" && item.Kind != "openapi-scan" || basis.Kind == "web-scans" && item.Kind != "web-scan") ||
 			(item.ApprovalRequirement != ApprovalActiveCheck && item.ApprovalRequirement != ApprovalNone) ||
 			item.ItemKey != openAPIScanKey(canonicalDigest, task.Scan.Operation) || item.SubjectKey != item.ItemKey ||
 			!equalStringSlices(coverage.Requested, []string{task.Scan.CoverageRequirement()}) ||
