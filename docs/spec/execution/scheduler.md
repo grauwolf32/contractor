@@ -795,8 +795,11 @@ allocation it releases before its release batch; after the batch, one more
 marks released exactly those whose live grant is gone. Recovery marks the
 allocations whose grant was already gone with one statement before its
 release batch. Each marker statement names at most 128 allocations
-(LIM-SCH-22) and has the store-operation budget, never the batch's cleanup
-deadline (SCH-R65). Each allocation keeps its own outcome: a completed
+(LIM-SCH-22). One store-operation budget, never the batch's cleanup deadline
+(SCH-R65), covers one marker call: its existence check and every statement
+of at most 128 allocations it writes, so a later statement of a Stage with
+more allocations has only what the earlier ones left and an allocation it
+does not reach stays incomplete for the next attempt. Each allocation keeps its own outcome: a completed
 release is left as it is, a missing allocation is an error for that
 allocation alone while the others are still marked, a grant the batch could
 not release keeps its fence and its incomplete row (SCH-R69, SCH-R71), and a
