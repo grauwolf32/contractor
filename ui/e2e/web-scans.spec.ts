@@ -112,7 +112,7 @@ for (const theme of ["light", "dark", "black"]) {
       ),
     ).toBe(true);
     await page.screenshot({
-      path: `/private/tmp/contractor-web-scan-${theme}.png`,
+      path: test.info().outputPath(`contractor-web-scan-${theme}.png`),
       fullPage: true,
     });
     await page.getByRole("button", { name: "Start scan", exact: true }).click();
@@ -239,7 +239,7 @@ for (const theme of ["light", "dark", "black"]) {
       ),
     ).toBe(true);
     await page.screenshot({
-      path: `/private/tmp/contractor-rule-sweep-${theme}.png`,
+      path: test.info().outputPath(`contractor-rule-sweep-${theme}.png`),
       fullPage: true,
     });
     await page
