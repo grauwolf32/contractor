@@ -21,12 +21,12 @@ execution_policy:
     finding fence) and close through V414-027. This is delivery order, not an
     additional technical dependency. Remaining V64 integration is deferred until
     an explicit user decision supported by representative audit evidence.
-    Paused on 2026-10-24 at the user's request. Unfinished checkpoints of the
-    tasks in progress live on their lane branches, each with a progress note in
-    the task file: claude/sitemap (V410-010), claude/pentest (V414-015),
-    claude/v414-sec (V414-011), claude/v414-evals (V414-017), claude/v414-plan
-    (V414-006), claude/v414-sql (V414-028) and claude/v414-rt (V414-005).
-    Resume from those branches; the rest of each lane's queue is pending.
+    Paused again on 2026-10-24 at the user's request. Unfinished checkpoints
+    of the tasks in progress live on their lane branches, each with a progress
+    note in the task file: claude/sitemap (V410-010), claude/pentest
+    (V411-001), claude/v414-sec (V414-023), claude/v414-evals (V414-026),
+    claude/v414-plan (V414-008) and claude/v414-sql (V414-029). Resume from
+    those branches; the rest of each lane's queue is pending.
   task_files_are_self_contained: true
   task_statuses:
     pending: Not yet taken into development.
