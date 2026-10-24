@@ -802,7 +802,12 @@ Worker rules remain in AgentTemplate `instructions`.
 referenced owner artifact is missing, has the wrong media type, is invalid or
 cannot be forked. It records a stable code and the logical ref, but no body,
 host path or parser exception. Invalid content is a configuration error
-(FAIL-SKL-3).
+(FAIL-SKL-3). A missing owner artifact is `skill_artifact_not_found`, both for
+a committed missing-source result and for a pinned exact revision that the
+read or the fork no longer finds, such as one a Run's lenient Skill holder
+named after history retention removed it
+([DEL-R63](../artifacts/retention-and-deletion.md)); no retry brings that
+revision back.
 
 **SKL-R107.** The terminal WorkflowRun initialization codes are those
 of [ERR-R5](../platform/errors.md) (FAIL-SKL-3).

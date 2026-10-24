@@ -12,19 +12,28 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // recordingResultCommits counts the result progressions the Scheduler asks
-// the store to commit and keeps the store's answer to the last one.
+// the store to commit and keeps the store's answer to the last one. A
+// beforeCommit hook runs once, before the first commit.
 type recordingResultCommits struct {
 	AtomicPersistence
-	commits int
-	last    error
+	commits      int
+	last         error
+	beforeCommit func(context.Context) error
 }
 
 func (p *recordingResultCommits) CommitResultProgression(ctx context.Context, value ResultProgression) error {
 	p.commits++
+	if hook := p.beforeCommit; hook != nil {
+		p.beforeCommit = nil
+		if err := hook(ctx); err != nil {
+			return err
+		}
+	}
 	p.last = p.AtomicPersistence.CommitResultProgression(ctx, value)
 	return p.last
 }
@@ -94,6 +103,58 @@ func TestPostgresOutputMappingOntoAnotherRevisionEndsRunOnce(t *testing.T) {
 	allocations, err := h.store.ListStageAllocations(ctx, executions[0].StageExecutionID)
 	if err != nil || len(allocations) != 1 || allocations[0].ReleaseCompletedAt == nil {
 		t.Fatalf("Stage allocations after the second pass = (%+v, %v), want released", allocations, err)
+	}
+}
+
+// An output source revision that is gone when the acceptance commits can
+// never be bound, so the Scheduler ends the Run once as durable state it
+// cannot progress (SCH-R102) instead of letting finalization recovery replay
+// the acceptance on every pass. The finalizing StageExecution holds its
+// candidate (DEL-R63), so in production only a purge of the Run's scope
+// removes it; the fixture removes the revision under that purge's setting
+// after the binding advanced past it.
+func TestPostgresOutputMappingOfMissingSourceEndsRunOnce(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	h, commits, _, runArtifacts := newOutputBindingHarness(t, ctx)
+	candidate := h.invoker.result.Artifacts["copied"]
+	if _, err := runArtifacts.Write(
+		ctx, contracts.ArtifactRef{Namespace: candidate.Namespace, Name: candidate.Name},
+		artifacts.Payload{MediaType: "text/plain", Data: []byte("advanced\n")}, candidate.Revision,
+	); err != nil {
+		t.Fatal(err)
+	}
+	commits.beforeCommit = func(ctx context.Context) error {
+		return persistencepostgres.InTx(ctx, h.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+			if _, err := tx.Exec(ctx, `SELECT set_config('contractor.lifecycle_purge', 'run', true)`); err != nil {
+				return err
+			}
+			removed, err := tx.Exec(ctx, `DELETE FROM artifact_binding_revisions
+WHERE scope_kind = 'run' AND scope_id = 'run-1' AND namespace = $1 AND name = $2 AND revision = $3`,
+				candidate.Namespace, candidate.Name, *candidate.Revision)
+			if err == nil && removed.RowsAffected() != 1 {
+				err = errors.New("the candidate revision does not exist")
+			}
+			return err
+		})
+	}
+
+	worked, err := h.scheduler.RunOnce(ctx)
+	run, runErr := h.store.GetRun(ctx, "run-1")
+	if err != nil || !worked || runErr != nil || run.State != runstore.RunFailed {
+		t.Errorf("first pass = (%v, %v), Run %s (%v); want the Run failed", worked, err, run.State, runErr)
+	}
+	// The second pass finds the Run terminal and replays nothing.
+	if _, err := h.scheduler.RunOnce(ctx); err != nil {
+		t.Errorf("second pass: %v", err)
+	}
+	if commits.commits != 1 || !errors.Is(commits.last, errInvalidRunState) ||
+		!errors.Is(commits.last, artifacts.ErrArtifactNotFound) {
+		t.Fatalf("result commits = %d, last = %v; want one, refused as invalid output state", commits.commits, commits.last)
+	}
+	requireRunEndedAsInvalidState(t, ctx, h)
+	if _, err := runArtifacts.Metadata(ctx, contracts.ArtifactRef{Namespace: "outputs", Name: "result"}); !errors.Is(err, artifacts.ErrArtifactNotFound) {
+		t.Fatalf("outputs/result after the refused acceptance = %v, want unbound", err)
 	}
 }
 

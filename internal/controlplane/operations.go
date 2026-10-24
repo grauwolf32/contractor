@@ -718,9 +718,7 @@ func summarizeAllocationReport(report reporting.AllocationFinalReport) MetricsSu
 }
 
 func validMetricsSummary(summary MetricsSummary) bool {
-	return summary.ModelCalls >= 0 && summary.InputTokens >= 0 && summary.OutputTokens >= 0 &&
-		summary.TotalTokens >= 0 && summary.ToolCalls >= 0 && summary.ToolFailures >= 0 &&
-		summary.ErrorCount >= 0
+	return telemetry.Summary(summary).Validate() == nil
 }
 
 func validExhaustedDimension(value string) bool {

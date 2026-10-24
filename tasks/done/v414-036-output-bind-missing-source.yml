@@ -1,0 +1,171 @@
+schema_version: "1.0"
+id: V414-036
+title: "End the Run when a Workflow output's source revision is missing instead of retrying finalization"
+milestone: review-v407-v409-followups-2026-10
+epic: execution-core
+kind: defect
+introduced_by: V372-017
+priority: P2
+status: completed
+depends_on: []
+languages: [go]
+implementation_commit: 607016e450532be1d219ec5ddb7440123c2c7fce
+goal: >-
+  Binding a Workflow output whose exact source revision no longer exists is
+  a permanent, classified failure that ends the Run like a refused mapping,
+  not an ordinary error that Stage finalization recovery retries forever.
+context:
+  specification:
+    - docs/spec/artifacts/artifact-store.md
+    - docs/spec/execution/runs.md
+    - docs/spec/platform/failure-model.md
+  review: >-
+    Found while implementing V410-010 (tasks/done/v410-010-artifact-history-retention.yml,
+    notes). The user asked on 2026-10-24 to file it and fix it next.
+  severity: low
+  finding: >-
+    internal/scheduler/artifacts.go:95-121 (bindOutput) converts only
+    artifacts.ErrArtifactConflict into errInvalidRunState. A Fork whose
+    exact source revision is missing returns the ArtifactStore's not-found
+    or exact-revision error, which stays an ordinary error, so Stage
+    finalization recovery retries the acceptance on every pass and the Run
+    never ends. Since V410-010 a StageExecution holds its candidate output
+    revisions, so retention no longer removes them, but the classification
+    gap remains for any other removal (Run purge races, a corrupted
+    reference) and the comment at artifacts.go:111-113 states only the
+    conflict case.
+  siblings: >-
+    Other scheduler paths that fork or read an exact revision during
+    acceptance or finalization: freezeOutputs, input forks at Run
+    initialization (RUN-R26), Planner session artifact reads and output
+    publication. Each classifies a missing exact revision as permanent or is
+    ruled out with the reason.
+scope:
+  in:
+    - "Classify a missing exact source revision in bindOutput as errInvalidRunState (or the stable Run failure the spec names), so the Run ends with a recorded reason."
+    - "Fix or rule out each sibling path."
+    - "A real-PostgreSQL regression test that removes the candidate revision before acceptance and observes the Run end once, with no further recovery attempts."
+  out:
+    - "Transient database failures, which stay retryable."
+acceptance_criteria:
+  - id: A1
+    text: "A Stage result naming an output revision that no longer exists ends the Run with a stable classified reason after one acceptance attempt."
+  - id: A2
+    text: "A transient failure during the Fork is still retried by finalization recovery."
+  - id: A3
+    text: "Each sibling path behaves the same way or is ruled out with the reason."
+  - id: A4
+    text: "The regression test fails on the unfixed code by observing a repeated recovery attempt."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -tags=integration -count=1 ./internal/scheduler/... ./internal/artifacts/..."
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+decisions:
+  - >-
+    bindOutput classifies its fork with artifacts.IsExactReferenceRejection,
+    the classifier the Planners (PLN-R118) and candidate verification
+    (SCH-R177) already apply to exact references, instead of naming only
+    ErrArtifactNotFound: a missing revision, a malformed reference
+    (including the versionless and invalid Run scope checks that precede
+    the fork) and an integrity mismatch answer the same on every replay, so
+    together with the existing ErrArtifactConflict they are
+    errInvalidRunState. The Run then ends once through FAIL-SCH-13 with
+    scheduler_state_invalid, and its finalizing Stage accepts the candidate
+    without output binding (SCH-R102), as the conflict case already did.
+    Every other error, such as a database or context failure, stays
+    ordinary and finalization recovery retries it (A2, covered by the
+    existing TestPostgresTransientOutputBindingFailureIsRetried).
+  - >-
+    Reachability: since V410-010 the finalizing StageExecution holds its
+    candidate revisions strictly, and the hold trigger nets candidate and
+    accepted references (contractor_artifact_key_set), so CompleteStageResult
+    acquires nothing new and the fork is the first statement that meets a
+    missing source. Retention cannot remove a held revision, so in
+    production only a purge of the Run's scope could; the regression test
+    removes the revision under that purge's setting after the binding
+    advanced past it.
+  - >-
+    The memory result commit double (internal/scheduler/scheduler_test.go)
+    now refuses a source revision the memory store no longer holds, as the
+    store does, so memory Scheduler tests cannot pass on a path the store
+    refuses.
+  - >-
+    Sibling, StageContext preparation (ruled out, with a test):
+    internal/scheduler/stage_preparation.go:68 records an Audit-pinned exact
+    context ref (auditPinnedContextRef, the completion task and execution
+    manifest) that resolves to ErrArtifactNotFound as an absent pin with the
+    declaration's Required flag. internal/config/auditprofile/audit_completion.go:108-129
+    rejects a completion whose task or manifest is not a required Workflow
+    input passed as a required Stage context artifact, so the absent pin is
+    required and missingRequiredContext ends the Stage with the
+    non-retryable context_artifact_missing before any allocation (SCH-R17,
+    FAIL-SCH-3), without substituting the current revision.
+    TestSchedulerMissingAuditPinnedContextInterruptsWithoutAllocation pins
+    this; it fails if the pin is ignored. The pinned refs are RunScope
+    inputs/<slot> forks, a binding's only and current revision that Run
+    writes cannot advance, so they cannot go missing while the Run lives.
+  - >-
+    Sibling, next-Stage context pins (already classified):
+    commitNextStage's RequireExact (internal/scheduler/postgres.go:546) maps
+    an exact reference rejection to errInvalidRunState.
+  - >-
+    Sibling, candidate verification (already classified): validateCandidate
+    resolves every candidate artifact before EnterFinalizingWithResult and
+    maps a rejection to the non-retryable result_contract_violation
+    (stage_finalization.go:113, SCH-R177); EnterFinalizingWithResult then
+    requires each candidate revision in its transaction.
+  - >-
+    Sibling, Project output publication (already classified):
+    publishOneProjectOutput records ErrArtifactNotFound once as
+    source_unavailable (projectOutputPublicationFailure,
+    postgres.go:767); only transientPublicationFailure is retried, within
+    LIM-PRJ-4.
+  - >-
+    Siblings ruled out: freezeOutputs freezes a Namespace and names no
+    exact revision; verifyRequiredWorkflowOutputs reads the current output
+    binding and already maps a missing required one to errInvalidRunState;
+    input forks (RUN-R26) happen in the Run creation transaction
+    (runservice forkInput), where a missing source fails creation (public
+    404, or a permanent Audit submission failure since V414-035) and no
+    recovery replays them; Planner session artifact reads use
+    IsExactReferenceRejection (planner/result.go:66,
+    planner/streamline/tools.go:417 and :449).
+  - >-
+    Observed outside this class: auditBindingRequirements answers an
+    invalid Audit completion authority with a plain error, which the
+    Scheduler retries on every pass. Run creation validates that authority,
+    so it is unreachable from committed state; not changed here.
+verification:
+  date: '2026-10-25'
+  environment: >-
+    macOS arm64, Go 1.26.9, PostgreSQL 17.11 (Homebrew) database
+    contractor_test_v414_cls with per-test schemas and all 44 migrations;
+    branch claude/v414-cls on integration branch claude/v41x-coord
+    23dee83d; locked Runtime venv and pnpm UI install for make lint.
+  commands:
+    - >-
+      go test -tags=integration -count=1 -v ./internal/scheduler/...
+      ./internal/artifacts/...: ok (scheduler 93.6s, artifacts 86.2s); 614
+      passing tests, no skips, no failures.
+    - >-
+      New tests: TestPostgresOutputMappingOfMissingSourceEndsRunOnce (real
+      store; the candidate revision is removed before the acceptance
+      commits; one commit refused as errInvalidRunState wrapping
+      ErrArtifactNotFound, Run failed with scheduler_state_invalid, the
+      Stage accepted its candidate, outputs/result unbound, the second pass
+      replays nothing; A1), the "source gone" case of
+      TestMemoryResultCommitBindsEachOutputOnce, and
+      TestSchedulerMissingAuditPinnedContextInterruptsWithoutAllocation
+      (A3). A2: TestPostgresTransientOutputBindingFailureIsRetried passes
+      unchanged.
+    - >-
+      A4: with internal/scheduler/artifacts.go restored from the base, the
+      Postgres test fails with "first pass = (true, bind Workflow output
+      "result": artifact not found), Run running" and "result commits = 2",
+      a repeated recovery attempt. The sibling test fails with "invalid Run
+      Audit completion authority" when stage_preparation.go ignores the
+      Audit pin. Both files were restored.
+    - >-
+      make lint: exit 0 after make docs-dependencies (the dependency graph
+      fingerprint covers internal/scheduler).

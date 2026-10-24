@@ -954,9 +954,12 @@ is a metadata fork inside the same RunScope with lineage edge kind
 it. A mapping that finds the binding already forked by `output_bind` from the
 same exact source revision, as a replay of a lost acceptance would, succeeds
 without a second revision. A mapping that meets a binding of any other
-revision is a permanent failure: it binds nothing, and the Run ends through
-FAIL-SCH-13 with `scheduler_state_invalid`
-([SCH-R102](../execution/scheduler.md)) instead of retrying the acceptance.
+revision, or whose exact source reference is rejected, such as a revision the
+RunScope no longer holds, is a permanent failure: it binds nothing, and the
+Run ends through FAIL-SCH-13 with `scheduler_state_invalid`
+([SCH-R102](../execution/scheduler.md)) instead of retrying the acceptance. A
+failure that leaves the source unverified, such as an unavailable database,
+commits nothing and finalization recovery replays the acceptance.
 
 Rationale: no valid Workflow maps one output twice in one Run. Catalog load
 rejects a graph in which a Stage maps an output that an earlier successful

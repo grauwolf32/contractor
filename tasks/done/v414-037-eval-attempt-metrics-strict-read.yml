@@ -1,0 +1,173 @@
+schema_version: "1.0"
+id: V414-037
+title: "Read Eval attempt metrics strictly and remove the older passthrough@1 path"
+milestone: review-v407-v409-followups-2026-10
+epic: evals
+kind: chore
+priority: P2
+status: completed
+depends_on: []
+languages: [go]
+goal: >-
+  Eval usage collection decodes stored StageMetrics with the same strict
+  decoder and bounds that validated them on write, and no longer carries a
+  lenient path for older report shapes.
+context:
+  specification:
+    - docs/spec/evals/managed-evals.md#EVM-R240
+    - docs/spec/platform/observability.md
+  review: >-
+    Found while implementing V414-002
+    (tasks/done/v414-002-eval-token-budget-overflow.yml). AGENTS.md section
+    2 forbids lenient legacy readers. The user asked on 2026-10-24 to file
+    it and fix it next.
+  finding: >-
+    internal/evalservice/usage_collection.go:33-56 (attemptMetrics) decodes
+    stored StageMetrics with plain json.Unmarshal, which ignores unknown and
+    duplicate members, and keeps a branch for "Older passthrough@1 reports"
+    that fills missing Planner model counters with zero
+    (usage_collection.go:41-54). It also tolerates negative counters as
+    "missing" (usage_collection.go:66-73). Stored reports are validated on
+    write (OBS-R111, internal/contracts/reporting/telemetry.go), so every
+    stored report has a known shape and range; the lenient reader can only
+    hide a contract violation. The branch dates from 43178e54
+    (2026-09-21), before task files recorded commits.
+  siblings: >-
+    Other readers of stored StageMetrics or Run reports: the Operations
+    totals (now telemetry.Summarize since V414-002), the public metrics
+    summary, the Eval usage read model. Each uses the strict decoder or is
+    ruled out with the reason.
+scope:
+  in:
+    - "Decode stored StageMetrics in attemptMetrics with the strict decoder and validator used on write; a stored report that fails it is a data-integrity error, not a missing counter."
+    - "Remove the older-passthrough@1 zero-fill after confirming that current passthrough@1 reports always carry their counters (state the evidence); if they do not, fix the producer instead."
+    - "Keep EVM-R240's overflow and incompleteness rules for values that are valid but absent by contract."
+  out:
+    - "Changing the report contract itself."
+acceptance_criteria:
+  - id: A1
+    text: "A stored report with an unknown or duplicate member, or a negative counter, fails attemptMetrics as an integrity error in a test."
+  - id: A2
+    text: "No code path fills missing counters for an older report shape, and passthrough@1 Runs still produce complete usage from their real reports."
+  - id: A3
+    text: "Each sibling reader is strict or ruled out with the reason."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -tags=integration -count=1 ./internal/evalservice/... ./internal/telemetry/..."
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+implementation_commit: 88d496a88fd76d1f9b61cf5df7a9b77aa5a7c325
+decisions:
+  strict_reader: >-
+    attemptMetrics decodes the bounded SQL projection of a StageMetrics
+    document (metricSnapshotsQuery: each report's complete, truncated and
+    metrics members and each Runtime report's complete member) with
+    strictjson.DecodeNonNull and the ExecutionMetrics rules, now one exported
+    method (ExecutionMetrics.Validate) that ExecutionReport.validate also
+    calls, so received reports, the rebuild and Eval apply one definition. A
+    violation returns errStoredMetrics: a data-integrity error that fails the
+    member's collection on every tick (FAIL-EVM-7); the last complete view
+    stays visible. The projection was kept instead of reading whole documents
+    so collection still never loads prompts, tool arguments or errors and a
+    valid document keeps its source digest; the report members it drops are
+    read strictly by Run detail and the rebuild.
+  passthrough_evidence: >-
+    internal/planner/passthrough.go finishReport, deferred in Run on every
+    path since cbf0544d (2026-09-21), sets ModelCalls, InputTokens,
+    OutputTokens and TotalTokens to explicit zeros; the zero-fill (43178e54)
+    landed 26 minutes later for reports retained from before that, and the
+    000001 baseline (V367-001) requires recreating any older database. The
+    passthrough tests now assert the zeros on success, Worker failure,
+    budget exhaustion, rejected completion and a session that never starts.
+    One producer still omitted them: the Scheduler's planner-missing-
+    placeholder, recorded for any Planner whose instance gives no report
+    (crash resume into finalizing or aborting, cancellation abort, claim
+    loss). The producer was fixed instead of keeping a reader shim: the
+    placeholder of a model-free Planner (resolved.IsModelFreePlanner:
+    passthrough@1, scan-plan@1) states the zeros (OBS-R37, EVM-R81); a
+    model-backed Planner's placeholder keeps unknown counters.
+  normalizer_version: >-
+    Removing derived zeros changes native results for any retained
+    passthrough@1 report without counters, so the output normalizer is
+    contractor-output@3 with implementation digest
+    sha256:e980902feccb330a94376ecae497965d1698a1d9b20faf3479eb9b573db01295
+    (EVF-R53, EVF-R58), following a3baa1a4. Results under version 2 are
+    superseded on recollection, never rewritten.
+  removed_without_caller: >-
+    evalstore.MetricSnapshot.Planner, its planner_id and planner_version
+    projection columns, and resolved.StagePlannerIDPath and
+    StagePlannerVersionPath lost their only caller and were removed (with
+    their snapshot_json_paths_test cases).
+  siblings: >-
+    Strict now: Run detail's StageMetrics batch (GetStageMetricsBatch)
+    decodes metrics and summary with strictjson and their validators and
+    omits a failing row (RUN-R90); the rebuild's read-back does the same;
+    the stored Planner report scan (scanPlannerReport) uses
+    strictjson.DecodeNonNull like the allocation report beside it
+    (AllocationFinalReport.UnmarshalJSON, already strict); the Operations
+    summary check calls the new telemetry.Summary.Validate instead of its
+    own copy of the rule. Ruled out: the Operations totals read a received
+    report after Validate, never storage; the Eval usage read model reads
+    StageMetrics only through attemptMetrics; allocation resource readers
+    read runtime.resources with their own strict decoder; the Eval token
+    threshold (evalstore knownTokensSQL) reads only summary totalTokens in
+    one SQL sum over up to 10,000 rows per member and tick (EVM-R248).
+    Decoding those summaries in Go would move up to 10,000 documents per
+    member and tick, and checking them in SQL would duplicate
+    Summary.Validate (AGENTS.md 3.1). Its COALESCE default is unreachable
+    because RebuildStageMetrics is the summary's only writer and derives it
+    from validated reports; OBS-R110 records that reliance. Reopen if
+    another writer of stage_metrics.summary appears.
+  out_of_scope_gap: >-
+    router@1 and scan-plan@1 do not implement planner.ReportProvider, so
+    their Stages always carry the Scheduler placeholder (now with zero model
+    counters for scan-plan@1, unknown for router@1). Not changed here.
+verification:
+  date: '2026-10-25'
+  environment: >-
+    macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local), the locked Runtime venv and
+    pnpm UI install for make lint; local PostgreSQL 17.11 (Homebrew)
+    database contractor_test_v414_evm with per-test schemas and all 44
+    migrations; worktree claude/v414-evm on 7c4d7589, merged with
+    claude/v41x-coord 23dee83d.
+  commands:
+    - >-
+      CONTRACTOR_TEST_DATABASE_URL=postgres://localhost/contractor_test_v414_evm
+      go test -tags=integration -count=1 ./internal/evalservice/...
+      ./internal/telemetry/... passed (evalservice 47.3s, telemetry 11.9s),
+      and again after the merge (55.3s, 12.0s). New tests:
+      TestEvalAttemptMetricsRejectStoredMetricsThatBreakTheirContract (32
+      cases incl. duplicate and unknown members, negative and above-2^53-1
+      counters), TestEvalAttemptMetricsReadCountersAsReported,
+      TestEvalAttemptMetricsOverflowIsOrderIndependent,
+      TestEvalObservedUsageReadsPlannerCountersAsReported,
+      TestEvalObservedUsageOfRecordedPassthroughReportIsComplete,
+      TestEvalObservedUsageRejectsStoredMetricsThatBreakTheirContract,
+      TestPostgresStageMetricsBatchOmitsOnlyRowsThatBreakTheirContract,
+      TestPostgresStageMetricsRebuildRejectsStoredReportsWithUnknownMembers;
+      TestSharedPostgresEvalOverflowingUsageRecollectsWithoutNewRecords now
+      overflows with counters within 2^53-1.
+    - >-
+      go test -tags=integration -count=1 for the full suites of every touched
+      or consuming package passed: ./internal/contracts/...,
+      ./internal/evalstore/..., ./internal/evaldomain/...,
+      ./internal/persistence/..., ./internal/config/resolved/...,
+      ./internal/scheduler/..., ./internal/controlplane/...,
+      ./internal/planner/..., ./internal/httpapi/public/...,
+      ./internal/runservice/... (scheduler and planner rerun after the
+      merge). go vet -tags=integration,e2e ./... clean; tests/e2e process
+      tests were not run.
+    - >-
+      make lint passed (spec, tasks, ERD, release graph, Ruff,
+      import-linter, staticcheck U1000, testonlyexports, SQL placement).
+    - >-
+      Can-fail checks: the new tests, adapted only to compile, were run
+      against the unfixed code exported from 7c4d7589. Every integrity case of
+      the unit test failed, the PostgreSQL integrity test failed (a stored
+      modelCalls -1 yielded usage), the reads-as-reported test failed
+      (passthrough Stage totalTokens complete through the derived zero), the
+      batch test returned nine broken rows besides the healthy one, the
+      rebuild accepted a stored Planner report with an unknown member, and
+      TestSchedulerRecordsZeroModelUsageForPassthroughPlaceholder found no
+      zero counters in the placeholder.
+  database_tests_configured: true

@@ -45,6 +45,7 @@ depends_on:
   - V414-037
   - V414-038
   - V414-039
+  - V414-040
 languages: [go, python, typescript, sql]
 goal: >-
   Every follow-up found while implementing and reviewing V407 and V409 has a
