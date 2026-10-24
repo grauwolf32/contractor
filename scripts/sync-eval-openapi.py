@@ -339,7 +339,8 @@ for method, path, operation, body, result, status, cas in routes:
     ]
     filters = {
         "getEvalCapabilities": ["kind"],
-        "listEvalExperiments": ["projectId", "state", "datasetId", "controlMode"],
+        # The experiment list filters by Project only (EVM-R247).
+        "listEvalExperiments": ["projectId"],
         "listEvalMembers": common_filters + ["variantId"],
         "listEvalPairs": common_filters,
         "getEvalPair": ["viewSnapshot"],
@@ -377,8 +378,6 @@ for method, path, operation, body, result, status, cas in routes:
             "minLength": 1,
             "maxLength": 8192 if name == "binFilter" else 256,
         }
-        if name in ("state", "controlMode"):
-            schema = source["Experiment"]["properties"][name]
         if name in enum_filters:
             schema = {"type": "string", "enum": enum_filters[name]}
         if name == "resultSha256":

@@ -2451,66 +2451,6 @@ func (e GetEvalCapabilitiesParamsKind) Valid() bool {
 	}
 }
 
-// Defines values for ListEvalExperimentsParamsState.
-const (
-	EvalListevalexperimentsStateCancelled  ListEvalExperimentsParamsState = "cancelled"
-	EvalListevalexperimentsStateCancelling ListEvalExperimentsParamsState = "cancelling"
-	EvalListevalexperimentsStateDraft      ListEvalExperimentsParamsState = "draft"
-	EvalListevalexperimentsStateFinished   ListEvalExperimentsParamsState = "finished"
-	EvalListevalexperimentsStatePaused     ListEvalExperimentsParamsState = "paused"
-	EvalListevalexperimentsStatePausing    ListEvalExperimentsParamsState = "pausing"
-	EvalListevalexperimentsStatePreparing  ListEvalExperimentsParamsState = "preparing"
-	EvalListevalexperimentsStateReady      ListEvalExperimentsParamsState = "ready"
-	EvalListevalexperimentsStateRunning    ListEvalExperimentsParamsState = "running"
-	EvalListevalexperimentsStateSettling   ListEvalExperimentsParamsState = "settling"
-)
-
-// Valid indicates whether the value is a known member of the ListEvalExperimentsParamsState enum.
-func (e ListEvalExperimentsParamsState) Valid() bool {
-	switch e {
-	case EvalListevalexperimentsStateCancelled:
-		return true
-	case EvalListevalexperimentsStateCancelling:
-		return true
-	case EvalListevalexperimentsStateDraft:
-		return true
-	case EvalListevalexperimentsStateFinished:
-		return true
-	case EvalListevalexperimentsStatePaused:
-		return true
-	case EvalListevalexperimentsStatePausing:
-		return true
-	case EvalListevalexperimentsStatePreparing:
-		return true
-	case EvalListevalexperimentsStateReady:
-		return true
-	case EvalListevalexperimentsStateRunning:
-		return true
-	case EvalListevalexperimentsStateSettling:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for ListEvalExperimentsParamsControlMode.
-const (
-	EvalListevalexperimentsControlmodeExternal ListEvalExperimentsParamsControlMode = "external"
-	EvalListevalexperimentsControlmodeServer   ListEvalExperimentsParamsControlMode = "server"
-)
-
-// Valid indicates whether the value is a known member of the ListEvalExperimentsParamsControlMode enum.
-func (e ListEvalExperimentsParamsControlMode) Valid() bool {
-	switch e {
-	case EvalListevalexperimentsControlmodeExternal:
-		return true
-	case EvalListevalexperimentsControlmodeServer:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for GetEvalChartParamsMeasurementScope.
 const (
 	EvalGetevalchartMeasurementscopeAudit    GetEvalChartParamsMeasurementScope = "audit"
@@ -8411,19 +8351,10 @@ type GetEvalCapabilitiesParamsKind string
 
 // ListEvalExperimentsParams defines parameters for ListEvalExperiments.
 type ListEvalExperimentsParams struct {
-	Limit       *int                                  `form:"limit,omitempty" json:"limit,omitempty"`
-	Cursor      *string                               `form:"cursor,omitempty" json:"cursor,omitempty"`
-	ProjectId   *string                               `form:"projectId,omitempty" json:"projectId,omitempty"`
-	State       *ListEvalExperimentsParamsState       `form:"state,omitempty" json:"state,omitempty"`
-	DatasetId   *string                               `form:"datasetId,omitempty" json:"datasetId,omitempty"`
-	ControlMode *ListEvalExperimentsParamsControlMode `form:"controlMode,omitempty" json:"controlMode,omitempty"`
+	Limit     *int    `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor    *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+	ProjectId *string `form:"projectId,omitempty" json:"projectId,omitempty"`
 }
-
-// ListEvalExperimentsParamsState defines parameters for ListEvalExperiments.
-type ListEvalExperimentsParamsState string
-
-// ListEvalExperimentsParamsControlMode defines parameters for ListEvalExperiments.
-type ListEvalExperimentsParamsControlMode string
 
 // DeleteEvalExperimentParams defines parameters for DeleteEvalExperiment.
 type DeleteEvalExperimentParams struct {
@@ -21834,42 +21765,6 @@ func NewListEvalExperimentsRequest(server string, params *ListEvalExperimentsPar
 		if params.ProjectId != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "projectId", *params.ProjectId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.State != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "state", *params.State, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.DatasetId != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "datasetId", *params.DatasetId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.ControlMode != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "controlMode", *params.ControlMode, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
