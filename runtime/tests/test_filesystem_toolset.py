@@ -127,7 +127,7 @@ def test_read_tools_are_sorted_paginated_and_preserve_newlines(tmp_path: Path, m
         assert [item["path"] for item in single["matches"]] == ["src/a.py"]
 
         assert len(state.metrics.tool_calls) >= 8
-        assert all(call.arguments == {} for call in state.metrics.tool_calls)
+        assert all(call.arguments is None for call in state.metrics.tool_calls)
         assert SECRET_PATTERN not in repr(state.metrics)
 
     asyncio.run(scenario())

@@ -387,7 +387,16 @@ is required.
 
 **OBS-R27.** Tool arguments are recursively redacted before they leave
 the Worker and again at the Server persistence boundary. They are bounded
-(LIM-OBS-6) and carry an explicit truncation marker.
+(LIM-OBS-6) and carry an explicit truncation marker. The value of a member
+with a sensitive name becomes the placeholder `{"redacted": true, "size": n}`,
+where `size` is a non-negative integer or null; every name the Server treats
+as sensitive the Worker treats as sensitive too. Redacting a redacted record
+again changes nothing: a value that already is that placeholder, a
+non-negative integer under a size name the Worker derives from content it
+omits (`content_bytes`, `description_bytes`, `result_content_bytes`,
+`result_description_bytes`) and the summary that replaces arguments above
+LIM-OBS-6 (`{"summary": "[TRUNCATED]", "originalSizeBytes": n}`) pass
+unchanged.
 
 **OBS-R28.** MemoryTools applies a stricter projection: note
 content, description and tags are always dropped rather than merely truncated.
@@ -476,7 +485,11 @@ counters and sets `truncated`.
 escaping; U+2028 and U+2029 count as three-byte UTF-8 characters. Error-message
 sizes count UTF-8 text bytes, independently of their JSON escaping. These rules
 apply both to final reports and live Worker State, including per-tool errors.
-The shared `execution-error-cases.json` fixture pins both diagnostic bounds.
+The shared `execution-error-cases.json` fixture pins both diagnostic bounds. An
+empty tool `arguments` object counts as absent, as both sides encode it, and a
+number in tool arguments counts as the literal its producer wrote: the Server
+keeps that literal instead of re-formatting it, so it measures and bounds the
+bytes the Runtime measured, and an integer beyond 2^53 keeps its value.
 
 **OBS-R110.** A report over its byte bound loses detail in one order: the
 oldest tool-call record first, the oldest error only after no tool-call record
@@ -486,17 +499,23 @@ whose compact JSON (OBS-R42) fits; once a record is removed `truncated` is
 shorter `"truncated":true` alone would make it fit. When no detail is left and
 the report still does not fit, the report is rejected as an oversized
 aggregate. Records are redacted and bounded (OBS-R27, OBS-R30) before anything
-is measured, so unredacted content is never sized. The Worker producer and the
-Server persistence boundary implement the rule separately and reach the same
-result, which the shared `telemetry-report-trim-cases.json` fixture pins at
-every removal boundary. Since the JSON of a list is its elements joined by
-commas, each side measures every candidate record once and the complete report
-at most three times per bound (the candidate, the report without detail and
-the retained result), however many records it removes; the retained result
-must measure exactly the computed size, or the report is rejected. The Server
-applies the rule again after its own redaction, which can lengthen a record
-the Runtime already bounded, first at the Worker report bound and then at the
-1 MiB allocation bound (LIM-OBS-7); it bounds a Planner report at 1 MiB.
+is measured, so unredacted content is never sized. Since the JSON of a list is
+its elements joined by commas, each side measures every candidate record once
+and the complete report at most three times per bound (the candidate, the
+report without detail and the retained result), however many records it
+removes; the retained result must measure exactly the computed size, or the
+report is rejected. The Worker producer and the Server persistence boundary
+implement the rule separately. Given the same records they keep the same
+suffix, and they measure a record the Runtime built at the same size
+(OBS-R42). The Server applies the rule again after its own redaction, first at
+the Worker report bound and then at the 1 MiB allocation bound (LIM-OBS-7); it
+bounds a Planner report at 1 MiB. That redaction leaves a record the Runtime
+redacted unchanged (OBS-R27), except where it replaces a deployment secret it
+holds (OBS-R30) or a text containing `://` that its URL check treats as
+credential-bearing. Only such a change makes the Server remove more detail
+than the Runtime removed. The shared `telemetry-report-trim-cases.json` fixture
+pins the retained suffix at every removal boundary, the equal sizes and the
+unchanged records, including records the Runtime's producer built.
 
 **OBS-R43.** Durable telemetry expires after 30 days (LIM-OBS-8). Cleanup
 is batch-bounded and may delete only telemetry that belongs to a terminal
@@ -1009,13 +1028,19 @@ These properties follow from the cited requirements, which are authoritative.
    [`internal/telemetry/retention_test.go`](../../../internal/telemetry/retention_test.go).
 8. Metadata labels reach telemetry only as bounded attributes and never reach a
    model (OBS-R102, OBS-R106).
-9. The Worker producer and the Server keep the same newest detail of an
-   oversized report and measure the complete report at most three times per
-   bound (OBS-R41, OBS-R110); tests
+9. Given the same records, the Worker producer and the Server keep the same
+   newest detail of an oversized report and measure the complete report at
+   most three times per bound; they measure a record the Runtime built at the
+   same size, and the Server's redaction leaves it unchanged unless it holds a
+   secret the record contains or treats a `://` text as credential-bearing
+   (OBS-R27, OBS-R41, OBS-R42, OBS-R110); tests
    `TestSharedReportTrimKeepsTheSharedSuffixAtEveryBoundary` and
    `TestReportTrimMeasuresTheCompleteReportAtMostThreeTimes` in
-   [`internal/telemetry/trim_test.go`](../../../internal/telemetry/trim_test.go)
-   and `test_shared_report_trim_keeps_the_shared_suffix_at_every_boundary` and
+   [`internal/telemetry/trim_test.go`](../../../internal/telemetry/trim_test.go),
+   `TestToolArgumentsKeepTheRuntimeNumberLiterals` in
+   [`internal/contracts/reporting/telemetry_test.go`](../../../internal/contracts/reporting/telemetry_test.go),
+   and `test_shared_report_trim_keeps_the_shared_suffix_at_every_boundary`,
+   `test_shared_argument_redaction_leaves_redacted_arguments_unchanged` and
    `test_shared_report_trim_measures_the_complete_report_at_most_three_times`
    in [`runtime/tests/test_metrics.py`](../../../runtime/tests/test_metrics.py).
 

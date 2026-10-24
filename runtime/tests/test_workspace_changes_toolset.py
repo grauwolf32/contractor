@@ -87,7 +87,7 @@ def test_change_classification_pagination_diff_and_rollback_are_deterministic(
         await tools["rollback_changes"]()
         assert tuple(entry.path for entry in await session.change_entries()) == ()
         assert (await tools["changed_paths"]())["changes"] == []
-        assert all(call.arguments == {} for call in state.metrics.tool_calls)
+        assert all(call.arguments is None for call in state.metrics.tool_calls)
 
     asyncio.run(scenario())
 

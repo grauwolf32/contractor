@@ -2,6 +2,7 @@ package reporting
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -107,5 +108,55 @@ func TestSharedMalformedRuntimeAdapterMetricsBecomeIncompleteInsteadOfBlockingRe
 	}
 	if value.Report.Runtime.Complete || len(value.Report.Runtime.Adapters) != 0 {
 		t.Fatalf("malformed metrics were retained: %+v", value.Report.Runtime)
+	}
+}
+
+// The Runtime bounds an argument summary by its own encoding, which writes a
+// number as Python does (1e+16, 5e-05, -0.0, 1.0); the Server keeps those
+// literals, so a summary at the 4096-byte bound stays within it and integers
+// beyond 2^53 keep their value (OBS-R42).
+func TestToolArgumentsKeepTheRuntimeNumberLiterals(t *testing.T) {
+	t.Parallel()
+
+	prefix := `{"large":1e+16,"small":5e-05,"negativeZero":-0.0,"integral":1.0,"integer":9007199254740993,"pad":"`
+	arguments := prefix + strings.Repeat("a", 4096-len(prefix)-2) + `"}`
+	record := `{"callId":"tool-1","tool":"rank","arguments":` + arguments +
+		`,"argumentsTruncated":false,"outcome":"succeeded"}`
+	report, err := contracts.DecodePrivateStrict[ExecutionReport]([]byte(
+		`{"reportId":"worker-1","complete":true,"metrics":{"tools":{}},"toolCalls":[` + record +
+			`],"errors":[],"truncated":false}`))
+	if err != nil {
+		t.Fatalf("a summary at the bound was rejected: %v", err)
+	}
+	decoded := report.ToolCalls[0].Arguments
+	if size, err := contracts.ResultJSONSize(decoded); err != nil || size != 4096 {
+		t.Fatalf("summary measures %d bytes (%v), want 4096", size, err)
+	}
+	for key, want := range map[string]json.Number{
+		"large": "1e+16", "small": "5e-05", "negativeZero": "-0.0", "integral": "1.0", "integer": "9007199254740993",
+	} {
+		if decoded[key] != want {
+			t.Fatalf("%s = %#v, want literal %s", key, decoded[key], want)
+		}
+	}
+
+	var state WorkerStateToolCall
+	if err := contracts.DecodePrivate([]byte(record), &state); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateStateToolCall(state); err != nil || state.Arguments["large"] != json.Number("1e+16") {
+		t.Fatalf("Worker State arguments = %#v (%v)", state.Arguments, err)
+	}
+
+	var empty ToolCallRecord
+	if err := contracts.DecodePrivate([]byte(`{"callId":"tool-2","tool":"list","arguments":{},"argumentsTruncated":false,"outcome":"succeeded"}`), &empty); err != nil {
+		t.Fatal(err)
+	}
+	if encoded, err := json.Marshal(empty); err != nil || strings.Contains(string(encoded), "arguments\"") {
+		t.Fatalf("an empty summary encodes as %s (%v), want it absent", encoded, err)
+	}
+	var null ToolCallRecord
+	if err := contracts.DecodePrivate([]byte(`{"callId":"tool-3","tool":"list","arguments":null,"argumentsTruncated":false,"outcome":"succeeded"}`), &null); err == nil {
+		t.Fatal("null arguments were accepted")
 	}
 }

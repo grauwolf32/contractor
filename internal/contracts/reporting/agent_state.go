@@ -47,7 +47,7 @@ type WorkerAllocationState struct {
 type WorkerStateToolCall struct {
 	CallID             string          `json:"callId" strictjson:"required"`
 	Tool               string          `json:"tool" strictjson:"required"`
-	Arguments          map[string]any  `json:"arguments,omitempty"`
+	Arguments          ToolArguments   `json:"arguments,omitempty"`
 	ArgumentsTruncated bool            `json:"argumentsTruncated" strictjson:"required"`
 	Outcome            ToolCallOutcome `json:"outcome" strictjson:"required"`
 	DurationMS         *uint64         `json:"durationMs,omitempty"`

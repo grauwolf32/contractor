@@ -15,7 +15,7 @@ const recognizableSecret = "telemetry-secret-that-must-not-survive"
 func TestMetricsPolicyKeepsCompactUTF8ArgumentsAndReports(t *testing.T) {
 	path := strings.Repeat("<>&\u2028\u2029", 300)
 	arguments := map[string]any{"path": path}
-	if size := encodedSize(arguments); size != 2711 {
+	if size := jsonBytes(arguments); size != 2711 {
 		t.Fatalf("compact argument size = %d, want 2711", size)
 	}
 	worker := reporting.ExecutionReport{
@@ -105,7 +105,7 @@ func TestMetricsPolicyBoundsDetailPreservesAggregatesAndRedactsSecrets(t *testin
 		t.Fatalf("aggregate calls changed: %+v", normalized.Metrics.Tools["probe"])
 	}
 	last := normalized.ToolCalls[len(normalized.ToolCalls)-1]
-	if last.CallID != "call-1004" || !last.ArgumentsTruncated || encodedSize(last.Arguments) > MaxArgumentBytes {
+	if last.CallID != "call-1004" || !last.ArgumentsTruncated || jsonBytes(last.Arguments) > MaxArgumentBytes {
 		t.Fatalf("last bounded call = %+v", last)
 	}
 }
@@ -119,6 +119,11 @@ func TestMetricsPolicyRedactsDerivedSensitiveKeys(t *testing.T) {
 			Arguments: map[string]any{
 				"accessToken":   "opaque credential",
 				"contentBase64": "encoded artifact bytes",
+				// Only the exact placeholder and a derived integer size pass.
+				"token":         map[string]any{"redacted": true, "size": "opaque credential"},
+				"password":      map[string]any{"redacted": true, "size": json.Number("3"), "value": "opaque"},
+				"content_bytes": "opaque credential",
+				"payload":       []byte("opaque"),
 			},
 			Outcome: reporting.ToolCallSucceeded,
 		}},
@@ -128,11 +133,14 @@ func TestMetricsPolicyRedactsDerivedSensitiveKeys(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, key := range []string{"accessToken", "contentBase64"} {
+	for _, key := range []string{"accessToken", "contentBase64", "token", "password", "content_bytes", "payload"} {
 		value, ok := normalized.ToolCalls[0].Arguments[key].(map[string]any)
-		if !ok || value["redacted"] != true {
+		if !ok || value["redacted"] != true || !isNonNegativeInteger(value["size"]) {
 			t.Fatalf("sensitive argument %q was not redacted: %#v", key, value)
 		}
+	}
+	if encoded := string(mustJSON(t, normalized)); strings.Contains(encoded, "opaque") || !normalized.ToolCalls[0].ArgumentsTruncated {
+		t.Fatalf("normalized arguments = %s", encoded)
 	}
 }
 

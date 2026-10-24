@@ -150,7 +150,7 @@ def assert_private_metrics_and_cleanup(state, tmp_path, *, failed=True):
     assert state.metrics.counters["tool_calls"] == 1
     if failed:
         assert state.metrics.counters["tool_errors"] == 1
-    assert state.metrics.tool_calls[0].arguments == {}
+    assert state.metrics.tool_calls[0].arguments is None
     assert "canary" not in repr(state.metrics)
     assert list((tmp_path / "workspace").iterdir()) == []
 

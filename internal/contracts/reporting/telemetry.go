@@ -1,6 +1,7 @@
 package reporting
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -66,10 +67,31 @@ const (
 	ToolCallFailed    ToolCallOutcome = "failed"
 )
 
+// ToolArguments is the bounded, redacted argument summary of one tool call;
+// an empty summary encodes as an absent member, as the Runtime writes it. A
+// decoded number keeps the literal its producer wrote (json.Number), so the
+// Server encodes, bounds and measures the bytes the Runtime measured
+// (OBS-R42), and an integer beyond 2^53 keeps its value.
+type ToolArguments map[string]any
+
+// UnmarshalJSON decodes the summary with its number literals kept. The
+// private codec's scan has already rejected duplicate member names, null and
+// trailing data.
+func (a *ToolArguments) UnmarshalJSON(data []byte) error {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	var value map[string]any
+	if err := decoder.Decode(&value); err != nil {
+		return err
+	}
+	*a = value
+	return nil
+}
+
 type ToolCallRecord struct {
 	CallID             string          `json:"callId" strictjson:"required"`
 	Tool               string          `json:"tool" strictjson:"required"`
-	Arguments          map[string]any  `json:"arguments,omitempty"`
+	Arguments          ToolArguments   `json:"arguments,omitempty"`
 	ArgumentsTruncated bool            `json:"argumentsTruncated" strictjson:"required"`
 	Outcome            ToolCallOutcome `json:"outcome" strictjson:"required"`
 	DurationMS         *int64          `json:"durationMs,omitempty"`

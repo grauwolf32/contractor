@@ -53,6 +53,7 @@ SENSITIVE_METRIC_KEYS = frozenset(
         "cookie",
         "data",
         "data_base64",
+        "database_url",
         "llm_gateway_token",
         "password",
         "payload",
@@ -650,11 +651,15 @@ def _sanitize_metric_value(
     ):
         return value, False
     if key is not None and _is_sensitive_metric_key(key):
+        if _is_redaction_placeholder(value):
+            # Redacting twice changes nothing, so the Server's second pass
+            # keeps a record the Runtime redacted and its size (OBS-R27).
+            return {"redacted": True, "size": value["size"]}, False
         return {"redacted": True, "size": _value_size(value)}, False
     if depth >= MAX_METRIC_DEPTH:
         return "[TRUNCATED]", True
     if isinstance(value, bytes | bytearray | memoryview):
-        return {"bytes": len(value)}, False
+        return {"redacted": True, "size": len(value)}, False
     if isinstance(value, str):
         bounded = _bounded_text(value, secrets)
         return bounded, bounded != value
@@ -754,6 +759,13 @@ def _json_size(value: Any) -> int:
         return 0
 
 
+def _is_redaction_placeholder(value: Any) -> bool:
+    if not isinstance(value, Mapping) or len(value) != 2 or value.get("redacted") is not True:
+        return False
+    size = value.get("size", False)
+    return size is None or (type(size) is int and size >= 0)
+
+
 def _value_size(value: Any) -> int | None:
     if isinstance(value, str | bytes | bytearray | memoryview | list | tuple | Mapping):
         return len(value)
@@ -766,7 +778,9 @@ def _metric_identifier(value: str) -> str:
 
 
 def _is_sensitive_metric_key(value: str) -> bool:
-    normalized = _metric_identifier(value)
+    # The whole name is classified; a metric identifier would cut it at 64
+    # characters and miss a sensitive word after them.
+    normalized = re.sub(r"[^a-z0-9_]+", "_", value.lower()).strip("_")
     compact = normalized.replace("_", "")
     if normalized in SENSITIVE_METRIC_KEYS or compact in {
         item.replace("_", "") for item in SENSITIVE_METRIC_KEYS

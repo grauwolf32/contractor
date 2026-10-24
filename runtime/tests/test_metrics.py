@@ -7,7 +7,11 @@ from types import SimpleNamespace
 import pytest
 from fakes.private_codec import encode_private
 
-from contractor_runtime.contracts import ExecutionReport, TerminationError
+from contractor_runtime.contracts import (
+    ExecutionReport,
+    TerminationError,
+    WorkerCompletionDiagnostics,
+)
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.telemetry import metrics as metrics_module
 from contractor_runtime.telemetry.metrics import (
@@ -16,6 +20,7 @@ from contractor_runtime.telemetry.metrics import (
     MAX_METRIC_ERRORS,
     MAX_METRIC_TOOL_CALLS,
     MAX_REPORT_JSON_BYTES,
+    SAFE_DERIVED_SIZE_METRIC_KEYS,
     MetricsState,
     trim_report_detail,
 )
@@ -26,11 +31,12 @@ SECRET = "metrics-secret-that-must-not-survive"
 TELEMETRY_SIZE_CASES = json.loads(
     (Path(__file__).parents[2] / "api/testdata/v1alpha1/telemetry-json-size-cases.json").read_text()
 )
-REPORT_TRIM_CASES = json.loads(
+REPORT_TRIM_FIXTURE = json.loads(
     (
         Path(__file__).parents[2] / "api/testdata/v1alpha1/telemetry-report-trim-cases.json"
     ).read_text(encoding="utf-8")
-)["cases"]
+)
+REPORT_TRIM_CASES = REPORT_TRIM_FIXTURE["cases"]
 # The Worker report bound before the allocation envelope is added.
 WORKER_REPORT_BYTES = MAX_REPORT_JSON_BYTES - 4096
 
@@ -240,6 +246,44 @@ def test_shared_argument_summary_redacts_nested_secrets_urls_and_artifact_bytes(
     assert SECRET not in encoded
 
 
+def test_shared_argument_redaction_leaves_redacted_arguments_unchanged() -> None:
+    state = MetricsState()
+    state.record_tool_call(
+        "write_artifact",
+        arguments={
+            "path": "notes/a.txt",
+            "content": "plain text",
+            "payload": b"raw bytes",
+            "attachment": bytearray(b"abc"),
+            "content_bytes": 120,
+            "database_url": "postgres://db.example.test/app",
+            "x" * 70 + "token": "v",
+        },
+    )
+    state.record_tool_call("list_files", arguments={})
+    first, empty = state.tool_calls
+    assert first.arguments == {
+        "path": "notes/a.txt",
+        "content": {"redacted": True, "size": 10},
+        "payload": {"redacted": True, "size": 9},
+        "attachment": {"redacted": True, "size": 3},
+        "content_bytes": 120,
+        "database_url": {"redacted": True, "size": 30},
+        "x" * 70 + "token": {"redacted": True, "size": 1},
+    }
+    assert first.arguments_truncated is False
+    assert empty.arguments is None
+
+    # Redacting the redacted summary again, as the Server does, changes nothing.
+    state.record_tool_call("write_artifact", arguments=first.arguments)
+    again = state.tool_calls[-1]
+    assert _compact(again.arguments) == _compact(first.arguments)
+    assert again.arguments_truncated is False
+    report = state.build_report(report_id="worker-redacted", duration_ms=1)
+    encoded = _compact(report.model_dump(mode="json", by_alias=True, exclude_none=True))
+    assert '"arguments":{}' not in encoded
+
+
 def test_shared_skill_metric_projects_only_validated_identity_outcome_and_result_size() -> None:
     state = MetricsState()
     state.record_tool_call(
@@ -359,6 +403,33 @@ def _removal_sequence(report: ExecutionReport) -> list[ExecutionReport]:
     return states
 
 
+def _compact(value) -> str:
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+
+
+def _runtime_built_report(inputs: dict) -> ExecutionReport:
+    """Build the report the fixture's runtimeInputs describe through MetricsState."""
+
+    state = MetricsState()
+    budget = inputs.get("workerBudget")
+    if budget is not None:
+        state.start_worker_budget(
+            max_model_calls=budget["maxModelCalls"],
+            max_tool_calls=budget["maxToolCalls"],
+            max_total_tokens=budget["maxTotalTokens"],
+        )
+    for call in inputs["toolCalls"]:
+        state.record_tool_call(
+            call["tool"],
+            arguments=call["arguments"],
+            error=ToolFailure("synthetic failure") if call.get("failed") else None,
+        )
+    completion = inputs.get("completion")
+    if completion is not None:
+        state.record_completion(WorkerCompletionDiagnostics.model_validate(completion))
+    return state.build_report(report_id=inputs["reportId"], duration_ms=inputs["durationMs"])
+
+
 def _count_measurements(monkeypatch) -> dict[str, int]:
     """Count complete-report and single-record JSON measurements by the metrics module."""
 
@@ -373,9 +444,29 @@ def _count_measurements(monkeypatch) -> dict[str, int]:
     return counts
 
 
+def test_shared_redaction_names_agree_with_the_server() -> None:
+    # Every name the Server redacts is redacted here first, so the Server's
+    # second pass never changes a member this producer kept (OBS-R27).
+    redaction = REPORT_TRIM_FIXTURE["redaction"]
+    unredacted = [
+        name
+        for name in redaction["sensitiveNames"]
+        if not metrics_module._is_sensitive_metric_key(name)
+    ]
+    assert unredacted == []
+    assert frozenset(redaction["safeDerivedSizeNames"]) == SAFE_DERIVED_SIZE_METRIC_KEYS
+
+
 @pytest.mark.parametrize("case", REPORT_TRIM_CASES, ids=lambda case: case["name"])
 def test_shared_report_trim_keeps_the_shared_suffix_at_every_boundary(case) -> None:
+    if "runtimeInputs" in case:
+        # The fixture holds what this producer builds; the Server checks that
+        # its own redaction leaves those records unchanged.
+        built = _runtime_built_report(case["runtimeInputs"])
+        dumped = built.model_dump(mode="json", by_alias=True, exclude_none=True)
+        assert _compact(dumped) == _compact(case["report"])
     report = ExecutionReport.model_validate_json(json.dumps(case["report"]))
+    # An empty arguments object counts as absent, as the Server encodes it.
     assert _report_bytes(report) == case["bytes"]
     for limit in case["limits"]:
         if limit.get("aggregateTooLarge"):

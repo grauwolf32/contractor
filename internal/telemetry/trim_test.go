@@ -30,23 +30,89 @@ type reportTrimCase struct {
 	} `json:"limits"`
 }
 
-func TestSharedReportTrimKeepsTheSharedSuffixAtEveryBoundary(t *testing.T) {
-	var fixture struct {
-		Description string           `json:"description"`
-		Cases       []reportTrimCase `json:"cases"`
-	}
+type reportTrimFixture struct {
+	Description string `json:"description"`
+	Redaction   struct {
+		SensitiveNames       []string `json:"sensitiveNames"`
+		SafeDerivedSizeNames []string `json:"safeDerivedSizeNames"`
+	} `json:"redaction"`
+	Cases []reportTrimCase `json:"cases"`
+}
+
+func readReportTrimFixture(t *testing.T) reportTrimFixture {
+	t.Helper()
+	var fixture reportTrimFixture
 	raw := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "telemetry-report-trim-cases.json")
 	if err := json.Unmarshal(raw, &fixture); err != nil || len(fixture.Cases) == 0 {
 		t.Fatalf("decode trim cases: %v (%d cases)", err, len(fixture.Cases))
 	}
+	return fixture
+}
+
+// The Runtime checks that it treats every listed name as sensitive, so the
+// Server never redacts a member the Runtime kept; the list must hold a sample
+// of every rule isSensitiveKey applies (OBS-R27).
+func TestSharedRedactionNamesAgreeWithTheRuntime(t *testing.T) {
+	fixture := readReportTrimFixture(t)
+	listed := map[string]bool{}
+	for _, name := range fixture.Redaction.SensitiveNames {
+		if !isSensitiveKey(name) {
+			t.Fatalf("listed name %q is not sensitive", name)
+		}
+		listed[name] = true
+	}
+	var required []string
+	for name := range sensitiveKeys {
+		required = append(required, name)
+	}
+	for _, fragment := range sensitiveFragments {
+		required = append(required, "x"+fragment+"x")
+	}
+	for _, suffix := range sensitiveSuffixes {
+		required = append(required, "x"+suffix)
+	}
+	for _, name := range required {
+		if !listed[name] {
+			t.Fatalf("sensitive name rule %q has no sample in the shared list", name)
+		}
+	}
+	safe := map[string]struct{}{}
+	for _, name := range fixture.Redaction.SafeDerivedSizeNames {
+		safe[name] = struct{}{}
+	}
+	if fmt.Sprint(safe) != fmt.Sprint(safeDerivedSizeKeys) {
+		t.Fatalf("derived size names = %v, shared list %v", safeDerivedSizeKeys, safe)
+	}
+}
+
+func TestSharedReportTrimKeepsTheSharedSuffixAtEveryBoundary(t *testing.T) {
+	fixture := readReportTrimFixture(t)
 	for _, test := range fixture.Cases {
 		t.Run(test.Name, func(t *testing.T) {
 			report, err := contracts.DecodePrivateStrict[reporting.ExecutionReport](test.Report)
 			if err != nil {
 				t.Fatalf("decode report: %v", err)
 			}
-			if size := encodedSize(report); size != test.Bytes {
+			// Both sides measure the same bytes: an empty arguments object
+			// counts as absent and a number as the literal the Runtime wrote.
+			if size := jsonBytes(report); size != test.Bytes {
 				t.Fatalf("report size = %d, Runtime measures %d", size, test.Bytes)
+			}
+			// Redacting the Runtime's records again changes none of them.
+			normalized, err := NewPolicy().NormalizeExecutionReport(report, MaxReportJSONBytes)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(normalized.ToolCalls) != len(report.ToolCalls) {
+				t.Fatalf("normalization kept %d of %d tool calls", len(normalized.ToolCalls), len(report.ToolCalls))
+			}
+			for index, call := range report.ToolCalls {
+				if got, want := mustJSON(t, normalized.ToolCalls[index]), mustJSON(t, call); !bytes.Equal(got, want) {
+					t.Fatalf("normalization changed tool call %d:\n%s\nwant %s", index, got, want)
+				}
+			}
+			if !bytes.Equal(mustJSON(t, normalized), mustJSON(t, report)) {
+				t.Fatalf("normalization changed the report:\n%s\nwant %s", mustJSON(t, normalized), mustJSON(t, report))
 			}
 			for _, limit := range test.Limits {
 				normalized, err := NewPolicy().NormalizeExecutionReport(report, limit.MaximumBytes)
@@ -66,7 +132,7 @@ func TestSharedReportTrimKeepsTheSharedSuffixAtEveryBoundary(t *testing.T) {
 				if !bytes.Equal(mustJSON(t, normalized), mustJSON(t, want)) {
 					t.Fatalf("limit %d: normalized = %s\nwant %s", limit.MaximumBytes, mustJSON(t, normalized), mustJSON(t, want))
 				}
-				if size := encodedSize(normalized); size != limit.Bytes || size > limit.MaximumBytes {
+				if size := jsonBytes(normalized); size != limit.Bytes || size > limit.MaximumBytes {
 					t.Fatalf("limit %d: retained size = %d, want %d", limit.MaximumBytes, size, limit.Bytes)
 				}
 			}
@@ -165,7 +231,7 @@ func multibyteReport(calls, errorCount int) reporting.ExecutionReport {
 func allocationMeasure(stopReason string) func(reporting.ExecutionReport) int {
 	finished := time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC)
 	return func(worker reporting.ExecutionReport) int {
-		return encodedSize(reporting.AllocationFinalReport{
+		return jsonBytes(reporting.AllocationFinalReport{
 			ReportID: "allocation-final-1", AllocationID: "allocation-1",
 			StartedAt: finished.Add(-time.Minute), FinishedAt: finished,
 			Worker:  worker,
@@ -182,17 +248,17 @@ func TestReportTrimMatchesThePreviousLoopAtEveryBoundary(t *testing.T) {
 		report  reporting.ExecutionReport
 		measure func(reporting.ExecutionReport) int
 	}{
-		{name: "execution report", report: multibyteReport(24, 10), measure: func(report reporting.ExecutionReport) int { return encodedSize(report) }},
+		{name: "execution report", report: multibyteReport(24, 10), measure: func(report reporting.ExecutionReport) int { return jsonBytes(report) }},
 		{name: "already truncated", report: func() reporting.ExecutionReport {
 			report := multibyteReport(9, 3)
 			report.Truncated = true
 			return report
-		}(), measure: func(report reporting.ExecutionReport) int { return encodedSize(report) }},
-		{name: "errors only", report: multibyteReport(0, 10), measure: func(report reporting.ExecutionReport) int { return encodedSize(report) }},
+		}(), measure: func(report reporting.ExecutionReport) int { return jsonBytes(report) }},
+		{name: "errors only", report: multibyteReport(0, 10), measure: func(report reporting.ExecutionReport) int { return jsonBytes(report) }},
 		// RuntimeReport renders through json.Marshal, which escapes <, > and
 		// &; the envelope keeps that size and the records keep theirs.
 		{name: "allocation envelope", report: multibyteReport(24, 10), measure: allocationMeasure("stopped <early> & " + strings.Repeat("界", 40))},
-		{name: "unencodable record", report: unencodable, measure: func(report reporting.ExecutionReport) int { return encodedSize(report) }},
+		{name: "unencodable record", report: unencodable, measure: func(report reporting.ExecutionReport) int { return jsonBytes(report) }},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			boundaries := trimBoundaries(test.report, test.measure)
@@ -204,7 +270,7 @@ func TestReportTrimMatchesThePreviousLoopAtEveryBoundary(t *testing.T) {
 					continue // No report bound is larger; an unencodable record measures above it.
 				}
 				want, wantFits := previousTrim(test.report, maximum, test.measure)
-				got, fits, err := trimDetail(test.report, maximum, test.measure)
+				got, fits, err := NewPolicy().trimDetail(test.report, maximum, test.measure)
 				if err != nil {
 					t.Fatalf("maximum %d: %v", maximum, err)
 				}
@@ -220,13 +286,18 @@ type measurementCounts struct {
 	reports, allocations, records, other int
 }
 
-// countMeasurements counts the JSON measurements the policy performs, by
-// what it measures, until the test ends.
-func countMeasurements(t *testing.T) *measurementCounts {
-	t.Helper()
+// jsonBytes is the policy's JSON measure of value.
+func jsonBytes(value any) int {
+	return NewPolicy().encodedSize(value)
+}
+
+// countingPolicy is NewPolicy(secrets...) with a measure that counts what it
+// measures; the counts belong to the returned policy alone.
+func countingPolicy(secrets ...string) (Policy, *measurementCounts) {
 	counts := &measurementCounts{}
-	previous := jsonSize
-	jsonSize = func(value any) (int, error) {
+	policy := NewPolicy(secrets...)
+	measure := policy.size
+	policy.size = func(value any) (int, error) {
 		switch value.(type) {
 		case reporting.ExecutionReport:
 			counts.reports++
@@ -237,10 +308,9 @@ func countMeasurements(t *testing.T) *measurementCounts {
 		default:
 			counts.other++
 		}
-		return previous(value)
+		return measure(value)
 	}
-	t.Cleanup(func() { jsonSize = previous })
-	return counts
+	return policy, counts
 }
 
 // maximumDetailReport has the retained-record maxima: 1000 tool calls of
@@ -300,11 +370,11 @@ func assertFirstFit(
 }
 
 func TestReportTrimMeasuresTheCompleteReportAtMostThreeTimes(t *testing.T) {
-	executionSize := func(report reporting.ExecutionReport) int { return encodedSize(report) }
+	executionSize := func(report reporting.ExecutionReport) int { return jsonBytes(report) }
 	t.Run("Planner report at the 1 MiB report bound", func(t *testing.T) {
 		source := maximumDetailReport()
-		counts := countMeasurements(t)
-		normalized, err := NewPolicy().NormalizeExecutionReport(source, MaxReportJSONBytes)
+		policy, counts := countingPolicy()
+		normalized, err := policy.NormalizeExecutionReport(source, MaxReportJSONBytes)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -314,7 +384,6 @@ func TestReportTrimMeasuresTheCompleteReportAtMostThreeTimes(t *testing.T) {
 		if *counts != want {
 			t.Fatalf("measurements = %+v, want %+v", *counts, want)
 		}
-		jsonSize = contracts.ResultJSONSize
 		assertFirstFit(t, source, normalized, MaxReportJSONBytes, executionSize)
 		if *normalized.Metrics.Tools["read_source_file"].Calls != MaxToolRecords {
 			t.Fatalf("aggregate changed: %+v", normalized.Metrics.Tools)
@@ -333,8 +402,8 @@ func TestReportTrimMeasuresTheCompleteReportAtMostThreeTimes(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		counts := countMeasurements(t)
-		normalized, err := NewPolicy().NormalizeAllocationReport(allocation)
+		policy, counts := countingPolicy()
+		normalized, err := policy.NormalizeAllocationReport(allocation)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -348,15 +417,14 @@ func TestReportTrimMeasuresTheCompleteReportAtMostThreeTimes(t *testing.T) {
 			t.Fatalf("measurements = %+v, want %+v; kept %d of %d", *counts, want,
 				len(normalized.Worker.ToolCalls), len(workerBound.ToolCalls))
 		}
-		jsonSize = contracts.ResultJSONSize
 		assertFirstFit(t, source, normalized.Worker, MaxReportJSONBytes, allocationMeasure(stopReason))
 	})
 }
 
 func TestReportTrimMeasuresAFittingReportOnce(t *testing.T) {
 	report := multibyteReport(3, 2)
-	counts := countMeasurements(t)
-	normalized, err := NewPolicy().NormalizeExecutionReport(report, MaxReportJSONBytes)
+	policy, counts := countingPolicy()
+	normalized, err := policy.NormalizeExecutionReport(report, MaxReportJSONBytes)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -401,15 +469,14 @@ func TestAllocationNormalizationTrimsRedactionExpansionOfABoundedReport(t *testi
 		t.Fatalf("bounded Runtime report rejected at the private boundary: %v", err)
 	}
 
-	counts := countMeasurements(t)
-	normalized, err := NewPolicy(secret).NormalizeAllocationReport(response.Report)
+	policy, counts := countingPolicy(secret)
+	normalized, err := policy.NormalizeAllocationReport(response.Report)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if counts.reports != 3 || counts.allocations != 1 {
 		t.Fatalf("measurements = %+v", *counts)
 	}
-	jsonSize = contracts.ResultJSONSize
 	encoded := mustJSON(t, normalized)
 	if bytes.Contains(encoded, []byte(secret)) {
 		t.Fatal("normalized report contains the secret")
@@ -423,14 +490,14 @@ func TestAllocationNormalizationTrimsRedactionExpansionOfABoundedReport(t *testi
 	}
 	redacted.Errors = []reporting.ExecutionError{{Code: "model_call_failed", Message: "gateway said " + strings.ReplaceAll(value, secret, redactedValue)}}
 	assertFirstFit(t, redacted, normalized.Worker, MaxReportJSONBytes-allocationReserveSize,
-		func(report reporting.ExecutionReport) int { return encodedSize(report) })
+		func(report reporting.ExecutionReport) int { return jsonBytes(report) })
 }
 
 func TestReportNormalizationRejectsAnAggregateAboveItsBound(t *testing.T) {
 	report := multibyteReport(4, 2)
 	envelope := report
 	envelope.ToolCalls, envelope.Errors, envelope.Truncated = []reporting.ToolCallRecord{}, []reporting.ExecutionError{}, true
-	limit := encodedSize(envelope)
+	limit := jsonBytes(envelope)
 	if _, err := NewPolicy().NormalizeExecutionReport(report, limit); err != nil {
 		t.Fatalf("envelope-sized limit: %v", err)
 	}
@@ -455,15 +522,15 @@ func TestReportNormalizationRejectsAnAggregateAboveItsBound(t *testing.T) {
 // failure: trimDetail reports it instead of returning an unverified report.
 func TestReportTrimRejectsInconsistentSizeAccounting(t *testing.T) {
 	report := multibyteReport(6, 2)
-	full := encodedSize(report)
+	full := jsonBytes(report)
 	inflated := func(candidate reporting.ExecutionReport) int {
-		size := encodedSize(candidate)
+		size := jsonBytes(candidate)
 		if len(candidate.ToolCalls) > 0 && len(candidate.ToolCalls) < len(report.ToolCalls) {
 			size += 7
 		}
 		return size
 	}
-	got, fits, err := trimDetail(report, full-1, inflated)
+	got, fits, err := NewPolicy().trimDetail(report, full-1, inflated)
 	if err == nil || fits || got.ReportID != "" || !strings.Contains(err.Error(), "not the computed") {
 		t.Fatalf("inconsistent accounting = (%q, %t, %v)", got.ReportID, fits, err)
 	}

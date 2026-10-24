@@ -1164,7 +1164,7 @@ def test_preview_metrics_and_close_keep_content_out_of_retained_reports(
         report = metrics.tool_calls[-1].model_dump_json()
         assert canary not in report
         assert "private/secret.py" not in report
-        assert json.loads(report)["arguments"] == {}
+        assert json.loads(report)["arguments"] is None
 
         session = tools["search_def"]._session
         assert session._file_cache
