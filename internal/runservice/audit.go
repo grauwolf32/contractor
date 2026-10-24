@@ -241,14 +241,11 @@ func validateAuditIntent(intent auditstore.RunCreationIntent, params AuditCreate
 			return fmt.Errorf("%w: preparation submission differs from its immutable intent", auditstore.ErrConflict)
 		}
 		// Both values are resolved.ResolvedWorkflow values that a JSON decode
-		// just produced: binding above, and params.Workflow through the
-		// encode/decode round trip of normalizeAuditCreate. The type has no
-		// custom marshaler, and a decoded value holds no channel, function or
-		// non-finite number, so re-encoding cannot fail and two nil results
-		// cannot compare equal by accident.
-		pinned, _ := json.Marshal(binding.Workflow)
-		submitted, _ := json.Marshal(params.Workflow)
-		if !bytes.Equal(pinned, submitted) {
+		// just produced, so re-encoding is not expected to fail; a failure is
+		// still a conflict, so two failed encodings never compare equal.
+		pinned, pinnedErr := json.Marshal(binding.Workflow)
+		submitted, submittedErr := json.Marshal(params.Workflow)
+		if pinnedErr != nil || submittedErr != nil || !bytes.Equal(pinned, submitted) {
 			return fmt.Errorf("%w: preparation Workflow differs from its pinned binding", auditstore.ErrConflict)
 		}
 		for slot, pinned := range execution.Preparation.Inputs {

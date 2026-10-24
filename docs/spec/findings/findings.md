@@ -595,9 +595,9 @@ LIM-FND-37. No permissive legacy decoder or historical reparse exists.
 
 **FND-R167.** Resolve optional exact inputs before the short intake
 transaction. Fingerprint and anchor preparation share at most one Stage read,
-made only when either needs a Stage input; that snapshot only selects optional
-inputs, and the transaction reads the Stage again for provenance and
-authorization. The transaction revalidates selected evidence and stores the
+made only when either needs a Stage input; that snapshot selects optional
+inputs and rejects a Stage of another Run before the transaction, and the
+transaction reads the Stage again for provenance and authorization. The transaction revalidates selected evidence and stores the
 projection atomically with the receipt. Reconcile replay from the receipt
 before reading optional sources, including after source Run deletion; equal
 keys from independent calls retain independent receipts. Migration marks
