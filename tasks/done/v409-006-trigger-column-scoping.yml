@@ -6,7 +6,7 @@ epic: persistence
 kind: chore
 introduced_by: V39-002
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V407-025]
 languages: [sql, go]
 goal: >-
@@ -129,3 +129,100 @@ tests:
     covers: [A1, A2, A3, A4, A5]
   - command: make lint
     covers: [A5]
+verification:
+  date: '2026-10-23'
+  environment: >-
+    macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local), the locked Runtime venv and UI
+    dependencies; local PostgreSQL 17.11 database contractor_test_f with
+    per-test schemas and all migrations through 000036 (000034 and 000035
+    are reserved for unmerged V407-029 and V409-004).
+  commands:
+    - >-
+      CONTRACTOR_TEST_DATABASE_URL=postgres://…/contractor_test_f go test
+      -tags=integration -count=1 ./internal/persistence/... ./internal/runstore/...
+      ./internal/artifacts/... ./internal/auditstore/... ./internal/evalstore/...
+      ./internal/projectstore/... — persistence/explaintest, persistence/postgres,
+      persistence/statesettest, runstore, artifacts, auditstore/internal/pgstore,
+      evalstore and projectstore passed; internal/persistence failed only
+      TestSQLAccessFollowsTableOwnership (internal/cli/scan_sweep_remote.go:196)
+      and TestKeyedMutationsUseTheSharedHelpers
+      (internal/app/single_active_budget_test.go), both failing identically on
+      the unmodified base f36507d9 in a temporary worktree, so pre-existing and
+      unrelated.
+    - >-
+      go test -tags=integration -count=1 of the packages whose writes the
+      scoped triggers see: runservice, rundeletion, scheduler,
+      projectlifecycle, auditservice, auditcontroller, evalservice,
+      auditimport, findingintake and archtest — all passed.
+    - >-
+      The new tests with -count=3 passed, and the artifacts ones again with
+      CONTRACTOR_TEST_ARTIFACT_BACKEND=filesystem.
+    - >-
+      Can-fail checks: without migration 000036 the trigger-count tests fail
+      at every scoped step (release attempt, release and report mark call the
+      identity, policy and completion triggers; an event append calls the
+      preparation guard and scans audit_executions 4 times; every Run-scope
+      binding write calls Project admission and the output projection; an
+      update-time-only change, a repeated freeze and a standalone Run delete
+      mark Eval dirty or call the retention trigger), the inventory test
+      reports each old definition and the guard test finds the unscoped
+      guards. With one column dropped from each list or WHEN condition
+      (allocation namespace, Audit project_id, binding frozen in the guard and
+      the projection, collected_at, run_deleted_at, collection_receipt_id, and
+      the retention WHEN made false) both the static guard check and a
+      behavioral test fail for every drop. The semantic tests (completion
+      INSERT and UPDATE checks, preparation guards per column, deletion
+      between scope and binding, Audit cancellation import) pass on base and
+      after, as intended.
+    - make docs-erd (schema 000036) and make docs-dependencies regenerated.
+    - make lint passed.
+  evidence:
+    - >-
+      A1: TestPostgresStageAllocationUpdatesFireOnlyTheTriggersTheyConcern —
+      release attempt, release and report-received mark call no
+      stage_allocations trigger (3 each before); recording an allocation
+      calls only the completion check. TestPostgresAuditUpdatesSkipThePreparationProbe
+      — an event append calls no audits trigger, an unchanged phase calls the
+      guard with 0 audit_executions scans, a changed input selection scans
+      once.
+    - >-
+      A2: each identity, policy, placement and completion column changed
+      alone is rejected by its guard; an allocation with another completion
+      or without authority is rejected on INSERT and a completion rewrite on
+      UPDATE (runstore, runservice); each Audit baseline column and the
+      not-started phase are rejected while preparing and past inventory
+      through the probe; each preparation execution identity column, the
+      receipt assignment and the outputs (artifacts); a moved Run, a deletion
+      mark while the Run exists and each collection receipt column (pgstore).
+    - >-
+      A3: TestStorageReviewProjectDeletionBetweenScopeAndBinding commits
+      BeginDeletion from a query tracer right after the write's scope
+      statement; create and update both return ErrScopeDeleting and store no
+      revision. TestSharedPostgresProjectDeletionKeepsAuditCancellationWrites
+      rejects an Audit import before its cancellation is requested, accepts it
+      after, and rejects other Project writes; active Project writes still
+      call admission once each.
+    - >-
+      A4: TestSharedPostgresEvalProjectionFollowsOnlyRunOutputChanges — output
+      insert, revision change, freeze and purge mark the member dirty; an
+      intermediate write, an update-time-only change and a repeated freeze do
+      not. The Audit child projection still fires on intent, binding,
+      terminal observation and collection (pgstore counts); the projection
+      collector itself is unchanged.
+    - >-
+      A5: TestRowTriggerInventory pins every trigger of the five tables with
+      its event and column conditions and the reason for each of the six that
+      fire on every change; TestRowTriggerGuardsFireOnTheColumnsTheyCompare
+      holds the 8 column-scoped guards to their functions with declared
+      qualifiers.
+  declined:
+    - >-
+      The preparation execution check could skip check executions with a
+      per-event WHEN on role; its function returns at its first statement for
+      them, so the split was not worth a second trigger.
+    - >-
+      audits_eval_tombstone, eval_audits_projection and eval_runs_projection
+      (DELETE) and eval_audit_children_projection stay broad, with the reasons
+      recorded in the inventory test and the migration header.
+  database_tests_configured: true
+implementation_commit: ed08c26dbc3ca571d3696fa0acf7d94c0b6e29fd
