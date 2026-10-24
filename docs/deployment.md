@@ -304,7 +304,8 @@ migrator of the same schema (the first existing schema in `search_path`) polls
 for that schema's migration leader's advisory lock until it is released, the
 caller cancels, or the whole migrator deadline expires; other schemas in the
 same database migrate independently. Once it holds the
-lock, each statement is limited to 120 seconds and each lock wait, on a
+lock, each statement is limited to 120 seconds, all statements of one
+migration file together to that limit plus 5 seconds, and each lock wait, on a
 relation or a row, to 10 seconds by default; for a large upgrade raise them with
 `--statement-timeout` and `--lock-timeout` (or
 `CONTRACTOR_MIGRATE_STATEMENT_TIMEOUT` and

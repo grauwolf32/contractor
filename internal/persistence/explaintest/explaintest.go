@@ -5,7 +5,8 @@
 // rolls back, so analyzing a write leaves nothing behind; Probe does that
 // for every statement a store sends through it before it runs the statement
 // for real. RequireColumnScopedGuards holds the column-scoped row guards of a
-// table to the columns they list in UPDATE OF (PER-R22).
+// table to the columns they list in UPDATE OF (PER-R22), and SplitStatements
+// reads SQL text, such as a migration file, with the same lexer.
 //
 // EXPLAIN reports the triggers of the statement's own tables, deferred ones
 // included once SET CONSTRAINTS ALL IMMEDIATE has made them run at the end of

@@ -28,7 +28,8 @@ func TestPostgresControllerClaimShapeMigrationReleasesEvalLeases(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
 	pool, _ := isolatedPools(t, ctx, url)
-	installMigrationPrefix(t, ctx, pool, 13) // the version 000014_controller_claim_shape.sql upgrades
+	previous, _ := embeddedMigration(t, "controller_claim_shape")
+	installMigrationPrefix(t, ctx, pool, previous)
 
 	longHolder := strings.Repeat("h", 300)
 	claims := []struct {
@@ -84,8 +85,8 @@ SELECT (SELECT string_agg(concat_ws('|', experiment_id, state, revision, updated
 	if err != nil {
 		t.Fatalf("upgrade the schema with held Eval claims: %v", err)
 	}
-	if len(result.AppliedVersions) == 0 || result.AppliedVersions[0] != 14 {
-		t.Fatalf("applied versions %v, want the upgrade to start at 14", result.AppliedVersions)
+	if len(result.AppliedVersions) == 0 || result.AppliedVersions[0] != previous+1 {
+		t.Fatalf("applied versions %v, want the upgrade to start at %d", result.AppliedVersions, previous+1)
 	}
 	for _, claim := range claims {
 		var epoch int64

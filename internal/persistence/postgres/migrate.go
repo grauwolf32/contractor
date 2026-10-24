@@ -52,15 +52,24 @@ type migration struct {
 // pending embedded migration under the operator-selected statement and lock
 // timeouts of budgets; zero fields keep the defaults.
 func ApplyMigrations(ctx context.Context, pool *pgxpool.Pool, budgets MigrationBudgets) (MigrationResult, error) {
+	available, err := loadMigrations()
+	if err != nil {
+		return MigrationResult{}, err
+	}
+	return applyMigrations(ctx, pool, budgets, available)
+}
+
+// applyMigrations applies the migrations of available that the ledger lacks
+// in one transaction. Each migration file is one Exec call, so the client
+// deadline of one call, the statement timeout plus migrationQueryMargin,
+// covers all statements of the file together, while PostgreSQL applies the
+// statement timeout to each of them.
+func applyMigrations(ctx context.Context, pool *pgxpool.Pool, budgets MigrationBudgets, available []migration) (MigrationResult, error) {
 	ctx, cancel, err := WithMigrationBudgets(ctx, budgets)
 	if err != nil {
 		return MigrationResult{}, err
 	}
 	defer cancel()
-	available, err := loadMigrations()
-	if err != nil {
-		return MigrationResult{}, err
-	}
 	var result MigrationResult
 	err = InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		if err := waitForMigrationLock(ctx, tx); err != nil {

@@ -5,8 +5,11 @@ import (
 	"crypto/sha256"
 	"errors"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/persistence/explaintest"
 )
 
 func TestEmbeddedMigrationsAreOrderedAndExcludeRuntimeLiveness(t *testing.T) {
@@ -58,11 +61,21 @@ func TestEmbeddedMigrationsStayInsideTheMigrationTransaction(t *testing.T) {
 		"VACUUM t;":                                     true,
 		"SET LOCAL statement_timeout = 0;":              true,
 		"SELECT set_config('lock_timeout', '0', true);": true,
-		"CREATE FUNCTION f() RETURNS trigger LANGUAGE plpgsql AS $$\nBEGIN\n    RETURN NULL;\nEND;\n$$;": false,
-		"CREATE FUNCTION f() RETURNS void LANGUAGE plpgsql AS $body$ BEGIN COMMIT; END; $body$;":         false,
-		"-- COMMIT, then VACUUM\nSELECT 'commit; vacuum', \"end; x\" FROM t;":                            false,
-		"UPDATE t SET a = CASE WHEN b THEN 1 ELSE 2\nEND;":                                               false,
-		"REFRESH MATERIALIZED VIEW CONCURRENTLY v;":                                                      false,
+		"CREATE FUNCTION f() RETURNS trigger LANGUAGE plpgsql AS $$\nBEGIN\n    RETURN NULL;\nEND;\n$$;":         false,
+		"CREATE FUNCTION f() RETURNS void LANGUAGE plpgsql AS $body$ BEGIN COMMIT; END; $body$;":                 false,
+		"-- COMMIT, then VACUUM\nSELECT 'commit; vacuum', \"end; x\" FROM t;":                                    false,
+		"UPDATE t SET a = CASE WHEN b THEN 1 ELSE 2\nEND;":                                                       false,
+		"REFRESH MATERIALIZED VIEW CONCURRENTLY v;":                                                              false,
+		"/* COMMIT; */ SELECT 1; /* nested /* VACUUM; */ still a comment; */":                                    false,
+		"SELECT E'it\\'s; COMMIT';":                                                                              false,
+		"CREATE FUNCTION f(a int) RETURNS int LANGUAGE sql BEGIN ATOMIC SELECT CASE WHEN a > 0 THEN 1 END; END;": false,
+		"CREATE FUNCTION f() RETURNS int LANGUAGE sql BEGIN ATOMIC SELECT 1; END;\nCOMMIT;":                      true,
+		"REINDEX TABLE CONCURRENTLY t;":                                                                          true,
+		"ALTER TABLE t DETACH PARTITION p CONCURRENTLY;":                                                         true,
+		"START TRANSACTION;":            true,
+		"SELECT '$$statement_timeout';": true,
+		"SELECT 'unterminated;":         true,
+		"SELECT 1 /* unterminated":      true,
 	} {
 		if problem := migrationTransactionProblem(sql); (problem != "") != refused {
 			t.Errorf("migrationTransactionProblem(%q) = %q, want refused %t", sql, problem, refused)
@@ -70,58 +83,47 @@ func TestEmbeddedMigrationsStayInsideTheMigrationTransaction(t *testing.T) {
 	}
 }
 
-var (
-	migrationDollarTag    = regexp.MustCompile(`^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$`)
-	migrationTimeoutName  = regexp.MustCompile(`(?i)\b(?:statement|lock|idle_in_transaction_session|idle_session|transaction)_timeout\b`)
-	migrationOutsideTxSQL = regexp.MustCompile(`(?is)^(?:BEGIN|START\s+TRANSACTION|COMMIT|END|ROLLBACK|ABORT|SAVEPOINT|RELEASE|PREPARE\s+TRANSACTION|VACUUM)\b|\bINDEX\s+CONCURRENTLY\b|\bREINDEX\b.*\bCONCURRENTLY\b|\bDETACH\s+PARTITION\b.*\bCONCURRENTLY\b`)
-)
+// migrationTimeoutName matches a session setting that would replace the
+// migration budget.
+var migrationTimeoutName = regexp.MustCompile(`(?i)\b(?:statement|lock|idle_in_transaction_session|idle_session|transaction)_timeout\b`)
 
 // migrationTransactionProblem describes what in sql would end the migrator's
-// transaction, fail inside it or change its budget, or returns "". Statements
-// are read outside comments, quoted literals and dollar-quoted bodies; a
-// timeout setting is found anywhere outside comments.
+// transaction, fail inside it or change its budget, or returns "". It reads
+// the top-level statements as psql splits them (explaintest.SplitStatements),
+// so comments, string constants and routine bodies hide nothing and end no
+// statement; text it cannot split is a problem, never a pass. A timeout
+// setting is found in any word or value, routine bodies included.
 func migrationTransactionProblem(sql string) string {
-	var code, uncommented strings.Builder
-	for i := 0; i < len(sql); {
-		end := i + 1
-		switch {
-		case strings.HasPrefix(sql[i:], "--"):
-			end = len(sql)
-			if newline := strings.IndexByte(sql[i:], '\n'); newline >= 0 {
-				end = i + newline
+	statements, err := explaintest.SplitStatements(sql)
+	if err != nil {
+		return "cannot be read: " + err.Error()
+	}
+	for _, statement := range statements {
+		for _, text := range slices.Concat(statement.Words, statement.Values) {
+			if name := migrationTimeoutName.FindString(text); name != "" {
+				return "names the timeout setting " + name
 			}
-			i = end
-			continue
-		case sql[i] == '\'' || sql[i] == '"':
-			for end < len(sql) && (sql[end] != sql[i] || (end+1 < len(sql) && sql[end+1] == sql[i])) {
-				if sql[end] == sql[i] {
-					end++
-				}
-				end++
-			}
-			end = min(end+1, len(sql))
-		case sql[i] == '$' && migrationDollarTag.MatchString(sql[i:]):
-			tag := migrationDollarTag.FindString(sql[i:])
-			end = len(sql)
-			if closing := strings.Index(sql[i+len(tag):], tag); closing >= 0 {
-				end = i + len(tag) + closing + len(tag)
-			}
-		default:
-			code.WriteByte(sql[i])
-			uncommented.WriteByte(sql[i])
-			i++
+		}
+		words := statement.Words
+		if len(words) == 0 {
 			continue
 		}
-		code.WriteByte(' ')
-		uncommented.WriteString(sql[i:end])
-		i = end
-	}
-	if name := migrationTimeoutName.FindString(uncommented.String()); name != "" {
-		return "names the timeout setting " + name
-	}
-	for _, statement := range strings.Split(code.String(), ";") {
-		if refused := migrationOutsideTxSQL.FindString(strings.TrimSpace(statement)); refused != "" {
-			return "has a statement that cannot run inside the migration transaction: " + refused
+		switch words[0] {
+		case "begin", "commit", "end", "rollback", "abort", "savepoint", "release", "vacuum":
+			return "has a statement that cannot run inside the migration transaction: " + words[0]
+		case "start", "prepare":
+			if len(words) > 1 && words[1] == "transaction" {
+				return "has a statement that cannot run inside the migration transaction: " + words[0] + " transaction"
+			}
+		}
+		concurrently := slices.Contains(words, "concurrently")
+		for i := range words {
+			switch {
+			case concurrently && words[i] == "reindex",
+				i+1 < len(words) && words[i] == "index" && words[i+1] == "concurrently",
+				concurrently && i+1 < len(words) && words[i] == "detach" && words[i+1] == "partition":
+				return "has a statement that cannot run inside the migration transaction: " + strings.Join(words, " ")
+			}
 		}
 	}
 	return ""

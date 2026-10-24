@@ -474,28 +474,39 @@ session, so its commit or rollback leaves the pooled connection as it found
 it. PostgreSQL applies the statement timeout (LIM-PER-9) to each statement of
 a migration file separately, the lock timeout (LIM-PER-10) to each lock wait,
 whether for a relation or a row, and the idle-in-transaction timeout
-(LIM-PER-12) between statements. The migrator's client ends a statement 5
-seconds after its statement timeout, so PostgreSQL reports the timeout first
-and the failure is classified as a timeout (PER-R13); the client also bounds
-each connection acquisition (LIM-PER-13). The run deadline (LIM-PER-11)
-bounds the whole run, including the wait for the schema's migration lock,
-which therefore outlasts the lock timeout. Neither a migration file nor the
-Server changes these settings.
+(LIM-PER-12) while the transaction waits for the migrator's next call. The
+migrator sends each migration file as one simple query, and its client ends
+that query 5 seconds after the statement timeout: this client deadline covers
+all statements of the file together, not each of them. A statement that
+outlasts the statement timeout is therefore cancelled by PostgreSQL (SQLSTATE
+`57014`), and a file whose statements each fit but together outlast the
+client deadline is ended by the client, without a SQLSTATE; both fail the run
+as a timeout (PER-R13). The client also bounds each connection acquisition
+(LIM-PER-13). The run deadline (LIM-PER-11) bounds the whole run, including
+the wait for the schema's migration lock, which therefore outlasts the lock
+timeout. Neither a migration file nor the Server changes these settings.
 
-**PER-R32.** Each statement of a migration fits the default migration budget
-on the largest data it can meet. Where a limit bounds the rows or bytes a
-statement handles, such as the revisions of one Run (LIM-ART-6), it fits at
-that limit; over a collection that no limit bounds, it reads each row a
-bounded number of times, in one pass rather than once per other row, at a
-bounded cost per row. Raising the budget is the operator's remedy for one
-slow upgrade, not a design input: a backfill that cannot meet this is designed
-as a separate data migration with bounded steps and a durable record of its
-progress, not written as a longer statement. Because a
-run is one transaction, a migration cannot use a statement that PostgreSQL
-refuses inside a transaction block, such as `CREATE INDEX CONCURRENTLY`,
-`REINDEX CONCURRENTLY` or `VACUUM`, and contains no transaction control: an
-index is built inside the run, holding its table's lock until the run commits,
-and counts against the statement budget. Two hazards apply to every backfill
+**PER-R32.** A migration file must fit the default migration budget on the
+largest data it can meet: each statement within the statement timeout, and all
+statements of the file together within the client deadline of the file, the
+statement timeout plus 5 seconds (PER-R31, LIM-PER-9). A file with several
+heavy statements therefore shares that deadline among them. Where a limit
+bounds the rows or bytes a statement handles, such as the revisions of one Run
+(LIM-ART-6), the file fits at that limit; over a collection that no limit
+bounds, each statement reads each row a bounded number of times, in one pass
+rather than once per other row, at a bounded cost per row. Raising the budget
+is the operator's remedy for one slow upgrade, not a design input: a backfill
+that cannot meet this is designed as a separate data migration with bounded
+steps and a durable record of its progress, not written as a longer statement
+or split into more statements of one file. No gate measures a migration at its
+bound: the author shows the fit when writing the migration, from its statement
+plans and cardinality (AGENTS.md section 3.3), and its review checks it, as
+the non-goals of this document record. Because a run is one transaction, a
+migration must not use a statement that PostgreSQL refuses inside a
+transaction block, such as `CREATE INDEX CONCURRENTLY`, `REINDEX
+CONCURRENTLY` or `VACUUM`, and contains no transaction control: an index is
+built inside the run, holding its table's lock until the run commits, and
+counts against the budget of its file. Two hazards apply to every backfill
 that reads documents stored as JSON text or bytes:
 
 - PostgreSQL rejects the valid JSON escape `\u0000` (SQLSTATE 22P05) when such
@@ -522,13 +533,21 @@ migrator. It then compares the result with the rule computed independently of
 the migration's SQL, checks that unrelated rows are unchanged and exercises
 the schema the migration leaves behind; a backfill that is omitted or
 miscounts makes it fail. A backfill whose statement plan determines its cost,
-such as the number of document parses, has that plan pinned by the test.
+such as the number of document parses, has that plan pinned by the test. The
+test may apply the migration through a pool without the client deadline of
+PER-R31, as the isolated test pools are: at test sizes a file takes far less
+than that deadline, so the deadline could not fail it, and the deadline has
+its own test (invariant 26). A test that measures a file near the default
+budget applies it through a pool opened as the migrator opens it. Like
+PER-R32, this requirement is checked when the migration is written and
+reviewed (AGENTS.md section 6, Go server), not by a gate.
 
 Rationale: one transaction keeps every database at one complete schema
 version, so the ledger is the only record a run or the Server's startup check
 needs, and a failed run needs no repair. Its price is that a migration cannot
 build an index concurrently or commit work in steps, and that the slowest
-statement of the largest database sets the budget the operator must grant.
+migration file of the largest database sets the budget the operator must
+grant.
 Per-file transactions, a non-transactional migration step or Server-side
 background backfills would lift those restrictions at the cost of
 partially applied versions, a ledger that records more than complete
@@ -972,8 +991,17 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
     [`internal/persistence/postgres/budgets_test.go`](../../../internal/persistence/postgres/budgets_test.go)
     and `TestPostgresMaintenanceBudgetsRestorePoolSettings` in
     [`internal/persistence/postgres/budgets_postgres_test.go`](../../../internal/persistence/postgres/budgets_postgres_test.go).
+    On a pool opened as the migrator opens it, the client deadline covers a
+    whole migration file while PostgreSQL times out each statement: a file
+    whose statements each fit but together outlast the deadline fails as a
+    timeout without a SQLSTATE, a statement beyond the statement timeout fails
+    with SQLSTATE `57014`, and neither leaves the file or its ledger row
+    behind (PER-R31, PER-R32); test
+    `TestPostgresMigrationClientDeadlineCoversAWholeFile` in
+    [`internal/persistence/postgres/migration_run_postgres_test.go`](../../../internal/persistence/postgres/migration_run_postgres_test.go).
     No embedded migration controls the transaction, uses a statement
-    PostgreSQL refuses inside a transaction block or names a timeout setting
+    PostgreSQL refuses inside a transaction block or names a timeout setting,
+    read as psql splits statements, and a file the check cannot split fails it
     (PER-R31, PER-R32); test
     `TestEmbeddedMigrationsStayInsideTheMigrationTransaction` in
     [`internal/persistence/postgres/migrate_test.go`](../../../internal/persistence/postgres/migrate_test.go).
@@ -992,6 +1020,16 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
 
 ## Non-goals
 
+- A gate that measures each migration at its bound or detects a data-moving
+  migration without an upgrade test. PER-R32's budget fit and PER-R33 are
+  accepted as review obligations: the migration's author and reviewer check
+  them against AGENTS.md (sections 3.3 and 6), and the automated checks cover
+  only what invariants 26 and 27 name. A run that exceeds its budget fails as
+  a timeout and applies nothing (FAIL-PER-5), so a missed case costs a retry
+  with a larger budget, not data. Reopen this when an upgrade of a database
+  within the documented limits exceeds the default budget, or a data-moving
+  migration lands without an upgrade test; the replacement is a gate, such as
+  a test that requires an upgrade test for every migration that changes rows.
 - Multiple active Control Plane replicas, shared fleet coordination and durable
   liveness state; they are deferred together and must not be approximated by
   sharing an unfenced `runtime_agents` table (PER-R11).

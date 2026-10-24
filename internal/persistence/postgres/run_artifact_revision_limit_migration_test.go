@@ -36,7 +36,8 @@ func TestPostgresRunArtifactRevisionLimitMigrationBackfillsRunScopes(t *testing.
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
 	defer cancel()
 	pool, _ := isolatedPools(t, ctx, url)
-	installMigrationPrefix(t, ctx, pool, 7) // the version 000008_run_artifact_revision_limit.sql upgrades
+	previous, _ := embeddedMigration(t, "run_artifact_revision_limit")
+	installMigrationPrefix(t, ctx, pool, previous)
 
 	mixed := artifactScopeKey{"run", "run-mixed"}
 	empty := artifactScopeKey{"run", "run-empty"}
@@ -109,8 +110,8 @@ SELECT DISTINCT ON (namespace, name) scope_kind, scope_id, namespace, name, revi
 	if err != nil {
 		t.Fatalf("upgrade the populated schema: %v", err)
 	}
-	if len(result.AppliedVersions) == 0 || result.AppliedVersions[0] != 8 {
-		t.Fatalf("applied versions %v, want the upgrade to start at 8", result.AppliedVersions)
+	if len(result.AppliedVersions) == 0 || result.AppliedVersions[0] != previous+1 {
+		t.Fatalf("applied versions %v, want the upgrade to start at %d", result.AppliedVersions, previous+1)
 	}
 	counters := func() map[artifactScopeKey]int64 {
 		t.Helper()
