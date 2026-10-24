@@ -26,6 +26,10 @@ const (
 	MaximumOTLPHeaderValueBytes    = 4 * 1024
 	MaximumOTLPHeaderValuesBytes   = 16 * 1024
 	MaximumOTLPHeaders             = 32
+	// MaximumTargetLoginFields and MaximumTargetLoginValuesBytes bound one
+	// target-login@1 material inside the 32 KiB plaintext envelope.
+	MaximumTargetLoginFields      = 16
+	MaximumTargetLoginValuesBytes = 16 * 1024
 )
 
 type RuntimeCredentialKind string
@@ -38,6 +42,9 @@ const (
 	RuntimeCredentialInteractshToken RuntimeCredentialKind = "interactsh-token@1"
 	RuntimeCredentialOriginBasic     RuntimeCredentialKind = "http-origin-basic@1"
 	RuntimeCredentialOriginBearer    RuntimeCredentialKind = "http-origin-bearer@1"
+	RuntimeCredentialTargetBasic     RuntimeCredentialKind = "target-basic@1"
+	RuntimeCredentialTargetBearer    RuntimeCredentialKind = "target-bearer@1"
+	RuntimeCredentialTargetLogin     RuntimeCredentialKind = "target-login@1"
 )
 
 var (
@@ -47,8 +54,9 @@ var (
 	ErrRuntimeCredentialNotFound = credentialerrors.RuntimeNotFound
 	ErrRuntimeCredentialInUse    = errors.New("Runtime adapter credential is in use")
 
-	headerNamePattern    = regexp.MustCompile("^[!#$%&'*+.^_`|~0-9A-Za-z-]+$")
-	forbiddenOTLPHeaders = map[string]struct{}{
+	targetLoginFieldNamePattern = regexp.MustCompile("^[a-z][a-z0-9_-]{0,63}$")
+	headerNamePattern           = regexp.MustCompile("^[!#$%&'*+.^_`|~0-9A-Za-z-]+$")
+	forbiddenOTLPHeaders        = map[string]struct{}{
 		"connection": {}, "content-length": {}, "forwarded": {}, "host": {},
 		"keep-alive": {}, "proxy-authenticate": {}, "proxy-authorization": {},
 		"te": {}, "trailer": {}, "transfer-encoding": {}, "upgrade": {},
@@ -144,6 +152,54 @@ func NewHTTPOriginBearerCredential(token string) (RuntimeCredentialMaterial, err
 	return newRuntimeCredentialMaterial(RuntimeCredentialOriginBearer, struct {
 		Token string `json:"token"`
 	}{Token: token})
+}
+
+// NewTargetBasicCredential is a pentest target identity's Basic pair. It
+// keeps the HTTP origin Basic bounds (RCF-R114).
+func NewTargetBasicCredential(username, password string) (RuntimeCredentialMaterial, error) {
+	if !validBoundedSecret(username, 256) || !validBoundedSecret(password, MaximumRuntimeSecretBytes) || strings.Contains(username, ":") {
+		return RuntimeCredentialMaterial{}, runtimeInvalid("Target basic credential is invalid")
+	}
+	return newRuntimeCredentialMaterial(RuntimeCredentialTargetBasic, struct {
+		Password string `json:"password"`
+		Username string `json:"username"`
+	}{Password: password, Username: username})
+}
+
+// NewTargetBearerCredential is a pentest target identity's bearer token. It
+// keeps the bearer token bound and field-value grammar (RCF-R114).
+func NewTargetBearerCredential(token string) (RuntimeCredentialMaterial, error) {
+	if !validFieldValue(token, MaximumRuntimeSecretBytes) {
+		return RuntimeCredentialMaterial{}, runtimeInvalid("Target bearer credential is invalid")
+	}
+	return newRuntimeCredentialMaterial(RuntimeCredentialTargetBearer, struct {
+		Token string `json:"token"`
+	}{Token: token})
+}
+
+// NewTargetLoginCredential is a pentest login identity's named secret
+// fields: 1-16 names of the login field grammar, each value a bounded secret,
+// at most 16 KiB of values in total.
+func NewTargetLoginCredential(fields map[string]string) (RuntimeCredentialMaterial, error) {
+	if len(fields) < 1 || len(fields) > MaximumTargetLoginFields {
+		return RuntimeCredentialMaterial{}, runtimeInvalid("Target login field count is invalid")
+	}
+	totalValueBytes := 0
+	for name, value := range fields {
+		if !targetLoginFieldNamePattern.MatchString(name) {
+			return RuntimeCredentialMaterial{}, runtimeInvalid("Target login field name is invalid")
+		}
+		if !validBoundedSecret(value, MaximumRuntimeSecretBytes) {
+			return RuntimeCredentialMaterial{}, runtimeInvalid("Target login field value is invalid")
+		}
+		totalValueBytes += len(value)
+		if totalValueBytes > MaximumTargetLoginValuesBytes {
+			return RuntimeCredentialMaterial{}, runtimeInvalid("Target login field values exceed their total bound")
+		}
+	}
+	return newRuntimeCredentialMaterial(RuntimeCredentialTargetLogin, struct {
+		Fields map[string]string `json:"fields"`
+	}{Fields: fields})
 }
 
 func (m RuntimeCredentialMaterial) Kind() RuntimeCredentialKind { return m.kind }
@@ -389,6 +445,32 @@ func runtimeCredentialMaterialFromCanonical(kind RuntimeCredentialKind, canonica
 			return RuntimeCredentialMaterial{}, ErrCrypto
 		}
 		material, _ = NewHTTPOriginBearerCredential(source.Token)
+	case RuntimeCredentialTargetBasic:
+		var source struct {
+			Password string `json:"password"`
+			Username string `json:"username"`
+		}
+		if strictjson.Decode(canonical, &source) != nil {
+			return RuntimeCredentialMaterial{}, ErrCrypto
+		}
+		material, _ = NewTargetBasicCredential(source.Username, source.Password)
+	case RuntimeCredentialTargetBearer:
+		var source struct {
+			Token string `json:"token"`
+		}
+		if strictjson.Decode(canonical, &source) != nil {
+			return RuntimeCredentialMaterial{}, ErrCrypto
+		}
+		material, _ = NewTargetBearerCredential(source.Token)
+	case RuntimeCredentialTargetLogin:
+		var source struct {
+			Fields map[string]string `json:"fields"`
+		}
+		if strictjson.Decode(canonical, &source) != nil {
+			return RuntimeCredentialMaterial{}, ErrCrypto
+		}
+		material, _ = NewTargetLoginCredential(source.Fields)
+		clear(source.Fields)
 	default:
 		return RuntimeCredentialMaterial{}, ErrCrypto
 	}
@@ -402,7 +484,8 @@ func runtimeCredentialMaterialFromCanonical(kind RuntimeCredentialKind, canonica
 func validRuntimeCredentialKind(kind RuntimeCredentialKind) bool {
 	return kind == RuntimeCredentialOTLPHeaders || kind == RuntimeCredentialProxyBasic ||
 		kind == RuntimeCredentialProxyBearer || kind == RuntimeCredentialCaidoBearer || kind == RuntimeCredentialInteractshToken ||
-		kind == RuntimeCredentialOriginBasic || kind == RuntimeCredentialOriginBearer
+		kind == RuntimeCredentialOriginBasic || kind == RuntimeCredentialOriginBearer ||
+		kind == RuntimeCredentialTargetBasic || kind == RuntimeCredentialTargetBearer || kind == RuntimeCredentialTargetLogin
 }
 
 func validBoundedSecret(value string, maximum int) bool {

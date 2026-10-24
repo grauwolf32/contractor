@@ -5131,7 +5131,7 @@ export interface components {
             config: components["schemas"]["RuntimeConfigRef"];
         };
         /** @enum {unknown} */
-        RuntimeCredentialKind: "otlp-headers@1" | "http-proxy-basic@1" | "http-proxy-bearer@1" | "caido-bearer@1" | "interactsh-token@1" | "http-origin-basic@1" | "http-origin-bearer@1";
+        RuntimeCredentialKind: "otlp-headers@1" | "http-proxy-basic@1" | "http-proxy-bearer@1" | "caido-bearer@1" | "interactsh-token@1" | "http-origin-basic@1" | "http-origin-bearer@1" | "target-basic@1" | "target-bearer@1" | "target-login@1";
         RuntimeCredentialMetadata: {
             credentialId: components["schemas"]["RuntimeCredentialId"];
             kind: components["schemas"]["RuntimeCredentialKind"];
@@ -5172,6 +5172,20 @@ export interface components {
             /** @description An HTTP/1.1 field value sent unchanged by every client (RCF-R114), visible ASCII characters with runs of space or tab only between them. */
             token: string;
         };
+        TargetBasicMaterial: {
+            username: string;
+            password: string;
+        };
+        TargetBearerMaterial: {
+            /** @description An HTTP/1.1 field value sent unchanged by every client (RCF-R114), visible ASCII characters with runs of space or tab only between them. */
+            token: string;
+        };
+        TargetLoginMaterial: {
+            /** @description Named login secret fields (RCF-R184); values total at most 16 KiB. */
+            fields: {
+                [key: string]: string;
+            };
+        };
         CreateRuntimeCredentialRequest: {
             credentialId: components["schemas"]["RuntimeCredentialId"];
             /** @constant */
@@ -5207,6 +5221,21 @@ export interface components {
             /** @constant */
             kind: "http-origin-bearer@1";
             material: components["schemas"]["HTTPOriginBearerMaterial"];
+        } | {
+            credentialId: components["schemas"]["RuntimeCredentialId"];
+            /** @constant */
+            kind: "target-basic@1";
+            material: components["schemas"]["TargetBasicMaterial"];
+        } | {
+            credentialId: components["schemas"]["RuntimeCredentialId"];
+            /** @constant */
+            kind: "target-bearer@1";
+            material: components["schemas"]["TargetBearerMaterial"];
+        } | {
+            credentialId: components["schemas"]["RuntimeCredentialId"];
+            /** @constant */
+            kind: "target-login@1";
+            material: components["schemas"]["TargetLoginMaterial"];
         };
         PinnedRuntimeConfig: {
             label: components["schemas"]["ConfigId"];

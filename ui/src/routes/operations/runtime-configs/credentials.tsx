@@ -39,6 +39,9 @@ const KIND_LABELS: Record<CredentialKind, string> = {
   "interactsh-token@1": "Interactsh server token",
   "http-origin-basic@1": "HTTP origin basic auth",
   "http-origin-bearer@1": "HTTP origin bearer token",
+  "target-basic@1": "Pentest target basic auth",
+  "target-bearer@1": "Pentest target bearer token",
+  "target-login@1": "Pentest target login fields",
 };
 
 interface HeaderDraft {
@@ -68,7 +71,18 @@ export function RuntimeCredentialCreateForm({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [created, setCreated] = useState<RuntimeCredentialMetadata>();
-  const basic = kind === "http-proxy-basic@1" || kind === "http-origin-basic@1";
+  const basic =
+    kind === "http-proxy-basic@1" ||
+    kind === "http-origin-basic@1" ||
+    kind === "target-basic@1";
+  const named = kind === "otlp-headers@1" || kind === "target-login@1";
+  const fieldNoun = kind === "target-login@1" ? "Login field" : "Header";
+  const basicNoun =
+    kind === "http-origin-basic@1"
+      ? "Origin"
+      : kind === "target-basic@1"
+        ? "Target"
+        : "Proxy";
 
   function clearSecretFields() {
     setHeaders((current) =>
@@ -104,7 +118,23 @@ export function RuntimeCredentialCreateForm({
         ? new Error("Provide unique non-empty OTLP header names and values.")
         : { credentialId, kind, material: { headers: material } };
     }
-    if (kind === "http-proxy-basic@1" || kind === "http-origin-basic@1") {
+    if (kind === "target-login@1") {
+      const material = Object.fromEntries(
+        headers.map((header) => [header.name.trim(), header.value]),
+      );
+      return headers.length === 0 ||
+        Object.keys(material).length !== headers.length ||
+        Object.entries(material).some(
+          ([name, value]) => name === "" || value === "",
+        )
+        ? new Error("Provide unique non-empty login field names and values.")
+        : { credentialId, kind, material: { fields: material } };
+    }
+    if (
+      kind === "http-proxy-basic@1" ||
+      kind === "http-origin-basic@1" ||
+      kind === "target-basic@1"
+    ) {
       return username === "" || password === ""
         ? new Error("Username and password are required.")
         : { credentialId, kind, material: { username, password } };
@@ -205,11 +235,11 @@ export function RuntimeCredentialCreateForm({
             )}
           </Field>
         </div>
-        {kind === "otlp-headers@1" ? (
+        {named ? (
           <div className="ops-secret-rows">
             {headers.map((header) => (
               <div className="ops-secret-row" key={header.id}>
-                <Field label="Header name">
+                <Field label={`${fieldNoun} name`}>
                   {(control) => (
                     <input
                       {...control}
@@ -221,7 +251,7 @@ export function RuntimeCredentialCreateForm({
                     />
                   )}
                 </Field>
-                <Field label="Header value · write only">
+                <Field label={`${fieldNoun} value · write only`}>
                   {(control) => (
                     <input
                       {...control}
@@ -236,7 +266,7 @@ export function RuntimeCredentialCreateForm({
                 </Field>
                 <IconButton
                   variant="danger"
-                  label={`Remove header ${header.name || header.id}`}
+                  label={`Remove ${fieldNoun.toLowerCase()} ${header.name || header.id}`}
                   icon={<Icon name="delete" />}
                   disabled={headers.length === 1}
                   onClick={() =>
@@ -257,14 +287,12 @@ export function RuntimeCredentialCreateForm({
                 ]);
               }}
             >
-              Add header
+              Add {fieldNoun.toLowerCase()}
             </Button>
           </div>
         ) : basic ? (
           <div className="ops-form-grid">
-            <Field
-              label={`${kind === "http-origin-basic@1" ? "Origin" : "Proxy"} username · write only`}
-            >
+            <Field label={`${basicNoun} username · write only`}>
               {(control) => (
                 <input
                   {...control}
@@ -274,9 +302,7 @@ export function RuntimeCredentialCreateForm({
                 />
               )}
             </Field>
-            <Field
-              label={`${kind === "http-origin-basic@1" ? "Origin" : "Proxy"} password · write only`}
-            >
+            <Field label={`${basicNoun} password · write only`}>
               {(control) => (
                 <input
                   {...control}

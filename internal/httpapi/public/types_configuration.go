@@ -175,6 +175,29 @@ func (r *createRuntimeCredentialRequest) UnmarshalJSON(data []byte) error {
 		if err = strictjson.Decode(envelope.Material, &value); err == nil {
 			material, err = credentials.NewHTTPOriginBearerCredential(value.Token)
 		}
+	case credentials.RuntimeCredentialTargetBasic:
+		var value struct {
+			Username string `json:"username"`
+			Password string `json:"password"`
+		}
+		if err = strictjson.Decode(envelope.Material, &value); err == nil {
+			material, err = credentials.NewTargetBasicCredential(value.Username, value.Password)
+		}
+	case credentials.RuntimeCredentialTargetBearer:
+		var value struct {
+			Token string `json:"token"`
+		}
+		if err = strictjson.Decode(envelope.Material, &value); err == nil {
+			material, err = credentials.NewTargetBearerCredential(value.Token)
+		}
+	case credentials.RuntimeCredentialTargetLogin:
+		var value struct {
+			Fields map[string]string `json:"fields"`
+		}
+		if err = strictjson.Decode(envelope.Material, &value); err == nil {
+			material, err = credentials.NewTargetLoginCredential(value.Fields)
+		}
+		clear(value.Fields)
 	default:
 		err = credentials.ErrRuntimeCredentialInvalid
 	}

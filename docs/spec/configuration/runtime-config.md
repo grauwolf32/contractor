@@ -883,6 +883,18 @@ adapters. Operations authoring and detail preserve clear versus omission.
 Protocol, endpoint domain, timeouts and evidence belong to
 [Interactsh](../tools/interactsh.md#INT-R2).
 
+**RCF-R184.** A pentest target identity credential is a runtime credential of
+kind `target-basic@1` (a Basic username and password under the RCF-R114
+bounds), `target-bearer@1` (a bearer token that is a credential field value,
+RCF-R114) or `target-login@1`: a `fields` object of 1–16 named login secrets
+(LIM-RCF-30) whose names match `^[a-z][a-z0-9_-]{0,63}$` and whose values are
+1–8,192 UTF-8 bytes without control characters, at most 16 KiB in total
+(LIM-RCF-31), inside the plaintext bound of RCF-R112. A runtime credential is
+create-only, so its credential ID is the immutable, owner-scoped revision
+identity: an exact target credential reference is the credential ID with its
+kind, used by its creator or by Operations (RCF-R115), and no public hash of the
+secret identifies it (RCF-R177).
+
 ### Runtime credentials
 
 **RCF-R110.** RuntimeConfig stores only exact credential references. Secret
@@ -903,6 +915,9 @@ The same store holds the Project target-origin kinds `http-origin-basic@1` and
 [Projects](../artifacts/projects.md). Deleting a runtime credential first
 requires detaching it from every Project ([Projects](../artifacts/projects.md),
 PRJ-R79).
+
+The same store holds the pentest target identity kinds `target-basic@1`,
+`target-bearer@1` and `target-login@1` (RCF-R184).
 
 **RCF-R112.** One encrypted runtime-credential plaintext is canonical JSON of
 at most 32 KiB (LIM-RCF-18).
@@ -1497,6 +1512,9 @@ Limits ([registry](../platform/limits.md)):
   (RCF-R161).
 - LIM-RCF-29 — `tpmLimit`, `rpmLimit` and `maxParallelRequests` of at most
   2^31-1 (RCF-R63).
+- LIM-RCF-30 — `target-login@1` of 1–16 named fields (RCF-R184).
+- LIM-RCF-31 — `target-login@1` field values of at most 16 KiB in total
+  (RCF-R184).
 - Telemetry span, attribute, string and content bounds belong to
   [Observability](../platform/observability.md); the `worker.caido` endpoint
   and request-timeout bounds to [HTTP and Caido tools](../tools/http-caido.md).
