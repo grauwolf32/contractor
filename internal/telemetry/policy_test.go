@@ -122,6 +122,7 @@ func TestMetricsPolicyRedactsDerivedSensitiveKeys(t *testing.T) {
 				// Only the exact placeholder and a derived integer size pass.
 				"token":         map[string]any{"redacted": true, "size": "opaque credential"},
 				"password":      map[string]any{"redacted": true, "size": json.Number("3"), "value": "opaque"},
+				"secret":        map[string]any{"redacted": true, "size": json.Number("100000000000000000000")},
 				"content_bytes": "opaque credential",
 				"payload":       []byte("opaque"),
 			},
@@ -133,9 +134,9 @@ func TestMetricsPolicyRedactsDerivedSensitiveKeys(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, key := range []string{"accessToken", "contentBase64", "token", "password", "content_bytes", "payload"} {
+	for _, key := range []string{"accessToken", "contentBase64", "token", "password", "secret", "content_bytes", "payload"} {
 		value, ok := normalized.ToolCalls[0].Arguments[key].(map[string]any)
-		if !ok || value["redacted"] != true || !isNonNegativeInteger(value["size"]) {
+		if !ok || value["redacted"] != true || !isSizeInRange(value["size"]) {
 			t.Fatalf("sensitive argument %q was not redacted: %#v", key, value)
 		}
 	}

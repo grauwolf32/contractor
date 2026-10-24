@@ -231,24 +231,30 @@ func (p Policy) sanitizeMember(key string, value any, depth int) (string, any, b
 // replaces arguments above MaxArgumentBytes; its size member is no content.
 func isArgumentSummary(arguments map[string]any) bool {
 	return len(arguments) == 2 && arguments["summary"] == truncatedValue &&
-		isNonNegativeInteger(arguments["originalSizeBytes"])
+		isSizeInRange(arguments["originalSizeBytes"])
 }
 
 // isRedactionPlaceholder reports whether value is exactly the placeholder a
 // sensitive member's value becomes: redacted true and a size that is a
-// non-negative integer or null.
+// non-negative integer within LIM-OBS-16 or null.
 func isRedactionPlaceholder(value any) bool {
 	placeholder, ok := value.(map[string]any)
 	if !ok || len(placeholder) != 2 || placeholder["redacted"] != true {
 		return false
 	}
 	size, present := placeholder["size"]
-	return present && (size == nil || isNonNegativeInteger(size))
+	return present && (size == nil || isSizeInRange(size))
 }
 
 func isSafeDerivedSize(key string, value any) bool {
 	_, safe := safeDerivedSizeKeys[metricIdentifier(key)]
-	return safe && isNonNegativeInteger(value) && !reporting.ArgumentNumberOutOfRange(value)
+	return safe && isSizeInRange(value)
+}
+
+// isSizeInRange reports whether value is a size a Runtime record may carry:
+// a non-negative integer that LIM-OBS-16 keeps.
+func isSizeInRange(value any) bool {
+	return isNonNegativeInteger(value) && !reporting.ArgumentNumberOutOfRange(value)
 }
 
 // isNonNegativeInteger accepts a decoded literal of digits only, which JSON

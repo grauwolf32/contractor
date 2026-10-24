@@ -324,6 +324,13 @@ def test_shared_argument_redaction_leaves_redacted_arguments_unchanged() -> None
     again = state.tool_calls[-1]
     assert _compact(again.arguments) == _compact(first.arguments)
     assert again.arguments_truncated is False
+    # A placeholder whose size LIM-OBS-16 would reject is a value like any
+    # other: it is redacted afresh instead of failing the record.
+    state.record_tool_call(
+        "http_session_set",
+        arguments={"api_key": {"redacted": True, "size": 10**20}},
+    )
+    assert state.tool_calls[-1].arguments == {"api_key": {"redacted": True, "size": 2}}
     report = state.build_report(report_id="worker-redacted", duration_ms=1)
     encoded = _compact(report.model_dump(mode="json", by_alias=True, exclude_none=True))
     assert '"arguments":{}' not in encoded

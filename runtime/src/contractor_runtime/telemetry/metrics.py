@@ -767,7 +767,7 @@ def _is_redaction_placeholder(value: Any) -> bool:
     if not isinstance(value, Mapping) or len(value) != 2 or value.get("redacted") is not True:
         return False
     size = value.get("size", False)
-    return size is None or (type(size) is int and size >= 0)
+    return size is None or (type(size) is int and size >= 0 and argument_number_in_range(size))
 
 
 def _value_size(value: Any) -> int | None:
