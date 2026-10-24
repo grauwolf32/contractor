@@ -1,5 +1,5 @@
 schema_version: "1.0"
-id: V410-008
+id: V414-008
 title: "Classify stored-size CHECK rejections as invalid input at every store writer"
 milestone: review-v407-v409-followups-2026-10
 epic: persistence
@@ -71,7 +71,7 @@ context:
     audit_review_requests_* and finding_proposal_* evidence and ref checks. A raw
     ClassInvalid error reaching a public handler is answered as 500 (diagnostic
     storage_constraint_failed in internal/httpapi/public/error_diagnostics.go:68-72);
-    registering these bounds in limits.md is V410-007.
+    registering these bounds in limits.md is V414-007.
   provenance: >-
     git log -S planner_session_state_size: the CHECK and AppendPlannerEvent's
     unclassified return came with 2fbac4ddcf61709d01fd57025c8aa52d477b44a6
@@ -84,8 +84,8 @@ scope:
     - "Fake stores used by planner tests (runstoretest and session fakes) reject the same oversized values as the real store."
   out:
     - "Changing any bound, the measure of a CHECK, or pre-checking the jsonb text in Go (the CHECK stays authoritative, LIM-API-25)."
-    - "Registering the bounds in limits.md (V410-007)."
-    - "Retry rules for an unwritten Planner outcome (V410-006); both tasks touch SessionError and the second to land rebases."
+    - "Registering the bounds in limits.md (V414-007)."
+    - "Retry rules for an unwritten Planner outcome (V414-006); both tasks touch SessionError and the second to land rebases."
 failure_outcomes:
   - operation: "StartPlanner / AppendPlannerEvent insert or update rejected by a size CHECK"
     permanent: "runstore.ErrInvalid wrapping the PostgreSQL cause; nothing is written (single statement)"

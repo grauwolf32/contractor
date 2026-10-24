@@ -1,5 +1,5 @@
 schema_version: "1.0"
-id: V410-012
+id: V414-012
 title: "Classify a closed PostgreSQL connection, including a lost COMMIT reply, as unavailable"
 milestone: review-v407-v409-followups-2026-10
 epic: persistence

@@ -324,7 +324,7 @@ decisions:
     one-Run history ignores the optional Run filter and read 17,944 Stages.
     Both need statement changes (a derived terminal_at bound, the
     optional-filter generic-plan class) and are reported for a follow-up
-    (V410-025).
+    (V414-025).
   - >-
     Telemetry cleanup (repository.go:340-358): KEPT, no change.
     allocation_execution_reports_expiry_idx (expires_at, stage_execution_id)
@@ -433,7 +433,7 @@ verification:
     1,500 rows deep) because the cross-table cursor comparison cannot bound
     the terminal-history index scan, and the generic plan of a one-Run
     history ignores the optional Run filter (17,944 Stages). Both need
-    statement changes and are reported for a follow-up task (V410-025). The
+    statement changes and are reported for a follow-up task (V414-025). The
     eval summary pages' generic plans read all of the owner's experiments
     with or without the dropped index (the optional-filter class), also
-    unchanged here (V410-026).
+    unchanged here (V414-026).

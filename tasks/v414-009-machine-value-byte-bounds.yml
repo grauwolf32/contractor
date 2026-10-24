@@ -1,5 +1,5 @@
 schema_version: "1.0"
-id: V410-009
+id: V414-009
 title: "Declare the byte bounds of machine values in the public API and hold OpenAPI, Go and the UI to them"
 milestone: review-v407-v409-followups-2026-10
 epic: api-contracts
@@ -46,7 +46,7 @@ context:
     OpenAPI document; the Go owners named in utf8ByteBoundOwners; the generated Go client
     (internal/publicclient/generated, regenerate only); the UI stringRule in ui/src/api/contract.ts
     and its test ui/src/api/contract.test.ts, which already read x-max-utf8-bytes from the
-    generated schemas; ui/src/api/generated (regenerate only). The bearer-token grammar task V410-015 of this
+    generated schemas; ui/src/api/generated (regenerate only). The bearer-token grammar task V414-015 of this
     milestone (Project target and infrastructure tokens become HTTP field values, ASCII only) makes
     token maxLength equal to bytes; coordinate so the token fields are declared once.
   provenance: >-
@@ -69,7 +69,7 @@ scope:
     - "Extend TestSharedUTF8ByteBoundsAreDeclared to walk inline path schemas and parameters, and extend the UI contract test to the new fields."
     - "Register missing LIM entries for byte bounds that have none, and run make ui-generate and make generate-public-client."
   out:
-    - "Changing any Server bound or accepted character set (the bearer-token grammar is V410-015)."
+    - "Changing any Server bound or accepted character set (the bearer-token grammar is V414-015)."
     - "Human free-text fields already declared by V407-021."
     - "Editing generated files by hand."
 acceptance_criteria:

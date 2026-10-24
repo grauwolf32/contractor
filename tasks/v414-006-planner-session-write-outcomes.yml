@@ -1,5 +1,5 @@
 schema_version: "1.0"
-id: V410-006
+id: V414-006
 title: "Report one Planner outcome when the session write after a result fails"
 milestone: review-v407-v409-followups-2026-10
 epic: planner-worker
@@ -68,8 +68,8 @@ context:
     fix), and the session span labels in session_lifecycle.go:36 and :94. The
     scan-plan@1 completion write (scan/audit_result.go:41-43, scan/report.go:284-286)
     uses its own non-retryable scan_completion_write_failed and is owned by
-    V410-004. Classification of a deterministic store rejection
-    (runstore.ErrInvalid) inside SessionError is owned by V410-008; both tasks
+    V414-004. Classification of a deterministic store rejection
+    (runstore.ErrInvalid) inside SessionError is owned by V414-008; both tasks
     change SessionError, so the second to land rebases on the first.
   provenance: >-
     The always-retryable record-completion mapping dates from 411d617c (MVP-013,
@@ -89,8 +89,8 @@ scope:
     - "Name planner_invocation_in_progress in PLN-R107, the planners.md error list and the registry row (replacing the no-code row); session spans carry the code actually returned."
     - "Regression tests on the real Passthrough and Streamline planners and one PostgreSQL test with the real planner session service whose completion write fails after the outcome."
   out:
-    - "Scan planner codes and retry rules (V410-004)."
-    - "Classification of runstore.ErrInvalid size rejections (V410-008)."
+    - "Scan planner codes and retry rules (V414-004)."
+    - "Classification of runstore.ErrInvalid size rejections (V414-008)."
     - "Registering the other unregistered Planner codes (planner_cancelled, planner_initialization_failed, worker_task_failed and others); only planner_invocation_in_progress changes here."
     - "Changing the in-invocation transient retry budget of writeCompletion (V226-001)."
 failure_outcomes:

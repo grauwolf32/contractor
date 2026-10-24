@@ -1,5 +1,5 @@
 schema_version: "1.0"
-id: V410-026
+id: V414-026
 title: "Bound Eval experiment summary pages by page size in generic plans"
 milestone: review-v407-v409-followups-2026-10
 epic: evals
@@ -7,7 +7,7 @@ kind: defect
 introduced_by: V38-005
 priority: P2
 status: pending
-depends_on: [V410-017]
+depends_on: [V414-017]
 languages: [go, sql]
 goal: >-
   The managed Eval experiment list reads a number of experiments
@@ -50,12 +50,12 @@ context:
     run inside one experiment and generation (bounded by the experiment's
     members, LIM-EVM-3) after V409-014: ruled out. datasetPageSQL has no
     optional filter. The allocation-history page has the same class and its
-    own task (V410-025). Other optional-filter statements in auditstore,
+    own task (V414-025). Other optional-filter statements in auditstore,
     artifacts, runstore and projectstore are not measured here; the exit
-    task V410-027 records their disposition.
+    task V414-027 records their disposition.
   overlap: >-
     The same statement's details CTE casts stored bytes to jsonb
-    (public_read_sql.go:42-43), which the NUL-escape task (V410-017)
+    (public_read_sql.go:42-43), which the NUL-escape task (V414-017)
     changes or makes safe. Land that task first so both do not rewrite
     summaryPageSQL concurrently; this task depends on it.
   provenance: >-
@@ -72,7 +72,7 @@ scope:
       fixed set of statements), or execute it with pgx.QueryExecModeExec so
       each execution is planned with its values. Record the chosen option,
       the alternative and the reversal condition (AGENTS 3.10), and use the
-      same choice as V410-025 unless the evidence differs.
+      same choice as V414-025 unless the evidence differs.
     - >-
       Keep the keyset cursor sargable on (created_at, experiment_id) for
       every shape.
@@ -83,7 +83,7 @@ scope:
       at a deep cursor.
   out:
     - "Index changes (V409-007 kept the state, dataset, control and Project page indexes)."
-    - "The jsonb cast of stored setup and summary (V410-017)."
+    - "The jsonb cast of stored setup and summary (V414-017)."
     - "Comparison pages, chart reads and the projection model."
 failure_outcomes:
   - operation: "Eval experiment summary page read"

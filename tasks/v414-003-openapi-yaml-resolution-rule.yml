@@ -1,5 +1,5 @@
 schema_version: "1.0"
-id: V410-003
+id: V414-003
 title: "Read and write OpenAPI YAML under one scalar and key rule in openapi@1, scan preparation and the Audit inventory"
 milestone: review-v407-v409-followups-2026-10
 epic: api-contracts
@@ -82,7 +82,7 @@ scope:
     - "New shared fixture api/testdata/openapi-yaml-scalar-cases.json: value cases and key cases (YAML text, verdict, JSON value), merge/anchor rejections, and writer round-trip cases (string, the exact scalar openapi@1 must emit); registered in api/testdata/readers.json for Go scanplan, Go auditdomain and Python openapi@1."
     - "Remove the 'can still parse differently' sentence from SCN-R253 and update SCN-R124."
   out:
-    - "Per-string length bounds (V410-001)."
+    - "Per-string length bounds (V414-001)."
     - "Changing the document byte, depth or node bounds (LIM-SCN-39/41/42)."
     - "Switching openapi@1 output to JSON or changing its media type."
 acceptance_criteria:

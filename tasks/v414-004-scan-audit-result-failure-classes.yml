@@ -1,5 +1,5 @@
 schema_version: "1.0"
-id: V410-004
+id: V414-004
 title: "Classify Audit scan result building failures by cause instead of as invalid input"
 milestone: review-v407-v409-followups-2026-10
 epic: scan-tools
@@ -92,7 +92,7 @@ scope:
     - "Register every scan-plan@1 Planner code with its retryability in docs/spec/tools/scanners.md and the assembled registry in docs/spec/platform/errors.md, and add the failure outcome of Audit scan result building to docs/spec/platform/failure-model.md."
     - "A test that every code constructed by scanError appears in the registry, so a new unregistered code fails."
   out:
-    - "Passthrough, Streamline and Router session-write classification (V410-006)."
+    - "Passthrough, Streamline and Router session-write classification (V414-006)."
     - "Audit collection and scan recovery in internal/auditimport, which already classify auditscan.ErrInvalid."
     - "Scanner job outcome vocabulary (SCN-R215, worker-error-codes.json) and the unknown-outcome rule (ASC-R141, SCN-R207)."
 failure_outcomes:

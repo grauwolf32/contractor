@@ -1,5 +1,5 @@
 schema_version: "1.0"
-id: V410-001
+id: V414-001
 title: "Give openapi-operations@1 the string bounds of the shared OpenAPI document rule"
 milestone: review-v407-v409-followups-2026-10
 epic: audits
@@ -79,7 +79,7 @@ scope:
     - "Update SCN-R253 so the shared fixture names all three readers."
   out:
     - "Changing LIM-SCN-39/41/42, LIM-AUD-14 or LIM-AUD-17."
-    - "YAML 1.1/1.2 scalar resolution differences (V410-003)."
+    - "YAML 1.1/1.2 scalar resolution differences (V414-003)."
     - "Bounds of Audit-internal values that are not copied from the source document (identifiers, diagnostics, coverage values)."
 failure_outcomes:
   - operation: "openapi-operations@1 inventory generation at Audit start"

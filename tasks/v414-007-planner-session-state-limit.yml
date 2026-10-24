@@ -1,5 +1,5 @@
 schema_version: "1.0"
-id: V410-007
+id: V414-007
 title: "Register the 2 MiB Planner session state bound and the other unregistered stored-size CHECKs"
 milestone: review-v407-v409-followups-2026-10
 epic: planner-worker
@@ -46,13 +46,13 @@ context:
     audits_input_selection_check 8 MiB, audits_baseline_snapshot_check 16 MiB).
   siblings: >-
     Every octet_length(...) size CHECK in internal/persistence/migrations (the
-    jsonb-text ones are listed in V410-008's context; text and bytea ones such as
+    jsonb-text ones are listed in V414-008's context; text and bytea ones such as
     performance_minutes_payload_check, audit_report_pages_content_check and the
     credential ciphertext CHECKs). For each, the task either adds a LIM row,
     adds the constraint as an enforcer of an existing LIM row, or records why it
     is an internal invariant rather than a limit (for example a fixed-width hash
     or nonce length). Classification of a CHECK violation at write time is
-    V410-008, not this task.
+    V414-008, not this task.
   provenance: >-
     The CHECK came with 2fbac4dd (V3-009, 2026-08-30), before the LIM registry
     existed; the registry was written on 2026-10-11 by 2b675dda without a task.
@@ -67,7 +67,7 @@ scope:
     - "A PostgreSQL test that reads planner_session_state_size and workflow_run_events_data_check from pg_constraint on the migrated schema and asserts that each bound equals the Go constant and the LIM row that names the constraint, so the three definitions cannot drift."
   out:
     - "Changing any bound or how it is enforced."
-    - "Error classification of a CHECK violation (V410-008)."
+    - "Error classification of a CHECK violation (V414-008)."
 acceptance_criteria:
   - id: A1
     given: "docs/spec/platform/limits.md and docs/spec/execution/planners.md"

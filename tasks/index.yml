@@ -81,7 +81,7 @@ execution_policy:
 
 milestones:
   - id: review-v407-v409-followups-2026-10
-    exit_task: V410-027
+    exit_task: V414-027
     outcome: Defects and gaps found while implementing and reviewing V407/V409 are fixed with real-path regressions or closed by recorded decisions.
   - id: sql-review-2026-10
     exit_task: V409-013

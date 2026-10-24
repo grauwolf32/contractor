@@ -1,5 +1,5 @@
 schema_version: "1.0"
-id: V410-016
+id: V414-016
 title: "Retry OTLP batches after TLS and OS transport failures"
 milestone: review-v407-v409-followups-2026-10
 epic: operations

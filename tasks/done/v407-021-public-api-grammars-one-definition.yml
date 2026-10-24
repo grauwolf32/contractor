@@ -151,7 +151,7 @@ verification:
   - 'x-max-utf8-bytes is declared for the reviewed human free-text fields only. Machine values bounded in bytes (credential
     material, OTLP header values, caBundlePem, Git ref, repositoryUrl and privateKey, scan sweep parameter values, Gateway
     failure signature, archive paths, Audit artifact key/revision/member, query parameters, cursors) are ASCII or opaque
-    and not edited as text in the UI; a follow-up task should decide them, which the integrator creates and tracks (V410-009).'
+    and not edited as text in the UI; a follow-up task should decide them, which the integrator creates and tracks (V414-009).'
   - The Audit start form does not pre-check scope field bytes; the Server's 400 is shown. UI Run label key and count literals
     are a separate rule and were left.
   v371_016:

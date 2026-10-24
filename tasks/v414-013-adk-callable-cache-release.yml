@@ -1,5 +1,5 @@
 schema_version: "1.0"
-id: V410-013
+id: V414-013
 title: "Stop ADK's module-level callable caches from keeping a released allocation's tools alive"
 milestone: review-v407-v409-followups-2026-10
 epic: planner-worker
