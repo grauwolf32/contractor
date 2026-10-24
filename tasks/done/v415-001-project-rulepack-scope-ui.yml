@@ -6,7 +6,7 @@ epic: ui
 kind: defect
 introduced_by: V406-005
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [typescript]
 goal: Project Run setup offers and uploads Nuclei rulepacks only in the owner UserScope, while ordinary inputs remain ProjectScope.
@@ -50,3 +50,11 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
+implementation_commit: c9fe0b08f5c450b78a53b36008447f81b7f2aa21
+verification:
+  date: "2026-10-24"
+  passed:
+    - make ui-verify; 196 test files, 2390 passing tests and one expected failure; production build passed.
+    - make ui-browser-mocked; 91 browser cases passed.
+    - make lint; task, specification, layer, architecture and other lint checks passed.
+  scope: Project rulepack selection and upload are covered by the real Run form tests; scanner execution is outside this UI task.
