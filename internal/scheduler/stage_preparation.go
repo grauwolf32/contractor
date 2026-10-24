@@ -224,6 +224,10 @@ func (s *Scheduler) prepareStageWorkers(ctx context.Context, run runstore.Workfl
 			run, execution, "worker_execution_config_unavailable", "Worker execution configuration is unavailable", err,
 		))
 	}
+	// Report persistence of this Stage redacts with exactly the values the
+	// Runtime Agents may receive below, even when preparation then fails
+	// part-way (SCH-R178).
+	s.preparedSecrets.store(execution.StageExecutionID, reservations, workerSettings)
 	// The WorkerController bounds the batch by its own prepare deadline
 	// (runtimeLifecycle.prepareTimeout); ctx contributes only cancellation.
 	handles, err := s.workers.PrepareAll(ctx, reservations, workerSettings)

@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-108 open tasks: 4 in progress, 79 pending, 25 deferred. 1010 finished: 1006 completed, 4 archived.
+99 open tasks: 4 in progress, 70 pending, 25 deferred. 1019 finished: 1015 completed, 4 archived.
 
 ## In progress
 
@@ -26,10 +26,7 @@ the epics are in [epics.yml](epics.yml).
 | [V372-007](v372-007-terminal-stage-state-set.yml) | chore | P3 | — | Define the terminal StageExecution states once and hold SQL and the UI to them |
 | [V372-028](v372-028-runstore-strict-snapshot-reads.yml) | chore | P3 | — | Decode persisted Run, Stage and allocation snapshots strictly in runstore |
 | [V407-013](v407-013-mtls-connection-reuse.yml) | chore | P2 | — | Reuse verified private TLS connections with bounded lifecycle ownership |
-| [V407-014](v407-014-placement-per-poll-cost.yml) | chore | P2 | — | Reuse overlapping placement resolution work within a waiting attempt |
-| [V407-015](v407-015-scheduler-stage-end-cost.yml) | chore | P3 | — | Reduce redundant Stage-end work while preserving recovery and redaction |
 | [V407-016](v407-016-scheduler-idle-and-release-pacing.yml) | chore | P3 | — | Reduce idle claim probes and bound terminal-release head-of-line work |
-| [V407-017](v407-017-startup-lease-tolerance.yml) | chore | P3 | — | Document and test inherited startup lease connection and query budgets |
 | [V409-011](v409-011-execution-store-n1-and-duplicates.yml) | chore | P3 | V407-016 | Reduce execution query round trips while preserving lock and recovery contracts |
 
 ### Planners and the Worker model boundary (`planner-worker`)
@@ -61,8 +58,6 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V55-009](v55-009-scan-candidate-ranking.yml) | feature | P2 | — | Optionally rank existing scan candidates with an LLM |
 | [V406-007](v406-007-web-scan-release-gate.yml) | chore | P2 | V406-005, V406-006 | Gate the complete web scan and rule sweep journeys |
-| [V407-006](v407-006-scanplan-prepare-once.yml) | chore | P2 | — | Reuse one parsed OpenAPI source across an Audit inventory operation batch |
-| [V407-007](v407-007-scan-output-off-loop.yml) | defect | P3 | — | Offload scanner parsing and filesystem preparation with joined cancellation |
 
 ### Findings tools and collections (`findings`)
 
@@ -76,7 +71,6 @@ the epics are in [epics.yml](epics.yml).
 | [V397-008](v397-008-generic-sarif-renderer.yml) | feature | P2 | V397-007 | Render deterministic validated generic SARIF from frozen snapshots |
 | [V397-009](v397-009-sarif-export-api-ui.yml) | feature | P2 | V397-008 | Publish and download generic SARIF through API CLI and UI |
 | [V407-033](v407-033-findings-toolsets-cost.yml) | chore | P2 | — | Reuse immutable Audit inputs and finding source bytes, and assemble finding pages linearly |
-| [V409-001](v409-001-finding-correlation-project-lock.yml) | defect | P2 | — | Retry definite transaction conflicts in Audit finding import and retention |
 | [V409-002](v409-002-finding-inbox-index.yml) | chore | P2 | — | Bound Audit finding inbox reads to native and held receipts |
 
 ### Workflow catalog and document workflows (`workflows`)
@@ -86,12 +80,6 @@ the epics are in [epics.yml](epics.yml).
 | [V372-013](v372-013-planner-facts-one-source.yml) | chore | P3 | — | Take Planner refs and facts from the descriptor registry in Go, the composition and Studio |
 | [V372-014](v372-014-execution-config-patch-strict-decode.yml) | chore | P3 | — | Decode executionConfig patch members with strictjson |
 | [V372-015](v372-015-config-split-leftovers.yml) | chore | P3 | — | Stop locals from shadowing the resolved package and drop config's copy of clone.Map |
-
-### Projects, artifacts and lifecycle controls (`projects-artifacts`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V407-035](v407-035-artifact-reader-paging-cost.yml) | chore | P3 | — | Cache bounded text decoding for Artifact pages without changing reader interfaces |
 
 ### Audits (`audits`)
 
@@ -134,8 +122,6 @@ the epics are in [epics.yml](epics.yml).
 | [V372-020](v372-020-error-code-vocabularies.yml) | chore | P3 | — | Hold every vocabulary that carries error code names to the registry |
 | [V372-025](v372-025-typed-openapi-enums.yml) | chore | P3 | — | Give every enum of the public OpenAPI document a type |
 | [V372-026](v372-026-request-digests-in-services.yml) | chore | P3 | — | Move the Project, Audit and review request digests out of the public handlers |
-| [V407-021](v407-021-public-api-grammars-one-definition.yml) | defect | P1 | — | Align Idempotency-Key, request body bounds and UTF-8 string limits with the public contract |
-| [V407-022](v407-022-reject-head-centrally.yml) | defect | P2 | — | Reject implicit HEAD before dispatching public GET handlers |
 | [V407-023](v407-023-mutation-handler-preamble.yml) | defect | P3 | — | Classify aborted RuntimeConfig bodies and reject invalid mutation metadata before expensive work |
 
 ### PostgreSQL persistence and schema (`persistence`)
@@ -150,7 +136,7 @@ the epics are in [epics.yml](epics.yml).
 | [V409-006](v409-006-trigger-column-scoping.yml) | chore | P2 | V407-025 | Scope unnecessary trigger work while preserving admission and projection effects |
 | [V409-007](v409-007-dead-and-redundant-indexes.yml) | chore | P2 | V407-025, V409-002, V409-004, V409-006 | Consolidate indexes only where reader and constraint evidence permits it |
 | [V409-012](v409-012-migration-and-sql-hygiene.yml) | chore | P3 | — | Test the revision-count and controller-claim backfills and document migration budgets |
-| [V409-013](v409-013-verify-sql-review-on-database.yml) | chore | P2 | V409-001, V409-002, V409-004, V409-006, V409-007, V409-009, V409-011, V409-012, V409-014 | Verify retained SQL-review changes and record evidence for every accepted or declined claim |
+| [V409-013](v409-013-verify-sql-review-on-database.yml) | chore | P2 | V409-002, V409-004, V409-006, V409-007, V409-009, V409-011, V409-012, V409-014 | Verify retained SQL-review changes and record evidence for every accepted or declined claim |
 
 ### Quality, CI and process (`quality`)
 
@@ -165,7 +151,7 @@ the epics are in [epics.yml](epics.yml).
 | [V372-029](v372-029-shared-fixture-gate-scope.yml) | chore | P3 | — | Extend the shared fixture gate to every cross-language fixture and keep slow store suites out of it |
 | [V372-030](v372-030-shrink-test-only-export-baseline.yml) | chore | P3 | — | Resolve the exported identifiers that only tests use and empty the test-only export baseline |
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | chore | P3 | — | Find out why about a hundred Runtime tests fail on a macOS host and make each one pass or declare its platform |
-| [V407-039](v407-039-close-server-runtime-review.yml) | chore | P3 | V407-002, V407-004, V407-005, V407-006, V407-007, V407-011, V407-012, V407-013, V407-014, V407-015, V407-016, V407-017, V407-020, V407-021, V407-022, V407-023, V407-025, V407-029, V407-032, V407-033, V407-035 | Close the validated Server and Runtime review with explicit dispositions and verification |
+| [V407-039](v407-039-close-server-runtime-review.yml) | chore | P3 | V407-002, V407-004, V407-005, V407-011, V407-012, V407-013, V407-016, V407-020, V407-023, V407-025, V407-029, V407-032, V407-033 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V408-001](v408-001-gate-duration-baseline.yml) | chore | P2 | — | Record the baseline duration of every release stage and local test target |
 | [V408-004](v408-004-e2e-build-once.yml) | chore | P2 | V408-001 | Build the Server binary and the test PKI once per e2e package and right-size per-test budgets |
 | [V408-005](v408-005-family-guard-gaps.yml) | chore | P2 | — | Close the family-target guard gaps and run the Runtime suite once with warnings as errors |
@@ -209,7 +195,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 9 | 41 | 51 | 18 | 73 |
+| Run execution core (`execution-core`) | 6 | 41 | 51 | 18 | 73 |
 | Planners and the Worker model boundary (`planner-worker`) | 5 | 27 | 40 | 16 | 58 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 10 | 25 | 13 | 4 | 40 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 2 | 12 |
@@ -217,15 +203,15 @@ tasks in `introduced_by`.
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 12 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 0 | 14 | 14 | 2 | 19 |
 | HTTP and Caido tools (`http-tools`) | 2 | 11 | 15 | 4 | 16 |
-| Scanner tool Workers and scan planning (`scan-tools`) | 4 | 14 | 5 | 6 | 10 |
-| Findings tools and collections (`findings`) | 10 | 14 | 6 | 8 | 11 |
-| Workflow catalog and document workflows (`workflows`) | 3 | 14 | 14 | 12 | 15 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 30 | 33 | 6 | 37 |
+| Scanner tool Workers and scan planning (`scan-tools`) | 2 | 14 | 5 | 6 | 11 |
+| Findings tools and collections (`findings`) | 9 | 14 | 6 | 8 | 11 |
+| Workflow catalog and document workflows (`workflows`) | 3 | 14 | 14 | 12 | 16 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 30 | 33 | 6 | 37 |
 | Audits (`audits`) | 21 | 53 | 72 | 22 | 91 |
 | Evaluations (`evals`) | 5 | 21 | 34 | 8 | 41 |
 | Podman sandbox (`sandbox`) | 0 | 9 | 2 | 1 | 3 |
 | Web UI (`ui`) | 3 | 24 | 58 | 12 | 53 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 16 | 33 | 6 | 10 |
-| Public API and wire contracts (`api-contracts`) | 7 | 1 | 34 | 20 | 11 |
+| Public API and wire contracts (`api-contracts`) | 5 | 1 | 34 | 20 | 11 |
 | PostgreSQL persistence and schema (`persistence`) | 10 | 0 | 21 | 41 | 9 |
 | Quality, CI and process (`quality`) | 17 | 1 | 21 | 87 | 21 |

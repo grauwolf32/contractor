@@ -6879,7 +6879,7 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description Request Content-Type does not match the operation contract */
+        /** @description An Operations settings update is not sent as exactly application/json (unsupported_media_type), or an archive preview names an Artifact that is not a ZIP or Skill package (archive_media_type) */
         Error415: {
             headers: {
                 "X-Request-ID": components["headers"]["RequestId"];
@@ -12775,7 +12775,10 @@ export interface operations {
     cancelScanSweep: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Accepted for uniform mutation headers; the operation is idempotent by resource identity and does not bind the key. */
+                "Idempotency-Key"?: components["parameters"]["OptionalIdempotencyKey"];
+            };
             path: {
                 sweepId: components["schemas"]["ResourceId"];
             };

@@ -69,14 +69,58 @@ type placementCachedValue[T any] struct {
 	err   error
 }
 
-// One optimistic pass shares immutable catalog observations. Selected edges
-// are still re-read through pinReservations' transaction and drift-checked.
-type placementReadCache struct {
+// placementAttemptCache shares optimistic observations among the passes of
+// one placement attempt, that is one ReserveAllContext call: the first pass,
+// the retry after a principal refresh and the model Stage hold (CTL-R162).
+// The pinning transaction never reads it: selected edges are re-read and
+// drift-checked under that transaction (CTL-R88). It dies with the attempt,
+// so the next Scheduler poll reads every mutable dependency again.
+//
+// It holds at most one entry per distinct Agent label, credential ID and
+// (binding, ordered Agent-label set) among the location-matching live
+// candidates of the attempt, so its size follows the fleet, not the number of
+// passes or candidates sharing a configuration.
+type placementAttemptCache struct {
+	// The pinned default and Run-label versions are immutable references of
+	// the Run snapshot, so discardMutable keeps them.
 	requestLoaded bool
 	defaultConfig runtimeconfig.PinnedRuntimeConfig
 	runConfigs    []runtimeconfig.PinnedRuntimeConfig
 	requestErr    error
-	agentLabels   map[string]placementCachedValue[runtimeconfig.PinnedRuntimeConfig]
+
+	agentLabels        map[string]placementCachedValue[runtimeconfig.PinnedRuntimeConfig]
+	llmCredentials     map[string]placementCachedValue[runtimeconfig.LLMCredentialAuthorization]
+	runtimeCredentials map[string]placementCachedValue[runtimesettings.RuntimeCredentialKind]
+	resolutions        map[placementResolutionInput]placementCachedValue[runtimeconfig.ResolvedRuntimeConfig]
+}
+
+// placementResolutionInput names everything a candidate contributes to
+// resolveCandidate: the binding and the principal's exact ordered Agent-label
+// set. Labels never contain NUL (runtimeconfig.ValidateLabel).
+type placementResolutionInput struct {
+	logicalAgentName string
+	labels           string
+}
+
+func newPlacementAttemptCache() *placementAttemptCache {
+	return &placementAttemptCache{
+		agentLabels:        make(map[string]placementCachedValue[runtimeconfig.PinnedRuntimeConfig]),
+		llmCredentials:     make(map[string]placementCachedValue[runtimeconfig.LLMCredentialAuthorization]),
+		runtimeCredentials: make(map[string]placementCachedValue[runtimesettings.RuntimeCredentialKind]),
+		resolutions:        make(map[placementResolutionInput]placementCachedValue[runtimeconfig.ResolvedRuntimeConfig]),
+	}
+}
+
+// discardMutable drops every observation of mutable durable state: Agent-label
+// bindings, credential metadata and the resolutions derived from them. A
+// changed principal or a drift found by the pinning transaction proves that a
+// mutation committed after these reads, and the attempt cannot tell which
+// binding or credential mutations accompanied it (CTL-R162).
+func (cache *placementAttemptCache) discardMutable() {
+	clear(cache.agentLabels)
+	clear(cache.llmCredentials)
+	clear(cache.runtimeCredentials)
+	clear(cache.resolutions)
 }
 
 func NewPlacementAllocator(options PlacementAllocatorOptions) (*PlacementAllocator, error) {
@@ -100,7 +144,8 @@ func (a *PlacementAllocator) ReserveAllContext(
 	if err := contracts.ValidatePlacementLabels(request.RequiredPlacementLabels); err != nil {
 		return nil, fmt.Errorf("%w: invalid required placement labels: %v", ErrInvalidRequest, err)
 	}
-	reservations, err := a.reserveAllContext(ctx, request)
+	attempt := newPlacementAttemptCache()
+	reservations, err := a.reserveAllContext(ctx, request, attempt)
 	if !errors.Is(err, ErrInsufficientCapacity) || ctx.Err() != nil {
 		return reservations, err
 	}
@@ -113,10 +158,11 @@ func (a *PlacementAllocator) ReserveAllContext(
 		return nil, refreshErr
 	}
 	if changed {
-		reservations, err = a.reserveAllContext(ctx, request)
+		attempt.discardMutable()
+		reservations, err = a.reserveAllContext(ctx, request, attempt)
 	}
 	if errors.Is(err, ErrInsufficientCapacity) && !request.ModelFree && ctx.Err() == nil {
-		a.holdForWaitingModelStage(ctx, request)
+		a.holdForWaitingModelStage(ctx, request, attempt)
 	}
 	return reservations, err
 }
@@ -125,11 +171,17 @@ func (a *PlacementAllocator) ReserveAllContext(
 // allocated capacity could use (CTL-R155). The hold is advisory: an error
 // while resolving it holds nothing and never changes the Stage's own
 // placement outcome, and the Stage's next failed attempt computes it again.
-func (a *PlacementAllocator) holdForWaitingModelStage(ctx context.Context, request ReservationRequest) {
+// Live candidates that the failed passes already resolved reuse the attempt's
+// resolutions; only allocated or newly live candidates are resolved here.
+func (a *PlacementAllocator) holdForWaitingModelStage(
+	ctx context.Context,
+	request ReservationRequest,
+	attempt *placementAttemptCache,
+) {
 	if request.RuntimeConfig == nil {
 		return
 	}
-	edges, _, err := a.candidateEdges(ctx, request, a.registry.liveCandidates())
+	edges, _, err := a.candidateEdges(ctx, request, a.registry.liveCandidates(), attempt)
 	if err != nil {
 		return
 	}
@@ -137,20 +189,20 @@ func (a *PlacementAllocator) holdForWaitingModelStage(ctx context.Context, reque
 }
 
 // candidateEdges resolves every compatible binding and candidate pair outside
-// the Registry lock, sharing one read cache, and returns the edges with the
-// Runtime configuration resolved for each.
+// the Registry lock, sharing the attempt's observations, and returns the edges
+// with the Runtime configuration resolved for each. The returned resolutions
+// may share memory with the attempt cache and must not be mutated.
 func (a *PlacementAllocator) candidateEdges(
 	ctx context.Context,
 	request ReservationRequest,
 	candidates []AgentSnapshot,
+	attempt *placementAttemptCache,
 ) ([]CandidateEdge, map[string]runtimeconfig.ResolvedRuntimeConfig, error) {
 	candidates = matchingLocationCandidates(request.RequiredPlacementLabels, candidates)
 	optimistic := make(map[string]runtimeconfig.ResolvedRuntimeConfig)
-	cache := &placementReadCache{agentLabels: make(map[string]placementCachedValue[runtimeconfig.PinnedRuntimeConfig])}
 	lookups := placementCredentialLookups{
 		llm: a.llmCredentials, runtime: a.runtimeCredentials,
-		llmCache:     make(map[string]placementCachedValue[runtimeconfig.LLMCredentialAuthorization]),
-		runtimeCache: make(map[string]placementCachedValue[runtimesettings.RuntimeCredentialKind]),
+		llmCache: attempt.llmCredentials, runtimeCache: attempt.runtimeCredentials,
 	}
 	edges := make([]CandidateEdge, 0, len(request.Bindings)*len(candidates))
 	for _, binding := range request.Bindings {
@@ -162,7 +214,7 @@ func (a *PlacementAllocator) candidateEdges(
 			if !isBindingCompatible(candidate.Registration, binding) {
 				continue
 			}
-			resolved, err := a.resolveCandidateWithCache(ctx, a.pool, request, binding, candidate.Principal, lookups, cache)
+			resolved, err := a.resolveAttemptCandidate(ctx, request, binding, candidate.Principal, lookups, attempt)
 			if err != nil {
 				if contextError := ctx.Err(); contextError != nil {
 					return nil, nil, contextError
@@ -242,6 +294,7 @@ func (a *PlacementAllocator) refreshCandidatePrincipals(ctx context.Context, can
 func (a *PlacementAllocator) reserveAllContext(
 	ctx context.Context,
 	request ReservationRequest,
+	attempt *placementAttemptCache,
 ) ([]Reservation, error) {
 	if existing, err := a.registry.reservationsForRequest(request); err == nil {
 		return existing, nil
@@ -255,7 +308,7 @@ func (a *PlacementAllocator) reserveAllContext(
 	if len(candidates) == 0 {
 		return nil, ErrInsufficientCapacity
 	}
-	edges, optimistic, err := a.candidateEdges(ctx, request, candidates)
+	edges, optimistic, err := a.candidateEdges(ctx, request, candidates, attempt)
 	if err != nil {
 		return nil, err
 	}
@@ -282,7 +335,10 @@ func (a *PlacementAllocator) reserveAllContext(
 			if !ok {
 				return nil, errors.New("candidate placement omitted a selected resolution")
 			}
-			reservation.ResolvedRuntimeConfig = &resolved
+			// The attempt cache keeps the resolution for later passes, so
+			// admission receives a detached copy.
+			detached := resolved.Clone()
+			reservation.ResolvedRuntimeConfig = &detached
 			candidates[index] = reservation
 		}
 		if err := request.Admit(ctx, candidates); err != nil {
@@ -306,6 +362,7 @@ func (a *PlacementAllocator) reserveAllContext(
 	})
 	if err != nil {
 		if errors.Is(err, errPlacementRevisionChanged) {
+			attempt.discardMutable()
 			return nil, ErrInsufficientCapacity
 		}
 		return nil, err
@@ -476,6 +533,29 @@ func (a *PlacementAllocator) resolveCandidate(
 	return a.resolveCandidateWithCache(ctx, db, request, binding, principal, lookups, nil)
 }
 
+// resolveAttemptCandidate resolves binding for principal's exact ordered
+// Agent-label set at most once per attempt (CTL-R162). Another candidate with
+// the same set, in this or a later pass, reuses the result, including a
+// candidate-local failure.
+func (a *PlacementAllocator) resolveAttemptCandidate(
+	ctx context.Context,
+	request ReservationRequest,
+	binding BindingRequirement,
+	principal AuthenticatedPrincipal,
+	lookups placementCredentialLookups,
+	attempt *placementAttemptCache,
+) (runtimeconfig.ResolvedRuntimeConfig, error) {
+	input := placementResolutionInput{
+		logicalAgentName: binding.LogicalAgentName, labels: strings.Join(principal.Labels, "\x00"),
+	}
+	if cached, ok := attempt.resolutions[input]; ok {
+		return cached.value, cached.err
+	}
+	resolved, err := a.resolveCandidateWithCache(ctx, a.pool, request, binding, principal, lookups, attempt)
+	attempt.resolutions[input] = placementCachedValue[runtimeconfig.ResolvedRuntimeConfig]{value: resolved, err: err}
+	return resolved, err
+}
+
 func (a *PlacementAllocator) resolveCandidateWithCache(
 	ctx context.Context,
 	db persistencepostgres.DBTX,
@@ -483,7 +563,7 @@ func (a *PlacementAllocator) resolveCandidateWithCache(
 	binding BindingRequirement,
 	principal AuthenticatedPrincipal,
 	lookups placementCredentialLookups,
-	cache *placementReadCache,
+	cache *placementAttemptCache,
 ) (runtimeconfig.ResolvedRuntimeConfig, error) {
 	if request.RuntimeConfig == nil || binding.RuntimeSelection == nil {
 		return runtimeconfig.ResolvedRuntimeConfig{}, runtimeconfig.ErrInvalid
@@ -575,7 +655,7 @@ func loadRequestPinnedRuntimeConfigs(
 	return defaultConfig, runConfigs, nil
 }
 
-func (cache *placementReadCache) requestConfigs(
+func (cache *placementAttemptCache) requestConfigs(
 	ctx context.Context,
 	repository *runtimeconfig.Repository,
 	snapshot *runtimeconfig.RunSnapshot,
@@ -607,7 +687,7 @@ func loadAgentPinnedRuntimeConfig(
 	}, nil
 }
 
-func (cache *placementReadCache) agentConfig(
+func (cache *placementAttemptCache) agentConfig(
 	ctx context.Context,
 	repository *runtimeconfig.Repository,
 	label string,

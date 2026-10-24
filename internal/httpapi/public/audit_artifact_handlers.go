@@ -10,9 +10,6 @@ import (
 
 func (h *auditHandlers) getAuditArtifact(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if rejectHead(w, r) {
-		return
-	}
 	query, err := exactQuery(r.URL.RawQuery, "key", "revision", "member")
 	if err != nil || query.Get("key") == "" || len(query.Get("key")) > 512 || query.Get("revision") == "" || len(query.Get("revision")) > 256 || len(query.Get("member")) > 128 {
 		handleError(w, errInvalidRequest)

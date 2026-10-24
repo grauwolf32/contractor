@@ -9,9 +9,6 @@ import (
 )
 
 func (h *artifactHandlers) listProjectArtifacts(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	store, projectID, err := h.ownedProjectArtifactStore(r)
 	if err != nil {
 		handleError(w, err)
@@ -24,10 +21,6 @@ func (h *artifactHandlers) listProjectArtifacts(w http.ResponseWriter, r *http.R
 }
 
 func (h *artifactHandlers) getProjectArtifact(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodHead {
-		methodNotAllowed(w, r)
-		return
-	}
 	store, _, err := h.ownedProjectArtifactStore(r)
 	if err != nil {
 		handleError(w, err)
@@ -92,9 +85,6 @@ func (h *artifactHandlers) ownedActiveProjectArtifactStore(
 }
 
 func (h *artifactHandlers) getProjectArtifactMetadata(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	store, _, err := h.ownedProjectArtifactStore(r)
 	if err != nil {
 		handleError(w, err)
@@ -107,9 +97,6 @@ func (h *artifactHandlers) getProjectArtifactMetadata(w http.ResponseWriter, r *
 }
 
 func (h *artifactHandlers) listProjectArtifactVersions(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	store, projectID, err := h.ownedProjectArtifactStore(r)
 	if err != nil {
 		handleError(w, err)
@@ -122,9 +109,6 @@ func (h *artifactHandlers) listProjectArtifactVersions(w http.ResponseWriter, r 
 }
 
 func (h *artifactHandlers) listProjectArtifactLineage(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	store, projectID, err := h.ownedProjectArtifactStore(r)
 	if err != nil {
 		handleError(w, err)

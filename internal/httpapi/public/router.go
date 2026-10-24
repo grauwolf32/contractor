@@ -116,7 +116,7 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	}
 
 	mux := http.NewServeMux()
-	contexts.register(mux)
+	register(mux, contexts.routes())
 
 	// Incoming requests pass API version, request ID, origin policy,
 	// authentication, Operations authorization and error diagnostics in that

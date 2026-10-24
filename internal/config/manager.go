@@ -566,15 +566,8 @@ func preparePublication(request PublicationRequest) (publicationCandidate, error
 }
 
 func validatePublicationKey(value string) error {
-	if len(value) == 0 || len(value) > 128 {
-		return fmt.Errorf("%w: Idempotency-Key must contain 1 to 128 characters", ErrInvalidPublication)
-	}
-	for index, character := range value {
-		valid := character >= 'a' && character <= 'z' || character >= 'A' && character <= 'Z' ||
-			character >= '0' && character <= '9' || index > 0 && strings.ContainsRune("._:-", character)
-		if !valid {
-			return fmt.Errorf("%w: Idempotency-Key contains an invalid character", ErrInvalidPublication)
-		}
+	if !contracts.ValidIdempotencyKey(value) {
+		return fmt.Errorf("%w: Idempotency-Key is not in the Idempotency-Key grammar", ErrInvalidPublication)
 	}
 	return nil
 }

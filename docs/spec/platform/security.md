@@ -317,7 +317,11 @@ both LLM and adapter credentials ([RCF-R54](../configuration/runtime-config.md))
 mTLS control channel.
 
 **SEC-R30.** RuntimeSettings secret values remain in memory and are retained for
-the active allocation (LIFE-SEC-1).
+the active allocation (LIFE-SEC-1). On the Server, the values materialized for a
+Stage's Worker preparation are also kept in memory, as self-redacting values
+(SEC-R88), until that Stage's terminal release begins, so its report
+persistence redacts with them ([SCH-R178](../execution/scheduler.md),
+LIFE-SCH-6).
 
 **SEC-R31.** RuntimeSettings secret values are redacted from logs, Agent Cards,
 WorkerHandle, metrics and durable StageExecution state, and never enter
@@ -332,7 +336,10 @@ writes with RuntimeSettings secrets in plaintext, through an explicit
 allocation-wire encoder that no other path calls.
 
 **SEC-R32.** RuntimeSettings secret values are erased during allocation release
-(LIFE-SEC-1).
+(LIFE-SEC-1). The Server's copy kept for report redaction is dropped when the
+Stage's terminal release begins or terminal release recovery selects the Stage,
+and is bounded and evicted as [SCH-R178](../execution/scheduler.md) states
+(LIFE-SCH-6).
 
 **SEC-R33.** Durable execution records and metrics may retain the non-secret
 LLMGatewayConfig and credential refs, never their resolved token.
@@ -646,7 +653,8 @@ Failure outcomes ([failure model](failure-model.md)):
 Entity lifecycle ([lifecycle](lifecycle.md)):
 
 - LIFE-SEC-1: RuntimeSettings secret values in Runtime Agent memory
-  (SEC-R30, SEC-R32).
+  (SEC-R30, SEC-R32); the Server's copy kept for report redaction is
+  LIFE-SCH-6 ([SCH-R178](../execution/scheduler.md)).
 - LIFE-SEC-2: a temporary allocation CA bundle (SEC-R37).
 
 Error codes ([registry](errors.md)): `http_target_denied` and
@@ -673,6 +681,7 @@ to one domain are owned by that domain's document:
 | Fail-closed Worker proxying, proxy credential authority and the allocation CA bundle's scope | [Runtime Agent](../execution/runtime-agent.md) |
 | Configuration digests are fingerprints, not authorization signatures | [AgentTemplates](../configuration/agent-templates.md), TPL-R64 |
 | Durable provenance never records access material or secret-bearing RuntimeSettings values | [Scheduler](../execution/scheduler.md), SCH-R7 |
+| Server-memory retention of a Stage's Worker-preparation secret values for report redaction: self-redacting, bounded, dropped at terminal release | [Scheduler](../execution/scheduler.md), SCH-R178 (LIFE-SCH-6) |
 | Registration binding of `(runtime_agent_id, instance_id)` to the certificate-derived principal, the derivation of `runtime_agent_id`, SPKI verification of registered endpoints | [Control plane](../execution/control-plane.md), CTL-R17 to CTL-R22 |
 | `WorkerHandle` content and the Agent Card secret scan | [Control plane](../execution/control-plane.md), CTL-R109, CTL-R110 |
 | Private Artifact API mTLS authentication and allocation binding; User Artifact API binding to the authenticated UserScope | [ArtifactStore](../artifacts/artifact-store.md), ART-R40 to ART-R44, ART-R69 |

@@ -1,0 +1,105 @@
+schema_version: '1.0'
+id: V407-015
+title: Reduce redundant Stage-end work while preserving recovery and redaction
+milestone: server-runtime-review-2026-10
+epic: execution-core
+kind: chore
+priority: P3
+status: completed
+depends_on: []
+languages:
+- go
+goal: Reuse available preparation secrets and avoid duplicate final aggregation and historical cancellation
+  reads, while retaining restart recovery and all redaction guarantees.
+context:
+  review: docs/research/2026-10-23-server-runtime-review.md (corrected dispositions, verified on main
+    dc7012e8; recheck source lines before implementation)
+  specification: docs/spec/execution/scheduler.md
+  finding: internal/scheduler/execution_preparation.go:50 materializes Worker settings, and reports.go:76-80,203-225
+    materializes them again for report redaction. Planner completion builds metrics, persistReports writes
+    a missing-report placeholder through persistPlannerReport, and final report persistence builds metrics
+    again. Some work is redundant on an uninterrupted path, but reports.go:24-26 also supports restart
+    directly into finalizing/aborting with no preparation cache. run_execution.go:160-176 scans Stage
+    history only when no active Stage exists, then finishes cancellation; it is not the ordinary per-poll
+    path for every cancelling Run.
+  validation: Validated against main dc7012e8 on 2026-10-23. The repeated reads/builds are present, but
+    no end-to-end slowdown was measured. Restart loses in-memory settings, so a universal zero-decryption
+    Stage-end requirement would remove required recovery/redaction work. An active cancelling Stage is
+    handled separately at run_execution.go:182-196.
+  siblings: Normal preparation, partial preparation, finalizing/aborting recovery, placeholder planner-report
+    persistence, HTTP-origin credential redaction and cancellation after historical attempts. Examine
+    the Eval adapter only for shared report semantics; preserve all report consumers.
+plan:
+- Retain the exact SecretValues used during successful preparation in a bounded allocation-owned cache,
+  only for the lifetime needed by report persistence. Use it where present; preserve bounded materialization
+  when recovering without that cache and preserve current failure/redaction handling.
+- Avoid duplicate final StageMetrics rebuilds within one persistence phase, while retaining any earlier
+  observable aggregation and the restart-safe placeholder behavior. Count calls per scenario rather than
+  requiring one build over every phase.
+- For cancellation with no active Stage, select executions/allocations with pending release work and reuse
+  their bounded reads. Preserve handling of unreadable Workflow snapshots, release failures and final
+  cancellation commit.
+- Test an uninterrupted Stage, restart directly into finalizing and aborting, credential lookup failure,
+  and cancellation with many historical completed releases. Assert query/decrypt/build counts and exact
+  redacted output using deterministic hooks and PostgreSQL.
+scope:
+  in:
+  - Bounded volatile redaction-data reuse with recovery fallback.
+  - Removal of redundant final-phase aggregation and irrelevant cancellation-history reads.
+  out:
+  - Eliminating credential reads required after process restart, persisting plaintext secrets, or weakening
+    redaction on failure.
+  - Changing report schemas, partial metrics visibility, release ownership or cancellation outcomes.
+acceptance_criteria:
+- id: A1
+  text: On an uninterrupted path with a valid preparation cache, report persistence reuses the same secret
+    values without re-decryption; after simulated cache loss/restart it uses the recovery path and produces
+    equally redacted reports. Cache contents are cleared at lifecycle completion.
+- id: A2
+  text: Counts distinguish planner completion, final report persistence and restart recovery; redundant
+    rebuilds inside the same final persistence phase are removed without losing previously visible or
+    recovered metrics.
+- id: A3
+  text: When cancellation has no active Stage, a real-store case with 20 historical completed releases
+    and pending release work reads allocations only for relevant executions, preserves retries and reaches
+    the same terminal outcome.
+- id: A4
+  text: Counter regressions fail on the redundant paths; preparation failure, cancellation, report-write
+    failure and recovery tests retain the existing redaction and lifecycle guarantees.
+tests:
+- command: test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1 ./internal/scheduler/...
+    ./internal/telemetry/... ./internal/runstore/...
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+implementation_commit: a525cf29ada6f007f61ae0d29db1aa7d8dd21969
+verification:
+  date: '2026-10-23'
+  environment: macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local), Node 24.20.0 with the locked UI dependencies and the locked Runtime venv; local PostgreSQL 17.11 database contractor_test_d with isolated per-test schemas and all migrations.
+  revalidation: 'Re-verified on base 4075d024: stage_preparation.go materialized the Worker settings (workerExecutionSettingsForRun) and reports.go materialized them again through allocationReportSecrets for every live report; persistReports rebuilt StageMetrics after the Planner placeholder and again after the allocation reports, while persistPlannerReport after Planner completion rebuilt once more; executeCancelling without an active Stage listed the whole Stage history and read each attempt''s allocations twice (fenceRecordedAllocations, existingLiveReservations). All claims held.'
+  commands:
+  - 'test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1 ./internal/scheduler/... ./internal/telemetry/... ./internal/runstore/... passed (scheduler, telemetry, runstore); the same run with -v reported 618 passing tests and one skip, TestPlannerOTLPCollectorProjection, which needs CONTRACTOR_TEST_OTLP_ENDPOINT, not the database.'
+  - go build ./... and go vet -tags=integration,e2e ./... passed.
+  - go test -race -tags=integration -count=1 on the new and cancellation tests of internal/scheduler and internal/runstore passed.
+  - make lint passed (after make docs-dependencies and make tasks-backlog).
+  - 'Regression evidence (old behaviour restored in place, then the file restored): with the cache lookup disabled, TestUninterruptedStageRedactsReportsWithPreparationSecrets, TestPreparationSecretsRedactReportsAfterCredentialLoss, TestPreparationAndRecoveredReportRedactionAreIdentical and TestPostgresStageEndReportPersistence/preparation_secrets failed on the resolution count; with the extra placeholder rebuild restored, the uninterrupted, restart and PostgreSQL report tests failed on the operation sequence; without the forget at terminal release, the cache-cleared checks failed; with the old cancellation loop restored, TestPostgresCancellationReadsOnlyIncompleteReleases and all three TestPostgresCancellationCleanupFailuresKeepRetries cases failed (1 full history read and 44 per-Stage allocation reads instead of one unreleased-history read and one batch of the 2 pending attempts).'
+  database_tests_configured: true
+  evidence:
+    A1: 'TestUninterruptedStageRedactsReportsWithPreparationSecrets: LLM and OTLP header credentials resolved once each (at preparation), exact "before [REDACTED] after" text in tool arguments and errors, cache empty after the Run. TestPreparationSecretsRedactReportsAfterCredentialLoss: credentials failing after preparation still redact. TestRestartIntoTerminalPhaseResolvesReportSecretsAgain (finalizing, aborting) and TestPostgresStageEndReportPersistence/preparation_secrets_lost: the recovery path resolves once more and redacts identically. TestPreparationAndRecoveredReportRedactionAreIdentical: byte-identical persisted reports for LLM, OTLP, proxy, Caido, Project HTTP target (username and password) and deployment secrets. TestPreparedSecretCacheIsBounded: 128-Stage bound, eviction, copies, self-redacting formatting and JSON.'
+    A2: 'Operation sequences: uninterrupted planner_report, rebuild | planner_report, allocation_report, rebuild (was an extra rebuild after the placeholder); restart into finalizing or aborting planner_report, allocation_report, rebuild. On PostgreSQL the metrics already contain the Planner when finalization begins and contain the Planner and the Worker at the end.'
+    A3: 'TestPostgresCancellationReadsOnlyIncompleteReleases: 22 terminal attempts, 20 released, one with its grant gone mid-release, one live: no full history read, no per-Stage allocation read, one unreleased-history read, one batch of exactly the 2 pending attempts; the live grant is fenced and released, the Run ends cancelled (cancellation_requested) and terminal release recovery completes the gone grant. TestPostgresListStageExecutionsWithUnreleasedAllocations covers the statement (partial release, no allocations, other Run, unknown and invalid Run ID).'
+    A4: 'TestPostgresCancellationCleanupFailuresKeepRetries: a failed history read keeps the Run cancelling and the next claim cancels it; a failed allocation read and a failed Runtime release end the Run cancelled and recovery completes the release. TestPreparationCredentialFailureKeepsNoSecrets: the preparation failure keeps its outcome, nothing is cached, the report is still persisted. TestReportWriteFailureKeepsStageEndGuarantees: a failed report write keeps the outcome, the single rebuild and the cache clearing. Existing redaction, credential failure, recovery and cancellation tests pass.'
+  cardinality: 'Kept secrets: at most LIM-SCH-19 (128) Stages per process, a few values per allocation. Cancellation cleanup: one read of the attempts with an incomplete release (normally 0 to 2, at most LIM-RUN-2 attempts) and one batched allocation read, once per cancelled Run.'
+  siblings: 'Normal and partial preparation (values stored before PrepareAll, so a failed prepare reuses them), finalizing and aborting recovery (fallback resolution), the planner placeholder (kept, now inside the single rebuild), HTTP-origin credential redaction (part of the kept values; covered by the identical-redaction test) and cancellation after historical attempts are covered. Eval reads StageMetrics through the stage_metrics projection trigger; the final row is unchanged, only an intermediate update disappears, so no Eval change. Control Plane report recording (runtime_batch.go) is in-memory and unaffected.'
+  spec: 'New SCH-R178 (report secret reuse with the decision, alternative and reversal condition), SCH-R179 (cancellation cleanup reads), LIM-SCH-19 and LIFE-SCH-6; SCH-R51 and SCH-R164 amended. No migration.'
+  overlap: 'V371-014 (pending, unchanged): its A1 is met only for the cancellation cleanup part (a fixed number of allocation statements: one batch); the unreleased-attempt read still selects full StageExecution rows, and the escalation count and first-tick existence check are untouched. Its A2 holds for assertions: the existing escalation, cancellation and fencing tests pass, though the cancellationClaimStore double now blocks in the new read instead of ListStageExecutions.'
+  review_followup: 'Review approved dc5c06dd with three findings, fixed in a525cf29: (1) fmt does not reach SecretString redaction through unexported fields, so a formatted cache entry printed the kept values; preparedSecretEntry and preparedSecretCache now implement String, GoString, Format, MarshalJSON and LogValue, and TestPreparedSecretTypesNeverRevealValues formats the entry, its pointer, the list element and its copy, the cache, its struct, its maps and a wrapping error with %v %+v %#v %s %q %x %d %t %o, json.Marshal and the slog text and JSON handlers (it fails with the entry methods removed). (2) TestTerminalReleaseRecoveryForgetsPreparationSecrets ends a prepared Stage through failActiveRun and requires terminal release recovery to drop its secrets (it fails without the forget in recoverTerminalExecution). (3) security.md (SEC-R30, SEC-R32, the LIFE-SEC-1 list entry and the owned-rules index), lifecycle.md LIFE-SEC-1, and runtime-config.md RCF-R42, RCF-R46 and invariant 9 now reference SCH-R178 and LIFE-SCH-6; SCH-R178 states that the kept store redacts itself. Re-ran the task test command against contractor_test_d with -v (620 passed, the only skip TestPlannerOTLPCollectorProjection needs an OTLP endpoint), -race on the new and cancellation tests, go vet -tags=integration,e2e ./internal/... and make lint: all pass. Found while testing, not fixed (pre-existing, outside this task): contracts.SecretString redacts only the string verbs; fmt with %d, %t or %o on a value that reaches it, such as a map of SecretString, prints the plaintext.'
+  declined: 'Credential resolution after a restart, eviction or recovery directly into finalizing/aborting is kept (scope.out). Report schemas, Planner-completion metrics visibility, release ownership and cancellation outcomes are unchanged. The historical cancellation path still passes the entry Stage Workflow to reservation verification as before; changing that is outside this task.'

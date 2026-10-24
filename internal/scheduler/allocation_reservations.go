@@ -254,7 +254,24 @@ func (s *Scheduler) existingLiveReservations(
 		return nil
 	}
 	recorded, err := s.store.ListStageAllocations(ctx, execution.StageExecutionID)
-	if err != nil || len(recorded) == 0 {
+	if err != nil {
+		return nil
+	}
+	return s.liveReservationsFor(ctx, run, workflow, execution, requirements, recorded)
+}
+
+// liveReservationsFor returns the live reservations of execution when every
+// recorded allocation still has its grant and the Control Plane returns the
+// same verified set; otherwise it returns none.
+func (s *Scheduler) liveReservationsFor(
+	ctx context.Context,
+	run runstore.WorkflowRun,
+	workflow executableWorkflow,
+	execution runstore.StageExecution,
+	requirements []controlplane.BindingRequirement,
+	recorded []runstore.StageAllocation,
+) []controlplane.Reservation {
+	if len(recorded) == 0 {
 		return nil
 	}
 	for _, allocation := range recorded {

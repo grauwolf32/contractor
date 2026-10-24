@@ -3,7 +3,8 @@ package evaldomain
 import (
 	"encoding/json"
 	"strconv"
-	"strings"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 // MutationIdentity is persisted with a command. It is intentionally separate
@@ -14,14 +15,11 @@ type MutationIdentity struct {
 	ExpectedRevision *uint64 `json:"expectedRevision"`
 }
 
+// IdentifyMutation binds a Managed Eval mutation to its key, which must be in
+// the public Idempotency-Key grammar, its precondition and its exact body.
 func IdentifyMutation(key, ifMatch string, requireRevision bool, kind string, body []byte) (MutationIdentity, error) {
-	if key == "" || len(key) > 128 || strings.TrimSpace(key) != key {
+	if !contracts.ValidIdempotencyKey(key) {
 		return MutationIdentity{}, Failure("eval_invalid")
-	}
-	for _, c := range key {
-		if c < 33 || c > 126 {
-			return MutationIdentity{}, Failure("eval_invalid")
-		}
 	}
 	var revision *uint64
 	if ifMatch == "" && requireRevision {

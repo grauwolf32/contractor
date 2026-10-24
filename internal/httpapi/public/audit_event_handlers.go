@@ -11,9 +11,6 @@ import (
 
 func (h *auditHandlers) listAuditEvents(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if rejectHead(w, r) {
-		return
-	}
 	_, limit, cursor, err := pageQuery(r.URL.RawQuery)
 	if err != nil {
 		handleError(w, err)
