@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-98 open tasks: 4 in progress, 69 pending, 25 deferred. 1020 finished: 1016 completed, 4 archived.
+97 open tasks: 4 in progress, 68 pending, 25 deferred. 1021 finished: 1017 completed, 4 archived.
 
 ## In progress
 
@@ -69,7 +69,6 @@ the epics are in [epics.yml](epics.yml).
 | [V397-007](v397-007-finding-export-snapshot.yml) | feature | P2 | V397-006 | Freeze explicit finding selections and independent Audit results |
 | [V397-008](v397-008-generic-sarif-renderer.yml) | feature | P2 | V397-007 | Render deterministic validated generic SARIF from frozen snapshots |
 | [V397-009](v397-009-sarif-export-api-ui.yml) | feature | P2 | V397-008 | Publish and download generic SARIF through API CLI and UI |
-| [V407-033](v407-033-findings-toolsets-cost.yml) | chore | P2 | — | Reuse immutable Audit inputs and finding source bytes, and assemble finding pages linearly |
 | [V409-002](v409-002-finding-inbox-index.yml) | chore | P2 | — | Bound Audit finding inbox reads to native and held receipts |
 
 ### Workflow catalog and document workflows (`workflows`)
@@ -150,7 +149,7 @@ the epics are in [epics.yml](epics.yml).
 | [V372-029](v372-029-shared-fixture-gate-scope.yml) | chore | P3 | — | Extend the shared fixture gate to every cross-language fixture and keep slow store suites out of it |
 | [V372-030](v372-030-shrink-test-only-export-baseline.yml) | chore | P3 | — | Resolve the exported identifiers that only tests use and empty the test-only export baseline |
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | chore | P3 | — | Find out why about a hundred Runtime tests fail on a macOS host and make each one pass or declare its platform |
-| [V407-039](v407-039-close-server-runtime-review.yml) | chore | P3 | V407-002, V407-004, V407-005, V407-012, V407-013, V407-016, V407-020, V407-023, V407-027, V407-029, V407-032, V407-033 | Close the validated Server and Runtime review with explicit dispositions and verification |
+| [V407-039](v407-039-close-server-runtime-review.yml) | chore | P3 | V407-002, V407-004, V407-005, V407-012, V407-013, V407-016, V407-020, V407-023, V407-027, V407-029, V407-032 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V408-001](v408-001-gate-duration-baseline.yml) | chore | P2 | — | Record the baseline duration of every release stage and local test target |
 | [V408-004](v408-004-e2e-build-once.yml) | chore | P2 | V408-001 | Build the Server binary and the test PKI once per e2e package and right-size per-test budgets |
 | [V408-005](v408-005-family-guard-gaps.yml) | chore | P2 | — | Close the family-target guard gaps and run the Runtime suite once with warnings as errors |
@@ -203,7 +202,7 @@ tasks in `introduced_by`.
 | Code analysis and taint annotations (`code-analysis`) | 0 | 14 | 14 | 2 | 19 |
 | HTTP and Caido tools (`http-tools`) | 2 | 11 | 15 | 4 | 16 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 14 | 5 | 6 | 11 |
-| Findings tools and collections (`findings`) | 9 | 14 | 6 | 8 | 11 |
+| Findings tools and collections (`findings`) | 8 | 14 | 6 | 8 | 11 |
 | Workflow catalog and document workflows (`workflows`) | 3 | 14 | 14 | 12 | 16 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 30 | 33 | 6 | 37 |
 | Audits (`audits`) | 21 | 53 | 72 | 22 | 91 |

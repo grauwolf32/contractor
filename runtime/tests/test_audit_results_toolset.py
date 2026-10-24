@@ -5,6 +5,7 @@ import hashlib
 import io
 import json
 import stat
+import threading
 import zipfile
 from datetime import UTC, datetime
 from types import SimpleNamespace
@@ -28,7 +29,9 @@ from contractor_runtime.toolsets.audit_results.collector import InvocationAuditC
 from contractor_runtime.toolsets.audit_results.contracts import (
     AuditInvocationOwner,
     AuditTrustedInputs,
+    SealedAuditSnapshot,
 )
+from contractor_runtime.toolsets.audit_results.encoding import CanonicalAuditPackageEncoder
 from contractor_runtime.toolsets.audit_results.v2 import (
     AuditResultsToolsetFactory,
     ReadAuditTaskTool,
@@ -41,7 +44,9 @@ from contractor_runtime.toolsets.security_findings.publisher import FindingPubli
 def test_v2_adk_schema_keeps_batch_and_adds_revisioned_item_submission() -> None:
     task, execution = fixture_inputs()
     owner = AuditInvocationOwner("allocation-1", "invocation-1", digest(task), ("check-authz",))
-    collector = InvocationAuditCollector(AuditTrustedInputs(owner, task, execution))
+    collector = InvocationAuditCollector(
+        AuditTrustedInputs(owner, task, execution), CanonicalAuditPackageEncoder()
+    )
     metrics = WorkerState().metrics
     submit = SubmitCheckResultTool(collector, metrics)
     declaration = FunctionTool(submit)._get_declaration().model_dump(mode="json", by_alias=True)
@@ -65,7 +70,9 @@ def test_v2_adk_schema_keeps_batch_and_adds_revisioned_item_submission() -> None
 def test_submit_check_result_advertises_bounded_batch_member_schema() -> None:
     task, execution = fixture_inputs()
     owner = AuditInvocationOwner("allocation-1", "invocation-1", digest(task), ("check-authz",))
-    collector = InvocationAuditCollector(AuditTrustedInputs(owner, task, execution))
+    collector = InvocationAuditCollector(
+        AuditTrustedInputs(owner, task, execution), CanonicalAuditPackageEncoder()
+    )
     tool = SubmitCheckResultTool(collector, WorkerState().metrics)
     declaration = FunctionTool(tool)._get_declaration().model_dump(mode="json", by_alias=True)
     schema = declaration["parametersJsonSchema"]
@@ -320,6 +327,86 @@ def test_completion_publishes_one_complete_ordered_batch() -> None:
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize("mode", ["single", "batch"])
+def test_prepared_allocation_decodes_inputs_once_for_64_items_and_encodes_off_loop(
+    monkeypatch, mode
+) -> None:
+    from contractor_runtime.toolsets.audit_results import encoding, packages
+
+    calls: dict[str, list[int]] = {"task_set": [], "manifest": [], "encode": []}
+    decode_set = packages._decode_task_set
+    canonical_object = packages._canonical_object
+    encode = encoding.CanonicalAuditPackageEncoder.encode
+
+    def count_task_set(*args):
+        calls["task_set"].append(threading.get_ident())
+        return decode_set(*args)
+
+    def count_manifest(payload, name):
+        if name == "execution manifest":
+            calls["manifest"].append(threading.get_ident())
+        return canonical_object(payload, name)
+
+    def count_encode(self, snapshot, *, inputs):
+        calls["encode"].append(threading.get_ident())
+        return encode(self, snapshot, inputs=inputs)
+
+    # Patch the codec where every decoding path resolves it, including any
+    # module that imported the decoder by name.
+    monkeypatch.setattr(packages, "_decode_task_set", count_task_set)
+    monkeypatch.setattr(packages, "_canonical_object", count_manifest)
+    monkeypatch.setattr(encoding.CanonicalAuditPackageEncoder, "encode", count_encode)
+
+    async def scenario() -> None:
+        loop_thread = threading.get_ident()
+        task_set, execution_manifest = fixture_task_set(64)
+        client = FakeAuditArtifactClient(task_set, execution_manifest)
+        tools = await prepared_tools(client, WorkerState())
+        submit = tools["submit_check_result"]
+        context = FakeToolContext("worker-invocation-1")
+        keys = [f"check-{index:03d}" for index in range(64)]
+        result = {
+            "assessment": "satisfied",
+            "summary": "Authorization is checked.",
+            "completed": ["source-trace"],
+            "gaps": [],
+            "evidence": [{"kind": "source-trace", "summary": "Guard at app.py:12."}],
+        }
+        if mode == "single":
+            for key in keys:
+                receipt = await submit(tool_context=context, item_key=key, **result)
+                assert receipt["status"] == "recorded"
+        else:
+            receipt = await submit(tool_context=context, results=[result] * 64)
+        assert receipt["complete"] and receipt["acceptedCount"] == 64
+        assert (await finish(tools)).kind == "complete"
+
+        # One decoding per allocation, reused by preparation, every admission
+        # and publication; each admission still encodes its prospective set.
+        assert len(calls["task_set"]) == 1 and len(calls["manifest"]) == 1
+        assert len(calls["encode"]) == (64 if mode == "single" else 1) + 1
+        assert loop_thread not in calls["task_set"] + calls["manifest"] + calls["encode"]
+        result_document, _, _ = decode_result_package(client.written_payload)
+        assert [item["item_key"] for item in result_document["results"]] == keys
+        assert result_document["execution_manifest_digest"] == digest(execution_manifest)
+
+        # A later invocation of the same allocation reuses the decoding too.
+        binding = submit.completion_binding
+        collector = binding.current()
+        sealed = SealedAuditSnapshot(collector.owner, (await collector.snapshot()).items)
+        await binding.end()
+        binding.begin("worker-invocation-2")
+        tasks = await binding.current().read_tasks("worker-invocation-2")
+        assert tasks["batchSize"] == 64 and tasks["taskPackageIds"][0] == "task-check-000"
+        assert len(calls["task_set"]) == 1 and len(calls["manifest"]) == 1
+
+        # A fresh encoder over the same sealed values produces the same bytes.
+        fresh = encoding.CanonicalAuditPackageEncoder().encode(sealed, inputs=collector.inputs)
+        assert fresh.data == client.written_payload
+
+    asyncio.run(scenario())
+
+
 def test_submit_check_result_rejects_incomplete_batch_without_write() -> None:
     async def scenario() -> None:
         task_set, execution_manifest = fixture_batch_inputs()
@@ -499,6 +586,38 @@ def fixture_batch_inputs() -> tuple[bytes, bytes]:
     )
     first_execution["items"].append(second_item)
     return task_set, jcs.canonicalize(first_execution)
+
+
+def fixture_task_set(count: int) -> tuple[bytes, bytes]:
+    """A valid task set of ``count`` checklist items (2..64) with its manifest."""
+    single, single_manifest = fixture_inputs()
+    template = json.loads(single_manifest)["items"][0]
+    with zipfile.ZipFile(io.BytesIO(single), "r") as archive:
+        base = json.loads(archive.read("task.json"))
+    members, items = [], []
+    for index in range(count):
+        key = f"check-{index:03d}"
+        task = {**base, "item_key": key, "subject_key": key}
+        payload = package(
+            f"task-{key}",
+            "item-task",
+            [("task-document", "task.json", "application/json", jcs.canonicalize(task))],
+        )
+        members.append((f"task-{index:03d}", f"tasks/{index:03d}.zip", "application/zip", payload))
+        items.append(
+            {
+                **template,
+                "item_key": key,
+                "ordinal": index,
+                "subject_key": key,
+                "task_package_id": f"task-{key}",
+                "task_package_digest": digest(payload),
+                "task_ref": {"namespace": "audit-fixture", "name": key, "revision": "task-r1"},
+            }
+        )
+    task_set = package("task-set-fixture", "item-task-set", members)
+    manifest = {"schema": "contractor.audit.execution-manifest.v1", "items": items}
+    return task_set, jcs.canonicalize(manifest)
 
 
 def package(package_id: str, kind: str, members: list[tuple[str, str, str, bytes]]) -> bytes:

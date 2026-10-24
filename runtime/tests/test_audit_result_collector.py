@@ -2,13 +2,14 @@
 
 import asyncio
 import json
+import threading
 from dataclasses import FrozenInstanceError, replace
 from pathlib import Path
 from types import SimpleNamespace
 
 import jcs
 import pytest
-from test_audit_result_publication import assigned
+from test_audit_result_publication import BlockingEncode, assigned
 from test_audit_results_toolset import digest, package
 from test_security_findings_toolset import FakeFindingClient
 
@@ -79,7 +80,7 @@ def fixture_assignment(task_name, mode):
 
 
 def tool_for(inputs):
-    collector = InvocationAuditCollector(inputs)
+    collector = InvocationAuditCollector(inputs, CanonicalAuditPackageEncoder())
     metrics = WorkerState().metrics
     return collector, SubmitCheckResultTool(collector, metrics), metrics
 
@@ -257,7 +258,7 @@ def test_shared_proposals_are_invocation_local_and_cannot_cross_batch_items():
         assert reply["error"]["field"] == "proposal_keys"
         assert await collector.snapshot() == before
         await collector.discard()
-        fresh = InvocationAuditCollector(inputs)
+        fresh = InvocationAuditCollector(inputs, CanonicalAuditPackageEncoder())
         with pytest.raises(AuditCollectionError) as error:
             await fresh.record(replace(first, proposal_keys=("candidate",)))
         assert error.value.field == "proposal_keys"
@@ -340,7 +341,7 @@ def test_shared_reordered_parallel_recording_and_truthful_content_free_receipts(
 def test_shared_revision_updates_and_only_immediate_update_replay():
     async def scenario():
         expected, inputs = assigned()
-        collector = InvocationAuditCollector(inputs)
+        collector = InvocationAuditCollector(inputs, CanonicalAuditPackageEncoder())
         initial = expected.items[0].value
         updated = replace(initial, summary="Corrected result.")
         latest = replace(initial, summary="Final correction.")
@@ -375,7 +376,7 @@ def test_shared_revision_updates_and_only_immediate_update_replay():
 def test_shared_parallel_conflicting_updates_choose_one_winner():
     async def scenario():
         expected, inputs = assigned()
-        collector = InvocationAuditCollector(inputs)
+        collector = InvocationAuditCollector(inputs, CanonicalAuditPackageEncoder())
         item = expected.items[0].value
         await collector.record(item)
         outcomes = await asyncio.gather(
@@ -489,7 +490,9 @@ def test_shared_sealed_discarded_cancelled_and_reused_invocation():
         reused = SimpleNamespace(invocation_id="invocation-2")
         assert (await tool(reused, **arguments(item)))["error"]["field"] == "invocation"
         _, next_inputs = assigned(invocation="invocation-2")
-        assert not (await InvocationAuditCollector(next_inputs).snapshot()).items
+        assert not (
+            await InvocationAuditCollector(next_inputs, CanonicalAuditPackageEncoder()).snapshot()
+        ).items
         await collector.discard()
         await collector.discard()
         for call in (collector.record(item), collector.snapshot(), collector.seal()):
@@ -497,7 +500,7 @@ def test_shared_sealed_discarded_cancelled_and_reused_invocation():
                 await call
         assert snapshot == expected
         # Invocation cleanup can discard drafts even when its task is cancelled.
-        cancelled = InvocationAuditCollector(inputs)
+        cancelled = InvocationAuditCollector(inputs, CanonicalAuditPackageEncoder())
         started = asyncio.Event()
 
         async def invocation():
@@ -556,7 +559,7 @@ def test_shared_read_and_submit_use_only_pinned_bytes_and_return_safe_copies(mon
 def test_shared_real_encoder_prospective_replacement_bound_is_atomic(monkeypatch, limit):
     async def scenario():
         expected, inputs = assigned()
-        collector = InvocationAuditCollector(inputs)
+        collector = InvocationAuditCollector(inputs, CanonicalAuditPackageEncoder())
         item = expected.items[0].value
         await collector.record(item)
         updated = replace(item, summary="x" * MAX_SUMMARY_BYTES)
@@ -585,7 +588,7 @@ def test_shared_real_encoder_prospective_replacement_bound_is_atomic(monkeypatch
 def test_shared_collection_evidence_budget_and_per_list_limits_are_distinct():
     async def scenario():
         expected, inputs = assigned(batch=True)
-        collector = InvocationAuditCollector(inputs)
+        collector = InvocationAuditCollector(inputs, CanonicalAuditPackageEncoder())
         first, second = [entry.value for entry in expected.items]
         first = replace(
             first,
@@ -620,7 +623,7 @@ def test_shared_collection_evidence_budget_and_per_list_limits_are_distinct():
 def test_shared_actual_eight_mib_limit_rejects_large_replacement_and_preserves_revision():
     async def scenario():
         expected, inputs = assigned()
-        collector = InvocationAuditCollector(inputs)
+        collector = InvocationAuditCollector(inputs, CanonicalAuditPackageEncoder())
         item = expected.items[0].value
         await collector.record(item)
         large = replace(
@@ -629,5 +632,85 @@ def test_shared_actual_eight_mib_limit_rejects_large_replacement_and_preserves_r
         with pytest.raises(AuditCollectionError, match="bounds"):
             await collector.record(large, expected_revision=1)
         assert (await collector.snapshot()).items == expected.items
+
+    asyncio.run(scenario())
+
+
+def test_shared_cancelled_admission_joins_off_loop_encoding_and_keeps_the_collection(monkeypatch):
+    async def scenario():
+        expected, inputs = assigned(batch=True)
+        collector = InvocationAuditCollector(inputs, CanonicalAuditPackageEncoder())
+        first, second = [entry.value for entry in expected.items]
+        await collector.record(first)
+        before = await collector.snapshot()
+        blocking = BlockingEncode(monkeypatch)
+        try:
+            admission = asyncio.create_task(collector.record(second))
+            await blocking.wait_entered()
+            assert threading.get_ident() not in blocking.threads
+            admission.cancel()
+            reader = asyncio.create_task(collector.snapshot())
+            for _ in range(10):
+                await asyncio.sleep(0)
+            # The encoding thread still runs: the admission owns the lock.
+            assert not admission.done() and not reader.done()
+        finally:
+            blocking.release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await admission
+        assert blocking.exited.is_set()
+        assert await reader == before
+        monkeypatch.undo()
+        receipt = await collector.record(second)
+        assert receipt.complete and await collector.seal() == expected
+
+    asyncio.run(scenario())
+
+
+def test_shared_discard_waits_for_in_flight_admission_encoding(monkeypatch):
+    async def scenario():
+        expected, inputs = assigned()
+        collector = InvocationAuditCollector(inputs, CanonicalAuditPackageEncoder())
+        blocking = BlockingEncode(monkeypatch)
+        try:
+            admission = asyncio.create_task(collector.record(expected.items[0].value))
+            await blocking.wait_entered()
+            discard = asyncio.create_task(collector.discard())
+            for _ in range(10):
+                await asyncio.sleep(0)
+            assert not discard.done()
+        finally:
+            blocking.release.set()
+        await admission
+        await discard
+        # No encoding outlives the collector's owner.
+        assert blocking.exited.is_set()
+        with pytest.raises(AuditCollectionError):
+            await collector.snapshot()
+
+    asyncio.run(scenario())
+
+
+def test_shared_errors_and_reads_never_expose_the_allocation_decoding():
+    async def scenario():
+        expected, inputs = assigned()
+        encoder = CanonicalAuditPackageEncoder()
+        collector = InvocationAuditCollector(inputs, encoder)
+        tool = SubmitCheckResultTool(collector, WorkerState().metrics)
+        item = expected.items[0].value
+        reply = await tool(CONTEXT, **{**arguments(item), "completed": ["foreign-coverage"]})
+        assert reply["error"]["allowedValues"] == ["source-trace"]
+        reply["error"]["allowedValues"].clear()
+        tasks = await collector.read_tasks(CONTEXT.invocation_id)
+        tasks["requestedCoverage"][0].clear()
+        tasks["task"]["checklist"]["required_evidence"].clear()
+        await collector.discard()
+        # The next invocation of the allocation sees the pinned task unchanged.
+        next_inputs = replace(inputs, owner=replace(inputs.owner, invocation_id="invocation-2"))
+        fresh = InvocationAuditCollector(next_inputs, encoder)
+        tasks = await fresh.read_tasks("invocation-2")
+        assert tasks["requestedCoverage"] == [["source-trace"]]
+        assert tasks["task"]["checklist"]["required_evidence"] == ["source-trace"]
+        assert (await fresh.record(item)).complete
 
     asyncio.run(scenario())
