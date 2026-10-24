@@ -490,6 +490,55 @@ partition the same artifact format before implementation is accepted; do not
 raise limits or introduce a second persistence subsystem
 to conceal failed scaling. Exact partitioning is deliberately undecided.
 
+### Supporting Runtime artifact cache
+
+An independent optional optimization can reuse immutable encoded artifacts
+between allocations on the same Runtime. It is enabled only by the existing
+startup `--workspace-storage local` setting, uses a private directory beneath
+its locked `--workspace-work-root`, and creates no cache files in memory or
+disabled workspace modes. It adds no placement affinity or cache toggles. The
+first production callers are source/workspace ZIP hydration and selected Skill
+packages; extracted workspaces and Skill state remain fresh and allocation-owned.
+Cookies, Interactsh events, private evidence and arbitrary Artifact reads are
+outside this eligibility boundary. A safe sitemap projection may opt in later
+through its own explicit eligibility contract; the first cache value does not
+depend on the pending sitemap tool.
+
+Each cache lookup first checks the current allocation's access and exact ref
+through Server metadata. A separate private-only metadata DTO supplies a required
+opaque `contentCacheKey`, stable for the immutable version shared by fork
+bindings. The cache keys bytes by Server trust-domain plus this token; scoped
+aliases and provenance remain allocation-owned. This requires a narrow planned
+exception to ART-R9 and an ART-R116 update, with strict Go/Python fixtures, not
+exposure through public read/write DTOs, ArtifactRef or model tools. Equal bytes
+from independent versions may miss. The token grants no authority: missing,
+purged, denied or unconfirmed metadata never permits an offline hit. A successful
+hit records the consuming exact ref; selected Skills still verify their trusted
+package digest and manifest identity.
+
+Completed files and full in-flight reservations share a hard 1-GiB logical-byte
+budget per Runtime, with 1,024 entry slots and 4 MiB of metadata as independent
+ceilings. Filesystem block overhead is not an exact part of that accounting.
+Eviction chooses unused least-recently-used entries; cache pressure or local I/O
+failure falls back to the ordinary authorized exact fetch. Atomic staging,
+local integrity checks, bounded off-event-loop work and joined cancellation
+prevent partial files or unowned work from surviving release. The directory is
+outside allocation cleanup and every Worker/sandbox mount, with one Runtime
+owner under the existing root lock; it is not a distributed cache or a new lease.
+
+Reuse lasts only for one Runtime process lifetime, with a non-sliding 24-hour
+TTL and bounded expiry maintenance. Startup clears owned cache state before
+serving allocations; stopped or offline hosts cannot promise immediate remote
+erasure. Cached bytes create no server-side pin and cannot keep a deleted ref
+readable. This optimization reduces repeated downloads; it does not reduce
+Server artifact history, sitemap publication accounting, write amplification,
+or the existing whole-payload memory cost, and does not change workspace
+freshness or the retention policy above.
+
+[V413-001](../../tasks/v413-001-runtime-artifact-disk-cache.yml) records this
+independent pending implementation. It does not depend on or expand V407-035's
+allocation-local decoded-text cache work.
+
 ## 11. Failure outcomes, lifecycle and required tests
 
 - Definite invalid input, incompatible schema and exceeded hard limits return

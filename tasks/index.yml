@@ -80,6 +80,9 @@ execution_policy:
     P3: Low-impact correction with no user-visible failure, such as documentation, dead code or test hygiene.
 
 milestones:
+  - id: runtime-artifact-cache-2026-10
+    exit_task: V413-001
+    outcome: Local-storage Runtimes reuse authorized immutable source archives and Skill packages across allocations with a bounded 1-GiB private disk cache, preserving exact provenance, access checks and memory-only operation.
   - id: project-sitemap-2026-10
     exit_task: V410-007
     outcome: A bounded shared Project sitemap supports safe concurrent edits, automatic HTTP observations, structured imports and deterministic OpenAPI reconciliation with real-store and scale evidence.
