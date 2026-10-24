@@ -5,8 +5,13 @@ milestone: audit-iterative-composition-2026-10
 epic: audits
 kind: chore
 priority: P2
-status: deferred
-deferral:
+status: pending
+reactivation:
+  date: '2026-10-24'
+  previous_status: deferred
+  reason: Explicit user request to queue the reviewed proposal 0045 tasks as pending.
+  execution_rule: Implementation may start after declared dependencies complete; this update starts no implementation.
+previous_deferral:
   date: '2026-10-24'
   previous_status: pending
   reason: Planning-only decomposition of proposal 0045 preserves the deferral of generic iterative composition;
@@ -27,8 +32,10 @@ goal: Prove the generic settled-results, exact cross-Round dependency and typed 
   actual Server/Runtime execution, recovery and deletion without requiring hypothesis search, pentest
   proof or model ranking.
 context:
-  authority: User requested planning-only decomposition and revision of unfinished tasks on 2026-10-24;
-    this new deferred task is a future gate, not implementation or passing evidence.
+  authority: >-
+    On 2026-10-24 the user explicitly requested pending status for the reviewed
+    proposal 0045 plan, including shared V62 prerequisites. The earlier deferral
+    is historical; dependency completion still gates implementation start.
   proposal: docs/proposals/0045-audit-hypothesis-search.md
   specification:
   - docs/spec/audits/audits.md
@@ -63,7 +70,7 @@ scope:
   out:
   - Research hypotheses/generation/ranking, research pre-Round lifecycle (V64-003), pentest proof/replay
     policy (V411-012), attack-tree analysis or live-model quality claims.
-  - Rewriting completed V62 tasks, enabling deferred work through a gate or adding placeholder production
+  - Rewriting completed V62 tasks, bypassing dependency completion through a gate or adding placeholder production
     workflows/interfaces only for tests.
   - Changing product behavior or implementing missing prerequisite features in this gate task; fix any
     discovered product defect through its own tracked task.

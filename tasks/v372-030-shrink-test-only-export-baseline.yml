@@ -14,7 +14,7 @@ context:
   revalidated: >-
     2026-10-24 on b523ae77. 42 of the original 44 entries remain (the
     baseline has 46 lines; the four internal/auditpriority entries belong to
-    the deferred V64-005 and V64-006). Two are already resolved and dropped
+    V64-005 and V64-006). Two are already resolved and dropped
     from this task: pgstore QueryStore.ListExecutions, moved to
     internal/auditstore/auditstoretest (reads.go:74-78) with its test callers
     by V409-004 (171779df, completed in 02e84782); and artifacts Scope.Kind,
@@ -87,7 +87,7 @@ scope:
     - "Deleting this task's baseline entries as each identifier is resolved."
   out:
     - "Production behaviour and the public API."
-    - "The internal/auditpriority functions, which the deferred V64-005 and V64-006 own."
+    - "The internal/auditpriority functions, which V64-005 and V64-006 own."
 acceptance_criteria:
   - id: A1
     text: "tools/testonlyexports/baseline.txt has no V372-030 entry and make lint (the testonlyexports run with the baseline) passes."
