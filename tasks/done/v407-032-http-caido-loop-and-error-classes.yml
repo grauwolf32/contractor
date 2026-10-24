@@ -7,7 +7,7 @@ kind: defect
 introduced_by: V12-004
 priority: P2
 status: completed
-implementation_commit: 835cc2152385bd231471e0ae45546554e2409ff8
+implementation_commit: c45a3739d40f21358fbf6590f32a4454a6a58831
 depends_on: []
 languages:
 - python
@@ -89,7 +89,7 @@ tests:
   - A4
 verification:
   date: '2026-10-23'
-  revision: 835cc2152385bd231471e0ae45546554e2409ff8
+  revision: c45a3739d40f21358fbf6590f32a4454a6a58831
   environment: Worktree contractor-wt/r4b, branch claude/rv-r4b on base d7b825c4, macOS arm64 (Darwin),
     Python 3.13 via uv sync --locked, Node 24.20 with Corepack pnpm. Python Runtime only; no PostgreSQL
     test is in scope, so CONTRACTOR_TEST_DATABASE_URL was not used.
@@ -99,6 +99,10 @@ verification:
     and tool error boundaries, and updates the spec.
   - 835cc2152385bd231471e0ae45546554e2409ff8 narrows the tool-http proxy handle's build and send catch-alls
     so the direct and proxy routes classify the same failures alike.
+  - c45a3739d40f21358fbf6590f32a4454a6a58831 answers the review (after merging claude/review-v407-v409
+    in c1144f25) - the httpx transport family (httpx errors and OSError) is defined once in http_body and
+    used by every send and read path; header, bearer and cookie values follow the h11 field grammar; a
+    target Set-Cookie that cannot be sent back is ignored; the errors registry row is corrected.
   recheck: 'Finding lines were re-verified on d7b825c4: request_detail, Replay polling, convert output,
     Replay/Automate tagging and Automate results decoded, scrubbed and previewed inline; http/tools.py
     _send_once and _recorded, caido/tools.py _execute, _write_artifact and _bounded_caido_error, and
@@ -139,6 +143,34 @@ verification:
   - 'cd runtime && uv run --locked pytest -k "http or caido or interactsh or instrumentation or proxy
     or gateway or llm or model_http": 935 passed, 5 skipped.'
   - 'make lint: passed (ruff, import-linter 4 kept / 0 broken, check_spec, check_tasks, release graph).'
+  - 'Review follow-up, TLS: test_tls_record_failure_from_a_target_is_a_classified_transport_failure runs
+    a real local TLS target (cryptography-issued certificate, httpcore AnyIO backend) that answers with
+    a corrupt application-data record, in the header and in the body phase, on both routes. All four answer
+    retryable http_request_failed; the header phase is retried twice (three connections), a body failure
+    after delivery is not re-requested, and history keeps transport_error. On c1144f25 headers-direct,
+    body-direct and body-proxy fail (SSLError reached the Worker as tool_call_failed); headers-proxy passed,
+    which was the route disagreement the review found.'
+  - 'Review follow-up, field grammar: test_field_grammar_matches_the_h11_serializer compares is_field_value
+    with h11.Request on every ASCII character alone, inside, leading and trailing a value, whitespace runs
+    and non-ASCII text, with no disagreement. test_malformed_urls_fail_before_send_without_proxy_retries
+    now covers non-ASCII, trailing space or tab, leading space, VT and FF header values on both routes
+    (http_request_invalid, nothing sent, no retry wait) and their rejection by http_session_set as header,
+    cookie or bearer token, leaving the session empty. It fails on c1144f25.'
+  - 'Review follow-up, cookies: test_target_cookie_that_cannot_be_sent_back_is_ignored (direct and proxy)
+    receives a UTF-8 and a form-feed Set-Cookie beside a valid one; the bad ones are not stored, the cookie
+    the UTF-8 one would replace is kept and sent, the next request succeeds, and the checkpoint and a restored
+    toolset hold only sendable cookies. test_shared_cookie_document_strictness_and_exact_limits rejects
+    unsendable cookies on encode and decode and keeps the UTF-8 byte budget check through a multibyte
+    path. Both fail on c1144f25.'
+  - 'Review follow-up reruns at c45a3739: the task pytest command 122 passed; -k "http or caido or interactsh
+    or instrumentation or proxy or gateway" 943 passed, 5 skipped; make lint passed.'
+  - 'make test-runtime at c45a3739: 4475 passed, 105 failed, 39 skipped. 95 podman_* failures (a subset
+    of the earlier 96; one podman engine case passed this time) and the 9 known macOS failures listed above.
+    The other one, test_code_analysis_child_lifecycle::test_child_faults_are_reaped_and_remove_the_mirror[malformed]
+    (a child pid still set during reaping), touches no HTTP or Caido code and passed 3 of 3 reruns alone.
+    An earlier run of the same revision was interrupted by a network outage and suspend (58 min); its
+    extra test_http_caido_process_e2e failure was an allocation preparation TimeoutError and the file passes
+    alone (3 passed).'
   - 'make test-runtime at 835cc215: 4380 passed, 106 failed, 39 skipped. 96 failures are podman_* tests
     and 9 are the known macOS environment failures (code_analysis_graph fixture path, local_direct_faults
     socket, projectfs_local_*, tool_process, trailmark_child); the same 105 fail on d7b825c4 in a temporary
@@ -159,5 +191,8 @@ verification:
     complete false, while the raised exception keeps its type.'
   declined:
   - 'failure-model.md FAIL-HTP rows were not changed: FAIL-OBS-3 already owns raised tool exceptions.'
-  - 'errors.md still says http_request_failed covers a transient Artifact failure in http_read_body, which
-    HTP-R69 contradicts (reads never call the Artifact API); out of scope, reported to the integrator.'
+  - 'The Project target bearer token (HTTPOriginTargetSettings, a Server-validated wire contract shared with
+    Go) is not checked against the field grammar here: changing it needs both sides of the contract.
+    A token with a trailing space would still fail at send as a retried transport failure.'
+  - 'llm/client.py (Gateway) and adapters/otlp_http.py keep their own httpx classification: Gateway
+    retryability and telemetry export retries are separate rules from tool transport failures.'
