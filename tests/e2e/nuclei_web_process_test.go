@@ -120,17 +120,22 @@ else:
 			h.assertExecution(t, status, "scan_nuclei", "")
 			manifest, media := download(t, h.client, h.baseURL+"/v1/runs/"+id+"/outputs/template_manifest")
 			var provenance struct {
-				PackageDigest     string `json:"packageDigest"`
-				EngineVersion     string `json:"engineVersion"`
-				SelectedTemplates []struct {
-					ID     string `json:"id"`
-					Digest string `json:"digest"`
-				} `json:"selectedTemplates"`
+				SchemaVersion         int    `json:"schemaVersion"`
+				PackageDigest         string `json:"packageDigest"`
+				EngineVersion         string `json:"engineVersion"`
+				SelectedTemplateCount int    `json:"selectedTemplateCount"`
+				Source                struct {
+					Kind string `json:"kind"`
+				} `json:"source"`
 			}
 			if err := json.Unmarshal(manifest, &provenance); err != nil {
 				t.Fatal(err)
 			}
-			if media != "application/vnd.contractor.nuclei-manifest+json" || len(provenance.SelectedTemplates) != 1 || provenance.SelectedTemplates[0].ID != "contractor-local-fixture" || !strings.HasPrefix(provenance.EngineVersion, "v") {
+			var fields map[string]json.RawMessage
+			if err := json.Unmarshal(manifest, &fields); err != nil {
+				t.Fatal(err)
+			}
+			if media != "application/vnd.contractor.nuclei-manifest+json" || provenance.SchemaVersion != 2 || provenance.Source.Kind != "installed" || provenance.SelectedTemplateCount != 1 || !strings.HasPrefix(provenance.EngineVersion, "v") || fields["files"] != nil || fields["selectedTemplates"] != nil {
 				t.Fatalf("incomplete provenance: %+v", provenance)
 			}
 			if report.Observation["expectedPackageDigest"] != provenance.PackageDigest || report.Observation["actualPackageDigest"] != provenance.PackageDigest {
@@ -189,17 +194,23 @@ else:
 		}
 		manifest, _ := download(t, h.client, h.baseURL+"/v1/runs/"+id+"/outputs/template_manifest")
 		var provenance struct {
+			SchemaVersion int `json:"schemaVersion"`
+			Files         []struct {
+				Digest string `json:"digest"`
+			} `json:"files"`
 			Selected []struct {
-				ID string `json:"id"`
+				ID     string `json:"id"`
+				Digest string `json:"digest"`
 			} `json:"selectedTemplates"`
 			Source struct {
+				Kind          string `json:"kind"`
 				ContentDigest string `json:"contentDigest"`
 			} `json:"source"`
 		}
 		if err := json.Unmarshal(manifest, &provenance); err != nil {
 			t.Fatal(err)
 		}
-		if len(provenance.Selected) != 1 || provenance.Selected[0].ID != "contractor-custom-fixture" || provenance.Source.ContentDigest != contentdigest.Bytes(payload) {
+		if provenance.SchemaVersion != 2 || provenance.Source.Kind != "rulepack" || len(provenance.Files) != 1 || len(provenance.Selected) != 1 || provenance.Selected[0].ID != "contractor-custom-fixture" || provenance.Selected[0].Digest != provenance.Files[0].Digest || provenance.Files[0].Digest != contentdigest.Bytes(payload) || provenance.Source.ContentDigest != contentdigest.Bytes(payload) {
 			t.Fatalf("wrong custom provenance: %+v", provenance)
 		}
 		before := len(scanFixtureRequests(h))

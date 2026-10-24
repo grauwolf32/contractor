@@ -119,7 +119,8 @@ standalone POST /v1/runs
   artifacts refs resolve in UserScope(owner_id)
 
 project POST /v1/projects/{project_id}/runs
-  artifacts refs resolve in ProjectScope(project_id)
+  artifact refs resolve in ProjectScope(project_id), except a Workflow slot
+  declaring sourceScope: user resolves in UserScope(owner_id)
 ```
 
 ### Input fork and output publication
@@ -321,7 +322,9 @@ bindings. They never replace Server validation.
 
 **PRJ-R32.** For each required Workflow input slot, the UI finds the
 Project artifacts whose stored media type satisfies the strict slot matching
-rules of [Workflows](../configuration/workflows.md).
+rules of [Workflows](../configuration/workflows.md). A slot declaring
+`sourceScope: user` takes no Project artifact candidate; its choices and
+uploads come from the owner's Library during Run setup (SCN-R238).
 
 **PRJ-R33.** A Workflow is runnable when every required artifact slot
 has at least one candidate. Missing optional inputs do not block the

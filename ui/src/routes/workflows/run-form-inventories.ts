@@ -7,7 +7,11 @@ import type { components } from "../../api/generated/public";
 import { listRuntimeLabels } from "../../api/operations";
 import { listProjectArtifacts } from "../../api/project-artifacts";
 import { queryKeys } from "../../api/query-keys";
-import { listConfigurations, listCredentials } from "../../api/workflows";
+import {
+  listConfigurations,
+  listCredentials,
+  type WorkflowResource,
+} from "../../api/workflows";
 import { nextPageCursor } from "../../app/pagination";
 import { artifactOptionKey } from "../../run-drafts/validation";
 
@@ -41,24 +45,37 @@ function usePickerPages<T>(
 }
 
 /**
- * The choices of a Run form: the input files of the library or the
+ * The choices of a Run form: each input uses the library or the
  * Project's materials (with the revisions this draft already knows), and,
  * once their disclosure opens, the published model policies, Gateways,
  * credentials and Runtime labels.
  */
 export function useRunFormInventories({
   projectId,
+  inputs,
   knownArtifacts,
   executionOptionsOpen,
   runtimeOptionsOpen,
 }: {
   projectId: string | undefined;
-  knownArtifacts: readonly ArtifactMetadata[];
+  inputs: WorkflowResource["inputs"];
+  knownArtifacts: Readonly<Record<string, readonly ArtifactMetadata[]>>;
   executionOptionsOpen: boolean;
   runtimeOptionsOpen: boolean;
 }) {
   const api = usePublicAPI();
-  const artifactPages = usePickerPages(
+  const hasProjectInputs =
+    projectId !== undefined &&
+    Object.values(inputs).some((slot) => slot.sourceScope !== "user");
+  const hasUserInputs = Object.values(inputs).some(
+    (slot) => projectId === undefined || slot.sourceScope === "user",
+  );
+  const userArtifacts = usePickerPages(
+    queryKeys.artifacts.picker,
+    (request) => listArtifacts(api, request),
+    hasUserInputs,
+  );
+  const projectArtifacts = usePickerPages(
     projectId === undefined
       ? queryKeys.artifacts.picker
       : queryKeys.projects.artifacts.picker(projectId),
@@ -66,6 +83,7 @@ export function useRunFormInventories({
       projectId === undefined
         ? listArtifacts(api, request)
         : listProjectArtifacts(api, { projectId, ...request }),
+    hasProjectInputs,
   );
   const modelPolicies = usePickerPages(
     queryKeys.configurations.infinitePicker("model-policies"),
@@ -88,29 +106,57 @@ export function useRunFormInventories({
     runtimeOptionsOpen,
   );
 
-  // A revision this draft selected stays a choice when no loaded page has it.
-  const artifacts = useMemo(
-    () =>
-      Array.from(
-        new Map(
-          [...artifactPages.items, ...knownArtifacts].map((item) => [
-            artifactOptionKey(item.artifact),
-            item,
+  // Retained metadata belongs to the input's scope, even if another scope
+  // contains the same exact ref key. A missing loaded page does not drop it.
+  const inputInventories = useMemo(() => {
+    const knownUser: ArtifactMetadata[] = [];
+    const knownProject: ArtifactMetadata[] = [];
+    for (const [name, slot] of Object.entries(inputs)) {
+      const retained =
+        projectId === undefined || slot.sourceScope === "user"
+          ? knownUser
+          : knownProject;
+      retained.push(...(knownArtifacts[name] ?? []));
+    }
+    return Object.fromEntries(
+      Object.entries(inputs).map(([name, slot]) => {
+        const inputProjectId =
+          slot.sourceScope === "user" ? undefined : projectId;
+        const items =
+          inputProjectId === undefined
+            ? userArtifacts.items
+            : projectArtifacts.items;
+        const retained =
+          inputProjectId === undefined ? knownUser : knownProject;
+        const artifactMap = new Map(
+          [...items, ...retained].map((metadata) => [
+            artifactOptionKey(metadata.artifact),
+            metadata,
           ]),
-        ).values(),
-      ),
-    [artifactPages.items, knownArtifacts],
-  );
-  const artifactMap = useMemo(
-    () =>
-      new Map(
-        artifacts.map((metadata) => [
-          artifactOptionKey(metadata.artifact),
-          metadata,
-        ]),
-      ),
-    [artifacts],
-  );
+        );
+        return [
+          name,
+          {
+            projectId: inputProjectId,
+            artifactInventory:
+              inputProjectId === undefined
+                ? userArtifacts.query
+                : projectArtifacts.query,
+            artifacts: Array.from(artifactMap.values()),
+            artifactMap,
+          },
+        ];
+      }),
+    );
+  }, [
+    inputs,
+    projectId,
+    userArtifacts.items,
+    userArtifacts.query,
+    projectArtifacts.items,
+    projectArtifacts.query,
+    knownArtifacts,
+  ]);
   const explicitRuntimeLabels = useMemo(
     () =>
       runtimeLabels.items
@@ -124,9 +170,18 @@ export function useRunFormInventories({
   );
 
   return {
-    artifactInventory: artifactPages.query,
-    artifacts,
-    artifactMap,
+    inputs: inputInventories,
+    artifactInventories: [
+      ...(hasProjectInputs
+        ? [{ projectId, query: projectArtifacts.query }]
+        : []),
+      ...(hasUserInputs
+        ? [{ projectId: undefined, query: userArtifacts.query }]
+        : []),
+    ],
+    artifactsPending:
+      (hasProjectInputs && projectArtifacts.query.isPending) ||
+      (hasUserInputs && userArtifacts.query.isPending),
     modelPolicyInventory: modelPolicies.query,
     modelPolicies: modelPolicies.items,
     gatewayInventory: gateways.query,

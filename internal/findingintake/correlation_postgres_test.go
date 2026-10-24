@@ -57,7 +57,7 @@ func TestPostgresAutomaticCorrelationPreservesIndependentObservations(t *testing
 	}
 	readRevision := func() int64 {
 		var value int64
-		if err := pool.QueryRow(ctx, "SELECT finding_correlation_revision FROM projects WHERE project_id=$1", project).Scan(&value); err != nil {
+		if err := pool.QueryRow(ctx, "SELECT revision FROM finding_correlation_fences WHERE project_id=$1", project).Scan(&value); err != nil {
 			t.Fatal(err)
 		}
 		return value

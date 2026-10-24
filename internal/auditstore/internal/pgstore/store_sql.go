@@ -34,9 +34,13 @@ var auditCreatedRevision, auditCreatedNextEventSequence = auditCreatedEvents.cre
 
 // createDraftSQL inserts draft Audit $1 of owner $2 in Project $3 (raising if
 // the Project is missing or deleting) with its empty controller claim row and
-// the audit.created event. An Audit ID that exists already inserts nothing;
-// the caller completes the trailing SELECT with the inserted Audit and claims
-// the request's receipt. Used by OwnerStore.CreateDraft.
+// the audit.created event. The Project's first Audit also creates the
+// Project's finding correlation fence row (FND-R177). It inserts only a row
+// its snapshot does not show, so it never waits on a finding writer that holds
+// the existing row; only two first Audits of one Project wait on each other's
+// insert. An Audit ID that exists already inserts nothing; the caller
+// completes the trailing SELECT with the inserted Audit and claims the
+// request's receipt. Used by OwnerStore.CreateDraft.
 var createDraftSQL = `
 WITH project_gate AS MATERIALIZED (
     SELECT contractor_require_active_audit_project($3, $2)
@@ -57,6 +61,11 @@ WITH project_gate AS MATERIALIZED (
 ), claim_row AS (
     INSERT INTO audit_controller_claims (audit_id)
     SELECT audit_id FROM inserted
+), correlation_fence AS (
+    INSERT INTO finding_correlation_fences (project_id)
+    SELECT project_id FROM inserted
+     WHERE NOT EXISTS (SELECT 1 FROM finding_correlation_fences WHERE project_id = $3)
+    ON CONFLICT DO NOTHING
 )
 SELECT `
 

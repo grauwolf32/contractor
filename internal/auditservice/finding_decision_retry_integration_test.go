@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -27,15 +28,14 @@ import (
 
 // An analyst's finding decision projects onto audit_findings, whose
 // correlation trigger takes the Project correlation fence without waiting
-// (FND-R177). A child Run that the Audit Controller creates in the same
-// Project holds the Project row FOR SHARE until it commits, so the decision
-// aborts with a definite transaction conflict. The decision replays its whole
-// transaction, at most three transactions, and commits exactly once; other
-// failures are not replayed.
+// (FND-R177). Another finding writer of the same Project holds that fence
+// until it commits, so the decision aborts with a definite transaction
+// conflict. The decision replays its whole transaction, at most three
+// transactions, and commits exactly once; other failures are not replayed.
 func TestPostgresFindingDecisionReplaysProjectFenceConflict(t *testing.T) {
 	t.Run("contention released after the first abort", func(t *testing.T) {
 		f := newDecisionRetryFixture(t)
-		contender := f.beginChildRunCreation(t, "decision-concurrent-run")
+		contender := f.beginConcurrentFindingWriter(t)
 		var released error
 		trace := &decisionTransactions{}
 		trace.afterProjection = func(projection int, err error) {
@@ -57,9 +57,6 @@ func TestPostgresFindingDecisionReplaysProjectFenceConflict(t *testing.T) {
 		if result.Finding.State != auditstore.FindingConfirmed || result.Decision.DecisionID != "decision-retry" {
 			t.Fatalf("decision result = finding %s, decision %s", result.Finding.State, result.Decision.DecisionID)
 		}
-		if _, err := runstore.NewPostgresStore(f.pool).GetRun(f.ctx, "decision-concurrent-run"); err != nil {
-			t.Fatalf("concurrent child Run: %v", err)
-		}
 		// The stored decision answers its idempotency key without another
 		// projection, revision or event.
 		replay, err := f.decide(f.ctx, service, f.request.Revision)
@@ -74,7 +71,7 @@ func TestPostgresFindingDecisionReplaysProjectFenceConflict(t *testing.T) {
 
 	t.Run("persistent contention", func(t *testing.T) {
 		f := newDecisionRetryFixture(t)
-		contender := f.beginChildRunCreation(t, "decision-concurrent-run")
+		contender := f.beginConcurrentFindingWriter(t)
 		trace := &decisionTransactions{}
 		service := f.tracedService(t, trace)
 		before := f.state(t)
@@ -87,7 +84,7 @@ func TestPostgresFindingDecisionReplaysProjectFenceConflict(t *testing.T) {
 			t.Fatalf("aborted decision changed state to %+v, want %+v", state, before)
 		}
 		if err := contender.Commit(f.ctx); err != nil {
-			t.Fatalf("concurrent child Run creation: %v", err)
+			t.Fatalf("concurrent finding writer: %v", err)
 		}
 		// The request stayed pending, so the same request decides it now.
 		if _, err := f.decide(f.ctx, service, f.request.Revision); err != nil {
@@ -101,7 +98,7 @@ func TestPostgresFindingDecisionReplaysProjectFenceConflict(t *testing.T) {
 
 	t.Run("cancelled after a conflict", func(t *testing.T) {
 		f := newDecisionRetryFixture(t)
-		f.beginChildRunCreation(t, "decision-concurrent-run")
+		f.beginConcurrentFindingWriter(t)
 		ctx, cancel := context.WithCancel(f.ctx)
 		defer cancel()
 		trace := &decisionTransactions{}
@@ -130,6 +127,30 @@ func TestPostgresFindingDecisionReplaysProjectFenceConflict(t *testing.T) {
 			t.Fatalf("stale decision changed state to %+v, want %+v", state, before)
 		}
 	})
+}
+
+// A child Run that the Audit Controller creates in the same Project holds the
+// Project row FOR SHARE until it commits. The finding correlation fence is a
+// row of its own (FND-R177), so an analyst finding decision commits in its
+// first transaction with one fence step beside it, and the Run creation then
+// commits without having waited.
+func TestPostgresFindingDecisionSharesTheProjectWithChildRunCreation(t *testing.T) {
+	f := newDecisionRetryFixture(t)
+	creation := f.beginChildRunCreation(t, "decision-concurrent-run")
+	trace := &decisionTransactions{}
+	service := f.tracedService(t, trace)
+	before := f.state(t)
+	result, err := f.decide(f.ctx, service, f.request.Revision)
+	if err != nil || result.Replayed {
+		t.Fatalf("decision beside a child Run creation = (replayed %t, %v)", result.Replayed, err)
+	}
+	trace.requireAttempts(t, 1, false)
+	if after, want := f.state(t), before.decided(); after != want {
+		t.Fatalf("decision state = %+v, want %+v", after, want)
+	}
+	if err := creation.Commit(f.ctx); err != nil {
+		t.Fatalf("commit the child Run creation: %v", err)
+	}
 }
 
 type decisionRetryFixture struct {
@@ -230,6 +251,24 @@ func (f decisionRetryFixture) beginChildRunCreation(t *testing.T, runID string) 
 	return tx
 }
 
+// beginConcurrentFindingWriter holds the fixture Project's finding
+// correlation fence in a transaction that the test ends, as another finding
+// writer of the Project does from its fence lock until it commits: an import
+// or collection into another Audit takes it through the same auditstore call,
+// and a decision on another finding through the finding triggers.
+func (f decisionRetryFixture) beginConcurrentFindingWriter(t *testing.T) pgx.Tx {
+	t.Helper()
+	tx, err := f.pool.Begin(f.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = tx.Rollback(context.Background()) })
+	if err := hookstore.NewFindingEventsTx(tx).LockFindingCorrelationFence(f.ctx, decisionRetryProject); err != nil {
+		t.Fatal(err)
+	}
+	return tx
+}
+
 // decisionState is what a committed finding decision changes.
 type decisionState struct {
 	decisions, decidedEvents  int
@@ -248,7 +287,7 @@ SELECT (SELECT count(*) FROM audit_review_decisions WHERE audit_id = $1),
        (SELECT state FROM audit_review_requests WHERE audit_id = $1 AND request_id = $2),
        (SELECT revision FROM audit_findings WHERE audit_id = $1 AND finding_id = $3),
        (SELECT revision FROM audits WHERE audit_id = $1),
-       (SELECT finding_correlation_revision FROM projects WHERE project_id = $4)`,
+       (SELECT revision FROM finding_correlation_fences WHERE project_id = $4)`,
 		decisionRetryAudit, f.request.RequestID, f.finding, decisionRetryProject,
 	).Scan(&state.decisions, &state.decidedEvents, &state.requestState, &state.findingRevision,
 		&state.auditRevision, &state.projectCorrelationVersion); err != nil {

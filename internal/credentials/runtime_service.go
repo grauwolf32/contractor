@@ -21,7 +21,10 @@ import (
 const maximumRuntimeCredentialReferences = 128
 
 type RuntimeCredentialServiceOptions struct {
-	Pool    *pgxpool.Pool
+	Pool *pgxpool.Pool
+	// Lease is the active Server's advisory lease, which every create and
+	// delete proves in its own transaction (PER-R34).
+	Lease   persistencepostgres.ServerLease
 	Cipher  *TokenCipher
 	Usage   RuntimeCredentialUsageChecker
 	Audits  RuntimeCredentialAuditHoldLookup
@@ -31,6 +34,7 @@ type RuntimeCredentialServiceOptions struct {
 
 type RuntimeCredentialService struct {
 	pool       *pgxpool.Pool
+	lease      persistencepostgres.ServerLease
 	repository *RuntimeCredentialRepository
 	cipher     *TokenCipher
 	usage      RuntimeCredentialUsageChecker
@@ -47,14 +51,15 @@ func (s *RuntimeCredentialService) Format(state fmt.State, _ rune) {
 }
 
 func NewRuntimeCredentialService(options RuntimeCredentialServiceOptions) (*RuntimeCredentialService, error) {
-	if options.Pool == nil || options.Usage == nil || options.Audits == nil || options.Barrier == nil {
+	if options.Pool == nil || !options.Lease.Valid() || options.Usage == nil || options.Audits == nil ||
+		options.Barrier == nil {
 		return nil, errors.New("Runtime credential lifecycle dependencies are incomplete")
 	}
 	if options.Now == nil {
 		options.Now = time.Now
 	}
 	return &RuntimeCredentialService{
-		pool: options.Pool, repository: NewRuntimeCredentialRepository(options.Pool),
+		pool: options.Pool, lease: options.Lease, repository: NewRuntimeCredentialRepository(options.Pool),
 		cipher: options.Cipher, usage: options.Usage, audits: options.Audits,
 		barrier: options.Barrier, now: options.Now,
 	}, nil
@@ -130,6 +135,9 @@ func (s *RuntimeCredentialService) Create(
 		}
 		defer clear(creation.RequestMAC)
 		transactionErr := persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+			if err := s.lease.Prove(ctx, tx); err != nil {
+				return err
+			}
 			repository := NewRuntimeCredentialRepository(tx)
 			inserted, insertErr := repository.InsertRecord(ctx, record, creation)
 			if insertErr != nil {
@@ -305,14 +313,22 @@ func (s *RuntimeCredentialService) Delete(
 		if !usage.Empty() {
 			return &RuntimeCredentialInUseError{Usage: usage}
 		}
-		inserted, insertErr := s.repository.InsertTombstone(ctx, RuntimeCredentialTombstone{
-			CredentialID: credentialID, ActorID: actor, DeletedAt: persistencepostgres.Timestamp(s.now()),
+		// The reference checks above are fenced only by this process's
+		// barrier, so a Server that lost the lease must not tombstone the
+		// credential behind a reference its successor admitted (PER-R34).
+		return persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+			if err := s.lease.Prove(ctx, tx); err != nil {
+				return err
+			}
+			inserted, insertErr := NewRuntimeCredentialRepository(tx).InsertTombstone(ctx, RuntimeCredentialTombstone{
+				CredentialID: credentialID, ActorID: actor, DeletedAt: persistencepostgres.Timestamp(s.now()),
+			})
+			if insertErr != nil {
+				return insertErr
+			}
+			result.Replayed = !inserted
+			return nil
 		})
-		if insertErr != nil {
-			return insertErr
-		}
-		result.Replayed = !inserted
-		return nil
 	})
 	if err != nil {
 		return RuntimeCredentialDeleteResult{}, safeRuntimeCredentialStoreError(err)

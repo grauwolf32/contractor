@@ -1,8 +1,17 @@
 # Contextual Audit checklist prioritization
 
-Proposal 0034 · Status: **Deferred integration target (user decision 2026-10-21); pure core implemented
+Proposal 0034 · Status: **Previous integration design; pure core implemented
 ([V64-000](../../tasks/done/v64-000-audit-priority-core.yml)); Audit capability
 not enabled.**
+
+On 2026-10-24 the user selected the optional Audit research direction in
+[proposal 0045](0045-audit-hypothesis-search.md). It replaces the future V64
+integration design with contextual experiment selection, dynamic hypotheses
+and optional model ranking. Existing deterministic Run/Audit paths bypass
+research entirely. The fixed checklist design below records the previous
+target and the implemented pure-core contract; its minimum ten, full-pool
+evaluation and fixed membership are not constraints on 0045. Implementation
+tasks remain deferred and are not reactivated by this design update.
 
 Only the pure core is implemented: the `internal/auditpriority` package with
 its schema and fixtures in `api/audit-priority/v1` (see
@@ -11,9 +20,9 @@ capability and changes no existing API or canonical contract. The Audit
 integration described below (the opt-in profile, the `audit-priority@1`
 Planner and ranking Run, selection acceptance, and the public API and UI) is a
 draft target, and the Audit capability is not enabled; the authoring field
-`prioritization` is reserved and the current profile schema rejects it. This
-document owns the proposed behavior; the
-[plan](../plans/2026-09-20-audit-check-prioritization.md) owns task sequencing.
+`prioritization` is reserved and the current profile schema rejects it. The
+[plan](../plans/2026-09-20-audit-check-prioritization.md) records the previous
+task sequencing; it must be revised against 0045 before future integration.
 Existing profiles and [Audit contracts](../spec/audits/audits.md) remain
 unchanged until this opt-in capability is implemented and advertised.
 
