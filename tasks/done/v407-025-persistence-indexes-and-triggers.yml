@@ -116,6 +116,22 @@ verification:
     - >-
       make lint passed (layers, staticcheck U1000, testonlyexports, SQL
       placement, task and spec checks).
+    - >-
+      Review follow-up (c9562ebe): RequireColumnScopedGuards now tokenizes
+      the guard function and WHEN condition and requires every NEW/OLD
+      column reference on the UPDATE path to be listed or declared as a
+      qualifier. TestCheckBeforeUpdateTriggerReadsEveryReferenceToNewAndOld
+      (35 fixtures: reversed order, <>, != with casts, = and INTO
+      assignments, quoted identifiers, whole-row use, unreadable text,
+      TG_OP branches) and TestTokenizeSplitsAsPostgreSQLDoes pass; reading
+      the whole body instead of the UPDATE branch and disabling the pair
+      detection each fail four fixtures. Dropping the Skill snapshot
+      qualifier fails TestWorkflowRunGuardsFireOnTheColumnsTheyCompare on
+      NEW.state/OLD.state. Without migration 000033 the held-Audit test now
+      fails on the plan (no index use, 3000 Audits read for 20 matching,
+      generic plans off the indexes). Reran the task command (only the
+      pre-existing TestSQLAccessFollowsTableOwnership fails), go test
+      ./internal/runstore/... ./internal/archtest/... and make lint: passed.
   evidence:
     - >-
       Drain fixture: 6 owners × 5 Projects, 6000 Runs (1 in 50 active outside
@@ -163,4 +179,4 @@ notes:
     session holds an older snapshot (reproduced with a concurrent
     REPEATABLE READ transaction); the Audit predicate is unchanged by this
     task, so the test holds the generic plan on the Run tables only.
-implementation_commit: 6202fe22732734e4c0917314e69b5d9afc4da9d3
+implementation_commit: c9562ebeb4628a77dc0b697eccb8a5a2993f1d24
