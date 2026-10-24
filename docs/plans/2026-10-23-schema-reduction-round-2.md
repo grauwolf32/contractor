@@ -640,7 +640,7 @@ a task ID supplies a design or a performance improvement.
 | [V409-011](../../tasks/done/v409-011-execution-store-n1-and-duplicates.yml) | Safe execution-side query/round-trip improvements (binding, principal and release-marker batching). Recheck the actual statements after it lands. |
 | [V409-014](../../tasks/done/v409-014-eval-comparison-and-recovery-queries.yml) | Safe Eval comparison-page and composed recovery-query improvements; complete-view redesign remains excluded. Recheck the actual statements after it lands. |
 | [V409-012](../../tasks/done/v409-012-migration-and-sql-hygiene.yml) | Upgrade tests for 000008/000014 and migration-budget/ledger documentation. No baseline regeneration or historical-migration rewrite. |
-| [V409-013](../../tasks/v409-013-verify-sql-review-on-database.yml) | Final SQL-review gate after V409-001…012 and V409-014. It is neither stage-zero preflight nor a harness prerequisite; no implementation dependency may point back to this exit task. |
+| [V409-013](../../tasks/done/v409-013-verify-sql-review-on-database.yml) | Final SQL-review gate after V409-001…012 and V409-014. It is neither stage-zero preflight nor a harness prerequisite; no implementation dependency may point back to this exit task. |
 
 Proposed sequence, only if a candidate is later selected:
 
