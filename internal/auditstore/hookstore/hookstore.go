@@ -1,11 +1,11 @@
 // Package hookstore is the Audit store seam of the entry points other
-// contexts use: finding intake locks the Audit it decides for and records its
-// decisions as Audit events, Run deletion invalidates what Audits derived from
-// a deleted child Run, Project deletion requests the deletion of the Project's
-// Audits, the credential lifecycle finds the Audits whose dispatch hold keeps
-// a credential in use, and the Eval store matches the Audits it created to
-// their creation requests. Each entry point is its own type, so a context
-// holds only its own.
+// contexts use: finding intake locks the Audit it decides for and its
+// Project's finding correlation fence and records its decisions as Audit
+// events, Run deletion invalidates what Audits derived from a deleted child
+// Run, Project deletion requests the deletion of the Project's Audits, the
+// credential lifecycle finds the Audits whose dispatch hold keeps a credential
+// in use, and the Eval store matches the Audits it created to their creation
+// requests. Each entry point is its own type, so a context holds only its own.
 package hookstore
 
 import (
@@ -19,8 +19,8 @@ import (
 type FindingEvents = pgstore.FindingEvents
 
 // FindingEventsTx is a FindingEvents bound to finding intake's transaction,
-// with the Audit lock it holds until it commits and the direct verification
-// it commits under that lock (PER-R18).
+// with the Audit lock and the Project finding correlation fence it holds until
+// it commits and the direct verification it commits under that lock (PER-R18).
 type FindingEventsTx = pgstore.FindingEventsTx
 
 // RunDeletion is what Run deletion reads and changes of the Audits that
