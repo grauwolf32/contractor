@@ -7,25 +7,36 @@ import asyncio
 import json
 from pathlib import Path
 
+from contractor_runtime._https import PrivateConnections
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import ArtifactAPIError, ArtifactClient, MTLSArtifactTransport
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.core.input_errors import ToolInputError
-from contractor_runtime.mtls import runtime_agent_client_context
+from contractor_runtime.mtls import runtime_agent_client_context, verify_control_plane_peer
 from contractor_runtime.toolsets.run_artifacts.tools import RunArtifactsToolsetFactory
 from contractor_runtime.workspace import AllocationWorkspace
 
 
 async def run(args: argparse.Namespace) -> dict[str, object]:
-    context = runtime_agent_client_context(
-        ca_file=args.ca,
-        certificate_file=args.certificate,
-        private_key_file=args.private_key,
+    connections = PrivateConnections(
+        runtime_agent_client_context(
+            ca_file=args.ca,
+            certificate_file=args.certificate,
+            private_key_file=args.private_key,
+        ),
+        verify_control_plane_peer,
     )
+    try:
+        return await probe(args, connections)
+    finally:
+        await connections.aclose()
+
+
+async def probe(args: argparse.Namespace, connections: PrivateConnections) -> dict[str, object]:
     client = ArtifactClient(
         args.allocation_id,
         MTLSArtifactTransport(
-            args.api_url, context, timeout_seconds=3, runtime_instance_id=args.instance_id
+            args.api_url, connections, timeout_seconds=3, runtime_instance_id=args.instance_id
         ),
     )
     if args.mode == "cookies":

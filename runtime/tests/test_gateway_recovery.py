@@ -506,8 +506,10 @@ def test_refused_authority_connection_is_retried_as_transport_loss():
     import socket
     import ssl
 
+    from contractor_runtime._https import PrivateConnections
     from contractor_runtime.artifacts import MTLSArtifactTransport
     from contractor_runtime.llm.recovery import GatewayRecoveryClient
+    from contractor_runtime.mtls import verify_control_plane_peer
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
         listener.bind(("127.0.0.1", 0))
@@ -525,7 +527,7 @@ def test_refused_authority_connection_is_retried_as_transport_loss():
             "alloc-1",
             MTLSArtifactTransport(
                 f"https://127.0.0.1:{port}/private/v1",
-                ssl.create_default_context(),
+                PrivateConnections(ssl.create_default_context(), verify_control_plane_peer),
                 timeout_seconds=3,
                 runtime_instance_id="runtime-1",
             ),

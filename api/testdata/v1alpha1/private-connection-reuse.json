@@ -1,0 +1,8 @@
+{
+  "description": "Bounds of reusable private Server/Runtime connections (CTL-R165, LIM-CTL-13 to LIM-CTL-16). The Go Server and the Python Runtime hold these values as constants; clientIdleReuseSeconds stays below listenerIdleTimeoutSeconds so a client normally never writes to a connection the peer listener already closed.",
+  "listenerIdleTimeoutSeconds": 60,
+  "clientIdleReuseSeconds": 30,
+  "reuseLifetimeSeconds": 300,
+  "connectionsPerPeer": 8,
+  "idleConnectionsPerPeer": 2
+}

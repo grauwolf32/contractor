@@ -9,6 +9,7 @@ import signal
 import time
 from collections.abc import Callable, Sequence
 
+from contractor_runtime._https import PrivateConnections
 from contractor_runtime.allocation import AllocationService
 from contractor_runtime.artifacts import ArtifactClient, MTLSArtifactTransport
 from contractor_runtime.capabilities import discover_capabilities
@@ -26,6 +27,7 @@ from contractor_runtime.mtls import (
     log_runtime_certificate_expiry,
     runtime_agent_client_context,
     runtime_agent_server_context,
+    verify_control_plane_peer,
 )
 from contractor_runtime.sandbox.podman.lifecycle import PodmanLifecycle
 from contractor_runtime.sandbox.podman.workroots import check_root_policy
@@ -112,8 +114,12 @@ async def _serve(
         certificate_file=settings.certificate_file,
         private_key_file=settings.private_key_file,
     )
+    # The process owns its private connections and closes them last (CTL-R164):
+    # registration and heartbeats never wait behind Artifact transfers.
+    control_connections = PrivateConnections(outgoing_tls, verify_control_plane_peer)
+    artifact_connections = PrivateConnections(outgoing_tls, verify_control_plane_peer)
     control_transport = transport or MTLSJSONTransport(
-        settings.control_plane_url, outgoing_tls, settings.request_timeout_seconds
+        settings.control_plane_url, control_connections, settings.request_timeout_seconds
     )
     factories = built_in_factories(
         settings.work_root,
@@ -121,7 +127,7 @@ async def _serve(
             allocation_id,
             MTLSArtifactTransport(
                 runtime_settings.artifact_api_url,
-                outgoing_tls,
+                artifact_connections,
                 runtime_settings.request_timeout_seconds,
                 runtime_state.instance_id,
             ),
@@ -240,6 +246,8 @@ async def _serve(
         if install_signal_handlers:
             for handled_signal in handled_signals:
                 loop.remove_signal_handler(handled_signal)
+        await control_connections.aclose()
+        await artifact_connections.aclose()
         logger.info("runtime agent stopped")
 
 
