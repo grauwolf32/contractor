@@ -119,7 +119,9 @@ rejects Go, pytest and test-script execution anywhere in the consolidated
 family dependency graph, and requires exactly one full Runtime run with
 warnings as errors. The existing Audit, findings and shared-fixture validators
 consume canonical reports in `reports/`; direct family commands retain their
-focused runs. Report files are replaced on each run; missing, skipped or
+focused runs. The shared read journal is initialized once before either language writes,
+including when consolidation is inherited from a target rather than an
+environment flag. Report files are replaced on each run; missing, skipped or
 incomplete required evidence fails the gate. Optional skips outside those
 focused scopes retain their existing policy.
 `make lint` checks the stage order, the CI jobs and this table against the
