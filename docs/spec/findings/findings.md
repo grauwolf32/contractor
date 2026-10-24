@@ -525,6 +525,28 @@ the proposal document size. It is immutable with the receipt, and Audit
 reports read it instead of the proposal artifact
 ([review and reports](../audits/review-and-reports.md), REV-R195).
 
+**FND-R185.** One source Run admits at most 4,096 proposal receipts
+(LIM-FND-46). A replay (FND-R60) returns its receipt before the count and
+consumes nothing. A new submission counts the Run's receipts and inserts its
+own under one per-Run transaction lock, so concurrent final submissions admit
+exactly one; a submission beyond the limit fails permanently as
+`invalid_finding_request` (400), and a rejected or rolled-back submission
+admits no receipt or Artifact. The limit bounds the receipts the count
+matches, not its execution: the count reads every receipt of the Run, and
+the PostgreSQL plan may read more.
+
+**FND-R186.** The Audit inbox (`GET /v1/audits/{auditId}/finding-proposals`)
+lists, oldest first in receipt (creation time, receipt ID) order, the
+Audit's native receipts whose source Run still exists and every receipt the
+Audit holds, each once (REV-R141, REV-R142). An imported receipt keeps its
+own creation time, not the time of its hold. The read takes at most one page
+from the native receipts and one from the held receipts before merging them,
+so its work grows with the Audit's native receipts and holds and never with
+other Audits' or owners' receipts. It is not bounded by the page alone:
+holds are not ordered by receipt time, so the held branch examines every
+hold of the Audit. The next-Round builder's held-only view
+([execution](../audits/execution.md), AUX-R60) reads the same held branch.
+
 ```mermaid
 sequenceDiagram
     participant M as Model

@@ -31,41 +31,87 @@ SELECT ` + receiptProjection + `
  ORDER BY receipt.created_at, receipt.receipt_id
  LIMIT $5`
 
-// listAuditInboxSQL returns one page of the inbox of owner $1's Audit $2,
-// oldest first: the owner's proposal receipts that the Audit originated while
-// their source Run exists, and those the Audit holds in its Project. The
-// cursor ($3, $4) and the limit $5 are those of listRunReceiptRowsSQL.
+// Audit inbox pages are oldest first in receipt (created_at, receipt_id)
+// order, a total order because receipt_id is unique. ($3, $4) is the cursor of
+// the previous page, as for listRunReceiptRowsSQL; with a NULL $3 and an empty
+// $4 the bound becomes minus infinity and the empty ID, which every receipt
+// follows. Spelled as one row comparison, the bound stays an index condition
+// in a generic plan, which a "$3 IS NULL OR ..." disjunction does not.
+const auditInboxAfterCursorSQL = `(receipt.created_at, receipt.receipt_id) >
+           (COALESCE($3::timestamptz, '-infinity'), COALESCE($4::text, ''))`
+
+// auditNativeInboxKeysSQL selects the keys of the first $5 receipts after the
+// cursor that owner $1's Audit $2 originated while their source Run exists.
+// It walks finding_proposal_receipts_audit_idx in page order, so it reads the
+// Audit's own receipts after the cursor until $5 pass, never another Audit's.
+const auditNativeInboxKeysSQL = `
+    SELECT receipt.receipt_id, receipt.created_at
+      FROM finding_proposal_receipts AS receipt
+     WHERE receipt.audit_id = $2 AND receipt.owner_id = $1
+       AND receipt.source_run_deleted_at IS NULL
+       AND ` + auditInboxAfterCursorSQL + `
+     ORDER BY receipt.created_at, receipt.receipt_id
+     LIMIT $5`
+
+// auditHeldInboxKeysSQL selects the keys of the first $5 receipts of owner $1
+// after the cursor that the owner's Audit $2 holds in its own Project. The
+// hold index has no receipt time, so it probes the receipt of each of the
+// Audit's holds by primary key and sorts them: its work grows with the
+// Audit's holds, not with the page. OFFSET 0 keeps that probe per hold, so a
+// generic plan that overestimates the Audit's holds cannot turn it into a scan
+// of every owner's receipts.
+const auditHeldInboxKeysSQL = `
+    SELECT receipt.receipt_id, receipt.created_at
+      FROM finding_proposal_audit_holds AS hold
+      JOIN audits AS audit
+        ON audit.audit_id = hold.audit_id AND audit.project_id = hold.project_id
+     CROSS JOIN LATERAL (
+           SELECT candidate.receipt_id, candidate.created_at
+             FROM finding_proposal_receipts AS candidate
+            WHERE candidate.receipt_id = hold.receipt_id AND candidate.owner_id = $1
+           OFFSET 0
+       ) AS receipt
+     WHERE hold.audit_id = $2 AND audit.owner_id = $1
+       AND ` + auditInboxAfterCursorSQL + `
+     ORDER BY receipt.created_at, receipt.receipt_id
+     LIMIT $5`
+
+// listAuditInboxSQL returns one page of the inbox of owner $1's Audit $2:
+// the owner's proposal receipts that the Audit originated while their source
+// Run exists, and those the Audit holds in its Project. The cursor ($3, $4)
+// and the limit $5 are those of listRunReceiptRowsSQL.
+//
+// Each branch keeps its own first $5 receipts after the cursor in page order,
+// and the first $5 of their union are the first $5 of the whole inbox: a
+// receipt among the inbox's first $5 has fewer than $5 predecessors in its own
+// branch. UNION keeps a receipt that is both native and held once, so it takes
+// one slot, and the next page starts after the last receipt returned in both
+// branches alike. Only the page's rows are read whole.
 // Used by Service.ListAuditInbox.
 var listAuditInboxSQL = `
+WITH page AS (
+    (` + auditNativeInboxKeysSQL + `)
+     UNION
+    (` + auditHeldInboxKeysSQL + `)
+     ORDER BY created_at, receipt_id
+     LIMIT $5
+)
 SELECT ` + receiptProjection + `
-  FROM finding_proposal_receipts AS receipt
- WHERE receipt.owner_id = $1
-   AND ((receipt.audit_id = $2 AND receipt.source_run_deleted_at IS NULL) OR EXISTS (
-       SELECT 1 FROM finding_proposal_audit_holds AS hold
-        JOIN audits AS audit
-          ON audit.audit_id = hold.audit_id AND audit.project_id = hold.project_id
-       WHERE hold.receipt_id = receipt.receipt_id
-         AND hold.audit_id = $2 AND audit.owner_id = $1
-   ))
-   AND ($3::timestamptz IS NULL OR (receipt.created_at, receipt.receipt_id) > ($3, $4))
- ORDER BY receipt.created_at, receipt.receipt_id
- LIMIT $5`
+  FROM page
+  JOIN finding_proposal_receipts AS receipt ON receipt.receipt_id = page.receipt_id
+ ORDER BY receipt.created_at, receipt.receipt_id`
 
 // listAuditHeldInboxSQL returns one page of owner $1's proposal receipts that
-// the owner's Audit $2 holds in its Project, oldest first. The cursor
-// ($3, $4) and the limit $5 are those of listRunReceiptRowsSQL.
-// Used by Service.ListAuditHeldInbox.
+// the owner's Audit $2 holds in its Project, oldest first: the held branch of
+// listAuditInboxSQL alone. The cursor ($3, $4) and the limit $5 are those of
+// listRunReceiptRowsSQL. Used by Service.ListAuditHeldInbox.
 var listAuditHeldInboxSQL = `
+WITH page AS (` + auditHeldInboxKeysSQL + `
+)
 SELECT ` + receiptProjection + `
-  FROM finding_proposal_receipts AS receipt
-  JOIN finding_proposal_audit_holds AS hold
-    ON hold.receipt_id = receipt.receipt_id AND hold.audit_id = $2
-  JOIN audits AS audit
-    ON audit.audit_id = hold.audit_id AND audit.project_id = hold.project_id
- WHERE receipt.owner_id = $1 AND audit.owner_id = $1
-   AND ($3::timestamptz IS NULL OR (receipt.created_at, receipt.receipt_id) > ($3, $4))
- ORDER BY receipt.created_at, receipt.receipt_id
- LIMIT $5`
+  FROM page
+  JOIN finding_proposal_receipts AS receipt ON receipt.receipt_id = page.receipt_id
+ ORDER BY receipt.created_at, receipt.receipt_id`
 
 // importIntoAuditWithTxSQL locks owner $1's retained proposal receipt for Run
 // $3 and exact proposal ref $4, with its retention state. Destination Audit
