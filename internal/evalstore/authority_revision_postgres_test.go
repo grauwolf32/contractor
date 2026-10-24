@@ -72,7 +72,7 @@ func TestSharedPostgresEvalCoordinatorObservationsKeepAuthorityRevision(t *testi
 		t.Fatalf("admission receipt consumed authority CAS: %+v (%v)", admitted, err)
 	}
 	mustTx(t, pool, func(s *Store) error {
-		return s.ObserveTokens(ctx, scope, experiment.ID, result.MemberID, claim, 7)
+		return s.RecoverMember(scope, experiment.ID, result.MemberID, claim).ObserveTokens(ctx, 7)
 	})
 	mustTx(t, pool, func(s *Store) error {
 		return s.SelectFirstNative(ctx, scope, experiment.ID, result.MemberID, claim, resultDoc, evaldomain.Frozen{})
@@ -84,13 +84,13 @@ WHERE experiment_id=$1 AND member_id=$2`, experiment.ID, result.MemberID).Scan(&
 	}
 	operation := Suboperation{Kind: "run-create", Key: "rejected-run", Request: json.RawMessage(`{"workflow":"trace-a@1"}`)}
 	mustTx(t, pool, func(s *Store) error {
-		return s.PutSuboperation(ctx, scope, experiment.ID, result.MemberID, claim, operation)
+		return s.RecoverMember(scope, experiment.ID, result.MemberID, claim).PutSuboperation(ctx, operation)
 	})
 	mustTx(t, pool, func(s *Store) error {
-		return s.ResolveSuboperation(ctx, scope, experiment.ID, result.MemberID, operation.Kind, claim, []byte(`{"rejected":true}`), true)
+		return s.RecoverMember(scope, experiment.ID, result.MemberID, claim).ResolveSuboperation(ctx, operation.Kind, []byte(`{"rejected":true}`), true)
 	})
 	mustTx(t, pool, func(s *Store) error {
-		return s.Settle(ctx, scope, experiment.ID, result.MemberID, claim)
+		return s.RecoverMember(scope, experiment.ID, result.MemberID, claim).Settle(ctx)
 	})
 	observed, err := NewPostgresStore(pool).Get(ctx, scope.OwnerID, experiment.ID)
 	if err != nil || observed.Revision != running.Revision || observed.Outstanding != 0 || observed.ObservedTokens != 7 {
@@ -166,7 +166,7 @@ func TestSharedPostgresEvalExecutionTombstoneKeepsAuthorityRevision(t *testing.T
 	claim := oneClaim(t, pool)
 	operation := Suboperation{Kind: "run-create", Key: "run-create-key", Request: json.RawMessage(`{"workflow":"trace-a@1"}`)}
 	mustTx(t, pool, func(s *Store) error {
-		return s.PutSuboperation(ctx, scope, experiment.ID, member.MemberID, claim, operation)
+		return s.RecoverMember(scope, experiment.ID, member.MemberID, claim).PutSuboperation(ctx, operation)
 	})
 	const runtimeSnapshot = `{"default":{"label":"default","explicit":false,"bindingRevision":1,"config":{"name":"contractor-empty","version":"1","digest":"sha256:80a1754c01f8443c29fdc8f650a2254b2461694819918b204a55a7ad3425dc5f"}},"labels":[],"llmCredentialIds":[],"runtimeCredentialIds":[]}`
 	_, err = pool.Exec(ctx, `

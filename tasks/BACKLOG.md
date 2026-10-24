@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-87 open tasks: 4 in progress, 58 pending, 25 deferred. 1031 finished: 1027 completed, 4 archived.
+87 open tasks: 5 in progress, 57 pending, 25 deferred. 1031 finished: 1027 completed, 4 archived.
 
 ## In progress
 
@@ -15,6 +15,7 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
+| [V409-014](v409-014-eval-comparison-and-recovery-queries.yml) | evals | chore | P3 | Reduce Eval comparison-page and composed recovery query round trips |
 
 ## Pending
 
@@ -89,7 +90,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V40-003](v40-003-agent-instruction-eval-decision.yml) | feature | P1 | V40-002 | Evaluate instruction candidates and record evidence-based adoption decisions |
-| [V409-014](v409-014-eval-comparison-and-recovery-queries.yml) | chore | P3 | — | Reduce Eval comparison-page and composed recovery query round trips |
 
 ### Web UI (`ui`)
 

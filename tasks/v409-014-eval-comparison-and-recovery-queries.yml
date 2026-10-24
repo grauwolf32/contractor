@@ -6,7 +6,7 @@ epic: evals
 kind: chore
 introduced_by: V38-006
 priority: P3
-status: pending
+status: in_progress
 depends_on:
 - V407-028
 - V407-029

@@ -16,6 +16,11 @@ receipt replays before revision or deletion checks. New effects recheck the
 Project fence and immutable control mode. Only native dispatch supplies a claim
 at admission. Reconciliation of accepted native/external operations requires a
 current claim; an expired holder cannot acknowledge an operation after replacement.
+Recovery steps run on `RecoverMember`, the recovery authority over one member in
+one caller-owned transaction: its first step takes the Project, experiment and
+claim locks, and each later step of the same transaction proves the live claim
+and rereads the experiment's state and deletion request in one statement
+(EVM-R246). It never outlives its transaction.
 
 `Admit` commits the member intent and outstanding count before any execution.
 Audit Project/create/start and Workflow creation have distinct immutable keys and
@@ -84,6 +89,10 @@ pins, selection revision) keeps the current generation; a new generation deletes
 the superseded ones, which `contractor_eval_view_immutable` permits only for
 generations the queue no longer names. Selected-page reads use keyset pagination
 over the current generation and never scan historical executions/artifacts.
+Each page is one statement: the pair row carries each side's member ordinal and
+filter fields next to its document, written by the same publication insert, so
+the filtered count, the sort and the cursor never decode a document, and only
+the page's items transfer one (EVM-R245).
 Histograms retain exact cohort percentiles; progress reads choose real
 observations in at most 200 buckets.
 

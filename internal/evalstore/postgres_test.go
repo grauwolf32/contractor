@@ -426,7 +426,9 @@ func TestSharedPostgresEvalNativeFreezeStaleClaimsAndSuboperationRecovery(t *tes
 		t.Fatal(err)
 	}
 	op := Suboperation{Kind: "run-create", Key: ms[0].SubmissionKey, Request: json.RawMessage(`{"workflow":"trace-a@1"}`)}
-	mustTx(t, pool, func(s *Store) error { return s.PutSuboperation(ctx, scope, e.ID, ms[0].MemberID, claim, op) })
+	mustTx(t, pool, func(s *Store) error {
+		return s.RecoverMember(scope, e.ID, ms[0].MemberID, claim).PutSuboperation(ctx, op)
+	})
 	// Force a replacement epoch while an old holder is blocked on the claim row.
 	blocker, err := pool.Begin(ctx)
 	if err != nil {
@@ -439,7 +441,7 @@ func TestSharedPostgresEvalNativeFreezeStaleClaimsAndSuboperationRecovery(t *tes
 	done := make(chan error, 1)
 	go func() {
 		done <- transaction(pool, func(s *Store) error {
-			return s.ResolveSuboperation(ctx, scope, e.ID, ms[0].MemberID, op.Kind, claim, []byte(`{"rejected":true}`), true)
+			return s.RecoverMember(scope, e.ID, ms[0].MemberID, claim).ResolveSuboperation(ctx, op.Kind, []byte(`{"rejected":true}`), true)
 		})
 	}()
 	// Confirm it reached a lock wait before publishing the new epoch.
@@ -474,10 +476,10 @@ func TestSharedPostgresEvalNativeFreezeStaleClaimsAndSuboperationRecovery(t *tes
 		t.Fatal(old, err)
 	}
 	mustTx(t, pool, func(s *Store) error {
-		return s.ResolveSuboperation(ctx, scope, e.ID, ms[0].MemberID, op.Kind, replacement, []byte(`{"rejected":true}`), true)
+		return s.RecoverMember(scope, e.ID, ms[0].MemberID, replacement).ResolveSuboperation(ctx, op.Kind, []byte(`{"rejected":true}`), true)
 	})
-	mustTx(t, pool, func(s *Store) error { return s.Settle(ctx, scope, e.ID, ms[0].MemberID, replacement) })
-	mustTx(t, pool, func(s *Store) error { return s.Settle(ctx, scope, e.ID, ms[0].MemberID, replacement) })
+	mustTx(t, pool, func(s *Store) error { return s.RecoverMember(scope, e.ID, ms[0].MemberID, replacement).Settle(ctx) })
+	mustTx(t, pool, func(s *Store) error { return s.RecoverMember(scope, e.ID, ms[0].MemberID, replacement).Settle(ctx) })
 	e, err = NewPostgresStore(pool).Get(ctx, scope.OwnerID, e.ID)
 	if err != nil || e.Outstanding != 0 {
 		t.Fatal(e, err)
@@ -618,16 +620,16 @@ func TestSharedPostgresEvalAuditWorkspaceDependencyFencesWithoutDeletingExperime
 	}
 	claim := oneClaim(t, pool)
 	op := Suboperation{Kind: "project-create", Key: m.SubmissionKey + "-project", Request: json.RawMessage(`{"kind":"project"}`)}
-	mustTx(t, pool, func(s *Store) error { return s.PutSuboperation(ctx, scope, e.ID, m.MemberID, claim, op) })
+	mustTx(t, pool, func(s *Store) error { return s.RecoverMember(scope, e.ID, m.MemberID, claim).PutSuboperation(ctx, op) })
 	mustTx(t, pool, func(s *Store) error {
 		_, _, err := projectstore.NewPostgresStore(s.tx).Create(ctx, projectstore.CreateParams{OwnerID: scope.OwnerID, ProjectID: "audit-workspace", Kind: projectstore.KindProject, Name: "Audit member", IdempotencyKey: op.Key, RequestDigest: evaldomain.Digest(op.Request)})
 		if err != nil {
 			return err
 		}
-		return s.RegisterExecutionProject(ctx, scope, e.ID, m.MemberID, "audit-workspace", op.Key, claim)
+		return s.RecoverMember(scope, e.ID, m.MemberID, claim).RegisterExecutionProject(ctx, "audit-workspace", op.Key)
 	})
 	mustTx(t, pool, func(s *Store) error {
-		return s.ResolveSuboperation(ctx, scope, e.ID, m.MemberID, op.Kind, claim, []byte(`{"projectId":"audit-workspace"}`), false)
+		return s.RecoverMember(scope, e.ID, m.MemberID, claim).ResolveSuboperation(ctx, op.Kind, []byte(`{"projectId":"audit-workspace"}`), false)
 	})
 	child := Scope{scope.OwnerID, "audit-workspace"}
 	beginProjectDeletion(t, pool, child)
@@ -638,7 +640,7 @@ func TestSharedPostgresEvalAuditWorkspaceDependencyFencesWithoutDeletingExperime
 	if blocked, err := NewPostgresStore(pool).ProjectBlocked(ctx, child.OwnerID, child.ProjectID); err != nil || !blocked {
 		t.Fatal(blocked, err)
 	}
-	mustTx(t, pool, func(s *Store) error { return s.Settle(ctx, scope, e.ID, m.MemberID, claim) })
+	mustTx(t, pool, func(s *Store) error { return s.RecoverMember(scope, e.ID, m.MemberID, claim).Settle(ctx) })
 	if blocked, err := NewPostgresStore(pool).ProjectBlocked(ctx, child.OwnerID, child.ProjectID); err != nil || blocked {
 		t.Fatal(blocked, err)
 	}

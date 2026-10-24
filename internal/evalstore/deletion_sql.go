@@ -81,7 +81,9 @@ var purgeRowColumns = map[string][]string{
 		"response", "state"},
 	"eval_view_charts": {"experiment_id", "generation", "suite_id", "metric", "document"},
 	"eval_view_pairs": {"experiment_id", "generation", "ordinal", "pair_id", "suite_id", "document", "regression",
-		"unresolved", "tokens_a", "tokens_b", "duration_a", "duration_b", "complete_a", "complete_b"},
+		"unresolved", "tokens_a", "tokens_b", "duration_a", "duration_b", "complete_a", "complete_b",
+		"member_ordinal_a", "member_ordinal_b", "variant_a", "variant_b", "eligibility_a", "eligibility_b",
+		"execution_state_a", "execution_state_b", "assessment_a", "assessment_b", "conflicting_a", "conflicting_b"},
 }
 
 // purgeRowBytes is the SQL expression of one row's stored size per table.

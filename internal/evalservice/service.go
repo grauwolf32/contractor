@@ -203,7 +203,9 @@ func (s *Service) tickExecution(ctx context.Context, claim evalstore.Claim) (pro
 			// Rotate failed observations as well: one uncertain member must not
 			// starve cancellation/recovery of the rest of a large experiment.
 			if ctx.Err() == nil {
-				if rotateErr := s.tx(ctx, func(st *evalstore.Store) error { return st.ObserveTokens(ctx, scope(e), e.ID, m.MemberID, claim, 0) }); rotateErr != nil {
+				if rotateErr := s.tx(ctx, func(st *evalstore.Store) error {
+					return st.RecoverMember(scope(e), e.ID, m.MemberID, claim).ObserveTokens(ctx, 0)
+				}); rotateErr != nil {
 					return false, errors.Join(memberErrors...), rotateErr
 				}
 			}

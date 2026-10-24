@@ -49,7 +49,8 @@ func (d *memberResources) inputs(ctx context.Context, e evalstore.Experiment, m 
 	}
 	refs := map[string]contracts.ArtifactRef{}
 	err = d.operations.tx(ctx, func(s *evalstore.Store, tx pgx.Tx) error {
-		if err := s.LockMemberRecovery(ctx, scope(e), e.ID, m.MemberID, c); err != nil {
+		recovery := s.RecoverMember(scope(e), e.ID, m.MemberID, c)
+		if err := recovery.LockMember(ctx); err != nil {
 			return err
 		}
 		service := artifacts.NewService(artifacts.NewPostgresRepository(tx))
@@ -82,7 +83,7 @@ func (d *memberResources) inputs(ctx context.Context, e evalstore.Experiment, m 
 		if err != nil {
 			return err
 		}
-		return s.ResolveSuboperation(ctx, scope(e), e.ID, m.MemberID, "inputs", c, response, false)
+		return recovery.ResolveSuboperation(ctx, "inputs", response, false)
 	})
 	return refs, err
 }
@@ -113,7 +114,8 @@ func (d *memberResources) auditProject(ctx context.Context, e evalstore.Experime
 		return id, nil
 	}
 	err = d.operations.tx(ctx, func(s *evalstore.Store, tx pgx.Tx) error {
-		if err := s.LockMemberRecovery(ctx, scope(e), e.ID, m.MemberID, c); err != nil {
+		recovery := s.RecoverMember(scope(e), e.ID, m.MemberID, c)
+		if err := recovery.LockMember(ctx); err != nil {
 			return err
 		}
 		_, _, err := projectstore.NewPostgresStore(tx).Create(ctx, projectstore.CreateParams{
@@ -127,11 +129,11 @@ func (d *memberResources) auditProject(ctx context.Context, e evalstore.Experime
 		if err != nil {
 			return err
 		}
-		if err = s.RegisterExecutionProject(ctx, scope(e), e.ID, m.MemberID, id, op.Key, c); err != nil {
+		if err = recovery.RegisterExecutionProject(ctx, id, op.Key); err != nil {
 			return err
 		}
 		raw, _ := jsonBytes(executionCreated{ID: id})
-		return s.ResolveSuboperation(ctx, scope(e), e.ID, m.MemberID, op.Kind, c, raw, false)
+		return recovery.ResolveSuboperation(ctx, op.Kind, raw, false)
 	})
 	return id, err
 }

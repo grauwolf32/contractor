@@ -849,7 +849,7 @@ func TestSharedPostgresDeadlineAndObservedTokenLimitsDrainWithoutNewAdmissions(t
 				}
 				for _, observed := range []int64{100, 50, 100} {
 					if err = h.service.tx(t.Context(), func(s *evalstore.Store) error {
-						return s.ObserveTokens(t.Context(), h.scope, e.ID, members[0], claims[0], observed)
+						return s.RecoverMember(h.scope, e.ID, members[0], claims[0]).ObserveTokens(t.Context(), observed)
 					}); err != nil {
 						t.Fatal(err)
 					}
