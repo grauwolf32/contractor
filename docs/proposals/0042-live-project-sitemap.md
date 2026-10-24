@@ -1,9 +1,9 @@
 # Live Project sitemap over ArtifactStore
 
 Proposal 0042 · Status: **Draft design; not implemented.** Recorded on
-2026-10-23. This document records the user's selected direction and proposed
-contracts for review. It creates no implementation tasks and does not reactivate
-deferred tasks or other proposals.
+2026-10-23; implementation task breakdown added on 2026-10-24. This document
+records the user's selected direction and proposed contracts. The pending tasks
+in section 12 do not establish implementation or reactivate deferred work.
 
 This complements the frozen surface and evidence contracts in
 [proposal 0033](0033-autonomous-pentest-audits.md). A live sitemap is shared
@@ -556,7 +556,35 @@ copy of their state.
 Do not fold findings management, cross-round verification routing, a DOM graph,
 browser action replay, arbitrary stdout parsing or complete traffic capture
 into the sitemap's first implementation. Those capabilities retain their own
-contracts and deferred status.
+contracts outside this slice; existing deferred task records retain their status.
+
+### Implementation tasks recorded on 2026-10-24
+
+The first seven pending tasks form an independent HTTP/OpenAPI sitemap slice.
+Caido history and managed browser collection are separately deliverable
+follow-ups. Each task owns its normative contract updates, production callers,
+failure/lifecycle/scale criteria and required checks; this proposal remains
+unimplemented until those records are completed with evidence.
+
+| Task | Outcome | Depends on |
+| --- | --- | --- |
+| [V410-001](../../tasks/v410-001-project-sitemap-store.yml) | Publish a bounded Project sitemap through one authorized reducer | None |
+| [V410-002](../../tasks/v410-002-project-sitemap-toolset.yml) | Expose authorized live sitemap tools to Project allocations | V410-001 |
+| [V410-003](../../tasks/v410-003-http-sitemap-collection.yml) | Collect HTTP observations into the live Project sitemap | V410-002 |
+| [V410-004](../../tasks/v410-004-sitemap-structured-imports.yml) | Import bounded scanner and selected Caido observations | V410-002 |
+| [V410-005](../../tasks/v410-005-sitemap-openapi-reconciliation.yml) | Reconcile exact OpenAPI declarations with live sitemap members | V410-002, V55-007 |
+| [V410-006](../../tasks/v410-006-sitemap-workflow-composition.yml) | Ship ordinary sitemap discovery and reconciliation Workflows | V410-003, V410-004, V410-005, V55-003, V62-004 |
+| [V410-007](../../tasks/v410-007-sitemap-release-gate.yml) | Verify the first sitemap slice across scale and lifecycle boundaries | V410-006 |
+| [V410-008](../../tasks/v410-008-sitemap-caido-history.yml) | Import selected Caido history incrementally with durable checkpoints | V410-004, V410-007 |
+| [V410-009](../../tasks/v410-009-sitemap-browser-collection.yml) | Collect managed Playwright network observations into the sitemap | V410-002, V410-007, V412-001 |
+
+V410-007 is the first-slice milestone exit. V410-001 may start independently
+of pentest implementation; the first slice uses completed ordinary Workflow
+and Audit composition contracts and does not depend on deferred V61/V62/V64
+work. V410-008 and V410-009 each own their follow-up milestone exit.
+V410-009 consumes the managed browser adapter from V412-001, then V412-003
+can publish the combined browser program. This dependency does not feed back
+into the HTTP/OpenAPI sitemap gate.
 
 ## 13. Research and rationale
 

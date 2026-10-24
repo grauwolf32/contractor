@@ -1,0 +1,198 @@
+schema_version: '1.0'
+id: V410-005
+title: Reconcile exact OpenAPI declarations with live sitemap members
+milestone: project-sitemap-2026-10
+epic: projects-artifacts
+kind: feature
+priority: P1
+status: pending
+depends_on:
+- V410-002
+- V55-007
+languages:
+- go
+- python
+- json
+- yaml
+- markdown
+goal: Provide a callable deterministic reconciliation tool that imports declarations, groups retained observed members
+  and publishes safe guarded source changes with exact input/output provenance.
+context:
+  authority: User requested an implementation task breakdown of the reviewed proposals 0033 and 0042 on 2026-10-24;
+    this task records planned work, not implementation or verification evidence.
+  proposal: docs/proposals/0042-live-project-sitemap.md
+  proposal_sections: 'Sections 4 and 6-11: normalized OpenAPI, pure computation, source generations, rebase restrictions,
+    safe views and bounded regrouping.'
+  specification:
+  - docs/spec/artifacts/artifact-store.md
+  - docs/spec/artifacts/projects.md
+  - docs/spec/artifacts/retention-and-deletion.md
+  - docs/spec/platform/persistence.md
+  - docs/spec/platform/limits.md
+  - docs/spec/platform/errors.md
+  - docs/spec/tools/scanners.md
+  - docs/spec/execution/worker.md
+  - docs/spec/tools/toolsets.md
+  boundary: The live sitemap is shared research context, not current Audit coverage, complete traffic archival or
+    proof. The HTTP/OpenAPI first slice has no dependency on proposal 0033 implementation or deferred V61/V62/V64
+    work.
+  code:
+  - internal/scanplan/prepare.go
+  - internal/scanplan/operation.go
+  - internal/scanplan/references.go
+  - internal/scanplan/operation_selection.go
+  - internal/projectsitemap
+  - runtime/src/contractor_runtime/toolsets/sitemap
+  - runtime/src/contractor_runtime/toolsets/openapi
+  - api/testdata
+scope:
+  in:
+  - Reuse/extract the existing Go normalized OpenAPI operation/reference logic with callers retained in both scan
+    preparation and sitemap reconciliation; do not implement a second Runtime parser.
+  - Register a model-free-callable reconciliation tool receiving exact map/schema refs, explicit origin binding
+    and versioned grouping/projection policy.
+  - Emit an exact canonical enriched-map output, bounded source-update patch and report naming input refs/digests,
+    policy, omitted members and actual publication revision when selected.
+  - Implement declared-only/observed-only comparisons, concrete-path precedence, ambiguous-template gaps, parameter/media/outcome
+    differences and source-mode-safe snapshots.
+  - Apply optional shared source changes through the same guarded reducer and receipt/quota boundary; pure computation
+    alone does not imply publication.
+  out:
+  - Generating or rewriting OpenAPI, remote reference fetching, guessed origins, new semantic Audit steps or vulnerability
+    verdicts.
+  - Recovering discarded concrete members or widening suppressed/manual selections during regrouping.
+  - Shipped Workflow/Audit catalog composition (V410-006).
+requirements:
+- id: R1
+  text: Same exact authorized bytes/refs, explicit origin and versioned policy produce the same canonical computation
+    outputs. Publication timestamps/allocated revisions are separate.
+- id: R2
+  text: Unbound server variables, ambiguous deployment origins, unsupported structures and local reference failures
+    are explicit; no implicit remote fetch or target request occurs.
+- id: R3
+  text: Concrete declarations such as /users/me precede templates. Ambiguous matches remain unresolved, source-derived
+    declarations stay labelled, and observation confidence is not upgraded by a schema.
+- id: R4
+  text: Regroup only retained concrete members. Preserve their applicable context/evidence/manual metadata and exclusions,
+    and retain unknown aggregate/gaps for discarded members.
+- id: R5
+  text: Publication preserves concurrent append observations but compares expected source generation/ref/digest/policy
+    and manual state. A stale old-schema Workflow cannot refresh its predecessor and retry as a new intended source
+    replacement.
+- id: R6
+  text: Use declared artifact slots for large map/report outputs; keep the tool completion envelope bounded. Apply
+    the same source-mode filtering before materialization as live reads and do not fork raw mixed content into blackbox.
+failure_outcomes:
+- operation: Exact map/schema read and deterministic reconciliation
+  permanent: Invalid map/schema, inaccessible refs, unsupported policy or missing explicit origin fails permanently
+    with prior shared content intact; documented per-operation extraction limitations produce bounded gaps.
+  retryable: Only storage/Artifact transport failures retry against the same exact inputs and operation deadline.
+  ambiguous: Reconcile exact result publication identities; do not rerun target traffic because this tool performs
+    none.
+  cancelled: Join bounded computation/output assembly before allocation cleanup.
+  timeout: The reconciliation deadline owns parse/reindex/output work; budgets bound nested reference expansion
+    and source bytes.
+- operation: Optional guarded live source replacement
+  permanent: Stale source/manual preconditions or quotas are permanent conflicts; retaining the private computation
+    does not authorize shared rollback.
+  retryable: Only append-compatible CAS races may rebase within three attempts/deadline; source conflicts never
+    refresh intent automatically.
+  ambiguous: Existing keyed receipt returns the original generation/revision without charging again.
+  cancelled: A fenced allocation cannot publish after cleanup begins.
+  timeout: Publication acknowledgement reconciliation has its own remaining operation allowance and never changes
+    pinned input intent.
+cardinality:
+- collection: Selected OpenAPI operations and references plus retained map members
+  expected: 100-1000 operations/groups
+  maximum: Existing scanplan parse/reference bounds and proposal section 10 map/member/source/rule ceilings; tighter
+    bound wins
+  bound: Bound bytes/reference expansion and one accepted source patch; no whole-history scan or per-request Workflow.
+- collection: Comparison report and output artifacts
+  expected: Bounded summary with exact selected differences
+  maximum: Artifact/tool-envelope/consumer document limits plus proposal map bounds
+  bound: Large output uses explicit artifact slots; truncate only through explicit counts/continuation/gaps, never
+    a false complete comparison.
+lifecycle:
+- entity: Source generation and reconciliation output
+  delete: Source replacement is guarded; Project purge removes map source metadata and ordinary output scope purge
+    follows existing policy.
+  cascade: Independent observed traffic survives source replacement; Run deletion does not erase published Project
+    metadata.
+  retention: Exact computation inputs/outputs and selected evidence use ordinary refs/holds; live publication records
+    actual updated revision separately.
+acceptance_criteria:
+- id: A1
+  given: Exact OpenAPI/map inputs and supported/unsupported reference/origin fixtures
+  when: The registered tool computes repeatedly
+  then: Canonical outputs match and bounded gaps replace guesses or external fetches; the ordinary scan preparation
+    regressions remain correct.
+- id: A2
+  given: Concrete /users/me, template /users/{id}, ambiguous templates and observed extra parameters
+  when: Declarations are imported before or after traffic
+  then: Concrete precedence, separate declarations/observations and parameter differences are correct without manufactured
+    coverage.
+- id: A3
+  given: Suppressed members, identity contexts and discarded incoming members at inventory limits
+  when: A schema regroups the map
+  then: Retained provenance/edits survive, no suppression widens and unavailable old membership remains an explicit
+    gap.
+- id: A4
+  given: Concurrent v1/v2 schema replacements and appended observations
+  when: The older computation finishes after the newer source commits
+  then: Shared source rollback is rejected, appended observations survive and a retry preserves the original expected
+    predecessor.
+- id: A5
+  given: Mixed source-mode inputs, large output and a lost publication reply
+  when: A blackbox tool computes/publishes through production boundaries
+  then: Only safe authorized outputs materialize in explicit slots, receipt replay retains exact result identity
+    and quotas are charged once.
+deliverables:
+- path: internal/scanplan
+  description: Reuse the existing normalization/reference authority; extract common lower-layer types only with
+    both production callers and architecture classification.
+- path: runtime/src/contractor_runtime/toolsets/sitemap
+  description: Registered reconciliation tool backed by the authorized service, with explicit artifact output contract.
+- path: api/testdata
+  description: Cross-language canonical, source-conflict, grouping and safe-output fixtures.
+tests:
+- command: go test ./internal/scanplan/... ./internal/contracts/... ./internal/projectsitemap/...
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make test-project-sitemap-postgres
+  covers:
+  - A3
+  - A4
+  - A5
+- command: make test-wire-cross-language
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: uv run --project runtime pytest runtime/tests/test_openapi_toolset.py runtime/tests/test_sitemap_*.py
+  covers:
+  - A1
+  - A2
+  - A3
+  - A5
+- command: make test-project-sitemap-tools-e2e
+  covers:
+  - A1
+  - A2
+  - A4
+  - A5
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+test_prerequisites:
+- Register deterministic reconciliation process cases in the sitemap gate. No target network, installed scanner,
+  browser or external model is needed. PostgreSQL-backed source races and receipt/quota cases are mandatory.
