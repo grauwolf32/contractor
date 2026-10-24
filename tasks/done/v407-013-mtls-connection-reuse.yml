@@ -7,7 +7,7 @@ kind: chore
 introduced_by: V8-004
 priority: P2
 status: completed
-implementation_commit: 815a4a5ef734323bddbcab7fd3e6a882317e6311
+implementation_commit: cfecd2db7a8a724dc19528ddbce4f80ba556ea1c
 depends_on: []
 languages:
 - go
@@ -93,7 +93,7 @@ tests:
   - A4
 verification:
   date: '2026-10-23'
-  revision: 815a4a5ef734323bddbcab7fd3e6a882317e6311
+  revision: cfecd2db7a8a724dc19528ddbce4f80ba556ea1c
   environment: >-
     Worktree contractor-wt/h, branch claude/rv-h on base 09411b65, macOS arm64 (Darwin), Go 1.26,
     Python 3.13 via uv sync --locked, local PostgreSQL database contractor_test_h through
@@ -181,6 +181,30 @@ verification:
     internal/publicclient/client.go:115 the CLI client clone of DefaultTransport. None reaches a Runtime
     Agent and none is changed. The two Runtime-facing clients (control client, A2A invoker) are the
     only users of BindRuntimeAgentPrincipal and now go through RuntimeAgentTransports.'
+  - 'Review follow-up (cfecd2db, on top of 815a4a5e): the Runtime treated an interim 1xx head as final,
+    so a framed 103 left the real response pending on a pooled connection and the next exchange returned
+    it (the reviewer probe confirmed the second GET returned /first), and an unframed 103 from the Go
+    Server waited for EOF until the timeout. The Runtime now skips at most five interim heads, refuses
+    101, never pools after a 1xx and rejects a 204/304 that declares content.
+    test_private_connections_skip_interim_responses_and_never_reuse_after_them (unframed 103, framed 103
+    sent apart from the final response, 100 then 103, five interim heads) and
+    test_private_connections_reject_switching_and_content_on_empty_responses cover it; the reviewer probe
+    now returns /first, /second, /third on two connections. A GET is resent only when no response byte
+    arrived (ConnectionReader counts received bytes): test_private_connections_resend_a_read_only_when_no_response_byte_arrived
+    resends after a reset with no byte and raises after a reset following a partial head. Waiters of an
+    evicted origin still run on unpooled connections (test_private_connections_serve_waiters_of_an_evicted_origin).
+    Server Evict, Close and lifetime retirement close idle connections at once even with a request in
+    flight (TestRuntimeAgentTransportsCloseIdleConnectionsAtOnceWhileOthersAreInFlight, Evict and Close).
+    Each new test fails against a mutant that restores the old behaviour. LIM-CTL-16 records the
+    transient doubling while a retired transport or evicted origin finishes, and LIM-CTL-14/15 and
+    LIFE-CTL-5 state that the Runtime closes an expired idle connection at its next exchange to that
+    origin, at shutdown or when the listener closes it. Reruns after the fix: go test -race -count=1
+    ./internal/controlplane/... ./internal/planner/a2a/... ./internal/mtls/... ./internal/app/... pass;
+    go test -race -count=10 ./internal/mtls/ pass; go test -tags integration ./internal/controlplane/
+    ./internal/httpapi/privateartifacts/ pass; the task pytest command plus test_control_transport.py,
+    test_gateway_recovery.py and test_server_mtls.py pass (test_https.py 85 tests); make
+    test-wire-cross-language pass; make lint pass. make test-e2e and the full Runtime suite were not
+    rerun after the follow-up.'
   - 'Spec: CTL-R163 to CTL-R166 (docs/spec/execution/control-plane.md, Private connection reuse),
     LIM-CTL-13 to LIM-CTL-18 (limits.md), FAIL-CTL-11 (failure-model.md), LIFE-CTL-5 (lifecycle.md);
     api/testdata/v1alpha1/private-connection-reuse.json is read by TestSharedPrivateConnectionReuseLimits
