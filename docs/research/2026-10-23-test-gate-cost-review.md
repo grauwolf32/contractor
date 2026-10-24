@@ -6,25 +6,29 @@
 
 **Outcome:** the checks are the right ones (real PostgreSQL, shared fixtures, process tests, race pass); the cost comes from how often each is repeated and from per-test setup. The Runtime suite is not the problem.
 
-## Status (2026-10-23)
+## Status (2026-10-24)
 
-V408-003 implements bounded package scheduling, with the local measurements
-below. In-package PostgreSQL parallelism is excluded until its isolation
-conflict with V408-002 is resolved. V408-004 implements the narrowed Server
-binary reuse scope, and V408-005 consolidates repeated family runs. Other
-findings and the final CI timing/stability checks remain open. Tasks
-V408-001 … V408-007 (milestone `test-gate-cost-2026-10`); V408-007 records
-the full before/after CI durations, retains the three consecutive Linux CI
-race runs and closes the review.
+V408-003 (bounded race package scheduling), V408-004 (package-lifetime Server
+builds) and V408-005 (consolidated family runs with coverage guards) are
+implemented and merged. V408-008 and V408-009 repaired verification fixtures.
 
-| Finding | Task |
+At the user's explicit request, the remaining V408-001, V408-002, V408-006 and
+V408-007 are archived. No further V408 optimisation or timing campaign is
+scheduled. Their original scope and unmet acceptance remain in the archived
+task files; this disposition does not claim they were completed. The extra
+three consecutive Linux CI race runs from V408-007 were not performed and
+are no longer scheduled. Existing gates, parallelism, deadlines and the
+requirement for evidence before increasing parallelism or reducing budgets
+remain unchanged. Other independently tracked correctness work is unaffected.
+
+| Finding | Disposition |
 | --- | --- |
-| T1 per-test schema and migrations, 34 helper copies | V408-002 |
+| T1 per-test schema and migrations, 34 helper copies | [V408-002](../../tasks/done/v408-002-shared-postgres-test-schema.yml): archived; retain per-test isolation |
 | T2 serial race stages (`-p 1`), almost no `t.Parallel` | [V408-003](../../tasks/done/v408-003-parallel-race-stages.yml): package scheduling implemented; in-package parallelism excluded |
-| T3 e2e builds the Server and PKI per test | [V408-004](../../tasks/done/v408-004-e2e-build-once.yml): binary reuse only; PKI and deadlines remain per test |
-| T4 family-target guard gaps, 20 unguarded pytest runs, unused `test-runtime-hardening` | [V408-005](../../tasks/done/v408-005-family-guard-gaps.yml): implemented and verified |
-| T5 `-count=1` on pure packages | V408-006 |
-| Baseline and final measurement | V408-001, V408-007 |
+| T3 e2e builds the Server and PKI per test | [V408-004](../../tasks/done/v408-004-e2e-build-once.yml): binary reuse implemented; PKI and deadlines remain per test |
+| T4 family-target guard gaps and repeated runs | [V408-005](../../tasks/done/v408-005-family-guard-gaps.yml): implemented and verified |
+| T5 `-count=1` on pure packages | [V408-006](../../tasks/done/v408-006-go-test-cache.yml): archived; no additional cache classifier |
+| Baseline and final measurement | [V408-001](../../tasks/done/v408-001-gate-duration-baseline.yml), [V408-007](../../tasks/done/v408-007-gate-duration-after.yml): archived at user request |
 
 ## Findings
 
@@ -64,8 +68,8 @@ direct connections. Schema separation also does not isolate database-scoped
 advisory locks. Keep the default at two packages until representative CI runs
 show both connection/memory headroom and an elapsed-time improvement.
 
-V408-001 still owns the complete pre-optimisation baseline. V408-007 owns the
-final Linux CI comparison, repeated CI runs and any timeout adjustment; local
+The complete baseline and repeated Linux CI comparison were originally assigned
+to V408-001 and V408-007. Both are now archived at user request; local
 measurements alone do not establish CI speed or absence of flakes.
 
 ### Local package-parallelism measurement
@@ -104,8 +108,8 @@ This is one exploratory local pair on a shared development machine.
 It establishes neither a minimum CI speedup nor absence of flakes.
 CI runs these stages as separate jobs, so their sum is not full CI wall
 time; process/browser stage durations are unchanged by this change.
-V408-001 and V408-007 retain the full baseline and repeated Linux CI
-comparison. Do not increase the default or lower CI timeouts from these
+The full baseline and repeated Linux CI comparison originally assigned to
+V408-001 and V408-007 are now archived at user request. Do not increase the default or lower CI timeouts from these
 local numbers alone.
 
 Verification: all three race targets on real PostgreSQL at `-p 2` and
@@ -202,7 +206,8 @@ by V408-005. This follow-up claims the listed task checks, not a complete
 The accepted scope is binary reuse only. The original shared CA, deadline
 reductions and shard rebalancing are excluded. V408-001 is no longer a
 prerequisite for this narrower change. The broader CI timing and repeated
-Linux stability checks remain with V408-007.
+Linux stability checks originally assigned to V408-007 were later archived
+at user request; they are not completed verification.
 
 The ordinary process selection previously invoked `go build` 25 times. The
 four browser stack scenarios each built again. Both harnesses now request a

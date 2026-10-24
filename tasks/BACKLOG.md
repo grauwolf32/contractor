@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-125 open tasks: 6 in progress, 94 pending, 25 deferred. 1005 finished: 1002 completed, 3 archived.
+121 open tasks: 6 in progress, 90 pending, 25 deferred. 1009 finished: 1002 completed, 7 archived.
 
 ## In progress
 
@@ -178,7 +178,6 @@ the epics are in [epics.yml](epics.yml).
 | [V407-025](v407-025-persistence-indexes-and-triggers.yml) | chore | P2 | — | Reduce Project-drain and held-Audit query work and scope Stage triggers |
 | [V407-026](v407-026-store-error-classes-and-event-validation.yml) | defect | P3 | — | Classify missing Project references at the Run-store boundary |
 | [V407-027](v407-027-shared-controller-claim-loop.yml) | chore | P3 | — | Share controller claim-lifecycle plumbing without merging distinct scheduling policies |
-| [V408-002](v408-002-shared-postgres-test-schema.yml) | chore | P2 | V408-001 | Apply migrations once per package: one shared PostgreSQL test helper with per-test truncation |
 | [V409-006](v409-006-trigger-column-scoping.yml) | chore | P2 | — | Scope unnecessary trigger work while preserving admission and projection effects |
 | [V409-007](v409-007-dead-and-redundant-indexes.yml) | chore | P2 | — | Consolidate indexes only where reader and constraint evidence permits it |
 | [V409-008](v409-008-state-set-schema-tests.yml) | chore | P3 | — | Extend migrated-schema state-set parity tests to the remaining reviewed owners |
@@ -200,9 +199,6 @@ the epics are in [epics.yml](epics.yml).
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | chore | P3 | — | Find out why about a hundred Runtime tests fail on a macOS host and make each one pass or declare its platform |
 | [V407-038](v407-038-runtime-dead-surface.yml) | chore | P3 | — | Move the shared filesystem tool error type into toolsets.common |
 | [V407-039](v407-039-close-server-runtime-review.yml) | chore | P3 | V407-001, V407-002, V407-003, V407-004, V407-005, V407-006, V407-007, V407-008, V407-009, V407-010, V407-011, V407-012, V407-013, V407-014, V407-015, V407-016, V407-017, V407-018, V407-019, V407-020, V407-021, V407-022, V407-023, V407-024, V407-025, V407-026, V407-027, V407-028, V407-029, V407-030, V407-031, V407-032, V407-033, V407-034, V407-035, V407-036, V407-037, V407-038 | Close the validated Server and Runtime review with explicit dispositions and verification |
-| [V408-001](v408-001-gate-duration-baseline.yml) | chore | P2 | — | Record the baseline duration of every release stage and local test target |
-| [V408-006](v408-006-go-test-cache.yml) | chore | P3 | — | Let pure Go packages use the test cache: -count=1 only for database and process tests |
-| [V408-007](v408-007-gate-duration-after.yml) | chore | P3 | V408-001, V408-002, V408-006 | Record the release gate durations after the optimisations and close the test gate cost review |
 
 ## Deferred
 
@@ -259,5 +255,5 @@ tasks in `introduced_by`.
 | Web UI (`ui`) | 1 | 24 | 61 | 13 | 55 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 16 | 33 | 6 | 11 |
 | Public API and wire contracts (`api-contracts`) | 8 | 1 | 34 | 20 | 11 |
-| PostgreSQL persistence and schema (`persistence`) | 13 | 0 | 21 | 41 | 10 |
-| Quality, CI and process (`quality`) | 17 | 1 | 25 | 89 | 22 |
+| PostgreSQL persistence and schema (`persistence`) | 12 | 0 | 21 | 41 | 10 |
+| Quality, CI and process (`quality`) | 14 | 1 | 25 | 89 | 22 |
