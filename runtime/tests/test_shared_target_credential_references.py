@@ -22,7 +22,11 @@ from contractor_runtime.contracts import (
 )
 
 FIXTURE = (
-    Path(__file__).resolve().parents[2] / "api" / "testdata" / "v1alpha1" / "target-credential-cases.json"
+    Path(__file__).resolve().parents[2]
+    / "api"
+    / "testdata"
+    / "v1alpha1"
+    / "target-credential-cases.json"
 )
 TARGET_KINDS = {"target-basic@1", "target-bearer@1", "target-login@1"}
 
