@@ -467,8 +467,10 @@ relabel attribution or block semantic terminalization and allocation release
 
 **OBS-R37.** For every expected participant that started but produced
 no report, Scheduler records an incomplete placeholder with unknown fields.
-Absence from a `StageMetrics` map means the participant was not started or was
-not applicable (FAIL-OBS-1).
+The one exception is a model-free Planner, which does no model work: its
+placeholder states zero model calls and tokens, as its own report would
+([EVM-R81](../evals/managed-evals.md)). Absence from a `StageMetrics` map means
+the participant was not started or was not applicable (FAIL-OBS-1).
 
 **OBS-R38.** Report collection is best-effort and cannot raise into the
 Planner or change a semantically valid StageResult or a durable
@@ -547,9 +549,21 @@ decodes it (LIM-OBS-7). PostgreSQL stores each number as its exact decimal
 expansion and renders a stored document with a space after each separator, so
 a stored report reads back as longer text and its decoded numbers keep that
 expansion. A stored report is decoded as strictly as a received one and passes
-every rule of a received one except the byte bounds. LIM-OBS-16 bounds the
-expansion: a kept number has at most 20 integer digits, and at most 7 more
-fraction digits than its literal, so no element expands more than `1e19,` does
+every rule of a received one except the byte bounds. The replay identity
+lookups decode a stored report this strictly, and the StageMetrics rebuild
+also checks every report rule before it stores the document. Every reader of
+a stored StageMetrics document applies the same decoding and rules: Run detail
+omits a document that fails them ([RUN-R90](../execution/runs.md)), and Eval
+usage collection, which reads each report's completeness and metrics, fails
+as a data-integrity error ([EVM-R81](../evals/managed-evals.md)). Run detail
+and the rebuild decode a stored Stage summary the same way, with every member
+present and no counter negative (OBS-R112). The Eval token threshold reads
+only the summary's `totalTokens` inside one bounded SQL sum
+([EVM-R248](../evals/managed-evals.md)) and relies on the rebuild being the
+summary's only writer: it derives the summary from validated reports and
+decodes the stored copy strictly. LIM-OBS-16 bounds the expansion: a kept
+number has at most 20 integer digits, and at most 7 more fraction digits than
+its literal, so no element expands more than `1e19,` does
 into `10000000000000000000, `, 4.4 times, and a stored report reads back as at
 most 4.4 times its 1 MiB bound. Measured on PostgreSQL 17 with 1 MiB reports of
 250 tool calls, arrays of `1e19` read back as 4.27 times the bound, the

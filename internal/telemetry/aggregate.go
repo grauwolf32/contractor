@@ -43,15 +43,30 @@ var (
 // Each counter is the saturating sum of its reports' counters: at most
 // math.MaxInt64, never wrapped negative (OBS-R112).
 type Summary struct {
-	ReportsComplete bool  `json:"reportsComplete"`
-	ModelCalls      int64 `json:"modelCalls"`
-	InputTokens     int64 `json:"inputTokens"`
-	OutputTokens    int64 `json:"outputTokens"`
-	TotalTokens     int64 `json:"totalTokens"`
-	ToolCalls       int64 `json:"toolCalls"`
-	ToolFailures    int64 `json:"toolFailures"`
-	ErrorCount      int64 `json:"errorCount"`
-	Truncated       bool  `json:"truncated"`
+	ReportsComplete bool  `json:"reportsComplete" strictjson:"required"`
+	ModelCalls      int64 `json:"modelCalls" strictjson:"required"`
+	InputTokens     int64 `json:"inputTokens" strictjson:"required"`
+	OutputTokens    int64 `json:"outputTokens" strictjson:"required"`
+	TotalTokens     int64 `json:"totalTokens" strictjson:"required"`
+	ToolCalls       int64 `json:"toolCalls" strictjson:"required"`
+	ToolFailures    int64 `json:"toolFailures" strictjson:"required"`
+	ErrorCount      int64 `json:"errorCount" strictjson:"required"`
+	Truncated       bool  `json:"truncated" strictjson:"required"`
+}
+
+// Validate checks a summary that Summarize did not just build, read back from
+// storage or held by the Operations registry: a saturating sum of validated
+// reports never has a negative counter (OBS-R112).
+func (s Summary) Validate() error {
+	for _, value := range []int64{
+		s.ModelCalls, s.InputTokens, s.OutputTokens, s.TotalTokens,
+		s.ToolCalls, s.ToolFailures, s.ErrorCount,
+	} {
+		if value < 0 {
+			return fmt.Errorf("%w: summary counters must not be negative", ErrInvalid)
+		}
+	}
+	return nil
 }
 
 func BuildStageMetrics(

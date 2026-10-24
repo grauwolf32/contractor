@@ -565,11 +565,21 @@ counts do not change the expected member or scored denominator.
 
 **EVM-R80.** Cached tokens remain a subset of input tokens.
 
-**EVM-R81.** The model-free `passthrough@1` Planner reports explicit zero model
-calls and token counters. For retained reports that omitted those counters,
-collection derives the zeros only from the immutable Stage's exact
-`passthrough@1` identity. Missing Worker or model-backed Planner counters
-remain incomplete.
+**EVM-R81.** A model-free Planner does no model work, so its report states
+explicit zero model calls and token counters: `passthrough@1` reports them
+itself, and the Scheduler's incomplete placeholder for a model-free Planner
+that produced no report states them too
+([OBS-R37](../platform/observability.md)). Collection reads every Planner and
+Worker counter as stored and never derives one from the Planner's identity, so
+a missing counter remains incomplete whatever the Planner. It decodes stored
+StageMetrics as strictly as their reports were validated on write
+([OBS-R110, OBS-R111](../platform/observability.md)): a document with a
+duplicate, unknown, missing or null member, or a counter outside 0..2^53-1, is
+a data-integrity error that fails the member's collection, never a missing or
+zero counter (FAIL-EVM-7). Removing the earlier derivation of zeros for
+retained `passthrough@1` reports without counters changed the native output
+normalizer's results, so it is normalizer version 3 with a new pinned
+implementation digest ([EVF-R53, EVF-R58](format.md)).
 
 **EVM-R240.** A counter's usage does not depend on the order in which its
 contributions are read. Collection sums the known nonnegative contributions of
@@ -1508,7 +1518,7 @@ Failure outcomes ([failure model](../platform/failure-model.md)):
 - FAIL-EVM-5 — member submission creating a Run or Audit (EVM-R126, EVM-R127,
   EVM-R130, EVM-R134).
 - FAIL-EVM-6 — human review followed by selection (EVM-R161).
-- FAIL-EVM-7 — read-model view publication (EVM-R165).
+- FAIL-EVM-7 — read-model view publication (EVM-R81, EVM-R165).
 - FAIL-EVM-8 — paginated reads over a changing view, collection or execution
   inventory (EVM-R186, EVM-R212, EVM-R215).
 - FAIL-EVM-9 — a bounded eval purge pass (EVM-R243).

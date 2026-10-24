@@ -36,14 +36,6 @@ func EncodeResolvedWorkflowSnapshot(workflow ResolvedWorkflow) ([]byte, error) {
 	return data, nil
 }
 
-// PostgreSQL text-array paths of the Planner of a stored ResolvedStage that
-// Eval metrics read. Renaming a tag must rename its constant;
-// internal/persistence pins each one against an encoded value.
-const (
-	StagePlannerIDPath      = "{planner,plannerId}"
-	StagePlannerVersionPath = "{planner,version}"
-)
-
 // DecodeResolvedWorkflowSnapshot strictly decodes immutable Run authority.
 // Every Stage must retain its explicit Worker session mode. Worker session defaults
 // are resolved before persistence. Optional maxSubtasks instead retains its
