@@ -213,11 +213,12 @@ func correlateFindingSelection(selection string, newestFirst bool) string {
   SELECT DISTINCT correlation_project_id, correlation_group_key FROM selected
  ), presentations AS MATERIALIZED (
   SELECT requested.correlation_project_id, requested.correlation_group_key,
-         project.finding_correlation_revision,
+         ` + projectCorrelationRevision + ` AS finding_correlation_revision,
          representative.finding_id AS representative_id, representative.audit_id AS representative_audit,
          next_peer.finding_id IS NOT NULL AS has_other_observations
     FROM requested_groups AS requested
-    JOIN projects AS project ON project.project_id=requested.correlation_project_id AND project.owner_id=$1
+    JOIN projects AS project ON project.project_id=requested.correlation_project_id AND project.owner_id=$1` +
+		projectCorrelationFenceJoin + `
     LEFT JOIN LATERAL (
      SELECT peer.finding_id, peer.audit_id FROM audit_findings AS peer
       WHERE peer.correlation_project_id=requested.correlation_project_id
