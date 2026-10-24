@@ -6,7 +6,7 @@ epic: scan-tools
 kind: defect
 introduced_by: V406-001
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [python, go, markdown]
 goal: Installed Nuclei Runs publish a small provenance manifest with one verified package digest, while custom owner rulepacks retain exact per-rule evidence.
@@ -60,3 +60,14 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
+implementation_commit: 634d0ba0afa10caa2ef883e3bb06b2e5907baace
+verification:
+  date: "2026-10-24"
+  passed:
+    - cd runtime && uv run pytest -W error tests/test_scan_*.py; 502 passed.
+    - make test-nuclei-web-e2e; real Server and Runtime process gate passed with a disposable PostgreSQL database.
+    - make lint; task, specification, layer and other lint checks passed.
+  scope: >-
+    The full make test-runtime gate was attempted separately and did not pass:
+    107 unrelated macOS host and timing failures, 4594 passed, 39 skipped.
+    No scanner suite test failed. The change is not merged or deployed to demo.
