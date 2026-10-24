@@ -523,18 +523,31 @@ holds (OBS-R30) or a text containing `://` that its URL check treats as
 credential-bearing. Only such a change makes the Server remove more detail
 than the Runtime removed. The shared `telemetry-report-trim-cases.json` fixture
 pins the retained suffix at every removal boundary, the equal sizes and the
-unchanged records, including records the Runtime's producer built. The bounds
-apply to the compact JSON received; PostgreSQL stores each number as its exact
-decimal expansion and renders a stored document with a space after each
-separator, so a stored report reads back as longer text. LIM-OBS-16 keeps each
-number at most 330 characters longer than its literal. A report at the 1 MiB
-bound whose tool argument summaries hold only bare `1e308` array elements read
-back as 50.5 times its size (52.8 MB of text), and 43.3 and 45.6 times with the
-Runtime's own `1e+308` and `5e-324`, while its stored jsonb stayed under 100 KB;
-plain one-digit elements read back as 1.5 times. The readers of a stored report,
-the StageMetrics rebuild and the replay comparison (OBS-R9), accept that factor.
-Should a reader need to hold less, the expanded digit count of a number must be
-bounded on both sides, by the Runtime's summary and by the Server's decoding.
+unchanged records, including records the Runtime's producer built.
+
+The byte bounds measure the compact JSON a report is received in, and only
+that: the private response bounds the report a Runtime sent at 1 MiB before it
+decodes it (LIM-OBS-7). PostgreSQL stores each number as its exact decimal
+expansion and renders a stored document with a space after each separator, so
+a stored report reads back as longer text and its decoded numbers keep that
+expansion. A stored report is decoded as strictly as a received one and passes
+every rule of a received one except the byte bounds; LIM-OBS-16 keeps each
+number at most 330 characters longer than its literal. Measured on PostgreSQL
+17 with 1,000 tool calls trimmed to the 1 MiB bound, a stored report read back
+as 1.24 times that bound with arrays of one-character strings and 49.7 times
+(52 MB) with arrays of `1e308`; with the Runtime's own `1e+308` and `5e-324`
+forms it read back as 43.3 and 45.6 times, and its stored jsonb stayed under
+100 KB. The StageMetrics rebuild decodes the Planner's report and the report of
+every logical Agent of the Stage at once, encodes them into the StageMetrics
+document and decodes that again; Run detail decodes that document, and the
+replay identity lookup (OBS-R9) decodes one stored report. Their memory
+therefore grows by up to that factor. The Server accepts this cost: the received
+bounds and LIM-OBS-16 cap it, and the Server's process readings of RSS and
+Go heap bytes
+([OPS-R110](../operations/operations.md)) show it. Reopen it when a rebuild must fit a memory budget or a stored
+tool call becomes readable through an API; then either bound the expanded digit
+count of a number on both sides, in the Runtime's summary and the Server's
+decoding, or have the readers select only the counters they need.
 
 **OBS-R43.** Durable telemetry expires after 30 days (LIM-OBS-8). Cleanup
 is batch-bounded and may delete only telemetry that belongs to a terminal
@@ -1040,11 +1053,13 @@ These properties follow from the cited requirements, which are authoritative.
    `test_overflow_and_shutdown_are_counted_once` and
    `test_drop_counters_saturate_and_reports_are_detached` in
    [`runtime/tests/test_otlp_retries.py`](../../../runtime/tests/test_otlp_retries.py).
-7. Repeated report delivery is idempotent, persisted reports are redacted and
-   durable telemetry expires in bounded batches (OBS-R9,
-   OBS-R27, OBS-R43, OBS-R44); tests
-   `TestMetricsPostgresIdempotencyRedactionAggregationAndRetention` and
-   `TestMetricsPostgresReplayComparesNumbersAsStored` in
+7. Repeated report delivery is idempotent, persisted reports are redacted,
+   every reader decodes a report stored at its byte bound, and durable
+   telemetry expires in bounded batches (OBS-R9, OBS-R27, OBS-R43, OBS-R44,
+   OBS-R110); tests
+   `TestMetricsPostgresIdempotencyRedactionAggregationAndRetention`,
+   `TestMetricsPostgresReplayComparesNumbersAsStored` and
+   `TestMetricsPostgresReadsReportsTrimmedToTheByteBound` in
    [`internal/telemetry/postgres_integration_test.go`](../../../internal/telemetry/postgres_integration_test.go)
    and `TestRetentionDrainsFullBatchesBeforeLongWait` in
    [`internal/telemetry/retention_test.go`](../../../internal/telemetry/retention_test.go).

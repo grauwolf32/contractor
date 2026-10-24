@@ -239,12 +239,101 @@ func TestMetricsPostgresReplayComparesNumbersAsStored(t *testing.T) {
 	}
 }
 
+// TestMetricsPostgresReadsReportsTrimmedToTheByteBound stores reports that the
+// Server trimmed to their 1 MiB bound and reads them back. jsonb renders a
+// stored report with a space after each separator and every number expanded,
+// so its text exceeds the bound the received report met: short strings add a
+// quarter, 1e308 elements about fifty times (OBS-R110). Every reader of a
+// stored report (ListAllocationReports, RebuildStageMetrics and the replay
+// identity lookup of both kinds) must still decode it. The 1e308 case decodes
+// about 50 MB per stored report, which takes about a minute under -race.
+func TestMetricsPostgresReadsReportsTrimmedToTheByteBound(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	pool := isolatedTelemetryPool(t, ctx)
+	runs := runstore.NewPostgresStore(pool)
+	reports := telemetry.NewRepository(pool)
+	createTelemetryRun(t, ctx, runs)
+	receivedAt := time.Now().UTC()
+	for index, element := range []string{`"a"`, "1e308"} {
+		allocationID := fmt.Sprintf("allocation-bound-%d", index)
+		sessionID := fmt.Sprintf("session-bound-%d", index)
+		stage := createTelemetryStage(
+			t, ctx, runs, fmt.Sprintf("stage-bound-%d", index), allocationID, sessionID,
+		)
+		arguments := runtimeArgumentsJSON(t, boundedArgumentSummary(element))
+		calls := make([]reporting.ToolCallRecord, 1000)
+		for call := range calls {
+			calls[call] = reporting.ToolCallRecord{
+				CallID: fmt.Sprintf("call-%04d", call), Tool: "probe",
+				Arguments: arguments, Outcome: reporting.ToolCallSucceeded,
+			}
+		}
+		count := int64(len(calls))
+		tools := map[string]reporting.ToolMetrics{"probe": {Calls: &count, Succeeded: &count}}
+		allocation := allocationEnvelope(stage, allocationID, receivedAt, true)
+		allocation.Report.Worker.Metrics.Tools = tools
+		allocation.Report.Worker.ToolCalls = calls
+		planner := plannerEnvelope(stage, sessionID, receivedAt)
+		planner.Report.Metrics.Tools = tools
+		planner.Report.ToolCalls = calls
+		for attempt := range 2 { // The second attempt replays both reports.
+			if err := reports.RecordAllocationReport(ctx, allocation); err != nil {
+				t.Fatalf("%s: allocation report attempt %d: %v", element, attempt+1, err)
+			}
+			if err := reports.RecordPlannerReport(ctx, planner); err != nil {
+				t.Fatalf("%s: Planner report attempt %d: %v", element, attempt+1, err)
+			}
+		}
+		for _, table := range []string{"allocation_execution_reports", "planner_execution_reports"} {
+			var truncated bool
+			var rendered int
+			if err := pool.QueryRow(ctx, `
+SELECT coalesce(report->'worker', report)->>'truncated' = 'true', octet_length(report::text)
+FROM `+table+` WHERE stage_execution_id = $1`, stage).Scan(&truncated, &rendered); err != nil {
+				t.Fatal(err)
+			}
+			if !truncated || rendered <= telemetry.MaxReportJSONBytes {
+				t.Fatalf("%s: %s truncated=%t renders %d bytes, want a trimmed report beyond 1 MiB",
+					element, table, truncated, rendered)
+			}
+		}
+		stored, err := reports.ListAllocationReports(ctx, stage)
+		if err != nil || len(stored) != 1 || !stored[0].Report.Worker.Truncated {
+			t.Fatalf("%s: stored allocation reports = %d (%v), want one truncated report", element, len(stored), err)
+		}
+		metrics, err := reports.RebuildStageMetrics(ctx, stage, contracts.APIVersion)
+		if err != nil {
+			t.Fatalf("%s: rebuild StageMetrics: %v", element, err)
+		}
+		if metrics.Summary.ToolCalls != 2*count {
+			t.Fatalf("%s: StageMetrics tool calls = %d, want %d", element, metrics.Summary.ToolCalls, 2*count)
+		}
+	}
+}
+
 // runtimeArguments decodes an argument summary holding literal as the Server
 // decodes a Runtime report, which keeps the literal as written.
 func runtimeArguments(t *testing.T, literal string) reporting.ToolArguments {
 	t.Helper()
+	return runtimeArgumentsJSON(t, `{"value":`+literal+`}`)
+}
+
+// boundedArgumentSummary fills a 4096-byte summary with element in arrays of
+// 32, the most items a summary container keeps.
+func boundedArgumentSummary(element string) string {
+	row := "[" + strings.TrimSuffix(strings.Repeat(element+",", 32), ",") + "]"
+	rows := make([]string, 0, 32)
+	for len(rows) < 32 && len(`{"v":[]}`)+len(rows)*(len(row)+1)+len(row) <= 4096 {
+		rows = append(rows, row)
+	}
+	return `{"v":[` + strings.Join(rows, ",") + `]}`
+}
+
+func runtimeArgumentsJSON(t *testing.T, summary string) reporting.ToolArguments {
+	t.Helper()
 	var arguments reporting.ToolArguments
-	if err := json.Unmarshal([]byte(`{"value":`+literal+`}`), &arguments); err != nil {
+	if err := json.Unmarshal([]byte(summary), &arguments); err != nil {
 		t.Fatal(err)
 	}
 	return arguments

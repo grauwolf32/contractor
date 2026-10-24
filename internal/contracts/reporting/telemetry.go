@@ -241,11 +241,11 @@ type AllocationFinalReport struct {
 	Runtime      RuntimeReport   `json:"runtime" strictjson:"required"`
 }
 
+// UnmarshalJSON strictly decodes a report wherever it comes from: the private
+// response that carries it, which bounds its received bytes, or the jsonb
+// column that stores it, which renders it longer than it was received
+// (OBS-R110).
 func (r *AllocationFinalReport) UnmarshalJSON(data []byte) error {
-	// Check the original report before optional invalid resources are removed.
-	if len(data) > 1024*1024 {
-		return contracts.Invalidf("allocation final report exceeds 1 MiB")
-	}
 	type wireReport AllocationFinalReport
 	var value wireReport
 	if err := strictjson.DecodeNonNull(data, &value); errors.Is(err, strictjson.ErrDuplicateKey) {
@@ -257,7 +257,21 @@ func (r *AllocationFinalReport) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// Validate checks a report as its producer sent it, including the byte bounds
+// its compact JSON must meet (LIM-OBS-6, OBS-R40).
 func (r ExecutionReport) Validate() error {
+	return r.validate(true)
+}
+
+// validateStored checks a report read back from storage. It applies every
+// rule of Validate except the byte bounds: jsonb renders each number as its
+// full decimal expansion, so the stored report no longer measures the bytes it
+// met when it was received and trimmed (OBS-R110).
+func (r ExecutionReport) validateStored() error {
+	return r.validate(false)
+}
+
+func (r ExecutionReport) validate(received bool) error {
 	if r.Completion != nil {
 		if err := r.Completion.Validate(); err != nil {
 			return err
@@ -352,8 +366,7 @@ func (r ExecutionReport) Validate() error {
 			if !call.Arguments.numbersInRange() {
 				return contracts.Invalidf("tool call %d arguments hold a number outside the float64 range", index)
 			}
-			size, err := contracts.ResultJSONSize(call.Arguments)
-			if err != nil || size > 4096 {
+			if size, err := contracts.ResultJSONSize(call.Arguments); err != nil || received && size > 4096 {
 				return contracts.Invalidf("tool call %d arguments exceed 4096 bytes", index)
 			}
 		}
@@ -386,7 +399,7 @@ func (r ExecutionReport) Validate() error {
 	if err != nil {
 		return contracts.Invalidf("execution report cannot be encoded")
 	}
-	if size > 1024*1024 {
+	if received && size > 1024*1024 {
 		return contracts.Invalidf("execution report exceeds 1 MiB")
 	}
 	return nil
@@ -402,12 +415,14 @@ func (e ExecutionError) Validate() error {
 	return nil
 }
 
+// Validate checks StageMetrics built from stored reports, so each report is
+// checked as a stored report (validateStored).
 func (m StageMetrics) Validate() error {
 	if m.Workers == nil || m.Runtime == nil {
 		return contracts.Invalidf("StageMetrics maps must not be null")
 	}
 	if m.Planner != nil {
-		if err := m.Planner.Validate(); err != nil {
+		if err := m.Planner.validateStored(); err != nil {
 			return fmt.Errorf("planner report: %w", err)
 		}
 	}
@@ -415,7 +430,7 @@ func (m StageMetrics) Validate() error {
 		if err := contracts.ValidateOpaqueID("worker logical Agent name", name); err != nil {
 			return err
 		}
-		if err := report.Validate(); err != nil {
+		if err := report.validateStored(); err != nil {
 			return fmt.Errorf("worker report %q: %w", name, err)
 		}
 	}
@@ -546,6 +561,29 @@ func (r RuntimeReport) Validate() error {
 type AllocationFinalResponse struct {
 	APIVersion string                `json:"apiVersion" strictjson:"required"`
 	Report     AllocationFinalReport `json:"report" strictjson:"required"`
+}
+
+// UnmarshalJSON bounds the report a Runtime sent at 1 MiB (LIM-OBS-7) before
+// any of it is decoded, so the original bytes are measured before optional
+// invalid resources and adapter metrics are discarded. The bound applies to
+// these received bytes only; a stored report is decoded without it.
+func (r *AllocationFinalResponse) UnmarshalJSON(data []byte) error {
+	var wire struct {
+		APIVersion string          `json:"apiVersion" strictjson:"required"`
+		Report     json.RawMessage `json:"report" strictjson:"required"`
+	}
+	if err := strictjson.DecodeNonNull(data, &wire); err != nil {
+		return err
+	}
+	if len(wire.Report) > 1024*1024 {
+		return contracts.Invalidf("allocation final report exceeds 1 MiB")
+	}
+	var report AllocationFinalReport
+	if err := strictjson.DecodeNonNull(wire.Report, &report); err != nil {
+		return err
+	}
+	*r = AllocationFinalResponse{APIVersion: wire.APIVersion, Report: report}
+	return nil
 }
 
 func (r AllocationFinalResponse) Validate() error {
