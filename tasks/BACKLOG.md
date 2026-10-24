@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-90 open tasks: 5 in progress, 60 pending, 25 deferred. 1028 finished: 1024 completed, 4 archived.
+89 open tasks: 4 in progress, 60 pending, 25 deferred. 1029 finished: 1025 completed, 4 archived.
 
 ## In progress
 
@@ -15,7 +15,6 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
-| [V409-004](v409-004-audit-read-statements-indexes.yml) | audits | chore | P2 | Reduce avoidable Audit read work while preserving exact totals and expiry |
 
 ## Pending
 
@@ -125,9 +124,9 @@ the epics are in [epics.yml](epics.yml).
 | [V372-010](v372-010-erd-usage-from-ownership-scan.yml) | chore | P3 | — | Take the ERD's code-usage lists from the ownership scan and document the new-table workflow |
 | [V408-002](v408-002-shared-postgres-test-schema.yml) | chore | P2 | V408-001 | Apply migrations once per package: one shared PostgreSQL test helper with per-test truncation |
 | [V409-006](v409-006-trigger-column-scoping.yml) | chore | P2 | — | Scope unnecessary trigger work while preserving admission and projection effects |
-| [V409-007](v409-007-dead-and-redundant-indexes.yml) | chore | P2 | V409-004, V409-006 | Consolidate indexes only where reader and constraint evidence permits it |
+| [V409-007](v409-007-dead-and-redundant-indexes.yml) | chore | P2 | V409-006 | Consolidate indexes only where reader and constraint evidence permits it |
 | [V409-012](v409-012-migration-and-sql-hygiene.yml) | chore | P3 | — | Test the revision-count and controller-claim backfills and document migration budgets |
-| [V409-013](v409-013-verify-sql-review-on-database.yml) | chore | P2 | V409-004, V409-006, V409-007, V409-009, V409-011, V409-012, V409-014 | Verify retained SQL-review changes and record evidence for every accepted or declined claim |
+| [V409-013](v409-013-verify-sql-review-on-database.yml) | chore | P2 | V409-006, V409-007, V409-009, V409-011, V409-012, V409-014 | Verify retained SQL-review changes and record evidence for every accepted or declined claim |
 
 ### Quality, CI and process (`quality`)
 
@@ -198,7 +197,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 7 | 14 | 6 | 8 | 11 |
 | Workflow catalog and document workflows (`workflows`) | 3 | 14 | 14 | 12 | 16 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 30 | 33 | 6 | 37 |
-| Audits (`audits`) | 19 | 53 | 72 | 22 | 91 |
+| Audits (`audits`) | 18 | 53 | 72 | 22 | 91 |
 | Evaluations (`evals`) | 4 | 21 | 34 | 8 | 41 |
 | Podman sandbox (`sandbox`) | 0 | 9 | 2 | 1 | 3 |
 | Web UI (`ui`) | 3 | 24 | 58 | 12 | 53 |
