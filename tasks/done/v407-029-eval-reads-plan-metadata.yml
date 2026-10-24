@@ -238,5 +238,16 @@ verification:
     ./internal/evalservice/... ./internal/evalstore/... ./internal/persistence/postgres/... passed;
     go test -tags=integration -count=1 ./internal/httpapi/public/... passed; make lint passed; make
     docs-dependencies and make docs-erd regenerated their pages unchanged at schema version 000034.
+  - >-
+    Review fixes (1b74b738): TestSharedPostgresEvalPlanReadinessMigrationBackfillsNativePlans now covers the
+    escaped-pin-values fixture case and a NUL in the setup. Before the fix it failed with "unsupported
+    Unicode escape sequence (SQLSTATE 22P05)"; it passes now.
+    TestSharedPostgresEvalPlanReadinessMigrationParsesEachPlanOnceAtTheNativeCeiling passes with 2
+    conversions in the explained UPDATE and fails with 25 when the OFFSET 0 fences are removed. Then
+    go test -tags=integration -count=1 ./internal/evalservice/... ./internal/evalstore/...
+    ./internal/evaldomain/... ./internal/persistence/postgres/... ./internal/httpapi/public/... passed
+    against contractor_test_c, including the escaped case through NativeReadiness and the freeze path.
+    make lint passed; make test-wire-cross-language passed (253 fixtures, 263 Go and 185 Python shared
+    tests); make docs-erd and make docs-dependencies regenerated their pages unchanged.
   database_tests_configured: true
-implementation_commit: 4d44ce5663b4109eb90d72dc0749c835bfb28832
+implementation_commit: 1b74b73835c11d93737405cbf4f096e728979c13
