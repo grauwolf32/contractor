@@ -8787,7 +8787,8 @@
           "additionalProperties": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 4096
+            "maxLength": 4096,
+            "pattern": "^[!-~]+(?:[ \\t]+[!-~]+)*$"
           }
         }
       }
@@ -8815,6 +8816,7 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 8192,
+          "pattern": "^[!-~]+(?:[ \\t]+[!-~]+)*$",
           "writeOnly": true
         }
       }
@@ -8828,6 +8830,7 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 8192,
+          "pattern": "^[!-~]+(?:[ \\t]+[!-~]+)*$",
           "writeOnly": true
         }
       }
@@ -8841,6 +8844,7 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 8192,
+          "pattern": "^[!-~]+(?:[ \\t]+[!-~]+)*$",
           "writeOnly": true
         }
       }
@@ -8868,6 +8872,7 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 8192,
+          "pattern": "^[!-~]+(?:[ \\t]+[!-~]+)*$",
           "writeOnly": true
         }
       }

@@ -379,7 +379,12 @@ session bearer token or session cookie that is not an HTTP/1.1 field value as
 the request serializer enforces it (ASCII only; no NUL, CR, LF, VT or FF; no
 leading or trailing space or tab; a cookie's `name=value` pair is one value).
 `http_session_set` rejects such a header, token or cookie before any mutation
-(HTP-R35), so a stored session value never makes later requests invalid.
+(HTP-R35), so a stored session value never makes later requests invalid. The
+Project target, proxy, Caido, Interactsh, telemetry and Gateway credentials
+that Runtime injects are not such input: RuntimeSettings admits only credential
+field values, a stricter form of this grammar ([RuntimeConfig](../configuration/runtime-config.md),
+RCF-R114), so a configured token never makes a request invalid or fails it at
+send time.
 
 ### HTTP session
 

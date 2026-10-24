@@ -1761,8 +1761,55 @@
         "/httpProxy/targets/0",
         "/httpProxy/targets/1"
       ],
-      "maxLength": [],
-      "maxBytes": [],
+      "maxLength": [
+        {
+          "pointer": "/caido/bearerToken",
+          "maxLength": 8192
+        },
+        {
+          "pointer": "/httpProxy/bearerToken",
+          "maxLength": 8192
+        },
+        {
+          "pointer": "/interactsh/token",
+          "maxLength": 8192
+        },
+        {
+          "pointer": "/telemetry/headers/Authorization",
+          "maxLength": 4096
+        },
+        {
+          "pointer": "/telemetry/headers/X-Tenant",
+          "maxLength": 4096
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/caido/bearerToken",
+          "maxLength": 8192,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/httpProxy/bearerToken",
+          "maxLength": 8192,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/interactsh/token",
+          "maxLength": 8192,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/telemetry/headers/Authorization",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/telemetry/headers/X-Tenant",
+          "maxLength": 4096,
+          "verdict": "reject"
+        }
+      ],
       "unknownMember": [
         "",
         "/caido",
@@ -1815,8 +1862,19 @@
     },
     "runtime-settings-telemetry-export.json": {
       "enum": [],
-      "maxLength": [],
-      "maxBytes": [],
+      "maxLength": [
+        {
+          "pointer": "/telemetry/headers/Authorization",
+          "maxLength": 4096
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/telemetry/headers/Authorization",
+          "maxLength": 4096,
+          "verdict": "reject"
+        }
+      ],
       "unknownMember": [
         "",
         "/telemetry",
@@ -1833,8 +1891,19 @@
     },
     "runtime-settings-telemetry.json": {
       "enum": [],
-      "maxLength": [],
-      "maxBytes": [],
+      "maxLength": [
+        {
+          "pointer": "/telemetry/headers/Authorization",
+          "maxLength": 4096
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/telemetry/headers/Authorization",
+          "maxLength": 4096,
+          "verdict": "reject"
+        }
+      ],
       "unknownMember": [
         "",
         "/telemetry",

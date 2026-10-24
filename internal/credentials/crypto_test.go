@@ -26,7 +26,8 @@ func TestTokenCipherRoundTripUsesFreshNonceAndBoundAAD(t *testing.T) {
 	if want := "sha256:" + hex.EncodeToString(wantFingerprint[:]); cipher.KeyID() != want {
 		t.Fatalf("key ID = %q, want %q", cipher.KeyID(), want)
 	}
-	token, err := NewToken("sk-exact-token\nbytes")
+	// Inner space and tab runs survive exactly: the Server never normalizes a token.
+	token, err := NewToken("sk-exact-token \t bytes")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,24 +1,28 @@
 """RuntimeSettings bounds the Runtime shares with the Go Server and the schema.
 
 internal/contracts/runtimesettings reads the same
-api/testdata/v1alpha1/runtime-settings-bounds-cases.json; make
+api/testdata/v1alpha1/runtime-settings-bounds-cases.json, and internal/contracts
+the same api/testdata/v1alpha1/credential-field-value-cases.json; make
 test-wire-cross-language runs both sides.
 """
 
 from __future__ import annotations
 
 import copy
+import functools
 import json
 from pathlib import Path
 from typing import Any
 
 import pytest
+from credential_field_values import field_cases, read_credential_field_value_cases, set_pointer
 from fakes.telemetry import SERVER_EXPORT
 from jsonschema import Draft202012Validator
 from pydantic import ValidationError
 from referencing import Registry, Resource
 
 from contractor_runtime.contracts import RuntimeSettings
+from contractor_runtime.contracts.fields import is_credential_field_value
 from contractor_runtime.contracts.settings import default_source_archive_limits
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -40,8 +44,10 @@ def _fixture() -> dict[str, Any]:
 
 
 FIXTURE = _fixture()
+FIELD_VALUES = read_credential_field_value_cases()
 
 
+@functools.cache
 def _schema_validator() -> Draft202012Validator:
     schemas = [
         json.loads(path.read_text(encoding="utf-8"))
@@ -102,3 +108,38 @@ def test_shared_runtime_settings_bounds_cases(case: dict[str, Any]) -> None:
             RuntimeSettings.model_validate_json(json.dumps(document))
     schema_accepts = not list(_schema_validator().iter_errors(document))
     assert schema_accepts is (case["valid"] or case.get("crossField", False)), case["name"]
+
+
+def test_shared_credential_field_value_grammar() -> None:
+    disagreements = [
+        case.name
+        for case in FIELD_VALUES.grammar
+        if is_credential_field_value(case.value) is not case.valid
+    ]
+    assert disagreements == []
+
+
+@pytest.mark.parametrize(
+    "field",
+    [field for field in FIELD_VALUES.fields if "runtimeSettings" in field],
+    ids=lambda field: field["name"],
+)
+def test_shared_credential_field_values_in_runtime_settings(field: dict[str, Any]) -> None:
+    # The RuntimeSettings model and the private schema give every case of the
+    # shared credential field-value grammar its verdict where the value sits.
+    location = field["runtimeSettings"]
+    disagreements = []
+    for case in field_cases(field, FIELD_VALUES.grammar):
+        document = copy.deepcopy(FIELD_VALUES.base)
+        for pointer, value in location.get("set", {}).items():
+            set_pointer(document, pointer, copy.deepcopy(value))
+        set_pointer(document, location["pointer"], case.value)
+        try:
+            RuntimeSettings.model_validate_json(json.dumps(document))
+            model_accepts = True
+        except ValidationError:
+            model_accepts = False
+        schema_accepts = _schema_validator().is_valid(document)
+        if (model_accepts, schema_accepts) != (case.valid, case.valid):
+            disagreements.append((case.name, model_accepts, schema_accepts))
+    assert disagreements == []

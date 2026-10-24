@@ -716,9 +716,8 @@
         "bearerToken": {
           "anyOf": [
             {
-              "format": "password",
-              "type": "string",
-              "writeOnly": true
+              "$ref": "#/$defs/CredentialFieldValue",
+              "maxLength": 8192
             },
             {
               "type": "null"
@@ -754,6 +753,14 @@
       "title": "CaidoSettings",
       "type": "object"
     },
+    "CredentialFieldValue": {
+      "description": "A credential token or header value that every sender transmits unchanged as one HTTP/1.1 field value: visible ASCII characters with runs of space or tab only between them (RCF-R113, RCF-R114). The final (?!\\n) keeps a Python re.search, whose $ also matches before a final newline, from accepting one. api/testdata/v1alpha1/credential-field-value-cases.json holds this pattern to the Go and Python rule.",
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[!-~]+(?:[ \\t]+[!-~]+)*$(?!\\n)",
+      "format": "password",
+      "writeOnly": true
+    },
     "HTTPOriginTargetSettings": {
       "additionalProperties": false,
       "properties": {
@@ -775,9 +782,8 @@
         "bearerToken": {
           "anyOf": [
             {
-              "format": "password",
-              "type": "string",
-              "writeOnly": true
+              "$ref": "#/$defs/CredentialFieldValue",
+              "maxLength": 8192
             },
             {
               "type": "null"
@@ -841,9 +847,8 @@
         "bearerToken": {
           "anyOf": [
             {
-              "format": "password",
-              "type": "string",
-              "writeOnly": true
+              "$ref": "#/$defs/CredentialFieldValue",
+              "maxLength": 8192
             },
             {
               "type": "null"
@@ -1203,10 +1208,7 @@
         "llmGatewayToken": {
           "anyOf": [
             {
-              "format": "password",
-              "minLength": 1,
-              "type": "string",
-              "writeOnly": true
+              "$ref": "#/$defs/CredentialFieldValue"
             },
             {
               "type": "null"
@@ -1357,9 +1359,8 @@
         },
         "headers": {
           "additionalProperties": {
-            "format": "password",
-            "type": "string",
-            "writeOnly": true
+            "$ref": "#/$defs/CredentialFieldValue",
+            "maxLength": 4096
           },
           "title": "Headers",
           "type": "object"
@@ -1444,9 +1445,8 @@
         "token": {
           "anyOf": [
             {
-              "format": "password",
-              "type": "string",
-              "writeOnly": true
+              "$ref": "#/$defs/CredentialFieldValue",
+              "maxLength": 8192
             },
             {
               "type": "null"

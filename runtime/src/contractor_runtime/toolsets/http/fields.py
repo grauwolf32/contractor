@@ -1,30 +1,12 @@
-"""The HTTP/1.1 field grammar that a request must satisfy before it is sent.
+"""The cookie rule built on the HTTP/1.1 field grammar of the Runtime contracts.
 
-httpx encodes a header value as ASCII, and h11 refuses to serialize a field
-value that is not field-content as it implements RFC 9110 section 5.5: no NUL,
-no CR, LF, VT or FF, and no leading or trailing space or tab. Checking the same
-grammar where the model supplies a header, bearer token or cookie makes such
-input ``http_request_invalid`` up front, instead of a transport failure at send
-time or a stored session value that breaks every later request.
+``contractor_runtime.contracts.fields`` owns the field-value grammar that a
+model-supplied header, bearer token or cookie must satisfy (HTP-R33).
 """
 
 from __future__ import annotations
 
-import re
-
-# h11's field-value: field-vchar (any byte but NUL and whitespace), with runs of
-# space or tab only between them. On bytes, \s is exactly [ \t\n\r\f\v].
-_FIELD_VALUE = re.compile(rb"(?:[^\x00\s]+(?:[ \t]+[^\x00\s]+)*)?")
-
-
-def is_field_value(value: str) -> bool:
-    """Whether httpx and h11 can send ``value`` as one header field value."""
-
-    try:
-        encoded = value.encode("ascii")
-    except UnicodeEncodeError:
-        return False
-    return _FIELD_VALUE.fullmatch(encoded) is not None
+from contractor_runtime.contracts.fields import is_field_value
 
 
 def is_cookie_pair(name: str, value: str | None) -> bool:

@@ -14479,7 +14479,12 @@ components:
           minProperties: 1
           maxProperties: 32
           propertyNames: {type: string, minLength: 1, maxLength: 64}
-          additionalProperties: {type: string, minLength: 1, maxLength: 4096}
+          additionalProperties:
+            type: string
+            minLength: 1
+            maxLength: 4096
+            pattern: '^[!-~]+(?:[ \t]+[!-~]+)*$'
+            description: An HTTP/1.1 field value sent unchanged by every client (RCF-R113), visible ASCII characters with runs of space or tab only between them.
     HTTPProxyBasicMaterial:
       type: object
       additionalProperties: false
@@ -14492,19 +14497,37 @@ components:
       additionalProperties: false
       required: [token]
       properties:
-        token: {type: string, minLength: 1, maxLength: 8192, writeOnly: true}
+        token:
+          type: string
+          minLength: 1
+          maxLength: 8192
+          pattern: '^[!-~]+(?:[ \t]+[!-~]+)*$'
+          writeOnly: true
+          description: An HTTP/1.1 field value sent unchanged by every client (RCF-R114), visible ASCII characters with runs of space or tab only between them.
     CaidoBearerMaterial:
       type: object
       additionalProperties: false
       required: [token]
       properties:
-        token: {type: string, minLength: 1, maxLength: 8192, writeOnly: true}
+        token:
+          type: string
+          minLength: 1
+          maxLength: 8192
+          pattern: '^[!-~]+(?:[ \t]+[!-~]+)*$'
+          writeOnly: true
+          description: An HTTP/1.1 field value sent unchanged by every client (RCF-R114), visible ASCII characters with runs of space or tab only between them.
     InteractshTokenMaterial:
       type: object
       additionalProperties: false
       required: [token]
       properties:
-        token: {type: string, minLength: 1, maxLength: 8192, writeOnly: true}
+        token:
+          type: string
+          minLength: 1
+          maxLength: 8192
+          pattern: '^[!-~]+(?:[ \t]+[!-~]+)*$'
+          writeOnly: true
+          description: An HTTP/1.1 field value sent unchanged by every client (RCF-R114), visible ASCII characters with runs of space or tab only between them.
     HTTPOriginBasicMaterial:
       type: object
       additionalProperties: false
@@ -14517,7 +14540,13 @@ components:
       additionalProperties: false
       required: [token]
       properties:
-        token: {type: string, minLength: 1, maxLength: 8192, writeOnly: true}
+        token:
+          type: string
+          minLength: 1
+          maxLength: 8192
+          pattern: '^[!-~]+(?:[ \t]+[!-~]+)*$'
+          writeOnly: true
+          description: An HTTP/1.1 field value sent unchanged by every client (RCF-R114), visible ASCII characters with runs of space or tab only between them.
     CreateRuntimeCredentialRequest:
       oneOf:
         - type: object

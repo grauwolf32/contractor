@@ -14,6 +14,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/apierror"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentialerrors"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 )
@@ -75,7 +76,7 @@ func NewOTLPHeadersCredential(headers map[string]string) (RuntimeCredentialMater
 		if _, exists := normalized[lowerName]; exists {
 			return RuntimeCredentialMaterial{}, runtimeInvalid("OTLP headers contain a case-insensitive duplicate")
 		}
-		if len(value) < 1 || len(value) > MaximumOTLPHeaderValueBytes || !utf8.ValidString(value) || !validHeaderValue(value) {
+		if !validFieldValue(value, MaximumOTLPHeaderValueBytes) {
 			return RuntimeCredentialMaterial{}, runtimeInvalid("OTLP header value is invalid")
 		}
 		totalValueBytes += len(value)
@@ -100,7 +101,7 @@ func NewHTTPProxyBasicCredential(username, password string) (RuntimeCredentialMa
 }
 
 func NewHTTPProxyBearerCredential(token string) (RuntimeCredentialMaterial, error) {
-	if !validBoundedSecret(token, MaximumRuntimeSecretBytes) {
+	if !validFieldValue(token, MaximumRuntimeSecretBytes) {
 		return RuntimeCredentialMaterial{}, runtimeInvalid("HTTP proxy bearer credential is invalid")
 	}
 	return newRuntimeCredentialMaterial(RuntimeCredentialProxyBearer, struct {
@@ -109,7 +110,7 @@ func NewHTTPProxyBearerCredential(token string) (RuntimeCredentialMaterial, erro
 }
 
 func NewCaidoBearerCredential(token string) (RuntimeCredentialMaterial, error) {
-	if !validBoundedSecret(token, MaximumRuntimeSecretBytes) {
+	if !validFieldValue(token, MaximumRuntimeSecretBytes) {
 		return RuntimeCredentialMaterial{}, runtimeInvalid("Caido bearer credential is invalid")
 	}
 	return newRuntimeCredentialMaterial(RuntimeCredentialCaidoBearer, struct {
@@ -118,7 +119,7 @@ func NewCaidoBearerCredential(token string) (RuntimeCredentialMaterial, error) {
 }
 
 func NewInteractshTokenCredential(token string) (RuntimeCredentialMaterial, error) {
-	if !validBoundedSecret(token, MaximumRuntimeSecretBytes) {
+	if !validFieldValue(token, MaximumRuntimeSecretBytes) {
 		return RuntimeCredentialMaterial{}, runtimeInvalid("Interactsh bearer credential is invalid")
 	}
 	return newRuntimeCredentialMaterial(RuntimeCredentialInteractshToken, struct {
@@ -137,7 +138,7 @@ func NewHTTPOriginBasicCredential(username, password string) (RuntimeCredentialM
 }
 
 func NewHTTPOriginBearerCredential(token string) (RuntimeCredentialMaterial, error) {
-	if !validBoundedSecret(token, MaximumRuntimeSecretBytes) {
+	if !validFieldValue(token, MaximumRuntimeSecretBytes) {
 		return RuntimeCredentialMaterial{}, runtimeInvalid("HTTP origin bearer credential is invalid")
 	}
 	return newRuntimeCredentialMaterial(RuntimeCredentialOriginBearer, struct {
@@ -416,13 +417,11 @@ func validBoundedSecret(value string, maximum int) bool {
 	return true
 }
 
-func validHeaderValue(value string) bool {
-	for _, raw := range []byte(value) {
-		if raw < 0x20 && raw != '\t' || raw == 0x7f {
-			return false
-		}
-	}
-	return true
+// validFieldValue reports whether a bearer token or OTLP header value is
+// within its byte bound and is sent unchanged as an HTTP field value. Basic
+// credentials are base64-encoded before sending and keep validBoundedSecret.
+func validFieldValue(value string, maximum int) bool {
+	return len(value) <= maximum && contracts.ValidCredentialFieldValue(value)
 }
 
 func forbiddenOTLPHeader(name string) bool {

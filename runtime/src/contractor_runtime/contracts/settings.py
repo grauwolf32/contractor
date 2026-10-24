@@ -39,7 +39,18 @@ from contractor_runtime.contracts.base import (
     _require_url,
     trim_whitespace,
 )
+from contractor_runtime.contracts.fields import is_credential_field_value
 from contractor_runtime.contracts.tool_execution import ToolExecutionConfig
+
+# Byte bounds of the secret field values RuntimeSettings carries: a bearer or
+# Interactsh token (LIM-RCF-24) and one OTLP header value (LIM-RCF-21).
+_MAX_BEARER_TOKEN_BYTES = 8192
+_MAX_TELEMETRY_HEADER_VALUE_BYTES = 4096
+
+
+def _is_bounded_field_value(value: str, maximum: int) -> bool:
+    # A credential field value is ASCII, so its length is its byte count.
+    return len(value) <= maximum and is_credential_field_value(value)
 
 
 class AgentTemplateRef(WireModel):
@@ -403,7 +414,7 @@ class TelemetrySettings(WireModel):
                 or "\n" in name
             ):
                 raise ValueError("telemetry header name is invalid")
-            if not 1 <= len(value.encode("utf-8")) <= 4096 or "\r" in value or "\n" in value:
+            if not _is_bounded_field_value(value, _MAX_TELEMETRY_HEADER_VALUE_BYTES):
                 raise ValueError("telemetry header value is invalid")
             total += len(value.encode("utf-8"))
         if total > 16 * 1024:
@@ -429,10 +440,10 @@ class HTTPOriginTargetSettings(WireModel):
             raise ValueError("HTTP origin target basicAuth and bearerToken are mutually exclusive")
         if self.basic_auth is not None and ":" in self.basic_auth.username.get_secret_value():
             raise ValueError("HTTP origin target username cannot contain a colon")
-        if self.bearer_token is not None:
-            token = self.bearer_token.get_secret_value()
-            if not 1 <= len(token.encode("utf-8")) <= 8192:
-                raise ValueError("HTTP origin target bearerToken is outside its size bound")
+        if self.bearer_token is not None and not _is_bounded_field_value(
+            self.bearer_token.get_secret_value(), _MAX_BEARER_TOKEN_BYTES
+        ):
+            raise ValueError("HTTP origin target bearerToken is invalid")
         return self
 
     @field_serializer("bearer_token", when_used="json")
@@ -457,10 +468,10 @@ class HTTPProxySettings(WireModel):
         _require_runtime_endpoint("httpProxy.proxyUrl", self.proxy_url)
         if self.basic_auth is not None and self.bearer_token is not None:
             raise ValueError("HTTP proxy basicAuth and bearerToken are mutually exclusive")
-        if self.bearer_token is not None:
-            token = self.bearer_token.get_secret_value()
-            if not 1 <= len(token.encode("utf-8")) <= 8192:
-                raise ValueError("HTTP proxy bearerToken is outside its size bound")
+        if self.bearer_token is not None and not _is_bounded_field_value(
+            self.bearer_token.get_secret_value(), _MAX_BEARER_TOKEN_BYTES
+        ):
+            raise ValueError("HTTP proxy bearerToken is invalid")
         if self.ca_bundle_pem is not None:
             _validate_ca_bundle("HTTP proxy", self.ca_bundle_pem)
         _require_sorted_unique("httpProxy.targets", self.targets, maximum=3)
@@ -485,10 +496,10 @@ class CaidoSettings(WireModel):
         if self.adapter != "caido-graphql@1":
             raise ValueError("Caido adapter must be caido-graphql@1")
         _require_runtime_endpoint("caido.endpoint", self.endpoint)
-        if self.bearer_token is not None:
-            token = self.bearer_token.get_secret_value()
-            if not 1 <= len(token.encode("utf-8")) <= 8192:
-                raise ValueError("Caido bearerToken is outside its size bound")
+        if self.bearer_token is not None and not _is_bounded_field_value(
+            self.bearer_token.get_secret_value(), _MAX_BEARER_TOKEN_BYTES
+        ):
+            raise ValueError("Caido bearerToken is invalid")
         if self.ca_bundle_pem is not None:
             _validate_ca_bundle("Caido", self.ca_bundle_pem)
         if not 1 <= self.request_timeout_seconds <= 120:
@@ -526,10 +537,10 @@ class InteractshSettings(WireModel):
             )
         ):
             raise ValueError("Interactsh endpoint requires a callback DNS hostname")
-        if self.token is not None:
-            token = self.token.get_secret_value()
-            if not 1 <= len(token.encode("utf-8")) <= 8192 or "\r" in token or "\n" in token:
-                raise ValueError("Interactsh token is outside its size bound")
+        if self.token is not None and not _is_bounded_field_value(
+            self.token.get_secret_value(), _MAX_BEARER_TOKEN_BYTES
+        ):
+            raise ValueError("Interactsh token is invalid")
         if self.ca_bundle_pem is not None:
             _validate_ca_bundle("Interactsh", self.ca_bundle_pem)
         if not 1 <= self.request_timeout_seconds <= 120:
@@ -626,6 +637,10 @@ class RuntimeSettings(WireModel):
             raise ValueError("LLM token and failure signatures require a Gateway URL")
         if self.llm_gateway_token is not None and not self.llm_gateway_token.get_secret_value():
             raise ValueError("an unauthenticated Gateway omits llmGatewayToken")
+        if self.llm_gateway_token is not None and not is_credential_field_value(
+            self.llm_gateway_token.get_secret_value()
+        ):
+            raise ValueError("llmGatewayToken is not an HTTP field value")
         if len(self.artifact_api_url.encode("utf-8")) > 2048:
             raise ValueError("runtimeSettings.artifactApiUrl exceeds 2048 bytes")
         _require_url("runtimeSettings.artifactApiUrl", self.artifact_api_url)

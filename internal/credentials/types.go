@@ -50,10 +50,17 @@ var (
 type Token struct{ value string }
 
 func NewToken(value string) (Token, error) {
-	if len(value) == 0 || len(value) > MaximumTokenBytes || !utf8.ValidString(value) {
-		return Token{}, fmt.Errorf("%w: generated token must be 1 through %d UTF-8 bytes", ErrInvalid, MaximumTokenBytes)
+	if !validTokenValue(value) {
+		return Token{}, fmt.Errorf("%w: generated token must be an HTTP field value of 1 through %d bytes", ErrInvalid, MaximumTokenBytes)
 	}
 	return Token{value: value}, nil
+}
+
+// validTokenValue reports whether an LLM credential token is within
+// MaximumTokenBytes and is sent unchanged as the Gateway Authorization value
+// by the Planner and the Runtime model client (RCF-R39).
+func validTokenValue(value string) bool {
+	return len(value) <= MaximumTokenBytes && contracts.ValidCredentialFieldValue(value)
 }
 
 func (t Token) String() string   { return "[REDACTED]" }
@@ -192,7 +199,7 @@ type GeneratedCredential struct {
 }
 
 func (g GeneratedCredential) Validate() error {
-	if len(g.Token.value) == 0 || len(g.Token.value) > MaximumTokenBytes || !utf8.ValidString(g.Token.value) {
+	if !validTokenValue(g.Token.value) {
 		return fmt.Errorf("%w: manager returned an invalid token", ErrInvalid)
 	}
 	if strings.TrimSpace(g.RemoteKeyID) == "" || len(g.RemoteKeyID) > MaximumRemoteKeyIDBytes ||

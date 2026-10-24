@@ -9,6 +9,11 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 )
 
 func TestRuntimeCredentialMaterialsAreCanonicalBoundedAndRedacted(t *testing.T) {
@@ -274,5 +279,93 @@ func TestInteractshTokenCredentialRoundTripsOnlyUnderExactKindAndIdentity(t *tes
 	}
 	if _, err := cipher.OpenRuntimeCredential("interactsh-auth", RuntimeCredentialProxyBearer, envelope); !errors.Is(err, ErrCrypto) {
 		t.Fatalf("cross-kind Interactsh open error = %v", err)
+	}
+}
+
+// TestSharedCredentialFieldValueCases holds the Runtime credential
+// constructors, the decoding of stored material, LLM credential tokens and
+// development tokens to api/testdata/v1alpha1/credential-field-value-cases.json.
+// A stored row written before the rule fails to open (FAIL-RCF-3) instead of
+// reaching an allocation.
+func TestSharedCredentialFieldValueCases(t *testing.T) {
+	t.Parallel()
+	cases := contractstest.ReadCredentialFieldValueCases(t)
+	cipher, err := NewTokenCipher(bytes.Repeat([]byte{0x5a}, 32))
+	if err != nil {
+		t.Fatal(err)
+	}
+	constructors := map[RuntimeCredentialKind]func(string) (RuntimeCredentialMaterial, error){
+		RuntimeCredentialOriginBearer:    NewHTTPOriginBearerCredential,
+		RuntimeCredentialProxyBearer:     NewHTTPProxyBearerCredential,
+		RuntimeCredentialCaidoBearer:     NewCaidoBearerCredential,
+		RuntimeCredentialInteractshToken: NewInteractshTokenCredential,
+		RuntimeCredentialOTLPHeaders: func(value string) (RuntimeCredentialMaterial, error) {
+			return NewOTLPHeadersCredential(map[string]string{"authorization": value})
+		},
+	}
+	covered := map[RuntimeCredentialKind]bool{}
+	llmCredential := false
+	for _, field := range cases.Fields {
+		switch {
+		case field.Credential != nil:
+			kind := RuntimeCredentialKind(field.Credential.Kind)
+			construct, ok := constructors[kind]
+			if !ok {
+				t.Fatalf("%s: no constructor for kind %q", field.Name, kind)
+			}
+			covered[kind] = true
+			for _, test := range field.Cases(cases.Grammar) {
+				material, err := construct(test.Value)
+				if (err == nil) != test.Valid || err != nil && !errors.Is(err, ErrRuntimeCredentialInvalid) {
+					t.Errorf("%s %s: constructor error = %v, want valid %t", field.Name, test.Name, err, test.Valid)
+				}
+				material.Destroy()
+				// Seal the material as an earlier Server could have stored it,
+				// without the constructor, and open it as allocation preparation does.
+				document := map[string]any{}
+				contractstest.SetJSONPointer(t, document, field.Credential.Member, test.Value)
+				canonical, err := json.Marshal(document)
+				if err != nil {
+					t.Fatal(err)
+				}
+				envelope, err := cipher.SealRuntimeCredential("stored", RuntimeCredentialMaterial{kind: kind, canonical: canonical})
+				if err != nil {
+					t.Fatal(err)
+				}
+				opened, err := cipher.OpenRuntimeCredential("stored", kind, envelope)
+				if (err == nil) != test.Valid || err != nil && !errors.Is(err, ErrCrypto) {
+					t.Errorf("%s %s: stored material open error = %v, want valid %t", field.Name, test.Name, err, test.Valid)
+				}
+				opened.Destroy()
+			}
+		case field.LLMCredential:
+			llmCredential = true
+			for _, test := range field.Cases(cases.Grammar) {
+				if _, err := NewToken(test.Value); (err == nil) != test.Valid {
+					t.Errorf("%s %s: NewToken error = %v, want valid %t", field.Name, test.Name, err, test.Valid)
+				}
+			}
+			// A development token has no byte bound of its own.
+			for _, test := range cases.Grammar {
+				_, err := NewStaticProvider([]StaticEntry{{
+					Metadata: resolved.CredentialMetadata{
+						Ref:        llmgateway.LLMCredentialRef{CredentialID: "development-worker"},
+						LLMGateway: testPinnedGatewayRef("1", strings.Repeat("5", 64)), Unrestricted: true,
+					},
+					Token: contracts.NewSecretString(test.Value),
+				}})
+				if (err == nil) != test.Valid {
+					t.Errorf("%s %s: development token error = %v, want valid %t", field.Name, test.Name, err, test.Valid)
+				}
+			}
+		}
+	}
+	for kind := range constructors {
+		if !covered[kind] {
+			t.Errorf("the shared cases do not cover Runtime credential kind %q", kind)
+		}
+	}
+	if !llmCredential {
+		t.Error("the shared cases do not cover the LLM credential token")
 	}
 }
