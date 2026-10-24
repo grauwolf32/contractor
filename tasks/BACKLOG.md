@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-122 open tasks: 13 in progress, 84 pending, 25 deferred. 1076 finished: 1066 completed, 10 archived.
+122 open tasks: 14 in progress, 83 pending, 25 deferred. 1076 finished: 1066 completed, 10 archived.
 
 ## In progress
 
@@ -23,6 +23,7 @@ the epics are in [epics.yml](epics.yml).
 | [V414-010](v414-010-credential-recovery-previous-owner.yml) | execution-core | defect | P2 | Keep a previous lease owner's credential delete intent from committing behind the new owner's startup recovery |
 | [V414-013](v414-013-adk-callable-cache-release.yml) | planner-worker | defect | P2 | Stop ADK's module-level callable caches from keeping a released allocation's tools alive |
 | [V414-018](v414-018-audit-detail-snapshot-read.yml) | audits | defect | P2 | Read the Audit detail projection in one snapshot instead of answering an undeclared 409 |
+| [V414-019](v414-019-held-inbox-page-bound.yml) | audits | defect | P2 | Bound the held Audit inbox page by the page, not by the Audit's holds |
 | [V414-030](v414-030-finding-correlation-fence-row.yml) | findings | defect | P2 | Move the Project finding correlation fence off the projects row into a row the findings store owns |
 
 ## Pending
@@ -122,7 +123,6 @@ the epics are in [epics.yml](epics.yml).
 | [V411-012](v411-012-pentest-admission-rounds.yml) | feature | P1 | V411-009, V411-010, V62-005, V62-006, V62-007 | Admit typed pentest plans and derive exact later-round replay |
 | [V411-016](v411-016-pentest-proof-report.yml) | feature | P1 | V411-012, V411-014 | Assemble retained pentest proof and incomplete-coverage reports |
 | [V414-001](v414-001-openapi-inventory-string-bound.yml) | defect | P2 | — | Give openapi-operations@1 the string bounds of the shared OpenAPI document rule |
-| [V414-019](v414-019-held-inbox-page-bound.yml) | defect | P2 | — | Bound the held Audit inbox page by the page, not by the Audit's holds |
 | [V414-020](v414-020-preparation-phase-one-rule.yml) | chore | P3 | — | Give the pre-Round preparation phase set one definition in Go and one in the UI |
 
 ### Evaluations (`evals`)
