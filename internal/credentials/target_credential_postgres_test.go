@@ -17,6 +17,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/persistence/leasetest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/jackc/pgx/v5"
@@ -63,8 +64,8 @@ func newTargetCredentialService(t *testing.T, pool *pgxpool.Pool, audits Runtime
 		t.Fatal(err)
 	}
 	service, err := NewRuntimeCredentialService(RuntimeCredentialServiceOptions{
-		Pool: pool, Cipher: cipher, Usage: NewRuntimeCredentialRepository(pool), Audits: audits,
-		Barrier: NewLifecycleBarrier(),
+		Pool: pool, Lease: leasetest.Hold(t, pool).Lease, Cipher: cipher,
+		Usage: NewRuntimeCredentialRepository(pool), Audits: audits, Barrier: NewLifecycleBarrier(),
 	})
 	if err != nil {
 		t.Fatal(err)
