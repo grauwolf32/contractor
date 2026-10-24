@@ -420,6 +420,12 @@ func insertReceipt(
 		if persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate {
 			return ErrConflict
 		}
+		// The receipt holds its proposal and evidence strictly: a revision
+		// that history retention removed after this transaction proved it is
+		// the same outcome as evidence that was never there (FAIL-DEL-7).
+		if artifacts.IsExactRevisionMissing(err) {
+			return ErrAccessDenied
+		}
 		return fmt.Errorf("insert finding proposal receipt: %w", err)
 	}
 	return nil

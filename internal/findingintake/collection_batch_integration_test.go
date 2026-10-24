@@ -4,6 +4,7 @@ package findingintake
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"sort"
@@ -336,6 +337,54 @@ func writeFixtureEvidence(t *testing.T, f deletionImportFixture, count int) []Ex
 	return evidence
 }
 
+// writeLostFixtureEvidence writes an evidence revision of the fixture's Run
+// that receipts may cite before loseFixtureEvidence removes it. Its binding
+// advances once, so the cited revision is not the current one.
+func writeLostFixtureEvidence(t *testing.T, f deletionImportFixture) ExactArtifact {
+	t.Helper()
+	runArtifacts, err := artifacts.NewService(artifacts.NewPostgresRepository(f.pool)).Run(f.request.RunID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := artifacts.ArtifactRef{Namespace: "evidence", Name: "lost"}
+	data := []byte("lost evidence body")
+	written, err := runArtifacts.Write(f.ctx, target, artifacts.Payload{MediaType: "text/plain", Data: data}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runArtifacts.Write(f.ctx, target,
+		artifacts.Payload{MediaType: "text/plain", Data: []byte("replacement")}, written.Ref.Revision); err != nil {
+		t.Fatal(err)
+	}
+	return ExactArtifact{Ref: written.Ref, Digest: auditdomain.DigestBytes(data), MediaType: written.MediaType, SizeBytes: written.Size}
+}
+
+// loseFixtureEvidence removes a cited evidence revision. A receipt holds its
+// evidence (DEL-R65), so only a purge of the source Run's scope removes it in
+// production; the collection must still reject the receipt alone.
+func loseFixtureEvidence(t *testing.T, f deletionImportFixture, evidence ExactArtifact) {
+	t.Helper()
+	if err := artifactstest.LoseRunRevision(f.ctx, f.pool, f.request.RunID, evidence.Ref); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A receipt holds its proposal and evidence strictly (DEL-R65): recording one
+// whose evidence revision is gone from a stored Run scope, as when history
+// retention removes it after the intake proved it, is the intake's not-found
+// outcome ErrAccessDenied (FAIL-DEL-7), and records nothing.
+func TestPostgresReceiptCitingARemovedRevisionIsAccessDenied(t *testing.T) {
+	f := newDeletionImportFixture(t)
+	lost := writeLostFixtureEvidence(t, f)
+	loseFixtureEvidence(t, f, lost)
+	if _, err := recordAuditChildReceipt(t, f, "removed-evidence", []ExactArtifact{lost}); !errors.Is(err, ErrAccessDenied) {
+		t.Fatalf("receipt citing a removed revision = %v", err)
+	}
+	if _, err := readReceiptByID(f.ctx, f.pool, "removed-evidence-receipt"); err == nil {
+		t.Fatal("the rejected receipt was recorded")
+	}
+}
+
 // collectionTransactionTracer observes the retention transactions of a
 // single-connection actor pool: how many committed and the most artifact
 // imports one of them performed. With interrupt set, it cancels the attempt
@@ -450,9 +499,7 @@ func collectFixtureProposals(ctx context.Context, f deletionImportFixture, sourc
 func TestPostgresCollectionRejectsOnlyUnretainableProposals(t *testing.T) {
 	f := newDeletionImportFixture(t)
 	evidence := writeFixtureEvidence(t, f, 2)
-	missingRevision := "missing-revision"
-	missing := evidence[1]
-	missing.Ref.Revision = &missingRevision
+	missing := writeLostFixtureEvidence(t, f)
 	corrupt := evidence[1]
 	corrupt.SizeBytes++
 	unretainable := map[string]string{
@@ -462,6 +509,7 @@ func TestPostgresCollectionRejectsOnlyUnretainableProposals(t *testing.T) {
 	for i := range 3 {
 		insertAuditChildReceiptWithEvidence(t, f, fmt.Sprintf("valid-candidate-%d", i), evidence)
 	}
+	loseFixtureEvidence(t, f, missing)
 	if err := collectFixtureProposals(f.ctx, f, false); err != nil {
 		t.Fatalf("collection with unretainable proposals: %v", err)
 	}
@@ -516,10 +564,7 @@ SELECT entity_id, summary ->> 'reason' FROM audit_events
 // must still be accepted by the replay.
 func TestPostgresCollectionRejectionKeepsEarlierDirectAssessments(t *testing.T) {
 	f := newDirectCollectionFixture(t)
-	evidence := writeFixtureEvidence(t, f, 1)
-	missingRevision := "missing-revision"
-	missing := evidence[0]
-	missing.Ref.Revision = &missingRevision
+	missing := writeLostFixtureEvidence(t, f)
 	keys := []string{"direct-0", "direct-1", "direct-2", "missing-evidence", "direct-3"}
 	verifications := make([]auditdomain.DirectVerificationResult, len(keys))
 	var rejectedID string
@@ -537,6 +582,7 @@ func TestPostgresCollectionRejectionKeepsEarlierDirectAssessments(t *testing.T) 
 			Assessment: "supported", Summary: "Verified exact candidate.", EvidenceIDs: []string{},
 		}
 	}
+	loseFixtureEvidence(t, f, missing)
 	sort.Slice(verifications, func(i, j int) bool { return verifications[i].ClientKey < verifications[j].ClientKey })
 	encoded, err := auditdomain.EncodeDirectVerificationSet(auditdomain.DirectVerificationSet{
 		Schema: auditdomain.DirectVerificationsSchema, Verifications: verifications,

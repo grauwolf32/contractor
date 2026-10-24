@@ -7,10 +7,14 @@ package artifactstest
 
 import (
 	"context"
+	"errors"
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // ForkInput forks source of the UserScope of userID into inputs/<slot> of
@@ -100,4 +104,52 @@ func WriteAuditArtifact(
 		return artifacts.WriteResult{}, err
 	}
 	return service.CreateFrozen(ctx, project, target, payload)
+}
+
+// WriteRunArtifact writes payload to target of runID as a Worker's ordinary
+// write does, creating the binding or advancing its current revision, and
+// returns the exact ref of the revision it wrote. An exact ref that a
+// StageExecution, a receipt or an Audit records must name a stored revision.
+func WriteRunArtifact(
+	ctx context.Context, service *artifacts.Service, runID string, target contracts.ArtifactRef, payload artifacts.Payload,
+) (contracts.ArtifactRef, error) {
+	run, err := service.Run(runID)
+	if err != nil {
+		return contracts.ArtifactRef{}, err
+	}
+	var expected *string
+	current, err := run.Metadata(ctx, contracts.ArtifactRef{Namespace: target.Namespace, Name: target.Name})
+	switch {
+	case err == nil:
+		expected = current.Ref.Revision
+	case !errors.Is(err, artifacts.ErrArtifactNotFound):
+		return contracts.ArtifactRef{}, err
+	}
+	written, err := run.Write(ctx, contracts.ArtifactRef{Namespace: target.Namespace, Name: target.Name}, payload, expected)
+	if err != nil {
+		return contracts.ArtifactRef{}, err
+	}
+	return written.Ref, nil
+}
+
+// LoseRunRevision removes the exact revision ref of runID's RunScope while
+// holders may still name it, which in production only the controlled purge
+// of that scope does (DEL-R65): fixtures use it to model a cited revision
+// that is no longer stored. ref must not be the binding's current revision.
+func LoseRunRevision(ctx context.Context, pool *pgxpool.Pool, runID string, ref contracts.ArtifactRef) error {
+	if ref.Revision == nil {
+		return errors.New("lose a Run revision: the ref names no exact revision")
+	}
+	return persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `SELECT set_config('contractor.lifecycle_purge', 'run', true)`); err != nil {
+			return err
+		}
+		removed, err := tx.Exec(ctx, `DELETE FROM artifact_binding_revisions
+WHERE scope_kind = 'run' AND scope_id = $1 AND namespace = $2 AND name = $3 AND revision = $4`,
+			runID, ref.Namespace, ref.Name, *ref.Revision)
+		if err == nil && removed.RowsAffected() != 1 {
+			err = errors.New("lose a Run revision: the revision does not exist")
+		}
+		return err
+	})
 }

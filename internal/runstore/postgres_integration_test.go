@@ -54,7 +54,7 @@ func TestPostgresIntegrationStageLifecycleAndSessions(t *testing.T) {
 		t.Fatalf("started Run = %+v", run)
 	}
 
-	revision := "revision-1"
+	source := storeTestRunInput(t, ctx, pool, run.RunID, "source")
 	execution, err := store.CreateStageExecution(ctx, CreateStageExecutionParams{
 		LaneClass:        resolved.LaneClassModel,
 		StageExecutionID: "stage-lifecycle", RunID: run.RunID, StageName: "copy", Attempt: 1,
@@ -66,7 +66,7 @@ func TestPostgresIntegrationStageLifecycleAndSessions(t *testing.T) {
 			Artifacts: map[string]PinnedContextArtifact{
 				"source": {
 					Required: true,
-					Artifact: &contracts.ArtifactRef{Namespace: "inputs", Name: "source", Revision: &revision},
+					Artifact: &source,
 				},
 			},
 		},
@@ -263,13 +263,12 @@ WHERE allocation_id = 'allocation-1'`); persistencepostgres.SQLState(err) != per
 		}
 	}
 
-	resultRevision := "revision-result-1"
 	candidate := stageresult.StageContentResult{
 		APIVersion: contracts.APIVersion,
 		Outcome:    stageresult.StageSucceeded,
 		Summary:    "copied",
 		Artifacts: map[string]contracts.ArtifactRef{
-			"copied": {Namespace: "builder", Name: "result", Revision: &resultRevision},
+			"copied": storeTestRunArtifact(t, ctx, pool, run.RunID, "builder", "result"),
 		},
 	}
 	withoutArtifacts := candidate.Clone()
@@ -322,8 +321,8 @@ WHERE allocation_id = 'allocation-1'`); persistencepostgres.SQLState(err) != per
 	if err != nil || execution.State != StageSucceeded || execution.CandidateResult == nil || execution.AcceptedResult == nil {
 		t.Fatalf("terminal StageExecution = (%+v, %v)", execution, err)
 	}
-	if got := *execution.AcceptedResult.Artifacts["copied"].Revision; got != resultRevision {
-		t.Fatalf("accepted artifact revision = %q, want %q", got, resultRevision)
+	if got, want := *execution.AcceptedResult.Artifacts["copied"].Revision, *candidate.Artifacts["copied"].Revision; got != want {
+		t.Fatalf("accepted artifact revision = %q, want %q", got, want)
 	}
 	if err := store.CompleteStageResult(ctx, execution.StageExecutionID, "contractor/v1alpha1", candidate); !errors.Is(err, ErrConflict) {
 		t.Fatalf("second completion error = %v, want conflict", err)

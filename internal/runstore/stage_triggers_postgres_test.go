@@ -21,7 +21,9 @@ import (
 // output publication failure, which change no guarded column and no state,
 // call none of them; a transition calls the lifecycle capture and the Eval
 // projection, and the immutability guard only when it assigns a guarded
-// column; an INSERT still runs the manual continuation check. Assigning a
+// column; an INSERT still runs the manual continuation check and acquires
+// the exact revisions the Stage holds, and only recording a candidate or an
+// accepted result updates those holds (DEL-R62). Assigning a
 // guarded column calls its guard, changing one is still rejected, and the
 // lifecycle events are exactly one per state the Stages entered.
 func TestPostgresStageExecutionUpdatesFireOnlyTheTriggersTheyConcern(t *testing.T) {
@@ -32,6 +34,7 @@ func TestPostgresStageExecutionUpdatesFireOnlyTheTriggersTheyConcern(t *testing.
 	if _, err := admitTestRun(ctx, NewPostgresStore(pool), run.RunID); err != nil {
 		t.Fatal(err)
 	}
+	copied := storeTestRunArtifact(t, ctx, pool, run.RunID, "builder", "result")
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -48,9 +51,15 @@ func TestPostgresStageExecutionUpdatesFireOnlyTheTriggersTheyConcern(t *testing.
 		continuation = "stage_executions_manual_continuation"
 		immutable    = "stage_executions_protect_immutable"
 		evalStages   = "eval_stages_projection"
+		holds        = "stage_executions_hold_artifacts"
+		holdsUpdate  = "stage_executions_hold_artifacts_on_update"
 	)
 	transition := map[string]int64{captureState: 1, evalStages: 1}
 	guardedTransition := map[string]int64{immutable: 1, captureState: 1, evalStages: 1}
+	// Recording a candidate or an accepted result also updates the exact
+	// revisions it holds (DEL-R62).
+	resultTransition := map[string]int64{immutable: 1, captureState: 1, evalStages: 1, holdsUpdate: 1}
+	creation := map[string]int64{capture: 1, continuation: 1, evalStages: 1, holds: 1}
 	expectFired := func(step string, want map[string]int64, action func() error) {
 		t.Helper()
 		probe.Reset()
@@ -74,7 +83,7 @@ func TestPostgresStageExecutionUpdatesFireOnlyTheTriggersTheyConcern(t *testing.
 	}
 
 	const finished, aborted = "stage-triggers-finished", "stage-triggers-aborted"
-	expectFired("creation", map[string]int64{capture: 1, continuation: 1, evalStages: 1}, createStage(finished))
+	expectFired("creation", creation, createStage(finished))
 	expectFired("admission", map[string]int64{}, func() error {
 		_, err := store.MarkStageAdmitted(ctx, finished)
 		return err
@@ -91,12 +100,11 @@ func TestPostgresStageExecutionUpdatesFireOnlyTheTriggersTheyConcern(t *testing.
 			},
 		})
 	})
-	revision := "revision-stage-triggers"
 	candidate := stageresult.StageContentResult{
 		APIVersion: contracts.APIVersion, Outcome: stageresult.StageSucceeded, Summary: "copied",
-		Artifacts: map[string]contracts.ArtifactRef{"copied": {Namespace: "builder", Name: "result", Revision: &revision}},
+		Artifacts: map[string]contracts.ArtifactRef{"copied": copied},
 	}
-	expectFired("finalization", guardedTransition, func() error {
+	expectFired("finalization", resultTransition, func() error {
 		return store.EnterFinalizing(ctx, EnterFinalizingParams{
 			StageExecutionID: finished, ResultSchemaVersion: contracts.APIVersion, Candidate: candidate,
 			FinalizationID: "finalization-stage-triggers", Deadline: time.Now().Add(time.Minute),
@@ -106,11 +114,11 @@ func TestPostgresStageExecutionUpdatesFireOnlyTheTriggersTheyConcern(t *testing.
 	expectFired("output publication failure", map[string]int64{}, func() error {
 		return store.RecordStageOutputPublicationFailure(ctx, run.RunID, finished)
 	})
-	expectFired("accepted result", guardedTransition, func() error {
+	expectFired("accepted result", resultTransition, func() error {
 		return store.CompleteStageResult(ctx, finished, contracts.APIVersion, candidate)
 	})
 
-	expectFired("second creation", map[string]int64{capture: 1, continuation: 1, evalStages: 1}, createStage(aborted))
+	expectFired("second creation", creation, createStage(aborted))
 	expectFired("abort", guardedTransition, func() error {
 		return store.EnterAborting(ctx, EnterAbortingParams{
 			StageExecutionID: aborted, ExpectedState: StagePreparing, TerminationSchemaVersion: contracts.APIVersion,

@@ -1241,6 +1241,8 @@ Failure outcomes ([failure model](../platform/failure-model.md)):
 - FAIL-ART-6 — StageResult acceptance, output mapping and terminal transition
   (ART-R92).
 - FAIL-ART-7 — paged private listing (ART-R47, ART-R48).
+- FAIL-ART-8 — history admission and its maintenance pass (ART-R124 to
+  ART-R127).
 
 Lifecycle ([registry](../platform/lifecycle.md)):
 

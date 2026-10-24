@@ -158,17 +158,14 @@ var (
 		"A write targets a frozen binding, which never advances, so neither a re-read nor a retry can succeed; "+
 			"returned on the public and private Artifact APIs whatever the write precondition.",
 		link("ART-R59", "../artifacts/artifact-store.md"))
-	// The two retained-history codes are registered with the public contract
-	// that documents them; the ArtifactStore admission that produces them is
-	// not implemented yet, so they have no named kind until it lands.
-	_ = define("artifact_history_protected", http.StatusConflict, false,
+	ArtifactHistoryProtected = define("artifact_history_protected", http.StatusConflict, false,
 		"artifact history is protected and cannot fit its retention limit",
 		"An Artifact write would leave its binding with more retained revisions or bytes than the history limit "+
 			"(LIM-ART-9) allows even after every unprotected historical revision is removed: the current, the new "+
 			"revision and the revisions that exact references still protect exceed it. Nothing changes; only the "+
 			"release of a protecting reference or a higher configured limit lets the same write succeed.",
 		link("ART-R126", "../artifacts/artifact-store.md"))
-	_ = define("artifact_history_maintenance_pending",
+	ArtifactHistoryMaintenancePending = define("artifact_history_maintenance_pending",
 		http.StatusServiceUnavailable, true,
 		"artifact history maintenance is pending; retry shortly",
 		"Admitting the write needs more history maintenance than one transaction may do (LIM-ART-10); the write "+

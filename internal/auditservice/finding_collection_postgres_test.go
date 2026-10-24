@@ -87,7 +87,16 @@ func seedCollectionRunReceipt(t *testing.T, ctx context.Context, pool *pgxpool.P
 	}
 	evidence := findingintake.ExactArtifact{Ref: write.Ref, Digest: auditdomain.DigestBytes([]byte("same evidence")), MediaType: write.MediaType, SizeBytes: write.Size}
 	if missingEvidence {
-		evidence.Ref.Name = "missing"
+		// The receipt cites a revision that its Run's purge alone could
+		// remove (DEL-R65); it advances once and is lost after the insert.
+		lost, err := run.Write(ctx, contracts.ArtifactRef{Namespace: "evidence", Name: "lost"}, artifacts.Payload{MediaType: "text/plain", Data: []byte("same evidence")}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := run.Write(ctx, contracts.ArtifactRef{Namespace: "evidence", Name: "lost"}, artifacts.Payload{MediaType: "text/plain", Data: []byte("replacement")}, lost.Ref.Revision); err != nil {
+			t.Fatal(err)
+		}
+		evidence.Ref = lost.Ref
 	}
 	proposal := auditdomain.FindingProposal{
 		Schema: auditdomain.FindingProposalSchema, ClientKey: suffix, Title: suffix, Description: "A generic observation.",
@@ -121,6 +130,11 @@ report_projection
 		string(projection))
 	if err != nil {
 		t.Fatal(err)
+	}
+	if missingEvidence {
+		if err := artifactstest.LoseRunRevision(ctx, pool, runID, evidence.Ref); err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 

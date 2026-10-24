@@ -122,15 +122,16 @@ continuation, and its candidate StageResult, which the accepted StageResult
 equals, for the life of the Run; a Planner session's completed result and
 its scan plan, input and report references; a Run's selected Skill sources;
 an Audit's selected inputs and its baseline inputs and Skill sources, for
-the life of the Audit; a finding proposal receipt's proposal and evidence
-while its source Run holds it; and the case inputs of an Eval dataset
-revision. A reference to a binding that has only one revision for its whole
+the life of the Audit; and a finding proposal receipt's proposal and
+evidence while its source Run holds it. A reference to a binding that has only one revision for its whole
 life, such as a frozen Audit-managed binding, a finding proposal or a Run
 output, is protected as that binding's current revision.
 
 **DEL-R64.** These references do not protect the revision they name: Eval
 records and `eval_evidence_refs`, whose loss makes a comparison incomplete;
-copies of protected inputs in Eval plans, members and suboperations; the
+the case inputs of an Eval dataset revision, which Eval preflight reports
+as unavailable (`eval_evidence_unavailable`) once retention removed them;
+copies of inputs in Eval plans, members and suboperations; the
 Run repeat record; Audit references to a deleted child Run; references
 embedded in report or package bytes; finding fingerprint and anchor
 projections; keyed receipts, whose replay confirms the original reference
@@ -138,11 +139,56 @@ without reading or protecting it; and Runtime caches. A reader of such a
 reference reports the revision as unavailable and never substitutes the
 current revision.
 
+**DEL-R65.** Each holder of DEL-R63 keeps its holds in the database, in the
+transaction that records its reference, and releases them in the transaction
+that removes or replaces that reference, as the following inventory states.
+A holder whose writer proves the revision in that transaction acquires
+strictly: a reference to a missing revision of a scope that exists fails the
+write with the reference violation `artifact_exact_hold`, which the writer
+reports as its existing not-found outcome (FAIL-DEL-7). A reference into a
+scope that no longer exists holds nothing, because that scope's purge removed
+every revision it could name. A holder whose contract records a reference
+without proving it acquires leniently: a missing revision protects nothing,
+and its reader reports the revision unavailable when it uses it. A controlled
+scope purge removes the revisions of its own scope whatever their holds
+(DEL-R5).
+
+| Holder | Stored in | Recorded by | Acquires | Released when |
+| --- | --- | --- | --- | --- |
+| Current revision | `artifact_bindings.current_revision` | every Artifact write and fork | always protected; not counted | the binding's next write |
+| Lineage edge, both ends (Run input and Skill forks, retained sweep inputs, `output_bind`, `project_output_publish`, `audit_import`) | `artifact_lineage` | the trusted fork of each flow | foreign keys and a counted hold | the scope purge that owns the edge |
+| Run output publication, both ends | `workflow_run_output_publications` | Scheduler output publication | foreign keys and a counted hold | Run purge |
+| StageExecution context snapshot with its continuation, candidate StageResult and accepted StageResult | `stage_executions` | Scheduler and Stage finalization | strict | Run purge |
+| Planner session completed result, scan plan, scan inputs and reports | `planner_sessions.state` | Planner session store | lenient; the StageExecution's candidate proves what it accepts | the state that replaces them, or Run purge |
+| Run Skill sources | `workflow_runs.skill_snapshot` | Run creation | lenient; Run initialization reports a missing source | Run deletion |
+| Audit selected inputs and baseline inputs | `audits.input_selection`, `audits.baseline_snapshot` | Audit creation and preparation | strict | the update that replaces them, or Audit deletion |
+| Audit baseline Skill sources | `audits.baseline_snapshot` | Audit preparation | lenient | Audit deletion |
+| Finding proposal receipt proposal and evidence | `finding_proposal_receipts` | finding intake, while the source Run holds the receipt | strict | the source Run's purge |
+
+Rationale: every holder increments one counter per revision in the
+transaction that records it, so retention decides eligibility from an
+indexed column of the revision row and a partial index of unheld revisions,
+instead of probing each holder's JSON at eviction time. The alternative,
+indexed probes of every holder table per candidate, needs one index per JSON
+path and repeats the probes on every admission. Reopen this choice if a new
+holder cannot maintain its count in its own transaction. Eval dataset case
+inputs are not holders because one dataset revision may name up to 1,000
+cases of up to 128 inputs each (LIM-EVF-5, LIM-EVF-9): counting them would
+make dataset registration and the bounded Eval purge (LIM-EVM-20) write an
+unbounded number of revision rows. Reopen that choice if Eval needs a
+registered dataset to stay runnable without re-upload.
+
 ### Controlled scope purge
 
 **DEL-R4.** Normal Artifact APIs, which are create-only and immutable, never
-delete committed versions; the controlled scope purge performed by trusted
-lifecycle cleanup is their only exception.
+delete committed versions. There are two exceptions, both trusted Server code
+and neither reachable through an API that names what to delete: the
+controlled scope purge performed by lifecycle cleanup, and automatic history
+retention (DEL-R62), which removes only an unheld historical revision that is
+not its binding's current revision. The database enforces both: a revision
+row can be deleted only inside the purge or the retention exception of the
+deleting transaction, and the retention exception refuses a held or current
+revision.
 
 **DEL-R5.** The controlled scope purge may run only after its gate, the Run
 release gate of terminal Run hard deletion (DEL-R16, DEL-R17) or the Project
@@ -517,6 +563,10 @@ flowchart TD
   returning after the Project deletion fence (DEL-R43).
 - [FAIL-DEL-6](../platform/failure-model.md): a destination proposal import
   racing source Run deletion (DEL-R33).
+- [FAIL-DEL-7](../platform/failure-model.md): an exact-reference hold or an
+  exact read racing automatic history retention (DEL-R62, DEL-R65).
+- [LIM-ART-9 to LIM-ART-11](../platform/limits.md): retained history per
+  binding and the work bound of one retention transaction and pass (DEL-R62).
 - [LIFE-DEL-1](../platform/lifecycle.md) WorkflowRun,
   [LIFE-DEL-2](../platform/lifecycle.md) Project,
   [LIFE-DEL-3](../platform/lifecycle.md) RunScope,
@@ -529,7 +579,8 @@ flowchart TD
   [LIFE-DEL-8](../platform/lifecycle.md) records outside Project ownership,
   [LIFE-DEL-9](../platform/lifecycle.md) managed eval data of a Project,
   [LIFE-DEL-10](../platform/lifecycle.md) finding proposal receipt
-  tombstones of a Project.
+  tombstones of a Project,
+  [LIFE-DEL-11](../platform/lifecycle.md) historical binding revisions.
 - [Errors](../platform/errors.md): `run_not_deletable` (DEL-R20).
 
 Deletion failure and concurrency outcomes are stated in DEL-R8, DEL-R10,

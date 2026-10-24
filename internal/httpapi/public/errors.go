@@ -3,8 +3,11 @@ package public
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/grauwolf32/contractor/internal/apierror"
+	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
@@ -82,6 +85,11 @@ func writeError(w http.ResponseWriter, kind apierror.Kind, message string) {
 func writeErrorDetails(w http.ResponseWriter, kind apierror.Kind, message string, details any) {
 	if message == "" {
 		message = kind.Message()
+	}
+	if kind == apierror.ArtifactHistoryMaintenancePending {
+		// The write stored nothing and a maintenance pass for its binding
+		// has committed; the next attempt continues it (ART-R127).
+		w.Header().Set("Retry-After", strconv.Itoa(int(artifacts.HistoryRetryAfter/time.Second)))
 	}
 	writeJSON(w, kind.Status(), errorResponse{
 		Code: kind.Code(), Message: message, Retryable: kind.Retryable(),

@@ -21,16 +21,43 @@ func isRunRevisionLimit(err error) bool {
 		persistencepostgres.ConstraintName(err) == runRevisionLimitConstraint
 }
 
+// exactHoldConstraint names the database rejection of a strict exact-reference
+// hold on a revision that does not exist (DEL-R63), raised by
+// contractor_artifact_hold_apply; lineageSourceConstraint is the foreign key
+// of a lineage edge to its source revision. Either means the exact revision
+// a writer read is gone, typically removed by history retention between the
+// read and the reference (ART-R124).
+const (
+	exactHoldConstraint     = "artifact_exact_hold"
+	lineageSourceConstraint = "artifact_lineage_source_scope_kind_source_scope_id_source__fkey"
+)
+
+// IsExactRevisionMissing reports whether err rejects a reference to an exact
+// revision that no longer exists. A strict holder's writer that is not an
+// ArtifactStore operation reports it as its own not-found outcome
+// (FAIL-DEL-7).
+func IsExactRevisionMissing(err error) bool {
+	if persistencepostgres.Classify(err) != persistencepostgres.ClassReferenceViolation {
+		return false
+	}
+	constraint := persistencepostgres.ConstraintName(err)
+	return constraint == exactHoldConstraint || constraint == lineageSourceConstraint
+}
+
 // storeError classifies the failure of a statement that creates scopes,
 // bindings or revisions. The definite rejections every such statement can
 // meet map to their sentinels: a Run beyond its revision limit
 // (ErrRunRevisionLimit), a deleting Project scope (ErrScopeDeleting), a scope
-// whose owner does not exist (ErrInvalidScope) and, when conflict is not nil,
+// whose owner does not exist (ErrInvalidScope), an exact source revision that
+// no longer exists (ErrArtifactNotFound) and, when conflict is not nil,
 // a binding another writer created first (conflict). Anything else keeps its
 // cause.
 func storeError(what string, err error, conflict *ConflictError) error {
 	if isRunRevisionLimit(err) {
 		return fmt.Errorf("%s: %w", what, ErrRunRevisionLimit)
+	}
+	if IsExactRevisionMissing(err) {
+		return fmt.Errorf("%s: %w", what, ErrArtifactNotFound)
 	}
 	switch persistencepostgres.Classify(err) {
 	case persistencepostgres.ClassDeleting:

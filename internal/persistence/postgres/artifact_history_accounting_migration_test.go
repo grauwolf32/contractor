@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// Migration artifact_history_accounting backfills the retained revisions and
+// Migration artifact_history_retention backfills the retained revisions and
 // full encoded bytes of every stored binding: each revision is charged the
 // size of its blob, also when two revisions share one version or blob, and a
 // binding's counters never include another binding's revisions. Afterwards
@@ -21,7 +21,7 @@ func TestSharedPostgresArtifactHistoryAccountingMigrationBackfillsCounters(t *te
 	}
 	ctx := t.Context()
 	pool, _ := isolatedPools(t, ctx, url)
-	previous, _ := embeddedMigration(t, "artifact_history_accounting")
+	previous, _ := embeddedMigration(t, "artifact_history_retention")
 	installMigrationPrefix(t, ctx, pool, previous)
 	err := InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		for _, statement := range []string{

@@ -12,6 +12,7 @@ from typing import Any
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.artifacts import (
+    ARTIFACT_HISTORY_MAINTENANCE_PENDING,
     ArtifactAPIError,
     ArtifactClient,
     ArtifactResponseLimitError,
@@ -277,7 +278,13 @@ class _MemorySession:
             if error.code == "artifact_conflict":
                 raise MemoryToolError("memory_changed") from None
             mapped = _mapped_client_error(error)
-            if mapped.code == "memory_forbidden" or not 500 <= error.status_code < 600:
+            if (
+                mapped.code == "memory_forbidden"
+                or error.code == ARTIFACT_HISTORY_MAINTENANCE_PENDING
+                or not 500 <= error.status_code < 600
+            ):
+                # Pending history maintenance stored nothing: it is a definite
+                # answer the model may retry, not a lost reply to reconcile.
                 raise mapped from None
 
         # Transport loss and server failures may follow a committed PUT (for
@@ -741,6 +748,9 @@ def _mapped_client_error(error: Exception) -> MemoryToolError:
     if isinstance(error, ArtifactAPIError) and error.code == "artifact_limit_exceeded":
         # The Run can store no further Artifact revision, so no note write succeeds.
         return MemoryToolError("memory_namespace_full")
+    # Everything else, including retained-history pressure on one note's
+    # binding (artifact_history_protected, artifact_history_maintenance_pending),
+    # leaves the note unavailable, never the Namespace full (MEM-R72).
     return MemoryToolError("memory_unavailable")
 
 

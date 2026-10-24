@@ -98,13 +98,19 @@ func (s *PostgresStore) Write(
 	if prepareErr != nil {
 		return artifacts.WriteResult{}, prepareErr
 	}
-	return withActiveStage(ctx, s.pool, true, binding, s.writeBoundary, func(tx pgx.Tx) (artifacts.WriteResult, error) {
+	result, err := withActiveStage(ctx, s.pool, true, binding, s.writeBoundary, func(tx pgx.Tx) (artifacts.WriteResult, error) {
 		store, err := runArtifactStore(tx, binding.RunID)
 		if err != nil {
 			return artifacts.WriteResult{}, err
 		}
 		return store.Write(ctx, target, payload, expectedRevision)
 	})
+	if errors.Is(err, artifacts.ErrHistoryMaintenancePending) {
+		// The note's transaction has rolled back and stored nothing; commit the
+		// one maintenance pass its binding needs before answering (ART-R127).
+		err = artifacts.NewPostgresRepository(s.pool).MaintainHistory(ctx, err)
+	}
+	return result, err
 }
 
 func runArtifactStore(tx pgx.Tx, runID string) (artifacts.ScopedStore, error) {

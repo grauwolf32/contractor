@@ -101,6 +101,18 @@ func (c *serveConfigInputs) effectiveConfig() (Config, error) {
 	if err := artifacts.ValidateBlobInlineLimit(blobInlineMaxBytes); err != nil {
 		return Config{}, err
 	}
+	historyMaxRevisions, err := strconv.ParseInt(c.historyMaxRevisions, 10, 64)
+	if err != nil {
+		return Config{}, errors.New("artifact-history-max-revisions must be an integer revision count")
+	}
+	historyMaxBytes, err := strconv.ParseInt(c.historyMaxBytes, 10, 64)
+	if err != nil {
+		return Config{}, errors.New("artifact-history-max-bytes must be an integer byte count")
+	}
+	history, err := artifacts.NewHistoryPolicy(historyMaxRevisions, historyMaxBytes)
+	if err != nil {
+		return Config{}, err
+	}
 	gitConfig := gitimport.Config{AllowedRemotes: c.gitRemotes.values, KnownHostsFile: c.gitKnownHosts, Limits: &c.gitImportLimits}
 	if err := gitimport.ValidateConfig(gitConfig); err != nil {
 		return Config{}, err
@@ -110,6 +122,7 @@ func (c *serveConfigInputs) effectiveConfig() (Config, error) {
 		GitImport:           gitConfig,
 		ArtifactBlobBackend: selectedBlobBackend, ArtifactBlobPath: c.blobPath,
 		ArtifactBlobInlineMaxBytes: blobInlineMaxBytes,
+		ArtifactHistory:            history,
 		ListenAddress:              c.listenAddress, PrivateListenAddress: c.privateListenAddress, PrivateURL: c.privateURL,
 		ShutdownTimeout: c.shutdownTimeout, RuntimeRequestTimeout: c.runtimeRequestTimeout,
 		WorkerRequestTimeout:        c.workerRequestTimeout,

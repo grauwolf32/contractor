@@ -62,6 +62,8 @@ func (c *serveConfigInputs) parseFlags(args []string) error {
 	flags.StringVar(&c.blobBackend, "artifact-blob-backend", c.blobBackend, "Artifact payload storage: auto (default), postgresql or filesystem")
 	flags.StringVar(&c.blobPath, "artifact-blob-path", c.blobPath, "dedicated absolute blob directory; auto probes it at startup")
 	flags.StringVar(&c.blobInlineMaxBytes, "artifact-blob-inline-max-bytes", c.blobInlineMaxBytes, "inclusive PostgreSQL byte threshold in auto mode (0..67108864)")
+	flags.StringVar(&c.historyMaxRevisions, "artifact-history-max-revisions", c.historyMaxRevisions, "revisions each Artifact binding retains, counting its current one (2..20000)")
+	flags.StringVar(&c.historyMaxBytes, "artifact-history-max-bytes", c.historyMaxBytes, "full encoded bytes each Artifact binding retains (134217728..8589934592)")
 	flags.Var(&c.performanceMetrics, "performance-metrics", "enable Operations performance collection (requires restart)")
 	flags.Var(&c.pprof, "pprof", "enable independent loopback Go profiling (requires restart)")
 	flags.StringVar(&c.pprofListen, "pprof-listen", c.pprofListen, "numeric loopback Go profiling listen address")
