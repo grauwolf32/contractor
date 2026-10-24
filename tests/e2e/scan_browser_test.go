@@ -37,8 +37,13 @@ func runScanBrowser(t *testing.T, h *scanProcessHarness) {
 	if _, err := os.Stat(filepath.Join(uiRoot, "node_modules", ".bin", "playwright")); err != nil {
 		t.Fatal("browser scan gate requires installed UI dependencies and Chromium")
 	}
-	if os.Getenv("CONTRACTOR_SCAN_UI_PREBUILT") != "1" {
-		runChecked(t, uiRoot, nil, "node", "node_modules/vite/bin/vite.js", "build")
+	dist := filepath.Join(h.temporaryRoot, "ui-dist")
+	if os.Getenv("CONTRACTOR_SCAN_UI_PREBUILT") == "1" {
+		if err := os.CopyFS(dist, os.DirFS(filepath.Join(uiRoot, "dist"))); err != nil {
+			t.Fatalf("copy prebuilt scan UI snapshot: %v", err)
+		}
+	} else {
+		runChecked(t, uiRoot, nil, "node", "node_modules/vite/bin/vite.js", "build", "--outDir", dist)
 	}
 	internal, err := url.Parse(h.browserInternalURL)
 	if err != nil {
@@ -53,7 +58,7 @@ func runScanBrowser(t *testing.T, h *scanProcessHarness) {
 		"CONTRACTOR_UI_API_BASE_URL": h.browserAPIURL,
 		"CONTRACTOR_UI_HOST":         "127.0.0.1",
 		"CONTRACTOR_UI_PORT":         port,
-		"CONTRACTOR_UI_DIST_DIR":     filepath.Join(uiRoot, "dist"),
+		"CONTRACTOR_UI_DIST_DIR":     dist,
 	}, "node", "server/index.mjs")
 	waitForHTTP(t, h.ctx, ui, http.DefaultClient, h.browserInternalURL+"/runtime-config.json", http.StatusOK)
 	evidence := os.Getenv("CONTRACTOR_SCAN_EVIDENCE_DIR")

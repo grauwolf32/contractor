@@ -26,6 +26,10 @@ func (s *uiStack) runManagedEvals(owner, uiURL, apiURL, uiDirect, apiDirect, mod
 	if evidence := os.Getenv("CONTRACTOR_EVAL_EVIDENCE_DIR"); evidence != "" {
 		output = filepath.Join(evidence, "browser")
 	}
+	if err := os.MkdirAll(output, 0700); err != nil {
+		t.Fatal(err)
+	}
+	browserReport := filepath.Join(output, mode+"-report.json")
 	environment := cleanEnvironment(map[string]string{
 		"CONTRACTOR_UI_EVAL_STACK":           "1",
 		"CONTRACTOR_UI_E2E_BASE_URL":         uiURL,
@@ -38,6 +42,7 @@ func (s *uiStack) runManagedEvals(owner, uiURL, apiURL, uiDirect, apiDirect, mod
 		"CONTRACTOR_UI_E2E_PASSWORD":         uiStackPassword,
 		"CONTRACTOR_EVAL_FIXTURE_DIR":        s.temporaryRoot,
 		"CONTRACTOR_UI_E2E_OUTPUT_DIR":       output,
+		"PLAYWRIGHT_JSON_OUTPUT_FILE":        browserReport,
 		"pnpm_config_verify_deps_before_run": "warn",
 	}, "PATH", "HOME", "XDG_CACHE_HOME", "COREPACK_HOME", "TMPDIR", "LANG", "LC_ALL", "TZ")
 	assertEnvironmentHasNoSecrets(t, environment, s.secrets)
@@ -48,7 +53,9 @@ func (s *uiStack) runManagedEvals(owner, uiURL, apiURL, uiDirect, apiDirect, mod
 		environment = append(environment, "CONTRACTOR_EVAL_EXTERNAL_ONLY=1")
 	}
 	runChecked(t, filepath.Join(s.repositoryRoot, "ui"), environment,
-		"corepack", "pnpm", "exec", "playwright", "test", "e2e/evals-stack.spec.ts", "--output", filepath.Join(output, mode))
+		"corepack", "pnpm", "exec", "playwright", "test", "e2e/evals-stack.spec.ts", "--reporter=line,json", "--output", filepath.Join(output, mode))
+	assertBrowserReport(t, browserReport, []string{"e2e/evals-stack.spec.ts"})
+	t.Logf("Playwright execution report: %s", browserReport)
 	s.assertManagedEvalExecutions(owner, mode)
 	s.assertManagedEvalOwnerBoundary(owner)
 	_, _, failures := s.modelGateway.snapshot()

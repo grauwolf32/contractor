@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-125 open tasks: 4 in progress, 96 pending, 25 deferred. 1000 finished: 997 completed, 3 archived.
+125 open tasks: 5 in progress, 95 pending, 25 deferred. 1002 finished: 999 completed, 3 archived.
 
 ## In progress
 
@@ -15,6 +15,7 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
+| [V406-007](v406-007-web-scan-release-gate.yml) | scan-tools | chore | P2 | Gate the complete web scan and rule sweep journeys |
 
 ## Pending
 
@@ -85,7 +86,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V55-009](v55-009-scan-candidate-ranking.yml) | feature | P2 | — | Optionally rank existing scan candidates with an LLM |
-| [V406-007](v406-007-web-scan-release-gate.yml) | chore | P2 | — | Gate the complete web scan and rule sweep journeys |
 | [V407-006](v407-006-scanplan-prepare-once.yml) | chore | P2 | — | Reuse one parsed OpenAPI source across an Audit inventory operation batch |
 | [V407-007](v407-007-scan-output-off-loop.yml) | defect | P3 | — | Offload scanner parsing and filesystem preparation with joined cancellation |
 
@@ -256,8 +256,8 @@ tasks in `introduced_by`.
 | Audits (`audits`) | 24 | 53 | 73 | 22 | 93 |
 | Evaluations (`evals`) | 6 | 21 | 34 | 7 | 40 |
 | Podman sandbox (`sandbox`) | 0 | 9 | 2 | 1 | 3 |
-| Web UI (`ui`) | 1 | 24 | 60 | 13 | 53 |
+| Web UI (`ui`) | 1 | 24 | 61 | 13 | 54 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 16 | 33 | 6 | 11 |
 | Public API and wire contracts (`api-contracts`) | 8 | 1 | 34 | 20 | 11 |
 | PostgreSQL persistence and schema (`persistence`) | 13 | 0 | 21 | 41 | 10 |
-| Quality, CI and process (`quality`) | 17 | 1 | 22 | 89 | 20 |
+| Quality, CI and process (`quality`) | 17 | 1 | 23 | 89 | 21 |
