@@ -4,7 +4,7 @@ title: Classify aborted RuntimeConfig bodies and reject invalid mutation metadat
 milestone: server-runtime-review-2026-10
 epic: api-contracts
 kind: defect
-introduced_by: V370-009
+introduced_by: V8-008
 priority: P3
 status: completed
 depends_on: []
@@ -76,7 +76,7 @@ tests:
   - A1
   - A2
   - A3
-implementation_commit: d1dfd618f93606d933d22897ce3733140694d8f2
+implementation_commit: 978164edced37e5b18b8ae1a16a9e977fac2754d
 verification:
   date: '2026-10-23'
   environment: macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local), Node 24.20.0 and the locked Runtime venv; isolated PostgreSQL
@@ -99,16 +99,33 @@ verification:
     API-R112; both routers dispatch through httpx.ServeRoutes): go test -count=1 ./internal/httpapi/... ./internal/evaldomain/...
     with and without -tags=integration against contractor_test_g, make verify-public-api and make lint passed. TestPrivateArtifactNamesRejectBeforeStore
     now also requires 405 for HEAD on each malformed-name path and no store read, so ART-R45 and ART-R120 hold together.'
+  - 'Review follow-up 978164ed on 2026-10-24, after merging claude/review-v407-v409 at c36e3caa: go test -count=1 ./internal/httpapi/...
+    ./internal/evaldomain/... passed with and without -tags=integration against contractor_test_g (the PostgreSQL tests
+    ran); go test -count=1 ./internal/evalservice/... ./internal/evalstore/... ./internal/contracts/... ./internal/archtest/...
+    ./internal/publicclient/... ./internal/cli/... passed; make verify-public-api passed with TestSharedRevisionIfMatchCasesGateEveryCounterPrecondition,
+    TestJSONMutationsCheckTheMediaTypeBeforeHeadersAndBody and TestArtifactPayloadInterruptionIsRetryableAndStoresNothing
+    added to its selection; python3 scripts/shared_fixture_gate.py passed (254 fixtures, 270 Go and 188 Python shared tests);
+    make lint passed.'
+  - 'Review follow-up base run, on a temporary worktree at 5b33a764 with the new tests and fixture copied in: TestJSONMutationsCheckTheMediaTypeBeforeHeadersAndBody
+    failed for createRun, createProjectRun, cancelRun, resumeRun, retryRunGateway, createAuditFindingReview, decideAuditReview,
+    startAudit and resumeAudit; TestSharedRevisionIfMatchCasesGateEveryCounterPrecondition failed for the four Eval If-Match
+    routes and TestSharedEvalPreconditionsUseTheCounterReader for "01" and "007"; TestMutationPrecedenceTable failed on
+    its media-type rows. The payload interruption tests pass on both revisions: they pin the existing outcome.'
+  - Process tests were not run; every tests/e2e request with a JSON body was checked to send Content-Type application/json,
+    and an Audit start without a body needs none.
   database_tests_configured: true
   acceptance:
   - A1 satisfied. publishRuntimeConfig reads through readJSONBody, the reader decodeJSONBounded uses; a body ending before
     its declared length is 400 invalid_request and publishes no version, an empty body is 400, a declared or undeclared
     oversized body stays 413 request_too_large (the declared one unread), and the raw document still reaches the RuntimeConfig
     strict decoder (a duplicate member stays 400 runtime_config_invalid).
-  - A2 satisfied. The test derives its operations from the OpenAPI document; every mutation that declares a required or
-    optional Idempotency-Key or If-Match gets missing, invalid and duplicate keys and missing or malformed If-Match values
-    (1, W/"1", a list, an unterminated quote) and answers its documented error with zero body reads and zero Project
-    reads. Malformed Project Artifact query, names, media type and precondition answer 400 without a Project read.
+  - A2 satisfied. The tests derive their operations from the OpenAPI document. Every mutation that declares a required
+    or optional Idempotency-Key or If-Match gets missing, invalid and duplicate keys and missing or malformed If-Match values
+    and answers its documented error with zero body reads and zero Project reads; a body-less operation is sent no body
+    and with valid headers gets past the checks, so deleteProject's case fails on the If-Match and not on a body. Every
+    counter If-Match operation gets each shared revision case. Every JSON mutation gets a missing, repeated, parameterized
+    and other Content-Type and answers its declared media-type status without a body or Project read. Malformed Project
+    Artifact query, names, media type and precondition answer 400 without a Project read.
   - A3 satisfied. TestMutationPrecedenceTable and the Project Artifact table pin, per family, valid requests (201/200),
     endpoint media-type statuses (400 for JSON creation routes, 415 for model selection and scheduler settings), strict
     JSON rejection after the key, 413 only once headers are valid, missing and foreign Projects (404), a deleting Project
@@ -127,8 +144,20 @@ verification:
     is the header half of IdentifyMutation, so the grammar has one definition (contracts.ValidIdempotencyKey) and the
     handler and the receipt identity cannot disagree.
   - Spec. New requirement API-R112 in docs/spec/api/public-api.md; FAIL-API-1 in docs/spec/platform/failure-model.md
-    now covers a JSON body that cannot be read completely; ART-R45 states the private PUT name check order. No migration,
-    no new limit and no new error code.
+    now covers a JSON body that cannot be read completely; ART-R45 states the private PUT name check order. The review
+    follow-up extends API-R70 (canonical counter spelling), API-R112 (media type of every JSON mutation, optional and
+    absent bodies), BLB-R28 and FAIL-BLB-1 (interrupted Artifact payload) and GIT-R72 (the Git import body). No migration,
+    no new limit, no new error code and no new requirement ID beyond API-R112.
+  - Media type. Every JSON mutation checks it through requireJSONMediaType; the OpenAPI document declares 415 only for
+    putModelSelection and putSchedulerSettings, Managed Eval routes answer 422 eval_invalid and every other JSON mutation
+    400 invalid_request, as the error registry already said. Audit start and resume take an optional body and check
+    the media type only when the request announces one (positive Content-Length or Transfer-Encoding); a body-less
+    operation does not check Content-Type. A chunked Audit start without Content-Type is now 400 even if it carries no
+    bytes.
+  - Counter preconditions. httpx.RequiredIfMatch, ParseRevision and ParseRevisionETag are the one rule; the public
+    handlers wrap their errors with 400 messages and evaldomain.MutationPrecondition maps them to eval_invalid. The OpenAPI
+    patterns allow up to 20 digits, so 18446744073709551616 to 99999999999999999999 match the schema but are rejected;
+    the shared fixture records them as outOfRange.
   siblings:
   - 'Changed: createProject, createRun, createProjectRun, createAudit, startAudit, pauseAudit, resumeAudit, cancelAudit,
     deleteAudit, createAuditFindingReview, decideAuditReview, publishConfiguration, createCredential, createScanSweep
@@ -136,19 +165,34 @@ verification:
     submitEvalMember, ingestEvalResult, assessEvalMember, selectEvalRecords (evalBody checks key and If-Match before reading);
     putProjectArtifact (metadata before the Project); publishRuntimeConfig (read classification); private Artifact PUT
     (names before the allocation and the payload).'
-  - 'Already in order, unchanged: updateProject, deleteProject, putOwnerQueueControl, putModelSelection, putSchedulerSettings,
-    putRuntimeLabel, deleteRuntimeLabel, createRuntimeCredential, deleteRuntimeCredential, replaceRuntimeAgentPrincipalLabels,
-    deleteRuntimeAgentPrincipal, deleteCredential, putArtifact, importGitArtifact, importProjectGitArtifact, replaceGitKey,
-    deleteGitKey, cancelScanSweep, purgeScanSweep, deleteRun, login and logout.'
-  - 'No mandatory headers, body checked before any store: cancelRun, resumeRun, retryRunGateway, importAuditFindingProposal
-    and publishFindingCollection.'
+  - 'Review follow-up, media type added before headers and body: createRun, createProjectRun, cancelRun, resumeRun, retryRunGateway,
+    createAuditFindingReview and decideAuditReview; moved before the headers: startAudit and resumeAudit. The first pass
+    wrongly listed cancelRun, resumeRun and retryRunGateway as in order.'
+  - 'Review follow-up, media type through the shared helper with unchanged order: createProject, updateProject, createAudit,
+    publishConfiguration, createCredential, login, importAuditFindingProposal, publishFindingCollection, replaceGitKey,
+    importGitArtifact, importProjectGitArtifact, putOwnerQueueControl, putModelSelection and putSchedulerSettings (415),
+    publishRuntimeConfig, putRuntimeLabel, createRuntimeCredential, replaceRuntimeAgentPrincipalLabels, createScanSweep
+    and the nine Managed Eval mutations (422).'
+  - 'Review follow-up, counter If-Match through httpx: auditMutationHeaders (start, pause, resume, cancel, delete, review
+    create and decide), updateProject, deleteProject, deleteRuntimeLabel, deleteRuntimeAgentPrincipal, replaceRuntimeAgentPrincipalLabels,
+    putSchedulerSettings and putRuntimeLabel''s rebind; putOwnerQueueControl and putModelSelection use RequiredIfMatch
+    and ParseRevision for their own grammars (zero allowed, revision:digest); the nine Managed Eval mutations through
+    MutationPrecondition.'
+  - 'Body-less and in order: deleteCredential, deleteRuntimeCredential, deleteGitKey, cancelScanSweep, purgeScanSweep,
+    deleteRun, logout, pauseAudit, cancelAudit and deleteAudit; putArtifact and putProjectArtifact take any media type.'
+  - 'Ruled out: the auditRevision and findingRevision query parameters of Audit reads (integer query schemas pinning
+    a read, answered 409 when stale) still parse with strconv; they are not preconditions. Reopen if a query revision
+    must reject leading zeros.'
   - 'Other JSON body readers already classify an incomplete read as a client error: decodeJSONBounded, readAuditTimeLimit,
     requireEmptyBody, the login reader, evalBody (422 eval_invalid), replaceGitKey (400 git_key_invalid) and the private
     decodeBoundedJSON.'
   declined:
-  - 'Artifact payload transfers (public and private readArtifactBody) keep their retryable 500 for an interrupted body:
-    they run under the FAIL-BLB-1 socket deadlines, and the public Go client and the Python Runtime retry on that retryable
-    class, so a client-error class would change the private wire contract. API-R112 says so. Reopen if a spec decision
-    assigns a client-error class to interrupted Artifact transfers.'
-  - No shared mutation preamble helper beyond auditMutationHeaders (now used by every Audit control and review mutation)
-    and readJSONBody; scope.out excludes a universal mutation framework.
+  - 'Artifact payload transfers (public and private readArtifactBody) keep their retryable 500 internal_error for an
+    interrupted body, now written in BLB-R28 and FAIL-BLB-1 and pinned by TestArtifactPayloadInterruptionIsRetryableAndStoresNothing
+    and TestPrivateArtifactPayloadInterruptionIsRetryable: a payload of up to 64 MiB streams under per-read deadlines,
+    the upload precondition makes resending it whole safe, and the Runtime''s Artifact client reports the class as retryable
+    (the public Go client does not replay an unkeyed PUT). The Git import body is JSON and follows FAIL-API-1 (400)
+    even under its import deadline (GIT-R72). Reopen if a client must tell a client-side abort from a Server failure.'
+  - The shared preamble is requireJSONMediaType, requiredRevision over httpx.RequiredIfMatch and ParseRevisionETag,
+    auditMutationHeaders and readJSONBody; scope.out excludes a universal mutation framework, so the handlers still call
+    them in order.

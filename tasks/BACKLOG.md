@@ -188,7 +188,7 @@ tasks in `introduced_by`.
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 5 | 41 | 51 | 18 | 73 |
 | Planners and the Worker model boundary (`planner-worker`) | 4 | 27 | 40 | 16 | 58 |
-| Runtime labels, configuration and credentials (`runtime-config`) | 10 | 25 | 13 | 4 | 40 |
+| Runtime labels, configuration and credentials (`runtime-config`) | 10 | 25 | 13 | 4 | 41 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 2 | 12 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 2 | 1 | 1 |
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 12 | 5 | 16 |
@@ -203,6 +203,6 @@ tasks in `introduced_by`.
 | Podman sandbox (`sandbox`) | 0 | 9 | 2 | 1 | 3 |
 | Web UI (`ui`) | 3 | 24 | 58 | 12 | 53 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 16 | 33 | 6 | 10 |
-| Public API and wire contracts (`api-contracts`) | 4 | 1 | 34 | 20 | 11 |
+| Public API and wire contracts (`api-contracts`) | 4 | 1 | 34 | 20 | 10 |
 | PostgreSQL persistence and schema (`persistence`) | 9 | 0 | 21 | 41 | 9 |
 | Quality, CI and process (`quality`) | 17 | 1 | 21 | 87 | 21 |
