@@ -18,21 +18,35 @@ context:
     - docs/spec/tools/http-caido.md#HTP-R110
     - docs/spec/tools/http-caido.md#HTP-R112
   finding: >-
-    runtime/src/contractor_runtime/toolsets/caido/tools.py:400 applies the
-    100-row page cap to the complete scopes array; :867 rejects the complete
-    workflow array above MAX_WORKFLOWS=100 before filtering by kind; :1939
-    rejects the complete Automate session entries array above
-    MAX_AUTOMATE_ENTRIES=100 before selecting the requested or newest entry.
-    All three flat collections can therefore fail caido_response_invalid
-    solely on cardinality. No live collection above those limits was observed.
-    git blame identifies e37ba6fb7c301dfbb5fa7435e19f66d98efd7b7b (V12-004)
-    as the introduction of all three guards.
+    runtime/src/contractor_runtime/toolsets/caido/tools.py:405 (scopes)
+    applies the 100-row page cap MAX_PAGE_SIZE to the complete scopes array;
+    :882 (workflow list) rejects the complete workflow array above
+    MAX_WORKFLOWS=100 (:75) before filtering by kind; :2029
+    (_automate_session) rejects the complete Automate session entries array
+    above MAX_AUTOMATE_ENTRIES=100 (:76) before selecting the requested or
+    newest entry. All three go through _list (:2392-2395), which raises
+    caido_response_invalid when a list is longer than its maximum, so all
+    three flat collections can fail solely on cardinality. No live
+    collection above those limits was observed. git blame identifies
+    e37ba6fb7c301dfbb5fa7435e19f66d98efd7b7b (V12-004) as the introduction
+    of all three guards.
   siblings: >-
-    V375-002 fixes root and descendant sitemap selection with bounded stable
-    pages. History, Automate result rows and workflow findings use actual
-    provider pagination and retain their existing page caps. Scope terms,
-    Automate placeholders and payload values have separate per-request domain
-    bounds; those do not describe provider catalog cardinality.
+    V375-002 (e0c7320d, completed) fixed root and descendant sitemap
+    selection with bounded stable pages. History, Automate result rows and
+    workflow findings use actual provider pagination and retain their
+    existing page caps. Scope terms, Automate placeholders and payload
+    values have separate per-request domain bounds; those do not describe
+    provider catalog cardinality. Since 4c7d1d99 (V407) the large Caido
+    payload steps run in joined worker threads under the session lock
+    (HTP-R132); any new catalog parsing must follow that rule. V410-008
+    (incremental Caido history for the Project sitemap) does not touch
+    these catalogs.
+  revalidated: >-
+    2026-10-24 on b523ae77: the finding still holds; the three guards are
+    unchanged and no commit names this task. Line references refreshed
+    (tools.py grew with the V407 payload offloading), the shared _list
+    helper and HTP-R132 named. The test target make test-http-caido-e2e is
+    defined in make/toolsets.mk.
 scope:
   in:
     - Define bounded continuation or selection for scopes and workflows, with truthful truncation metadata and reachable remaining entries.

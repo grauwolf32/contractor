@@ -12,23 +12,36 @@ goal: "The 'where in code' lists of docs/spec/database-erd.html come from the SQ
 context:
   review: "Out-of-scope findings of the hub audit fix batch, wave 2 (groups w2a: V369-001 and w2h: V370-001), recorded 2026-10-12; file:line verified on b2b09ea"
   specification: "docs/spec/platform/persistence.md#PER-R23"
+  revalidated: >-
+    2026-10-24 on b523ae77. Still holds. scripts/erd/build_erd.py:104-121
+    is unchanged, scripts/check_database_erd.py still checks the page's
+    tables but not the usage lists, and AGENTS.md section 6 still does not
+    mention the registry. V369-008 (fab046292553d3ff4dff01af4a531b9168bbe05d)
+    made the ownership scan skip prose, so the two definitions now
+    disagree visibly: the page (rebuilt at schema 000039) lists cli among
+    the users of projects, the CLI help text at
+    internal/cli/scan_sweep_remote.go:196 that the scan no longer reads as
+    SQL. The drift examples recorded on 4ea7f49 (controlplane,
+    runtimeconfig) were corrected by later rebuilds; the cli entry replaces
+    them as the current evidence.
   finding: >-
     scripts/erd/build_erd.py:104-121 (table_usage) finds the packages that
     use each table with its own regular expression over non-test Go files
-    and names each by its first directory under internal/ (relative[1]), so
-    it reports auditstore and persistence where the registry names
-    internal/auditstore/internal/pgstore and internal/persistence/postgres.
-    The lists are rewritten only when make docs-erd rebuilds the page, which
-    a migration forces, and scripts/check_database_erd.py checks the page's
-    tables but not the lists. They drift in between: on 4ea7f49 the page
-    still named controlplane among the users of stage_executions, although
-    V370-001 had moved its Stage lock into runstore, and runtimeconfig among
-    the users of stage_allocations, although V370-012 had moved that read
-    to agentprincipal, which the list omitted; the rebuild for migration
-    000014 on b2b09ea corrected both. V369-001 recorded the regular
-    expression as a reading aid that nothing checks. AGENTS.md section 6 (Go
-    server) does not mention the table ownership registry, so the workflow
-    for a new or renamed table (a [relations] line in
+    under internal/ and cmd/ and names each by its first directory under
+    internal/ (relative[1]), so it reports auditstore and persistence where
+    the registry names internal/auditstore/internal/pgstore and
+    internal/persistence/postgres, and it counts any text that matches
+    FROM, JOIN, INTO, UPDATE or TABLE before a table name, prose included:
+    on b523ae77 the page names cli as a user of projects, which the
+    ownership scan rejects since V369-008. The lists are rewritten only
+    when make docs-erd rebuilds the page, which a migration forces, and
+    scripts/check_database_erd.py checks the page's tables but not the
+    lists, so they drift in between (on 4ea7f49 the page still named
+    controlplane and runtimeconfig after V370-001 and V370-012 had moved
+    their reads). V369-001 recorded the regular expression as a reading
+    aid that nothing checks. AGENTS.md section 6 (Go server) does not
+    mention the table ownership registry, so the workflow for a new or
+    renamed table (a [relations] line in
     internal/persistence/table_ownership.txt, the Table owners row of
     persistence.md, the scripts/erd/meta.json entry and make docs-erd) is
     written down only in the registry header and in persistence.md.
@@ -37,6 +50,8 @@ context:
     the Table owners index to the registry; V369-001 rejected generating
     meta.json because it keeps the descriptions. The page's other data
     (tables, keys, triggers) needs a database and stays with make docs-erd.
+    V372-009 may extend the scan to helper arguments, appended locks and
+    migration functions; the usage lists follow whatever the scan sees.
 scope:
   in:
     - "One source for the usage lists: build_erd.py takes them from the Go SQL access scan, printed per owner package (for example by a small command or test helper), and a check in make lint compares the page's lists with the scan without a database."
@@ -45,7 +60,7 @@ scope:
     - "The ERD layout and descriptions, and the scan's own rules (V372-009)."
 acceptance_criteria:
   - id: A1
-    text: "make lint fails when a package starts or stops using a table and the page was not regenerated."
+    text: "make lint fails when a package starts or stops using a table and the page was not regenerated; it fails on b523ae77's page (cli listed for projects)."
   - id: A2
     text: "The page names each user by its package path, as the registry does, and lists no package without SQL access to the table."
   - id: A3

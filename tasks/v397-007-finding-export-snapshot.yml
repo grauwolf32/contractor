@@ -28,6 +28,15 @@ context:
   - docs/spec/platform/failure-model.md
   - docs/spec/platform/limits.md
   - docs/spec/api/public-api.md
+  revalidated: >-
+    2026-10-24 on b523ae77: accurate; no export snapshot or explicit
+    selection freeze exists yet, proposal 0028 still lists it as target
+    design and its #frozen-selection-presentation-and-identity and
+    #unchanged-worker-tool-contract anchors resolve. Dependency V397-003
+    (6b5cc04e, automatic duplicate marks) is completed, so the automatic
+    correlation scope and policy this snapshot must freeze now exist in the
+    receipts (migrations 000022-000025, FND-R163 to FND-R183); V397-006 is
+    still pending.
 scope:
   in:
   - Explicit authorized receipt/finding/revision/contribution/presentation selection through existing collection boundaries.

@@ -12,53 +12,78 @@ goal: "No package reads a table whose owner sits above it in the layer stack unl
 context:
   review: "Out-of-scope finding of the hub audit fix batch, wave 2 (group w2a: V369-001), recorded 2026-10-12; file:line verified on b2b09ea"
   specification: "docs/spec/platform/persistence.md#PER-R23"
+  revalidated: >-
+    2026-10-24 on b523ae77. Still holds and has grown: V372-012 (8389c367)
+    added gatewayrecovery reads of stage_executions and stage_allocations
+    as ordinary [reads] grants. V369-008 (fab046292553d3ff4dff01af4a531b9168bbe05d)
+    only stopped the SQL scan from reading prose as SQL (it removed the
+    false internal/cli read of projects) and changed no upward read;
+    V406-015 (17ad4783, 941d1f4b) concerns reserved Artifact Namespace
+    constants, not table ownership. Registry and source line numbers below
+    are current.
   finding: >-
     V369-001 kept the reads that point up the layer stack
-    (internal/archtest/layers_test.go: platform below execution below
-    product) as ordinary [reads] grants of
+    (internal/archtest/layers_test.go: kernel below platform below
+    execution below product) as ordinary [reads] grants of
     internal/persistence/table_ownership.txt, and no task removes them:
-    internal/artifacts (platform) reads runstore's workflow_runs in forkSQL,
-    the Run-belongs-to-Project check of input forks, output publication and
-    Audit import (artifacts/postgres_fork_sql.go:36-39; registry line 115);
+    internal/artifacts (platform) reads runstore's workflow_runs in forkSQL
+    (internal/artifacts/postgres_fork_sql.go:36-39; registry line 119);
     internal/telemetry (platform) reads workflow_runs, stage_executions and
     stage_allocations for the resource history
-    (telemetry/allocation_resources_sql.go:16-18 and 64-66) and
-    stage_executions for report retention (telemetry/repository.go:363-387;
-    registry lines 204-207); internal/credentials (execution) reads
-    projectstore's projects for the Runtime credential usage
-    (credentials/runtime_repository.go:212-219; registry line 125);
-    internal/runstore (execution) reads projects for the queue page
-    (runstore/queue_store_sql.go:18) and in Run resumption, which also fences
-    the Project FOR SHARE (runstore/resume_store.go:55,
-    runstore/resume_store_sql.go:23; registry line 198). The import-based
-    layer check cannot see SQL, so these dependencies stay invisible to it,
-    and an accepted dependency without an owner or a reversal condition is
-    the pattern AGENTS.md 3.9 warns about. The reads predate the shallow
-    history (boundary 6349621); V369-001 recorded them as grants.
+    (internal/telemetry/allocation_resources_sql.go:17-19 and 67-69) and
+    stage_executions for report and metric retention
+    (internal/telemetry/repository.go:325 and :334,
+    internal/telemetry/repository_sql.go:51; registry lines 217-220);
+    internal/gatewayrecovery (platform) reads workflow_runs in admission
+    (internal/gatewayrecovery/admission.go:93), the unchanged-update read
+    (internal/gatewayrecovery/requests_sql.go:27) and waiting
+    (internal/gatewayrecovery/waiting.go:106), and stage_executions and
+    stage_allocations in the participant fence
+    (internal/gatewayrecovery/requests_sql.go:8-18; registry lines 183-190),
+    while it already moves Runs through runstore's RunStates port;
+    internal/credentials (execution) reads projectstore's projects for the
+    Runtime credential usage (internal/credentials/runtime_repository.go:218-223;
+    registry line 133); internal/runstore (execution) reads projects for the
+    queue page (internal/runstore/queue_store_sql.go:18) and in Run
+    resumption, which also fences the Project FOR SHARE
+    (internal/runstore/resume_store.go:55,
+    internal/runstore/resume_store_sql.go:22-25; registry line 211). The
+    import-based layer check cannot see SQL, so these dependencies stay
+    invisible to it, and an accepted dependency without an owner or a
+    reversal condition is the pattern AGENTS.md 3.9 warns about. The reads
+    predate the shallow history (boundary 6349621) except the
+    gatewayrecovery Stage reads (V372-012); V369-001 recorded them as
+    grants.
   siblings: >-
-    Not named in the finding but of the same kind: internal/gatewayrecovery
-    (platform) reads workflow_runs in admission (gatewayrecovery/admission.go:93),
-    the unchanged-update read (requests.go:227) and waiting
-    (waiting.go:106 and 125; registry line 175), while it already moves Runs
-    through runstore's RunStates port (runs.go:9-31). Every other [reads]
-    entry points sideways or down. V369-001 rejected deriving read
-    permissions from the archtest layer table because that table is test
-    code of another package, so the new check may live in
-    internal/archtest or read one layer list that both tests share.
+    Every other [reads] entry points sideways or down (checked on
+    b523ae77: agentprincipal, memory, scheduler and credentials'
+    runtime_config_versions, runtime_label_bindings, stage_allocations,
+    stage_executions and workflow_runs are execution reading execution;
+    the product packages read product, execution or platform tables).
+    A migration function also hides an upward read from the scan:
+    cleanupStageMetricsSQL (internal/telemetry/repository_sql.go:58) calls
+    contractor_eval_run_members, which reads evalstore's eval_submissions
+    and auditstore's audit_executions; making such calls visible is
+    V372-009, and this task decides that read the same way once it is
+    visible. V369-001 rejected deriving read permissions from the archtest
+    layer table because that table is test code of another package, so
+    the new check may live in internal/archtest or read one layer list
+    that both tests share.
 scope:
   in:
-    - "For each upward read: invert it (the owner answers through a port the composition wires, as RunStates does for gatewayrecovery's writes, or the caller passes a fact it already holds), or record the guarantee that needs the read, the alternatives and the reversal condition with PER-R23 and name that record in the registry entry."
+    - "For each upward read listed above: invert it (the owner answers through a port the composition wires, as RunStates does for gatewayrecovery's writes, or the caller passes a fact it already holds), or record with PER-R23 the guarantee that needs the read, the alternatives and the reversal condition, and name that record in the registry entry."
     - "A check that fails on a [reads] entry whose package sits below the relation's owner in the layer stack unless the entry names an open task or a recorded acceptance."
   out:
     - "Writes and exclusive locks, which PER-R23 already forbids across owners."
     - "Reads that point sideways or down the stack."
+    - "Reads hidden in migration functions and triggers until V372-009 makes them visible."
 acceptance_criteria:
   - id: A1
     text: "Every upward [reads] entry of table_ownership.txt is gone or names its open task or recorded acceptance."
   - id: A2
-    text: "A new upward read granted by an ordinary [reads] entry fails the check."
+    text: "A new upward read granted by an ordinary [reads] entry fails the check; the check fails on b523ae77's registry."
   - id: A3
-    text: "Fork, resource history, retention, credential usage, queue, resumption and gateway admission tests pass on PostgreSQL."
+    text: "Fork, resource history, retention, credential usage, queue, resumption and gateway admission, waiting and participant-fence tests pass on PostgreSQL."
 tests:
   - command: "go test ./internal/persistence ./internal/archtest"
     covers: [A1, A2]

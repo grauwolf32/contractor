@@ -36,6 +36,29 @@ context:
     - docs/spec/execution/worker.md
     - docs/spec/tools/scanners.md
   reuse: Existing ToolsetFactory output checks, ADK BaseTool/FunctionTool, raw JSON Schema gateway conversion, Worker callbacks and tool-free finalizer/summarizer.
+  revalidated: >-
+    2026-10-24 on b523ae77: still deferred, not superseded; main has no MCP or generic
+    worker.toolsets code or specification. The work remains on the unmerged branch
+    origin/feat/v61-toolset-runtime-configuration (head f6dfd6ed16240574ed3565bc6460f737fd072b49,
+    merge base c41a5989, 18 commits). Main is now 2,850 commits past that merge base and git
+    merge-tree reports 75 conflicting paths (35 at deferral), including modify/delete conflicts on
+    files main removed: docs/spec/01-agent-template.md, 02-runtime-and-a2a.md,
+    06-server-ui-and-operations.md, 07-runtime-labels-and-infrastructure-config.md, 19-audits.md,
+    29-tool-workers.md and ui-user-stories.md (retired for the domain documents by af85cc54),
+    internal/config/descriptors.go (now internal/config/resolved/descriptors.go, c8cbf2e1),
+    internal/contracts/agent.go (now internal/contracts/control/agent.go, ToolsetCapability at line
+    26, 6d277c5c), internal/runtimeconfig/principal.go (Agent principal labels now in
+    internal/agentprincipal, 3ecd3f2f) and
+    api/descriptor-parity/toolset-infrastructure-channels.yaml (replaced by
+    api/testdata/toolset-descriptors.json under TLS-R38, 35f59294). The example in reactivate_when
+    no longer applies: proposal 0033 section 14 says V61 MCP configuration is not a prerequisite of
+    the V411 HTTP/API pentest delivery, its section 4.3 keeps MCP tools out of the controlled-proof
+    path without their own gate, and V411-001 explicitly excludes V61 reactivation, so reactivation
+    needs a user decision that names a concrete MCP consumer. Task-specific: worker/runtime.py
+    conflicts. V414-013 (pending) shows that google-adk's module-level LRU caches keep tool
+    instances alive after release, which a prepared BaseTool adapter would also hit. V398-001
+    capability derivation and the Worker completion contract (docs/spec/audits/worker-completion.md,
+    AWC) apply to MCP-equipped Workers, and model-visible descriptions follow TLS-R29 to TLS-R36.
 scope:
   in:
     - Implement MCPToolsetFactory and named ToolInstance wrappers over the V61-005 owner, with exact template allowlist and ownership-before-network preparation.

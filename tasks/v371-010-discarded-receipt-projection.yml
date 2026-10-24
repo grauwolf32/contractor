@@ -19,44 +19,75 @@ context:
     added report_projection, the canonical report fields of the proposal
     (2 bytes to 8,388,608 bytes of text), to finding_proposal_receipts so
     that report finalization need not read proposal artifacts. Run deletion
-    (internal/rundeletion/deleter.go:101-107 with markProposalSourceRunDeletedSQL,
-    deleter_sql.go:10-22) marks every unimported receipt discarded and purges
-    the proposal and evidence revisions with the RunScope, but the receipt
-    row keeps report_projection: the immutability trigger
+    (internal/rundeletion/deleter.go:99-105) calls
+    findingintake.MarkSourceRunDeleted (internal/findingintake/run_deletion.go:17-26
+    with markSourceRunDeletedSQL, run_deletion_sql.go:10-22), which marks
+    every unimported receipt discarded before the RunScope purge removes the
+    proposal and evidence revisions, but the receipt row keeps
+    report_projection. The current immutability trigger
     contractor_protect_finding_proposal_receipt_retention
-    (000001_baseline.sql:924-936) lets an UPDATE change only the four
-    retention columns, and the column is NOT NULL with at least 2 bytes. The
-    proposal content therefore outlives its deleted source Run with no end
-    (receipts are never deleted; V368-009 covers Project purge), while
-    FND-R154, DEL-R28 and DEL-R29, LIFE-DEL-6 and LIFE-FND-1 allow only
-    bounded tombstone provenance for a discarded proposal.
+    (internal/persistence/migrations/000025_finding_comparison_reads.sql:46-66)
+    replaces fingerprint_projection and anchor_projection with
+    unavailable/discarded markers on discard and recomputes
+    comparison_projection (which contractor_finding_comparison_projection,
+    :3-14, already makes unavailable for a discarded receipt), but it lets
+    no other column change, and report_projection is NOT NULL with at least
+    2 bytes. The proposal content therefore outlives its deleted source Run
+    until its Project is purged (DEL-R61, V368-009), and forever for a Run
+    outside any Project, while FND-R154, DEL-R28 and DEL-R29, LIFE-DEL-6
+    and LIFE-FND-1 allow only bounded tombstone provenance for a discarded
+    proposal; LIFE-FND-1 already says that discarded projections retain only
+    unavailable/discarded markers.
   siblings: >-
-    Other receipt columns that may hold proposal content rather than
-    provenance: evidence (jsonb, up to 1 MiB of evidence descriptors) and
-    proposal_ref; decide each and record it. Audit-held receipts keep the
-    projection, which report finalization reads (V368-001). Receipt deletion
-    on Project purge is V368-009. Public and UI receipt projections
-    (the Audit proposal inbox, REV-R142) must not show content of a discarded
-    receipt.
+    Receipt columns: fingerprint_projection, anchor_projection and
+    comparison_projection are already reduced to discarded markers on
+    discard (V397-001, V397-002, V397-004; migrations 000022, 000023, 000025).
+    Still to decide and record: report_projection (this finding), evidence
+    (jsonb array of exact evidence descriptors, up to 1 MiB) and
+    proposal_ref (object, up to 4 KiB), which may be provenance rather than
+    content. Readers of report_projection: report finalization of held
+    receipts (internal/auditstore/internal/pgstore/report_build_sql.go:86-102),
+    the Project purge byte budget (internal/findingintake/project_purge.go:26,
+    LIM-DEL-3) and intake insert (service_sql.go:38); replay after source Run
+    deletion must still work (FND-R167). Audit-held receipts keep the
+    projection, which report finalization reads (V368-001). Public and UI
+    receipt projections must not show content of a discarded receipt: the
+    Audit inbox (FND-R186) lists only native receipts whose source Run still
+    exists plus held receipts, and the comparison projection is unavailable
+    for discarded receipts; confirm no other public read returns it.
+  revalidated: >-
+    2026-10-24 on b523ae77: the finding still holds; no later migration
+    touches report_projection on discard. Changed since a07f5e9: the receipt
+    discard moved from internal/rundeletion/deleter_sql.go into
+    internal/findingintake (MarkSourceRunDeleted), the retention trigger was
+    redefined three times (000022, 000023, 000025) and now already replaces
+    the fingerprint, anchor and comparison projections on discard, so the
+    fix should extend that trigger in the same way; Project purge now
+    deletes tombstones (V368-009, migration 000010). File references, the
+    sibling list and the baseline commit were refreshed.
 scope:
   in:
-    - "Clear or remove the report projection in the transaction that marks a receipt discarded (migration for the column and the trigger; the migration also clears receipts discarded before it)."
-    - "State in LIFE-FND-1 and DEL-R29 exactly which receipt fields a discarded tombstone keeps, with their bounds."
-    - "A PostgreSQL test that deletes a source Run with one imported and one unimported proposal."
+    - "Replace or clear report_projection when a receipt becomes discarded (a migration that extends contractor_protect_finding_proposal_receipt_retention like the fingerprint/anchor markers, or changes the column, and clears receipts discarded before it)."
+    - "Decide for evidence and proposal_ref whether they are bounded provenance or content, apply the same treatment to any that are content, and record the decision."
+    - "State in LIFE-FND-1, FND-R154 and DEL-R29 exactly which receipt fields a discarded tombstone keeps, with their bounds."
+    - "A PostgreSQL test that deletes a source Run with one imported and one unimported proposal and reads both receipt rows."
   out:
-    - "Receipt deletion on Project purge (V368-009)."
-    - "Audit-held receipts."
+    - "Receipt deletion on Project purge (V368-009, delivered)."
+    - "Audit-held receipts and their report projection."
+    - "The fingerprint, anchor and comparison projections (already reduced on discard)."
 acceptance_criteria:
   - id: A1
     given: "A source Run with one unimported and one imported proposal"
     when: "The Run is deleted"
     then: "The discarded receipt keeps no report projection or other proposal content, and the audit-held receipt keeps the projection report finalization needs."
   - id: A2
-    text: "Report finalization of the destination Audit still renders the imported finding."
+    text: "Report finalization of the destination Audit still renders the imported finding, and replay of the discarded submission still reconciles from the receipt (FND-R167)."
   - id: A3
-    text: "The test fails on a07f5e9."
+    text: "The migration clears report projections of receipts discarded before it, and a direct UPDATE that changes report_projection of a source-held or audit-held receipt is still rejected by the trigger."
+  - id: A4
+    text: "The A1 test fails on b523ae77."
 tests:
-  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 -tags integration ./internal/rundeletion ./internal/findingintake ./internal/auditimport"
-    covers: [A1, A2, A3]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 -tags integration ./internal/rundeletion ./internal/findingintake ./internal/auditimport ./internal/persistence/postgres"
+    covers: [A1, A2, A3, A4]
   - command: make lint
-    covers: [A1, A2, A3]
+    covers: [A1, A2, A3, A4]

@@ -6,7 +6,8 @@ epic: audits
 kind: chore
 introduced_by: V39-005
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: 7be9133f2d31a0825e2c731511601baac0d1434d
 depends_on: []
 languages: [python]
 goal: >-
@@ -79,3 +80,20 @@ verification:
   regression: "Against main's runtime/src the new completing@1 capability case and the tool@1 flag test fail; the other five capability cases pass on both."
   runtime_suite: "make test-runtime on the 2026-10-22 workstation: 4133 passed, 106 failed, 6 errors. The same 111 Podman, mTLS, Trailmark address-space and process tests fail identically against main's runtime/src (no podman, go or node on that machine); test_scan_toolset's nuclei probe timed out once under full-suite load and the module passes alone (47 passed)."
   lint: "Ran ruff check and format, lint-imports (5 kept), check_tasks, check_spec, shared_fixture_gate, check_database_erd, build_graph --check, generate_model_config --check, the scripts unittest suite and deploy/phoenix/test-run.sh: all passed. Not run: the Go steps (gofmt, go vet, staticcheck, testonlyexports, oapi-codegen check, check_release_verify_graph) and the UI steps, because neither go nor node is installed there. Both need a full make lint before completion."
+completion_verification:
+  date: "2026-10-24"
+  revision: b523ae77
+  outcome: >-
+    Closed during the 2026-10-24 task actualization. 7be9133f (merged by
+    e07773d5) is the only commit whose primary purpose is this task; the merge
+    kept the task open only for a full make lint and make test-runtime with Go,
+    Node and Podman, which the evidence below supplies.
+  criteria:
+    - "A1: capabilities.py:253-271 advertises audit-check-results@1 when any probed factory declares supports_worker_completion and audit-results@2 covers AUDIT_COMPLETION_TOOLS; test_capabilities.py:443-489 (test_completion_contract_follows_worker_runtime_support) covers completing@1, tool@1-only, missing tools and unavailable factories."
+    - "A2: worker/tool_runtime.py:93 declares supports_worker_completion = False; test_tool_worker.py:770-786 holds it, and contracts/allocation.py:171-181 still rejects a tool@1 AllocationSpec with a completion contract."
+    - "A3: CapabilitySnapshot.create (capabilities.py:60-103) only normalizes completion_contracts; contracts/allocation.py:41 is the one AUDIT_COMPLETION_TOOLS definition, imported by capabilities.py and toolsets/audit_results/completion.py:52; AWC-R24 states the rule."
+    - "A4: restoring the hard-coded adk@1 derivation and the True tool@1 flag in a scratch copy of b523ae77 fails four cases (three completion-contract capability cases and test_shared_tool_worker_never_claims_a_completion_contract)."
+  commands:
+    - "cd runtime && uv run pytest tests/test_capabilities.py tests/test_tool_worker.py tests/test_audit_completion_runtime.py tests/test_audit_completion_contracts.py: 138 passed on b523ae77."
+    - "make lint on b523ae77 with Go 1.26.9, Node 24.20 and the UI dependencies installed: exit 0 (Go vet, staticcheck, testonlyexports, UI gates, release graph, check_tasks, check_spec, ERD, ruff, import-linter 4 kept)."
+    - "make test-runtime: the full Runtime suite with -W error passed on Linux/Python 3.13 (4375 passed, 55 optional skips) on a main that already contained e07773d5, recorded by V408-005 (tasks/done/v408-005-family-guard-gaps.yml); macOS runs after the merge fail only the known Podman, mTLS and Trailmark environment cases (V407-024, V407-038)."
