@@ -5,7 +5,8 @@ milestone: server-runtime-review-2026-10
 epic: planner-worker
 kind: chore
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: 17e5c5e9bf58c3425cae689631042155af678551
 depends_on: []
 languages:
 - python
@@ -103,3 +104,71 @@ tests:
   - A1
   - A2
   - A3
+verification:
+  date: '2026-10-23'
+  environment: macOS arm64 worktree /Users/ruslan/src/contractor-wt/d, branch claude/rv-d from ea65cd92,
+    implementation 17e5c5e9, then claude/review-v407-v409 (b4a6142c, V407-013) merged as fe55fe38 at
+    the coordinator's request; Python 3.13.16 with uv sync --locked; Go 1.26.9; Node 24.20 with Corepack
+    pnpm; CONTRACTOR_TEST_DATABASE_URL set to contractor_test_d for make lint. The change is Runtime-only,
+    so no PostgreSQL test exercises it.
+  evidence:
+  - 'Re-verified on ea65cd92: the four chain walkers were worker/runtime.py:1406-1445 and 1512-1520; span
+    wrappers were duplicated in worker/runtime.py:1372-1403 and worker/instrumentation.py:741-773, with
+    an inline copy in worker/summarizer.py:213-279; task consumers were in allocation/cleanup.py:45, control_client.py:414,
+    adapters/host.py:611, projectfs/operation_guard.py:112, sandbox/podman/io.py:62, toolsets/http/cookies.py:213
+    and threads.py:32; _metric_identifier was identical in telemetry/invocations.py:85 and telemetry/metrics.py:688;
+    workspace.py:50-62, projectfs/provider.py:110-125 and agent_skills/runtime.py:568-600 created directories
+    and files on the event loop.'
+  - 'A1: the decisions list names the single definition of each consolidated algorithm; git grep finds
+    no remaining copy in runtime/src after the merge. telemetry/metrics.py and adapters/otlp_http.py are
+    not edited. test_summary_json_measure_rejects_values_the_document_cannot_encode pins the summarizer''s
+    strict measure (NaN, unsupported type, mixed key types, lone surrogate) for _json_size and _document_size;
+    test_summary_text_bound_keeps_whole_characters_and_appends_its_marker pins _bound_text (redaction,
+    exact limit, character-boundary cut with [TRUNCATED], lone surrogate raises); test_span_text_bound_and_metric_text_bound_keep_distinct_policies
+    pins the OTLP bound (strict, no marker) against the metric bound (replacement, ellipsis inside the
+    limit). test_invocation_and_allocation_metrics_key_a_tool_by_one_identifier and test_span_error_type_admits_only_safe_provider_identifiers
+    pin the shared identifier and error.type rules.'
+  - 'A2: tests/filesystem_audit.py records audited os.mkdir, open, os.chmod, os.remove, os.rmdir, shutil.rmtree
+    and tempfile.mkdtemp events with their thread. test_local_preparation_writes_owned_directories_off_the_event_loop
+    sees the scratch root, marker and directory and the project directory, marker and chmod only on worker
+    threads and checks modes 0700/0600 and ownership; on an unmodified ea65cd92 worktree it fails with
+    six loop-thread operations. test_cancelled_workdir_preparation_joins_its_thread_before_rollback and
+    test_cancelled_project_workspace_creation_joins_its_thread_before_rollback hold the creation thread
+    with a threading.Event, cancel, and show the task pending with no rollback until release, then rollback
+    on a worker thread that saw the created directory and marker, CancelledError and an empty root. test_failed_workdir_rollback_keeps_cancellation_and_marker_for_startup_cleanup
+    shows a failing rollback still ends in CancelledError and leaves an owned directory that cleanup_orphan_workdirs
+    removes. test_failed_local_preparation_rolls_back_in_its_thread covers the in-thread failure rollbacks.
+    test_native_skill_probe_writes_and_removes_its_skill_off_the_event_loop and test_cancelled_native_skill_probe_joins_its_thread_before_cleanup
+    do the same for the adk@1 probe and its TemporaryDirectory. No elapsed-time assertion is used; the
+    waits are deadlock guards only. All seven fail on ea65cd92.'
+  - 'A3: no existing test assertion was edited. test_runtime_signals_are_found_through_callback_wrappers[4
+    signal types] pins the walk (cause, context, cause then context, suppressed context still walked,
+    cause preferred over context, cycle stops). test_failing_telemetry_sink_cannot_change_the_worker_outcome[start-fails,
+    end-fails] runs a full Worker invocation with a sink that raises on every span start or end and gets
+    the same result, span attempts and counters. test_consumed_task_exception_is_never_reported_as_unretrieved
+    shows the shared consumer suppresses the never-retrieved report that an unconsumed control task produces.
+    lint-imports keeps all four contracts.'
+  - 'Spec: WSP-R168 (docs/spec/tools/workspace.md) now covers local creation as well as removal and the
+    joined rollback of a cancelled creation; no new requirement ID. make docs-dependencies left the graph
+    fingerprint unchanged.'
+  commands:
+  - 'cd runtime && uv run --locked pytest -q tests/test_allocation.py tests/test_adk_runtime.py tests/test_instrumentation.py
+    tests/test_metrics.py tests/test_workspace_provider.py tests/test_agent_skill_lifecycle.py: passed
+    (exit 0) before and after the merge.'
+  - 'After the merge, the same files plus tests/test_threads.py tests/test_worker_summarizer.py tests/test_otlp_adapter.py
+    tests/test_control_client.py tests/test_https.py tests/test_artifacts.py tests/test_adapter_host.py
+    tests/test_projectfs_operation_guard.py: 449 passed.'
+  - 'Before the merge, the touched test files with -W error (test-runtime-hardening mode): 285 passed;
+    the new synchronization tests passed in 5 consecutive runs.'
+  - 'make lint: passed before and after the merge.'
+  - 'make test-runtime (uv run pytest) after the merge: 4557 passed, 39 skipped, 105 failed. The 105 failing
+    IDs are exactly the 105 that fail on an unmodified ea65cd92 worktree (podman, tool_process, trailmark
+    child, projectfs local direct/io and code analysis on macOS, including the timing-sensitive four-MiB
+    parser gap test). Before the merge the branch failed 104 of the same IDs.'
+  database_tests_configured: true
+  declined:
+  - 'telemetry/metrics.py _json_size is not pinned by a characterization test: V407-020 owns that JSON
+    measure and may restructure it while preserving report output.'
+  - 'Plain asyncio.to_thread in PreparedAgentSkills.close, _cleanup_failed_preparation, capabilities._probe_podman
+    and the Podman and trailmark paths is outside the three named prepare/probe paths (see decisions);
+    reopen as a cancellation-ownership task if those removals must be joined.'
