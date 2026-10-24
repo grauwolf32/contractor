@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-125 open tasks: 7 in progress, 107 pending, 11 deferred. 1095 finished: 1085 completed, 10 archived.
+125 open tasks: 8 in progress, 106 pending, 11 deferred. 1095 finished: 1085 completed, 10 archived.
 
 ## In progress
 
@@ -18,6 +18,7 @@ the epics are in [epics.yml](epics.yml).
 | [V414-034](v414-034-audit-controller-invalid-write-retry.yml) | audits | defect | P2 | Close an Audit whose controller write is refused as invalid instead of retrying it |
 | [V414-038](v414-038-scale-test-budgets-under-load.yml) | quality | defect | P1 | Keep the Audit claim and deletion-probe read budgets exact while other suites share the server |
 | [V414-039](v414-039-workspace-timeout-tests-wall-clock.yml) | workspaces | defect | P2 | Test workspace operation deadlines without real sub-second wall-clock budgets |
+| [V414-040](v414-040-run-skill-error-public-mapping.yml) | agent-skills | defect | P2 | Answer Run Skill failures with their own public error codes instead of internal_error |
 
 ## Pending
 
@@ -44,12 +45,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V372-006](v372-006-runtime-label-set-rule.yml) | chore | P3 | — | Give the Runtime label set rule one Go definition and hold the UI and the Runtime to it |
-
-### Agent Skills (`agent-skills`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V414-040](v414-040-run-skill-error-public-mapping.yml) | defect | P2 | — | Answer Run Skill failures with their own public error codes instead of internal_error |
 
 ### HTTP and Caido tools (`http-tools`)
 
