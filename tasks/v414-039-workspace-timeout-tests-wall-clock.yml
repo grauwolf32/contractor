@@ -1,0 +1,55 @@
+schema_version: "1.0"
+id: V414-039
+title: "Test workspace operation deadlines without real sub-second wall-clock budgets"
+milestone: review-v407-v409-followups-2026-10
+epic: workspaces
+kind: defect
+introduced_by: V49-001
+priority: P2
+status: pending
+depends_on: []
+languages: [python]
+goal: >-
+  The workspace timeout tests prove which deadline owns an operation through
+  a controlled clock or an explicit blocking point, so a loaded machine
+  cannot make them fail with workspace_unavailable.
+context:
+  specification:
+    - docs/spec/tools/workspace.md
+  review: >-
+    Reported by the V414-013 and V410-010 lanes during the 2026-10-24
+    delivery, where the tests failed under load and passed alone. The user
+    asked on 2026-10-24 to file it and fix it next.
+  severity: low
+  finding: >-
+    runtime/tests/test_workspace_timeouts.py
+    test_configured_io_budget_and_shorter_close_deadline_preserve_owner
+    (line 65) runs real workspace I/O under a 0.1 s operation timeout and a
+    5 s hydrate timeout and waits with asyncio.wait_for(..., timeout=1);
+    test_initialization_uses_earlier_operation_or_enclosing_deadline
+    (line 137) relies on real elapsed time the same way. Under a loaded
+    machine the real I/O itself exceeds 0.1 s and the operation fails with
+    workspace_unavailable before the property under test is reached.
+    AGENTS.md 3.5 forbids wall-clock assertions. V414-005 hit the same class
+    in test_source_analysis_toolset.py and raised the deadline there.
+  siblings: >-
+    Other Runtime tests that set a workspace, request or tool deadline below
+    one second around real I/O; find them by searching runtime/tests for
+    operation-timeout and wait_for values below 1. Each is made
+    deterministic or ruled out with the reason.
+scope:
+  in:
+    - "Rewrite the two tests so the deadline expiry is driven by an injected clock or an explicit gate the test releases, keeping the assertion about which deadline wins and that the owner is preserved."
+    - "Fix or rule out each sibling."
+  out:
+    - "Changing production deadline behaviour."
+acceptance_criteria:
+  - id: A1
+    text: "Both tests pass with the machine artificially slowed (for example a blocking hook that delays the I/O well beyond the old 0.1 s) and still fail if the production code picks the wrong deadline."
+  - id: A2
+    text: "Each sibling is deterministic or ruled out with the reason."
+tests:
+  - command: "cd runtime && uv run --locked pytest -q tests/test_workspace_timeouts.py"
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]

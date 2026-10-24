@@ -1,0 +1,62 @@
+schema_version: "1.0"
+id: V414-036
+title: "End the Run when a Workflow output's source revision is missing instead of retrying finalization"
+milestone: review-v407-v409-followups-2026-10
+epic: execution-core
+kind: defect
+introduced_by: V372-017
+priority: P2
+status: pending
+depends_on: []
+languages: [go]
+goal: >-
+  Binding a Workflow output whose exact source revision no longer exists is
+  a permanent, classified failure that ends the Run like a refused mapping,
+  not an ordinary error that Stage finalization recovery retries forever.
+context:
+  specification:
+    - docs/spec/artifacts/artifact-store.md
+    - docs/spec/execution/runs.md
+    - docs/spec/platform/failure-model.md
+  review: >-
+    Found while implementing V410-010 (tasks/done/v410-010-artifact-history-retention.yml,
+    notes). The user asked on 2026-10-24 to file it and fix it next.
+  severity: low
+  finding: >-
+    internal/scheduler/artifacts.go:95-121 (bindOutput) converts only
+    artifacts.ErrArtifactConflict into errInvalidRunState. A Fork whose
+    exact source revision is missing returns the ArtifactStore's not-found
+    or exact-revision error, which stays an ordinary error, so Stage
+    finalization recovery retries the acceptance on every pass and the Run
+    never ends. Since V410-010 a StageExecution holds its candidate output
+    revisions, so retention no longer removes them, but the classification
+    gap remains for any other removal (Run purge races, a corrupted
+    reference) and the comment at artifacts.go:111-113 states only the
+    conflict case.
+  siblings: >-
+    Other scheduler paths that fork or read an exact revision during
+    acceptance or finalization: freezeOutputs, input forks at Run
+    initialization (RUN-R26), Planner session artifact reads and output
+    publication. Each classifies a missing exact revision as permanent or is
+    ruled out with the reason.
+scope:
+  in:
+    - "Classify a missing exact source revision in bindOutput as errInvalidRunState (or the stable Run failure the spec names), so the Run ends with a recorded reason."
+    - "Fix or rule out each sibling path."
+    - "A real-PostgreSQL regression test that removes the candidate revision before acceptance and observes the Run end once, with no further recovery attempts."
+  out:
+    - "Transient database failures, which stay retryable."
+acceptance_criteria:
+  - id: A1
+    text: "A Stage result naming an output revision that no longer exists ends the Run with a stable classified reason after one acceptance attempt."
+  - id: A2
+    text: "A transient failure during the Fork is still retried by finalization recovery."
+  - id: A3
+    text: "Each sibling path behaves the same way or is ruled out with the reason."
+  - id: A4
+    text: "The regression test fails on the unfixed code by observing a repeated recovery attempt."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -tags=integration -count=1 ./internal/scheduler/... ./internal/artifacts/..."
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]

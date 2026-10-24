@@ -26,8 +26,12 @@ execution_policy:
     to V64-016, not the deterministic core exit. V61 and V62-008 remain deferred.
     The earlier evening resumption covered tasks not blocked by V62; the
     newly pending shared tasks can now enter execution once their prerequisites complete. Each lane works on its branch claude/<lane>
-    and merges each closed task into main. claude/sitemap and claude/pentest
-    both add migration 000040, so the second to land renumbers its migration.
+    and merges each closed task into main; the coordinator assigns migration
+    numbers before lanes merge. Synchronised on 2026-10-25 after every lane
+    closed its task: next, before other V410-V414 work, the follow-ups the
+    lanes found (V414-034 to V414-039), then the remaining queues with five or
+    six lanes, not ten, because ten parallel Go and PostgreSQL suites
+    overloaded the machine and made real-deadline tests fail.
   task_files_are_self_contained: true
   task_statuses:
     pending: Not yet taken into development.

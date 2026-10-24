@@ -39,6 +39,12 @@ depends_on:
   - V414-031
   - V414-032
   - V414-033
+  - V414-034
+  - V414-035
+  - V414-036
+  - V414-037
+  - V414-038
+  - V414-039
 languages: [go, python, typescript, sql]
 goal: >-
   Every follow-up found while implementing and reviewing V407 and V409 has a
@@ -103,7 +109,9 @@ context:
     (3cd9826c7d5a3676f6cff53a712d6ea555b76736) with per-criterion evidence
     in tasks/done/v371-009-audit-list-preparation-batch.yml.
     Recorded on 2026-10-24 during the V410-V414 delivery: (2) owned by
-    V414-032 at the user's request.
+    V414-032 at the user's request. Defects and gaps found by the delivery
+    lanes themselves were filed as V414-034 to V414-039 on 2026-10-25 at the
+    user's request, to be fixed before the next delivery wave.
 scope:
   in:
     - "Reconcile every V414 dependency: completed with its implementation_commit and moved to tasks/done/, or archived by the user's decision with the reason, the evidence and its removal from depends_on in the same metadata change. Archived or deferred tasks never count as completed."
