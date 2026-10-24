@@ -95,14 +95,13 @@ func TestSharedAuditPreparationHandlersWithoutRound(t *testing.T) {
 			t.Fatalf("preparation list omitted required role status: %d %s", listed.Code, listed.Body.String())
 		}
 	}
-	// A failed page hydration fails the list with its own class; it never
-	// returns the page without preparation.
+	// A failed page read fails the list with its own class; it never returns
+	// the page without preparation.
 	for _, failure := range []struct {
 		err    error
 		status int
 		code   string
 	}{
-		{auditstore.ErrConflict, http.StatusConflict, "conflict"},
 		{fmt.Errorf("list Audit page preparation: %w", &pgconn.PgError{Code: persistencepostgres.SQLStateSerializationFailure}),
 			http.StatusServiceUnavailable, "storage_transaction_conflict"},
 		{errors.New("storage unavailable"), http.StatusInternalServerError, "internal_error"},
@@ -116,11 +115,11 @@ func TestSharedAuditPreparationHandlersWithoutRound(t *testing.T) {
 		}
 	}
 	management.preparationErr = nil
-	hydrations := len(management.preparationPages)
 	management.audit.Phase, management.audit.State = auditdomain.AuditPhaseNotStarted, auditstore.AuditDraft
 	drafts := httptest.NewRecorder()
 	h.listProjectAudits(drafts, auditAuthenticatedRequest(http.MethodGet, "/v1/audits", nil))
-	if drafts.Code != http.StatusOK || strings.Contains(drafts.Body.String(), `"preparation"`) || len(management.preparationPages) != hydrations {
+	if drafts.Code != http.StatusOK || strings.Contains(drafts.Body.String(), `"preparation"`) ||
+		management.preparationPages[len(management.preparationPages)-1] != 0 {
 		t.Fatalf("draft list hydrated preparation: %d %s", drafts.Code, drafts.Body.String())
 	}
 	management.audit.Phase, management.audit.State = auditdomain.AuditPhaseInventory, auditstore.AuditActive

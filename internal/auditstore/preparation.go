@@ -57,12 +57,6 @@ type ListedPreparationRole struct {
 	Latest *PreparationAttempt
 }
 
-// ListedAudit names one Audit of a list page at the revision the page read.
-type ListedAudit struct {
-	AuditID  string
-	Revision uint64
-}
-
 type StartPreparationParams struct {
 	OwnerID          string
 	AuditID          string

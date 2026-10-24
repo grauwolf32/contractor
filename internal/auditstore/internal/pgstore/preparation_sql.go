@@ -107,27 +107,24 @@ SELECT role.key, COALESCE(attempts.count, 0), ` + roleMaxRunAttemptsSQL + `,
 	preparationAttemptsSQL("execution_id, state, collection_disposition, collection_error_code") + `
  WHERE audit.audit_id = $1 AND ` + prepareRoleSQL + ` ORDER BY role.key`
 
-// listPreparationPageSQL reads, in one statement and so in one snapshot, the
-// preparation of owner $1's Audits $2 that a list page read at revisions $3
-// (ASC-R150). Every listed Audit yields at least one row. Its second column
-// is false when the Audit is gone, belongs to another owner or has another
-// revision; the role columns are NULL when it pins no prepare role. A role
-// row carries the attempt count and only the latest attempt, whose
-// preparation_outputs is non-empty only once that attempt is accepted.
-// Used by QueryStore.ListPreparationPage.
+// listPreparationPageSQL reads the preparation of owner $1's listed Audits
+// $2 (ASC-R150). QueryStore.ListPreparedPage runs it in the snapshot of the
+// list statement, so every listed Audit exists and yields at least one row;
+// the role columns are NULL when it pins no prepare role. A role row carries
+// the attempt count and only the latest attempt, whose preparation_outputs
+// is non-empty only once that attempt is accepted.
 var listPreparationPageSQL = `
 WITH listed AS MATERIALIZED (
-    SELECT listed.audit_id, listed.revision, listed.ordinal
-      FROM unnest($2::text[], $3::bigint[]) WITH ORDINALITY AS listed(audit_id, revision, ordinal)
+    SELECT listed.audit_id, listed.ordinal
+      FROM unnest($2::text[]) WITH ORDINALITY AS listed(audit_id, ordinal)
 )
-SELECT listed.audit_id, audit.audit_id IS NOT NULL, role.key, COALESCE(attempts.count, 0),
+SELECT listed.audit_id, role.key, COALESCE(attempts.count, 0),
        ` + roleMaxRunAttemptsSQL + `, latest.execution_id, latest.role_attempt, latest.run_id,
        latest.state, latest.preparation_outputs,
        ` + preparationStatusSQL + `
   FROM listed
-  LEFT JOIN audits AS audit
-    ON audit.audit_id = listed.audit_id AND audit.audit_id = ANY ($2::text[])
-   AND audit.owner_id = $1 AND audit.revision = listed.revision
+  JOIN audits AS audit
+    ON audit.audit_id = listed.audit_id AND audit.audit_id = ANY ($2::text[]) AND audit.owner_id = $1
   LEFT JOIN LATERAL jsonb_each(` + profileWorkflowsSQL + `) AS role ON ` + prepareRoleSQL +
 	preparationAttemptsSQL("execution_id, role_attempt, run_id, state, collection_disposition, collection_error_code, preparation_outputs") + `
  ORDER BY listed.ordinal, role.key`

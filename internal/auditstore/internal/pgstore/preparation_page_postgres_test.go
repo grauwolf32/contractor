@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -27,67 +26,83 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// pageStatementDB counts the statements a store sends and can fail the
-// statement that contains failOn with failure.
-type pageStatementDB struct {
-	persistencepostgres.DBTX
+// pageStatementTx is a caller's transaction that counts the statements a
+// store sends through it and can fail the statement that contains failOn
+// with failure.
+type pageStatementTx struct {
+	pgx.Tx
 	statements int
 	failOn     string
 	failure    error
 }
 
-func (db *pageStatementDB) Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error) {
-	db.statements++
-	return db.DBTX.Exec(ctx, sql, arguments...)
+func (tx *pageStatementTx) Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error) {
+	tx.statements++
+	return tx.Tx.Exec(ctx, sql, arguments...)
 }
 
-func (db *pageStatementDB) Query(ctx context.Context, sql string, arguments ...any) (pgx.Rows, error) {
-	db.statements++
-	if db.failure != nil && strings.Contains(sql, db.failOn) {
-		return nil, db.failure
+func (tx *pageStatementTx) Query(ctx context.Context, sql string, arguments ...any) (pgx.Rows, error) {
+	tx.statements++
+	if tx.failure != nil && strings.Contains(sql, tx.failOn) {
+		return nil, tx.failure
 	}
-	return db.DBTX.Query(ctx, sql, arguments...)
+	return tx.Tx.Query(ctx, sql, arguments...)
 }
 
-func (db *pageStatementDB) QueryRow(ctx context.Context, sql string, arguments ...any) pgx.Row {
-	db.statements++
-	return db.DBTX.QueryRow(ctx, sql, arguments...)
+func (tx *pageStatementTx) QueryRow(ctx context.Context, sql string, arguments ...any) pgx.Row {
+	tx.statements++
+	return tx.Tx.QueryRow(ctx, sql, arguments...)
 }
 
-func TestListPreparationPageRejectsUnboundedSelections(t *testing.T) {
-	store := NewQueryStore(nil)
-	listed := func(count int) []auditstore.ListedAudit {
-		result := make([]auditstore.ListedAudit, count)
+func TestListPreparedPageRejectsUnboundedSelections(t *testing.T) {
+	ids := func(count int) []string {
+		result := make([]string, count)
 		for index := range result {
-			result[index] = auditstore.ListedAudit{AuditID: fmt.Sprintf("audit-%03d", index), Revision: 1}
+			result[index] = fmt.Sprintf("audit-%03d", index)
 		}
 		return result
 	}
 	for name, test := range map[string]struct {
 		owner  string
-		audits []auditstore.ListedAudit
+		audits []string
 	}{
 		"empty page":       {"owner", nil},
-		"oversized page":   {"owner", listed(pagelimit.MaxRows + 1)},
-		"duplicate Audit":  {"owner", append(listed(2), auditstore.ListedAudit{AuditID: "audit-000", Revision: 2})},
-		"invalid Audit ID": {"owner", []auditstore.ListedAudit{{AuditID: "../audit", Revision: 1}}},
-		"zero revision":    {"owner", []auditstore.ListedAudit{{AuditID: "audit", Revision: 0}}},
-		"revision too big": {"owner", []auditstore.ListedAudit{{AuditID: "audit", Revision: math.MaxInt64 + 1}}},
-		"missing owner":    {" ", listed(1)},
+		"oversized page":   {"owner", ids(pagelimit.MaxFetchRows + 1)},
+		"duplicate Audit":  {"owner", append(ids(2), "audit-000")},
+		"invalid Audit ID": {"owner", []string{"../audit"}},
+		"missing owner":    {" ", ids(1)},
 	} {
 		t.Run(name, func(t *testing.T) {
-			if _, err := store.ListPreparationPage(t.Context(), test.owner, test.audits); !errors.Is(err, auditstore.ErrInvalid) {
+			if _, err := listPreparationPage(t.Context(), nil, test.owner, test.audits); !errors.Is(err, auditstore.ErrInvalid) {
 				t.Fatalf("selection error = %v", err)
+			}
+		})
+	}
+	// Invalid requests fail before the store begins a transaction on its
+	// (here absent) database.
+	all := func(auditstore.Audit) bool { return true }
+	for name, test := range map[string]struct {
+		params   auditstore.ListParams
+		prepared func(auditstore.Audit) bool
+	}{
+		"list without selection": {auditstore.ListParams{OwnerID: "owner", Limit: 1}, nil},
+		"list without owner":     {auditstore.ListParams{OwnerID: " ", Limit: 1}, all},
+		"oversized fetch":        {auditstore.ListParams{OwnerID: "owner", Limit: pagelimit.MaxFetchRows + 1}, all},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, _, err := NewQueryStore(nil).ListPreparedPage(t.Context(), test.params, test.prepared); !errors.Is(err, auditstore.ErrInvalid) {
+				t.Fatalf("page error = %v", err)
 			}
 		})
 	}
 }
 
-// TestSharedPostgresListPreparationPageReadsAFullPageInOneFencedStatement checks the
-// list hydration read against the per-Audit preparation reads on a full page
-// of preparing Audits: one statement, the same roles and latest attempts, and
-// a conflict whenever a listed Audit is not the one the page read.
-func TestSharedPostgresListPreparationPageReadsAFullPageInOneFencedStatement(t *testing.T) {
+// TestSharedPostgresListPreparedPageReadsAFullFetchInTwoStatements checks the
+// list page read on a full fetch of Audits against the per-Audit preparation
+// reads: the list and one preparation statement, the same roles and latest
+// attempts, only the selected Audits hydrated, and storage failures keeping
+// their class.
+func TestSharedPostgresListPreparedPageReadsAFullFetchInTwoStatements(t *testing.T) {
 	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
@@ -113,7 +128,7 @@ func TestSharedPostgresListPreparationPageReadsAFullPageInOneFencedStatement(t *
 	if err != nil {
 		t.Fatal(err)
 	}
-	start := func(auditID string) auditstore.Audit {
+	create := func(auditID string) auditstore.Audit {
 		t.Helper()
 		draft, _, err := store.CreateDraft(ctx, auditstore.CreateDraftParams{
 			AuditID: auditID, OwnerID: owner, ProjectID: projectID,
@@ -126,6 +141,11 @@ func TestSharedPostgresListPreparationPageReadsAFullPageInOneFencedStatement(t *
 		if err != nil {
 			t.Fatal(err)
 		}
+		return draft
+	}
+	start := func(auditID string) auditstore.Audit {
+		t.Helper()
+		draft := create(auditID)
 		started, _, err := store.StartPreparation(ctx, auditstore.StartPreparationParams{
 			OwnerID: owner, AuditID: auditID, ExpectedRevision: draft.Revision, BaselineSnapshot: baseline,
 			DeadlineAt: time.Now().Add(time.Hour), IdempotencyKey: "start-" + auditID, RequestDigest: testDigest("3"),
@@ -184,57 +204,71 @@ func TestSharedPostgresListPreparationPageReadsAFullPageInOneFencedStatement(t *
 	attempt("audit-exhausted", 1, true)
 	attempt("audit-exhausted", 2, true)
 
-	page := make([]auditstore.ListedAudit, 0, pagelimit.MaxRows)
-	for _, audit := range attempted {
-		current, err := store.Get(ctx, owner, audit.AuditID)
+	for index := len(attempted); index < pagelimit.MaxFetchRows-1; index++ {
+		start(fmt.Sprintf("audit-pending-%03d", index))
+	}
+	// The newest Audit is a draft: it pins the same prepare roles but is not
+	// preparing.
+	create("audit-draft")
+
+	preparing := func(audit auditstore.Audit) bool { return audit.Phase == auditdomain.AuditPhasePreparing }
+	params := auditstore.ListParams{OwnerID: owner, ProjectID: new(projectID), Limit: pagelimit.MaxFetchRows}
+	// read lists the page in a caller's snapshot transaction that counts the
+	// store's statements and fails the one containing failOn with failure.
+	read := func(t *testing.T, prepared func(auditstore.Audit) bool, failOn string, failure error) (
+		[]auditstore.Audit, map[string][]auditstore.ListedPreparationRole, int, error,
+	) {
+		t.Helper()
+		tx, err := pool.BeginTx(ctx, snapshotTransaction)
 		if err != nil {
 			t.Fatal(err)
 		}
-		page = append(page, auditstore.ListedAudit{AuditID: current.AuditID, Revision: current.Revision})
+		defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+		counted := &pageStatementTx{Tx: tx, failOn: failOn, failure: failure}
+		audits, roles, err := NewQueryStore(counted).ListPreparedPage(ctx, params, prepared)
+		return audits, roles, counted.statements, err
 	}
-	for index := len(page); index < pagelimit.MaxRows; index++ {
-		audit := start(fmt.Sprintf("audit-pending-%03d", index))
-		page = append(page, auditstore.ListedAudit{AuditID: audit.AuditID, Revision: audit.Revision})
-	}
-
-	counted := &pageStatementDB{DBTX: pool}
-	roles, err := NewQueryStore(counted).ListPreparationPage(ctx, owner, page)
+	audits, roles, statements, err := read(t, preparing, "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if counted.statements != 1 || len(roles) != pagelimit.MaxRows {
-		t.Fatalf("full page took %d statements for %d Audits", counted.statements, len(roles))
+	if statements != 2 || len(audits) != pagelimit.MaxFetchRows || len(roles) != pagelimit.MaxFetchRows-1 ||
+		audits[0].AuditID != "audit-draft" {
+		t.Fatalf("full fetch took %d statements for %d Audits and %d preparations", statements, len(audits), len(roles))
+	}
+	if _, hydrated := roles["audit-draft"]; hydrated {
+		t.Fatal("the unselected draft was hydrated")
 	}
 	statuses := map[string]auditdomain.PreparationStatus{}
-	for _, listed := range page {
-		want, err := store.ListPreparationRoles(ctx, listed.AuditID)
+	for _, audit := range audits[1:] {
+		want, err := store.ListPreparationRoles(ctx, audit.AuditID)
 		if err != nil {
 			t.Fatal(err)
 		}
-		executions, err := store.ListPreparationExecutions(ctx, listed.AuditID)
+		executions, err := store.ListPreparationExecutions(ctx, audit.AuditID)
 		if err != nil {
 			t.Fatal(err)
 		}
-		got := roles[listed.AuditID]
+		got := roles[audit.AuditID]
 		if len(got) != len(want) || len(got) != 2 {
-			t.Fatalf("%s roles = %+v, want %+v", listed.AuditID, got, want)
+			t.Fatalf("%s roles = %+v, want %+v", audit.AuditID, got, want)
 		}
 		for index, role := range got {
 			if !reflect.DeepEqual(role.PreparationRole, want[index]) {
-				t.Fatalf("%s role %d = %+v, want %+v", listed.AuditID, index, role.PreparationRole, want[index])
+				t.Fatalf("%s role %d = %+v, want %+v", audit.AuditID, index, role.PreparationRole, want[index])
 			}
 			if (role.Latest == nil) != (role.ExecutionID == nil) {
-				t.Fatalf("%s role %s latest attempt = %+v", listed.AuditID, role.WorkflowRole, role.Latest)
+				t.Fatalf("%s role %s latest attempt = %+v", audit.AuditID, role.WorkflowRole, role.Latest)
 			}
 			for _, execution := range executions {
 				if role.Latest != nil && execution.ExecutionID == role.Latest.ExecutionID &&
 					(*execution.RoleAttempt != role.Latest.RoleAttempt || !reflect.DeepEqual(execution.RunID, role.Latest.RunID) ||
 						execution.State != role.Latest.State || len(role.Latest.Outputs) != 0) {
-					t.Fatalf("%s latest attempt = %+v, want %+v", listed.AuditID, role.Latest, execution)
+					t.Fatalf("%s latest attempt = %+v, want %+v", audit.AuditID, role.Latest, execution)
 				}
 			}
 		}
-		statuses[listed.AuditID] = got[0].Status
+		statuses[audit.AuditID] = got[0].Status
 	}
 	if statuses["audit-running"] != auditdomain.PreparationRunning || statuses["audit-retrying"] != auditdomain.PreparationRunning ||
 		statuses["audit-exhausted"] != auditdomain.PreparationFailed || statuses["audit-pending-199"] != auditdomain.PreparationPending ||
@@ -242,53 +276,30 @@ func TestSharedPostgresListPreparationPageReadsAFullPageInOneFencedStatement(t *
 		t.Fatalf("page statuses = %+v", statuses)
 	}
 
-	// Any listed Audit that is not the one the page read fails the whole page.
-	for name, change := range map[string]func([]auditstore.ListedAudit) (string, []auditstore.ListedAudit){
-		"older revision": func(page []auditstore.ListedAudit) (string, []auditstore.ListedAudit) {
-			page[7].Revision--
-			return owner, page
-		},
-		"newer revision": func(page []auditstore.ListedAudit) (string, []auditstore.ListedAudit) {
-			page[199].Revision++
-			return owner, page
-		},
-		"absent Audit": func(page []auditstore.ListedAudit) (string, []auditstore.ListedAudit) {
-			page[0].AuditID = "audit-absent"
-			return owner, page
-		},
-		"other owner": func(page []auditstore.ListedAudit) (string, []auditstore.ListedAudit) {
-			return "another-owner", page
-		},
-	} {
-		t.Run(name, func(t *testing.T) {
-			changedOwner, changed := change(append([]auditstore.ListedAudit(nil), page...))
-			if _, err := NewQueryStore(pool).ListPreparationPage(ctx, changedOwner, changed); !errors.Is(err, auditstore.ErrConflict) {
-				t.Fatalf("changed page = %v, want conflict", err)
-			}
-		})
+	// A pool-backed store reads the same page in its own snapshot.
+	pooled, pooledRoles, err := NewQueryStore(pool).ListPreparedPage(ctx, params, preparing)
+	if err != nil || !reflect.DeepEqual(pooled, audits) || !reflect.DeepEqual(pooledRoles, roles) {
+		t.Fatalf("pool-backed page differs: %v", err)
 	}
-	// An owner pause after the page was read advances one listed revision.
-	if _, _, err := store.Transition(ctx, auditstore.TransitionParams{
-		OwnerID: owner, AuditID: page[42].AuditID, ExpectedRevision: page[42].Revision,
-		ExpectedState: auditstore.AuditActive, TargetState: auditstore.AuditPaused,
-		IdempotencyKey: "pause-listed", RequestDigest: testDigest("6"),
-	}); err != nil {
-		t.Fatal(err)
+	// Selecting every listed Audit hydrates the whole fetch in one statement.
+	_, everyRole, statements, err := read(t, func(auditstore.Audit) bool { return true }, "", nil)
+	if err != nil || statements != 2 || len(everyRole) != pagelimit.MaxFetchRows || len(everyRole["audit-draft"]) != 2 {
+		t.Fatalf("whole fetch = %d preparations in %d statements: %v", len(everyRole), statements, err)
 	}
-	if _, err := NewQueryStore(pool).ListPreparationPage(ctx, owner, page); !errors.Is(err, auditstore.ErrConflict) {
-		t.Fatalf("page after a concurrent revision = %v, want conflict", err)
+	// A page that selects no Audit issues only the list statement.
+	listed, none, statements, err := read(t, func(auditstore.Audit) bool { return false }, "", nil)
+	if err != nil || statements != 1 || len(listed) != pagelimit.MaxFetchRows || len(none) != 0 {
+		t.Fatalf("unselected page = %d Audits, %d preparations in %d statements: %v", len(listed), len(none), statements, err)
 	}
 
-	// Storage failures keep their class rather than becoming a conflict.
-	transient := &pageStatementDB{DBTX: pool, failOn: "WITH ORDINALITY AS listed",
-		failure: &pgconn.PgError{Code: persistencepostgres.SQLStateSerializationFailure, Message: "could not serialize access"}}
-	if _, err := NewQueryStore(transient).ListPreparationPage(ctx, owner, page[:1]); !persistencepostgres.IsTransactionConflict(err) ||
-		errors.Is(err, auditstore.ErrConflict) {
+	// Storage failures keep their class.
+	_, _, _, err = read(t, preparing, "WITH ORDINALITY AS listed",
+		&pgconn.PgError{Code: persistencepostgres.SQLStateSerializationFailure, Message: "could not serialize access"})
+	if !persistencepostgres.IsTransactionConflict(err) || errors.Is(err, auditstore.ErrConflict) {
 		t.Fatalf("transient page failure = %v", err)
 	}
 	unavailable := errors.New("storage unavailable")
-	broken := &pageStatementDB{DBTX: pool, failOn: "WITH ORDINALITY AS listed", failure: unavailable}
-	if _, err := NewQueryStore(broken).ListPreparationPage(ctx, owner, page[:1]); !errors.Is(err, unavailable) {
+	if _, _, _, err := read(t, preparing, "WITH ORDINALITY AS listed", unavailable); !errors.Is(err, unavailable) {
 		t.Fatalf("unavailable page = %v", err)
 	}
 }

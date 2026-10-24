@@ -58,35 +58,35 @@ func (s *Service) Preparation(ctx context.Context, ownerID, auditID string) (map
 	return result, nil
 }
 
-// PreparationPage projects the preparation of the Audits of one list page
-// with a single store read, whatever the number of Audits, each fenced by the
-// revision the page listed (ASC-R150). A listed Audit that is gone or has
-// another revision returns auditstore.ErrConflict (ASC-R149). The result maps
-// every listed Audit to the same roles Preparation returns for it.
-func (s *Service) PreparationPage(
-	ctx context.Context, ownerID string, audits []auditstore.Audit,
-) (map[string]map[string]PreparationRoleProjection, error) {
-	listed := make([]auditstore.ListedAudit, len(audits))
-	for index, audit := range audits {
-		listed[index] = auditstore.ListedAudit{AuditID: audit.AuditID, Revision: audit.Revision}
-	}
-	stored, err := s.reads().ListPreparationPage(ctx, ownerID, listed)
+// ListPage reads one page of Audits and the preparation of the listed
+// Audits that prepared selects from one commit (ASC-R150), so a concurrent
+// mutation or purge never fails the page. The preparation maps every
+// selected Audit to the same roles Preparation returns for it at that
+// commit.
+func (s *Service) ListPage(
+	ctx context.Context, params auditstore.ListParams, prepared func(auditstore.Audit) bool,
+) ([]auditstore.Audit, map[string]map[string]PreparationRoleProjection, error) {
+	audits, stored, err := s.reads().ListPreparedPage(ctx, params, prepared)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	result := make(map[string]map[string]PreparationRoleProjection, len(audits))
+	result := make(map[string]map[string]PreparationRoleProjection, len(stored))
 	for _, audit := range audits {
-		roles := make(map[string]PreparationRoleProjection, len(stored[audit.AuditID]))
-		for _, role := range stored[audit.AuditID] {
+		listed, selected := stored[audit.AuditID]
+		if !selected {
+			continue
+		}
+		roles := make(map[string]PreparationRoleProjection, len(listed))
+		for _, role := range listed {
 			view, err := projectPreparationRole(role.PreparationRole, role.Latest, audit.State)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			roles[role.WorkflowRole] = view
 		}
 		result[audit.AuditID] = roles
 	}
-	return result, nil
+	return audits, result, nil
 }
 
 // projectPreparationRole applies ASC-R41 to ASC-R43 to one pinned role and its

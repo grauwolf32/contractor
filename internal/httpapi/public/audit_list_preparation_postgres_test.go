@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -222,26 +223,14 @@ func (f *preparedListFixture) claim(count int) {
 func (f *preparedListFixture) attempt(projectID, auditID, role string, number int, outcome string) {
 	f.t.Helper()
 	ctx, claim := f.ctx, f.claims[auditID]
-	inputs := map[string]auditstore.ExactArtifact{"source": f.inputs["source"]}
-	if role == "refine-api" {
-		inputs["existing_openapi"] = f.accepted[auditID]["api"].Retained
-	}
-	executionID := auditdomain.DeterministicID("prepare", auditID, role, strconv.Itoa(number))
-	manifestRevision := "manifest-revision"
-	execution, _, err := f.store.CreateExecutionIntent(ctx, auditstore.CreateExecutionIntentParams{
-		Claim: claim, ExecutionID: executionID, Role: auditstore.ExecutionPrepare, WorkflowRole: role,
-		LaneClass: resolved.LaneClassModel, RoleAttempt: &number, SubmissionKey: executionID,
-		Manifest: auditstore.ExactArtifact{Ref: contracts.ArtifactRef{Namespace: auditdomain.ArtifactNamespace(auditID),
-			Name: "empty-manifest", Revision: &manifestRevision}, Digest: auditHandlerDigest("manifest")},
-		RequestDigest: auditHandlerDigest(executionID),
-		Preparation:   &auditstore.PreparationSnapshot{Inputs: inputs, Parameters: map[string]string{}},
-	})
+	execution, err := f.intent(auditID, role, number)
 	if err != nil {
 		f.t.Fatal(err)
 	}
 	if outcome == "intent" {
 		return
 	}
+	executionID := execution.ExecutionID
 	runID := "run-" + executionID
 	binding := f.profile.Workflows[role]
 	workflow, err := json.Marshal(binding.Workflow)
@@ -331,6 +320,26 @@ func (f *preparedListFixture) attempt(projectID, auditID, role string, number in
 	}
 }
 
+// intent records the intent of prepare attempt number of the role of the
+// claimed Audit.
+func (f *preparedListFixture) intent(auditID, role string, number int) (auditstore.Execution, error) {
+	inputs := map[string]auditstore.ExactArtifact{"source": f.inputs["source"]}
+	if role == "refine-api" {
+		inputs["existing_openapi"] = f.accepted[auditID]["api"].Retained
+	}
+	executionID := auditdomain.DeterministicID("prepare", auditID, role, strconv.Itoa(number))
+	manifestRevision := "manifest-revision"
+	execution, _, err := f.store.CreateExecutionIntent(f.ctx, auditstore.CreateExecutionIntentParams{
+		Claim: f.claims[auditID], ExecutionID: executionID, Role: auditstore.ExecutionPrepare, WorkflowRole: role,
+		LaneClass: resolved.LaneClassModel, RoleAttempt: &number, SubmissionKey: executionID,
+		Manifest: auditstore.ExactArtifact{Ref: contracts.ArtifactRef{Namespace: auditdomain.ArtifactNamespace(auditID),
+			Name: "empty-manifest", Revision: &manifestRevision}, Digest: auditHandlerDigest("manifest")},
+		RequestDigest: auditHandlerDigest(executionID),
+		Preparation:   &auditstore.PreparationSnapshot{Inputs: inputs, Parameters: map[string]string{}},
+	})
+	return execution, err
+}
+
 func (f *preparedListFixture) current(auditID string) auditstore.Audit {
 	f.t.Helper()
 	audit, err := f.store.Get(f.ctx, f.owner, auditID)
@@ -342,8 +351,9 @@ func (f *preparedListFixture) current(auditID string) auditstore.Audit {
 
 // TestSharedPostgresAuditListsHydratePreparationInFixedStatements serves the
 // owner-wide and Project Audit lists over a full page of preparing Audits and
-// a page that mixes every phase, and compares each response with the per-row
-// hydration the lists used before (V407-004, V371-009).
+// a page that mixes every phase, compares each response with the per-row
+// hydration the lists used before, and changes and purges listed Audits
+// while a page is read (V407-004, V371-009).
 func TestSharedPostgresAuditListsHydratePreparationInFixedStatements(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 4*time.Minute)
 	defer cancel()
@@ -529,9 +539,10 @@ func TestSharedPostgresAuditListsHydratePreparationInFixedStatements(t *testing.
 		if !bytes.Equal(encodedItems(t, page), want) {
 			t.Fatalf("full page items differ from per-row hydration:\n got %s\nwant %s", encodedItems(t, page), want)
 		}
-		// The Audit list statement and one hydration statement, whatever the
-		// number of preparing Audits; per-row hydration took several per row.
-		if statements != 2 || legacyStatements <= len(page.Items) {
+		// BEGIN, the Audit list statement, one hydration statement and COMMIT,
+		// whatever the number of preparing Audits; per-row hydration took
+		// several statements per row.
+		if statements != 4 || legacyStatements <= len(page.Items) {
 			t.Fatalf("full page took %d statements; per-row hydration took %d", statements, legacyStatements)
 		}
 		t.Logf("200 preparing Audits: %d statements (per-row hydration: %d)", statements, legacyStatements)
@@ -543,7 +554,7 @@ func TestSharedPostgresAuditListsHydratePreparationInFixedStatements(t *testing.
 
 	t.Run("page mixing every phase", func(t *testing.T) {
 		response, page, statements := list(t, "", "limit=200&cursor="+url.QueryEscape(nextCursor))
-		if response.Code != http.StatusOK || len(page.Items) != 12 || page.Page.HasMore || statements != 2 {
+		if response.Code != http.StatusOK || len(page.Items) != 12 || page.Page.HasMore || statements != 4 {
 			t.Fatalf("mixed page = %d %d items %+v in %d statements", response.Code, len(page.Items), page.Page, statements)
 		}
 		conforms(t, response)
@@ -552,7 +563,7 @@ func TestSharedPostgresAuditListsHydratePreparationInFixedStatements(t *testing.
 			t.Fatalf("mixed page items differ from per-row hydration:\n got %s\nwant %s", encodedItems(t, page), want)
 		}
 		projectResponse, projectPage, projectStatements := list(t, mixedProject, "limit=50")
-		if projectResponse.Code != http.StatusOK || len(projectPage.Items) != 11 || projectStatements != 3 {
+		if projectResponse.Code != http.StatusOK || len(projectPage.Items) != 11 || projectStatements != 5 {
 			t.Fatalf("Project page = %d %d items in %d statements", projectResponse.Code, len(projectPage.Items), projectStatements)
 		}
 		conforms(t, projectResponse)
@@ -602,40 +613,95 @@ func TestSharedPostgresAuditListsHydratePreparationInFixedStatements(t *testing.
 				t.Fatalf("preparation statuses = %v, want %v", statuses, wantStatuses)
 			}
 		}
-		if _, drafts, draftStatements := list(t, "", "state=draft"); len(drafts.Items) != 1 || draftStatements != 1 {
+		if _, drafts, draftStatements := list(t, "", "state=draft"); len(drafts.Items) != 1 || draftStatements != 3 {
 			t.Fatalf("a page without preparing Audits took %d statements for %d items", draftStatements, len(drafts.Items))
 		}
 	})
 
-	t.Run("revision changed before hydration", func(t *testing.T) {
-		changed := f.current("full-150")
+	t.Run("page read from one snapshot", func(t *testing.T) {
+		before, _, _ := list(t, mixedProject, "limit=50")
+		if before.Code != http.StatusOK {
+			t.Fatalf("Project page = %d %s", before.Code, before.Body.String())
+		}
+		// Between the list statement and the hydration statement, the owner
+		// pauses one listed preparing Audit, another one starts its next
+		// prepare attempt and a third is cancelled, drained and purged.
 		trace.mu.Lock()
-		trace.marker = "WITH ORDINALITY AS listed"
+		trace.marker, trace.interleaved = "WITH ORDINALITY AS listed", false
 		trace.interleave = func(*pgx.Conn) error {
-			_, _, err := f.store.Transition(ctx, auditstore.TransitionParams{OwnerID: owner, AuditID: changed.AuditID,
-				ExpectedRevision: changed.Revision, ExpectedState: auditstore.AuditActive, TargetState: auditstore.AuditPaused,
-				IdempotencyKey: "pause-during-list", RequestDigest: auditHandlerDigest("pause-during-list")})
-			return err
+			if _, err := f.intent("mixed-retrying", "generate-api", 2); err != nil {
+				return err
+			}
+			paused, err := f.store.Get(ctx, owner, "mixed-accepted")
+			if err != nil {
+				return err
+			}
+			if _, _, err := f.store.Transition(ctx, auditstore.TransitionParams{OwnerID: owner, AuditID: paused.AuditID,
+				ExpectedRevision: paused.Revision, ExpectedState: auditstore.AuditActive, TargetState: auditstore.AuditPaused,
+				IdempotencyKey: "pause-during-list", RequestDigest: auditHandlerDigest("pause-during-list")}); err != nil {
+				return err
+			}
+			claim := f.claims["mixed-pending"]
+			purged, err := f.store.Get(ctx, owner, claim.AuditID)
+			if err != nil {
+				return err
+			}
+			if _, _, err := f.store.Transition(ctx, auditstore.TransitionParams{OwnerID: owner, AuditID: purged.AuditID,
+				ExpectedRevision: purged.Revision, ExpectedState: auditstore.AuditActive, TargetState: auditstore.AuditCancelling,
+				IdempotencyKey: "cancel-during-list", RequestDigest: auditHandlerDigest("cancel-during-list")}); err != nil {
+				return err
+			}
+			if _, released, err := f.store.ReleaseDispatchHold(ctx, claim); err != nil || !released {
+				return fmt.Errorf("release purged Audit hold: %t %w", released, err)
+			}
+			if purged, err = f.store.Get(ctx, owner, claim.AuditID); err != nil {
+				return err
+			}
+			if _, err := f.store.TransitionClaimed(ctx, auditstore.ClaimedTransitionParams{Claim: claim, ExpectedRevision: purged.Revision,
+				ExpectedState: auditstore.AuditCancelling, TargetState: auditstore.AuditDeleting}); err != nil {
+				return err
+			}
+			for range 10 {
+				if err := f.store.PurgeClaimed(ctx, claim, auditdomain.ArtifactNamespace(claim.AuditID)); err != nil {
+					return err
+				}
+				if _, err := f.store.Get(ctx, owner, claim.AuditID); errors.Is(err, auditstore.ErrNotFound) {
+					return nil
+				} else if err != nil {
+					return err
+				}
+			}
+			return errors.New("the purged Audit outlived its purge batches")
 		}
 		trace.mu.Unlock()
-		response, _, _ := list(t, "", "limit=200")
+		during, _, statements := list(t, mixedProject, "limit=50")
 		if !trace.interleaved || trace.err != nil {
 			t.Fatalf("interleaving ran=%t err=%v", trace.interleaved, trace.err)
 		}
-		var failure errorResponse
-		if response.Code != http.StatusConflict || json.Unmarshal(response.Body.Bytes(), &failure) != nil || failure.Code != "conflict" {
-			t.Fatalf("list across a revision change = %d %s", response.Code, response.Body.String())
+		// The page and every preparation come from the list's snapshot: the
+		// response is the one served before either change.
+		if during.Code != http.StatusOK || !bytes.Equal(during.Body.Bytes(), before.Body.Bytes()) || statements != 5 {
+			t.Fatalf("Project page across a pause and a purge = %d in %d statements:\n got %s\nwant %s",
+				during.Code, statements, during.Body.String(), before.Body.String())
 		}
-		retried, page, _ := list(t, "", "limit=200")
-		if retried.Code != http.StatusOK || !bytes.Contains(encodedItems(t, page), []byte(`"auditId":"full-150","projectId":"project-full"`)) ||
-			!strings.Contains(retried.Body.String(), `"state":"paused"`) {
-			t.Fatalf("retried list = %d", retried.Code)
+		after, page, _ := list(t, mixedProject, "limit=50")
+		if after.Code != http.StatusOK || len(page.Items) != 10 || bytes.Contains(after.Body.Bytes(), []byte(`"auditId":"mixed-pending"`)) {
+			t.Fatalf("Project page after the purge = %d %d items", after.Code, len(page.Items))
+		}
+		conforms(t, after)
+		want, _ := legacy(t, page)
+		if !bytes.Equal(encodedItems(t, page), want) || !bytes.Contains(want, []byte(`"auditId":"mixed-accepted"`)) {
+			t.Fatalf("Project page after the pause differs from per-row hydration:\n got %s\nwant %s", encodedItems(t, page), want)
+		}
+		if paused := f.current("mixed-accepted"); paused.State != auditstore.AuditPaused ||
+			!bytes.Contains(after.Body.Bytes(), []byte(`"status":"running","attempts":2`)) {
+			t.Fatalf("mixed-accepted state = %s; the next attempt is missing: %s", paused.State, after.Body.String())
 		}
 	})
 
 	t.Run("storage lost before hydration", func(t *testing.T) {
 		trace.mu.Lock()
-		trace.interleaved = false
+		trace.marker, trace.interleaved = "WITH ORDINALITY AS listed", false
 		trace.interleave = func(conn *pgx.Conn) error {
 			pid := conn.PgConn().PID()
 			if _, err := pool.Exec(ctx, `SELECT pg_terminate_backend($1)`, pid); err != nil {

@@ -39,10 +39,10 @@ type AuditManagement interface {
 	Delete(context.Context, auditservice.MutationParams) (auditservice.MutationResult, error)
 	Get(context.Context, string, string) (auditstore.Audit, error)
 	Preparation(context.Context, string, string) (map[string]auditservice.PreparationRoleProjection, error)
-	PreparationPage(context.Context, string, []auditstore.Audit) (map[string]map[string]auditservice.PreparationRoleProjection, error)
 	ReadArtifact(context.Context, string, string, string, string) (artifacts.ReadResult, error)
 	GeneratedInventory(context.Context, string, string, uint64) (*auditservice.GeneratedInventoryProjection, error)
-	List(context.Context, auditstore.ListParams) ([]auditstore.Audit, error)
+	ListPage(context.Context, auditstore.ListParams, func(auditstore.Audit) bool) (
+		[]auditstore.Audit, map[string]map[string]auditservice.PreparationRoleProjection, error)
 	ListItems(context.Context, auditstore.ListItemsParams) ([]auditstore.Item, error)
 	ListItemAttempts(context.Context, string, string, []string) (map[string][]auditstore.ItemAttempt, error)
 	GetRound(context.Context, string, string, string) (auditstore.Round, error)
@@ -253,7 +253,9 @@ func (h *auditHandlers) listProjectAudits(w http.ResponseWriter, r *http.Request
 		}
 		params.BeforeCreatedAt, params.BeforeAuditID = &before, cursor[1]
 	}
-	audits, err := h.Audits.List(r.Context(), params)
+	// The page and the preparation of its preparing and inventory items come
+	// from one commit (ASC-R150).
+	audits, preparation, err := h.Audits.ListPage(r.Context(), params, auditListHydratesPreparation)
 	if err != nil {
 		handleError(w, err)
 		return
@@ -266,30 +268,16 @@ func (h *auditHandlers) listProjectAudits(w http.ResponseWriter, r *http.Request
 		return
 	}
 	items := make([]auditResponse, 0, len(audits))
-	hydrate := make([]auditstore.Audit, 0, len(audits))
 	for _, audit := range audits {
 		item, modelErr := auditReadModel(audit)
 		if modelErr != nil {
 			handleError(w, modelErr)
 			return
 		}
-		if auditListHydratesPreparation(audit) {
-			hydrate = append(hydrate, audit)
+		if roles, selected := preparation[audit.AuditID]; selected {
+			item.Preparation = auditPreparationReadModel(roles)
 		}
 		items = append(items, item)
-	}
-	// One fenced read hydrates every preparing or inventory item (ASC-R150).
-	if len(hydrate) != 0 {
-		roles, err := h.Audits.PreparationPage(r.Context(), principalUserID(r.Context()), hydrate)
-		if err != nil {
-			handleError(w, err)
-			return
-		}
-		for index := range items {
-			if projection, ok := roles[items[index].AuditID]; ok {
-				items[index].Preparation = auditPreparationReadModel(projection)
-			}
-		}
 	}
 	writeJSON(w, http.StatusOK, auditPageResponse{Items: items, Page: page})
 }

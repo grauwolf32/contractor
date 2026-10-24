@@ -359,17 +359,23 @@ Public coverage pagination retains its existing revision pin.
 **ASC-R150.** The owner-wide and Project Audit lists give every item in the
 `preparing` or `inventory` phase whose pinned profile has a prepare role the
 `preparation` that `GET /v1/audits/{auditId}` returns for it; items in other
-phases keep their list projection. One store statement hydrates all such items
-of a page, whatever their number (at most LIM-API-18). It reads each listed
-Audit only at the owner and revision the page listed, with its pinned prepare
-roles (at most LIM-ASC-2), each role's attempt count and latest attempt, and
-the output descriptors of an accepted attempt (at most LIM-ASC-5); it never
-reads preparation snapshots or earlier attempts. A listed Audit that has
-another revision or no longer exists when that statement runs fails the list
-with `409 conflict`, as in ASC-R149, so a page never combines revisions;
-storage failures keep their own class. A page without such an item issues no
-hydration statement. Neither phase has `generatedInventory` (ASC-R146), so the
-lists read no inventory link or payload.
+phases keep their list projection. A list reads its page of Audits and that
+preparation in one read-only REPEATABLE READ transaction, so the page shows
+every item and its preparation as of one commit: an owner mutation, a new
+attempt or a purge that commits during the read is in neither part of the
+page, and never fails it with a conflict or a missing Audit. The lists stay
+live lists, not revision-pinned snapshots, and a later request sees the
+change. The transaction issues the list statement and, only when the page
+holds such an item, one preparation statement, whatever the number of items
+(at most the page plus the row that decides whether a next page exists,
+LIM-API-18). That statement reads each item's pinned prepare roles (at most
+LIM-ASC-2), each role's attempt count and latest attempt, and the output
+descriptors of an accepted attempt (at most LIM-ASC-5); it never reads
+preparation snapshots or earlier attempts. A transaction conflict follows
+the store's transaction retry and then returns the retryable `503`
+`storage_transaction_conflict`; other storage failures keep their own class.
+Neither phase has `generatedInventory` (ASC-R146), so the lists read no
+inventory link or payload.
 
 ### Inventory phase and the first Round
 

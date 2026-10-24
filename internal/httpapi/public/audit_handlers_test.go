@@ -599,24 +599,6 @@ func (f *fakeAuditManagement) Preparation(_ context.Context, ownerID, _ string) 
 	return f.preparation, f.err
 }
 
-func (f *fakeAuditManagement) PreparationPage(
-	_ context.Context, ownerID string, audits []auditstore.Audit,
-) (map[string]map[string]auditservice.PreparationRoleProjection, error) {
-	f.preparationOwner = ownerID
-	f.preparationPages = append(f.preparationPages, len(audits))
-	if f.preparationErr != nil {
-		return nil, f.preparationErr
-	}
-	if f.err != nil {
-		return nil, f.err
-	}
-	result := make(map[string]map[string]auditservice.PreparationRoleProjection, len(audits))
-	for _, audit := range audits {
-		result[audit.AuditID] = f.preparation
-	}
-	return result, nil
-}
-
 func (f *fakeAuditManagement) ReadArtifact(_ context.Context, _, _, _, _ string) (artifacts.ReadResult, error) {
 	return f.artifactRead, f.err
 }
@@ -746,14 +728,29 @@ func (f *fakeAuditManagement) Get(context.Context, string, string) (auditstore.A
 	return f.audit, f.err
 }
 
-func (f *fakeAuditManagement) List(_ context.Context, params auditstore.ListParams) ([]auditstore.Audit, error) {
+// ListPage lists the fake Audit, recording how many listed Audits prepared
+// selected; preparationErr fails the page read after the selection.
+func (f *fakeAuditManagement) ListPage(
+	_ context.Context, params auditstore.ListParams, prepared func(auditstore.Audit) bool,
+) ([]auditstore.Audit, map[string]map[string]auditservice.PreparationRoleProjection, error) {
 	if err := fakePageFetch(params.Limit, auditstore.ErrInvalid); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if f.err != nil {
-		return nil, f.err
+		return nil, nil, f.err
 	}
-	return []auditstore.Audit{f.audit}, nil
+	audits := []auditstore.Audit{f.audit}
+	result := map[string]map[string]auditservice.PreparationRoleProjection{}
+	for _, audit := range audits {
+		if prepared(audit) {
+			result[audit.AuditID] = f.preparation
+		}
+	}
+	f.preparationPages = append(f.preparationPages, len(result))
+	if f.preparationErr != nil {
+		return nil, nil, f.preparationErr
+	}
+	return audits, result, nil
 }
 
 func (f *fakeAuditManagement) ListItems(_ context.Context, params auditstore.ListItemsParams) ([]auditstore.Item, error) {
