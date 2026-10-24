@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-89 open tasks: 4 in progress, 60 pending, 25 deferred. 1029 finished: 1025 completed, 4 archived.
+88 open tasks: 4 in progress, 59 pending, 25 deferred. 1030 finished: 1026 completed, 4 archived.
 
 ## In progress
 
@@ -123,10 +123,9 @@ the epics are in [epics.yml](epics.yml).
 | [V372-009](v372-009-ownership-check-blind-spots.yml) | chore | P3 | — | Close the blind spots of the table ownership check |
 | [V372-010](v372-010-erd-usage-from-ownership-scan.yml) | chore | P3 | — | Take the ERD's code-usage lists from the ownership scan and document the new-table workflow |
 | [V408-002](v408-002-shared-postgres-test-schema.yml) | chore | P2 | V408-001 | Apply migrations once per package: one shared PostgreSQL test helper with per-test truncation |
-| [V409-006](v409-006-trigger-column-scoping.yml) | chore | P2 | — | Scope unnecessary trigger work while preserving admission and projection effects |
-| [V409-007](v409-007-dead-and-redundant-indexes.yml) | chore | P2 | V409-004, V409-006 | Consolidate indexes only where reader and constraint evidence permits it |
+| [V409-007](v409-007-dead-and-redundant-indexes.yml) | chore | P2 | V409-004 | Consolidate indexes only where reader and constraint evidence permits it |
 | [V409-012](v409-012-migration-and-sql-hygiene.yml) | chore | P3 | — | Test the revision-count and controller-claim backfills and document migration budgets |
-| [V409-013](v409-013-verify-sql-review-on-database.yml) | chore | P2 | V409-004, V409-006, V409-007, V409-009, V409-011, V409-012, V409-014 | Verify retained SQL-review changes and record evidence for every accepted or declined claim |
+| [V409-013](v409-013-verify-sql-review-on-database.yml) | chore | P2 | V409-004, V409-007, V409-009, V409-011, V409-012, V409-014 | Verify retained SQL-review changes and record evidence for every accepted or declined claim |
 
 ### Quality, CI and process (`quality`)
 
@@ -203,5 +202,5 @@ tasks in `introduced_by`.
 | Web UI (`ui`) | 3 | 24 | 58 | 12 | 53 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 16 | 33 | 6 | 10 |
 | Public API and wire contracts (`api-contracts`) | 4 | 1 | 34 | 20 | 10 |
-| PostgreSQL persistence and schema (`persistence`) | 9 | 0 | 21 | 41 | 9 |
+| PostgreSQL persistence and schema (`persistence`) | 8 | 0 | 21 | 41 | 9 |
 | Quality, CI and process (`quality`) | 17 | 1 | 21 | 87 | 21 |
