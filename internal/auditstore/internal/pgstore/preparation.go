@@ -23,31 +23,6 @@ func (s *QueryStore) ListPreparationExecutions(ctx context.Context, auditID stri
 	return s.listRoleExecutions(ctx, auditID, nil)
 }
 
-// ListPreparationRoles is independent of the paged Round/execution history;
-// even an Audit with no executions exposes each pinned role as pending.
-func (s *QueryStore) ListPreparationRoles(ctx context.Context, auditID string) ([]auditstore.PreparationRole, error) {
-	if err := validateID("auditID", auditID); err != nil {
-		return nil, err
-	}
-	rows, err := s.db.Query(ctx, listPreparationRolesSQL, auditID)
-	if err != nil {
-		return nil, fmt.Errorf("list Audit preparation roles: %w", err)
-	}
-	defer rows.Close()
-	result := []auditstore.PreparationRole{}
-	for rows.Next() {
-		var role auditstore.PreparationRole
-		if err := rows.Scan(&role.WorkflowRole, &role.Attempts, &role.MaxRunAttempts, &role.ExecutionID, &role.Status); err != nil {
-			return nil, err
-		}
-		if !role.Status.Valid() {
-			return nil, errors.New("derived Audit preparation status is invalid")
-		}
-		result = append(result, role)
-	}
-	return result, rows.Err()
-}
-
 // ListPreparedPage reads one page of Audits, as List does, and the
 // preparation of the listed Audits whose phase shows it (ASC-R150). A
 // pool-backed store reads both in one read-only REPEATABLE READ transaction,
@@ -95,9 +70,79 @@ func (s *QueryStore) ListPreparedPage(
 	return audits, roles, nil
 }
 
+// GetPreparedDetail reads owner ownerID's Audit auditID and the rows of its
+// detail projection (ASC-R149). A pool-backed store reads them in one
+// read-only REPEATABLE READ transaction, so the Audit, its revision and every
+// row come from one commit: a write that commits during the read is in none
+// of them or, if it committed first, in all, and never fails the read. A
+// transaction-backed store reads them in the caller's transaction, whose
+// isolation level the caller owns (PER-R18). It issues the Audit statement
+// and, unless the Audit has not started, the preparation statement of the
+// Audit lists (ASC-R150), so a list item and the detail project the same
+// rows. An Audit in the rounds phase that is not deleting adds the
+// initial-inventory link and Round 1 statements, and currentRound adds the
+// current Round, unless that is Round 1, and its items (at most
+// auditprofile.MaxAuditItemsPerRound). No statement count depends on the
+// Audit's roles, attempts, Rounds or items, and the transaction reads no
+// Artifact payload: the caller reads the exact snapshot the link names after
+// it commits.
+func (s *QueryStore) GetPreparedDetail(
+	ctx context.Context, ownerID, auditID string, currentRound bool,
+) (auditstore.PreparedDetail, error) {
+	var result auditstore.PreparedDetail
+	err := persistencepostgres.Within(ctx, s.db, snapshotTransaction, func(tx pgx.Tx) error {
+		reads := NewQueryStore(tx)
+		audit, err := reads.get(ctx, ownerID, auditID)
+		if err != nil {
+			return err
+		}
+		result = auditstore.PreparedDetail{Audit: audit}
+		if audit.Phase == auditdomain.AuditPhaseNotStarted {
+			return nil
+		}
+		roles, err := listPreparationPage(ctx, tx, ownerID, []string{auditID})
+		if err != nil {
+			return err
+		}
+		result.Roles = roles[auditID]
+		// Only generated inventory has the link, and only an Audit that pins
+		// a prepare role generates its inventory.
+		if len(result.Roles) != 0 && audit.Phase == auditdomain.AuditPhaseRounds && audit.State != auditstore.AuditDeleting {
+			link, err := reads.GetArtifactLink(ctx, auditID, auditstore.InitialInventoryLogicalKey)
+			if err != nil {
+				return err
+			}
+			first, err := reads.getRound(ctx, auditID, auditdomain.DeterministicID("round", auditID, "1"))
+			if err != nil {
+				return err
+			}
+			result.InventoryLink, result.FirstRound = &link, &first
+		}
+		if !currentRound || audit.CurrentRoundID == nil {
+			return nil
+		}
+		if result.FirstRound != nil && result.FirstRound.RoundID == *audit.CurrentRoundID {
+			current := *result.FirstRound
+			result.CurrentRound = &current
+		} else {
+			current, err := reads.getRound(ctx, auditID, *audit.CurrentRoundID)
+			if err != nil {
+				return err
+			}
+			result.CurrentRound = &current
+		}
+		result.CurrentItems, err = reads.ListRoundItems(ctx, auditID, *audit.CurrentRoundID)
+		return err
+	})
+	if err != nil {
+		return auditstore.PreparedDetail{}, err
+	}
+	return result, nil
+}
+
 // listPreparationPage reads the preparation of owner ownerID's Audits
-// auditIDs, which a list read in the same snapshot, in one statement. A list
-// fetches at most pagelimit.MaxFetchRows Audits.
+// auditIDs, which a list or a detail read in the same snapshot, in one
+// statement. A list fetches at most pagelimit.MaxFetchRows Audits.
 func listPreparationPage(
 	ctx context.Context, db persistencepostgres.DBTX, ownerID string, auditIDs []string,
 ) (map[string][]auditstore.ListedPreparationRole, error) {
@@ -274,7 +319,7 @@ func startPreparation(
 	if errors.Is(err, pgx.ErrNoRows) || persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate {
 		return auditstore.Audit{}, auditstore.ErrPrecondition
 	}
-	return auditstore.Audit{}, fmt.Errorf("start Audit preparation: %w", err)
+	return auditstore.Audit{}, writeError("start Audit preparation", err)
 }
 
 // CompletePreparation advances only after every prepare role has an accepted

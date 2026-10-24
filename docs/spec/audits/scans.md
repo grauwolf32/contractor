@@ -332,7 +332,9 @@ its receipt, not in accepted outputs (LIFE-ASC-2).
 Artifact descriptors, source-content and canonical inventory digests, accepted
 initial item count and gaps. It is absent before acceptance. Original baseline
 inputs remain unchanged. One committed `initial-inventory` link and one bounded
-exact snapshot read supply this projection; item pages are not scanned.
+exact snapshot read supply this projection; item pages are not scanned. The
+link is read with the rest of the Audit's detail in one snapshot and the
+exact snapshot after that read (ASC-R149).
 
 **ASC-R147.** Coverage details for an OpenAPI scan include typed `scan`
 provenance: scanner, operation pointer, exact source and settings, preparation
@@ -351,10 +353,40 @@ retryable 503. Cancellation ends the read without a mutation. It grants no
 Project-prefix browsing or current-binding resolution. Accepted outputs and
 results remain readable after source Run deletion and until Audit deletion.
 
-**ASC-R149.** Preparation, generated-inventory and retained-artifact reads check
-the Audit revision after hydration. A changed revision returns conflict rather
-than mixing an earlier phase or ETag with newer accepted output descriptors.
-Public coverage pagination retains its existing revision pin.
+**ASC-R149.** `GET /v1/audits/{auditId}` and the Audit that create, start,
+pause, resume, cancel and delete return are the Audit's detail, and a detail
+never mixes an earlier phase, revision or ETag with newer preparation or
+inventory. The detail of a draft, or of an Audit whose pinned profile has no
+prepare role, is the one Audit row the read or the mutation returned. For a
+started Audit that pins a prepare role, the Server reads the Audit again with
+its pinned roles, each with its attempt count and latest attempt, and, in the
+`rounds` phase while it is not deleting, its `initial-inventory` link and its
+first Round, in one read-only REPEATABLE READ transaction whose preparation
+statement is the one the lists use (ASC-R150); a start response reads the
+Audit's current Round and only that Round's items in the same transaction
+([AUD-R226](audits.md)). After the transaction commits it reads the exact
+inventory snapshot the link names, by ref and digest; that snapshot is
+immutable, so no later write enters the detail. The detail, its `revision` and its `ETag`
+therefore come from one commit, and a write that commits during the read never
+fails it: a mutation response is the Audit as of the mutation's commit or a
+later one, as an `Idempotency-Key` replay of it also answers, and an Audit
+purged in between answers the `404` a later read would. A transaction conflict
+follows the store's transaction retry and then returns the retryable `503`
+`storage_transaction_conflict`, a snapshot that fails exact verification is
+an integrity failure, and cancellation ends the read without a mutation.
+Retained-artifact reads (ASC-R148) check the Audit revision after reading
+and return `409` for a changed Audit, and public coverage, finding, review and
+provenance pagination keeps its revision pin.
+
+Rationale: an earlier detail checked the Audit revision after hydrating it and
+answered `409 conflict` for any write that committed during the read. The
+`getAudit` contract declares no `409`, so a polled detail answered an
+undeclared status, and a committed mutation answered as if it had lost the
+race it won. Declaring `409` on `getAudit` instead would keep both: every
+poller would retry needlessly and every mutation response could still report
+a conflict. Revisit the single snapshot if the detail must read a part that
+is unbounded or mutable outside the transaction, which would have to come
+back to a revision check and a declared, retried `409`.
 
 **ASC-R150.** The owner-wide and Project Audit lists give every item in the
 `preparing` or `inventory` phase whose pinned profile has a prepare role the

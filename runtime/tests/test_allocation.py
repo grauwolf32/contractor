@@ -1,17 +1,35 @@
 from __future__ import annotations
 
 import asyncio
+import gc
 import json
 import time
+import uuid
+import weakref
+from collections.abc import Callable
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
+import httpx
 import pytest
+from fakes.model import scripted_model, text_result, tool_call
 from fakes.private_codec import encode_private
 from fakes.spec import allocation_spec, runtime_provenance
 from fakes.worker_runtime import StubADKWorkerRuntimeFactory, StubWorkerRuntime
+from google.adk.tools import FunctionTool
+from test_adk_runtime import CapturingScriptedLlm, FakeArtifactClient
+from test_adk_runtime import stage_request as adk_stage_request
+from test_http_caido_process_e2e import MockCaidoAdapterFactory, MockHTTPProxyAdapterFactory
+from test_text_artifacts_toolset import MemoryArtifactClient
 
+import contractor_runtime.allocation.service as allocation_service_module
+import contractor_runtime.worker.adk_caches as adk_caches
+import contractor_runtime.worker.state as worker_state_module
+from contractor_runtime.adapters import AdapterHandles
+from contractor_runtime.adapters.host import RuntimeAdapterBuildContext, RuntimeAdapterMetricsState
+from contractor_runtime.adapters.interactsh import InteractshClient
 from contractor_runtime.allocation import AllocationError, AllocationService
 from contractor_runtime.capabilities import CapabilitySnapshot
 from contractor_runtime.contracts import (
@@ -20,7 +38,10 @@ from contractor_runtime.contracts import (
     AgentTemplateRef,
     AllocationFinalResponse,
     AllocationSpec,
+    CaidoSettings,
     FinalizeAllocationRequest,
+    HTTPProxySettings,
+    InteractshSettings,
     ModelPolicyRef,
     PerformanceMetricsRequest,
     ReleaseAllocationRequest,
@@ -53,6 +74,7 @@ from contractor_runtime.telemetry.metrics import (
     MAX_METRIC_ERRORS,
     MAX_METRIC_TOOL_CALLS,
     MAX_REPORT_JSON_BYTES,
+    MetricsState,
 )
 from contractor_runtime.telemetry.resources import ProcessReading, ResourceCollector
 from contractor_runtime.toolsets.http.errors import HTTPToolError
@@ -859,11 +881,19 @@ def test_abort_adds_reason_and_forces_exit_if_worker_cannot_stop(
 
 
 async def make_service(
-    tmp_path: Path, capabilities: CapabilitySnapshot
+    tmp_path: Path,
+    capabilities: CapabilitySnapshot,
+    *,
+    artifact_client_factory: Callable[[str, RuntimeSettings], Any] | None = None,
+    model_factory: Callable[[WorkerBuildContext], Any] | None = None,
 ) -> tuple[RuntimeState, AllocationService]:
     state = RuntimeState(instance_id="runtime-test")
     await state.mark_registered()
-    factories = built_in_factories(tmp_path)
+    factories = built_in_factories(
+        tmp_path,
+        artifact_client_factory=artifact_client_factory,
+        model_factory=model_factory,
+    )
     service = AllocationService(
         state,
         factories,
@@ -1304,5 +1334,558 @@ def test_resource_failure_does_not_change_worker_completeness_or_slot_reuse(
         )
         await service.confirm_release(spec.allocation_id)
         assert (await state.snapshot()).process_state is ProcessState.IDLE
+
+    asyncio.run(scenario())
+
+
+class TrackedMetricsState(MetricsState):
+    """An allocation metrics reducer whose lifetime a test can observe."""
+
+    __slots__ = ("__weakref__",)
+
+
+class TrackedArtifactClients:
+    """Creates one FakeArtifactClient per call and keeps only weak references to them."""
+
+    def __init__(self) -> None:
+        self.created: list[weakref.ref[FakeArtifactClient]] = []
+
+    def __call__(self, allocation_id: str, settings: RuntimeSettings) -> FakeArtifactClient:
+        del allocation_id, settings
+        client = FakeArtifactClient()
+        self.created.append(weakref.ref(client))
+        return client
+
+    def live(self) -> int:
+        gc.collect()
+        return sum(ref() is not None for ref in self.created)
+
+
+def read_write_script() -> object:
+    return scripted_model(
+        [
+            tool_call(
+                "read_artifact",
+                {"namespace": "inputs", "name": "source", "revision": "input-r1"},
+                call_id="read-1",
+            ),
+            tool_call(
+                "write_artifact",
+                {
+                    "namespace": "builder",
+                    "name": "report",
+                    "media_type": "application/json",
+                    "data_base64": "e30=",
+                    "expected_revision": None,
+                },
+                call_id="write-1",
+            ),
+            text_result("Report created"),
+        ]
+    )
+
+
+def allocation_references(service: AllocationService) -> dict[str, weakref.ref[Any]]:
+    """Weak references to everything release must make unreachable (LIFE-WRK-3)."""
+
+    context = service._context
+    if context is None or context.worker is None or context.worker_state is None:
+        raise AssertionError("allocation is not prepared")
+    worker: Any = context.worker
+    references: dict[str, weakref.ref[Any]] = {
+        "worker": weakref.ref(worker),
+        "worker_state": weakref.ref(context.worker_state),
+        "metrics": weakref.ref(context.worker_state.metrics),
+    }
+    for name, tool in context.tools.items():
+        references[f"tool:{name}"] = weakref.ref(tool)
+    for tool in worker._agent.tools:
+        if isinstance(tool, FunctionTool):
+            references[f"adk:{tool.name}"] = weakref.ref(tool)
+    return references
+
+
+def live_references(references: dict[str, weakref.ref[Any]]) -> list[str]:
+    gc.collect()
+    return sorted(name for name, reference in references.items() if reference() is not None)
+
+
+async def finalize_and_release(service: AllocationService, allocation_id: str) -> None:
+    await service.finalize(
+        FinalizeAllocationRequest(
+            apiVersion=API_VERSION,
+            allocationId=allocation_id,
+            finalizationId=f"finalize-{allocation_id}",
+            deadline=NOW + timedelta(seconds=30),
+        )
+    )
+    await service.release(
+        ReleaseAllocationRequest(apiVersion=API_VERSION, allocationId=allocation_id)
+    )
+
+
+class CallableProbe:
+    """Return a fixed result."""
+
+    async def __call__(self) -> dict[str, bool]:
+        return {"ok": True}
+
+
+def wrapped_probe(*, declare: bool) -> weakref.ref[CallableProbe]:
+    """Wrap a fresh callable in FunctionTool, drop the tool and keep a weak reference."""
+
+    probe = CallableProbe()
+    adk_tool = FunctionTool(probe)
+    if declare:
+        assert adk_tool._get_declaration() is not None
+    return weakref.ref(probe)
+
+
+def test_adk_tool_caches_keep_wrapped_callables_until_released() -> None:
+    """Guards the google-adk behaviour that RTA-R116 works around.
+
+    Each cache alone keeps a wrapped callable alive. If an ADK upgrade keys
+    either cache weakly or per instance, an assertion that the callable is
+    still alive fails: re-check the reversal condition of RTA-R116.
+    """
+
+    find_context_parameter, build_declaration = adk_caches._TOOL_CALLABLE_CACHES
+    assert build_declaration.__name__ == "_build_declaration_cached"
+
+    constructed = wrapped_probe(declare=False)
+    gc.collect()
+    assert constructed() is not None
+    find_context_parameter.cache_clear()
+    gc.collect()
+    assert constructed() is None
+
+    declared = wrapped_probe(declare=True)
+    find_context_parameter.cache_clear()
+    gc.collect()
+    assert declared() is not None
+    adk_caches.release_adk_tool_caches()
+    gc.collect()
+    assert declared() is None
+
+
+def test_release_leaves_no_allocation_tool_reachable_after_an_invocation(
+    tmp_path: Path,
+    runtime_capabilities: CapabilitySnapshot,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Release erases tools, their client and MetricsState with no test-side cleanup."""
+
+    monkeypatch.setattr(worker_state_module, "MetricsState", TrackedMetricsState)
+    clients = TrackedArtifactClients()
+
+    async def scenario() -> None:
+        _, service = await make_service(
+            tmp_path,
+            runtime_capabilities,
+            artifact_client_factory=clients,
+            model_factory=lambda _: read_write_script(),
+        )
+        spec = make_spec()
+        await service.prepare(spec)
+        references = allocation_references(service)
+        assert {"tool:read_artifact", "adk:read_artifact", "tool:write_artifact"} <= set(references)
+        assert service._context is not None and service._context.worker is not None
+        completion = await service._context.worker.invoke(adk_stage_request())
+        assert completion.failure is None and completion.result is not None
+        assert completion.result.artifacts["report"].revision == "write-r1"
+        del completion
+        assert clients.live() == 1
+
+        await finalize_and_release(service, spec.allocation_id)
+
+        assert live_references(references) == []
+        assert clients.live() == 0
+
+    asyncio.run(scenario())
+
+
+def test_failed_cache_release_keeps_the_slot_fenced_until_the_retry_repeats_it(
+    tmp_path: Path,
+    runtime_capabilities: CapabilitySnapshot,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Clearing ADK's caches is a release cleanup step (RTA-R116, FAIL-RTA-5)."""
+
+    monkeypatch.setattr(worker_state_module, "MetricsState", TrackedMetricsState)
+    clients = TrackedArtifactClients()
+    attempts: list[bool] = []
+
+    def release_once_failing() -> None:
+        attempts.append(True)
+        if len(attempts) == 1:
+            raise RuntimeError("synthetic cache release failure")
+        adk_caches.release_adk_tool_caches()
+
+    monkeypatch.setattr(allocation_service_module, "release_adk_tool_caches", release_once_failing)
+
+    async def scenario() -> None:
+        state, service = await make_service(
+            tmp_path,
+            runtime_capabilities,
+            artifact_client_factory=clients,
+            model_factory=lambda _: read_write_script(),
+        )
+        spec = make_spec()
+        await service.prepare(spec)
+        references = allocation_references(service)
+        await service.finalize(
+            FinalizeAllocationRequest(
+                apiVersion=API_VERSION,
+                allocationId=spec.allocation_id,
+                finalizationId="finalize-cache-failure",
+                deadline=NOW + timedelta(seconds=30),
+            )
+        )
+        release = ReleaseAllocationRequest(apiVersion=API_VERSION, allocationId=spec.allocation_id)
+
+        with pytest.raises(AllocationError) as cleanup:
+            await service.release(release)
+        assert cleanup.value.code == "allocation_cleanup_failed"
+        assert cleanup.value.retryable
+        del cleanup
+        assert (await state.snapshot()).process_state is ProcessState.FENCED
+        snapshot = await service.snapshot()
+        # State and secrets were already dropped; only the cache step failed.
+        assert snapshot is not None and not snapshot.has_runtime_settings
+        assert service._context is not None and service._context.worker_state is None
+        assert not service._context.release_prepared
+        assert "tool:read_artifact" in live_references(references)
+        with pytest.raises(AllocationError):
+            await service.prepare(make_spec(allocation_id="allocation-new"))
+
+        await service.release(release)
+        assert len(attempts) == 2
+        assert live_references(references) == []
+        assert clients.live() == 0
+        await service.confirm_release(spec.allocation_id)
+        assert (await state.snapshot()).process_state is ProcessState.IDLE
+
+    asyncio.run(scenario())
+
+
+def test_failed_prepare_rollback_leaves_no_allocation_tool_reachable(
+    tmp_path: Path, runtime_capabilities: CapabilitySnapshot
+) -> None:
+    """A prepare that fails after its Worker is built never reaches release."""
+
+    clients = TrackedArtifactClients()
+
+    async def scenario() -> None:
+        state, service = await make_service(
+            tmp_path,
+            runtime_capabilities,
+            artifact_client_factory=clients,
+            model_factory=lambda _: read_write_script(),
+        )
+
+        async def lost_commit(allocation_id: str) -> None:
+            raise RuntimeError(f"synthetic commit failure for {allocation_id}")
+
+        state.commit_allocation = lost_commit  # type: ignore[method-assign]
+        with pytest.raises(AllocationError) as failure:
+            await service.prepare(make_spec())
+        assert failure.value.code == "allocation_preparation_failed"
+        # The suppressed context holds the prepare frame and its locals.
+        del failure
+        assert await service.snapshot() is None
+        assert len(clients.created) == 1
+        assert clients.live() == 0
+
+    asyncio.run(scenario())
+
+
+def test_next_allocation_rebuilds_identical_tool_declarations(
+    tmp_path: Path, runtime_capabilities: CapabilitySnapshot
+) -> None:
+    """Clearing the caches at release costs one rebuild, never different declarations."""
+
+    models: list[CapturingScriptedLlm] = []
+    clients = TrackedArtifactClients()
+
+    def model(_: WorkerBuildContext) -> CapturingScriptedLlm:
+        scripted = CapturingScriptedLlm(
+            model="worker-model",
+            responses=[
+                tool_call(
+                    "read_artifact",
+                    {"namespace": "inputs", "name": "source", "revision": "input-r1"},
+                    call_id="read-1",
+                ),
+                text_result("Read the source"),
+            ],
+        )
+        models.append(scripted)
+        return scripted
+
+    async def scenario() -> None:
+        state, service = await make_service(
+            tmp_path,
+            runtime_capabilities,
+            artifact_client_factory=clients,
+            model_factory=model,
+        )
+        for allocation_id in ("allocation-1", "allocation-2"):
+            await service.prepare(make_spec(allocation_id=allocation_id))
+            assert service._context is not None and service._context.worker is not None
+            completion = await service._context.worker.invoke(adk_stage_request())
+            assert completion.failure is None and completion.result is not None
+            # The model's read_artifact call ran this allocation's tool.
+            assert {
+                name: value.model_dump()
+                for name, value in completion.result.observations.tools.items()
+            } == {"read_artifact": {"calls": 1, "failures": 0}}
+            del completion
+            await finalize_and_release(service, allocation_id)
+            await service.confirm_release(allocation_id)
+            assert (await state.snapshot()).process_state is ProcessState.IDLE
+
+        assert len(clients.created) == 2
+        assert clients.live() == 0
+        # The first allocation's tools were new callables, so ADK built their
+        # declarations from scratch as in a fresh process; the second rebuilt
+        # them after release had cleared the caches.
+        first, second = (scripted.payloads[0]["tools"] for scripted in models)
+        assert [tool["function"]["name"] for tool in first] == ["read_artifact", "write_artifact"]
+        assert second == first
+
+    asyncio.run(scenario())
+
+
+class MockInteractshAdapterFactory:
+    """interactsh-http@1 with the production client over a deterministic transport."""
+
+    ref = "interactsh-http@1"
+
+    def __init__(self) -> None:
+        self.paths: list[str] = []
+
+    async def probe(self) -> bool:
+        return True
+
+    async def create(
+        self, context: RuntimeAdapterBuildContext, settings: InteractshSettings
+    ) -> MockInteractshAdapter:
+        del context
+        return MockInteractshAdapter(settings, httpx.MockTransport(self._handle))
+
+    async def _handle(self, request: httpx.Request) -> httpx.Response:
+        self.paths.append(request.url.path)
+        message = (
+            "registration successful"
+            if request.url.path == "/register"
+            else "deregistration successful"
+        )
+        return httpx.Response(200, json={"message": message}, request=request)
+
+
+class MockInteractshAdapter:
+    ref = "interactsh-http@1"
+
+    def __init__(self, settings: InteractshSettings, transport: httpx.MockTransport) -> None:
+        self.metrics = RuntimeAdapterMetricsState()
+        self._client = InteractshClient(
+            settings, timeout_seconds=5, metrics=self.metrics, transport=transport
+        )
+        self.handles = AdapterHandles(interactsh=self._client)
+
+    async def flush(self) -> None:
+        return
+
+    async def close(self) -> None:
+        await self._client.close()
+        self.handles = AdapterHandles()
+
+
+def secret_holders(marker: str) -> list[str]:
+    """Name every live object that holds a str or bytes containing ``marker``.
+
+    Derived copies count too, for example an encoded Authorization header.
+    """
+
+    encoded = marker.encode()
+    own = {id(marker), id(encoded)}
+
+    def holds(value: object, depth: int) -> bool:
+        if id(value) in own:
+            return False
+        if isinstance(value, str):
+            return marker in value
+        if isinstance(value, bytes | bytearray):
+            return encoded in value
+        # The collector untracks containers of atomic values, so only their
+        # tracked owner is listed; look inside them from there.
+        if depth and not gc.is_tracked(value):
+            if isinstance(value, dict):
+                return any(holds(k, depth - 1) or holds(v, depth - 1) for k, v in value.items())
+            if isinstance(value, tuple | list | set | frozenset):
+                return any(holds(item, depth - 1) for item in value)
+        return False
+
+    gc.collect()
+    return sorted(
+        type(owner).__qualname__
+        for owner in gc.get_objects()
+        if any(holds(referent, 3) for referent in gc.get_referents(owner))
+    )
+
+
+def test_release_retains_no_adapter_secret_or_session_credential(
+    tmp_path: Path, runtime_capabilities: CapabilitySnapshot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """HTTP, Caido and Interactsh tools leave no secret reachable after release."""
+
+    monkeypatch.setattr(worker_state_module, "MetricsState", TrackedMetricsState)
+    marker = uuid.uuid4().hex
+    http_paths: list[str] = []
+    caido_operations: list[str] = []
+
+    async def target(request: httpx.Request) -> httpx.Response:
+        http_paths.append(request.url.path)
+        return httpx.Response(
+            200, content=b"ok", headers={"content-type": "text/plain"}, request=request
+        )
+
+    async def caido(request: httpx.Request) -> httpx.Response:
+        caido_operations.append(json.loads(request.content)["operationName"])
+        data = {"requestsByOffset": {"count": {"value": 0}, "nodes": []}}
+        return httpx.Response(200, json={"data": data}, request=request)
+
+    def model(_: WorkerBuildContext) -> object:
+        session = {"kind": "bearer", "token": f"session-{marker}"}
+        return scripted_model(
+            [
+                tool_call(
+                    "http_session_set",
+                    {"auth": session, "replace_cookies": True, "replace_headers": True},
+                    call_id="session-set",
+                ),
+                tool_call(
+                    "http_request",
+                    {
+                        "url": "https://target.example/probe",
+                        "method": "GET",
+                        "body_type": "none",
+                        "follow_redirects": False,
+                    },
+                    call_id="http-request",
+                ),
+                tool_call(
+                    "caido_history", {"filter": "", "limit": 5, "offset": 0}, call_id="caido"
+                ),
+                tool_call("interactsh_register", {"action": "http-request"}, call_id="oast"),
+                text_result("Collected bounded evidence"),
+            ]
+        )
+
+    async def scenario() -> None:
+        artifacts = MemoryArtifactClient()
+        base = built_in_factories(
+            tmp_path / "work",
+            artifact_client_factory=lambda *_: artifacts,
+            model_factory=model,
+            enabled_runtime_adapters=[],
+        )
+        proxy = MockHTTPProxyAdapterFactory(target)
+        caido_adapter = MockCaidoAdapterFactory(caido)
+        interactsh = MockInteractshAdapterFactory()
+        factories = FactoryRegistry(
+            worker_runtimes=base.worker_runtimes,
+            toolsets=base.toolsets,
+            sandbox_profiles=base.sandbox_profiles,
+            runtime_adapters={
+                proxy.ref: proxy,
+                caido_adapter.ref: caido_adapter,
+                interactsh.ref: interactsh,
+            },
+            artifact_client_factory=base.artifact_client_factory,
+        )
+        capabilities = CapabilitySnapshot.create(
+            runtimes=factories.worker_runtimes,
+            toolsets={ref: factory.exported_tools for ref, factory in factories.toolsets.items()},
+            sandbox_profiles=factories.sandbox_profiles,
+            runtime_adapters=factories.runtime_adapters,
+        )
+        state = RuntimeState(instance_id="runtime-adapter-secrets")
+        await state.mark_registered()
+        service = AllocationService(
+            state,
+            factories,
+            capabilities,
+            a2a_base_url="https://runtime.example",
+            now=lambda: NOW,
+            force_exit=lambda _: None,
+        )
+        spec = make_spec()
+        spec.agent_template.toolsets = [
+            ToolsetSelection(
+                ref=ToolsetRef(toolsetId="http-tools", version="1"),
+                tools=["http_request", "http_session_set"],
+            ),
+            ToolsetSelection(
+                ref=ToolsetRef(toolsetId="caido", version="1"), tools=["caido_history"]
+            ),
+            ToolsetSelection(
+                ref=ToolsetRef(toolsetId="interactsh", version="1"),
+                tools=["interactsh_register"],
+            ),
+        ]
+        resign_template(spec.agent_template)
+        spec.runtime_settings = RuntimeSettings(
+            llmGatewayUrl="https://gateway.example/v1",
+            llmGatewayToken=f"gateway-{marker}",
+            artifactApiUrl="https://control.example/private/v1",
+            httpProxy=HTTPProxySettings(
+                adapter="http-proxy@1",
+                proxyUrl="https://proxy.example",
+                bearerToken=f"proxy-{marker}",
+                targets=["tool-http"],
+            ),
+            caido=CaidoSettings(
+                adapter="caido-graphql@1",
+                endpoint="https://caido.example",
+                bearerToken=f"caido-{marker}",
+                requestTimeoutSeconds=5,
+            ),
+            interactsh=InteractshSettings(
+                adapter="interactsh-http@1",
+                endpoint="https://oast.example",
+                token=f"oast-{marker}",
+                requestTimeoutSeconds=5,
+            ),
+            requestTimeoutSeconds=10,
+        )
+        spec.resolved_runtime_config_provenance.runtime_adapters = [
+            "caido-graphql@1",
+            "http-proxy@1",
+            "interactsh-http@1",
+        ]
+        allocation_id = spec.allocation_id
+        await service.prepare(spec)
+        # The Control Plane's request object is not Runtime state.
+        del spec
+        references = allocation_references(service)
+        assert {
+            "tool:http_session_set",
+            "tool:caido_history",
+            "tool:interactsh_register",
+        } <= set(references)
+        assert service._context is not None and service._context.worker is not None
+        completion = await service._context.worker.invoke(adk_stage_request())
+        assert completion.failure is None and completion.result is not None
+        del completion
+        assert http_paths == ["/probe"]
+        assert caido_operations == ["RequestsByOffset"]
+        assert interactsh.paths == ["/register"]
+        assert secret_holders(marker)
+
+        await finalize_and_release(service, allocation_id)
+
+        assert live_references(references) == []
+        assert secret_holders(marker) == []
 
     asyncio.run(scenario())

@@ -4,6 +4,7 @@ import asyncio
 import copy
 import hashlib
 import json
+import math
 import re
 import subprocess
 import threading
@@ -57,6 +58,9 @@ from contractor_runtime.workspace import AllocationWorkspace
 
 SECRET = "openapi-tool-recognizable-secret"
 DOCUMENT_BOUNDS = Path(__file__).resolve().parents[2] / "api/testdata/openapi-document-bounds.json"
+OPENAPI_YAML_CASES = (
+    Path(__file__).resolve().parents[2] / "api/testdata/openapi-yaml-scalar-cases.json"
+)
 
 
 def test_openapi_tools_build_validate_and_expose_exact_refs(
@@ -455,8 +459,16 @@ def test_yaml_keys_are_json_strings_without_weakening_structure_checks() -> None
     for payload, message in (
         (base + "x-codes: {200: a, '200': b}\n", "duplicate key"),
         (base + "? [1, 2]\n: sequence-key\n", "keys must be scalar strings"),
-        (base + "!!binary aGk=: binary-key\n", "keys must be strings"),
-        (base + "released: !!timestamp 2023-01-01\n", "unsupported date value"),
+        (base + "!!binary aGk=: binary-key\n", "tags other than"),
+        (base + "!!int 200: int-key\n", "keys must be strings"),
+        (base + "released: !!timestamp 2023-01-01\n", "tags other than"),
+        (base + "x-m: {<<: {a: 1}, b: 2}\n", "merge keys"),
+        (base + "x-v: 0x10000000000000000\n", "quote a string that is spelled like a number"),
+        (base + "x-v: !!bool yes\n", "does not match its explicit tag"),
+        ("%YAML 1.2\n---\n" + base, "version directives"),
+        (base + 'x-v: "\\ud83d"\n', "surrogate code points"),
+        (base + 'x-v: "\\U00110000"\n', "not valid YAML or JSON"),
+        (base + "x-v: \x07\n", "not valid YAML or JSON"),
         (base + "x-ref: &a 1\nx-copy: *a\n", "aliases and anchors"),
         (base + "x-only: &unused {a: 1}\n", "aliases and anchors"),
         (base + "x-copy: *missing\n", "aliases and anchors"),
@@ -465,8 +477,134 @@ def test_yaml_keys_are_json_strings_without_weakening_structure_checks() -> None
         # The whole stream is composed before any value is constructed.
         (base + "x-dup: {a: 1, a: 2}\n---\nx-later: &later 1\n", "aliases and anchors"),
     ):
-        with pytest.raises(ValueError, match=message):
+        with pytest.raises(ToolInputError, match=message):
             openapi_module._parse_document(payload.encode())
+
+
+def openapi_yaml_cases() -> dict[str, Any]:
+    fixture = json.loads(OPENAPI_YAML_CASES.read_text(encoding="utf-8"))
+    assert set(fixture) == {"description", "values", "keys", "documents", "writes"}
+    assert all(fixture[group] for group in ("values", "keys", "documents", "writes"))
+    return fixture
+
+
+def same_json(left: Any, right: Any) -> bool:
+    """JSON equality that keeps booleans apart from numbers and the sign of zero."""
+
+    if isinstance(left, bool) or isinstance(right, bool):
+        return type(left) is type(right) and left == right
+    if isinstance(left, int | float) and isinstance(right, int | float):
+        return float(left) == float(right) and math.copysign(1, left) == math.copysign(1, right)
+    if isinstance(left, dict) and isinstance(right, dict):
+        return left.keys() == right.keys() and all(same_json(left[k], right[k]) for k in left)
+    if isinstance(left, list) and isinstance(right, list):
+        return len(left) == len(right) and all(map(same_json, left, right))
+    return type(left) is type(right) and left == right
+
+
+def test_shared_openapi_yaml_scalar_cases_match_server_readers() -> None:
+    """openapi@1 reads each shared case as scan preparation and the inventory do."""
+
+    fixture = openapi_yaml_cases()
+    documents: list[tuple[str, str, dict[str, Any] | None]] = []
+    for case in fixture["values"]:
+        expected = {"v": case["value"]} if case["verdict"] == "accepted" else None
+        documents.append((case["yaml"], "v: " + case["yaml"] + "\n", expected))
+    for case in fixture["keys"]:
+        expected = {case["member"]: "v"} if case["verdict"] == "accepted" else None
+        documents.append((case["yaml"], case["yaml"] + ": v\n", expected))
+    for case in fixture["documents"]:
+        expected = case["value"] if case["verdict"] == "accepted" else None
+        documents.append((case["name"], case["yaml"], expected))
+    for label, document, expected in documents:
+        assert expected is not None or label  # every case is labelled
+        if expected is None:
+            with pytest.raises(ToolInputError) as rejected:
+                openapi_module._parse_document(document.encode())
+            assert rejected.value.code == "tool_input_invalid", label
+            assert rejected.value.retryable is False, label
+            continue
+        assert same_json(openapi_module._parse_document(document.encode()), expected), label
+
+
+def test_shared_openapi_yaml_writer_emits_the_scalars_every_reader_reads_back() -> None:
+    """openapi@1 writes each shared string as the fixture's scalar, value and member name."""
+
+    for case in openapi_yaml_cases()["writes"]:
+        string, scalar = case["string"], case["scalar"]
+        for document, written in (
+            ({"v": string}, f"v: {scalar}\n"),
+            ({string: "v"}, f"{scalar}: v\n"),
+        ):
+            assert openapi_module._dump_document(document).decode() == written, string
+            assert openapi_module._parse_document(written.encode()) == document, string
+            # YAML 1.1 readers, PyYAML's among them, read the same string.
+            assert yaml.safe_load(written) == document, string
+
+
+def test_mutations_write_strings_every_reader_reads_back_and_bound_numbers(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        source = tmp_path / "source" / "src"
+        source.mkdir(parents=True)
+        (source / "app.py").write_text("@app.get('/health')\ndef health(): ...\n")
+        client = MemoryArtifactClient()
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
+        await tools["initialize_openapi"](title="Service")
+        item = valid_path_item()
+        item["x-values"] = {"octal": "0o17", "exponent": "1e3", "flag": "yes", "1:30": 1.5}
+        await tools["upsert_openapi_path"]("/health", item, ["src/app.py"])
+        stored = client.bindings[("openapi", "openapi")].data
+        for written in (b"octal: '0o17'", b"exponent: '1e3'", b"flag: 'yes'", b"'1:30': 1.5"):
+            assert written in stored
+        reloaded = openapi_module._parse_document(stored)
+        assert reloaded["paths"]["/health"]["x-values"] == item["x-values"]
+
+        writes = client.write_count
+        for number in (1e300, 2.0**53, -(2.0**53)):
+            item["x-values"]["number"] = number
+            with pytest.raises(ToolInputError, match="within ±9007199254740991"):
+                await tools["upsert_openapi_path"]("/health", item, ["src/app.py"])
+        assert client.write_count == writes
+
+    asyncio.run(scenario())
+
+
+def test_merge_key_seed_at_the_same_binding_is_rejected_before_it_is_kept(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A YAML seed loaded at its own binding keeps its bytes, so the rule must reject it.
+
+    Scan preparation and the Audit inventory reject a merge key; openapi@1 used
+    to merge it, keep the original bytes and validate them.
+    """
+
+    async def scenario() -> None:
+        vacuum = AsyncMock(side_effect=clean_vacuum)
+        monkeypatch.setattr(openapi_module, "_run_vacuum", vacuum)
+        client = MemoryArtifactClient()
+        payload = (
+            b"openapi: 3.0.3\ninfo: {title: Merge, version: 1.0.0}\npaths: {}\n"
+            b"components: {}\nx-defaults: {<<: {owner: platform}, tier: internal}\n"
+        )
+        client.seed("openapi", "openapi", "application/yaml", payload)
+        writes = client.write_count
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
+        with pytest.raises(ToolInputError) as rejected:
+            await tools["load_openapi"]("openapi", "openapi")
+        assert _safe_tool_response("load_openapi", rejected.value)["error"] == {
+            "code": "tool_input_invalid",
+            "message": "OpenAPI YAML merge keys (<<) are not supported",
+            "retryable": False,
+        }
+        with pytest.raises(ToolInputError, match="must be called first"):
+            await tools["validate_openapi"]()
+        assert client.write_count == writes
+        assert client.bindings[("openapi", "openapi")].data == payload
+        vacuum.assert_not_awaited()
+
+    asyncio.run(scenario())
 
 
 def test_components_accept_extensions_but_not_unknown_sections() -> None:

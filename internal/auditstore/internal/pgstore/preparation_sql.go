@@ -72,7 +72,8 @@ SELECT ` + prefixedAuditColumns("changed") + ` FROM changed`
 
 // preparationStatusSQL derives the public status of the jsonb_each row role
 // (ASC-R42) from the attempts and latest rows that preparationAttemptsSQL
-// joins. Both preparation reads use it, so the status has one definition.
+// joins. The Audit lists and the Audit detail read it through
+// listPreparationPageSQL, so the status has one definition.
 const preparationStatusSQL = `CASE WHEN latest.collection_disposition = 'accepted-result' THEN 'accepted'
             WHEN latest.execution_id IS NULL THEN 'pending'
             WHEN latest.state = 'collected' AND (
@@ -98,21 +99,13 @@ func preparationAttemptsSQL(latestColumns string) string {
   ) AS latest ON true`
 }
 
-// listPreparationRolesSQL derives bounded role status independently of Round history.
-var listPreparationRolesSQL = `
-SELECT role.key, COALESCE(attempts.count, 0), ` + roleMaxRunAttemptsSQL + `,
-       latest.execution_id,
-       ` + preparationStatusSQL + `
-  FROM audits AS audit CROSS JOIN LATERAL jsonb_each(` + profileWorkflowsSQL + `) AS role` +
-	preparationAttemptsSQL("execution_id, state, collection_disposition, collection_error_code") + `
- WHERE audit.audit_id = $1 AND ` + prepareRoleSQL + ` ORDER BY role.key`
-
 // listPreparationPageSQL reads the preparation of owner $1's listed Audits
 // $2 (ASC-R150). QueryStore.ListPreparedPage runs it in the snapshot of the
-// list statement, so every listed Audit exists and yields at least one row;
-// the role columns are NULL when it pins no prepare role. A role row carries
-// the attempt count and only the latest attempt, whose preparation_outputs
-// is non-empty only once that attempt is accepted.
+// list statement, and QueryStore.GetPreparedDetail in the snapshot of its
+// Audit statement (ASC-R149), so every listed Audit exists and yields at
+// least one row; the role columns are NULL when it pins no prepare role. A
+// role row carries the attempt count and only the latest attempt, whose
+// preparation_outputs is non-empty only once that attempt is accepted.
 var listPreparationPageSQL = `
 WITH listed AS MATERIALIZED (
     SELECT listed.audit_id, listed.ordinal

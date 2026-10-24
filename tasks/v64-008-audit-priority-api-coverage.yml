@@ -41,7 +41,7 @@ context:
     Proposal 0034 was last refreshed on 2026-10-21 (631d6d51) and already cites the domain
     specification documents. Task-specific: V62-010 (233b94a5) added the no-Round preparation
     provenance projections to reuse; Audit report pages exist (000004_audit_report_pages.sql, REV);
-    V414-018 (pending) makes the Audit detail projection a single snapshot read; UI consumers use
+    V414-018 (completed) made the Audit detail projection a single snapshot read; UI consumers use
     generated validators (V385-001).
 scope:
   in:
