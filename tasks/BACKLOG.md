@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-119 open tasks: 11 in progress, 83 pending, 25 deferred. 1079 finished: 1069 completed, 10 archived.
+122 open tasks: 11 in progress, 86 pending, 25 deferred. 1079 finished: 1069 completed, 10 archived.
 
 ## In progress
 
@@ -159,6 +159,8 @@ the epics are in [epics.yml](epics.yml).
 | [V372-026](v372-026-request-digests-in-services.yml) | chore | P3 | — | Move the Project, Audit and review request digests out of the public handlers |
 | [V411-017](v411-017-pentest-api-cli.yml) | feature | P1 | V411-010, V411-011, V411-012, V411-016, V411-006 | Expose pentest drafts progress surfaces and proof through API and CLI |
 | [V414-009](v414-009-machine-value-byte-bounds.yml) | chore | P3 | — | Declare the byte bounds of machine values in the public API and hold OpenAPI, Go and the UI to them |
+| [V414-032](v414-032-nul-escape-outside-evals.yml) | defect | P2 | — | Reject the NUL escape before Audit and finding writes reach a jsonb cast |
+| [V414-033](v414-033-pre-release-api-changes.yml) | chore | P3 | — | Allow incompatible /v1 changes until the first release |
 
 ### PostgreSQL persistence and schema (`persistence`)
 
@@ -186,7 +188,8 @@ the epics are in [epics.yml](epics.yml).
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | chore | P3 | — | Make the Runtime suite pass on macOS: declare the Linux-only Podman tests, make the other tests portable and file the macOS defects |
 | [V410-007](v410-007-sitemap-release-gate.yml) | chore | P1 | V410-006 | Verify the first sitemap slice across scale and lifecycle boundaries |
 | [V411-020](v411-020-pentest-http-release-gate.yml) | chore | P1 | V411-001, V411-002, V411-003, V411-004, V411-005, V411-006, V411-007, V411-008, V411-009, V411-010, V411-011, V411-012, V411-013, V411-014, V411-015, V411-016, V411-017, V411-018, V411-019, V410-007 | Gate the first HTTP API pentest delivery through real processes |
-| [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-001, V414-002, V414-004, V414-007, V414-009, V414-010, V414-012, V414-014, V414-018, V414-019, V414-020, V414-021, V414-022, V414-024, V414-025, V414-030 | Close the V407/V409 review follow-ups |
+| [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-001, V414-002, V414-004, V414-007, V414-009, V414-010, V414-012, V414-014, V414-018, V414-019, V414-020, V414-021, V414-022, V414-024, V414-025, V414-030, V414-031, V414-032, V414-033 | Close the V407/V409 review follow-ups |
+| [V414-031](v414-031-lock-wait-query-truncation.yml) | defect | P3 | — | Identify a waiting statement within the query prefix PostgreSQL records |
 
 ## Deferred
 
@@ -237,11 +240,11 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 10 | 16 | 7 | 8 | 12 |
 | Workflow catalog and document workflows (`workflows`) | 7 | 18 | 14 | 12 | 18 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 5 | 35 | 33 | 6 | 38 |
-| Audits (`audits`) | 26 | 60 | 78 | 23 | 100 |
+| Audits (`audits`) | 26 | 60 | 78 | 23 | 101 |
 | Evaluations (`evals`) | 6 | 21 | 37 | 11 | 45 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 2 | 25 | 61 | 13 | 55 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 16 | 37 | 6 | 13 |
-| Public API and wire contracts (`api-contracts`) | 5 | 2 | 36 | 21 | 11 |
+| Public API and wire contracts (`api-contracts`) | 7 | 2 | 37 | 22 | 11 |
 | PostgreSQL persistence and schema (`persistence`) | 7 | 0 | 24 | 42 | 13 |
-| Quality, CI and process (`quality`) | 15 | 1 | 25 | 92 | 23 |
+| Quality, CI and process (`quality`) | 16 | 1 | 26 | 92 | 23 |
