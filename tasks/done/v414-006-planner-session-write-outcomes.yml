@@ -6,7 +6,8 @@ epic: planner-worker
 kind: defect
 introduced_by: V226-001
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 39c37b3c3f8bcc811fbe19375ba9134697334148
 depends_on: []
 languages: [go, markdown]
 goal: >-
@@ -132,3 +133,97 @@ tests:
     covers: [A3, A5]
   - command: make lint
     covers: [A4]
+decisions:
+  unwritten_outcome_rule: >-
+    planner.CompletionWriteError(completion, cause) is the one mapping for every
+    completion write in Passthrough (result and fail) and Streamline/Router
+    (finish result and fail): the code comes from SessionError, and retryable is
+    false when the recorded outcome is a non-retryable Planner failure or a failed
+    candidate with a non-retryable error. The original error is no longer joined
+    into the cause chain, so a later SessionError classification (V414-008) sees
+    only the write's cause, not an earlier Planner error.
+  summary_required: >-
+    A summarized Worker result whose completion write fails returns non-retryable
+    planner_session_unavailable (recorded in PLN-R106 with its rationale and
+    reversal condition). Evidence: TestPostgresUnwrittenPlannerOutcomeFollowsItsRetryability
+    and TestSchedulerUnwrittenPlannerOutcomeFollowsItsRetryability show the Stage
+    ends interrupted retryable=false, on.interrupted retry takes its then branch,
+    the Run fails with planner_session_unavailable, no summary artifact or
+    summary_escalation attempt exists and the Worker ran once; at 19f7477f the
+    same test recorded retryable=true, i.e. an ordinary Stage retry. Alternative
+    rejected: retryable planner_session_unavailable (re-dispatches the Worker from
+    scratch and bypasses the one on.summarized escalation). Reopen if recording the
+    completion and accepting the candidate become one durable step.
+  streamline_report: >-
+    Deviation from scope.in wording "the original failure stays visible as the
+    recorded tool or dispatch outcome only": the failures that end a Streamline or
+    Router invocation (budget stops, Gateway failures, deadline, cancellation,
+    initialization, ADK execution) are not tool or dispatch outcomes, so dropping
+    them would remove the only record of why the Planner stopped. PLN-R120 instead
+    lists rejected tool selections, then the unrecorded Planner failure, then the
+    returned error, which is always last; an unrecorded candidate stays visible as
+    its accepted finish call. Rejected tool selections are capped at 98 so both
+    final entries fit the 100-error bound (LIM-OBS-5); before, the terminal failure
+    was dropped once 100 rejections were listed.
+  span_codes: >-
+    planner.EndSessionSpan ends session.begin, session.record_request and
+    session.adk_create spans with the returned code: unavailable for
+    planner_session_unavailable, rejected for planner_invocation_in_progress.
+  siblings: >-
+    Fixed: Passthrough result write and fail, Streamline result write and fail,
+    the ADK session errors that pass through fail (span code), Router (through the
+    Streamline engine, own regression test), StartSession and RecordSessionRequest
+    spans. Ruled out: scan-plan@1 completion (V414-004, own code
+    scan_completion_write_failed); Scheduler.recoverCompletedSummary already
+    matches ErrInvocationInProgress; no UI, OpenAPI, Runtime or client code names
+    either code (grep of ui/src, api, runtime/src, internal/publicclient).
+verification:
+  date: '2026-10-24'
+  environment: >-
+    macOS arm64; Go 1.26.9; locked Runtime venv and pnpm UI install for make lint;
+    local PostgreSQL 17 database contractor_test_v414_plan with per-test schemas.
+    Tests ran on the branch after merging main 030e195a (no code changes on main
+    since the base ea9d7b3a).
+  spec: >-
+    PLN-R106 (one rule for all three Planners, the summary decision), PLN-R107
+    (names planner_invocation_in_progress and its span), new PLN-R120 (Streamline
+    and Router report), new FAIL-PLN-9 (completion write), FAIL-PLN-8 names the
+    code, planners.md error list, errors.md registry row replacing the no-code row
+    and the planner_session_unavailable row, scheduler.md SCH-R103 and its error
+    list; docs/spec/audit-workflow-dependencies.html regenerated with make
+    docs-dependencies.
+  tests_added: >-
+    internal/planner/session_write_test.go (A1, A2, A3 and A4 on Passthrough and
+    the session spans), internal/planner/streamline/session_write_test.go (A1, A2,
+    report error bound), internal/planner/router/session_write_test.go (A2),
+    internal/planner/session/completion_write_postgres_test.go (A5 and A4 on the
+    real session service: a test trigger raises P0001 on the completed state),
+    internal/scheduler/planner_session_write_postgres_test.go and
+    TestSchedulerUnwrittenPlannerOutcomeFollowsItsRetryability (A3).
+  can_fail: >-
+    A6: the new tests were copied onto a git archive of 19f7477f (the Streamline
+    error-bound test omitted because it calls the new report signature) and run
+    with the database set: TestPassthroughUnwrittenOutcomeKeepsItsRetryability,
+    TestSessionSpansCarryTheReturnedCode, TestStreamlineUnwrittenOutcomeKeepsItsRetryability
+    (budget stop and Gateway rejection report held only the original code;
+    non-retryable failed candidate returned retryable=true),
+    TestRouterUnwrittenFailedCandidateKeepsItsRetryability,
+    TestPostgresUnwrittenFailedCandidateKeepsItsRetryability and
+    TestPostgresUnwrittenPlannerOutcomeFollowsItsRetryability (termination
+    retryable=true) all failed.
+  commands:
+    - >-
+      Revision f5d56d24101fdc986e24d28d41f20431b7db8d1c (39c37b3c with main 030e195a merged).
+      CONTRACTOR_TEST_DATABASE_URL=postgres://localhost/contractor_test_v414_plan
+      go test -count=1 ./internal/planner/... ./internal/scheduler/...
+      ./internal/apierror/... passed (planner 1.9s, a2a, router, scan, session,
+      stageresult, stateview, streamline 5.3s, scheduler 189.5s, apierror 0.6s).
+    - >-
+      The same URL with go test -tags=integration -count=1 -v
+      ./internal/planner/... ./internal/scheduler/... passed (scheduler 109.8s);
+      0 skipped and 0 failed tests, every new test above ran and passed.
+    - >-
+      make lint passed (exit 0) after make docs-dependencies and make
+      tasks-backlog: gofmt, go vet, staticcheck U1000, testonlyexports, UI gates,
+      check_tasks, check_spec, shared fixtures, ERD, ruff and import-linter.
+  skipped: none; no environment-limited test.

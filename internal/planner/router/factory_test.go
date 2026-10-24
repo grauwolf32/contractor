@@ -493,6 +493,7 @@ func contentText(content *genai.Content) string {
 type fakeSessions struct {
 	identity    planner.SessionIdentity
 	complete    *planner.Completion
+	completeErr error
 	plan        *planner.PlannerPlanProjection
 	transitions []planner.PlannerPlanTransition
 	facts       []planner.PlannerFact
@@ -516,6 +517,9 @@ func (*fakeSessions) RecordRequest(context.Context, planner.SessionIdentity, pla
 func (s *fakeSessions) Complete(
 	_ context.Context, _ planner.SessionIdentity, completion planner.Completion,
 ) error {
+	if s.completeErr != nil {
+		return s.completeErr
+	}
 	cloned := completion
 	s.complete = &cloned
 	return nil

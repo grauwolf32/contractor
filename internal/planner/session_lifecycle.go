@@ -33,8 +33,9 @@ func StartSession(
 	)
 	start, err := sessions.Begin(ctx, stageExecutionID)
 	if err != nil {
-		span.End("unavailable", telemetry.PlannerSpanAttributes{ErrorCode: "planner_session_unavailable"})
-		return SessionStart{}, SessionError("start", err)
+		sessionError := SessionError("start", err)
+		EndSessionSpan(span, sessionError)
+		return SessionStart{}, sessionError
 	}
 	if start.Completion != nil {
 		span.End("recovered", telemetry.PlannerSpanAttributes{SessionID: start.Identity.SessionID})
@@ -91,8 +92,9 @@ func RecordSessionRequest(
 		telemetry.PlannerSpanAttributes{Operation: "session.record_request", SessionID: identity.SessionID},
 	)
 	if err := sessions.RecordRequest(ctx, identity, facts); err != nil {
-		span.End("unavailable", telemetry.PlannerSpanAttributes{ErrorCode: "planner_session_unavailable"})
-		return SessionError("record request", err)
+		sessionError := SessionError("record request", err)
+		EndSessionSpan(span, sessionError)
+		return sessionError
 	}
 	span.End("succeeded", telemetry.PlannerSpanAttributes{})
 	return nil
@@ -152,18 +154,38 @@ func writeCompletion(ctx context.Context, sessions any, write func(context.Conte
 	return lastError
 }
 
-// CompletionWriteError reports an unwritten failure without changing the
-// original Planner failure's retry policy.
-func CompletionWriteError(original *Error, cause error) *Error {
-	return NewError(
-		"planner_session_unavailable",
-		"Planner durable session is unavailable during record failure",
-		original.Retryable,
-		errors.Join(original, cause),
-	)
+// CompletionWriteError reports an outcome that the Planner could not record
+// in its session (PLN-R106): the session error of the write, which never
+// makes a final outcome retryable. A non-retryable Planner failure or a
+// failed candidate with a non-retryable error, a summarized Worker result
+// included, keeps retryable false, so a Stage retry cannot invoke again a
+// Worker whose failure was final.
+func CompletionWriteError(completion Completion, cause error) *Error {
+	written := SessionError("record completion", cause)
+	if !completionRetryable(completion) {
+		written.Retryable = false
+	}
+	return written
 }
 
-// SessionError classifies a durable session failure during operation.
+// completionRetryable reports whether another attempt may change the
+// outcome a completion records: a successful candidate always, a Planner
+// failure or failed candidate only when its error is retryable.
+func completionRetryable(completion Completion) bool {
+	switch {
+	case completion.Failure != nil:
+		return completion.Failure.Retryable
+	case completion.Result != nil && completion.Result.Error != nil:
+		return completion.Result.Error.Retryable
+	default:
+		return true
+	}
+}
+
+// SessionError classifies a durable session failure during operation: a
+// session that another invocation still runs is
+// planner_invocation_in_progress (PLN-R107), every other failure
+// planner_session_unavailable (PLN-R106). Both are retryable.
 func SessionError(operation string, cause error) *Error {
 	if errors.Is(cause, ErrInvocationInProgress) {
 		return NewError(
@@ -179,4 +201,15 @@ func SessionError(operation string, cause error) *Error {
 		true,
 		cause,
 	)
+}
+
+// EndSessionSpan ends a Planner session span with the code of the session
+// error the Planner returns: unavailable for planner_session_unavailable and
+// rejected for a session that refused the operation.
+func EndSessionSpan(span telemetry.PlannerSpan, sessionError *Error) {
+	outcome := "rejected"
+	if sessionError.Code == "planner_session_unavailable" {
+		outcome = "unavailable"
+	}
+	span.End(outcome, telemetry.PlannerSpanAttributes{ErrorCode: sessionError.Code})
 }

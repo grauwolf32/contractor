@@ -170,7 +170,7 @@ func (p *passthroughPlanner) Run(
 	recorded := result.Clone()
 	completion := Completion{Result: &recorded}
 	if err := CompleteSession(ctx, p.sessions, started.Identity, completion); err != nil {
-		return stageresult.StageContentResult{}, SessionError("record completion", err)
+		return stageresult.StageContentResult{}, CompletionWriteError(completion, err)
 	}
 	return result.Clone(), nil
 }
@@ -248,8 +248,9 @@ func (p *passthroughPlanner) fail(
 	ctx context.Context, identity SessionIdentity, plannerError *Error,
 ) *Error {
 	failure := plannerError.Failure
-	if err := CompleteSession(ctx, p.sessions, identity, Completion{Failure: &failure}); err != nil {
-		return CompletionWriteError(plannerError, err)
+	completion := Completion{Failure: &failure}
+	if err := CompleteSession(ctx, p.sessions, identity, completion); err != nil {
+		return CompletionWriteError(completion, err)
 	}
 	return plannerError
 }
