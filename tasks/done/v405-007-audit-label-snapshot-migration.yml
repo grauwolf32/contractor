@@ -6,7 +6,8 @@ epic: audits
 kind: defect
 introduced_by: V405-004
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: "f8338a987c861d33292b460e390df53a8585eff0"
 depends_on: [V405-003, V405-004]
 languages: [go, sql]
 goal: >-
@@ -53,3 +54,13 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
+verification_notes: >-
+  The real PostgreSQL regression failed without migration 33 because labels
+  were absent, then the full PostgreSQL package passed (27.119s). make lint
+  passed after regenerating the ERD with make docs-erd. A fresh demo backup
+  was restored and verified; all original columns and snapshot members
+  survived rehearsal and live migration. Strict readers decoded both retained
+  Audits; owner and Inbox Audit lists returned HTTP 200. Browser verification
+  at / showed the retained VulnyAPI report and no incomplete-Inbox warning.
+  Six Runtime Agents reconnected and queue admission returned to paused=false.
+  Deployment record: .local/demo/run/audit-labels-deployment.json.
