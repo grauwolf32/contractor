@@ -434,6 +434,9 @@ def test_source_path_selection_runs_off_the_event_loop_at_the_entry_bound(
     assert {len(path.encode("utf-8")) for path in paths} == {100, MAX_PATH_UTF8_BYTES}
     archive = make_zip({path: f"line {index}\n" for index, path in enumerate(paths)})
     settings = runtime_settings()
+    # The operation deadline is wall-clock time. This test checks where the
+    # matching runs, not how fast, so a loaded machine must not expire it.
+    settings.request_timeout_seconds = 600
     if entries > MAX_ARCHIVE_ENTRIES:
         # LIM-GIT-16: the Server may raise the entry bound to 50,000.
         settings.source_archive_limits = default_source_archive_limits().model_copy(
