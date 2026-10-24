@@ -515,7 +515,9 @@ that reads documents stored as JSON text or bytes:
   that way, so a document with free text can hold it, and one such row rolls
   back the whole run. The backfill rewrites the escape injectively before the
   cast or reads the value without a JSON cast, unless a schema the document
-  was validated against excludes it.
+  was validated against excludes it. Every Eval document excludes it
+  ([EVF-R236](../evals/format.md)), which is also what lets production Eval
+  reads cast stored documents.
 - PostgreSQL may pull a subquery, or a CTE referenced once, up into the
   statement that uses it and substitute its output expressions at each
   reference, so a parse in its select list, such as `convert_from(document,

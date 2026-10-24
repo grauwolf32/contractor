@@ -53,7 +53,7 @@ func validateRegisteredSchema(schema string, raw []byte) error {
 	// a module, URL, filesystem path or executable uploaded schema extension.
 	switch schema {
 	case "json@1":
-		_, err := evaldomain.StrictJSON(raw)
+		_, err := evaldomain.StrictOutputJSON(raw)
 		return err
 	case auditdomain.EvidenceSchema:
 		_, err := auditdomain.DecodeEvidence(raw)

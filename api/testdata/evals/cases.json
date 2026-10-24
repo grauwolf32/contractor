@@ -630,6 +630,13 @@
     "errorCode": "eval_invalid"
   },
   {
+    "name": "nul-escape",
+    "kind": "CreateExperiment",
+    "file": "invalid/nul-escape.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
     "name": "trailing-json",
     "kind": "Command",
     "file": "invalid/trailing-json.json",
