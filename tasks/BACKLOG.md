@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-125 open tasks: 9 in progress, 91 pending, 25 deferred. 1073 finished: 1063 completed, 10 archived.
+125 open tasks: 14 in progress, 86 pending, 25 deferred. 1073 finished: 1063 completed, 10 archived.
 
 ## In progress
 
@@ -17,7 +17,12 @@ the epics are in [epics.yml](epics.yml).
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V410-010](v410-010-artifact-history-retention.yml) | projects-artifacts | feature | P1 | Apply automatic bounded history retention to every logical Artifact |
 | [V411-001](v411-001-target-credential-revisions.yml) | runtime-config | feature | P1 | Pin immutable target credential revisions in the existing encrypted store |
+| [V414-003](v414-003-openapi-yaml-resolution-rule.yml) | api-contracts | defect | P2 | Read and write OpenAPI YAML under one scalar and key rule in openapi@1, scan preparation and the Audit inventory |
 | [V414-008](v414-008-stored-size-check-classification.yml) | persistence | defect | P2 | Classify stored-size CHECK rejections as invalid input at every store writer |
+| [V414-010](v414-010-credential-recovery-previous-owner.yml) | execution-core | defect | P2 | Keep a previous lease owner's credential delete intent from committing behind the new owner's startup recovery |
+| [V414-013](v414-013-adk-callable-cache-release.yml) | planner-worker | defect | P2 | Stop ADK's module-level callable caches from keeping a released allocation's tools alive |
+| [V414-016](v414-016-otlp-transport-family.yml) | operations | defect | P2 | Retry OTLP batches after TLS and OS transport failures |
+| [V414-018](v414-018-audit-detail-snapshot-read.yml) | audits | defect | P2 | Read the Audit detail projection in one snapshot instead of answering an undeclared 409 |
 | [V414-026](v414-026-eval-summary-generic-plan.yml) | evals | defect | P2 | Bound Eval experiment summary pages by page size in generic plans |
 | [V414-029](v414-029-audit-deletion-next-run-probe.yml) | audits | defect | P2 | Find a deleting Audit's next live child Run without reading every execution and Run |
 
@@ -30,7 +35,6 @@ the epics are in [epics.yml](epics.yml).
 | [V371-014](v371-014-scheduler-stage-history-reads.yml) | defect | P3 | — | Count escalation attempts and check the first tick without reading Stage snapshots |
 | [V372-007](v372-007-terminal-stage-state-set.yml) | chore | P3 | — | Define the terminal StageExecution states once and hold Go SQL and OpenAPI to them |
 | [V372-028](v372-028-runstore-strict-snapshot-reads.yml) | chore | P3 | — | Decode persisted Run, Stage and allocation snapshots strictly in runstore |
-| [V414-010](v414-010-credential-recovery-previous-owner.yml) | defect | P2 | — | Keep a previous lease owner's credential delete intent from committing behind the new owner's startup recovery |
 | [V414-014](v414-014-standby-shutdown-race.yml) | defect | P3 | — | Exit a standby Server cleanly when shutdown races its readiness listener |
 
 ### Planners and the Worker model boundary (`planner-worker`)
@@ -41,7 +45,6 @@ the epics are in [epics.yml](epics.yml).
 | [V371-005](v371-005-worker-state-read-cost-guard.yml) | chore | P3 | — | Guard the Worker State read cost with a deterministic bound, make its benchmark runnable and re-measure it |
 | [V371-006](v371-006-workspace-observation-descriptor.yml) | chore | P3 | — | Take the Worker tools that observe the workspace from the shared Toolset descriptor |
 | [V414-007](v414-007-planner-session-state-limit.yml) | chore | P3 | — | Register the 2 MiB Planner session state bound and the other unregistered stored-size CHECKs |
-| [V414-013](v414-013-adk-callable-cache-release.yml) | defect | P2 | — | Stop ADK's module-level callable caches from keeping a released allocation's tools alive |
 
 ### Runtime labels, configuration and credentials (`runtime-config`)
 
@@ -121,7 +124,6 @@ the epics are in [epics.yml](epics.yml).
 | [V411-012](v411-012-pentest-admission-rounds.yml) | feature | P1 | V411-009, V411-010, V62-005, V62-006, V62-007 | Admit typed pentest plans and derive exact later-round replay |
 | [V411-016](v411-016-pentest-proof-report.yml) | feature | P1 | V411-012, V411-014 | Assemble retained pentest proof and incomplete-coverage reports |
 | [V414-001](v414-001-openapi-inventory-string-bound.yml) | defect | P2 | — | Give openapi-operations@1 the string bounds of the shared OpenAPI document rule |
-| [V414-018](v414-018-audit-detail-snapshot-read.yml) | defect | P2 | — | Read the Audit detail projection in one snapshot instead of answering an undeclared 409 |
 | [V414-019](v414-019-held-inbox-page-bound.yml) | defect | P2 | — | Bound the held Audit inbox page by the page, not by the Audit's holds |
 | [V414-020](v414-020-preparation-phase-one-rule.yml) | chore | P3 | — | Give the pre-Round preparation phase set one definition in Go and one in the UI |
 
@@ -152,7 +154,6 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V414-016](v414-016-otlp-transport-family.yml) | defect | P2 | — | Retry OTLP batches after TLS and OS transport failures |
 | [V414-025](v414-025-allocation-history-page-reads.yml) | defect | P2 | — | Bound allocation-history pages by page size at any cursor depth and Run filter |
 
 ### Public API and wire contracts (`api-contracts`)
@@ -163,7 +164,6 @@ the epics are in [epics.yml](epics.yml).
 | [V372-025](v372-025-typed-openapi-enums.yml) | chore | P3 | — | Give every enum of the public OpenAPI document a type |
 | [V372-026](v372-026-request-digests-in-services.yml) | chore | P3 | — | Move the Project, Audit and review request digests out of the public handlers |
 | [V411-017](v411-017-pentest-api-cli.yml) | feature | P1 | V411-010, V411-011, V411-012, V411-016, V411-006 | Expose pentest drafts progress surfaces and proof through API and CLI |
-| [V414-003](v414-003-openapi-yaml-resolution-rule.yml) | defect | P2 | — | Read and write OpenAPI YAML under one scalar and key rule in openapi@1, scan preparation and the Audit inventory |
 | [V414-009](v414-009-machine-value-byte-bounds.yml) | chore | P3 | — | Declare the byte bounds of machine values in the public API and hold OpenAPI, Go and the UI to them |
 
 ### PostgreSQL persistence and schema (`persistence`)
