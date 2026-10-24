@@ -6,7 +6,8 @@ epic: execution-core
 kind: defect
 introduced_by: V400-001
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: "407462b448d5d17e044e061a4e0827d65a7caa67"
 depends_on: [V400-001]
 languages: [go, sql]
 goal: >-
@@ -55,3 +56,8 @@ verification_notes: >-
   positive at internal/cli/scan_sweep_remote.go:196: the help text "targets
   come from Projects" is parsed as a SQL read. This task does not change
   that CLI path or the SQL scanner.
+deployment_evidence: >-
+  .local/demo/run/deployment-20261024.json records a restore-verified backup,
+  rehearsal of all seven pending migrations and their application to the demo.
+  Original business columns and rows were retained. make lint passed. Source
+  remains on codex/fix-populated-lane-migration, unmerged into main.
