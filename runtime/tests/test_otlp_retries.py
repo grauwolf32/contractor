@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import ssl
 import time
 from email.utils import formatdate
 from pathlib import Path
@@ -14,6 +15,7 @@ from fakes.telemetry import SERVER_EXPORT
 from jsonschema import Draft202012Validator
 from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceResponse
 from referencing import Registry, Resource
+from test_http_toolset import CorruptTLSRecordTarget
 from test_otlp_adapter import adapter_context, telemetry_settings
 
 from contractor_runtime.adapters import otlp_retry
@@ -94,6 +96,144 @@ def test_transient_failure_retries_exact_payload(failure) -> None:
         assert len(payloads) == 3 and payloads[0] == payloads[1] == payloads[2]
         assert adapter.metrics.failed_operations == 2
         assert sum(adapter.metrics.dropped_spans.model_dump().values()) == 0
+
+    asyncio.run(scenario())
+
+
+def tls_record_error() -> ssl.SSLError:
+    return ssl.SSLError(1, "[SSL: DECRYPTION_FAILED_OR_BAD_RECORD_MAC] decryption failed")
+
+
+class FailingBody(httpx.AsyncByteStream):
+    """A response body that fails after its first bytes, as a reset or TLS record does."""
+
+    def __init__(self, error: Exception) -> None:
+        self._error = error
+
+    async def __aiter__(self):
+        yield b"\x0a"
+        raise self._error
+
+
+TRANSPORT_FAILURES = {
+    "tls-send": lambda: tls_record_error(),
+    "reset-send": lambda: ConnectionResetError(54, "Connection reset by peer"),
+    "tls-body": lambda: tls_record_error(),
+    "reset-body": lambda: ConnectionResetError(54, "Connection reset by peer"),
+}
+
+
+def failing_collector(failure: str, payloads: list[bytes], failures: int):
+    """A collector whose first failures attempts fail in the named phase."""
+
+    async def collector(request):
+        payloads.append(await request.aread())
+        if len(payloads) > failures:
+            return httpx.Response(200)
+        error = TRANSPORT_FAILURES[failure]()
+        if failure.endswith("-send"):
+            raise error
+        return httpx.Response(200, stream=FailingBody(error))
+
+    return collector
+
+
+@pytest.mark.parametrize("failure", sorted(TRANSPORT_FAILURES))
+def test_tls_and_os_transport_failures_retry_exact_payload(failure: str) -> None:
+    # httpcore lets OSError such as ssl.SSLError escape unmapped while sending or
+    # reading the acknowledgement; it is a temporary transport failure (OBS-R74).
+    async def scenario() -> None:
+        payloads: list[bytes] = []
+        adapter = await OTLPHTTPAdapterFactory(
+            httpx.MockTransport(failing_collector(failure, payloads, failures=2))
+        ).create(adapter_context(), settings())
+        enqueue(adapter)
+        await adapter.flush()
+        await adapter.close()
+        assert len(payloads) == 3 and payloads[0] == payloads[1] == payloads[2]
+        assert adapter.metrics.failed_operations == 2
+        assert sum(adapter.metrics.dropped_spans.model_dump().values()) == 0
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("failure", sorted(TRANSPORT_FAILURES))
+def test_persistent_tls_and_os_transport_failures_exhaust_retries(failure: str) -> None:
+    async def scenario() -> None:
+        payloads: list[bytes] = []
+        adapter = await OTLPHTTPAdapterFactory(
+            httpx.MockTransport(failing_collector(failure, payloads, failures=3))
+        ).create(adapter_context(), settings())
+        enqueue(adapter)
+        with pytest.raises(OTLPDeliveryError):
+            await adapter.flush()
+        await adapter.close()
+        assert len(payloads) == 3
+        assert adapter.metrics.dropped_spans.retry_exhausted == 3
+        assert sum(adapter.metrics.dropped_spans.model_dump().values()) == 3
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("phase", ["headers", "body"])
+def test_corrupt_tls_record_from_a_real_collector_exhausts_retries(
+    tmp_path: Path, phase: str
+) -> None:
+    # A real TLS collector answers with a record the client cannot decrypt;
+    # httpcore raises ssl.SSLError, which the exporter retries until its budget.
+    async def scenario() -> None:
+        collector = CorruptTLSRecordTarget(tmp_path, phase)
+        try:
+            adapter = await OTLPHTTPAdapterFactory(collector.transport()).create(
+                adapter_context(),
+                settings().model_copy(update={"endpoint": "https://target.example/v1/traces"}),
+            )
+            enqueue(adapter)
+            with pytest.raises(OTLPDeliveryError):
+                await adapter.flush()
+            await adapter.close()
+        finally:
+            collector.close()
+        assert collector.connections == 3
+        assert adapter.metrics.dropped_spans.retry_exhausted == 3
+        assert sum(adapter.metrics.dropped_spans.model_dump().values()) == 3
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        lambda: httpx.UnsupportedProtocol("unsupported"),
+        lambda: httpx.LocalProtocolError("local"),
+        lambda: TypeError("implementation"),
+        "decoding",
+    ],
+    ids=["unsupported-protocol", "local-protocol", "type-error", "decoding"],
+)
+def test_terminal_transport_and_implementation_failures_never_retry(failure) -> None:
+    async def scenario() -> None:
+        requests = []
+
+        async def collector(request):
+            requests.append(request)
+            if failure == "decoding":
+                # An acknowledgement that fails content decoding is malformed (OBS-R77).
+                return httpx.Response(
+                    200, headers={"Content-Encoding": "gzip"}, content=b"not gzip"
+                )
+            raise failure()
+
+        adapter = await OTLPHTTPAdapterFactory(httpx.MockTransport(collector)).create(
+            adapter_context(), settings()
+        )
+        enqueue(adapter)
+        with pytest.raises(OTLPDeliveryError):
+            await adapter.flush()
+        await adapter.close()
+        assert len(requests) == 1
+        assert adapter.metrics.dropped_spans.non_retryable == 3
+        assert sum(adapter.metrics.dropped_spans.model_dump().values()) == 3
 
     asyncio.run(scenario())
 
