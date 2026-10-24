@@ -525,20 +525,29 @@ func TestReportTrimMeasuresAFittingReportOnce(t *testing.T) {
 // Server, because a secret shorter than "[REDACTED]" expands; the Server then
 // trims the redacted records, never sizing the unredacted ones.
 func TestAllocationNormalizationTrimsRedactionExpansionOfABoundedReport(t *testing.T) {
+	// A secret shorter than LIM-OBS-3 is redacted only where it is a complete
+	// value (OBS-R31), and only a value shorter than the marker grows, so every
+	// argument value is the secret: 75 members of 12 bytes each grow by 7.
 	const secret = "k3y"
-	value := strings.Repeat(secret+"/aaaaaa", 90) // 900 bytes, 90 secrets
+	arguments := func(value string) map[string]any {
+		result := make(map[string]any, 75)
+		for index := range 75 {
+			result[fmt.Sprintf("p%02d", index)] = value
+		}
+		return result
+	}
 	finished := time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC)
 	calls := int64(1000)
 	worker := reporting.ExecutionReport{
 		ReportID: "worker-redaction", Complete: true,
 		Metrics:   reporting.ExecutionMetrics{Tools: map[string]reporting.ToolMetrics{"read_source_file": {Calls: &calls}}},
 		ToolCalls: make([]reporting.ToolCallRecord, 0, calls),
-		Errors:    []reporting.ExecutionError{{Code: "model_call_failed", Message: "gateway said " + value}},
+		Errors:    []reporting.ExecutionError{{Code: "model_call_failed", Message: secret}},
 	}
 	for index := range calls {
 		worker.ToolCalls = append(worker.ToolCalls, reporting.ToolCallRecord{
 			CallID: fmt.Sprintf("tool-%08d", index+1), Tool: "read_source_file",
-			Arguments: map[string]any{"path": value}, Outcome: reporting.ToolCallSucceeded,
+			Arguments: arguments(secret), Outcome: reporting.ToolCallSucceeded,
 		})
 	}
 	body := mustJSON(t, reporting.AllocationFinalResponse{
@@ -572,11 +581,11 @@ func TestAllocationNormalizationTrimsRedactionExpansionOfABoundedReport(t *testi
 	redacted := response.Report.Worker
 	redacted.ToolCalls = make([]reporting.ToolCallRecord, 0, len(worker.ToolCalls))
 	for _, call := range response.Report.Worker.ToolCalls {
-		call.Arguments = map[string]any{"path": strings.ReplaceAll(value, secret, redactedValue)}
+		call.Arguments = arguments(redactedValue)
 		call.ArgumentsTruncated = true
 		redacted.ToolCalls = append(redacted.ToolCalls, call)
 	}
-	redacted.Errors = []reporting.ExecutionError{{Code: "model_call_failed", Message: "gateway said " + strings.ReplaceAll(value, secret, redactedValue)}}
+	redacted.Errors = []reporting.ExecutionError{{Code: "model_call_failed", Message: redactedValue}}
 	assertFirstFit(t, redacted, normalized.Worker, MaxReportJSONBytes-allocationReserveSize,
 		func(report reporting.ExecutionReport) int { return jsonBytes(report) })
 }

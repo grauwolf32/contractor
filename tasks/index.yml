@@ -24,9 +24,10 @@ execution_policy:
     Paused again on 2026-10-24 at the user's request. Unfinished checkpoints
     of the tasks in progress live on their lane branches, each with a progress
     note in the task file: claude/sitemap (V410-010), claude/pentest
-    (V411-001), claude/v414-sec (V414-023), claude/v414-evals (V414-026),
-    claude/v414-plan (V414-008) and claude/v414-sql (V414-029). Resume from
-    those branches; the rest of each lane's queue is pending.
+    (V411-001), claude/v414-evals (V414-026), claude/v414-plan (V414-008) and
+    claude/v414-sql (V414-029). Resume from those branches; the rest of each
+    lane's queue is pending. claude/sitemap and claude/pentest both add
+    migration 000040, so the second to land renumbers its migration.
   task_files_are_self_contained: true
   task_statuses:
     pending: Not yet taken into development.

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 from contractor_runtime.contracts import (
     CaidoSettings,
     HTTPOriginTargetSettings,
@@ -7,6 +10,7 @@ from contractor_runtime.contracts import (
     RuntimeSettings,
 )
 from contractor_runtime.redaction import (
+    MIN_PRIVATE_SUBSTRING_BYTES,
     REDACTED,
     contains_private_value,
     redact_private_values,
@@ -68,3 +72,20 @@ def test_runtime_secrets_hold_credentials_and_setting_values_add_endpoints() -> 
         "https://caido.example",
         *runtime_secrets(settings),
     )
+
+
+def test_shared_secret_matching_cases() -> None:
+    """The Server's internal/secretmatch reads the same cases."""
+
+    fixture = json.loads(
+        (Path(__file__).parents[2] / "api/testdata/v1alpha1/secret-matching-cases.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert fixture["minSubstringBytes"] == MIN_PRIVATE_SUBSTRING_BYTES
+    assert fixture["marker"] == REDACTED
+    assert fixture["cases"]
+    for case in fixture["cases"]:
+        secrets = tuple(case["secrets"])
+        assert redact_private_values(case["text"], secrets) == case["redacted"], case["name"]
+        assert contains_private_value(case["text"], secrets) is case["contains"], case["name"]
