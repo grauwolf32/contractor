@@ -126,6 +126,45 @@ decisions:
 - >-
   Report keeps a second FrozenPlanMetadata read inside withSelectedView instead of changing the
   callback signature of five views; both reads are bounded metadata in one snapshot.
+- >-
+  Review amendment (2026-10-24), NUL escapes: PostgreSQL rejects a JSON NUL escape (\u0000) with SQLSTATE
+  22P05 wherever it occurs in a document, for json as for jsonb: probed on PostgreSQL 17.11, the json
+  cast succeeds but every operator and set function on the value (->, ->>, json_each,
+  json_object_keys, json_array_elements) fails. Parsing with ::json, as the review suggested,
+  therefore does not help. A plan or setup may hold the escape in any free string (draft parameters, plan
+  extensions, pin values), so one such plan rolled back the whole migration batch. The backfill now
+  reads each stored document through a helper function, created and dropped inside the migration,
+  that rewrites decoded strings injectively before the jsonb cast. Every backslash, however it is
+  spelled (\\ or \u005c), becomes two backslashes, then every NUL becomes a backslash and a zero. Each
+  regular expression matches an escape only after an even run of backslashes. Ids, dimensions, origins
+  and eligibility match ^[a-z0-9][a-z0-9._-]*$ or an enum in the portable common schema, so they and
+  their byte order are unchanged; pin values are only compared, and they are equal after the rewrite
+  exactly when they are equal decoded, as NativeReadiness compares them. Native pin values are strings
+  or null (internal/evalservice/plan.go:21). Rejected: a Go backfill (the migration runner applies
+  embedded SQL files only, and a Server-side backfill of NULL rows would be a legacy read path);
+  dropping NULs (not injective). The shared fixture gains escaped-pin-values: a NUL in an extension
+  and in pin values; a NUL against its six-character escape text, a doubled backslash and its absence;
+  and a backslash, a backslash before a NUL, e-acute, a surrogate pair and a quote against their
+  other spellings. NativeReadiness, the freeze path and the backfill all match it. The migration
+  test setup also carries a NUL.
+- >-
+  Review amendment (2026-10-24), parse count: PostgreSQL pulled up the plan subquery, so every pin
+  and member lookup parsed the document again (the explained statement converted stored documents
+  25 times). Both subqueries are now fenced with OFFSET 0. The plan subquery parses each document and
+  setup once, and the join carries only the readiness. TestSharedPostgresEvalPlanReadinessMigrationParsesEachPlanOnceAtTheNativeCeiling
+  explains the migration's own UPDATE and requires exactly two conversions (it fails with 25 without
+  the fences). It then backfills four 568-574 KB plans with 1,000 members and 1,024 or 2,048
+  pins, and their readiness equals NativeReadiness. Measured, not asserted, on a loaded laptop: 40
+  such worst-case plans migrate in 3.3 s, about 84 ms per plan. Plans with tens of pins cost mostly
+  the regular expressions and the parse, about 5-10 ms per MiB of document. The widest
+  readiness is 543,169 bytes as the freeze encodes it and 563,670 bytes as jsonb text in a backfilled
+  row, both checked by tests and below the 1 MiB column bound (LIM-EVM-19 updated).
+- >-
+  Siblings of the NUL class, outside this task's scope and not changed: production reads that cast stored
+  Eval JSON to jsonb fail the same way when it holds a NUL escape. These are the experiment list
+  (internal/evalstore/public_read_sql.go:42-43, setup or draft and summary), comparison pages
+  (comparison_pages_sql.go:45-46) and report sources (report_sources_sql.go:17-22). A follow-up task
+  should decide whether Eval writes reject the escape or these reads avoid jsonb.
 verification:
   date: '2026-10-24'
   environment: macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local), Node 24.20.0 with pnpm, the locked Runtime venv;

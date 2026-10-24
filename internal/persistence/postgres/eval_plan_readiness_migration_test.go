@@ -1,6 +1,8 @@
 package postgres
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -63,7 +65,8 @@ func TestSharedPostgresEvalPlanReadinessMigrationBackfillsNativePlans(t *testing
 	}
 	ctx := t.Context()
 	pool, _ := isolatedPools(t, ctx, url)
-	installMigrationPrefix(t, ctx, pool, versionBefore(t, "eval_plan_readiness"))
+	previous, _ := embeddedMigration(t, "eval_plan_readiness")
+	installMigrationPrefix(t, ctx, pool, previous)
 	var fixtures struct {
 		Cases []struct {
 			Name       string                `json:"name"`
@@ -82,7 +85,8 @@ VALUES('evaluation','owner','evaluation','Evaluation','create','sha256:'||repeat
 	}
 	err := InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		for i, c := range fixtures.Cases {
-			setup, err := json.Marshal(map[string]any{"comparison": c.Comparison})
+			// A NUL in a free setup string must not stop the backfill.
+			setup, err := json.Marshal(map[string]any{"comparison": c.Comparison, "note": "setup\x00note"})
 			if err != nil {
 				return err
 			}
@@ -169,10 +173,10 @@ SELECT 'late',document_kind,document,setup,plan_sha256 FROM eval_frozen_plans WH
 	}
 }
 
-// versionBefore returns the version of the embedded migration that precedes
-// the one named suffix, so a test installs the schema its migration upgrades
-// whatever number the migration takes.
-func versionBefore(t *testing.T, suffix string) int64 {
+// embeddedMigration returns the embedded migration named suffix and the
+// version of the one before it, so a test installs the schema the migration
+// upgrades whatever number the migration takes.
+func embeddedMigration(t *testing.T, suffix string) (previous int64, contents string) {
 	t.Helper()
 	available, err := loadMigrations()
 	if err != nil {
@@ -183,9 +187,195 @@ func versionBefore(t *testing.T, suffix string) int64 {
 			if i == 0 {
 				t.Fatalf("migration %s has no predecessor", item.name)
 			}
-			return available[i-1].version
+			return available[i-1].version, string(item.contents)
 		}
 	}
 	t.Fatalf("no embedded migration is named %s", suffix)
-	return 0
+	return 0, ""
+}
+
+// ceilingPlan returns a native plan document at the native member ceiling:
+// the conformance plan with 1,000 members over both arms, a tenth of them
+// unsupported and a tenth blocked, and 1,024 pinned dimensions per arm. A
+// disjoint plan pins different dimensions in each arm, the most readiness pins
+// a plan can have; otherwise both arms pin the same dimensions with equal,
+// different, null, NUL-carrying and operator-supplied values.
+func ceilingPlan(t *testing.T, base []byte, id string, disjoint bool) []byte {
+	t.Helper()
+	var plan map[string]any
+	if err := json.Unmarshal(base, &plan); err != nil {
+		t.Fatal(err)
+	}
+	template := plan["members"].([]any)[0].(map[string]any)
+	members := make([]any, 0, evaldomain.MaxNativeMembers)
+	order := make([]any, 0, evaldomain.MaxNativeMembers)
+	for n := range evaldomain.MaxNativeMembers {
+		member := map[string]any{}
+		for k, v := range template {
+			member[k] = v
+		}
+		digest := sha256.Sum256(fmt.Appendf(nil, "%s/%d", id, n))
+		member["member_id"] = hex.EncodeToString(digest[:])
+		member["variant_id"] = []string{"a", "b"}[n%2]
+		member["case_id"] = fmt.Sprintf("case-%d", n/200)
+		member["sample"] = n/2%100 + 1
+		member["eligibility"], member["reason"] = "eligible", nil
+		switch n % 10 {
+		case 2:
+			member["eligibility"], member["reason"] = "unsupported", "Missing supported input"
+		case 7:
+			member["eligibility"], member["reason"] = "blocked", "Required pin is unavailable"
+		}
+		members = append(members, member)
+		order = append(order, member["member_id"])
+	}
+	pins := map[string]map[string]any{"a": {}, "b": {}}
+	for k := range 1024 {
+		value := fmt.Sprintf("value-%d", k)
+		if k%5 == 0 {
+			value = fmt.Sprintf("value\x00%d", k)
+		}
+		origin := "observed"
+		if k%7 == 0 {
+			origin = "operator_supplied"
+		}
+		if disjoint {
+			pins["a"][fmt.Sprintf("dimension-a-%04d", k)] = map[string]any{"value": value, "origin": origin}
+			pins["b"][fmt.Sprintf("dimension-b-%04d", k)] = map[string]any{"value": value, "origin": origin}
+			continue
+		}
+		other := any(value)
+		switch k % 3 {
+		case 1:
+			other = value + "-other"
+		case 2:
+			other = nil
+		}
+		dimension := fmt.Sprintf("dimension-%04d", k)
+		pins["a"][dimension] = map[string]any{"value": value, "origin": origin}
+		pins["b"][dimension] = map[string]any{"value": other, "origin": "observed"}
+	}
+	plan["members"], plan["execution_order"], plan["pins"] = members, order, pins
+	document, err := json.Marshal(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return document
+}
+
+// At the native member ceiling with the most pins a readiness can hold, the
+// backfill derives what evaldomain.NativeReadiness derives and parses each
+// plan's document and setup exactly once: the statement plan converts each
+// stored column a single time, and every pin and member lookup reads that
+// parsed value instead of parsing the document again (AGENTS 3.3). The count
+// is structural, not a timing.
+func TestSharedPostgresEvalPlanReadinessMigrationParsesEachPlanOnceAtTheNativeCeiling(t *testing.T) {
+	url := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
+	if url == "" {
+		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
+	}
+	ctx := t.Context()
+	pool, _ := isolatedPools(t, ctx, url)
+	previous, migration := embeddedMigration(t, "eval_plan_readiness")
+	installMigrationPrefix(t, ctx, pool, previous)
+	if _, err := pool.Exec(ctx, `INSERT INTO projects(project_id,owner_id,kind,name,request_idempotency_key,request_digest)
+VALUES('evaluation','owner','evaluation','Evaluation','create','sha256:'||repeat('a',64))`); err != nil {
+		t.Fatal(err)
+	}
+	base := contractstest.ReadFile(t, "api", "testdata", "evals", "valid", "portable-plan.json")
+	comparison := evaldomain.Comparison{Baseline: "a", Candidate: "b", RequiredEqual: []string{"dimension-0003", "dimension-a-0001", "dimension-b-0002", "scorers"}}
+	setup, err := json.Marshal(map[string]any{"comparison": comparison, "note": "setup\x00note"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plans := map[string][]byte{}
+	err = InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		for i := range 4 {
+			id := fmt.Sprintf("ceiling-%d", i)
+			plans[id] = ceilingPlan(t, base, id, i%2 == 0)
+			insertFrozenEvalPlan(t, tx, id, "server", "playground.plan/v1", plans[id], setup)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	update := strings.Index(migration, "\nUPDATE eval_frozen_plans")
+	end := strings.Index(migration[update:], ";\n")
+	if update < 0 || end < 0 {
+		t.Fatal("the readiness migration has no backfill UPDATE")
+	}
+	var explained []string
+	err = InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, migration[:update]); err != nil {
+			return err
+		}
+		rows, err := tx.Query(ctx, "EXPLAIN (VERBOSE, COSTS OFF)"+migration[update:update+end])
+		if err != nil {
+			return err
+		}
+		explained, err = pgx.CollectRows(rows, pgx.RowTo[string])
+		if err != nil {
+			return err
+		}
+		return errors.New("roll back the explained prefix")
+	})
+	if len(explained) == 0 {
+		t.Fatalf("explain the backfill: %v", err)
+	}
+	shape := strings.Join(explained, "\n")
+	if parses := strings.Count(shape, "convert_from(") + strings.Count(shape, "eval_plan_readiness_json("); parses != 2 {
+		t.Fatalf("the backfill converts stored documents %d times, want once for the document and once for the setup:\n%s", parses, shape)
+	}
+
+	// The widest schema-valid readiness, as the backfill writes it, stays
+	// within the column bound (LIM-EVM-19).
+	widest := evaldomain.Readiness{Pins: make([]evaldomain.ReadinessPin, 2048), Arms: make([]evaldomain.ReadinessArm, 2)}
+	for i := range widest.Pins {
+		widest.Pins[i] = evaldomain.ReadinessPin{Dimension: fmt.Sprintf("d%0127d", i), BaselineOrigin: "producer-supplied", CandidateOrigin: "producer-supplied", Status: "unavailable"}
+	}
+	for i := range widest.Arms {
+		widest.Arms[i] = evaldomain.ReadinessArm{VariantID: strings.Repeat(string(rune('a'+i)), 128), Expected: 10000, Eligible: 10000, Unsupported: 10000, Blocked: 10000}
+	}
+	encoded, err := json.Marshal(widest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var backfilled int
+	if err = pool.QueryRow(ctx, `SELECT octet_length(convert_to(convert_from($1::bytea,'UTF8')::jsonb::text,'UTF8'))`, encoded).Scan(&backfilled); err != nil {
+		t.Fatal(err)
+	}
+	if len(encoded) != 543169 || backfilled != 563670 || backfilled > 1<<20 {
+		t.Fatalf("the widest readiness encodes to %d bytes and backfills to %d", len(encoded), backfilled)
+	}
+
+	if _, err = ApplyMigrations(ctx, pool, MigrationBudgets{}); err != nil {
+		t.Fatal(err)
+	}
+	for id, document := range plans {
+		var stored []byte
+		if err = pool.QueryRow(ctx, `SELECT readiness FROM eval_frozen_plans WHERE experiment_id=$1`, id).Scan(&stored); err != nil {
+			t.Fatal(err)
+		}
+		var got evaldomain.Readiness
+		if err = strictjson.Decode(stored, &got); err != nil {
+			t.Fatalf("%s: backfilled readiness: %v", id, err)
+		}
+		derived, err := evaldomain.NativeReadiness(evaldomain.Restore("playground.plan/v1", document, ""), comparison)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(got, derived) {
+			t.Fatalf("%s: backfilled readiness differs from NativeReadiness", id)
+		}
+		if err = evaldomain.Validate("Readiness", stored); err != nil {
+			t.Fatalf("%s: backfilled readiness is not schema-valid: %v", id, err)
+		}
+		pins := map[bool]int{true: 2048, false: 1024}[id == "ceiling-0" || id == "ceiling-2"]
+		if len(got.Pins) != pins || got.Arms[0].Expected != 500 || got.Arms[0].Unsupported != 100 || got.Arms[1].Blocked != 100 {
+			t.Fatalf("%s: %d pins, arms %+v", id, len(got.Pins), got.Arms)
+		}
+		t.Logf("%s: %d document bytes, %d pins, %d readiness bytes", id, len(document), len(got.Pins), len(stored))
+	}
 }
