@@ -110,3 +110,11 @@ tests:
     covers: [A1, A2, A3, A4]
   - command: make lint
     covers: [A2]
+progress: >-
+  2026-10-24 paused. Implementation, tests and WSP-R179 committed in 576e9506.
+  Passed on 576e9506: the task's pytest command (47 passed, 0 skipped), ruff
+  check/format on the touched files, and the A4 check (the new A1/A3 tests fail
+  against the unfixed tools.py because the held match blocks the loop thread).
+  Unverified: full make test-runtime (run interrupted) and make lint (go and node
+  are not installed on this machine; only the Python steps can run here). Next:
+  run make test-runtime and make lint, merge main, then close the task.
