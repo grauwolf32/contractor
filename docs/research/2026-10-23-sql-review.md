@@ -104,3 +104,50 @@ The findings below describe the reviewed revision.
 - Реальная частота 40001 из п. A1 (нужен параллельный intake при создании Run).
 - Реальные размеры `eval_view_pairs.document`, `eval_member_projections.document`, `audit_report_pages.content` (`string_agg` до 4096 × 64 MB).
 - Число `workflow_run_events` на Run не ограничено ни схемой, ни спекой.
+
+## G. A10 verification: bounded Eval purge (V409-009, 2026-10-24)
+
+**Landing revision:** branch `claude/rv-c2`, implementation commit `56ca02d3ef1ca528c391e1d06c74c3f7ab7a0865` on base `9cc34c0b`. PostgreSQL 17, disposable database `contractor_test_c2`, one migrated schema per test.
+
+**Budget:** LIM-EVM-19, EVM-R242. One pass is one transaction of at most `CleanupBatchRows` = 1,000 row mutations and 16 MiB of stored row bytes. A row mutation is every row the pass deletes or rewrites, including the rows its cascades and triggers delete or rewrite. Stored bytes are the sum of `pg_column_size` over every column of each such row, read before the statement deletes it, so a compressed or TOAST value counts at its stored size. This is row-byte accounting, not a claim about heap memory or WAL volume. The first unit of a fresh pass always goes. The Eval coordinator commits one pass per claimed tick. The Project controller commits an Eval pass alone and goes on to finding receipts and Artifacts only in a transaction whose Eval pass found nothing left.
+
+**Phase table**, in pass order. The order follows the FK graph of `000001_baseline.sql` and the triggers listed. Each statement is `DeleteWithinBudget` (`internal/persistence/postgres/cleanup_sql.go`): at most limit+1 candidates by `ctid`, a running row and byte sum, and a DELETE of the prefix that fits.
+
+| # | Table | Row cost | Delete-time triggers and cascades | Why nothing uncounted happens |
+|---|---|---|---|---|
+| 0 | `eval_projection_queue` (UPDATE: view pointer and summary set to NULL) | 1 | none | taken `FOR UPDATE` first; the dirty triggers take this row before they write a projection |
+| 1 | `eval_view_pairs` | 1 | `contractor_eval_view_immutable` (check only) | leaf; FK to the queue |
+| 2 | `eval_view_charts` | 1 | same | leaf |
+| 3 | `eval_progress_observations` | 1 | none | leaf; FK to the experiment |
+| 4 | `eval_selections` | 1 | none on DELETE | NO ACTION FK to records, so it goes before records |
+| 5 | `eval_evidence_refs` | 1 | none | lookup source of the artifact dirty triggers, so it goes before the projections |
+| 6 | `eval_suboperations` | 1 | `contractor_eval_immutable` (check only) | lookup source of the tombstone trigger; child of submissions |
+| 7 | `eval_submissions` | 1 | none on DELETE | its suboperations are gone; lookup source of the Run and Audit dirty triggers |
+| 8 | `eval_records` | 1 | `contractor_eval_immutable` (check only) | its selections are gone |
+| 9 | `eval_execution_tombstones` | 1 | same | no lookup source is left that could insert another |
+| 10 | `eval_member_projections` | 1 | none | same |
+| 11 | `eval_members` | 1 | same as 8 | every child (5–10) is gone, so the CASCADE FKs remove nothing |
+| 12 | `eval_plan_resources` | 1 | same as 8 | child of the frozen plan |
+| 13 | `eval_commands` | 1 | none | readable until here |
+| 14 | `eval_experiments` (final unit) | 3 + plan + queue + claim (at most 6) | CASCADE to `eval_frozen_plans`, `eval_projection_queue` and `eval_controller_claims` (one row each at most; every other child is already empty); the statement trigger `eval_experiments_collection_delete` upserts the two `eval_collections` rows | measured by `finalPurgeUnitSQL` before the DELETE |
+| P1 | `eval_dataset_revisions` (Project pass, after every experiment) | 3 | the row trigger `eval_datasets_collection` upserts two collection rows; `eval_datasets_immutable` (check only) | the RESTRICT FK from experiments is satisfied; the trigger rows are charged |
+| P2 | the Project's `eval_collections` row | 1 | none | — |
+| P3 | Eval `mutation_receipts` | 1 | `contractor_protect_mutation_receipt` (allows it only while `contractor.eval_purge` is on) | last, so receipts replay until nothing else of the Project's Eval data is left |
+
+**Exclusion during a pass:** the pass holds the Project row (`FOR SHARE`, under the Project controller also its deletion-claim lock), the experiment row and the queue row (`FOR UPDATE`) for the whole transaction. Every dirty trigger takes the queue row first. The tombstone trigger on Run and Audit DELETE must update the experiment row. PublishView, Command, SelectRecords, PutRecord, Admit and PutSuboperation lock the experiment and refuse a deletion-requested one. So no writer adds a dependent row the pass has not counted, and no cascade removes one.
+
+**Accounting check:** every committed pass in `internal/evalstore/purge_postgres_test.go` compares `Rows` with the sum of `pg_stat_get_xact_tuples_inserted + _updated + _deleted` over all tables of the test schema, taken inside the pass transaction (minus the counters from before the pass). They are equal on every pass. Bytes charged agree with an independent `information_schema`-driven measurement of what was removed, within the rewritten queue and collection rows. Measured standalone purge of an admitted, fully populated experiment: 8 members; 3,171 dependent rows (3,115 evidence references from 3 results of 1,024 references each, 24 records, a human assessment and selection, a resolved run-create suboperation, a seeded tombstone, a published view, receipts); 18,332,784 stored bytes. Passes: 1,000 rows / 197,250 bytes; 1,000 / 188,989; 1,000 / 188,989; 149 / 15,971,999 (byte-bound); 26 / 1,785,643 (done).
+
+**Fixed authority overhead:** per pass, lock reads of the Project, experiment, claim (`FOR UPDATE`, no write) and queue rows; the drain checks (`purgeBlockedSQL`, or `ProjectBlocked` and `purgeProjectSQL`); `set_config`; and one candidate read per phase, each capped at limit+1 rows. A Project pass adds one `nextPurgedExperimentSQL` lookup per experiment it finishes. None of these writes. The final unit adds at most 6 row mutations; its bytes are the experiment row (draft at most 1 MiB), the frozen plan (document and setup, each at most 1 MiB), the already invalidated queue row, the claim and the two collection rows, about 3.1 MiB at most.
+
+**Largest legal row:** documents that the database bounds take at most 1 MiB each and at most two per row (about 2 MiB). Rows the Server assembles are larger:
+
+- The queue `suites` document has at most 5,000 suites, because 10,000 members (LIM-EVF-8) in A/B pairs form at most 5,000 suites. Each suite ID has 128 characters, both variant IDs have 128 characters, every counter is 10,000 and every ratio has its longest value. That document is 9,295,001 bytes (bytea, stored uncompressed under `STORAGE EXTERNAL`).
+- A progress observation's `counts` jsonb (`{"a","b","suites"}`) of the same shape is 11,260,056 bytes stored uncompressed, about 10.74 MiB, or 211,807 bytes compressed.
+- View pair documents stay under about 2 MiB.
+
+16 MiB holds the largest of these with about 5.5 MB to spare. `TestSharedPostgresEvalPurgeFitsLargestLegalRowInFreshPass` stores both worst-case rows under `STORAGE EXTERNAL`. The first pass spends the queue row's 9.3 MB and stops before the observation, because the remaining budget is too small for it. The next fresh pass removes the observation. A directly seeded row larger than 16 MiB, which no validated write stores, goes alone as the first row of a fresh pass, so there is neither a size rejection nor a zero-progress pass.
+
+**Original implementation (A5):** the aggregate regressions were copied onto a temporary worktree at `9cc34c0b` and run against PostgreSQL. `TestProjectDeletionPurgesEvalDataInBoundedTransactions` failed with "step 3 spent 5705 Eval row mutations, more than 1000". `TestSharedPostgresEvalPurgeYieldsBetweenTicksAndRefusesPartialReads` failed with "one tick left 0 evidence references, want one bounded pass". The evalstore tests use the new pass API, so they cannot compile against the base revision.
+
+**Commands (all with `CONTRACTOR_TEST_DATABASE_URL` set; none of the purge tests skipped):** `go test -tags=integration -count=1 ./internal/evalstore/... ./internal/evalservice/... ./internal/evalcoordinator/... ./internal/projectlifecycle/... ./internal/projectstore/... ./internal/persistence/... ./internal/httpapi/public/...` passed in every package except `internal/persistence`. That package fails only `TestSQLAccessFollowsTableOwnership` at `internal/cli/scan_sweep_remote.go:196`, which already fails on the base revision. `make verify-public-api`, `make lint` and `make test-wire-cross-language` passed.
