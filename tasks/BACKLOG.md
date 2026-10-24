@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-123 open tasks: 12 in progress, 86 pending, 25 deferred. 1075 finished: 1065 completed, 10 archived.
+123 open tasks: 14 in progress, 84 pending, 25 deferred. 1075 finished: 1065 completed, 10 archived.
 
 ## In progress
 
@@ -17,12 +17,14 @@ the epics are in [epics.yml](epics.yml).
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V410-010](v410-010-artifact-history-retention.yml) | projects-artifacts | feature | P1 | Apply automatic bounded history retention to every logical Artifact |
 | [V411-001](v411-001-target-credential-revisions.yml) | runtime-config | feature | P1 | Pin immutable target credential revisions in the existing encrypted store |
+| [V414-002](v414-002-eval-token-budget-overflow.yml) | evals | defect | P2 | Keep the Eval token budget and stage token summaries defined when token counters exceed int64 |
 | [V414-003](v414-003-openapi-yaml-resolution-rule.yml) | api-contracts | defect | P2 | Read and write OpenAPI YAML under one scalar and key rule in openapi@1, scan preparation and the Audit inventory |
 | [V414-008](v414-008-stored-size-check-classification.yml) | persistence | defect | P2 | Classify stored-size CHECK rejections as invalid input at every store writer |
 | [V414-010](v414-010-credential-recovery-previous-owner.yml) | execution-core | defect | P2 | Keep a previous lease owner's credential delete intent from committing behind the new owner's startup recovery |
 | [V414-013](v414-013-adk-callable-cache-release.yml) | planner-worker | defect | P2 | Stop ADK's module-level callable caches from keeping a released allocation's tools alive |
 | [V414-018](v414-018-audit-detail-snapshot-read.yml) | audits | defect | P2 | Read the Audit detail projection in one snapshot instead of answering an undeclared 409 |
 | [V414-029](v414-029-audit-deletion-next-run-probe.yml) | audits | defect | P2 | Find a deleting Audit's next live child Run without reading every execution and Run |
+| [V414-030](v414-030-finding-correlation-fence-row.yml) | findings | defect | P2 | Move the Project finding correlation fence off the projects row into a row the findings store owns |
 
 ## Pending
 
@@ -87,7 +89,6 @@ the epics are in [epics.yml](epics.yml).
 | [V397-009](v397-009-sarif-export-api-ui.yml) | feature | P2 | V397-008 | Publish and download generic SARIF through API CLI and UI |
 | [V411-007](v411-007-trusted-http-capture.yml) | feature | P1 | V411-004, V411-005, V411-006 | Expose safe HTTP evidence only through authenticated capture receipts |
 | [V411-011](v411-011-project-findings-reader.yml) | feature | P1 | V411-002 | Expose safe live Project findings to allocated pentesters |
-| [V414-030](v414-030-finding-correlation-fence-row.yml) | defect | P2 | — | Move the Project finding correlation fence off the projects row into a row the findings store owns |
 
 ### Workflow catalog and document workflows (`workflows`)
 
@@ -132,7 +133,6 @@ the epics are in [epics.yml](epics.yml).
 | [V40-003](v40-003-agent-instruction-eval-decision.yml) | feature | P1 | V40-002 | Evaluate instruction candidates and record evidence-based adoption decisions |
 | [V411-019](v411-019-pentest-target-fixtures-and-proof-scorers.yml) | chore | P1 | V411-002 | Build paired pentest fixtures and independent proof scorers |
 | [V411-021](v411-021-pentest-frozen-live-quality-evaluation.yml) | chore | P2 | V411-020 | Evaluate pentest quality against a frozen repeated-sample baseline |
-| [V414-002](v414-002-eval-token-budget-overflow.yml) | defect | P2 | — | Keep the Eval token budget and stage token summaries defined when token counters exceed int64 |
 | [V414-022](v414-022-eval-purge-guard-lexer.yml) | chore | P3 | — | Read trigger functions with the explaintest lexer in the Eval purge coverage guard and check rewrite rules |
 
 ### Podman sandbox (`sandbox`)
