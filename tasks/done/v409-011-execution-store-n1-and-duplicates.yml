@@ -1,0 +1,229 @@
+schema_version: '1.0'
+id: V409-011
+title: Reduce execution query round trips while preserving lock and recovery contracts
+milestone: sql-review-2026-10
+epic: execution-core
+kind: chore
+introduced_by: V8-001
+priority: P3
+status: completed
+implementation_commit: c87e01c19d59e0952b627cd9dc861cb107010f69
+depends_on:
+- V407-016
+languages:
+- go
+- sql
+goal: Batch demonstrably repeated database work in existing execution transaction and release phases
+  while keeping authority, partial failure and replay results unchanged.
+context:
+  review: docs/research/2026-10-23-sql-review.md, D N+1/duplicates. The Eval comparison-page and
+    composed recovery-query portions moved to V409-014 on 2026-10-23 so that this execution part
+    can follow V407-016 and the Eval part can follow the Eval store tasks.
+  specification:
+  - docs/spec/platform/persistence.md
+  - docs/spec/configuration/runtime-config.md
+  - docs/spec/execution/scheduler.md
+  - docs/spec/execution/runs.md#RUN-R90
+  finding: runtimeconfig/repository.go:348-369 and agentprincipal/repository.go:131-153 lock each
+    requested row separately; runtimeconfig/agent_labels.go:74-106 repeats binding/version reads.
+    scheduler/allocation_release.go:38-47,60-75,135-172 writes release markers per allocation. gatewayrecovery/waiting.go:119-152
+    reads the owner row again after its locking read. These are verified repeated operations, not
+    measured production latency incidents.
+  validation: Revalidated on main 1d533b2db885e0162ebabb01d36470f139546009. Real PostgreSQL malformed-metrics
+    probe retained the healthy sibling and omitted only the corrupt row, as RUN-R90 requires. Recovery
+    currently returns after its first Stage that worked/errored, not after releasing every one of 32
+    candidates.
+  siblings: Binding shared pins and exclusive writers; principal locks and label validation; normal
+    terminal release and recovery for one owned Stage; gatewayrecovery Retry owner lookup. Terminal
+    release scheduling belongs to V407-016, which this task follows; keep adjacent Stage-end/placement
+    work V407-015/014 intact. Eval comparison pages and composed Eval recovery transactions belong to
+    V409-014.
+  provenance: 'The binding loop comes from d8ef98c1427ebcb34504655e8ef181047a134576 (V8-001). Related
+    origins: release marker loop 9ef3eec6f9841abdfb3165536d488c437c613004 (V45-005); principal cleanup
+    3ecd3f2f4bf99f3a42ec009381df732d59e1a41d (V370-012). V1-004 metrics behavior is explicitly excluded.'
+  decisions:
+  - Keep GetStageMetricsBatch per-row omission and healthy peers (RUN-R90; metrics_batch.go:9-11,34-35).
+    A batch error on one malformed row would make runservice/detail.go:195-197 omit all metrics.
+    Do not recast this intentional failure outcome as a defect.
+  - Keep LockBindings FOR SHARE and LockBindingsForUpdate FOR UPDATE; sorted batching must preserve
+    mode and binding-before-principal order. Keep ResumeFailedRun initial Project lookup, then Project
+    lock, then Run lock (resume_store.go:44-69); it is required for Project-first ordering.
+  - 'No unconditional UNION/index rewrite of allocation credential usage: the target index in migration
+    000002:39-43 covers only active Runs, while terminal unreleased allocations must remain references.
+    A target-only EXPLAIN probe still used Seq Scan. Keep the query unless a representative full
+    allocation fixture proves a semantics-preserving improvement; no active-state filter or invented
+    keyset API is permitted.'
+  - No requirement for one SQL string per conceptual query. Namespace-specific artifact ref pagination
+    has a different keyset from cross-namespace pagination; nullable-namespace OR and generic JSON-path
+    consolidation need plan/semantic evidence before adoption. Keep these separate statements; reopen
+    only if a concrete duplication fix preserves both custom/generic plans and exact credential-kind
+    paths.
+plan:
+- Batch binding and principal locks with sorted key arrays and the correct existing lock mode. Preserve
+  syntax validation and duplicate rejection before SQL (runtimeconfig/repository.go:356-360 and agentprincipal/repository.go:139-143
+  already reject duplicate keys); verify that returned rows cover the requested set and preserve
+  existing missing-key error classes. Preserve all-or-error caller transaction semantics and principal
+  identity validation. Batch label binding/version lookup without weakening canonical document/digest
+  integrity checks.
+- For one Stage already owned by the terminal-release gate, batch attempt markers and batch only
+  those completion markers whose live grants are confirmed absent. Keep provenance verification,
+  write fences, per-Stage gate, error aggregation, timeout ownership and per-allocation missing-row
+  semantics. Do not eagerly fetch/release all 32 candidates or change scheduling; that is V407-016.
+  Use bounded admitted allocation cohorts and distinguish partial outcomes before marking anything
+  complete.
+- Return owner identity from the existing gateway Retry locking read when this removes its subsequent
+  lookup without changing lock order or ownership errors. Keep the Resume Project discovery read.
+  Remove or adapt only callers of helpers actually changed; do not add a generic preamble/SQL consolidation
+  framework.
+- Add deterministic SQL-count tests on the real store for valid 16-label sets and multi-allocation
+  Stages admitted by existing contracts, plus exact failure cases. Compare query counts within defined
+  operations, not elapsed time, and preserve shared-pin concurrency, expired-claim, restart and lost-acknowledgement
+  tests.
+scope:
+  in:
+  - Binding/principal/label-read batching with existing lock semantics; per-owned-Stage release marker
+    batching.
+  - Gateway Retry owner projection and focused query-count/equivalence tests.
+  out:
+  - Malformed-metrics failure policy, Resume Project-first lookup, full-tick transactions, release
+    scheduling/concurrency changes.
+  - Unproven allocation credential UNION/index changes, artifact pagination SQL merging and dynamic
+    credential path consolidation.
+  - Eval comparison pages, composed Eval recovery transactions and Eval receipt lookup (V409-014);
+    Eval purge (V409-009); member INSERT batching/FrozenPlan metadata (V407-028/029).
+acceptance_criteria:
+- id: A1
+  text: Given valid overlapping 16-label pin sets or exclusive mutations, when the batch lock methods
+    run, then each lock-set query is constant-count, pins remain mutually compatible, writers remain
+    excluded, and duplicate/missing/invalid inputs preserve their existing outcomes and lock order.
+- id: A2
+  text: Given an owned terminal Stage with multiple valid allocations and mixed release outcomes,
+    when marker batching runs, then SQL marker count is bounded per phase instead of per allocation,
+    only absent grants become completed, live/diverged grants retain their existing fences and errors,
+    and recovery does not process additional Stages merely to fill a batch.
+- id: A3
+  text: Given malformed optional metrics, a Run resume and credential usage on terminal unreleased
+    allocations, when existing paths are exercised, then the documented per-row omission, Project-first
+    lock order and retained-reference behavior are unchanged; no unsupported rewrite is required
+    for closure.
+- id: A4
+  text: Given the original implementations, when binding/marker/gateway-owner count regressions run,
+    then the relevant old operation counts fail their new assertions; preservation tests may already
+    pass and are not claimed as reproduced defects.
+tests:
+- command: CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?Set an isolated disposable
+    PostgreSQL URL}" go test -tags=integration -count=1 ./internal/scheduler/... ./internal/runstore/...
+    ./internal/runtimeconfig/... ./internal/agentprincipal/... ./internal/credentials/... ./internal/telemetry/...
+    ./internal/runservice/... ./internal/gatewayrecovery/... ./internal/persistence/... ./internal/httpapi/public/...
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make verify-public-api
+  covers:
+  - A3
+- command: make lint
+  covers: []
+  purpose: Static layering, formatting, SQL placement, migration/task/specification checks only;
+    does not prove lock compatibility, counts or failure semantics.
+manual_verification:
+- check: Record before/after statement counts and representative custom/generic query plans with
+    dataset cardinalities, and every retained/rejected original subclaim's disposition. Do not force
+    index scans or report preservation tests as initially failing defects.
+  covers:
+  - A1
+  - A2
+  - A4
+verification:
+  date: '2026-10-23'
+  environment: >-
+    macOS arm64; Go 1.26 (GOTOOLCHAIN=local); local PostgreSQL 17.11 database
+    contractor_test_d (en_US.UTF-8 collation) with isolated per-test schemas
+    and all 33 migrations.
+  re_verification: >-
+    The findings held on base f42665bd (V407-016 merged): lockBindings and
+    LockMany issued one locking SELECT per key; LockAgentLabels,
+    ValidateLockedAgentLabels (once per holder on rebind), PinRunSnapshot and
+    RequiredRuntimeAdapters read each binding and version separately;
+    releaseTerminalOwned wrote one attempt and one completion marker per
+    allocation and recoverTerminalExecution marked attempts, then marked
+    them again inside releaseTerminalOwned; gateway Retry read owner_id after
+    its locking read.
+  commands:
+  - 'CONTRACTOR_TEST_DATABASE_URL=<contractor_test_d> go test -tags=integration -count=1 ./internal/scheduler/... ./internal/runstore/... ./internal/runtimeconfig/... ./internal/agentprincipal/... ./internal/credentials/... ./internal/telemetry/... ./internal/runservice/... ./internal/gatewayrecovery/... ./internal/persistence/... ./internal/httpapi/public/...: every package passed except internal/persistence, whose TestSQLAccessFollowsTableOwnership (internal/cli/scan_sweep_remote.go:196) and TestKeyedMutationsUseTheSharedHelpers (internal/app/single_active_budget_test.go advisory lock) fail identically on base f42665bd in a temporary worktree; neither file is touched here. runstore, gatewayrecovery and agentprincipal were rerun after the last edits and passed.'
+  - 'go test -race -count=5 of every new test (runtimeconfig, agentprincipal, scheduler, runstore, gatewayrecovery with -tags=integration): passed.'
+  - make verify-public-api passed.
+  - make lint passed (after make docs-dependencies and make tasks-backlog); gofmt -l and go vet -tags=integration,e2e ./internal/... ./cmd/... clean.
+  database_tests_configured: true
+  regression_before_fix: >-
+    The new count tests copied onto base f42665bd in a temporary worktree
+    (removed afterwards) fail: TestPostgresBindingLockSetsTakeOneStatement
+    "16-label pin = 17 binding and 17 version statements, want 1 and 1";
+    TestPostgresAgentLabelValidationReadsEachCatalogOnce "registration with
+    32 labels = {bindings:32 versions:32}"; TestPostgresRebindValidatesHoldersWithConstantReads
+    "four holders {bindings:168 versions:129 principals:6}, one holder
+    {bindings:66 versions:33 principals:3}, want equal";
+    TestPostgresPrincipalLockSetTakesOneStatementInOrder "lock of 8
+    principals = 8 statements, want 1"; TestPostgresTerminalReleaseMarksEachPhaseOnce
+    "11 markers, want 2"; TestPostgresTerminalReleaseRecoveryMarksEachPhaseOnce
+    "13 markers, want 3"; TestRetryChecksTheOwnerFromItsRunLock "read the
+    Run 2 times, want once". TestPostgresReleaseMarkersBatchAndKeepPerAllocationOutcomes
+    tests the new variadic store API, which base lacks. The ordering test
+    fails when lockBindingsSQL orders by binding.label (collation order
+    a_01, a-04, a02 differs from bytewise a-04, a02, a_01); the Resume
+    preservation test fails when the Run is locked before the Project. The
+    preservation tests (shared-pin compatibility and writer exclusion,
+    metrics omission, Resume Project-first, terminal unreleased credential
+    reference) pass on base, as A4 allows; they are not claimed as defects.
+  evidence:
+    A1: 'TestPostgresBindingLockSetsTakeOneStatement: a 16-label pin (plus default) locks with 1 binding and reads with 1 version statement in bytewise order; LockBindingsForUpdate of 17 labels takes 1 statement; duplicate and invalid labels are ErrInvalid with no statement, an empty set sends none, a missing label is ErrNotFound. TestPostgresBatchedBindingLocksKeepModeAndOrder (20 labels): overlapping shared pins labels[0:16] and labels[4:20] both hold at once; FOR UPDATE writers of a first, middle, last and default label are excluded until the owning pins commit; a set waiting on its middle label (shared pin and exclusive set) holds every earlier label and no later one, and succeeds after the holder rolls back. TestPostgresPrincipalLockSetTakesOneStatementInOrder: 8 principals in 1 FOR UPDATE statement in ID order, duplicate/invalid ErrInvalid with no statement, missing ErrNotFound, and the same earlier-held/later-free order while waiting. Registration (1+1), replacement (2 binding locks/reads + 1 version), RequiredRuntimeAdapters (1+1) and rebind (bindings 4, versions 2, principals 3 for one or four holders) are constant.'
+    A2: 'TestPostgresTerminalReleaseMarksEachPhaseOnce: lane release of a six-allocation Stage takes 1 attempt and 1 completion marker; the allocation the Runtime refused keeps its grant, fence and incomplete row; the earlier terminal attempt is not touched. TestPostgresTerminalReleaseRecoveryMarksEachPhaseOnce: recovery of 5 incomplete allocations (released, refused, gone, diverged, plus one completed row left alone) takes 3 markers (attempts, gone, released), keeps the refused grant live, write-fences the diverged grant, leaves the completed row and the earlier Stage untouched, frees the gate; the retry takes 2 markers. TestPostgresReleaseMarkersBatchAndKeepPerAllocationOutcomes: 130 allocations in 2 statements, duplicates marked once, a missing allocation ErrNotFound for it alone while others are marked (1 existence check), completed releases unchanged, blank IDs refused before SQL.'
+    A3: 'TestPostgresStageMetricsBatchOmitsOnlyUndecodableRows (new, real store): undecodable summary and metrics rows are omitted, the healthy sibling returned, no error. TestPostgresResumeLocksTheProjectBeforeTheRun (new): while Project deletion holds the Project, Resume waits without holding the Run row, then succeeds. TestRuntimeCredentialDeleteSerializesWithRuntimeConfigBindings now also proves an unreleased allocation of an interrupted Stage in a failed Run still blocks credential deletion until its release completes. resume_store.go, metrics_batch.go and the credential usage SQL are unchanged.'
+    A4: See regression_before_fix.
+  manual_verification: >-
+    Statement counts before -> after: 16-label Run pin 17+17 -> 1+1 binding
+    and version statements; 32-label registration 32+32 -> 1+1; rebind with
+    four holders 168 binding/129 version -> 4/2 (one holder 66/33 -> 4/2);
+    8-principal lock 8 -> 1; lane release of 6 allocations 11 -> 2 markers;
+    recovery of 5 incomplete allocations 13 -> 3; Retry 2 -> 1 workflow_runs
+    reads. Plans on PostgreSQL 17.11 with 5001 bindings, 2000 principals and
+    100000 allocations (1000 unreleased), ANALYZEd: lockBindingsSQL custom
+    and generic (16 labels) LockRows -> Nested Loop (Function Scan unnest ->
+    Index Scan runtime_label_bindings_pkey, loops=16); lockPrincipalsSQL
+    custom (8 IDs) LockRows -> Nested Loop -> Index Scan
+    runtime_agent_principals_pkey, generic LockRows -> Sort by position ->
+    Hash Join over Seq Scan of the 2000 principals, locking only the 8
+    joined rows; both markers custom and generic Update -> Index Scan
+    stage_allocations_pkey (allocation_id = ANY) with Filter
+    release_completed_at IS NULL, 3 row triggers per marked row. The lock
+    order is the array position either way (LockRows above the ordered
+    join), proven by the collation test.
+  dispositions: >-
+    Fixed: binding lock sets, principal lock sets, label binding/version
+    reads (LockAgentLabels, rebind holder validation, PinRunSnapshot,
+    RequiredRuntimeAdapters), per-allocation release markers including the
+    duplicate recovery attempt marker, the Retry owner re-read. Retained by
+    decision with preservation tests: GetStageMetricsBatch per-row omission
+    (RUN-R90), the Resume Project-first lookup and lock order. Rejected by
+    decision: allocation credential UNION/index rewrite (no representative
+    fixture shows a semantics-preserving gain), artifact pagination SQL
+    merging and credential JSON-path consolidation. Left: placement's
+    per-label pinned RuntimeConfig loads (V407-014 per-attempt cache,
+    CTL-R162; placement already gains the batched locks), the per-Stage
+    allocation listing and divergent-grant Stage read (V407-016 scheduling,
+    rare path). Eval comparison pages and recovery queries are V409-014.
+  spec: >-
+    New SCH-R182 (per-phase release markers, with decision and reopen
+    condition) and LIM-SCH-22 (at most 128 allocations per marker
+    statement); CTL-R89 now states one statement per lock set, bytewise
+    order independent of collation, shared pins and exclusive mutations;
+    FAIL-SCH-9 lists SCH-R182. No migration and no public API change.
+  notes: >-
+    Rebind validation now reads every holder's labels before validating any
+    holder, so when one holder has a non-applicable label and a later one an
+    unbound label the reported rejection is ErrUnknownLabel rather than
+    ErrAgentLabelNotApplicable; both reject, and a held label's binding
+    cannot be deleted while it is held. Marker statements lock rows in
+    primary-key order; markers and report writes touch one Stage's rows
+    under its release gate, so no new lock cycle was found.

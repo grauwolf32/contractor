@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-93 open tasks: 5 in progress, 63 pending, 25 deferred. 1025 finished: 1021 completed, 4 archived.
+92 open tasks: 4 in progress, 63 pending, 25 deferred. 1026 finished: 1022 completed, 4 archived.
 
 ## In progress
 
@@ -15,7 +15,6 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
-| [V409-011](v409-011-execution-store-n1-and-duplicates.yml) | execution-core | chore | P3 | Reduce execution query round trips while preserving lock and recovery contracts |
 
 ## Pending
 
@@ -130,7 +129,7 @@ the epics are in [epics.yml](epics.yml).
 | [V409-006](v409-006-trigger-column-scoping.yml) | chore | P2 | — | Scope unnecessary trigger work while preserving admission and projection effects |
 | [V409-007](v409-007-dead-and-redundant-indexes.yml) | chore | P2 | V409-002, V409-004, V409-006 | Consolidate indexes only where reader and constraint evidence permits it |
 | [V409-012](v409-012-migration-and-sql-hygiene.yml) | chore | P3 | — | Test the revision-count and controller-claim backfills and document migration budgets |
-| [V409-013](v409-013-verify-sql-review-on-database.yml) | chore | P2 | V409-002, V409-004, V409-006, V409-007, V409-009, V409-011, V409-012, V409-014 | Verify retained SQL-review changes and record evidence for every accepted or declined claim |
+| [V409-013](v409-013-verify-sql-review-on-database.yml) | chore | P2 | V409-002, V409-004, V409-006, V409-007, V409-009, V409-012, V409-014 | Verify retained SQL-review changes and record evidence for every accepted or declined claim |
 
 ### Quality, CI and process (`quality`)
 
@@ -189,7 +188,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 5 | 41 | 51 | 18 | 73 |
+| Run execution core (`execution-core`) | 4 | 41 | 51 | 18 | 73 |
 | Planners and the Worker model boundary (`planner-worker`) | 4 | 27 | 40 | 16 | 58 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 10 | 25 | 13 | 4 | 40 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 2 | 12 |
