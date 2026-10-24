@@ -1094,12 +1094,55 @@ YAML (`application/json`, `application/yaml`, `application/x-yaml`,
 `text/yaml`). Other OpenAPI versions are rejected explicitly.
 
 **SCN-R124.** The JSON or YAML source must contain one UTF-8 mapping with
-string keys and no duplicate keys, YAML anchors or aliases, nonstandard tags,
-nonfinite numbers or numbers outside the exact integer range of IEEE 754
-doubles (LIM-SCN-67).
+string member names and no duplicate member names, YAML anchors, aliases or
+merge keys, tags other than the core tags, nonfinite numbers or numbers outside
+the exact integer range of IEEE 754 doubles (LIM-SCN-67). YAML reads under one
+scalar and key rule, which `internal/documentyaml` implements for preparation
+and for the `openapi-operations@1` inventory
+([audits](../audits/audits.md), AUD-R143) and which the OpenAPI authoring
+Toolset `openapi@1` ports (SCN-R257). An untagged plain scalar resolves as
+go-yaml v4 resolves it: `true`, `True`, `TRUE`, `false`, `False` and `FALSE`
+are booleans; `~`, `null`, `Null`, `NULL` and the empty scalar are null;
+`0o17`, `017`, `0x1F`, `0b101`, `1_000` and `1e3` are numbers; `yes`, `no`,
+`on`, `off`, `y`, `n` and `1:30` are strings; and a plain date such as
+`2023-01-01` keeps its source text. A plain scalar spelled like a number that
+does not resolve to a number within those bounds, such as
+`0x10000000000000000`, rejects the document rather than reading as a string.
+Quoted and block scalars are strings. A plain mapping key is the string of its
+source text, whatever it would resolve to, so `200:` names the member `"200"`
+and `0o17:` the member `"0o17"`; the duplicate check compares those strings,
+and a plain `<<` key is a merge key. An explicit tag must be `!!str`, `!!int`,
+`!!float`, `!!bool` or `!!null` on a scalar, `!!map` on a mapping or `!!seq` on
+a sequence; `!!int`, `!!float`, `!!bool` and `!!null` accept only text that
+the untagged rule reads as a value of that type, and a tagged mapping key must
+be `!!str`. A `%YAML` directive must name version 1.1. Preparation, the
+inventory and `openapi@1` give the same verdict and value on the
+[shared YAML cases](../../../api/testdata/openapi-yaml-scalar-cases.json).
 
 Rationale: rejecting numbers outside that range prevents silent changes to
-large numeric examples.
+large numeric examples. The scalar rule is the one go-yaml v4 applies, because
+both Server readers use it; the Runtime ports it instead of reading YAML 1.1,
+under which `yes` is a boolean and `1e3` a string. For mapping keys two rules
+were considered: requiring every key to resolve to a string, which go-yaml
+applies by default and which rejects `200:`, and reading a plain key as its
+source text, which `openapi@1` has applied since issue #100. The source-text
+rule was chosen because unquoted response codes are common in authored OpenAPI
+YAML and the source text loses nothing. Reconsider it if a supported reader
+cannot recover a plain key's source text, or if differently spelled keys such
+as `1` and `01` must name one member.
+
+**SCN-R257.** `openapi@1` reads every YAML document it loads under SCN-R124
+and reports a document that rule rejects as the non-retryable
+`tool_input_invalid` tool error, leaving the current document unchanged, so a
+seed loaded at its own binding keeps only bytes that preparation reads alike.
+It writes a string as a quoted scalar whenever SCN-R124 or YAML 1.1 would read
+the plain scalar as anything other than that string, and it accepts from
+mutations only numbers that SCN-R124 accepts, so every document it writes
+means the same JSON value to preparation, to the inventory and to a YAML 1.1
+reader. Its parser shares go-yaml's double-quoted escapes and rejects surrogate
+code points, which go-yaml also rejects; it remains stricter than go-yaml in
+some lexical details, such as a tab between a member name and its value, which
+it rejects and preparation accepts.
 
 **SCN-R125.** Preparation extracts concrete HTTP data on a best-effort basis.
 Schema type, format, dialect and validation constraints do not reject supplied
@@ -1333,11 +1376,8 @@ of the same tree count alike. The OpenAPI authoring Toolset `openapi@1`
 enforces the same three bounds, counted the same way, on every document it
 loads, on the result of every mutation, on every document it writes or returns,
 and in `validate_openapi` before the external validator runs, so no document it
-accepts or writes exceeds these byte, depth or node bounds of preparation. The
-shared bounds do not make the two parsers agree on anything else: the Runtime
-reads and writes YAML 1.1 while preparation reads YAML 1.2, so scalars such as
-`0o17` or `1e3` and merge keys can still parse differently or fail preparation
-as `invalid_document`. Preparation
+accepts or writes exceeds these byte, depth or node bounds of preparation;
+both read YAML scalars and member names under SCN-R124 (SCN-R257). Preparation
 reports an exceeded bound as `source_limit_exceeded`; `openapi@1` reports it as
 the non-retryable `tool_input_invalid` tool error that names the bound and
 leaves the current document unchanged. Sharing these bounds does not make

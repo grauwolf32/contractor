@@ -6,6 +6,7 @@ import copy
 import json
 import math
 import os
+import re
 import shutil
 import subprocess
 from collections.abc import Callable, Iterable, Mapping, Sequence
@@ -40,6 +41,7 @@ from contractor_runtime.toolsets.common.document_session import (
 )
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
 from contractor_runtime.toolsets.common.tool_base import SessionArtifactTool
+from contractor_runtime.toolsets.openapi import yaml_scalars
 from contractor_runtime.toolsets.openapi.models import (
     PathItem,
     RequestBody,
@@ -1123,27 +1125,38 @@ class ValidateOpenAPITool(_BaseOpenAPITool):
 class _StrictSafeLoader(yaml.SafeLoader):
     """SafeLoader that reads an OpenAPI document in one bounded pass.
 
-    Composition rejects anchors and aliases and stops at the first node beyond
-    the depth or node bound, before PyYAML composes a deeper or larger tree.
-    A node is one deeper than the collections open around it, so a mapping key
-    is a node at the depth of its value, as in _validate_json_tree; the count
-    covers every document of the stream.
+    Composition rejects anchors, aliases and tags other than the core tags,
+    and stops at the first node beyond the depth or node bound, before PyYAML
+    composes a deeper or larger tree. A node is one deeper than the
+    collections open around it, so a mapping key is a node at the depth of its
+    value, as in _validate_json_tree; the count covers every document of the
+    stream.
 
-    Scalar resolution is JSON-compatible. JSON has no date type, so unquoted
-    dates such as ``version: 2023-01-01`` stay strings instead of resolving to
-    ``datetime.date``. An explicit ``!!timestamp`` tag still produces a date
-    and is rejected.
+    Scalars resolve and keys read under the rule Server scan preparation and
+    the Audit inventory apply (SCN-R124, yaml_scalars), not under PyYAML's
+    YAML 1.1 resolvers: ``yes`` and ``1:30`` are strings, ``0o17`` and ``1e3``
+    are numbers, a plain date such as ``version: 2023-01-01`` stays its source
+    text, and a merge key ``<<`` is rejected.
     """
 
     def __init__(self, stream: str) -> None:
         super().__init__(stream)
         self._open_collections = 0
         self._nodes = 0
+        # Nodes with an explicit tag. A plain key is the string of its source
+        # text, an explicitly tagged key must be !!str.
+        self._tagged: set[int] = set()
 
     def compose_node(self, parent: yaml.Node | None, index: Any) -> yaml.Node:
         event = self.peek_event()
         if getattr(event, "anchor", None) is not None:
             raise ToolInputError("OpenAPI YAML aliases and anchors are not supported")
+        tag = getattr(event, "tag", None)
+        if tag is not None and tag not in _EXPLICIT_TAGS.get(type(event), frozenset()):
+            raise ToolInputError(
+                "OpenAPI YAML tags other than !!str, !!int, !!float, !!bool, !!null, "
+                "!!map and !!seq are not supported"
+            )
         self._nodes += 1
         if self._open_collections + 1 > MAX_DOCUMENT_DEPTH:
             raise ToolInputError(DOCUMENT_DEPTH_MESSAGE)
@@ -1151,54 +1164,104 @@ class _StrictSafeLoader(yaml.SafeLoader):
             raise ToolInputError(DOCUMENT_NODES_MESSAGE)
         self._open_collections += 1
         try:
-            return super().compose_node(parent, index)
+            node = super().compose_node(parent, index)
         finally:
             self._open_collections -= 1
+        if tag is not None:
+            self._tagged.add(id(node))
+        return node
+
+    def resolve(self, kind: type[yaml.Node], value: Any, implicit: Any) -> str:
+        if kind is yaml.ScalarNode and implicit[0]:
+            return yaml_scalars.resolve_plain(value)
+        return str(super().resolve(kind, value, implicit))
+
+    def process_directives(self) -> Any:
+        directives = super().process_directives()
+        # go-yaml reads only YAML 1.1 version directives.
+        if self.yaml_version not in (None, (1, 1)):
+            raise ToolInputError(
+                "OpenAPI YAML version directives other than %YAML 1.1 are not supported"
+            )
+        return directives
 
 
-_StrictSafeLoader.yaml_implicit_resolvers = {
-    first: [(tag, pattern) for tag, pattern in resolvers if tag != "tag:yaml.org,2002:timestamp"]
-    for first, resolvers in yaml.SafeLoader.yaml_implicit_resolvers.items()
+# The double-quoted escapes of go-yaml: PyYAML's set without \/ and with \'.
+_StrictSafeLoader.ESCAPE_REPLACEMENTS = {
+    **{
+        escape: value
+        for escape, value in yaml.SafeLoader.ESCAPE_REPLACEMENTS.items()
+        if escape != "/"
+    },
+    "'": "'",
 }
 
-# JSON object keys are strings, so a plain or quoted key such as ``200:``,
-# ``1.5:`` or ``on:`` keeps its source text instead of becoming an int, float
-# or bool. Keys with any other tag are constructed normally and must still be
-# strings.
-_JSON_SCALAR_KEY_TAGS = frozenset(
-    f"tag:yaml.org,2002:{name}" for name in ("str", "int", "float", "bool", "null")
-)
+_EXPLICIT_TAGS: Mapping[type[yaml.Event], frozenset[str]] = {
+    yaml.ScalarEvent: yaml_scalars.SCALAR_TAGS,
+    yaml.MappingStartEvent: frozenset({yaml_scalars.MAP_TAG}),
+    yaml.SequenceStartEvent: frozenset({yaml_scalars.SEQ_TAG}),
+}
 
 
-class _NoAliasSafeDumper(yaml.SafeDumper):
+class _OpenAPIDumper(yaml.SafeDumper):
+    """SafeDumper that writes only YAML every reader reads back unchanged.
+
+    A string is written plain only when the rule of yaml_scalars and YAML 1.1
+    both read it as that string; every other string is quoted (SCN-R124).
+    """
+
     def ignore_aliases(self, data: Any) -> bool:
         del data
         return True
 
+    def resolve(self, kind: type[yaml.Node], value: Any, implicit: Any) -> str:
+        if kind is yaml.ScalarNode and implicit[0]:
+            return yaml_scalars.writer_tag(value)
+        return str(super().resolve(kind, value, implicit))
+
+
+def _construct_scalar(loader: _StrictSafeLoader, node: yaml.ScalarNode) -> Any:
+    del loader
+    return yaml_scalars.scalar_value(node.tag, node.value)
+
+
+def _reject_tag(loader: _StrictSafeLoader, node: yaml.Node) -> Any:
+    del loader, node
+    raise ToolInputError("OpenAPI YAML tags other than the core tags are not supported")
+
 
 def _construct_unique_mapping(
     loader: _StrictSafeLoader, node: yaml.MappingNode, deep: bool = False
-) -> dict[Any, Any]:
-    loader.flatten_mapping(node)
-    result: dict[Any, Any] = {}
+) -> dict[str, Any]:
+    result: dict[str, Any] = {}
     for key_node, value_node in node.value:
-        if isinstance(key_node, yaml.ScalarNode) and key_node.tag in _JSON_SCALAR_KEY_TAGS:
-            key: Any = key_node.value
-        else:
-            key = loader.construct_object(key_node, deep=deep)
-        try:
-            duplicate = key in result
-        except TypeError as error:
-            raise ToolInputError("OpenAPI YAML mapping keys must be scalar strings") from error
-        if duplicate:
+        if not isinstance(key_node, yaml.ScalarNode):
+            raise ToolInputError("OpenAPI YAML mapping keys must be scalar strings")
+        if id(key_node) in loader._tagged:
+            if key_node.tag != yaml_scalars.STR_TAG:
+                raise ToolInputError("OpenAPI YAML mapping keys must be strings")
+        elif key_node.tag == yaml_scalars.MERGE_TAG:
+            raise ToolInputError("OpenAPI YAML merge keys (<<) are not supported")
+        # JSON object keys are strings: a plain key such as 200:, 1.5:, on: or
+        # 0o17: is the string of its source text.
+        key = key_node.value
+        if key in result:
             raise ToolInputError(f"OpenAPI YAML contains duplicate key {key!r}")
         result[key] = loader.construct_object(value_node, deep=deep)
     return result
 
 
-_StrictSafeLoader.add_constructor(
-    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _construct_unique_mapping
-)
+# Only the core tags construct values; resolve() never yields another tag
+# without composition having rejected it first.
+_StrictSafeLoader.yaml_constructors = {
+    **dict.fromkeys(yaml_scalars.SCALAR_TAGS, _construct_scalar),
+    yaml_scalars.NUMERIC_STRING_TAG: _construct_scalar,
+    yaml_scalars.MERGE_TAG: _construct_scalar,
+    yaml_scalars.MAP_TAG: _construct_unique_mapping,
+    yaml_scalars.SEQ_TAG: yaml.SafeLoader.yaml_constructors[yaml_scalars.SEQ_TAG],
+    None: _reject_tag,
+}
+_StrictSafeLoader.yaml_multi_constructors = {}
 
 
 def _parse_document(data: bytes) -> dict[str, Any]:
@@ -1210,7 +1273,11 @@ def _parse_document(data: bytes) -> dict[str, Any]:
         text = data.decode("utf-8", errors="strict")
     except UnicodeDecodeError as error:
         raise ToolInputError("OpenAPI document must be valid UTF-8") from error
-    loader = _StrictSafeLoader(text)
+    try:
+        # The reader rejects non-printable characters while it is created.
+        loader = _StrictSafeLoader(text)
+    except yaml.YAMLError as error:
+        raise ToolInputError("OpenAPI document is not valid YAML or JSON") from error
     try:
         # Compose the whole stream under the bounds before constructing any
         # value, so a later document's anchor or bound fails first.
@@ -1218,7 +1285,10 @@ def _parse_document(data: bytes) -> dict[str, Any]:
         while loader.check_node():
             nodes.append(loader.get_node())
         documents = [loader.construct_document(node) for node in nodes]
-    except yaml.YAMLError as error:
+    except ToolInputError:
+        raise
+    except (yaml.YAMLError, ValueError) as error:
+        # PyYAML raises ValueError for a \U escape beyond U+10FFFF.
         raise ToolInputError("OpenAPI document is not valid YAML or JSON") from error
     finally:
         loader.dispose()
@@ -1248,15 +1318,16 @@ def _validate_json_tree(value: Any) -> None:
 
     def visit(item: Any, depth: int) -> None:
         node(depth)
-        if item is None or isinstance(item, str | bool):
+        if isinstance(item, str):
+            _reject_surrogates(item)
             return
-        if isinstance(item, int):
-            if abs(item) > (1 << 53) - 1:
-                raise ToolInputError("OpenAPI document contains a non-I-JSON integer")
+        if item is None or isinstance(item, bool):
             return
-        if isinstance(item, float):
-            if not math.isfinite(item):
-                raise ToolInputError("OpenAPI document contains a non-finite number")
+        if isinstance(item, int | float):
+            # Scan preparation and the Audit inventory accept only finite
+            # numbers within the exact integer range (LIM-SCN-67, AUD-R146).
+            if abs(item) > yaml_scalars.MAX_SAFE_INTEGER or not math.isfinite(item):
+                raise ToolInputError(yaml_scalars.NUMBER_MESSAGE)
             return
         if isinstance(item, dict):
             identity = id(item)
@@ -1266,6 +1337,7 @@ def _validate_json_tree(value: Any) -> None:
             for key, child in item.items():
                 if not isinstance(key, str):
                     raise ToolInputError("OpenAPI object keys must be strings")
+                _reject_surrogates(key)
                 node(depth + 1)
                 visit(child, depth + 1)
             active.remove(identity)
@@ -1282,6 +1354,16 @@ def _validate_json_tree(value: Any) -> None:
         raise ToolInputError(f"OpenAPI document contains unsupported {type(item).__name__} value")
 
     visit(value, 1)
+
+
+def _reject_surrogates(text: str) -> None:
+    """Reject surrogate code points, which UTF-8 and the Server readers cannot carry."""
+
+    if not text.isascii() and _SURROGATE.search(text) is not None:
+        raise ToolInputError("OpenAPI document strings must not contain surrogate code points")
+
+
+_SURROGATE = re.compile("[\ud800-\udfff]")
 
 
 def _validate_document(document: dict[str, Any], *, require_provenance: bool) -> None:
@@ -1622,7 +1704,7 @@ def _render_full_read(document: dict[str, Any]) -> str:
 def _dump_document(document: dict[str, Any]) -> bytes:
     rendered = yaml.dump(
         document,
-        Dumper=_NoAliasSafeDumper,
+        Dumper=_OpenAPIDumper,
         sort_keys=False,
         allow_unicode=True,
         default_flow_style=False,

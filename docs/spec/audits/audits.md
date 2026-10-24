@@ -1019,7 +1019,11 @@ for manual and documentary requirements, and the conditions for
 #### OpenAPI operations
 
 **AUD-R143.** `openapi-operations@1` accepts an exact OpenAPI 3.x JSON or YAML
-document, or a bounded package containing it.
+document, or a bounded package containing it. YAML reads under the scalar and
+member-name rule of scan preparation ([scanners](../tools/scanners.md),
+SCN-R124), as a YAML checklist document does, so a document means one JSON
+value to the inventory, to scan preparation and to the OpenAPI authoring
+Toolset `openapi@1`.
 
 **AUD-R144.** Local `$ref` values resolve only inside the pinned document or
 package under cycle, depth and byte bounds. The generator never performs a
