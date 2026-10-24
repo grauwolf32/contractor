@@ -58,23 +58,30 @@ func (s *Service) Preparation(ctx context.Context, ownerID, auditID string) (map
 	return result, nil
 }
 
-// ListPage reads one page of Audits and the preparation of the listed
-// Audits that prepared selects from one commit (ASC-R150), so a concurrent
-// mutation or purge never fails the page. The preparation maps every
-// selected Audit to the same roles Preparation returns for it at that
-// commit.
+// ListPage reads one page of Audits and the preparation of its preparing and
+// inventory Audits from one commit (ASC-R150), so a concurrent mutation or
+// purge never fails the page. After that read it projects the preparation of
+// the listed Audits that prepared selects, each with the same roles
+// Preparation returns for it at that commit; prepared may select only
+// preparing or inventory Audits and runs outside the store transaction.
 func (s *Service) ListPage(
 	ctx context.Context, params auditstore.ListParams, prepared func(auditstore.Audit) bool,
 ) ([]auditstore.Audit, map[string]map[string]PreparationRoleProjection, error) {
-	audits, stored, err := s.reads().ListPreparedPage(ctx, params, prepared)
+	if prepared == nil {
+		return nil, nil, errors.New("an Audit preparation selection is required")
+	}
+	audits, stored, err := s.reads().ListPreparedPage(ctx, params)
 	if err != nil {
 		return nil, nil, err
 	}
 	result := make(map[string]map[string]PreparationRoleProjection, len(stored))
 	for _, audit := range audits {
-		listed, selected := stored[audit.AuditID]
-		if !selected {
+		if !prepared(audit) {
 			continue
+		}
+		listed, hydrated := stored[audit.AuditID]
+		if !hydrated {
+			return nil, nil, errors.New("the Audit preparation selection exceeds the phases that show preparation")
 		}
 		roles := make(map[string]PreparationRoleProjection, len(listed))
 		for _, role := range listed {

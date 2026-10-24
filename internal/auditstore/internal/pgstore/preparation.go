@@ -49,23 +49,22 @@ func (s *QueryStore) ListPreparationRoles(ctx context.Context, auditID string) (
 }
 
 // ListPreparedPage reads one page of Audits, as List does, and the
-// preparation of the listed Audits that prepared selects (ASC-R150). A
+// preparation of the listed Audits whose phase shows it (ASC-R150). A
 // pool-backed store reads both in one read-only REPEATABLE READ transaction,
 // so the page shows every Audit, and its preparation, as of one commit: a
 // concurrent mutation or purge is in neither read or, if it committed first,
 // in both. A transaction-backed store reads them in the caller's transaction,
 // whose isolation level the caller owns (PER-R18). It issues the list
-// statement and, only when prepared selects a listed Audit, one preparation
-// statement, whatever the number of selected Audits. The preparation maps
-// each selected Audit to its pinned prepare roles in role order, each with
+// statement and, only when a listed Audit is preparing or inventory, one
+// preparation statement, whatever the number of such Audits. Between the two
+// it only checks each scanned phase: profiles are decoded after the
+// transaction, so it is not held open for per-Audit work. The preparation
+// maps each such Audit to its pinned prepare roles in role order, each with
 // only its latest attempt; an Audit pins at most
 // auditprofile.MaxAuditProfileWorkflows roles.
 func (s *QueryStore) ListPreparedPage(
-	ctx context.Context, params auditstore.ListParams, prepared func(auditstore.Audit) bool,
+	ctx context.Context, params auditstore.ListParams,
 ) ([]auditstore.Audit, map[string][]auditstore.ListedPreparationRole, error) {
-	if prepared == nil {
-		return nil, nil, invalidf("Audit preparation selection is required")
-	}
 	if err := validateList(params); err != nil {
 		return nil, nil, err
 	}
@@ -79,7 +78,7 @@ func (s *QueryStore) ListPreparedPage(
 		}
 		selected := make([]string, 0, len(audits))
 		for _, audit := range audits {
-			if prepared(audit) {
+			if audit.Phase.ShowsPreparation() {
 				selected = append(selected, audit.AuditID)
 			}
 		}

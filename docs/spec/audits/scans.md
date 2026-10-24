@@ -368,10 +368,14 @@ live lists, not revision-pinned snapshots, and a later request sees the
 change. The transaction issues the list statement and, only when the page
 holds such an item, one preparation statement, whatever the number of items
 (at most the page plus the row that decides whether a next page exists,
-LIM-API-18). That statement reads each item's pinned prepare roles (at most
-LIM-ASC-2), each role's attempt count and latest attempt, and the output
-descriptors of an accepted attempt (at most LIM-ASC-5); it never reads
-preparation snapshots or earlier attempts. A transaction conflict follows
+LIM-API-18). Between the two statements the transaction only checks each
+listed Audit's phase, which suffices because an Audit in either phase must
+pin a prepare role; pinned profiles are decoded and preparation projected
+after it commits, so no profile decoding holds it open. The preparation
+statement reads each item's pinned prepare roles (at most LIM-ASC-2), each
+role's attempt count and latest attempt, and the output descriptors of an
+accepted attempt (at most LIM-ASC-5); it never reads preparation snapshots or
+earlier attempts. A transaction conflict follows
 the store's transaction retry and then returns the retryable `503`
 `storage_transaction_conflict`; other storage failures keep their own class.
 Neither phase has `generatedInventory` (ASC-R146), so the lists read no

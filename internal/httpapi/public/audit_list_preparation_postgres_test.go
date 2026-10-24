@@ -33,6 +33,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/findingintake"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -615,6 +616,43 @@ func TestSharedPostgresAuditListsHydratePreparationInFixedStatements(t *testing.
 		}
 		if _, drafts, draftStatements := list(t, "", "state=draft"); len(drafts.Items) != 1 || draftStatements != 3 {
 			t.Fatalf("a page without preparing Audits took %d statements for %d items", draftStatements, len(drafts.Items))
+		}
+	})
+
+	t.Run("selection runs after the snapshot commits", func(t *testing.T) {
+		calls, callsAtCommit := 0, -1
+		prepared := func(audit auditstore.Audit) bool {
+			calls++
+			return auditListHydratesPreparation(audit)
+		}
+		trace.mu.Lock()
+		trace.marker, trace.interleaved = "commit", false
+		trace.interleave = func(*pgx.Conn) error {
+			callsAtCommit = calls
+			return nil
+		}
+		trace.mu.Unlock()
+		trace.take()
+		audits, preparation, err := service.ListPage(ctx, auditstore.ListParams{OwnerID: owner, VisibleProjects: true,
+			Limit: pagelimit.FetchRows(pagelimit.MaxRows)}, prepared)
+		statements := trace.take()
+		if err != nil || !trace.interleaved || trace.err != nil {
+			t.Fatalf("full fetch = %v; commit seen=%t err=%v", err, trace.interleaved, trace.err)
+		}
+		// The selection, which decodes every pinned profile, runs only once
+		// the transaction has committed, never between its statements.
+		if callsAtCommit != 0 || calls != len(audits) || len(audits) != pagelimit.MaxFetchRows ||
+			len(preparation) != len(audits) || statements != 4 {
+			t.Fatalf("selection ran %d times before COMMIT and %d in all for %d Audits, %d preparations, %d statements",
+				callsAtCommit, calls, len(audits), len(preparation), statements)
+		}
+		// The selection may pick only Audits whose phase shows preparation.
+		drafts := auditstore.ListParams{OwnerID: owner, VisibleProjects: true, States: []auditstore.AuditState{auditstore.AuditDraft}, Limit: 2}
+		if _, _, err := service.ListPage(ctx, drafts, func(auditstore.Audit) bool { return true }); err == nil {
+			t.Fatal("a selection beyond the preparing and inventory phases was accepted")
+		}
+		if _, _, err := service.ListPage(ctx, drafts, nil); err == nil {
+			t.Fatal("a page without a selection was accepted")
 		}
 	})
 
