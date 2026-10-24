@@ -9,11 +9,18 @@ project:
 
 execution_policy:
   current_delivery_focus: >-
-    User clarification on 2026-10-21: finish the accepted A overview and B
-    endpoint-detail design through V62-010, V62-011 and V62-012 first, then
-    implement target-cookie persistence (V377-001). This is delivery order, not an additional
-    technical dependency. Remaining V64 integration is deferred until an
-    explicit user decision supported by representative audit evidence.
+    User direction on 2026-10-24: deliver V410 to V414 in parallel lanes and
+    merge each finished task into main. Sitemap lane: V410-010, then V410-001,
+    V410-002, V410-003/004/005, V410-006, V410-007 and V410-008; V413-001 starts
+    after V410-010 lands. Pentest lane: V414-015 before V411-001, then V411-002
+    up to V411-009, V411-013 and V411-014; V411-012 and everything after it wait
+    for the deferred V62-005, V62-006 and V62-007, which only the user can
+    reactivate. The V414 follow-ups run in groups that share code (secrets and
+    telemetry; Evals; Planner session and store error classes; SQL read bounds;
+    OpenAPI rules and byte bounds; Audit read model; Server lifecycle; Runtime;
+    finding fence) and close through V414-027. This is delivery order, not an
+    additional technical dependency. Remaining V64 integration is deferred until
+    an explicit user decision supported by representative audit evidence.
   task_files_are_self_contained: true
   task_statuses:
     pending: Not yet taken into development.

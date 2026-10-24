@@ -6,7 +6,7 @@ epic: operations
 kind: defect
 introduced_by: V32-005
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, sql]
 goal: >-

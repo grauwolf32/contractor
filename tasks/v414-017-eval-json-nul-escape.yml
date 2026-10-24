@@ -6,7 +6,7 @@ epic: evals
 kind: defect
 introduced_by: V38-006
 priority: P1
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, sql]
 goal: >-
