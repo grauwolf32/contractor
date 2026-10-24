@@ -6,7 +6,7 @@ epic: quality
 kind: defect
 introduced_by: V414-028
 priority: P1
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: >-

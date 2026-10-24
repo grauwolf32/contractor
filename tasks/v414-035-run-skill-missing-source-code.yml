@@ -6,7 +6,7 @@ epic: agent-skills
 kind: defect
 introduced_by: V10-003
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: >-

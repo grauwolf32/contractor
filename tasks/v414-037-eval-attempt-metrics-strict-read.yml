@@ -5,7 +5,7 @@ milestone: review-v407-v409-followups-2026-10
 epic: evals
 kind: chore
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: >-
