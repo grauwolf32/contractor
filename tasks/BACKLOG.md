@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-132 open tasks: 21 in progress, 86 pending, 25 deferred. 1066 finished: 1056 completed, 10 archived.
+132 open tasks: 23 in progress, 84 pending, 25 deferred. 1066 finished: 1056 completed, 10 archived.
 
 ## In progress
 
@@ -16,11 +16,13 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V410-010](v410-010-artifact-history-retention.yml) | projects-artifacts | feature | P1 | Apply automatic bounded history retention to every logical Artifact |
 | [V414-002](v414-002-eval-token-budget-overflow.yml) | evals | defect | P2 | Keep the Eval token budget and stage token summaries defined when token counters exceed int64 |
+| [V414-005](v414-005-source-archive-matching-off-loop.yml) | workspaces | defect | P2 | Match and sort source-archive list and search paths off the event loop |
 | [V414-006](v414-006-planner-session-write-outcomes.yml) | planner-worker | defect | P2 | Report one Planner outcome when the session write after a result fails |
 | [V414-007](v414-007-planner-session-state-limit.yml) | planner-worker | chore | P3 | Register the 2 MiB Planner session state bound and the other unregistered stored-size CHECKs |
 | [V414-008](v414-008-stored-size-check-classification.yml) | persistence | defect | P2 | Classify stored-size CHECK rejections as invalid input at every store writer |
 | [V414-011](v414-011-secret-holders-all-verbs.yml) | operations | defect | P1 | Redact every Go secret holder for every fmt verb, slog and unexported-field nesting |
 | [V414-012](v414-012-classify-closed-connection.yml) | persistence | defect | P2 | Classify a closed PostgreSQL connection, including a lost COMMIT reply, as unavailable |
+| [V414-013](v414-013-adk-callable-cache-release.yml) | planner-worker | defect | P2 | Stop ADK's module-level callable caches from keeping a released allocation's tools alive |
 | [V414-015](v414-015-credential-token-field-grammar.yml) | api-contracts | defect | P2 | Accept only sendable HTTP field values as Project target and infrastructure credential tokens |
 | [V414-016](v414-016-otlp-transport-family.yml) | operations | defect | P2 | Retry OTLP batches after TLS and OS transport failures |
 | [V414-017](v414-017-eval-json-nul-escape.yml) | evals | defect | P1 | Reject the NUL escape in Eval JSON so stored documents never break jsonb reads |
@@ -52,7 +54,6 @@ the epics are in [epics.yml](epics.yml).
 | [V371-004](v371-004-worker-completion-exact-integers.yml) | defect | P3 | — | Bound WorkerCompletion integers to the range A2A carries exactly |
 | [V371-005](v371-005-worker-state-read-cost-guard.yml) | chore | P3 | — | Guard the Worker State read cost with a deterministic bound, make its benchmark runnable and re-measure it |
 | [V371-006](v371-006-workspace-observation-descriptor.yml) | chore | P3 | — | Take the Worker tools that observe the workspace from the shared Toolset descriptor |
-| [V414-013](v414-013-adk-callable-cache-release.yml) | defect | P2 | — | Stop ADK's module-level callable caches from keeping a released allocation's tools alive |
 
 ### Runtime labels, configuration and credentials (`runtime-config`)
 
@@ -60,12 +61,6 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V372-006](v372-006-runtime-label-set-rule.yml) | chore | P3 | — | Give the Runtime label set rule one Go definition and hold the UI and the Runtime to it |
 | [V411-001](v411-001-target-credential-revisions.yml) | feature | P1 | — | Pin immutable target credential revisions in the existing encrypted store |
-
-### Run workspaces and project filesystem (`workspaces`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V414-005](v414-005-source-archive-matching-off-loop.yml) | defect | P2 | — | Match and sort source-archive list and search paths off the event loop |
 
 ### HTTP and Caido tools (`http-tools`)
 

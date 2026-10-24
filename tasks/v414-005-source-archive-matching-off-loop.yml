@@ -6,7 +6,7 @@ epic: workspaces
 kind: defect
 introduced_by: V2-002
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [python]
 goal: >-
