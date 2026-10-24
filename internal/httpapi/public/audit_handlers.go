@@ -137,18 +137,17 @@ func (h *auditHandlers) createAudit(w http.ResponseWriter, r *http.Request) {
 		handleError(w, err)
 		return
 	}
-	mediaType, err := requestMediaType(r)
-	if err != nil || mediaType != "application/json" {
-		handleError(w, errInvalidRequest)
-		return
-	}
-	var request createAuditRequest
-	if err := decodeJSON(w, r, &request); err != nil {
+	if err := requireJSONMediaType(r); err != nil {
 		handleError(w, err)
 		return
 	}
 	key, err := requireIdempotencyKey(r)
 	if err != nil {
+		handleError(w, err)
+		return
+	}
+	var request createAuditRequest
+	if err := decodeJSON(w, r, &request); err != nil {
 		handleError(w, err)
 		return
 	}
@@ -307,21 +306,16 @@ func (h *auditHandlers) startAudit(w http.ResponseWriter, r *http.Request) {
 		handleError(w, err)
 		return
 	}
+	if err := requireOptionalJSONMediaType(r); err != nil {
+		handleError(w, err)
+		return
+	}
+	key, revision, err := auditMutationHeaders(r)
+	if err != nil {
+		handleError(w, err)
+		return
+	}
 	seconds, err := readAuditTimeLimit(w, r)
-	if err != nil {
-		handleError(w, err)
-		return
-	}
-	key, err := requireIdempotencyKey(r)
-	if err != nil {
-		handleError(w, err)
-		return
-	}
-	if len(r.Header.Values("If-None-Match")) != 0 || len(r.Header.Values("If-Match")) != 1 {
-		handleError(w, fmt.Errorf("%w: Audit start requires one If-Match", errInvalidRequest))
-		return
-	}
-	revision, err := parseRuntimeRevisionETag(r.Header.Values("If-Match")[0])
 	if err != nil {
 		handleError(w, err)
 		return
@@ -383,27 +377,23 @@ func (h *auditHandlers) mutateAudit(w http.ResponseWriter, r *http.Request, acti
 		handleError(w, err)
 		return
 	}
+	if action == "resume" {
+		if err := requireOptionalJSONMediaType(r); err != nil {
+			handleError(w, err)
+			return
+		}
+	}
+	key, revision, err := auditMutationHeaders(r)
+	if err != nil {
+		handleError(w, err)
+		return
+	}
 	var seconds *int
-	var err error
 	if action == "resume" {
 		seconds, err = readAuditTimeLimit(w, r)
 	} else {
 		err = requireEmptyBody(w, r)
 	}
-	if err != nil {
-		handleError(w, err)
-		return
-	}
-	key, err := requireIdempotencyKey(r)
-	if err != nil {
-		handleError(w, err)
-		return
-	}
-	if len(r.Header.Values("If-None-Match")) != 0 || len(r.Header.Values("If-Match")) != 1 {
-		handleError(w, fmt.Errorf("%w: Audit mutation requires one If-Match", errInvalidRequest))
-		return
-	}
-	revision, err := parseRuntimeRevisionETag(r.Header.Values("If-Match")[0])
 	if err != nil {
 		handleError(w, err)
 		return

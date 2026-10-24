@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-90 open tasks: 4 in progress, 61 pending, 25 deferred. 1028 finished: 1024 completed, 4 archived.
+89 open tasks: 4 in progress, 60 pending, 25 deferred. 1029 finished: 1025 completed, 4 archived.
 
 ## In progress
 
@@ -114,7 +114,6 @@ the epics are in [epics.yml](epics.yml).
 | [V372-020](v372-020-error-code-vocabularies.yml) | chore | P3 | — | Hold every vocabulary that carries error code names to the registry |
 | [V372-025](v372-025-typed-openapi-enums.yml) | chore | P3 | — | Give every enum of the public OpenAPI document a type |
 | [V372-026](v372-026-request-digests-in-services.yml) | chore | P3 | — | Move the Project, Audit and review request digests out of the public handlers |
-| [V407-023](v407-023-mutation-handler-preamble.yml) | defect | P3 | — | Classify aborted RuntimeConfig bodies and reject invalid mutation metadata before expensive work |
 
 ### PostgreSQL persistence and schema (`persistence`)
 
@@ -142,7 +141,7 @@ the epics are in [epics.yml](epics.yml).
 | [V372-029](v372-029-shared-fixture-gate-scope.yml) | chore | P3 | — | Extend the shared fixture gate to every cross-language fixture and keep slow store suites out of it |
 | [V372-030](v372-030-shrink-test-only-export-baseline.yml) | chore | P3 | — | Resolve the exported identifiers that only tests use and empty the test-only export baseline |
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | chore | P3 | — | Find out why about a hundred Runtime tests fail on a macOS host and make each one pass or declare its platform |
-| [V407-039](v407-039-close-server-runtime-review.yml) | chore | P3 | V407-002, V407-012, V407-013, V407-020, V407-023 | Close the validated Server and Runtime review with explicit dispositions and verification |
+| [V407-039](v407-039-close-server-runtime-review.yml) | chore | P3 | V407-002, V407-012, V407-013, V407-020 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V408-001](v408-001-gate-duration-baseline.yml) | chore | P2 | — | Record the baseline duration of every release stage and local test target |
 | [V408-004](v408-004-e2e-build-once.yml) | chore | P2 | V408-001 | Build the Server binary and the test PKI once per e2e package and right-size per-test budgets |
 | [V408-005](v408-005-family-guard-gaps.yml) | chore | P2 | — | Close the family-target guard gaps and run the Runtime suite once with warnings as errors |
@@ -188,7 +187,7 @@ tasks in `introduced_by`.
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 5 | 41 | 51 | 18 | 73 |
 | Planners and the Worker model boundary (`planner-worker`) | 4 | 27 | 40 | 16 | 58 |
-| Runtime labels, configuration and credentials (`runtime-config`) | 10 | 25 | 13 | 4 | 40 |
+| Runtime labels, configuration and credentials (`runtime-config`) | 10 | 25 | 13 | 4 | 41 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 2 | 12 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 2 | 1 | 1 |
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 12 | 5 | 16 |
@@ -203,6 +202,6 @@ tasks in `introduced_by`.
 | Podman sandbox (`sandbox`) | 0 | 9 | 2 | 1 | 3 |
 | Web UI (`ui`) | 3 | 24 | 58 | 12 | 53 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 16 | 33 | 6 | 10 |
-| Public API and wire contracts (`api-contracts`) | 5 | 1 | 34 | 20 | 11 |
+| Public API and wire contracts (`api-contracts`) | 4 | 1 | 34 | 20 | 10 |
 | PostgreSQL persistence and schema (`persistence`) | 9 | 0 | 21 | 41 | 9 |
 | Quality, CI and process (`quality`) | 17 | 1 | 21 | 87 | 21 |

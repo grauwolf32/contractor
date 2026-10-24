@@ -133,9 +133,8 @@ func (h *findingHandlers) importAuditFindingProposal(w http.ResponseWriter, r *h
 		handleError(w, err)
 		return
 	}
-	mediaType, err := requestMediaType(r)
-	if err != nil || mediaType != "application/json" {
-		handleError(w, errInvalidRequest)
+	if err := requireJSONMediaType(r); err != nil {
+		handleError(w, err)
 		return
 	}
 	var request importFindingProposalRequest

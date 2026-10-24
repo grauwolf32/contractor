@@ -29,18 +29,17 @@ func (h *scanSweepHandlers) create(w http.ResponseWriter, r *http.Request) {
 		handleError(w, err)
 		return
 	}
-	media, err := requestMediaType(r)
-	if err != nil || media != "application/json" {
-		handleError(w, errInvalidRequest)
-		return
-	}
-	var request scanservice.Request
-	if err := decodeJSON(w, r, &request); err != nil {
+	if err := requireJSONMediaType(r); err != nil {
 		handleError(w, err)
 		return
 	}
 	key, err := requireIdempotencyKey(r)
 	if err != nil {
+		handleError(w, err)
+		return
+	}
+	var request scanservice.Request
+	if err := decodeJSON(w, r, &request); err != nil {
 		handleError(w, err)
 		return
 	}

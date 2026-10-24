@@ -50,18 +50,17 @@ func (h *projectHandlers) createProject(w http.ResponseWriter, r *http.Request) 
 		handleError(w, err)
 		return
 	}
-	mediaType, err := requestMediaType(r)
-	if err != nil || mediaType != "application/json" {
-		handleError(w, errInvalidRequest)
-		return
-	}
-	var request createProjectRequest
-	if err := decodeJSON(w, r, &request); err != nil {
+	if err := requireJSONMediaType(r); err != nil {
 		handleError(w, err)
 		return
 	}
 	key, err := requireIdempotencyKey(r)
 	if err != nil {
+		handleError(w, err)
+		return
+	}
+	var request createProjectRequest
+	if err := decodeJSON(w, r, &request); err != nil {
 		handleError(w, err)
 		return
 	}
@@ -167,16 +166,11 @@ func (h *projectHandlers) updateProject(w http.ResponseWriter, r *http.Request) 
 		handleError(w, err)
 		return
 	}
-	mediaType, err := requestMediaType(r)
-	if err != nil || mediaType != "application/json" {
-		handleError(w, errInvalidRequest)
+	if err := requireJSONMediaType(r); err != nil {
+		handleError(w, err)
 		return
 	}
-	if len(r.Header.Values("If-None-Match")) != 0 || len(r.Header.Values("If-Match")) != 1 {
-		handleError(w, fmt.Errorf("%w: Project update requires one If-Match", errInvalidRequest))
-		return
-	}
-	revision, err := parseRuntimeRevisionETag(r.Header.Values("If-Match")[0])
+	revision, err := requiredRevision(r, "Project update")
 	if err != nil {
 		handleError(w, err)
 		return
@@ -244,11 +238,7 @@ func (h *projectHandlers) deleteProject(w http.ResponseWriter, r *http.Request) 
 		handleError(w, errInvalidRequest)
 		return
 	}
-	if len(r.Header.Values("If-None-Match")) != 0 || len(r.Header.Values("If-Match")) != 1 {
-		handleError(w, fmt.Errorf("%w: Project deletion requires one If-Match", errInvalidRequest))
-		return
-	}
-	revision, err := parseRuntimeRevisionETag(r.Header.Values("If-Match")[0])
+	revision, err := requiredRevision(r, "Project deletion")
 	if err != nil {
 		handleError(w, err)
 		return

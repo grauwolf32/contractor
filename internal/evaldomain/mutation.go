@@ -2,9 +2,9 @@ package evaldomain
 
 import (
 	"encoding/json"
-	"strconv"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 )
 
 // MutationIdentity is persisted with a command. It is intentionally separate
@@ -15,25 +15,35 @@ type MutationIdentity struct {
 	ExpectedRevision *uint64 `json:"expectedRevision"`
 }
 
-// IdentifyMutation binds a Managed Eval mutation to its key, which must be in
-// the public Idempotency-Key grammar, its precondition and its exact body.
-func IdentifyMutation(key, ifMatch string, requireRevision bool, kind string, body []byte) (MutationIdentity, error) {
+// MutationPrecondition checks the headers of a Managed Eval mutation: its
+// key, which must be in the public Idempotency-Key grammar, and its If-Match,
+// which a state transition requires and which is read by the one counter
+// precondition reader of the public API (httpx.ParseRevisionETag). It returns
+// the expected revision, if any. It needs no body, so the API checks it
+// before reading one.
+func MutationPrecondition(key, ifMatch string, requireRevision bool) (*uint64, error) {
 	if !contracts.ValidIdempotencyKey(key) {
-		return MutationIdentity{}, Failure("eval_invalid")
+		return nil, Failure("eval_invalid")
 	}
-	var revision *uint64
-	if ifMatch == "" && requireRevision {
-		return MutationIdentity{}, Failure("eval_precondition_required")
+	if ifMatch == "" {
+		if requireRevision {
+			return nil, Failure("eval_precondition_required")
+		}
+		return nil, nil
 	}
-	if ifMatch != "" {
-		if len(ifMatch) < 3 || ifMatch[0] != '"' || ifMatch[len(ifMatch)-1] != '"' {
-			return MutationIdentity{}, Failure("eval_invalid")
-		}
-		n, err := strconv.ParseUint(ifMatch[1:len(ifMatch)-1], 10, 64)
-		if err != nil || n == 0 {
-			return MutationIdentity{}, Failure("eval_invalid")
-		}
-		revision = &n
+	revision, err := httpx.ParseRevisionETag(ifMatch)
+	if err != nil {
+		return nil, Failure("eval_invalid")
+	}
+	return &revision, nil
+}
+
+// IdentifyMutation binds a Managed Eval mutation to its key and precondition
+// (MutationPrecondition) and its exact body.
+func IdentifyMutation(key, ifMatch string, requireRevision bool, kind string, body []byte) (MutationIdentity, error) {
+	revision, err := MutationPrecondition(key, ifMatch, requireRevision)
+	if err != nil {
+		return MutationIdentity{}, err
 	}
 	if err := Validate(kind, body); err != nil {
 		return MutationIdentity{}, err

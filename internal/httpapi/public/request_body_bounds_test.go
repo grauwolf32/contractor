@@ -3,6 +3,7 @@ package public
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"sort"
@@ -152,10 +153,32 @@ func TestPublicRequestBodyBoundsMatchHandlers(t *testing.T) {
 	}
 }
 
+// takesJSON reports whether the probe's operation takes a JSON request body;
+// the other bodies are Artifact payloads of any media type.
+func (p boundProbe) takesJSON() bool {
+	if p.operation.RequestBody == nil {
+		return false
+	}
+	_, isJSON := p.operation.RequestBody.Value.Content["application/json"]
+	return isJSON
+}
+
 // sendBoundProbe sends size bytes of JSON whitespace after {} (or of Artifact
 // content) with the headers the operation requires, so the handler reaches
 // its body read.
 func sendBoundProbe(t *testing.T, handler http.Handler, probe boundProbe, size int64) (*httptest.ResponseRecorder, errorResponse) {
+	t.Helper()
+	body := bytes.Repeat([]byte(" "), int(size))
+	if probe.takesJSON() {
+		copy(body, "{}")
+	}
+	return serveProbe(handler, boundProbeRequest(t, probe, bytes.NewReader(body), size))
+}
+
+// boundProbeRequest returns a request for the probe's operation that carries
+// the headers the operation requires and body, which declares contentLength
+// bytes.
+func boundProbeRequest(t *testing.T, probe boundProbe, body io.Reader, contentLength int64) *http.Request {
 	t.Helper()
 	path := probe.path
 	for name, value := range boundProbePathValues {
@@ -164,13 +187,12 @@ func sendBoundProbe(t *testing.T, handler http.Handler, probe boundProbe, size i
 	if strings.Contains(path, "{") {
 		t.Fatalf("no probe value for a parameter of %s", probe.path)
 	}
-	body := bytes.Repeat([]byte(" "), int(size))
+	request := newPublicContractRequest(probe.method, path, nil)
+	request.Body, request.ContentLength = io.NopCloser(body), contentLength
 	contentType := "text/plain"
-	if _, isJSON := probe.operation.RequestBody.Value.Content["application/json"]; isJSON {
-		copy(body, "{}")
+	if probe.takesJSON() {
 		contentType = "application/json"
 	}
-	request := newPublicContractRequest(probe.method, path, body)
 	request.Header.Set("Content-Type", contentType)
 	for _, parameter := range probe.operation.Parameters {
 		if parameter.Value == nil || parameter.Value.In != openapi3.ParameterInHeader {
@@ -194,6 +216,10 @@ func sendBoundProbe(t *testing.T, handler http.Handler, probe boundProbe, size i
 		request.Header.Del("Authorization")
 		request.Header.Set("Origin", testBrowserOrigin)
 	}
+	return request
+}
+
+func serveProbe(handler http.Handler, request *http.Request) (*httptest.ResponseRecorder, errorResponse) {
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 	var failure errorResponse
