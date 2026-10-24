@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -217,5 +218,53 @@ func TestSummaryPublicationRetriesOnlyKnownTransientFailures(t *testing.T) {
 		if summaryPublicationRetryable(err) {
 			t.Fatalf("permanent error retried: %v", err)
 		}
+	}
+}
+
+// The Scheduler follows the retryability of the error a Planner returns when
+// it cannot record its outcome (PLN-R106): an unwritten summarized Worker
+// result ends the Stage without a retry, a saved summary or a continuation,
+// while an unwritten successful candidate is retried.
+func TestSchedulerUnwrittenPlannerOutcomeFollowsItsRetryability(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		summarized bool
+		retryable  bool
+	}{
+		{name: "summarized Worker result", summarized: true, retryable: false},
+		{name: "successful candidate", retryable: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			h := newSchedulerHarness(t)
+			configureSummaryWorkflow(t, &h.workflow)
+			configureRetryWorkflow(t, h, 3)
+			candidate := h.planners.result.Clone()
+			if test.summarized {
+				candidate = summarizedCandidate()
+			}
+			h.planners.runErrors = []error{planner.CompletionWriteError(
+				planner.Completion{Result: &candidate}, errors.New("database write failed"),
+			)}
+			if worked, err := h.scheduler.RunOnce(t.Context()); !worked || err != nil {
+				t.Fatalf("RunOnce = (%t, %v)", worked, err)
+			}
+			source := h.store.stages[0]
+			if source.Termination == nil || source.Termination.Code != "planner_session_unavailable" ||
+				source.Termination.Retryable != test.retryable || len(h.artifacts.summaries) != 0 ||
+				h.planners.runCalls != 1 {
+				t.Fatalf("termination = %+v, summaries = %d, Planner runs = %d",
+					source.Termination, len(h.artifacts.summaries), h.planners.runCalls)
+			}
+			if test.retryable {
+				if len(h.store.stages) != 2 || h.store.stages[1].StageContext.Continuation != nil ||
+					h.store.stages[1].ExecutionConfigVariant != runstore.StageExecutionConfigBase {
+					t.Fatalf("retryable outcome was not retried as the same Stage: %+v", h.store.stages)
+				}
+				return
+			}
+			if h.store.run.State != runstore.RunFailed || len(h.store.stages) != 1 {
+				t.Fatalf("final outcome: Run %s with %d StageExecutions", h.store.run.State, len(h.store.stages))
+			}
+		})
 	}
 }

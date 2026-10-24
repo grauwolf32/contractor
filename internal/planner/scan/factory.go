@@ -3,6 +3,7 @@ package scan
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -87,6 +88,11 @@ type execution struct {
 	factory    *Factory
 	invocation planner.Invocation
 	audit      *auditScanInputs
+}
+
+// Format redacts the execution as a whole for every verb (SEC-R88): fmt cannot call the model access token's own redaction through the unexported invocation field.
+func (execution) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "scan.execution([REDACTED])")
 }
 
 func scanError(code string, cause error) *planner.Error {

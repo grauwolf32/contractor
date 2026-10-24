@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"sync"
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -37,6 +38,12 @@ type StaticProvider struct {
 	entries map[string]StaticEntry
 }
 
+// Format redacts the provider as a whole for every verb (SEC-R88): fmt cannot
+// call the tokens' own redaction through the unexported entries field.
+func (p *StaticProvider) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "credentials.StaticProvider([REDACTED])")
+}
+
 func NewStaticProvider(entries []StaticEntry) (*StaticProvider, error) {
 	result := &StaticProvider{entries: make(map[string]StaticEntry, len(entries))}
 	for _, entry := range entries {
@@ -47,8 +54,10 @@ func NewStaticProvider(entries []StaticEntry) (*StaticProvider, error) {
 		if err := entry.Metadata.LLMGateway.ValidateRef(); err != nil {
 			return nil, fmt.Errorf("development credential Gateway ref is invalid: %w", err)
 		}
-		if entry.Token.Reveal() == "" {
-			return nil, errors.New("development credential token must not be empty")
+		// The token is the Gateway Authorization value of the Planner and of
+		// the Runtime model client, so it must be sent unchanged (RCF-R39).
+		if !contracts.ValidCredentialFieldValue(entry.Token.Reveal()) {
+			return nil, errors.New("development credential token must be a non-empty HTTP field value")
 		}
 		if _, exists := result.entries[id]; exists {
 			return nil, fmt.Errorf("duplicate development credential %q", id)

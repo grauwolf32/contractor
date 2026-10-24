@@ -26,14 +26,16 @@ import (
 
 // Config contains process-level settings needed by the bootstrap server.
 type Config struct {
-	Operations                  OperationalSettings
-	ListenAddress               string
-	PrivateListenAddress        string
-	PrivateURL                  string
-	ShutdownTimeout             time.Duration
-	RuntimeRequestTimeout       time.Duration
-	WorkerRequestTimeout        time.Duration
-	DatabaseURL                 string
+	Operations            OperationalSettings
+	ListenAddress         string
+	PrivateListenAddress  string
+	PrivateURL            string
+	ShutdownTimeout       time.Duration
+	RuntimeRequestTimeout time.Duration
+	WorkerRequestTimeout  time.Duration
+	// DatabaseURL may carry the database password, so it is held as a
+	// self-redacting SecretString (SEC-R88).
+	DatabaseURL                 contracts.SecretString
 	ArtifactBlobBackend         artifacts.BlobBackend
 	ArtifactBlobPath            string
 	ArtifactBlobInlineMaxBytes  int64
@@ -98,7 +100,7 @@ func runCLI(
 	if err != nil {
 		return err
 	}
-	if strings.TrimSpace(cfg.DatabaseURL) == "" {
+	if strings.TrimSpace(cfg.DatabaseURL.Reveal()) == "" {
 		return errors.New("database URL is required")
 	}
 	if cfg.PublicBearerToken.Reveal() == "" {
@@ -128,7 +130,7 @@ func runCLI(
 		return errors.New("Planner timeout is required")
 	}
 	cfg.Operations.logEffective(logger, cfg.RuntimeRequestTimeout)
-	pool, err := persistencepostgres.OpenPool(ctx, cfg.DatabaseURL, cfg.Operations.Database.poolOptions(logger))
+	pool, err := persistencepostgres.OpenPool(ctx, cfg.DatabaseURL.Reveal(), cfg.Operations.Database.poolOptions(logger))
 	if err != nil {
 		return err
 	}

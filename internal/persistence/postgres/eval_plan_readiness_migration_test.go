@@ -57,7 +57,9 @@ SELECT $1, encode(sha256(convert_to($1||'/'||n,'UTF8')),'hex'), encode(sha256(co
 // experiment view before the migration, derives from it (the shared fixture),
 // leaves registrations without one and changes no other plan or member data.
 // Afterwards the plan row is immutable again and the readiness is required
-// exactly for native plans.
+// exactly for native plans. The rows are seeded as an older Server stored
+// them, so they include plans and setups with a NUL escape that Freeze now
+// rejects (EVF-R236); the backfill derives their fixture backfillReadiness.
 func TestSharedPostgresEvalPlanReadinessMigrationBackfillsNativePlans(t *testing.T) {
 	url := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
 	if url == "" {
@@ -73,6 +75,10 @@ func TestSharedPostgresEvalPlanReadinessMigrationBackfillsNativePlans(t *testing
 			Plan       json.RawMessage       `json:"plan"`
 			Comparison evaldomain.Comparison `json:"comparison"`
 			Readiness  json.RawMessage       `json:"readiness"`
+			ErrorCode  string                `json:"errorCode"`
+			// BackfillReadiness is the readiness of a rejected plan stored
+			// before the rule that rejects it.
+			BackfillReadiness json.RawMessage `json:"backfillReadiness"`
 		} `json:"cases"`
 	}
 	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "evals", "readiness-cases.json"), &fixtures); err != nil {
@@ -123,11 +129,19 @@ VALUES('evaluation','owner','evaluation','Evaluation','create','sha256:'||repeat
 		if err = strictjson.Decode(stored, &got); err != nil {
 			t.Fatalf("%s: backfilled readiness %s: %v", c.Name, stored, err)
 		}
-		if err = strictjson.Decode(c.Readiness, &want); err != nil {
+		expected := c.Readiness
+		plan, err := evaldomain.Freeze("playground.plan/v1", c.Plan)
+		if c.ErrorCode != "" {
+			var safe *evaldomain.Error
+			if !errors.As(err, &safe) || safe.Code != c.ErrorCode {
+				t.Fatalf("%s: Freeze = %v, want %s", c.Name, err, c.ErrorCode)
+			}
+			expected, plan, err = c.BackfillReadiness, evaldomain.Restore("playground.plan/v1", c.Plan, ""), nil
+		}
+		if err != nil {
 			t.Fatal(err)
 		}
-		plan, err := evaldomain.Freeze("playground.plan/v1", c.Plan)
-		if err != nil {
+		if err = strictjson.Decode(expected, &want); err != nil {
 			t.Fatal(err)
 		}
 		derived, err := evaldomain.NativeReadiness(plan, c.Comparison)

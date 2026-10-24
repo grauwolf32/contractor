@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -18,6 +21,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
+	"github.com/grauwolf32/contractor/internal/secretmatch"
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	resourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
@@ -112,7 +116,27 @@ type otlpHTTPPlannerTelemetry struct {
 	closed            bool
 }
 
+// The exporter redacts itself as a whole for every fmt verb, for log/slog and
+// for JSON (SEC-R88): fmt cannot call the header values' own redaction through
+// the unexported headers field, and secretValues holds them in plain text. It
+// holds mutexes, so the methods use the pointer.
+func (o *otlpHTTPPlannerTelemetry) String() string {
+	return "telemetry.otlpHTTPPlannerTelemetry([REDACTED])"
+}
+func (o *otlpHTTPPlannerTelemetry) GoString() string { return o.String() }
+func (o *otlpHTTPPlannerTelemetry) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, o.String())
+}
+func (o *otlpHTTPPlannerTelemetry) LogValue() slog.Value         { return slog.StringValue(o.String()) }
+func (o *otlpHTTPPlannerTelemetry) MarshalJSON() ([]byte, error) { return json.Marshal(o.String()) }
+
 type otlpPlannerInstrumentation struct{ owner *otlpHTTPPlannerTelemetry }
+
+// Format redacts the instrumentation as a whole for every verb (SEC-R88):
+// through the unexported owner field fmt would print the OTLP header values.
+func (otlpPlannerInstrumentation) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "telemetry.otlpPlannerInstrumentation([REDACTED])")
+}
 
 type otlpPlannerSpan struct {
 	owner      *otlpHTTPPlannerTelemetry
@@ -123,6 +147,11 @@ type otlpPlannerSpan struct {
 	contentMu  sync.Mutex
 	content    map[string]string
 	ended      bool
+}
+
+// Format redacts the span as a whole for every verb (SEC-R88): through the unexported owner field fmt would print the OTLP header values.
+func (o *otlpPlannerSpan) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "telemetry.otlpPlannerSpan([REDACTED])")
 }
 
 func (s *otlpPlannerSpan) capturesContent() bool { return s.owner.captureContent }
@@ -464,10 +493,8 @@ func safePlannerString(value string, secrets []string) string {
 	if value == "" || !utf8.ValidString(value) || !safePlannerIdentifier.MatchString(value) {
 		return ""
 	}
-	for _, secret := range secrets {
-		if secret != "" && strings.Contains(value, secret) {
-			return ""
-		}
+	if secretmatch.Contains(value, secrets) {
+		return ""
 	}
 	if len(value) <= maxPlannerAttributeBytes {
 		return value
@@ -488,14 +515,7 @@ func plannerRunMetadataLabelAttributes(
 		if runlabels.ValidateRunMetadataLabel(key, value) != nil {
 			continue
 		}
-		secret := false
-		for _, candidate := range secrets {
-			if candidate != "" && strings.Contains(value, candidate) {
-				secret = true
-				break
-			}
-		}
-		if !secret {
+		if !secretmatch.Contains(value, secrets) {
 			result["contractor.run.label."+key] = value
 		}
 	}

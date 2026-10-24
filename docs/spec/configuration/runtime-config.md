@@ -393,9 +393,11 @@ credential ID, one exact digest-bearing LLMGatewayConfig ref, an optional safe
 label and the typed Gateway policy of RCF-R63.
 
 **RCF-R39.** The Gateway manager must return a secret token of 1 through 16,384
-UTF-8 bytes (LIM-RCF-3) and a bounded stable non-secret remote key identifier.
-Server performs no trimming and rejects a missing, malformed or oversized
-response (FAIL-RCF-1).
+UTF-8 bytes (LIM-RCF-3) that is a credential field value (RCF-R114) and a
+bounded stable non-secret remote key identifier. Server performs no trimming
+and rejects a missing, malformed or oversized response (FAIL-RCF-1). A
+development Gateway token configured at startup follows the same field-value
+rule, and startup refuses one that does not.
 
 **RCF-R40.** Server encrypts the exact token bytes with AES-256-GCM using a
 fresh 96-bit cryptographically random nonce. The canonical schema version,
@@ -908,11 +910,26 @@ at most 32 KiB (LIM-RCF-18).
 **RCF-R113.** `otlp-headers@1` contains 1–32 unique RFC 9110 field names
 (LIM-RCF-19), each at most 64 ASCII bytes (LIM-RCF-20), with values from 1
 through 4,096 bytes (LIM-RCF-21) and at most 16 KiB in total (LIM-RCF-22). It
-rejects `host`, `content-length`, `connection`, `transfer-encoding`, `upgrade`,
-proxy-routing headers and CR/LF.
+rejects `host`, `content-length`, `connection`, `transfer-encoding`, `upgrade`
+and proxy-routing headers. Each value is a credential field value (RCF-R114).
 
 **RCF-R114.** A Basic-auth username is 1–256 UTF-8 bytes and its password is
 1–8,192 bytes (LIM-RCF-23); a bearer token is 1–8,192 bytes (LIM-RCF-24).
+A bearer or Interactsh token, an `otlp-headers@1` value and an LLM credential
+token (RCF-R39) are credential field values: one or more visible ASCII
+characters (0x21–0x7E) with runs of space or tab only between them. Every
+sender transmits such a value unchanged as one HTTP/1.1 field value: it is
+within what the Runtime's request serializer sends (HTP-R33 in [HTTP and Caido
+tools](../tools/http-caido.md)), and the Server's own clients neither reject
+it as a control character nor trim it. Creation rejects any other value as
+invalid input, the Server refuses stored material outside the rule as a
+decryption failure (FAIL-RCF-3), and RuntimeSettings validation on both sides
+rejects it (RCF-R164). A Basic-auth username and password are base64-encoded
+before sending, so creation holds them only to their byte bounds, valid UTF-8
+without control characters and a username without a colon. The Server, the
+Runtime, the private schema and the public API are held to the credential
+field-value rule by
+[`credential-field-value-cases.json`](../../../api/testdata/v1alpha1/credential-field-value-cases.json).
 
 **RCF-R115.** Runtime-credential read projections expose only the credential
 ID, kind and creation metadata.
@@ -1238,8 +1255,9 @@ received (LIFE-RCF-6).
 without sending a RuntimeConfig document.
 
 **RCF-R164.** Unknown fields, duplicate JSON keys, an unrecognized exact
-adapter ref, multiple proxy credential variants or any secret in provenance
-fail closed before adapter or workspace construction (FAIL-RCF-10).
+adapter ref, multiple proxy credential variants, a token or header value that
+is not a credential field value (RCF-R114) or any secret in provenance fail
+closed before adapter or workspace construction (FAIL-RCF-10).
 
 **RCF-R165.** Go and Python fixtures must round-trip the same canonical
 RuntimeSettings examples and prove that object formatting and logging redact

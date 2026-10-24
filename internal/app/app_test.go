@@ -432,7 +432,7 @@ func TestParseConfig(t *testing.T) {
 	if cfg.WorkerRequestTimeout != 180*time.Second {
 		t.Fatalf("worker request timeout = %s", cfg.WorkerRequestTimeout)
 	}
-	if cfg.DatabaseURL != "postgres://contractor:secret@database/contractor" {
+	if cfg.DatabaseURL.Reveal() != "postgres://contractor:secret@database/contractor" {
 		t.Fatalf("database URL was not read from the shared environment setting")
 	}
 	if cfg.PublicBearerToken.Reveal() != "private-token" || cfg.LocalAuthFile != "/run/secrets/local-auth.yaml" ||

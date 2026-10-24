@@ -2,6 +2,8 @@ package events
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -28,6 +30,12 @@ type socket struct {
 	subs  map[string]*subscription
 	subWG sync.WaitGroup
 	ioWG  sync.WaitGroup
+}
+
+// Format redacts the socket as a whole for every verb (SEC-R88): fmt cannot
+// call the session's own redaction through the unexported session field.
+func (s *socket) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "events.socket([REDACTED])")
 }
 
 type subscription struct {

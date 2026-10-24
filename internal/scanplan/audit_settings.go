@@ -3,6 +3,8 @@ package scanplan
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"io"
 	"iter"
 	"maps"
 	"slices"
@@ -20,6 +22,11 @@ const AuditScanSettingsSchema = "contractor.audit.openapi-scan-settings.v1"
 // Template selection and execution budgets belong to the pinned Workflow.
 type AuditScanSettings struct {
 	document auditScanSettingsDocument
+}
+
+// Format redacts the settings as a whole for every verb (SEC-R88): fmt cannot call the authentication values' own redaction through the unexported document field.
+func (AuditScanSettings) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "scanplan.AuditScanSettings([REDACTED])")
 }
 
 type auditScanSettingsDocument struct {

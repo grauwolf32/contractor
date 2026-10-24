@@ -21,6 +21,10 @@ execution_policy:
     finding fence) and close through V414-027. This is delivery order, not an
     additional technical dependency. Remaining V64 integration is deferred until
     an explicit user decision supported by representative audit evidence.
+    Resumed on 2026-10-24 evening with every task that the deferred
+    V62-005/006/007 do not block. Each lane works on its branch claude/<lane>
+    and merges each closed task into main. claude/sitemap and claude/pentest
+    both add migration 000040, so the second to land renumbers its migration.
   task_files_are_self_contained: true
   task_statuses:
     pending: Not yet taken into development.

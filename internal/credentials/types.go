@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"math"
 	"regexp"
 	"strings"
@@ -42,22 +44,48 @@ var (
 )
 
 // Token is a bounded secret returned by a Gateway credential manager. It is
-// deliberately not JSON serializable and formats only as a redaction marker.
-// The package converts it to contracts.SecretString only at the final execution
-// resolver boundary.
+// deliberately not JSON serializable and formats and logs only as a redaction
+// marker, for every fmt verb and flag (SEC-R88). The package converts it to
+// contracts.SecretString only at the final execution resolver boundary.
 type Token struct{ value string }
 
 func NewToken(value string) (Token, error) {
-	if len(value) == 0 || len(value) > MaximumTokenBytes || !utf8.ValidString(value) {
-		return Token{}, fmt.Errorf("%w: generated token must be 1 through %d UTF-8 bytes", ErrInvalid, MaximumTokenBytes)
+	if !validTokenValue(value) {
+		return Token{}, fmt.Errorf("%w: generated token must be an HTTP field value of 1 through %d bytes", ErrInvalid, MaximumTokenBytes)
 	}
 	return Token{value: value}, nil
 }
 
+// validTokenValue reports whether an LLM credential token is within
+// MaximumTokenBytes and is sent unchanged as the Gateway Authorization value
+// by the Planner and the Runtime model client (RCF-R39).
+func validTokenValue(value string) bool {
+	return len(value) <= MaximumTokenBytes && contracts.ValidCredentialFieldValue(value)
+}
+
 func (t Token) String() string   { return "[REDACTED]" }
 func (t Token) GoString() string { return "credentials.Token([REDACTED])" }
+
+// Format writes the GoString form for %#v and the redaction marker for every
+// other verb, width and flag.
+func (t Token) Format(state fmt.State, verb rune) {
+	formatRedacted(state, verb, t.String(), t.GoString())
+}
+
+func (t Token) LogValue() slog.Value { return slog.StringValue(t.String()) }
+
 func (t Token) MarshalJSON() ([]byte, error) {
 	return nil, errors.New("credential token cannot be serialized")
+}
+
+// formatRedacted implements fmt.Formatter for a type that redacts itself as a
+// whole (SEC-R88): it writes goString for %#v and text for every other verb,
+// ignoring width and flags.
+func formatRedacted(state fmt.State, verb rune, text, goString string) {
+	if verb == 'v' && state.Flag('#') {
+		text = goString
+	}
+	_, _ = io.WriteString(state, text)
 }
 
 type GatewayPolicy struct {
@@ -171,7 +199,7 @@ type GeneratedCredential struct {
 }
 
 func (g GeneratedCredential) Validate() error {
-	if len(g.Token.value) == 0 || len(g.Token.value) > MaximumTokenBytes || !utf8.ValidString(g.Token.value) {
+	if !validTokenValue(g.Token.value) {
 		return fmt.Errorf("%w: manager returned an invalid token", ErrInvalid)
 	}
 	if strings.TrimSpace(g.RemoteKeyID) == "" || len(g.RemoteKeyID) > MaximumRemoteKeyIDBytes ||

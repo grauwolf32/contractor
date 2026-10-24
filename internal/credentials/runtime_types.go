@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"regexp"
 	"sort"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/apierror"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentialerrors"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 )
@@ -74,7 +76,7 @@ func NewOTLPHeadersCredential(headers map[string]string) (RuntimeCredentialMater
 		if _, exists := normalized[lowerName]; exists {
 			return RuntimeCredentialMaterial{}, runtimeInvalid("OTLP headers contain a case-insensitive duplicate")
 		}
-		if len(value) < 1 || len(value) > MaximumOTLPHeaderValueBytes || !utf8.ValidString(value) || !validHeaderValue(value) {
+		if !validFieldValue(value, MaximumOTLPHeaderValueBytes) {
 			return RuntimeCredentialMaterial{}, runtimeInvalid("OTLP header value is invalid")
 		}
 		totalValueBytes += len(value)
@@ -99,7 +101,7 @@ func NewHTTPProxyBasicCredential(username, password string) (RuntimeCredentialMa
 }
 
 func NewHTTPProxyBearerCredential(token string) (RuntimeCredentialMaterial, error) {
-	if !validBoundedSecret(token, MaximumRuntimeSecretBytes) {
+	if !validFieldValue(token, MaximumRuntimeSecretBytes) {
 		return RuntimeCredentialMaterial{}, runtimeInvalid("HTTP proxy bearer credential is invalid")
 	}
 	return newRuntimeCredentialMaterial(RuntimeCredentialProxyBearer, struct {
@@ -108,7 +110,7 @@ func NewHTTPProxyBearerCredential(token string) (RuntimeCredentialMaterial, erro
 }
 
 func NewCaidoBearerCredential(token string) (RuntimeCredentialMaterial, error) {
-	if !validBoundedSecret(token, MaximumRuntimeSecretBytes) {
+	if !validFieldValue(token, MaximumRuntimeSecretBytes) {
 		return RuntimeCredentialMaterial{}, runtimeInvalid("Caido bearer credential is invalid")
 	}
 	return newRuntimeCredentialMaterial(RuntimeCredentialCaidoBearer, struct {
@@ -117,7 +119,7 @@ func NewCaidoBearerCredential(token string) (RuntimeCredentialMaterial, error) {
 }
 
 func NewInteractshTokenCredential(token string) (RuntimeCredentialMaterial, error) {
-	if !validBoundedSecret(token, MaximumRuntimeSecretBytes) {
+	if !validFieldValue(token, MaximumRuntimeSecretBytes) {
 		return RuntimeCredentialMaterial{}, runtimeInvalid("Interactsh bearer credential is invalid")
 	}
 	return newRuntimeCredentialMaterial(RuntimeCredentialInteractshToken, struct {
@@ -136,7 +138,7 @@ func NewHTTPOriginBasicCredential(username, password string) (RuntimeCredentialM
 }
 
 func NewHTTPOriginBearerCredential(token string) (RuntimeCredentialMaterial, error) {
-	if !validBoundedSecret(token, MaximumRuntimeSecretBytes) {
+	if !validFieldValue(token, MaximumRuntimeSecretBytes) {
 		return RuntimeCredentialMaterial{}, runtimeInvalid("HTTP origin bearer credential is invalid")
 	}
 	return newRuntimeCredentialMaterial(RuntimeCredentialOriginBearer, struct {
@@ -146,11 +148,19 @@ func NewHTTPOriginBearerCredential(token string) (RuntimeCredentialMaterial, err
 
 func (m RuntimeCredentialMaterial) Kind() RuntimeCredentialKind { return m.kind }
 
+// RuntimeCredentialMaterial formats and logs only as a redaction marker, for
+// every fmt verb and flag, and refuses JSON encoding (SEC-R88).
 func (m RuntimeCredentialMaterial) String() string { return "[REDACTED]" }
 
 func (m RuntimeCredentialMaterial) GoString() string {
 	return "credentials.RuntimeCredentialMaterial([REDACTED])"
 }
+
+func (m RuntimeCredentialMaterial) Format(state fmt.State, verb rune) {
+	formatRedacted(state, verb, m.String(), m.GoString())
+}
+
+func (m RuntimeCredentialMaterial) LogValue() slog.Value { return slog.StringValue(m.String()) }
 
 func (m RuntimeCredentialMaterial) MarshalJSON() ([]byte, error) {
 	return nil, errors.New("Runtime credential material cannot be serialized")
@@ -198,6 +208,9 @@ func (u RuntimeCredentialUser) MayUse(metadata RuntimeCredentialMetadata) bool {
 	return u.Operations || u.UserID != "" && metadata.CreatedBy == u.UserID
 }
 
+// RuntimeCredentialRecord formats and logs as its identity and kind with the
+// envelope elided, for every fmt verb and flag, and encodes only its metadata
+// (SEC-R88).
 type RuntimeCredentialRecord struct {
 	Metadata RuntimeCredentialMetadata `json:"metadata"`
 	Envelope EncryptedEnvelope         `json:"-"`
@@ -209,6 +222,21 @@ func (r RuntimeCredentialRecord) String() string {
 
 func (r RuntimeCredentialRecord) GoString() string { return r.String() }
 
+func (r RuntimeCredentialRecord) Format(state fmt.State, verb rune) {
+	formatRedacted(state, verb, r.String(), r.GoString())
+}
+
+func (r RuntimeCredentialRecord) LogValue() slog.Value { return slog.StringValue(r.String()) }
+
+func (r RuntimeCredentialRecord) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Metadata RuntimeCredentialMetadata `json:"metadata"`
+	}{Metadata: r.Metadata})
+}
+
+// RuntimeCredentialCreation formats and logs only as a redaction marker, for
+// every fmt verb and flag, and refuses JSON encoding (SEC-R88): its request
+// MAC and idempotency digest identify the secret request.
 type RuntimeCredentialCreation struct {
 	IdempotencyKeyDigest string                `json:"-"`
 	RequestMAC           []byte                `json:"-"`
@@ -220,6 +248,10 @@ type RuntimeCredentialCreation struct {
 
 func (c RuntimeCredentialCreation) String() string   { return "RuntimeCredentialCreation([REDACTED])" }
 func (c RuntimeCredentialCreation) GoString() string { return c.String() }
+func (c RuntimeCredentialCreation) Format(state fmt.State, verb rune) {
+	formatRedacted(state, verb, c.String(), c.GoString())
+}
+func (c RuntimeCredentialCreation) LogValue() slog.Value { return slog.StringValue(c.String()) }
 func (c RuntimeCredentialCreation) MarshalJSON() ([]byte, error) {
 	return nil, errors.New("Runtime credential creation replay cannot be serialized")
 }
@@ -385,13 +417,11 @@ func validBoundedSecret(value string, maximum int) bool {
 	return true
 }
 
-func validHeaderValue(value string) bool {
-	for _, raw := range []byte(value) {
-		if raw < 0x20 && raw != '\t' || raw == 0x7f {
-			return false
-		}
-	}
-	return true
+// validFieldValue reports whether a bearer token or OTLP header value is
+// within its byte bound and is sent unchanged as an HTTP field value. Basic
+// credentials are base64-encoded before sending and keep validBoundedSecret.
+func validFieldValue(value string, maximum int) bool {
+	return len(value) <= maximum && contracts.ValidCredentialFieldValue(value)
 }
 
 func forbiddenOTLPHeader(name string) bool {

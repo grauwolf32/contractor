@@ -4044,6 +4044,7 @@ type AuthSession struct {
 
 // CaidoBearerMaterial defines model for CaidoBearerMaterial.
 type CaidoBearerMaterial struct {
+	// Token An HTTP/1.1 field value sent unchanged by every client (RCF-R114), visible ASCII characters with runs of space or tab only between them.
 	Token *string `json:"token,omitempty"`
 }
 
@@ -6069,6 +6070,7 @@ type HTTPOriginBasicMaterial struct {
 
 // HTTPOriginBearerMaterial defines model for HTTPOriginBearerMaterial.
 type HTTPOriginBearerMaterial struct {
+	// Token An HTTP/1.1 field value sent unchanged by every client (RCF-R114), visible ASCII characters with runs of space or tab only between them.
 	Token *string `json:"token,omitempty"`
 }
 
@@ -6086,6 +6088,7 @@ type HTTPProxyBasicMaterial struct {
 
 // HTTPProxyBearerMaterial defines model for HTTPProxyBearerMaterial.
 type HTTPProxyBearerMaterial struct {
+	// Token An HTTP/1.1 field value sent unchanged by every client (RCF-R114), visible ASCII characters with runs of space or tab only between them.
 	Token *string `json:"token,omitempty"`
 }
 
@@ -6112,6 +6115,7 @@ type InstructionsRef struct {
 
 // InteractshTokenMaterial defines model for InteractshTokenMaterial.
 type InteractshTokenMaterial struct {
+	// Token An HTTP/1.1 field value sent unchanged by every client (RCF-R114), visible ASCII characters with runs of space or tab only between them.
 	Token *string `json:"token,omitempty"`
 }
 

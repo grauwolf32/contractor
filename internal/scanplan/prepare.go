@@ -2,6 +2,8 @@ package scanplan
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
 	"maps"
 	"slices"
 	"sort"
@@ -23,6 +25,11 @@ type preparer struct {
 	gaps            []scan.PreparationGap
 	gapKeys         map[scan.PreparationGap]bool
 	gapExhausted    bool
+}
+
+// Format redacts the preparer as a whole for every verb (SEC-R88): fmt cannot call the authentication values' own redaction through the unexported options field.
+func (preparer) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "scanplan.preparer([REDACTED])")
 }
 
 // prepare prepares one selected operation of a parsed source. Everything it

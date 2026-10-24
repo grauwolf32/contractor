@@ -23,6 +23,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/mtls"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/requestid"
+	"github.com/grauwolf32/contractor/internal/secretmatch"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
@@ -534,20 +535,16 @@ func validateWorkerHandle(
 		return errors.New("Runtime Agent returned an unencodable WorkerHandle")
 	}
 	cardValues, cardKeys := workerHandleUntrustedCardText(handle.AgentCard, reservation)
-	for _, secret := range settings.SecretValues() {
-		if secret == "" {
-			continue
+	secrets := settings.SecretValues()
+	for value := range cardValues {
+		if secretmatch.Contains(value, secrets) {
+			return errors.New("Runtime Agent exposed RuntimeSettings secret in WorkerHandle")
 		}
-		long := len([]byte(secret)) >= minPrivateSubstringBytes
-		for value := range cardValues {
-			if secret == value || long && strings.Contains(value, secret) {
-				return errors.New("Runtime Agent exposed RuntimeSettings secret in WorkerHandle")
-			}
-		}
-		if !long {
-			continue
-		}
-		for key := range cardKeys {
+	}
+	// Keys are protocol vocabulary, so only a long secret is looked for in them.
+	long := secretmatch.Long(secrets)
+	for key := range cardKeys {
+		for _, secret := range long {
 			if strings.Contains(key, secret) {
 				return errors.New("Runtime Agent exposed RuntimeSettings secret in WorkerHandle")
 			}
@@ -560,10 +557,6 @@ func validateWorkerHandle(
 	}
 	return nil
 }
-
-// minPrivateSubstringBytes matches the Runtime's MIN_PRIVATE_SUBSTRING_BYTES: a
-// secret this long is matched anywhere, a shorter one only as a complete value.
-const minPrivateSubstringBytes = 16
 
 // workerHandleUntrustedCardText returns the Agent Card values to scan and every
 // object key. The handle identity is validated against the reservation, and

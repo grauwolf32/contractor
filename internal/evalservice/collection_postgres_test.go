@@ -23,19 +23,23 @@ func TestEvalNativeStructuralChecksAndPinnedFailures(t *testing.T) {
 	}
 	valid := write("valid", "application/json", `{"observed":true}`)
 	invalid := write("invalid", "application/json", `not json`)
-	result := evaldomain.ResultInput{Outputs: map[string]evaldomain.Artifact{"valid": valid, "invalid": invalid}, Evidence: []evaldomain.Evidence{{ID: "valid-proof", Artifact: valid}, {ID: "invalid-proof", Artifact: invalid}}}
+	// EVF-R236 keeps a NUL escape out of Eval documents, not out of the Run
+	// outputs json@1 checks: the pinned check still passes it.
+	nul := write("nul", "application/json", `{"note":"a\u0000b"}`)
+	result := evaldomain.ResultInput{Outputs: map[string]evaldomain.Artifact{"valid": valid, "invalid": invalid, "nul": nul}, Evidence: []evaldomain.Evidence{{ID: "valid-proof", Artifact: valid}, {ID: "invalid-proof", Artifact: invalid}, {ID: "nul-proof", Artifact: nul}}}
 	checks := []evaldomain.Check{
 		{ID: "shape", Evaluator: "json-schema@1", Required: true, ImplementationSHA256: NativePolicySHA256(), Parameters: map[string]string{"output": "valid", "schema": "json@1"}},
 		{ID: "invalid-shape", Evaluator: "json-schema@1", Required: true, ImplementationSHA256: NativePolicySHA256(), Parameters: map[string]string{"output": "invalid", "schema": "json@1"}},
 		{ID: "media", Evaluator: "media-type@1", Required: true, ImplementationSHA256: NativePolicySHA256(), Parameters: map[string]string{"output": "valid", "mediaType": "text/plain"}},
 		{ID: "missing", Evaluator: "required-artifact@1", Required: true, ImplementationSHA256: NativePolicySHA256(), Parameters: map[string]string{"output": "missing"}},
 		{ID: "unavailable", Evaluator: "json-schema@1", Required: true, ImplementationSHA256: evaldomain.Digest([]byte("old implementation")), Parameters: map[string]string{"output": "valid", "schema": "json@1"}},
+		{ID: "nul-shape", Evaluator: "json-schema@1", Required: true, ImplementationSHA256: NativePolicySHA256(), Parameters: map[string]string{"output": "nul", "schema": "json@1"}},
 	}
 	results, err := runNativeChecks(t.Context(), pool, checks, nil, result)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"pass", "fail", "fail", "incomplete", "error"}
+	want := []string{"pass", "fail", "fail", "incomplete", "error", "pass"}
 	for i, expected := range want {
 		if results[i].Status != expected {
 			t.Fatalf("%s: got %s want %s", checks[i].ID, results[i].Status, expected)

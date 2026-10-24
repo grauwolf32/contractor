@@ -2,6 +2,8 @@ package events
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"sync"
 	"time"
 
@@ -70,6 +72,12 @@ type runSubscriber struct {
 	ended       chan struct{}
 	closeCode   int
 	closeReason string
+}
+
+// Format redacts the subscriber as a whole for every verb (SEC-R88): through
+// its unexported socket field fmt would print the session's CSRF token.
+func (runSubscriber) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "events.runSubscriber([REDACTED])")
 }
 
 func newRunPoller(hub *Hub, runID string) *runPoller {

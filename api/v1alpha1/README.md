@@ -100,6 +100,15 @@ export values the Server sends when a Worker RuntimeConfig omits them
 (RCF-R102); Go decoding, the Runtime model and this schema are checked against
 it.
 
+`credential-field-value-cases.json` holds the grammar of a credential token or
+header value (RCF-R114): every ASCII character at each position, named values
+and the byte bound of each field. Go `contracts.ValidCredentialFieldValue`, the
+Runtime credential constructors, stored material decoding, LLM credential
+tokens, the public create request, Go RuntimeSettings decoding, the Runtime's
+`contracts.fields` and model, and the `CredentialFieldValue` definition of this
+schema are checked against it; the Runtime also checks that h11 sends every
+value it accepts.
+
 `gateway-recovery-participant-cases.json` holds the model recovery participant
 protocol of `POST /private/v1/allocations/{allocationID}/gateway-recovery`
 (SCH-R168): the updates and which are terminal, the codes a `failed` update may

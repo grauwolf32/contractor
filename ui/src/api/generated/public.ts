@@ -5153,12 +5153,15 @@ export interface components {
             password: string;
         };
         HTTPProxyBearerMaterial: {
+            /** @description An HTTP/1.1 field value sent unchanged by every client (RCF-R114), visible ASCII characters with runs of space or tab only between them. */
             token: string;
         };
         CaidoBearerMaterial: {
+            /** @description An HTTP/1.1 field value sent unchanged by every client (RCF-R114), visible ASCII characters with runs of space or tab only between them. */
             token: string;
         };
         InteractshTokenMaterial: {
+            /** @description An HTTP/1.1 field value sent unchanged by every client (RCF-R114), visible ASCII characters with runs of space or tab only between them. */
             token: string;
         };
         HTTPOriginBasicMaterial: {
@@ -5166,6 +5169,7 @@ export interface components {
             password: string;
         };
         HTTPOriginBearerMaterial: {
+            /** @description An HTTP/1.1 field value sent unchanged by every client (RCF-R114), visible ASCII characters with runs of space or tab only between them. */
             token: string;
         };
         CreateRuntimeCredentialRequest: {

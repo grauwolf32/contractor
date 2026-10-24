@@ -2,6 +2,8 @@ package credentials
 
 import (
 	"errors"
+	"fmt"
+	"io"
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -14,6 +16,12 @@ import (
 // Run creation needs only safe metadata and exact credential identities.
 type TransactionLookupFactory struct {
 	development *StaticProvider
+}
+
+// Format redacts the factory as a whole for every verb (SEC-R88): through its
+// unexported provider field fmt would print the development tokens.
+func (f TransactionLookupFactory) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "credentials.TransactionLookupFactory([REDACTED])")
 }
 
 var _ runtimeconfig.TransactionLLMCredentialLookupFactory = (*TransactionLookupFactory)(nil)

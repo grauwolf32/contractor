@@ -141,6 +141,12 @@ type Client struct {
 	logger        *slog.Logger
 }
 
+// Format redacts the client as a whole for every verb (SEC-R88): through the
+// unexported tlsConfig field fmt would print its keys.
+func (Client) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "gitimport.Client([REDACTED])")
+}
+
 func NewClient(cfg Config, logger *slog.Logger) (*Client, error) {
 	if err := ValidateConfig(cfg); err != nil {
 		return nil, err

@@ -333,7 +333,20 @@ redacts itself in formatted output and in default JSON encoding, so encoding
 RuntimeSettings for a log, an error or a stored record yields only the
 redaction marker. The allocation prepare request is the only JSON the Server
 writes with RuntimeSettings secrets in plaintext, through an explicit
-allocation-wire encoder that no other path calls.
+allocation-wire encoder that no other path calls. Redaction covers every fmt
+verb, flag and width, log/slog's text and JSON handlers and encoding/json: a
+secret type implements Format, String, GoString, LogValue and MarshalJSON.
+fmt calls none of these methods through an unexported struct field, and it
+follows one nested pointer for a verb that does not fit a pointer. So a type
+redacts itself as a whole with its own Format when it reaches a secret value
+through an unexported field, reaches a key-holding type of another module
+(such as `crypto/tls.Config`) through any field, or holds plain-text secret
+values outside a wire field. The database URL, which may carry a password,
+is held as a secret value. fmt's `%p` of a non-pointer value bypasses every
+method, so the Server never formats a secret holder with `%p`. The guard
+test `TestSecretHoldersRedactForEveryVerb` in
+[`internal/archtest`](../../../internal/archtest/secret_holders_test.go)
+enforces the rule over the production tree.
 
 **SEC-R32.** RuntimeSettings secret values are erased during allocation release
 (LIFE-SEC-1). The Server's copy kept for report redaction is dropped when the

@@ -2,6 +2,7 @@ package evaldomain
 
 import (
 	"encoding/json"
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -31,10 +32,10 @@ func nestedObjects(levels int, inner string) string {
 }
 
 // TestStrictJSONVerdictsAndCodes pins the exact verdict and code of each rule
-// StrictJSON applies (EVF-R15, EVF-R30): the top-level value is at depth 0
-// and a value deeper than MaxDepth exceeds the limit; the size bound and
-// invalid JSON win over depth; inside a valid document the first violation
-// in document order decides the code.
+// StrictJSON applies (EVF-R15, EVF-R30, EVF-R236): the top-level value is at
+// depth 0 and a value deeper than MaxDepth exceeds the limit; the size bound
+// and invalid JSON win over depth; inside a valid document the first
+// violation in document order decides the code.
 func TestStrictJSONVerdictsAndCodes(t *testing.T) {
 	cases := []struct {
 		name, raw, code string
@@ -61,6 +62,12 @@ func TestStrictJSONVerdictsAndCodes(t *testing.T) {
 		{"lone low surrogate", `{"x":"\udc00"}`, "eval_invalid"},
 		{"surrogate pair", `{"x":"😀"}`, ""},
 		{"escaped backslash before u", `{"x":"literal \\ud800"}`, ""},
+		{"NUL escape", `{"x":"a\u0000b"}`, "eval_invalid"},
+		{"NUL escape in member name", `{"a\u0000":1}`, "eval_invalid"},
+		{"NUL escape after escaped backslash", `{"x":"\\\u0000"}`, "eval_invalid"},
+		{"too deep with NUL escape", nestedArrays(MaxDepth+2, `"\u0000"`), "eval_invalid"},
+		{"escaped backslash before u0000", `{"x":"literal \\u0000"}`, ""},
+		{"other control escape", `{"x":"\u0001"}`, ""},
 		{"trailing value", `{} {}`, "eval_invalid"},
 		{"trailing comma", `[1,]`, "eval_invalid"},
 		{"NaN", `{"x":NaN}`, "eval_invalid"},
@@ -79,6 +86,27 @@ func TestStrictJSONVerdictsAndCodes(t *testing.T) {
 				t.Fatalf("code = %q, want %q", got, c.code)
 			}
 		})
+	}
+}
+
+// TestStrictOutputJSONAcceptsOnlyTheNULEscapeBeyondStrictJSON pins the one
+// difference of the json@1 output check: a Run output may hold a NUL escape,
+// which no Eval document may (EVF-R236); every other rule is StrictJSON's.
+func TestStrictOutputJSONAcceptsOnlyTheNULEscapeBeyondStrictJSON(t *testing.T) {
+	for _, raw := range []string{`{"x":"a\u0000b"}`, `{"a\u0000":1}`} {
+		if _, err := StrictOutputJSON([]byte(raw)); err != nil {
+			t.Fatalf("StrictOutputJSON(%s) = %v", raw, err)
+		}
+		if code := strictJSONCode(t, raw); code != "eval_invalid" {
+			t.Fatalf("StrictJSON(%s) code = %q, want eval_invalid", raw, code)
+		}
+	}
+	for _, raw := range []string{`{"x":"\ud800"}`, `{"x":1,"x":2}`, `{"x":1e999}`, `{} {}`, "", nestedArrays(MaxDepth+2, "")} {
+		_, err := StrictOutputJSON([]byte(raw))
+		var safe *Error
+		if !errors.As(err, &safe) || safe.Code != strictJSONCode(t, raw) {
+			t.Fatalf("%q: StrictOutputJSON = %v, StrictJSON code %q", raw, err, strictJSONCode(t, raw))
+		}
 	}
 }
 

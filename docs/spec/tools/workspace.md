@@ -753,6 +753,20 @@ The allocation-private `source-analysis@1` reader uses the Server-selected
 ([GIT-R93](../artifacts/git-import.md)). Project workspace storage limits and
 code-analysis parser budgets remain independent.
 
+**WSP-R179.** The allocation-private `source-analysis@1` reader selects the
+paths of `list_source_files` and `search_source` off the asyncio event-loop
+thread (WSP-R74). It validates the pattern, page and search arguments on the
+calling task first and rejects them with the existing input errors. Under the
+session lock it takes the opened archive's immutable file table, which holds
+up to `sourceArchiveLimits.maxEntries` paths
+([LIM-GIT-16](../platform/limits.md)). One worker-thread step of the session's
+operation guard then compiles the glob once, matches every path, sorts the
+matches and selects the list page, or selects the search's files and scans
+their contents. Cancelling the call does not let `close` remove the extracted
+tree until that thread returns (WSP-R75, FAIL-WSP-3); the guard's operation
+deadline bounds the step and fences the session when it expires. Results,
+ordering, totals and truncation do not depend on where the step runs.
+
 **WSP-R131.** The project workspace and the
 `source-analysis@1` path are never combined, and project-workspace presence
 always takes precedence, including for a missing path.

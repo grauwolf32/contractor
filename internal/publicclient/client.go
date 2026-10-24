@@ -44,6 +44,11 @@ type Options struct {
 	UserAgent string
 }
 
+// Format redacts the options as a whole for every verb (SEC-R88): its Token is the bearer token in plain text.
+func (Options) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "publicclient.Options([REDACTED])")
+}
+
 type Client struct {
 	API    *publicapi.ClientWithResponses
 	origin string
@@ -141,6 +146,11 @@ type checkedTransport struct {
 	token     string
 	userAgent string
 	timeout   time.Duration
+}
+
+// Format redacts the transport as a whole for every verb (SEC-R88): its token field is the bearer token in plain text.
+func (checkedTransport) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "publicclient.checkedTransport([REDACTED])")
 }
 
 func (t *checkedTransport) roundTripOnce(request *http.Request, cancel func()) (*http.Response, error) {

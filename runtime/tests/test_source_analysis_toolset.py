@@ -4,12 +4,15 @@ import asyncio
 import io
 import json
 import stat
+import threading
 import unicodedata
 import zipfile
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -18,10 +21,14 @@ import contractor_runtime.toolsets.source_analysis.tools as source_tools_module
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import ArtifactValue
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
+from contractor_runtime.contracts.settings import default_source_archive_limits
+from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.factories import built_in_factories
 from contractor_runtime.toolsets.source_analysis.tools import (
     MAX_ARCHIVE_ENTRIES,
     MAX_FILE_UNCOMPRESSED_BYTES,
+    MAX_LIST_RESULTS,
+    MAX_PATH_UTF8_BYTES,
     MAX_TOTAL_UNCOMPRESSED_BYTES,
     SourceAnalysisToolsetFactory,
     _validate_entries,
@@ -412,6 +419,161 @@ def test_source_globs_treat_double_star_as_recursive(
     assert compiled == 2
 
 
+# 41 "**" components between 41 "d" components, then "**/*.py": 256 characters,
+# the most _validate_pattern admits. Only the deep fixture paths match it.
+MULTI_STAR_GLOB = "/".join(["**", "d?*"] * 3 + ["**", "d*"] * 38) + "/**/*.py"
+SELECTION_PATTERNS = ("**/*", "**/f0002?.*", MULTI_STAR_GLOB)
+
+
+@pytest.mark.parametrize("entries", [MAX_ARCHIVE_ENTRIES, 50_000])
+def test_source_path_selection_runs_off_the_event_loop_at_the_entry_bound(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, entries: int
+) -> None:
+    assert len(MULTI_STAR_GLOB) == 256
+    paths = [archive_path(index) for index in range(entries)]
+    assert {len(path.encode("utf-8")) for path in paths} == {100, MAX_PATH_UTF8_BYTES}
+    archive = make_zip({path: f"line {index}\n" for index, path in enumerate(paths)})
+    settings = runtime_settings()
+    # The operation deadline is wall-clock time. This test checks where the
+    # matching runs, not how fast, so a loaded machine must not expire it.
+    settings.request_timeout_seconds = 600
+    if entries > MAX_ARCHIVE_ENTRIES:
+        # LIM-GIT-16: the Server may raise the entry bound to 50,000.
+        settings.source_archive_limits = default_source_archive_limits().model_copy(
+            update={"max_entries": entries}
+        )
+
+    async def scenario() -> None:
+        client = ReadOnlyArtifactClient()
+        ref = client.seed("inputs", "source", "application/zip", archive)
+        tools = await make_tools(tmp_path, client, WorkerState(), settings)
+        opened = await tools["open_source_archive"]("inputs", "source", ref.revision)
+        assert opened["fileCount"] == entries
+        session = tools["list_source_files"]._session
+        # The inline implementation this change replaced, computed before the
+        # probe records matching threads.
+        expected = {
+            pattern: former_selection(tuple(session._files.values()), pattern)
+            for pattern in SELECTION_PATTERNS
+        }
+        assert len(expected["**/*"]) == entries
+        assert len(expected["**/f0002?.*"]) == 10
+        assert 0 < len(expected[MULTI_STAR_GLOB]) < MAX_LIST_RESULTS
+        loop_thread = threading.get_ident()
+        try:
+            for pattern, limit in zip(SELECTION_PATTERNS, (MAX_LIST_RESULTS, 4, 100), strict=True):
+                matched = expected[pattern]
+                # The probe records the first page and the search; later pages
+                # run the same code without its per-path overhead.
+                with monkeypatch.context() as patch:
+                    probe = OffLoopProbe(patch)
+                    page = await probe.held(tools["list_source_files"](pattern, 0, limit))
+                    assert probe.matched == entries
+                    found = await probe.held(tools["search_source"]("line", pattern))
+                    assert probe.matched == entries
+                assert probe.match_threads and probe.order_threads
+                assert loop_thread not in probe.match_threads | probe.order_threads
+
+                offset = 0
+                while True:
+                    assert page == former_page(matched, offset, limit)
+                    if not page["truncated"]:
+                        break
+                    offset += limit
+                    page = await tools["list_source_files"](pattern, offset, limit)
+                assert offset + len(page["files"]) == len(matched)
+                assert found == session._search_files(matched, "line", False, False, 100)
+                assert found["scannedFiles"] == min(len(matched), 100)
+        finally:
+            await tools["list_source_files"].close()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("name", ["list_source_files", "search_source"])
+def test_cancelled_path_selection_keeps_the_session_until_its_thread_returns(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    async def scenario() -> None:
+        client = ReadOnlyArtifactClient()
+        ref = client.seed(
+            "inputs",
+            "source",
+            "application/zip",
+            make_zip({"main.py": "hit\n", "src/a.py": "hit\n"}),
+        )
+        tools = await make_tools(tmp_path, client, WorkerState())
+        await tools["open_source_archive"]("inputs", "source", ref.revision)
+        source = tmp_path / "source"
+        probe = OffLoopProbe(monkeypatch)
+        removed_after_selection: list[bool] = []
+        remove = source_tools_module._remove_path
+
+        def recorded_remove(path: Path) -> None:
+            removed_after_selection.append(probe.finished.is_set())
+            remove(path)
+
+        monkeypatch.setattr(source_tools_module, "_remove_path", recorded_remove)
+        call = (
+            tools["list_source_files"]("**/*")
+            if name == "list_source_files"
+            else tools["search_source"]("hit")
+        )
+        probe.arm()
+        task = asyncio.create_task(call)
+        try:
+            assert await asyncio.to_thread(probe.entered.wait, 5)
+            task.cancel()
+            closing = asyncio.create_task(tools[name].close())
+            with pytest.raises(asyncio.CancelledError):
+                await task
+            await asyncio.sleep(0.02)
+            # close() waits for the guard, which owns the still running thread.
+            assert not closing.done()
+            assert source.is_dir()
+            probe.release.set()
+            await closing
+        finally:
+            probe.release.set()
+        assert probe.finished.is_set()
+        assert removed_after_selection == [True]
+        assert not source.exists()
+        assert probe.match_threads
+        assert threading.get_ident() not in probe.match_threads
+
+    asyncio.run(scenario())
+
+
+def test_invalid_selection_is_rejected_before_a_worker_step(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        client = ReadOnlyArtifactClient()
+        ref = client.seed("inputs", "source", "application/zip", make_zip({"main.py": "hit\n"}))
+        tools = await make_tools(tmp_path, client, WorkerState())
+        await tools["open_source_archive"]("inputs", "source", ref.revision)
+        probe = OffLoopProbe(monkeypatch)
+        listing, search = tools["list_source_files"], tools["search_source"]
+        rejected: tuple[Callable[[], Awaitable[object]], ...] = (
+            lambda: listing("../main.py"),
+            lambda: listing("src/**.py"),
+            lambda: listing("**/*", -1),
+            lambda: listing("**/*", 0, 0),
+            lambda: listing("**/*", 0, MAX_LIST_RESULTS + 1),
+            lambda: search("hit", "x" * 257),
+            lambda: search("hit", "**/*", max_results=0),
+        )
+        for call in rejected:
+            with pytest.raises(ToolInputError) as error:
+                await call()
+            assert error.value.code == "tool_input_invalid"
+        assert probe.matched == 0 and not probe.finished.is_set()
+        # The session stays usable: validation failed before the guard ran.
+        assert (await tools["list_source_files"]())["total"] == 1
+
+    asyncio.run(scenario())
+
+
 def test_source_tools_enforce_shared_memory_binding_visibility(tmp_path: Path) -> None:
     async def scenario() -> None:
         client = ReadOnlyArtifactClient()
@@ -509,6 +671,7 @@ async def make_tools(
     tmp_path: Path,
     client: ReadOnlyArtifactClient,
     state: WorkerState,
+    settings: RuntimeSettings | None = None,
 ) -> dict[str, object]:
     factory = SourceAnalysisToolsetFactory(lambda _allocation, _settings: client)
     selected = await factory.create_selected(
@@ -516,7 +679,7 @@ async def make_tools(
         allocation_id="allocation-1",
         run_id="run-1",
         namespace="analysis",
-        runtime_settings=runtime_settings(),
+        runtime_settings=settings or runtime_settings(),
         workspace=AllocationWorkspace(root=tmp_path.parent, path=tmp_path),
         state=state,
     )
@@ -538,6 +701,134 @@ def make_zip(files: dict[str, str | bytes]) -> bytes:
         for path, content in files.items():
             archive.writestr(path, content.encode() if isinstance(content, str) else content)
     return result.getvalue()
+
+
+def archive_path(index: int) -> str:
+    """Return a distinct member path of a repository-like archive.
+
+    Every 97th path nests over 41 short "d" directories (enough for
+    MULTI_STAR_GLOB) and every 7th nests eight long directories; both fill
+    MAX_PATH_UTF8_BYTES exactly. The others are 100 bytes long. Paths of one
+    shape share their directories, which keeps extraction and cleanup cheap.
+    """
+
+    leaf = f"g{index // 100:04d}/f{index:05d}.{('py', 'txt', 'js', 'go')[index % 4]}"
+    if index % 97 == 0:
+        prefix, width, size = "d", 10, MAX_PATH_UTF8_BYTES
+    elif index % 7 == 0:
+        prefix, width, size = "s", 60, MAX_PATH_UTF8_BYTES
+    else:
+        prefix, width, size = "s", 30, 100
+    stem = f"{prefix}{width:02d}"
+    component = 0
+    while len(stem) + 1 + width + 2 + len(leaf) < size:
+        stem += f"/{prefix}{component:02d}" + "x" * (width - 3)
+        component += 1
+    pad = size - len(stem) - 2 - len(leaf)
+    return f"{stem}/{'p' * pad}/{leaf}"
+
+
+def former_selection(files: tuple[Any, ...], pattern: str) -> tuple[Any, ...]:
+    """The inline list_files/search selection that ran on the event loop before V414-005."""
+
+    matches = source_tools_module._path_matcher(pattern)
+    matched = [item for item in files if matches(item.path)]
+    matched.sort(key=lambda item: item.path)
+    return tuple(matched)
+
+
+def former_page(matched: tuple[Any, ...], offset: int, limit: int) -> dict[str, Any]:
+    page = matched[offset : offset + limit]
+    return {
+        "files": [{"path": item.path, "size": item.size} for item in page],
+        "offset": offset,
+        "limit": limit,
+        "total": len(matched),
+        "truncated": offset + len(page) < len(matched),
+    }
+
+
+class OffLoopProbe:
+    """Record the threads that match and order archive paths; hold one match.
+
+    The order and selection hooks are installed with raising=False, so an
+    implementation without them fails the thread assertions, not the setup.
+    """
+
+    def __init__(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        self.match_threads: set[int] = set()
+        self.order_threads: set[int] = set()
+        self.matched = 0
+        self.entered = threading.Event()
+        self.release = threading.Event()
+        self.finished = threading.Event()
+        self._hold = False
+        matcher = source_tools_module._path_matcher
+        select = getattr(source_tools_module, "_select_files", None)
+
+        def recorded_matcher(pattern: str) -> Callable[[str], bool]:
+            matches = matcher(pattern)
+
+            def recorded(path: str) -> bool:
+                self.match_threads.add(threading.get_ident())
+                self.matched += 1
+                if self._hold:
+                    self._hold = False
+                    self.entered.set()
+                    if not self.release.wait(2):
+                        raise AssertionError("the held path match was not released")
+                return matches(path)
+
+            return recorded
+
+        def recorded_order(item: Any) -> str:
+            self.order_threads.add(threading.get_ident())
+            return item.path
+
+        def recorded_select(*args: Any) -> Any:
+            if select is None:
+                raise AssertionError("_select_files is absent")
+            try:
+                return select(*args)
+            finally:
+                self.finished.set()
+
+        monkeypatch.setattr(source_tools_module, "_path_matcher", recorded_matcher)
+        monkeypatch.setattr(source_tools_module, "_path_order", recorded_order, raising=False)
+        monkeypatch.setattr(source_tools_module, "_select_files", recorded_select, raising=False)
+
+    def reset(self) -> None:
+        self.matched = 0
+        self.entered.clear()
+        self.release.clear()
+        self.finished.clear()
+
+    def arm(self) -> None:
+        self.reset()
+        self._hold = True
+
+    async def held[T](self, call: Awaitable[T]) -> T:
+        """Await ``call`` while its first path match waits and the loop keeps running."""
+
+        self.arm()
+        task = asyncio.ensure_future(call)
+        try:
+            if not await asyncio.to_thread(self.entered.wait, 5):
+                raise AssertionError("the call never matched a path")
+            beats = 0
+
+            async def heartbeat() -> None:
+                nonlocal beats
+                for _ in range(3):
+                    await asyncio.sleep(0)
+                    beats += 1
+
+            await asyncio.create_task(heartbeat())
+            assert beats == 3
+            assert not task.done()
+        finally:
+            self.release.set()
+        return await task
 
 
 @dataclass(slots=True)

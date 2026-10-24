@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 	"sync"
@@ -53,6 +54,11 @@ type streamlinePlanner struct {
 	hasReport bool
 }
 
+// Format redacts the planner as a whole for every verb (SEC-R88): fmt cannot call the model access token's own redaction through the unexported invocation field.
+func (s *streamlinePlanner) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "streamline.streamlinePlanner([REDACTED])")
+}
+
 func (p *streamlinePlanner) Run(
 	ctx context.Context,
 ) (candidate stageresult.StageContentResult, runErr error) {
@@ -61,15 +67,16 @@ func (p *streamlinePlanner) Run(
 	state := newExecutionState(p.limits)
 	var identity planner.SessionIdentity
 	defer func() {
+		var returned *planner.Failure
 		if runErr != nil {
 			failure := planner.FailureFrom(runErr)
-			state.setExternalFailure(planner.NewErrorFromFailure(failure, nil))
+			returned = &failure
 		}
 		reportID := "planner-unavailable-" + p.invocation.StageExecutionID
 		if identity.SessionID != "" {
 			reportID = "planner-" + identity.SessionID
 		}
-		report := state.report(reportID, time.Since(startedAt))
+		report := state.report(reportID, time.Since(startedAt), returned)
 		p.reportMu.Lock()
 		p.report, p.hasReport = report, true
 		p.reportMu.Unlock()
@@ -123,8 +130,9 @@ func (p *streamlinePlanner) Run(
 		AppName: p.profile.adkAppName, UserID: p.invocation.StageExecutionID,
 		SessionID: identity.SessionID, State: map[string]any{"metrics": map[string]any{}},
 	}); err != nil {
-		adkSessionSpan.End("unavailable", telemetry.PlannerSpanAttributes{ErrorCode: "planner_session_unavailable"})
-		return stageresult.StageContentResult{}, p.fail(ctx, identity, state, planner.SessionError("initialize ADK session", err))
+		sessionError := planner.SessionError("initialize ADK session", err)
+		planner.EndSessionSpan(adkSessionSpan, sessionError)
+		return stageresult.StageContentResult{}, p.fail(ctx, identity, state, sessionError)
 	}
 	adkSessionSpan.End("succeeded", telemetry.PlannerSpanAttributes{})
 
@@ -181,7 +189,7 @@ func (p *streamlinePlanner) Run(
 		if result, failure := state.terminal(); result != nil {
 			completion := planner.Completion{Result: result}
 			if err := planner.CompleteSession(ctx, p.sessions, identity, completion); err != nil {
-				return stageresult.StageContentResult{}, planner.SessionError("record completion", err)
+				return stageresult.StageContentResult{}, planner.CompletionWriteError(completion, err)
 			}
 			return result.Clone(), nil
 		} else if failure != nil {
@@ -516,8 +524,9 @@ func (p *streamlinePlanner) fail(
 ) *planner.Error {
 	value = state.setExternalFailure(value)
 	failure := value.Failure
-	if err := planner.CompleteSession(ctx, p.sessions, identity, planner.Completion{Failure: &failure}); err != nil {
-		return planner.CompletionWriteError(value, err)
+	completion := planner.Completion{Failure: &failure}
+	if err := planner.CompleteSession(ctx, p.sessions, identity, completion); err != nil {
+		return planner.CompletionWriteError(completion, err)
 	}
 	return value
 }

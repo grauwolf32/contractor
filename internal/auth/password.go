@@ -4,7 +4,10 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"io"
+	"log/slog"
 	"strings"
 	"unicode/utf8"
 
@@ -21,10 +24,18 @@ const (
 	MaximumPasswordBytes        = 1024
 )
 
+// passwordHash redacts itself for every fmt verb and flag, for log/slog and
+// for JSON (SEC-R88): its salt and output allow an offline password search.
 type passwordHash struct {
 	salt   [ArgonSaltBytes]byte
 	output [ArgonOutputBytes]byte
 }
+
+func (h passwordHash) String() string                 { return "auth.passwordHash([REDACTED])" }
+func (h passwordHash) GoString() string               { return h.String() }
+func (h passwordHash) Format(state fmt.State, _ rune) { _, _ = io.WriteString(state, h.String()) }
+func (h passwordHash) LogValue() slog.Value           { return slog.StringValue(h.String()) }
+func (h passwordHash) MarshalJSON() ([]byte, error)   { return json.Marshal(h.String()) }
 
 func ValidatePassword(password []byte) error {
 	if len(password) < MinimumPasswordBytes || len(password) > MaximumPasswordBytes || !utf8.Valid(password) {

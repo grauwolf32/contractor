@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"regexp"
 	"strings"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/secretmatch"
 )
 
 const (
@@ -56,6 +58,11 @@ type Policy struct {
 	// contracts.ResultJSONSize; a test builds a Policy with a measure that
 	// counts, so no package state changes and tests may run in parallel.
 	size func(any) (int, error)
+}
+
+// Format redacts the policy as a whole for every verb (SEC-R88): its secrets field holds secret values in plain text.
+func (Policy) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "telemetry.Policy([REDACTED])")
 }
 
 func NewPolicy(secrets ...string) Policy {
@@ -182,10 +189,30 @@ func cloneWorkerSummarizer(
 
 func (p Policy) normalizeError(source reporting.ExecutionError) reporting.ExecutionError {
 	result := source
-	result.Code = p.redactText(source.Code)
+	result.Code = p.normalizeCode(source.Code)
 	result.Message = p.RedactMessage(source.Message)
 	return result
 }
+
+// normalizeCode keeps an error code that is an identifier and holds no secret
+// and otherwise replaces it with tool_call_failed: a code is never partially
+// redacted (OBS-R32).
+func (p Policy) normalizeCode(code string) string {
+	if !contracts.ValidName(code) {
+		return fallbackErrorCode
+	}
+	for _, secret := range secretmatch.Long(p.secrets) {
+		if strings.Contains(code, secret) {
+			return fallbackErrorCode
+		}
+	}
+	return code
+}
+
+// fallbackErrorCode replaces a code that is not an identifier in the shared
+// name grammar (the Runtime's SAFE_ERROR_CODE) or contains a long secret
+// (OBS-R32, FAIL-OBS-3).
+const fallbackErrorCode = "tool_call_failed"
 
 // RedactMessage applies the rule of an execution-report error message to
 // text: known secrets and credential-bearing URLs are removed (OBS-R30) and
@@ -328,11 +355,11 @@ func (p Policy) sanitizeValue(source any, depth int) (any, bool) {
 	}
 }
 
+// redactText replaces known secrets under the shared rule (OBS-R31,
+// LIM-OBS-3): a complete string equal to a secret, and a secret of at least
+// secretmatch.MinSubstringBytes wherever it occurs, longest first.
 func (p Policy) redactText(source string) string {
-	result := source
-	for _, secret := range p.secrets {
-		result = strings.ReplaceAll(result, secret, redactedValue)
-	}
+	result := secretmatch.Redact(source, p.secrets, redactedValue)
 	if credentialBearingURL(result) {
 		return redactedURL
 	}

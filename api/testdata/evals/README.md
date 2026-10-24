@@ -18,6 +18,11 @@ live execution. All IDs, hashes, credentials and timestamps are illustrative.
 - `plan-size-cases.json`: native plan-size estimates of drafts that the Server's
   authoring validation and the UI setup must both reproduce, including the 1 MiB
   boundary.
+- `readiness-cases.json`: native plans with the readiness that the freeze, the
+  experiment view and the readiness backfill derive. A case with `errorCode`
+  holds a plan every codec rejects, such as one with a NUL escape (EVF-R236);
+  its `backfillReadiness` is what the backfill derives for that plan stored
+  before the rule.
 
 The trace-small fixture has eight expected members: A passes 3/4, B 2/4;
 conditional assessment quality is 3/3 and 2/3. Terminal/quality/token paired

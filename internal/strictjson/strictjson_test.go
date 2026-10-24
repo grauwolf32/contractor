@@ -93,6 +93,40 @@ func TestValidUnicodeEscapes(t *testing.T) {
 	}
 }
 
+func TestHasNULEscape(t *testing.T) {
+	// %u stands for a backslash-u escape, %% for an escaped backslash.
+	for _, tc := range []struct {
+		input string
+		want  bool
+	}{
+		{`"plain"`, false},
+		{`"%u0000"`, true},
+		{`"a%u0000b"`, true},
+		{`{"%u0000":1}`, true},
+		{`{"k%u0000ey":"v"}`, true},
+		{`["x",{"y":"%u0000"}]`, true},
+		{`"%%%u0000"`, true},
+		{`"%u005c%u0000"`, true},
+		{`"%%u0000"`, false},
+		{`"%%%%u0000"`, false},
+		{`"%u005cu0000"`, false},
+		{`"%u0001"`, false},
+		{`"%u00000"`, true},
+		{`"%u000"`, false},
+		{`"%u0100"`, false},
+		{`"%n%t%u00e9"`, false},
+	} {
+		input := strings.ReplaceAll(tc.input, "%", `\`)
+		if got := HasNULEscape([]byte(input)); got != tc.want {
+			t.Errorf("HasNULEscape(%s) = %v, want %v", input, got, tc.want)
+		}
+	}
+	encoded, err := json.Marshal("a\x00b")
+	if err != nil || !HasNULEscape(encoded) {
+		t.Fatalf("encoding/json spells a NUL character as %s, which HasNULEscape misses: %v", encoded, err)
+	}
+}
+
 func TestCanonicalUsesJCS(t *testing.T) {
 	got, err := Canonical(map[string]any{"b": 1.0, "a": []any{"x", 2.5}})
 	if err != nil || string(got) != `{"a":["x",2.5],"b":1}` {

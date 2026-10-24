@@ -16,6 +16,8 @@ package contracts
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"log/slog"
 	"net/url"
 	"regexp"
 	"strings"
@@ -212,18 +214,21 @@ func Invalidf(format string, args ...any) error {
 	return fmt.Errorf("%w: %s", ErrValidation, fmt.Sprintf(format, args...))
 }
 
-// SecretString redacts String, GoString and default JSON output, so a log
-// line, an error or a stored document that encodes a value holding one never
-// contains the plaintext (SEC-R88). Reveal must be used only at the point
-// where a private client is configured or where an explicit private-wire
-// encoder, such as runtimesettings.RuntimeSettings.RevealJSON, writes it.
-// Decoding still accepts the plaintext a private wire delivers.
+// SecretString redacts itself for every fmt verb and flag, for log/slog and
+// for default JSON output, so a log line, an error or a stored document that
+// encodes a value holding one never contains the plaintext (SEC-R88). fmt
+// reaches these methods only through exported fields: a type that keeps a
+// SecretString in an unexported field redacts itself as a whole. Reveal must
+// be used only at the point where a private client is configured or where an
+// explicit private-wire encoder, such as
+// runtimesettings.RuntimeSettings.RevealJSON, writes it. Decoding still
+// accepts the plaintext a private wire delivers.
 type SecretString struct {
 	value string
 }
 
-// redactedSecret replaces every SecretString in formatted and default JSON
-// output.
+// redactedSecret replaces every SecretString in formatted, logged and default
+// JSON output.
 const redactedSecret = "[REDACTED]"
 
 func NewSecretString(value string) SecretString { return SecretString{value: value} }
@@ -233,6 +238,19 @@ func (s SecretString) Reveal() string { return s.value }
 func (s SecretString) String() string { return redactedSecret }
 
 func (s SecretString) GoString() string { return "contracts.SecretString(" + redactedSecret + ")" }
+
+// Format writes the GoString form for %#v and the redaction marker for every
+// other verb, width and flag. Without it fmt calls String only for the verbs
+// v, s, q, x and X and prints the plaintext field for the others.
+func (s SecretString) Format(state fmt.State, verb rune) {
+	if verb == 'v' && state.Flag('#') {
+		_, _ = io.WriteString(state, s.GoString())
+		return
+	}
+	_, _ = io.WriteString(state, redactedSecret)
+}
+
+func (s SecretString) LogValue() slog.Value { return slog.StringValue(redactedSecret) }
 
 func (s SecretString) MarshalJSON() ([]byte, error) { return json.Marshal(redactedSecret) }
 

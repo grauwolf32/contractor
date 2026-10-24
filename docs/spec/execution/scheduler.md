@@ -1081,8 +1081,8 @@ OpenAPI document and the UI, and this requirement is reopened.
 **SCH-R103.** Retry after recovery always creates a fresh StageExecution and,
 if preparation succeeds, a fresh Planner Session. Planner Session persistence
 does not imply Planner resume: a Planner session still running after process
-loss yields the stable retryable invocation-in-progress error
-([Planners](planners.md)), and Workflow policy decides whether a fresh
+loss yields the stable retryable `planner_invocation_in_progress`
+([PLN-R107](planners.md)), and Workflow policy decides whether a fresh
 StageExecution should retry.
 
 ### Model-availability recovery
@@ -1643,8 +1643,8 @@ Errors ([registry](../platform/errors.md)):
   of an interrupted StageTermination (SCH-R95); a control lease expiry records
   a retryable StageTermination (SCH-R162).
 - Planner and Worker error codes (`worker_input_required`,
-  `worker_auth_required`, `worker_budget_exhausted` and the
-  invocation-in-progress error) are owned by [Planners](planners.md) and
+  `worker_auth_required`, `worker_budget_exhausted` and
+  `planner_invocation_in_progress`) are owned by [Planners](planners.md) and
   [Worker](worker.md); `memory_forbidden` by [Memory](../tools/memory.md).
 
 Failure outcomes ([failure model](../platform/failure-model.md)):

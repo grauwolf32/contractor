@@ -442,8 +442,11 @@ that its private oracle remains applicable.
 readiness.
 
 **EVM-R51.** A missing body or field, an unknown key, a duplicate case, variant
-or member, an invalid digest, an invalid role mapping or incompatible media is
-rejected with 422 before side effects.
+or member, an invalid digest, an invalid role mapping, incompatible media or a
+NUL or lone-surrogate escape in any string or member name
+([EVF-R236](format.md)) is rejected with 422 before side effects. A document
+that the codec rejects never reaches the store, so it records no idempotency
+receipt and its key with a corrected body is a new request.
 
 ### Executables, evaluators and preparation
 
