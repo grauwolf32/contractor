@@ -6,7 +6,8 @@ epic: quality
 kind: defect
 introduced_by: V369-001
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: "fab046292553d3ff4dff01af4a531b9168bbe05d"
 depends_on: [V369-001, V406-009]
 languages: [go]
 goal: >-
@@ -53,3 +54,8 @@ verification_notes: >-
   scan_sweep_remote.go:196. No accesses were added. The temporary comparison
   test and diagnostic toggle were removed; CTE-fragment controls are retained
   in the regression suite.
+completion_evidence: >-
+  go test -count=1 ./internal/persistence passed on the final scanner (1.363s),
+  including the real repository ownership scan and the new positive/negative
+  regression controls. Final make lint passed. Production code and the CLI help
+  remain unchanged; no demo restart or database change is required.
