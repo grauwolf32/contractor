@@ -379,6 +379,9 @@ type collectingAuditFixture struct {
 type collectingAuditFixtureOptions struct {
 	extraPending    bool
 	terminalOutcome string
+	// ownDatabase builds the fixture in a database of its own
+	// (budgetAuditPool), for a test that budgets its reads.
+	ownDatabase bool
 }
 
 // newCollectingAuditFixture leaves one execution collecting a terminal Run
@@ -398,7 +401,12 @@ func newCollectingAuditFixture(t *testing.T, name string, maxEvidenceBytes int64
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	t.Cleanup(cancel)
-	pool := isolatedAuditPool(t, ctx, databaseURL)
+	var pool *pgxpool.Pool
+	if option.ownDatabase {
+		pool = budgetAuditPool(t, ctx, databaseURL)
+	} else {
+		pool = isolatedAuditPool(t, ctx, databaseURL)
+	}
 	project, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
 		ProjectID: "project-" + name, OwnerID: "owner-" + name, Kind: projectstore.KindProject,
 		Name: "Audit " + name, IdempotencyKey: "project-create", RequestDigest: testDigest("1"),

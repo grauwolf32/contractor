@@ -7,10 +7,10 @@
 // both the custom plan PostgreSQL makes for a pooled prepared statement's
 // first executions and the generic plan it may switch to later; Probe
 // analyzes every statement a store sends through it before it runs the
-// statement for real. RequireColumnScopedGuards holds the column-scoped row
-// guards of a table to the columns they list in UPDATE OF (PER-R22), and
-// SplitStatements reads SQL text, such as a migration file, with the same
-// lexer.
+// statement for real. Database gives a measured fixture a database of its
+// own. RequireColumnScopedGuards holds the column-scoped row guards of a table
+// to the columns they list in UPDATE OF (PER-R22), and SplitStatements reads
+// SQL text, such as a migration file, with the same lexer.
 //
 // The rows a statement read from a table (Reads) are the rows the table's
 // sequential scans returned plus the entries the table's indexes returned,
@@ -24,10 +24,14 @@
 // count includes rows a filter discarded later, the entries of an index-only
 // scan and every entry a bitmap index scan returned, and also an entry of a
 // row version that is dead but that VACUUM has not removed yet, or, for a
-// B-tree, that no earlier scan has marked dead. It excludes an entry that a
-// later column's index condition rejected inside the index and the other
-// rows of a lossy bitmap page. A custom plan's planning may probe an index for a column's
-// current extremes, and those entries count too, so a budget allows a few
+// B-tree, that no earlier scan has marked dead. A fixture that updates or
+// deletes rows is therefore built in a database of its own (Database), where
+// no other test's snapshot keeps those versions from its VACUUM; a fixture
+// that only inserts may share the test database. The count excludes an entry
+// that a later column's index condition rejected inside the index and the
+// other rows of a lossy bitmap page. Planning may probe an index for a
+// column's current extremes, a custom plan's for its arguments and any plan's
+// for a join estimate, and those entries count too, so a budget allows a few
 // rows beyond the execution's own.
 //
 // EXPLAIN reports the triggers of the statement's own tables, deferred ones

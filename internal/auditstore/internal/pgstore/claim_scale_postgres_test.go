@@ -154,11 +154,11 @@ func claimScaleCounts() (reconcilable, candidates int) {
 }
 
 // newClaimScaleFixture is a collecting Audit with its claim released and the
-// claimScaleGroups copied from it. The copies are read-model fixtures: they
-// satisfy the schema, not every store rule.
+// claimScaleGroups copied from it, in a database of its own. The copies are
+// read-model fixtures: they satisfy the schema, not every store rule.
 func newClaimScaleFixture(t *testing.T) collectingAuditFixture {
 	t.Helper()
-	f := newCollectingAuditFixture(t, "claim-scale", 1<<20)
+	f := newCollectingAuditFixture(t, "claim-scale", 1<<20, collectingAuditFixtureOptions{ownDatabase: true})
 	// The copies and the measurements outlast the collecting fixture's
 	// deadline.
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
@@ -240,8 +240,9 @@ SELECT 'claim-scale-`+group.name+`-' || lpad(n::text, 5, '0'), n % 4, `+holder+`
 		t.Fatal(err)
 	}
 	// INDEX_CLEANUP ON removes the index entries of the collecting Audit's
-	// superseded versions too, which VACUUM skips for so few dead rows, so
-	// every measurement reads live entries only.
+	// superseded versions too, which VACUUM skips for so few dead rows, and
+	// no other test's snapshot can keep them in the fixture's own database,
+	// so every measurement reads live entries only.
 	for _, table := range []string{"audits", "audit_controller_claims", "audit_executions"} {
 		if _, err := f.pool.Exec(f.ctx, `VACUUM (INDEX_CLEANUP ON, ANALYZE) `+pgx.Identifier{table}.Sanitize()); err != nil {
 			t.Fatal(err)
