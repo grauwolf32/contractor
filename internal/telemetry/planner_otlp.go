@@ -21,6 +21,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
+	"github.com/grauwolf32/contractor/internal/secretmatch"
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	resourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
@@ -492,10 +493,8 @@ func safePlannerString(value string, secrets []string) string {
 	if value == "" || !utf8.ValidString(value) || !safePlannerIdentifier.MatchString(value) {
 		return ""
 	}
-	for _, secret := range secrets {
-		if secret != "" && strings.Contains(value, secret) {
-			return ""
-		}
+	if secretmatch.Contains(value, secrets) {
+		return ""
 	}
 	if len(value) <= maxPlannerAttributeBytes {
 		return value
@@ -516,14 +515,7 @@ func plannerRunMetadataLabelAttributes(
 		if runlabels.ValidateRunMetadataLabel(key, value) != nil {
 			continue
 		}
-		secret := false
-		for _, candidate := range secrets {
-			if candidate != "" && strings.Contains(value, candidate) {
-				secret = true
-				break
-			}
-		}
-		if !secret {
+		if !secretmatch.Contains(value, secrets) {
 			result["contractor.run.label."+key] = value
 		}
 	}
