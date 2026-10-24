@@ -8,8 +8,14 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from fakes.clock import run_with_advanceable_clock
 from fakes.model import scripted_model, tool_call
 from test_adk_runtime import create_runtime, stage_request, terminal_text
+from test_code_analysis_child_lifecycle import (
+    CHILD_BUDGET_SECONDS,
+    term_marker,
+    through_term_grace,
+)
 
 import contractor_runtime.toolsets.code_analysis.languages as code_analysis_languages
 import contractor_runtime.toolsets.code_analysis.tools as code_analysis
@@ -49,8 +55,8 @@ def test_definitely_unprocessed_read_only_build_gets_exactly_one_safe_replay(
                 "exit-once-before-read",
                 str(marker),
             ),
-            build_timeout_seconds=1,
-            stop_timeout_seconds=0.1,
+            build_timeout_seconds=CHILD_BUDGET_SECONDS,
+            stop_timeout_seconds=CHILD_BUDGET_SECONDS,
         )
         starts = 0
         original_start = host._start_locked
@@ -91,9 +97,9 @@ def test_dead_replacement_child_during_query_replay_is_a_stable_engine_failure(
                 "exit-after-first-build",
                 str(tmp_path / "first-child.marker"),
             ),
-            build_timeout_seconds=1,
-            query_timeout_seconds=1,
-            stop_timeout_seconds=0.1,
+            build_timeout_seconds=CHILD_BUDGET_SECONDS,
+            query_timeout_seconds=CHILD_BUDGET_SECONDS,
+            stop_timeout_seconds=CHILD_BUDGET_SECONDS,
         )
         await host.build(_snapshot())
         assert host._process is not None
@@ -150,7 +156,7 @@ def test_crash_after_query_acceptance_reaps_child_and_erases_mirror(tmp_path: Pa
 
 def test_stderr_flood_is_drained_but_never_retained_as_text(tmp_path: Path) -> None:
     async def scenario() -> None:
-        host = _fault_host(tmp_path, "stderr-flood", build_timeout=2)
+        host = _fault_host(tmp_path, "stderr-flood")
         result = await host.build(_snapshot())
         assert result.node_count == 1
         assert host.stderr_observed is True
@@ -179,18 +185,23 @@ def test_stderr_flood_is_drained_but_never_retained_as_text(tmp_path: Path) -> N
 )
 def test_fault_classification_is_stable_and_scratch_is_immediately_reusable(
     tmp_path: Path,
+    tmp_path_factory: pytest.TempPathFactory,
     mode: str,
     code: str,
     retryable: bool,
 ) -> None:
+    marker = term_marker(tmp_path_factory)
+
     async def scenario() -> None:
+        # Only the hanging child meets a deadline short enough to expire.
         host = _fault_host(
             tmp_path,
             mode,
-            build_timeout=0.08 if mode == "hang" else 1,
+            build_timeout=0.08 if mode == "hang" else CHILD_BUDGET_SECONDS,
+            marker=marker if mode == "hang" else None,
         )
         with pytest.raises(TrailmarkHostError) as rejected:
-            await host.build(_snapshot())
+            await through_term_grace(host.build(_snapshot()), marker)
         assert rejected.value.code == code
         assert rejected.value.retryable is retryable
         assert str(rejected.value) == f"Code analysis child failed ({code})"
@@ -202,7 +213,7 @@ def test_fault_classification_is_stable_and_scratch_is_immediately_reusable(
         await clean.close()
         assert list(tmp_path.iterdir()) == []
 
-    asyncio.run(scenario())
+    run_with_advanceable_clock(scenario())
 
 
 def test_memory_exhaustion_reaches_the_model_as_non_retryable_capacity(tmp_path: Path) -> None:
@@ -359,14 +370,16 @@ def _fault_host(
     root: Path,
     mode: str,
     *,
-    build_timeout: float = 1,
+    build_timeout: float = CHILD_BUDGET_SECONDS,
+    marker: Path | None = None,
 ) -> TrailmarkChildHost:
+    marker_argument = () if marker is None else (str(marker),)
     return TrailmarkChildHost(
         root,
-        child_command=(sys.executable, "-I", str(FAULT_CHILD), mode),
+        child_command=(sys.executable, "-I", str(FAULT_CHILD), mode, *marker_argument),
         build_timeout_seconds=build_timeout,
-        query_timeout_seconds=0.1,
-        stop_timeout_seconds=0.05,
+        query_timeout_seconds=CHILD_BUDGET_SECONDS,
+        stop_timeout_seconds=CHILD_BUDGET_SECONDS,
     )
 
 

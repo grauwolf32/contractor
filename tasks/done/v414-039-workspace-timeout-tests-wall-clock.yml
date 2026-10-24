@@ -1,0 +1,195 @@
+schema_version: "1.0"
+id: V414-039
+title: "Test workspace operation deadlines without real sub-second wall-clock budgets"
+milestone: review-v407-v409-followups-2026-10
+epic: workspaces
+kind: defect
+introduced_by: V49-001
+priority: P2
+status: completed
+implementation_commit: 7ddccb3397bd359d0907c3dc2a42839b12d28639
+depends_on: []
+languages: [python]
+goal: >-
+  The workspace timeout tests prove which deadline owns an operation through
+  a controlled clock or an explicit blocking point, so a loaded machine
+  cannot make them fail with workspace_unavailable.
+context:
+  specification:
+    - docs/spec/tools/workspace.md
+  review: >-
+    Reported by the V414-013 and V410-010 lanes during the 2026-10-24
+    delivery, where the tests failed under load and passed alone. The user
+    asked on 2026-10-24 to file it and fix it next.
+  severity: low
+  finding: >-
+    runtime/tests/test_workspace_timeouts.py
+    test_configured_io_budget_and_shorter_close_deadline_preserve_owner
+    (line 65) runs real workspace I/O under a 0.1 s operation timeout and a
+    5 s hydrate timeout and waits with asyncio.wait_for(..., timeout=1);
+    test_initialization_uses_earlier_operation_or_enclosing_deadline
+    (line 137) relies on real elapsed time the same way. Under a loaded
+    machine the real I/O itself exceeds 0.1 s and the operation fails with
+    workspace_unavailable before the property under test is reached.
+    AGENTS.md 3.5 forbids wall-clock assertions. V414-005 hit the same class
+    in test_source_analysis_toolset.py and raised the deadline there.
+  siblings: >-
+    Other Runtime tests that set a workspace, request or tool deadline below
+    one second around real I/O; find them by searching runtime/tests for
+    operation-timeout and wait_for values below 1. Each is made
+    deterministic or ruled out with the reason.
+scope:
+  in:
+    - "Rewrite the two tests so the deadline expiry is driven by an injected clock or an explicit gate the test releases, keeping the assertion about which deadline wins and that the owner is preserved."
+    - "Fix or rule out each sibling."
+  out:
+    - "Changing production deadline behaviour."
+acceptance_criteria:
+  - id: A1
+    text: "Both tests pass with the machine artificially slowed (for example a blocking hook that delays the I/O well beyond the old 0.1 s) and still fail if the production code picks the wrong deadline."
+  - id: A2
+    text: "Each sibling is deterministic or ruled out with the reason."
+tests:
+  - command: "cd runtime && uv run --locked pytest -q tests/test_workspace_timeouts.py"
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]
+decisions:
+  - >-
+    Clock: the tests run on the existing tests/fakes/clock.py
+    AdvanceableClockLoop (loop time = real monotonic time plus an offset only
+    the test moves), not a new production clock seam. The workspace code
+    computes deadlines with time.monotonic() but waits with loop timers
+    (asyncio.wait_for on deadline - now), so moving the loop clock expires
+    exactly the wait the test chose, and production deadline behaviour is
+    unchanged. Every budget that real I/O must outlast is now real time no
+    host exhausts (600 s operation budget, 60 s enclosing, request, child and
+    stop budgets); a deadline a test means to expire is either short against
+    a child that hangs on purpose, or expired by advance_clock after a gate
+    the test observed (the read entered, the cleanup stuck, the partial
+    output read, SIGTERM recorded as ignored). Safety nets of 30 s only end a
+    broken scenario. Alternative rejected: a monotonic constructor parameter
+    on LocalDirectWorkspace and WorkspaceOperationGuard; it would need a
+    virtual-time loop as well and has no production caller. Reversal: the
+    workspace code moves its deadlines onto the loop clock.
+  - >-
+    Which deadline wins is asserted without timing: an enclosing deadline
+    earlier than the budget must reach the I/O exactly; an earlier operation
+    budget must lie between the monotonic readings taken around the call plus
+    the budget (600 s, distinct from the 30 s default); and the read and close
+    waits must still be pending before the advance and expire after advancing
+    by exactly the expected winner, while the other deadline is ten times
+    further away.
+  - >-
+    Trailmark children that ignore SIGTERM now record it in a marker file
+    passed as argv[2] (tests/fixtures/trailmark_fault_child.py
+    ignore_sigterm; without the argument they still use SIG_IGN), and
+    through_term_grace advances past the SIGTERM grace only after that marker
+    exists. Advancing on mere entry to _terminate_process was tried and
+    rejected: it forced the SIGKILL step onto children that had already died
+    on SIGTERM, and on macOS killpg on a process group whose only member is
+    an unreaped zombie fails with EPERM, which _terminate_process reports as
+    an unconfirmed reap.
+verification:
+  date: '2026-10-25'
+  environment: >-
+    macOS arm64 (Darwin 27); Go 1.26.9 and Node 24.20 (portable copies under
+    /private/tmp), Python 3.13.16 with the locked Runtime venv, a pnpm UI
+    install for make lint; branch claude/v414-wst, implementation a0f8193c and
+    7ddccb33, claude/v41x-coord merged at 2a033460 (it changes no runtime/
+    file). Four other lanes ran Go and PostgreSQL suites on the machine.
+  commands:
+    - >-
+      cd runtime && uv run --locked pytest -q tests/test_workspace_timeouts.py:
+      12 passed on 7ddccb33 and on 2a033460.
+    - >-
+      A1, slowed host: a pytest plugin that sleeps before every
+      asyncio.to_thread hop (0.5 s and 2 s, so every hydration, scan, read and
+      disposal step starts well after the old 0.1 s budget) and prefixes every
+      child process with sh -c 'sleep 1'. The two tests pass under it (2 s
+      hop delay: 20 s and 6 s per test); the unchanged tests fail under the
+      0.5 s delay (hydration ends in workspace_cleanup_unconfirmed, the
+      initialization in workspace_unavailable). The same plugin fails the old
+      versions of the fixed siblings (allocation release, proxied child,
+      oversized validator) and passes the new ones.
+    - >-
+      A1, wrong deadline: each production mutation was applied, run and
+      reverted, and the two tests fail on every one: _deadline ignores the
+      enclosing deadline, ignores the operation budget, takes the later of
+      the two, or uses the 30 s default instead of the configured budget; the
+      guard waits 120 s past the deadline, close is unbounded, or expiry
+      cancels the owner instead of retaining it. The guard tests fail on the
+      three guard mutations; the allocation release test fails when the
+      release wait is three times the request budget; the Trailmark tests
+      fail when _terminate_process gives up instead of sending SIGKILL.
+    - >-
+      Repetition under load: the six changed test files, 5 runs with the
+      slowing plugin (0.3 s per thread hop, 1 s per child start) and 10 plain
+      runs: 109 passed each time; the only failures are
+      test_detached_descendant_holding_pipes_cannot_stall_stop[timeout] and
+      [cancel] (setsid(1) absent on macOS, V401-007). The two code-analysis
+      files: 15 further plain runs, all passed. pytest -W error over the six
+      files: the same two known failures only.
+    - "make lint: exit 0 on 7ddccb33."
+    - >-
+      make test-runtime on 7ddccb33: 4634 passed, 39 skipped, 106 failed. 96
+      are Podman tests that V401-007 records as Linux-only (95 of its set plus
+      test_podman_contracts.py::test_execution_contract_is_not_an_installed_factory_or_capability,
+      which failed only on ResourceWarnings for AF_UNIX sockets leaked by the
+      failing Podman tests before it; the file passes alone, 33 passed). The
+      other 10 are exactly the macOS cases V401-007 lists:
+      local_direct_faults[socket], projectfs_local_direct (2),
+      projectfs_local_io, tool_process detached holder (2), trailmark_child
+      (2), code_analysis_shallow loop gap and code_analysis_graph PATH_MAX.
+  siblings: >-
+    Made deterministic: test_projectfs_operation_guard.py (0.05 s operation
+    and 0.02 s close deadlines that had to outlast the first loop step and
+    thread start; the 1-2 s budgets around thread hops in the same file);
+    test_allocation.py test_release_timeout_retains_one_cleanup_task_and_keeps_loop_responsive
+    (0.5 s waits around the path to cleanup and the retry's real directory
+    removal, 1 s prepare and release budget); test_tool_process.py
+    test_proxy_async_child_outcomes_reach_the_caller_unwrapped (0.3 s for a
+    child to start and print) and test_proxied_validators_report_timeout_and_oversized_output[oversized]
+    (0.5 s to start and write 3 MB); test_code_analysis_faults.py and
+    test_code_analysis_child_lifecycle.py (0.05-0.1 s stop budgets around
+    reaping after SIGTERM and SIGKILL, 0.1 s query budget a crashing child
+    had to beat, 1-2 s build budgets around child start, and the hung-build
+    ticker that needed eight 5 ms sleeps inside the deadline). Ruled out:
+    the heartbeat waits of 0.1 s (test_allocation.py) and 0.2 s
+    (test_local_direct_faults.py:232), because the awaited coroutine takes
+    an uncontended in-memory lock and returns without suspending unless the
+    property they check is broken; test_audit_completion_runtime.py:151 and
+    :174 (0.1 s request timeout over the in-memory AuditClient, the slow
+    steps are sleeps); test_gateway_recovery.py:126 and :278 and
+    test_openai_gateway_llm.py:465 (httpx.MockTransport handlers that block
+    on purpose); test_otlp_retries.py:383 and :409 and
+    test_otlp_streaming.py:268 and :320 (MockTransport, no real I/O);
+    test_interactsh_protocol.py:46 (a per-attempt connect timeout inside a
+    100-attempt readiness loop, gated by CONTRACTOR_TEST_INTERACTSH_SERVER);
+    test_podman_recovery.py:101 (the lease is meant to expire and time only
+    adds to that); the 0.08 s Trailmark build and query deadlines and the
+    0.5 s validator timeout against children that hang (every expiry point
+    raises the asserted code); test_capabilities.py:320 and :432 (V371-022),
+    test_podman_capabilities.py:302 (kept on purpose per V371-022) and
+    test_audit_result_publication.py:480, :497 and :509 (V372-016). Ruled
+    out of this task because they run only on Linux (OPS-R1; they fail on
+    this macOS host for SOCK_SEQPACKET and pidfd, V401-007) and could not be
+    changed and verified here: test_podman_capabilities.py:117 (0.15 s probe
+    deadline that must outlast the request reaching the blocked create
+    through the fake owner) and :252 (0.05 s, followed by an unbounded
+    entered.wait()), test_podman_supervisor.py:128 (a 0.5 s lease across
+    socketpair round trips with a thread) and the gated
+    test_podman_supervisor_integration.py:183 (0.5 s guardian request
+    deadline); they need a Linux follow-up.
+  notes: >-
+    Not test deadlines, so outside A2 but seen while testing: the OTLP
+    retry tests assert elapsed wall time (time.monotonic() - start < 0.5);
+    the Trailmark exit-status grace is a 0.2 s production constant
+    (_EXIT_STATUS_GRACE_SECONDS) that decides whether exit code 71 is
+    classified as capacity; and on macOS _terminate_process
+    (toolsets/code_analysis/trailmark_host.py:794-820) and core/process.py
+    _stop treat killpg EPERM on a zombie-only process group as a failure
+    (unconfirmed reap, or a PermissionError from _stop). One run of 45 under
+    the slowing plugin saw
+    test_fault_classification_is_stable_and_scratch_is_immediately_reusable[malformed]
+    end non-retryable, consistent with that EPERM path; it did not recur.

@@ -3,9 +3,11 @@ from __future__ import annotations
 import asyncio
 import sys
 import threading
+from collections.abc import Awaitable
 from pathlib import Path
 
 import pytest
+from fakes.clock import advance_clock, run_with_advanceable_clock
 
 import contractor_runtime.toolsets.code_analysis.trailmark_host as host_module
 from contractor_runtime.projectfs.storage import WorkspaceSnapshot, WorkspaceTextFile
@@ -15,6 +17,44 @@ from contractor_runtime.toolsets.code_analysis.trailmark_host import (
 )
 
 FAULT_CHILD = Path(__file__).parent / "fixtures" / "trailmark_fault_child.py"
+# Budgets no loaded host exhausts while a real child starts, answers or is
+# reaped. A deadline a test needs to expire is either short against a child
+# that hangs, or the SIGTERM grace that through_term_grace expires by moving the
+# loop clock. The safety net only ends a broken scenario.
+CHILD_BUDGET_SECONDS = 60.0
+SAFETY_NET_SECONDS = 30.0
+
+
+def term_marker(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Where a fault child records SIGTERM, outside the scratch root under test."""
+    return tmp_path_factory.mktemp("sigterm") / "ignored"
+
+
+async def through_term_grace[T](operation: Awaitable[T], marker: Path) -> T:
+    """Await an operation that may stop a fault child which ignores SIGTERM.
+
+    The SIGTERM grace is real time no host exhausts, so a child that dies on
+    SIGTERM is reaped inside it and the clock never moves. Once the child
+    records that it ignored SIGTERM, the grace can only end by expiring: the
+    loop clock moves past it once, and the SIGKILL reap that follows keeps a
+    fresh budget of its own.
+    """
+
+    async def ignored() -> None:
+        while not marker.exists():
+            await asyncio.sleep(0.005)
+
+    running = asyncio.ensure_future(operation)
+    watching = asyncio.ensure_future(ignored())
+    try:
+        await asyncio.wait(
+            {running, watching}, timeout=SAFETY_NET_SECONDS, return_when=asyncio.FIRST_COMPLETED
+        )
+        if watching.done():
+            advance_clock(CHILD_BUDGET_SECONDS)
+        return await asyncio.wait_for(running, SAFETY_NET_SECONDS)
+    finally:
+        watching.cancel()
 
 
 @pytest.mark.parametrize(
@@ -37,22 +77,28 @@ def test_child_faults_are_reaped_and_remove_the_mirror(tmp_path: Path, mode: str
     asyncio.run(scenario())
 
 
-def test_hung_build_has_a_hard_deadline_without_blocking_event_loop(tmp_path: Path) -> None:
+def test_hung_build_has_a_hard_deadline_without_blocking_event_loop(
+    tmp_path: Path, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    marker = term_marker(tmp_path_factory)
+
     async def scenario() -> None:
-        host = _fault_host(tmp_path, "hang", build_timeout=0.08, stop_timeout=0.05)
+        # The child hangs, so this short deadline always expires.
+        host = _fault_host(tmp_path, "hang", build_timeout=0.08, marker=marker)
         ticks = 0
         stopped = asyncio.Event()
 
         async def ticker() -> None:
+            # Count loop turns, not elapsed time: a blocked loop takes none.
             nonlocal ticks
             while not stopped.is_set():
                 ticks += 1
-                await asyncio.sleep(0.005)
+                await asyncio.sleep(0)
 
         task = asyncio.create_task(ticker())
         try:
             with pytest.raises(TrailmarkHostError) as rejected:
-                await host.build(_snapshot())
+                await through_term_grace(host.build(_snapshot()), marker)
             assert rejected.value.code == "code_analysis_build_timeout"
         finally:
             stopped.set()
@@ -63,28 +109,34 @@ def test_hung_build_has_a_hard_deadline_without_blocking_event_loop(tmp_path: Pa
         assert host.mirror_exists is False
         assert list(tmp_path.iterdir()) == []
 
-    asyncio.run(scenario())
+    run_with_advanceable_clock(scenario())
 
 
-def test_hung_query_has_an_independent_hard_deadline_and_is_reaped(tmp_path: Path) -> None:
+def test_hung_query_has_an_independent_hard_deadline_and_is_reaped(
+    tmp_path: Path, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    marker = term_marker(tmp_path_factory)
+
     async def scenario() -> None:
+        # The child answers the build and hangs on the query, so only the
+        # short query deadline expires.
         host = TrailmarkChildHost(
             tmp_path,
-            child_command=(sys.executable, "-I", str(FAULT_CHILD), "hang-query"),
-            build_timeout_seconds=1,
+            child_command=(sys.executable, "-I", str(FAULT_CHILD), "hang-query", str(marker)),
+            build_timeout_seconds=CHILD_BUDGET_SECONDS,
             query_timeout_seconds=0.08,
-            stop_timeout_seconds=0.05,
+            stop_timeout_seconds=CHILD_BUDGET_SECONDS,
         )
         await host.build(_snapshot())
         with pytest.raises(TrailmarkHostError) as rejected:
-            await host.summary()
+            await through_term_grace(host.summary(), marker)
         assert rejected.value.code == "code_analysis_query_timeout"
         assert host.pid is None
         assert host.mirror_exists is False
         await host.close()
         assert list(tmp_path.iterdir()) == []
 
-    asyncio.run(scenario())
+    run_with_advanceable_clock(scenario())
 
 
 def test_rebuild_replaces_one_child_and_concurrent_close_is_idempotent(tmp_path: Path) -> None:
@@ -110,26 +162,33 @@ def test_rebuild_replaces_one_child_and_concurrent_close_is_idempotent(tmp_path:
     asyncio.run(scenario())
 
 
-def test_close_kills_a_child_that_ignores_graceful_termination(tmp_path: Path) -> None:
+def test_close_kills_a_child_that_ignores_graceful_termination(
+    tmp_path: Path, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    marker = term_marker(tmp_path_factory)
+
     async def scenario() -> None:
-        host = _fault_host(tmp_path, "ignore-term", stop_timeout=0.05)
+        host = _fault_host(tmp_path, "ignore-term", marker=marker)
         await host.build(_snapshot())
         pid = host.pid
         assert pid is not None
-        await asyncio.gather(host.close(), host.close(), host.close())
+        await through_term_grace(asyncio.gather(host.close(), host.close(), host.close()), marker)
+        assert marker.exists()
         assert not Path(f"/proc/{pid}").exists()
         assert host.pid is None
         assert host.mirror_exists is False
         assert list(tmp_path.iterdir()) == []
 
-    asyncio.run(scenario())
+    run_with_advanceable_clock(scenario())
 
 
 def test_unconfirmed_reap_preserves_mirror_and_requires_fenced_cleanup(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    marker = term_marker(tmp_path_factory)
+
     async def scenario() -> None:
-        host = _fault_host(tmp_path, "ignore-term", stop_timeout=0.05)
+        host = _fault_host(tmp_path, "ignore-term", marker=marker)
         await host.build(_snapshot())
         original = host._terminate_process
 
@@ -144,12 +203,12 @@ def test_unconfirmed_reap_preserves_mirror_and_requires_fenced_cleanup(
         assert host.mirror_exists is True
 
         monkeypatch.setattr(host, "_terminate_process", original)
-        await host.close()
+        await through_term_grace(host.close(), marker)
         assert host.pid is None
         assert host.mirror_exists is False
         assert list(tmp_path.iterdir()) == []
 
-    asyncio.run(scenario())
+    run_with_advanceable_clock(scenario())
 
 
 def test_cancellation_waits_for_materialization_then_removes_source_residue(
@@ -295,15 +354,16 @@ def _fault_host(
     root: Path,
     mode: str,
     *,
-    build_timeout: float = 1.0,
-    stop_timeout: float = 0.1,
+    build_timeout: float = CHILD_BUDGET_SECONDS,
+    marker: Path | None = None,
 ) -> TrailmarkChildHost:
+    marker_argument = () if marker is None else (str(marker),)
     return TrailmarkChildHost(
         root,
-        child_command=(sys.executable, "-I", str(FAULT_CHILD), mode),
+        child_command=(sys.executable, "-I", str(FAULT_CHILD), mode, *marker_argument),
         build_timeout_seconds=build_timeout,
-        query_timeout_seconds=0.1,
-        stop_timeout_seconds=stop_timeout,
+        query_timeout_seconds=CHILD_BUDGET_SECONDS,
+        stop_timeout_seconds=CHILD_BUDGET_SECONDS,
     )
 
 
