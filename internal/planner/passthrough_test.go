@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -99,14 +100,7 @@ func TestPassthroughPlannerInvokesOnceAndRecoversRecordedResult(t *testing.T) {
 		*report.Metrics.Tools["a2a.invoke"].Calls != 1 {
 		t.Fatalf("Planner execution report = (%+v, %t)", report, ok)
 	}
-	for name, counter := range map[string]*int64{
-		"model calls": report.Metrics.ModelCalls, "input tokens": report.Metrics.InputTokens,
-		"output tokens": report.Metrics.OutputTokens, "total tokens": report.Metrics.TotalTokens,
-	} {
-		if counter == nil || *counter != 0 {
-			t.Fatalf("Passthrough %s must explicitly report zero, got %v", name, counter)
-		}
-	}
+	assertZeroModelUsage(t, report)
 	if export := telemetryAdapter.Flush(t.Context()); !export.Succeeded {
 		t.Fatalf("Passthrough telemetry export = %+v", export)
 	}
@@ -390,6 +384,7 @@ func TestPassthroughPlannerRecordsTypedFailureAndDoesNotRetryInvocation(t *testi
 		len(report.Errors) != 1 || report.Errors[0].Code != "worker_input_required" {
 		t.Fatalf("failed Planner report = (%+v, %t)", report, ok)
 	}
+	assertZeroModelUsage(t, report)
 	recovered, _ := factory.Create(invocation)
 	_, err = recovered.Run(context.Background())
 	if !errors.As(err, &plannerError) || plannerError.Code != "worker_input_required" ||
@@ -423,6 +418,45 @@ func TestPassthroughPlannerMapsWorkerFailureToFailedCandidate(t *testing.T) {
 	if !ok || report.ToolCalls[0].Outcome != reporting.ToolCallFailed ||
 		report.ToolCalls[0].Error == nil || report.ToolCalls[0].Error.Code != "worker_budget_exhausted" {
 		t.Fatalf("Planner report = (%+v, %t)", report, ok)
+	}
+	assertZeroModelUsage(t, report)
+}
+
+// A passthrough Planner whose session never starts still reports, and its
+// report states zero model usage like every other passthrough report: the
+// Planner never calls a model, so no reader has to derive the zeros
+// (EVM-R81).
+func TestPassthroughPlannerReportsZeroModelUsageWhenItsSessionFails(t *testing.T) {
+	worker := &recordingWorker{}
+	factory, err := NewPassthroughFactory(failingSessions{err: errors.New("session store unavailable")}, worker, &fakeInspector{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	instance, err := factory.Create(testInvocation())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := instance.Run(t.Context()); err == nil || worker.calls != 0 {
+		t.Fatalf("Run error = %v after %d Worker calls, want a session failure before any call", err, worker.calls)
+	}
+	report, ok := instance.(ReportProvider).ExecutionReport()
+	if !ok || !strings.HasPrefix(report.ReportID, "planner-unavailable-") || len(report.ToolCalls) != 0 {
+		t.Fatalf("Planner report = (%+v, %t), want the report of a Planner without a session", report, ok)
+	}
+	assertZeroModelUsage(t, report)
+}
+
+// assertZeroModelUsage requires the explicit zero model calls and tokens that
+// every passthrough report states (EVM-R81).
+func assertZeroModelUsage(t *testing.T, report reporting.ExecutionReport) {
+	t.Helper()
+	for name, counter := range map[string]*int64{
+		"model calls": report.Metrics.ModelCalls, "input tokens": report.Metrics.InputTokens,
+		"output tokens": report.Metrics.OutputTokens, "total tokens": report.Metrics.TotalTokens,
+	} {
+		if counter == nil || *counter != 0 {
+			t.Fatalf("Passthrough %s must explicitly report zero, got %v", name, counter)
+		}
 	}
 }
 

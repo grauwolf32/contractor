@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
@@ -24,7 +25,7 @@ func (s *Scheduler) persistReports(
 	// A crash can resume directly in finalizing/aborting without recreating the
 	// Planner instance. Ensure its durable session still has a report record;
 	// an already persisted complete report wins over this placeholder.
-	plannerRecorded := s.recordPlannerReport(ctx, execution, nil, nil)
+	plannerRecorded := s.recordPlannerReport(ctx, execution, workflow.stage.Planner, nil, nil)
 	allocationsListed := s.recordAllocationReports(ctx, run, workflow, execution, reservations, reports)
 	// The phase rebuilds StageMetrics once, after its last report (SCH-R51).
 	if plannerRecorded || allocationsListed {
@@ -128,10 +129,11 @@ func (s *Scheduler) recordAllocationReports(
 func (s *Scheduler) persistPlannerReport(
 	ctx context.Context,
 	execution runstore.StageExecution,
+	stagePlanner resolved.PlannerRef,
 	instance planner.Planner,
 	exportResult *telemetry.PlannerExportResult,
 ) {
-	if s.recordPlannerReport(ctx, execution, instance, exportResult) {
+	if s.recordPlannerReport(ctx, execution, stagePlanner, instance, exportResult) {
 		s.rebuildStageMetrics(ctx, execution.StageExecutionID)
 	}
 }
@@ -139,22 +141,18 @@ func (s *Scheduler) persistPlannerReport(
 // recordPlannerReport records the Planner report, or its incomplete
 // placeholder when instance provides none, and reports whether it recorded
 // one. A Stage whose Planner never started has no report to record.
+// stagePlanner is the Planner of the Stage execution's immutable spec.
 func (s *Scheduler) recordPlannerReport(
 	ctx context.Context,
 	execution runstore.StageExecution,
+	stagePlanner resolved.PlannerRef,
 	instance planner.Planner,
 	exportResult *telemetry.PlannerExportResult,
 ) bool {
 	if execution.PlannerSessionID == nil || execution.PlannerInvocationID == nil {
 		return false
 	}
-	report := reporting.ExecutionReport{
-		ReportID:  "planner-missing-" + *execution.PlannerSessionID,
-		Complete:  false,
-		Metrics:   reporting.ExecutionMetrics{Tools: map[string]reporting.ToolMetrics{}},
-		ToolCalls: []reporting.ToolCallRecord{},
-		Errors:    []reporting.ExecutionError{},
-	}
+	report := plannerReportPlaceholder(*execution.PlannerSessionID, stagePlanner)
 	if provider, ok := instance.(planner.ReportProvider); ok {
 		if provided, available := provider.ExecutionReport(); available {
 			report = provided
@@ -189,6 +187,27 @@ func (s *Scheduler) recordPlannerReport(
 		return false
 	}
 	return true
+}
+
+// plannerReportPlaceholder is the incomplete report recorded for a Planner
+// that started but provided none (OBS-R37). Its counters are unknown, except
+// that a model-free Planner does no model work: its model calls and tokens
+// are zero whatever became of its report, so the placeholder states them as
+// its own report would (EVM-R81).
+func plannerReportPlaceholder(sessionID string, stagePlanner resolved.PlannerRef) reporting.ExecutionReport {
+	report := reporting.ExecutionReport{
+		ReportID:  "planner-missing-" + sessionID,
+		Complete:  false,
+		Metrics:   reporting.ExecutionMetrics{Tools: map[string]reporting.ToolMetrics{}},
+		ToolCalls: []reporting.ToolCallRecord{},
+		Errors:    []reporting.ExecutionError{},
+	}
+	if resolved.IsModelFreePlanner(stagePlanner) {
+		modelCalls, inputTokens, outputTokens, totalTokens := int64(0), int64(0), int64(0), int64(0)
+		report.Metrics.ModelCalls, report.Metrics.InputTokens = &modelCalls, &inputTokens
+		report.Metrics.OutputTokens, report.Metrics.TotalTokens = &outputTokens, &totalTokens
+	}
+	return report
 }
 
 func applyPlannerTelemetryResult(

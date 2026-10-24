@@ -1,15 +1,16 @@
 package evalstore
 
-import "github.com/grauwolf32/contractor/internal/config/resolved"
-
 // SQL statements for metric_snapshots.go.
 
 // metricSnapshotsQuery returns one row per stage execution of the owner's Runs
-// in $1, ordered by (run_id, stage_execution_id) and limited to $3: a redacted
-// stage_metrics document (planner/worker counters, completeness flags; NULL
-// without metrics), the stage's planner ID/version and its allocation count as
-// expected workers. A document is NULL once the running byte total exceeds $4
-// or its own size exceeds $5. Used by Store.MetricSnapshots.
+// in $1, ordered by (run_id, stage_execution_id) and limited to $3: the
+// projection of its stage_metrics document that Eval usage reads (NULL without
+// metrics) and the stage's allocation count as expected workers. The
+// projection keeps each execution report's complete, truncated and metrics
+// members and each Runtime report's complete member, never prompts, tool
+// arguments or errors; evalservice decodes it strictly. A document is NULL
+// once the running byte total exceeds $4 or its own size exceeds $5. Used by
+// Store.MetricSnapshots.
 const metricSnapshotsQuery = `
 WITH snapshots AS (
     SELECT stage.run_id, stage.stage_execution_id,
@@ -35,8 +36,6 @@ WITH snapshots AS (
                 FROM jsonb_each(metrics.metrics -> 'runtime')
             ), '{}'::jsonb)
         ) END AS document,
-        COALESCE(stage.stage_spec_snapshot #>> '` + resolved.StagePlannerIDPath + `', '') AS planner_id,
-        COALESCE(stage.stage_spec_snapshot #>> '` + resolved.StagePlannerVersionPath + `', '') AS planner_version,
         (SELECT count(*) FROM stage_allocations allocation
             WHERE allocation.stage_execution_id = stage.stage_execution_id)::int AS expected_workers
     FROM stage_executions stage
@@ -52,7 +51,7 @@ WITH snapshots AS (
 )
 SELECT run_id, stage_execution_id,
     CASE WHEN total_size <= $4 AND octet_length(document::text) <= $5 THEN document END,
-    expected_workers, planner_id, planner_version
+    expected_workers
 FROM bounded
 ORDER BY run_id, stage_execution_id
 `
