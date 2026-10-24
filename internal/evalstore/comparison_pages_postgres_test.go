@@ -595,17 +595,13 @@ func TestSharedPostgresEvalTenThousandSelectedMembersBoundedPages(t *testing.T) 
 	}
 
 	// The statement reads the cohort of 5,000 pair rows once and, for the
-	// documents, at most one row per page item: the custom plans of a pair
-	// page, of a middle pair page sorted by difference and of an unfiltered
-	// member page, and their generic plans.
+	// documents, at most one row per page item, in the custom and the generic
+	// plan of a pair page, of a middle pair page sorted by difference and of
+	// member pages. A custom plan's planning may probe an index's extremes,
+	// so the budget allows explaintest's few rows beyond the execution's own.
 	if _, err = pool.Exec(ctx, `ANALYZE eval_view_pairs, eval_experiments`); err != nil {
 		t.Fatal(err)
 	}
-	conn, err := pool.Acquire(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer conn.Release()
 	middle := 40.0
 	statements := map[string]SelectedPageParams{
 		"pairs":           {OwnerID: scope.OwnerID, ExperimentID: id, Generation: view.Generation, AfterOrdinal: -1, Limit: 100},
@@ -618,18 +614,18 @@ func TestSharedPostgresEvalTenThousandSelectedMembersBoundedPages(t *testing.T) 
 		if strings.HasPrefix(name, "members") {
 			query, args = memberPageStatement(params)
 		}
-		analysis, err := explaintest.Explain(ctx, pool, query, args...)
-		if err != nil {
-			t.Fatal(name, err)
+		for _, mode := range explaintest.Modes {
+			analysis, err := explaintest.ExplainPrepared(ctx, pool, mode, query, args...)
+			if err != nil {
+				t.Fatal(name, mode, err)
+			}
+			if reads := analysis.Reads.Of("eval_view_pairs"); reads > 5000+int64(params.Limit)+8 {
+				t.Errorf("%s page in a %s plan read %d pair rows, more than the cohort of 5000 and one per item:\n%+v",
+					name, mode, reads, analysis.Plan)
+			}
+			t.Logf("%s page, 10,000 members in 5,000 pairs, %s plan: %d pair rows read\n%+v",
+				name, mode, analysis.Reads.Of("eval_view_pairs"), analysis.Plan)
 		}
-		if examined := analysis.Plan.Examined("eval_view_pairs"); examined > 5000+int64(params.Limit) {
-			t.Errorf("%s page examined %d pair rows, more than the cohort of 5000 and one per item:\n%s", name, examined, analysis.Plan)
-		}
-		generic, err := explaintest.ExplainGeneric(ctx, conn.Conn().PgConn(), query)
-		if err != nil {
-			t.Fatal(name, err)
-		}
-		t.Logf("%s page, 10,000 members in 5,000 pairs: custom plan\n%s\ngeneric plan\n%s", name, analysis.Plan, generic)
 	}
 	t.Logf("10,000 members: 50 pair pages; 1 SQL statement/page; maximum page %d bytes; %d metric bins", maxBytes, len(cohort.Bins))
 }
