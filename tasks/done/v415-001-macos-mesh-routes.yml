@@ -5,7 +5,7 @@ milestone: runtime-host-provisioning-2026-10
 epic: operations
 kind: defect
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [python]
 goal: "Make local-up restore explicit mesh routing on macOS without restarting an existing tunnel or changing the personal VPN."
@@ -67,3 +67,4 @@ verification_results:
   - "make test-hybrid: 23 tests passed, Ruff checks/format and shell syntax passed."
   - "Both final regression scenarios failed on the original mesh.py: no subnet route write after fresh startup and CalledProcessError when repeating startup."
   - "make lint: passed (Go vet/staticcheck, UI gates, deployment suites, registries, spec/task checks and Runtime lint/import checks)."
+implementation_commit: 3ae3b7bdb3d54e03cf7d7f93ce2af996c0eb43a7
