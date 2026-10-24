@@ -1,0 +1,190 @@
+schema_version: '1.0'
+id: V410-007
+title: Verify the first sitemap slice across scale and lifecycle boundaries
+milestone: project-sitemap-2026-10
+epic: quality
+kind: chore
+priority: P1
+status: pending
+depends_on:
+- V410-006
+languages:
+- go
+- python
+- yaml
+- markdown
+goal: Accept the independent HTTP/OpenAPI sitemap slice only after required real-store/process cases prove safe
+  sharing, bounded lifetime cost, truthful failures and recoverable lifecycle behavior.
+context:
+  authority: User requested an implementation task breakdown of the reviewed proposals 0033 and 0042 on 2026-10-24;
+    this task records planned work, not implementation or verification evidence.
+  proposal: docs/proposals/0042-live-project-sitemap.md
+  proposal_sections: 'Sections 10-12: measured publication amplification, limits, required cases and first useful
+    delivery.'
+  specification:
+  - docs/spec/artifacts/artifact-store.md
+  - docs/spec/artifacts/projects.md
+  - docs/spec/artifacts/retention-and-deletion.md
+  - docs/spec/platform/persistence.md
+  - docs/spec/platform/limits.md
+  - docs/spec/platform/errors.md
+  - docs/testing/README.md
+  - docs/spec/operations/operations.md
+  boundary: The live sitemap is shared research context, not current Audit coverage, complete traffic archival or
+    proof. The HTTP/OpenAPI first slice has no dependency on proposal 0033 implementation or deferred V61/V62/V64
+    work.
+  code:
+  - make/features.mk
+  - make/release.mk
+  - scripts/check_release_verify_graph.py
+  - scripts/shared_fixture_gate.py
+  - tests/e2e
+  - internal/projectsitemap
+  - internal/artifacts
+  - internal/projectlifecycle
+scope:
+  in:
+  - Add one registered test-project-sitemap-e2e release target and a mandatory case manifest covering all prior
+    sitemap feature contracts across actual Server/PostgreSQL/Runtime boundaries.
+  - Measure deterministic work counters, total encoded publication bytes, retained revisions, CAS attempts and paging/import
+    work at representative and ceiling sizes; record actual measurements and conclusions during implementation verification.
+  - Exercise ten writers, large imports, long-lived sequential Runs, full/near-full member/source/marker quotas,
+    lost responses, stale source transitions and closure/purge races.
+  - Verify safe-source projections and every adapter canary against artifacts, tool views, logs and events, including
+    blackbox snapshot materialization.
+  - Document supported first-slice behavior, incomplete/loss semantics and recovery operations; register all cases
+    in the release graph and shared fixture reader manifest.
+  out:
+  - Incremental Caido history and managed Playwright delivery gates (V410-008/009), external model-quality claims
+    or live external targets.
+  - Accepting a failed scale budget by raising ceilings, adding a second persistence system or leaving an unbounded
+    bypass.
+  - Fabricated evidence records at task-planning time.
+requirements:
+- id: R1
+  text: The mandatory gate requires a disposable reachable PostgreSQL instance, actual Server/Runtime processes
+    and local controlled fixtures; absent prerequisites, selected skips and zero-match selections fail.
+- id: R2
+  text: Prove full map ceilings with ten concurrent writers, bounded page/import work and cumulative usage across
+    sequential Runs; do not use wall-clock assertions as the correctness oracle.
+- id: R3
+  text: Report actual publication/retained-byte amplification and CAS contention, plus the supported useful workload
+    before quotas exhaust. If the one-artifact design cannot meet accepted budgets, this task remains incomplete
+    until a reviewed partition of the same format is implemented and tested; do not conceal failure by increasing
+    limits.
+- id: R4
+  text: 'All reviewed sitemap failure classes specified by proposal 0042 for this slice have explicit
+    executable coverage: safe ingress, source-mode metadata, context namespaces, stale source replacement, bounded
+    members/suppression, and lifetime quota bypass paths.'
+- id: R5
+  text: Run full touched-package suites and existing affected HTTP/Caido, OpenAPI/scan preparation and Audit composition
+    regressions. Make the milestone exit independent of optional browser/history implementations.
+failure_outcomes:
+- operation: Verification setup or required case execution
+  permanent: Missing/unreachable database, missing process fixture, zero selected cases or a mandatory skip fails
+    the gate; no partial result is presented as a pass.
+  retryable: Fixture orchestration may use bounded readiness retries with explicit deadlines; deterministic contract
+    failures are never retried until green.
+  ambiguous: Persist case identity/result in the verification report and distinguish rerun evidence; do not infer
+    executed cases from a consolidated gate name.
+  cancelled: Join child processes and cleanup temporary schemas/workspaces after cancellation.
+  timeout: Each suite has an explicit orchestration deadline; timeout is failure with retained diagnostics.
+- operation: Measured scale/publication budget
+  permanent: Budget overrun blocks acceptance and records the exact failing cardinality/cost; no automatic quota
+    increase.
+  retryable: No endless benchmark rerun or probabilistic suppression of failures.
+  ambiguous: Use exact tested revision and workload manifest so results remain attributable.
+  cancelled: Interrupted measurement is incomplete evidence and cannot complete the task.
+  timeout: Record elapsed time diagnostically; correctness depends on deterministic work/budget counters and completion
+    outcomes.
+cardinality:
+- collection: Map, members, examples, sources, markers, contexts and accumulated publication history
+  expected: Typical proposal workload plus each independent ceiling
+  maximum: Proposal section 10 hard map limits and selected Project-lifetime ceilings, with ten concurrent writers
+  bound: Count work per transaction, page, import batch and revision; include the containing collection, not only
+    returned rows.
+- collection: Gate case manifest and evidence
+  expected: Finite named mandatory cases covering all specified boundaries
+  maximum: One bounded case/result record per declared case, bounded process logs
+  bound: Detect duplicate/zero/missing case execution and do not store unbounded raw target traffic.
+lifecycle:
+- entity: Verification databases, Runtime processes and evidence
+  delete: Test orchestrator owns disposable infrastructure cleanup and joins every child.
+  cascade: Disposable scope cleanup cannot target demo/business data.
+  retention: Record only sanitized actual verification evidence at the tested revision; project artifacts under
+    test use their normal holds and purge contracts.
+acceptance_criteria:
+- id: A1
+  given: The complete first-slice catalog and real components
+  when: The mandatory gate runs without browser/history integrations
+  then: HTTP/OpenAPI discovery, import, reconciliation, exact views and ordinary Audit composition execute with
+    zero mandatory skips.
+- id: A2
+  given: Maximum map/nested cardinalities, ten writers and sequential Runs
+  when: Concurrent append/source/manual operations and bounded readers/imports execute
+  then: Measured work and publication history remain within the accepted ceilings, with explicit contention/omission/exhaustion
+    outcomes.
+- id: A3
+  given: Secret/source-mode/identity/source-CAS/member-overflow fixtures
+  when: Every ingress and consumer surface is exercised
+  then: No forbidden bytes or metadata leak, no old-source rollback or principal conflation occurs, and split/merge/suppression
+    uncertainty remains truthful.
+- id: A4
+  given: Lost replies, last-quota races, direct Artifact bypass attempts, cancel/restart and full purge
+  when: The faults occur through real storage/process boundaries
+  then: Receipts/accounting/lifecycle remain consistent, target work is not repeated for collection and no publisher
+    outlives release.
+- id: A5
+  given: The exact tested revision and case manifest
+  when: Release registration and full affected regressions run
+  then: The evidence names commands, counts, zero skips, actual cost and residual limitations; a failed scaling
+    claim leaves the task unfinished.
+deliverables:
+- path: make/features.mk
+  description: New mandatory test-project-sitemap-e2e orchestration target and release graph registration.
+- path: tests/e2e/project_sitemap_matrix.yml
+  description: Named required case matrix with executable owner and explicit scale/failure coverage.
+- path: tasks/evidence/v410-007.json
+  description: Create only during actual implementation verification, recording tested revision, executed cases
+    and measured budgets.
+- path: docs/testing
+  description: Reproducible first-slice gate instructions and interpretation of collection/scale outcomes.
+tests:
+- command: make test-project-sitemap-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make test-project-sitemap-postgres test-project-sitemap-tools-e2e
+  covers:
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make test-wire-cross-language verify-public-api verify-public-api-postgres test-config
+  covers:
+  - A1
+  - A3
+  - A5
+- command: make test-http-caido-e2e test-audit-composition-e2e
+  covers:
+  - A1
+  - A4
+  - A5
+- command: make release-verify
+  covers:
+  - A5
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+test_prerequisites:
+- New test-project-sitemap-e2e and its manifest are deliverables, not pre-existing evidence. Existing consolidated
+  release mode must still prove actual required case execution.
+- A scale failure may require implementation changes within this task or a separately tracked dependency; the task
+  cannot complete with a merely proposed partitioning remedy.

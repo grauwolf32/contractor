@@ -83,6 +83,33 @@ milestones:
   - id: review-v407-v409-followups-2026-10
     exit_task: V414-027
     outcome: Defects and gaps found while implementing and reviewing V407/V409 are fixed with real-path regressions or closed by recorded decisions.
+  - id: runtime-artifact-cache-2026-10
+    exit_task: V413-001
+    outcome: Local-storage Runtimes reuse authorized immutable source archives and Skill packages across allocations with a bounded 1-GiB private disk cache, preserving exact provenance, access checks and memory-only operation.
+  - id: project-sitemap-2026-10
+    exit_task: V410-007
+    outcome: A bounded shared Project sitemap supports safe concurrent edits, automatic HTTP observations, structured imports and deterministic OpenAPI reconciliation with real-store and scale evidence.
+  - id: sitemap-caido-history-2026-10
+    exit_task: V410-008
+    outcome: Optional incremental Caido history collection preserves pinned continuation, safe observations and bounded restart behavior independently of browser support.
+  - id: sitemap-browser-collection-2026-10
+    exit_task: V410-009
+    outcome: Managed browser observations update the shared Project sitemap through the same safe reducer and allocation-bound context.
+  - id: autonomous-http-pentest-2026-10
+    exit_task: V411-020
+    outcome: HTTP/API pentest Audits provide controlled transport, isolated identities, bounded discovery, fresh-session proof replay and retained reports through a passing deterministic process gate; deferred generic round prerequisites must be explicitly completed first.
+  - id: autonomous-pentest-quality-2026-10
+    exit_task: V411-021
+    outcome: A frozen repeated-sample experiment records independent pentest quality results against equal-input baselines without conflating protocol conformance with model quality.
+  - id: autonomous-pentest-browser-2026-10
+    exit_task: V412-003
+    outcome: Optional browser programs provide isolated managed execution, closed login/replay recipes and actual execution-marker proof through their independent conformance gate.
+  - id: autonomous-pentest-callback-2026-10
+    exit_task: V412-004
+    outcome: Trusted Interactsh integration reuses the pinned adapter and allocation lifecycle, publishes safe action-bound observations with sticky destructive-poll gaps, and promotes SSRF proof only with independent target attribution, including sandbox-spoofing and late-arrival gates.
+  - id: controlled-pentest-scanners-2026-10
+    exit_task: V412-005
+    outcome: The pinned ffuf adapter passes an actual-engine controlled-transport gate; unsupported native scanners remain outside its claimed guarantees.
   - id: sql-review-2026-10
     exit_task: V409-013
     outcome: Retained SQL-review defects are fixed with real-store regressions, behavior-preserving improvements are verified, and unsupported or declined claims have evidence-backed decisions that preserve the owning contracts.
