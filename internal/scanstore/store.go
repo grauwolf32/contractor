@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
@@ -77,7 +78,7 @@ func (s *Store) Snapshot(ctx context.Context, id string) (Snapshot, error) {
 	if err := contentdigest.CheckPinnedSelection(result.WorkflowDigest, result.Workflow); err != nil {
 		return Snapshot{OwnerID: owner}, ErrInvalid
 	}
-	if result.Rulepack != nil && (result.Rulepack.Source.Validate() != nil || result.Rulepack.Retained.ValidateExact() != nil || result.Rulepack.Retained.Namespace != "contractor-system") {
+	if result.Rulepack != nil && (result.Rulepack.Source.Validate() != nil || result.Rulepack.Retained.ValidateExact() != nil || result.Rulepack.Retained.Namespace != artifactpolicy.RunSystemNamespace) {
 		return Snapshot{OwnerID: owner}, ErrInvalid
 	}
 	return result, nil
