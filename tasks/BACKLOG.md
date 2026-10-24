@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-122 open tasks: 14 in progress, 83 pending, 25 deferred. 1076 finished: 1066 completed, 10 archived.
+121 open tasks: 13 in progress, 83 pending, 25 deferred. 1077 finished: 1067 completed, 10 archived.
 
 ## In progress
 
@@ -21,7 +21,6 @@ the epics are in [epics.yml](epics.yml).
 | [V414-003](v414-003-openapi-yaml-resolution-rule.yml) | api-contracts | defect | P2 | Read and write OpenAPI YAML under one scalar and key rule in openapi@1, scan preparation and the Audit inventory |
 | [V414-008](v414-008-stored-size-check-classification.yml) | persistence | defect | P2 | Classify stored-size CHECK rejections as invalid input at every store writer |
 | [V414-010](v414-010-credential-recovery-previous-owner.yml) | execution-core | defect | P2 | Keep a previous lease owner's credential delete intent from committing behind the new owner's startup recovery |
-| [V414-013](v414-013-adk-callable-cache-release.yml) | planner-worker | defect | P2 | Stop ADK's module-level callable caches from keeping a released allocation's tools alive |
 | [V414-018](v414-018-audit-detail-snapshot-read.yml) | audits | defect | P2 | Read the Audit detail projection in one snapshot instead of answering an undeclared 409 |
 | [V414-019](v414-019-held-inbox-page-bound.yml) | audits | defect | P2 | Bound the held Audit inbox page by the page, not by the Audit's holds |
 | [V414-030](v414-030-finding-correlation-fence-row.yml) | findings | defect | P2 | Move the Project finding correlation fence off the projects row into a row the findings store owns |
@@ -189,7 +188,7 @@ the epics are in [epics.yml](epics.yml).
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | chore | P3 | — | Make the Runtime suite pass on macOS: declare the Linux-only Podman tests, make the other tests portable and file the macOS defects |
 | [V410-007](v410-007-sitemap-release-gate.yml) | chore | P1 | V410-006 | Verify the first sitemap slice across scale and lifecycle boundaries |
 | [V411-020](v411-020-pentest-http-release-gate.yml) | chore | P1 | V411-001, V411-002, V411-003, V411-004, V411-005, V411-006, V411-007, V411-008, V411-009, V411-010, V411-011, V411-012, V411-013, V411-014, V411-015, V411-016, V411-017, V411-018, V411-019, V410-007 | Gate the first HTTP API pentest delivery through real processes |
-| [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-001, V414-002, V414-003, V414-004, V414-007, V414-008, V414-009, V414-010, V414-012, V414-013, V414-014, V414-018, V414-019, V414-020, V414-021, V414-022, V414-024, V414-025, V414-030 | Close the V407/V409 review follow-ups |
+| [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-001, V414-002, V414-003, V414-004, V414-007, V414-008, V414-009, V414-010, V414-012, V414-014, V414-018, V414-019, V414-020, V414-021, V414-022, V414-024, V414-025, V414-030 | Close the V407/V409 review follow-ups |
 
 ## Deferred
 
@@ -229,7 +228,7 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 5 | 41 | 54 | 18 | 80 |
-| Planners and the Worker model boundary (`planner-worker`) | 5 | 27 | 42 | 17 | 61 |
+| Planners and the Worker model boundary (`planner-worker`) | 4 | 27 | 42 | 17 | 61 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 11 | 26 | 13 | 4 | 41 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 2 | 12 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 2 | 1 | 2 |
