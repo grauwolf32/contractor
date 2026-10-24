@@ -6,7 +6,8 @@ epic: audits
 kind: defect
 introduced_by: V25-003
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: bfeeb3896f70b434767e8ce051ae10cbca5a3fb9
 depends_on: []
 languages: [go, sql]
 goal: >-
@@ -125,3 +126,51 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A2]
+verification:
+  date: '2026-10-24'
+  environment: >-
+    macOS arm64; Go from /private/tmp/contractor-go-darwin; PostgreSQL 17.11 database
+    contractor_test_v414_sql with disposable per-test schemas; branch claude/v414-sql with main
+    (030e195a) merged; TMPDIR set to a path without symlinked components, because the
+    filesystem blob store rejects the /var -> /private/var symlink of the macOS default TMPDIR
+    (TestPostgresImmutableProjectArtifactReuseLeavesNoFilesystemOrphans fails on that default; neither
+    that test nor the blob store is touched by this change).
+  commands:
+    - >-
+      CONTRACTOR_TEST_DATABASE_URL=postgres://.../contractor_test_v414_sql go test
+      -tags=integration -count=1 ./internal/auditstore/... ./internal/auditcontroller/...
+      ./internal/scanstore/... passed (every package with tests ok).
+    - make lint passed after make docs-dependencies (the graph fingerprint covers the two changed spec documents).
+    - go test -count=1 ./internal/persistence/ ./internal/archtest/... passed (SQL placement and layers).
+    - >-
+      Run with -v, TestPostgresAuditClaimReadsOnlyTheReconcilableAudits,
+      TestPostgresAuditClaimLeasesTheOriginalCandidatesInOrder,
+      TestReconcilableAuditStatesSQLMatchesDeclaration and
+      TestPostgresSweepClaimReadsOnlyActiveSweeps report PASS and no SKIP.
+  database_tests_configured: true
+  evidence:
+    - >-
+      A1: with 361 claimable of 411 reconcilable Audits, the rewrite reads 369 (batch 8) and 425
+      (batch 64) claim rows and 411 Audit rows in Custom and Generic plans, unchanged after adding
+      48,000 completed Audits with claim rows; the candidates' shared blocks grow 1,581 -> 1,950
+      (batch 8) and 1,806 -> 2,232 (batch 64), within the allowance of one page per claim
+      descent and lock.
+    - >-
+      A3: the original statement reads 16,714 -> 64,714 claim rows and 1,646 Audit rows on the same
+      fixture, and the test requires it to violate the budget.
+    - >-
+      A2: on 84 Audits (28 reconcilable and near-miss conditions x free, expired and live claims),
+      the rewrite and the original lease the same Audits in the same order with the same epochs
+      one at a time and in batches of 5 and 100, and both skip rows locked by another
+      transaction; changing the ORDER BY or the paused predicate makes the test fail.
+    - >-
+      Sibling scan sweep claim (internal/scanstore/store_sql.go, unchanged): 101 sweeps read and
+      6 candidate blocks with 2,000 or 22,000 settled sweeps; with every due sweep held it reads
+      the 220 ready entries and leases nothing.
+  decisions:
+    - >-
+      The shared LeaseSQL may hash-join the candidates with a sequential scan of a small
+      audit_controller_claims table (seen for batch 64 at about 6,700 claim rows; a TID scan at
+      16,700). It is bounded and cost-chosen, and LeaseSQL is shared by every controller claim, so
+      it stays unchanged; the scale fixture uses 16,000 completed Audits so the measurement
+      covers the plan used at scale.

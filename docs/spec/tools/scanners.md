@@ -685,8 +685,10 @@ are shared through ordinary Artifact versions rather than copied per Project.
 requests per tick. A partial index orders unsettled members by next attempt
 and ordinal, so polling settled members cannot starve pending admissions.
 Parent read views use maintained counters; neither polling nor a tick scans
-the whole collection. Members and owner sweeps use authenticated keyset pages
-of at most 200 items (LIM-SCN-89).
+the whole collection. Leasing reads only the active and cancelling parents,
+in next-tick order through their partial index, so settled sweeps kept for
+their history add nothing to it. Members and owner sweeps use authenticated
+keyset pages of at most 200 items (LIM-SCN-89).
 
 **SCN-R248.** Ordinary Project Run creation and binding its Run ID to the
 member commit in the same Run-creation transaction, under the parent's live
@@ -1664,6 +1666,13 @@ Metrics and receipts carry no argument values or output (SCN-R50, SCN-R39).
 Tool Workers update Worker State revisions and tool counts through
 WorkerStateStore and keep model counters at zero (SCN-R51). RequestSet bytes
 and preparation option values never reach logs (SCN-R119).
+
+## Invariants
+
+1. A durable sweep claim reads, in its custom and generic plans, at most the
+   active and cancelling parents, and no more when settled sweeps are added
+   (SCN-R247); test `TestPostgresSweepClaimReadsOnlyActiveSweeps` in
+   [`internal/scanstore/claim_postgres_test.go`](../../../internal/scanstore/claim_postgres_test.go).
 
 ## Examples
 
