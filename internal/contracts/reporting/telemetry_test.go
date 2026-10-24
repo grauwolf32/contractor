@@ -2,6 +2,7 @@ package reporting
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -115,6 +116,67 @@ func TestSharedMalformedRuntimeAdapterMetricsBecomeIncompleteInsteadOfBlockingRe
 // number as Python does (1e+16, 5e-05, -0.0, 1.0); the Server keeps those
 // literals, so a summary at the 4096-byte bound stays within it and integers
 // beyond 2^53 keep their value (OBS-R42).
+// TestToolArgumentsRejectNumbersOutsideTheFloat64Range pins LIM-OBS-16: a
+// number is finite as a float64 and writes an exponent between -324 and 308,
+// at any depth of the summary and in both message types that carry one.
+func TestToolArgumentsRejectNumbersOutsideTheFloat64Range(t *testing.T) {
+	t.Parallel()
+
+	accepted := []string{
+		"5e-324", "-5e-324", "0e-324", "1e308", "1E+0308", "0e308", "-0.0",
+		"1.7976931348623157e+308", "1180591620717411303424", "1" + strings.Repeat("0", 308),
+		`[1,{"nested":2.5e-300}]`,
+	}
+	rejected := []string{
+		"1e999999", "-1e400", "1.7976931348623159e308", "1" + strings.Repeat("0", 309),
+		"0e-325", "1e-400", "1e-20000", "0e-16383", "0e309", "0e2147483648",
+		`[1,{"nested":1e999999}]`,
+	}
+	validate := func(literal string) []error {
+		record := `{"callId":"tool-1","tool":"rank","arguments":{"value":` + literal +
+			`},"argumentsTruncated":false,"outcome":"succeeded"}`
+		var call ToolCallRecord
+		var state WorkerStateToolCall
+		errs := []error{
+			contracts.DecodePrivate([]byte(record), &call),
+			contracts.DecodePrivate([]byte(record), &state),
+		}
+		if errs[0] == nil && errs[1] == nil {
+			report := ExecutionReport{
+				ReportID: "worker-1", Complete: true,
+				Metrics:   ExecutionMetrics{Tools: map[string]ToolMetrics{}},
+				ToolCalls: []ToolCallRecord{call}, Errors: []ExecutionError{},
+			}
+			errs = []error{report.Validate(), validateStateToolCall(state)}
+		}
+		return errs
+	}
+	for _, literal := range accepted {
+		for _, err := range validate(literal) {
+			if err != nil {
+				t.Errorf("%.24s was rejected: %v", literal, err)
+			}
+		}
+	}
+	for _, literal := range rejected {
+		for _, err := range validate(literal) {
+			if !errors.Is(err, contracts.ErrValidation) {
+				t.Errorf("%.24s error = %v, want an invariant violation", literal, err)
+			}
+		}
+	}
+	// Invalid JSON numbers stay a decoding error.
+	for _, literal := range []string{"NaN", "01", "-01"} {
+		var call ToolCallRecord
+		err := contracts.DecodePrivate([]byte(`{"callId":"tool-1","tool":"rank","arguments":{"value":`+
+			literal+`},"argumentsTruncated":false,"outcome":"succeeded"}`), &call)
+		var private *contracts.PrivateProtocolError
+		if !errors.As(err, &private) || private.Class != contracts.PrivateProtocolErrorSchema {
+			t.Errorf("%s error = %v, want a schema rejection", literal, err)
+		}
+	}
+}
+
 func TestToolArgumentsKeepTheRuntimeNumberLiterals(t *testing.T) {
 	t.Parallel()
 

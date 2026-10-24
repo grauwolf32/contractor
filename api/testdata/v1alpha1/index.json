@@ -39,6 +39,8 @@
     "workspace-capabilities.json": {"type": "WorkspaceCapabilities", "schema": "agent-registration.schema.json#/$defs/WorkspaceCapabilities"}
   },
   "invalid": {
+    "allocation-final-response-argument-float-overflow.json": {"type": "AllocationFinalResponse", "reason": "invariant", "strict": true},
+    "allocation-final-response-argument-integer-overflow.json": {"type": "AllocationFinalResponse", "reason": "invariant", "strict": true},
     "allocation-spec-summary-selection-no-summary.json": {"type": "AllocationSpec", "schema": "allocation.schema.json", "strict": true},
     "allocation-spec-summary-selection-two-calls.json": {"type": "AllocationSpec", "schema": "allocation.schema.json", "strict": true},
     "allocation-spec-summary-selection-null.json": {"type": "AllocationSpec", "schema": "allocation.schema.json", "strict": true},

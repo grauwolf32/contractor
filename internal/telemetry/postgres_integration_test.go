@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"os"
 	"strings"
@@ -163,6 +164,90 @@ WHERE stage_execution_id = $1`, extraStage); err != nil {
 	assertTelemetryCount(t, ctx, pool, "stage_metrics", activeStage, 1)
 	assertTelemetryCount(t, ctx, pool, "allocation_execution_reports", newStage, 1)
 	assertTelemetryCount(t, ctx, pool, "stage_metrics", newStage, 1)
+}
+
+// TestMetricsPostgresReplayComparesNumbersAsStored replays both report kinds
+// with argument numbers as the Runtime writes them. jsonb stores 5e-05 as
+// 0.00005, 1e+16, 1e+300 and the float64 bounds of LIM-OBS-16 as their
+// decimal expansion and -0.0 as 0.0, and keeps 2^53+1 exactly, so a replay of
+// the same report must stay idempotent (OBS-R42), while a report with another
+// number still conflicts.
+func TestMetricsPostgresReplayComparesNumbersAsStored(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedTelemetryPool(t, ctx)
+	runs := runstore.NewPostgresStore(pool)
+	reports := telemetry.NewRepository(pool)
+	createTelemetryRun(t, ctx, runs)
+	receivedAt := time.Now().UTC()
+	for index, literal := range []string{
+		"5e-05", "1e+16", "1e+300", "-0.0", "9007199254740993", "5e-324", "-1.7976931348623157e+308",
+	} {
+		allocationID := fmt.Sprintf("allocation-number-%d", index)
+		sessionID := fmt.Sprintf("session-number-%d", index)
+		stage := createTelemetryStage(
+			t, ctx, runs, fmt.Sprintf("stage-number-%d", index), allocationID, sessionID,
+		)
+		allocation := allocationEnvelope(stage, allocationID, receivedAt, true)
+		allocation.Report.Worker.ToolCalls[0].Arguments = runtimeArguments(t, literal)
+		planner := plannerEnvelope(stage, sessionID, receivedAt)
+		calls, succeeded := int64(1), int64(1)
+		planner.Report.Metrics.Tools = map[string]reporting.ToolMetrics{
+			"probe": {Calls: &calls, Succeeded: &succeeded},
+		}
+		planner.Report.ToolCalls = []reporting.ToolCallRecord{{
+			CallID: "call-" + sessionID, Tool: "probe",
+			Arguments: runtimeArguments(t, literal), Outcome: reporting.ToolCallSucceeded,
+		}}
+		for attempt := range 2 {
+			if err := reports.RecordAllocationReport(ctx, allocation); err != nil {
+				t.Fatalf("%s: allocation report attempt %d: %v", literal, attempt+1, err)
+			}
+			if err := reports.RecordPlannerReport(ctx, planner); err != nil {
+				t.Fatalf("%s: Planner report attempt %d: %v", literal, attempt+1, err)
+			}
+		}
+
+		changedCall := allocation.Report.Worker.ToolCalls[0]
+		changedCall.Arguments = runtimeArguments(t, "7")
+		changed := allocation
+		changed.Report.Worker.ToolCalls = []reporting.ToolCallRecord{changedCall}
+		if err := reports.RecordAllocationReport(ctx, changed); !errors.Is(err, telemetry.ErrConflict) {
+			t.Fatalf("%s: changed allocation report error = %v, want conflict", literal, err)
+		}
+		changedPlanner := planner
+		changedPlanner.Report.ToolCalls = []reporting.ToolCallRecord{{
+			CallID: "call-" + sessionID, Tool: "probe",
+			Arguments: runtimeArguments(t, "7"), Outcome: reporting.ToolCallSucceeded,
+		}}
+		if err := reports.RecordPlannerReport(ctx, changedPlanner); !errors.Is(err, telemetry.ErrConflict) {
+			t.Fatalf("%s: changed Planner report error = %v, want conflict", literal, err)
+		}
+	}
+
+	// A number outside LIM-OBS-16 never reaches the column, where 1e-20000
+	// would fail the insert and 0e-16383 would read back as 16 KB of digits.
+	for _, literal := range []string{"1e-20000", "0e-16383", "1e999999"} {
+		stage := createTelemetryStage(
+			t, ctx, runs, "stage-range-"+literal, "allocation-range-"+literal, "session-range-"+literal,
+		)
+		allocation := allocationEnvelope(stage, "allocation-range-"+literal, receivedAt, true)
+		allocation.Report.Worker.ToolCalls[0].Arguments = runtimeArguments(t, literal)
+		if err := reports.RecordAllocationReport(ctx, allocation); !errors.Is(err, telemetry.ErrInvalid) {
+			t.Fatalf("%s: allocation report error = %v, want invalid", literal, err)
+		}
+	}
+}
+
+// runtimeArguments decodes an argument summary holding literal as the Server
+// decodes a Runtime report, which keeps the literal as written.
+func runtimeArguments(t *testing.T, literal string) reporting.ToolArguments {
+	t.Helper()
+	var arguments reporting.ToolArguments
+	if err := json.Unmarshal([]byte(`{"value":`+literal+`}`), &arguments); err != nil {
+		t.Fatal(err)
+	}
+	return arguments
 }
 
 func TestAllocationResourceHistoryUsesTerminalIdentityAndPinnedPolicy(t *testing.T) {

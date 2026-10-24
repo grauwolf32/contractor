@@ -161,7 +161,34 @@ def _require_text(field: str, value: str, *, max_bytes: int | None = None) -> st
     return value
 
 
+def fits_float64(value: int) -> bool:
+    """Whether an integer's magnitude stays finite as a float64 (LIM-OBS-16).
+
+    The Server rejects a tool argument number that overflows a float64, so the
+    Runtime never writes such an integer into an argument summary.
+    """
+
+    try:
+        float(value)
+    except OverflowError:
+        return False
+    return True
+
+
+def _require_float64_numbers(value: object) -> None:
+    if isinstance(value, int) and not isinstance(value, bool) and not fits_float64(value):
+        raise ValueError("tool argument numbers must stay within the float64 range")
+    if isinstance(value, dict):
+        for item in value.values():
+            _require_float64_numbers(item)
+    elif isinstance(value, list):
+        for item in value:
+            _require_float64_numbers(item)
+
+
 def _require_tool_arguments(value: dict[str, object]) -> None:
+    # Floats are finite already: json_byte_size rejects NaN and infinities.
+    _require_float64_numbers(value)
     try:
         size = json_byte_size(value)
     except (TypeError, ValueError) as error:

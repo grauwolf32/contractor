@@ -6,10 +6,12 @@ from types import SimpleNamespace
 
 import pytest
 from fakes.private_codec import encode_private
+from pydantic import ValidationError
 
 from contractor_runtime.contracts import (
     ExecutionReport,
     TerminationError,
+    ToolCallRecord,
     WorkerCompletionDiagnostics,
 )
 from contractor_runtime.core.input_errors import ToolInputError
@@ -244,6 +246,39 @@ def test_shared_argument_summary_redacts_nested_secrets_urls_and_artifact_bytes(
     }
     assert "dataBase64" not in encoded
     assert SECRET not in encoded
+
+
+def test_shared_argument_summary_keeps_numbers_within_the_float64_range() -> None:
+    # LIM-OBS-16: the Server rejects a number that overflows a float64, so the
+    # Runtime marks such an integer instead of writing it, and the record model
+    # rejects one written anyway, as the shared invalid fixtures pin.
+    state = MetricsState()
+    state.record_tool_call(
+        "rank",
+        arguments={
+            "fits": 2**70,
+            "edge": 10**308,
+            "beyond": [1, 10**309],
+            "content_bytes": 10**309,
+            "small": 5e-324,
+        },
+    )
+
+    call = state.build_report(report_id="worker-allocation-3", duration_ms=1).tool_calls[0]
+
+    assert call.arguments == {
+        "fits": 2**70,
+        "edge": 10**308,
+        "beyond": [1, "[NON_FINITE]"],
+        "content_bytes": {"redacted": True, "size": None},
+        "small": 5e-324,
+    }
+    assert call.arguments_truncated is True
+    record = {"callId": "tool-1", "tool": "rank", "argumentsTruncated": False}
+    with pytest.raises(ValidationError):
+        ToolCallRecord.model_validate(
+            {**record, "outcome": "succeeded", "arguments": {"window": [1, 10**309]}}
+        )
 
 
 def test_shared_argument_redaction_leaves_redacted_arguments_unchanged() -> None:

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -76,7 +77,7 @@ type ToolArguments map[string]any
 
 // UnmarshalJSON decodes the summary with its number literals kept. The
 // private codec's scan has already rejected duplicate member names, null and
-// trailing data.
+// trailing data; validation checks the numbers (LIM-OBS-16) and the size.
 func (a *ToolArguments) UnmarshalJSON(data []byte) error {
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.UseNumber()
@@ -86,6 +87,58 @@ func (a *ToolArguments) UnmarshalJSON(data []byte) error {
 	}
 	*a = value
 	return nil
+}
+
+// numbersInRange reports whether every number in the summary stays within
+// LIM-OBS-16.
+func (a ToolArguments) numbersInRange() bool {
+	return argumentNumbersInRange(map[string]any(a))
+}
+
+// argumentNumbersInRange reports whether every decoded number literal in an
+// argument summary is finite as a float64 and writes an exponent between -324
+// and 308 (LIM-OBS-16), the range of the shortest round-trip form the Runtime
+// writes; the Server's own values are finite float64 or integer values.
+// PostgreSQL stores the exact decimal expansion of a jsonb number, so the
+// bound keeps each stored number within the numeric type and within 330
+// characters of its literal, where an unbounded exponent (1e999999, 0e-16383,
+// 1e-20000) would either fail the insert or expand a few bytes to megabytes.
+func argumentNumbersInRange(value any) bool {
+	switch typed := value.(type) {
+	case json.Number:
+		return argumentNumberInRange(string(typed))
+	case map[string]any:
+		for _, item := range typed {
+			if !argumentNumbersInRange(item) {
+				return false
+			}
+		}
+	case []any:
+		for _, item := range typed {
+			if !argumentNumbersInRange(item) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func argumentNumberInRange(literal string) bool {
+	if index := strings.IndexAny(literal, "eE"); index >= 0 {
+		exponent := literal[index+1:]
+		negative := strings.HasPrefix(exponent, "-")
+		digits := strings.TrimLeft(strings.TrimLeft(exponent, "+-"), "0")
+		if len(digits) > 3 {
+			return false
+		}
+		magnitude, _ := strconv.Atoi("0" + digits)
+		if negative && magnitude > 324 || !negative && magnitude > 308 {
+			return false
+		}
+	}
+	// strconv reports a range error only on overflow to ±Inf.
+	_, err := strconv.ParseFloat(literal, 64)
+	return err == nil
 }
 
 type ToolCallRecord struct {
@@ -296,6 +349,9 @@ func (r ExecutionReport) Validate() error {
 			return contracts.Invalidf("tool call %d marks absent arguments truncated", index)
 		}
 		if call.Arguments != nil {
+			if !call.Arguments.numbersInRange() {
+				return contracts.Invalidf("tool call %d arguments hold a number outside the float64 range", index)
+			}
 			size, err := contracts.ResultJSONSize(call.Arguments)
 			if err != nil || size > 4096 {
 				return contracts.Invalidf("tool call %d arguments exceed 4096 bytes", index)
