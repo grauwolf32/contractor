@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-73 open tasks: 6 in progress, 42 pending, 25 deferred. 1058 finished: 1050 completed, 8 archived.
+72 open tasks: 6 in progress, 41 pending, 25 deferred. 1059 finished: 1051 completed, 8 archived.
 
 ## In progress
 
@@ -114,8 +114,7 @@ the epics are in [epics.yml](epics.yml).
 | [V372-008](v372-008-upward-table-reads.yml) | chore | P3 | — | Remove the table reads that point up the layer stack or name who owns each one |
 | [V372-009](v372-009-ownership-check-blind-spots.yml) | chore | P3 | — | Close the blind spots of the table ownership check |
 | [V372-010](v372-010-erd-usage-from-ownership-scan.yml) | chore | P3 | — | Take the ERD's code-usage lists from the ownership scan and document the new-table workflow |
-| [V409-007](v409-007-dead-and-redundant-indexes.yml) | chore | P2 | — | Consolidate indexes only where reader and constraint evidence permits it |
-| [V409-013](v409-013-verify-sql-review-on-database.yml) | chore | P2 | V409-007 | Verify retained SQL-review changes and record evidence for every accepted or declined claim |
+| [V409-013](v409-013-verify-sql-review-on-database.yml) | chore | P2 | — | Verify retained SQL-review changes and record evidence for every accepted or declined claim |
 
 ### Quality, CI and process (`quality`)
 
@@ -187,5 +186,5 @@ tasks in `introduced_by`.
 | Web UI (`ui`) | 1 | 24 | 61 | 13 | 55 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 16 | 33 | 6 | 11 |
 | Public API and wire contracts (`api-contracts`) | 4 | 1 | 34 | 20 | 10 |
-| PostgreSQL persistence and schema (`persistence`) | 6 | 0 | 21 | 41 | 10 |
+| PostgreSQL persistence and schema (`persistence`) | 5 | 0 | 21 | 41 | 10 |
 | Quality, CI and process (`quality`) | 13 | 1 | 25 | 89 | 23 |
