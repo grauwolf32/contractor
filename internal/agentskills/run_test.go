@@ -92,6 +92,68 @@ func TestCatalogRunSelectionPersistsMissingAndFailsDeterministically(t *testing.
 	assertRunSkillError(t, err, CodeArtifactNotFound, "missing", false)
 }
 
+// An exact source revision the store no longer holds is the permanent
+// skill_artifact_not_found wherever Run creation or initialization meets it:
+// the creation lock, the read and the fork (RUN-R27). Every other store
+// failure proves nothing about the revision and stays retryable (SKL-R108).
+func TestCatalogRunSourceFailuresAreClassified(t *testing.T) {
+	transient := errors.New("storage unavailable")
+	for _, test := range []struct {
+		name      string
+		fail      func(*memoryArtifactRepository, contracts.ArtifactRef)
+		create    bool
+		code      string
+		retryable bool
+	}{
+		{"creation lock finds the source gone", removeSource, true, CodeArtifactNotFound, false},
+		{"initialization read finds the source gone", removeSource, false, CodeArtifactNotFound, false},
+		{"fork finds the source gone", func(r *memoryArtifactRepository, _ contracts.ArtifactRef) {
+			r.forkErr = fmt.Errorf("fork: %w", artifacts.ErrArtifactNotFound)
+		}, false, CodeArtifactNotFound, false},
+		{"creation lock fails transiently", func(r *memoryArtifactRepository, _ contracts.ArtifactRef) {
+			r.requireExactErr = transient
+		}, true, CodeArtifactUnavailable, true},
+		{"initialization read fails transiently", func(r *memoryArtifactRepository, _ contracts.ArtifactRef) {
+			r.readExistingErr = transient
+		}, false, CodeArtifactUnavailable, true},
+		{"fork fails transiently", func(r *memoryArtifactRepository, _ contracts.ArtifactRef) {
+			r.forkErr = transient
+		}, false, CodeForkFailed, true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := context.Background()
+			repository := newMemoryArtifactRepository()
+			service := artifacts.NewService(repository)
+			catalog, _ := NewCatalog(service)
+			owner, _ := service.User("owner-1")
+			if _, err := owner.Write(
+				ctx, artifacts.ArtifactRef{Namespace: SkillNamespace, Name: "review"},
+				artifacts.Payload{MediaType: MediaType, Data: canonicalTestPackage(t, "review", "Review.")}, nil,
+			); err != nil {
+				t.Fatal(err)
+			}
+			selected, err := catalog.SelectRunSources(ctx, "owner-1", []contracts.ArtifactRef{{
+				Namespace: SkillNamespace, Name: "review",
+			}})
+			if err != nil || len(selected) != 1 || selected[0].Source == nil {
+				t.Fatalf("selected source = (%+v, %v)", selected, err)
+			}
+			test.fail(repository, *selected[0].Source)
+			if test.create {
+				err = catalog.RequireRunSources(ctx, "owner-1", selected)
+			} else {
+				_, err = catalog.InitializeRun(ctx, "owner-1", "run-1", selected, [][]string{{"review"}})
+			}
+			assertRunSkillError(t, err, test.code, "review", test.retryable)
+		})
+	}
+}
+
+func removeSource(repository *memoryArtifactRepository, source contracts.ArtifactRef) {
+	owner, _ := artifacts.UserScope("owner-1")
+	repository.removeRevision(owner, source)
+}
+
 func TestCatalogRunInitializationRejectsWrongMediaType(t *testing.T) {
 	ctx := context.Background()
 	repository := newMemoryArtifactRepository()

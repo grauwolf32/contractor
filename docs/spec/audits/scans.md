@@ -440,9 +440,10 @@ snapshot while keeping the original baseline digest.
 
 **ASC-R51.** Empty generated inventory fails the Audit with
 `empty_inventory`, and invalid generated inventory with `invalid_inventory`,
-after dispatch closes and children drain (FAIL-ASC-3). The failure creates no
-placeholder Round, items, coverage success or fabricated report, and does not
-imply compliance.
+after dispatch closes and children drain (FAIL-ASC-3). Generated inventory
+whose first Round the Audit Store refuses as invalid is invalid inventory,
+after one attempt (AUX-R99). The failure creates no placeholder Round, items,
+coverage success or fabricated report, and does not imply compliance.
 
 **ASC-R52.** Empty or invalid inventory of a direct-input profile
 rejects start before its baseline transaction commits.
@@ -474,7 +475,10 @@ results:
   reports](review-and-reports.md)) (LIFE-REV-5).
 - **ASC-R59.** An exhausted role or an exhausted non-time budget
   closes admission and drains; the Audit fails with the explicit stop reason
-  `preparation_failed` or the budget's own reason (FAIL-ASC-1).
+  `preparation_failed` or the budget's own reason (FAIL-ASC-1). A prepare
+  role whose dispatch data fails validation, or whose execution intent the
+  Audit Store refuses as invalid (AUX-R99), fails it with
+  `preparation_failed` too.
 
 **ASC-R60.** Pause and deadline may allow completed outputs to
 be collected, but first-Round acceptance waits for resumed admission.

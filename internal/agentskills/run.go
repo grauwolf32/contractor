@@ -121,7 +121,9 @@ func ValidateSelectedLimits(selected []RunSkillSnapshot, templateSets [][]string
 
 // RequireRunSources confirms every exact non-missing owner version and holds
 // a key-share lock on it until the Run creation transaction commits. Missing
-// markers are intentionally durable and have nothing to check.
+// markers are intentionally durable and have nothing to check; an exact
+// source that no longer exists, such as a start-pinned Audit Skill, is the
+// permanent skill_artifact_not_found.
 func (c *Catalog) RequireRunSources(
 	ctx context.Context,
 	ownerID string,
@@ -139,10 +141,22 @@ func (c *Catalog) RequireRunSources(
 			continue
 		}
 		if err := c.service.RequireExact(ctx, scope, *skill.Source); err != nil {
-			return runSkillError(CodeArtifactUnavailable, skill.Name, true)
+			return sourceError(err, skill.Name, CodeArtifactUnavailable)
 		}
 	}
 	return nil
+}
+
+// sourceError classifies a failed lock, read or fork of the exact owner source
+// revision of the Skill name. A revision the ArtifactStore no longer holds is
+// the permanent skill_artifact_not_found (RUN-R27, SKL-R106): no retry can
+// bring it back. Any other failure proves nothing about the revision and is
+// the retryable transientCode (SKL-R108).
+func sourceError(err error, name, transientCode string) error {
+	if errors.Is(err, artifacts.ErrArtifactNotFound) {
+		return runSkillError(CodeArtifactNotFound, name, false)
+	}
+	return runSkillError(transientCode, name, true)
 }
 
 // InitializeRun validates only the already selected exact sources, then forks
@@ -172,7 +186,7 @@ func (c *Catalog) InitializeRun(
 		}
 		read, readErr := store.Read(ctx, artifacts.ArtifactRef(*skill.Source))
 		if readErr != nil {
-			return nil, runSkillError(CodeArtifactUnavailable, skill.Name, true)
+			return nil, sourceError(readErr, skill.Name, CodeArtifactUnavailable)
 		}
 		if read.Payload.MediaType != MediaType {
 			return nil, runSkillError(CodeMediaTypeInvalid, skill.Name, false)
@@ -209,7 +223,7 @@ func (c *Catalog) InitializeRun(
 			return nil, runSkillError(CodeForkConflict, skill.Name, false)
 		}
 		if forkErr != nil {
-			return nil, runSkillError(CodeForkFailed, skill.Name, true)
+			return nil, sourceError(forkErr, skill.Name, CodeForkFailed)
 		}
 		if fork.SourceRef.Revision == nil || *fork.SourceRef.Revision != *skill.Source.Revision ||
 			fork.TargetRef.Namespace != SkillNamespace || fork.TargetRef.Name != skill.Name ||

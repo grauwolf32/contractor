@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-127 open tasks: 9 in progress, 107 pending, 11 deferred. 1092 finished: 1082 completed, 10 archived.
+124 open tasks: 7 in progress, 106 pending, 11 deferred. 1096 finished: 1086 completed, 10 archived.
 
 ## In progress
 
@@ -15,11 +15,9 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
-| [V414-034](v414-034-audit-controller-invalid-write-retry.yml) | audits | defect | P2 | Close an Audit whose controller write is refused as invalid instead of retrying it |
-| [V414-035](v414-035-run-skill-missing-source-code.yml) | agent-skills | defect | P2 | Fail Run initialization with skill_artifact_not_found when a pinned Skill source is gone |
-| [V414-037](v414-037-eval-attempt-metrics-strict-read.yml) | evals | chore | P2 | Read Eval attempt metrics strictly and remove the older passthrough@1 path |
 | [V414-038](v414-038-scale-test-budgets-under-load.yml) | quality | defect | P1 | Keep the Audit claim and deletion-probe read budgets exact while other suites share the server |
 | [V414-039](v414-039-workspace-timeout-tests-wall-clock.yml) | workspaces | defect | P2 | Test workspace operation deadlines without real sub-second wall-clock budgets |
+| [V414-040](v414-040-run-skill-error-public-mapping.yml) | agent-skills | defect | P2 | Answer Run Skill failures with their own public error codes instead of internal_error |
 
 ## Pending
 
@@ -31,7 +29,6 @@ the epics are in [epics.yml](epics.yml).
 | [V372-007](v372-007-terminal-stage-state-set.yml) | chore | P3 | — | Define the terminal StageExecution states once and hold Go SQL and OpenAPI to them |
 | [V372-028](v372-028-runstore-strict-snapshot-reads.yml) | chore | P3 | — | Decode persisted Run, Stage and allocation snapshots strictly in runstore |
 | [V414-014](v414-014-standby-shutdown-race.yml) | defect | P3 | — | Exit a standby Server cleanly when shutdown races its readiness listener |
-| [V414-036](v414-036-output-bind-missing-source.yml) | defect | P2 | — | End the Run when a Workflow output's source revision is missing instead of retrying finalization |
 
 ### Planners and the Worker model boundary (`planner-worker`)
 
@@ -208,7 +205,7 @@ the epics are in [epics.yml](epics.yml).
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | chore | P3 | — | Make the Runtime suite pass on macOS: declare the Linux-only Podman tests, make the other tests portable and file the macOS defects |
 | [V410-007](v410-007-sitemap-release-gate.yml) | chore | P1 | V410-006 | Verify the first sitemap slice across scale and lifecycle boundaries |
 | [V411-020](v411-020-pentest-http-release-gate.yml) | chore | P1 | V411-002, V411-003, V411-004, V411-005, V411-006, V411-007, V411-008, V411-009, V411-010, V411-011, V411-012, V411-013, V411-014, V411-015, V411-016, V411-017, V411-018, V411-019, V410-007 | Gate the first HTTP API pentest delivery through real processes |
-| [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-001, V414-004, V414-007, V414-009, V414-012, V414-014, V414-020, V414-021, V414-022, V414-024, V414-025, V414-032, V414-034, V414-035, V414-036, V414-037, V414-038, V414-039 | Close the V407/V409 review follow-ups |
+| [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-001, V414-004, V414-007, V414-009, V414-012, V414-014, V414-020, V414-021, V414-022, V414-024, V414-025, V414-032, V414-038, V414-039, V414-040 | Close the V407/V409 review follow-ups |
 
 ## Deferred
 
@@ -233,11 +230,11 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 5 | 41 | 55 | 18 | 80 |
+| Run execution core (`execution-core`) | 4 | 41 | 55 | 18 | 80 |
 | Planners and the Worker model boundary (`planner-worker`) | 4 | 27 | 42 | 17 | 61 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 10 | 26 | 13 | 4 | 42 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 2 | 12 |
-| Agent Skills (`agent-skills`) | 1 | 11 | 3 | 1 | 3 |
+| Agent Skills (`agent-skills`) | 1 | 11 | 4 | 1 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 14 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 0 | 14 | 14 | 2 | 19 |
 | HTTP and Caido tools (`http-tools`) | 10 | 19 | 15 | 5 | 16 |
@@ -245,8 +242,8 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 9 | 16 | 7 | 8 | 12 |
 | Workflow catalog and document workflows (`workflows`) | 7 | 18 | 14 | 12 | 18 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 4 | 35 | 33 | 6 | 39 |
-| Audits (`audits`) | 33 | 65 | 79 | 26 | 103 |
-| Evaluations (`evals`) | 6 | 21 | 37 | 12 | 45 |
+| Audits (`audits`) | 32 | 65 | 79 | 26 | 103 |
+| Evaluations (`evals`) | 5 | 21 | 37 | 12 | 45 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 2 | 25 | 62 | 13 | 57 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 16 | 38 | 6 | 13 |

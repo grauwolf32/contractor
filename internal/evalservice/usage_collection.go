@@ -3,55 +3,88 @@ package evalservice
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"maps"
 	"slices"
 	"sort"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
 	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
-// A minimal projection of authoritative stage metrics. Optional pointers retain
-// unavailable counters instead of using telemetry's display-summary zeros.
+// metricReport is one report of the stage metrics projection that
+// MetricSnapshots reads (metricSnapshotsQuery): the report's completeness
+// flags and its metrics, whose optional counters stay absent instead of
+// becoming telemetry's display-summary zeros.
 type metricReport struct {
-	Complete  bool                       `json:"complete"`
-	Truncated bool                       `json:"truncated"`
-	Metrics   reporting.ExecutionMetrics `json:"metrics"`
-}
-type metricSnapshot struct {
-	Planner *metricReport           `json:"planner"`
-	Workers map[string]metricReport `json:"workers"`
-	Runtime map[string]struct {
-		Complete bool `json:"complete"`
-	} `json:"runtime"`
+	Complete  bool                       `json:"complete" strictjson:"required"`
+	Truncated bool                       `json:"truncated" strictjson:"required"`
+	Metrics   reporting.ExecutionMetrics `json:"metrics" strictjson:"required"`
 }
 
-func attemptMetrics(run, stage string, raw []byte, expectedWorkers int, planner resolved.PlannerRef) (evaldomain.AttemptObservation, error) {
-	out := evaldomain.AttemptObservation{RunID: run, StageExecutionID: stage, SourceSHA256: evaldomain.Digest(raw), Metrics: map[string]int64{}, ReportsComplete: true}
+// metricSnapshot is the whole projection of one StageMetrics document. Every
+// member it names is always written; the Planner is null for a Stage without
+// a Planner report.
+type metricSnapshot struct {
+	Planner *metricReport           `json:"planner" strictjson:"required,nullable"`
+	Workers map[string]metricReport `json:"workers" strictjson:"required"`
+	Runtime map[string]struct {
+		Complete bool `json:"complete" strictjson:"required"`
+	} `json:"runtime" strictjson:"required"`
+}
+
+// errStoredMetrics marks a stored StageMetrics projection that fails the
+// rules its reports were validated against on write (OBS-R110, OBS-R111): a
+// data-integrity failure of the member's collection, never a missing counter.
+var errStoredMetrics = errors.New("stored StageMetrics violate their contract")
+
+// decodeMetricSnapshot decodes a projection as strictly as its reports were
+// decoded on write and applies their metric rules, so a duplicate or unknown
+// member, a missing one, a negative counter or one above 2^53-1 is rejected.
+func decodeMetricSnapshot(raw []byte) (metricSnapshot, error) {
 	var snap metricSnapshot
-	if err := json.Unmarshal(raw, &snap); err != nil {
-		return out, err
+	if err := strictjson.DecodeNonNull(raw, &snap); err != nil {
+		return metricSnapshot{}, err
+	}
+	if snap.Planner != nil {
+		if err := snap.Planner.Metrics.Validate(); err != nil {
+			return metricSnapshot{}, fmt.Errorf("planner report: %w", err)
+		}
+	}
+	for name, report := range snap.Workers {
+		if err := contracts.ValidateOpaqueID("worker logical Agent name", name); err != nil {
+			return metricSnapshot{}, err
+		}
+		if err := report.Metrics.Validate(); err != nil {
+			return metricSnapshot{}, fmt.Errorf("worker report %q: %w", name, err)
+		}
+	}
+	for name := range snap.Runtime {
+		if err := contracts.ValidateOpaqueID("runtime logical Agent name", name); err != nil {
+			return metricSnapshot{}, err
+		}
+	}
+	return snap, nil
+}
+
+// attemptMetrics reads every Planner and Worker counter as reported, whatever
+// the Planner: a model-free Planner's report, or the Scheduler's placeholder
+// for it, states its zero model counters (EVM-R81), and a counter absent by
+// contract leaves its counter incomplete.
+func attemptMetrics(run, stage string, raw []byte, expectedWorkers int) (evaldomain.AttemptObservation, error) {
+	out := evaldomain.AttemptObservation{RunID: run, StageExecutionID: stage, SourceSHA256: evaldomain.Digest(raw), Metrics: map[string]int64{}, ReportsComplete: true}
+	snap, err := decodeMetricSnapshot(raw)
+	if err != nil {
+		return evaldomain.AttemptObservation{}, fmt.Errorf("%w: Stage execution %s: %w", errStoredMetrics, stage, err)
 	}
 	participants := []metricReport{}
 	if snap.Planner != nil {
-		// Older passthrough@1 reports omitted counters for model work it never
-		// performs. Only the immutable Stage planner identity permits these zeros;
-		// missing Worker or model-backed Planner counters remain incomplete.
-		if planner.PlannerID == "passthrough" && planner.Version == "1" {
-			for _, counter := range []**int64{
-				&snap.Planner.Metrics.ModelCalls, &snap.Planner.Metrics.InputTokens,
-				&snap.Planner.Metrics.OutputTokens, &snap.Planner.Metrics.TotalTokens,
-			} {
-				if *counter == nil {
-					zero := int64(0)
-					*counter = &zero
-				}
-			}
-		}
 		participants = append(participants, *snap.Planner)
 	}
 	for _, name := range slices.Sorted(maps.Keys(snap.Workers)) {
@@ -63,13 +96,14 @@ func attemptMetrics(run, stage string, raw []byte, expectedWorkers int, planner 
 	for _, r := range snap.Runtime {
 		out.ReportsComplete = out.ReportsComplete && r.Complete
 	}
-	// A missing or negative contribution leaves its counter incomplete; one
+	// A contribution absent by contract leaves its counter incomplete; one
 	// whose known contributions exceed the int64 range is overflowed and has no
-	// value, whichever participant or tool is read first (EVM-R240).
+	// value, whichever participant or tool is read first (EVM-R240). Validation
+	// has bounded every present contribution to 0..2^53-1.
 	missing := map[string]bool{}
 	sums := map[string]*evaldomain.CounterSum{}
 	add := func(name string, n *int64) {
-		if n == nil || *n < 0 {
+		if n == nil {
 			missing[name] = true
 			return
 		}
@@ -85,17 +119,15 @@ func attemptMetrics(run, stage string, raw []byte, expectedWorkers int, planner 
 		add("inputTokens", r.Metrics.InputTokens)
 		add("outputTokens", r.Metrics.OutputTokens)
 		add("totalTokens", r.Metrics.TotalTokens)
-		if r.Metrics.Tools == nil {
-			missing["toolCalls"], missing["toolFailures"] = true, true
-		} else {
-			zero := int64(0)
-			add("toolCalls", &zero)
-			add("toolFailures", &zero)
-			for _, name := range slices.Sorted(maps.Keys(r.Metrics.Tools)) {
-				tool := r.Metrics.Tools[name]
-				add("toolCalls", tool.Calls)
-				add("toolFailures", tool.Failed)
-			}
+		// Validation requires the tools map, so a report without tools adds
+		// known zeros.
+		zero := int64(0)
+		add("toolCalls", &zero)
+		add("toolFailures", &zero)
+		for _, name := range slices.Sorted(maps.Keys(r.Metrics.Tools)) {
+			tool := r.Metrics.Tools[name]
+			add("toolCalls", tool.Calls)
+			add("toolFailures", tool.Failed)
 		}
 		if b := r.Metrics.WorkerBudget; b != nil && b.TokenUsageUnavailable > 0 {
 			missing["inputTokens"], missing["outputTokens"], missing["totalTokens"] = true, true, true
@@ -168,7 +200,7 @@ func observedUsage(ctx context.Context, db pg.DBTX, owner, member string, execut
 			observation.Missing = append(observation.Missing, "Stage metrics are unavailable or exceed the payload bound.")
 			continue
 		}
-		attempt, err := attemptMetrics(snapshot.RunID, snapshot.StageExecutionID, snapshot.Document, snapshot.ExpectedWorkers, snapshot.Planner)
+		attempt, err := attemptMetrics(snapshot.RunID, snapshot.StageExecutionID, snapshot.Document, snapshot.ExpectedWorkers)
 		if err != nil {
 			return evaldomain.Usage{}, err
 		}

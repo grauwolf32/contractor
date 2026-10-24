@@ -333,87 +333,11 @@ func (r ExecutionReport) validate(received bool) error {
 	if err := contracts.ValidateOpaqueID("reportId", r.ReportID); err != nil {
 		return err
 	}
-	if r.Metrics.Tools == nil || r.ToolCalls == nil || r.Errors == nil {
-		return contracts.Invalidf("execution report maps and lists must not be null")
+	if r.ToolCalls == nil || r.Errors == nil {
+		return contracts.Invalidf("execution report lists must not be null")
 	}
-	for name, metrics := range r.Metrics.Tools {
-		if err := contracts.ValidateOpaqueID("metrics tool name", name); err != nil {
-			return err
-		}
-		for _, value := range []*int64{metrics.Calls, metrics.Succeeded, metrics.Failed} {
-			if value != nil && !metricIntegerInRange(*value) {
-				return contracts.Invalidf("tool metrics must lie between 0 and 2^53-1")
-			}
-		}
-	}
-	for _, value := range []*int64{
-		r.Metrics.DurationMS, r.Metrics.ModelCalls, r.Metrics.InputTokens,
-		r.Metrics.OutputTokens, r.Metrics.TotalTokens,
-	} {
-		if value != nil && !metricIntegerInRange(*value) {
-			return contracts.Invalidf("execution metrics must lie between 0 and 2^53-1")
-		}
-	}
-	if budget := r.Metrics.WorkerBudget; budget != nil {
-		if budget.MaxModelCalls <= 0 || budget.MaxModelCalls > contracts.MaxWorkerModelCalls ||
-			budget.MaxToolCalls <= 0 || budget.MaxToolCalls > contracts.MaxWorkerToolCalls ||
-			budget.MaxTotalTokens <= 0 || budget.MaxTotalTokens > contracts.MaxWorkerTotalTokens {
-			return contracts.Invalidf("worker budget limits are invalid")
-		}
-		if budget.ObservedModelCalls < 0 || budget.ObservedModelCalls > budget.MaxModelCalls ||
-			budget.ObservedToolCalls < 0 || budget.ObservedToolCalls > budget.MaxToolCalls ||
-			!metricIntegerInRange(budget.ObservedTotalTokens) ||
-			!metricIntegerInRange(budget.TokenUsageUnavailable) {
-			return contracts.Invalidf("worker budget observations are invalid")
-		}
-		if budget.Exhausted != nil {
-			switch *budget.Exhausted {
-			case "model_calls":
-				if budget.ObservedModelCalls != budget.MaxModelCalls {
-					return contracts.Invalidf("worker model-call exhaustion is inconsistent")
-				}
-			case "tool_calls":
-				if budget.ObservedToolCalls != budget.MaxToolCalls {
-					return contracts.Invalidf("worker tool-call exhaustion is inconsistent")
-				}
-			case "total_tokens":
-				if budget.ObservedTotalTokens < budget.MaxTotalTokens {
-					return contracts.Invalidf("worker token exhaustion is inconsistent")
-				}
-			default:
-				return contracts.Invalidf("worker budget exhausted dimension is invalid")
-			}
-		}
-	}
-	if summarizer := r.Metrics.Summarizer; summarizer != nil {
-		for _, value := range []uint64{
-			summarizer.Attempts, summarizer.Succeeded, summarizer.Failed, summarizer.ModelCalls,
-			summarizer.InputTokens, summarizer.OutputTokens, summarizer.TotalTokens,
-			summarizer.TokenUsageUnavailable,
-		} {
-			if value > MaxResourceInteger {
-				return contracts.Invalidf("worker summarizer metrics must not exceed 2^53-1")
-			}
-		}
-		if summarizer.Attempts == 0 || summarizer.Succeeded > summarizer.Attempts ||
-			summarizer.Failed > summarizer.Attempts ||
-			^uint64(0)-summarizer.Succeeded < summarizer.Failed ||
-			summarizer.Succeeded+summarizer.Failed != summarizer.Attempts ||
-			summarizer.ModelCalls > summarizer.Attempts ||
-			summarizer.TokenUsageUnavailable > summarizer.ModelCalls ||
-			summarizer.FailureCodes == nil || len(summarizer.FailureCodes) > 64 {
-			return contracts.Invalidf("worker summarizer metrics are inconsistent")
-		}
-		var failures uint64
-		for code, count := range summarizer.FailureCodes {
-			if !contracts.ValidWorkerFailureCode(code) || count == 0 || ^uint64(0)-failures < count {
-				return contracts.Invalidf("worker summarizer failure metrics are invalid")
-			}
-			failures += count
-		}
-		if failures != summarizer.Failed {
-			return contracts.Invalidf("worker summarizer failure metrics are inconsistent")
-		}
+	if err := r.Metrics.Validate(); err != nil {
+		return err
 	}
 	for index, call := range r.ToolCalls {
 		if err := contracts.ValidateOpaqueID("tool call ID", call.CallID); err != nil {
@@ -464,6 +388,97 @@ func (r ExecutionReport) validate(received bool) error {
 	}
 	if received && size > 1024*1024 {
 		return contracts.Invalidf("execution report exceeds 1 MiB")
+	}
+	return nil
+}
+
+// Validate checks execution metrics wherever they are read: in a received
+// report, in a stored one and in the counters an Eval reads from stored
+// StageMetrics (EVM-R81). Tool names are opaque IDs, every integer lies
+// between 0 and 2^53-1 (OBS-R111), and the Worker budget and the summarizer
+// aggregate are consistent.
+func (m ExecutionMetrics) Validate() error {
+	if m.Tools == nil {
+		return contracts.Invalidf("execution metrics tools must not be null")
+	}
+	for name, metrics := range m.Tools {
+		if err := contracts.ValidateOpaqueID("metrics tool name", name); err != nil {
+			return err
+		}
+		for _, value := range []*int64{metrics.Calls, metrics.Succeeded, metrics.Failed} {
+			if value != nil && !metricIntegerInRange(*value) {
+				return contracts.Invalidf("tool metrics must lie between 0 and 2^53-1")
+			}
+		}
+	}
+	for _, value := range []*int64{
+		m.DurationMS, m.ModelCalls, m.InputTokens,
+		m.OutputTokens, m.TotalTokens,
+	} {
+		if value != nil && !metricIntegerInRange(*value) {
+			return contracts.Invalidf("execution metrics must lie between 0 and 2^53-1")
+		}
+	}
+	if budget := m.WorkerBudget; budget != nil {
+		if budget.MaxModelCalls <= 0 || budget.MaxModelCalls > contracts.MaxWorkerModelCalls ||
+			budget.MaxToolCalls <= 0 || budget.MaxToolCalls > contracts.MaxWorkerToolCalls ||
+			budget.MaxTotalTokens <= 0 || budget.MaxTotalTokens > contracts.MaxWorkerTotalTokens {
+			return contracts.Invalidf("worker budget limits are invalid")
+		}
+		if budget.ObservedModelCalls < 0 || budget.ObservedModelCalls > budget.MaxModelCalls ||
+			budget.ObservedToolCalls < 0 || budget.ObservedToolCalls > budget.MaxToolCalls ||
+			!metricIntegerInRange(budget.ObservedTotalTokens) ||
+			!metricIntegerInRange(budget.TokenUsageUnavailable) {
+			return contracts.Invalidf("worker budget observations are invalid")
+		}
+		if budget.Exhausted != nil {
+			switch *budget.Exhausted {
+			case "model_calls":
+				if budget.ObservedModelCalls != budget.MaxModelCalls {
+					return contracts.Invalidf("worker model-call exhaustion is inconsistent")
+				}
+			case "tool_calls":
+				if budget.ObservedToolCalls != budget.MaxToolCalls {
+					return contracts.Invalidf("worker tool-call exhaustion is inconsistent")
+				}
+			case "total_tokens":
+				if budget.ObservedTotalTokens < budget.MaxTotalTokens {
+					return contracts.Invalidf("worker token exhaustion is inconsistent")
+				}
+			default:
+				return contracts.Invalidf("worker budget exhausted dimension is invalid")
+			}
+		}
+	}
+	if summarizer := m.Summarizer; summarizer != nil {
+		for _, value := range []uint64{
+			summarizer.Attempts, summarizer.Succeeded, summarizer.Failed, summarizer.ModelCalls,
+			summarizer.InputTokens, summarizer.OutputTokens, summarizer.TotalTokens,
+			summarizer.TokenUsageUnavailable,
+		} {
+			if value > MaxResourceInteger {
+				return contracts.Invalidf("worker summarizer metrics must not exceed 2^53-1")
+			}
+		}
+		if summarizer.Attempts == 0 || summarizer.Succeeded > summarizer.Attempts ||
+			summarizer.Failed > summarizer.Attempts ||
+			^uint64(0)-summarizer.Succeeded < summarizer.Failed ||
+			summarizer.Succeeded+summarizer.Failed != summarizer.Attempts ||
+			summarizer.ModelCalls > summarizer.Attempts ||
+			summarizer.TokenUsageUnavailable > summarizer.ModelCalls ||
+			summarizer.FailureCodes == nil || len(summarizer.FailureCodes) > 64 {
+			return contracts.Invalidf("worker summarizer metrics are inconsistent")
+		}
+		var failures uint64
+		for code, count := range summarizer.FailureCodes {
+			if !contracts.ValidWorkerFailureCode(code) || count == 0 || ^uint64(0)-failures < count {
+				return contracts.Invalidf("worker summarizer failure metrics are invalid")
+			}
+			failures += count
+		}
+		if failures != summarizer.Failed {
+			return contracts.Invalidf("worker summarizer failure metrics are inconsistent")
+		}
 	}
 	return nil
 }

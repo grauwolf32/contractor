@@ -3,81 +3,185 @@ package evalservice
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"math"
 	"reflect"
 	"slices"
-	"strconv"
 	"testing"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func TestEvalObservedLegacyPlannerCountersUseImmutableStageIdentity(t *testing.T) {
+// createRunningUsageRun stores Run runID of owner "owner" and admits it, so
+// its Stages can store metrics that observedRunUsage collects.
+func createRunningUsageRun(t *testing.T, runs *runstore.PostgresStore, runID string) {
+	t.Helper()
+	if _, err := runstoretest.CreateRun(t.Context(), runs, runstore.CreateRunParams{
+		LaneClass: resolved.LaneClassModel,
+		RunID:     runID, OwnerID: "owner", WorkflowName: "fixture", WorkflowVersion: "1",
+		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{"name":"fixture"}`),
+		Parameters: map[string]string{}, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runs.TransitionRun(
+		t.Context(), runID, runstore.RunInitializing, runstore.RunPending, runstore.Reason{Code: "fixture"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runs.TransitionRun(
+		t.Context(), runID, runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "admitted"},
+	); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// observedRunUsage collects the usage of a member that executed Run runID.
+func observedRunUsage(t *testing.T, pool *pgxpool.Pool, runID string) (evaldomain.Usage, error) {
+	t.Helper()
+	ref := evaldomain.ExecutionRef{Kind: "run", ID: runID}
+	inventory := evalstore.Inventory{Complete: true, Gaps: []string{}, Entries: []evalstore.InventoryEntry{{Execution: &ref, Available: true}}}
+	start, finish := time.Unix(0, 0).UTC(), time.Unix(1, 0).UTC()
+	return observedUsage(t.Context(), pool, "owner", evaldomain.Digest([]byte(runID))[7:], ExecutionView{
+		Ref: &ref, State: "succeeded", StartedAt: &start, FinishedAt: &finish,
+	}, inventory)
+}
+
+// Collection reads the Planner's counters as stored, whatever the Stage's
+// Planner: a report without model counters leaves them unavailable even for
+// the model-free passthrough@1, whose own reports state their zeros
+// (EVM-R81). No reader derives a counter from the Planner identity.
+func TestEvalObservedUsageReadsPlannerCountersAsReported(t *testing.T) {
 	pool := serviceTestPool(t)
 	runs := runstore.NewPostgresStore(pool)
 	for _, planner := range []string{"passthrough", "streamline"} {
-		_, err := runstoretest.CreateRun(t.Context(), runs, runstore.CreateRunParams{
-			LaneClass: resolved.LaneClassModel,
-			RunID:     planner, OwnerID: "owner", WorkflowName: "fixture", WorkflowVersion: "1",
-			WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{"name":"fixture"}`),
-			Parameters: map[string]string{}, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
-		})
-
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err = runs.TransitionRun(
-			t.Context(), planner, runstore.RunInitializing, runstore.RunPending, runstore.Reason{Code: "fixture"},
-		); err != nil {
-			t.Fatal(err)
-		}
-		if _, err = runs.TransitionRun(
-			t.Context(), planner, runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "admitted"},
-		); err != nil {
-			t.Fatal(err)
-		}
-		_, err = runs.CreateStageExecution(t.Context(), runstore.CreateStageExecutionParams{
+		createRunningUsageRun(t, runs, planner)
+		if _, err := runs.CreateStageExecution(t.Context(), runstore.CreateStageExecutionParams{
 			LaneClass:        resolved.LaneClassModel,
 			StageExecutionID: planner, RunID: planner, StageName: "fixture", Attempt: 1,
 			StageSpecSchemaVersion:    contracts.APIVersion,
 			StageSpecSnapshot:         json.RawMessage(`{"planner":{"plannerId":"` + planner + `","version":"1"}}`),
 			StageContextSchemaVersion: contracts.APIVersion, StageContext: runstore.StageContextSnapshot{},
-		})
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := pool.Exec(t.Context(), `INSERT INTO stage_metrics(stage_execution_id,metrics_schema_version,metrics,summary)
+VALUES($1,$2,'{"planner":{"complete":true,"truncated":false,"metrics":{"tools":{}}},"workers":{},"runtime":{}}','{}')`, planner, contracts.APIVersion); err != nil {
+			t.Fatal(err)
+		}
+		usage, err := observedRunUsage(t, pool, planner)
 		if err != nil {
 			t.Fatal(err)
 		}
-		// The same retained report has no model counters. Only the immutable
-		// passthrough identity can establish that its own model work is zero.
-		_, err = pool.Exec(t.Context(), `INSERT INTO stage_metrics(stage_execution_id,metrics_schema_version,metrics,summary)
-VALUES($1,$2,'{"planner":{"complete":true,"metrics":{"tools":{}}},"workers":{},"runtime":{}}','{}')`, planner, contracts.APIVersion)
-		if err != nil {
-			t.Fatal(err)
-		}
-		ref := evaldomain.ExecutionRef{Kind: "run", ID: planner}
-		inventory := evalstore.Inventory{Complete: true, Gaps: []string{}, Entries: []evalstore.InventoryEntry{{Execution: &ref, Available: true}}}
-		start, finish := time.Unix(0, 0).UTC(), time.Unix(1, 0).UTC()
-		usage, err := observedUsage(t.Context(), pool, "owner", evaldomain.Digest([]byte(planner))[7:], ExecutionView{
-			Ref: &ref, State: "succeeded", StartedAt: &start, FinishedAt: &finish,
-		}, inventory)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if planner == "passthrough" {
-			if usage.TotalTokens.Value == nil || *usage.TotalTokens.Value != 0 || usage.TotalTokens.Completeness != "complete" {
-				t.Fatalf("legacy passthrough metrics = %+v", usage.TotalTokens)
+		for name, measure := range map[string]evaldomain.Measure{"totalTokens": usage.TotalTokens, "modelCalls": usage.ModelCalls} {
+			if measure.Value != nil || measure.Completeness != "unavailable" {
+				t.Fatalf("%s Stage %s = %+v, want unavailable without the reported counter", planner, name, measure)
 			}
-		} else if usage.TotalTokens.Value != nil || usage.TotalTokens.Completeness != "unavailable" {
-			t.Fatalf("missing model usage became zero: %+v", usage.TotalTokens)
+		}
+		if usage.ToolCalls.Value == nil || *usage.ToolCalls.Value != 0 || usage.ToolCalls.Completeness != "complete" {
+			t.Fatalf("%s Stage tool calls = %+v, want the reported zero", planner, usage.ToolCalls)
+		}
+	}
+}
+
+// A passthrough@1 Planner report as the Planner builds it, recorded and
+// rebuilt into StageMetrics by the telemetry repository, passes the strict
+// reader and yields complete usage: the report states its zero model
+// counters itself (EVM-R81).
+func TestEvalObservedUsageOfRecordedPassthroughReportIsComplete(t *testing.T) {
+	pool := serviceTestPool(t)
+	runs := runstore.NewPostgresStore(pool)
+	createRunningUsageRun(t, runs, "passthrough-run")
+	const stage = "passthrough-stage"
+	if err := runstoretest.CreateRunningNamedStage(t.Context(), runs, "passthrough-run", stage, "fixture", contracts.APIVersion); err != nil {
+		t.Fatal(err)
+	}
+	value := func(v int64) *int64 { return &v }
+	session := stage + "-session"
+	started := time.Now().UTC().Truncate(time.Millisecond)
+	repository := telemetry.NewRepository(pool)
+	if err := repository.RecordPlannerReport(t.Context(), telemetry.PlannerReportEnvelope{
+		StageExecutionID: stage, SessionID: session, InvocationID: stage + "-invocation",
+		StartedAt: started, FinishedAt: started.Add(time.Second), ReportSchemaVersion: contracts.APIVersion,
+		Report: reporting.ExecutionReport{
+			ReportID: "planner-" + session, Complete: true,
+			Metrics: reporting.ExecutionMetrics{
+				DurationMS: value(1000), ModelCalls: value(0), InputTokens: value(0),
+				OutputTokens: value(0), TotalTokens: value(0),
+				Tools: map[string]reporting.ToolMetrics{"a2a.invoke": {Calls: value(1), Succeeded: value(1), Failed: value(0)}},
+			},
+			ToolCalls: []reporting.ToolCallRecord{{
+				CallID: "a2a-planner-" + session, Tool: "a2a.invoke",
+				Arguments: reporting.ToolArguments{"binding": "builder"}, Outcome: reporting.ToolCallSucceeded,
+				DurationMS: value(900),
+			}},
+			Errors: []reporting.ExecutionError{},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repository.RebuildStageMetrics(t.Context(), stage, contracts.APIVersion); err != nil {
+		t.Fatal(err)
+	}
+	usage, err := observedRunUsage(t, pool, "passthrough-run")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, want := range map[string]struct {
+		measure evaldomain.Measure
+		value   float64
+	}{
+		"modelCalls": {usage.ModelCalls, 0}, "inputTokens": {usage.InputTokens, 0},
+		"outputTokens": {usage.OutputTokens, 0}, "totalTokens": {usage.TotalTokens, 0},
+		"toolCalls": {usage.ToolCalls, 1}, "toolFailures": {usage.ToolFailures, 0},
+	} {
+		if want.measure.Value == nil || *want.measure.Value != want.value || want.measure.Completeness != "complete" {
+			t.Fatalf("passthrough %s = %+v, want complete %v", name, want.measure, want.value)
+		}
+	}
+}
+
+// A stored StageMetrics document whose projection breaks the contract its
+// reports were validated against on write fails collection as an integrity
+// error instead of yielding usage. jsonb keeps one member of a duplicated
+// name, so duplicate members are covered on the decoded bytes
+// (TestEvalAttemptMetricsRejectStoredMetricsThatBreakTheirContract).
+func TestEvalObservedUsageRejectsStoredMetricsThatBreakTheirContract(t *testing.T) {
+	pool := serviceTestPool(t)
+	runs := runstore.NewPostgresStore(pool)
+	for index, document := range []string{
+		`{"planner":{"complete":true,"truncated":false,"metrics":{"modelCalls":-1,"tools":{}}},"workers":{},"runtime":{}}`,
+		`{"planner":{"complete":true,"truncated":false,"metrics":{"totalTokens":9007199254740992,"tools":{}}},"workers":{},"runtime":{}}`,
+		`{"planner":{"complete":true,"truncated":false,"metrics":{"tools":{"read":{"calls":-1}}}},"workers":{},"runtime":{}}`,
+		`{"planner":{"complete":true,"truncated":false,"metrics":{"cachedTokens":1,"tools":{}}},"workers":{},"runtime":{}}`,
+		`{"planner":{"complete":true,"truncated":false,"metrics":{"tools":{"read":{"calls":1,"retries":0}}}},"workers":{},"runtime":{}}`,
+		`{"planner":{"complete":true,"metrics":{"tools":{}}},"workers":{},"runtime":{}}`,
+		`{"workers":{"builder":{"complete":true,"truncated":false,"metrics":{}}},"runtime":{"builder":{"complete":true}}}`,
+		`{"workers":{},"runtime":{"builder":{}}}`,
+	} {
+		run := fmt.Sprintf("corrupt-%d", index)
+		createRunningUsageRun(t, runs, run)
+		if err := runstoretest.CreateRunningNamedStage(t.Context(), runs, run, run+"-stage", "fixture", contracts.APIVersion); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := pool.Exec(t.Context(), `INSERT INTO stage_metrics(stage_execution_id,metrics_schema_version,metrics,summary)
+VALUES($1,$2,$3::jsonb,'{}')`, run+"-stage", contracts.APIVersion, document); err != nil {
+			t.Fatal(err)
+		}
+		if usage, err := observedRunUsage(t, pool, run); !errors.Is(err, errStoredMetrics) {
+			t.Fatalf("stored %s = (%+v, %v), want an integrity error", document, usage, err)
 		}
 	}
 }
@@ -211,16 +315,30 @@ func TestSharedPostgresEvalOverflowingUsageRecollectsWithoutNewRecords(t *testin
 	h.command(t, e, "start")
 	c := h.coordinator(t, "usage-overflow")
 	store := evalstore.NewPostgresStore(h.pool)
-	top := strconv.FormatInt(math.MaxInt64, 10)
-	nearTop := strconv.FormatInt(math.MaxInt64-100, 10)
-	// The first stage's tools overflow inside its snapshot; its tokens overflow
-	// only together with the second stage's. Small summaries keep the budget's
-	// known lower bound out of this test.
+	// Every counter lies within 2^53-1 (OBS-R111), so only many contributions
+	// leave the int64 range. The first stage's 1,025 tools at the bound
+	// overflow its tool calls inside its snapshot; 1,024 of them failed, which
+	// fits the range at 2^63-1,024 and overflows only together with the
+	// second stage's 1,024 failures. Small summaries keep the budget's known
+	// lower bound out of this test.
+	bound := int64(reporting.MaxResourceInteger)
+	tools := map[string]reporting.ToolMetrics{}
+	for index := range 1025 {
+		calls, failed := bound, bound
+		if index == 1024 {
+			failed = 0
+		}
+		tools[fmt.Sprintf("tool-%04d", index)] = reporting.ToolMetrics{Calls: &calls, Failed: &failed}
+	}
+	encodedTools, err := json.Marshal(tools)
+	if err != nil {
+		t.Fatal(err)
+	}
 	documents := []string{
-		`{"planner":{"complete":true,"truncated":false,"metrics":{"modelCalls":1,"inputTokens":` + nearTop +
-			`,"outputTokens":0,"totalTokens":` + nearTop + `,"tools":{"a":{"calls":` + top +
-			`,"failed":0},"b":{"calls":1,"failed":1}}}},"workers":{},"runtime":{}}`,
-		`{"planner":{"complete":true,"truncated":false,"metrics":{"modelCalls":1,"inputTokens":200,"outputTokens":0,"totalTokens":200,"tools":{}}},"workers":{},"runtime":{}}`,
+		`{"planner":{"complete":true,"truncated":false,"metrics":{"modelCalls":1,"inputTokens":100,` +
+			`"outputTokens":20,"totalTokens":120,"tools":` + string(encodedTools) + `}},"workers":{},"runtime":{}}`,
+		`{"planner":{"complete":true,"truncated":false,"metrics":{"modelCalls":1,"inputTokens":200,` +
+			`"outputTokens":0,"totalTokens":200,"tools":{"read":{"calls":1024,"failed":1024}}}},"workers":{},"runtime":{}}`,
 	}
 	runs := runstore.NewPostgresStore(h.pool)
 	stages := []string{}
@@ -286,7 +404,7 @@ func TestSharedPostgresEvalOverflowingUsageRecollectsWithoutNewRecords(t *testin
 	}
 	accepted := collected()
 	for member, usage := range accepted {
-		for name, m := range map[string]evaldomain.Measure{"totalTokens": usage.TotalTokens, "inputTokens": usage.InputTokens, "toolCalls": usage.ToolCalls} {
+		for name, m := range map[string]evaldomain.Measure{"toolCalls": usage.ToolCalls, "toolFailures": usage.ToolFailures} {
 			if m.Value != nil || m.Completeness != "unavailable" || !slices.Equal(m.Scope.Missing, []string{"counter overflow"}) || len(m.SourceRefs) != 2 {
 				t.Fatalf("member %s %s = %+v, want unavailable with a counter overflow gap", member, name, m)
 			}
@@ -294,7 +412,10 @@ func TestSharedPostgresEvalOverflowingUsageRecollectsWithoutNewRecords(t *testin
 		for name, want := range map[string]struct {
 			m     evaldomain.Measure
 			value float64
-		}{"modelCalls": {usage.ModelCalls, 2}, "toolFailures": {usage.ToolFailures, 1}, "outputTokens": {usage.OutputTokens, 0}} {
+		}{
+			"modelCalls": {usage.ModelCalls, 2}, "inputTokens": {usage.InputTokens, 300},
+			"outputTokens": {usage.OutputTokens, 20}, "totalTokens": {usage.TotalTokens, 320},
+		} {
 			if want.m.Value == nil || *want.m.Value != want.value || want.m.Completeness != "complete" || len(want.m.SourceRefs) != 2 {
 				t.Fatalf("member %s %s = %+v, want complete %v", member, name, want.m, want.value)
 			}
