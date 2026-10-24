@@ -787,7 +787,7 @@ unimplemented until those records are completed with evidence.
 
 | Task | Outcome | Depends on |
 | --- | --- | --- |
-| [V410-010](../../tasks/v410-010-artifact-history-retention.yml) | Bound each artifact's history through automatic shared retention in every scope | None |
+| [V410-010](../../tasks/done/v410-010-artifact-history-retention.yml) | Bound each artifact's history through automatic shared retention in every scope | None |
 | [V410-001](../../tasks/v410-001-project-sitemap-store.yml) | Publish a bounded Project sitemap through one authorized reducer | V410-010 |
 | [V410-002](../../tasks/v410-002-project-sitemap-toolset.yml) | Expose authorized live sitemap tools to Project allocations | V410-001 |
 | [V410-003](../../tasks/v410-003-http-sitemap-collection.yml) | Collect HTTP observations into the live Project sitemap | V410-002 |

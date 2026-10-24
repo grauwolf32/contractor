@@ -5,7 +5,7 @@ milestone: project-sitemap-2026-10
 epic: projects-artifacts
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [go, python, sql, json, yaml, markdown]
 goal: >-
@@ -414,74 +414,125 @@ test_prerequisites:
     Exercise actual PostgreSQL references/transactions and failure adapters;
     permissive fakes, wall-clock assertions and only three-row fixtures do not prove
     retention safety or bounded maintenance over the containing collections.
-progress: >-
-  2026-10-24 second checkpoint (paused, task not complete). Done and tested:
-  apierror codes artifact_history_protected (409) and
-  artifact_history_maintenance_pending (503); spec ART-R122 to ART-R127,
-  LIM-ART-9 to LIM-ART-11, DEL-R62 to DEL-R64 (holder classification), DEL-R3
-  and SKL-R81/LIFE-SKL-1 conflicts fixed; OpenAPI ArtifactWriteConflict and
-  ArtifactWriteUnavailable (optional Retry-After) on putArtifact and
-  putProjectArtifact, clients regenerated; migration 000041
-  artifact_history_accounting adds and backfills
-  artifact_bindings.retained_revisions/retained_bytes (NOT NULL, checked),
-  maintained by writeSQL and forkSQL; migration test and a store accounting
-  test. No revision deletion exists yet. The typed HistoryPolicy, its
-  context install and the HistoryProtectedError/HistoryMaintenanceError types
-  were drafted in commit 9d768c8d (internal/artifacts/history_policy.go) and
-  removed again in this checkpoint because nothing calls them yet (make lint
-  dead-code gates); restore that file together with admission, and name the
-  two apierror kinds (registered as blank definitions for now). Not started: hold_count and holder
-  triggers (migration 000042), eligible partial index, trusted retention
-  delete exception, admission/eviction/maintenance, collector refactor,
-  adapters (public Retry-After, private API, Runtime, Memory Go/Python,
-  gitimport), Server config fields, read-race not-found recheck, shared
-  fixtures, make targets, e2e, git-import OpenAPI responses. Note: macOS
-  TMPDIR under /var is a symlink, so filesystem-blob tests need a
-  symlink-free TMPDIR.
-  Design decisions so far: only CAS-advancing writes grow history (forks and
-  creates are create-only, so they start a binding at one revision and only
-  initialize counters); counters artifact_bindings.retained_revisions and
-  retained_bytes are maintained in writeSQL/forkSQL and by eviction, charging
-  blob size_bytes per revision; artifact_binding_revisions.hold_count counts
-  lineage ends, workflow_run_output_publications ends and JSON holders; the
-  current revision is excluded by predicate, not counted; a partial index
-  (binding key, created_at, revision) WHERE hold_count = 0 is the continuation
-  (no stored cursor, a released hold is re-found first); revision deletion is
-  allowed only under a tx-local GUC contractor.artifact_retention with
-  hold_count = 0 and not current; versions/blobs collected in the same pass via
-  the purge collector factored out (no lineage cut), at most 64 victims and
-  64 MiB (first always); per-transaction budget tracked in a tx-local GUC;
-  pending on the pool path rolls back the write tx and commits one separate
-  maintenance pass; caller-owned tx writers (internal/memory, gitimport) roll
-  back then call the maintenance pass; hold acquisition raises 23503 with
-  constraint artifact_exact_hold on a missing revision, release tolerates
-  missing rows; RunScope 50,000 insert counter untouched.
-  Holder inventory: JSON holders needing hold triggers: stage_executions
-  (context pins, continuation summaryArtifact/artifacts, candidate result;
-  accepted equals candidate), planner_sessions.state (completion result refs,
-  scan plan/jobs inputArtifacts/report; use a trigger-maintained derived holds
-  column to avoid detoasting OLD per event), workflow_runs.skill_snapshot[].source
-  (UserScope owner), audits input_selection.inputs and baseline_snapshot
-  inputs and skills[].source, finding_proposal_receipts evidence and
-  proposal_ref while retention_state is source-held, eval_dataset_revisions
-  document Cases[].Inputs (bytea JSON). Already protected: current pointer,
-  artifact_lineage both ends (input_fork incl. skills and sweep inputs,
-  output_bind, project_output_publish, audit_import), output publications FK.
-  Single-revision by construction (current covers): audit-* frozen bindings,
-  finding-proposals, http.exchange, Run outputs, audit-standards.
-  Availability-only/provenance/receipts/caches: eval_records and
-  eval_evidence_refs (EVM-R225; delete trigger only marks dirty), eval plan
-  copies (subset of dataset), eval suboperation copies, run repeat record,
-  audit RunScope tombstones and link provenance, report bytes, fingerprint and
-  anchor projections, finding-collection receipt (check readCollectionReplay
-  against R9), Runtime caches. Spec conflicts to fix: SKL-R81 says UserScope
-  skill revisions are never purged; DEL-R3. Possible existing defects seen:
-  Skill init maps a missing source to retryable skill_artifact_unavailable
-  (RUN-R27 says skill_artifact_not_found); bindOutput leaves a missing
-  candidate source as an ordinary error.
-  Next step: merge main and recheck that 000041 is still the next free
-  migration number; verify the inventory claims against code; write migration
-  000042 (hold_count, lineage/publication and JSON holder triggers,
-  eligible partial index, trusted retention delete exception, validation of
-  stored references, migration test); then admission/eviction, adapters,
-  fixtures, make targets and e2e.
+implementation_commit: a2d94244e6237b5950ae00bde28d951e9a655297
+decisions:
+  - >-
+    Only a CAS write (an expected revision) grows history; creates and forks
+    are create-only and start a binding at one revision. Each binding keeps
+    retained_revisions and retained_bytes (blob size per revision, also when
+    deduplicated), maintained by the write and fork statements and by
+    eviction; the Run's 50,000 inserted-revision counter is untouched by
+    eviction (ART-R118, ART-R123). The typed policy is
+    artifacts.HistoryPolicy (one definition with its floors and ceilings),
+    installed in the request context from the Server configuration
+    (artifactHistoryMaxRevisions/Bytes, CONTRACTOR_ARTIFACT_HISTORY_MAX_*,
+    --artifact-history-max-*); api/testdata/v1alpha1/artifact-history-cases.json
+    holds the same numbers and the error contract for Go and Python.
+  - >-
+    Holds are counted on the revision row (artifact_binding_revisions.hold_count)
+    by triggers of each holder table in the transaction that records or
+    releases the reference, so admission reads one partial index of unheld
+    revisions in (binding, created_at, revision) order instead of probing
+    holder JSON. A released hold is found again first because the index has
+    no stored cursor. Alternative considered: indexed per-holder probes at
+    eviction, which need one index per JSON path and repeat on every
+    admission. Reopen if a holder cannot maintain its count in its own
+    transaction (DEL-R65 rationale).
+  - >-
+    Strict holders (StageExecutions, Audit inputs, finding proposal
+    receipts) reject a missing revision of an existing scope with
+    artifact_exact_hold, which each writer reports as its existing not-found
+    outcome; finding intake now maps it to ErrAccessDenied. Lenient holders
+    (Planner sessions, Run and Audit baseline Skill sources) protect nothing
+    when the revision is missing. A reference into a scope that no longer
+    exists holds nothing, in triggers and in the migration backfill alike.
+  - >-
+    Eval dataset case inputs are classified availability-only (DEL-R64), not
+    holders: one dataset revision may name up to 1,000 cases of up to 128
+    inputs (LIM-EVF-5, LIM-EVF-9), which would make dataset registration and
+    the bounded Eval purge (LIM-EVM-20) write an unbounded number of revision
+    rows. Eval preflight already reports a missing input as
+    eval_evidence_unavailable. Reopen if Eval needs a registered dataset to
+    stay runnable without re-upload.
+  - >-
+    A write needing more than one transaction's 64 removals commits one
+    maintenance pass of its own binding and answers the retryable
+    artifact_history_maintenance_pending (503, Retry-After 1). Writers that
+    own their transaction (Memory, Git import) roll back and then commit the
+    pass through PostgresRepository.MaintainHistory. Memory maps both
+    history answers to the retryable memory_unavailable and never to
+    memory_namespace_full (MEM-R99); the Runtime's document writes resend
+    once on pending and the workspace exporter retries it within its CAS
+    attempts. No queue, sweep, controller, receipt or lease was added.
+  - >-
+    The two migrations of this task were folded into
+    000043_artifact_history_retention.sql (accounting first, then holds),
+    the number the coordinator assigned after main took 000040 to 000042.
+verification:
+  date: '2026-10-24'
+  environment: >-
+    macOS arm64; Go 1.26.9; Python 3.13.16 in the locked Runtime venv; Node
+    from the portable toolchain for UI typecheck and make lint; local
+    PostgreSQL 17.11 (Homebrew) database contractor_test_sitemap with
+    per-test schemas and all 43 migrations; TMPDIR=/private/tmp for
+    filesystem-blob tests.
+  commands:
+    - >-
+      make test-artifact-history-postgres passed: artifacts, persistence/postgres,
+      memory, httpapi/public, httpapi/privateartifacts, findingintake and app;
+      24 selected tests ran, none skipped (TestPostgresHistory* including the
+      2,000-unrelated-binding bounded-maintenance, released-hold reseek,
+      64 MiB pass, read race and sweep-input cases,
+      TestPostgresRunRevisionLimitIsNotRefundedByHistoryRetention, the three
+      migration tests, the shared fixture readers, the Memory and Git import
+      maintenance-after-rollback tests, the public outcome test, the receipt
+      hold mapping and the configuration precedence tests).
+    - >-
+      make test-artifact-history-e2e passed (TestArtifactHistoryAcrossProductionProcesses,
+      34.8s: Server and Python Runtime processes, two Runs holding inputs,
+      not_found for a removed revision, artifact_history_protected without
+      Retry-After, restart with a larger limit).
+    - >-
+      make verify-public-api verify-public-api-postgres test-wire-cross-language
+      passed (after the last merge of main: 269 shared fixtures, 318 Go and
+      211 Python shared tests).
+    - >-
+      make test-runtime: 4633 passed, 39 skipped, 106 failed on this macOS
+      host, all in modules this task does not touch (podman_* 96, projectfs
+      local_io/local_direct and local_direct_faults 4, trailmark_child 2,
+      tool_process 2, code_analysis 2 including a 100 ms event-loop timing
+      bound); none of them imports the changed Runtime modules. The suites of
+      the touched modules (test_shared_artifact_history, test_workspace_auto_export,
+      test_memory_toolset, test_memory, test_artifacts, the artifact, text,
+      LikeC4 and OpenAPI toolsets) passed: 309 tests. Ruff, ruff format and
+      import-linter passed. These Linux-only and container suites need the
+      Linux release-verify run.
+    - >-
+      After the last merge of main (000044_target_credentials follows this
+      task's 000043), make test-artifact-history-postgres,
+      make test-artifact-history-e2e and go test -tags integration -count=1
+      ./internal/persistence/... ./internal/credentials/...
+      ./internal/httpapi/... ./internal/contracts/... passed again.
+    - >-
+      go test -tags integration -count=1 ./cmd/... ./internal/... after
+      merging main: every package passed except tests that failed only under
+      the full parallel load and passed when rerun alone
+      (auditimport completion database drop, auditstore/internal/pgstore
+      claim_scale and deletion_probe plan-read budgets) and
+      gitimport TestRealGitReadOnlyContainer, which needs the alpine image in
+      podman. Touched packages were rerun whole after the last change.
+    - make lint passed (staticcheck U1000, testonlyexports, SQL placement, table ownership, layers, spec, tasks, ERD and release graph).
+    - cd ui && corepack pnpm typecheck passed against the regenerated public types.
+notes:
+  - >-
+    Suspected defect outside this task: internal/agentskills/run.go:173-176
+    maps any read failure of a Run Skill source, including not found, to the
+    retryable skill_artifact_unavailable, while RUN-R27
+    (docs/spec/execution/runs.md:391-394) requires skill_artifact_not_found
+    for a committed missing source.
+  - >-
+    Suspected defect outside this task: internal/scheduler/artifacts.go:95-121
+    (bindOutput) converts only ErrArtifactConflict; a missing candidate
+    source stays an ordinary error that Stage finalization recovery retries.
+    The candidate is now held by its StageExecution, so retention cannot
+    cause it, but the classification gap remains.
