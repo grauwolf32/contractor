@@ -235,8 +235,9 @@ func (f preparationFixture) collection(execution auditstore.Execution, outputs [
 
 func TestSharedPostgresAuditPreparationIdentityAndReplay(t *testing.T) {
 	f := newPreparationFixture(t, false)
-	if roles, err := f.store.ListPreparationRoles(f.ctx, f.audit.AuditID); err != nil || len(roles) != 1 || roles[0].Status != auditdomain.PreparationPending || roles[0].Attempts != 0 {
-		t.Fatalf("pending preparation projection: %+v %v", roles, err)
+	if detail, err := f.store.GetPreparedDetail(f.ctx, f.audit.OwnerID, f.audit.AuditID, false); err != nil || len(detail.Roles) != 1 ||
+		detail.Roles[0].Status != auditdomain.PreparationPending || detail.Roles[0].Attempts != 0 {
+		t.Fatalf("pending preparation projection: %+v %v", detail.Roles, err)
 	}
 	if f.audit.Phase != auditdomain.AuditPhasePreparing || f.audit.CurrentRoundID != nil {
 		t.Fatal("preparation invented a Round")
@@ -292,8 +293,9 @@ func TestSharedPostgresAuditPreparationIdentityAndReplay(t *testing.T) {
 	if _, created, err := f.store.Collect(f.ctx, params); err != nil || !created {
 		t.Fatalf("collect: %t %v", created, err)
 	}
-	if roles, err := f.store.ListPreparationRoles(f.ctx, f.audit.AuditID); err != nil || len(roles) != 1 || roles[0].Status != auditdomain.PreparationAccepted || roles[0].Attempts != 1 {
-		t.Fatalf("accepted preparation projection: %+v %v", roles, err)
+	if detail, err := f.store.GetPreparedDetail(f.ctx, f.audit.OwnerID, f.audit.AuditID, false); err != nil || len(detail.Roles) != 1 ||
+		detail.Roles[0].Status != auditdomain.PreparationAccepted || detail.Roles[0].Attempts != 1 {
+		t.Fatalf("accepted preparation projection: %+v %v", detail.Roles, err)
 	}
 	if _, created, err := f.store.Collect(f.ctx, stale); err != nil || created {
 		t.Fatalf("durable replay after stale claim: %t %v", created, err)
