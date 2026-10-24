@@ -7,6 +7,40 @@ kind: defect
 introduced_by: V25-008
 priority: P2
 status: in_progress
+progress: >-
+  Checkpoint 2026-10-24 20:14 before pause, on main ee2c9658 merged. Done: nextLiveRunForDeletionSQL
+  (internal/auditstore/internal/pgstore/lifecycle_sql.go) rewritten to a
+  CROSS JOIN LATERAL over audit_executions with run_id IS NOT NULL AND
+  run_deleted_at IS NULL (the prefix of audit_executions_audit_run_cleanup_idx,
+  which yields created_at, execution_id order) plus an EXISTS probe of
+  workflow_runs by primary key, ORDER BY created_at, execution_id LIMIT 1; the
+  audit/claim gate and the NextLiveRunForDeletion caller are unchanged. It
+  compiles and go vet passes, and the task test command (auditstore,
+  auditcontroller, rundeletion with -tags=integration, TMPDIR without a
+  symlinked component on macOS) passes with it; make lint not yet run.
+  Design decision: keep the EXISTS on workflow_runs
+  so the meaning stays "the earliest execution whose Run still exists"; the
+  run_deleted_at predicate only skips executions whose Run the deferred
+  contractor_require_matching_audit_run check proved absent when the stamp
+  committed. Open point: no trigger on workflow_runs DELETE requires the stamp,
+  so a Run deleted without markExecutionRunDeletedSQL stays an index entry the
+  probe reads (still correct, but outside the bound). Checked so far:
+  internal/rundeletion/deleter.go:91 stamps through MarkExecutionRunDeleted in
+  the Run-deletion transaction for every audit-managed Run; still to confirm
+  the Project purge path and that run IDs are never reused. The pgstore purge
+  tests delete the child Run with a bare DELETE (purge_postgres_test.go:346,
+  deleteChildRunForPurge) without the stamp; the kept EXISTS keeps them
+  correct.
+  Not yet done: the A1 scale test (explaintest.ExplainPrepared, Custom and
+  Generic, committed fixture of a deleting Audit with >=20,000 executions, a
+  small live tail and thousands of unrelated Runs, built by inserts and
+  VACUUM (INDEX_CLEANUP ON) as in V414-028's claim_scale_postgres_test.go;
+  keep the original statement verbatim from main for A3), the A2 traversal
+  test against the original statement with a lost claim and the purge gate,
+  the purgeClaimedAuditSQL sibling measurement (fix it with the same
+  run_deleted_at IS NULL predicate if it reads beyond a constant), the
+  AUX-R97 spec note, the gates and the close. Next step: write the A1 and A2
+  tests in internal/auditstore/internal/pgstore.
 depends_on: []
 languages: [go, sql]
 goal: >-

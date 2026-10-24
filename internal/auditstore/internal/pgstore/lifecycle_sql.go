@@ -133,17 +133,29 @@ SELECT `
 // nextLiveRunForDeletionSQL returns the child Run of the earliest execution
 // that still exists in workflow_runs, for deleting Audit $1 held by live claim
 // ($2, $3). No row means no child Run is left or the gate failed.
+// Executions whose Run is stamped deleted are skipped through
+// audit_executions_audit_run_cleanup_idx, which yields (created_at,
+// execution_id) order, so the probe stops at the first live Run instead of
+// reading every execution of the Audit (V414-029). The deferred
+// contractor_require_matching_audit_run check makes run_deleted_at IS NULL
+// exactly while the Run row exists when the stamp commits; the EXISTS probe
+// by primary key keeps the original "Run still exists" meaning.
 // Used by ClaimStore.NextLiveRunForDeletion.
 var nextLiveRunForDeletionSQL = `
-SELECT run.run_id
+SELECT next.run_id
   FROM audits AS audit
   JOIN audit_controller_claims AS claim USING (audit_id)
-  JOIN audit_executions AS execution USING (audit_id)
-  JOIN workflow_runs AS run ON run.run_id = execution.run_id
+  CROSS JOIN LATERAL (
+      SELECT execution.run_id
+        FROM audit_executions AS execution
+       WHERE execution.audit_id = audit.audit_id
+         AND execution.run_id IS NOT NULL AND execution.run_deleted_at IS NULL
+         AND EXISTS (SELECT 1 FROM workflow_runs AS run WHERE run.run_id = execution.run_id)
+       ORDER BY execution.created_at, execution.execution_id
+       LIMIT 1
+  ) AS next
  WHERE audit.audit_id = $1 AND audit.state = 'deleting'
-   AND ` + auditClaims.LiveCondition("claim", "$2", "$3") + `
- ORDER BY execution.created_at, execution.execution_id
- LIMIT 1`
+   AND ` + auditClaims.LiveCondition("claim", "$2", "$3")
 
 // purgeClaimedAuditSQL locks a drained deleting Audit and its live claim
 // ($1-$3) for purge and returns its Project ID. Drained means dispatch closed,
