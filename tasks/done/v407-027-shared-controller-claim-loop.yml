@@ -98,17 +98,31 @@ decisions:
   Clock injection is targeted: evalcoordinator.Options.Clock (After) drives the Eval poll wait (the Audit
   controller already had Options.Clock); evalservice.Driver.Now stamps a member cancellation intent
   (internal/evalservice/workflow_adapter.go and audit_adapter.go previously read time.Now). The time is
-  read once, when prepareOperation journals the intent, and every replay sends the journaled request,
-  so the Run cancellation time and the Audit cancellation request digest never change (EVM-R115).
-  Production defaults stay time.After and time.Now; composition is unchanged.
+  read once, when prepareOperation journals the intent, and every retry reuses the journaled request,
+  so the request and its time never change and a Run member's retry sends that time. An Audit member's
+  cancellation is a revision-checked Audit mutation whose idempotency key and request digest derive
+  from the journaled request and the expected Audit revision (internal/evalservice/audit_adapter.go):
+  a retry against the same revision repeats both, and a retry after the revision moved sends new ones
+  for the same journaled request (EVM-R115). Production defaults stay time.After and time.Now;
+  composition is unchanged.
 - >-
   Ruled out: the Planner's time.Now and time.NewTimer uses (internal/planner/passthrough.go deadline
   pre-check and durations, internal/planner/session_lifecycle.go 50 ms completion retry backoff). The
   Planner deadline is enforced by context.WithDeadline on the runtime clock, so an injected clock would
   split one deadline across two clocks, and no deterministic Planner test needs it (scope.out excludes
-  banning time.Now by grep). The durable sweep controller (internal/scancontroller/controller.go) leases
-  one sweep per tick, joins that tick through Drain and discards release errors; moving it onto claimpass
-  would start reporting its release failures, a behaviour change outside this chore.
+  banning time.Now by grep). The durable sweep controller (internal/scancontroller/controller.go) keeps
+  its own pass: it leases one sweep per tick and joins that tick through Drain, so claimpass.Run's
+  per-pass fan-out does not fit it.
+- >-
+  Review fix: the sweep controller discarded every release error, so a refused release left the sweep
+  claimed for its one-minute lease with nothing recording why. It now releases through
+  claimpass.Release, the step claimpass.Run uses for each claim (exported for this second production
+  caller): under its own five-second budget without the tick's cancellation, a lost claim is not a
+  failure (PER-R25), and a definite failure joins the tick's error, which Run logs as "scan sweep tick
+  failed". scanstore.Release wraps its first statement's driver error with a static message like the
+  rest of the store, so the logged text names the sweep and the failed step but no statement or
+  database message (PER-R26, FAIL-PER-3, FAIL-SCN-15, SCN-R249). Reopen if the sweep controller leases
+  more than one sweep per tick (then use claimpass.Run).
 verification:
   date: '2026-10-23'
   environment: macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local), Node 24.20.0 with pnpm, the locked Runtime
@@ -139,6 +153,19 @@ verification:
     Release in the handler''s goroutine after Handle returns, which the order checks pin.'
   - make lint passed, including go vet, staticcheck U1000, testonlyexports, the layer tests through
     archtest, check_spec, the dependency graph check and check_tasks.
+  - 'Review fixes (2026-10-24, after merging claude/review-v407-v409): the task go test list plus
+    ./internal/claimpass/..., ./internal/scancontroller/..., ./internal/scanstore/... and
+    ./internal/scanservice/... passed; go test -tags integration -race -count=1 ./internal/auditcontroller/
+    ./internal/evalcoordinator/ ./internal/evalservice/ ./internal/claimpass/ passed; go test -race
+    -count=1 ./internal/app/... passed with no skipped test, including the new
+    TestPostgresScanSweepTickReportsADefiniteReleaseFailure (next tick and claim statements) and
+    TestPostgresScanSweepTickToleratesAClaimTakenOverDuringIt; TestReleaseReportsADefiniteFailureAndNotALostClaim
+    and the audit and audit-after-its-revision-moved cases of TestSharedPostgresCancellationReplaysItsJournaledRequestTime
+    passed; make lint passed.'
+  - 'Review-fix mutation checks, each restored: the previous controller (release errors discarded)
+    failed TestPostgresScanSweepTickReportsADefiniteReleaseFailure with a nil error; the previous
+    unwrapped first release statement failed it by rendering the database message; treating a lost
+    claim as a failure failed TestPostgresScanSweepTickToleratesAClaimTakenOverDuringIt.'
   database_tests_configured: true
   evidence: >-
     No sleeps or elapsed-time assertions: the join tests hold handlers on channels past the pass's
@@ -147,5 +174,5 @@ verification:
     implementation into an error.
   declined:
   - >-
-    Planner clock injection and moving the durable sweep controller onto claimpass (see decisions).
-implementation_commit: 55b523c2fd2463127f7f40f03fc01b60dbae44d7
+    Planner clock injection and moving the durable sweep controller onto claimpass.Run (see decisions).
+implementation_commit: 62d5e1c5d51c24f8a5d3bff86050e3d28b64d724
