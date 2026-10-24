@@ -383,8 +383,8 @@ func (t HTTPOriginTargetRef) Validate() error {
 	if t.Credential == nil {
 		return nil
 	}
-	if !contracts.ValidConfigID(t.Credential.CredentialID) {
-		return contracts.Invalidf("HTTP origin target credential ID is invalid")
+	if err := t.Credential.Validate(); err != nil {
+		return contracts.Invalidf("HTTP origin target credential is invalid")
 	}
 	if t.Credential.Kind != RuntimeCredentialOriginBasic && t.Credential.Kind != RuntimeCredentialOriginBearer {
 		return contracts.Invalidf("HTTP origin target credential kind is invalid")
@@ -454,9 +454,21 @@ type RuntimeLabelBindingProvenance struct {
 	Config          RuntimeConfigRef `json:"config" strictjson:"required"`
 }
 
+// RuntimeCredentialRef is the exact reference to one Runtime credential. A
+// Runtime credential is create-only, so its ID with its kind names one
+// immutable revision; no hash of the secret identifies it (RCF-R184).
 type RuntimeCredentialRef struct {
 	CredentialID string                `json:"credentialId" strictjson:"required"`
 	Kind         RuntimeCredentialKind `json:"kind" strictjson:"required"`
+}
+
+// Validate requires a credential ID of the configuration ID grammar and a
+// known kind.
+func (r RuntimeCredentialRef) Validate() error {
+	if !contracts.ValidConfigID(r.CredentialID) {
+		return contracts.Invalidf("Runtime credential ref ID is invalid")
+	}
+	return r.Kind.Validate()
 }
 
 type ResolvedRuntimeConfigProvenance struct {
@@ -503,10 +515,7 @@ func (p ResolvedRuntimeConfigProvenance) Validate() error {
 	}
 	previous := ""
 	for _, ref := range p.RuntimeCredentialRefs {
-		if !contracts.ValidConfigID(ref.CredentialID) {
-			return contracts.Invalidf("Runtime credential provenance ID is invalid")
-		}
-		if err := ref.Kind.Validate(); err != nil {
+		if err := ref.Validate(); err != nil {
 			return err
 		}
 		key := string(ref.Kind) + "\x00" + ref.CredentialID

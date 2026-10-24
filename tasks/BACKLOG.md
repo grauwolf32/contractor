@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-115 open tasks: 6 in progress, 84 pending, 25 deferred. 1089 finished: 1079 completed, 10 archived.
+122 open tasks: 5 in progress, 84 pending, 33 deferred. 1090 finished: 1080 completed, 10 archived.
 
 ## In progress
 
@@ -16,7 +16,6 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V410-010](v410-010-artifact-history-retention.yml) | projects-artifacts | feature | P1 | Apply automatic bounded history retention to every logical Artifact |
-| [V411-001](v411-001-target-credential-revisions.yml) | runtime-config | feature | P1 | Pin immutable target credential revisions in the existing encrypted store |
 
 ## Pending
 
@@ -53,7 +52,7 @@ the epics are in [epics.yml](epics.yml).
 | [V410-008](v410-008-sitemap-caido-history.yml) | feature | P2 | V410-004, V410-007 | Import selected Caido history incrementally with durable checkpoints |
 | [V410-009](v410-009-sitemap-browser-collection.yml) | feature | P2 | V410-002, V410-007, V412-001 | Collect managed Playwright network observations into the sitemap |
 | [V411-004](v411-004-controlled-http-conformance.yml) | chore | P1 | V411-003 | Verify controlled HTTP transport against an independent denial and fault matrix |
-| [V411-005](v411-005-identity-sessions-http-login.yml) | feature | P1 | V411-001, V411-004 | Isolate target identities and execute bounded private HTTP login recipes |
+| [V411-005](v411-005-identity-sessions-http-login.yml) | feature | P1 | V411-004 | Isolate target identities and execute bounded private HTTP login recipes |
 | [V411-009](v411-009-http-recipes-predicates.yml) | feature | P1 | V411-005, V411-007, V411-008 | Execute frozen HTTP recipes and evaluate trusted three-valued predicates |
 | [V412-001](v412-001-managed-pentest-browser.yml) | feature | P2 | V411-007, V411-008, V411-010 | Add a managed browser with isolated contexts and enforced target transport |
 | [V412-002](v412-002-browser-login-replay-recipes.yml) | feature | P2 | V412-001, V411-009 | Execute closed browser login and replay recipes with trusted markers |
@@ -107,7 +106,7 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V411-002](v411-002-engagement-baseline-preflight.yml) | feature | P1 | V411-001 | Validate and pin a typed pentest engagement at Audit start |
+| [V411-002](v411-002-engagement-baseline-preflight.yml) | feature | P1 | — | Validate and pin a typed pentest engagement at Audit start |
 | [V411-003](v411-003-action-journal-request-permits.yml) | feature | P1 | V411-002 | Fence and execute scoped HTTP preflight through the durable Audit action ledger |
 | [V411-006](v411-006-cumulative-budget-finalization.yml) | feature | P1 | V411-002, V411-003 | Enforce cumulative pentest budgets and finalize at the hard active-time cap |
 | [V411-008](v411-008-stateful-actions-cleanup.yml) | feature | P1 | V411-003, V411-004, V411-006, V411-007 | Serialize stateful target checks and retain unresolved cleanup effects |
@@ -181,7 +180,7 @@ the epics are in [epics.yml](epics.yml).
 | [V372-030](v372-030-shrink-test-only-export-baseline.yml) | chore | P3 | — | Resolve the exported identifiers that only tests use and empty the test-only export baseline |
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | chore | P3 | — | Make the Runtime suite pass on macOS: declare the Linux-only Podman tests, make the other tests portable and file the macOS defects |
 | [V410-007](v410-007-sitemap-release-gate.yml) | chore | P1 | V410-006 | Verify the first sitemap slice across scale and lifecycle boundaries |
-| [V411-020](v411-020-pentest-http-release-gate.yml) | chore | P1 | V411-001, V411-002, V411-003, V411-004, V411-005, V411-006, V411-007, V411-008, V411-009, V411-010, V411-011, V411-012, V411-013, V411-014, V411-015, V411-016, V411-017, V411-018, V411-019, V410-007 | Gate the first HTTP API pentest delivery through real processes |
+| [V411-020](v411-020-pentest-http-release-gate.yml) | chore | P1 | V411-002, V411-003, V411-004, V411-005, V411-006, V411-007, V411-008, V411-009, V411-010, V411-011, V411-012, V411-013, V411-014, V411-015, V411-016, V411-017, V411-018, V411-019, V410-007 | Gate the first HTTP API pentest delivery through real processes |
 | [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-001, V414-004, V414-007, V414-009, V414-012, V414-014, V414-020, V414-021, V414-022, V414-024, V414-025, V414-032 | Close the V407/V409 review follow-ups |
 
 ## Deferred
@@ -201,17 +200,25 @@ the epics are in [epics.yml](epics.yml).
 | [V62-006](v62-006-audit-retained-dependencies.yml) | audits | 2026-09-20 | Explicit user approval of an actual later-round consumer and its exact dependency contract. |
 | [V62-007](v62-007-audit-check-routing.yml) | audits | 2026-09-20 | Explicit user approval of iterative checks after dependency and snapshot contracts are reviewed. |
 | [V62-008](v62-008-project-analysis-preparation.yml) | audits | 2026-09-20 | Explicit user approval of standalone analysis-report reuse and the additional two-Workflow chain. |
-| [V64-001](v64-001-audit-priority-contracts.yml) | audits | 2026-10-21 | Explicit user decision after cookies and V62 are delivered and representative audit measurements show that model-based prioritization improves useful-result yield or time/cost over fixed ordering. |
-| [V64-002](v64-002-audit-priority-store.yml) | audits | 2026-10-21 | Explicit user decision after cookies and V62 are delivered and representative audit measurements show that model-based prioritization improves useful-result yield or time/cost over fixed ordering. |
-| [V64-003](v64-003-planner-only-priority-execution.yml) | audits | 2026-10-21 | Explicit user decision after cookies and V62 are delivered and representative audit measurements show that model-based prioritization improves useful-result yield or time/cost over fixed ordering. |
-| [V64-004](v64-004-audit-priority-context.yml) | audits | 2026-10-21 | Explicit user decision after cookies and V62 are delivered and representative audit measurements show that model-based prioritization improves useful-result yield or time/cost over fixed ordering. |
-| [V64-005](v64-005-independent-priority-verdicts.yml) | audits | 2026-10-21 | Explicit user decision after cookies and V62 are delivered and representative audit measurements show that model-based prioritization improves useful-result yield or time/cost over fixed ordering. |
-| [V64-006](v64-006-audit-priority-selection.yml) | audits | 2026-10-21 | Explicit user decision after cookies and V62 are delivered and representative audit measurements show that model-based prioritization improves useful-result yield or time/cost over fixed ordering. |
-| [V64-007](v64-007-audit-priority-controller.yml) | audits | 2026-10-21 | Explicit user decision after cookies and V62 are delivered and representative audit measurements show that model-based prioritization improves useful-result yield or time/cost over fixed ordering. |
-| [V64-008](v64-008-audit-priority-api-coverage.yml) | audits | 2026-10-21 | Explicit user decision after cookies and V62 are delivered and representative audit measurements show that model-based prioritization improves useful-result yield or time/cost over fixed ordering. |
-| [V64-009](v64-009-audit-priority-ui.yml) | audits | 2026-10-21 | Explicit user decision after cookies and V62 are delivered and representative audit measurements show that model-based prioritization improves useful-result yield or time/cost over fixed ordering. |
-| [V64-010](v64-010-audit-priority-profile.yml) | audits | 2026-10-21 | Explicit user decision after cookies and V62 are delivered and representative audit measurements show that model-based prioritization improves useful-result yield or time/cost over fixed ordering. |
-| [V64-011](v64-011-audit-priority-release.yml) | audits | 2026-10-21 | Explicit user decision after cookies and V62 are delivered and representative audit measurements show that model-based prioritization improves useful-result yield or time/cost over fixed ordering. |
+| [V62-013](v62-013-audit-iterative-composition-release.yml) | audits | 2026-10-24 | Explicit user reactivation of the reviewed V62 iterative slice; all implementation prerequisites must then complete before this release gate starts. |
+| [V64-001](v64-001-audit-priority-contracts.yml) | audits | 2026-10-21 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
+| [V64-002](v64-002-audit-priority-store.yml) | audits | 2026-10-21 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
+| [V64-003](v64-003-planner-only-priority-execution.yml) | audits | 2026-10-21 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
+| [V64-004](v64-004-audit-priority-context.yml) | audits | 2026-10-21 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
+| [V64-005](v64-005-independent-priority-verdicts.yml) | audits | 2026-10-21 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
+| [V64-006](v64-006-audit-priority-selection.yml) | audits | 2026-10-21 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
+| [V64-007](v64-007-audit-priority-controller.yml) | audits | 2026-10-21 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
+| [V64-008](v64-008-audit-priority-api-coverage.yml) | audits | 2026-10-21 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
+| [V64-009](v64-009-audit-priority-ui.yml) | audits | 2026-10-21 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
+| [V64-010](v64-010-audit-priority-profile.yml) | audits | 2026-10-21 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
+| [V64-011](v64-011-audit-priority-release.yml) | audits | 2026-10-21 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
+| [V64-012](v64-012-audit-hypothesis-registry.yml) | audits | 2026-10-24 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
+| [V64-013](v64-013-audit-hypothesis-generation.yml) | audits | 2026-10-24 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
+| [V64-014](v64-014-audit-hypothesis-assessments.yml) | audits | 2026-10-24 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
+| [V64-015](v64-015-audit-research-frontier.yml) | audits | 2026-10-24 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
+| [V64-016](v64-016-audit-research-ranking-evaluation.yml) | audits | 2026-10-24 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
+| [V64-017](v64-017-audit-attack-tree-projection.yml) | audits | 2026-10-24 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
+| [V64-018](v64-018-audit-research-pentest-integration.yml) | audits | 2026-10-24 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
 | [V365-016](v365-016-fold-planner-execution-reports.yml) | persistence | 2026-10-04 | Explicit user approval of making Planner reports a mutable slot on stage_metrics. |
 
 ## Epics
@@ -223,7 +230,7 @@ tasks in `introduced_by`.
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 4 | 41 | 54 | 18 | 80 |
 | Planners and the Worker model boundary (`planner-worker`) | 4 | 27 | 42 | 17 | 61 |
-| Runtime labels, configuration and credentials (`runtime-config`) | 11 | 26 | 13 | 4 | 41 |
+| Runtime labels, configuration and credentials (`runtime-config`) | 10 | 26 | 13 | 4 | 41 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 2 | 12 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 2 | 1 | 2 |
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 13 | 5 | 16 |
@@ -233,7 +240,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 9 | 16 | 7 | 8 | 12 |
 | Workflow catalog and document workflows (`workflows`) | 7 | 18 | 14 | 12 | 18 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 5 | 35 | 33 | 6 | 38 |
-| Audits (`audits`) | 24 | 60 | 78 | 23 | 101 |
+| Audits (`audits`) | 32 | 65 | 78 | 26 | 101 |
 | Evaluations (`evals`) | 5 | 21 | 37 | 11 | 45 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 2 | 25 | 62 | 13 | 57 |

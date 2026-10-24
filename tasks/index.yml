@@ -19,8 +19,10 @@ execution_policy:
     telemetry; Evals; Planner session and store error classes; SQL read bounds;
     OpenAPI rules and byte bounds; Audit read model; Server lifecycle; Runtime;
     finding fence) and close through V414-027. This is delivery order, not an
-    additional technical dependency. Remaining V64 integration is deferred until
-    an explicit user decision supported by representative audit evidence.
+    additional technical dependency. The 2026-10-24 proposal 0045 breakdown
+    replans V64 and shared V62 iterative composition without activating them.
+    They remain deferred until explicit implementation reactivation; optional
+    model-ranking evidence belongs to V64-016, not the deterministic core exit.
     Resumed on 2026-10-24 evening with every task that the deferred
     V62-005/006/007 do not block. Each lane works on its branch claude/<lane>
     and merges each closed task into main. claude/sitemap and claude/pentest
@@ -614,9 +616,35 @@ milestones:
   - id: audit-check-prioritization
     exit_task: V64-011
     outcome: >-
-      Optional context informs independent checklist verdicts; each Audit pass
-      selects at least ten highest-priority checks, or all remaining if fewer,
-      with durable explanations, unchanged review gates and full inventory coverage.
+      An opt-in Audit research profile generates bounded hypotheses from guides
+      and selected materials, selects experiments deterministically, and uses
+      accepted results for later choices with exact context, lineage and honest
+      coverage. Direct Runs and deterministic inventories bypass research;
+      model ranking, attack trees and pentest integration are independent slices.
+  - id: audit-iterative-composition-2026-10
+    exit_task: V62-013
+    outcome: >-
+      Ordinary later-Round checks consume exact settled results and retained
+      dependencies through profile-owned typed routing, with real-process
+      recovery, deletion and direct-path evidence independent of V64 and pentest.
+  - id: audit-research-ranking-quality-2026-10
+    exit_task: V64-016
+    outcome: >-
+      Optional bounded model evaluation of experiment shortlists is measured
+      against deterministic selection on repeated equal-budget samples; failures,
+      overhead and no-improvement outcomes remain visible and do not block the core.
+  - id: audit-research-attack-tree-2026-10
+    exit_task: V64-017
+    outcome: >-
+      A bounded optional attack-tree reader evaluates declared AND/OR predicates
+      over compatible exact evidence, preserving unknowns and keeping analytical
+      relationships separate from execution authority and causal lineage.
+  - id: audit-research-pentest-2026-10
+    exit_task: V64-018
+    outcome: >-
+      A separately selected research-enabled pentest profile connects accepted
+      hypothesis experiments to the existing proof/replay contracts and report
+      projection. Both baseline research and baseline pentest remain independent.
   - id: findings-benchmark-contracts
     exit_task: V63-001
     outcome: >-

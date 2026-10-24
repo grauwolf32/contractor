@@ -1,90 +1,162 @@
-schema_version: "1.0"
+schema_version: '1.0'
 id: V64-002
-title: Persist Audit candidate inventory, ranking cycles and atomic admissions
+title: Persist research cycles and exact selection decisions
 milestone: audit-check-prioritization
 epic: audits
 kind: feature
 priority: P2
 status: deferred
-deferral:
-  date: "2026-10-21"
-  previous_status: pending
-  previous_priority: P1
-  reason: User deferred the remaining V64 integration to focus on authenticated HTTP continuity and completion of the existing V62 audit journey.
-  reactivate_when: Explicit user decision after cookies and V62 are delivered and representative audit measurements show that model-based prioritization improves useful-result yield or time/cost over fixed ordering.
-implementation_commit: null
-depends_on: [V64-001, V62-002]
-languages: [go, sql]
-goal: >-
-  Preserve the full Audit inventory and every ranking decision independently of
-  selected Round items, with durable claims, budgets and exact provenance.
+depends_on:
+- V64-001
+- V64-012
+- V62-002
+languages:
+- go
+- json
+goal: Give optional research a recoverable cycle, decision and admission intent under the Audit owner,
+  while reusing existing claims and receipts.
 context:
-  authority: User-requested Audit checklist prioritization task series.
-  design: docs/plans/2026-09-20-audit-check-prioritization.md
-  specification: [docs/proposals/0034-audit-check-prioritization.md, docs/spec/audits/audits.md]
-  foundations: V62-002 supplies Audit-scoped execution identity and no-Round persistence; V64 adds ranking state instead of inventing a second lifecycle.
-  revalidated: >-
-    2026-10-24 on b523ae77: still deferred under execution_policy.current_delivery_focus, not
-    superseded. The deliveries named in reactivate_when have landed (cookie persistence V377-001,
-    c50d6ab0; the V62 journey through V62-012, 8c2441f0) and every dependency outside V64 is
-    complete (V64-000, V62-001, V62-002, V62-003, V25-011); what remains is representative audit
-    evidence and an explicit user decision. The new plans do not supersede it: proposal 0033 section
-    14 says V64 is not a prerequisite, its section 8.2 orders pentest hypotheses by frozen
-    assessment order, policy, budget and plan digest rather than per-candidate model verdicts,
-    V411-012 excludes V64 ranking integration, and V55-009 (pending scanner ranking) stays
-    independent per proposal 0034. The V64-000 pure core in internal/auditpriority (domain layer,
-    internal/archtest/layers_test.go:117) still has no production importer:
-    tools/testonlyexports/baseline.txt:67-70 holds BindVerdict and DecodeVerdict for V64-005 and
-    ResolveTopN and SelectionDigest for V64-006, so archiving the series would also require removing
-    those exports. Its schema and fixtures live in api/audit-priority/v1, not the
-    api/testdata/audit-priority path named in the V64-001, V64-005 and V64-010 deliverables.
-    Proposal 0034 was last refreshed on 2026-10-21 (631d6d51) and already cites the domain
-    specification documents. Task-specific: the Audit schema now has 14 tables (inventory in
-    docs/plans/2026-10-23-schema-reduction-round-2.md); audit_items carries coverage and proposal
-    rows (V365-018), audit_executions carries collection receipts (V365-017) and the
-    report-acceptance review request holds frozen report links (V365-019). An inventory, cycle,
-    intent, verdict and reservation design must use mutation_receipts through KeyedMutation
-    (PER-R24) and ControllerClaims over audit_controller_claims (PER-R25) instead of new receipt or
-    claim tables (AGENTS.md section 3.2), reuse the Audit dispatch windows of AUX-R3 to AUX-R6
-    (000027_audit_dispatch_windows.sql) for reservations, keep long SQL in *_sql.go and add
-    migration 000040 or later on top of 000001_baseline.sql. internal/auditstore is split into
-    claimstore, hookstore, ownerstore, querystore, reviewstore and internal/pgstore.
+  authority: User requested the staged task breakdown and revision of V64/V62 for proposal 0045 on 2026-10-24;
+    this change plans work only and does not start implementation.
+  proposal: docs/proposals/0045-audit-hypothesis-search.md
+  design: docs/plans/2026-10-24-audit-hypothesis-search.md
+  specification:
+  - docs/spec/audits/audits.md
+  - docs/spec/audits/execution.md
+  - docs/spec/artifacts/artifact-store.md
+  - docs/spec/platform/persistence.md
+  deterministic_boundary: Direct Runs and current deterministic Audit inventories bypass research; no
+    mandatory hypotheses, generation, ranking, new Scheduler mode or attack tree.
+  implementation_boundary: Each new table, state, export and schema must have its named production writer/reader
+    in this task; include the smallest actual integration caller, not a test-only placeholder waiting
+    for another task.
+  previous_definition:
+    revision: a31579d33e81315818a277b822e3b087ce5c76c1
+    path: tasks/v64-002-audit-priority-store.yml
+    title: Persist Audit candidate inventory, ranking cycles and atomic admissions
+    depends_on:
+    - V64-001
+    - V62-002
+    note: The former fixed-checklist/minimum-ten integration scope is replaced by this task. Its original
+      definition and deferral history remain in Git; completed V64-000 is unchanged.
 scope:
   in:
-    - Add an immutable Audit-wide inventory with stable canonical candidate IDs and lineage; unadmitted candidates consume retention capacity but no execution item budget, and selected Round items cannot replace the coverage denominator.
-    - Persist ranking cycle identity, exact remaining pool, context/prompt/policy digests, revisions, per-candidate intents/verdicts and explicit incomplete or blocked reasons.
-    - Add claim-bound compare-and-swap transitions and unique constraints for one model-call intent and at most one accepted verdict per candidate/cycle.
-    - Persist pre-ranking cycle-owned reservations for one ranking Run, target initial check Run count and target item slots; ranking submission consumes its reserved slot, selection atomically converts counts to exact item identities and neither step double charges.
-    - Keep unknown model usage reserved, prevent retries from stealing selected initial-attempt reservations, release batch excess after settlement and release unused cycle capacity on failure/cancel under existing claim fences.
-    - Implement atomic selection admission accepting complete pool/context revisions, exact selected IDs and accepted frozen-output receipt, converting the whole selected-set reservation and creating the immutable Round together.
-    - Retain successful verdicts on incomplete cycles, all candidate dispositions and cycle history through permitted source Run deletion and Audit pause/recovery.
-    - Extend owned artifact/credential holds, reference fences and deletion cleanup to frozen context, accepted results and ranking-only Audits.
-    - Add a forward migration preserving persisted current-schema Audit identities, immutable snapshots, receipts and holds without supporting obsolete snapshot formats; coordinate the next migration number at implementation time.
+  - Store one active cycle per Audit, its exact context/shortlist watermark, declared producer associations,
+    accepted batches, decision revision and budget reservations.
+  - Supply the narrow production cycle admission/read service and its Audit lifecycle integration in the
+    same change as storage; broader public inspection belongs to V64-008.
+  - Atomically bind an accepted decision to immutable Round/items with stable identity; claims, keyed
+    mutations and Run associations reuse existing mechanisms.
+  - Protect exact context/decision refs through the existing holder inventory and release them with Audit
+    deletion; register newly introduced holder classes.
+  - Preserve accepted progress through pause, pre-Round resume, owner loss, response loss and process
+    restart without silently restarting generation.
   out:
-    - Model calls, context summarization, ranking policy decisions, Controller dispatch or a new scheduler.
-deliverables:
-  - path: internal/persistence/migrations
-    description: Additive inventory, cycle, intent, verdict, reservation and admission constraints preserving current-schema Audit state and immutable accepted data.
-  - path: internal/auditstore
-    description: Transactional inventory/cycle reads, claims, CAS, exact result acceptance and all-or-nothing Round admission.
-  - path: internal/artifacts
-    description: Protected immutable priority-context and result retention with exact ownership and reference holds.
+  - Hypothesis payload/lineage ownership (V64-012), model calls (V64-005/013), or generic scheduler changes.
+  - Implementation during this planning change, changing existing task statuses, or modifying completed/in-progress
+    task records.
+requirements:
+- id: R1
+  text: A bare artifact or model output cannot create cycle/decision authority; accepted outputs bind
+    exact producer Run and task membership.
+- id: R2
+  text: New evidence does not invalidate a frozen cycle by itself; an inadmissible decision revision,
+    revoked authority or failed exact prerequisite does.
+- id: R3
+  text: Reservations are charged once, converted on acceptance and reconciled on terminal failure; estimated
+    ranking cost is not asserted as a strict aggregate spend guarantee.
+- id: R4
+  text: No independent hypothesis lease, receipt ledger, Worker queue or duplicate Run execution state
+    is introduced.
+failure_outcomes:
+- operation: Cycle creation, progress acceptance, selection reservation and Round binding
+  permanent: Invalid, foreign, unsupported or oversized input is rejected with the owning V64-001/standard
+    contract reason; deterministic ErrInvalid is never endlessly retried and no partial authoritative
+    result is accepted.
+  retryable: Use existing bounded transient storage/provider retries for the owning operation; retry attempt/deadline
+    limits are explicit and do not switch research policies or models.
+  ambiguous: Reconcile the same existing keyed mutation, accepted producer association or exact result;
+    never create another logical effect or repeat target activity to repair acknowledgement loss.
+  cancelled: Existing Audit/Run owner fences and join/drain rules apply; allow authorized terminal collection,
+    block new dispatch and release resources only after in-flight work is joined.
+  timeout: Use the owning operation/Run deadline. Audit admission deadline pauses and drains; non-time
+    budget exhaustion follows bounded finalization with gaps.
+cardinality:
+- collection: Research cycles and decisions within an Audit
+  expected: One active cycle; sixteen selected experiments per cycle
+  maximum: One active cycle; 128 selected plans and aggregate research metadata limits from V64-001
+  bound: Each mutation stays within 128 primary records, 512 total descriptors and 1 MiB; lifetime history
+    uses paginated indexed reads.
+lifecycle:
+- entity: Task-owned research records, exact artifacts and projections
+  delete: Audit/Project ownership and existing deletion gates apply; accepted evidence used by work is
+    retained, not removed by settling or withdrawing a candidate.
+  cascade: Use the owning Audit relations and existing artifact hold lifecycle; register any new holder
+    inventory entry in this change and leave no independent cleanup owner.
+  retention: Preserve exact accepted inputs/results and history through permitted source Run deletion,
+    pause and recovery; release only through the owning lifecycle. Stateless validation/read-only outputs
+    acquire no artificial persistent state.
 acceptance_criteria:
-  - id: A1
-    text: PostgreSQL rejects duplicate identities, foreign candidates, stale pool/context/claim revisions and conflicting accepted verdict replay, including concurrent requests.
-  - id: A2
-    text: Eleven submission slots admit one ranking Run plus ten initial check Runs with no double charge during submission/admission replay; whole-set acceptance atomically converts reserved counts into exact identities, and failure cannot partially admit or steal reservations.
-  - id: A3
-    text: Crashes at intent, result acceptance and admission boundaries recover without duplicate calls or admitted items; unknown intents remain distinguishable from calls never started.
-  - id: A4
-    text: Source deletion, Audit deletion and reference-release races preserve required provenance without cross-owner reads, leaked holds or changes to immutable accepted snapshots; obsolete snapshot formats are rejected without conversion.
+- id: A1
+  given: Two controllers and duplicate cycle/selection requests
+  when: the same keyed mutation races or loses its response
+  then: One cycle, one decision and one admission association exist, without duplicate budget debit.
+- id: A2
+  given: An active research cycle with no Round
+  when: pause, admission deadline, restart and resume occur
+  then: The same accepted progress remains resumable; no synthetic inventory or repeated producer is required.
+- id: A3
+  given: A retained decision and dependencies whose source Run can be deleted
+  when: eviction, source deletion and Audit purge race with hold acquisition
+  then: Exact reads remain valid until authorized release, with no orphan holder or latest fallback.
+- id: A4
+  given: A non-research Audit
+  when: creation, execution and cancellation occur
+  then: No cycle/decision rows are created and existing lifecycle outcomes remain unchanged.
 tests:
-  - command: go test -tags=integration -count=1 ./internal/auditstore/... ./internal/artifacts ./internal/runstore ./internal/persistence/...
-    covers: [A1, A2, A3, A4]
-  - command: git diff --check
-    covers: [A4]
+- command: make require-database
+- command: go test -tags=integration -count=1 ./internal/auditstore/... ./internal/auditservice ./internal/auditcontroller
+    ./internal/artifacts/...
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make lint
+implementation_commit: null
+deferral:
+  date: '2026-10-21'
+  previous_status: pending
+  previous_priority: P1
+  reason: User deferred the remaining V64 integration to focus on authenticated HTTP continuity and completion
+    of the existing V62 audit journey.
+  reactivate_when: Explicit user authorization to implement this reviewed proposal 0045 scope, after its
+    declared dependencies are completed. Replanning alone does not activate it.
+  previous_reactivate_when: Explicit user decision after cookies and V62 are delivered and representative
+    audit measurements show that model-based prioritization improves useful-result yield or time/cost
+    over fixed ordering.
+deliverables:
+- path: internal/auditstore
+  description: Cycle/decision persistence with named production readers and current store layering.
+- path: internal/auditservice
+  description: Authoritative cycle creation, reads and accepted decision binding.
+- path: internal/auditcontroller
+  description: Minimal optional phase/lifecycle integration, with execution dispatch completed in V64-003.
+- path: internal/persistence/migrations
+  description: Sequential migration and real-store constraints if new durable rows are required.
 test_prerequisites:
-  - Disposable PostgreSQL via CONTRACTOR_TEST_DATABASE_URL; all mandatory migration, race and transaction cases must execute.
+- Commands are implementation acceptance requirements, not results of this planning change. New named
+  gates must be created, registered and fail on zero matching cases.
+- Persistence/lifecycle acceptance uses disposable PostgreSQL with CONTRACTOR_TEST_DATABASE_URL set; an
+  unavailable configured database or mandatory skipped case fails.
+- Use testdata catalogs and pseudo-Skills, not live configs in unit/integration tests. Shipped configuration
+  has its dedicated validation command.
+- Run complete suites for touched packages; use injected clocks and deterministic work counters. Put timing
+  measurements in benchmarks.
 verification_requirements:
-  - Record exact transaction case counts and assert durable row identities, pool membership, reservations and hold counts, not only terminal state.
-  - Validate upgrades with persisted current-schema Audit/profile fixtures and obsolete-schema rejection cases; do not rename an already applied migration from another series.
+- Update owning numbered specifications, strict public/wire contracts and shared fixtures with implementation;
+  do not cite task IDs from normative specifications.
+- Record actual commands, case counts, required prerequisites and exact evidence after implementation.
+  Planning does not populate implementation_commit or fabricate successful checks.
+- Keep direct deterministic behavior, existing claims/receipts and source-to-consumer exact provenance
+  explicit in real-path assertions.

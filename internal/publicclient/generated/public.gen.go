@@ -321,6 +321,51 @@ func (e CreateRuntimeCredentialRequest6Kind) Valid() bool {
 	}
 }
 
+// Defines values for CreateRuntimeCredentialRequest7Kind.
+const (
+	TargetBasic1 CreateRuntimeCredentialRequest7Kind = "target-basic@1"
+)
+
+// Valid indicates whether the value is a known member of the CreateRuntimeCredentialRequest7Kind enum.
+func (e CreateRuntimeCredentialRequest7Kind) Valid() bool {
+	switch e {
+	case TargetBasic1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateRuntimeCredentialRequest8Kind.
+const (
+	TargetBearer1 CreateRuntimeCredentialRequest8Kind = "target-bearer@1"
+)
+
+// Valid indicates whether the value is a known member of the CreateRuntimeCredentialRequest8Kind enum.
+func (e CreateRuntimeCredentialRequest8Kind) Valid() bool {
+	switch e {
+	case TargetBearer1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateRuntimeCredentialRequest9Kind.
+const (
+	TargetLogin1 CreateRuntimeCredentialRequest9Kind = "target-login@1"
+)
+
+// Valid indicates whether the value is a known member of the CreateRuntimeCredentialRequest9Kind enum.
+func (e CreateRuntimeCredentialRequest9Kind) Valid() bool {
+	switch e {
+	case TargetLogin1:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CredentialInUseDetailsKind.
 const (
 	CredentialInUseDetailsKindCredentialInUse CredentialInUseDetailsKind = "credential_in_use"
@@ -3982,6 +4027,12 @@ type AuthSession struct {
 	Principal         AuthPrincipal `json:"principal"`
 }
 
+// BasicCredentialPassword The password of a Basic credential, at most 8,192 UTF-8 bytes without control characters (RCF-R114).
+type BasicCredentialPassword = string
+
+// BasicCredentialUsername The username of a Basic credential, at most 256 UTF-8 bytes without control characters or a colon (RCF-R114).
+type BasicCredentialUsername = string
+
 // CaidoBearerMaterial defines model for CaidoBearerMaterial.
 type CaidoBearerMaterial struct {
 	// Token An HTTP/1.1 field value sent unchanged by every client (RCF-R114), visible ASCII characters with runs of space or tab only between them.
@@ -4201,6 +4252,36 @@ type CreateRuntimeCredentialRequest6 struct {
 
 // CreateRuntimeCredentialRequest6Kind defines model for CreateRuntimeCredentialRequest.6.Kind.
 type CreateRuntimeCredentialRequest6Kind string
+
+// CreateRuntimeCredentialRequest7 defines model for CreateRuntimeCredentialRequest.7.
+type CreateRuntimeCredentialRequest7 struct {
+	CredentialId RuntimeCredentialId                 `json:"credentialId"`
+	Kind         CreateRuntimeCredentialRequest7Kind `json:"kind"`
+	Material     *TargetBasicMaterial                `json:"material,omitempty"`
+}
+
+// CreateRuntimeCredentialRequest7Kind defines model for CreateRuntimeCredentialRequest.7.Kind.
+type CreateRuntimeCredentialRequest7Kind string
+
+// CreateRuntimeCredentialRequest8 defines model for CreateRuntimeCredentialRequest.8.
+type CreateRuntimeCredentialRequest8 struct {
+	CredentialId RuntimeCredentialId                 `json:"credentialId"`
+	Kind         CreateRuntimeCredentialRequest8Kind `json:"kind"`
+	Material     *TargetBearerMaterial               `json:"material,omitempty"`
+}
+
+// CreateRuntimeCredentialRequest8Kind defines model for CreateRuntimeCredentialRequest.8.Kind.
+type CreateRuntimeCredentialRequest8Kind string
+
+// CreateRuntimeCredentialRequest9 defines model for CreateRuntimeCredentialRequest.9.
+type CreateRuntimeCredentialRequest9 struct {
+	CredentialId RuntimeCredentialId                 `json:"credentialId"`
+	Kind         CreateRuntimeCredentialRequest9Kind `json:"kind"`
+	Material     *TargetLoginMaterial                `json:"material,omitempty"`
+}
+
+// CreateRuntimeCredentialRequest9Kind defines model for CreateRuntimeCredentialRequest.9.Kind.
+type CreateRuntimeCredentialRequest9Kind string
 
 // CreateScanSweepRequest Select exactly one of projectIds or allProjects=true. The server captures each Project target; parameters cannot override target. Omitted workflow selects nuclei-web@1.
 type CreateScanSweepRequest struct {
@@ -6004,8 +6085,11 @@ type GitSource struct {
 
 // HTTPOriginBasicMaterial defines model for HTTPOriginBasicMaterial.
 type HTTPOriginBasicMaterial struct {
-	Password *string `json:"password,omitempty"`
-	Username string  `json:"username"`
+	// Password The password of a Basic credential, at most 8,192 UTF-8 bytes without control characters (RCF-R114).
+	Password *BasicCredentialPassword `json:"password,omitempty"`
+
+	// Username The username of a Basic credential, at most 256 UTF-8 bytes without control characters or a colon (RCF-R114).
+	Username BasicCredentialUsername `json:"username"`
 }
 
 // HTTPOriginBearerMaterial defines model for HTTPOriginBearerMaterial.
@@ -6022,8 +6106,11 @@ type HTTPOriginCredentialRef struct {
 
 // HTTPProxyBasicMaterial defines model for HTTPProxyBasicMaterial.
 type HTTPProxyBasicMaterial struct {
-	Password *string `json:"password,omitempty"`
-	Username string  `json:"username"`
+	// Password The password of a Basic credential, at most 8,192 UTF-8 bytes without control characters (RCF-R114).
+	Password *BasicCredentialPassword `json:"password,omitempty"`
+
+	// Username The username of a Basic credential, at most 256 UTF-8 bytes without control characters or a colon (RCF-R114).
+	Username BasicCredentialUsername `json:"username"`
 }
 
 // HTTPProxyBearerMaterial defines model for HTTPProxyBearerMaterial.
@@ -7481,6 +7568,27 @@ type StageTransition struct {
 	SourceExecutionId   ResourceId  `json:"sourceExecutionId"`
 	TargetExecutionId   *ResourceId `json:"targetExecutionId,omitempty"`
 	TargetStage         *ConfigId   `json:"targetStage,omitempty"`
+}
+
+// TargetBasicMaterial defines model for TargetBasicMaterial.
+type TargetBasicMaterial struct {
+	// Password The password of a Basic credential, at most 8,192 UTF-8 bytes without control characters (RCF-R114).
+	Password *BasicCredentialPassword `json:"password,omitempty"`
+
+	// Username The username of a Basic credential, at most 256 UTF-8 bytes without control characters or a colon (RCF-R114).
+	Username BasicCredentialUsername `json:"username"`
+}
+
+// TargetBearerMaterial defines model for TargetBearerMaterial.
+type TargetBearerMaterial struct {
+	// Token An HTTP/1.1 field value sent unchanged by every client (RCF-R114), visible ASCII characters with runs of space or tab only between them.
+	Token *string `json:"token,omitempty"`
+}
+
+// TargetLoginMaterial defines model for TargetLoginMaterial.
+type TargetLoginMaterial struct {
+	// Fields Named login secret fields (RCF-R184); each value is at most 8,192 UTF-8 bytes without control characters, and the values total at most 16 KiB.
+	Fields *map[string]string `json:"fields,omitempty"`
 }
 
 // TerminationError defines model for TerminationError.
@@ -11009,6 +11117,84 @@ func (t *CreateRuntimeCredentialRequest) FromCreateRuntimeCredentialRequest6(v C
 
 // MergeCreateRuntimeCredentialRequest6 performs a merge with any union data inside the CreateRuntimeCredentialRequest, using the provided CreateRuntimeCredentialRequest6
 func (t *CreateRuntimeCredentialRequest) MergeCreateRuntimeCredentialRequest6(v CreateRuntimeCredentialRequest6) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsCreateRuntimeCredentialRequest7 returns the union data inside the CreateRuntimeCredentialRequest as a CreateRuntimeCredentialRequest7
+func (t CreateRuntimeCredentialRequest) AsCreateRuntimeCredentialRequest7() (CreateRuntimeCredentialRequest7, error) {
+	var body CreateRuntimeCredentialRequest7
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCreateRuntimeCredentialRequest7 overwrites any union data inside the CreateRuntimeCredentialRequest as the provided CreateRuntimeCredentialRequest7
+func (t *CreateRuntimeCredentialRequest) FromCreateRuntimeCredentialRequest7(v CreateRuntimeCredentialRequest7) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCreateRuntimeCredentialRequest7 performs a merge with any union data inside the CreateRuntimeCredentialRequest, using the provided CreateRuntimeCredentialRequest7
+func (t *CreateRuntimeCredentialRequest) MergeCreateRuntimeCredentialRequest7(v CreateRuntimeCredentialRequest7) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsCreateRuntimeCredentialRequest8 returns the union data inside the CreateRuntimeCredentialRequest as a CreateRuntimeCredentialRequest8
+func (t CreateRuntimeCredentialRequest) AsCreateRuntimeCredentialRequest8() (CreateRuntimeCredentialRequest8, error) {
+	var body CreateRuntimeCredentialRequest8
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCreateRuntimeCredentialRequest8 overwrites any union data inside the CreateRuntimeCredentialRequest as the provided CreateRuntimeCredentialRequest8
+func (t *CreateRuntimeCredentialRequest) FromCreateRuntimeCredentialRequest8(v CreateRuntimeCredentialRequest8) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCreateRuntimeCredentialRequest8 performs a merge with any union data inside the CreateRuntimeCredentialRequest, using the provided CreateRuntimeCredentialRequest8
+func (t *CreateRuntimeCredentialRequest) MergeCreateRuntimeCredentialRequest8(v CreateRuntimeCredentialRequest8) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsCreateRuntimeCredentialRequest9 returns the union data inside the CreateRuntimeCredentialRequest as a CreateRuntimeCredentialRequest9
+func (t CreateRuntimeCredentialRequest) AsCreateRuntimeCredentialRequest9() (CreateRuntimeCredentialRequest9, error) {
+	var body CreateRuntimeCredentialRequest9
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCreateRuntimeCredentialRequest9 overwrites any union data inside the CreateRuntimeCredentialRequest as the provided CreateRuntimeCredentialRequest9
+func (t *CreateRuntimeCredentialRequest) FromCreateRuntimeCredentialRequest9(v CreateRuntimeCredentialRequest9) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCreateRuntimeCredentialRequest9 performs a merge with any union data inside the CreateRuntimeCredentialRequest, using the provided CreateRuntimeCredentialRequest9
+func (t *CreateRuntimeCredentialRequest) MergeCreateRuntimeCredentialRequest9(v CreateRuntimeCredentialRequest9) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err

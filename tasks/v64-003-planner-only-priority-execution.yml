@@ -1,92 +1,165 @@
-schema_version: "1.0"
+schema_version: '1.0'
 id: V64-003
-title: Support ordinary zero-Worker Runs for the audit-priority planner
+title: Execute resumable research phases through ordinary Workflow Runs
 milestone: audit-check-prioritization
 epic: audits
 kind: feature
 priority: P2
 status: deferred
-deferral:
-  date: "2026-10-21"
-  previous_status: pending
-  previous_priority: P1
-  reason: User deferred the remaining V64 integration to focus on authenticated HTTP continuity and completion of the existing V62 audit journey.
-  reactivate_when: Explicit user decision after cookies and V62 are delivered and representative audit measurements show that model-based prioritization improves useful-result yield or time/cost over fixed ordering.
-implementation_commit: null
-depends_on: [V64-001]
-languages: [go, yaml]
-goal: >-
-  Execute the explicitly declared audit-priority@1 planner through ordinary Run
-  scheduling and model credentials without allocating or requiring a Runtime.
+depends_on:
+- V64-002
+- V62-003
+languages:
+- go
+- json
+goal: Run bounded generation and optional evaluation as normal Audit-owned Workflows before or between
+  Rounds, without a new zero-Worker Scheduler mode.
 context:
-  authority: Independent Audit verdicts need direct bounded Planner model calls with no Worker or tools.
-  design: docs/plans/2026-09-20-audit-check-prioritization.md
-  specification: [docs/proposals/0034-audit-check-prioritization.md, docs/spec/audits/audits.md]
-  compatibility: The new execution shape is explicitly identified; existing Worker-backed, scan and model-free planner shapes retain their constraints.
-  revalidated: >-
-    2026-10-24 on b523ae77: still deferred under execution_policy.current_delivery_focus, not
-    superseded. The deliveries named in reactivate_when have landed (cookie persistence V377-001,
-    c50d6ab0; the V62 journey through V62-012, 8c2441f0) and every dependency outside V64 is
-    complete (V64-000, V62-001, V62-002, V62-003, V25-011); what remains is representative audit
-    evidence and an explicit user decision. The new plans do not supersede it: proposal 0033 section
-    14 says V64 is not a prerequisite, its section 8.2 orders pentest hypotheses by frozen
-    assessment order, policy, budget and plan digest rather than per-candidate model verdicts,
-    V411-012 excludes V64 ranking integration, and V55-009 (pending scanner ranking) stays
-    independent per proposal 0034. The V64-000 pure core in internal/auditpriority (domain layer,
-    internal/archtest/layers_test.go:117) still has no production importer:
-    tools/testonlyexports/baseline.txt:67-70 holds BindVerdict and DecodeVerdict for V64-005 and
-    ResolveTopN and SelectionDigest for V64-006, so archiving the series would also require removing
-    those exports. Its schema and fixtures live in api/audit-priority/v1, not the
-    api/testdata/audit-priority path named in the V64-001, V64-005 and V64-010 deliverables.
-    Proposal 0034 was last refreshed on 2026-10-21 (631d6d51) and already cites the domain
-    specification documents. Task-specific: registered planners are passthrough@1, streamline@1,
-    router@1 and scan-plan@1 (internal/planner/types.go:17-20); maxWorkerCalls must still be at
-    least 1 (internal/config/validation.go:89-90,
-    internal/config/resolved/planner_model_policy.go:19-20). V400-001 and V400-004 split Stage
-    execution and Audit dispatch into model and model-free lane classes
-    (000026_model_free_lane_pool.sql), so a model-only zero-Worker Stage needs an explicit lane
-    class; V384-001 pins Workflow Planner subtask limits and V378-001 added Scheduler-owned summary
-    escalation. Overlaps: V414-006 (one Planner outcome when the session write fails) and V414-007
-    (2 MiB Planner session state bound), both pending, govern the Planner persistence this task
-    would extend.
+  authority: User requested the staged task breakdown and revision of V64/V62 for proposal 0045 on 2026-10-24;
+    this change plans work only and does not start implementation.
+  proposal: docs/proposals/0045-audit-hypothesis-search.md
+  design: docs/plans/2026-10-24-audit-hypothesis-search.md
+  specification:
+  - docs/spec/audits/audits.md
+  - docs/spec/audits/execution.md
+  - docs/spec/artifacts/artifact-store.md
+  - docs/spec/platform/persistence.md
+  deterministic_boundary: Direct Runs and current deterministic Audit inventories bypass research; no
+    mandatory hypotheses, generation, ranking, new Scheduler mode or attack tree.
+  implementation_boundary: Each new table, state, export and schema must have its named production writer/reader
+    in this task; include the smallest actual integration caller, not a test-only placeholder waiting
+    for another task.
+  previous_definition:
+    revision: a31579d33e81315818a277b822e3b087ce5c76c1
+    path: tasks/v64-003-planner-only-priority-execution.yml
+    title: Support ordinary zero-Worker Runs for the audit-priority planner
+    depends_on:
+    - V64-001
+    note: The former fixed-checklist/minimum-ten integration scope is replaced by this task. Its original
+      definition and deferral history remain in Git; completed V64-000 is unchanged.
 scope:
   in:
-    - Introduce explicit audit-priority@1 planner registration and a narrow zero-Worker execution capability declared by validated configuration.
-    - Permit maxWorkerCalls zero only for this new planner/policy shape with finite nonzero model-call/token/time budgets and no Toolset or Worker dispatch authority.
-    - Extend Run preparation and Scheduler reservation/stage/finalization paths to model-only execution without acquiring Runtime allocation or relying on Runtime registration.
-    - Preserve owner/global queue admission, concurrency limits, Run claims, pause/cancel/deadline, recovery and ordinary terminal metrics; queue pause blocks new admissions while an already admitted ranking Stage may drain.
-    - Bind the pinned ModelPolicy and gateway credential scope through existing model access facilities; account for Planner usage with no fabricated Worker events or allocation metrics.
-    - Expose truthful capability and execution projections without advertising the complete Audit feature before its Controller and profile exist.
+  - Extend the single pre-Round phase definition with explicit research intent/submission/collection states
+    and its resume predicate.
+  - Use existing Run Service, pinned Workflow/Runtime configuration, placement labels, per-lane admission,
+    approvals and Scheduler execution.
+  - Collect declared ordinary Run outputs against exact cycle/batch manifests and preserve accepted batches
+    across recovery.
+  - Account generation and evaluation Runs in the same cumulative Run/deadline controls as check work,
+    keeping preparation once-per-Audit.
   out:
-    - Implement independent candidate scoring, introduce a second queue or scheduler, relax all planner policy validation or change Worker-backed scheduling.
-deliverables:
-  - path: internal/planner/auditpriority
-    description: New explicit planner registration and bounded execution interface for the later verdict implementation.
-  - path: internal/config
-    description: Narrow zero-Worker planner/policy validation and regression fixtures rejecting unsupported shapes for existing Worker-backed planners under the current schema.
-  - path: internal/scheduler
-    description: Model-only preparation, reservation, claim recovery, cancellation and stage finalization without Runtime allocation.
-  - path: internal/runstore
-    description: Durable ordinary Run state and metrics for explicit planner-only execution.
-  - path: internal/telemetry
-    description: Correct Planner model and terminal telemetry without synthetic Runtime or Worker activity.
+  - A new Planner-only execution capability or modification of current deterministic profile routes.
+  - Implementation during this planning change, changing existing task statuses, or modifying completed/in-progress
+    task records.
+requirements:
+- id: R1
+  text: A deterministic selector creates no ranking Run. Ordinary model-free research Workflows use already
+    supported tool Workers; no special zero-Worker audit-priority Planner is required.
+- id: R2
+  text: Only research-enabled Audits enter these states. Shared phase predicates/UI projections have one
+    definition; no broad alteration of ordinary Run scheduling.
+- id: R3
+  text: Scheduler retries stay within one Run. Audit retry requires terminal observation plus collection
+    receipt, and ambiguous target work is never blindly repeated.
+failure_outcomes:
+- operation: Research Run intent, submission and terminal collection
+  permanent: Invalid, foreign, unsupported or oversized input is rejected with the owning V64-001/standard
+    contract reason; deterministic ErrInvalid is never endlessly retried and no partial authoritative
+    result is accepted.
+  retryable: Use existing bounded transient storage/provider retries for the owning operation; retry attempt/deadline
+    limits are explicit and do not switch research policies or models.
+  ambiguous: Reconcile the same existing keyed mutation, accepted producer association or exact result;
+    never create another logical effect or repeat target activity to repair acknowledgement loss.
+  cancelled: Existing Audit/Run owner fences and join/drain rules apply; allow authorized terminal collection,
+    block new dispatch and release resources only after in-flight work is joined.
+  timeout: Use the owning operation/Run deadline. Audit admission deadline pauses and drains; non-time
+    budget exhaustion follows bounded finalization with gaps.
+cardinality:
+- collection: In-flight research producer executions
+  expected: One bounded producer batch per active cycle
+  maximum: Existing Audit submission windows and maxSubmittedRuns; at most one active cycle per Audit
+  bound: Bound look-ahead, progress reads and terminal collection; no full-history rescan per tick.
+lifecycle:
+- entity: Task-owned research records, exact artifacts and projections
+  delete: Audit/Project ownership and existing deletion gates apply; accepted evidence used by work is
+    retained, not removed by settling or withdrawing a candidate.
+  cascade: Use the owning Audit relations and existing artifact hold lifecycle; register any new holder
+    inventory entry in this change and leave no independent cleanup owner.
+  retention: Preserve exact accepted inputs/results and history through permitted source Run deletion,
+    pause and recovery; release only through the owning lifecycle. Stateless validation/read-only outputs
+    acquire no artificial persistent state.
 acceptance_criteria:
-  - id: A1
-    text: A scripted zero-Worker planner Run completes through real Scheduler paths with zero registered Runtime agents and zero allocations or Worker calls.
-  - id: A2
-    text: Queue pause blocks new admissions and permits the existing admitted Stage to drain; owner/global concurrency limits, cancellation, deadline, claim loss and restart cannot duplicate accepted Planner work.
-  - id: A3
-    text: Missing model credentials or invalid policy fails explicitly; the new shape cannot request tools or Workers and unrelated planners still reject zero maxWorkerCalls.
-  - id: A4
-    text: Existing planner, scan, Worker allocation and stage-finalization regressions pass, with truthful usage/terminal metrics and no compatibility digest changes.
+- id: A1
+  given: An enabled Audit before its first Round
+  when: a configured research Workflow executes
+  then: It uses ordinary Run/Stage/Worker lifecycle and accepts exact typed outputs under its pinned intent.
+- id: A2
+  given: Pause/deadline before dispatch or while a research Stage runs
+  when: the Audit drains and resumes
+  then: No new work is admitted while paused; existing collection persists and the same intent resumes
+    without duplicated accepted batches.
+- id: A3
+  given: Lost submission response, stale owner claim or cancellation
+  when: recovery runs
+  then: The original Run association is reconciled and no unauthorized post-fence dispatch or missing
+    terminal receipt occurs.
+- id: A4
+  given: A direct model-free Run and deterministic inventory Audit
+  when: they run with research services unselected
+  then: No generator/ranker calls or research execution rows are required, and their outcomes are unchanged.
 tests:
-  - command: go test -race ./internal/config ./internal/planner/... ./internal/scheduler ./internal/controlplane ./internal/telemetry
-    covers: [A1, A2, A3, A4]
-  - command: go test -tags=integration -count=1 ./internal/scheduler ./internal/runstore
-    covers: [A1, A2, A4]
+- command: make require-database
+- command: go test -tags=integration -count=1 ./internal/auditcontroller ./internal/auditservice ./internal/auditstore/...
+    ./internal/runservice
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make test-audit-composition-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make lint
+implementation_commit: null
+deferral:
+  date: '2026-10-21'
+  previous_status: pending
+  previous_priority: P1
+  reason: User deferred the remaining V64 integration to focus on authenticated HTTP continuity and completion
+    of the existing V62 audit journey.
+  reactivate_when: Explicit user authorization to implement this reviewed proposal 0045 scope, after its
+    declared dependencies are completed. Replanning alone does not activate it.
+  previous_reactivate_when: Explicit user decision after cookies and V62 are delivered and representative
+    audit measurements show that model-based prioritization improves useful-result yield or time/cost
+    over fixed ordering.
+deliverables:
+- path: internal/auditcontroller
+  description: Ordinary research phase dispatch/collection and bounded reconcile integration.
+- path: internal/auditservice
+  description: Start/resume lifecycle validation for persisted research intent.
+- path: internal/runservice
+  description: Existing submission path with authoritative Audit associations, without Scheduler fork.
+- path: tests/e2e
+  description: Real process pre-Round execution/resume cases registered in the release graph.
+- path: tests/e2e/audit_composition_matrix.yml
+  description: Register every new mandatory composition process case in the existing explicit selector;
+    prove nonzero execution.
 test_prerequisites:
-  - Disposable PostgreSQL and a controlled local scripted gateway; the no-Runtime cases deliberately register no Runtime agent.
-  - The new internal/planner/auditpriority package is a deliverable of this task, not existing executable support.
+- Commands are implementation acceptance requirements, not results of this planning change. New named
+  gates must be created, registered and fail on zero matching cases.
+- Persistence/lifecycle acceptance uses disposable PostgreSQL with CONTRACTOR_TEST_DATABASE_URL set; an
+  unavailable configured database or mandatory skipped case fails.
+- Use testdata catalogs and pseudo-Skills, not live configs in unit/integration tests. Shipped configuration
+  has its dedicated validation command.
+- Run complete suites for touched packages; use injected clocks and deterministic work counters. Put timing
+  measurements in benchmarks.
 verification_requirements:
-  - Assert persisted allocation count zero and real queue/reservation/claim transitions; a mocked successful Planner return alone is insufficient.
-  - Use no external provider credentials, paid models or production service restarts.
+- Update owning numbered specifications, strict public/wire contracts and shared fixtures with implementation;
+  do not cite task IDs from normative specifications.
+- Record actual commands, case counts, required prerequisites and exact evidence after implementation.
+  Planning does not populate implementation_commit or fabricate successful checks.
+- Keep direct deterministic behavior, existing claims/receipts and source-to-consumer exact provenance
+  explicit in real-path assertions.

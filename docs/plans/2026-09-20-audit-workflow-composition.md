@@ -41,7 +41,21 @@ status; this document does not establish feature readiness. Tasks V62-005/006/00
 have status `deferred`, priority P2 and explicit reactivation conditions. Neither
 dependency completion nor broad instructions to continue V62 reactivate them.
 
-## Current delivery decision (2026-10-21)
+## Iterative planning update (2026-10-24)
+
+The [hypothesis-search plan](2026-10-24-audit-hypothesis-search.md) revises
+V62-005 (settled result snapshots), V62-006 (exact retained dependencies) and
+V62-007 (typed profile routing). They remain generic composition capabilities,
+with no V64 dependency. Their new `audit-iterative-composition-2026-10`
+milestone exits through the deferred V62-013 real-process gate. Snapshot and
+dependency holders use V410-010 retention; they do not require live sitemap.
+
+All four tasks remain deferred. V62-008 is unchanged and is not required for
+cold research from existing materials. Completed preparation/scan tasks and
+their `audit-workflow-composition` milestone remain historical delivery
+evidence, not proof that the iterative extensions are implemented.
+
+## Recorded delivery decision (2026-10-21)
 
 The user clarified the delivery order: finish V62-010 → V62-011 → V62-012
 and implement the accepted A overview/B endpoint details first, then start

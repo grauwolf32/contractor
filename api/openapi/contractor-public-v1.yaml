@@ -14418,7 +14418,7 @@ components:
       properties:
         config: {$ref: '#/components/schemas/RuntimeConfigRef'}
     RuntimeCredentialKind:
-      enum: [otlp-headers@1, http-proxy-basic@1, http-proxy-bearer@1, caido-bearer@1, interactsh-token@1, http-origin-basic@1, http-origin-bearer@1]
+      enum: [otlp-headers@1, http-proxy-basic@1, http-proxy-bearer@1, caido-bearer@1, interactsh-token@1, http-origin-basic@1, http-origin-bearer@1, target-basic@1, target-bearer@1, target-login@1]
     RuntimeCredentialMetadata:
       type: object
       additionalProperties: false
@@ -14456,8 +14456,8 @@ components:
       additionalProperties: false
       required: [username, password]
       properties:
-        username: {type: string, minLength: 1, maxLength: 256}
-        password: {type: string, minLength: 1, maxLength: 8192, writeOnly: true}
+        username: {$ref: '#/components/schemas/BasicCredentialUsername'}
+        password: {$ref: '#/components/schemas/BasicCredentialPassword'}
     HTTPProxyBearerMaterial:
       type: object
       additionalProperties: false
@@ -14494,13 +14494,26 @@ components:
           pattern: '^[!-~]+(?:[ \t]+[!-~]+)*$'
           writeOnly: true
           description: An HTTP/1.1 field value sent unchanged by every client (RCF-R114), visible ASCII characters with runs of space or tab only between them.
+    BasicCredentialUsername:
+      type: string
+      minLength: 1
+      maxLength: 256
+      pattern: '^[^\x00-\x1F\x7F:]+$'
+      description: The username of a Basic credential, at most 256 UTF-8 bytes without control characters or a colon (RCF-R114).
+    BasicCredentialPassword:
+      type: string
+      minLength: 1
+      maxLength: 8192
+      pattern: '^[^\x00-\x1F\x7F]+$'
+      writeOnly: true
+      description: The password of a Basic credential, at most 8,192 UTF-8 bytes without control characters (RCF-R114).
     HTTPOriginBasicMaterial:
       type: object
       additionalProperties: false
       required: [username, password]
       properties:
-        username: {type: string, minLength: 1, maxLength: 256}
-        password: {type: string, minLength: 1, maxLength: 8192, writeOnly: true}
+        username: {$ref: '#/components/schemas/BasicCredentialUsername'}
+        password: {$ref: '#/components/schemas/BasicCredentialPassword'}
     HTTPOriginBearerMaterial:
       type: object
       additionalProperties: false
@@ -14513,6 +14526,43 @@ components:
           pattern: '^[!-~]+(?:[ \t]+[!-~]+)*$'
           writeOnly: true
           description: An HTTP/1.1 field value sent unchanged by every client (RCF-R114), visible ASCII characters with runs of space or tab only between them.
+    TargetBasicMaterial:
+      type: object
+      additionalProperties: false
+      required: [username, password]
+      properties:
+        username: {$ref: '#/components/schemas/BasicCredentialUsername'}
+        password: {$ref: '#/components/schemas/BasicCredentialPassword'}
+    TargetBearerMaterial:
+      type: object
+      additionalProperties: false
+      required: [token]
+      properties:
+        token:
+          type: string
+          minLength: 1
+          maxLength: 8192
+          pattern: '^[!-~]+(?:[ \t]+[!-~]+)*$'
+          writeOnly: true
+          description: An HTTP/1.1 field value sent unchanged by every client (RCF-R114), visible ASCII characters with runs of space or tab only between them.
+    TargetLoginMaterial:
+      type: object
+      additionalProperties: false
+      required: [fields]
+      properties:
+        fields:
+          type: object
+          minProperties: 1
+          maxProperties: 16
+          propertyNames: {pattern: '^[a-z][a-z0-9_-]{0,63}$'}
+          additionalProperties:
+            type: string
+            minLength: 1
+            maxLength: 8192
+            pattern: '^[^\x00-\x1F\x7F]+$'
+            writeOnly: true
+          writeOnly: true
+          description: Named login secret fields (RCF-R184); each value is at most 8,192 UTF-8 bytes without control characters, and the values total at most 16 KiB.
     CreateRuntimeCredentialRequest:
       oneOf:
         - type: object
@@ -14564,6 +14614,27 @@ components:
             credentialId: {$ref: '#/components/schemas/RuntimeCredentialId'}
             kind: {type: string, const: http-origin-bearer@1}
             material: {$ref: '#/components/schemas/HTTPOriginBearerMaterial', writeOnly: true}
+        - type: object
+          additionalProperties: false
+          required: [credentialId, kind, material]
+          properties:
+            credentialId: {$ref: '#/components/schemas/RuntimeCredentialId'}
+            kind: {type: string, const: target-basic@1}
+            material: {$ref: '#/components/schemas/TargetBasicMaterial', writeOnly: true}
+        - type: object
+          additionalProperties: false
+          required: [credentialId, kind, material]
+          properties:
+            credentialId: {$ref: '#/components/schemas/RuntimeCredentialId'}
+            kind: {type: string, const: target-bearer@1}
+            material: {$ref: '#/components/schemas/TargetBearerMaterial', writeOnly: true}
+        - type: object
+          additionalProperties: false
+          required: [credentialId, kind, material]
+          properties:
+            credentialId: {$ref: '#/components/schemas/RuntimeCredentialId'}
+            kind: {type: string, const: target-login@1}
+            material: {$ref: '#/components/schemas/TargetLoginMaterial', writeOnly: true}
     PinnedRuntimeConfig:
       type: object
       additionalProperties: false

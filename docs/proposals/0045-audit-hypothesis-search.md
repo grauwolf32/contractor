@@ -21,7 +21,8 @@ becoming a prerequisite for execution.
 | Domain owner | The research pool belongs to one Audit, with its scope, baseline and budgets. Project supplies materials and explicitly selected historical context. |
 | Execution owner | Audit admits immutable work; Run Service creates ordinary Runs; Scheduler owns execution, retries and allocations. Search adds no execution engine or Worker lease. |
 | Choice unit | Select an experiment against exact hypothesis revisions, rather than an abstract hypothesis score alone. |
-| Sources | Guides alone, Project materials and accepted observations can each seed research. Live observations are not required for a cold hypothesis. |
+| Sources | A person, guides alone, Project materials and accepted observations can each supply hypotheses. Live observations are not required for a cold hypothesis. |
+| Human attention | A human-submitted hypothesis receives high verification priority by default, recorded separately from evidence support and model usefulness judgments. |
 | Identity and history | Trusted code assigns identity and validates revisions, sparse relationships, provenance and result membership. Model text does not establish authority or truth. |
 | Selection | Feasibility, usefulness assessment and final budget-aware selection are separate. Model ranking is optional even when search is enabled. |
 | Storage | Indexed Audit metadata and relationships support selection and UI queries; ArtifactStore owns immutable documents, evidence, forks and retention. |
@@ -97,8 +98,10 @@ The original non-search path can continue to use receipt/ordinal admission.
 The guarantees proposed by V62-005/006/007 remain necessary: settled result
 snapshots, retained dependencies and profile-owned routing. Their future
 source shapes must also represent early grounding and alternative tests.
-Task decomposition and status changes are separate work; this draft changes
-neither V62 nor V64/V411 task files.
+The [delivery plan](../plans/2026-10-24-audit-hypothesis-search.md) now records
+the revised V62/V64 tasks and targeted V411 boundaries. That planning revision
+preserves existing statuses and adds deferred tasks; it is not implementation
+or reactivation.
 
 ## 3. Concepts and durable model
 
@@ -143,6 +146,16 @@ revision references. Old contributions are not silently rebound to new bytes.
 Project is the parent and material source, not a second mutable owner. Another
 Audit imports an explicitly selected snapshot with provenance and reassesses
 applicability. No hypothesis spans two active Audits' scopes or budgets.
+
+A person can submit a hypothesis during research setup or later when the
+Audit lifecycle permits it. The Server records authenticated authorship,
+time, reason and high requested verification priority by default. An explicit
+human edit changes that request with revision/conflict checks and history;
+accepted experiment and evidence pins remain exact. Changing the proposition
+still creates a successor under the rules above. Automated producer text
+cannot impersonate human authorship or overwrite the requested priority.
+An analyst assertion remains a claim until assessed; human origin does not
+increase its evidential strength or automatically create a finding.
 
 ### 3.2 Relationships
 
@@ -328,6 +341,15 @@ mandatory coverage and diversity/aging rules, then a stable ID tie-break.
 Preserve high-priority-but-deferred candidates as high priority. No numeric
 probability of exploitation is assumed from model confidence.
 
+Human-requested verification priority applies before bounded shortlist
+formation, so a large automatic pool cannot hide a manual request. Prefer a
+feasible high-priority human request over otherwise comparable automatic work,
+with stable ordering among human requests. Optional model judgments cannot
+lower that requested attention. Scope, prerequisites, capabilities, approval
+and remaining budget still control admission; a blocked human hypothesis keeps
+its priority and an explicit reason. A concrete manual hypothesis can proceed
+to experiment construction without another hypothesis-generation pass.
+
 Estimated cost influences selection but is not a hard spend guarantee. Existing
 per-Run limits remain in force. Any new strict aggregate research token/spend
 cap requires conservative reservations and reconciliation under the Audit
@@ -474,6 +496,7 @@ model and request limits always apply as well.
 | Candidate batch from one producer result | 32 | 128 / 1 MiB; explicit omission summary |
 | Selection shortlist | 32 | 128; optional model evaluation sees at most 32 candidates per bounded call |
 | Selected experiment plans per cycle | 16 | 128 and remaining Audit item/Run/budget ceilings, whichever is tighter |
+| Exact hypothesis revisions addressed by one experiment | 1 | 8; at most one scoped contribution per declared revision in an accepted result, up to 8 contributions |
 | Admission or projection work per transaction/tick slice | 32 primary records | 128 primary records, 512 total primary/dependency/edge descriptors / 1 MiB metadata; continuation before any bound is exceeded |
 | Research list page | 50 | 100 entries / 256 KiB; keyset cursor |
 | One lineage response | 50 nodes | 100 nodes / 200 edges / 256 KiB; continuation |
@@ -551,7 +574,11 @@ settled views; an UI state cannot outrun Server acceptance.
 
 ## 12. Delivery slices and acceptance evidence
 
-This is a proposed sequence, not newly created tasks.
+The [staged delivery plan](../plans/2026-10-24-audit-hypothesis-search.md)
+owns the current task graph: revised V64-001–011, new V64-012–018, generic
+V62-005/006/007 plus V62-013, and narrow pentest/scanner task updates. All V64
+and iterative V62 implementation remains deferred. The sequence below states
+the intended outcomes rather than introducing additional dependency edges.
 
 1. **Contracts and deterministic boundaries.** Define the opt-in profile,
    hypothesis/plan/assessment/selection/context contracts and limits; revise
