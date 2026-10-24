@@ -6,7 +6,7 @@ epic: audits
 kind: defect
 introduced_by: V25-008
 priority: P2
-status: in_progress
+status: pending
 depends_on: []
 languages: [go, sql]
 goal: >-
