@@ -140,7 +140,7 @@ verification:
     removes. test_failed_local_preparation_rolls_back_in_its_thread covers the in-thread failure rollbacks.
     test_native_skill_probe_writes_and_removes_its_skill_off_the_event_loop and test_cancelled_native_skill_probe_joins_its_thread_before_cleanup
     do the same for the adk@1 probe and its TemporaryDirectory. No elapsed-time assertion is used; the
-    waits are deadlock guards only. All seven fail on ea65cd92.'
+    waits are deadlock guards only. On ea65cd92 only test_local_preparation_writes_owned_directories_off_the_event_loop fails on its assertion (six writes on the loop thread); the other six fail with AttributeError because they patch helpers this change adds. Review evidence instead: with the three creation steps changed to plain asyncio.to_thread (no join), all three cancellation tests failed 15 of 15 runs, 5 of them under 2x CPU load; the catch relies on the rollback thread running within five sleep(0) yields.'
   - 'A3: no existing test assertion was edited. test_runtime_signals_are_found_through_callback_wrappers[4
     signal types] pins the walk (cause, context, cause then context, suppressed context still walked,
     cause preferred over context, cycle stops). test_failing_telemetry_sink_cannot_change_the_worker_outcome[start-fails,
