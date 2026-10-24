@@ -594,7 +594,10 @@ and never commit a partial receipt (FAIL-FND-1). Limits are LIM-FND-33 through
 LIM-FND-37. No permissive legacy decoder or historical reparse exists.
 
 **FND-R167.** Resolve optional exact inputs before the short intake
-transaction. The transaction revalidates selected evidence and stores the
+transaction. Fingerprint and anchor preparation share at most one Stage read,
+made only when either needs a Stage input; that snapshot only selects optional
+inputs, and the transaction reads the Stage again for provenance and
+authorization. The transaction revalidates selected evidence and stores the
 projection atomically with the receipt. Reconcile replay from the receipt
 before reading optional sources, including after source Run deletion; equal
 keys from independent calls retain independent receipts. Migration marks
@@ -777,8 +780,9 @@ triage, review or evidence state. They use default 20/max 100 rows, at most
 `finding_correlation_item_too_large` (422) errors. Cursors bind owner, Project,
 source finding/receipt, exact selection, limit and policy. Project-wide reads
 fence the dedicated Project revision; Audit and pair restrictions fence only
-their selected Audit revisions. Recheck around bounded hydration; a changed
-fence requires restarting. Missing or foreign sources use the same 404.
+their selected Audit revisions. Recheck the fence once, after the last bounded
+hydration read; a changed fence outranks that read's error and requires
+restarting. Missing or foreign sources use the same 404.
 Existing classified storage conflicts retain the retryable 503
 `storage_transaction_conflict`.
 

@@ -230,6 +230,8 @@ func (i *Importer) collectSucceededRole(
 		if retainErr != nil {
 			return false, retainErr
 		}
+		// The first sorted logical output names the receipt source for both
+		// preparation and Round roles.
 		if source == nil {
 			value := descriptor
 			source = &value
@@ -274,10 +276,6 @@ func (i *Importer) collectSucceededRole(
 			),
 			Artifact: retained, SourceProvenance: provenance,
 		})
-		if source == nil {
-			value := descriptor
-			source = &value
-		}
 	}
 	if source == nil {
 		return false, fmt.Errorf("%w: role has no output contract", ErrPermanent)
