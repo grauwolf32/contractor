@@ -429,7 +429,8 @@ progress: >-
   context install and the HistoryProtectedError/HistoryMaintenanceError types
   were drafted in commit 9d768c8d (internal/artifacts/history_policy.go) and
   removed again in this checkpoint because nothing calls them yet (make lint
-  dead-code gates); restore that file together with admission. Not started: hold_count and holder
+  dead-code gates); restore that file together with admission, and name the
+  two apierror kinds (registered as blank definitions for now). Not started: hold_count and holder
   triggers (migration 000041), eligible partial index, trusted retention
   delete exception, admission/eviction/maintenance, collector refactor,
   adapters (public Retry-After, private API, Runtime, Memory Go/Python,
