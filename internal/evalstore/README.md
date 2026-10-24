@@ -28,8 +28,13 @@ intent with no possible execution creation can settle without inventing a Run.
 Datasets and plans retain byte payloads with database-computed SHA-256. Only
 `Freeze` output reaches the immutable plan row, so `FrozenPlan` restores the
 stored bytes and generated digest without validating the schema again.
-`FrozenPlanMetadata` reads only plan attribution and setup for admission and
-per-member collection; `PlanResource` likewise restores immutable validated
+`FrozenPlanMetadata` reads only plan attribution and setup for admission,
+per-member collection and the selected views; `FrozenPlanView` adds the
+readiness the native freeze derived from the validated plan and stored in the
+plan row, so experiment reads never transfer the document (EVM-R242). It decodes
+that small immutable copy strictly; the service validates the response that
+carries it. Only the comparison publication, which needs the native pins, reads
+the whole document. `PlanResource` likewise restores immutable validated
 resources without repeating their schema validation. External
 registration has its own stored document digest, separate from `Plan.SHA256`,
 which preserves the attributed source plan identity used by the producer. Native

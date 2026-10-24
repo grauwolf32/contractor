@@ -58,7 +58,7 @@ func (s *Service) withSelectedView(ctx context.Context, p MemberPageParams, read
 				return evaldomain.Failure("eval_invalid")
 			}
 		}
-		plan, err := st.FrozenPlan(ctx, p.OwnerID, p.ExperimentID)
+		plan, err := st.FrozenPlanMetadata(ctx, p.OwnerID, p.ExperimentID)
 		if err != nil {
 			return err
 		}
@@ -163,7 +163,7 @@ type Report struct {
 func (s *Service) Report(ctx context.Context, p MemberPageParams) (Report, error) {
 	out := Report{SchemaVersion: "contractor.eval-report/v1", Sources: []evaldomain.Source{}}
 	err := s.withSelectedView(ctx, p, func(st *evalstore.Store, e evalstore.Experiment, v evalstore.View, setup preparedSetup) error {
-		plan, err := st.FrozenPlan(ctx, e.OwnerID, e.ID)
+		plan, err := st.FrozenPlanMetadata(ctx, e.OwnerID, e.ID)
 		if err != nil {
 			return err
 		}
