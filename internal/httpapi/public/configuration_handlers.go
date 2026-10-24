@@ -12,9 +12,6 @@ import (
 )
 
 func (h *catalogHandlers) listConfigurations(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	kind, err := config.ParseConfigurationKind(r.PathValue("kind"))
 	if err != nil {
 		handleError(w, err)
@@ -76,9 +73,6 @@ func (h *catalogHandlers) listConfigurations(w http.ResponseWriter, r *http.Requ
 }
 
 func (h *catalogHandlers) getConfiguration(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		handleError(w, err)
 		return

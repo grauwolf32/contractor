@@ -2,8 +2,10 @@
 
 `PrepareOperation(sourceBytes, mediaType, exactArtifactRef, options, pointer)`
 prepares one assigned operation without I/O. Production Audit scan inventory
-uses `AuditScanSettings.PrepareOperation` through `internal/auditdomain`, which
-reproduces the accepted task before scanner execution. There is no product
+uses `AuditScanSettings.PrepareOperations` through `internal/auditdomain`, which
+parses and hashes the source once for all selected operations (SCN-R256);
+`AuditScanSettings.PrepareOperation` reproduces one accepted task before scanner
+execution. There is no product
 OpenAPI-to-RequestSet Artifact export or automatic `request-set-scan@1` handoff.
 That Workflow accepts an independently supplied, valid RequestSet Artifact.
 The package does not read files, resolve remote references, call scanners or

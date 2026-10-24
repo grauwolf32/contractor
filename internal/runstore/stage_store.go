@@ -153,6 +153,34 @@ func (s *PostgresStore) GetActiveStageExecution(ctx context.Context, runID strin
 	}
 }
 
+// ListStageExecutionsWithUnreleasedAllocations returns the StageExecutions of
+// Run runID that still have an allocation whose release has not completed,
+// oldest first, without reading the executions whose release is complete.
+func (s *PostgresStore) ListStageExecutionsWithUnreleasedAllocations(
+	ctx context.Context, runID string,
+) ([]StageExecution, error) {
+	if err := validateOpaque("runID", runID); err != nil {
+		return nil, err
+	}
+	rows, err := s.db.Query(ctx, listStageExecutionsWithUnreleasedAllocationsSQL, runID)
+	if err != nil {
+		return nil, fmt.Errorf("list StageExecutions with unreleased allocations for WorkflowRun %q: %w", runID, err)
+	}
+	defer rows.Close()
+	var result []StageExecution
+	for rows.Next() {
+		execution, scanErr := scanStageExecution(rows)
+		if scanErr != nil {
+			return nil, fmt.Errorf("scan StageExecution with unreleased allocations for WorkflowRun %q: %w", runID, scanErr)
+		}
+		result = append(result, execution)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate StageExecutions with unreleased allocations for WorkflowRun %q: %w", runID, err)
+	}
+	return result, nil
+}
+
 func (s *PostgresStore) ListStageExecutions(ctx context.Context, runID string) ([]StageExecution, error) {
 	if err := validateOpaque("runID", runID); err != nil {
 		return nil, err

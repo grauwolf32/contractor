@@ -73,7 +73,7 @@ func decodeJSONBounded(w http.ResponseWriter, r *http.Request, target any, maxim
 // body is 413 request_too_large, unread when its declared length is already
 // too large (FAIL-API-1). Any other read failure, such as a body that ends
 // before its declared length, is the client's 400 invalid_request, never a
-// retryable internal error (API-R111); the bytes read so far are cleared.
+// retryable internal error (API-R112); the bytes read so far are cleared.
 func readJSONBody(w http.ResponseWriter, r *http.Request, maximum int64) ([]byte, error) {
 	if maximum <= 0 || r.ContentLength > maximum {
 		return nil, fmt.Errorf("%w: JSON body is too large", errRequestTooLarge)

@@ -49,10 +49,4 @@ func TestAuditEventPaginationAndCursorBinding(t *testing.T) {
 	if w := read("/v1/audits/audit-2/events?cursor="+cursor, "audit-2"); w.Code != http.StatusBadRequest {
 		t.Fatalf("foreign Audit cursor = %d", w.Code)
 	}
-	r := auditAuthenticatedRequest(http.MethodHead, "/v1/audits/audit-1/events", nil)
-	w = httptest.NewRecorder()
-	h.listAuditEvents(w, r)
-	if w.Code != http.StatusMethodNotAllowed {
-		t.Fatalf("HEAD = %d", w.Code)
-	}
 }

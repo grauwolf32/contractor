@@ -199,6 +199,23 @@ archive preview refuses an Artifact that is not a ZIP or Skill package with
 with `422 archive_invalid`, `archive_preview_limit` or `archive_file_not_text`;
 the original stays downloadable.
 
+**API-R111.** No operation of the contract defines `HEAD`, so `HEAD` on an
+operation's path, the live event WebSocket path included, is one of the other
+methods of API-R73 and is answered `405 method_not_allowed`. The route table
+owns this rule: the router answers `HEAD` itself, before any operation
+handler, query validation or store read, so a malformed query and an existing
+or missing resource get the same `405`. `HEAD` keeps the order of every other
+request: the API version, request ID and browser-origin checks, authentication
+and, under `/v1/operations`, the Operations capability check answer first. An
+unauthenticated `HEAD` is therefore `401` and a `HEAD` without the Operations
+capability `403`, exactly as `GET` on the same path
+([SEC-R45](../platform/security.md)); only an authorized `HEAD` reaches the
+`405`, and an authorized `HEAD` on a path that is no operation's gets the
+`404 not_found` of API-R73. `HEAD` therefore discloses no more about the
+routes than another undeclared method already does. The private allocation
+API registers its routes through the same rule
+([ART-R120](../artifacts/artifact-store.md)).
+
 The UI's supported-version check and the rule that additive changes within a
 supported version need no coordinated release are in UI
 ([UI-R5 to UI-R7](../ui/ui.md)). The public Runtime-label field name and the
@@ -381,7 +398,7 @@ response is in Runtime configuration
 ([RCF-R176](../configuration/runtime-config.md)); sweep cancellation is in
 Scanners ([SCN-R250](../tools/scanners.md)).
 
-**API-R111.** A mutation checks its request metadata before it reads its
+**API-R112.** A mutation checks its request metadata before it reads its
 body or a store, and a request that fails one of these checks reads no byte
 of its body and gets the same answer whatever resource it names. First come
 the query, the path parameters it checks syntactically, such as Artifact
@@ -653,7 +670,7 @@ jitter: UI reconnect starts at 500 ms (LIM-API-16) and doubles up to 30 seconds
 | [`contractor-events-v1.schema.json`](../../../api/events/contractor-events-v1.schema.json) | Live event message contract | API-R41, API-R44 |
 | `POST /v1/auth/login`, `GET /v1/auth/session`, `POST /v1/auth/logout` | Browser authentication | API-R14 to API-R24 |
 | `GET /v1/events/ws`, subprotocol `contractor.events.v1` | Live event WebSocket | API-R30 to API-R66, API-R72, API-R110 |
-| Request headers `Content-Type`, `Idempotency-Key`, `If-Match`, `X-CSRF-Token`, `Origin` | Mutation headers and browser checks | API-R10, API-R23, API-R27, API-R111 |
+| Request headers `Content-Type`, `Idempotency-Key`, `If-Match`, `X-CSRF-Token`, `Origin` | Mutation headers and browser checks | API-R10, API-R23, API-R27, API-R112 |
 | Response headers `X-Request-ID`, `ETag`, `Content-Disposition`, `Retry-After` | Browser-readable response headers | API-R11 |
 
 The error envelope is the `Error` schema of the OpenAPI document; its
@@ -707,7 +724,7 @@ bounds are [LIM-SEC-8 to LIM-SEC-10](../platform/limits.md)
 Failure outcomes ([failure model](../platform/failure-model.md)):
 
 - FAIL-API-1 — an oversized or incomplete public request body (API-R4, API-R5,
-  API-R111).
+  API-R112).
 - FAIL-API-2 — a cookie-authenticated non-safe request without a valid
   `Origin` and `X-CSRF-Token` (API-R23).
 - FAIL-API-3 — the `workflow_run_events` notification (API-R55, API-R72).
@@ -724,8 +741,8 @@ Entity lifecycle ([lifecycle](../platform/lifecycle.md)):
 Errors ([registry](../platform/errors.md)): `request_too_large` (API-R4),
 `idempotency_conflict` (API-R69),
 `artifact_too_large` (API-R5), the non-disclosing `404` (API-R25),
-`method_not_allowed`, `storage_transaction_conflict`, `internal_error` and
-the archive preview codes (API-R73),
+`method_not_allowed` (API-R73, API-R111), `storage_transaction_conflict`,
+`internal_error` and the archive preview codes (API-R73),
 `resync_required` (API-R58, API-R59) and WebSocket close status `1013`
 (API-R64). `eval_limit_exceeded` is owned by Managed Evals
 ([EVM-R63](../evals/managed-evals.md)); `401` and `403` by Security
@@ -759,8 +776,10 @@ The owning tests are the live event contract tests in
 [`internal/httpapi/public/events/run_poller_test.go`](../../../internal/httpapi/public/events/run_poller_test.go)
 and
 [`internal/httpapi/public/event_handlers_test.go`](../../../internal/httpapi/public/event_handlers_test.go),
-and the Run event read tests in
-[`internal/runstore/run_event_page_postgres_test.go`](../../../internal/runstore/run_event_page_postgres_test.go).
+the Run event read tests in
+[`internal/runstore/run_event_page_postgres_test.go`](../../../internal/runstore/run_event_page_postgres_test.go)
+and the route table tests in
+[`internal/httpapi/public/routes_test.go`](../../../internal/httpapi/public/routes_test.go).
 
 1. An upgrade with an invalid Origin or session, and a Run subscription the
    principal is not authorized for, are rejected (API-R33, API-R39); tests
@@ -794,6 +813,11 @@ and the Run event read tests in
    `TestPostgresListRunEventsFailsOnInvalidStoredEventsAndKeepsGaps`,
    `TestRunCatchUpContinuesAcrossByteShortPages` and
    `TestRunCatchUpEndsAtTheLastCommittedEvent`.
+9. `HEAD` enters no operation handler on any path of the route table and is
+   `405` for an authorized principal with or without a malformed query, after
+   the same `401` and `403` answers that `GET` gets (API-R111); tests
+   `TestHeadNeverReachesAPublicOperationHandler` and
+   `TestHeadOnEveryPublicGetRouteIsRejectedAfterAuthentication`.
 
 ### Durable scan sweeps
 

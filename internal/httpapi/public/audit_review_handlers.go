@@ -374,7 +374,7 @@ func (h *auditHandlers) listAuditFindingProvenance(w http.ResponseWriter, r *htt
 
 // auditMutationHeaders returns the Idempotency-Key and the one strong If-Match
 // revision that every Audit control and review mutation requires.
-// Callers check them before they read the body (API-R111).
+// Callers check them before they read the body (API-R112).
 func auditMutationHeaders(r *http.Request) (string, uint64, error) {
 	key, err := requireIdempotencyKey(r)
 	if err != nil {

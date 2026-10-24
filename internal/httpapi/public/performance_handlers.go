@@ -15,9 +15,6 @@ import (
 
 func (h *operationsHandlers) getPerformance(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if rejectHead(w, r) {
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		handleError(w, err)
 		return
@@ -27,9 +24,6 @@ func (h *operationsHandlers) getPerformance(w http.ResponseWriter, r *http.Reque
 
 func (h *operationsHandlers) listAllocationResourceHistory(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if rejectHead(w, r) {
-		return
-	}
 	query, limit, encodedCursor, err := pageQuery(r.URL.RawQuery, "runId")
 	if err != nil {
 		handleError(w, err)
@@ -107,9 +101,6 @@ func (h *operationsHandlers) listAllocationResourceHistory(w http.ResponseWriter
 
 func (h *operationsHandlers) getPerformanceHistory(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if rejectHead(w, r) {
-		return
-	}
 	query, err := exactQuery(r.URL.RawQuery, "from", "to", "step")
 	if err != nil {
 		handleError(w, err)

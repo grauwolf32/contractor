@@ -554,6 +554,19 @@ exact revision, media type and size) without reading or sending the payload.
 It is not a content observation: only a payload read records the exact
 revision for invocation provenance.
 
+**ART-R120.** The private allocation API serves exactly its routes: the
+Artifact list, raw read, metadata read and write of this section, finding
+proposal submission ([FND-R56](../findings/findings.md)) and Gateway recovery
+participation ([SCH-R168](../execution/scheduler.md)). Another method on one
+of their paths is `405 method_not_allowed`, and any other path is
+`404 not_found`. No route defines `HEAD`, so the router answers `HEAD` on a
+`GET` path with `405` itself, after the mTLS and Runtime instance checks
+(ART-R43) and before the allocation grant check, any store read and any
+Artifact transfer slot ([LIM-BLB-1](../platform/limits.md)): a `HEAD` never
+costs a payload read. The Runtime client sends only `GET`, `PUT` and `POST`.
+The public API applies the same rule from the same route registration
+([API-R111](../api/public-api.md)).
+
 **ART-R117.** The UTF-8 readers `read_artifact` and `read_text_artifact`
 first resolve a ref through the metadata read (ART-R116), unless its exact
 revision is already cached. A media type that names a binary format is
@@ -565,7 +578,26 @@ archive and document subtypes `zip`, `x-zip-compressed`, any `+zip` suffix,
 `application/octet-stream`, is downloaded once per exact revision and refused
 when it is not valid UTF-8. The allocation keeps one downloaded revision of
 at most 64 MiB, so paging it, or reading a versionless ref whose current
-revision it holds, downloads nothing again.
+revision it holds, downloads nothing again. Alongside the revision it keeps
+what it derived from the payload once, off the event loop: whether the
+payload is valid UTF-8 and, for `read_text_artifact`, a line index that
+counts the line starts before every 4,096-byte block. The index size follows from the
+payload size alone, so the cache never retains more than LIM-ART-7 whatever
+the lines or characters, and it never retains decoded text: a page finds its
+first line by scanning at most one block and decodes only its own window of
+at most 128 KiB. Concurrent first reads of one revision share one derivation.
+A cancelled derivation is joined before the cache can be cleared or replaced,
+and its result is discarded. Replacing the cached revision or closing a
+reader discards the derived state with the payload. A read served from the
+cache records its exact revision for invocation provenance like a download.
+
+Rationale: keeping decoded text would retain up to four times the payload
+(Python stores a mostly ASCII text that contains one astral character in four
+bytes per character), and one eight-byte offset per line up to eight times
+the payload of a text made of line breaks. Line breaks are the bytes `\r` and `\n`, which
+never occur inside a multi-byte UTF-8 character, so byte offsets give the
+same line numbers as the decoded text. Reopen this if a reader needs
+character rather than byte positions inside a line.
 
 ### Versions, reads and writes
 
@@ -1043,7 +1075,7 @@ async def list_artifact_prefix(
 ```
 
 Private allocation Artifact API (ART-R40 to ART-R48,
-ART-R56, ART-R116):
+ART-R56, ART-R116, ART-R120):
 
 | Element | Value |
 | --- | --- |
@@ -1052,6 +1084,7 @@ ART-R56, ART-R116):
 | List | `GET /private/v1/allocations/{allocationID}/artifacts` with `limit` and optional `namespace` and `cursor` (model-visible pages), or `limit` with `namespace` and `namePrefix` |
 | Raw read | `GET /private/v1/allocations/{allocationID}/artifacts/{namespace}/{name}` with optional `revision` |
 | Metadata read | `GET /private/v1/allocations/{allocationID}/artifacts/{namespace}/{name}/metadata` with optional `revision`; JSON `ArtifactReadResult` (ART-R116) |
+| Other methods | `HEAD` and any undeclared method on a route's path: `405 method_not_allowed` before the grant check; any other path: `404 not_found` (ART-R120) |
 | Create precondition | `If-None-Match: *` |
 | Update precondition | exactly one quoted strong `If-Match: "<revision>"` |
 | Revision on read and write | `ETag` |
@@ -1210,6 +1243,11 @@ These properties follow from the cited requirements, which are authoritative.
 20. Controlled lifecycle purge is scope-complete and collects only versions and
     blobs with no reference outside its deletion set
     ([Retention and deletion](retention-and-deletion.md)).
+21. `HEAD` on a private allocation API route enters no route handler and
+    reads no listing, metadata or payload (ART-R120); tests
+    `TestPrivateHeadNeverReachesARouteHandler` and
+    `TestPrivateHeadIsRejectedAfterMTLSAndBeforeTheStore` in
+    [`internal/httpapi/privateartifacts/routes_test.go`](../../../internal/httpapi/privateartifacts/routes_test.go).
 
 ## Examples
 

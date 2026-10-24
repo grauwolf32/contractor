@@ -1019,8 +1019,10 @@ supplied bytes. The caller remains responsible for matching those bytes to the
 selected revision.
 
 The production caller is the OpenAPI Audit scan adapter ([Audit
-scans](../audits/scans.md)), which uses `AuditScanSettings.PrepareOperation`
-for SQLMap requests or a fixed Nuclei target.
+scans](../audits/scans.md)), which prepares SQLMap requests or fixed Nuclei
+targets with `AuditScanSettings.PrepareOperations` when it builds the inventory
+(SCN-R256) and with `AuditScanSettings.PrepareOperation` when it reproduces one
+accepted task.
 
 **SCN-R220.** The `request-set-scan@1` Workflow consumes a separately supplied
 valid RequestSet Artifact; scanner selection and dispatch belong to [scan
@@ -1263,6 +1265,25 @@ skipped operation with diagnostics, never an empty success.
 **SCN-R166.** Source parsing and the size, depth and node bounds apply to the
 entire document; reference expansion and request preparation concern only the
 assigned operation.
+
+**SCN-R256.** `AuditScanSettings.PrepareOperations` prepares every operation
+that one settings artifact selects, in pointer order, from one exact source:
+it validates the ref, parses and checks the document and computes the source
+content digest once, then prepares each operation from that parsed source.
+Each operation keeps its own options, reference and concrete-hint budgets and
+depth limits (LIM-SCN-43 to LIM-SCN-46), gaps, coverage and copy of the source
+identity, so every result, digest and error code equals what
+`AuditScanSettings.PrepareOperation` returns for the same bytes, media type,
+exact ref and operation; the first failing operation ends the batch. The
+parsed source is read-only and lives for one call: it holds one document
+within the source bounds (LIM-SCN-39, LIM-SCN-41, LIM-SCN-42) and an index
+with one entry per path key, for at most 1,000 operations (LIM-ASC-12).
+Nothing caches it on the settings or across calls, inventories or Runs, so
+the same settings with other bytes, another media type or another revision
+prepare from that source. The OpenAPI Audit scan inventory
+([Audit scans](../audits/scans.md)) is the batch caller; a caller that
+prepares one operation, such as dispatch-time re-preparation of an accepted
+task, parses its source in each call.
 
 #### Preparation bounds
 

@@ -80,16 +80,10 @@ type runHandlers struct {
 }
 
 func (h *runHandlers) listRuns(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	h.listRunsFromProject(w, r, nil)
 }
 
 func (h *runHandlers) listProjectRuns(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	projectID := r.PathValue("projectId")
 	if _, err := h.Projects.Get(
 		r.Context(), principalUserID(r.Context()), projectID,
@@ -230,7 +224,7 @@ func (h *runHandlers) createRun(w http.ResponseWriter, r *http.Request) {
 }
 
 // createProjectRun checks the request metadata, then Project ownership, and
-// only then reads the body (API-R111).
+// only then reads the body (API-R112).
 func (h *runHandlers) createProjectRun(w http.ResponseWriter, r *http.Request) {
 	idempotencyKey, ok := runCreationKey(w, r)
 	if !ok {
@@ -422,10 +416,6 @@ func (h *runHandlers) deleteRun(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *runHandlers) getRun(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodHead {
-		methodNotAllowed(w, r)
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		handleError(w, err)
 		return

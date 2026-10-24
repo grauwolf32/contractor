@@ -71,9 +71,6 @@ type auditHandlers struct {
 }
 
 func (h *auditHandlers) listAuditProfiles(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	_, limit, encodedCursor, err := pageQuery(r.URL.RawQuery)
 	if err != nil {
 		handleError(w, err)
@@ -116,9 +113,6 @@ func (h *auditHandlers) listAuditProfiles(w http.ResponseWriter, r *http.Request
 }
 
 func (h *auditHandlers) getAuditProfile(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		handleError(w, err)
 		return
@@ -193,9 +187,6 @@ func (h *auditHandlers) createAudit(w http.ResponseWriter, r *http.Request) {
 
 func (h *auditHandlers) listProjectAudits(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if rejectHead(w, r) {
-		return
-	}
 	projectID := r.PathValue("projectId")
 	if projectID != "" {
 		if _, err := h.Projects.Get(r.Context(), principalUserID(r.Context()), projectID); err != nil {
@@ -291,9 +282,6 @@ func (h *auditHandlers) listProjectAudits(w http.ResponseWriter, r *http.Request
 
 func (h *auditHandlers) getAudit(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if rejectHead(w, r) {
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		handleError(w, err)
 		return
@@ -435,9 +423,6 @@ func (h *auditHandlers) mutateAudit(w http.ResponseWriter, r *http.Request, acti
 
 func (h *auditHandlers) listAuditItems(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if rejectHead(w, r) {
-		return
-	}
 	query, limit, encodedCursor, err := pageQuery(r.URL.RawQuery, "round", "state", "subject")
 	if err != nil {
 		handleError(w, err)
@@ -526,9 +511,6 @@ func (h *auditHandlers) listAuditItems(w http.ResponseWriter, r *http.Request) {
 
 func (h *auditHandlers) listAuditCoverage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if rejectHead(w, r) {
-		return
-	}
 	query, limit, encodedCursor, err := pageQuery(r.URL.RawQuery, "round", "auditRevision")
 	if err != nil {
 		handleError(w, err)
@@ -601,9 +583,6 @@ func (h *auditHandlers) listAuditCoverage(w http.ResponseWriter, r *http.Request
 
 func (h *auditHandlers) getAuditReport(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if rejectHead(w, r) {
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		handleError(w, err)
 		return

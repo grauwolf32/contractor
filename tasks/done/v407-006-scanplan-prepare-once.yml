@@ -1,0 +1,145 @@
+schema_version: '1.0'
+id: V407-006
+title: Reuse one parsed OpenAPI source across an Audit inventory operation batch
+milestone: server-runtime-review-2026-10
+epic: scan-tools
+kind: chore
+introduced_by: V62-001
+priority: P2
+status: completed
+depends_on: []
+languages:
+- go
+goal: Prepare one bounded Audit scan inventory with one source parse and reusable source digest while
+  preserving operation-specific results and exact identities.
+context:
+  review: docs/research/2026-10-23-server-runtime-review.md (corrected dispositions, verified on main
+    dc7012e8; recheck source lines before implementation)
+  specification: docs/spec/tools/scanners.md
+  validation: Revalidated against main dc7012e8 on 2026-10-23. Repeated source parsing and hashing in
+    the inventory loop is confirmed by the call graph. Its elapsed-time impact was not measured. PrepareOpenAPIScanTask
+    already prepares one selected operation per invocation.
+  finding: internal/auditdomain/openapi_scan.go:51-52 calls AuditScanSettings.PrepareOperation for each
+    selected operation. audit_settings.go:166-188 reaches prepare.go:36,50,66,92, which parses the source,
+    normalizes options, hashes the full source and sorts/walks paths again. Limits allow 1000 operations
+    and 2 MiB source (scanplan/types.go:7,11), so source-size work repeats per operation. PrepareOpenAPIScanTask
+    (openapi_scan.go:103-114) has only one operation per call and is not a second 1000-operation loop.
+    AuditScanSettings.PrepareOperation accepts data, mediaType and source on each call; caching only by
+    settings identity or unconditional sync.Once would incorrectly reuse a previous source.
+  siblings: PrepareOperation and PrepareOperationTarget must share the same source parsing/identity rules
+    while keeping their distinct digest bases and coverage semantics. Keep the single-item Run-time caller
+    correct; an unbounded process-wide cross-Run cache is not needed.
+plan:
+- Create an immutable prepared-source value scoped to one inventory build, containing validated parsed
+  content, source digest and a bounded operation lookup index. Keep operation-specific options, reference-work
+  budgets and coverage accumulation separate.
+- Build that value once before BuildOpenAPIScanInventory loops over selected pointers; retain the existing
+  public entry points with per-call identity validation and equivalent output. Do not bind a settings
+  object permanently to the first source passed to it.
+- Reuse common preparation code in the single-item Run-time path without claiming a repeated-operation
+  saving there. Preserve byte-identical preparation/request/plan digest bases and existing invalid-input
+  classes.
+- Add test-only parse/source-digest counters for an accepted 1000-operation source close to 2 MiB, plus
+  JSON/YAML fixtures, different bytes/media types/exact refs with the same settings, and concurrent independent
+  preparations. Keep counters in export_test.go or package tests.
+- Add a reproducible benchmark recording allocations and elapsed time as observations; make acceptance
+  depend on deterministic counts and output parity rather than a machine-specific latency threshold.
+scope:
+  in:
+  - Inventory-local reuse of source parsing, hashing and pointer lookup across selected operations.
+  - Deterministic work-count tests and digest/result parity for JSON and YAML.
+  out:
+  - Changes to accepted scan inputs, limits, result schemas, coverage or digest fixtures.
+  - An unconditional settings-only cache, unbounded cross-Run cache, or claims that the single-item Run-time
+    path already loops over 1000 operations.
+acceptance_criteria:
+- id: A1
+  text: Preparing an accepted 1000-operation inventory parses the source once and computes the source
+    content digest once for preparation; unrelated existing final inventory packaging/digest work is accounted
+    separately. The count regression fails on the repeated-preparation implementation.
+- id: A2
+  text: Existing golden preparation/request/plan outputs and error classifications are unchanged for JSON
+    and YAML, including missing concrete values and unselected reference-work limits.
+- id: A3
+  text: The same settings used with different source bytes, media types or exact refs produces the corresponding
+    fresh result, and concurrent independent preparations share no mutable state.
+- id: A4
+  text: The prepared-source lifetime and row/byte bounds are explicit; the single-item Run-time path remains
+    correct without a process-wide cache. Benchmark results are recorded without a timing pass/fail threshold.
+tests:
+- command: go test -count=1 ./internal/scanplan/... ./internal/auditdomain/... ./internal/planner/scan/...
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+implementation_commit: 7ca9628ca267b9520def6b13a48c702e1a63d330
+verification:
+  date: '2026-10-23'
+  environment: macOS arm64 (Apple M5 Max); Go 1.26.9 (GOTOOLCHAIN=local); PostgreSQL 17.11 database
+    contractor_test_r2b; locked Runtime venv and UI dependencies; worktree branch claude/rv-r2b on base
+    d7b825c4 (V407-024 source bounds applied on every parse through parseDocument).
+  commands:
+  - go test -count=1 ./internal/scanplan/... ./internal/auditdomain/... ./internal/planner/scan/... passed.
+  - go test -count=1 -race ./internal/scanplan/ passed (full package, including the concurrent batch test).
+  - make lint passed, including staticcheck U1000, testonlyexports, check_spec and check_tasks.
+  - make verify-architecture passed (likec4 edge text changed).
+  - test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -count=1 ./internal/auditservice/...
+    ./internal/auditcontroller/... ./internal/auditscan/... ./internal/config/auditprofile/... passed.
+  - go test -count=1 -tags integration ./internal/auditservice/... ./internal/auditcontroller/...
+    ./internal/planner/scan/... passed against contractor_test_r2b; TestPostgresPreparedOpenAPIScansKeepAssignedDenominatorAndApproval
+    passed (checked with -v, not skipped).
+  - make test-openapi-audit-scan-e2e passed all 7 mandatory production-process cases.
+  database_tests_configured: true
+  evidence:
+  - 'A1: TestLargeInventoryParsesAndDigestsSourceOnce builds real auditdomain.BuildOpenAPIScanInventory
+    inventories of 1000 selected operations from accepted sources within 64 KiB of 2 MiB (JSON and YAML
+    SQLMap, JSON Nuclei) and counts one source parse and one source content digest each through
+    export_test.go CountSourceWork. With the old per-operation loop restored in openapi_scan.go the test
+    failed: "1000 tasks took 1000 source parses and 1000 source digests, want 1 and 1". The inventory''s own
+    source digest in finishInventory is auditdomain packaging work and is checked separately (equal to the
+    prepared digest).'
+  - 'A2: TestInventoryPreparationKeepsGoldenResults and TestLargeInventoryKeepsGoldenResults pin canonical
+    inventory digests, task package digests, every PreparedAuditOperation (RequestSet or OperationTarget) and
+    the SQLMap and Nuclei scan plans for JSON and YAML fixtures, including an operation without concrete
+    values, two selected operations needing 3000 reference resolutions each and an unselected operation
+    over the reference limit. The values were recorded and pass on base d7b825c4 (temporary worktree, since
+    removed; 54.7 s) and pass unchanged after the change (1.8 s). TestInventoryPreparationKeepsErrorClassification
+    passes on both: invalid_source_ref, unsupported_media_type, source_limit_exceeded, invalid_document (JSON
+    syntax, YAML alias, paths), unsupported_openapi_version, unknown_operation_selection and selected
+    reference_limit_exceeded keep their codes in the inventory and in single-operation preparation. The YAML
+    fixture uses a local block emitter so its bytes do not depend on a YAML library version.'
+  - 'A3: TestPrepareOperationsUsesTheSourceOfEachCall runs one settings value over different bytes, revision
+    and media types (application/yaml, text/yaml) and back to the first source; every batch result equals
+    PrepareOperation for that input and carries that input''s identity, and caller ref mutation does not
+    reach results. TestPrepareOperationsConcurrentBatchesShareNoMutableState runs 15 concurrent batches of
+    5 sources under -race with sequential-equal results and no shared revision, request or gap storage.'
+  - 'A4: sourceDocument (internal/scanplan/source.go) and SCN-R256 state the lifetime (one call or one
+    PrepareOperations batch, never cached on settings or across calls, inventories or Runs) and bounds (one
+    document within LIM-SCN-39/41/42, a path-key index, at most 1,000 operations by LIM-ASC-12).
+    TestSingleOperationPreparationParsesItsOwnSource shows PrepareOpenAPIScanTask and
+    AuditScanSettings.PrepareOperation parse once per call.'
+  - 'Benchmark observations, no threshold (go test -run ''^$'' -bench BenchmarkLargeScanInventory ./internal/scanplan/,
+    1000 operations, source close to 2 MiB): base d7b825c4 JSON 16.2 s/op, 7.06 GB/op, 162.1 M allocs/op;
+    YAML 29.6 s/op, 15.6 GB/op, 159.1 M allocs/op (YAML fixture then encoded by the YAML library at the same
+    size). After: JSON 0.40-0.50 s/op, 0.30 GB/op, 5.5 M allocs/op; YAML 0.39 s/op, 0.31 GB/op, 5.5 M allocs/op.'
+  - 'Requirement ID: added as SCN-R254 in 7ca9628c (its commit message still says so) and renumbered to
+    SCN-R256 after merging claude/review-v407-v409, where V407-007 owns SCN-R254 and SCN-R255. The task
+    command, go test -race ./internal/scanplan/ and make lint passed again after the merge.'
+  siblings_changed:
+  - scanplan.PrepareOperation and PrepareOperationTarget share parseSource (ref, bounded parse, version,
+    paths, digest, index) and prepare; AuditScanSettings.PrepareOperation and PrepareOperations share
+    operationOptions, preparedRequest and preparedTarget, keeping distinct request and url-target digest bases.
+  - The per-operation sort and walk of every path key is replaced by the path-pointer index, in both paths.
+  siblings_ruled_out:
+  - auditdomain.PrepareOpenAPIScanTask prepares one operation per call (dispatch time); it keeps one parse per
+    call and its own exact-bytes digest check.
+  - auditdomain.BuildOpenAPIInventory (openapi-operations@1) already parses its source once.
+  declined:
+  - Runtime OpenAPI/LikeC4 document session is out of scope (server-side task; parallel V407-031 owns it).

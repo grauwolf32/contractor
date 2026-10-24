@@ -66,9 +66,6 @@ type operationsHandlers struct {
 }
 
 func (h *operationsHandlers) getOperationsSnapshot(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		handleError(w, err)
 		return
@@ -86,9 +83,6 @@ func (h *operationsHandlers) getOperationsSnapshot(w http.ResponseWriter, r *htt
 }
 
 func (h *operationsHandlers) listRuntimeAgents(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	_, limit, encodedCursor, err := pageQuery(r.URL.RawQuery)
 	if err != nil {
 		handleError(w, err)
@@ -127,9 +121,6 @@ func (h *operationsHandlers) listRuntimeAgents(w http.ResponseWriter, r *http.Re
 }
 
 func (h *operationsHandlers) listAllocations(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	_, limit, encodedCursor, err := pageQuery(r.URL.RawQuery)
 	if err != nil {
 		handleError(w, err)

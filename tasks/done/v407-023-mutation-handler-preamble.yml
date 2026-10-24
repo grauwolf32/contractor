@@ -111,7 +111,7 @@ verification:
     (409 project_deleting) and the Audit-managed namespace (404) after the Project.
   - A4 satisfied, see the base run above; no criterion depends on grepping for a helper.
   decisions:
-  - 'Precedence (API-R111): query, syntactic path parameters and media type (each endpoint keeps its own status), then
+  - 'Precedence (API-R112): query, syntactic path parameters and media type (each endpoint keeps its own status), then
     Idempotency-Key and If-Match/If-None-Match, then the Project read where the route names a Project (Project Run creation,
     Project Artifact upload), then the Audit-managed namespace 404 for uploads, then the body: its bound (413) and then
     strict decoding. Visible changes: a keyless request with an oversized body is now 400, not 413; createProjectRun without
@@ -122,7 +122,7 @@ verification:
   - The Eval routes keep their documented 422 eval_invalid and 428 eval_precondition_required; evaldomain.MutationPrecondition
     is the header half of IdentifyMutation, so the grammar has one definition (contracts.ValidIdempotencyKey) and the
     handler and the receipt identity cannot disagree.
-  - Spec. New requirement API-R111 in docs/spec/api/public-api.md; FAIL-API-1 in docs/spec/platform/failure-model.md
+  - Spec. New requirement API-R112 in docs/spec/api/public-api.md; FAIL-API-1 in docs/spec/platform/failure-model.md
     now covers a JSON body that cannot be read completely; ART-R45 states the private PUT name check order. No migration,
     no new limit and no new error code.
   siblings:
@@ -144,7 +144,7 @@ verification:
   declined:
   - 'Artifact payload transfers (public and private readArtifactBody) keep their retryable 500 for an interrupted body:
     they run under the FAIL-BLB-1 socket deadlines, and the public Go client and the Python Runtime retry on that retryable
-    class, so a client-error class would change the private wire contract. API-R111 says so. Reopen if a spec decision
+    class, so a client-error class would change the private wire contract. API-R112 says so. Reopen if a spec decision
     assigns a client-error class to interrupted Artifact transfers.'
   - No shared mutation preamble helper beyond auditMutationHeaders (now used by every Audit control and review mutation)
     and readJSONBody; scope.out excludes a universal mutation framework.
