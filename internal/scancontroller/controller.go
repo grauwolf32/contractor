@@ -4,17 +4,22 @@ package scancontroller
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/apierror"
+	"github.com/grauwolf32/contractor/internal/claimpass"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/scanstore"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+// claimReleaseBudget bounds the release of a tick's claim.
+const claimReleaseBudget = 5 * time.Second
 
 type Options struct {
 	Pool      *pgxpool.Pool
@@ -85,7 +90,11 @@ func (c *Controller) Drain(ctx context.Context, id string, fn func() error) erro
 	return fn()
 }
 
-func (c *Controller) RunOnce(parent context.Context) error {
+// RunOnce leases one sweep and ticks it. The claim is given back after the
+// tick under its own budget, before Drain sees the tick end; a definite
+// release failure joins the tick's error, and a claim another holder took
+// over is not a failure (PER-R26, FAIL-SCN-15).
+func (c *Controller) RunOnce(parent context.Context) (err error) {
 	claim, found, err := scanstore.New(c.options.Pool).Claim(parent, c.options.HolderID, time.Minute)
 	if err != nil || !found {
 		return err
@@ -96,9 +105,7 @@ func (c *Controller) RunOnce(parent context.Context) error {
 			return
 		}
 		released = true
-		ctx, cancel := context.WithTimeout(context.WithoutCancel(parent), 5*time.Second)
-		defer cancel()
-		_ = scanstore.New(c.options.Pool).Release(ctx, claim)
+		err = errors.Join(err, c.release(parent, claim))
 	}
 	defer release()
 
@@ -200,6 +207,18 @@ func (c *Controller) RunOnce(parent context.Context) error {
 				return err
 			}
 		}
+	}
+	return nil
+}
+
+// release gives the claim of one tick back. Its error names the sweep and
+// carries only the store's error, which holds no request content.
+func (c *Controller) release(parent context.Context, claim persistencepostgres.ControllerClaim) error {
+	err := claimpass.Release(parent, claimReleaseBudget, persistencepostgres.ErrControllerClaimLost, func(ctx context.Context) error {
+		return scanstore.New(c.options.Pool).Release(ctx, claim)
+	})
+	if err != nil {
+		return fmt.Errorf("release the claim of scan sweep %s: %w", claim.SubjectID, err)
 	}
 	return nil
 }

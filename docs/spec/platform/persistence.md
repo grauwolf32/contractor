@@ -534,6 +534,41 @@ Audit controller claim afterward. A definite transaction conflict retries the
 whole collection with a fresh snapshot under PER-R16, and is never treated as
 a damaged member when retries are exhausted.
 
+**PER-R26.** The Audit controller and the Eval coordinator run the claims of
+a pass through one claim lifecycle. Each controller leases a bounded batch
+with its own admission query and batch bound, then handles each leased claim
+in its own goroutine, so one slow or failing subject does not hold back
+another and a pass runs at most as many handlers as it leased claims. A claim
+is released only after its handler returned, also when the pass was
+cancelled, and its release runs under a budget of its own that keeps the
+pass's values but not its cancellation, so shutdown still gives every claim
+back. A release that finds its claim lost, because the lease ended and
+another holder leased the subject or the claim was already released, is not
+a failure: the epoch already fences the stale holder (PER-R25). The pass ends
+once every claim was released and reports, per subject in claim order, the
+handler's failure joined with the release's (FAIL-PER-3). The lifecycle owns
+no scheduling policy: each controller keeps its own handler budgets, wake
+hints, poll interval and decision whether to pass again at once. The durable
+sweep controller leases one sweep per tick and joins that tick through its
+own drain, so it keeps its own pass, but it gives the claim back through the
+same release step: after the tick, also a cancelled one, under a budget of its
+own that keeps the tick's values but not its cancellation. A lost claim is not
+a failure there either, and a definite release failure joins the tick's
+error, which the controller logs with the sweep's identity and the failed
+step but no statement or database message (FAIL-PER-3, FAIL-SCN-15).
+
+Rationale: the two controllers pace their passes differently on purpose. The
+Audit controller passes again at once after a pass that changed something
+without failing and waits for its poll interval otherwise; the Eval
+coordinator waits for its poll interval or a wake hint after every pass,
+because observing an active execution counts as work and must not become a
+hot poll. An Audit step owns its budgets (the snapshot read's operation
+budget, or the cleanup budget of a deletion step under a renewed lease) and
+its release has the operation budget, while an Eval tick runs under one
+operation budget and its release has a fixed five seconds. Only the
+lifecycle that both repeated identically is shared; merging the policies
+would change when each controller works.
+
 ## Limits, failures and errors
 
 Limits ([registry](limits.md)):
@@ -561,6 +596,8 @@ Failure outcomes ([failure model](failure-model.md)):
   PER-R7, PER-R10).
 - FAIL-PER-2 — a standby's lease acquisition probe (PER-R3, PER-R8,
   PER-R28).
+- FAIL-PER-3 — the release of a controller claim at the end of a pass
+  (PER-R25, PER-R26).
 - FAIL-PER-4 — the startup lease steps of a starting Server (PER-R27).
 
 Lifecycle ([lifecycle](lifecycle.md)):
@@ -737,6 +774,38 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
     are lost, and a release accepts its holder's ended lease (PER-R25); test
     `TestPostgresControllerClaimsLeaseProveAndRelease` in
     [`internal/persistence/postgres/receipts_postgres_test.go`](../../../internal/persistence/postgres/receipts_postgres_test.go).
+22. A controller pass joins each handler before it releases that handler's
+    claim, releases under a live bounded context also after the pass was
+    cancelled, treats a lost claim as released, reports each subject's
+    failures in claim order and handles its claims concurrently (PER-R26);
+    tests `TestRunJoinsEachHandlerBeforeReleasingItsClaim`,
+    `TestRunHandlesTheClaimsOfAPassConcurrently`,
+    `TestRunReportsFailuresPerClaimInClaimOrder` and
+    `TestRunBoundsEachReleaseByItsBudget` in
+    [`internal/claimpass/claimpass_test.go`](../../../internal/claimpass/claimpass_test.go).
+    On the real store a cancelled pass still releases its claim and a stale
+    holder's release leaves the new holder's claim intact; tests
+    `TestPostgresControllerReleasesTheClaimOfACancelledStep` and
+    `TestPostgresControllerPassToleratesAClaimTakenOverDuringItsStep` in
+    [`internal/auditcontroller/claim_lifecycle_postgres_test.go`](../../../internal/auditcontroller/claim_lifecycle_postgres_test.go),
+    and `TestSharedPostgresCoordinatorReleasesTheClaimOfACancelledTick` and
+    `TestSharedPostgresCoordinatorPassToleratesAClaimTakenOverDuringItsTick` in
+    [`internal/evalservice/claim_lifecycle_postgres_test.go`](../../../internal/evalservice/claim_lifecycle_postgres_test.go).
+    Each controller keeps its own pacing; tests
+    `TestControllerRunPassesAgainAfterWorkAndPollsOtherwise` in
+    [`internal/auditcontroller/claim_lifecycle_test.go`](../../../internal/auditcontroller/claim_lifecycle_test.go)
+    and `TestCoordinatorRunWaitsForThePollIntervalOrAWakeAfterEveryPass` in
+    [`internal/evalcoordinator/claim_lifecycle_test.go`](../../../internal/evalcoordinator/claim_lifecycle_test.go).
+    The release step alone keeps the caller's values but not its
+    cancellation, reports a definite failure and not a lost claim; test
+    `TestReleaseReportsADefiniteFailureAndNotALostClaim` in
+    [`internal/claimpass/claimpass_test.go`](../../../internal/claimpass/claimpass_test.go).
+    A durable sweep tick reports a refused release with the sweep's identity
+    and no database message, keeping the sweep claimed, and a takeover during
+    the tick is no failure and leaves the new holder's claim intact (PER-R26,
+    FAIL-SCN-15); tests `TestPostgresScanSweepTickReportsADefiniteReleaseFailure`
+    and `TestPostgresScanSweepTickToleratesAClaimTakenOverDuringIt` in
+    [`internal/app/scan_sweep_release_postgres_test.go`](../../../internal/app/scan_sweep_release_postgres_test.go).
 23. The lease session carries the working pool's connect timeout, query
     budget tracer and server-side timeouts; each startup lease step runs under
     its configured budget, or exactly under an earlier caller deadline; a

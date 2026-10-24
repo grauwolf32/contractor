@@ -680,9 +680,10 @@ accepted`, `experimentRevision` and the command resource link.
 
 ### Coordinator claims and native controls
 
-**EVM-R108.** Native coordinator claims use an expiring owner/epoch lease.
-Durable intents and execution keys, rather than the lease alone, prevent
-duplicate side effects (FAIL-EVM-3).
+**EVM-R108.** Native coordinator claims use an expiring owner/epoch lease,
+and each pass runs them through the shared controller claim lifecycle
+([PER-R26](../platform/persistence.md)). Durable intents and execution keys,
+rather than the lease alone, prevent duplicate side effects (FAIL-EVM-3).
 
 **EVM-R109.** A replacement claim holder first reconciles all uncertain
 submissions (FAIL-EVM-3).
@@ -707,8 +708,16 @@ experiments are resumable. Expired remaining budget completes pending members
 as not submitted with the budget reason (FAIL-EVM-4).
 
 **EVM-R115.** Cancel fences new intents, requests normal Run and Audit
-cancellation and remains `cancelling` until drain is confirmed. Unknown
-outcomes stay unknown; pending members retain their original denominator and
+cancellation and remains `cancelling` until drain is confirmed. A member's
+cancellation request, naming its execution and the time it was requested, is
+journaled before it is sent, and every retry reuses the journaled request
+instead of building a new one, so the request and its time never change. A
+Run member's retry sends the journaled time. An Audit member's cancellation is
+a revision-checked Audit mutation whose idempotency key and request digest
+derive from the journaled request and the Audit revision it expects: a retry
+against the same revision repeats both, and a retry after the revision moved
+sends a new key and digest for the same journaled request. Unknown outcomes
+stay unknown; pending members retain their original denominator and
 not-submitted reason (FAIL-EVM-4).
 
 **EVM-R116.** A terminal attempt is not resampled; duplicating an experiment or

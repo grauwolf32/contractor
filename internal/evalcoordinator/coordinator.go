@@ -6,10 +6,10 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/claimpass"
 	"github.com/grauwolf32/contractor/internal/evalstore"
 	"github.com/grauwolf32/contractor/internal/randomid"
 )
@@ -33,10 +33,17 @@ type Service interface {
 	Tick(context.Context, evalstore.Claim) (bool, error)
 }
 
+// Clock schedules the wait between passes. Tests inject one to drive the
+// poll cadence without sleeping; the default is the system clock.
+type Clock interface {
+	After(time.Duration) <-chan time.Time
+}
+
 type Options struct {
 	HolderID                              string
 	PollInterval, Lease, OperationTimeout time.Duration
 	Batch                                 int
+	Clock                                 Clock
 	Logger                                *slog.Logger
 }
 
@@ -70,6 +77,9 @@ func New(store Store, service Service, o Options) (*Coordinator, error) {
 	}
 	if o.Batch == 0 {
 		o.Batch = defaultBatchSize
+	}
+	if o.Clock == nil {
+		o.Clock = systemClock{}
 	}
 	if o.Logger == nil {
 		o.Logger = slog.Default()
@@ -106,19 +116,20 @@ func (c *Coordinator) Run(ctx context.Context) error {
 		if err != nil {
 			c.options.Logger.Error("Eval reconciliation deferred", "error", err)
 		}
-		// Observing an active execution is work but must not turn into a hot poll.
-		timer := time.NewTimer(c.options.PollInterval)
+		// Observing an active execution is work but must not turn into a hot
+		// poll: every pass waits for the poll interval or a wake hint.
 		select {
 		case <-ctx.Done():
-			timer.Stop()
 			return nil
 		case <-c.wake:
-			timer.Stop()
-		case <-timer.C:
+		case <-c.options.Clock.After(c.options.PollInterval):
 		}
 	}
 }
 
+// RunOnce leases a bounded batch of experiments and ticks each one through
+// the shared claim lifecycle (PER-R26): every tick has its own operation
+// budget and every release the fixed release budget.
 func (c *Coordinator) RunOnce(ctx context.Context) (bool, error) {
 	claimCtx, cancel := context.WithTimeout(ctx, c.options.OperationTimeout)
 	claims, err := c.store.Claim(claimCtx, c.options.HolderID, c.options.Lease, c.options.Batch)
@@ -126,28 +137,18 @@ func (c *Coordinator) RunOnce(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	var changed atomic.Bool
-	errs := make([]error, len(claims))
-	var wg sync.WaitGroup
-	for i, claim := range claims {
-		wg.Add(1)
-		go func(i int, claim evalstore.Claim) {
-			defer wg.Done()
-			tickCtx, cancel := context.WithTimeout(ctx, c.options.OperationTimeout)
-			worked, err := c.service.Tick(tickCtx, claim)
-			cancel()
-			if worked {
-				changed.Store(true)
-			}
-			releaseCtx, releaseCancel := context.WithTimeout(context.WithoutCancel(ctx), claimReleaseTimeout)
-			releaseErr := c.store.ReleaseClaim(releaseCtx, claim)
-			releaseCancel()
-			if errors.Is(releaseErr, evalstore.ErrClaimLost) {
-				releaseErr = nil
-			}
-			errs[i] = errors.Join(err, releaseErr)
-		}(i, claim)
-	}
-	wg.Wait()
-	return changed.Load(), errors.Join(errs...)
+	return claimpass.Run(ctx, claims, claimpass.Lifecycle[evalstore.Claim]{
+		Handle: c.tick, Release: c.store.ReleaseClaim,
+		ReleaseBudget: claimReleaseTimeout, Lost: evalstore.ErrClaimLost,
+	})
 }
+
+func (c *Coordinator) tick(ctx context.Context, claim evalstore.Claim) (bool, error) {
+	tickCtx, cancel := context.WithTimeout(ctx, c.options.OperationTimeout)
+	defer cancel()
+	return c.service.Tick(tickCtx, claim)
+}
+
+type systemClock struct{}
+
+func (systemClock) After(duration time.Duration) <-chan time.Time { return time.After(duration) }
