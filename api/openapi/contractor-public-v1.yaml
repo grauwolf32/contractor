@@ -693,61 +693,6 @@ paths:
             "minLength": 1,
             "maxLength": 256
           }
-        },
-        {
-          "name": "state",
-          "in": "query",
-          "schema": {
-            "enum": [
-              "draft",
-              "preparing",
-              "ready",
-              "running",
-              "settling",
-              "finished",
-              "pausing",
-              "paused",
-              "cancelling",
-              "cancelled"
-            ],
-            "type": "string",
-            "x-enum-varnames": [
-              "EvalListevalexperimentsStateDraft",
-              "EvalListevalexperimentsStatePreparing",
-              "EvalListevalexperimentsStateReady",
-              "EvalListevalexperimentsStateRunning",
-              "EvalListevalexperimentsStateSettling",
-              "EvalListevalexperimentsStateFinished",
-              "EvalListevalexperimentsStatePausing",
-              "EvalListevalexperimentsStatePaused",
-              "EvalListevalexperimentsStateCancelling",
-              "EvalListevalexperimentsStateCancelled"
-            ]
-          }
-        },
-        {
-          "name": "datasetId",
-          "in": "query",
-          "schema": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 256
-          }
-        },
-        {
-          "name": "controlMode",
-          "in": "query",
-          "schema": {
-            "enum": [
-              "server",
-              "external"
-            ],
-            "type": "string",
-            "x-enum-varnames": [
-              "EvalListevalexperimentsControlmodeServer",
-              "EvalListevalexperimentsControlmodeExternal"
-            ]
-          }
         }
       ],
       "responses": {

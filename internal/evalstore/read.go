@@ -1,11 +1,5 @@
 package evalstore
 
-type ListParams struct {
-	OwnerID, ProjectID, State, DatasetID, ControlMode, AfterID string
-	Limit                                                      int
-	Revision                                                   *int64
-}
-
 type ExperimentSummary struct {
 	ID          string `json:"experimentId"`
 	ProjectID   string `json:"projectId"`

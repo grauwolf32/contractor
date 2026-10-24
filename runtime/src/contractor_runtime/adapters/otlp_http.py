@@ -47,6 +47,7 @@ from contractor_runtime.contracts import (
     RuntimeAdapterRef,
     TelemetrySettings,
 )
+from contractor_runtime.http_body import HTTP_TRANSPORT_ERRORS
 from contractor_runtime.redaction import contains_private_value
 
 MAX_SPAN_ATTRIBUTES = 64
@@ -82,6 +83,19 @@ _ALLOWED_SPAN_ATTRIBUTES = frozenset(
     }
 )
 _SAFE_OUTCOMES = frozenset({"cancelled", "failed", "rejected", "succeeded", "unavailable"})
+
+
+# Members of the shared transport family (http_body.HTTP_TRANSPORT_ERRORS) that
+# end a Worker delivery attempt for good (OBS-R74): an endpoint the client
+# cannot speak and a request it cannot form never succeed when repeated, and a
+# body that fails content decoding is a malformed acknowledgement (OBS-R77).
+# Every other member is a temporary transport failure the exporter retries
+# under its own budget, backoff and Retry-After rules.
+OTLP_TERMINAL_TRANSPORT_ERRORS: tuple[type[Exception], ...] = (
+    httpx.UnsupportedProtocol,
+    httpx.LocalProtocolError,
+    httpx.DecodingError,
+)
 
 
 class OTLPDeliveryError(RuntimeError):
@@ -594,9 +608,11 @@ class OTLPHTTPAdapter:
         except asyncio.CancelledError:
             self.metrics.record_operation(succeeded=False, error_code="delivery_failed")
             raise
-        except (httpx.UnsupportedProtocol, httpx.LocalProtocolError):
+        except OTLP_TERMINAL_TRANSPORT_ERRORS:
             result = DeliveryResponse()
-        except (httpx.TransportError, TimeoutError):
+        except HTTP_TRANSPORT_ERRORS:
+            # Includes ssl.SSLError and other OSError that httpcore lets escape
+            # while sending or reading the acknowledgement, and TimeoutError.
             result = DeliveryResponse(retryable=True)
         except Exception:
             result = DeliveryResponse()

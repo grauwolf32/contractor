@@ -7338,9 +7338,6 @@ export interface operations {
                 limit?: number;
                 cursor?: string;
                 projectId?: string;
-                state?: "draft" | "preparing" | "ready" | "running" | "settling" | "finished" | "pausing" | "paused" | "cancelling" | "cancelled";
-                datasetId?: string;
-                controlMode?: "server" | "external";
             };
             header?: never;
             path?: never;

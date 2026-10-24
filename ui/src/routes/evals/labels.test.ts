@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { EVAL_STATES, type EvalExperiment } from "../../api/evals";
+import { type EvalExperiment } from "../../api/evals";
 import {
   controlModeLabel,
-  EVAL_STATE_LABELS,
   evalConclusionLabel,
   evalFreshnessText,
   evalStateLabel,
@@ -20,7 +19,6 @@ import {
 
 describe("Evals vocabulary", () => {
   it("labels every lifecycle state with a word and a tone", () => {
-    expect(Object.keys(EVAL_STATE_LABELS)).toEqual([...EVAL_STATES]);
     expect(evalStateLabel("ready")).toEqual({
       label: "Ready to start",
       tone: "info",

@@ -241,12 +241,14 @@ func (h *evalHandlers) getEvalExperiment(w http.ResponseWriter, r *http.Request)
 }
 func (h *evalHandlers) listEvalExperiments(w http.ResponseWriter, r *http.Request) {
 	const evalExperimentCursorKey = "created"
-	q, limit, err := evalQuery(r, "projectId", "state", "datasetId", "controlMode")
+	// The list takes one filter, the Project (EVM-R247); any other query
+	// parameter is undeclared and answers 422 like on every Eval route.
+	q, limit, err := evalQuery(r, "projectId")
 	if err != nil {
 		handleError(w, err)
 		return
 	}
-	if (q.Has("state") && !evalStringIn(q.Get("state"), "draft", "preparing", "ready", "running", "settling", "finished", "pausing", "paused", "cancelling", "cancelled")) || (q.Has("controlMode") && !evalStringIn(q.Get("controlMode"), "server", "external")) || q.Has("projectId") && q.Get("projectId") == "" || q.Has("datasetId") && q.Get("datasetId") == "" {
+	if q.Has("projectId") && q.Get("projectId") == "" {
 		handleError(w, evaldomain.Failure("eval_invalid"))
 		return
 	}
@@ -262,15 +264,12 @@ func (h *evalHandlers) listEvalExperiments(w http.ResponseWriter, r *http.Reques
 		handleError(w, err)
 		return
 	}
-	p := evalstore.SummaryPageParams{ListParams: evalstore.ListParams{
-		OwnerID:     principalUserID(r.Context()),
-		ProjectID:   q.Get("projectId"),
-		State:       q.Get("state"),
-		DatasetID:   q.Get("datasetId"),
-		ControlMode: q.Get("controlMode"),
-		Limit:       limit,
-		Revision:    revision,
-	}}
+	p := evalstore.SummaryPageParams{
+		OwnerID:   principalUserID(r.Context()),
+		ProjectID: q.Get("projectId"),
+		Limit:     limit,
+		Revision:  revision,
+	}
 	if len(cursor.Position) > 0 {
 		at, err := time.Parse(time.RFC3339Nano, cursor.Position[1])
 		if cursor.Position[0] != evalExperimentCursorKey || err != nil {
