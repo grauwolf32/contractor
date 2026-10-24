@@ -12,6 +12,7 @@ import time
 from pathlib import Path
 
 import pytest
+from fakes.clock import advance_clock, run_with_advanceable_clock
 
 from contractor_runtime.adapters.host import RuntimeAdapterMetricsState
 from contractor_runtime.adapters.http_proxy import ProxySubprocessError, ProxySubprocessLauncher
@@ -274,14 +275,38 @@ def test_proxy_async_cancellation_survives_a_failed_ca_cleanup(
     asyncio.run(scenario())
 
 
-def test_proxy_async_child_outcomes_reach_the_caller_unwrapped() -> None:
+def test_proxy_async_child_outcomes_reach_the_caller_unwrapped(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A child timeout no loaded host exhausts before the child has started and
+    # written; the test expires it by moving the loop clock once the partial
+    # output has been read. The safety net only ends a broken scenario.
+    child_timeout_seconds = 60.0
+    safety_net_seconds = 30.0
+
     async def scenario() -> None:
+        partial_read = asyncio.Event()
+        original_read = asyncio.StreamReader.read
+
+        async def observed_read(self: asyncio.StreamReader, n: int = -1) -> bytes:
+            data = await original_read(self, n)
+            if b"partial" in data:
+                partial_read.set()
+            return data
+
+        monkeypatch.setattr(asyncio.StreamReader, "read", observed_read)
         launcher = _launcher(combined_ca_bundle=b"private CA fixture")
-        with pytest.raises(ProcessTimeoutError) as timed_out:
-            await launcher.run_async(
+        running = asyncio.create_task(
+            launcher.run_async(
                 [sys.executable, "-c", "import time; print('partial', flush=True); time.sleep(60)"],
-                timeout=0.3,
+                timeout=child_timeout_seconds,
             )
+        )
+        await asyncio.wait_for(partial_read.wait(), safety_net_seconds)
+        assert not running.done()
+        advance_clock(child_timeout_seconds)
+        with pytest.raises(ProcessTimeoutError) as timed_out:
+            await asyncio.wait_for(running, safety_net_seconds)
         assert timed_out.value.stdout == b"partial\n"
         with pytest.raises(ProcessOutputLimitError):
             await launcher.run_async(
@@ -296,7 +321,7 @@ def test_proxy_async_child_outcomes_reach_the_caller_unwrapped() -> None:
         assert launcher._metrics.failed_operations == 0
         await launcher.aclose()
 
-    asyncio.run(scenario())
+    run_with_advanceable_clock(scenario())
 
 
 @pytest.mark.parametrize("outcome", ["timeout", "oversized"])
@@ -313,7 +338,9 @@ def test_proxied_validators_report_timeout_and_oversized_output(
     monkeypatch.setattr(likec4_module, "MAX_VALIDATOR_OUTPUT_BYTES", 1000)
 
     async def scenario() -> None:
-        launcher = _launcher(timeout_seconds=0.5)
+        # The sleeping validator always outlives 0.5 s. The oversized one must
+        # start and write before its timeout, so it gets one no host exhausts.
+        launcher = _launcher(timeout_seconds=0.5 if outcome == "timeout" else 60)
         vacuum = await openapi_module._run_vacuum("openapi: 3.0.3", launcher)
         likec4 = await likec4_module._run_likec4("model {}", tmp_path, launcher)
         await launcher.aclose()

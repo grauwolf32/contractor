@@ -14,6 +14,7 @@ from typing import Any
 
 import httpx
 import pytest
+from fakes.clock import advance_clock, run_with_advanceable_clock
 from fakes.model import scripted_model, text_result, tool_call
 from fakes.private_codec import encode_private
 from fakes.spec import allocation_spec, runtime_provenance
@@ -768,6 +769,13 @@ def test_cleanup_failure_fences_slot_until_idempotent_release_retry(
 def test_release_timeout_retains_one_cleanup_task_and_keeps_loop_responsive(
     tmp_path: Path, runtime_capabilities: CapabilitySnapshot
 ) -> None:
+    # Prepare and the retried release do real directory I/O inside the request
+    # budget, so it is real time no loaded host exhausts. The test expires it
+    # by moving the loop clock while the cleanup is stuck; the safety net only
+    # ends a broken scenario.
+    request_timeout_seconds = 60
+    safety_net_seconds = 30.0
+
     async def scenario() -> None:
         state = RuntimeState(instance_id="runtime-test")
         await state.mark_registered()
@@ -785,7 +793,7 @@ def test_release_timeout_retains_one_cleanup_task_and_keeps_loop_responsive(
             now=lambda: NOW,
         )
         spec = make_spec()
-        spec.runtime_settings.request_timeout_seconds = 1
+        spec.runtime_settings.request_timeout_seconds = request_timeout_seconds
         await service.prepare(spec)
         await service.finalize(
             FinalizeAllocationRequest(
@@ -801,15 +809,18 @@ def test_release_timeout_retains_one_cleanup_task_and_keeps_loop_responsive(
         )
 
         first_release = asyncio.create_task(service.release(release))
-        await asyncio.wait_for(sandbox.cleanup_started.wait(), timeout=0.5)
+        await asyncio.wait_for(sandbox.cleanup_started.wait(), timeout=safety_net_seconds)
 
         # The cleanup is deliberately stuck, but unrelated Runtime state work
         # must still be scheduled by the event loop.
         heartbeat = await asyncio.wait_for(state.heartbeat(1, 0), timeout=0.1)
         assert heartbeat.allocation_id == spec.allocation_id
 
+        # The stuck cleanup outlives the release request budget.
+        assert not first_release.done()
+        advance_clock(request_timeout_seconds)
         with pytest.raises(AllocationError) as timed_out:
-            await first_release
+            await asyncio.wait_for(first_release, safety_net_seconds)
         assert timed_out.value.code == "allocation_cleanup_failed"
         assert timed_out.value.retryable
         assert (await state.snapshot()).process_state is ProcessState.FENCED
@@ -825,7 +836,7 @@ def test_release_timeout_retains_one_cleanup_task_and_keeps_loop_responsive(
         assert context.release_cleanup_task is retained_task
         assert sandbox.cleanup_attempts == 1
         sandbox.allow_cleanup.set()
-        await asyncio.wait_for(retry, timeout=0.5)
+        await asyncio.wait_for(retry, timeout=safety_net_seconds)
         assert retained_task.done()
         assert context.release_prepared
         assert sandbox.cleanup_attempts == 1
@@ -834,7 +845,7 @@ def test_release_timeout_retains_one_cleanup_task_and_keeps_loop_responsive(
         await service.confirm_release(spec.allocation_id)
         assert (await state.snapshot()).process_state is ProcessState.IDLE
 
-    asyncio.run(scenario())
+    run_with_advanceable_clock(scenario())
 
 
 def test_abort_adds_reason_and_forces_exit_if_worker_cannot_stop(
