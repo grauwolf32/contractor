@@ -243,10 +243,18 @@ func TestAuditPostgresPublicCreateStartAndQuery(t *testing.T) {
 
 func loadPublicAuditConfiguration(t *testing.T) *config.Snapshot {
 	t.Helper()
+	return loadPublicAuditConfigurationWith(t, func(string) {})
+}
+
+// loadPublicAuditConfigurationWith loads the public Audit catalog after edit
+// changed its copy at root.
+func loadPublicAuditConfigurationWith(t *testing.T, edit func(root string)) *config.Snapshot {
+	t.Helper()
 	targetRoot := filepath.Join(t.TempDir(), "catalog")
 	if err := os.CopyFS(targetRoot, os.DirFS(publicCatalogFixture)); err != nil {
 		t.Fatalf("copy configuration: %v", err)
 	}
+	edit(targetRoot)
 	profile := []byte(`apiVersion: contractor/v1alpha1
 kind: AuditProfile
 metadata: {name: public-checklist, version: "1"}

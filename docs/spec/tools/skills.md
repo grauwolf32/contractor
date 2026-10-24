@@ -826,6 +826,21 @@ or A2A Task and follows the existing Stage preparation termination and retry
 **SKL-R111.** A model-issued load or resource error is an ordinary
 bounded Worker tool error and cannot bypass policy (FAIL-SKL-5).
 
+**SKL-R117.** Run creation and Audit start answer a Skill failure with its
+own public code ([ERR-R14](../platform/errors.md)) and commit nothing. A
+current package above the stored package bound (LIM-SKL-17), which no retry
+can select, and packages whose stored bytes together exceed the limit of one
+AgentTemplate or of the Run (LIM-SKL-22, LIM-SKL-24) are
+`422 skill_limit_exceeded`; a transient failure reading the owner's Skill
+packages is the retryable `503 skill_artifact_unavailable`
+([ERR-R8](../platform/errors.md)). Audit start pins the exact Skill packages
+of every later child Run ([AUD-R14](../audits/audits.md)), so it refuses a
+Skill without a current package with `422 skill_artifact_not_found`; Run
+creation instead commits that missing-source result and fails the Run's
+initialization (SKL-R69). The other codes of
+[ERR-R4 to ERR-R9](../platform/errors.md) reach a Run's state reason or an
+allocation, never a public API answer (FAIL-SKL-2).
+
 ### Telemetry
 
 **SKL-R112.** Package bodies never enter lifecycle events or ordinary
@@ -921,7 +936,7 @@ Errors ([registry](../platform/errors.md)):
 - The package validator codes, the Run initialization codes and the
   allocation preparation codes are defined in
   [ERR-R4 to ERR-R9](../platform/errors.md); this document raises them in
-  SKL-R30, SKL-R36, SKL-R41, SKL-R69 and SKL-R106 to SKL-R109.
+  SKL-R30, SKL-R36, SKL-R41, SKL-R69, SKL-R106 to SKL-R109 and SKL-R117.
 - The tool error `INVALID_ARGUMENTS` (SKL-R94).
 - The tool error `SKILL_DISCLOSURE_LIMIT` (SKL-R100).
 
@@ -929,8 +944,8 @@ Failure outcomes ([failure model](../platform/failure-model.md)):
 
 - FAIL-SKL-1 — bundled SkillCatalog initialization (SKL-R50,
   SKL-R54, SKL-R57).
-- FAIL-SKL-2 — Skill source selection at Run creation (SKL-R67,
-  SKL-R69, SKL-R75).
+- FAIL-SKL-2 — Skill source selection at Run creation and Audit start
+  (SKL-R67, SKL-R69, SKL-R75, SKL-R117).
 - FAIL-SKL-3 — exact read, validation and fork at Run initialization
   (SKL-R106, SKL-R107, SKL-R108).
 - FAIL-SKL-4 — Skill loading during allocation preparation (SKL-R109,

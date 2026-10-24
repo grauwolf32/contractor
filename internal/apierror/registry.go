@@ -42,6 +42,7 @@ const (
 	runtimeCfg  = "../configuration/runtime-config.md"
 	gitImport   = "../artifacts/git-import.md"
 	managedEval = "../evals/managed-evals.md"
+	skillsSpec  = "../tools/skills.md"
 )
 
 func link(id, document string) string { return "[" + id + "](" + document + ")" }
@@ -362,6 +363,34 @@ var (
 		"A Runtime Agent principal cannot be deleted while it is live, still has labels or an allocation "+
 			"references it.",
 		link("RCF-R178", runtimeCfg))
+)
+
+// Agent Skills that Run creation and Audit start select (SKL-R117). The same
+// codes also end Run initialization or allocation preparation (ERR-R4 to
+// ERR-R9); the Skill codes that only those raise are not public API codes.
+var (
+	SkillArtifactNotFound = define("skill_artifact_not_found", http.StatusUnprocessableEntity, false,
+		"a selected Skill has no package",
+		"A Skill that a selected AgentTemplate requires has no owner package. Audit start, which pins the Skill "+
+			"packages of every child Run, refuses it and starts nothing; Run creation instead commits the missing "+
+			"source, and the Run's initialization fails with this code, as it does for a pinned exact Skill "+
+			"revision that the read or the fork no longer finds; no retry brings it back.",
+		link("SKL-R117", skillsSpec)+", "+link("ERR-R5", "errors.md"))
+	SkillArtifactUnavailable = define("skill_artifact_unavailable", http.StatusServiceUnavailable, true,
+		"Skill packages are temporarily unavailable",
+		"A transient failure read the owner's Skill packages while Run creation or Audit start selected them; "+
+			"nothing is committed, so the same request may succeed. At Run initialization the same code leaves "+
+			"the Run initializing for Scheduler recovery, and in allocation preparation it is a transient exact "+
+			"private read.",
+		link("ERR-R8", "errors.md")+", "+link("ERR-R6", "errors.md")+", "+link("ERR-R9", "errors.md"))
+	SkillLimitExceeded = define("skill_limit_exceeded", http.StatusUnprocessableEntity, false,
+		"selected Skills exceed a Skill limit",
+		"A selected current Skill package exceeds the stored package bound (LIM-SKL-17), or the stored bytes of "+
+			"the packages that one AgentTemplate or the whole Run selects exceed their limit (LIM-SKL-22, "+
+			"LIM-SKL-24), and Run creation or Audit start creates nothing. The same code reports "+
+			"any per-member, count or aggregate package bound at Run initialization or allocation preparation, "+
+			"terminal and non-retryable for the recorded Run snapshot.",
+		link("SKL-R117", skillsSpec)+", "+link("ERR-R4", "errors.md"))
 )
 
 // Audits and their packages.

@@ -365,6 +365,9 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 type integrationUnitOfWork struct {
 	pool        *pgxpool.Pool
 	credentials resolved.CredentialLookup
+	// wrapArtifacts, when set, wraps the transaction's Artifact repository,
+	// so a test can inject one fault into the otherwise real transaction.
+	wrapArtifacts func(artifacts.Repository) artifacts.Repository
 }
 
 func (u integrationUnitOfWork) Do(ctx context.Context, fn func(RunWriter, *artifacts.Service) error) error {
@@ -378,9 +381,13 @@ func (u integrationUnitOfWork) Do(ctx context.Context, fn func(RunWriter, *artif
 		if err != nil {
 			return err
 		}
+		var repository artifacts.Repository = artifacts.NewPostgresRepository(tx)
+		if u.wrapArtifacts != nil {
+			repository = u.wrapArtifacts(repository)
+		}
 		return fn(
 			runstore.NewRunCreationPostgresStore(tx, lookup, credentials.NewRuntimeCredentialRepository(tx)),
-			artifacts.NewService(artifacts.NewPostgresRepository(tx)),
+			artifacts.NewService(repository),
 		)
 	})
 }

@@ -49,7 +49,16 @@ scope:
     - "Changing when Skill failures happen."
 acceptance_criteria:
   - id: A1
-    text: "POST /v1/runs with too many Skills, a missing current Skill, and a removed pinned source answers each failure's registered code and status, never internal_error."
+    text: >-
+      POST /v1/runs with too many Skill bytes or a transient Skill source read
+      answers the failure's registered code and status, never internal_error.
+      A missing current Skill is accepted as a committed missing-source result
+      that fails the Run's initialization with skill_artifact_not_found
+      (SKL-R69), and no pinned source can be gone at POST /v1/runs, which
+      selects and locks its sources in one snapshot; the code still answers
+      422 skill_artifact_not_found if the lock ever reports one. (Corrected
+      from "a missing current Skill and a removed pinned source answer their
+      codes", which contradicted SKL-R69.)
   - id: A2
     text: "Audit start and every other sibling path answer the same codes or are ruled out with the reason."
   - id: A3
