@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
@@ -93,7 +94,7 @@ func normalize(r Request) (Request, error) {
 	}
 	if r.Rulepack != nil {
 		ref := r.Rulepack.Clone()
-		if ref.ValidateExact() != nil || ref.Namespace == "contractor-system" {
+		if ref.ValidateExact() != nil || ref.Namespace == artifactpolicy.RunSystemNamespace {
 			return Request{}, scanstore.ErrInvalid
 		}
 		r.Rulepack = &ref
