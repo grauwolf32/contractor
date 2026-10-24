@@ -49,8 +49,9 @@ scope:
     observation-writer roles.
   - Register narrow Runtime list/read/upsert/remove/restore/grouping/import-dispatch/snapshot operations backed
     by the V410-001 service; Project binding comes only from trusted allocation context.
-  - Implement exact-revision cursors, bounded immutable snapshot/index caching, source-mode filtered list/read/snapshot
-    paths and authorized evidence materialization.
+  - Implement cursors over one fully materialized allocation-owned immutable safe view, bounded snapshot/index
+    caching, source-mode filtered list/read/snapshot paths and authorized evidence materialization. These cursors
+    create no ArtifactStore pins and remain distinct from durable proof/context selections.
   - Attach trusted source/content-kind context, implement explicit ordinary Run context namespaces, and provide
     the common allocation collector interface used by later adapters.
   - Retain safe selected projections with original map revision, projection policy and authorized input refs, without
@@ -74,36 +75,50 @@ requirements:
   text: Never materialize the mixed raw map into a blackbox Run and filter afterward. If an allowed projection cannot
     be reconstructed safely, return unavailable/gap rather than leaking metadata.
 - id: R5
-  text: List cursors bind revision and filters; later writes do not alter the page sequence. Refresh creates a new
-    view, and expired/foreign cursors fail permanently.
+  text: List cursors bind the materialized view identity, original exact revision and filters. Keep at most one
+    fully materialized authorized safe view per allocation, at most 32 MiB encoded and 128 MiB total encoded plus
+    parsed/index/metadata state. A bounded encoded-backed representation may satisfy this without object-per-row
+    growth. Replacement/absence or allocation release invalidates the cursor with sitemap_cursor_expired; do not
+    reload an evicted ref, mix in latest or acquire an implicit retention pin. Within the same existing view, later
+    publication/eviction does not change the page sequence. Every page checks current Server Project ownership,
+    allocation grant/fence and source-mode policy; a cached view supplies no offline authority. No separate TTL.
 - id: R6
-  text: Keep parsing/index work off the Runtime event loop using joined threads; cache lifetime/bytes are allocation-owned.
-    Selected evidence is forked/materialized by the Server and retains exact source attribution; mere metadata reading
-    creates no arbitrary evidence holds.
+  text: Keep parsing/index work off the Runtime event loop using joined threads; release/replacement joins work
+    before freeing the single view and invalidating its cursors. Metadata, pagination and provenance mentions
+    create no holds. Durable selected evidence/context must be forked/materialized by the Server through existing
+    protected binding/exact-reference lifecycles, with atomic retention acquisition against V410-001 eviction.
+    A lost selection race returns explicit exact-source unavailability and requires caller refresh/reselection;
+    neither memory nor optional filesystem cache can recreate a hold, revive a removed ref or substitute latest.
 failure_outcomes:
 - operation: Allocation sitemap read/edit/import-dispatch
   permanent: Stable invalid-request/access-denied outcomes for unknown tools/versions or missing grants; owner-safe
-    not-found for foreign refs; stale manual/source mutations retain permanent conflict.
-  retryable: Retry only classified transport/storage failures within the operation deadline and V410-001 bounds.
+    not-found for foreign refs; stale manual/source mutations retain permanent conflict. Replaced/missing view
+    returns sitemap_cursor_expired (409 at the private HTTP boundary); denied/fenced page access returns no bytes.
+  retryable: Retry only classified transport/storage failures and bounded V410-001 maintenance backpressure
+    within the original operation deadline; permanent cursor/protection conflicts are never automatically retried.
   ambiguous: Reuse the service receipt/accepted revision; never send an alternate mutation or target request after
     a lost reply.
   cancelled: Join read/index/materialization work before allocation release; fenced requests cannot publish.
   timeout: Caller operation deadline bounds network, decoding and cache work; timeout does not substitute latest
     for an exact ref.
 - operation: Source-mode view or exact context snapshot/materialization
-  permanent: Unavailable/denied exact source stays explicit; unsafe mixed-source projection fails without producing
-    a consumer artifact.
+  permanent: Unavailable/denied/evicted exact source stays explicit (artifact_not_found 404 for an absent revision);
+    unsafe mixed-source projection fails without producing a consumer artifact. A proof-selection race cannot use
+    cached bytes to manufacture a retained source or silently substitute the current revision.
   retryable: Use existing Artifact transport/transaction retry classification only.
-  ambiguous: Reconcile exact snapshot/fork identity through existing Artifact/keyed mutation handling.
+  ambiguous: Reconcile exact snapshot/fork identity through existing Artifact/keyed mutation handling. Replayed
+    receipts confirm the original commit even if its unprotected source was later evicted; never republish or pin
+    merely to reconstruct the old response.
   cancelled: No materializer or cache worker outlives allocation cleanup.
   timeout: Snapshot deadline is independent from any target call or lifecycle finalization deadline.
 cardinality:
 - collection: Model-visible pages and one cached immutable revision
   expected: 20-100 entry previews within a Project of 100-1000 groups
-  maximum: Proposal 0042 section 10 page rows/bytes and current-map size; a bounded number of cached revisions,
-    defined in owning spec
-  bound: Parse/index once per selected revision, return bounded metadata and reject cycles/stale cursors without
-    whole-map reparsing per page.
+  maximum: One view per allocation, at most 32 MiB encoded and 128 MiB total encoded/parsed/index/metadata;
+    each returned page is at most 100 entries and 256 KiB
+  bound: Fully materialize the authorized safe view once, parse/index once and validate current Server authority
+    per page. Replacement atomically invalidates old view cursors; no per-cursor cache multiplication, server hold
+    or whole-map reparse/refetch after underlying history eviction.
 - collection: Context snapshots and evidence selections
   expected: Only selected entries and exact needed refs
   maximum: Map, provenance and document limits from the owning shared contract; tighter consumer/Audit limits apply
@@ -112,8 +127,9 @@ lifecycle:
 - entity: Allocation grants, cached views and import dispatch
   delete: Finalize/cancel/release joins work and erases cache/grants.
   cascade: Allocation cleanup removes local transient state; committed Project map remains.
-  retention: Consumer context artifacts follow ordinary Run/Audit retention; linked unavailable source IDs remain
-    provenance only.
+  retention: One transient safe view lasts only until allocation release or replacement and creates no server
+    pin. Durable selected context follows ordinary atomic Run/Audit exact holds; unretained unavailable source
+    IDs remain provenance only, and a cache cannot create deletion authority or preserve read authorization.
 acceptance_criteria:
 - id: A1
   given: Reader-only and editor/collector templates on two Projects
@@ -126,15 +142,17 @@ acceptance_criteria:
   then: Only authorized safe content is exposed/materialized; the full mixed artifact never enters its Run and model
     relabeling cannot change classification.
 - id: A3
-  given: A map spanning multiple byte-limited pages while another Run writes
-  when: The first Worker follows cursors and then refreshes
-  then: Its original page sequence stays on one exact revision with bounded work, while refresh truthfully selects
-    the new revision.
+  given: A fully materialized safe view spanning pages while another Run publishes and evicts its unpinned source
+  when: The Worker follows its cursor, refreshes/replaces the view or loses its Server grant
+  then: Authorized continuation uses only the original bounded view with no pin/refetch/latest substitution;
+    replacement returns sitemap_cursor_expired for old cursors and revoked access returns no cached bytes.
+    Maximum-size tests prove one-view 32-MiB encoded/128-MiB total limits and bounded per-page work.
 - id: A4
-  given: Exact source evidence that is present, missing or independently held
-  when: A Worker selects a context projection and requests required bytes
-  then: Authorized materialization retains exact refs, missing evidence is unavailable, and metadata reading grants
-    no arbitrary cross-Run access.
+  given: Exact source evidence that is present, missing, independently held or racing history eviction
+  when: A Worker selects a durable context/proof projection and requests required bytes
+  then: The Server atomically acquires the existing legitimate protected ref or reports exact-source unavailability;
+    neither memory nor filesystem cache bypasses that result, metadata/provenance creates no arbitrary hold, and
+    permitted caller refresh/reselection never silently changes an exact proof input.
 - id: A5
   given: Slow parsing/materialization and an in-flight edit
   when: The allocation is cancelled or fenced and released

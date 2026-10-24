@@ -78,8 +78,9 @@ requirements:
   text: Provider history expiry/deletion/unstable ordering becomes an explicit collection gap. No rescanning the
     complete history after each request or arbitrary timestamp inference from mutable local time.
 - id: R6
-  text: All provider and map nested bounds remain independent; reaching source/lifetime quotas stops truthfully
-    while preserving previous accepted map and checkpoint.
+  text: Provider/source limits, cumulative per-Run write budgets and Project retained-history limits remain
+    independent. ArtifactStore evicts eligible history; receipts/checkpoints alone do not pin it, and eviction
+    never refunds Run write charges. Protected-capacity conflicts preserve accepted map/checkpoint.
 failure_outcomes:
 - operation: Fetch selected Caido history page
   permanent: Unsupported continuation/selection, invalid provider response or expired cursor returns a stable source-specific
@@ -90,11 +91,12 @@ failure_outcomes:
   cancelled: Join provider decoding/import work before allocation or session release.
   timeout: A page-import deadline bounds fetch/decode/publication independently of target request timeouts.
 - operation: Commit page and advance checkpoint
-  permanent: Source-generation conflict, projection rejection or exhausted quota preserves accepted content/checkpoint
-    and reports a permanent outcome.
-  retryable: Only append-compatible CAS/storage conflicts retry within reducer limits.
-  ambiguous: Use the existing keyed receipt to reconcile whether both page and checkpoint committed; replay does
-    not recharge a revision.
+  permanent: Source-generation conflict, projection rejection, exhausted cumulative Run budget or all-protected
+    history capacity preserves accepted content/checkpoint and reports a nonautomatic-retry outcome.
+  retryable: Append-compatible CAS/storage conflicts and bounded ArtifactStore eviction backpressure retry only
+    page publication within reducer limits; never replay target traffic.
+  ambiguous: Use the existing keyed receipt to reconcile both page and checkpoint even after revision eviction;
+    confirm the old commit without republishing/recharging. Exact evicted reads remain unavailable.
   cancelled: Fenced allocations cannot advance checkpoints after release.
   timeout: Unresolved acknowledgement at deadline remains an explicit incomplete sync, not a silently advanced checkpoint.
 cardinality:
@@ -129,9 +131,10 @@ acceptance_criteria:
   then: It retains an explicit source gap/unsupported result instead of claiming complete discovery or inventing
     a cursor.
 - id: A4
-  given: Secret canaries, changed source generation and full quotas
+  given: Secret canaries, changed source generation, protected-history exhaustion and eligible-history cleanup backlog
   when: A page reaches safe projection and publication
-  then: Only authorized metadata persists, stale selections conflict and accepted map/checkpoint survive exhaustion.
+  then: Only authorized metadata persists, stale selections conflict, accepted map/checkpoint survive exhaustion
+    and retryable cleanup backpressure is distinguished from protected-capacity conflicts.
 - id: A5
   given: An in-flight sync and an HTTP-only Workflow
   when: Sync cancels/releases while the HTTP workflow runs independently

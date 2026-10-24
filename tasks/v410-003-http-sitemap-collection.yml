@@ -75,17 +75,20 @@ requirements:
     counters.
 - id: R5
   text: A map write failure cannot replace a valid HTTP response with target failure or resend target traffic. Receipt/unknown
-    acknowledgements reconcile only publication.
+    acknowledgements reconcile only publication. ArtifactStore owns managed-history eviction; the collector
+    never deletes revisions. Keep cumulative per-Run write charges distinct from retained-history capacity.
 - id: R6
   text: Completion/cancellation/release joins the collector and fences publication; on Runtime crash, Run closure/collection
     status truthfully reports the bounded pending loss without claiming zero-loss capture.
 failure_outcomes:
 - operation: HTTP target call followed by collection submission/flush
-  permanent: Preserve the real target outcome; invalid projection, quota exhaustion or collection denial is a separate
-    permanent sitemap outcome. Invalid unsent requests create no successful observation.
-  retryable: Only sitemap storage retries use the reducer budget; target retries remain governed solely by existing
-    HTTP policy.
-  ambiguous: Reconcile the same publication receipt; never resend the target request to recover metadata.
+  permanent: Preserve the real target outcome; invalid projection, exhausted cumulative Run budget, all-protected
+    history capacity or collection denial is a separate nonautomatic-retry sitemap outcome. Invalid unsent requests
+    create no successful observation.
+  retryable: Storage conflicts and bounded history-cleanup backpressure use only the reducer/flush budget;
+    target retries remain governed solely by existing HTTP policy.
+  ambiguous: Reconcile the same publication receipt even after its revision is evicted; confirm the old commit
+    without republishing/recharging or resending the target request. Exact evicted bytes remain unavailable.
   cancelled: Join target/capture/collector work before release and mark unsaved metadata incomplete.
   timeout: HTTP request and sitemap flush have separate owning deadlines; flush cannot extend target permission
     or turn a timeout into a response.
@@ -126,9 +129,9 @@ acceptance_criteria:
   then: The committed map contains only the safe projection with distinct context keys and bounded diversity.
 - id: A3
   given: A target that counts side effects and a store that loses publication responses or rejects writes
-  when: A successful request is followed by failed/ambiguous collection
-  then: Its HTTP response remains available, the target count does not increase and the collector reconciles or
-    reports a separate gap.
+  when: A successful request is followed by failed/ambiguous collection, history eviction or cleanup backpressure
+  then: Its HTTP response remains available, the target count does not increase, old receipts never republish/recharge,
+    and protected-capacity conflicts stay distinct from retryable cleanup backpressure.
 - id: A4
   given: Many observations up to pending/batch/publication bounds
   when: A Worker reads the live map and another Run reads committed state

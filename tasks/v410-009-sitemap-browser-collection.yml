@@ -94,10 +94,12 @@ failure_outcomes:
   cancelled: Context close/cancel drains and joins handlers and off-thread parsing before disposal.
   timeout: Capture/flush deadlines remain distinct from browser action/wait deadlines.
 - operation: Publish browser batch or close collector
-  permanent: Quota/source/grant rejection preserves prior map and reports a separate collection outcome without
-    changing the browser action result.
-  retryable: Use only the existing bounded reducer retry policy.
-  ambiguous: Replay accepted mutation receipts without rerunning browser actions or charging duplicate publications.
+  permanent: Source/grant rejection, exhausted cumulative Run budget or all-protected history capacity reports
+    a separate nonautomatic-retry collection outcome without changing the browser action result.
+  retryable: Use only the bounded reducer policy for storage conflicts and ArtifactStore eviction backpressure;
+    collectors do not perform eviction or repeat browser actions.
+  ambiguous: Replay accepted mutation receipts even after revision eviction without republishing, rerunning browser
+    actions or charging duplicate publications; exact evicted bytes remain unavailable.
   cancelled: Fenced allocation rejects late writes; cleanup joins every publisher.
   timeout: Drain expiry records incomplete collection and performs joined cleanup; no publisher outlives release.
 cardinality:
@@ -108,14 +110,14 @@ cardinality:
     graph.
 - collection: Published browser metadata and exact references
   expected: Representative safe examples and sparse retained evidence links
-  maximum: Proposal section 10 per-group/per-Run/Project-lifetime quotas
+  maximum: Proposal section 10 per-group limits, cumulative per-Run write budget and Project retained-history limits
   bound: Record unavailable evidence and bounded gaps; do not materialize unbounded browser traces.
 lifecycle:
 - entity: Managed BrowserContext collector
   delete: Browser context owner closes and joins collector handlers before context/allocation release.
   cascade: Transient network buffers disappear with the context; committed shared metadata persists.
-  retention: Only selected safe context/evidence uses ordinary retained refs; browser traces and raw traffic are
-    not archived implicitly.
+  retention: Selected safe proof/input context needs real holds before acceptance, atomically against eviction;
+    metadata refs/receipts alone do not pin history. Browser traces and raw traffic are not archived implicitly.
 acceptance_criteria:
 - id: A1
   given: Managed anonymous/A/B contexts with new tabs, redirects and failed requests
@@ -132,10 +134,10 @@ acceptance_criteria:
   then: Available correlation retains source attribution; absent correlation does not fabricate request identity/counts
     and existing map updates survive.
 - id: A4
-  given: Event bursts, publication failure and context cancellation during flush
+  given: Event bursts, protected-history conflicts, eviction backpressure and context cancellation during flush
   when: Real browser/Runtime/Server/PostgreSQL execute the lifecycle
-  then: Bounds hold, browser action results stay distinct from collection failure and handlers/publishers join before
-    release.
+  then: Retained-history and cumulative Run bounds stay distinct, retries never repeat browser actions and
+    handlers/publishers join before release; receipts cannot republish evicted history.
 - id: A5
   given: Missing optional browser capability and a first-slice HTTP/OpenAPI Workflow
   when: The catalog is selected and executed
