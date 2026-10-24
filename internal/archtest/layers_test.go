@@ -74,6 +74,8 @@ var layers = []layerSpec{
 			// Test support: the plans, rows read and trigger calls of statements,
 			// and the statements of SQL text.
 			"internal/persistence/explaintest",
+			// Test support: the advisory lease that lease-fenced writes prove.
+			"internal/persistence/leasetest",
 			// Test support: holds the migrated schema's state sets to Go.
 			"internal/persistence/statesettest",
 		},

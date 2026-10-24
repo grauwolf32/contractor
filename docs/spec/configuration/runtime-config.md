@@ -631,6 +631,31 @@ Contractor committed its encrypted token and `token_id`, startup recovery
 removes the deterministic alias and retries creation instead of creating an
 untracked second key. An unfinished deletion is likewise completed before
 Server accepts Run or Operations traffic (FAIL-RCF-1, FAIL-RCF-2).
+Startup recovery reads the operation journal only after the lease handover
+([PER-R34](../platform/persistence.md)), and every write of a managed
+credential operation, the create and delete intents, their completions and the
+abandonment of a create, is a lease-fenced write. An intent of the previous
+active Server is therefore durable before recovery reads the journal, and
+recovery completes it, or it never commits, and that Server answers the
+retryable `credential_recovery_required` without a Gateway call. A retried
+prepared create proves the lease before its first Gateway call, which would
+remove the deterministic alias. Runtime credential create and the delete
+tombstone are lease-fenced in the same way (FAIL-RCF-8).
+
+Rationale: without the fence a new active Server's recovery could read the
+journal while its predecessor's delete intent was still committing, admit a
+Run of that credential, and leave a prepared delete beside a Run that pins it,
+which the next start's recovery refuses with `credential_in_use`. Guarantee:
+no managed credential write of a previous active Server becomes durable after
+its successor's recovery read the journal. Alternatives: a grace period after
+acquisition, rejected because a COMMIT already sent can land after any delay;
+taking every credential's deletion lock before the read, rejected because it
+misses create intents and intents that start later; a lease proof in each
+write under a lock the successor takes exclusively, chosen. Evidence and the
+full record are in PER-R34. Reopen with PER-R34, when a database has more than
+one active Server ([OPS-R5](../operations/operations.md)). The references a
+previous Server may still commit across the handover are the accepted risk of
+[PER-R36](../platform/persistence.md).
 
 **RCF-R73.** The pinned LiteLLM compatibility envelope must enforce unique
 aliases; an adapter that cannot prove this fails its startup conformance check.

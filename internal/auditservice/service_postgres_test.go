@@ -30,6 +30,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	managedcredentials "github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/findingintake"
+	"github.com/grauwolf32/contractor/internal/persistence/leasetest"
 	"github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -711,7 +712,8 @@ func TestAuditStartRechecksProjectHTTPTargetCredentialUse(t *testing.T) {
 		t.Fatal(err)
 	}
 	runtimeCredentials, err := managedcredentials.NewRuntimeCredentialService(managedcredentials.RuntimeCredentialServiceOptions{
-		Pool: pool, Cipher: cipher, Usage: managedcredentials.NewRuntimeCredentialRepository(pool),
+		Pool: pool, Lease: leasetest.Hold(t, pool).Lease, Cipher: cipher,
+		Usage:  managedcredentials.NewRuntimeCredentialRepository(pool),
 		Audits: hookstore.NewCredentialHolds(pool), Barrier: managedcredentials.NewLifecycleBarrier(),
 	})
 	if err != nil {

@@ -40,6 +40,12 @@ var (
 	)
 	errCreateKeyReused = fmt.Errorf("%w: LLM credential create key", contracts.ErrIdempotencyConflict)
 	errDeleteKeyReused = fmt.Errorf("%w: LLM credential delete key", contracts.ErrIdempotencyConflict)
+	// errLeaseLost refuses a managed credential write of a Server that no
+	// longer holds the advisory lease (PER-R34). Nothing of the write
+	// commits; a prepared operation it leaves belongs to the next active
+	// Server's startup recovery, so the answer is the retryable
+	// credential_recovery_required.
+	errLeaseLost = fmt.Errorf("%w: %w", ErrRecoveryRequired, persistencepostgres.ErrLeaseLost)
 )
 
 type CredentialInUseError struct {
@@ -93,7 +99,11 @@ type DeleteResult struct {
 }
 
 type ServiceOptions struct {
-	Pool     *pgxpool.Pool
+	Pool *pgxpool.Pool
+	// Lease is the active Server's advisory lease. Every write of the
+	// operation journal and of managed credential records proves it in its
+	// own transaction (PER-R34).
+	Lease    persistencepostgres.ServerLease
 	Gateways GatewayLookup
 	Managers *ManagerRegistry
 	Runs     NonTerminalRunLookup
@@ -114,6 +124,7 @@ type ServiceOptions struct {
 // or Run creation are permitted.
 type Service struct {
 	pool        *pgxpool.Pool
+	lease       persistencepostgres.ServerLease
 	repository  *Repository
 	gateways    GatewayLookup
 	managers    *ManagerRegistry
@@ -174,7 +185,8 @@ const (
 )
 
 func NewService(options ServiceOptions) (*Service, error) {
-	if options.Pool == nil || options.Gateways == nil || options.Managers == nil || options.Runs == nil {
+	if options.Pool == nil || !options.Lease.Valid() || options.Gateways == nil || options.Managers == nil ||
+		options.Runs == nil {
 		return nil, errors.New("credential lifecycle dependencies are incomplete")
 	}
 	if options.Now == nil {
@@ -187,7 +199,7 @@ func NewService(options ServiceOptions) (*Service, error) {
 		options.Barrier = NewLifecycleBarrier()
 	}
 	return &Service{
-		pool: options.Pool, repository: NewRepository(options.Pool),
+		pool: options.Pool, lease: options.Lease, repository: NewRepository(options.Pool),
 		gateways: options.Gateways, managers: options.Managers, runs: options.Runs, audits: options.Audits,
 		cipher: options.Cipher, barrier: options.Barrier, now: options.Now, newID: options.NewID,
 		afterCreate: options.AfterManagerCreate, afterDelete: options.AfterManagerDelete,
@@ -342,7 +354,9 @@ func (s *Service) WithAllocationReferences(ctx context.Context, fn func() error)
 }
 
 // Recover completes every prepared operation of the journal before it marks
-// the Service ready. An empty journal does not prove that an uncertain delete
+// the Service ready. The Server runs it only after the lease handover, so no
+// journal write of a previous lease owner can still commit behind its reads
+// (PER-R34, RCF-R72). An empty journal does not prove that an uncertain delete
 // of this process left no intent, because its transaction may still commit;
 // Recover settles that delete through durable reconciliation, completes an
 // intent that turns out durable, and keeps the fence while the outcome is
@@ -472,6 +486,9 @@ func (s *Service) Create(ctx context.Context, request CreateRequest) (CreateResu
 		return CreateResult{}, err
 	}
 	if err := persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		if err := s.proveLease(ctx, tx); err != nil {
+			return err
+		}
 		// The create operation reserves the ID forever: a unique index admits one
 		// create per credential ID, and operations are never deleted.
 		return NewRepository(tx).InsertOperation(ctx, operation)
@@ -611,6 +628,11 @@ func (s *Service) Delete(ctx context.Context, request DeleteRequest) (DeleteResu
 		if err != nil {
 			return err
 		}
+		// A Server that lost the lease records no intent: the next active
+		// Server read the journal once its handover ended (PER-R34).
+		if err := s.proveLease(ctx, tx); err != nil {
+			return err
+		}
 		attemptedInsert = true
 		return repository.InsertOperation(ctx, operation)
 	})
@@ -696,6 +718,16 @@ func (s *Service) executeCreate(
 		LLMGateway: gateway, Label: request.Label, Policy: request.GatewayPolicy,
 	}
 	if recoverFirst {
+		// RecoverCreate removes the deterministic remote alias, which may by
+		// now name the key that the next active Server created when it
+		// recovered this operation. A Server that lost the lease therefore
+		// makes no such call; only a pause between this proof and the call
+		// remains (PER-R36).
+		if err := persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+			return s.proveLease(ctx, tx)
+		}); err != nil {
+			return Record{}, err
+		}
 		if err := manager.RecoverCreate(ctx, managerRequest); err != nil {
 			return Record{}, ErrGatewayUnavailable
 		}
@@ -708,9 +740,14 @@ func (s *Service) executeCreate(
 			// absent, and validation failed deterministically, so no replay can
 			// ever succeed. Record a terminal failure instead of blocking
 			// recovery forever. Ambiguous failures above stay prepared.
-			if err := s.repository.AbandonOperation(
-				ctx, operation.OperationID, operationCompletionTime(operation, s.now()),
-			); err != nil {
+			if err := persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+				if err := s.proveLease(ctx, tx); err != nil {
+					return err
+				}
+				return NewRepository(tx).AbandonOperation(
+					ctx, operation.OperationID, operationCompletionTime(operation, s.now()),
+				)
+			}); err != nil {
 				return Record{}, err
 			}
 			return Record{}, ErrCreateAbandoned
@@ -739,6 +776,9 @@ func (s *Service) executeCreate(
 		EffectivePolicy: effectivePolicy, Envelope: envelope, CreatedAt: persistencepostgres.Timestamp(s.now()),
 	}
 	err = persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		if err := s.proveLease(ctx, tx); err != nil {
+			return err
+		}
 		repository := NewRepository(tx)
 		if err := repository.InsertCredential(ctx, record); err != nil {
 			return err
@@ -801,6 +841,9 @@ func (s *Service) executeDelete(
 		}
 	}
 	return persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		if err := s.proveLease(ctx, tx); err != nil {
+			return err
+		}
 		repository := NewRepository(tx)
 		if err := repository.DeleteCredential(ctx, request.CredentialID); err != nil {
 			return err
@@ -809,6 +852,19 @@ func (s *Service) executeDelete(
 		// actor and deletion time.
 		return repository.CompleteOperation(ctx, operation.OperationID, operationCompletionTime(operation, s.now()))
 	})
+}
+
+// proveLease fences one write of the operation journal or of a managed
+// credential record by the advisory lease, in the write's own transaction
+// (PER-R34). The next active Server reads the journal only once every such
+// transaction of its predecessor has ended, and a write that starts after
+// that cannot prove the lease and commits nothing.
+func (s *Service) proveLease(ctx context.Context, tx pgx.Tx) error {
+	err := s.lease.Prove(ctx, tx)
+	if errors.Is(err, persistencepostgres.ErrLeaseLost) {
+		return errLeaseLost
+	}
+	return err
 }
 
 func (s *Service) listAuditHolds(ctx context.Context, credentialID string) ([]string, error) {

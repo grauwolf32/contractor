@@ -7,8 +7,10 @@ Requirement prefix: `PER` · [Specification index](../README.md)
 This document owns the persistence rules that belong to no single domain: one
 active Server per PostgreSQL database, the session-level PostgreSQL advisory
 lease that enforces it, the standby Server, detection of lease-session loss and
-its time bounds, the budgets of the lease session's startup steps, the
-connection pooling that the lease needs, and what must
+its time bounds, the budgets of the lease session's startup steps, the lease
+handover that keeps a previous holder's lease-fenced writes from landing
+behind its successor's startup, the connection pooling that the lease needs,
+and what must
 not stand in for that lease: an unfenced shared `runtime_agents` table or a
 durable Runtime Agent principal. It owns the one classification of a failed
 PostgreSQL call into an outcome class, how SQL names the members of `jsonb`
@@ -58,7 +60,9 @@ the following ones.
 | Standby Server | A Server process on the same database that does not hold the advisory lease. |
 | Lease-session loss | A single liveness probe of the lease session that fails within the tolerance window. |
 | Tolerance window | The bounded time a lease-session liveness probe, a standby acquisition probe or a reconnect of the standby's lock-free lease session may run. |
-| Startup lease steps | What a starting Server does on the lease session before it is active or stands by: connecting the session, configuring its keepalives, the first acquisition probe and, when the lease is held elsewhere, the holder lookup. |
+| Startup lease steps | What a starting Server does on the lease session before it is active or stands by: connecting the session, configuring its keepalives, the first acquisition probe with the identification of a session that acquired the lease and, when the lease is held elsewhere, the holder lookup. |
+| Lease-fenced write | A write transaction that proves, before it writes, that its Server's lease session still holds the advisory lease, under the shared lock of the lease handover, and otherwise commits nothing. |
+| Lease handover | The wait of a Server that acquired the advisory lease, before its startup reads durable state, until every lease-fenced write of an earlier holder has ended. |
 | Migration ledger | The table `contractor_schema_migrations`: one row per applied migration with its version, its file name and the SHA-256 of the file's bytes. |
 | Migration budget | The operation budget of a migration run: its statement, lock and idle-in-transaction timeouts, its client deadlines and the deadline of the whole run. |
 
@@ -73,11 +77,12 @@ detects lease-session loss:
 ```mermaid
 stateDiagram-v2
     [*] --> Starting: Server process starts
-    Starting --> Active: the first acquisition probe acquires the advisory lease
+    Starting --> Active: the first acquisition probe acquires the advisory lease and the lease handover ends (PER-R34)
     Starting --> Standby: the lease is held elsewhere
-    Starting --> Stopped: a startup lease step other than the holder lookup fails or ends at its database budget (PER-R27)
+    Starting --> Stopped: a startup lease step other than the holder lookup, or the lease handover, fails or ends at its database budget (PER-R27, PER-R35)
     Standby --> Standby: lease not acquired, or an acquisition probe stalls and the lock-free session reconnects
-    Standby --> Active: advisory lease acquired on the lease session
+    Standby --> Active: advisory lease acquired on the lease session and the lease handover ends (PER-R34)
+    Standby --> Stopped: a probe that acquired the lease cannot identify its session, or the lease handover fails or ends at its database budget (PER-R35)
     Active --> Stopped: lease-session loss, a single liveness probe fails within the 10 s tolerance window
     note right of Starting: startup lease steps under the database budgets, no tolerance window
     note right of Standby: serves /healthz, 503 from /readyz and 503 server_standby under /v1, no private API
@@ -102,7 +107,31 @@ sequenceDiagram
     DB->>DB: Server-side TCP keepalives and user timeout detect the lost peer (about half a minute, PER-R6)
     DB->>DB: Release the advisory lease
     B->>DB: Acquisition probe acquires the lease
+    B->>DB: Lease handover: exclusive handover lock, granted once every lease-fenced write of A has ended (PER-R34)
     Note over B: Takes over as the active Server
+```
+
+A server-side release breaks the order above: when PostgreSQL ends the lease
+session itself, for example through `pg_terminate_backend` or a failure of
+that one connection, it releases the lease at once, while the active Server
+keeps its working pool and notices the loss only at its next liveness probe.
+The lease handover keeps that overlap from reaching the successor's startup
+(PER-R34):
+
+```mermaid
+sequenceDiagram
+    participant A as Previous active Server
+    participant DB as PostgreSQL
+    participant B as Standby Server
+    A->>DB: Lease-fenced write: shared handover lock, proof that A's lease session holds the lease, write
+    DB->>DB: The lease session of A ends on the server side, the lease is free
+    B->>DB: Acquisition probe acquires the lease
+    B->>DB: Exclusive handover lock waits for A's open write
+    A->>DB: COMMIT
+    DB-->>B: Handover lock granted
+    Note over B: Credential recovery reads the journal, A's write included
+    A->>DB: A later lease-fenced write: shared handover lock, proof fails
+    Note over A: Rolled back with the lease loss, until A's liveness probe stops it
 ```
 
 ### Server connections to PostgreSQL
@@ -178,7 +207,8 @@ topology is [SYS-R10](../overview.md).
 
 **PER-R2.** Before credential recovery, the process-local Control Plane, the
 Scheduler or the private API starts, the Server must hold a session-level
-PostgreSQL advisory lease on a dedicated connection, the lease session.
+PostgreSQL advisory lease on a dedicated connection, the lease session, and
+must have completed the lease handover (PER-R34).
 
 **PER-R3.** Until it acquires the advisory lease, a standby Server has only
 public health and 503 readiness: it serves `/healthz`, returns 503 from
@@ -236,7 +266,10 @@ takeover with PostgreSQL on an operating system without `TCP_USER_TIMEOUT`.
 
 **PER-R7.** The tolerance window stays below that keepalive bound, so a
 disconnected active Server stops before PostgreSQL releases the lock to a
-standby (FAIL-PER-1).
+standby (FAIL-PER-1). This order holds only for a release by the keepalives.
+A server-side end of the lease session releases the lock at once, while the
+active Server runs until its next liveness probe fails; PER-R34 keeps that
+overlap from reaching the next active Server's startup.
 
 **PER-R8.** A standby whose acquisition probe hits a transient stall
 reconnects its lock-free session and keeps polling rather than exiting the
@@ -254,7 +287,7 @@ of its own, and the budget that owns each step bounds it:
 | Startup lease step | Owning budget |
 | --- | --- |
 | Connecting the lease session: dial, TLS, startup handshake and authentication | `database.connectTimeout`, for each connection attempt |
-| Configuring the keepalives (PER-R6), the first acquisition probe and the holder lookup | `database.queryTimeout`, for each statement; the session also carries the server-side `database.statementTimeout`, `database.lockTimeout` and `database.idleTransactionTimeout` |
+| Configuring the keepalives (PER-R6), the first acquisition probe, the identification of a session that acquired the lease (PER-R34) and the holder lookup | `database.queryTimeout`, for each statement; the session also carries the server-side `database.statementTimeout`, `database.lockTimeout` and `database.idleTransactionTimeout` |
 
 An earlier caller deadline or a cancellation, such as Server shutdown, ends a
 step sooner, and no budget extends the caller's deadline. A step other than
@@ -266,6 +299,8 @@ session the lookup left unusable (PER-R8). Opening the working pool and
 verifying its migrations come before these steps and are bounded by the
 working pool's own budgets: `database.queryTimeout` for its first ping, and
 the acquisition and query budgets for each statement of the migration check.
+The lease handover that follows an acquisition runs on the working pool under
+its budgets and stops startup the same way (PER-R35).
 
 **PER-R28.** Once the Server stands by or is active, the tolerance window
 (LIM-PER-3) bounds each lease-session probe instead. It bounds each standby
@@ -284,6 +319,107 @@ PostgreSQL releases its lock (PER-R7). A startup that must reach standby or
 active within a fixed time, or that must stand by and retry after a failed
 step instead of exiting, is a separate availability decision that would
 replace this requirement.
+
+### Lease handover
+
+**PER-R34.** A write whose late commit would invalidate what the next active
+Server's startup reads is a lease-fenced write. Its transaction, before it
+writes, takes the shared transaction lock of the lease handover, an advisory
+key built from the lease key (PER-R24), and then proves that its Server's lease
+session, identified by its backend process ID and session start time, still
+holds the advisory lease of the database. A proof that fails, because that
+session ended or another session holds the lease, rolls the transaction back
+with a lease-loss error, so the write commits nothing. A Server that acquired
+the lease identifies its lease session in the same probe and, before its
+startup reads any durable state, credential recovery first, takes the handover
+lock exclusively once in a transaction of its working pool. PostgreSQL grants
+that lock only after every transaction that holds the shared lock has
+committed or rolled back, and a lease-fenced write that asks for the shared
+lock while the exclusive request waits queues behind it and then finds the
+lease held by another session. So every lease-fenced write of an earlier
+holder is durable before the next active Server's startup reads begin, or
+never commits. The lease-fenced writes are the managed LLM credential create
+and delete intents, their completions and the abandonment of a create, and
+the Runtime credential create and the delete tombstone
+([RCF-R72](../configuration/runtime-config.md)).
+
+**PER-R35.** The lease handover runs while a standby still answers as one
+(PER-R3), or, after a first acquisition, before the Server serves anything.
+`database.lockTimeout` bounds its lock wait and `database.queryTimeout` its
+statement. A handover that fails or ends at its budget, and an acquisition
+probe that acquired the lease but cannot identify its session, close the
+lease session, which releases the lease, and stop startup with an error, as a
+failed startup lease step does (PER-R27, FAIL-PER-4); the process
+supervisor's restart is the retry. A cancellation, such as Server shutdown,
+ends the handover with the cancellation, and the Server exits without an
+error.
+
+Rationale: the guarantee is that no lease-fenced write of a previous holder
+becomes durable after its successor's startup read the state the write
+changes; the credential operation journal is the state that needs it,
+because startup recovery reads it once and then admits references
+([RCF-R72](../configuration/runtime-config.md)). Three designs were weighed.
+(A) A grace period after acquisition, as long as the previous holder's
+detection bound: rejected, because detection bounds when the previous Server
+notices, not when a COMMIT it already sent reaches PostgreSQL; a held COMMIT
+or a paused process lands after any fixed delay. (B) A proof of the lease in
+each fenced transaction under a shared lock that the successor takes
+exclusively: chosen, because PostgreSQL's lock manager decides the order in
+the same transaction as the write, it is a database proof as the epochs of
+PER-R25 are, and it reuses the advisory lease and the advisory key builder
+instead of adding a lease or epoch table. (C) The successor takes every
+credential's deletion lock before trusting its journal read: rejected,
+because it covers only credentials that exist when recovery lists them, not a
+create intent, nor an intent that starts after the wait, and its cost grows
+with the credential count. Evidence: a delete intent held at COMMIT across a
+server-side end of its lease session committed after the successor's
+recovery and Run admission, and the next start's recovery answered
+`credential_in_use` ([proposal 0044](../../proposals/0044-credential-deletion-availability.md),
+finding 7); invariants 28 and 29 prove the fix. Reopen this decision when a
+database has more than one active Server ([OPS-R5](../operations/operations.md))
+or the advisory lease is replaced, because the proof and the handover assume
+one lease key with one holder at a time.
+
+**PER-R36.** A write that is not lease-fenced may still commit after a
+server-side release of its Server's lease, until that Server's liveness probe
+stops it (PER-R5) or, while its process is paused, later. Startup work of the
+next active Server trusts state it read once only when every write of that
+state is lease-fenced; other state is fenced by a database lease of its own
+or read again. The work that runs from startup:
+
+| State or work | Why a previous holder's late write is excluded or harmless |
+| --- | --- |
+| LLM credential operation journal and records, Runtime credentials | Lease-fenced (PER-R34) |
+| Scheduler Run claims and the work under them | A Server claims only a Run whose claim is free or expired, and a lane gives its claim up before it expires ([SCH-R120, SCH-R166](../execution/scheduler.md)); the Scheduler reads Run state on every pass |
+| Gateway recovery probe | A leased probe whose lease ends with its holder's request timeout ([SCH-R106](../execution/scheduler.md)), read on every admission |
+| Audit, Eval and sweep controller claims | Claims whose epoch fences a stale holder (PER-R25) |
+| Scheduler pool sizes | Read again by the bounded periodic refresh ([SCH-R133](../execution/scheduler.md)) |
+| Deployment model selection | Read from PostgreSQL on every use |
+| Credential references: Run creation, Audit start and resume, Eval preflight, allocation pinning, RuntimeConfig binding mutation and Project target credential attachment | Not fenced; accepted risk below |
+
+Accepted risk: a reference transaction of the previous holder that is still
+open across the handover can commit after its successor accepted the delete
+of the same credential, whose reference check could not see it. When that
+delete completes, the reference names an absent credential, which the next
+revalidation refuses ([RCF-R47](../configuration/runtime-config.md)). When it
+stays prepared after a Gateway failure, a prepared delete coexists with a
+non-terminal Run that pins the credential: the running Server rejects that
+Run's references to it ([RCF-R53](../configuration/runtime-config.md)), but a
+restart before that Run ends fails startup recovery with `credential_in_use`.
+It needs a reference COMMIT held or paused across the successor's
+acquisition, handover and recovery, and a delete of exactly that credential
+in that window. Detection: startup recovery names the Run. Gateway calls are
+not database writes, so no transaction fences them. A retried prepared
+create, whose first Gateway call removes the deterministic alias that may by
+then name the key the successor created, proves the lease first and makes no
+call once the lease is lost; a retried prepared delete may reach the Gateway,
+which is harmless because remote deletion is idempotent and its completion
+commits nothing. What remains is a process pause between that proof and the
+Gateway call that outlasts the successor's acquisition, handover and
+recovery. Detection: the Runs that use the credential fail authentication at
+the Gateway. Reopen both by fencing the reference transactions and the
+retried Gateway calls under PER-R34 when a deployment can pause a Server for
+longer than its liveness probe, or when either interleaving is observed.
 
 ### Connection pooling for the lease
 
@@ -754,10 +890,11 @@ Failure outcomes ([failure model](failure-model.md)):
 - FAIL-PER-1 — the active Server's lease session (PER-R4, PER-R5, PER-R6,
   PER-R7, PER-R10).
 - FAIL-PER-2 — a standby's lease acquisition probe (PER-R3, PER-R8,
-  PER-R28).
+  PER-R28, PER-R35).
 - FAIL-PER-3 — the release of a controller claim at the end of a pass
   (PER-R25, PER-R26).
-- FAIL-PER-4 — the startup lease steps of a starting Server (PER-R27).
+- FAIL-PER-4 — the startup lease steps of a starting Server and its lease
+  handover (PER-R27, PER-R35).
 - FAIL-PER-5 — a migration run (PER-R29, PER-R30, PER-R31).
 
 Lifecycle ([lifecycle](lifecycle.md)):
@@ -1011,6 +1148,9 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
     (PER-R27, FAIL-PER-4); test
     `TestControlPlaneLeaseStartupStallEndsAtItsBudgetOwner` in
     [`internal/app/single_active_budget_test.go`](../../../internal/app/single_active_budget_test.go).
+    The identification of a session that acquired the lease runs under the
+    query budget, and the lease handover's statement under the working pool's
+    (PER-R27, PER-R35); the same budget test.
 24. A migration run commits every pending migration with its ledger row or
     none: a lock that a later pending migration cannot get within the chosen
     lock timeout fails the run as a timeout and leaves the ledger and the
@@ -1066,6 +1206,37 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
     lease advances the epoch (PER-R25); test
     `TestPostgresControllerClaimShapeMigrationReleasesEvalLeases` in
     [`internal/persistence/postgres/controller_claim_shape_migration_test.go`](../../../internal/persistence/postgres/controller_claim_shape_migration_test.go).
+28. A lease proof holds only for its own live lease session: it fails once
+    that session ended, while another session holds the lease and for a
+    backend that reuses the session's process ID. The handover is granted
+    only after every fenced write in flight committed or rolled back, a fenced
+    write of the previous holder after it commits nothing, a wait beyond
+    `database.lockTimeout` is a definite timeout and a cancelled wait keeps
+    the cancellation (PER-R34, PER-R35); tests
+    `TestPostgresServerLeaseProvesOnlyItsOwnLiveSession`,
+    `TestPostgresLeaseHandoverWaitsForEveryFencedWriteInFlight` and
+    `TestPostgresLeaseHandoverEndsAtTheLockTimeout` in
+    [`internal/persistence/postgres/lease_postgres_test.go`](../../../internal/persistence/postgres/lease_postgres_test.go).
+    After a server-side end of the active Server's lease session, a standby
+    that acquires the lease keeps answering `503` and returns as the active
+    Server only once the previous holder's open fenced write ended, a Server
+    whose first probe acquires the lease waits the same way, and a handover
+    beyond its lock timeout stops startup and releases the lease (PER-R2,
+    PER-R34, PER-R35, FAIL-PER-4); tests
+    `TestPostgresControlPlaneLeaseStandbyTakesOverOnlyAfterTheHandover`,
+    `TestPostgresControlPlaneLeaseFirstAcquisitionWaitsForTheHandover` and
+    `TestPostgresControlPlaneLeaseHandoverTimeoutStopsStartup` in
+    [`internal/app/single_active_handover_postgres_test.go`](../../../internal/app/single_active_handover_postgres_test.go).
+29. Two credential services on one database across a lease handover: a
+    previous holder's delete or create intent held at COMMIT ends before the
+    successor's recovery reads the journal, which then completes it, so no
+    prepared delete coexists with a Run that pins its credential; a create
+    completion held at COMMIT lands before that read; managed and Runtime
+    credential writes and completions the previous holder starts after the
+    handover commit nothing and answer the lease loss; a retried prepared
+    create of the previous holder makes no Gateway call (PER-R34, PER-R36,
+    [RCF-R72](../configuration/runtime-config.md)); tests in
+    [`internal/credentials/lifecycle_handover_postgres_test.go`](../../../internal/credentials/lifecycle_handover_postgres_test.go).
 
 ## Non-goals
 
