@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-132 open tasks: 23 in progress, 84 pending, 25 deferred. 1066 finished: 1056 completed, 10 archived.
+132 open tasks: 11 in progress, 96 pending, 25 deferred. 1066 finished: 1056 completed, 10 archived.
 
 ## In progress
 
@@ -14,26 +14,14 @@ the epics are in [epics.yml](epics.yml).
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
+| [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V410-010](v410-010-artifact-history-retention.yml) | projects-artifacts | feature | P1 | Apply automatic bounded history retention to every logical Artifact |
-| [V414-002](v414-002-eval-token-budget-overflow.yml) | evals | defect | P2 | Keep the Eval token budget and stage token summaries defined when token counters exceed int64 |
 | [V414-005](v414-005-source-archive-matching-off-loop.yml) | workspaces | defect | P2 | Match and sort source-archive list and search paths off the event loop |
 | [V414-006](v414-006-planner-session-write-outcomes.yml) | planner-worker | defect | P2 | Report one Planner outcome when the session write after a result fails |
-| [V414-007](v414-007-planner-session-state-limit.yml) | planner-worker | chore | P3 | Register the 2 MiB Planner session state bound and the other unregistered stored-size CHECKs |
-| [V414-008](v414-008-stored-size-check-classification.yml) | persistence | defect | P2 | Classify stored-size CHECK rejections as invalid input at every store writer |
 | [V414-011](v414-011-secret-holders-all-verbs.yml) | operations | defect | P1 | Redact every Go secret holder for every fmt verb, slog and unexported-field nesting |
-| [V414-012](v414-012-classify-closed-connection.yml) | persistence | defect | P2 | Classify a closed PostgreSQL connection, including a lost COMMIT reply, as unavailable |
-| [V414-013](v414-013-adk-callable-cache-release.yml) | planner-worker | defect | P2 | Stop ADK's module-level callable caches from keeping a released allocation's tools alive |
 | [V414-015](v414-015-credential-token-field-grammar.yml) | api-contracts | defect | P2 | Accept only sendable HTTP field values as Project target and infrastructure credential tokens |
-| [V414-016](v414-016-otlp-transport-family.yml) | operations | defect | P2 | Retry OTLP batches after TLS and OS transport failures |
 | [V414-017](v414-017-eval-json-nul-escape.yml) | evals | defect | P1 | Reject the NUL escape in Eval JSON so stored documents never break jsonb reads |
-| [V414-019](v414-019-held-inbox-page-bound.yml) | audits | defect | P2 | Bound the held Audit inbox page by the page, not by the Audit's holds |
-| [V414-022](v414-022-eval-purge-guard-lexer.yml) | evals | chore | P3 | Read trigger functions with the explaintest lexer in the Eval purge coverage guard and check rewrite rules |
-| [V414-023](v414-023-go-telemetry-secret-matching.yml) | operations | defect | P2 | Match secrets at the Go telemetry boundary by the shared 16-byte rule, longest first |
-| [V414-024](v414-024-plan-tests-exact-reads.yml) | persistence | chore | P3 | Measure the V407-025 drain and held-credential row budgets with explaintest Analysis.Reads |
-| [V414-025](v414-025-allocation-history-page-reads.yml) | operations | defect | P2 | Bound allocation-history pages by page size at any cursor depth and Run filter |
-| [V414-026](v414-026-eval-summary-generic-plan.yml) | evals | defect | P2 | Bound Eval experiment summary pages by page size in generic plans |
 | [V414-028](v414-028-audit-claim-reconcilable-candidates.yml) | audits | defect | P2 | Lease Audit controller claims from the reconcilable Audits instead of reading every claim row |
-| [V414-029](v414-029-audit-deletion-next-run-probe.yml) | audits | defect | P2 | Find a deleting Audit's next live child Run without reading every execution and Run |
 
 ## Pending
 
@@ -54,6 +42,8 @@ the epics are in [epics.yml](epics.yml).
 | [V371-004](v371-004-worker-completion-exact-integers.yml) | defect | P3 | — | Bound WorkerCompletion integers to the range A2A carries exactly |
 | [V371-005](v371-005-worker-state-read-cost-guard.yml) | chore | P3 | — | Guard the Worker State read cost with a deterministic bound, make its benchmark runnable and re-measure it |
 | [V371-006](v371-006-workspace-observation-descriptor.yml) | chore | P3 | — | Take the Worker tools that observe the workspace from the shared Toolset descriptor |
+| [V414-007](v414-007-planner-session-state-limit.yml) | chore | P3 | — | Register the 2 MiB Planner session state bound and the other unregistered stored-size CHECKs |
+| [V414-013](v414-013-adk-callable-cache-release.yml) | defect | P2 | — | Stop ADK's module-level callable caches from keeping a released allocation's tools alive |
 
 ### Runtime labels, configuration and credentials (`runtime-config`)
 
@@ -135,7 +125,9 @@ the epics are in [epics.yml](epics.yml).
 | [V411-016](v411-016-pentest-proof-report.yml) | feature | P1 | V411-012, V411-014 | Assemble retained pentest proof and incomplete-coverage reports |
 | [V414-001](v414-001-openapi-inventory-string-bound.yml) | defect | P2 | — | Give openapi-operations@1 the string bounds of the shared OpenAPI document rule |
 | [V414-018](v414-018-audit-detail-snapshot-read.yml) | defect | P2 | — | Read the Audit detail projection in one snapshot instead of answering an undeclared 409 |
+| [V414-019](v414-019-held-inbox-page-bound.yml) | defect | P2 | — | Bound the held Audit inbox page by the page, not by the Audit's holds |
 | [V414-020](v414-020-preparation-phase-one-rule.yml) | chore | P3 | — | Give the pre-Round preparation phase set one definition in Go and one in the UI |
+| [V414-029](v414-029-audit-deletion-next-run-probe.yml) | defect | P2 | — | Find a deleting Audit's next live child Run without reading every execution and Run |
 
 ### Evaluations (`evals`)
 
@@ -144,6 +136,9 @@ the epics are in [epics.yml](epics.yml).
 | [V40-003](v40-003-agent-instruction-eval-decision.yml) | feature | P1 | V40-002 | Evaluate instruction candidates and record evidence-based adoption decisions |
 | [V411-019](v411-019-pentest-target-fixtures-and-proof-scorers.yml) | chore | P1 | V411-002 | Build paired pentest fixtures and independent proof scorers |
 | [V411-021](v411-021-pentest-frozen-live-quality-evaluation.yml) | chore | P2 | V411-020 | Evaluate pentest quality against a frozen repeated-sample baseline |
+| [V414-002](v414-002-eval-token-budget-overflow.yml) | defect | P2 | — | Keep the Eval token budget and stage token summaries defined when token counters exceed int64 |
+| [V414-022](v414-022-eval-purge-guard-lexer.yml) | chore | P3 | — | Read trigger functions with the explaintest lexer in the Eval purge coverage guard and check rewrite rules |
+| [V414-026](v414-026-eval-summary-generic-plan.yml) | defect | P2 | V414-017 | Bound Eval experiment summary pages by page size in generic plans |
 
 ### Podman sandbox (`sandbox`)
 
@@ -157,6 +152,14 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V403-003](v403-003-openapi-preview-at-1mib.yml) | defect | P3 | — | Keep a 1 MiB OpenAPI preview from blocking the page |
 | [V411-018](v411-018-pentest-ui-journey.yml) | feature | P1 | V411-015, V411-017 | Build the autonomous HTTP pentest setup and evidence journey |
+
+### Operations, authentication, CLI and deployment (`operations`)
+
+| Task | Kind | Priority | Waiting for | Title |
+| --- | --- | --- | --- | --- |
+| [V414-016](v414-016-otlp-transport-family.yml) | defect | P2 | — | Retry OTLP batches after TLS and OS transport failures |
+| [V414-023](v414-023-go-telemetry-secret-matching.yml) | defect | P2 | — | Match secrets at the Go telemetry boundary by the shared 16-byte rule, longest first |
+| [V414-025](v414-025-allocation-history-page-reads.yml) | defect | P2 | — | Bound allocation-history pages by page size at any cursor depth and Run filter |
 
 ### Public API and wire contracts (`api-contracts`)
 
@@ -176,7 +179,10 @@ the epics are in [epics.yml](epics.yml).
 | [V372-008](v372-008-upward-table-reads.yml) | chore | P3 | — | Remove the table reads that point up the layer stack or name who owns each one |
 | [V372-009](v372-009-ownership-check-blind-spots.yml) | chore | P3 | — | Close the blind spots of the table ownership check |
 | [V372-010](v372-010-erd-usage-from-ownership-scan.yml) | chore | P3 | — | Take the ERD's code-usage lists from the ownership scan and document the new-table workflow |
+| [V414-008](v414-008-stored-size-check-classification.yml) | defect | P2 | — | Classify stored-size CHECK rejections as invalid input at every store writer |
+| [V414-012](v414-012-classify-closed-connection.yml) | defect | P2 | — | Classify a closed PostgreSQL connection, including a lost COMMIT reply, as unavailable |
 | [V414-021](v414-021-migration-file-deadline.yml) | defect | P3 | — | Decide the client deadline of a migration file: per statement or a migration budget of its own |
+| [V414-024](v414-024-plan-tests-exact-reads.yml) | chore | P3 | — | Measure the V407-025 drain and held-credential row budgets with explaintest Analysis.Reads |
 
 ### Quality, CI and process (`quality`)
 
@@ -191,7 +197,6 @@ the epics are in [epics.yml](epics.yml).
 | [V372-029](v372-029-shared-fixture-gate-scope.yml) | chore | P3 | — | Extend the shared fixture gate to every cross-language fixture |
 | [V372-030](v372-030-shrink-test-only-export-baseline.yml) | chore | P3 | — | Resolve the exported identifiers that only tests use and empty the test-only export baseline |
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | chore | P3 | — | Make the Runtime suite pass on macOS: declare the Linux-only Podman tests, make the other tests portable and file the macOS defects |
-| [V407-039](v407-039-close-server-runtime-review.yml) | chore | P3 | — | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V410-007](v410-007-sitemap-release-gate.yml) | chore | P1 | V410-006 | Verify the first sitemap slice across scale and lifecycle boundaries |
 | [V411-020](v411-020-pentest-http-release-gate.yml) | chore | P1 | V411-001, V411-002, V411-003, V411-004, V411-005, V411-006, V411-007, V411-008, V411-009, V411-010, V411-011, V411-012, V411-013, V411-014, V411-015, V411-016, V411-017, V411-018, V411-019, V410-007 | Gate the first HTTP API pentest delivery through real processes |
 | [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-001, V414-002, V414-003, V414-004, V414-005, V414-006, V414-007, V414-008, V414-009, V414-010, V414-011, V414-012, V414-013, V414-014, V414-015, V414-016, V414-017, V414-018, V414-019, V414-020, V414-021, V414-022, V414-023, V414-024, V414-025, V414-026, V414-028, V414-029, V414-030 | Close the V407/V409 review follow-ups |
