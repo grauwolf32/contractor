@@ -1,0 +1,172 @@
+schema_version: '1.0'
+id: V407-020
+title: Reduce bounded telemetry trimming and operations-history copying
+milestone: server-runtime-review-2026-10
+epic: operations
+kind: chore
+introduced_by: V1-004
+priority: P2
+status: completed
+implementation_commit: 38e9ab65818527d95c89834f4347657eda253af0
+depends_on: []
+languages:
+- go
+- python
+goal: Make report trimming proportional to retained detail and avoid copying the full operations history
+  on each append, preserving report content, limits and cursor behavior.
+context:
+  review: docs/research/2026-10-23-server-runtime-review.md (corrected dispositions, verified on main
+    dc7012e8; recheck source lines before implementation)
+  specification: docs/spec/platform/observability.md
+  finding: internal/telemetry/policy.go:62-70,132-140 removes one detail record and re-encodes the report
+    on each trim step. The same pattern occurs before transport in runtime/src/contractor_runtime/telemetry/metrics.py:502-514,
+    including repeated model_dump. Runtime already trims its report and the private client rejects bodies
+    above 1MiB, so a 1000-by-4KiB Worker report does not normally reach Server normalization intact. operations.go:428-433
+    copies the bounded 255-entry history after each append at capacity; runtime_client.go:391-406 and
+    telemetry/repository.go:141-157 duplicate resource-policy normalization.
+  validation: Validated against main dc7012e8 on 2026-10-23. The trim loops, ring-buffer opportunity and
+    sentinel duplication were verified on dc7012e8; their production latency was not measured. Runtime
+    is the reachable large-input sibling. Server trim tests must distinguish local producers/redaction
+    expansion from an oversized report already rejected at the private boundary.
+  siblings: Cover Python MetricsState.build_report, Go execution/allocation normalization, exact shared
+    JSON-size accounting and resource sentinel callers. Preserve oldest-detail eviction order, aggregate
+    counters, error priority, redaction, 1MiB report limits and operations cursor overflow behavior.
+plan:
+- Create representative Runtime producer and Server sanitizer cases with deterministic counters for record
+  serialization and complete-report encodes. Include near-limit input, error-only overflow, redaction
+  expansion and oversized aggregates.
+- Compute exact per-record encoded contribution once and choose the same retained suffix using additive
+  sizes/prefix sums or another bounded algorithm; verify the final envelope exactly. Preserve the current
+  eviction result rather than dropping half the records merely to reduce iterations.
+- Apply the optimization on both Runtime and Server paths, maintaining each format and shared escaping/byte-size
+  rules. Use a small constant bound on full-report encodes independent of removed-record count and linear
+  record projection counts.
+- Replace the capped operations slice copying with a bounded ring and preserve ordered snapshots, cursor
+  gaps and watcher notifications. Share resource-policy sentinel construction without changing either
+  caller outcome.
+- Test retention equivalence, mutation isolation, append allocations at capacity and lifecycle cleanup;
+  use counts and fixtures rather than elapsed-time assertions.
+scope:
+  in:
+  - Runtime and Server report-trimming cost without semantic changes.
+  - Bounded operations-history storage and shared resource-policy normalization.
+  out:
+  - Changing report/truncation order, size caps, retention, public metrics shape or operations cursor
+    semantics.
+  - Claiming that an oversized Runtime lifecycle report bypasses existing wire validation.
+acceptance_criteria:
+- id: A1
+  text: At 1000 retained candidate calls and maximum error detail, trimming performs a documented constant
+    number of complete-report encodes and linear record projections in both Runtime and Server paths;
+    output retains exactly the same detail suffix and aggregates as characterization fixtures.
+- id: A2
+  text: Tests cover producer-to-private-boundary behavior, local Server normalization/redaction expansion,
+    exact byte limits and aggregate-too-large failures without requiring an impossible oversized Worker
+    response to pass validation.
+- id: A3
+  text: Appending an operations change at history capacity allocates no new history backing array; ordered
+    read snapshots, generation/revision cursors and gap behavior remain unchanged.
+- id: A4
+  text: Resource-policy normalization has one production definition and identical requested/disabled/invalid
+    outcomes at both callers; deterministic encode/allocation count regressions distinguish the old implementation.
+tests:
+- command: go test -count=1 ./internal/telemetry/... ./internal/controlplane/... ./internal/contracts/...
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: cd runtime && uv run --locked pytest -q tests/test_metrics.py tests/test_allocation.py
+  covers:
+  - A1
+  - A2
+  - A4
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+verification:
+  date: '2026-10-23'
+  revision: 38e9ab65818527d95c89834f4347657eda253af0
+  environment: Worktree contractor-wt/r1, branch claude/rv-r1 on base 33f73b27, macOS arm64 (Darwin),
+    Go 1.26.9 (GOTOOLCHAIN=local), Python 3.13 via uv sync --locked, Node 24.20 with Corepack pnpm, local
+    PostgreSQL 17.11 with CONTRACTOR_TEST_DATABASE_URL=postgres://ruslan@localhost:5432/contractor_test_r1.
+  database_tests_configured: true
+  source_recheck: 'Re-verified on 33f73b27: internal/telemetry/policy.go removed one record and re-encoded
+    the report per step in NormalizeAllocationReport (62-74) and NormalizeExecutionReport (132-144), and
+    encoded oversized arguments twice (113-118); runtime/src/contractor_runtime/telemetry/metrics.py build_report
+    (525-538) re-ran model_dump and json.dumps per removal and _bound_arguments measured twice;
+    internal/controlplane/operations.go:428-433 copied the 255-entry history after every append at capacity;
+    runtime_client.go:391-406 and telemetry/repository.go:141-157 held identical resource-policy code.'
+  results:
+  - 'A1: telemetry.trimDetail (Go) and trim_report_detail (Python, called by MetricsState.build_report)
+    measure each record once, subtract each removal (element plus its comma) and measure the complete
+    report at most three times per bound: candidate, envelope without detail, retained result, which
+    must equal the computed size (OBS-R110, docs/spec/platform/observability.md). TestReportTrimMeasuresTheCompleteReportAtMostThreeTimes
+    (1000 calls of ~4 KiB, newest 100 failed, 100 errors of 4096 bytes) counts {reports 3, records 1100,
+    argument summaries 1000} for a Planner report at 1 MiB and {reports 3, allocation reports 3, records
+    1100 + the 176 the Worker bound kept} when both bounds trim; test_shared_report_trim_measures_the_complete_report_at_most_three_times
+    counts {reports 3, records 1100} and no record re-projection. Both check the retained suffix is the
+    first that fits (one more older call does not fit) and that aggregates are unchanged.'
+  - 'A1 fail-before: the new tests on base 33f73b27 (temporary worktree, old loop behind the new signature,
+    removed afterwards) count 925 complete Go encodes (22.8 s) and 926 Python measurements; the old
+    operations append allocates 2 times at capacity. The shared fixture and differential tests pass on
+    the old loop, which is what they pin.'
+  - 'A1/A2 equivalence: api/testdata/v1alpha1/telemetry-report-trim-cases.json (generated with the previous
+    loop; covered by readers.json v1alpha1/ for go and python) holds four reports (ASCII, multibyte with
+    U+2028/U+2029, <>&, quotes, backslash, control characters and astral characters, error-only, already
+    truncated) and 58 limits: every size of the removal sequence, that size minus one byte, the untrimmed
+    size plus one, and aggregateTooLarge below the envelope. TestSharedReportTrimKeepsTheSharedSuffixAtEveryBoundary
+    and test_shared_report_trim_keeps_the_shared_suffix_at_every_boundary check suffixes, truncated and
+    exact sizes on both sides; the Go side also checks the untrimmed size equals the Runtime measure.
+    TestReportTrimMatchesThePreviousLoopAtEveryBoundary and test_shared_report_trim_matches_the_previous_loop_byte_for_byte
+    compare the new code with the previous loop byte for byte at size-1, size and size+1 of every state,
+    including the allocation envelope (HTML-escaped RuntimeReport) and an unencodable record. The fixture
+    caught that a non-fitting report must lose at least one record even when "truncated":true alone
+    would fit.'
+  - 'A2: test_maximum_worker_detail_crosses_the_private_report_boundary aborts a real allocation holding
+    1000 calls and 100 maximum errors plus a 4096-byte reason; the Starlette-shaped body is <= 1 MiB,
+    decode_private accepts it, the newest suffix and the reason are kept, aggregates exact. TestAllocationNormalizationTrimsRedactionExpansionOfABoundedReport
+    decodes a <= 1 MiB AllocationFinalResponse through DecodePrivateStrict, then a 3-byte secret expands
+    on Server redaction and the Worker bound trims redacted records (3 report measures), secret absent.
+    TestReportNormalizationRejectsAnAggregateAboveItsBound and test_shared_report_trim_rejects_an_aggregate_larger_than_the_bound
+    pin the aggregate errors; TestReportTrimRejectsInconsistentSizeAccounting and test_shared_report_trim_rejects_inconsistent_size_accounting
+    pin the accounting-mismatch error. No test needs a > 1 MiB Worker response to pass validation.'
+  - 'A3: operationsChanges is a fixed [255]OperationsChange ring inside the registry. TestOperationsHistoryKeepsTheLatestChangesInOrderWithoutCopying
+    appends 772 changes against a reference, checks ordered replays of the last 1, 2, 100 and 255, cursor
+    expiry one change older, a watcher hint after the wrap, replay copy isolation, testing.AllocsPerRun
+    = 0 for an append at capacity and a cancelled watcher. TestOperationsReplayIsOrderedBoundedAndNotifiesWithoutBlocking
+    keeps its cursor and gap checks; only its corrupt-history setup now rebuilds the ring.'
+  - 'A4: reporting.RuntimeReport.ApplyResourcePolicy is the one definition (CTL-R136); both private copies
+    were deleted. TestApplyResourcePolicyKeepsOnlyRequestedValidResources covers requested valid/absent/undecodable/invalid,
+    disabled, unsupported and unknown policy; TestRuntimeResourcesAreIsolatedFromLifecycleTruth drives
+    Finalize and Abort against an HTTP Runtime and TestRecordAllocationReportAppliesThePinnedResourcePolicy
+    drives RecordAllocationReport on PostgreSQL, each with the same expected requested/disabled/invalid
+    outcomes.'
+  - 'go test -count=1 ./internal/telemetry/... ./internal/controlplane/... ./internal/contracts/...: all
+    ok with the database set; the only skip is TestPlannerOTLPCollectorProjection, which needs CONTRACTOR_TEST_OTLP_ENDPOINT
+    (an external collector, unrelated). go test -race -count=1 on internal/telemetry, internal/controlplane
+    and internal/contracts/reporting: ok. go build ./... and go vet ./internal/...: ok.'
+  - 'cd runtime && uv run --locked pytest -q tests/test_metrics.py tests/test_allocation.py: 62 passed.'
+  - 'make test-runtime equivalent (uv run pytest -p no:randomly): 4448 passed, 104 failed, 39 skipped;
+    all failures are the known macOS set (95 podman_*, tool_process 2, trailmark_child 2, projectfs_local_direct
+    2, projectfs_local_io 1, local_direct_faults socket 1, code_analysis_graph 1).'
+  - 'make test-wire-cross-language: passed (253 fixtures, 191 Python shared tests). make lint: passed.
+    make docs-dependencies: regenerated, no change.'
+  siblings: 'Fixed: the double argument-summary measure in Go (policy.go) and Python (_bound_arguments).
+    Ruled out: runtime/src/contractor_runtime/worker/state.py _fit_snapshot already uses a binary search
+    (logarithmic encodes) under its own WRK State rule; registry.go heartbeatOrder (128) and stageReservationTombstones
+    reslice with [1:], so append reallocates only when capacity runs out (amortized constant), unlike the
+    per-append 255-entry copy. Python RuntimeReport.isolate_resources is decode-side isolation, not policy
+    application.'
+  decision: 'Boundary: Worker producer and Server trim independently (two languages), so one definition
+    is impossible; the guarantee is the shared fixture plus per-language differential tests against the
+    previous loop. Alternatives considered: halving or binary search over the removal count (logarithmic
+    encodes, still more than three, and halving would change the retained suffix) and incremental prefix
+    sums (chosen, exact and linear). Reversal: if a record field gains a custom marshaler or the report
+    encoding stops being element-additive, trimDetail/trim_report_detail fail loudly on the exact-size
+    check and the differential tests; then return to measuring candidates.'
+  new_spec_ids:
+  - OBS-R110 (docs/spec/platform/observability.md) and observability invariant 9
