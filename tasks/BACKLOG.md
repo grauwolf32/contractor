@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-134 open tasks: 6 in progress, 103 pending, 25 deferred. 1060 finished: 1052 completed, 8 archived.
+136 open tasks: 7 in progress, 104 pending, 25 deferred. 1060 finished: 1052 completed, 8 archived.
 
 ## In progress
 
@@ -17,6 +17,7 @@ the epics are in [epics.yml](epics.yml).
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
 | [V406-007](v406-007-web-scan-release-gate.yml) | scan-tools | chore | P2 | Gate the complete web scan and rule sweep journeys |
 | [V406-016](v406-016-release-report-initialization.yml) | quality | defect | P2 | Initialize shared release evidence before either language writes it |
+| [V409-013](v409-013-verify-sql-review-on-database.yml) | persistence | chore | P2 | Verify retained SQL-review changes and record evidence for every accepted or declined claim |
 
 ## Pending
 
@@ -129,6 +130,8 @@ the epics are in [epics.yml](epics.yml).
 | [V414-018](v414-018-audit-detail-snapshot-read.yml) | defect | P2 | — | Read the Audit detail projection in one snapshot instead of answering an undeclared 409 |
 | [V414-019](v414-019-held-inbox-page-bound.yml) | defect | P2 | — | Bound the held Audit inbox page by the page, not by the Audit's holds |
 | [V414-020](v414-020-preparation-phase-one-rule.yml) | chore | P3 | — | Give the pre-Round preparation phase set one definition in Go and one in the UI |
+| [V414-028](v414-028-audit-claim-reconcilable-candidates.yml) | defect | P2 | — | Lease Audit controller claims from the reconcilable Audits instead of reading every claim row |
+| [V414-029](v414-029-audit-deletion-next-run-probe.yml) | defect | P2 | — | Find a deleting Audit's next live child Run without reading every execution and Run |
 
 ### Evaluations (`evals`)
 
@@ -184,7 +187,6 @@ the epics are in [epics.yml](epics.yml).
 | [V372-008](v372-008-upward-table-reads.yml) | chore | P3 | — | Remove the table reads that point up the layer stack or name who owns each one |
 | [V372-009](v372-009-ownership-check-blind-spots.yml) | chore | P3 | — | Close the blind spots of the table ownership check |
 | [V372-010](v372-010-erd-usage-from-ownership-scan.yml) | chore | P3 | — | Take the ERD's code-usage lists from the ownership scan and document the new-table workflow |
-| [V409-013](v409-013-verify-sql-review-on-database.yml) | chore | P2 | — | Verify retained SQL-review changes and record evidence for every accepted or declined claim |
 | [V414-008](v414-008-stored-size-check-classification.yml) | defect | P2 | — | Classify stored-size CHECK rejections as invalid input at every store writer |
 | [V414-012](v414-012-classify-closed-connection.yml) | defect | P2 | — | Classify a closed PostgreSQL connection, including a lost COMMIT reply, as unavailable |
 | [V414-021](v414-021-migration-file-deadline.yml) | defect | P3 | — | Decide the client deadline of a migration file: per statement or a migration budget of its own |
@@ -206,7 +208,7 @@ the epics are in [epics.yml](epics.yml).
 | [V407-039](v407-039-close-server-runtime-review.yml) | chore | P3 | — | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V410-007](v410-007-sitemap-release-gate.yml) | chore | P1 | V410-006 | Verify the first sitemap slice across scale and lifecycle boundaries |
 | [V411-020](v411-020-pentest-http-release-gate.yml) | chore | P1 | V411-001, V411-002, V411-003, V411-004, V411-005, V411-006, V411-007, V411-008, V411-009, V411-010, V411-011, V411-012, V411-013, V411-014, V411-015, V411-016, V411-017, V411-018, V411-019, V410-007 | Gate the first HTTP API pentest delivery through real processes |
-| [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-001, V414-002, V414-003, V414-004, V414-005, V414-006, V414-007, V414-008, V414-009, V414-010, V414-011, V414-012, V414-013, V414-014, V414-015, V414-016, V414-017, V414-018, V414-019, V414-020, V414-021, V414-022, V414-023, V414-024, V414-025, V414-026 | Close the V407/V409 review follow-ups |
+| [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-001, V414-002, V414-003, V414-004, V414-005, V414-006, V414-007, V414-008, V414-009, V414-010, V414-011, V414-012, V414-013, V414-014, V414-015, V414-016, V414-017, V414-018, V414-019, V414-020, V414-021, V414-022, V414-023, V414-024, V414-025, V414-026, V414-028, V414-029 | Close the V407/V409 review follow-ups |
 
 ## Deferred
 
@@ -257,7 +259,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 9 | 16 | 6 | 8 | 11 |
 | Workflow catalog and document workflows (`workflows`) | 7 | 18 | 14 | 12 | 18 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 4 | 34 | 33 | 6 | 38 |
-| Audits (`audits`) | 28 | 60 | 76 | 23 | 98 |
+| Audits (`audits`) | 30 | 60 | 78 | 23 | 100 |
 | Evaluations (`evals`) | 8 | 21 | 37 | 11 | 45 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 2 | 25 | 61 | 13 | 55 |

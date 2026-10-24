@@ -5,7 +5,7 @@ milestone: sql-review-2026-10
 epic: persistence
 kind: chore
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V409-001, V409-002, V409-003, V409-004, V409-005, V409-006, V409-007, V409-008, V409-009, V409-010, V409-011, V409-012, V409-014]
 languages: [go, sql]
 goal: "Close the SQL-review milestone only after retained work is complete and every original claim has a supported disposition with reproducible evidence."
