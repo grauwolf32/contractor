@@ -5,7 +5,7 @@ milestone: web-nuclei-rule-sweeps-2026-10
 epic: scan-tools
 kind: chore
 priority: P2
-status: pending
+status: in_progress
 depends_on:
 - V406-001
 - V406-002
@@ -106,3 +106,5 @@ tests:
   covers: *id001
 - command: make release-verify
   covers: *id001
+execution_notes:
+- On 2026-10-24 the user authorized diagnosing the native managed-Eval browser timeout and continuing focused V406-007 gates. Full release-verify remains explicitly withheld; keep the milestone open until that required command is authorized and passes.
