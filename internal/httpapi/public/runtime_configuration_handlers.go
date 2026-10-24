@@ -138,9 +138,8 @@ func (h *runtimeConfigurationHandlers) publishRuntimeConfig(w http.ResponseWrite
 		handleError(w, err)
 		return
 	}
-	mediaType, err := requestMediaType(r)
-	if err != nil || mediaType != "application/json" {
-		handleError(w, errInvalidRequest)
+	if err := requireJSONMediaType(r); err != nil {
+		handleError(w, err)
 		return
 	}
 	idempotencyKey, err := requireIdempotencyKey(r)
@@ -243,9 +242,8 @@ func (h *runtimeConfigurationHandlers) putRuntimeLabel(w http.ResponseWriter, r 
 		handleError(w, err)
 		return
 	}
-	mediaType, err := requestMediaType(r)
-	if err != nil || mediaType != "application/json" {
-		handleError(w, errInvalidRequest)
+	if err := requireJSONMediaType(r); err != nil {
+		handleError(w, err)
 		return
 	}
 	label := r.PathValue("label")
@@ -411,9 +409,8 @@ func (h *runtimeConfigurationHandlers) createRuntimeCredential(w http.ResponseWr
 		handleError(w, err)
 		return
 	}
-	mediaType, err := requestMediaType(r)
-	if err != nil || mediaType != "application/json" {
-		handleError(w, errInvalidRequest)
+	if err := requireJSONMediaType(r); err != nil {
+		handleError(w, err)
 		return
 	}
 	idempotencyKey, err := requireIdempotencyKey(r)
@@ -531,10 +528,7 @@ func runtimeLabelPutPrecondition(r *http.Request) (runtimeLabelMutationMode, uin
 }
 
 func runtimeLabelDeletePrecondition(r *http.Request) (uint64, error) {
-	if len(r.Header.Values("If-None-Match")) != 0 || len(r.Header.Values("If-Match")) != 1 {
-		return 0, fmt.Errorf("%w: binding DELETE requires one If-Match", errInvalidRequest)
-	}
-	return parseRuntimeRevisionETag(r.Header.Values("If-Match")[0])
+	return requiredRevision(r, "binding DELETE")
 }
 
 func (h *runtimeConfigurationHandlers) auditRuntimeMutation(r *http.Request, action, resourceID string, replayed bool) {

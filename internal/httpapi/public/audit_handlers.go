@@ -137,9 +137,8 @@ func (h *auditHandlers) createAudit(w http.ResponseWriter, r *http.Request) {
 		handleError(w, err)
 		return
 	}
-	mediaType, err := requestMediaType(r)
-	if err != nil || mediaType != "application/json" {
-		handleError(w, errInvalidRequest)
+	if err := requireJSONMediaType(r); err != nil {
+		handleError(w, err)
 		return
 	}
 	key, err := requireIdempotencyKey(r)
@@ -305,6 +304,10 @@ func (h *auditHandlers) startAudit(w http.ResponseWriter, r *http.Request) {
 		handleError(w, err)
 		return
 	}
+	if err := requireOptionalJSONMediaType(r); err != nil {
+		handleError(w, err)
+		return
+	}
 	key, revision, err := auditMutationHeaders(r)
 	if err != nil {
 		handleError(w, err)
@@ -371,6 +374,12 @@ func (h *auditHandlers) mutateAudit(w http.ResponseWriter, r *http.Request, acti
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		handleError(w, err)
 		return
+	}
+	if action == "resume" {
+		if err := requireOptionalJSONMediaType(r); err != nil {
+			handleError(w, err)
+			return
+		}
 	}
 	key, revision, err := auditMutationHeaders(r)
 	if err != nil {

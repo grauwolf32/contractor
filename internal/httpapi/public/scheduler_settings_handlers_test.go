@@ -169,7 +169,9 @@ func TestSchedulerSettingsReplaceRejectsInvalidRequestsWithoutMutation(t *testin
 				http.MethodPut, "/v1/operations/settings/scheduler"+test.target,
 				bytes.NewReader([]byte(test.body)),
 			)
-			if test.contentType != "" {
+			if test.contentType == "" {
+				request.Header.Del("Content-Type")
+			} else {
 				request.Header.Set("Content-Type", test.contentType)
 			}
 			for _, value := range test.ifMatch {

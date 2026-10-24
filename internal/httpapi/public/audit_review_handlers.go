@@ -2,7 +2,6 @@ package public
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -142,6 +141,10 @@ func (h *auditHandlers) createAuditFindingReview(w http.ResponseWriter, r *http.
 		handleError(w, err)
 		return
 	}
+	if err := requireJSONMediaType(r); err != nil {
+		handleError(w, err)
+		return
+	}
 	key, revision, err := auditMutationHeaders(r)
 	if err != nil {
 		handleError(w, err)
@@ -235,6 +238,10 @@ func (h *auditHandlers) listAuditReviews(w http.ResponseWriter, r *http.Request)
 func (h *auditHandlers) decideAuditReview(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
+		handleError(w, err)
+		return
+	}
+	if err := requireJSONMediaType(r); err != nil {
 		handleError(w, err)
 		return
 	}
@@ -380,10 +387,7 @@ func auditMutationHeaders(r *http.Request) (string, uint64, error) {
 	if err != nil {
 		return "", 0, err
 	}
-	if len(r.Header.Values("If-None-Match")) != 0 || len(r.Header.Values("If-Match")) != 1 {
-		return "", 0, fmt.Errorf("%w: Audit mutation requires one If-Match", errInvalidRequest)
-	}
-	revision, err := parseRuntimeRevisionETag(r.Header.Values("If-Match")[0])
+	revision, err := requiredRevision(r, "Audit mutation")
 	return key, revision, err
 }
 

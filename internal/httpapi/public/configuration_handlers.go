@@ -97,9 +97,8 @@ func (h *catalogHandlers) getConfiguration(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *catalogHandlers) publishConfiguration(w http.ResponseWriter, r *http.Request) {
-	mediaType, err := requestMediaType(r)
-	if err != nil || mediaType != "application/json" {
-		handleError(w, fmt.Errorf("%w: Content-Type must be application/json", errInvalidRequest))
+	if err := requireJSONMediaType(r); err != nil {
+		handleError(w, err)
 		return
 	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {

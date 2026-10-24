@@ -40,8 +40,7 @@ func evalBody(w http.ResponseWriter, r *http.Request, kind string, cas bool) (ev
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		return fail()
 	}
-	media, err := requestMediaType(r)
-	if err != nil || media != "application/json" {
+	if requireJSONMediaType(r) != nil {
 		return fail()
 	}
 	if len(r.Header.Values("Idempotency-Key")) != 1 || len(r.Header.Values("If-Match")) > 1 || !cas && r.Header.Get("If-Match") != "" {

@@ -294,7 +294,19 @@ Admission of Git imports is defined in [Git import](git-import.md).
 **BLB-R28.** Every client socket read or write performed while an HTTP
 handler holds a slot has its own deadline. A response that no longer needs the
 payload (an upload result, archive preview or error) is written only after the
-slot is released.
+slot is released. An Artifact payload upload whose body stops before its
+declared length, whose connection fails or whose socket read misses its
+deadline stores nothing and is answered `500 internal_error` with
+`retryable: true`, on the public Artifact routes and the private allocation
+API alike. It differs from a JSON request body, which is at most 1 MiB, is
+read whole before validation and is the client's `400 invalid_request` when it
+cannot be read completely ([API-R112](../api/public-api.md)): a payload of up
+to 64 MiB streams under per-read deadlines, so its interruption is an
+expected transport failure rather than a malformed request, and the upload's
+precondition (`If-None-Match: *` or the expected revision) makes resending the
+whole payload safe; the Runtime's Artifact client reports this class to its
+callers as retryable. Reopen if a client must tell a client-side abort from a
+Server failure.
 
 **BLB-R29.** Socket deadlines never cancel storage work; storage
 work has its own budget.

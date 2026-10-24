@@ -240,10 +240,14 @@ func (h *runHandlers) createProjectRun(w http.ResponseWriter, r *http.Request) {
 	h.createRunFromProject(w, r, &projectID, idempotencyKey)
 }
 
-// runCreationKey checks the query of a Run creation and returns its
-// Idempotency-Key before a Project or the body is read.
+// runCreationKey checks the query and media type of a Run creation and
+// returns its Idempotency-Key before a Project or the body is read.
 func runCreationKey(w http.ResponseWriter, r *http.Request) (string, bool) {
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
+		handleError(w, err)
+		return "", false
+	}
+	if err := requireJSONMediaType(r); err != nil {
 		handleError(w, err)
 		return "", false
 	}
@@ -322,6 +326,10 @@ func (h *runHandlers) cancelRun(w http.ResponseWriter, r *http.Request) {
 		handleError(w, err)
 		return
 	}
+	if err := requireJSONMediaType(r); err != nil {
+		handleError(w, err)
+		return
+	}
 	var request *cancelRunRequest
 	if err := decodeJSON(w, r, &request); err != nil {
 		handleError(w, err)
@@ -367,6 +375,10 @@ func (h *runHandlers) cancelRun(w http.ResponseWriter, r *http.Request) {
 
 func (h *runHandlers) resumeRun(w http.ResponseWriter, r *http.Request) {
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
+		handleError(w, err)
+		return
+	}
+	if err := requireJSONMediaType(r); err != nil {
 		handleError(w, err)
 		return
 	}

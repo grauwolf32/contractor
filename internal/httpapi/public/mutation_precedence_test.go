@@ -5,6 +5,8 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"net/http/httptest"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -13,6 +15,7 @@ import (
 	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 )
@@ -50,20 +53,56 @@ func (p countingProjects) Get(ctx context.Context, ownerID, projectID string) (p
 	return p.ProjectManagement.Get(ctx, ownerID, projectID)
 }
 
+// countingAudits counts the Audit lifecycle calls that reach the Audit
+// service, so a test can tell that a request got past its header checks even
+// when the fake's empty result cannot be rendered.
+type countingAudits struct {
+	AuditManagement
+	calls *atomic.Int64
+}
+
+func (a countingAudits) Start(ctx context.Context, params auditservice.StartParams) (auditservice.StartedAudit, error) {
+	a.calls.Add(1)
+	return a.AuditManagement.Start(ctx, params)
+}
+
+func (a countingAudits) Pause(ctx context.Context, params auditservice.MutationParams) (auditservice.MutationResult, error) {
+	a.calls.Add(1)
+	return a.AuditManagement.Pause(ctx, params)
+}
+
+func (a countingAudits) Resume(ctx context.Context, params auditservice.MutationParams) (auditservice.MutationResult, error) {
+	a.calls.Add(1)
+	return a.AuditManagement.Resume(ctx, params)
+}
+
+func (a countingAudits) Cancel(ctx context.Context, params auditservice.MutationParams) (auditservice.MutationResult, error) {
+	a.calls.Add(1)
+	return a.AuditManagement.Cancel(ctx, params)
+}
+
+func (a countingAudits) Delete(ctx context.Context, params auditservice.MutationParams) (auditservice.MutationResult, error) {
+	a.calls.Add(1)
+	return a.AuditManagement.Delete(ctx, params)
+}
+
 // precedenceFixture serves the real handlers over fakes, with an active
 // Project project-one and a deleting Project project-deleting of user-1, a
-// Project foreign of another owner, and a count of Project-store reads.
+// Project foreign of another owner, and counts of Project-store reads and of
+// Audit lifecycle calls.
 type precedenceFixture struct {
 	handlerFixture
 	projectReads *atomic.Int64
+	auditCalls   *atomic.Int64
 }
 
 func newPrecedenceFixture(t *testing.T) precedenceFixture {
 	t.Helper()
-	reads := new(atomic.Int64)
+	reads, auditCalls := new(atomic.Int64), new(atomic.Int64)
 	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil,
 		func(services *testServices) {
 			services.Projects = countingProjects{ProjectManagement: services.Projects, gets: reads}
+			services.Audits = countingAudits{AuditManagement: services.Audits, calls: auditCalls}
 		})
 	now := time.Date(2026, 10, 23, 0, 0, 0, 0, time.UTC)
 	for _, project := range []projectstore.Project{
@@ -75,7 +114,7 @@ func newPrecedenceFixture(t *testing.T) precedenceFixture {
 		project.CreatedAt, project.UpdatedAt = now, now
 		fixture.projects.projects[project.ProjectID] = project
 	}
-	return precedenceFixture{handlerFixture: fixture, projectReads: reads}
+	return precedenceFixture{handlerFixture: fixture, projectReads: reads, auditCalls: auditCalls}
 }
 
 // mutationProbes returns a probe for every public mutation, by operationId.
@@ -166,14 +205,61 @@ func mandatoryHeaderCases(t *testing.T, probe boundProbe) []headerCase {
 	return cases
 }
 
+// sendHeaderProbe sends the probe's operation with the headers it requires,
+// changed by apply when apply is not nil. An operation with a request body
+// gets the JSON body {} (or two bytes of content); one without gets no body,
+// so a body-less operation's answer never comes from an unexpected body.
+func sendHeaderProbe(t *testing.T, fixture precedenceFixture, probe boundProbe, apply func(http.Header)) (*httptest.ResponseRecorder, errorResponse, *trackedBody) {
+	t.Helper()
+	body, length := &trackedBody{}, int64(0)
+	if probe.operation.RequestBody != nil {
+		body.data, length = []byte("{}"), 2
+	}
+	request := boundProbeRequest(t, probe, body, length)
+	if apply != nil {
+		apply(request.Header)
+	}
+	fixture.projectReads.Store(0)
+	fixture.auditCalls.Store(0)
+	response, failure := serveProbe(fixture.handler, request)
+	return response, failure, body
+}
+
+// requestErrorOf returns the status and code with which the operation
+// answers a malformed request header (API-R69, API-R70).
+func requestErrorOf(probe boundProbe) (int, string) {
+	if managedEvalOperation(probe.operation.OperationID) {
+		return http.StatusUnprocessableEntity, "eval_invalid"
+	}
+	return http.StatusBadRequest, "invalid_request"
+}
+
+// checkPassesHeaderChecks fails unless a request with valid headers got past
+// the header checks: an operation with a body read it, and a body-less
+// operation reached the Audit service or did not answer with its header
+// error.
+func checkPassesHeaderChecks(t *testing.T, fixture precedenceFixture, probe boundProbe, label string, response *httptest.ResponseRecorder, failure errorResponse, body *trackedBody) {
+	t.Helper()
+	status, code := requestErrorOf(probe)
+	switch {
+	case probe.operation.RequestBody != nil && body.reads == 0:
+		t.Errorf("%s = %d %s without reading the body", label, response.Code, response.Body.String())
+	case probe.operation.RequestBody == nil && fixture.auditCalls.Load() == 0 &&
+		response.Code == status && failure.Code == code:
+		t.Errorf("%s = %d %s, rejected like a malformed header", label, response.Code, response.Body.String())
+	}
+}
+
 // TestSharedMutationHeadersAreRejectedBeforeTheBodyAndStores sends every public
 // mutation that declares an Idempotency-Key or If-Match header with each
 // invalid value of it and otherwise valid metadata. Each request fails with
 // the operation's documented header error before the handler reads a byte of
 // its body or reads a Project, while the same request with valid headers
-// does read its body. Operations without these headers have no such case.
+// gets past the header checks: it reads its body, or for a body-less
+// operation, which is sent no body, it is not rejected as malformed. So a
+// body-less operation such as deleteProject cannot pass only because it
+// rejects a body. Operations without these headers have no such case.
 func TestSharedMutationHeadersAreRejectedBeforeTheBodyAndStores(t *testing.T) {
-	fixture := newPrecedenceFixture(t)
 	probes := mutationProbes(loadPublicOpenAPI(t))
 	checked := 0
 	for _, name := range sortedProbeNames(probes) {
@@ -184,20 +270,12 @@ func TestSharedMutationHeadersAreRejectedBeforeTheBodyAndStores(t *testing.T) {
 		}
 		checked++
 		t.Run(name, func(t *testing.T) {
-			if probe.operation.RequestBody != nil {
-				body := &trackedBody{data: []byte("{}")}
-				fixture.projectReads.Store(0)
-				response, failure := serveProbe(fixture.handler, boundProbeRequest(t, probe, body, 2))
-				if body.reads == 0 {
-					t.Fatalf("valid headers = %d %s %s without reading the body", response.Code, failure.Code, response.Body.String())
-				}
-			}
+			// A fresh fixture: a valid deleteProject really starts deletion.
+			fixture := newPrecedenceFixture(t)
+			response, failure, body := sendHeaderProbe(t, fixture, probe, nil)
+			checkPassesHeaderChecks(t, fixture, probe, "valid headers", response, failure, body)
 			for _, header := range cases {
-				body := &trackedBody{data: []byte("{}")}
-				request := boundProbeRequest(t, probe, body, 2)
-				header.apply(request.Header)
-				fixture.projectReads.Store(0)
-				response, failure := serveProbe(fixture.handler, request)
+				response, failure, body := sendHeaderProbe(t, fixture, probe, header.apply)
 				if response.Code != header.status || failure.Code != header.code || failure.Retryable {
 					t.Errorf("%s = %d %s, want %d %s", header.name, response.Code, response.Body.String(), header.status, header.code)
 				}
@@ -209,6 +287,166 @@ func TestSharedMutationHeadersAreRejectedBeforeTheBodyAndStores(t *testing.T) {
 	}
 	if checked == 0 {
 		t.Fatal("no mutation declares an Idempotency-Key or If-Match header")
+	}
+}
+
+// counterPrecondition reports an operation whose If-Match is a revision
+// counter (the RequiredIfMatch and IfMatch parameters) and returns the
+// parameter's OpenAPI pattern.
+func counterPrecondition(probe boundProbe) (string, bool) {
+	for _, parameter := range probe.operation.Parameters {
+		if parameter.Value == nil || parameter.Value.Name != "If-Match" {
+			continue
+		}
+		if strings.HasSuffix(parameter.Ref, "/RequiredIfMatch") || strings.HasSuffix(parameter.Ref, "/IfMatch") {
+			return parameter.Value.Schema.Value.Pattern, true
+		}
+	}
+	return "", false
+}
+
+// TestSharedRevisionIfMatchCasesGateEveryCounterPrecondition sends every
+// public mutation with a counter If-Match each shared case. The OpenAPI
+// pattern accepts the valid and out-of-range cases and no invalid one. Every
+// rejected value and every repeated If-Match is the operation's request error
+// (400 invalid_request, or 422 eval_invalid on Managed Eval routes), never a
+// revision conflict, before the body or a Project is read; every valid value
+// gets past the header checks. Projects, Audits and their reviews, Runtime
+// labels and Agent labels, Scheduler settings and Managed Eval mutations
+// therefore read one grammar ("01" is not revision 1).
+func TestSharedRevisionIfMatchCasesGateEveryCounterPrecondition(t *testing.T) {
+	cases := contractstest.ReadRevisionETagCases(t)
+	probes := mutationProbes(loadPublicOpenAPI(t))
+	checked := 0
+	for _, name := range sortedProbeNames(probes) {
+		probe := probes[name]
+		pattern, ok := counterPrecondition(probe)
+		if !ok {
+			continue
+		}
+		checked++
+		t.Run(name, func(t *testing.T) {
+			fixture := newPrecedenceFixture(t)
+			schema := regexp.MustCompile(pattern)
+			for _, valid := range cases.Valid {
+				if !schema.MatchString(valid.Header) {
+					t.Errorf("OpenAPI pattern %s rejects valid %q", pattern, valid.Header)
+				}
+				response, failure, body := sendHeaderProbe(t, fixture, probe, func(h http.Header) {
+					h.Del("If-None-Match")
+					h.Set("If-Match", valid.Header)
+				})
+				checkPassesHeaderChecks(t, fixture, probe, "If-Match "+valid.Header, response, failure, body)
+			}
+			for _, raw := range cases.OutOfRange {
+				if !schema.MatchString(raw) {
+					t.Errorf("OpenAPI pattern %s rejects out-of-range %q", pattern, raw)
+				}
+			}
+			for _, raw := range cases.Invalid {
+				if schema.MatchString(raw) {
+					t.Errorf("OpenAPI pattern %s accepts invalid %q", pattern, raw)
+				}
+			}
+			status, code := requestErrorOf(probe)
+			rejected := [][]string{}
+			for _, raw := range cases.Rejected() {
+				if raw == "" && managedEvalOperation(name) {
+					continue // an empty If-Match is an absent one there: 428, checked by the header test
+				}
+				rejected = append(rejected, []string{raw})
+			}
+			for _, values := range append(rejected, cases.RepeatedHeaders...) {
+				response, failure, body := sendHeaderProbe(t, fixture, probe, func(h http.Header) {
+					h.Del("If-None-Match")
+					h["If-Match"] = values
+				})
+				if response.Code != status || failure.Code != code || failure.Retryable {
+					t.Errorf("If-Match %q = %d %s, want %d %s", values, response.Code, response.Body.String(), status, code)
+				}
+				if body.reads != 0 || fixture.projectReads.Load() != 0 {
+					t.Errorf("If-Match %q read the body %d times and %d Projects", values, body.reads, fixture.projectReads.Load())
+				}
+			}
+		})
+	}
+	if checked == 0 {
+		t.Fatal("no mutation declares a counter If-Match")
+	}
+}
+
+// mediaTypeErrorOf returns the operation's answer to a JSON body with
+// another media type: the declared 415, the Managed Eval 422 eval_invalid or
+// 400 invalid_request (API-R112).
+func mediaTypeErrorOf(probe boundProbe) (int, string) {
+	if probe.operation.Responses.Value("415") != nil {
+		return http.StatusUnsupportedMediaType, "unsupported_media_type"
+	}
+	return requestErrorOf(probe)
+}
+
+// TestJSONMutationsCheckTheMediaTypeBeforeHeadersAndBody sends every public
+// mutation whose request body is JSON with a missing, repeated, parameterized
+// or other Content-Type and otherwise valid headers. Each answers its
+// documented media-type error before it reads a byte of its body or a
+// Project, and the OpenAPI document declares that status. An operation that
+// declares 415 answers 415 even when its required If-Match is missing too,
+// so the media type comes first. With application/json the same request
+// reads its body. An operation whose JSON body is optional (Audit start and
+// resume) needs no Content-Type when it announces no body.
+func TestJSONMutationsCheckTheMediaTypeBeforeHeadersAndBody(t *testing.T) {
+	probes := mutationProbes(loadPublicOpenAPI(t))
+	variants := map[string]func(http.Header){
+		"missing Content-Type":    func(h http.Header) { h.Del("Content-Type") },
+		"text/plain":              func(h http.Header) { h.Set("Content-Type", "text/plain") },
+		"charset parameter":       func(h http.Header) { h.Set("Content-Type", "application/json; charset=utf-8") },
+		"two Content-Type values": func(h http.Header) { h["Content-Type"] = []string{"application/json", "application/json"} },
+	}
+	checked := 0
+	for _, name := range sortedProbeNames(probes) {
+		probe := probes[name]
+		if !probe.takesJSON() {
+			continue
+		}
+		checked++
+		t.Run(name, func(t *testing.T) {
+			fixture := newPrecedenceFixture(t)
+			response, failure, body := sendHeaderProbe(t, fixture, probe, nil)
+			checkPassesHeaderChecks(t, fixture, probe, "application/json", response, failure, body)
+			status, code := mediaTypeErrorOf(probe)
+			if probe.operation.Responses.Value(strconv.Itoa(status)) == nil {
+				t.Errorf("the OpenAPI document does not declare the media-type status %d", status)
+			}
+			for variant, apply := range variants {
+				response, failure, body := sendHeaderProbe(t, fixture, probe, apply)
+				if response.Code != status || failure.Code != code || failure.Retryable {
+					t.Errorf("%s = %d %s, want %d %s", variant, response.Code, response.Body.String(), status, code)
+				}
+				if body.reads != 0 || fixture.projectReads.Load() != 0 {
+					t.Errorf("%s read the body %d times and %d Projects", variant, body.reads, fixture.projectReads.Load())
+				}
+			}
+			if status == http.StatusUnsupportedMediaType {
+				response, failure, _ := sendHeaderProbe(t, fixture, probe, func(h http.Header) {
+					h.Set("Content-Type", "text/plain")
+					h.Del("If-Match")
+				})
+				if response.Code != status || failure.Code != code {
+					t.Errorf("text/plain without If-Match = %d %s, want %d %s", response.Code, response.Body.String(), status, code)
+				}
+			}
+			if !probe.operation.RequestBody.Value.Required {
+				request := boundProbeRequest(t, probe, &trackedBody{}, 0)
+				request.Header.Del("Content-Type")
+				fixture.auditCalls.Store(0)
+				if response, _ := serveProbe(fixture.handler, request); fixture.auditCalls.Load() != 1 {
+					t.Errorf("no body and no Content-Type = %d %s without reaching the Audit service", response.Code, response.Body.String())
+				}
+			}
+		})
+	}
+	if checked == 0 {
+		t.Fatal("no operation takes a JSON body")
 	}
 }
 
@@ -431,6 +669,14 @@ func TestMutationPrecedenceTable(t *testing.T) {
 			body: `{"workflow":"artifact-copy@1"}`, status: http.StatusBadRequest, code: "invalid_request"},
 		{name: "createProjectRun without key, missing Project", method: http.MethodPost, path: "/v1/projects/project-missing/runs",
 			headers: jsonBody, body: `{"workflow":"artifact-copy@1"}`, status: http.StatusBadRequest, code: "invalid_request"},
+		{name: "createProjectRun text/plain, missing Project", method: http.MethodPost, path: "/v1/projects/project-missing/runs",
+			headers: with(keyed, "Content-Type", "text/plain"), body: `{"workflow":"artifact-copy@1"}`,
+			status: http.StatusBadRequest, code: "invalid_request"},
+		{name: "createProjectRun without Content-Type", method: http.MethodPost, path: "/v1/projects/project-one/runs",
+			headers: map[string]string{idempotencyKeyHeader: "precedence-key"}, body: `{"workflow":"artifact-copy@1"}`,
+			status: http.StatusBadRequest, code: "invalid_request"},
+		{name: "cancelRun text/plain", method: http.MethodPost, path: "/v1/runs/run-one/cancel",
+			headers: map[string]string{"Content-Type": "text/plain"}, body: `{}`, status: http.StatusBadRequest, code: "invalid_request"},
 		{name: "createProjectRun missing Project", method: http.MethodPost, path: "/v1/projects/project-missing/runs",
 			headers: keyed, body: `{"workflow":"artifact-copy@1"}`, status: http.StatusNotFound, code: "not_found", projectReads: 1},
 		{name: "createProjectRun other owner's Project", method: http.MethodPost, path: "/v1/projects/foreign/runs",
@@ -443,6 +689,11 @@ func TestMutationPrecedenceTable(t *testing.T) {
 			body: `{}`, status: http.StatusBadRequest, code: "invalid_request"},
 		{name: "startAudit without If-Match", method: http.MethodPost, path: "/v1/audits/audit-one/start",
 			headers: keyed, body: `{"deadlineSeconds":60}`, status: http.StatusBadRequest, code: "invalid_request"},
+		{name: "startAudit text/plain body", method: http.MethodPost, path: "/v1/audits/audit-one/start",
+			headers: with(keyed, "Content-Type", "text/plain", "If-Match", `"1"`), body: `{"deadlineSeconds":60}`,
+			status: http.StatusBadRequest, code: "invalid_request"},
+		{name: "decideAuditReview text/plain", method: http.MethodPost, path: "/v1/audits/audit-one/reviews/request-one/decisions",
+			headers: with(keyed, "Content-Type", "text/plain", "If-Match", `"1"`), body: `{}`, status: http.StatusBadRequest, code: "invalid_request"},
 		{name: "startAudit oversized", method: http.MethodPost, path: "/v1/audits/audit-one/start",
 			headers: with(keyed, "If-Match", `"1"`), body: "{}" + strings.Repeat(" ", int(maximumAuditTimeLimitBodyBytes)-1),
 			status: http.StatusRequestEntityTooLarge, code: "request_too_large", readsBody: true},
@@ -483,5 +734,37 @@ func TestMutationPrecedenceTable(t *testing.T) {
 	}
 	for _, c := range cases {
 		c.run(t, fixture)
+	}
+}
+
+// TestArtifactPayloadInterruptionIsRetryableAndStoresNothing pins the outcome
+// of an Artifact payload whose upload stops before its declared length, the
+// same failure a missed socket read deadline produces (BLB-R28, FAIL-BLB-1):
+// 500 internal_error with retryable true on the user and the Project upload
+// route, and no binding. The complete payload is then accepted. A JSON body,
+// the Git import's included, is the client's 400 instead
+// (TestJSONRequestBodyReadFailuresAreClientErrors).
+func TestArtifactPayloadInterruptionIsRetryableAndStoresNothing(t *testing.T) {
+	fixture := newPrecedenceFixture(t)
+	for _, path := range []string{"/v1/artifacts/sources/interrupted", "/v1/projects/project-one/artifacts/sources/interrupted"} {
+		upload := func(body *trackedBody, declared int64) (*httptest.ResponseRecorder, errorResponse) {
+			request := newPublicContractRequest(http.MethodPut, path, nil)
+			request.Body, request.ContentLength = io.NopCloser(body), declared
+			request.Header.Set("Content-Type", "text/plain")
+			request.Header.Set("If-None-Match", "*")
+			return serveProbe(fixture.handler, request)
+		}
+		interrupted := &trackedBody{data: []byte("part"), abort: true}
+		response, failure := upload(interrupted, 64)
+		if response.Code != http.StatusInternalServerError || failure.Code != "internal_error" || !failure.Retryable || interrupted.reads == 0 {
+			t.Errorf("PUT %s interrupted = %d %s after %d reads, want retryable 500 internal_error", path, response.Code, response.Body.String(), interrupted.reads)
+		}
+		read, _ := serveProbe(fixture.handler, newPublicContractRequest(http.MethodGet, path, nil))
+		if read.Code != http.StatusNotFound {
+			t.Errorf("GET %s after an interrupted upload = %d %s, want 404", path, read.Code, read.Body.String())
+		}
+		if response, _ := upload(&trackedBody{data: []byte("complete")}, 8); response.Code != http.StatusCreated {
+			t.Errorf("PUT %s complete = %d %s, want 201", path, response.Code, response.Body.String())
+		}
 	}
 }

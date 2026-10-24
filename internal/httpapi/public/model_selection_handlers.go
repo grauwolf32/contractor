@@ -38,8 +38,7 @@ func (h *operationsHandlers) putModelSelection(w http.ResponseWriter, r *http.Re
 		handleError(w, err)
 		return
 	}
-	media, err := requestMediaType(r)
-	if err != nil || media != "application/json" {
+	if requireJSONMediaType(r) != nil {
 		writeError(w, apierror.UnsupportedMediaType, "")
 		return
 	}
@@ -81,11 +80,11 @@ func writeModelSelection(w http.ResponseWriter, value config.ModelSelectionInfo)
 
 func modelSelectionPrecondition(r *http.Request) (uint64, string, error) {
 	invalid := fmt.Errorf("%w: model selection replacement requires one current strong If-Match", errInvalidRequest)
-	values := r.Header.Values("If-Match")
-	if len(values) != 1 || len(r.Header.Values("If-None-Match")) != 0 {
+	raw, err := httpx.RequiredIfMatch(r.Header)
+	if err != nil {
 		return 0, "", invalid
 	}
-	value, err := httpx.ParseStrongETag(values[0])
+	value, err := httpx.ParseStrongETag(raw)
 	if err != nil {
 		return 0, "", invalid
 	}
@@ -93,8 +92,8 @@ func modelSelectionPrecondition(r *http.Request) (uint64, string, error) {
 	if !ok || len(digest) != 64 || strings.Trim(digest, "0123456789abcdef") != "" {
 		return 0, "", invalid
 	}
-	parsed, err := strconv.ParseUint(revision, 10, 64)
-	if err != nil || parsed == 0 || strconv.FormatUint(parsed, 10) != revision {
+	parsed, err := httpx.ParseRevision(revision)
+	if err != nil || parsed == 0 {
 		return 0, "", invalid
 	}
 	return parsed, "sha256:" + digest, nil

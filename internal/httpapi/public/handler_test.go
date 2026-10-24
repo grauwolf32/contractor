@@ -884,9 +884,15 @@ func mustTestOrigins(t *testing.T) auth.OriginPolicy {
 	return origins
 }
 
+// authenticatedRequest returns a bearer-authenticated request. A non-empty
+// body is declared as application/json, the media type of every JSON
+// operation (API-R112); a test of another media type sets its own.
 func authenticatedRequest(method, target string, body *bytes.Reader) *http.Request {
 	request := httptest.NewRequest(method, target, body)
 	request.Header.Set("Authorization", "Bearer "+testBearerToken)
+	if body != nil && body.Len() > 0 {
+		request.Header.Set("Content-Type", "application/json")
+	}
 	if method == http.MethodPost && target == "/v1/runs" {
 		request.Header.Set(idempotencyKeyHeader, "test-create-run")
 	}

@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
@@ -133,6 +132,29 @@ func requestMediaType(r *http.Request) (string, error) {
 	return httpx.RequestMediaType(errInvalidRequest, r)
 }
 
+// requireJSONMediaType is the media-type check of every operation whose
+// request body is JSON: exactly one Content-Type, application/json without
+// parameters. It runs with the query and path checks, before the mutation
+// headers, any store read and the body (API-R112). The caller reports a
+// failure with its operation's media-type answer: 400 invalid_request, the
+// 415 of the Operations settings or the Managed Eval 422 eval_invalid.
+func requireJSONMediaType(r *http.Request) error {
+	if mediaType, err := requestMediaType(r); err != nil || mediaType != "application/json" {
+		return fmt.Errorf("%w: Content-Type must be application/json", errInvalidRequest)
+	}
+	return nil
+}
+
+// requireOptionalJSONMediaType is requireJSONMediaType for an operation whose
+// JSON body is optional: a request whose framing announces no body, with no
+// positive Content-Length and no Transfer-Encoding, needs no Content-Type.
+func requireOptionalJSONMediaType(r *http.Request) error {
+	if r.ContentLength == 0 && len(r.TransferEncoding) == 0 {
+		return nil
+	}
+	return requireJSONMediaType(r)
+}
+
 // readArtifactBody deliberately differs from the private adapter: it keeps
 // the read cause and does not special-case negative lengths.
 func readArtifactBody(r *http.Request, transfer *artifacttransfer.Transfer) ([]byte, error) {
@@ -177,21 +199,31 @@ func artifactWritePrecondition(r *http.Request) (*string, error) {
 	return &revision, nil
 }
 
-// parseRuntimeRevisionETag reads the one strong If-Match of a resource whose
-// revision is a positive decimal counter.
+// parseRuntimeRevisionETag reads the If-Match of a resource whose revision is
+// a positive decimal counter through the one shared reader
+// (httpx.ParseRevisionETag); a malformed value is 400 invalid_request, never
+// a revision conflict (API-R70).
 func parseRuntimeRevisionETag(raw string) (uint64, error) {
-	revision, err := httpx.ParseStrongETag(raw)
+	revision, err := httpx.ParseRevisionETag(raw)
 	switch {
 	case errors.Is(err, httpx.ErrWeakETag):
-		return 0, fmt.Errorf("%w: binding revision requires one strong ETag", errInvalidRequest)
+		return 0, fmt.Errorf("%w: revision precondition requires one strong ETag", errInvalidRequest)
+	case errors.Is(err, httpx.ErrUnquotedETag):
+		return 0, fmt.Errorf("%w: revision precondition must be quoted", errInvalidRequest)
 	case err != nil:
-		return 0, fmt.Errorf("%w: binding revision must be quoted", errInvalidRequest)
+		return 0, fmt.Errorf("%w: revision precondition must be a positive decimal revision", errInvalidRequest)
 	}
-	parsed, err := strconv.ParseUint(revision, 10, 64)
-	if err != nil || parsed == 0 || strconv.FormatUint(parsed, 10) != revision {
-		return 0, fmt.Errorf("%w: binding revision is invalid", errInvalidRequest)
+	return revision, nil
+}
+
+// requiredRevision returns the revision of the one If-Match, without an
+// If-None-Match, that operation requires (API-R70).
+func requiredRevision(r *http.Request, operation string) (uint64, error) {
+	raw, err := httpx.RequiredIfMatch(r.Header)
+	if err != nil {
+		return 0, fmt.Errorf("%w: %s requires one If-Match", errInvalidRequest, operation)
 	}
-	return parsed, nil
+	return parseRuntimeRevisionETag(raw)
 }
 
 func exactQuery(raw string, allowed ...string) (url.Values, error) {

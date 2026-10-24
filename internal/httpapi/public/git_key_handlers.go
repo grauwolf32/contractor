@@ -44,9 +44,8 @@ func (h *gitKeyHandlers) replaceGitKey(w http.ResponseWriter, r *http.Request) {
 	if !acceptGitKeyRequest(w, r) {
 		return
 	}
-	mt, err := requestMediaType(r)
-	if err != nil || mt != "application/json" {
-		handleError(w, errInvalidRequest)
+	if err := requireJSONMediaType(r); err != nil {
+		handleError(w, err)
 		return
 	}
 	var body struct {
