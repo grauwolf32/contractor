@@ -5,7 +5,8 @@ milestone: web-nuclei-rule-sweeps-2026-10
 epic: audits
 kind: feature
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: c23e2350fa4e086fc614ddbc18c57fd822e1b724
 depends_on: [V406-005, V406-006]
 languages: [go, typescript]
 goal: >-
@@ -100,3 +101,10 @@ validation:
   initial_failures:
     - "Temporary PostgreSQL initially used SQL_ASCII; two unrelated Unicode Eval fixtures failed. The final gate uses a new isolated UTF-8 database."
     - "Local restricted runs could not bind Node test listeners or download pinned staticcheck; checks were rerun with ordinary test-network permissions."
+  final_results:
+    - "make lint and make ui-verify passed (193 UI files, 2390 passing tests plus one expected failure; 17 Node tests)."
+    - "make verify-public-api verify-public-api-postgres passed."
+    - "make test-wire-cross-language passed: 270 shared fixtures, 319 Go and 211 Python shared tests; Runtime selection ran 1213 tests."
+    - "make test-web-scan-ui-stack passed against real Server, Runtime and UTF-8 PostgreSQL."
+    - "make ui-browser-mocked passed all 91 browser cases; the six Web scan responsive/theme cases also passed separately after the final build."
+    - "Shipped catalog validation passed: 23 Workflows, 28 AgentTemplates and 14 AuditProfiles."

@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-128 open tasks: 10 in progress, 107 pending, 11 deferred. 1092 finished: 1082 completed, 10 archived.
+127 open tasks: 9 in progress, 107 pending, 11 deferred. 1093 finished: 1083 completed, 10 archived.
 
 ## In progress
 
@@ -14,7 +14,6 @@ the epics are in [epics.yml](epics.yml).
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
-| [V406-018](v406-018-project-scan-audits.yml) | audits | feature | P1 | Unify installed and custom Nuclei rules in project Web scan Audits |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V414-034](v414-034-audit-controller-invalid-write-retry.yml) | audits | defect | P2 | Close an Audit whose controller write is refused as invalid instead of retrying it |
 | [V414-035](v414-035-run-skill-missing-source-code.yml) | agent-skills | defect | P2 | Fail Run initialization with skill_artifact_not_found when a pinned Skill source is gone |
@@ -246,7 +245,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 9 | 16 | 7 | 8 | 12 |
 | Workflow catalog and document workflows (`workflows`) | 7 | 18 | 14 | 12 | 18 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 4 | 35 | 33 | 6 | 39 |
-| Audits (`audits`) | 34 | 66 | 79 | 26 | 103 |
+| Audits (`audits`) | 33 | 66 | 79 | 26 | 103 |
 | Evaluations (`evals`) | 6 | 21 | 37 | 12 | 45 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 2 | 25 | 62 | 13 | 57 |
