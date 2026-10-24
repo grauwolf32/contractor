@@ -6,7 +6,7 @@ epic: planner-worker
 kind: defect
 introduced_by: V226-001
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, markdown]
 goal: >-

@@ -5,7 +5,7 @@ milestone: project-sitemap-2026-10
 epic: projects-artifacts
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, python, sql, json, yaml, markdown]
 goal: >-

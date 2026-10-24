@@ -6,7 +6,7 @@ epic: persistence
 kind: chore
 introduced_by: V407-025
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: >-
