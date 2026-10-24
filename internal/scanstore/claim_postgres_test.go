@@ -54,21 +54,24 @@ func TestPostgresSweepClaimReadsOnlyActiveSweeps(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	pool := isolatedSweepPool(t, ctx)
-	for _, group := range []struct {
-		prefix, state, due string
-		count              int
-		holder             any
-	}{
+	insert := func(db *pgxpool.Pool, groups []sweepGroup) {
+		t.Helper()
+		for _, group := range groups {
+			if _, err := db.Exec(ctx, sweepFixtureSQL, group.prefix, group.count, group.state, group.due, group.holder); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := db.Exec(ctx, `VACUUM (INDEX_CLEANUP ON, ANALYZE) scan_sweeps`); err != nil {
+			t.Fatal(err)
+		}
+	}
+	insert(pool, []sweepGroup{
 		{"held", "active", "-2 hours", sweepsHeld, "sweep-other"},
 		{"due", "active", "-1 hour", sweepsDue, nil},
 		{"cancelling", "cancelling", "-1 hour", sweepsCancelling, nil},
 		{"later", "active", "1 hour", sweepsLater, nil},
 		{"settled", "completed", "-3 hours", sweepsSettled, nil},
-	} {
-		if _, err := pool.Exec(ctx, sweepFixtureSQL, group.prefix, group.count, group.state, group.due, group.holder); err != nil {
-			t.Fatal(err)
-		}
-	}
+	})
 	analyze := func() {
 		if _, err := pool.Exec(ctx, `VACUUM (INDEX_CLEANUP ON, ANALYZE) scan_sweeps`); err != nil {
 			t.Fatal(err)
@@ -130,17 +133,27 @@ func TestPostgresSweepClaimReadsOnlyActiveSweeps(t *testing.T) {
 		t.Fatalf("claim = (%+v, %t, %v), want due-00001 at epoch 1", claim, ok, err)
 	}
 	// With every due sweep held, the claim reads the whole ready index and
-	// leases nothing.
-	if _, err := pool.Exec(ctx, `
-UPDATE scan_sweeps SET holder_id = 'sweep-other', claimed_at = clock_timestamp(),
-       expires_at = clock_timestamp() + interval '1 hour'
- WHERE state IN ('active', 'cancelling') AND holder_id IS NULL AND next_tick_at <= clock_timestamp()`); err != nil {
-		t.Fatal(err)
-	}
+	// leases nothing. The held state is inserted in a schema of its own: the
+	// dead versions an UPDATE leaves stay in the index while any other
+	// transaction of the database is older than it.
+	heldPool := isolatedSweepPool(t, ctx)
+	insert(heldPool, []sweepGroup{
+		{"held", "active", "-2 hours", sweepsHeld + sweepsDue, "sweep-other"},
+		{"cancelling", "cancelling", "-1 hour", sweepsCancelling, "sweep-other"},
+		{"later", "active", "1 hour", sweepsLater, nil},
+		{"settled", "completed", "-3 hours", sweepsSettled + sweepsRetained, nil},
+	})
 	for _, mode := range explaintest.Modes {
-		analyze()
-		explain(pool, "every due sweep held", mode, 0, ready)
+		explain(heldPool, "every due sweep held", mode, 0, ready)
 	}
+}
+
+// sweepGroup is one group of the sweep-claim fixture: count sweeps named
+// prefix-<n> in state, due due from now and held by holder when it is set.
+type sweepGroup struct {
+	prefix, state, due string
+	count              int
+	holder             any
 }
 
 // isolatedSweepPool returns a pool on a fresh migrated schema of
