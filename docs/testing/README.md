@@ -66,7 +66,9 @@ uses `make -k` and uploads its log and available evidence as a
 PR selection always includes lint. Server and Runtime changes add unit,
 integration and focused cross-process capability checks; UI changes add UI
 checks and the affected browser stacks.
-Changes to `tests/e2e` add all three process shards. Edits confined to
+Changes to `tests/e2e` add all three process shards. Changes to the shared
+Server build helper under `tests/internal/serverbuildtest` add unit, all three
+process shards and both browser shards. Edits confined to
 `ui/e2e/stack.spec.ts` run the focused operations stack; other `ui/e2e`
 edits select the operations browser shard (both browser shards for the
 managed-Evals stack). Shared API and configuration changes select Go, UI,
@@ -174,6 +176,21 @@ Each browser process stack builds and serves one private temporary UI snapshot.
 A developer build or another gate may replace ui/dist without invalidating a
 running stack. The scanner browser likewise builds privately, or copies an
 explicitly requested prebuilt snapshot before starting Node.
+
+Each process-test package builds the Server lazily once and retains its binary
+until `TestMain` finishes all tests and their cleanup. Test enumeration and
+configuration-only selections do not build it. Separate CI shards have separate
+binaries. The scratch-container opt-in tests reuse their own `CGO_ENABLED=0`
+binary and copy it into each isolated container build context. PKI, databases,
+scenario state and deadlines remain owned by each test. To measure the build
+portion of 25 scenarios with a warm Go build cache, run:
+
+```shell
+go test -run '^$' -bench '^BenchmarkServerBuild' -benchtime=1x -count=3 ./tests/internal/serverbuildtest
+```
+
+This compares repeated builds with one cached executable; it does not measure
+full process-suite or CI wall time.
 
 For a release, use the same environment:
 

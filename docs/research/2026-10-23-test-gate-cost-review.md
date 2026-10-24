@@ -10,7 +10,9 @@
 
 V408-003 implements bounded package scheduling, with the local measurements
 below. In-package PostgreSQL parallelism is excluded until its isolation
-conflict with V408-002 is resolved. Other findings remain open. Tasks
+conflict with V408-002 is resolved. V408-004 implements the narrowed Server
+binary reuse scope, and V408-005 consolidates repeated family runs. Other
+findings and the final CI timing/stability checks remain open. Tasks
 V408-001 … V408-007 (milestone `test-gate-cost-2026-10`); V408-007 records
 the full before/after CI durations, retains the three consecutive Linux CI
 race runs and closes the review.
@@ -19,7 +21,7 @@ race runs and closes the review.
 | --- | --- |
 | T1 per-test schema and migrations, 34 helper copies | V408-002 |
 | T2 serial race stages (`-p 1`), almost no `t.Parallel` | [V408-003](../../tasks/done/v408-003-parallel-race-stages.yml): package scheduling implemented; in-package parallelism excluded |
-| T3 e2e builds the Server and PKI per test | V408-004 |
+| T3 e2e builds the Server and PKI per test | [V408-004](../../tasks/done/v408-004-e2e-build-once.yml): binary reuse only; PKI and deadlines remain per test |
 | T4 family-target guard gaps, 20 unguarded pytest runs, unused `test-runtime-hardening` | [V408-005](../../tasks/done/v408-005-family-guard-gaps.yml): implemented and verified |
 | T5 `-count=1` on pure packages | V408-006 |
 | Baseline and final measurement | V408-001, V408-007 |
@@ -193,3 +195,95 @@ suites detect them. Reopen these separately before claiming a green full release
 gate. They are not Runtime-suite, duplicate-execution or coverage defects fixed
 by V408-005. This follow-up claims the listed task checks, not a complete
 `release-verify` or CI run. Logs remain under `/private/tmp/v408-close-*.log`.
+
+
+## V408-004: package-lifetime Server builds (2026-10-24)
+
+The accepted scope is binary reuse only. The original shared CA, deadline
+reductions and shard rebalancing are excluded. V408-001 is no longer a
+prerequisite for this narrower change. The broader CI timing and repeated
+Linux stability checks remain with V408-007.
+
+The ordinary process selection previously invoked `go build` 25 times. The
+four browser stack scenarios each built again. Both harnesses now request a
+lazy package-owned executable from `tests/internal/serverbuildtest`; `sync.Once`
+shares one build and its error across callers. `TestMain` removes it after all
+tests and their cleanup finish. Listing tests and configuration-only selections
+allocate no executable. No binary survives into another test-package run.
+Separate CI runners each still build once. The two opt-in scratch-container
+paths keep a separate `CGO_ENABLED=0` build and copy that executable into each
+test's own build context. Migrations, databases, PKI, Runtime processes,
+assertions, deadlines and shard selections are unchanged. A source guard rejects
+Server build commands in either harness tree; CI path selection includes all
+process and browser consumers when the shared build helper changes.
+
+### Local build-overhead measurement
+
+Measured on macOS arm64 (18 logical CPUs, 36 GiB RAM), Go 1.26.9, based on
+`main` `64e2f214745ea3e4c571ec9d070056bb6a1ca766`. The production Server
+sources are unchanged. The Go build cache was warm. The benchmark compares
+25 builds into distinct output paths with 25 requests to one fresh package
+cache, including its one real build and cleanup. Each strategy ran three
+one-iteration samples; repeated-build samples ran before reuse samples.
+
+```shell
+go test -run '^$' -bench '^BenchmarkServerBuild' -benchtime=1x -count=3 ./tests/internal/serverbuildtest
+```
+
+| Sample | 25 separate builds | One build reused 25 times |
+| --- | ---: | ---: |
+| 1 | 52.904 s | 1.501 s |
+| 2 | 40.351 s | 2.584 s |
+| 3 | 36.167 s | 1.526 s |
+| Median | 40.351 s | 1.526 s |
+
+The difference between medians is **38.825 seconds**, or **96.2% of the build
+portion** for 25 scenarios. This is a local measurement on a shared development
+machine with other checks running, not a guaranteed full-suite saving. It does
+not establish full process-suite or CI wall-time speedup; there is no matched
+before/after full-suite run. The browser suite avoids three repeated builds
+when invoked together, while the three process and two browser CI shards each
+retain their own build. Raw benchmark output remains outside git at
+`/private/tmp/v408-004-build-benchmark.log`.
+
+
+### V408-004 verification and scope limits
+
+Implementation: `ba6fc0a50142dd3af03aa6db53ebe606c48e8e3d` (Server source unchanged).
+
+- `go test -race -count=1 ./tests/internal/serverbuildtest` passed all five
+  regressions: concurrent callers, binary lifetime, sticky failures/partial-file
+  cleanup, lazy allocation and preserved compiler arguments/CGO modes.
+- The complete untagged `go test -count=1 ./tests/e2e` passed. A temporary
+  injected per-test Server build made the new source guard fail as expected;
+  the injection was removed. Both tagged packages also listed/compiled without
+  building the Server. All seven `make test-release-config-fixtures` cases
+  also passed with zero Server builds.
+- `make test-e2e` passed all **25** ordinary process tests on real PostgreSQL,
+  including the existing findings report verifier, with **one** build marker.
+- The final complete `make test-ui-stack` passed all **nine** top-level tests
+  (four production stack scenarios and five harness checks), with **one** build
+  marker across all four real stack scenarios.
+- `make lint` passed with the shared-helper CI mapping regression and compiled
+  release coverage guard. The graph retains 100 raced packages and the same
+  25 process tests, seven configuration fixtures, 49 tagged e2e tests and eight
+  opt-in tests. PKI, deadlines and stage timeouts are unchanged.
+
+The successful local package durations were 2547.610 seconds
+(process) and 1164.326 seconds (browser); these include actual
+scenario execution and ran with other work on the same host. They are not
+matched before/after full-suite measurements.
+
+The first complete browser invocation had one Playwright click timeout at
+`ui/e2e/stack.spec.ts:802` (`All workflows`); the widgets and both managed-Eval
+scenarios passed in that invocation. The unchanged original-main operations
+scenario then passed, and the complete unmodified retry on this branch passed.
+No UI assertion or timeout was changed to obtain that result. The UI test
+maintainers own recurrence; the full browser gate detects it, and the same
+failure recurring should reopen an independent UI investigation. This records
+an observed intermittent failure, not evidence of three-run CI stability.
+
+The opt-in container/scanner scenarios were compiled, and CGO mode preservation
+was unit-tested; their external-service acceptance runs were not performed.
+No full release gate or remote CI run is claimed. Raw logs remain outside git
+under `/private/tmp/v408-004-*.log`.
