@@ -958,7 +958,11 @@ invalid input, the Server refuses stored material outside the rule as a
 decryption failure (FAIL-RCF-3), and RuntimeSettings validation on both sides
 rejects it (RCF-R164). A Basic-auth username and password are base64-encoded
 before sending, so creation holds them only to their byte bounds, valid UTF-8
-without control characters and a username without a colon. The Server, the
+without control characters and a username without a colon; every Basic kind
+shares this rule, which the public API states once (`BasicCredentialUsername`,
+`BasicCredentialPassword`) and which the `target-basic@1` cases of
+[`target-credential-cases.json`](../../../api/testdata/v1alpha1/target-credential-cases.json)
+check for each Basic kind. The Server, the
 Runtime, the private schema and the public API are held to the credential
 field-value rule by
 [`credential-field-value-cases.json`](../../../api/testdata/v1alpha1/credential-field-value-cases.json).

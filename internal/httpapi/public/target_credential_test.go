@@ -23,7 +23,9 @@ import (
 // stores nothing and is not repeated in the answer. The material schema that
 // the public CreateRuntimeCredentialRequest names for the case's kind gives
 // each case the fixture's schema verdict; it is checked on its own because
-// kin-openapi validates a $ref inside oneOf without propertyNames.
+// kin-openapi validates a $ref inside oneOf without propertyNames. Every Basic
+// kind shares the target-basic@1 rule (RCF-R114), so its cases are sent as
+// http-origin-basic@1 and http-proxy-basic@1 too.
 func TestSharedTargetCredentialMaterialCasesGateCreation(t *testing.T) {
 	cases := contractstest.ReadTargetCredentialCases(t)
 	document := loadPublicOpenAPI(t)
@@ -46,16 +48,31 @@ func TestSharedTargetCredentialMaterialCasesGateCreation(t *testing.T) {
 		materialSchemas[value] = component.Value
 	}
 	fixture := newHandlerFixture(t)
-	for index, test := range cases.Materials {
+	type sent struct {
+		contractstest.TargetCredentialCase
+		kind string
+	}
+	var requests []sent
+	for _, test := range cases.Materials {
+		requests = append(requests, sent{test, test.Kind})
+		if test.Kind == string(credentials.RuntimeCredentialTargetBasic) {
+			requests = append(requests,
+				sent{test, string(credentials.RuntimeCredentialOriginBasic)},
+				sent{test, string(credentials.RuntimeCredentialProxyBasic)})
+		}
+	}
+	for index, request := range requests {
+		test := request.TargetCredentialCase
+		test.Name = request.kind + " " + test.Name
 		credentialID := fmt.Sprintf("target-case-%d", index)
 		var body bytes.Buffer
-		fmt.Fprintf(&body, `{"credentialId":%q,"kind":%q,"material":`, credentialID, test.Kind)
+		fmt.Fprintf(&body, `{"credentialId":%q,"kind":%q,"material":`, credentialID, request.kind)
 		body.Write(test.Data)
 		body.WriteString("}")
 
-		schema := materialSchemas[test.Kind]
+		schema := materialSchemas[request.kind]
 		if schema == nil {
-			t.Fatalf("%s: no public material schema for %s", test.Name, test.Kind)
+			t.Fatalf("%s: no public material schema for %s", test.Name, request.kind)
 		}
 		accepted := false
 		if test.SchemaDocument() {

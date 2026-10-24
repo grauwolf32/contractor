@@ -5149,8 +5149,8 @@ export interface components {
             };
         };
         HTTPProxyBasicMaterial: {
-            username: string;
-            password: string;
+            username: components["schemas"]["BasicCredentialUsername"];
+            password: components["schemas"]["BasicCredentialPassword"];
         };
         HTTPProxyBearerMaterial: {
             /** @description An HTTP/1.1 field value sent unchanged by every client (RCF-R114), visible ASCII characters with runs of space or tab only between them. */
@@ -5164,19 +5164,21 @@ export interface components {
             /** @description An HTTP/1.1 field value sent unchanged by every client (RCF-R114), visible ASCII characters with runs of space or tab only between them. */
             token: string;
         };
+        /** @description The username of a Basic credential, at most 256 UTF-8 bytes without control characters or a colon (RCF-R114). */
+        BasicCredentialUsername: string;
+        /** @description The password of a Basic credential, at most 8,192 UTF-8 bytes without control characters (RCF-R114). */
+        BasicCredentialPassword: string;
         HTTPOriginBasicMaterial: {
-            username: string;
-            password: string;
+            username: components["schemas"]["BasicCredentialUsername"];
+            password: components["schemas"]["BasicCredentialPassword"];
         };
         HTTPOriginBearerMaterial: {
             /** @description An HTTP/1.1 field value sent unchanged by every client (RCF-R114), visible ASCII characters with runs of space or tab only between them. */
             token: string;
         };
         TargetBasicMaterial: {
-            /** @description At most 256 UTF-8 bytes without control characters or a colon (RCF-R184). */
-            username: string;
-            /** @description At most 8,192 UTF-8 bytes without control characters (RCF-R184). */
-            password: string;
+            username: components["schemas"]["BasicCredentialUsername"];
+            password: components["schemas"]["BasicCredentialPassword"];
         };
         TargetBearerMaterial: {
             /** @description An HTTP/1.1 field value sent unchanged by every client (RCF-R114), visible ASCII characters with runs of space or tab only between them. */

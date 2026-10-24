@@ -114,7 +114,9 @@ Its references are `RuntimeCredentialRef` texts checked by Go decoding, the
 Runtime model and the `RuntimeCredentialRef` definition of this schema; its
 materials are the creation material of each target kind, checked by the
 Server's constructors, stored material decoding, the public create request and
-its OpenAPI material schemas. The Runtime reads no target material yet.
+its OpenAPI material schemas; the `target-basic@1` cases are checked for
+`http-origin-basic@1` and `http-proxy-basic@1` too, which share the Basic rule
+(RCF-R114). The Runtime reads no target material yet.
 
 `gateway-recovery-participant-cases.json` holds the model recovery participant
 protocol of `POST /private/v1/allocations/{allocationID}/gateway-recovery`

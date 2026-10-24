@@ -370,6 +370,8 @@ export type PublicSchemaName =
   | "HTTPProxyBearerMaterial"
   | "CaidoBearerMaterial"
   | "InteractshTokenMaterial"
+  | "BasicCredentialUsername"
+  | "BasicCredentialPassword"
   | "HTTPOriginBasicMaterial"
   | "HTTPOriginBearerMaterial"
   | "TargetBasicMaterial"

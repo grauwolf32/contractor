@@ -8801,12 +8801,11 @@
       "additionalProperties": false,
       "required": ["username", "password"],
       "properties": {
-        "username": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "username": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/BasicCredentialUsername"
+        },
         "password": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 8192,
-          "writeOnly": true
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/BasicCredentialPassword"
         }
       }
     },
@@ -8852,17 +8851,29 @@
         }
       }
     },
+    "BasicCredentialUsername": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[^\\x00-\\x1F\\x7F:]+$"
+    },
+    "BasicCredentialPassword": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8192,
+      "pattern": "^[^\\x00-\\x1F\\x7F]+$",
+      "writeOnly": true
+    },
     "HTTPOriginBasicMaterial": {
       "type": "object",
       "additionalProperties": false,
       "required": ["username", "password"],
       "properties": {
-        "username": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "username": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/BasicCredentialUsername"
+        },
         "password": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 8192,
-          "writeOnly": true
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/BasicCredentialPassword"
         }
       }
     },
@@ -8886,18 +8897,10 @@
       "required": ["username", "password"],
       "properties": {
         "username": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 256,
-          "pattern": "^[^\\x00-\\x1F\\x7F:]+$",
-          "writeOnly": true
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/BasicCredentialUsername"
         },
         "password": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 8192,
-          "pattern": "^[^\\x00-\\x1F\\x7F]+$",
-          "writeOnly": true
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/BasicCredentialPassword"
         }
       }
     },

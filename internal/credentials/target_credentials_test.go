@@ -16,7 +16,9 @@ import (
 // material cases of api/testdata/v1alpha1/target-credential-cases.json
 // (RCF-R184). A valid material seals, opens and re-decodes to the same
 // canonical plaintext; an invalid one is refused by both decoders, and no
-// refusal repeats a material value.
+// refusal repeats a material value. Every Basic kind shares the
+// target-basic@1 rule (RCF-R114), so its cases are decoded as
+// http-origin-basic@1 and http-proxy-basic@1 too.
 func TestSharedTargetCredentialMaterialCases(t *testing.T) {
 	cases := contractstest.ReadTargetCredentialCases(t)
 	cipher, err := NewTokenCipher(bytes.Repeat([]byte{0x75}, 32))
@@ -24,8 +26,21 @@ func TestSharedTargetCredentialMaterialCases(t *testing.T) {
 		t.Fatal(err)
 	}
 	kinds := map[RuntimeCredentialKind]int{}
+	type decoded struct {
+		contractstest.TargetCredentialCase
+		kind RuntimeCredentialKind
+	}
+	var decodes []decoded
 	for _, test := range cases.Materials {
-		kind := RuntimeCredentialKind(test.Kind)
+		decodes = append(decodes, decoded{test, RuntimeCredentialKind(test.Kind)})
+		if RuntimeCredentialKind(test.Kind) == RuntimeCredentialTargetBasic {
+			decodes = append(decodes,
+				decoded{test, RuntimeCredentialOriginBasic}, decoded{test, RuntimeCredentialProxyBasic})
+		}
+	}
+	for _, request := range decodes {
+		test, kind := request.TargetCredentialCase, request.kind
+		test.Name = string(kind) + " " + test.Name
 		material, err := DecodeRuntimeCredentialMaterial(kind, test.Data)
 		if (err == nil) != test.Valid {
 			t.Errorf("%s: creation decoder accepted = %t, want %t: %v", test.Name, err == nil, test.Valid, err)
@@ -73,6 +88,7 @@ func TestSharedTargetCredentialMaterialCases(t *testing.T) {
 	}
 	for _, kind := range []RuntimeCredentialKind{
 		RuntimeCredentialTargetBasic, RuntimeCredentialTargetBearer, RuntimeCredentialTargetLogin,
+		RuntimeCredentialOriginBasic, RuntimeCredentialProxyBasic,
 	} {
 		if kinds[kind] == 0 {
 			t.Errorf("no valid material case of %s", kind)

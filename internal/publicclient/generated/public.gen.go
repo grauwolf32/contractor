@@ -4027,6 +4027,12 @@ type AuthSession struct {
 	Principal         AuthPrincipal `json:"principal"`
 }
 
+// BasicCredentialPassword The password of a Basic credential, at most 8,192 UTF-8 bytes without control characters (RCF-R114).
+type BasicCredentialPassword = string
+
+// BasicCredentialUsername The username of a Basic credential, at most 256 UTF-8 bytes without control characters or a colon (RCF-R114).
+type BasicCredentialUsername = string
+
 // CaidoBearerMaterial defines model for CaidoBearerMaterial.
 type CaidoBearerMaterial struct {
 	// Token An HTTP/1.1 field value sent unchanged by every client (RCF-R114), visible ASCII characters with runs of space or tab only between them.
@@ -6079,8 +6085,11 @@ type GitSource struct {
 
 // HTTPOriginBasicMaterial defines model for HTTPOriginBasicMaterial.
 type HTTPOriginBasicMaterial struct {
-	Password *string `json:"password,omitempty"`
-	Username string  `json:"username"`
+	// Password The password of a Basic credential, at most 8,192 UTF-8 bytes without control characters (RCF-R114).
+	Password *BasicCredentialPassword `json:"password,omitempty"`
+
+	// Username The username of a Basic credential, at most 256 UTF-8 bytes without control characters or a colon (RCF-R114).
+	Username BasicCredentialUsername `json:"username"`
 }
 
 // HTTPOriginBearerMaterial defines model for HTTPOriginBearerMaterial.
@@ -6097,8 +6106,11 @@ type HTTPOriginCredentialRef struct {
 
 // HTTPProxyBasicMaterial defines model for HTTPProxyBasicMaterial.
 type HTTPProxyBasicMaterial struct {
-	Password *string `json:"password,omitempty"`
-	Username string  `json:"username"`
+	// Password The password of a Basic credential, at most 8,192 UTF-8 bytes without control characters (RCF-R114).
+	Password *BasicCredentialPassword `json:"password,omitempty"`
+
+	// Username The username of a Basic credential, at most 256 UTF-8 bytes without control characters or a colon (RCF-R114).
+	Username BasicCredentialUsername `json:"username"`
 }
 
 // HTTPProxyBearerMaterial defines model for HTTPProxyBearerMaterial.
@@ -7560,11 +7572,11 @@ type StageTransition struct {
 
 // TargetBasicMaterial defines model for TargetBasicMaterial.
 type TargetBasicMaterial struct {
-	// Password At most 8,192 UTF-8 bytes without control characters (RCF-R184).
-	Password *string `json:"password,omitempty"`
+	// Password The password of a Basic credential, at most 8,192 UTF-8 bytes without control characters (RCF-R114).
+	Password *BasicCredentialPassword `json:"password,omitempty"`
 
-	// Username At most 256 UTF-8 bytes without control characters or a colon (RCF-R184).
-	Username *string `json:"username,omitempty"`
+	// Username The username of a Basic credential, at most 256 UTF-8 bytes without control characters or a colon (RCF-R114).
+	Username BasicCredentialUsername `json:"username"`
 }
 
 // TargetBearerMaterial defines model for TargetBearerMaterial.
