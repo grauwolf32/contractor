@@ -11,7 +11,11 @@ import (
 
 const PerformanceMetricsVersion = 1
 const PerformanceMetricsIntervalSeconds = 15
-const MaxResourceInteger = 1<<53 - 1 // exact in all JSON consumers, including TypeScript
+
+// MaxResourceInteger bounds every integer of a RuntimeResources block and of
+// ExecutionMetrics (OBS-R111, LIM-OBS-17): the largest integer that every JSON
+// consumer, TypeScript included, reads exactly.
+const MaxResourceInteger = 1<<53 - 1
 
 // PerformanceCollectionPolicy is the Server decision pinned with an allocation.
 type PerformanceCollectionPolicy string

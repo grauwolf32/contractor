@@ -170,7 +170,9 @@ versions. It must show an explicit incompatible-version error rather than
 guessing around a missing or changed field.
 
 **UI-R7.** Additive API changes within a supported version do not require a
-coordinated release.
+coordinated release. Until the first release an incompatible `/v1` change is
+allowed only together with the UI change in one commit
+([API-R3](../api/public-api.md)).
 
 **UI-R8.** The UI is a client-rendered frontend. Node serves its static
 assets and a non-secret `/runtime-config.json`; it performs no SSR, BFF, API
@@ -746,7 +748,13 @@ Git import flows.
 **UI-R120.** Project Workflow setup uses the shared drawer in ProjectScope,
 retains its ProjectScope form, the selected exact version and exact version
 semantics, and keeps its draft across close and section navigation in the
-current tab (LIFE-UI-2).
+current tab (LIFE-UI-2). A Workflow input declaring `sourceScope: user`, such
+as the optional Nuclei rulepack, is selected, uploaded and previewed in the
+owner's Library even when the Run belongs to a Project (SCN-R238).
+Each input uses its own source scope for choices, pagination, uploads, previews
+and retained exact metadata. A Workflow may combine ordinary Project inputs
+with the owner rulepack; metadata for equal ArtifactRef keys in different
+scopes must not replace one another.
 
 **UI-R121.** Project Runs use pages of 25 (LIM-UI-9) and Server-backed
 lifecycle and state filters. Workflow, state, Audit origin and update time

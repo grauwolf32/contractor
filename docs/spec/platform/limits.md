@@ -524,6 +524,7 @@ its owning requirement.
 | `LIM-OBS-14` | uint64 maximum (2^64-1), saturating | adapters["otlp-http@1"].droppedSpans counters | Worker otlp-http@1 exporter | [OBS-R83](observability.md) |
 | `LIM-OBS-15` | at most 1 OTLP request per Planner invocation | Planner telemetry export after the Planner returns | Server Planner telemetry exporter | [OBS-R99](observability.md) |
 | `LIM-OBS-16` | zero, or leading-digit and written decimal exponent between -7 and 19 | each number in a tool argument summary of an execution report or Worker State | Server report validation on receipt; Runtime and Server argument summaries, which write any other number, NaN and infinities as "[NUMBER_OUT_OF_RANGE]" | [OBS-R42](observability.md), [OBS-R110](observability.md) |
+| `LIM-OBS-17` | 0 to 2^53-1 (9,007,199,254,740,991) | each integer of an execution report's metrics, with its tools, worker_budget and summarizer members | Runtime report producer (saturates), Server report validation and the private allocation schema (reject) | [OBS-R111](observability.md) |
 | `LIM-OPS-1` | 15 s sampling interval | Server process, HTTP snapshot and pgx pool sampling; NVIDIA GPU sampling | Server performance samplers | [OPS-R86](../operations/operations.md) |
 | `LIM-OPS-2` | 60 minutes | In-memory fine history of Server process/HTTP/pool and GPU frames | Server performance sampler buffers | [OPS-R86](../operations/operations.md) |
 | `LIM-OPS-3` | 60 s | PostgreSQL activity and cumulative statistics collection | Server PostgreSQL performance collector | [OPS-R86](../operations/operations.md) |
@@ -728,7 +729,7 @@ its owning requirement.
 | `LIM-SCN-64` | 100 selected jobs | scan plan | scan-plan@1 Planner (BuildPlan and the scan plan codec) | [SCN-R198](../tools/scanners.md) |
 | `LIM-SCN-65` | 4 MiB | serialized scan plan | scan-plan@1 Planner (BuildPlan and the scan plan codec) | [SCN-R198](../tools/scanners.md) |
 | `LIM-SCN-66` | 100 bytes | report.from.name prefix of the scan-plan@1 aggregate report | scan-plan@1 Stage configuration | [SCN-R211](../tools/scanners.md) |
-| `LIM-SCN-67` | ±9007199254740991 (exact integer range of IEEE 754 doubles) | numbers in a JSON or YAML preparation source | Preparation library internal/scanplan | [SCN-R124](../tools/scanners.md) |
+| `LIM-SCN-67` | ±9007199254740991 (exact integer range of IEEE 754 doubles) | numbers in a JSON or YAML preparation source | Preparation library internal/scanplan; OpenAPI authoring Toolset openapi@1 (Runtime) on load and mutation ([SCN-R257](../tools/scanners.md)) | [SCN-R124](../tools/scanners.md) |
 | `LIM-SCN-68` | at most 1 retry | each failed ffuf HTTP request, without another rate-limiter tick | ffuf, within the scan_ffuf deadline (Runtime) | [SCN-R102](../tools/scanners.md) |
 | `LIM-SCN-69` | 50000 files | pinned Nuclei installed package | Runtime streaming private snapshot | [SCN-R227](../tools/scanners.md) |
 | `LIM-SCN-70` | 512 MiB | pinned Nuclei package aggregate file bytes | Runtime streaming private snapshot | [SCN-R227](../tools/scanners.md) |

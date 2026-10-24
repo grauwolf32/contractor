@@ -80,6 +80,7 @@ audit_finding_contributions          internal/auditstore/internal/pgstore findin
 audit_findings                       internal/auditstore/internal/pgstore findings
 audit_review_decisions               internal/auditstore/internal/pgstore findings
 audit_review_requests                internal/auditstore/internal/pgstore findings
+finding_correlation_fences           internal/auditstore/internal/pgstore findings
 finding_proposal_audit_holds         internal/findingintake           findings
 finding_proposal_receipts            internal/findingintake           findings
 
@@ -125,8 +126,8 @@ internal/auditstore/internal/pgstore finding_proposal_audit_holds   Round accept
     Run deletion finds the Audits that hold a Run's proposals.
 internal/auditstore/internal/pgstore finding_proposal_receipts      Reports read each finding's first receipt; Run deletion finds
     the Audits that a Run's receipts name.
-internal/auditstore/internal/pgstore projects                        Finding correlation authorizes the owned Project and reads its
-    opaque membership/result revision for bounded candidate and member cursor fences.
+internal/auditstore/internal/pgstore projects                        Finding correlation authorizes the owned Project, whose fence
+    row holds the opaque revision of bounded candidate and member cursor fences.
 internal/auditstore/internal/pgstore workflow_runs                  Audit executions bind, observe and delete their child Runs and
     show their state.
 

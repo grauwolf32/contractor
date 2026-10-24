@@ -2,17 +2,24 @@
 
 Date: 2026-09-20. Series: **V64**. Status: **V64-000 completed; V64-001–011 deferred by user decision on 2026-10-21**.
 
+Design update, 2026-10-24: [proposal 0045](../proposals/0045-audit-hypothesis-search.md)
+replaces the future integration direction with optional Audit hypothesis search
+and experiment selection. Direct deterministic execution remains independent.
+The decomposition below is historical input to replanning, not an instruction
+to implement the old minimum-ten/full-pool policy. This documentation change
+does not reactivate or rewrite task files.
+
 The user requested optional service/finding context, independent checklist-item
 priority verdicts and selection of at least ten highest-priority checks for each
 Audit pass. Lower-ranked items must retain explanations. The user then requested
 self-contained implementation tasks followed by a detailed review.
 
-[Specification 34](../proposals/0034-audit-check-prioritization.md) owns the proposed
-contract. This plan records decomposition and integration boundaries; individual
-`tasks/v64-*.yml` own implementation status. Planning/review does not satisfy any
-implementation acceptance criterion.
+[Proposal 0034](../proposals/0034-audit-check-prioritization.md) records the previous
+contract and implemented pure core. This plan records its decomposition and
+integration boundaries; individual `tasks/v64-*.yml` own implementation status.
+Planning/review does not satisfy any implementation acceptance criterion.
 
-## Current delivery decision (2026-10-21)
+## Recorded delivery decision (2026-10-21)
 
 Deliver V377-001 target-cookie continuity first, then V62-010–012 to finish the
 existing preparation-to-scan user journey. V64-001–011 are deferred at P2;

@@ -74,7 +74,7 @@ func (s *ClaimStore) CreateExecutionIntent(
 		}
 		return auditstore.Execution{}, false, auditstore.ErrPrecondition
 	}
-	return auditstore.Execution{}, false, fmt.Errorf("create Audit execution intent: %w", err)
+	return auditstore.Execution{}, false, writeError("create Audit execution intent", err)
 }
 
 func (s *ClaimStore) lookupExecutionReplay(

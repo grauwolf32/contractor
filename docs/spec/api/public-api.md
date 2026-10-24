@@ -153,7 +153,18 @@ separate and are not made public by including them in this specification.
 
 **API-R3.** Incompatible changes require a new public API version.
 Regenerating a client from an incompatible document does not make the change
-backward compatible.
+backward compatible. Until the first release `/v1` is pre-production, like the
+shipped catalog (CAT-R74): an incompatible `/v1` change is allowed when the
+Server, `api/openapi/contractor-public-v1.yaml`, both generated clients and the
+UI change in one commit, `make verify-public-api` passes, and the task that
+makes the change records it. The first release removes this exception.
+
+Rationale: the project has no external clients, deployments or stored client
+state yet, so a removed field, parameter or value breaks only the UI and CLI
+that change with it. Keeping an unused variant to stay additive cost more than
+removing it (the experiment-list filters that EVM-R247 removed made every page
+read the owner's whole history). Reopen at the first release, or as soon
+as a client outside this repository depends on `/v1`.
 
 **API-R68.** The Go client bundled with the CLI is generated from the
 committed contract by a pinned oapi-codegen version that builds without

@@ -574,7 +574,11 @@ specified in [ASC-R29](scans.md) to [ASC-R34](scans.md).
 ### Next-Round building
 
 **AUX-R60.** The next-Round builder scans at most 10,000 held finding
-receipts per pass (LIM-AUX-9).
+receipts per pass (LIM-AUX-9). It pages the held inbox of FND-R186
+([findings](../findings/findings.md)) in pages of at most 200 receipts and
+then reads one look-ahead receipt. Each page reads only that page's holds
+and receipts, so a pass reads in proportion to the receipts it scans, not to
+the Audit's holds once per page.
 
 **AUX-R61.** Reaching that count is a scan-budget stop only when another
 receipt exists; a fully scanned inbox with no unscheduled checks completes the
@@ -746,6 +750,14 @@ stays below the 200-row snapshot window its candidates come from.
   and Round transitions and the purge wait for the next step's fresh
   snapshot. Collection stays one execution per step (AUX-R73),
   and the purge runs in a step that found no child Run left.
+- Deletion probes. Each Run deletion of a `deleting` Audit starts from the
+  earliest execution whose child Run still exists, and the purge waits until
+  none is left. A Run deletion marks its execution in the transaction that
+  deletes the Run, so both reads pass over the executions marked this way and
+  read only the first unmarked execution, in creation order, and its Run. The
+  Audit's executions whose Runs are already deleted and other Audits' Runs add
+  nothing to a probe, so deleting the child Runs costs work linear in their
+  number, not quadratic.
 - Fairness. One Controller pass reconciles each claimed Audit in its own step
   (LIM-AUX-11) and ends when every one of them has finished, so a draining
   Audit spends at most one batch per pass. An ordinary step's batch ends
@@ -1002,6 +1014,14 @@ Shared rules are in
     [`internal/auditstore/internal/pgstore/claim_scale_postgres_test.go`](../../../internal/auditstore/internal/pgstore/claim_scale_postgres_test.go)
     and `TestPostgresAuditClaimLeasesTheOriginalCandidatesInOrder` in
     [`internal/auditstore/internal/pgstore/claim_candidates_postgres_test.go`](../../../internal/auditstore/internal/pgstore/claim_candidates_postgres_test.go).
+13. A deletion step's next child Run probe and the purge gate read, in
+    their custom and generic plans, at most the first execution whose child
+    Run is not marked deleted and that Run, whatever the number of the
+    Audit's executions and of other Runs, and the probe returns the child
+    Runs in execution creation order until the purge gate passes (AUX-R97);
+    tests `TestPostgresAuditDeletionProbesReadOnlyTheLiveRuns` and
+    `TestPostgresAuditDeletionProbeTraversesRunsInOriginalOrder` in
+    [`internal/auditstore/internal/pgstore/deletion_probe_postgres_test.go`](../../../internal/auditstore/internal/pgstore/deletion_probe_postgres_test.go).
 
 ## Non-goals
 

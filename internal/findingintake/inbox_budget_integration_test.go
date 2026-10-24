@@ -347,7 +347,10 @@ SELECT (SELECT count(*) FROM finding_proposal_receipts),
 			t.Fatalf("fixture inbox has %d receipts and %d held, want 280 and 130", len(inbox), len(held))
 		}
 		// The native branch reads at most the Audit's N native receipts, the
-		// held branch probes one receipt per hold, and the page reads L whole.
+		// held branch probes at most one receipt per hold, and the page reads
+		// L whole. This budget bounds the population's reads by the inbox;
+		// TestPostgresAuditHeldInboxPageReadsOnlyThePage bounds each branch
+		// by the page.
 		// Holding a receipt rewrites its retention state, so a held receipt
 		// has two row versions, and until VACUUM can remove the old one an
 		// index may return an entry for each: every read that can reach a

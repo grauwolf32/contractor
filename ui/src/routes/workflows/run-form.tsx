@@ -23,7 +23,10 @@ import {
   type RunDraftState,
   type RunDraftSummary,
 } from "../../run-drafts/memory";
-import { validateRunDraft } from "../../run-drafts/validation";
+import {
+  artifactOptionKey,
+  validateRunDraft,
+} from "../../run-drafts/validation";
 import { AlertDialog, Button, StatusChip } from "../../ui";
 import { InputFields, ParameterFields } from "./run-form-fields";
 import { useRunFormInventories } from "./run-form-inventories";
@@ -173,7 +176,16 @@ function WorkflowRunDraftBoundary(props: WorkflowRunFormProps) {
   };
   const initialState = initialRunDraftState(
     props.initialArtifactSelections,
-    props.initialArtifacts,
+    Object.fromEntries(
+      Object.entries(props.initialArtifactSelections ?? {}).map(
+        ([slot, selected]) => [
+          slot,
+          (props.initialArtifacts ?? []).filter(
+            (metadata) => artifactOptionKey(metadata.artifact) === selected,
+          ),
+        ],
+      ),
+    ),
   );
   const [acquisition, setAcquisition] = useState(() =>
     store.acquire(identity, initialState),
@@ -268,11 +280,12 @@ function WorkflowRunFormBody({
   );
   const inventories = useRunFormInventories({
     projectId,
+    inputs: workflow.inputs,
     knownArtifacts: draft.knownArtifacts,
     executionOptionsOpen,
     runtimeOptionsOpen,
   });
-  const { artifactInventory, artifactMap } = inventories;
+  const { artifactsPending } = inventories;
   const keyring = draftEntry.keyring;
   const keyScope =
     projectId === undefined ? "standalone" : `project:${projectId}`;
@@ -288,7 +301,7 @@ function WorkflowRunFormBody({
         artifactReviews: draft.artifactReviews,
         overrides: draft.overrides,
       },
-      artifactMap,
+      (slot) => inventories.inputs[slot]?.artifactMap,
     );
   }
   const currentValidation = validate();
@@ -387,7 +400,7 @@ function WorkflowRunFormBody({
     workflow,
     draft,
     valid: currentValidation.request !== undefined,
-    artifactsPending: artifactInventory.isPending,
+    artifactsPending,
     inputNoun: projectId === undefined ? "file" : "material",
   });
   const parameterSlots = Object.entries(workflow.parameters);
@@ -607,8 +620,7 @@ function WorkflowRunFormBody({
             }
             disabled={
               readiness.repeatReviewPending ||
-              (Object.keys(workflow.inputs).length > 0 &&
-                artifactInventory.isPending)
+              (Object.keys(workflow.inputs).length > 0 && artifactsPending)
             }
           >
             {responseLost && exactRetry

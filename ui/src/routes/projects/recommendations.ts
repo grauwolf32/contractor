@@ -46,6 +46,12 @@ export function buildWorkflowCompatibility(
       for (const [slotName, slot] of Object.entries(workflow.inputs ?? {}).sort(
         ([left], [right]) => left.localeCompare(right),
       )) {
+        // Project materials cannot satisfy an owner-scoped input such as the
+        // optional Nuclei rulepack. Its choices come from Library in Run setup.
+        if (slot.sourceScope === "user") {
+          candidates[slotName] = [];
+          continue;
+        }
         const accepted = currentArtifacts.filter((artifact) =>
           artifactAccepts(slot.mediaTypes, artifact),
         );

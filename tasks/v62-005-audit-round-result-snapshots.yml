@@ -47,7 +47,7 @@ context:
     from an accepted item's manifest, and findingConfirmation: optional. V410-006 explicitly leaves
     V62-006/007 routing out of the sitemap slice. This note reactivates nothing. Task-specific: no
     shipped profile binds an assessment role (configs/audit-profiles), so V411-012 is the only
-    planned consumer. V414-018 (pending) makes the Audit detail projection one snapshot read; that
+    planned consumer. V414-018 (completed) made the Audit detail projection one snapshot read; that
     is read consistency, not a settled-round snapshot, and does not overlap this scope.
 scope:
   in:

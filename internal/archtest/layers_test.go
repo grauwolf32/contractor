@@ -37,6 +37,10 @@ var layers = []layerSpec{
 			"internal/contracts/contractstest",
 			"internal/credentialerrors",
 			"internal/documentnumber",
+			// The YAML scalar and member-name rule of JSON-compatible source
+			// documents (SCN-R124) that scan preparation and the Audit
+			// inventories share.
+			"internal/documentyaml",
 			"internal/httpapi/httpx",
 			"internal/mtlstest",
 			// The public list page bound shared by handlers, stores and the CLI.
@@ -74,6 +78,8 @@ var layers = []layerSpec{
 			// Test support: the plans, rows read and trigger calls of statements,
 			// and the statements of SQL text.
 			"internal/persistence/explaintest",
+			// Test support: the advisory lease that lease-fenced writes prove.
+			"internal/persistence/leasetest",
 			// Test support: holds the migrated schema's state sets to Go.
 			"internal/persistence/statesettest",
 		},

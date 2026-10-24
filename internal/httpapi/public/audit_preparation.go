@@ -10,32 +10,38 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
-func (h *auditHandlers) auditDetailReadModel(r *http.Request, audit auditstore.Audit) (auditResponse, error) {
-	response, err := auditReadModel(audit)
+// readAuditDetail answers the detail of audit, the state of an owner's Audit
+// that a read or a committed mutation returned (ASC-R149). The service reads
+// an Audit whose detail hydrates preparation again in one snapshot, so the
+// response, its revision and its ETag come from one commit and a write that
+// commits meanwhile never turns the answer into a conflict.
+func (h *auditHandlers) readAuditDetail(r *http.Request, audit auditstore.Audit) (auditResponse, error) {
+	detail, err := h.Audits.Detail(r.Context(), principalUserID(r.Context()), audit, auditDetailHydratesPreparation)
 	if err != nil {
 		return auditResponse{}, err
 	}
-	if response.Phase == auditdomain.AuditPhaseNotStarted || !auditPinsPreparation(audit) {
-		return response, nil
-	}
-	roles, err := h.Audits.Preparation(r.Context(), principalUserID(r.Context()), audit.AuditID)
+	return auditDetailReadModel(detail)
+}
+
+// auditDetailReadModel is the public projection of one Audit's detail.
+func auditDetailReadModel(detail auditservice.AuditDetail) (auditResponse, error) {
+	response, err := auditReadModel(detail.Audit)
 	if err != nil {
 		return auditResponse{}, err
 	}
-	inventory, err := h.Audits.GeneratedInventory(r.Context(), principalUserID(r.Context()), audit.AuditID, audit.Revision)
-	if err != nil {
-		return auditResponse{}, err
-	}
-	response.GeneratedInventory = inventory
-	response.Preparation = auditPreparationReadModel(roles)
-	latest, err := h.Audits.Get(r.Context(), principalUserID(r.Context()), audit.AuditID)
-	if err != nil {
-		return auditResponse{}, err
-	}
-	if latest.Revision != audit.Revision {
-		return auditResponse{}, auditstore.ErrConflict
+	if detail.Preparation != nil {
+		response.Preparation = auditPreparationReadModel(detail.Preparation)
+		response.GeneratedInventory = detail.GeneratedInventory
 	}
 	return response, nil
+}
+
+// auditDetailHydratesPreparation reports whether the detail of an Audit
+// carries preparation (ASC-R149): it has started and its pinned profile has
+// a prepare role. Its generatedInventory exists only in the rounds phase
+// (ASC-R146).
+func auditDetailHydratesPreparation(audit auditstore.Audit) bool {
+	return audit.Phase != auditdomain.AuditPhaseNotStarted && auditPinsPreparation(audit)
 }
 
 // auditListHydratesPreparation reports whether a list item carries

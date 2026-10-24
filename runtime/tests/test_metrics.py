@@ -9,6 +9,7 @@ from fakes.private_codec import encode_private
 from pydantic import ValidationError
 
 from contractor_runtime.contracts import (
+    MAX_REPORT_INTEGER,
     ExecutionReport,
     TerminationError,
     ToolCallRecord,
@@ -392,6 +393,70 @@ def test_shared_allocation_counters_saturate_at_the_state_wire_limit() -> None:
         "output_tokens": MAX_METRIC_COUNTER,
         "total_tokens": MAX_METRIC_COUNTER,
     }
+
+
+def test_shared_report_counters_saturate_at_the_report_integer_bound() -> None:
+    # Allocation counters keep the Worker State bound; the report projects
+    # them onto the lower execution report bound instead of building a report
+    # the Server rejects (OBS-R111).
+    state = MetricsState()
+    state.start_worker_budget(max_model_calls=1, max_tool_calls=1, max_total_tokens=100)
+    state.record_model_call()
+    state.record_model_usage(
+        SimpleNamespace(
+            prompt_token_count=MAX_METRIC_COUNTER,
+            candidates_token_count=MAX_METRIC_COUNTER,
+            total_token_count=2 * MAX_METRIC_COUNTER,
+            cached_content_token_count=0,
+        )
+    )
+    state.observe_worker_budget(
+        model_calls=1,
+        tool_calls=1,
+        total_tokens=2 * MAX_METRIC_COUNTER,
+        token_usage_unavailable=MAX_METRIC_COUNTER + 1,
+    )
+    state.record_summarizer_attempt(
+        succeeded=True,
+        model_calls=1,
+        input_tokens=MAX_METRIC_COUNTER,
+        output_tokens=MAX_METRIC_COUNTER,
+        total_tokens=2 * MAX_METRIC_COUNTER,
+        token_usage_unavailable=0,
+    )
+    for _ in range(2):
+        state.record_tool_call("read_file", arguments={})
+    state.record_tool_call("read_file", arguments={}, error=ToolFailure("synthetic failure"))
+    state._tool_metrics["read_file"] = {
+        "calls": MAX_METRIC_COUNTER,
+        "succeeded": MAX_METRIC_COUNTER,
+        "failed": MAX_METRIC_COUNTER,
+    }
+
+    report = state.build_report(report_id="worker-saturated", duration_ms=MAX_METRIC_COUNTER)
+
+    metrics = report.metrics
+    assert state.counters["total_tokens"] == MAX_METRIC_COUNTER
+    assert (metrics.input_tokens, metrics.output_tokens, metrics.total_tokens) == (
+        MAX_REPORT_INTEGER,
+        MAX_REPORT_INTEGER,
+        MAX_REPORT_INTEGER,
+    )
+    assert (metrics.duration_ms, metrics.model_calls) == (MAX_REPORT_INTEGER, 1)
+    tool = metrics.tools["read_file"]
+    assert (tool.calls, tool.succeeded, tool.failed) == (MAX_REPORT_INTEGER,) * 3
+    assert metrics.worker_budget is not None
+    assert metrics.worker_budget.observed_total_tokens == MAX_REPORT_INTEGER
+    assert metrics.worker_budget.token_usage_unavailable == MAX_REPORT_INTEGER
+    assert metrics.summarizer is not None
+    assert metrics.summarizer.total_tokens == MAX_REPORT_INTEGER
+    # A fresh validation, which the budget's model_copy skips, accepts it.
+    encoded = report.model_dump_json(by_alias=True, exclude_none=True)
+    assert ExecutionReport.model_validate_json(encoded) == report
+    above = json.loads(encoded)
+    above["metrics"]["totalTokens"] = MAX_REPORT_INTEGER + 1
+    with pytest.raises(ValidationError):
+        ExecutionReport.model_validate_json(json.dumps(above))
 
 
 class LongInputError(ToolInputError):

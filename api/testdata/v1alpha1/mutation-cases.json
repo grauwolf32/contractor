@@ -381,6 +381,64 @@
         "/report/worker/toolCalls/0/error"
       ]
     },
+    "allocation-final-response-metric-integer-bound.json": {
+      "enum": [
+        "/apiVersion",
+        "/report/worker/metrics/workerBudget/exhausted",
+        "/report/worker/toolCalls/0/outcome"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/report/worker/errors/0/message",
+          "maxLength": 4096
+        },
+        {
+          "pointer": "/report/worker/toolCalls/0/error/message",
+          "maxLength": 4096
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/report/worker/errors/0/message",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/report/worker/toolCalls/0/error/message",
+          "maxLength": 4096,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/report",
+        "/report/runtime",
+        "/report/worker",
+        "/report/worker/errors/0",
+        "/report/worker/metrics",
+        "/report/worker/metrics/summarizer",
+        "/report/worker/metrics/tools/read_file",
+        "/report/worker/metrics/tools/write_file",
+        "/report/worker/metrics/workerBudget",
+        "/report/worker/toolCalls/0",
+        "/report/worker/toolCalls/0/error"
+      ],
+      "duplicateKey": [
+        "",
+        "/report",
+        "/report/runtime",
+        "/report/worker",
+        "/report/worker/errors/0",
+        "/report/worker/metrics",
+        "/report/worker/metrics/summarizer",
+        "/report/worker/metrics/tools",
+        "/report/worker/metrics/tools/read_file",
+        "/report/worker/metrics/tools/write_file",
+        "/report/worker/metrics/workerBudget",
+        "/report/worker/toolCalls/0",
+        "/report/worker/toolCalls/0/error"
+      ]
+    },
     "allocation-final-response.json": {
       "enum": [
         "/apiVersion",

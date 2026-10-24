@@ -638,6 +638,9 @@ func (p *streamlinePlanner) planPersistenceFailure(
 		true,
 		cause,
 	)
+	if planner.SessionWriteRejected(cause) {
+		value = planner.SessionError("record plan progress", cause)
+	}
 	state.setExternalFailure(value)
 	return value.Failure
 }
