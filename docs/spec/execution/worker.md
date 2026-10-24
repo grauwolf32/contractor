@@ -1245,10 +1245,11 @@ Worker State keeps only bounded state/usage, not summary text (LIFE-WRK-4).
 summarizer aggregate, so that normal Worker usage and terminal summarization
 cost can be evaluated independently. The aggregate contains attempt, success
 and failure counts, model calls, provider-reported input, output and total
-tokens, a missing-usage count and bounded stable failure-code counts. It
-contains no transcript or result text and no endpoint or model-provider body.
-The immutable AllocationSpec supplies exact summarizer ModelPolicy and Gateway
-attribution.
+tokens, a missing-usage count and bounded stable failure-code counts; each
+count saturates at the execution report integer bound
+([OBS-R111](../platform/observability.md)). It contains no transcript or
+result text and no endpoint or model-provider body. The immutable
+AllocationSpec supplies exact summarizer ModelPolicy and Gateway attribution.
 
 **WRK-R156.** Summarization is semantic work and therefore occurs only
 inside the active A2A invocation while allocation writes are allowed. It never

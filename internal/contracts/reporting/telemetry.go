@@ -316,6 +316,14 @@ func (r ExecutionReport) validateStored() error {
 	return r.validate(false)
 }
 
+// metricIntegerInRange reports whether value may be an integer of
+// ExecutionMetrics: every one lies between 0 and MaxResourceInteger, so the
+// sums the Server builds from them stay far from the int64 range and every
+// JSON consumer reads them exactly (OBS-R111, LIM-OBS-17).
+func metricIntegerInRange(value int64) bool {
+	return value >= 0 && value <= MaxResourceInteger
+}
+
 func (r ExecutionReport) validate(received bool) error {
 	if r.Completion != nil {
 		if err := r.Completion.Validate(); err != nil {
@@ -333,8 +341,8 @@ func (r ExecutionReport) validate(received bool) error {
 			return err
 		}
 		for _, value := range []*int64{metrics.Calls, metrics.Succeeded, metrics.Failed} {
-			if value != nil && *value < 0 {
-				return contracts.Invalidf("tool metrics must be non-negative")
+			if value != nil && !metricIntegerInRange(*value) {
+				return contracts.Invalidf("tool metrics must lie between 0 and 2^53-1")
 			}
 		}
 	}
@@ -342,8 +350,8 @@ func (r ExecutionReport) validate(received bool) error {
 		r.Metrics.DurationMS, r.Metrics.ModelCalls, r.Metrics.InputTokens,
 		r.Metrics.OutputTokens, r.Metrics.TotalTokens,
 	} {
-		if value != nil && *value < 0 {
-			return contracts.Invalidf("execution metrics must be non-negative")
+		if value != nil && !metricIntegerInRange(*value) {
+			return contracts.Invalidf("execution metrics must lie between 0 and 2^53-1")
 		}
 	}
 	if budget := r.Metrics.WorkerBudget; budget != nil {
@@ -354,7 +362,8 @@ func (r ExecutionReport) validate(received bool) error {
 		}
 		if budget.ObservedModelCalls < 0 || budget.ObservedModelCalls > budget.MaxModelCalls ||
 			budget.ObservedToolCalls < 0 || budget.ObservedToolCalls > budget.MaxToolCalls ||
-			budget.ObservedTotalTokens < 0 || budget.TokenUsageUnavailable < 0 {
+			!metricIntegerInRange(budget.ObservedTotalTokens) ||
+			!metricIntegerInRange(budget.TokenUsageUnavailable) {
 			return contracts.Invalidf("worker budget observations are invalid")
 		}
 		if budget.Exhausted != nil {
@@ -377,6 +386,15 @@ func (r ExecutionReport) validate(received bool) error {
 		}
 	}
 	if summarizer := r.Metrics.Summarizer; summarizer != nil {
+		for _, value := range []uint64{
+			summarizer.Attempts, summarizer.Succeeded, summarizer.Failed, summarizer.ModelCalls,
+			summarizer.InputTokens, summarizer.OutputTokens, summarizer.TotalTokens,
+			summarizer.TokenUsageUnavailable,
+		} {
+			if value > MaxResourceInteger {
+				return contracts.Invalidf("worker summarizer metrics must not exceed 2^53-1")
+			}
+		}
 		if summarizer.Attempts == 0 || summarizer.Succeeded > summarizer.Attempts ||
 			summarizer.Failed > summarizer.Attempts ||
 			^uint64(0)-summarizer.Succeeded < summarizer.Failed ||
