@@ -1,6 +1,7 @@
 package pgstore
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -106,5 +107,81 @@ func TestPostgresSettleUndispatchedPreservesAttemptedCoverage(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// A retried item whose collected coverage gaps fill audit_items_coverage_gaps_check
+// still settles when dispatch closes. Settlement is the barrier every closure
+// waits for, so it keeps the full gap array instead of appending a closure
+// gap the CHECK would refuse on every pass, and records the closure through
+// the item's disposition and rationale; an item with room still gets its
+// closure gap (AUX-R100, AUD-R186).
+func TestPostgresSettleUndispatchedKeepsFullCoverageGapsWithinTheirStoredBound(t *testing.T) {
+	f := newCollectingAuditFixture(t, "settlement-full-gaps", 1<<20,
+		collectingAuditFixtureOptions{extraPending: true, terminalOutcome: "failed"})
+	// 4096 distinct values of 252 bytes are 1,044,481 bytes of compact JSON,
+	// which the collection validation accepts, and exactly 1,048,576 bytes of
+	// jsonb text, the stored bound.
+	gaps := make([]string, 4096)
+	for index := range gaps {
+		gaps[index] = fmt.Sprintf("gap-%04d-%s", index, strings.Repeat("x", 252-9))
+	}
+	const failedRationale = "The child Run failed before an acceptable semantic result was collected."
+	if _, inserted, err := f.store.Collect(f.ctx, auditstore.CollectParams{
+		Claim: f.claim, ReceiptID: "receipt-settlement-full-gaps", ExecutionID: f.execution.ExecutionID,
+		Disposition: auditstore.CollectionExecutionFailed, ErrorCode: stringPointer("run_failed"),
+		RequestDigest: testDigest("5"),
+		Items: []auditstore.CollectionItem{{
+			ExecutionItemID: f.memberID, Disposition: auditstore.CollectionExecutionFailed,
+			Retryable: true, FinalDisposition: auditstore.FinalExecutionFailed,
+			Coverage: auditstore.Coverage{
+				Status: auditstore.CoverageBlocked, Requested: []string{}, Completed: []string{},
+				Gaps: gaps, Rationale: failedRationale,
+			},
+		}},
+	}); err != nil || !inserted {
+		t.Fatalf("collect a retryable failure with full gaps = (%t, %v)", inserted, err)
+	}
+	var storedBytes int
+	if err := f.pool.QueryRow(f.ctx, `SELECT octet_length(coverage_gaps::text) FROM audit_items WHERE item_id = $1`,
+		f.itemID).Scan(&storedBytes); err != nil || storedBytes != auditstore.MaxCoverageArrayBytes {
+		t.Fatalf("collected gaps are %d bytes of jsonb text (%v), want the stored bound", storedBytes, err)
+	}
+	audit, err := f.store.Get(f.ctx, f.audit.OwnerID, f.audit.AuditID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.store.TransitionClaimed(f.ctx, auditstore.ClaimedTransitionParams{
+		Claim: f.claim, ExpectedRevision: audit.Revision,
+		ExpectedState: auditstore.AuditActive, TargetState: auditstore.AuditFinalizing,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	settled, err := f.store.SettleUndispatched(f.ctx, f.claim, auditstore.MaxReconcileRows)
+	if err != nil || settled != 2 {
+		t.Fatalf("settle items = (%d, %v), want 2", settled, err)
+	}
+	rows, err := f.store.ListCoverage(f.ctx, f.audit.AuditID, "round-settlement-full-gaps", -1, 10)
+	if err != nil || len(rows) != 2 {
+		t.Fatalf("settled coverage = (%+v, %v)", rows, err)
+	}
+	full := rows[0].Coverage
+	if !slices.Equal(full.Gaps, gaps) || full.Status != auditstore.CoverageBlocked ||
+		full.Rationale != failedRationale+" Audit dispatch closed before a retry of this item was submitted." {
+		t.Errorf("full coverage = %d gaps, status %s, rationale %q; want its gaps kept and the closure in the rationale",
+			len(full.Gaps), full.Status, full.Rationale)
+	}
+	if room := rows[1].Coverage; !slices.Contains(room.Gaps, "audit-closed-before-dispatch") {
+		t.Errorf("item with room lost its closure gap: %+v", room)
+	}
+	items, err := f.store.ListItems(f.ctx, f.audit.AuditID)
+	if err != nil || len(items) != 2 {
+		t.Fatalf("settled items = (%+v, %v)", items, err)
+	}
+	for _, item := range items {
+		if item.State != auditstore.ItemSettled || item.FinalDisposition == nil ||
+			*item.FinalDisposition != auditstore.FinalExcluded {
+			t.Errorf("settled item = %+v", item)
+		}
 	}
 }

@@ -24,11 +24,20 @@ func (c *Controller) progressPreparation(ctx context.Context, claim auditstore.C
 			return reconciliationDone(false, err)
 		}
 		if reason != nil {
-			return reconciliationDone(c.closeForRoleFailure(ctx, claim, audit, reason))
+			return reconciliationDone(c.closeActiveAudit(ctx, claim, audit, reason))
 		}
 		_, inserted, err := c.store.AcceptInitialRound(ctx, params)
 		if errors.Is(err, auditstore.ErrPrecondition) {
 			return reconciliationDone(false, nil)
+		}
+		if c.refusedWrite(audit, "accept initial Round", err) {
+			// The store refused the generated inventory the builder accepted,
+			// so the inventory is invalid as surely as one the builder
+			// rejects (ASC-R51).
+			return reconciliationDone(c.closeActiveAudit(ctx, claim, audit, &auditstore.StopReason{
+				Code:    "invalid_inventory",
+				Message: "The prepared Audit inventory failed validation: the Audit store refused its initial Round.",
+			}))
 		}
 		return reconciliationDone(inserted, err)
 	}
@@ -49,7 +58,7 @@ func (c *Controller) progressPreparation(ctx context.Context, claim auditstore.C
 				}
 			}
 		}
-		return reconciliationDone(c.closeForRoleFailure(ctx, claim, audit, reason))
+		return reconciliationDone(c.closeActiveAudit(ctx, claim, audit, reason))
 	}
 	if !complete {
 		return reconciliationDone(false, nil)
