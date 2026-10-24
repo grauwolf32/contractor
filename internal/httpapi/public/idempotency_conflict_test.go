@@ -25,14 +25,20 @@ import (
 	"github.com/grauwolf32/contractor/internal/scanstore"
 )
 
-// Every operation that binds an Idempotency-Key reports the key reused with a
-// different request as the permanent 409 idempotency_conflict, retryable
-// false (FAIL-RUN-1). Each dependency below answers with the sentinel the
-// real stores return for that outcome; that the stores return it, and that
-// the same request still replays, is tested against PostgreSQL in their
-// packages and in the Run and Audit handler tests. An operation that takes
-// the IdempotencyKey parameter but has no request here fails the test.
-func TestEveryKeyedOperationReportsKeyReuseAsPermanent(t *testing.T) {
+// keyedRequest is a request of a keyed operation that, with any well formed
+// key, reaches the operation's dependency.
+type keyedRequest struct {
+	method, path, body string
+	headers            map[string]string
+}
+
+// keyedOperationRequests returns a handler whose dependencies answer every
+// keyed mutation that reaches them with the idempotency conflict their real
+// stores report for a reused key, the Audit dependency that records which
+// mutations reached it, and a request for every keyed operation other than
+// the Eval mutations.
+func keyedOperationRequests(t *testing.T) (handlerFixture, *reusedKeyAudits, map[string]keyedRequest) {
+	t.Helper()
 	reused := fmt.Errorf("%w: test key", contracts.ErrIdempotencyConflict)
 	audits := &reusedKeyAudits{fakeAuditManagement: &fakeAuditManagement{
 		audit: auditstore.Audit{AuditID: "audit-one", OwnerID: "user-1", ProjectID: "project-one", Revision: 1},
@@ -89,10 +95,6 @@ func TestEveryKeyedOperationReportsKeyReuseAsPermanent(t *testing.T) {
 		t.Fatal(err)
 	}
 	agent := strings.Repeat("b", 64)
-	type keyedRequest struct {
-		method, path, body string
-		headers            map[string]string
-	}
 	runBody := `{"workflow":"artifact-copy@1","parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`
 	requests := map[string]keyedRequest{
 		"createScanSweep":  {http.MethodPost, "/v1/scan-sweeps", `{"projectIds":["project-one"],"workflow":"nuclei-web@1","parameters":{}}`, nil},
@@ -125,6 +127,18 @@ func TestEveryKeyedOperationReportsKeyReuseAsPermanent(t *testing.T) {
 		"createCredential": {http.MethodPost, "/v1/operations/credentials", string(credentialBody), nil},
 		"deleteCredential": {http.MethodDelete, "/v1/operations/credentials/managed-keyed", "", nil},
 	}
+	return fixture, audits, requests
+}
+
+// Every operation that binds an Idempotency-Key reports the key reused with a
+// different request as the permanent 409 idempotency_conflict, retryable
+// false (FAIL-RUN-1). Each dependency below answers with the sentinel the
+// real stores return for that outcome; that the stores return it, and that
+// the same request still replays, is tested against PostgreSQL in their
+// packages and in the Run and Audit handler tests. An operation that takes
+// the IdempotencyKey parameter but has no request here fails the test.
+func TestEveryKeyedOperationReportsKeyReuseAsPermanent(t *testing.T) {
+	fixture, audits, requests := keyedOperationRequests(t)
 	// Eval mutations validate frozen documents before the service, and report
 	// a reused key as eval_idempotency_conflict through handleError (checked
 	// below); TestSharedEvalPostgresAuthorizationCSRFStrictBodiesAndCAS reuses a

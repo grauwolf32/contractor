@@ -6,6 +6,25 @@ import (
 
 // SQL statements for store.go.
 
+// heldAuditIDsByCredentialSQL lists, oldest first, at most $2 held Audits
+// whose baseline names credential $1 in its credential list member, one of
+// runtimeconfig.LLMCredentialIDsMember and RuntimeCredentialIDsMember: an
+// Audit baseline repeats the RunSnapshot credential members. The expression
+// and predicate match audits_held_llm_credentials_idx and
+// audits_held_runtime_credentials_idx, which hold the member of held Audits
+// only, so the check reads the held Audits naming the credential rather than
+// every Audit and every held baseline (V407-025). Used by
+// CredentialHolds.listHeldAuditIDsByCredential.
+func heldAuditIDsByCredentialSQL(member string) string {
+	return `
+SELECT audit_id
+  FROM audits
+ WHERE hold_state = 'held'
+   AND (baseline_snapshot->'` + member + `') ? $1
+ ORDER BY created_at, audit_id
+ LIMIT $2`
+}
+
 // auditCreatedEvents are the first events of a draft Audit.
 var auditCreatedEvents = auditEvents(auditEvent(
 	"'audit.created'", "audit.audit_id", "audit.revision", "jsonb_build_object('state', audit.state)",

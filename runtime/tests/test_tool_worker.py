@@ -72,22 +72,38 @@ class ArtifactStore:
         self.block_write = None
         self.write_started = asyncio.Event()
         self.writes = 0
+        # (kind, namespace, name) of every GET: "payload" or "metadata".
+        self.reads = []
 
     async def request(self, method, path, *, headers, body, max_response_bytes):
         parsed = urlsplit(path)
-        namespace, name = map(unquote, parsed.path.split("/artifacts/")[1].split("/"))
+        namespace, name, *suffix = map(unquote, parsed.path.split("/artifacts/")[1].split("/"))
+        if suffix not in ([], ["metadata"]):
+            raise AssertionError(f"unexpected artifact path {parsed.path}")
         key = (namespace, name)
         current = self.values.get(key)
         if method == "GET":
+            self.reads.append(("metadata" if suffix else "payload", *key))
             exact = parse_qs(parsed.query).get("revision", [None])[0]
             if exact is not None and current is not None and exact != current[2]:
                 current = self.revisions.get((*key, exact))
             if current is None:
                 return self.response(404, {"code": "not_found", "retryable": False})
             data, media_type, revision = current
+            if suffix:
+                # ART-R116: the exact ref, media type and size, never the payload.
+                return self.response(
+                    200,
+                    {
+                        "apiVersion": "contractor/v1alpha1",
+                        "artifact": {"namespace": namespace, "name": name, "revision": revision},
+                        "mediaType": media_type,
+                        "size": len(data),
+                    },
+                )
             assert len(data) <= max_response_bytes
             return self.response(200, data, media_type, revision)
-        assert method == "PUT"
+        assert method == "PUT" and not suffix
         phase = "report" if name == "report" else "terminal" if current else "start"
         if phase == self.block_write:
             self.write_started.set()

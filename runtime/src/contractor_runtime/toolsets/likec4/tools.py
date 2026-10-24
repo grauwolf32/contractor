@@ -142,9 +142,9 @@ class _LikeC4Session(DocumentSession[str]):
         return _validate_document(document)
 
     def _document_state(
-        self, artifact: ArtifactRef, target_name: str, document: str, *, changed: bool, copied: bool
+        self, artifact: ArtifactRef, target_name: str, size: int, *, changed: bool, copied: bool
     ) -> dict[str, Any]:
-        return _document_state(artifact, target_name, document, changed=changed, copied=copied)
+        return _document_state(artifact, target_name, size, changed=changed, copied=copied)
 
     async def write(
         self,
@@ -154,8 +154,8 @@ class _LikeC4Session(DocumentSession[str]):
         expected_revision: str | None,
     ) -> dict[str, Any]:
         validate_target_name(target_name)
-        _validate_document(content)
         async with self._lock:
+            data = await self._prepare(_validate_document, content)
             effective_revision = expected_revision
             if (
                 effective_revision is None
@@ -164,7 +164,7 @@ class _LikeC4Session(DocumentSession[str]):
             ):
                 effective_revision = self._revision
             written = await self._write(
-                content,
+                data,
                 target_name=target_name,
                 expected_revision=effective_revision,
             )
@@ -172,7 +172,7 @@ class _LikeC4Session(DocumentSession[str]):
             return _document_state(
                 written.artifact,
                 target_name,
-                content,
+                len(data),
                 changed=True,
                 copied=False,
             )
@@ -181,26 +181,11 @@ class _LikeC4Session(DocumentSession[str]):
         _validate_line_window(start_line, max_lines)
         async with self._lock:
             content, artifact = self._require_document()
-            lines = split_lines(content, keepends=True)
-            total_lines = len(lines)
-            if total_lines > 0 and start_line > total_lines:
-                raise ToolInputError("start_line exceeds LikeC4 document line count")
-            visible, end_line, partial_line = bounded_line_window(
-                lines,
-                start_line=start_line,
-                max_lines=max_lines,
-                max_bytes=MAX_VISIBLE_UTF8_BYTES,
-            )
+            window = await self._prepare(_read_window, content, start_line, max_lines)
             return {
                 "artifact": artifact.model_dump(by_alias=True),
                 "mediaType": TARGET_MEDIA_TYPE,
-                "utf8Size": len(content.encode("utf-8")),
-                "totalLines": total_lines,
-                "startLine": start_line,
-                "endLine": end_line,
-                "text": visible,
-                "truncated": partial_line or end_line < total_lines,
-                "partialLine": partial_line,
+                **window,
             }
 
     async def append(self, content: str) -> dict[str, Any]:
@@ -208,9 +193,9 @@ class _LikeC4Session(DocumentSession[str]):
             raise ToolInputError("append content must be a non-empty string")
         async with self._lock:
             current, _ = self._require_document()
-            candidate = current + content
-            result = await self._commit_current(candidate)
-            result["appendedUtf8Bytes"] = len(content.encode("utf-8"))
+            candidate, data, appended = await self._prepare(_append_candidate, current, content)
+            result = await self._commit_current(candidate, data)
+            result["appendedUtf8Bytes"] = appended
             return result
 
     async def replace(
@@ -232,23 +217,10 @@ class _LikeC4Session(DocumentSession[str]):
             raise ToolInputError("count must be an integer from 1 through 100")
         async with self._lock:
             current, _ = self._require_document()
-            occurrences = current.count(old)
-            if occurrences == 0:
-                raise ToolInputError(
-                    "old fragment is absent from the LikeC4 document", code="fragment_not_found"
-                )
-            if count is None:
-                if occurrences != 1:
-                    raise ToolInputError(
-                        "old fragment is ambiguous; pass an explicit replacement count"
-                    )
-                replacement_count = 1
-            else:
-                if count > occurrences:
-                    raise ToolInputError("replacement count exceeds matching occurrences")
-                replacement_count = count
-            candidate = current.replace(old, new, replacement_count)
-            result = await self._commit_current(candidate)
+            candidate, data, replacement_count, occurrences = await self._prepare(
+                _replace_candidate, current, old, new, count
+            )
+            result = await self._commit_current(candidate, data)
             result.update(
                 {
                     "replacementCount": replacement_count,
@@ -274,15 +246,16 @@ class _LikeC4Session(DocumentSession[str]):
                 "stats": validation["stats"],
             }
 
-    async def _commit_current(self, candidate: str) -> dict[str, Any]:
-        _validate_document(candidate)
+    async def _commit_current(self, candidate: str, data: bytes) -> dict[str, Any]:
+        """Write a prepared candidate and its validated encoding over the current target."""
+
         target_name, revision = self._require_target()
-        written = await self._write(candidate, target_name=target_name, expected_revision=revision)
+        written = await self._write(data, target_name=target_name, expected_revision=revision)
         self._remember(candidate, target_name, written.artifact)
         return _document_state(
             written.artifact,
             target_name,
-            candidate,
+            len(data),
             changed=True,
             copied=False,
         )
@@ -559,12 +532,22 @@ async def _run_likec4(
     except OSError:
         return _validation_failure(True, "LikeC4 could not be executed")
 
-    if process.returncode not in {0, 1}:
+    # Banner-tolerant JSON extraction may decode the output many times; a
+    # cancelled caller still waits for the thread.
+    return await to_thread_until_done(
+        _likec4_report, process.returncode, process.stdout, name="likec4-validator-output"
+    )
+
+
+def _likec4_report(returncode: int, stdout: bytes) -> dict[str, Any]:
+    """Turn a finished LikeC4 process into the bounded validator result."""
+
+    if returncode not in {0, 1}:
         return _validation_failure(True, "LikeC4 returned an execution failure")
-    if not process.stdout or len(process.stdout) > MAX_VALIDATOR_OUTPUT_BYTES:
+    if not stdout or len(stdout) > MAX_VALIDATOR_OUTPUT_BYTES:
         return _validation_failure(True, "LikeC4 returned empty or oversized output")
     try:
-        text = process.stdout.decode("utf-8", errors="strict")
+        text = stdout.decode("utf-8", errors="strict")
         parsed = _extract_json(text)
     except (UnicodeDecodeError, ValueError):
         return _validation_failure(True, "LikeC4 returned invalid JSON")
@@ -722,6 +705,58 @@ def _validate_document(content: Any) -> bytes:
     return data
 
 
+def _append_candidate(current: str, content: str) -> tuple[str, bytes, int]:
+    """Return the appended document, its validated encoding and the appended bytes."""
+
+    candidate = current + content
+    data = _validate_document(candidate)
+    return candidate, data, len(content.encode("utf-8"))
+
+
+def _replace_candidate(
+    current: str, old: str, new: str, count: int | None
+) -> tuple[str, bytes, int, int]:
+    """Return the replaced document, its validated encoding and the match counts."""
+
+    occurrences = current.count(old)
+    if occurrences == 0:
+        raise ToolInputError(
+            "old fragment is absent from the LikeC4 document", code="fragment_not_found"
+        )
+    if count is None:
+        if occurrences != 1:
+            raise ToolInputError("old fragment is ambiguous; pass an explicit replacement count")
+        replacement_count = 1
+    else:
+        if count > occurrences:
+            raise ToolInputError("replacement count exceeds matching occurrences")
+        replacement_count = count
+    candidate = current.replace(old, new, replacement_count)
+    return candidate, _validate_document(candidate), replacement_count, occurrences
+
+
+def _read_window(content: str, start_line: int, max_lines: int) -> dict[str, Any]:
+    lines = split_lines(content, keepends=True)
+    total_lines = len(lines)
+    if total_lines > 0 and start_line > total_lines:
+        raise ToolInputError("start_line exceeds LikeC4 document line count")
+    visible, end_line, partial_line = bounded_line_window(
+        lines,
+        start_line=start_line,
+        max_lines=max_lines,
+        max_bytes=MAX_VISIBLE_UTF8_BYTES,
+    )
+    return {
+        "utf8Size": len(content.encode("utf-8")),
+        "totalLines": total_lines,
+        "startLine": start_line,
+        "endLine": end_line,
+        "text": visible,
+        "truncated": partial_line or end_line < total_lines,
+        "partialLine": partial_line,
+    }
+
+
 def _validate_line_window(start_line: int, max_lines: int) -> None:
     if type(start_line) is not int or start_line < 1:
         raise ToolInputError("start_line must be a positive integer")
@@ -732,7 +767,7 @@ def _validate_line_window(start_line: int, max_lines: int) -> None:
 def _document_state(
     artifact: ArtifactRef,
     target_name: str,
-    content: str,
+    utf8_size: int,
     *,
     changed: bool,
     copied: bool,
@@ -741,7 +776,7 @@ def _document_state(
         "artifact": artifact.require_exact().model_dump(by_alias=True),
         "mediaType": TARGET_MEDIA_TYPE,
         "targetName": target_name,
-        "utf8Size": len(content.encode("utf-8")),
+        "utf8Size": utf8_size,
         "changed": changed,
         "copied": copied,
     }

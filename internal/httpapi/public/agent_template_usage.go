@@ -19,9 +19,6 @@ type agentTemplateWorkflowBindingPageResponse struct {
 }
 
 func (h *catalogHandlers) listAgentTemplateWorkflowBindings(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	_, limit, encodedCursor, err := pageQuery(r.URL.RawQuery)
 	if err != nil {
 		handleError(w, err)

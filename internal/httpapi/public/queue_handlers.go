@@ -34,9 +34,6 @@ type queueHandlers struct {
 
 func (h *queueHandlers) getOwnerQueueControl(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if rejectHead(w, r) {
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		handleError(w, err)
 		return
@@ -124,9 +121,6 @@ func writeOwnerQueueControl(w http.ResponseWriter, status int, control runstore.
 }
 
 func (h *queueHandlers) listRunQueue(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	query, limit, encodedCursor, err := pageQuery(r.URL.RawQuery, "state", "membership")
 	if err != nil {
 		handleError(w, err)

@@ -107,6 +107,19 @@ func (s *Service) CreateFindingReview(
 	return FindingReviewResult{Request: request, Replayed: replayed}, err
 }
 
+// DecideFinding records an analyst decision on a pending finding-triage
+// request and projects it onto the finding in one transaction. The projection
+// updates audit_findings, whose correlation trigger takes the Project
+// correlation fence without waiting (FND-R177), so a concurrent child-Run
+// creation or artifact admission in the same Project aborts the transaction
+// with a definite conflict. Only such a conflict replays the transaction, at
+// most InTxWithRetry's finite attempts within ctx. A replay is safe: the
+// advisory lock, the decision and its idempotency receipt, the request,
+// finding and Audit revisions and the events are statements of the aborted
+// transaction, nothing leaves the process before commit, and the captured
+// results are reset on each attempt. Validation, authority, precondition,
+// cancellation and uncertain commit failures return unchanged; repeating the
+// request with its idempotency key reconciles an uncertain commit.
 func (s *Service) DecideFinding(
 	ctx context.Context, params DecideFindingParams,
 ) (FindingDecisionResult, error) {
@@ -116,7 +129,8 @@ func (s *Service) DecideFinding(
 	var decisionID, requestID, findingID string
 	var replayed bool
 	var expired bool
-	err := persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+	err := persistencepostgres.InTxWithRetry(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		decisionID, requestID, findingID, replayed, expired = "", "", "", false, false
 		reviews := reviewstore.NewTx(tx)
 		if err := reviews.LockFindingReviews(ctx, params.AuditID); err != nil {
 			return err
@@ -364,7 +378,7 @@ func appendAuditReviewEvent(
 func validateCreateFindingReview(params CreateFindingReviewParams, now time.Time) error {
 	if !auditstore.ValidReviewIdentity(params.OwnerID, 256) || !auditstore.ValidReviewIdentity(params.AuditID, 256) ||
 		!auditstore.ValidReviewIdentity(params.FindingID, 256) || !auditstore.ValidReviewIdentity(params.RequestID, 256) ||
-		params.ExpectedRevision < 1 || !validIdempotencyKey(params.IdempotencyKey) ||
+		params.ExpectedRevision < 1 || !contracts.ValidIdempotencyKey(params.IdempotencyKey) ||
 		!contentdigest.Valid(params.RequestDigest) {
 		return auditstore.ErrInvalid
 	}
@@ -378,7 +392,7 @@ func validateFindingDecision(params DecideFindingParams) error {
 	if !auditstore.ValidReviewIdentity(params.OwnerID, 256) || !auditstore.ValidReviewIdentity(params.AuditID, 256) ||
 		!auditstore.ValidReviewIdentity(params.RequestID, 256) || !auditstore.ValidReviewIdentity(params.DecisionID, 256) ||
 		params.ExpectedRequestRevision < 1 || !params.Verdict.Valid() ||
-		!validIdempotencyKey(params.IdempotencyKey) || !contentdigest.Valid(params.RequestDigest) ||
+		!contracts.ValidIdempotencyKey(params.IdempotencyKey) || !contentdigest.Valid(params.RequestDigest) ||
 		!validRationale(params.Rationale) {
 		return auditstore.ErrInvalid
 	}
@@ -398,18 +412,4 @@ func validateFindingDecision(params DecideFindingParams) error {
 func validRationale(value string) bool {
 	return strings.TrimSpace(value) != "" && utf8.ValidString(value) &&
 		!strings.ContainsRune(value, 0) && len([]byte(value)) <= MaxReviewRationale
-}
-
-func validIdempotencyKey(value string) bool {
-	if value == "" || len(value) > 128 {
-		return false
-	}
-	for index, character := range value {
-		if (character >= 'A' && character <= 'Z') || (character >= 'a' && character <= 'z') ||
-			(character >= '0' && character <= '9') || (index > 0 && strings.ContainsRune("._:-", character)) {
-			continue
-		}
-		return false
-	}
-	return true
 }

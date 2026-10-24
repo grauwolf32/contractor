@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/publicclient"
 )
 
@@ -344,11 +345,17 @@ func exactSelector(value string) (string, string, error) {
 	return name, version, nil
 }
 
+// idempotencyKey returns an explicit --idempotency-key, which must be in the
+// public Idempotency-Key grammar, or a generated one.
 func idempotencyKey(explicit string) (string, error) {
-	if explicit != "" {
-		return explicit, nil
+	if explicit == "" {
+		return publicclient.NewIdempotencyKey()
 	}
-	return publicclient.NewIdempotencyKey()
+	if !contracts.ValidIdempotencyKey(explicit) {
+		return "", &UsageError{Message: fmt.Sprintf(
+			"--idempotency-key must be 1 to %d characters [A-Za-z0-9][A-Za-z0-9._:-]*", contracts.MaxIdempotencyKeyLength)}
+	}
+	return explicit, nil
 }
 
 // printCreateRetryHint names a generated Idempotency-Key after a create

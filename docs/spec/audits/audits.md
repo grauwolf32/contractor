@@ -770,8 +770,9 @@ starting an Audit, so later dispatch cannot fail from inherited-label growth.
 
 - exact ProjectScope ArtifactRefs for source, OpenAPI, checklist, finding, and
   other declared inputs;
-- a bounded target/scope snapshot, selected assets, exclusions, and permitted
-  methods;
+- a bounded target/scope snapshot (an objective, target and authorization
+  scope of at most 64 KiB of UTF-8 each, LIM-AUD-29), selected assets,
+  exclusions, and permitted methods;
 - non-secret credential identities plus durable usage holds;
 - the normalized required placement labels, reused by every child Run;
 - the resolved AuditProfile, every child ResolvedWorkflow closure, and one
@@ -1280,7 +1281,8 @@ from a request body.
 response, package content or model transcript.
 
 **AUD-R205.** Start and resume require `If-Match` and `Idempotency-Key` and
-accept an optional JSON object with only `deadlineSeconds`.
+accept an optional JSON object of at most 1 KiB (LIM-AUD-28) with only
+`deadlineSeconds`; a larger body is `413 request_too_large`.
 
 **AUD-R228.** Owner selection digest checks compare the catalog selection
 before deployment model binding, or the supplied exact prepared profile for an
@@ -1439,6 +1441,10 @@ Registry entries owned by this document:
   (AUD-R224).
 - [LIM-AUD-26](../platform/limits.md): at most 10,000 items per Round
   (AUD-R224).
+- [LIM-AUD-28](../platform/limits.md): at most 1 KiB of optional start and
+  resume body (AUD-R205).
+- [LIM-AUD-29](../platform/limits.md): at most 64 KiB of UTF-8 per Audit scope
+  field (AUD-R95).
 - [FAIL-AUD-1](../platform/failure-model.md): reading persisted
   profile and baseline snapshots at start, recovery and resume
   (AUD-R22, AUD-R61).
@@ -1546,6 +1552,11 @@ raw provider responses, package content or model transcripts
    [`internal/auditstore/internal/pgstore/event_allocation_postgres_test.go`](../../../internal/auditstore/internal/pgstore/event_allocation_postgres_test.go)
    and `TestAuditEventsHaveOneWriter` in
    [`internal/auditstore/internal/pgstore/event_allocation_test.go`](../../../internal/auditstore/internal/pgstore/event_allocation_test.go).
+10. A credential deletion check lists exactly the held Audits whose baseline
+    names the credential under its own kind, and reads only those Audits, not
+    every Audit or every held baseline (AUD-R16); test
+    `TestPostgresHeldAuditCredentialChecksReadOnlyMatchingHeldAudits` in
+    [`internal/auditstore/internal/pgstore/held_credentials_plan_postgres_test.go`](../../../internal/auditstore/internal/pgstore/held_credentials_plan_postgres_test.go).
 
 ## Examples
 

@@ -70,10 +70,18 @@ type Store interface {
 	// Stage, not the Run's Stage history.
 	GetActiveStageExecution(context.Context, string) (runstore.StageExecution, error)
 	ListStageExecutions(context.Context, string) ([]runstore.StageExecution, error)
+	// ListStageExecutionsWithUnreleasedAllocations reads the Run's
+	// StageExecutions that still have an allocation whose release has not
+	// completed, not the rest of its Stage history (SCH-R179).
+	ListStageExecutionsWithUnreleasedAllocations(context.Context, string) ([]runstore.StageExecution, error)
 	HasSummaryEscalation(context.Context, string, string) (bool, error)
 	ListTerminalStageExecutionsWithAllocations(context.Context) ([]runstore.StageExecution, error)
 	GetStageExecution(context.Context, string) (runstore.StageExecution, error)
 	ListStageAllocations(context.Context, string) ([]runstore.StageAllocation, error)
+	// ListStageAllocationsBatch reads the allocations of several existing
+	// StageExecutions in one statement, keyed by StageExecution; an execution
+	// without allocations has no entry.
+	ListStageAllocationsBatch(context.Context, []string) (map[string][]runstore.StageAllocation, error)
 	MarkStageAllocationReleaseAttempt(context.Context, string) error
 	MarkStageAllocationReleased(context.Context, string) error
 	// RecordStageOutputPublicationFailure counts a terminal commit of the

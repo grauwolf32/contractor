@@ -49,7 +49,6 @@ from contractor_runtime.toolsets.scan.http_request import (
 )
 from contractor_runtime.toolsets.scan.katana import (
     MAX_RESPONSE_BYTES,
-    MAX_TARGET_BYTES,
     TARGET_LIST_MEDIA_TYPE,
     canonical_url,
     katana_observation,
@@ -91,6 +90,49 @@ class ScannerUnavailable(Exception):
 
 class ScanTargetRefused(Exception):
     """The destination failed the target policy; the message is a fixed error code."""
+
+
+class _Scratch:
+    """A private directory created and removed in worker threads, off the event loop.
+
+    Every thread is joined, also on cancellation (``to_thread_until_done``).
+    Creation records the directory before its thread returns, so a cancelled
+    entry still removes a directory that the thread created after the cancel.
+    """
+
+    def __init__(self, parent: Path | None, prefix: str) -> None:
+        self._parent = parent
+        self._prefix = prefix
+        self._directory: tempfile.TemporaryDirectory[str] | None = None
+
+    def _create(self) -> Path:
+        self._directory = tempfile.TemporaryDirectory(prefix=self._prefix, dir=self._parent)
+        return Path(self._directory.name)
+
+    async def _remove(self) -> None:
+        if self._directory is not None:
+            await threads.to_thread_until_done(self._directory.cleanup, name="scan-scratch-remove")
+
+    async def __aenter__(self) -> Path:
+        try:
+            return await threads.to_thread_until_done(self._create, name="scan-scratch-create")
+        except BaseException:
+            await self._remove()
+            raise
+
+    async def __aexit__(self, *_exception: object) -> None:
+        await self._remove()
+
+
+def _write_private(path: Path, data: bytes) -> None:
+    """Create one scanner input exclusively, with a mode independent of the umask.
+
+    Blocking file I/O: callers run it in a worker thread.
+    """
+
+    with path.open("xb") as stream:
+        os.fchmod(stream.fileno(), 0o600)
+        stream.write(data)
 
 
 class _ScanSession:
@@ -141,12 +183,17 @@ class _ScanSession:
                 result = ProcessResult(None, error_code="scanner_unavailable")
             else:
                 result = await self._execute(tool, arguments, deadline, destination, prepare)
-            value = (observation or tool.observation)(result)
+            # Output parsing is CPU work over up to 1 MiB; publication stays on the loop.
+            value = await threads.to_thread_until_done(
+                observation or tool.observation, result, name="scan-observation"
+            )
             return await finalize(value, deadline) if finalize is not None else value
 
         async with self._lock:
             # Artifact publication is part of the invocation: keep it serialized
-            # and cancellable until close has joined its cleanup as well.
+            # and cancellable until close has joined its cleanup as well. Worker
+            # threads are joined before the invocation ends, so the lock is
+            # held until parsing, publication and scratch removal finish.
             self._task = asyncio.create_task(invocation())
             try:
                 return await self._task
@@ -161,13 +208,14 @@ class _ScanSession:
         destination: Destination | None,
         prepare: PrepareInvocation | None,
     ) -> ProcessResult:
-        with tempfile.TemporaryDirectory(prefix=f"{tool.name}-", dir=self.workspace) as root:
-            directory = Path(root)
+        async with _Scratch(self.workspace, f"{tool.name}-") as directory:
             try:
-                prepared = tool.prepare(directory, self.templates)
                 # Destination checks, artifact retrieval and materialization
                 # share the scan deadline.
                 async with asyncio.timeout_at(deadline):
+                    prepared = await threads.to_thread_until_done(
+                        tool.prepare, directory, self.templates, name="scan-prepare"
+                    )
                     if destination is not None:
                         await self.require_destination(*destination)
                     if prepare is not None:
@@ -197,6 +245,24 @@ class _ScanSession:
             raise ScanTargetRefused("scan_target_denied") from None
         except TargetUnresolved:
             raise ScanTargetRefused("scan_target_unresolved") from None
+
+    async def require_output_name_free(self, ref: ArtifactRef) -> None:
+        """Admit a create-only output only while its binding does not exist.
+
+        A metadata read (ART-R116) answers this without downloading an
+        existing payload. Only 404 admits the output; any other failure is
+        unavailable, never a guess that the name is free.
+        """
+
+        try:
+            await self.artifact_client.read_artifact_metadata(ref)
+        except ArtifactAPIError as error:
+            if error.status_code != 404:
+                raise ScannerUnavailable("scan_artifact_unavailable") from None
+        except Exception:
+            raise ScannerUnavailable("scan_artifact_unavailable") from None
+        else:
+            raise ScannerUnavailable("scan_output_exists")
 
     async def close(self) -> None:
         self._closed = True
@@ -439,7 +505,9 @@ class NucleiTool(JSONLinesScanTool):
                     "contentDigest": digest,
                 }
             else:
-                if not templates.is_dir():
+                if not await threads.to_thread_until_done(
+                    templates.is_dir, name="nuclei-templates-check"
+                ):
                     raise ScannerUnavailable("nuclei_templates_unavailable")
                 if templates_digest:
                     snapshot = await threads.to_thread_until_done(
@@ -454,17 +522,7 @@ class NucleiTool(JSONLinesScanTool):
                         raise PackageError("nuclei_package_mismatch")
             if templates_digest or rulepack_ref is not None:
                 templates = snapshot.root
-                try:
-                    await self._session.artifact_client.read_artifact(
-                        manifest_ref, max_bytes=MAX_MANIFEST_BYTES
-                    )
-                except ArtifactAPIError as error:
-                    if error.status_code != 404:
-                        raise ScannerUnavailable("scan_artifact_unavailable") from None
-                except Exception:
-                    raise ScannerUnavailable("scan_artifact_unavailable") from None
-                else:
-                    raise ScannerUnavailable("scan_output_exists")
+                await self._session.require_output_name_free(manifest_ref)
                 executable = self._session.executables[self.name]
                 try:
                     version = await run_command(
@@ -542,9 +600,12 @@ class NucleiTool(JSONLinesScanTool):
                 )
             # A one-line file preserves commas in the supplied URL.
             target = directory / "target.txt"
-            with target.open("xb") as stream:
-                os.fchmod(stream.fileno(), 0o600)
-                stream.write((url + "\n").encode("utf-8"))
+            await threads.to_thread_until_done(
+                _write_private,
+                target,
+                (url + "\n").encode("utf-8"),
+                name="nuclei-target-materialize",
+            )
             return ["-l", str(target), "-t", str(templates)]
 
         def observation(result: ProcessResult) -> dict:
@@ -676,15 +737,16 @@ class SQLMapTool(ScanTool):
                 "application/vnd.contractor.http-request+json",
             }:
                 raise ScanInputError("request artifact must contain HTTP request JSON")
-            request = parse_http_request(value.data)
+            request = await threads.to_thread_until_done(
+                parse_http_request, value.data, name="sqlmap-request-parse"
+            )
             host, port = url_endpoint(request.url)
             await self._session.require_destination(host, (port,))
             path = directory / "request.http"
             try:
-                # Exclusive creation and mode independent of the service umask.
-                with path.open("xb") as output:
-                    os.fchmod(output.fileno(), 0o600)
-                    output.write(request.raw)
+                await threads.to_thread_until_done(
+                    _write_private, path, request.raw, name="sqlmap-request-materialize"
+                )
             except OSError:
                 raise ScannerUnavailable("scan_request_file_unavailable") from None
             return [
@@ -886,15 +948,20 @@ class FFUFTool(ScanTool):
                 raise ScanInputError("wordlist artifact is inaccessible or invalid") from None
             if value.media_type not in {"text/plain", "text/vnd.contractor.wordlist"}:
                 raise ScanInputError("wordlist artifact must have a supported text media type")
-            wordlist = parse_wordlist(value.data)
-            entries = wordlist.line_count
             path = directory / "wordlist.txt"
-            try:
-                with path.open("xb") as output:
-                    os.fchmod(output.fileno(), 0o600)
-                    output.write(wordlist.raw)
-            except OSError:
-                raise ScannerUnavailable("scan_wordlist_file_unavailable") from None
+
+            def materialize() -> int:
+                # Validation finishes before the private list is created.
+                wordlist = parse_wordlist(value.data)
+                try:
+                    _write_private(path, wordlist.raw)
+                except OSError:
+                    raise ScannerUnavailable("scan_wordlist_file_unavailable") from None
+                return wordlist.line_count
+
+            entries = await threads.to_thread_until_done(
+                materialize, name="ffuf-wordlist-materialize"
+            )
             return ["-w", f"{path}:FUZZ"]
 
         def observation(result: ProcessResult) -> dict:
@@ -1011,24 +1078,17 @@ class KatanaTool(ScanTool):
             ]
 
         async def prepare(directory: Path, _deadline: float) -> list[str]:
-            try:
-                await self._session.artifact_client.read_artifact(
-                    target, max_bytes=MAX_TARGET_BYTES
-                )
-            except ArtifactAPIError as error:
-                if error.status_code != 404:
-                    raise ScannerUnavailable("scan_artifact_unavailable") from None
-            except Exception:
-                raise ScannerUnavailable("scan_artifact_unavailable") from None
-            else:
-                raise ScannerUnavailable("scan_output_exists")
+            await self._session.require_output_name_free(target)
             # Katana's -u string-slice flag splits commas. A file preserves one
             # exact seed and prevents query text from introducing another target.
-            for name, content in (("seed.txt", (seed + "\n").encode()), ("config.yaml", b"{}\n")):
-                with (directory / name).open("xb") as stream:
-                    os.fchmod(stream.fileno(), 0o600)
-                    stream.write(content)
-            return ["-list", str(directory / "seed.txt"), "-config", str(directory / "config.yaml")]
+            seed_file, config = directory / "seed.txt", directory / "config.yaml"
+
+            def materialize() -> None:
+                _write_private(seed_file, (seed + "\n").encode())
+                _write_private(config, b"{}\n")
+
+            await threads.to_thread_until_done(materialize, name="katana-seed-materialize")
+            return ["-list", str(seed_file), "-config", str(config)]
 
         def observation(result: ProcessResult) -> dict:
             nonlocal data
@@ -1120,10 +1180,10 @@ class ScanToolsetFactory:
             if executable is None:
                 return False
             try:
-                with tempfile.TemporaryDirectory(prefix="contractor-scan-probe-") as root:
+                async with _Scratch(None, "contractor-scan-probe-") as root:
                     result = await run_process(
                         [executable, *self._scanners[name].version_arguments],
-                        Path(root),
+                        root,
                         PROBE_TIMEOUT_SECONDS,
                     )
                 return self._scanners[name].accepts_probe(result)

@@ -335,7 +335,9 @@ unsupported-format response; the Server must never prompt a background process
 for a passphrase.
 
 **GIT-R40.** Key input is bounded to 32 KiB (LIM-GIT-3) and
-must be validated before it replaces the previous value (FAIL-GIT-1).
+must be validated before it replaces the previous value (FAIL-GIT-1). The JSON
+request body that carries it is bounded to 64 KiB (LIM-GIT-21), room for the
+escaped form of the largest key; a larger body is `413 request_too_large`.
 
 **GIT-R41.** The key must be protected with the Server credential
 master-key mechanism ([Security](../platform/security.md)) and stored only as
@@ -593,7 +595,7 @@ replacement, with the normal write fields plus `gitSource`.
 
 ## Limits, failures and errors
 
-Limits LIM-GIT-1 to LIM-GIT-19 are registered in
+Limits LIM-GIT-1 to LIM-GIT-21 are registered in
 [limits](../platform/limits.md). The failure outcomes of fetching
 (FAIL-GIT-2), publication (FAIL-GIT-3) and key replacement
 (FAIL-GIT-1) are registered in the

@@ -154,6 +154,17 @@ def test_shared_report_keeps_exact_aggregates_while_dropping_oldest_bounded_deta
     assert state.tool_calls[0].call_id == "tool-00000006"
     assert len(state.errors) == MAX_METRIC_ERRORS
     assert state.truncated
+    # The State projection admitted with each record follows the same
+    # retention, record for record.
+    projection = state.snapshot()
+    assert projection["toolCalls"] == [
+        call.model_dump(mode="json", by_alias=True, exclude_none=True) for call in state.tool_calls
+    ]
+    assert projection["errors"] == [
+        error.model_dump(mode="json", by_alias=True, exclude_none=True) for error in state.errors
+    ]
+    assert projection["truncated"] is True
+    assert SECRET not in json.dumps(projection)
 
     report = state.build_report(report_id="worker-allocation-1", duration_ms=1234)
     encoded = report.model_dump_json(by_alias=True, exclude_none=True).encode()

@@ -657,9 +657,10 @@ startup, rather than silently choosing another model. The singleton has no
 delete API and its database row cannot be deleted.
 
 **OPS-R225.** `PUT /v1/operations/settings/models` replaces the whole selection
-using one strong `If-Match` binding both revision and catalog digest. Missing or
-malformed preconditions and invalid choices return `400`; stale revision or
-catalog returns `412`. No-op replacement with the current precondition keeps
+using one strong `If-Match` binding both revision and catalog digest. A body not
+sent as exactly `application/json` returns `415 unsupported_media_type`, as for
+Scheduler settings (OPS-R60). Missing or malformed preconditions and invalid
+choices return `400`; stale revision or catalog returns `412`. No-op replacement with the current precondition keeps
 revision and timestamp. One semantic change increments revision exactly once;
 concurrent replacements have one winner. Database conflicts follow the public
 `503 storage_transaction_conflict` contract. GET reconciles an ambiguous response;

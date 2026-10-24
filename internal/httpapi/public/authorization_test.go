@@ -69,7 +69,7 @@ func TestOperationsCapabilityMiddlewareCoversManagementSubtree(t *testing.T) {
 
 func TestConfigurationPublicationRequiresOperationsCapability(t *testing.T) {
 	mux := http.NewServeMux()
-	contextHandlers{catalog: &catalogHandlers{}}.register(mux)
+	register(mux, contextHandlers{catalog: &catalogHandlers{}}.routes())
 	for _, test := range []struct {
 		name         string
 		capabilities []string

@@ -1189,7 +1189,7 @@ model {
   server.orchestration.scanPlanner -> server.orchestration.workerInvokerTools 'Dispatch bounded jobs to fixed tool@1 scanner Workers with durable job intent'
   server.orchestration.scanPlanner -> server.orchestration.plannerSessionService 'Persist immutable Plan v1 and job outcomes for conservative recovery'
   server.auditCoordination.packageInventory -> server.auditCoordination.scanTaskBuilder 'inventory.implementation: openapi-scans@1 builds openapi-scan@1 tasks'
-  server.auditCoordination.scanTaskBuilder -> server.orchestration.scanRequestPreparation 'PrepareOperation / PrepareOperationTarget for one assigned operation'
+  server.auditCoordination.scanTaskBuilder -> server.orchestration.scanRequestPreparation 'PrepareOperations from one parsed source for the inventory; PrepareOperation / PrepareOperationTarget for one assigned operation'
   server.auditCoordination.auditController -> server.auditCoordination.scanTaskBuilder 'Recover from the scanner journal selected by the retained auditTask declaration'
   server.auditCoordination.resultImporter -> server.auditCoordination.scanTaskBuilder 'Canonical scan results and truthful coverage from trusted journals'
   runtimeAgent.workerExecution.a2aServer -> runtimeAgent.workerExecution.toolRuntime 'Deliver one A2A Task to the model-free callable when AllocationSpec selects tool@1'

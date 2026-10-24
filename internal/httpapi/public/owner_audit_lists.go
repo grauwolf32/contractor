@@ -57,9 +57,6 @@ func (h *auditHandlers) ownerListPosition(cursorValue, kind string) (*time.Time,
 
 func (h *auditHandlers) listOwnerFindings(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if rejectHead(w, r) {
-		return
-	}
 	query, limit, cursor, err := pageQuery(r.URL.RawQuery, "state", "verdict", "severity", "auditState")
 	if err != nil {
 		handleError(w, err)
@@ -128,9 +125,6 @@ func (h *auditHandlers) listOwnerFindings(w http.ResponseWriter, r *http.Request
 
 func (h *auditHandlers) listOwnerReviews(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if rejectHead(w, r) {
-		return
-	}
 	query, limit, cursor, err := pageQuery(r.URL.RawQuery, "state", "auditState")
 	if err != nil {
 		handleError(w, err)

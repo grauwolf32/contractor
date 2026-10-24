@@ -319,7 +319,7 @@ func (c *Controller) waitForDrain(
 		return false, false, err
 	}
 	var blocked bool
-	err := c.pool.QueryRow(ctx, waitForDrainSQL, claim.ProjectID).Scan(&blocked)
+	err := c.pool.QueryRow(ctx, waitForDrainSQL, claim.ProjectID, claim.OwnerID).Scan(&blocked)
 	if err != nil {
 		return false, false, fmt.Errorf("inspect Project Run drain: %w", err)
 	}
@@ -387,11 +387,7 @@ func (c *Controller) purgeProject(ctx context.Context, claim projectstore.Deleti
 			return fmt.Errorf("lock Project for Artifact purge: %w", err)
 		}
 		var runsRemain, auditsRemain bool
-		if err := tx.QueryRow(ctx, `
-SELECT EXISTS (SELECT 1 FROM workflow_runs WHERE project_id = $1),
-       EXISTS (SELECT 1 FROM audits WHERE project_id = $1)`,
-			claim.ProjectID,
-		).Scan(&runsRemain, &auditsRemain); err != nil {
+		if err := tx.QueryRow(ctx, purgeRemainsSQL, claim.ProjectID, claim.OwnerID).Scan(&runsRemain, &auditsRemain); err != nil {
 			return fmt.Errorf("verify Project Run purge: %w", err)
 		}
 		if runsRemain {
