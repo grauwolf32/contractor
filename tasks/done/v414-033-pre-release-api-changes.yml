@@ -5,7 +5,8 @@ milestone: review-v407-v409-followups-2026-10
 epic: api-contracts
 kind: chore
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: 6efdc64f51cd4aea2882d6f782fc70fdda37d104
 depends_on: []
 languages: [markdown]
 goal: >-
@@ -31,16 +32,36 @@ context:
 scope:
   in:
     - "Amend API-R3 with a pre-release exception: until the first release an incompatible /v1 change is allowed when the Server, api/openapi/contractor-public-v1.yaml, the regenerated UI and Go clients and the UI land in one commit and make verify-public-api passes; the task that makes it records the change. The first release removes the exception."
-    - "Point UI-R7 and EVM-R247 at the amended API-R3 instead of a one-off exception."
+    - "Point UI-R7 at the amended API-R3; EVM-R247 states the list contract only and cites no exception, so it needs no change."
     - "Rewrite AGENTS.md 3.1 step 4 to match."
   out:
     - "An automated additive-change gate; none exists and the exception makes it unnecessary before the first release."
     - "The private Server-Runtime wire contract, which has no external clients either and follows its own rules."
 acceptance_criteria:
   - id: A1
-    text: "API-R3, UI-R7, EVM-R247 and AGENTS.md 3.1 state the same rule and its end condition."
+    text: "API-R3, UI-R7 and AGENTS.md 3.1 state the same rule and its end condition."
   - id: A2
     text: "make lint (including scripts/check_spec.py) accepts the change."
 tests:
   - command: make lint
     covers: [A1, A2]
+decisions:
+  - >-
+    API-R3 keeps its rule and gains a pre-release exception modelled on
+    CAT-R74, with a rationale and the reopen condition (the first release, or
+    the first client outside this repository). UI-R7 adds that an
+    incompatible change ships only with the UI change in one commit.
+    AGENTS.md 3.1 step 4 now tells agents to remove an unused variant end to
+    end rather than keep it to stay additive.
+  - >-
+    Ruled out: open tasks and proposals that describe their own planned
+    change as additive (V372-025, V411-001, V411-007, V411-017, V414-009,
+    proposals 0033, 0035, 0040, 0041) state a property of the change, not a
+    demand to keep legacy behaviour, so they stay as written. Proposal 0039
+    question 4 cited the old AGENTS.md rule and now cites API-R3.
+verification:
+  date: '2026-10-24'
+  environment: branch claude/v414-fix from main 63861457.
+  commands:
+    - "python scripts/check_spec.py: 47 specification documents are consistent."
+    - "make lint: exit 0."
