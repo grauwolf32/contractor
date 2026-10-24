@@ -414,3 +414,60 @@ test_prerequisites:
     Exercise actual PostgreSQL references/transactions and failure adapters;
     permissive fakes, wall-clock assertions and only three-row fixtures do not prove
     retention safety or bounded maintenance over the containing collections.
+progress: >-
+  2026-10-24 checkpoint (paused, not verified). Done: R4 holder inventory
+  investigated (below); internal/artifacts/history_policy.go adds the one typed
+  HistoryPolicy (defaults 2,000/1 GiB, ceilings 20,000/8 GiB, floors 2/128 MiB,
+  64-candidate/64-removal per transaction, 64 MiB reclaim per pass,
+  Retry-After 1 s), context install, ErrHistoryProtected/HistoryProtectedError
+  and ErrHistoryMaintenancePending/HistoryMaintenanceError; apierror registry
+  defines artifact_history_protected (409, permanent) and
+  artifact_history_maintenance_pending (503, retryable). Unverified: nothing
+  else wired; no OpenAPI, docs-error-registry, migration, eviction or tests yet,
+  and the apierror contract tests may fail until ART-R126/ART-R127 and OpenAPI
+  are written. No deletion is enabled.
+  Design decisions so far: only CAS-advancing writes grow history (forks and
+  creates are create-only, so they start a binding at one revision and only
+  initialize counters); counters artifact_bindings.retained_revisions and
+  retained_bytes are maintained in writeSQL/forkSQL and by eviction, charging
+  blob size_bytes per revision; artifact_binding_revisions.hold_count counts
+  lineage ends, workflow_run_output_publications ends and JSON holders; the
+  current revision is excluded by predicate, not counted; a partial index
+  (binding key, created_at, revision) WHERE hold_count = 0 is the continuation
+  (no stored cursor, a released hold is re-found first); revision deletion is
+  allowed only under a tx-local GUC contractor.artifact_retention with
+  hold_count = 0 and not current; versions/blobs collected in the same pass via
+  the purge collector factored out (no lineage cut), at most 64 victims and
+  64 MiB (first always); per-transaction budget tracked in a tx-local GUC;
+  pending on the pool path rolls back the write tx and commits one separate
+  maintenance pass; caller-owned tx writers (internal/memory, gitimport) roll
+  back then call the maintenance pass; hold acquisition raises 23503 with
+  constraint artifact_exact_hold on a missing revision, release tolerates
+  missing rows; RunScope 50,000 insert counter untouched.
+  Holder inventory: JSON holders needing hold triggers: stage_executions
+  (context pins, continuation summaryArtifact/artifacts, candidate result;
+  accepted equals candidate), planner_sessions.state (completion result refs,
+  scan plan/jobs inputArtifacts/report; use a trigger-maintained derived holds
+  column to avoid detoasting OLD per event), workflow_runs.skill_snapshot[].source
+  (UserScope owner), audits input_selection.inputs and baseline_snapshot
+  inputs and skills[].source, finding_proposal_receipts evidence and
+  proposal_ref while retention_state is source-held, eval_dataset_revisions
+  document Cases[].Inputs (bytea JSON). Already protected: current pointer,
+  artifact_lineage both ends (input_fork incl. skills and sweep inputs,
+  output_bind, project_output_publish, audit_import), output publications FK.
+  Single-revision by construction (current covers): audit-* frozen bindings,
+  finding-proposals, http.exchange, Run outputs, audit-standards.
+  Availability-only/provenance/receipts/caches: eval_records and
+  eval_evidence_refs (EVM-R225; delete trigger only marks dirty), eval plan
+  copies (subset of dataset), eval suboperation copies, run repeat record,
+  audit RunScope tombstones and link provenance, report bytes, fingerprint and
+  anchor projections, finding-collection receipt (check readCollectionReplay
+  against R9), Runtime caches. Spec conflicts to fix: SKL-R81 says UserScope
+  skill revisions are never purged; DEL-R3. Possible existing defects seen:
+  Skill init maps a missing source to retryable skill_artifact_unavailable
+  (RUN-R27 says skill_artifact_not_found); bindOutput leaves a missing
+  candidate source as an ordinary error.
+  Next step: verify the inventory claims against code, write migration 000040
+  (counters, hold_count, holder triggers, trigger-scoped immutability
+  exception, reference validation, migration test), then admission/eviction,
+  adapters, spec, fixtures and make targets.
