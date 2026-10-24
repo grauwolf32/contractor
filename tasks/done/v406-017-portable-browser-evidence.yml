@@ -6,7 +6,7 @@ epic: quality
 kind: defect
 introduced_by: V406-005
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V406-005, V406-006]
 languages: [typescript]
 goal: Retain browser evidence portably on Linux and macOS without shared absolute temporary paths.
@@ -57,3 +57,12 @@ tests:
   covers: [A1, A2, A3]
 - command: make lint
   covers: [A1, A2, A3]
+implementation_commit: 054962596ed2537346c6a7073af1aa7b6363d4ed
+verification:
+  date: '2026-10-24'
+  baseline: The complete Ubuntu mocked-browser gate had six web scan/sweep failures with ENOENT for /private/tmp and 85 passing scenarios. Traces and screenshots were retained before the correction.
+  passed:
+  - make ui-browser-mocked on Ubuntu 24.04; all 91 browser scenarios across 23 specs passed, including all themes for scans, sweeps and Interactsh. No /private/tmp directory was created.
+  - make ui-verify; generation, lint, typecheck, 196 test files with 2385 passing tests plus one expected failure, Node tests and production build passed.
+  - make lint; complete task, spec, release-graph and layer checks passed.
+  scope: Only evidence destinations changed; every browser assertion, configured deadline and product UI file is unchanged.
