@@ -763,6 +763,43 @@ func TestSchedulerMissingRequiredContextInterruptsWithoutAllocation(t *testing.T
 	assertOrderedEvents(t, harness.events.values, "create_stage", "enter_aborting", "commit_termination")
 }
 
+// An Audit completion Run pins its task input to an exact revision
+// (auditPinnedContextRef), which config validation requires to be a required
+// Stage context artifact. When the RunScope no longer holds that revision,
+// the Stage ends with the permanent context_artifact_missing before any
+// allocation (SCH-R17), even though the logical binding still resolves to
+// another revision: the Scheduler neither substitutes the current revision
+// nor retries the resolution.
+func TestSchedulerMissingAuditPinnedContextInterruptsWithoutAllocation(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	harness.store.run.AuditCompletion = &runstore.AuditCompletionSnapshot{
+		Stage: "copy", Agent: "builder", Contract: contracts.WorkerCompletionContract{
+			Kind:              contracts.AuditCheckResultsV1,
+			Task:              exactRef("inputs", "source", "input-r0"),
+			ExecutionManifest: exactRef("inputs", "manifest", "manifest-r1"),
+			ResultArtifact:    contracts.ArtifactRef{Namespace: "builder", Name: "copied"},
+		},
+	}
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("RunOnce = (%v, %v)", worked, err)
+	}
+	execution := harness.store.stages[0]
+	if harness.store.run.State != runstore.RunFailed || execution.State != runstore.StageInterrupted ||
+		execution.Termination == nil || execution.Termination.Code != "context_artifact_missing" ||
+		execution.Termination.Retryable || execution.Termination.Phase != runstore.TerminationPreparing {
+		t.Fatalf("missing pinned context lifecycle = run:%s stage:%+v", harness.store.run.State, execution)
+	}
+	if pinned := execution.StageContext.Artifacts["source"]; !pinned.Required || pinned.Artifact != nil {
+		t.Fatalf("pinned source context = %+v, want required and absent", pinned)
+	}
+	if harness.allocator.reserveCalls != 0 || harness.workers.prepareCalls != 0 ||
+		harness.planners.createCalls != 0 {
+		t.Fatalf("missing pinned context allocated or planned work")
+	}
+}
+
 func TestSchedulerLeavesPreparingStageDeferredWhenCapacityIsUnavailable(t *testing.T) {
 	harness := newSchedulerHarness(t)
 	harness.allocator.reserveError = controlplane.ErrInsufficientCapacity
@@ -1912,7 +1949,9 @@ func newSchedulerHarness(t *testing.T) *schedulerHarness {
 		Artifacts: map[string]contracts.ArtifactRef{"copied": exactRef("builder", "copied", "result-r1")},
 	}
 	planners := &memoryPlannerRegistry{store: store, result: result, events: events}
-	persistence := &memoryAtomicPersistence{store: store, allocator: allocator, events: events, outputs: map[string]contracts.ArtifactRef{}}
+	persistence := &memoryAtomicPersistence{
+		store: store, artifacts: resolver, allocator: allocator, events: events, outputs: map[string]contracts.ArtifactRef{},
+	}
 	store.queuePaused = &persistence.queuePaused
 	planners.onRun = func() {
 		persistence.stageStates = append(persistence.stageStates, runstore.StageRunning)
@@ -2424,6 +2463,7 @@ func (s *memorySchedulerStore) EnterAborting(
 
 type memoryAtomicPersistence struct {
 	store       *memorySchedulerStore
+	artifacts   *memoryArtifactResolver
 	allocator   *memoryAllocator
 	events      *eventRecorder
 	outputs     map[string]contracts.ArtifactRef
@@ -2556,12 +2596,16 @@ func (p *memoryAtomicPersistence) CommitResultProgression(
 		}
 		result := value.Result.Clone()
 		// Like bindOutput, each output binding is created once per Run: the
-		// binding of the same source replays, and one of another revision
-		// refuses the whole acceptance before anything changes.
+		// binding of the same source replays, and one of another revision or
+		// from a source revision the RunScope no longer holds refuses the
+		// whole acceptance before anything changes.
 		bound := map[string]contracts.ArtifactRef{}
 		if result.Outcome == stageresult.StageSucceeded {
 			for output, resultName := range value.WorkflowOutputs {
 				if source, ok := result.Artifacts[resultName]; ok {
+					if _, held := p.artifacts.values[value.RunID+"/"+source.Namespace+"/"+source.Name+"/"+*source.Revision]; !held {
+						return fmt.Errorf("bind Workflow output %q: %w: %w", output, errInvalidRunState, artifacts.ErrArtifactNotFound)
+					}
 					target := exactRef("outputs", output, "output-"+*source.Revision)
 					if existing, exists := p.outputs[output]; exists && !existing.SameExact(target) {
 						conflict := &artifacts.ConflictError{Ref: contracts.ArtifactRef{Namespace: "outputs", Name: output}}

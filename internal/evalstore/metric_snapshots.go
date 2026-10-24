@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 )
 
@@ -15,7 +14,6 @@ type MetricSnapshot struct {
 	StageExecutionID string
 	Document         json.RawMessage
 	ExpectedWorkers  int
-	Planner          resolved.PlannerRef
 }
 
 // The caller supplies the Run IDs from its authoritative member inventory.
@@ -32,7 +30,7 @@ func (s *Store) MetricSnapshots(ctx context.Context, owner string, runs []string
 	snapshots := []MetricSnapshot{}
 	for rows.Next() {
 		var item MetricSnapshot
-		if err = rows.Scan(&item.RunID, &item.StageExecutionID, &item.Document, &item.ExpectedWorkers, &item.Planner.PlannerID, &item.Planner.Version); err != nil {
+		if err = rows.Scan(&item.RunID, &item.StageExecutionID, &item.Document, &item.ExpectedWorkers); err != nil {
 			return nil, err
 		}
 		snapshots = append(snapshots, item)

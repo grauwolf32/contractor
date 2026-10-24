@@ -292,16 +292,6 @@ func snapshotJSONReads() []snapshotJSONRead {
 			path: []string{"contract", "kind"}, want: contracts.AuditCheckResultsV1,
 			sql: []string{"stored.audit_completion #>> '{contract,kind}'"},
 		},
-
-		// Eval metrics read the Planner of a stored Stage snapshot.
-		{
-			name: "Stage snapshot Planner ID", document: stageSnapshotDocument,
-			path: textArrayPath(resolved.StagePlannerIDPath), want: "passthrough",
-		},
-		{
-			name: "Stage snapshot Planner version", document: stageSnapshotDocument,
-			path: textArrayPath(resolved.StagePlannerVersionPath), want: "1",
-		},
 	}
 }
 
@@ -316,10 +306,6 @@ func workflowSnapshotDocument(*testing.T) any {
 			},
 		}},
 	}
-}
-
-func stageSnapshotDocument(*testing.T) any {
-	return resolved.ResolvedStage{Planner: resolved.PlannerRef{PlannerID: "passthrough", Version: "1"}}
 }
 
 func runSnapshotDocument(*testing.T) any {

@@ -190,6 +190,7 @@ func TestPassthroughRejectedCompletionIsNotRetryable(t *testing.T) {
 		t.Fatal("no report")
 	}
 	assertReportEndsWith(t, report, "planner_session_rejected", false)
+	assertZeroModelUsage(t, report)
 }
 
 func assertUnwrittenOutcome(t *testing.T, err error, retryable bool) {

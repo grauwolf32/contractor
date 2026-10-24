@@ -11,6 +11,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -300,10 +301,10 @@ func (r *Repository) RebuildStageMetrics(
 	); err != nil {
 		return StageMetricsRecord{}, fmt.Errorf("persist StageMetrics: %w", err)
 	}
-	if err := json.Unmarshal(storedMetrics, &result.Metrics); err != nil {
+	if result.Metrics, err = decodeStoredStageMetrics(storedMetrics); err != nil {
 		return StageMetricsRecord{}, fmt.Errorf("decode StageMetrics: %w", err)
 	}
-	if err := json.Unmarshal(storedSummary, &result.Summary); err != nil {
+	if result.Summary, err = decodeStoredSummary(storedSummary); err != nil {
 		return StageMetricsRecord{}, fmt.Errorf("decode telemetry summary: %w", err)
 	}
 	return result, nil
@@ -459,7 +460,10 @@ func (r *Repository) scanPlannerReport(row rowScanner) (StoredPlannerReport, err
 	} else if err != nil {
 		return StoredPlannerReport{}, fmt.Errorf("get Planner report: %w", err)
 	}
-	if err := json.Unmarshal(encoded, &result.Report); err != nil {
+	// A stored report is decoded as strictly as the allocation report beside
+	// it (AllocationFinalReport.UnmarshalJSON); RebuildStageMetrics applies
+	// the report rules to both (OBS-R110).
+	if err := strictjson.DecodeNonNull(encoded, &result.Report); err != nil {
 		return StoredPlannerReport{}, fmt.Errorf("decode Planner report: %w", err)
 	}
 	return result, nil

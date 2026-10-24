@@ -90,9 +90,24 @@ const outputsNamespace = "outputs"
 // the StageResult, so the binding commits with it. A Run creates each output
 // binding once: one already forked from the same exact source revision is a
 // replay and is returned unchanged, and one of any other revision is never
-// replaced, which errInvalidRunState reports: no replay of the acceptance
-// changes the existing binding.
+// replaced. That conflict and a rejected source reference, malformed or
+// naming a revision the RunScope no longer holds
+// (artifacts.IsExactReferenceRejection), are errInvalidRunState: no replay of
+// the acceptance changes either. Any other failure, such as a database or
+// context error, leaves the source unverified and stays an ordinary error for
+// finalization recovery to retry.
 func bindOutput(
+	ctx context.Context, service *artifacts.Service, runID, slot string, source contracts.ArtifactRef,
+) (artifacts.ForkResult, error) {
+	bound, err := forkOutput(ctx, service, runID, slot, source)
+	if errors.Is(err, artifacts.ErrArtifactConflict) || artifacts.IsExactReferenceRejection(err) {
+		return artifacts.ForkResult{}, fmt.Errorf("%w: %w", errInvalidRunState, err)
+	}
+	return bound, err
+}
+
+// forkOutput is the output_bind fork of bindOutput.
+func forkOutput(
 	ctx context.Context, service *artifacts.Service, runID, slot string, source contracts.ArtifactRef,
 ) (artifacts.ForkResult, error) {
 	run, err := artifacts.RunScope(runID)
@@ -102,18 +117,11 @@ func bindOutput(
 	if source.Revision == nil {
 		return artifacts.ForkResult{}, artifacts.ErrExactRevisionRequired
 	}
-	bound, err := service.Fork(ctx, artifacts.Fork{
+	return service.Fork(ctx, artifacts.Fork{
 		Kind: artifacts.LineageOutputBind, Source: run, SourceRef: source,
 		Target: run, TargetRef: contracts.ArtifactRef{Namespace: outputsNamespace, Name: slot},
 		Replay: true,
 	})
-	// A conflict means the target exists, which no replay changes; a
-	// transient database failure is no conflict and stays an ordinary error
-	// for finalization recovery to retry.
-	if errors.Is(err, artifacts.ErrArtifactConflict) {
-		return artifacts.ForkResult{}, fmt.Errorf("%w: %w", errInvalidRunState, err)
-	}
-	return bound, err
 }
 
 // freezeOutputs freezes the output bindings of runID as its Run becomes

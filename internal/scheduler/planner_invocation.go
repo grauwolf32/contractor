@@ -94,7 +94,7 @@ func (s *Scheduler) invokeStagePlanner(ctx context.Context, run runstore.Workflo
 		return errors.Join(err, loadErr)
 	}
 	execution = currentExecution
-	s.persistPlannerReport(ctx, execution, instance, exportResult)
+	s.persistPlannerReport(ctx, execution, workflow.stage.Planner, instance, exportResult)
 	if cause := context.Cause(ctx); errors.Is(cause, ErrAllocationLeaseLost) {
 		return cause
 	}
