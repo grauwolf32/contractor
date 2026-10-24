@@ -6,7 +6,8 @@ epic: operations
 kind: defect
 introduced_by: V51-001
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 21fe42b567a01c686cf3c9bb12b414992775cb63
 depends_on: []
 languages: [python]
 goal: >-
@@ -106,3 +107,57 @@ tests:
     covers: [A1, A2, A3, A4]
   - command: make lint
     covers: [A3]
+decisions:
+  - >-
+    D1 The exporter catches http_body.HTTP_TRANSPORT_ERRORS (httpx.HTTPError and OSError, which
+    includes TimeoutError and ssl.SSLError) as retryable, after the named terminal subset
+    adapters.otlp_http.OTLP_TERMINAL_TRANSPORT_ERRORS: httpx.UnsupportedProtocol,
+    httpx.LocalProtocolError and httpx.DecodingError. Any other exception stays an
+    implementation failure and terminal.
+  - >-
+    D2 httpx.DecodingError (a 2xx acknowledgement whose body fails its Content-Encoding) stays
+    terminal as it was: the bytes arrived intact, so it is a malformed acknowledgement, which
+    OBS-R77 makes terminal, not a transport failure. httpx.TooManyRedirects and HTTPStatusError
+    cannot occur (follow_redirects=False, no raise_for_status).
+  - >-
+    D3 OBS-R74 now names the family and its terminal members once and keeps the retry policy
+    exporter-owned; the http_body.py comment points at the exporter's subset and records that
+    the Gateway client keeps its broader rule (any non-timeout send exception is a retryable
+    gateway_unavailable). The Gateway client and the Go Planner exporter are out of scope.
+  - >-
+    D4 The real-TLS collector reuses V407-032's CorruptTLSRecordTarget: test_http_toolset.py
+    gains loopback_tls_transport (loopback_tls_client now builds on it) and
+    CorruptTLSRecordTarget.transport().
+  - >-
+    Siblings: grep for httpx.TransportError, RequestError, NetworkError and HTTPError in
+    runtime/src finds only the shared family definition; the HTTP toolset, Caido, Interactsh and
+    the proxy handle already use it (V407-032).
+verification:
+  date: '2026-10-24'
+  environment: >-
+    macOS arm64; Python 3.13 with the locked Runtime venv; Go 1.26.9 and the pnpm UI install for
+    make lint; branch claude/v414-sec containing main c73ec319.
+  commands:
+    - >-
+      cd runtime && uv run --locked pytest -q tests/test_otlp_retries.py tests/test_otlp_adapter.py
+      tests/test_otlp_streaming.py passed (95 passed).
+    - >-
+      A1: test_tls_and_os_transport_failures_retry_exact_payload[tls-send, tls-body, reset-send,
+      reset-body] deliver the identical payload on the third attempt with failed_operations 2 and
+      nothing dropped. A2: test_persistent_tls_and_os_transport_failures_exhaust_retries (four
+      cases) and test_corrupt_tls_record_from_a_real_collector_exhausts_retries[headers, body]
+      (real TLS, three connections) drop the batch as retry_exhausted. A3:
+      test_terminal_transport_and_implementation_failures_never_retry (UnsupportedProtocol,
+      LocalProtocolError, TypeError, a gzip acknowledgement that fails decoding) drop it as
+      non_retryable after one request.
+    - >-
+      A4: with the exporter restored from the pre-fix revision, all ten A1/A2 tests fail
+      (OTLPDeliveryError after one attempt, non_retryable) and the A3 tests pass.
+    - uv run --locked pytest -q tests/test_http_toolset.py passed (the helper refactor).
+    - >-
+      make test-runtime: 4609 passed, 39 skipped, 107 failed. Every failure is in a module that
+      imports none of the changed code (podman, tool_process, projectfs, trailmark, code_analysis,
+      local_direct_faults) and fails on macOS-only causes: OSError [Errno 43] from socketpair,
+      the missing pidfd_open symbol, the address-space limit and allocation resource
+      preparation. They need the Linux release gate; they are not a pass on this host.
+    - make lint passed (exit 0).

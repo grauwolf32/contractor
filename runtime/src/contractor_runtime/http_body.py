@@ -21,8 +21,11 @@ DECODED_CONTENT_CODINGS = frozenset({"identity", "gzip", "deflate"})
 # escape unmapped (for example ssl.SSLError for a corrupt TLS record). The
 # HTTP toolset, the Caido and Interactsh adapters and the proxy handle classify
 # exactly this family as a transport failure; any other exception is an
-# implementation failure. The Gateway client and the OTLP exporter keep their
-# own retry rules.
+# implementation failure. The OTLP exporter retries this family too, except
+# the terminal members adapters.otlp_http.OTLP_TERMINAL_TRANSPORT_ERRORS names,
+# under its own budget, backoff and Retry-After rules (OBS-R74). The Gateway
+# client keeps its own, broader rule: any exception of a send other than a
+# timeout is a retryable gateway_unavailable.
 HTTP_TRANSPORT_ERRORS: tuple[type[Exception], ...] = (httpx.HTTPError, OSError)
 
 

@@ -538,8 +538,12 @@ func TestSharedEvalPostgresBoundedCollectionsRejectStaleAndForeignCursors(t *tes
 	h.request(t, "GET", "/v1/eval-experiments?projectId=foreign&limit=1&cursor="+url.QueryEscape(*page.Page.NextCursor), nil, "", "", 422)
 	h.request(t, "PATCH", "/v1/eval-experiments/"+first.ID, evaldomain.DraftUpdate{Name: "Changed", Draft: draft}, "edit", `"2"`, 200)
 	h.request(t, "GET", nextPath, nil, "", "", 409)
-	for _, query := range []string{"limit=101", "limit=0", "limit=-1", "limit=1&limit=2", "unknown=x", "state=garbage", "state=interrupted", "cursor=untrusted"} {
-		h.request(t, "GET", "/v1/eval-experiments?"+query, nil, "", "", 422)
+	// The list takes no state, dataset or control-mode filter (EVM-R247):
+	// like any undeclared query parameter, each answers 422 eval_invalid.
+	for _, query := range []string{"limit=101", "limit=0", "limit=-1", "limit=1&limit=2", "unknown=x", "projectId=", "state=running", "datasetId=dataset", "controlMode=server", "projectId=evaluation&state=draft", "cursor=untrusted"} {
+		if answer := apiDecode[errorResponse](t, h.request(t, "GET", "/v1/eval-experiments?"+query, nil, "", "", 422)); answer.Code != "eval_invalid" || answer.Retryable {
+			t.Fatalf("%s: %+v, want eval_invalid, retryable false", query, answer)
+		}
 	}
 	h.request(t, "POST", "/v1/projects/evaluation/eval-datasets", data, "second-import", "", 201)
 	datasetPath := "/v1/projects/evaluation/eval-datasets?limit=1"

@@ -32,6 +32,26 @@ SELECT conrelid::regclass::text || '.' || conname,
   FROM pg_constraint
  WHERE connamespace = current_schema()::regnamespace AND contype IN ('p', 'u', 'f')`
 
+// applyMigrationsThrough applies the embedded migrations that pool's ledger
+// lacks, up to and including the one named suffix, so that a migration's
+// catalog test sees its own change and none of a later migration.
+func applyMigrationsThrough(t *testing.T, ctx context.Context, pool *pgxpool.Pool, suffix string) {
+	t.Helper()
+	available, err := loadMigrations()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, item := range available {
+		if strings.TrimSuffix(item.name[strings.IndexByte(item.name, '_')+1:], ".sql") == suffix {
+			if _, err := applyMigrations(ctx, pool, MigrationBudgets{}, available[:i+1]); err != nil {
+				t.Fatal(err)
+			}
+			return
+		}
+	}
+	t.Fatalf("no embedded migration is named %s", suffix)
+}
+
 // TestSharedPostgresIndexConsolidationKeepsGuarantees applies the V409-007
 // migration to the schema before it and compares the catalog: exactly the
 // consolidated indexes and the two duplicate UNIQUE constraints are gone, the
@@ -53,9 +73,7 @@ func TestSharedPostgresIndexConsolidationKeepsGuarantees(t *testing.T) {
 	installMigrationPrefix(t, ctx, pool, previous)
 	beforeIndexes := consolidationCatalog(t, ctx, pool, consolidationIndexesSQL)
 	beforeConstraints := consolidationCatalog(t, ctx, pool, consolidationConstraintsSQL)
-	if _, err := ApplyMigrations(ctx, pool, MigrationBudgets{}); err != nil {
-		t.Fatal(err)
-	}
+	applyMigrationsThrough(t, ctx, pool, "index_consolidation")
 	afterIndexes := consolidationCatalog(t, ctx, pool, consolidationIndexesSQL)
 	afterConstraints := consolidationCatalog(t, ctx, pool, consolidationConstraintsSQL)
 
