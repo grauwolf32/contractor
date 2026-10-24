@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -64,6 +65,40 @@ func TestPostgresExplainPreparedCountsTheRowsOfEachPlan(t *testing.T) {
 	}
 	if got := analysis.Reads.Of("items"); got != 1000 {
 		t.Errorf("a filtered scan read %d items, want 1000:\n%s", got, analysis.Plan)
+	}
+
+	// Rows a parallel worker reads would not reach the counters.
+	err = pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `
+SET LOCAL max_parallel_workers_per_gather = 4; SET LOCAL parallel_setup_cost = 0;
+SET LOCAL parallel_tuple_cost = 0; SET LOCAL min_parallel_table_scan_size = 0`); err != nil {
+			return err
+		}
+		analysis, err := ExplainPrepared(ctx, tx, Custom, `SELECT count(*) FROM items WHERE pad = $1`, "none")
+		if err != nil {
+			return err
+		}
+		gathers := 0
+		for _, node := range analysis.Plan.Nodes() {
+			if strings.HasPrefix(node.Type, "Gather") {
+				gathers++
+			}
+		}
+		if got := analysis.Reads.Of("items"); got != 1000 || gathers != 0 {
+			return fmt.Errorf("a parallel-eligible scan read %d items under %d Gather nodes, want 1000 and none:\n%+v",
+				got, gathers, analysis.Plan)
+		}
+		var workers string
+		if err := tx.QueryRow(ctx, `SELECT current_setting('max_parallel_workers_per_gather')`).Scan(&workers); err != nil {
+			return err
+		}
+		if workers != "4" {
+			return fmt.Errorf("max_parallel_workers_per_gather is %s after the count, want the transaction's 4", workers)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	err = pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {

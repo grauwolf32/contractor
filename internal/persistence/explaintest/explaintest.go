@@ -16,7 +16,9 @@
 // count of rows read that the package offers, and row budgets use it. The
 // count is exact where EXPLAIN rounds each node's rows to a per-loop average
 // (Node.Examined reads those averages to describe a plan's table scans), and
-// for a fixed fixture it is deterministic; it never measures time. The
+// for a fixed fixture it is deterministic; it never measures time. Rows a
+// parallel worker reads never reach the counters, so a counted statement is
+// planned without parallel workers. The
 // count includes rows a filter discarded later, the entries of an index-only
 // scan and every entry a bitmap index scan returned, and also an entry of a
 // row version that is dead but that VACUUM has not removed yet, or, for a
@@ -209,8 +211,16 @@ SELECT table_class.relname::text,
 
 // CountReads calls run and returns the rows the statements it sent through
 // tx read from each table. PostgreSQL keeps the counters per transaction, so
-// run's statements must go through tx itself.
+// run's statements must go through tx itself. The rows a parallel worker
+// reads never reach the transaction's counters, so run plans without
+// parallel workers and the transaction's own setting returns afterwards.
 func CountReads(ctx context.Context, tx pgx.Tx, run func() error) (Reads, error) {
+	var parallel string
+	if err := tx.QueryRow(ctx,
+		`SELECT current_setting('max_parallel_workers_per_gather'), set_config('max_parallel_workers_per_gather', '0', true)`,
+	).Scan(&parallel, new(string)); err != nil {
+		return nil, err
+	}
 	before, err := readCounters(ctx, tx)
 	if err != nil {
 		return nil, err
@@ -220,6 +230,9 @@ func CountReads(ctx context.Context, tx pgx.Tx, run func() error) (Reads, error)
 	}
 	after, err := readCounters(ctx, tx)
 	if err != nil {
+		return nil, err
+	}
+	if _, err := tx.Exec(ctx, `SELECT set_config('max_parallel_workers_per_gather', $1, true)`, parallel); err != nil {
 		return nil, err
 	}
 	for table, count := range after {
