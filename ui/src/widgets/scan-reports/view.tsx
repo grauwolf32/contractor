@@ -1,13 +1,7 @@
 import { DIGEST } from "../../api/contract";
+import { isRecord } from "../../api/json-guards";
+import { scanReportWidget, type ScanReportWidget } from "./registry";
 import { Facts } from "../../ui";
-
-const SCAN_TOOLS = new Set([
-  "scan_nuclei",
-  "scan_naabu",
-  "scan_sqlmap",
-  "scan_ffuf",
-  "scan_katana",
-]);
 
 type WorkerErrorOutcome = "unavailable" | "incomplete" | "failed";
 
@@ -38,16 +32,12 @@ const WORKER_ERROR_OUTCOMES: ReadonlyMap<string, WorkerErrorOutcome> = new Map([
   ["no_discovered_targets", "failed"],
 ]);
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function isCount(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }
 
 function executionStatus(
-  tool: string,
+  widget: ScanReportWidget,
   observation: Record<string, unknown>,
 ): string {
   const errorCode = observation.errorCode;
@@ -64,7 +54,7 @@ function executionStatus(
           name === "outputLimitExceeded") &&
         typeof value !== "boolean",
     ) ||
-    (tool === "scan_katana" &&
+    (widget.requiresDiscoveryState &&
       typeof observation.discoveryComplete !== "boolean") ||
     (observation.invalidResultLines !== undefined &&
       !isCount(observation.invalidResultLines)) ||
@@ -82,8 +72,8 @@ function executionStatus(
       case "incomplete":
         return "Incomplete";
       case "failed":
-        return tool === "scan_katana" && errorCode === "no_discovered_targets"
-          ? "No targets discovered"
+        return errorCode === "no_discovered_targets"
+          ? (widget.noTargetsOutcome ?? "Failed")
           : "Failed";
       default:
         return "Unknown";
@@ -115,13 +105,11 @@ function executionStatus(
     observation.stdoutTruncated === false &&
     observation.stderrTruncated === false &&
     observation.outputLimitExceeded === false &&
-    (tool !== "scan_ffuf" || observation.scanComplete === true) &&
+    (!widget.requiresScanComplete || observation.scanComplete === true) &&
     (observation.scanComplete === undefined ||
       observation.scanComplete === true)
   ) {
-    return tool === "scan_katana" && observation.discoveryComplete === false
-      ? "Completed (bounded discovery)"
-      : "Completed";
+    return widget.completedOutcome(observation);
   }
   return "Unknown";
 }
@@ -137,7 +125,6 @@ export function ScanReportSummary({ source }: { source: string }) {
     !isRecord(report) ||
     report.schemaVersion !== 1 ||
     typeof report.tool !== "string" ||
-    !SCAN_TOOLS.has(report.tool) ||
     typeof report.inputDigest !== "string" ||
     !DIGEST.test(report.inputDigest) ||
     !isRecord(report.inputArtifacts) ||
@@ -145,6 +132,8 @@ export function ScanReportSummary({ source }: { source: string }) {
   ) {
     return null;
   }
+  const widget = scanReportWidget(report.tool);
+  if (widget === undefined) return null;
   const observation = report.observation;
   return (
     <section className="materials-scan" aria-label="Scanner execution">
@@ -156,7 +145,7 @@ export function ScanReportSummary({ source }: { source: string }) {
           { term: "Tool", value: report.tool },
           {
             term: "Technical outcome",
-            value: executionStatus(report.tool, observation),
+            value: executionStatus(widget, observation),
           },
           {
             term: "Error code",
@@ -173,24 +162,14 @@ export function ScanReportSummary({ source }: { source: string }) {
           },
           {
             term: "Discovery limitations",
-            value:
-              report.tool === "scan_katana" &&
-              isRecord(observation.coverage) &&
-              Array.isArray(observation.coverage.limitations) &&
-              observation.coverage.limitations.every(
-                (reason) => typeof reason === "string",
-              )
-                ? observation.coverage.limitations.join(", ")
-                : undefined,
+            value: widget.discoveryLimitations?.(observation),
           },
         ]}
       />
       <p className="ui-caption">
         This describes scanner execution. A completed scan or an empty report
         does not establish that the target is free of vulnerabilities.
-        {report.tool === "scan_katana"
-          ? " Katana discovery is bounded and does not establish that every target was found."
-          : null}
+        {widget.note ?? null}
       </p>
     </section>
   );

@@ -11,7 +11,7 @@ import {
   createArtifactPreviewPlan,
   type ArtifactPreviewPlan,
 } from "./preview-plan";
-import { ScanReportSummary } from "./scan-report-summary";
+import { ScanReportSummary } from "../../widgets/scan-reports/view";
 import type { HTTPPreviewContext } from "./previews/http-exchange";
 import { PanelTabs } from "./tabs";
 import "./materials.css";

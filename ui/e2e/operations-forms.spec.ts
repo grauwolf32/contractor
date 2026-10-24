@@ -343,7 +343,7 @@ for (const theme of ["light", "dark", "black"]) {
       ),
     ).toBe(true);
     await page.screenshot({
-      path: `/tmp/v382-interactsh-${theme}.png`,
+      path: test.info().outputPath(`v382-interactsh-${theme}.png`),
       fullPage: true,
     });
     await dialog

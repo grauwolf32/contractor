@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import runpy
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -64,6 +65,24 @@ def discover() -> dict[str, set[str]]:
     return selected
 
 
+def release_selection() -> dict[str, set[str]]:
+    """Tagged tests plus the Audit completion gate's previously separate pass."""
+    selected = discover()
+    gate = runpy.run_path(str(ROOT / "scripts/test-audit-completion-e2e.py"))
+    matrix = gate["matrix"]()
+    for import_path in matrix["go"]:
+        package = "./" + import_path.removeprefix("github.com/grauwolf32/contractor/")
+        for source in (ROOT / package.removeprefix("./")).glob("*_test.go"):
+            data = source.read_text()
+            tag = BUILD_TAG.search(data.split("\npackage ", 1)[0])
+            if tag is not None and tag.group(1) != "integration":
+                continue
+            for name in TEST.findall(data):
+                if re.search(gate["PATTERN"], name):
+                    selected.setdefault(package, set()).add(name)
+    return selected
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--packages", action="store_true")
@@ -71,7 +90,7 @@ def main() -> None:
     args = parser.parse_args()
     if args.packages == args.regex:
         parser.error("choose --packages or --regex")
-    selected = discover()
+    selected = release_selection()
     if args.packages:
         print(" ".join(sorted(selected)))
     else:

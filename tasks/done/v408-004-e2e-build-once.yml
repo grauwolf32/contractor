@@ -1,0 +1,52 @@
+schema_version: "1.0"
+id: V408-004
+title: "Reuse one Server build per e2e package run and build mode"
+milestone: test-gate-cost-2026-10
+epic: quality
+kind: chore
+priority: P2
+status: completed
+implementation_commit: ba6fc0a50142dd3af03aa6db53ebe606c48e8e3d
+depends_on: []
+languages: [go, python]
+goal: "Process tests reuse a lazily built Server binary without sharing their PKI, databases or scenario state."
+context:
+  review: "docs/research/2026-10-23-test-gate-cost-review.md, finding T3"
+  finding: >-
+    The main process selection invokes go build 25 times and the browser
+    stack four times. Each builds a separate output binary. Two opt-in tests
+    explicitly require CGO_ENABLED=0; that build mode must remain distinct.
+  scope_decision: >-
+    User narrowed this task on 2026-10-24 to binary reuse and measured savings.
+    V408-001 is no longer a prerequisite: measure repeated build overhead here.
+    The original shared-CA, budget, shard and CI-timeout changes are excluded.
+plan:
+  - "Introduce one test-only lazy build cache shared by the e2e and ui-stack harness implementations, with per-package instances and TestMain cleanup."
+  - "Replace every Server build call, including opt-in paths; preserve the explicitly disabled CGO mode separately. Enumeration and configuration-only selections never build."
+  - "Guard against per-test build calls; verify concurrent reuse, sticky build failures and cleanup."
+  - "Measure repeated real warm-cache builds versus one reused binary over multiple samples and record the attributable savings, separately from full-suite or CI wall time."
+scope:
+  in:
+    - "One lazy build per package process and build mode, shared helper, cleanup, regression guard and local measurement."
+  out:
+    - "PKI, scenario assertions, migrations, database isolation, timeouts, CI sharding, prebuilt binary overrides and cross-run caches."
+acceptance_criteria:
+  - id: A1
+    text: "The 25-test ordinary process selection builds the Server once; ui-stack likewise builds once per package process. Opt-in CGO_ENABLED=0 tests reuse a separate binary."
+  - id: A2
+    text: "Concurrent requests share the same build and failure, binaries survive individual test cleanup and package cleanup removes them; listing tests does not build. A source guard rejects new per-test Server builds."
+  - id: A3
+    text: "The full ordinary process selection and both changed test packages pass; PKI, timeouts, selections and build modes are unchanged."
+  - id: A4
+    text: "Multiple local samples quantify old repeated build cost and new single-build cost; the report distinguishes this measurement from unmeasured CI or full-suite speedup."
+tests:
+  - command: "go test -race -count=1 ./tests/internal/serverbuildtest"
+    covers: [A2]
+  - command: "go test -count=1 ./tests/e2e"
+    covers: [A2]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> make test-e2e"
+    covers: [A1, A3]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> make test-ui-stack"
+    covers: [A1, A3]
+  - command: make lint
+    covers: [A2, A3]

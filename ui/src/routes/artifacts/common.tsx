@@ -215,8 +215,20 @@ export function ArtifactWriteForm({
       setName(artifactFileStem(next.name));
     }
     if (fixedMediaType === undefined) {
+      const inferred = inferredArtifactMediaType(
+        next,
+        mediaType,
+        preserveMediaType.current,
+      );
+      const zipTypes =
+        acceptedMediaTypes?.filter((type) => type.endsWith("+zip")) ?? [];
       setMediaType(
-        inferredArtifactMediaType(next, mediaType, preserveMediaType.current),
+        !preserveMediaType.current &&
+          inferred === "application/zip" &&
+          !acceptedMediaTypes?.includes(inferred) &&
+          zipTypes.length === 1
+          ? zipTypes[0]!
+          : inferred,
       );
     }
   }

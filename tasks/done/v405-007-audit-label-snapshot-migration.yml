@@ -1,0 +1,66 @@
+schema_version: "1.0"
+id: V405-007
+title: "Migrate Audit snapshots to explicit label and placement collections"
+milestone: runtime-placement-labels-2026-10
+epic: audits
+kind: defect
+introduced_by: V405-004
+priority: P1
+status: completed
+implementation_commit: "f8338a987c861d33292b460e390df53a8585eff0"
+depends_on: [V405-003, V405-004]
+languages: [go, sql]
+goal: >-
+  Stored Audit selections and baselines carry explicit labels and derived
+  placement collections so strict readers can load the owner lists and Inbox.
+context:
+  specification:
+    - docs/spec/audits/audits.md#AUD-R229
+    - docs/spec/audits/audits.md#AUD-R230
+    - docs/spec/ui/ui.md#UI-R39
+  severity: high
+  finding: >-
+    internal/auditservice/model.go:32 and :47 reject missing labels and
+    requiredPlacementLabels, but migration 000032 did not add those members to
+    audits.input_selection and audits.baseline_snapshot. Owner Audit lists
+    containing saved draft or completed Audits therefore return invalid_request
+    and the Inbox cannot read their results.
+  siblings: >-
+    Upgrade both selection and non-null baseline snapshots. Existing Run and
+    allocation placement columns already have explicit empty SQL defaults in
+    000032. Preserve explicit nonempty label and requirement values; missing
+    placement is derived from any existing cloud/local labels. Leave strict
+    readers and explicit null rejection intact. Review old migration regressions
+    whose exact baseline member count must include the new fields.
+  user_decision: >-
+    On 2026-10-24 the user explicitly chose a migration over relaxing readers;
+    missing labels mean no location constraint, represented as {} and [], not null.
+scope:
+  in:
+    - "A forward-only migration adding only absent Audit snapshot members."
+    - "Real PostgreSQL regression for drafts, initialized/preparing and completed Audits, existing labels and immutable preparation baselines."
+    - "Restore-verified demo backup, rehearsal and live Inbox verification."
+  out:
+    - "No fallback readers, null normalization, data reset or rewritten user selections."
+acceptance_criteria:
+  - id: A1
+    text: "After upgrading schema 32, absent labels become {} and absent placement becomes [] or the paths derived from existing cloud/local labels; existing members, identity, revisions and timestamps are unchanged."
+  - id: A2
+    text: "Draft baselines stay SQL NULL; existing baseline collections become explicit; preparation baseline protection is restored and still rejects mutation."
+  - id: A3
+    text: "Explicit values and nulls are not silently replaced; strict decoding remains unchanged; repeated migration is a no-op and the live Inbox reads existing checks."
+tests:
+  - command: "go test -count=1 ./internal/persistence/postgres"
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+verification_notes: >-
+  The real PostgreSQL regression failed without migration 33 because labels
+  were absent, then the full PostgreSQL package passed (27.119s). make lint
+  passed after regenerating the ERD with make docs-erd. A fresh demo backup
+  was restored and verified; all original columns and snapshot members
+  survived rehearsal and live migration. Strict readers decoded both retained
+  Audits; owner and Inbox Audit lists returned HTTP 200. Browser verification
+  at / showed the retained VulnyAPI report and no incomplete-Inbox warning.
+  Six Runtime Agents reconnected and queue admission returned to paused=false.
+  Deployment record: .local/demo/run/audit-labels-deployment.json.

@@ -156,6 +156,35 @@ describe("Scan report preview", () => {
     },
   );
 
+  it.each(["scan_nuclei", "scan_naabu", "scan_sqlmap"])(
+    "renders the registered %s report without ffuf-specific accounting",
+    async (tool) => {
+      const source = report({ scanComplete: undefined }, tool);
+      render(
+        <LoadedArtifactPreview mediaType="application/json" source={source} />,
+      );
+      const summary = await screen.findByRole("region", {
+        name: "Scanner execution",
+      });
+      expect(summary).toHaveTextContent(tool);
+      expect(summary).toHaveTextContent("Technical outcomeCompleted");
+    },
+  );
+  it.each(["scan_future", "__proto__", "toString"])(
+    "keeps an unregistered %s report as raw evidence",
+    async (tool) => {
+      const source = report({}, tool);
+      const { container } = render(
+        <LoadedArtifactPreview mediaType="application/json" source={source} />,
+      );
+      expect(await screen.findByText(source)).toBeVisible();
+      expect(
+        screen.queryByRole("region", { name: "Scanner execution" }),
+      ).toBeNull();
+      expect(container.querySelector("pre")?.textContent).toBe(source);
+    },
+  );
+
   it("does not treat arbitrary JSON as a scanner report", async () => {
     render(
       <LoadedArtifactPreview

@@ -132,7 +132,7 @@ verification:
   environment: >-
     macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local); locked Node 24.20 and Runtime
     venv; local PostgreSQL 17.11 database contractor_test_c with isolated
-    per-test schemas and all migrations through 000037 (000035 is pending on
+    per-test schemas and all migrations through 000038 (000036 is pending on
     another branch); worktree branch claude/rv-c on base ba0f4415.
   re_verification: >-
     The findings held on base ba0f4415: PairPage and SelectedMemberPage sent a
@@ -274,3 +274,5 @@ verification:
     (recovery authority shared inside one composed transaction), both with
     their decision rationale; migration 000037_eval_view_pair_filters. No new
     limit, error code or failure outcome; FAIL-EVM-3 now also cites EVM-R246.
+notes:
+- Migration numbers in this record were renumbered (+1) on 2026-10-24 when main's 000033_audit_snapshot_labels was merged into the integration branch.

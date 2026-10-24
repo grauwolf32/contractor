@@ -5,7 +5,7 @@ milestone: web-nuclei-rule-sweeps-2026-10
 epic: scan-tools
 kind: chore
 priority: P2
-status: pending
+status: in_progress
 depends_on:
 - V406-001
 - V406-002
@@ -15,6 +15,12 @@ depends_on:
 - V406-006
 - V406-008
 - V406-009
+- V406-010
+- V406-013
+- V406-014
+- V406-015
+- V406-016
+- V406-017
 languages:
 - go
 - python
@@ -73,7 +79,7 @@ lifecycle:
   retention: Acceptance logs record command/outcome/revision; temporary resources are removed after collection.
 acceptance_criteria:
 - id: A1
-  given: all six implementation tasks completed on the branch
+  given: all implementation tasks completed on the branch
   when: deterministic gates run against disposable PostgreSQL
   then: web scan, once-uploaded rulepack and recoverable/cancellable sweep journeys pass through real
     Server/Runtime/browser boundaries
@@ -93,6 +99,8 @@ tests:
   - A1
   - A2
   - A3
+- command: make test-nuclei-web-installed
+  covers: *id001
 - command: make test-scan-e2e
   covers: *id001
 - command: make test-wire-cross-language
@@ -103,5 +111,70 @@ tests:
   covers: *id001
 - command: make test-ui-stack
   covers: *id001
+- command: make verify-architecture
+  covers: *id001
+- command: make test-config
+  covers: *id001
+- command: make lint
+  covers: *id001
 - command: make release-verify
   covers: *id001
+execution_notes:
+- On 2026-10-24 the user initially authorized focused checks and postponed full release-verify.
+- Later on 2026-10-24 the user explicitly authorized full release-verify on main and closing this task and the proposal milestone only after a green result. The earlier deferral is lifted.
+verification:
+  date: '2026-10-24'
+  work_commits:
+  - 624b3a47a648819be12969aad9966b23b16ab5a9
+  - 7b9d991c47988f8a16eb167774eb20fae1621304
+  - 2fb310c642d09f609135ea7570b3765391a12b03
+  diagnosis: The original native timeout occurred at comparison navigation after executions succeeded,
+    with an empty page. A distinct sibling UI rebuild reproduced HTTP 404 for a live static server cached
+    index script. V406-013 isolates private build snapshots. Clean native baseline and the complete fixed
+    native/external process matrix passed without model or deadline changes.
+  passed:
+  - command: make test-ui-stack
+    result: Full package passed in 1174.506 seconds; 29 Go test/subtest passes and 94 browser scenarios
+      across Operations, widgets and native/external Evals, with zero skipped/unexpected/flaky cases.
+  - command: make test-nuclei-web-e2e
+    result: Passed with the deterministic scanner protocol fixture through actual Server/Scheduler/Runtime
+      and resumable client/durable sweeps.
+  - command: make test-nuclei-web-installed
+    result: Passed in 175.424 seconds with the real installed Nuclei engine, custom/installed rules, pinned
+      manifests and argument/admission cases.
+  - command: make test-scan-e2e
+    result: Passed; Katana and the installed scanner protocol cases. Both explicit scanner-browser build
+      modes passed separately under V406-013.
+  - command: make test-wire-cross-language
+    result: Passed; shared fixture inventory verified 249 fixtures, 231 Go and 184 Python shared tests.
+  - command: make verify-public-api-postgres
+    result: Passed with PostgreSQL and the race detector.
+  - command: make verify-public-api
+    result: Passed; every required public operation was covered.
+  - command: make ui-verify
+    result: 196 files and 2385 passing tests plus one expected failure; generated client, lint, typecheck,
+      Node server tests and production build passed.
+  - command: go test -json -count=1 ./internal/app ./internal/scanservice ./internal/scanstore ./internal/scancontroller
+      ./internal/cli/... ./internal/publicclient/...
+    result: 'Passed: 344 Go test/subtest passes. One known non-database CLI fixture skip on the macOS
+      filesystem is recorded below. Sweeps covered the 1000-member boundary, 10001-Project containing
+      portfolio, lost acknowledgement/controller replacement, captured inputs/targets, cancellation fencing,
+      deadlines and populated purge.'
+  - command: make verify-architecture
+    result: Current LikeC4 source validated.
+  - command: make test-config
+    result: Passed after V406-014 corrected the staged Skills loader boundary; shipped configuration validated.
+  - command: make lint
+    result: Passed after integrating main 37a1557b, including release-graph selection, task/spec validation
+      and ERD freshness.
+  - command: go test -count=1 ./internal/persistence ./internal/configload
+    result: Both complete guard packages passed.
+  accepted_skips:
+  - test: TestSourcePushRejectsRuntimeUnopenableBundleBeforeArtifactRequest/file_and_directory_collide_after_NFC
+    reason: The macOS filesystem cannot represent both fixture names after NFC normalization. This unrelated
+      CLI fixture was the only skip in the additional Go packages; no required database or sweep acceptance
+      test skipped.
+  remaining:
+  - command: make release-verify
+    reason: Explicitly not run at the user request on 2026-10-24. A3 and milestone completion remain open;
+      do not mark this task completed from the focused evidence.

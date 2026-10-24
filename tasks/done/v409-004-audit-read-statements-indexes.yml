@@ -194,7 +194,7 @@ verification:
       make lint passed (staticcheck U1000, testonlyexports with the
       ListExecutions entry removed, SQL placement, table ownership, layers,
       ERD, task and spec checks) after make tasks-backlog; the ERD was
-      regenerated on the merged tree (schemaVersion 000035, no table change)
+      regenerated on the merged tree (schemaVersion 000036, no table change)
       and make docs-dependencies left its page unchanged.
     - >-
       go test -count=1 ./internal/archtest ./internal/persistence: archtest
@@ -264,7 +264,7 @@ verification:
     TestUncollectedExecutionStatesSQLMatchesDeclaration and to the reconcile
     index by the state-set test), the workspace finding counts (one pass),
     the Audit finding filter (no "$2 IS NULL OR"; owner-wide pages keep it
-    in ownerFindingFilterSQL), and migration 000035
+    in ownerFindingFilterSQL), and migration 000036
     audit_review_requests_item_subject_idx (partial on
     subject_kind = 'audit-item-action', declared in the state-set test; it
     also serves claimAuditSQL's waiting_review probe, whose SQL V407-027 owns
@@ -315,3 +315,5 @@ verification:
     owner/project and 112 runtime-credential entries of workflow_runs, and a
     rolled-back insert leaves a dead GIN entry under llm-10 and runtime-10),
     so moving them is a decision for V407-025's owner, not this review fix.
+notes:
+- Migration numbers in this record were renumbered (+1) on 2026-10-24 when main's 000033_audit_snapshot_labels was merged into the integration branch.

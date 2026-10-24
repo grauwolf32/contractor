@@ -134,7 +134,7 @@ verification:
   environment: >-
     macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local), the locked Runtime venv and UI
     dependencies; local PostgreSQL 17.11 database contractor_test_f with
-    per-test schemas and all migrations through 000036 (000034 and 000035
+    per-test schemas and all migrations through 000037 (000035 and 000036
     are reserved for unmerged V407-029 and V409-004).
   commands:
     - >-
@@ -158,7 +158,7 @@ verification:
       The new tests with -count=3 passed, and the artifacts ones again with
       CONTRACTOR_TEST_ARTIFACT_BACKEND=filesystem.
     - >-
-      Can-fail checks: without migration 000036 the trigger-count tests fail
+      Can-fail checks: without migration 000037 the trigger-count tests fail
       at every scoped step (release attempt, release and report mark call the
       identity, policy and completion triggers; an event append calls the
       preparation guard and scans audit_executions 4 times; every Run-scope
@@ -174,7 +174,7 @@ verification:
       INSERT and UPDATE checks, preparation guards per column, deletion
       between scope and binding, Audit cancellation import) pass on base and
       after, as intended.
-    - make docs-erd (schema 000036) and make docs-dependencies regenerated.
+    - make docs-erd (schema 000037) and make docs-dependencies regenerated.
     - make lint passed.
   evidence:
     - >-
@@ -226,3 +226,5 @@ verification:
       recorded in the inventory test and the migration header.
   database_tests_configured: true
 implementation_commit: ed08c26dbc3ca571d3696fa0acf7d94c0b6e29fd
+notes:
+- Migration numbers in this record were renumbered (+1) on 2026-10-24 when main's 000033_audit_snapshot_labels was merged into the integration branch.

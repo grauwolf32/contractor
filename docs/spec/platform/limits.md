@@ -736,7 +736,7 @@ its owning requirement.
 | `LIM-SCN-76` | 1000 unique Projects | client scan-sweep selection | CLI capture and strict manifest reader | [SCN-R234](../tools/scanners.md) |
 | `LIM-SCN-77` | 8 MiB | local client sweep manifest and each replacement | CLI capture/read/atomic persistence | [SCN-R234](../tools/scanners.md) |
 | `LIM-SCN-78` | 16 KiB | one captured sweep child CreateRunRequest | CLI capture and strict manifest reader | [SCN-R234](../tools/scanners.md) |
-| `LIM-SCN-79` | 4 MiB | each client sweep API response | CLI bounded response decoder | [SCN-R234](../tools/scanners.md) |
+| `LIM-SCN-79` | 4 MiB | each client sweep API response | CLI and UI bounded response decoders | [SCN-R234](../tools/scanners.md) |
 | `LIM-SCN-80` | default 30 minutes; maximum 24 hours | one scan-sweep command invocation | CLI overall deadline, independent of API attempt timeout | [SCN-R235](../tools/scanners.md) |
 | `LIM-SCN-81` | 16 MiB | one custom ZIP | Artifact admission and Runtime bounded read | [SCN-R239](../tools/scanners.md), [SCN-R240](../tools/scanners.md) |
 | `LIM-SCN-82` | 64 MiB | expanded custom pack | Streaming extraction before writes | [SCN-R239](../tools/scanners.md), [SCN-R240](../tools/scanners.md) |

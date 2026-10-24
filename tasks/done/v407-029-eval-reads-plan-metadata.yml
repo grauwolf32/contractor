@@ -111,7 +111,7 @@ decisions:
   would repeat that work on every poll.
 - >-
   One rule, three implementations (AGENTS 3.1): evaldomain.NativeReadiness, the freeze write path and
-  the SQL backfill of migration 000034 are all held to the new shared fixture
+  the SQL backfill of migration 000035 are all held to the new shared fixture
   api/testdata/evals/readiness-cases.json (covered by the existing evals/ readers entry). Its mixed case
   orders the dimensions a-b, a.b, a0, a_b, ab, which en_US collation sorts differently, so the backfill's
   COLLATE "C" is tested; it also covers operator_supplied and unavailable origins, missing pins, null
@@ -209,7 +209,7 @@ verification:
   - >-
     go test -count=1 ./internal/persistence/postgres/... passed, including
     TestSharedPostgresEvalPlanReadinessMigrationBackfillsNativePlans (the migrations before it, two
-    fixture native plans with members and an external registration, then 000034: backfilled readiness equals the
+    fixture native plans with members and an external registration, then 000035: backfilled readiness equals the
     fixture and NativeReadiness and is schema-valid, external stays NULL, plan and member rows are
     byte-identical before and after, the immutable trigger is enabled again and a native plan without
     readiness is rejected by eval_frozen_plans_readiness_kind_check).
@@ -232,12 +232,12 @@ verification:
     make lint passed, including vet, staticcheck U1000, unused-export checks, SQL placement, spec, ERD,
     release graph and task checks.
   - >-
-    After the migration moved to 000034 (V407-025 takes 000033) and claude/review-v407-v409 was merged
-    (b5bb1628; the migration directory then has 000032 followed by 000034, which the runner accepts
+    After the migration moved to 000035 (V407-025 takes 000034) and claude/review-v407-v409 was merged
+    (b5bb1628; the migration directory then has 000032 followed by 000035, which the runner accepts
     because it only requires increasing versions): go test -tags=integration -count=1
     ./internal/evalservice/... ./internal/evalstore/... ./internal/persistence/postgres/... passed;
     go test -tags=integration -count=1 ./internal/httpapi/public/... passed; make lint passed; make
-    docs-dependencies and make docs-erd regenerated their pages unchanged at schema version 000034.
+    docs-dependencies and make docs-erd regenerated their pages unchanged at schema version 000035.
   - >-
     Review fixes (1b74b738): TestSharedPostgresEvalPlanReadinessMigrationBackfillsNativePlans now covers the
     escaped-pin-values fixture case and a NUL in the setup. Before the fix it failed with "unsupported
@@ -251,3 +251,5 @@ verification:
     tests); make docs-erd and make docs-dependencies regenerated their pages unchanged.
   database_tests_configured: true
 implementation_commit: 1b74b73835c11d93737405cbf4f096e728979c13
+notes:
+- Migration numbers in this record were renumbered (+1) on 2026-10-24 when main's 000033_audit_snapshot_labels was merged into the integration branch.

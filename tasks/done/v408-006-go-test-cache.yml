@@ -5,7 +5,19 @@ milestone: test-gate-cost-2026-10
 epic: quality
 kind: chore
 priority: P3
-status: pending
+status: archived
+archive:
+  date: "2026-10-24"
+  previous_status: pending
+  authority: "Explicit user request to archive the remaining V408 tasks; further measurements are not needed."
+  reason: >-
+    The user requested archiving the remaining V408 work. Ordinary local test-go and test-config already permit Go caching; the additional package-classification infrastructure is not prioritised.
+  disposition: >-
+    No new cache classifier is implemented. Existing cache flags, release evidence requirements and test selections remain unchanged.
+  reconsider_when: >-
+    The user explicitly reactivates this work, supported by a concrete slow
+    or failing gate that warrants the proposed scope. Existing release gates
+    remain the detection mechanism; no additional monitoring is scheduled.
 depends_on: []
 languages: [go]
 goal: "A local make test reruns only packages whose inputs changed; packages that touch PostgreSQL or processes still rerun every time."

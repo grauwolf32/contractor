@@ -1,5 +1,7 @@
 package artifacts
 
+import "github.com/grauwolf32/contractor/internal/artifactpolicy"
+
 // SQL statements for postgres_query.go.
 
 // listLineageSQL returns one page of artifact_lineage edges in which exact
@@ -72,7 +74,7 @@ JOIN artifact_binding_revisions AS revision
 JOIN artifact_versions AS version ON version.version_id = revision.version_id
 JOIN artifact_blobs AS blob ON blob.sha256 = version.blob_sha256
 WHERE binding.scope_kind = $1 AND binding.scope_id = $2
-  AND (binding.scope_kind <> 'user' OR binding.namespace <> 'contractor-system')
+  AND (binding.scope_kind <> 'user' OR binding.namespace <> '` + artifactpolicy.RunSystemNamespace + `')
   AND ($3::text IS NULL OR binding.namespace = $3)
   AND ($4::text IS NULL OR binding.namespace <> $4)
   AND ($5::text = '' OR left(binding.namespace, length($5)) <> $5)
@@ -151,7 +153,7 @@ JOIN artifact_binding_revisions AS revision
 JOIN artifact_versions AS version ON version.version_id = revision.version_id
 JOIN artifact_blobs AS blob ON blob.sha256 = version.blob_sha256
 WHERE binding.scope_kind = 'user' AND binding.scope_id = $1
-  AND binding.namespace NOT IN ('audit-standards','contractor-system')
+  AND binding.namespace NOT IN ('` + artifactpolicy.AuditStandardCatalogNamespace + `','` + artifactpolicy.RunSystemNamespace + `')
   AND ($2::text IS NULL OR binding.namespace = $2)
   AND ($3::text IS NULL OR binding.namespace <> $3)
   AND ($4::text = '' OR (binding.namespace, binding.name) > ($4, $5))

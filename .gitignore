@@ -251,3 +251,6 @@ __marimo__/
 /.local/
 # Local deployment CA and leaf private keys are always generated state.
 /.local/pki/
+
+# Canonical release test reports.
+/reports/
