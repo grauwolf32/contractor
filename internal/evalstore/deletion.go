@@ -10,12 +10,12 @@ import (
 )
 
 // purgeBatchBytes is the stored-row-byte budget of one Eval purge pass
-// (LIM-EVM-19). It holds the largest row a validated write can store, about
+// (LIM-EVM-20). It holds the largest row a validated write can store, about
 // 10.8 MiB, so a fresh pass always fits the next row; the row budget is the
 // shared CleanupBatchRows.
 const purgeBatchBytes = 16 << 20
 
-// PurgeProgress reports one bounded Eval purge pass (EVM-R242): the rows it
+// PurgeProgress reports one bounded Eval purge pass (EVM-R243): the rows it
 // deleted or rewrote, counting the rows its triggers and cascades wrote, their
 // stored bytes, and whether nothing of the purged scope is left.
 type PurgeProgress struct {
@@ -58,7 +58,7 @@ SELECT EXISTS(SELECT 1 FROM eval_experiments e WHERE e.owner_id=$1 AND e.project
 }
 
 // Purge runs one bounded pass of an experiment's purge under the Eval
-// controller's claim (EVM-R242). It removes only private eval records:
+// controller's claim (EVM-R243). It removes only private eval records:
 // execution deletion belongs to the ordinary services, and every owned Audit
 // workspace must already have drained. Nothing is removed unless the
 // experiment is fenced and drained. The experiment's mutation receipts stay
@@ -98,7 +98,7 @@ func (s *Store) Purge(ctx context.Context, scope Scope, id string, claim Claim) 
 }
 
 // PurgeProject runs one bounded pass of the private Eval data purge of a
-// deleting Project (EVM-R242, DEL-R60). It runs in the Project controller's
+// deleting Project (EVM-R243, DEL-R60). It runs in the Project controller's
 // transaction, after its row lock and the ordinary Run and Audit purge, when
 // every experiment is fenced. Its experiments, in identifier order, then its
 // dataset revisions, its collection row and its Eval mutation receipts share
@@ -179,7 +179,7 @@ func (s *Store) PurgeProject(ctx context.Context, scope Scope) (PurgeProgress, e
 // Purging reports whether a purge may already have removed rows that the
 // experiment's member-level reads need: its deletion is requested and it has
 // no selected view, which the first purge pass removes before anything else
-// (EVM-R243). Such reads answer eval_project_deleting instead of a partial
+// (EVM-R244). Such reads answer eval_project_deleting instead of a partial
 // result.
 func (s *Store) Purging(ctx context.Context, owner, id string) (bool, error) {
 	var purging bool

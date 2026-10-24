@@ -134,7 +134,7 @@ func (s *Store) mutateJSON(ctx context.Context, scope Scope, resource, operation
 	if err := s.requireTx(); err != nil {
 		return Receipt{}, err
 	}
-	if resource == "" || operation == "" || id.Key == "" || len(id.Key) > 128 || !contentdigest.Valid(id.RequestSHA256) {
+	if resource == "" || operation == "" || !contracts.ValidIdempotencyKey(id.Key) || !contentdigest.Valid(id.RequestSHA256) {
 		return Receipt{}, evaldomain.Failure("eval_invalid")
 	}
 	active, err := s.project(ctx, scope, true)

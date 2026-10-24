@@ -39,7 +39,7 @@ from contractor_runtime.core.target_policy import (
     validate_host_syntax,
 )
 from contractor_runtime.core.tool_metrics import RecordedToolCall, ToolMetrics, elapsed_ms
-from contractor_runtime.http_body import BodyTooLarge, read_limited_body
+from contractor_runtime.http_body import HTTP_TRANSPORT_ERRORS, BodyTooLarge, read_limited_body
 from contractor_runtime.redaction import runtime_secrets
 from contractor_runtime.toolsets.common.artifacts import (
     ArtifactClientFactory,
@@ -72,8 +72,13 @@ from contractor_runtime.toolsets.common.http_limits import (
     header_block_bytes,
 )
 from contractor_runtime.toolsets.http.capture import CapturedAttempt, CapturedExchange
-from contractor_runtime.toolsets.http.cookies import CookieCheckpoint, matching_cookies
+from contractor_runtime.toolsets.http.cookies import (
+    CookieCheckpoint,
+    extract_sendable_cookies,
+    matching_cookies,
+)
 from contractor_runtime.toolsets.http.errors import HTTPToolError
+from contractor_runtime.toolsets.http.fields import is_cookie_pair, is_field_value
 from contractor_runtime.toolsets.http.transport import PolicyHTTPTransport
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -417,7 +422,12 @@ class _HTTPSession:
                 evidence = await threads.to_thread_until_done(
                     captured.evidence, name="http-exchange-capture"
                 )
-                await self._captures.put(evidence, invocation_id)
+                try:
+                    await self._captures.put(evidence, invocation_id)
+                except ValueError:
+                    # A deterministic capture rejection is permanent, exactly
+                    # as for a failed exchange below.
+                    raise HTTPToolError("http_response_invalid") from None
                 published = True
                 self._cookies = candidate_cookies
                 checkpoint_error = None
@@ -472,10 +482,19 @@ class _HTTPSession:
                     "http_request_invalid": "request_invalid",
                 }.get(error.code, "transport_error")
                 raise
-            except (ValueError, TypeError):
+            except HTTP_TRANSPORT_ERRORS:
+                # A transport failure not already classified per hop, such as
+                # closing a response stream.
                 captured.complete = False
                 captured.error = "transport_error"
                 raise HTTPToolError("http_request_failed") from None
+            except Exception:
+                # An implementation failure keeps its type for the Worker's
+                # tool-error handling; the retained exchange is still explicit
+                # that no complete response was delivered.
+                captured.complete = False
+                captured.error = "transport_error"
+                raise
             finally:
                 if captured.attempts and not published:
                     if not captured.complete:
@@ -528,9 +547,13 @@ class _HTTPSession:
         current_url = url
         current_headers = headers
         current_payload = payload
-        original_origin = _origin(url)
+        original_origin: tuple[str, str, int] | None = None
         while True:
             _validate_target(current_url, self._target_policy)
+            if original_origin is None:
+                # Derived only after validation: an unusable port is invalid
+                # input (http_request_invalid), never a transport failure.
+                original_origin = _origin(current_url)
             # Each hop is compared with the requested origin, not the previous
             # hop: a chain that leaves and returns regains the caller's
             # credentials only for the original origin.
@@ -551,7 +574,7 @@ class _HTTPSession:
                 )
             except asyncio.CancelledError:
                 raise
-            except (ProxyRequestError, httpx.TransportError, httpx.TimeoutException):
+            except (ProxyRequestError, *HTTP_TRANSPORT_ERRORS):
                 if current_method in _IDEMPOTENT_METHODS and retries + 1 < MAX_ATTEMPTS:
                     delay = _retry_delay(retries + 1, None, deadline)
                     if delay is not None:
@@ -562,7 +585,7 @@ class _HTTPSession:
 
             handoff = False
             try:
-                candidate_cookies.extract_cookies(response)
+                extract_sendable_cookies(candidate_cookies, response)
                 if (
                     response.status_code in _RETRYABLE_STATUS
                     and current_method in _IDEMPOTENT_METHODS
@@ -709,19 +732,26 @@ class _HTTPSession:
             raise
         except (httpx.InvalidURL, idna.IDNAError):
             raise HTTPToolError("http_request_invalid") from None
+        except UnicodeEncodeError:
+            if attempt is not None:
+                attempt.error = "transport_error"
+                raise
+            # httpx cannot encode a non-ASCII header value, including a session
+            # cookie, into the request: invalid input on both routes.
+            raise HTTPToolError("http_request_invalid") from None
         except (TargetDenied, ProxyTargetDenied):
             if attempt is not None and attempt.status is None:
                 attempts.remove(attempt)
             # Connect-time and proxy-route denials share the pre-send code.
             raise HTTPToolError("http_target_denied") from None
-        except (httpx.HTTPError, ProxyRequestError):
+        except Exception:
+            # Transport failures (HTTP_TRANSPORT_ERRORS, the proxy route's
+            # failure) are classified and retried by the caller. Any other
+            # exception is an implementation failure and keeps its type; either
+            # way the retained attempt has no complete response.
             if attempt is not None:
                 attempt.error = "transport_error"
             raise
-        except Exception:
-            if attempt is not None:
-                attempt.error = "transport_error"
-            raise HTTPToolError("http_request_failed") from None
 
     async def read_body(self, request_id: int, offset: int, limit: int) -> dict[str, Any]:
         if type(request_id) is not int or request_id <= 0:
@@ -760,9 +790,9 @@ class _HTTPSession:
                     )
                     kind = body_kind
                     content = decoded if kind == "text" else body_bytes
-                except HTTPToolError:
-                    raise
-                except Exception:
+                except ValueError:
+                    # An evicted, foreign or undecodable buffered capture. Any
+                    # other exception is an implementation failure.
                     raise HTTPToolError("http_body_not_found") from None
                 if sys.getsizeof(content) <= MAX_DECODED_BODY_CACHE_BYTES:
                     self._cached_body = _CachedBody(request_id, kind, content)
@@ -982,13 +1012,20 @@ class _HTTPTool:
     def _recorded(
         self, arguments: Mapping[str, Any], fallback: str = "http_request_failed"
     ) -> RecordedToolCall:
+        # HTTPToolError carries a stable code, and a transport-family failure
+        # outside a request (a detached proxy route) keeps the tool's fallback
+        # code. Any other exception is an implementation failure: it keeps its
+        # type for the Worker's tool-error handling, which answers with a
+        # bounded non-retryable failure (OBS-R32).
         return RecordedToolCall(
             self._metrics,
             self.name,
             arguments,
             secrets=self._session.metric_secrets,
             bound_error=lambda error: (
-                error if isinstance(error, HTTPToolError) else HTTPToolError(fallback)
+                HTTPToolError(fallback)
+                if isinstance(error, (ProxyRequestError, *HTTP_TRANSPORT_ERRORS))
+                else error
             ),
         )
 
@@ -1331,7 +1368,7 @@ def _headers(headers: Mapping[str, Any] | None) -> dict[str, str]:
         normalized = name.lower()
         if normalized in seen or normalized in _FORBIDDEN_REQUEST_HEADERS:
             raise HTTPToolError("http_request_invalid")
-        if not isinstance(raw_value, str) or any(char in raw_value for char in "\r\n\x00"):
+        if not isinstance(raw_value, str) or not is_field_value(raw_value):
             raise HTTPToolError("http_request_invalid")
         size = _request_utf8_size(raw_value)
         if size > MAX_HEADER_VALUE_BYTES:
@@ -1465,7 +1502,7 @@ async def _read_response_body(response: httpx.Response) -> bytes:
         return await read_limited_body(response, MAX_RESPONSE_BODY_BYTES)
     except BodyTooLarge:
         raise HTTPToolError("http_response_too_large") from None
-    except (httpx.HTTPError, UnicodeError):
+    except (*HTTP_TRANSPORT_ERRORS, UnicodeError):
         raise HTTPToolError("http_request_failed") from None
 
 
@@ -1526,6 +1563,7 @@ def _cookie_values(cookies: Mapping[str, Any]) -> dict[str, str]:
             or not isinstance(value, str)
             or _request_utf8_size(value) > MAX_HEADER_VALUE_BYTES
             or any(char in value for char in "\r\n\x00")
+            or not is_cookie_pair(name, value)
         ):
             raise HTTPToolError("http_request_invalid")
         result[name] = value
@@ -1563,7 +1601,7 @@ def _auth(
             set(auth) != {"kind", "token"}
             or not isinstance(bearer_token, str)
             or not 1 <= _request_utf8_size(bearer_token) <= MAX_HEADER_VALUE_BYTES
-            or any(char in bearer_token for char in "\r\n\x00")
+            or not is_field_value(bearer_token)
         ):
             raise HTTPToolError("http_request_invalid")
         return "bearer", None, bearer_token

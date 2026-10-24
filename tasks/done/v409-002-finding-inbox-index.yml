@@ -1,0 +1,202 @@
+schema_version: "1.0"
+id: V409-002
+title: "Bound Audit finding inbox reads to native and held receipts"
+milestone: sql-review-2026-10
+epic: findings
+kind: chore
+introduced_by: V25-010
+priority: P2
+status: completed
+depends_on: []
+languages: [go, sql]
+goal: "Reduce avoidable scans of unrelated receipts in Audit inbox pages while preserving visibility, ordering, deduplication and the existing atomic per-Run proposal quota."
+context:
+  review: "docs/research/2026-10-23-sql-review.md, finding A2 and count-per-submission observation; corrected by independent validation on 2026-10-23."
+  specification:
+    - docs/spec/findings/findings.md
+    - docs/spec/platform/persistence.md
+    - docs/spec/artifacts/retention-and-deletion.md
+    - api/openapi/contractor-public-v1.yaml
+  validation: >-
+    Performance opportunity, not a demonstrated wrong result, on main
+    1d533b2db885e0162ebabb01d36470f139546009. Real PostgreSQL EXPLAIN ANALYZE
+    of the existing inbox query with 20001 synthetic receipts, two owners
+    and two Audit IDs scanned the receipts relation, returned 5000 matches
+    and removed 15001 rows before sorting for LIMIT 20. This proves one
+    costly plan, not that every OR query always uses a sequential scan or
+    that production latency was measured. Relevant source is unchanged at
+    main e4480ace5ba68e665535a30ee23f4eb4c3a0ceb6.
+  finding: >-
+    internal/findingintake/postgres_sql.go:39-52 combines native receipt
+    membership and an EXISTS hold membership under OR. The public caller
+    is GET /v1/audits/{id}/finding-proposals
+    (internal/httpapi/public/routes.go:134, finding_handlers.go:74-90).
+    Separate native/held candidate reads can avoid scanning unrelated
+    receipts. However the hold index in 000001_baseline.sql:3597 orders
+    hold.created_at while inbox order uses receipt.created_at: the held
+    branch is not proven to cost only one page. service.go:166-178 already
+    serializes the quota COUNT and receipt insertion under the
+    run-proposal-quota advisory lock, with maxProposalsPerRun=4096. COUNT
+    work grows with that bounded Run's receipts; EXISTS OFFSET 4095 is
+    still a row walk, and equal statement counts do not prove equal work.
+  provenance: >-
+    V25-010, commit 610cab5f434f68f9c126a9361380c982f7313ec8, introduced
+    the native-or-held inbox shape. V369-005 only moved its SQL into
+    postgres_sql.go without changing the statement.
+  siblings: >-
+    listAuditHeldInboxSQL at postgres_sql.go:58-68 shares ordering and
+    Audit/Project ownership checks; preserve its held-only semantics and
+    shared hydration. ListRun/ListAudit receipt reads, source-Run deletion
+    tombstones and exact hold reads must keep their current projections.
+    Owner-wide finding/review queries in auditstore are separate statements;
+    they are not evidence that this inbox is defective and are not a
+    prerequisite from the V409-013 exit gate. Quota concurrency is already
+    covered by quota_concurrency_test.go and is a preservation check here.
+plan:
+  - >-
+    Capture SELECT-only before plans on a migrated disposable database,
+    using realistic multi-owner/Audit fixtures and early/late cursors.
+    Record parameter values, statistics, PostgreSQL version, rows read and
+    rows filtered. Distinguish native candidates, held candidates and
+    unrelated receipts; do not rely on elapsed time or a ban on Seq Scan
+    node names for tiny/high-selectivity fixtures.
+  - >-
+    Rewrite the inbox as native and held candidate branches with owner and
+    Project predicates before pagination. Deduplicate receipt identities
+    and apply the original receipt.created_at/receipt_id order. Branch
+    keysets and limits must be proven equivalent before use; a receipt
+    present in both branches cannot consume two result slots or cause a
+    skipped next-page entry. Reuse existing indexes where sufficient and
+    add an index only when the fixture demonstrates its missing access path.
+  - >-
+    Keep receipt-time ordering for old receipts imported later. Do not
+    substitute hold time or claim O(page) work for all held subsets.
+    The enforceable budget is candidate-dependent rather than
+    database-dependent: unrelated owners/Audits must not add a full receipt
+    relation scan. Add a test that measures base-relation rows visited and
+    filtered for the original and new statements, with a fixed relevant
+    native/held set and increasing unrelated population; check a numeric
+    bound derived from those candidate counts and fetch limit.
+  - >-
+    Retain the existing quota COUNT and run-proposal-quota serialization;
+    do not add a counter column/table or replace COUNT with OFFSET. Record
+    the 4096 matching-receipt bound separately from physical query work,
+    since the planner may choose a broader scan. Preserve final-slot
+    concurrency, replay-before-quota-check, rollback and 4097th-admission
+    rejection. These tests establish unchanged behavior, not the inbox
+    optimization.
+  - >-
+    Put reproducible SELECT EXPLAIN fixtures and numeric row-budget
+    assertions in integration tests; attach their before/after output and
+    the held-branch bound to the task completion evidence. Any added index
+    needs migration coverage. Run whole affected packages and verify public
+    response fields, cursor encoding and failure mappings are unchanged.
+scope:
+  in:
+    - "Native/held Audit inbox query refactoring, necessary evidenced indexes, real-store pagination and deterministic row-budget tests."
+    - "Preservation of quota, exact receipt/hold hydration, source availability and owner checks."
+  out:
+    - "Changing the 4096 proposal limit, adding quota counters, claiming O(1) quota enforcement, or changing submission locking."
+    - "Changing inbox response fields, cursor format, receipt-time ordering or public endpoint names; owner-wide Audit projections."
+acceptance_criteria:
+  - id: A1
+    given: "Analyzed real-store fixtures with two owners, two Audits, a fixed native/held candidate set, and at least 20001 total receipts after unrelated population is added."
+    when: "The production inbox statement is measured for early and late cursors with SELECT EXPLAIN ANALYZE, including the prepared-query execution mode used by the service."
+    then: "Base-relation rows visited/filtered stay within an explicit numeric budget based on the relevant candidates and fetch limit rather than the unrelated receipt population. The same assertion fails on a recorded original-query case; tiny-table Seq Scans alone are not a failure."
+  - id: A2
+    given: "Native-only, held-only and overlapping receipts, identical creation times, old receipts imported later, foreign owners/Projects and deleted source Runs."
+    when: "All inbox pages and held-only pages are read through the service and public handler, including empty and last pages."
+    then: "The exact ordered receipt identities, full hydrated projections, visibility and continuation behavior match the existing contract, with no duplicates, skipped rows or underfilled pages caused by post-limit filtering."
+  - id: A3
+    given: "A Run with 4095 accepted submissions, concurrent distinct final submissions, replay of an existing submission at capacity, and a transaction that rolls back."
+    when: "The unchanged real submission path enforces the quota."
+    then: "Exactly one distinct final submission commits, the 4097th is rejected with the existing permanent error, replay returns its receipt without consuming quota, and rollback leaves no receipt/artifact admission. The existing 4096 matching-receipt limit is not described as constant-time execution."
+  - id: A4
+    given: "The implemented query/index change and its migrated schema."
+    when: "The integration fixtures run from a clean migrated database and repository lint runs."
+    then: "Required indexes and predicates are exercised by nonempty tests, any added migration preserves receipt/hold data, and SQL placement, layers and task metadata pass without adding production-only test hooks."
+tests:
+  - command: 'CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?set a disposable PostgreSQL database URL}" go test -tags=integration -count=1 ./internal/findingintake/... ./internal/httpapi/public/... ./internal/persistence/postgres/...'
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A4]
+implementation_commit: 1d1edc237195e7973e7c97d97645d9f5dc4ca92c
+verification:
+  date: '2026-10-23'
+  environment: >-
+    macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local), the locked Runtime venv and
+    pnpm UI install for make lint; local PostgreSQL 17.11 (Homebrew)
+    database contractor_test_a2 with per-test schemas and all 32
+    migrations, base 8a811c03.
+  commands:
+    - >-
+      CONTRACTOR_TEST_DATABASE_URL=postgres://…/contractor_test_a2 go test
+      -tags=integration -count=1 ./internal/findingintake/...
+      ./internal/httpapi/public/... ./internal/persistence/postgres/... passed
+      (findingintake 74.8s, httpapi/public 79.1s, public/events 4.7s,
+      persistence/postgres 30.7s). The new database tests ran:
+      TestPostgresAuditInboxRowBudgetIgnoresUnrelatedReceipts (two Audits
+      and many Audits), TestPostgresAuditInboxPagesMatchOriginalStatements,
+      TestPostgresAuditInboxServicePagesKeepOrderAndProjections,
+      TestPostgresPublicAuditInboxPagesThroughCursors,
+      TestPostgresRunProposalQuotaRollbackLeavesSlot and the extended
+      final-slot quota race.
+    - >-
+      go test -count=1 ./internal/findingintake/... ./internal/httpapi/public/...
+      (untagged) passed; go test -tags=integration -count=1
+      ./internal/auditservice/... passed (206.8s; next-Round selection reads
+      ListAuditHeldInbox).
+    - make verify-public-api passed (inbox response, cursor and error contract unchanged).
+    - >-
+      make lint passed (staticcheck U1000, testonlyexports, SQL placement,
+      layers, task and spec checks) after make docs-dependencies and make
+      tasks-backlog.
+    - >-
+      Can-fail checks: replacing UNION with UNION ALL failed the page-parity
+      tests (duplicated overlap receipt); removing the OFFSET 0 fence failed
+      the row budget (two-Audit fixture: 1257 receipt rows in a custom plan,
+      20157 in a generic plan, which hash-joined a full receipt scan). Both
+      edits were reverted.
+    - >-
+      After merging claude/review-v407-v409 (049d2820, with V409-001 bounded
+      InTxWithRetry and V407-033, which took FND-R184), the quota and inbox
+      requirements were renumbered to FND-R185 and FND-R186; LIM-FND-46 was
+      still free. The task test command, make verify-public-api and make lint
+      passed again on contractor_test_a2.
+  row_budget_evidence: >-
+    Measured as seq_tup_read + idx_tup_fetch deltas of
+    pg_stat_xact_user_tables around EXPLAIN (ANALYZE) EXECUTE of the
+    prepared statement under plan_cache_mode force_custom_plan and
+    force_generic_plan, and as the maximum over eight pgx cached-statement
+    executions (service mode). Fixed candidates: N=255 native receipts of
+    the Audit (including deleted-source and foreign-owner intruders), H=135
+    holds (including a foreign-Project hold), L=21 (default page plus
+    look-ahead). Budget N+H+L+8 = 419 receipt rows (held view H+L+8 = 164),
+    holds H+8 = 143 when other Audits hold receipts; the 8 rows allow for
+    planning-time index endpoint reads. Population 1210 → 20110 receipts
+    (two Audits) and 4210 → 23110 (30 more Audits): new inbox 175–180
+    receipt rows at both cursors in every mode (index scan of
+    finding_proposal_receipts_audit_idx for 21 + 3–4 removed, 130 primary-key
+    probes, 21 page reads); held view 151–155. Original inbox at 20110 and
+    23110 receipts: early cursor reads every receipt (seq scan, 19830 and
+    22830 removed), late cursor 2258–2588 in custom plans and the whole
+    relation in generic plans. Original held view: 20111 rows in two-Audit
+    generic plans. Hold reads stay 135 with many Audits; with only two
+    Audits a generic plan may seq-scan the 3315-row hold relation
+    (selectivity 1/n_distinct = 50%), which is a planner choice on the
+    small relation and is not asserted there.
+  held_branch_bound: >-
+    The held branch probes one receipt per hold of the Audit and sorts, so
+    its work is O(H), not O(page): holds carry no receipt time. Recorded as
+    FND-R186.
+  quota_bound: >-
+    Unchanged: COUNT of the Run's receipts under the run-proposal-quota
+    advisory lock, maxProposalsPerRun 4096. LIM-FND-46/FND-R185 state that
+    the limit bounds matched receipts, not the count's physical work.
+  declined: >-
+    No new index or migration: the existing audit_id partial index and the
+    receipt and hold primary keys give the access paths, as the plans above
+    show. A receipt-time column on holds would make the held branch O(page)
+    but adds a denormalized immutable copy; reopen when one Audit's holds
+    approach the 10,000-per-pass scan budget (LIM-AUX-9) in practice.
+  database_tests_configured: true

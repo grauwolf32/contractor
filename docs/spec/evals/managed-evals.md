@@ -385,6 +385,28 @@ single statement timeout. A 4 MiB batch keeps that table within PostgreSQL's
 default work_mem and each statement far below the default 15 s statement
 timeout; the 1,000-row bound equals the native member ceiling (LIM-EVM-3).
 
+**EVM-R242.** The transaction that freezes a native plan stores the plan's
+readiness with it: for each dimension that any arm pins, in byte order,
+whether the comparison requires it equal, each arm's pin origin and whether
+the observed values are equal, different or unavailable; then, for the
+baseline and the candidate, the expected, eligible, unsupported and blocked
+member counts. The freeze derives it from the validated plan and its
+comparison and validates it against the closed readiness schema before it
+writes the plan; it is as immutable as the plan and bounded by the pinned
+dimensions, not by the members (LIM-EVM-19). An external registration stores
+none, and its experiment has no readiness. An experiment read returns the
+stored readiness with the plan digest and setup, without reading the plan
+document or deriving readiness again; the command, member, pair, chart,
+report and review reads take only the plan digest and setup. A stored
+readiness that does not decode strictly fails the read as an internal error,
+and the assembled experiment response is still validated against its schema.
+
+Rationale: readiness depends only on the immutable plan, yet each poll of an
+experiment read the plan document, up to 1 MiB (LIM-EVM-4), to recompute it.
+Aggregating the member rows on every read would replace that with a scan of up
+to 1,000 rows. Coordinator publication still reads the document's pins to
+verify the required-equal dimensions (EVM-R167); it is no polled view.
+
 **EVM-R41.** Secret values do not enter public DTOs, logs, cursors or error
 text.
 
@@ -680,9 +702,10 @@ accepted`, `experimentRevision` and the command resource link.
 
 ### Coordinator claims and native controls
 
-**EVM-R108.** Native coordinator claims use an expiring owner/epoch lease.
-Durable intents and execution keys, rather than the lease alone, prevent
-duplicate side effects (FAIL-EVM-3).
+**EVM-R108.** Native coordinator claims use an expiring owner/epoch lease,
+and each pass runs them through the shared controller claim lifecycle
+([PER-R26](../platform/persistence.md)). Durable intents and execution keys,
+rather than the lease alone, prevent duplicate side effects (FAIL-EVM-3).
 
 **EVM-R109.** A replacement claim holder first reconciles all uncertain
 submissions (FAIL-EVM-3).
@@ -707,8 +730,16 @@ experiments are resumable. Expired remaining budget completes pending members
 as not submitted with the budget reason (FAIL-EVM-4).
 
 **EVM-R115.** Cancel fences new intents, requests normal Run and Audit
-cancellation and remains `cancelling` until drain is confirmed. Unknown
-outcomes stay unknown; pending members retain their original denominator and
+cancellation and remains `cancelling` until drain is confirmed. A member's
+cancellation request, naming its execution and the time it was requested, is
+journaled before it is sent, and every retry reuses the journaled request
+instead of building a new one, so the request and its time never change. A
+Run member's retry sends the journaled time. An Audit member's cancellation is
+a revision-checked Audit mutation whose idempotency key and request digest
+derive from the journaled request and the Audit revision it expects: a retry
+against the same revision repeats both, and a retry after the revision moved
+sends a new key and digest for the same journaled request. Unknown outcomes
+stay unknown; pending members retain their original denominator and
 not-submitted reason (FAIL-EVM-4).
 
 **EVM-R116.** A terminal attempt is not resampled; duplicating an experiment or
@@ -1165,7 +1196,7 @@ those experiments are purged (LIFE-EVM-3).
 **EVM-R223.** Experiment DELETE records a durable deletion fence, blocks new
 submissions and assessments, cancels and drains accepted executions, then
 removes the experiment's private data and public views in bounded passes
-(EVM-R242) according to the existing artifact and Run retention rules
+(EVM-R243) according to the existing artifact and Run retention rules
 ([Retention and deletion](../artifacts/retention-and-deletion.md))
 (LIFE-EVM-5).
 
@@ -1179,8 +1210,8 @@ and invalidates the affected materialized views (LIFE-EVM-6).
 **EVM-R226.** Retained owner-scoped mutation receipts remain replayable after
 experiment purge until the owning Project is purged (LIFE-EVM-7).
 
-**EVM-R242.** An experiment's purge and the private eval purge of a deleting
-Project run in passes bounded by LIM-EVM-19 (FAIL-EVM-9). A pass is one
+**EVM-R243.** An experiment's purge and the private eval purge of a deleting
+Project run in passes bounded by LIM-EVM-20 (FAIL-EVM-9). A pass is one
 transaction that holds the Project row, the experiment row and its
 projection queue row locked and proves its controller's claim: the Eval
 coordinator's claim for an experiment purge, the Project deletion claim for a
@@ -1213,7 +1244,7 @@ no execution workspace that still exists; until then the controller waits.
   purge ([DEL-R60](../artifacts/retention-and-deletion.md)).
 - An experiment purge keeps the experiment's receipts (EVM-R226).
 
-**EVM-R243.** While an experiment is purged, that is, while its deletion is
+**EVM-R244.** While an experiment is purged, that is, while its deletion is
 requested and it has no selected view, its detail and list reads keep its
 identity, state, plan digest, if it has a plan, and deletion request time,
 with freshness `pending` and no view snapshot or summary. Reads of its members, pairs,
@@ -1349,8 +1380,10 @@ Limits ([registry](../platform/limits.md)):
   chart request (EVM-R217).
 - LIM-EVM-18 — 1,000 rows and 4 MiB of stored bytes per plan or registration
   freeze statement (EVM-R241).
-- LIM-EVM-19 — 1,000 row mutations and 16 MiB of stored row bytes per eval
-  purge pass (EVM-R242).
+- LIM-EVM-19 — at most 2,048 pins and 2 arms per stored native plan readiness
+  (EVM-R242).
+- LIM-EVM-20 — 1,000 row mutations and 16 MiB of stored row bytes per eval
+  purge pass (EVM-R243).
 - The portable format's document, nesting, case, variant, repetition and
   10,000-member limits, [LIM-EVF-3](../platform/limits.md) to
   [LIM-EVF-8](../platform/limits.md), belong to the [portable
@@ -1379,7 +1412,7 @@ Failure outcomes ([failure model](../platform/failure-model.md)):
 - FAIL-EVM-7 — read-model view publication (EVM-R165).
 - FAIL-EVM-8 — paginated reads over a changing view, collection or execution
   inventory (EVM-R186, EVM-R212, EVM-R215).
-- FAIL-EVM-9 — a bounded eval purge pass (EVM-R242).
+- FAIL-EVM-9 — a bounded eval purge pass (EVM-R243).
 - An external producer returning after the Project deletion fence is
   [FAIL-DEL-5](../platform/failure-model.md).
 

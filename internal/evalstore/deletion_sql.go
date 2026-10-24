@@ -58,7 +58,7 @@ var purgeRowColumns = map[string][]string{
 		"wall_ms", "token_limit", "observed_tokens", "started_at", "deadline_at", "last_producer_activity_at",
 		"deletion_requested_at", "diagnostic", "view_generation", "created_at", "updated_at"},
 	"eval_frozen_plans": {"experiment_id", "document_kind", "document", "document_sha256", "plan_sha256", "setup",
-		"created_at"},
+		"created_at", "readiness"},
 	"eval_member_projections": {"experiment_id", "member_id", "revision", "projected_revision", "document",
 		"collection_complete", "observed_document", "checked_at"},
 	"eval_members": {"experiment_id", "member_id", "pair_id", "ordinal", "suite_id", "case_id", "sample", "variant_id",
@@ -101,7 +101,7 @@ var purgeRowBytes = func() map[string]string {
 const collectionPairBytes = `(2 * pg_column_size(owner_id) + pg_column_size(''::text) + pg_column_size(project_id) + 16)`
 
 // experimentPurgePhases are the tables one experiment's purge empties before
-// its final unit, leaf first (EVM-R242): the view rows and progress
+// its final unit, leaf first (EVM-R243): the view rows and progress
 // observations of its invalidated view; selections before the records they
 // name; the evidence references, suboperations and submissions that the
 // projection and tombstone triggers find members through, before the

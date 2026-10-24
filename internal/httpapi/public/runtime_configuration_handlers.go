@@ -80,9 +80,6 @@ func validRuntimeCredentialID(value string) bool {
 
 func (h *runtimeConfigurationHandlers) listRuntimeConfigs(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if rejectHead(w, r) {
-		return
-	}
 	_, limit, encodedCursor, err := pageQuery(r.URL.RawQuery)
 	if err != nil {
 		handleError(w, err)
@@ -118,9 +115,6 @@ func (h *runtimeConfigurationHandlers) listRuntimeConfigs(w http.ResponseWriter,
 
 func (h *runtimeConfigurationHandlers) getRuntimeConfig(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if rejectHead(w, r) {
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		handleError(w, err)
 		return
@@ -186,9 +180,6 @@ func (h *runtimeConfigurationHandlers) publishRuntimeConfig(w http.ResponseWrite
 
 func (h *runtimeConfigurationHandlers) listRuntimeLabels(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if rejectHead(w, r) {
-		return
-	}
 	_, limit, encodedCursor, err := pageQuery(r.URL.RawQuery)
 	if err != nil {
 		handleError(w, err)
@@ -224,9 +215,6 @@ func (h *runtimeConfigurationHandlers) listRuntimeLabels(w http.ResponseWriter, 
 
 func (h *runtimeConfigurationHandlers) getRuntimeLabel(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if rejectHead(w, r) {
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		handleError(w, err)
 		return
@@ -365,9 +353,6 @@ func (h *runtimeConfigurationHandlers) deleteRuntimeLabel(w http.ResponseWriter,
 
 func (h *runtimeConfigurationHandlers) listRuntimeCredentials(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if rejectHead(w, r) {
-		return
-	}
 	_, limit, encodedCursor, err := pageQuery(r.URL.RawQuery)
 	if err != nil {
 		handleError(w, err)
@@ -399,9 +384,6 @@ func (h *runtimeConfigurationHandlers) listRuntimeCredentials(w http.ResponseWri
 
 func (h *runtimeConfigurationHandlers) getRuntimeCredential(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if rejectHead(w, r) {
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		handleError(w, err)
 		return
@@ -481,11 +463,9 @@ func (h *runtimeConfigurationHandlers) deleteRuntimeCredential(w http.ResponseWr
 	}
 	// The tombstone makes deletion idempotent by credential ID, so the key is
 	// optional and not bound; a supplied one must still be well formed.
-	if len(r.Header.Values(idempotencyKeyHeader)) != 0 {
-		if _, err := requireIdempotencyKey(r); err != nil {
-			handleError(w, err)
-			return
-		}
+	if err := validateOptionalIdempotencyKey(r); err != nil {
+		handleError(w, err)
+		return
 	}
 	result, err := h.RuntimeCredentials.Delete(
 		r.Context(), id, principalUserID(r.Context()),

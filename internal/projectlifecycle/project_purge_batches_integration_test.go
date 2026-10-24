@@ -224,7 +224,7 @@ SELECT count(*) FROM finding_proposal_receipts
 }
 
 // evalPurgeBatchRows is the shared CleanupBatchRows bound of one Eval purge
-// pass (EVM-R242), counting the two collection rows each deleted dataset
+// pass (EVM-R243), counting the two collection rows each deleted dataset
 // revision rewrites.
 const evalPurgeBatchRows = 1000
 
@@ -233,7 +233,7 @@ const evalPurgeBatchRows = 1000
 // revisions, collection row and Eval mutation receipts. No finding receipt or
 // Artifact is purged while an Eval row is left, the Project row goes last,
 // and another evaluation Project of the owner keeps all its Eval rows
-// (EVM-R242, DEL-R60).
+// (EVM-R243, DEL-R60).
 func TestProjectDeletionPurgesEvalDataInBoundedTransactions(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()

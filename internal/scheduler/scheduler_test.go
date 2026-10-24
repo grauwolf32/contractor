@@ -2208,6 +2208,28 @@ func (s *memorySchedulerStore) ListStageExecutions(
 	return append([]runstore.StageExecution(nil), s.stages...), nil
 }
 
+// ListStageExecutionsWithUnreleasedAllocations selects, like the PostgreSQL
+// statement, the Run's executions with an allocation whose release has not
+// completed, in creation order; the double holds the stages of one Run.
+func (s *memorySchedulerStore) ListStageExecutionsWithUnreleasedAllocations(
+	_ context.Context, runID string,
+) ([]runstore.StageExecution, error) {
+	result := make([]runstore.StageExecution, 0)
+	if runID != s.run.RunID {
+		return result, nil
+	}
+	for _, execution := range s.stages {
+		for _, allocation := range s.allocations {
+			if allocation.StageExecutionID == execution.StageExecutionID &&
+				allocation.ReleaseCompletedAt == nil {
+				result = append(result, execution)
+				break
+			}
+		}
+	}
+	return result, nil
+}
+
 func (s *memorySchedulerStore) ListTerminalStageExecutionsWithAllocations(
 	_ context.Context,
 ) ([]runstore.StageExecution, error) {
@@ -2272,6 +2294,18 @@ func (s *memorySchedulerStore) ListStageAllocations(
 	for _, allocation := range s.allocations {
 		if allocation.StageExecutionID == stageExecutionID {
 			result = append(result, allocation)
+		}
+	}
+	return result, nil
+}
+
+func (s *memorySchedulerStore) ListStageAllocationsBatch(
+	_ context.Context, stageExecutionIDs []string,
+) (map[string][]runstore.StageAllocation, error) {
+	result := make(map[string][]runstore.StageAllocation)
+	for _, allocation := range s.allocations {
+		if slices.Contains(stageExecutionIDs, allocation.StageExecutionID) {
+			result[allocation.StageExecutionID] = append(result[allocation.StageExecutionID], allocation)
 		}
 	}
 	return result, nil

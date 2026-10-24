@@ -390,7 +390,7 @@ func (s *Service) finishCommands(ctx context.Context, e evalstore.Experiment, cl
 }
 
 // purge commits at most one bounded purge pass per tick under the claim and
-// then yields; the next tick continues from the rows that are left (EVM-R242).
+// then yields; the next tick continues from the rows that are left (EVM-R243).
 func (s *Service) purge(ctx context.Context, e evalstore.Experiment, claim evalstore.Claim) (bool, error) {
 	deps, err := evalstore.NewPostgresStore(s.pool).Dependencies(ctx, e.OwnerID, e.ID, "", evaldomain.MaxPageSize)
 	if err != nil {

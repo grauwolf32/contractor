@@ -16,9 +16,6 @@ import (
 
 func (h *operationsHandlers) getModelSelection(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if rejectHead(w, r) {
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		handleError(w, err)
 		return

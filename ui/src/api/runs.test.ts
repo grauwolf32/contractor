@@ -4,7 +4,7 @@ import type { RuntimeConfig } from "../config/runtime-config";
 import { PublicAPI } from "./client";
 import { schemaLimit } from "./contract";
 import {
-  CANCELLATION_REASON_LIMIT,
+  CANCELLATION_REASON_BYTES,
   cancelRun,
   deleteRun,
   downloadRunArtifact,
@@ -278,14 +278,14 @@ describe("Run API", () => {
     );
   });
 
-  it("limits the cancellation reason as the contract does, in code points", async () => {
+  it("limits the cancellation reason as the Server does, in UTF-8 bytes", async () => {
     const limit = schemaLimit(
       "CancelRunRequest",
-      "maxLength",
+      "x-max-utf8-bytes",
       "properties",
       "reason",
     );
-    expect(CANCELLATION_REASON_LIMIT).toBe(limit);
+    expect(CANCELLATION_REASON_BYTES).toBe(limit);
     const sent = vi.fn();
     const api = new PublicAPI(
       runtimeConfig,
@@ -295,11 +295,14 @@ describe("Run API", () => {
       }),
     );
     api.csrf.replace("a".repeat(43));
-    // An astral character is one code point but two UTF-16 units.
-    await cancelRun(api, "run-1", "🛑".repeat(limit));
+    // A four-byte character: exactly the bound is sent, one byte more is not.
+    await cancelRun(api, "run-1", "🛑".repeat(limit / 4));
     await expect(
-      cancelRun(api, "run-1", "x".repeat(limit + 1)),
-    ).rejects.toThrow(`Cancellation reason must contain 1–${limit} characters`);
+      cancelRun(api, "run-1", `${"🛑".repeat(limit / 4)}x`),
+    ).rejects.toThrow(`Cancellation reason must contain 1–${limit} bytes`);
+    await expect(
+      cancelRun(api, "run-1", "🛑".repeat(limit / 2)),
+    ).rejects.toThrow("Cancellation reason");
     expect(sent).toHaveBeenCalledOnce();
   });
 

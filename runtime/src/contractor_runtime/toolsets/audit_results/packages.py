@@ -181,18 +181,19 @@ def _decode_execution_manifest(payload: bytes, media_type: str) -> dict[str, Any
 
 
 def _match_trusted_inputs(
-    tasks: list[tuple[dict[str, Any], str, bytes]],
+    tasks: list[tuple[dict[str, Any], str, str]],
     execution: dict[str, Any],
 ) -> None:
+    """Match decoded tasks, given with their package IDs and digests, to the manifest."""
     if len(tasks) != len(execution["items"]):
         raise ValueError("task and execution manifest membership differs")
-    for index, (task, task_package_id, task_package) in enumerate(tasks):
+    for index, (task, task_package_id, task_package_digest) in enumerate(tasks):
         item = execution["items"][index]
         if (
             item.get("item_key") != task.get("item_key")
             or item.get("subject_key") != task.get("subject_key")
             or item.get("task_package_id") != task_package_id
-            or item.get("task_package_digest") != sha256_digest(task_package)
+            or item.get("task_package_digest") != task_package_digest
         ):
             raise ValueError("task and execution manifest identities differ")
         if not isinstance(task.get("item_key"), str) or not isinstance(
@@ -204,7 +205,7 @@ def _match_trusted_inputs(
 def _build_result_package(
     *,
     tasks: list[dict[str, Any]],
-    execution_bytes: bytes,
+    execution_digest: str,
     results: list[dict[str, Any]],
 ) -> bytes:
     if len(tasks) != len(results):
@@ -258,7 +259,7 @@ def _build_result_package(
         )
     result_document = {
         "schema": RESULT_SCHEMA,
-        "execution_manifest_digest": sha256_digest(execution_bytes),
+        "execution_manifest_digest": execution_digest,
         "results": result_values,
     }
     members: list[tuple[str, str, str, bytes]] = [

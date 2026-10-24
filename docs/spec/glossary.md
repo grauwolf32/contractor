@@ -264,7 +264,7 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Credential-encryption master key** — The 256-bit bootstrap key, kept outside PostgreSQL, that encrypts stored credential secrets. Owner: [Security](platform/security.md).
 
-**Credential-lifecycle barrier** — The lock shared by Run initialization, binding and Agent-label mutation, allocation config pinning and credential deletion so that no Run pins a key being deleted. Owner: [Runtime configuration, labels, credentials and Gateways](configuration/runtime-config.md).
+**Credential-lifecycle barrier** — The lock shared by Run initialization, RuntimeConfig publication and binding mutation, Project target attachment, allocation config pinning, Runtime credential use and credential deletion so that no Run pins a key being deleted. Owner: [Runtime configuration, labels, credentials and Gateways](configuration/runtime-config.md).
 
 **CSRF token** — The session-bound 32-byte random token that a cookie-authenticated non-safe request presents in X-CSRF-Token. Owner: [Public API](api/public-api.md).
 
@@ -1043,6 +1043,8 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Standby Server** — A Server process on the same database that does not hold the advisory lease and has only public health, 503 readiness and the retryable `server_standby` answer under `/v1` until it acquires it. Owner: [Persistence](platform/persistence.md).
 
+**Startup lease steps** — What a starting Server does on the lease session before it is active or stands by: connecting the session, configuring its keepalives, the first acquisition probe and, when the lease is held elsewhere, the holder lookup, each bounded by the database budget the session inherits from the working pool. Owner: [Persistence](platform/persistence.md).
+
 **Static operation** — A GraphQL document that is a source-code constant selected by a Caido tool method. Owner: [HTTP and Caido tools](tools/http-caido.md).
 
 **Status rules** — The fixed openai-compatible@1 classification of transport errors, HTTP statuses and the x-should-retry hint into transient and permanent failures. Owner: [Failure model](platform/failure-model.md).
@@ -1085,7 +1087,7 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Time-limit dialog** — The dialog that Start and Continue open on an Audit to choose its time limit before any mutation is sent. Owner: [UI journeys](ui/journeys.md).
 
-**Tolerance window** — The bounded time of ten seconds that a lease-session liveness probe may run, long enough to absorb transient stalls and below the lease session's keepalive bound. Owner: [Persistence](platform/persistence.md).
+**Tolerance window** — The bounded time of ten seconds that a lease-session liveness probe, a standby acquisition probe or a reconnect of the standby's lock-free lease session may run, long enough to absorb transient stalls and below the lease session's keepalive bound; it does not bound the startup lease steps. Owner: [Persistence](platform/persistence.md).
 
 **Tombstone provenance** — Bounded provenance that survives a deleted source Run when its content does not. Owner: [Retention and deletion](artifacts/retention-and-deletion.md).
 

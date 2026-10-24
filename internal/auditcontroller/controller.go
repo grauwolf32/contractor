@@ -5,13 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/claimpass"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -44,8 +43,10 @@ func (c *Controller) Run(ctx context.Context) error {
 }
 
 // RunOnce fairly claims a bounded Audit set and reconciles each claim
-// independently. A failed Audit is returned in the joined diagnostic only
-// after every other claimed Audit had an opportunity to progress.
+// independently through the shared claim lifecycle (PER-R26). A failed Audit
+// is returned in the joined diagnostic only after every other claimed Audit
+// had an opportunity to progress. Each release has the ordinary operation
+// budget.
 func (c *Controller) RunOnce(ctx context.Context) (bool, error) {
 	claimContext, cancelClaim := context.WithTimeout(ctx, c.options.OperationTimeout)
 	claims, err := c.store.Claim(claimContext, auditstore.ClaimParams{
@@ -55,31 +56,10 @@ func (c *Controller) RunOnce(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if len(claims) == 0 {
-		return false, nil
-	}
-	var worked atomic.Bool
-	errorsByClaim := make([]error, len(claims))
-	var wait sync.WaitGroup
-	for index, claim := range claims {
-		wait.Add(1)
-		go func(index int, claim auditstore.ControllerClaim) {
-			defer wait.Done()
-			changed, reconcileErr := c.reconcile(ctx, claim)
-			if changed {
-				worked.Store(true)
-			}
-			releaseContext, releaseCancel := context.WithTimeout(context.Background(), c.options.OperationTimeout)
-			releaseErr := c.store.ReleaseClaim(releaseContext, claim)
-			releaseCancel()
-			if errors.Is(releaseErr, auditstore.ErrClaimLost) {
-				releaseErr = nil
-			}
-			errorsByClaim[index] = errors.Join(reconcileErr, releaseErr)
-		}(index, claim)
-	}
-	wait.Wait()
-	return worked.Load(), errors.Join(errorsByClaim...)
+	return claimpass.Run(ctx, claims, claimpass.Lifecycle[auditstore.ControllerClaim]{
+		Handle: c.reconcile, Release: c.store.ReleaseClaim,
+		ReleaseBudget: c.options.OperationTimeout, Lost: auditstore.ErrClaimLost,
+	})
 }
 
 func (c *Controller) reconcile(
@@ -101,6 +81,7 @@ func (c *Controller) reconcile(
 			return false, err
 		}
 		ctx, cancel = persistencepostgres.WithCleanupBudget(ctx)
+		defer c.reportLongDeletionStep(claim, c.now())
 	} else {
 		// Ordinary work keeps sharing one budget with its snapshot read.
 		ctx, cancel = readContext, cancelRead
@@ -112,7 +93,9 @@ func (c *Controller) reconcile(
 	if result := c.reconcileReviewAndDeadline(ctx, claim, snapshot); result != nil {
 		return result.changed, result.err
 	}
-	if changed, err := c.observeOneTerminal(ctx, claim, snapshot); changed || err != nil {
+	// A batched drain phase ends the step when it changed anything: later
+	// phases need a fresh snapshot of the revision it advanced (AUX-R97).
+	if changed, err := c.observeTerminalBatch(ctx, claim, snapshot); changed || err != nil {
 		return changed, err
 	}
 	if result := c.collectOne(ctx, claim, snapshot); result != nil {
@@ -137,6 +120,18 @@ func (c *Controller) reconcile(
 		return result.changed, result.err
 	}
 	return c.dispatchReadyBatch(ctx, claim, snapshot)
+}
+
+// reportLongDeletionStep logs a deleting Audit's step that outlasted the
+// ordinary operation budget. Such a step deletes up to the drain bound of
+// child Runs under the cleanup budget, and the Audits claimed with it wait
+// for the pass to end; the log is how that accepted risk is detected
+// (AUX-R97).
+func (c *Controller) reportLongDeletionStep(claim auditstore.ControllerClaim, started time.Time) {
+	if elapsed := c.now().Sub(started); elapsed > c.options.OperationTimeout {
+		c.options.Logger.Warn("Audit deletion step outlasted the ordinary operation budget",
+			"audit_id", claim.AuditID, "duration", elapsed, "operation_timeout", c.options.OperationTimeout)
+	}
 }
 
 // reconcileResult distinguishes continuing a phase from stopping without a change.
@@ -421,37 +416,84 @@ func (c *Controller) dispatchClosureReason(
 	return nil
 }
 
-func (c *Controller) observeOneTerminal(
+// drainBatch counts the mutations of one batched drain phase of a reconcile
+// step against the fixed per-step bound (AUX-R97, LIM-AUX-14). Snapshot rows
+// are only candidates: every mutation keeps its own store-side claim, state
+// and Run checks, and the first error, including a lost claim or a stale
+// precondition, ends the batch with the mutations already committed.
+type drainBatch struct {
+	limit     int
+	committed int
+}
+
+func (c *Controller) newDrainBatch() drainBatch {
+	return drainBatch{limit: c.drainLimit}
+}
+
+// open reports whether the phase may start another mutation: fewer than the
+// bound are committed and, after the first, the step's operation budget has
+// not ended. The first mutation runs under that budget like any other step
+// mutation and reports its end itself.
+func (b *drainBatch) open(ctx context.Context) bool {
+	return b.committed < b.limit && (b.committed == 0 || ctx.Err() == nil)
+}
+
+func (b *drainBatch) commit() { b.committed++ }
+
+// stop ends the phase with err; the step reports progress when any mutation
+// of the batch committed. When the step's budget ended under a later
+// mutation, that mutation committed or rolled back whole; each drain mutation
+// is idempotent and the next step reads its outcome from a fresh snapshot,
+// so the end of the budget stops the batch rather than failing the step.
+func (b *drainBatch) stop(ctx context.Context, err error) (bool, error) {
+	if err != nil && b.committed > 0 && ctx.Err() != nil {
+		return true, nil
+	}
+	return b.committed > 0, err
+}
+
+// observeTerminalBatch records the terminal observation of up to the batch
+// bound of submitted executions whose child Run the snapshot shows terminal,
+// in snapshot order. A terminal Run state is final, so a candidate cannot
+// become ineligible except by its own observation, which the store makes
+// idempotent; collection stays a separate step for each execution.
+func (c *Controller) observeTerminalBatch(
 	ctx context.Context,
 	claim auditstore.ControllerClaim,
 	snapshot auditstore.ReconcileSnapshot,
 ) (bool, error) {
+	batch := c.newDrainBatch()
 	for _, execution := range snapshot.Executions {
+		if !batch.open(ctx) {
+			break
+		}
 		if execution.State != auditstore.ExecutionSubmitted || execution.RunID == nil {
 			continue
 		}
 		runID := *execution.RunID
 		state, err := childRunState(snapshot, runID)
 		if err != nil {
-			return false, err
+			return batch.stop(ctx, err)
 		}
 		if !terminalRun(state) {
 			continue
 		}
 		cursor, err := c.runs.GetRunEventCursor(ctx, runID)
 		if err != nil {
-			return false, fmt.Errorf("read terminal Audit child Run cursor %q: %w", runID, err)
+			return batch.stop(ctx, fmt.Errorf("read terminal Audit child Run cursor %q: %w", runID, err))
 		}
 		if cursor.Sequence < 1 {
-			return false, fmt.Errorf("terminal Audit child Run %q has no durable lifecycle event", runID)
+			return batch.stop(ctx, fmt.Errorf("terminal Audit child Run %q has no durable lifecycle event", runID))
 		}
-		_, err = c.store.ObserveTerminal(ctx, auditstore.ObserveTerminalParams{
+		if _, err := c.store.ObserveTerminal(ctx, auditstore.ObserveTerminalParams{
 			Claim: claim, ExecutionID: execution.ExecutionID, RunID: runID,
 			Generation: cursor.Generation, Sequence: uint64(cursor.Sequence),
-		})
-		return err == nil, err
+		}); err != nil {
+			return batch.stop(ctx, err)
+		}
+		batch.commit()
 	}
-	return false, nil
+	return batch.stop(ctx, nil)
 }
 
 // childRunState returns the snapshot's lifecycle state of a child Run bound
@@ -466,20 +508,32 @@ func childRunState(snapshot auditstore.ReconcileSnapshot, runID string) (runstor
 	return state, nil
 }
 
-func (c *Controller) failOneUnboundIntent(
+// failUnboundIntentBatch closes up to the batch bound of intents that never
+// got a child Run in a closed Audit. Dispatch never reopens once closed, so a
+// concurrent owner mutation cannot make a later candidate eligible for
+// submission again; a Run bound concurrently makes the store report a stale
+// precondition, which ends the batch.
+func (c *Controller) failUnboundIntentBatch(
 	ctx context.Context,
 	claim auditstore.ControllerClaim,
 	snapshot auditstore.ReconcileSnapshot,
 ) (bool, error) {
+	batch := c.newDrainBatch()
 	for _, execution := range snapshot.Executions {
-		if execution.State == auditstore.ExecutionIntent && execution.RunID == nil {
-			_, err := c.store.ObserveSubmissionFailure(ctx, auditstore.ObserveSubmissionFailureParams{
-				Claim: claim, ExecutionID: execution.ExecutionID,
-			})
-			return err == nil, err
+		if !batch.open(ctx) {
+			break
 		}
+		if execution.State != auditstore.ExecutionIntent || execution.RunID != nil {
+			continue
+		}
+		if _, err := c.store.ObserveSubmissionFailure(ctx, auditstore.ObserveSubmissionFailureParams{
+			Claim: claim, ExecutionID: execution.ExecutionID,
+		}); err != nil {
+			return batch.stop(ctx, err)
+		}
+		batch.commit()
 	}
-	return false, nil
+	return batch.stop(ctx, nil)
 }
 
 func (c *Controller) resumeOneIntent(
@@ -627,17 +681,28 @@ func (c *Controller) failInvalidIntent(
 	return err == nil, err
 }
 
-func (c *Controller) cancelOneSubmittedRun(
+// requestCancellationBatch requests cancellation of up to the batch bound of
+// child Runs that the snapshot shows still running, for a cancelling or
+// deleting Audit. A request is idempotent and never stands for the Run's
+// terminal transition: each child keeps the settlement barrier closed until
+// it is terminal, observed and collected. The Audit cannot leave cancelling
+// or deleting for a state that needs its children, and the step's budget
+// ends before its claim lease, so no request outlives the claim.
+func (c *Controller) requestCancellationBatch(
 	ctx context.Context, snapshot auditstore.ReconcileSnapshot,
 ) (bool, error) {
+	batch := c.newDrainBatch()
 	for _, execution := range snapshot.Executions {
+		if !batch.open(ctx) {
+			break
+		}
 		if execution.State != auditstore.ExecutionSubmitted || execution.RunID == nil {
 			continue
 		}
 		runID := *execution.RunID
 		state, err := childRunState(snapshot, runID)
 		if err != nil {
-			return false, err
+			return batch.stop(ctx, err)
 		}
 		if state != runstore.RunInitializing && state != runstore.RunPending && state != runstore.RunRunning && state != runstore.RunWaiting {
 			continue
@@ -649,14 +714,14 @@ func (c *Controller) cancelOneSubmittedRun(
 			RequestedBy: &requestedBy, Reason: &reason,
 		})
 		if err != nil {
-			return false, err
+			return batch.stop(ctx, err)
 		}
 		if cancelled.State == runstore.RunCancelling {
 			c.notifier.Cancel(runID)
 		}
-		return true, nil
+		batch.commit()
 	}
-	return false, nil
+	return batch.stop(ctx, nil)
 }
 
 func matchingIntent(

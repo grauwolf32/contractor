@@ -82,9 +82,10 @@ var (
 		link("API-R4", publicAPI))
 	UnsupportedMediaType = define("unsupported_media_type", http.StatusUnsupportedMediaType, false,
 		"Content-Type must be application/json",
-		"The Scheduler settings update is not sent as application/json; nothing changes. Other operations answer "+
-			"a wrong media type with invalid_request.",
-		link("OPS-R60", "../operations/operations.md"))
+		"An Operations settings update (Scheduler settings or model selection) is not sent as exactly "+
+			"application/json; nothing changes. Other JSON operations answer a wrong media type with invalid_request, "+
+			"or eval_invalid on Managed Eval routes.",
+		link("OPS-R60", "../operations/operations.md")+", "+link("OPS-R225", "../operations/operations.md"))
 	RateLimited = define("rate_limited", http.StatusTooManyRequests, true,
 		"request is temporarily limited",
 		"Failed login attempts exceeded the per-client-IP or process-wide limiter (the answer carries a bounded "+
@@ -441,7 +442,7 @@ var (
 		"The evaluation Project or experiment is being deleted, so the request is refused (recovery wait); "+
 			"a member-level read of an experiment whose purge is in progress is refused instead of answered in "+
 			"part, and an external producer returning after the deletion fence cannot recreate deleted attempts.",
-		link("EVM-R227", managedEval)+", "+link("EVM-R243", managedEval)+", "+
+		link("EVM-R227", managedEval)+", "+link("EVM-R244", managedEval)+", "+
 			link("DEL-R43", "../artifacts/retention-and-deletion.md"))
 )
 

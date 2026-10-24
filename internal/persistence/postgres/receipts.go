@@ -193,7 +193,7 @@ const receiptRowBytes = `pg_column_size(key_scope) + pg_column_size(idempotency_
     + COALESCE(pg_column_size(audit_id), 0) + pg_column_size(created_at)`
 
 // DeleteEvalReceiptsWithinBudget deletes the next Eval receipts of the
-// owner's Project that fit the Project purge pass's budget (EVM-R242). The
+// owner's Project that fit the Project purge pass's budget (EVM-R243). The
 // pass runs with contractor.eval_purge set in db; no other deletion of an
 // Eval receipt is allowed (LIFE-EVM-7). It reports whether none is left.
 func DeleteEvalReceiptsWithinBudget(

@@ -71,7 +71,7 @@ func runPass(ctx context.Context, pool *pgxpool.Pool, fn func(*Store) (PurgeProg
 
 // checkPass holds a committed pass to its budget: the rows it accounted are
 // exactly the rows PostgreSQL changed, at most CleanupBatchRows, their stored
-// size is within LIM-EVM-19, and a pass that is not done made progress.
+// size is within LIM-EVM-20, and a pass that is not done made progress.
 func checkPass(t *testing.T, label string, pass purgePass) {
 	t.Helper()
 	if pass.Mutations != pass.Rows {
@@ -407,11 +407,11 @@ func fenceExperiment(t *testing.T, pool *pgxpool.Pool, scope Scope, e Experiment
 // An admitted experiment whose eight members hold more than three batches of
 // dependent rows on one member, and more stored bytes than one pass may
 // remove, is purged in passes that each stay within CleanupBatchRows and
-// LIM-EVM-19, exactly as PostgreSQL counts them. A failed or cancelled pass
+// LIM-EVM-20, exactly as PostgreSQL counts them. A failed or cancelled pass
 // removes nothing and keeps the committed passes, a new controller resumes
 // from what is left, the selected view goes before any of its rows, the
 // experiment row goes last, and its receipts still replay after the purge
-// (EVM-R242, EVM-R226).
+// (EVM-R243, EVM-R226).
 func TestSharedPostgresEvalExperimentPurgeIsBoundedAndRestartable(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()
@@ -564,7 +564,7 @@ func TestSharedPostgresEvalExperimentPurgeIsBoundedAndRestartable(t *testing.T) 
 // Purge removes nothing while the experiment is not fenced, has outstanding
 // work, an unresolved side-effect intent or a live execution workspace, or
 // while the caller's claim or owner scope is not current; the experiment's
-// view stays published (EVM-R242).
+// view stays published (EVM-R243).
 func TestSharedPostgresEvalPurgeWaitsForDrainAndAuthority(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()
@@ -620,7 +620,7 @@ WHERE experiment_id = $1`)
 }
 
 // worstCaseSuites is an upper bound of the largest suites document a view can
-// store (LIM-EVM-19): 5,000 suites, the most that 10,000 members in A/B pairs
+// store (LIM-EVM-20): 5,000 suites, the most that 10,000 members in A/B pairs
 // form (LIM-EVF-8), each named by a 128-character identifier, with both
 // 128-character variants' counters at 10,000, the longest ratio values and a
 // conclusion padded beyond the longest one.
@@ -651,7 +651,7 @@ func worstCaseSuites() map[string]evaldomain.Summary {
 // MiB stops before it and the next pass removes it first. A row larger than
 // the whole byte budget, which no validated write stores and is seeded here
 // only to prove progress, goes alone as the first row of a fresh pass, so no
-// pass ends without progress and no size is refused (EVM-R242).
+// pass ends without progress and no size is refused (EVM-R243).
 func TestSharedPostgresEvalPurgeFitsLargestLegalRowInFreshPass(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()
@@ -792,7 +792,7 @@ func preparedNative(t *testing.T, pool *pgxpool.Pool, scope Scope, id string) Ex
 // row and Eval receipts share one budget per pass: experiments one after
 // another within a pass, receipts only once no experiment or dataset revision
 // is left. Another Project of the owner and another owner's Project keep all
-// their rows, and a pass after the last finds nothing to do (EVM-R242).
+// their rows, and a pass after the last finds nothing to do (EVM-R243).
 func TestSharedPostgresEvalProjectPurgeSharesOneBudget(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()
@@ -935,7 +935,7 @@ func TestSharedPostgresEvalPurgeMeasuresEveryColumn(t *testing.T) {
 
 // A started native experiment's plan resources and commands go in its purge,
 // while its receipts stay until its Project's purge, which then removes them
-// with the Project's dataset revision and collection row (EVM-R242,
+// with the Project's dataset revision and collection row (EVM-R243,
 // EVM-R226).
 func TestSharedPostgresEvalPurgeRemovesNativePlanResourcesAndCommands(t *testing.T) {
 	pool := testPool(t)

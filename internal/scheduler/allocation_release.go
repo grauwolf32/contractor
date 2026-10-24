@@ -13,6 +13,10 @@ func (s *Scheduler) releaseTerminal(
 	stageExecutionID string,
 	reservations []controlplane.Reservation,
 ) error {
+	// Every caller has committed the Stage's terminal outcome (or its Queue
+	// Pause exception, SCH-R68) after persisting its reports, so the Stage's
+	// preparation secrets have no further reader (SCH-R178).
+	s.preparedSecrets.forget(stageExecutionID)
 	if len(reservations) == 0 {
 		return nil
 	}
@@ -93,34 +97,59 @@ func (s *Scheduler) endTerminalRelease(stageExecutionID string) {
 	s.releaseMu.Unlock()
 }
 
-func (s *Scheduler) recoverTerminalRelease(ctx context.Context) (bool, error) {
+// terminalReleaseRecoveryConcurrency bounds the terminal release recovery
+// Stage operations one Scheduler runs at once (SCH-R180, LIM-SCH-20). Each
+// holds one Stage's release gate, short store operations and one release batch
+// under its own cleanup deadline (SCH-R65), so up to three Stages whose
+// Runtime Agents stop answering leave a slot for the rest of the batch.
+const terminalReleaseRecoveryConcurrency = 4
+
+// startTerminalReleaseRecovery lists one bounded batch of incomplete terminal
+// releases, least recently attempted first (SCH-R71), and passes at most limit
+// of their Stages to start, in that order. It takes each Stage's release gate
+// first and skips a Stage whose release a lane or an earlier operation still
+// owns; start owns the gate of the Stage it receives and must run
+// recoverTerminalStage, which ends it.
+func (s *Scheduler) startTerminalReleaseRecovery(
+	ctx context.Context, limit int, start func(runstore.StageExecution),
+) (int, error) {
 	listContext, cancelList := context.WithTimeout(ctx, s.options.OperationTimeout)
 	executions, err := s.store.ListTerminalStageExecutionsWithAllocations(listContext)
 	cancelList()
 	if err != nil {
-		return false, err
+		return 0, err
 	}
+	started := 0
 	for _, execution := range executions {
+		if started == limit {
+			break
+		}
 		if !s.beginTerminalRelease(execution.StageExecutionID) {
-			// A Run lane already owns this exact cleanup. Do not report work:
-			// the monitor must wait rather than hot-loop over unchanged rows.
+			// A lane or another operation already owns this exact cleanup. Do
+			// not report work: the monitor must wait rather than hot-loop over
+			// unchanged rows.
 			continue
 		}
-		worked, recoveryErr := func() (bool, error) {
-			defer s.endTerminalRelease(execution.StageExecutionID)
-			return s.recoverTerminalExecution(ctx, execution)
-		}()
-		if worked || recoveryErr != nil {
-			return worked, recoveryErr
-		}
+		start(execution)
+		started++
 	}
-	return false, nil
+	return started, nil
+}
+
+// recoverTerminalStage is one terminal release recovery Stage operation. The
+// caller took the Stage's release gate; the operation ends it.
+func (s *Scheduler) recoverTerminalStage(ctx context.Context, execution runstore.StageExecution) (bool, error) {
+	defer s.endTerminalRelease(execution.StageExecutionID)
+	return s.recoverTerminalExecution(ctx, execution)
 }
 
 func (s *Scheduler) recoverTerminalExecution(
 	ctx context.Context,
 	execution runstore.StageExecution,
 ) (bool, error) {
+	// A terminal Stage persists no further report, including one that ended
+	// without reaching its own release (SCH-R102, SCH-R178).
+	s.preparedSecrets.forget(execution.StageExecutionID)
 	allocationContext, cancelAllocations := context.WithTimeout(ctx, s.options.OperationTimeout)
 	allocations, err := s.store.ListStageAllocations(
 		allocationContext, execution.StageExecutionID,

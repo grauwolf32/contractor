@@ -194,9 +194,9 @@ func TestSchedulerSettingsReplaceRejectsInvalidRequestsWithoutMutation(t *testin
 func TestSchedulerSettingsRequireOperationsCapability(t *testing.T) {
 	settings := newFakeSchedulerSettings()
 	mux := http.NewServeMux()
-	contextHandlers{operations: &operationsHandlers{
+	register(mux, contextHandlers{operations: &operationsHandlers{
 		OperationsDependencies: OperationsDependencies{SchedulerSettings: settings},
-	}}.register(mux)
+	}}.routes())
 	protected := requireOperationsRoutes(mux)
 	tests := []struct {
 		name       string

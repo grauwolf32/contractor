@@ -319,7 +319,7 @@ func (c *Controller) waitForDrain(
 		return false, false, err
 	}
 	var blocked bool
-	err := c.pool.QueryRow(ctx, waitForDrainSQL, claim.ProjectID).Scan(&blocked)
+	err := c.pool.QueryRow(ctx, waitForDrainSQL, claim.ProjectID, claim.OwnerID).Scan(&blocked)
 	if err != nil {
 		return false, false, fmt.Errorf("inspect Project Run drain: %w", err)
 	}
@@ -372,11 +372,11 @@ func (c *Controller) deferClaim(ctx context.Context, claim projectstore.Deletion
 }
 
 // purgeProject advances the Project purge by one bounded transaction
-// (LIM-EVM-19, LIM-DEL-3, LIM-DEL-2). Every transaction first runs one pass of
+// (LIM-EVM-20, LIM-DEL-3, LIM-DEL-2). Every transaction first runs one pass of
 // the Project's private Eval data purge. A pass that removed anything, or
 // found more than its budget allows, commits alone, so no Artifact is removed
 // while eval work could still need it and no transaction holds two phases'
-// batches (EVM-R242). A transaction whose Eval pass found nothing left deletes
+// batches (EVM-R243). A transaction whose Eval pass found nothing left deletes
 // one batch of the Project's finding proposal receipts (DEL-R61) and, once
 // none is left, removes one ProjectScope purge batch, or, when the scope is
 // already empty, the scope and the Project row. It reports whether the
@@ -390,11 +390,7 @@ func (c *Controller) purgeProject(ctx context.Context, claim projectstore.Deleti
 			return fmt.Errorf("lock Project for Artifact purge: %w", err)
 		}
 		var runsRemain, auditsRemain bool
-		if err := tx.QueryRow(ctx, `
-SELECT EXISTS (SELECT 1 FROM workflow_runs WHERE project_id = $1),
-       EXISTS (SELECT 1 FROM audits WHERE project_id = $1)`,
-			claim.ProjectID,
-		).Scan(&runsRemain, &auditsRemain); err != nil {
+		if err := tx.QueryRow(ctx, purgeRemainsSQL, claim.ProjectID, claim.OwnerID).Scan(&runsRemain, &auditsRemain); err != nil {
 			return fmt.Errorf("verify Project Run purge: %w", err)
 		}
 		if runsRemain {

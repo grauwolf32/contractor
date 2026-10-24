@@ -14,7 +14,7 @@ import (
 // pairs, report, charts, review or executions refuses with
 // eval_project_deleting instead of a partial result; once the last pass has
 // run the experiment is gone and its deletion request still replays
-// (EVM-R242, EVM-R243, EVM-R226).
+// (EVM-R243, EVM-R244, EVM-R226).
 func TestSharedPostgresEvalPurgeYieldsBetweenTicksAndRefusesPartialReads(t *testing.T) {
 	h := newHarness(t)
 	ctx := t.Context()

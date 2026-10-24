@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
+	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 	"github.com/grauwolf32/contractor/internal/mtls"
 	"github.com/grauwolf32/contractor/internal/requestid"
 )
@@ -60,21 +61,26 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 		current.recovery = dependencies.GatewayRecovery
 	}
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /private/v1/allocations/{allocationID}/gateway-recovery", current.gatewayRecovery)
-	mux.HandleFunc("GET /private/v1/allocations/{allocationID}/artifacts", current.listArtifacts)
-	mux.HandleFunc("GET /private/v1/allocations/{allocationID}/artifacts/{namespace}/{name}", current.getArtifact)
-	mux.HandleFunc("GET /private/v1/allocations/{allocationID}/artifacts/{namespace}/{name}/metadata", current.getArtifactMetadata)
-	mux.HandleFunc("PUT /private/v1/allocations/{allocationID}/artifacts/{namespace}/{name}", current.putArtifact)
-	mux.HandleFunc("POST /private/v1/allocations/{allocationID}/finding-proposals", current.postFindingProposal)
-	mux.HandleFunc("/private/v1/allocations/{allocationID}/finding-proposals", current.methodNotAllowed)
-	mux.HandleFunc("/private/v1/allocations/{allocationID}/artifacts/{namespace}/{name}", current.methodNotAllowed)
-	mux.HandleFunc("/private/v1/allocations/{allocationID}/artifacts/{namespace}/{name}/metadata", current.methodNotAllowed)
-	mux.HandleFunc("/private/v1/allocations/{allocationID}/artifacts", current.methodNotAllowed)
-	mux.HandleFunc("/", current.notFound)
+	httpx.ServeRoutes(mux, current.routes(), current.methodNotAllowed, current.notFound)
 	return requestid.Middleware(current.requireMTLS(mux), requestid.Options{
 		Generator: dependencies.NewRequestID, Logger: dependencies.Logger,
 		Boundary: "artifact-private-api", TrustIncoming: mtls.HasVerifiedRuntimeAgent,
 	}), nil
+}
+
+// routes lists every route of the private allocation API. ServeRoutes
+// answers HEAD and any other undeclared method of their paths with 405 and
+// any other path with 404 (ART-R120).
+func (h *handler) routes() []httpx.Route {
+	const allocation = "/private/v1/allocations/{allocationID}"
+	return []httpx.Route{
+		{Method: http.MethodPost, Path: allocation + "/gateway-recovery", Handler: h.gatewayRecovery},
+		{Method: http.MethodGet, Path: allocation + "/artifacts", Handler: h.listArtifacts},
+		{Method: http.MethodGet, Path: allocation + "/artifacts/{namespace}/{name}", Handler: h.getArtifact},
+		{Method: http.MethodGet, Path: allocation + "/artifacts/{namespace}/{name}/metadata", Handler: h.getArtifactMetadata},
+		{Method: http.MethodPut, Path: allocation + "/artifacts/{namespace}/{name}", Handler: h.putArtifact},
+		{Method: http.MethodPost, Path: allocation + "/finding-proposals", Handler: h.postFindingProposal},
+	}
 }
 
 func (h *handler) requireMTLS(next http.Handler) http.Handler {

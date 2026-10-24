@@ -193,7 +193,7 @@ verification:
   design_decision: >-
     One shared CleanupBudget per pass (persistence/postgres cleanup.go):
     1,000 row mutations (CleanupBatchRows) and 16 MiB of stored row bytes
-    (LIM-EVM-19), with a fresh pass always taking its first unit. Each
+    (LIM-EVM-20), with a fresh pass always taking its first unit. Each
     statement deletes the prefix of at most limit+1 ctid candidates whose
     running row and pg_column_size sums fit. Phases go leaf first, so no
     cascade removes an uncounted row. Collection rows that the triggers
@@ -204,7 +204,7 @@ verification:
     mechanism was added. Reads during a purge (deletion requested and no
     selected view) keep identity and plan metadata, and member-level reads
     return 409 eval_project_deleting, an existing code already declared on
-    every Eval read operation (EVM-R243). Rejected alternatives: a per-table
+    every Eval read operation (EVM-R244). Rejected alternatives: a per-table
     or per-experiment fresh budget (the task requires one shared budget); a
     parent-member LIMIT (does not bound dependent records); a new
     purge-progress table or cursor (progress is the durable remaining rows).
@@ -275,8 +275,8 @@ verification:
     (withSelectedView), Review and Executions (Purging gate), GetCommand
     (commands go in the last phase).
   limits_registered: >-
-    LIM-EVM-19 (1,000 row mutations and 16 MiB of stored row bytes per Eval
-    purge pass), owned by the new EVM-R242. Also new: EVM-R243 (reads during
+    LIM-EVM-20 (1,000 row mutations and 16 MiB of stored row bytes per Eval
+    purge pass), owned by the new EVM-R243. Also new: EVM-R244 (reads during
     a purge) and FAIL-EVM-9 (failure outcomes of one pass). Updated: EVM-R223,
     DEL-R44, DEL-R60, LIFE-EVM-5, LIFE-DEL-9, FAIL-DEL-3 and the
     eval_project_deleting registry meaning. LIM-EVM-18 was added to the

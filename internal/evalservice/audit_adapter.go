@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"strconv"
-	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -182,7 +181,7 @@ func (d *auditAdapter) Cancel(ctx context.Context, e evalstore.Experiment, m eva
 		return evaldomain.Failure("eval_member_conflict")
 	}
 	op, err := prepareOperation(ctx, d.operations, e, m, c, "cancel", func() (cancellationRequest, error) {
-		return cancellationRequest{ID: *sub.ExecutionID, Kind: m.ExecutionKind, RequestedAt: time.Now().UTC()}, nil
+		return cancellationRequest{ID: *sub.ExecutionID, Kind: m.ExecutionKind, RequestedAt: d.operations.now().UTC()}, nil
 	})
 	if err != nil {
 		return err

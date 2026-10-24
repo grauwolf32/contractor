@@ -28,7 +28,7 @@ func (s *Service) Executions(ctx context.Context, owner, id, member, after strin
 
 // refusePurging answers a member-level read of an experiment whose purge may
 // already have removed some of its rows with eval_project_deleting, never with
-// a partial result (EVM-R243).
+// a partial result (EVM-R244).
 func refusePurging(ctx context.Context, st *evalstore.Store, owner, id string) error {
 	purging, err := st.Purging(ctx, owner, id)
 	if err == nil && purging {

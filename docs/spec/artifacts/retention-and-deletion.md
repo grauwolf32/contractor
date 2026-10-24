@@ -335,7 +335,7 @@ deleted attempts (FAIL-DEL-5).
 3. invoke the terminal Run purge (DEL-R22) for every Project Run, including
    Runs that were already terminal when deletion began;
 4. purge the Project's native private eval storage in bounded passes
-   ([EVM-R242](../evals/managed-evals.md)), then delete every finding
+   ([EVM-R243](../evals/managed-evals.md)), then delete every finding
    proposal receipt of the Project (DEL-R61), then
    purge every binding, retained revision, pin and lineage edge in the
    complete ProjectScope, then garbage-collect only globally unreferenced
@@ -347,7 +347,7 @@ deleted attempts (FAIL-DEL-5).
 purges it in transactions of at most one purge batch each (LIM-DEL-2). Every
 such transaction rechecks the deletion claim and that no Project Run or Audit
 remains, then runs one pass of the Project's native private eval storage
-purge, bounded by LIM-EVM-19 ([EVM-R242](../evals/managed-evals.md)). A
+purge, bounded by LIM-EVM-20 ([EVM-R243](../evals/managed-evals.md)). A
 transaction whose eval pass removed a row or left one commits with that pass
 alone. Only a transaction whose eval pass found nothing left deletes the next
 batch of the Project's finding proposal receipts (DEL-R61), and only when no
@@ -463,7 +463,7 @@ flowchart TD
 - [LIM-DEL-3](../platform/limits.md): 1,000 finding proposal receipts and
   64 MiB of their stored report projections and evidence per Project purge
   transaction (DEL-R61).
-- [LIM-EVM-19](../platform/limits.md): 1,000 row mutations and 16 MiB of
+- [LIM-EVM-20](../platform/limits.md): 1,000 row mutations and 16 MiB of
   stored row bytes per eval purge pass, one pass per Project purge
   transaction (DEL-R60).
 - [LIM-ART-6](../platform/limits.md): the Run revision limit that bounds one
@@ -523,3 +523,10 @@ A deleting Project stays readable so that cleanup progress is visible
 4. Artifact garbage collection is reference-safe across all scopes (DEL-R9).
 5. Only authenticated public lifecycle endpoints and trusted Server recovery
    code can enter the controlled deletion path (DEL-R7).
+6. A drain poll and a purge recheck of a deleting Project find its Runs by
+   owner and Project, its Audits by Project and its unreleased allocations
+   from the allocations whose release has not completed. Neither reads the
+   Run history or every owner's active Runs, and both answer as a check of
+   every Project Run would (DEL-R44, DEL-R60); test
+   `TestProjectDrainChecksReadOnlyTheProjectAndUnreleasedAllocations` in
+   [`internal/projectlifecycle/drain_plan_postgres_test.go`](../../../internal/projectlifecycle/drain_plan_postgres_test.go).

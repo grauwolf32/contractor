@@ -64,9 +64,6 @@ type runRepeatHandlers struct {
 func (h *runRepeatHandlers) getRunRepeatDraft(w http.ResponseWriter, r *http.Request) {
 	// The draft carries retained request provenance; no response is cached.
 	w.Header().Set("Cache-Control", "no-store")
-	if rejectHead(w, r) {
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		handleError(w, err)
 		return
