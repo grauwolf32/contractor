@@ -73,14 +73,14 @@ requirements:
 - id: R4
   text: Checkpoint advancement and accepted batch mutation are one idempotent source transition or reconcile via
     the existing receipt; restart and lost acknowledgement cannot skip an uncommitted page or duplicate accepted
-    contributions/charges.
+    contributions.
 - id: R5
   text: Provider history expiry/deletion/unstable ordering becomes an explicit collection gap. No rescanning the
     complete history after each request or arbitrary timestamp inference from mutable local time.
 - id: R6
-  text: Provider/source limits, cumulative per-Run write budgets and Project retained-history limits remain
-    independent. ArtifactStore evicts eligible history; receipts/checkpoints alone do not pin it, and eviction
-    never refunds Run write charges. Protected-capacity conflicts preserve accepted map/checkpoint.
+  text: Provider/source and per-operation limits remain independent of the automatic common per-binding Artifact
+    history policy. ArtifactStore owns admission/accounting/eviction; receipts/checkpoints alone do not pin history.
+    No custom cumulative Run publication quota applies. Protected-capacity conflicts preserve accepted map/checkpoint.
 failure_outcomes:
 - operation: Fetch selected Caido history page
   permanent: Unsupported continuation/selection, invalid provider response or expired cursor returns a stable source-specific
@@ -91,12 +91,12 @@ failure_outcomes:
   cancelled: Join provider decoding/import work before allocation or session release.
   timeout: A page-import deadline bounds fetch/decode/publication independently of target request timeouts.
 - operation: Commit page and advance checkpoint
-  permanent: Source-generation conflict, projection rejection, exhausted cumulative Run budget or all-protected
+  permanent: Source-generation conflict, projection rejection, generic Artifact admission rejection or all-protected
     history capacity preserves accepted content/checkpoint and reports a nonautomatic-retry outcome.
   retryable: Append-compatible CAS/storage conflicts and bounded ArtifactStore eviction backpressure retry only
     page publication within reducer limits; never replay target traffic.
   ambiguous: Use the existing keyed receipt to reconcile both page and checkpoint even after revision eviction;
-    confirm the old commit without republishing/recharging. Exact evicted reads remain unavailable.
+    confirm the old commit without republishing. Exact evicted reads remain unavailable.
   cancelled: Fenced allocations cannot advance checkpoints after release.
   timeout: Unresolved acknowledgement at deadline remains an explicit incomplete sync, not a silently advanced checkpoint.
 cardinality:
@@ -123,7 +123,7 @@ acceptance_criteria:
 - id: A2
   given: Lost replies, repeated pages and Runtime restart at every page/checkpoint boundary
   when: Synchronization resumes through real PostgreSQL/Server/Runtime
-  then: No uncommitted page is skipped, accepted contributions/charges are not duplicated and no full-history rescan
+  then: No uncommitted page is skipped, accepted contributions are not duplicated and no full-history rescan
     occurs.
 - id: A3
   given: Expired/deleted provider history or unstable/missing continuation

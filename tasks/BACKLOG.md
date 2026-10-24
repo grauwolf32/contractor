@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-133 open tasks: 4 in progress, 104 pending, 25 deferred. 1063 finished: 1055 completed, 8 archived.
+134 open tasks: 4 in progress, 105 pending, 25 deferred. 1063 finished: 1055 completed, 8 archived.
 
 ## In progress
 
@@ -106,9 +106,10 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V410-001](v410-001-project-sitemap-store.yml) | feature | P1 | — | Publish a bounded Project sitemap through one authorized reducer |
+| [V410-001](v410-001-project-sitemap-store.yml) | feature | P1 | V410-010 | Publish a bounded Project sitemap through one authorized reducer |
 | [V410-002](v410-002-project-sitemap-toolset.yml) | feature | P1 | V410-001 | Expose authorized live sitemap tools to Project allocations |
 | [V410-005](v410-005-sitemap-openapi-reconciliation.yml) | feature | P1 | V410-002 | Reconcile exact OpenAPI declarations with live sitemap members |
+| [V410-010](v410-010-artifact-history-retention.yml) | feature | P1 | — | Apply automatic bounded history retention to every logical Artifact |
 | [V413-001](v413-001-runtime-artifact-disk-cache.yml) | feature | P2 | — | Reuse authorized immutable archives in a bounded Runtime disk cache |
 
 ### Audits (`audits`)
@@ -255,7 +256,7 @@ tasks in `introduced_by`.
 | Scanner tool Workers and scan planning (`scan-tools`) | 4 | 16 | 6 | 7 | 12 |
 | Findings tools and collections (`findings`) | 9 | 16 | 6 | 8 | 11 |
 | Workflow catalog and document workflows (`workflows`) | 7 | 18 | 14 | 12 | 18 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 4 | 34 | 33 | 6 | 38 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 5 | 35 | 33 | 6 | 38 |
 | Audits (`audits`) | 30 | 60 | 78 | 23 | 100 |
 | Evaluations (`evals`) | 8 | 21 | 37 | 11 | 45 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |

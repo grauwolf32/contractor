@@ -80,7 +80,7 @@ scope:
       on that task or on pending sitemap tools. A future safe sitemap projection
       needs an explicit eligibility contract before using this cache.
     - >-
-      Server history eviction, sitemap publication quotas, delta storage, streaming
+      Server history eviction and admission policy (V410-010), delta storage, streaming
       ArtifactClient redesign or reuse of extracted mutable workspaces. This cache
       reduces downloads, not Server write amplification, stored history or the
       current whole-payload memory cost of a read.
