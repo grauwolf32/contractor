@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// Migration 000041 copies each existing hold's receipt creation time into it,
+// Migration 000042 copies each existing hold's receipt creation time into it,
 // orders the Audit's hold index by that time, and from then on copies the
 // time into every new hold and keeps it (V414-019, FND-R186).
 func TestPostgresFindingHoldReceiptTimeMigrationBackfillsHolds(t *testing.T) {
@@ -17,12 +17,15 @@ func TestPostgresFindingHoldReceiptTimeMigrationBackfillsHolds(t *testing.T) {
 	}
 	ctx := t.Context()
 	pool, _ := isolatedPools(t, ctx, url)
-	installMigrationPrefix(t, ctx, pool, 40)
+	installMigrationPrefix(t, ctx, pool, 41)
+	// An Audit's draft writes its Project's correlation fence (000041), which
+	// each admitted hold advances.
 	if _, err := pool.Exec(ctx, `INSERT INTO projects(project_id,owner_id,kind,name,request_idempotency_key,request_digest)
  VALUES('hold-upgrade','owner','project','Holds','create','sha256:'||repeat('a',64));
  INSERT INTO audits(audit_id,owner_id,project_id,profile_name,profile_version,profile_digest,profile_snapshot,input_selection,
  max_rounds,batch_size,max_items_per_round,max_items_total,max_submitted_runs,max_item_run_attempts,max_evidence_bytes)
- VALUES('hold-audit','owner','hold-upgrade','profile','1','sha256:'||repeat('a',64),'{}','{}',1,1,10,10,10,1,1024)`); err != nil {
+ VALUES('hold-audit','owner','hold-upgrade','profile','1','sha256:'||repeat('a',64),'{}','{}',1,1,10,10,10,1,1024);
+ INSERT INTO finding_correlation_fences(project_id) VALUES('hold-upgrade')`); err != nil {
 		t.Fatal(err)
 	}
 	insertReceipt := func(receiptID, createdAt string) {
