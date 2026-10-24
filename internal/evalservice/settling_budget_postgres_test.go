@@ -65,7 +65,7 @@ func TestSharedPostgresEvalSettlingEnforcesBudgetUntilAcceptedWorkDrains(t *test
 						t.Fatalf("reconciliation candidates: %v %v", members, err)
 					}
 					if err := h.service.tx(t.Context(), func(store *evalstore.Store) error {
-						return store.ObserveTokens(t.Context(), h.scope, experiment.ID, members[0], claims[0], 100)
+						return store.RecoverMember(h.scope, experiment.ID, members[0], claims[0]).ObserveTokens(t.Context(), 100)
 					}); err != nil {
 						t.Fatal(err)
 					}

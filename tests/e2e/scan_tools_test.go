@@ -325,8 +325,7 @@ http:
 	if configure != nil {
 		configure(h, configRoot)
 	}
-	serverBinary := filepath.Join(h.temporaryRoot, "contractor-server")
-	runChecked(t, h.repositoryRoot, nil, "go", "build", "-o", serverBinary, "./cmd/contractor-server")
+	serverBinary := sharedServerBinary(t)
 	runChecked(t, h.repositoryRoot, map[string]string{"CONTRACTOR_DATABASE_URL": h.databaseURL}, serverBinary, "migrate")
 	h.pool, err = pgxpool.New(ctx, h.databaseURL)
 	if err != nil {

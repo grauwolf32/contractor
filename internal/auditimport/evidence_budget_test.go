@@ -28,6 +28,9 @@ func TestImporterSharesOneCopyForEvidenceCitingOneRevision(t *testing.T) {
 	if targets := harness.artifacts.retainedTargets; len(targets) != 2 {
 		t.Fatalf("retained copies = %+v, want the result and one evidence copy", targets)
 	}
+	if len(access.described) != 1 || len(access.described[0]) != 1 {
+		t.Fatalf("evidence descriptor reads = %+v, want one read of the cited revision", access.described)
+	}
 	var evidenceRefs []contracts.ArtifactRef
 	for _, link := range collected.Retained {
 		if link.LogicalKey != "result/execution-item-1" {

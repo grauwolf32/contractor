@@ -2129,12 +2129,20 @@ func (f *fakeImportArtifacts) ReadRunBinding(context.Context, string, contracts.
 func (*fakeImportArtifacts) ReadRunExact(context.Context, string, contracts.ArtifactRef) (auditstore.ExactArtifact, []byte, error) {
 	return auditstore.ExactArtifact{}, nil, errors.New("unexpected external evidence read")
 }
-func (f *fakeImportArtifacts) RetainRunExact(_ context.Context, _ string, source auditstore.ExactArtifact, _ string, target contracts.ArtifactRef) (auditstore.ExactArtifact, error) {
-	f.retainedTargets = append(f.retainedTargets, target)
-	revision := "retained-" + *source.Ref.Revision
-	target.Revision = &revision
-	source.Ref = target
-	return source, nil
+func (*fakeImportArtifacts) DescribeRunExact(context.Context, string, []contracts.ArtifactRef) ([]auditstore.ExactArtifact, error) {
+	return nil, errors.New("unexpected external evidence read")
+}
+func (f *fakeImportArtifacts) RetainRunExact(_ context.Context, _, _ string, retentions []RunRetention) ([]auditstore.ExactArtifact, error) {
+	retained := make([]auditstore.ExactArtifact, 0, len(retentions))
+	for _, retention := range retentions {
+		f.retainedTargets = append(f.retainedTargets, retention.Target)
+		target, source := retention.Target, retention.Source
+		revision := "retained-" + *source.Ref.Revision
+		target.Revision = &revision
+		source.Ref = target
+		retained = append(retained, source)
+	}
+	return retained, nil
 }
 func (f *fakeImportArtifacts) WithClaim(auditstore.ControllerClaim) ArtifactAccess { return f }
 

@@ -302,56 +302,92 @@ func sameAllocationRuntimeConfiguration(left, right *AllocationRuntimeConfigurat
 	return leftErr == nil && rightErr == nil && string(leftJSON) == string(rightJSON)
 }
 
+// stageAllocationMarkBatch is the most allocations one release-marker
+// statement names (SCH-R182, LIM-SCH-22): a terminal release marks the
+// allocations of its Stage in statements of at most this many, never one per
+// allocation.
+const stageAllocationMarkBatch = 128
+
+// MarkStageAllocationReleaseAttempt records a release attempt of every named
+// allocation whose release has not completed. It marks them together, in
+// statements of at most stageAllocationMarkBatch allocations, and reports a
+// named allocation that does not exist as ErrNotFound for that allocation
+// alone: the others are still marked (SCH-R71).
 func (s *PostgresStore) MarkStageAllocationReleaseAttempt(
 	ctx context.Context,
-	allocationID string,
+	allocationIDs ...string,
 ) error {
-	if err := validateOpaque("allocationID", allocationID); err != nil {
-		return err
-	}
-	tag, err := s.db.Exec(ctx, `
-UPDATE stage_allocations
-SET release_attempted_at = clock_timestamp()
-WHERE allocation_id = $1 AND release_completed_at IS NULL`, allocationID)
-	if err != nil {
-		return fmt.Errorf("mark Stage allocation %q release attempt: %w", allocationID, err)
-	}
-	if tag.RowsAffected() == 1 {
-		return nil
-	}
-	return s.verifyStageAllocationExists(ctx, allocationID)
+	return s.markStageAllocations(ctx, "release attempts", markStageAllocationReleaseAttemptsSQL, allocationIDs)
 }
 
+// MarkStageAllocationReleased records the completed release of every named
+// allocation whose release has not completed, with the batching and
+// per-allocation outcomes of MarkStageAllocationReleaseAttempt.
 func (s *PostgresStore) MarkStageAllocationReleased(
 	ctx context.Context,
-	allocationID string,
+	allocationIDs ...string,
 ) error {
-	if err := validateOpaque("allocationID", allocationID); err != nil {
-		return err
-	}
-	tag, err := s.db.Exec(ctx, `
-UPDATE stage_allocations
-SET release_attempted_at = statement_timestamp(),
-    release_completed_at = statement_timestamp()
-WHERE allocation_id = $1 AND release_completed_at IS NULL`, allocationID)
-	if err != nil {
-		return fmt.Errorf("mark Stage allocation %q released: %w", allocationID, err)
-	}
-	if tag.RowsAffected() == 1 {
-		return nil
-	}
-	return s.verifyStageAllocationExists(ctx, allocationID)
+	return s.markStageAllocations(ctx, "releases", markStageAllocationsReleasedSQL, allocationIDs)
 }
 
-func (s *PostgresStore) verifyStageAllocationExists(ctx context.Context, allocationID string) error {
-	var exists bool
-	if err := s.db.QueryRow(ctx, `
-SELECT EXISTS(SELECT 1 FROM stage_allocations WHERE allocation_id = $1)`, allocationID,
-	).Scan(&exists); err != nil {
-		return fmt.Errorf("verify Stage allocation %q: %w", allocationID, err)
+func (s *PostgresStore) markStageAllocations(
+	ctx context.Context, marker, statement string, allocationIDs []string,
+) error {
+	ids := make([]string, 0, len(allocationIDs))
+	seen := make(map[string]struct{}, len(allocationIDs))
+	for _, allocationID := range allocationIDs {
+		if err := validateOpaque("allocationID", allocationID); err != nil {
+			return err
+		}
+		if _, duplicate := seen[allocationID]; !duplicate {
+			seen[allocationID] = struct{}{}
+			ids = append(ids, allocationID)
+		}
 	}
-	if !exists {
-		return fmt.Errorf("Stage allocation %q: %w", allocationID, ErrNotFound)
+	var failures []error
+	for start := 0; start < len(ids); start += stageAllocationMarkBatch {
+		chunk := ids[start:min(start+stageAllocationMarkBatch, len(ids))]
+		rows, err := s.db.Query(ctx, statement, chunk)
+		var marked []string
+		if err == nil {
+			marked, err = pgx.CollectRows(rows, pgx.RowTo[string])
+		}
+		if err != nil {
+			failures = append(failures, fmt.Errorf("mark Stage allocation %s: %w", marker, err))
+			continue
+		}
+		if len(marked) == len(chunk) {
+			continue
+		}
+		// A named allocation that was not marked has completed its release
+		// already or does not exist; only the second is an error.
+		failures = append(failures, s.verifyStageAllocationsExist(ctx, chunk, marked))
 	}
-	return nil
+	return errors.Join(failures...)
+}
+
+// verifyStageAllocationsExist reports each allocation of requested that is
+// not in marked and does not exist as ErrNotFound for that allocation.
+func (s *PostgresStore) verifyStageAllocationsExist(ctx context.Context, requested, marked []string) error {
+	unmarked := make([]string, 0, len(requested)-len(marked))
+	for _, allocationID := range requested {
+		if !slices.Contains(marked, allocationID) {
+			unmarked = append(unmarked, allocationID)
+		}
+	}
+	rows, err := s.db.Query(ctx, `SELECT allocation_id FROM stage_allocations WHERE allocation_id = ANY($1::text[])`, unmarked)
+	var existing []string
+	if err == nil {
+		existing, err = pgx.CollectRows(rows, pgx.RowTo[string])
+	}
+	if err != nil {
+		return fmt.Errorf("verify Stage allocations: %w", err)
+	}
+	var failures []error
+	for _, allocationID := range unmarked {
+		if !slices.Contains(existing, allocationID) {
+			failures = append(failures, fmt.Errorf("Stage allocation %q: %w", allocationID, ErrNotFound))
+		}
+	}
+	return errors.Join(failures...)
 }

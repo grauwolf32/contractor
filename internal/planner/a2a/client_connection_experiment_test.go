@@ -217,10 +217,14 @@ func TestConnectionReuseExperimentCounts(t *testing.T) {
 			if _, err := invoker.Invoke(context.Background(), "worker", f.handle(), stageRequest()); err != nil {
 				t.Fatal(err)
 			}
+			// Invoke closes the connections it owns before returning.
 			experimentAwaitClosed(t, f)
-			want := int64(21)
-			if strategy == "owned_reuse" {
-				want = 1
+			// Production reuses one verified connection for SendMessage and
+			// all twenty polls (CTL-R163); the fresh-connection baseline
+			// verifies one connection per request.
+			want := int64(1)
+			if strategy == "owned_baseline" {
+				want = 21
 			}
 			if f.accepts.Load() != want || f.handshakes.Load() != want || sends.Load() != 1 || polls.Load() != 20 {
 				t.Fatalf("counts: connections=%d handshakes=%d sends=%d polls=%d", f.accepts.Load(), f.handshakes.Load(), sends.Load(), polls.Load())

@@ -32,7 +32,9 @@ func TestOperationsSettingsKeepUnsupportedMediaType(t *testing.T) {
 		}
 		for _, contentType := range []string{"", "text/plain", "application/json; charset=utf-8"} {
 			request := authenticatedRequest(http.MethodPut, update.path, bytes.NewReader([]byte(update.body)))
-			if contentType != "" {
+			if contentType == "" {
+				request.Header.Del("Content-Type")
+			} else {
 				request.Header.Set("Content-Type", contentType)
 			}
 			request.Header.Set("If-Match", update.ifMatch)

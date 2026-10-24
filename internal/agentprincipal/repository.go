@@ -128,6 +128,9 @@ ORDER BY runtime_agent_id`, label)
 	return result, nil
 }
 
+// LockMany locks the principals FOR UPDATE with one statement in the
+// bytewise order of their IDs (CTL-R89), after the caller locked their
+// bindings. A missing principal is ErrNotFound, as for Lock.
 func (r *Repository) LockMany(ctx context.Context, runtimeAgentIDs []string) ([]Principal, error) {
 	ordered := append([]string(nil), runtimeAgentIDs...)
 	for _, runtimeAgentID := range ordered {
@@ -142,12 +145,31 @@ func (r *Repository) LockMany(ctx context.Context, runtimeAgentIDs []string) ([]
 		}
 	}
 	result := make([]Principal, 0, len(ordered))
-	for _, runtimeAgentID := range ordered {
-		principal, err := r.Lock(ctx, runtimeAgentID)
-		if err != nil {
-			return nil, err
+	if len(ordered) == 0 {
+		return result, nil
+	}
+	rows, err := r.db.Query(ctx, lockPrincipalsSQL, ordered)
+	if err != nil {
+		return nil, persistencepostgres.WrapError("lock Runtime Agent principals", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		principal, scanErr := scanPrincipal(rows)
+		if scanErr != nil {
+			return nil, scanErr
 		}
 		result = append(result, principal)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, persistencepostgres.WrapError("lock Runtime Agent principals", err)
+	}
+	if len(result) != len(ordered) {
+		return nil, runtimeconfig.ErrNotFound
+	}
+	for index := range result {
+		if result[index].RuntimeAgentID != ordered[index] {
+			return nil, errors.New("locked Runtime Agent principals differ from the requested set")
+		}
 	}
 	return result, nil
 }

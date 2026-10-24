@@ -1,0 +1,39 @@
+schema_version: "1.0"
+id: V408-008
+title: "Keep the Skills process gate aligned with the staged seed catalog"
+milestone: test-gate-cost-2026-10
+epic: quality
+kind: chore
+introduced_by: V10-010
+priority: P2
+status: completed
+implementation_commit: 25fd7b4f3c48e55a48b662ed47f16d773b08dfea
+depends_on: []
+languages: [go]
+goal: "The release process shard validates every staged bundled Skill even after catalog growth and pagination."
+context:
+  finding: "tests/e2e/agent_skills_test.go:45,471 compares the first default page against a historical list of nine Skills. The staged shipped catalog now has ten, blocking V408-005 process verification."
+  siblings: "All three catalog assertions (initial seed, restart and updated package) share the same helper. Exact metadata, payload, digest, revision and bounded two-version checks remain intact."
+scope:
+  in:
+    - "Derive expected names from the staged bundled SeedPlan; read the public catalog with two-item pages and bounded cursor progress."
+    - "Exercise initial publication, restart and updates through the existing real PostgreSQL/Server/Runtime process regression."
+  out:
+    - "Changing production behavior, shipped Skills, namespace rules or SQL ownership."
+acceptance_criteria:
+  - id: A1
+    text: "The real process test validates every staged Skill over multiple pages and rejects missing, duplicate, unexpected or malformed entries."
+  - id: A2
+    text: "The full release process shard, untagged e2e package and lint pass; exact package and version checks remain enforced."
+tests:
+  - command: "go test -count=1 ./tests/e2e"
+    covers: [A1, A2]
+  - command: make test-release-process-e2e-c
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]
+
+verification:
+  - "The complete untagged tests/e2e package passed (go test -count=1 ./tests/e2e)."
+  - "The complete 13-test consolidated process shard C passed against disposable PostgreSQL, including initial seed, restart and updated Skill assertions with two-item pages."
+  - "make lint passed, including 131 script regressions and compiled release coverage checks. Production catalog behavior and exact Skill package checks are unchanged."

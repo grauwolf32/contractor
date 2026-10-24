@@ -234,7 +234,9 @@ class ListFindingsTool:
                 positions = [i for i, item in enumerate(matching) if item["receipt_id"] == after]
                 require(len(positions) == 1, "findings_cursor_invalid")
                 start = positions[0] + 1
-            result: dict[str, Any] = {"items": [], "next_cursor": None}
+            page: list[dict[str, Any]] = []
+            page_cursor: str | None = None
+            item_bytes = 0
             for index in range(start, min(len(matching), start + page_limit)):
                 item = matching[index]
                 next_cursor = (
@@ -242,11 +244,16 @@ class ListFindingsTool:
                     if index + 1 == len(matching)
                     else self._cursor(item["receipt_id"], subject_kind, subject_key)
                 )
-                candidate = {"items": [*result["items"], item], "next_cursor": next_cursor}
-                if len(canonical(candidate)) > MAX_PAGE_BYTES:
-                    require(result["items"], "findings_limit_exceeded")
+                # Each candidate is canonicalized once; the page size adds it to
+                # the admitted items, its separator and the envelope with its cursor.
+                size = len(canonical(item))
+                if _page_bytes(item_bytes + size, len(page) + 1, next_cursor) > MAX_PAGE_BYTES:
+                    require(page, "findings_limit_exceeded")
                     break
-                result = candidate
+                page.append(item)
+                item_bytes += size
+                page_cursor = next_cursor
+            result: dict[str, Any] = {"items": page, "next_cursor": page_cursor}
             call.succeed(
                 {
                     "item_count": len(result["items"]),
@@ -292,6 +299,17 @@ class ListFindingsTool:
             return after
         except (ValueError, TypeError, KeyError) as error:
             raise FindingsError("findings_cursor_invalid") from error
+
+
+def _page_bytes(item_bytes: int, item_count: int, next_cursor: str | None) -> int:
+    """Return the exact canonical size of a page from its items' canonical sizes.
+
+    RFC 8785 serializes each nested value independently of its container and an
+    array as its members joined by commas, so a page is its empty envelope with
+    the canonical items and one separator between each adjacent pair inserted.
+    """
+    envelope = len(canonical({"items": [], "next_cursor": next_cursor}))
+    return envelope + item_bytes + max(item_count - 1, 0)
 
 
 def _retryable(error: ArtifactAPIError | ArtifactTransportError) -> bool:

@@ -3,8 +3,10 @@
 import asyncio
 import math
 from collections.abc import Callable
+from functools import partial
 from typing import Protocol
 
+from contractor_runtime import threads
 from contractor_runtime.artifacts import (
     ArtifactAPIError,
     ArtifactResponseLimitError,
@@ -50,12 +52,14 @@ class DeterministicAuditResultPublisher:
         result_artifact: ArtifactRef,
         client: PublicationArtifactClient,
         check_active: Callable[[], None],
+        encoder: CanonicalAuditPackageEncoder,
     ) -> None:
         """Pin the Server-validated binding and allocation-scoped transport.
 
         check_active is the invocation's fatal-state/fencing check. It must raise
         the existing cancellation/budget/sandbox signal unchanged. Construction
         does not grant output access; preparation and the Artifact API enforce it.
+        encoder is the allocation's encoder, which already holds the decoded inputs.
         """
         target = ArtifactRef.model_validate(
             result_artifact.model_dump(by_alias=True, exclude_none=True)
@@ -66,13 +70,14 @@ class DeterministicAuditResultPublisher:
             or target.revision is not None
             or target.namespace == "inputs"
             or not callable(check_active)
+            or not isinstance(encoder, CanonicalAuditPackageEncoder)
         ):
             raise AuditResultError("audit_result_invalid")
         self._owner = owner
         self._target = target
         self._client = client
         self._check_active = check_active
-        self._encoder = CanonicalAuditPackageEncoder()
+        self._encoder = encoder
 
     async def publish(
         self,
@@ -106,7 +111,11 @@ class DeterministicAuditResultPublisher:
             raise AuditResultError("audit_result_invalid")
         try:
             self._check(deadline)
-            encoded = self._encoder.encode(snapshot, inputs=inputs)
+            # Encoding runs off the event loop; a cancellation joins it first.
+            encoded = await threads.to_thread_until_done(
+                partial(self._encoder.encode, snapshot, inputs=inputs),
+                name="audit-publication-encode",
+            )
             self._check(deadline)
             async with asyncio.timeout_at(deadline):
                 for _ in range(2):

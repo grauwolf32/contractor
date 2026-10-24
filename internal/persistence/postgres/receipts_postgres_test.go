@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -264,7 +265,12 @@ func TestPostgresMutationReceiptsKeepTheirShapeAndRetention(t *testing.T) {
 		if _, err := tx.Exec(f.ctx, `SELECT set_config('contractor.eval_purge', 'on', true)`); err != nil {
 			return err
 		}
-		return PurgeEvalReceipts(f.ctx, tx, "owner", "keyed-evaluation")
+		budget := CleanupBudget{RowLimit: CleanupBatchRows, ByteLimit: 1 << 20}
+		gone, err := DeleteEvalReceiptsWithinBudget(f.ctx, tx, &budget, "owner", "keyed-evaluation")
+		if err == nil && (!gone || budget.Rows != 1) {
+			err = fmt.Errorf("Eval receipt purge = (%t, %+v), want the one receipt gone", gone, budget)
+		}
+		return err
 	}); err != nil {
 		t.Fatalf("purge Eval receipts: %v", err)
 	}

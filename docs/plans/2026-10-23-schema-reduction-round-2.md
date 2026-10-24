@@ -630,16 +630,16 @@ a task ID supplies a design or a performance improvement.
 
 | Existing work | Actual scope and relationship to this proposal |
 | --- | --- |
-| [V407-025](../../tasks/v407-025-persistence-indexes-and-triggers.yml) | Stage trigger scoping plus measured query/index work. Sequence a Stage fold after it if relying on its scoped definitions; add separate guards for new receipt tuples. |
-| [V407-028](../../tasks/done/v407-028-eval-member-bulk-freeze.yml), [V407-029](../../tasks/v407-029-eval-reads-plan-metadata.yml) | Bounded member-freeze batching and metadata-only plan reads; preserve their limits and remaining full-document readers in any Eval design. |
+| [V407-025](../../tasks/done/v407-025-persistence-indexes-and-triggers.yml) | Stage trigger scoping plus measured query/index work. Sequence a Stage fold after it if relying on its scoped definitions; add separate guards for new receipt tuples. |
+| [V407-028](../../tasks/done/v407-028-eval-member-bulk-freeze.yml), [V407-029](../../tasks/done/v407-029-eval-reads-plan-metadata.yml) | Bounded member-freeze batching and metadata-only plan reads; preserve their limits and remaining full-document readers in any Eval design. |
 | [V409-001](../../tasks/done/v409-001-finding-correlation-project-lock.yml) | Finite retries around existing finding import/retention transactions, retaining the Project fence/revision. It supplies no new counter table or counter-home decision. |
 | [V409-003](../../tasks/done/v409-003-runstore-lock-order-and-cas.yml) | Correct Run-before-Stage locking in StartPlanner. Keep this defect separate; coordinate any Stage lock design with its corrected order and regression coverage. |
-| [V409-006](../../tasks/v409-006-trigger-column-scoping.yml) | Scoped trigger work preserving admission and projection side effects. StageExecution triggers belong to V407-025; this task does not establish that parent-inline claims are cheap. |
+| [V409-006](../../tasks/done/v409-006-trigger-column-scoping.yml) | Scoped trigger work preserving admission and projection side effects. StageExecution triggers belong to V407-025; this task does not establish that parent-inline claims are cheap. |
 | [V409-007](../../tasks/v409-007-dead-and-redundant-indexes.yml) | Per-candidate index preflight and justified decisions, including telemetry cleanup readers. Reuse the evidence and preserve required indexes; no predetermined DROP or cleanup-plan outcome. |
-| [V409-009](../../tasks/v409-009-eval-store-bounds.yml) | Bounded, restartable Eval purge. Any Eval/claim consolidation must preserve its dependent-row/byte budgets and phases if it lands first, or have those changes explicitly rebased onto the selected schema. No projection redesign is supplied. |
-| [V409-011](../../tasks/v409-011-execution-store-n1-and-duplicates.yml) | Safe execution-side query/round-trip improvements (binding, principal and release-marker batching). Recheck the actual statements after it lands. |
-| [V409-014](../../tasks/v409-014-eval-comparison-and-recovery-queries.yml) | Safe Eval comparison-page and composed recovery-query improvements; complete-view redesign remains excluded. Recheck the actual statements after it lands. |
-| [V409-012](../../tasks/v409-012-migration-and-sql-hygiene.yml) | Upgrade tests for 000008/000014 and migration-budget/ledger documentation. No baseline regeneration or historical-migration rewrite. |
+| [V409-009](../../tasks/done/v409-009-eval-store-bounds.yml) | Bounded, restartable Eval purge. Any Eval/claim consolidation must preserve its dependent-row/byte budgets and phases if it lands first, or have those changes explicitly rebased onto the selected schema. No projection redesign is supplied. |
+| [V409-011](../../tasks/done/v409-011-execution-store-n1-and-duplicates.yml) | Safe execution-side query/round-trip improvements (binding, principal and release-marker batching). Recheck the actual statements after it lands. |
+| [V409-014](../../tasks/done/v409-014-eval-comparison-and-recovery-queries.yml) | Safe Eval comparison-page and composed recovery-query improvements; complete-view redesign remains excluded. Recheck the actual statements after it lands. |
+| [V409-012](../../tasks/done/v409-012-migration-and-sql-hygiene.yml) | Upgrade tests for 000008/000014 and migration-budget/ledger documentation. No baseline regeneration or historical-migration rewrite. |
 | [V409-013](../../tasks/v409-013-verify-sql-review-on-database.yml) | Final SQL-review gate after V409-001…012 and V409-014. It is neither stage-zero preflight nor a harness prerequisite; no implementation dependency may point back to this exit task. |
 
 Proposed sequence, only if a candidate is later selected:

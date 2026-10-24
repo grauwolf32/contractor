@@ -1,0 +1,145 @@
+schema_version: '1.0'
+id: V407-005
+title: Remove redundant Audit checks and share safe intake preparation reads
+milestone: server-runtime-review-2026-10
+epic: audits
+kind: chore
+introduced_by: V62-002
+priority: P3
+status: completed
+depends_on: []
+languages:
+- go
+goal: Simplify proven redundant Audit code and avoid duplicate pre-transaction Stage reads while preserving
+  trusted validation and transaction-local authorization.
+context:
+  review: docs/research/2026-10-23-server-runtime-review.md (corrected dispositions, verified on main
+    dc7012e8; recheck source lines before implementation)
+  validation: Revalidated against main dc7012e8 on 2026-10-23. Cleanup opportunities are confirmed. The
+    alleged preparation-Workflow fail-open was not reachable through CreateAudit normalization and is
+    excluded as a defect; the ranking package is unintegrated, not currently misranking production work.
+  finding: 'internal/runservice/audit.go:234-236 ignores json.Marshal errors, but CreateAudit first normalizes
+    the submitted Workflow through successful JSON encode/decode (28-43,185-193), and the pinned binding
+    was successfully decoded at230. A channel or arbitrary failing Marshaler cannot be injected into this
+    concrete production path, so no nil-equals-nil mismatch bypass was reproduced. Redundant code remains:
+    auditimport/importer.go:277-280 repeats source initialization already done at233-236; check_results.go:325-328
+    rechecks evidence ownership after result_package.go:58-60 and prepareCheckResults validation; auditservice/finding_comparisons.go:323
+    checks a sum bounded by FindingCandidateWindowRows and the validated limit. FindingGroupMembers checks
+    the correlation fence twice (590,623). Intake may read one StageExecution in anchors.go:42 and fingerprint.go:22
+    before its required transaction-local provenance read at service.go:303. The first two are conditional,
+    and the third has a distinct authorization role.'
+  siblings: internal/auditpriority has no production caller and sorts by Priority then candidate ID (selection.go:70-75),
+    not Confidence. Its V64 integration remains deferred by execution_policy; this task must not wire
+    it or change its ranking policy. Check related Audit fence and validation call sites before deleting
+    guards.
+plan:
+- Remove the duplicate source initialization and only those result-ownership/work-bound checks whose caller
+  and real-store bounds prove them redundant. Preserve or document the owning validation; do not remove
+  independent trust-boundary checks.
+- Reduce FindingGroupMembers fence reads while retaining a final fence check after all reads and the existing
+  stale-fence precedence on read errors. Use a controlled revision race to prove error semantics.
+- Share at most one lazily loaded pre-transaction Stage snapshot between anchor and fingerprint derivation
+  when either needs it. Keep verifyTrustedExecution and its Stage read inside the transaction; preserve
+  early exits when neither derivation needs a Stage.
+- Keep preparation Workflow comparison behavior unchanged and document why the claimed marshal-failure
+  bypass is not a current defect. Do not add artificial channel/failing-Marshaler tests outside the actual
+  Workflow type.
+- Record the absent auditpriority production integration and unused-in-ranking Confidence in the existing
+  research status only; retain the deferred integration decision and make no ranking/API changes.
+scope:
+  in:
+  - Proven duplicate/dead checks and safe sharing of conditional pre-transaction intake reads.
+  - Error/fence parity tests on real PostgreSQL and documentation of excluded unsupported claims.
+  out:
+  - A speculative fail-closed Workflow redesign or an impossible Marshal-failure acceptance test.
+  - Eliminating the transaction-local provenance/authorization read or reusing an unvalidated stale snapshot
+    for it.
+  - Reactivating V64, adding an auditpriority caller, changing ranking semantics or introducing broad
+    unrelated cleanup.
+acceptance_criteria:
+- id: A1
+  text: The listed duplicate source initialization and provably redundant guards are removed or retained
+    with a concrete independent-invariant rationale. Existing accepted/rejected result and work-limit
+    behavior is unchanged.
+- id: A2
+  text: FindingGroupMembers performs one final correlation fence check on successful reads and preserves
+    stale-fence/read-error precedence in controlled race tests.
+- id: A3
+  text: When both derivations require the Stage, intake performs at most one shared pre-transaction Stage
+    read plus the separate transaction-local provenance read; paths needing neither retain their early
+    exits. Real-store authorization/fencing tests still pass.
+- id: A4
+  text: No new marshal-failure bypass claim or artificial unsupported Workflow value is used as acceptance
+    evidence. Research status describes auditpriority as unintegrated and preserves the existing deferred
+    integration policy.
+tests:
+- command: test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1 ./internal/runservice/...
+    ./internal/auditimport/... ./internal/auditservice/... ./internal/findingintake/...
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+implementation_commit: 623cec9ebccf0e0d69c65d208a874de2592963eb
+verification:
+  date: '2026-10-23'
+  environment: macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local); PostgreSQL 17.11 database contractor_test_a with
+    disposable per-test schemas; branch claude/rv-a on base 95165bbd.
+  commands:
+  - test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1 ./internal/runservice/...
+    ./internal/auditimport/... ./internal/auditservice/... ./internal/findingintake/... passed (runservice,
+    auditimport, auditservice including the million-row comparison scale test, findingintake all ok).
+  - make lint passed (after make tasks-backlog and make docs-dependencies).
+  - go vet with and without -tags=integration of the four touched packages passed; go test ./internal/archtest/...
+    passed; go test -tags=integration -run 'Correlation|Comparison|Members' ./internal/httpapi/public/ passed.
+  - The new tests run with -v report PASS and no SKIP; both fail on the base code (temporary local revert,
+    restored).
+  database_tests_configured: true
+  evidence:
+  - 'A1: auditimport collectSucceededRole kept the first source assignment, which runs for every output before the
+    preparation/Round branch; the second one (base importer.go:277-280) was unreachable with source == nil and is
+    removed. retainCheckResults no longer rechecks evidence ownership (base check_results.go:352-355): every
+    evidence record already has exactly one owner, because DecodeCheckResultPackage rejects uncited evidence
+    (result_package.go:58-60) and cited IDs without a record; collectSucceeded admits exactly len(members) results
+    whose item keys ValidateResultSet makes distinct; prepareCheckResults matches each member to its result and
+    rejects an ID claimed twice; and the members of one execution are distinct Items of one Round
+    (audit_execution_items_execution_member, the execution and item FKs, audit_items_round_key), so the match is a
+    bijection. FindingCandidates no longer checks len(window)+len(ids)+3 > FindingComparisonWorkRows (base
+    finding_comparisons.go:323): the only reader is the PostgreSQL QueryStore whose window SQL is LIMIT
+    FindingCandidateWindowRows, ids are bounded by validCorrelationLimit, and FindingCandidateWindowRows is defined
+    as FindingComparisonWorkRows - FindingComparisonMaximumLimit - 3 (LIM-FND-44);
+    TestFindingComparisonMillionRowScopeUsesBoundedIndexedReads still examines exactly the window at 1,000,000
+    findings. Accepted/rejected result suites in auditimport pass unchanged.'
+  - 'A2: FindingGroupMembers drops its second fence recheck (base finding_comparisons.go:623), which followed no
+    store read; the recheck after the preview batch (the last read) remains and keeps stale precedence over that
+    read error. TestFindingGroupMembersRecheckFenceOnceAfterLastRead traces one reader connection: Project and
+    Audit scoped pages load the fence once, recheck it once and end with that recheck (the base code rechecks it
+    twice and fails); deleting a group member right after the preview batch makes both scopes stale; deleting a
+    selected member right before the preview batch returns ErrCorrelationStale although ComparisonPreviews alone
+    returns ErrNotFound for that selection. CompareFindings and FindingCandidates already recheck once.'
+  - 'A3: Submit builds one sync.OnceValues StageExecution loader per call (lazyPreparationStage) that both
+    prepareAnchors and prepareFingerprint use only after their early exits; it keeps the RunID check
+    (ErrAccessDenied) and storage errors, which still end Submit before the transaction. verifyTrustedExecution
+    still reads the Stage inside the intake transaction; the snapshot never feeds authorization and a new Submit
+    reads again. TestPostgresIntakePreparationSharesOneStageRead counts full Stage reads: both derivations read it
+    once before the transaction and twice in total (base: 2 and 3); fingerprint only 1 and 2; neither 0 and 1; a
+    grant of another Run is denied after one read and never reaches the transaction. The existing anchor,
+    fingerprint, quota, provenance-failure and Run-deletion suites pass.'
+  - 'A4: the preparation Workflow comparison in runservice validateAuditIntent is unchanged; a comment records why
+    its ignored json.Marshal errors cannot occur (both values are ResolvedWorkflow values produced by a successful
+    JSON decode; a reflection probe over the type found no custom marshaler, and decoded floats and interface
+    values always re-encode). No artificial Workflow value or Marshal-failure test was added. Research rows E13 and
+    E15 record auditpriority as unintegrated (no production caller, sorts by Priority then candidate ID,
+    Confidence only validated) with the V64 decision still deferred.'
+  - 'Spec: FND-R167 now states the shared pre-transaction Stage read and the separate transaction read; FND-R179
+    states one fence recheck after the last hydration read with stale precedence. No requirement ID, limit or error
+    code was added.'
+  declined:
+  - 'The transaction-local provenance read in verifyTrustedExecution is kept; it has its own authorization role
+    (scope.out).'

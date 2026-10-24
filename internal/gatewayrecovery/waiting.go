@@ -118,11 +118,10 @@ LIMIT 1`, runID).Scan(&status.Code, &status.Since, &status.NextRetryAt, &status.
 
 func (s *Service) Retry(ctx context.Context, ownerID, runID string) error {
 	return persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if err := lockRun(ctx, tx, s.runs, runID, false); err != nil {
-			return err
-		}
-		var owner string
-		if err := tx.QueryRow(ctx, `SELECT owner_id FROM workflow_runs WHERE run_id=$1`, runID).Scan(&owner); err != nil {
+		// The Run row lock returns the owner, so the owner check needs no
+		// second read of the Run.
+		owner, err := lockRun(ctx, tx, s.runs, runID, false)
+		if err != nil {
 			return err
 		}
 		if owner != ownerID {

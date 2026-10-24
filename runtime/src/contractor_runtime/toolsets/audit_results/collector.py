@@ -3,7 +3,9 @@
 import asyncio
 from copy import deepcopy
 from dataclasses import replace
+from functools import partial
 
+from contractor_runtime import threads
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.core.worker_completion import WorkerCompletionError
 from contractor_runtime.toolsets.audit_results.contracts import (
@@ -22,10 +24,7 @@ from contractor_runtime.toolsets.audit_results.encoding import (
     AuditResultError,
     CanonicalAuditPackageEncoder,
 )
-from contractor_runtime.toolsets.audit_results.packages import (
-    _decode_task_input,
-    _requested_coverage,
-)
+from contractor_runtime.toolsets.audit_results.packages import _requested_coverage
 from contractor_runtime.toolsets.common.cwe import (
     CWEReferenceError,
     check_cwe_reference,
@@ -71,14 +70,15 @@ class InvocationAuditCollector:
     revision number per item, never an unbounded history of submitted content.
     """
 
-    def __init__(self, inputs: AuditTrustedInputs):
+    def __init__(self, inputs: AuditTrustedInputs, encoder: CanonicalAuditPackageEncoder):
         self._inputs = inputs
-        self._encoder = CanonicalAuditPackageEncoder()
-        # The actual encoder checks task/manifest membership, digests and order.
-        self._encoder.encode(AuditSnapshot(inputs.owner, ()), inputs=inputs)
-        records = _decode_task_input(inputs.task_package, "application/zip")
-        self._tasks = {task["item_key"]: task for task, _, _ in records}
-        self._package_ids = tuple(package_id for _, package_id, _ in records)
+        self._encoder = encoder
+        # The allocation's encoder checks task/manifest membership, digests and
+        # order once; each invocation reuses its immutable decoded records.
+        decoded = encoder.trusted_inputs(inputs)
+        self._tasks = decoded.tasks
+        self._package_ids = decoded.records.package_ids
+        self._execution_manifest_digest = decoded.execution_manifest_digest
         for task in self._tasks.values():
             _requested_coverage(task)
         self._items: dict[str, RecordedAuditItem] = {}
@@ -118,7 +118,7 @@ class InvocationAuditCollector:
                 "tasks": tasks,
                 "taskPackageIds": list(self._package_ids),
                 "requestedCoverage": [_requested_coverage(task) for task in tasks],
-                "executionManifestDigest": self.inputs.execution_manifest_sha256,
+                "executionManifestDigest": self._execution_manifest_digest,
             }
             if len(tasks) == 1:
                 result.update(task=tasks[0], taskPackageId=self._package_ids[0])
@@ -222,7 +222,8 @@ class InvocationAuditCollector:
                     details={
                         "index": index,
                         "invalidValue": value[:160],
-                        "allowedValues": requested,
+                        # A copy: the decoded task is shared by the allocation.
+                        "allowedValues": list(requested),
                     },
                 )
         if task.get("operation") is not None:
@@ -287,7 +288,14 @@ class InvocationAuditCollector:
             tuple(selected[key] for key in self.owner.item_keys if key in selected),
         )
 
-    def _admit(self, prospective):
+    async def _admit(self, prospective):
+        """Validate a prospective collection; the caller holds the lock throughout.
+
+        The whole prospective package is encoded off the event loop. The lock
+        stays held until that thread returns, so no other admission, seal or
+        discard interleaves, and a cancelled caller joins the encoding before
+        the cancellation propagates without replacing the collection.
+        """
         owners: dict[str, str] = {}
         for item in prospective.values():
             for proposal_key in item.value.proposal_keys:
@@ -304,7 +312,10 @@ class InvocationAuditCollector:
                 "evidence", "Collection allows at most 256 evidence records."
             )
         try:
-            self._encoder.encode(self._snapshot(prospective), inputs=self.inputs)
+            await threads.to_thread_until_done(
+                partial(self._encoder.encode, self._snapshot(prospective), inputs=self.inputs),
+                name="audit-admission-encode",
+            )
         except AuditResultError as error:
             reason = (
                 "Prospective collection exceeds canonical data, member or ZIP bounds; reduce data."
@@ -359,8 +370,9 @@ class InvocationAuditCollector:
                     "expected_revision", "Revision limit reached.", item_key=key
                 )
             prospective = {**self._items, key: RecordedAuditItem(item, revision)}
-            self._admit(prospective)
-            # No suspension between prospective validation and the atomic replacement.
+            await self._admit(prospective)
+            # The lock is still held: nothing changed the collection while
+            # the prospective set was encoded, so the replacement is atomic.
             self._items = prospective
             if expected_revision is not None:
                 self._replayed_from[key] = expected_revision
@@ -386,7 +398,7 @@ class InvocationAuditCollector:
                     )
                 if current is None:
                     prospective[item.item_key] = RecordedAuditItem(item, 1)
-            self._admit(prospective)
+            await self._admit(prospective)
             self._items = prospective
             return self._receipt()
 

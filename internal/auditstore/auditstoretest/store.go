@@ -21,11 +21,12 @@ type Store struct {
 	*pgstore.RunDeletion
 	*pgstore.ProjectDeletion
 	*pgstore.CredentialHolds
+	db persistencepostgres.DBTX
 }
 
 // NewStore returns every seam on db, a pool or a caller's transaction.
 func NewStore(db persistencepostgres.DBTX) *Store {
-	return &Store{
+	return &Store{db: db,
 		ClaimStore: pgstore.NewClaimStore(db), OwnerStore: pgstore.NewOwnerStore(db),
 		ReviewStore: pgstore.NewReviewStore(db), QueryStore: pgstore.NewQueryStore(db),
 		FindingEvents: pgstore.NewFindingEvents(db), RunDeletion: pgstore.NewRunDeletion(db),

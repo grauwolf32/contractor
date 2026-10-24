@@ -524,15 +524,45 @@ func TestRuntimeCredentialDeleteSerializesWithRuntimeConfigBindings(t *testing.T
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.Delete(ctx, "allocation-debug", "operator"); !errors.Is(err, ErrRuntimeCredentialInUse) {
-		t.Fatalf("delete credential pinned only by live allocation error = %v", err)
-	} else {
-		var inUse *RuntimeCredentialInUseError
-		if !errors.As(err, &inUse) || len(inUse.Usage.AllocationIDs) != 1 ||
-			inUse.Usage.AllocationIDs[0] != "allocation-runtime-credential" {
-			t.Fatalf("allocation credential usage = %+v", inUse)
+	requireAllocationUsage := func(when string) {
+		t.Helper()
+		if _, err := service.Delete(ctx, "allocation-debug", "operator"); !errors.Is(err, ErrRuntimeCredentialInUse) {
+			t.Fatalf("delete credential pinned only by %s error = %v", when, err)
+		} else {
+			var inUse *RuntimeCredentialInUseError
+			if !errors.As(err, &inUse) || len(inUse.Usage.AllocationIDs) != 1 ||
+				inUse.Usage.AllocationIDs[0] != "allocation-runtime-credential" || len(inUse.Usage.RunIDs) != 0 {
+				t.Fatalf("allocation credential usage after %s = %+v", when, inUse)
+			}
 		}
 	}
+	requireAllocationUsage("a live allocation")
+	// The allocation stays a reference after its Stage and Run end, until its
+	// release completes.
+	if err := allocationStore.EnterAborting(ctx, runstore.EnterAbortingParams{
+		StageExecutionID: allocationStage.StageExecutionID, ExpectedState: runstore.StagePreparing,
+		TerminationSchemaVersion: contracts.APIVersion, Termination: runstore.StageTermination{
+			Outcome: runstore.TerminationInterrupted, Code: "runtime_unavailable", Message: "Runtime Agent became unavailable",
+			Retryable: true, Phase: runstore.TerminationPreparing, OccurredAt: now,
+		},
+		AbortID: "abort-allocation-credential", Deadline: now.Add(time.Minute), Reason: runstore.Reason{Code: "stage_interrupted"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := allocationStore.CompleteStageTermination(ctx, allocationStage.StageExecutionID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := allocationStore.RecordStageTransitionDecision(ctx, runstore.RecordStageTransitionDecisionParams{
+		SourceExecutionID: allocationStage.StageExecutionID, RunID: allocationRun.RunID, Action: runstore.StageTransitionFail,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := allocationStore.TransitionRun(
+		ctx, allocationRun.RunID, runstore.RunRunning, runstore.RunFailed, runstore.Reason{Code: "stage_failed"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	requireAllocationUsage("an unreleased allocation of a terminal Run")
 	if err := allocationStore.MarkStageAllocationReleased(ctx, "allocation-runtime-credential"); err != nil {
 		t.Fatal(err)
 	}

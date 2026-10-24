@@ -117,9 +117,15 @@ func (s *Store) ReconciliationCandidates(ctx context.Context, owner, id string, 
 	return memberIDs, rows.Err()
 }
 
-// LockMemberRecovery establishes all Project locks before the experiment lock
-// when a composed transaction will also write its Audit workspace artifacts.
-func (s *Store) LockMemberRecovery(ctx context.Context, scope Scope, id, member string, claim Claim) error {
+// LockMember takes the recovery authority with all Project locks before the
+// experiment lock, the evaluation Project's and then the member's execution
+// workspace's, when a composed transaction will also write its Audit
+// workspace artifacts. It must be the transaction's first recovery step.
+func (r *MemberRecovery) LockMember(ctx context.Context) error {
+	s, scope, id, member := r.store, r.scope, r.id, r.member
+	if r.held {
+		return errRecoveryLockOrder
+	}
 	if _, err := s.project(ctx, scope, true); err != nil {
 		return err
 	}
@@ -135,18 +141,19 @@ func (s *Store) LockMemberRecovery(ctx context.Context, scope Scope, id, member 
 			return normalize(err)
 		}
 	}
-	_, err = s.recovery(ctx, scope, id, claim)
+	_, err = r.afterProjectLocks(ctx)
 	return err
 }
 
 // ObserveTokens retains a per-member and experiment high-water mark. Unknown
 // usage is not a public zero; this is only the known lower bound used by the
 // optional observed-token stop policy. Updated timestamps rotate bounded polls.
-func (s *Store) ObserveTokens(ctx context.Context, scope Scope, id, member string, claim Claim, tokens int64) error {
+func (r *MemberRecovery) ObserveTokens(ctx context.Context, tokens int64) error {
+	s, id, member := r.store, r.id, r.member
 	if tokens < 0 {
 		return evaldomain.Failure("eval_invalid")
 	}
-	if _, err := s.recovery(ctx, scope, id, claim); err != nil {
+	if _, err := r.authority(ctx); err != nil {
 		return err
 	}
 	var prior int64

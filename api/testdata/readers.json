@@ -12,6 +12,7 @@
     "planner-subtask-cases.json": {"readers":["go","ui"],"reason":"The Server owns Workflow plan limits and complete plan projections. Runtime consumes one bounded current subtask with the unchanged generic subtask ID wire contract."},
     "public/project-active-check-policy.json": {"readers":["go","ui"]},
     "public/idempotency-key-cases.json": {"readers": ["go", "ui"]},
+    "public/revision-etag-cases.json": {"readers": ["go"], "reason": "only the Server reads counter preconditions; the UI and the generated Go client send the revision the Server returned, and the Go test checks these cases against the OpenAPI If-Match patterns"},
     "public/utf8-byte-bound-cases.json": {"readers": ["go", "ui"]},
     "stage-summary-cases.json": {"readers":["go"],"reason":"StageContentResult is Server-owned; Go, PostgreSQL and public OpenAPI validators share these cases. Runtime already sends the unchanged WorkerCompletion summarized flag; the UI uses generated types."},
     "http-capture-cases.json": {"readers": ["go", "python", "ui"]},

@@ -6,16 +6,16 @@ package pgstore
 // revision, statement time, current round, state, outstanding Runs,
 // current-round coverage counts (total, then the completed $3, issue $4, gap
 // $5 and unchecked $6 coverage statuses of auditdomain's one bucket table, in
-// one pass over the round's items), finding and unreviewed-finding counts,
-// and the review requests that can still be decided: pending and not past
-// their expiry at the statement time the snapshot reports as asOf.
-// Used by QueryStore.GetWorkspace.
+// one pass over the round's items), finding and unreviewed-finding counts (in
+// one pass over the Audit's findings), and the review requests that can
+// still be decided: pending and not past their expiry at the statement time
+// the snapshot reports as asOf. Every count is exact, so each pass reads the
+// rows it counts. Used by QueryStore.GetWorkspace.
 var getWorkspaceSQL = `
 SELECT audit.audit_id, audit.revision, statement_timestamp(), audit.current_round_id,
        audit.state, audit.outstanding_run_count,
        coverage.total, coverage.completed, coverage.issues, coverage.gaps, coverage.unchecked,
-       (SELECT count(*) FROM audit_findings WHERE audit_id = audit.audit_id),
-       (SELECT count(*) FROM audit_findings WHERE audit_id = audit.audit_id AND current_decision_id IS NULL),
+       findings.total, findings.unreviewed,
        (SELECT count(*) FROM audit_review_requests AS request
          WHERE request.audit_id = audit.audit_id AND request.state = 'pending'
            AND ` + reviewUnexpiredSQL + `)
@@ -29,6 +29,12 @@ SELECT audit.audit_id, audit.revision, statement_timestamp(), audit.current_roun
          FROM audit_items AS item
         WHERE item.audit_id = audit.audit_id AND item.round_id = audit.current_round_id
        ) AS coverage
+ CROSS JOIN LATERAL (
+       SELECT count(*) AS total,
+              count(*) FILTER (WHERE finding.current_decision_id IS NULL) AS unreviewed
+         FROM audit_findings AS finding
+        WHERE finding.audit_id = audit.audit_id
+       ) AS findings
  WHERE audit.owner_id = $1 AND audit.audit_id = $2`
 
 // listEventsBeforeSQL reads up to $4 events of Audit $1 numbered at most $2

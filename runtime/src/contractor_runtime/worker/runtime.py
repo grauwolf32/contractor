@@ -6,7 +6,6 @@ import asyncio
 import contextlib
 import json
 import math
-import re
 import uuid
 from collections.abc import AsyncGenerator, Mapping
 from dataclasses import replace
@@ -29,7 +28,8 @@ from contractor_runtime.a2a_server import (
     build_agent_card,
     build_worker_a2a_application,
 )
-from contractor_runtime.adapters import RuntimeInstrumentation, RuntimeSpan, TelemetryAttribute
+from contractor_runtime.adapters import RuntimeInstrumentation
+from contractor_runtime.adapters.instrumentation import end_isolated_span, start_isolated_span
 from contractor_runtime.agent_skills.runtime import (
     PreparedAgentSkills,
 )
@@ -89,6 +89,7 @@ from contractor_runtime.worker.finalizer import (
 from contractor_runtime.worker.instrumentation import (
     WorkerInstrumentationPlugin,
     WorkerSummarizationRequested,
+    span_error_type,
 )
 from contractor_runtime.worker.observations import lean_workspace_summary
 from contractor_runtime.worker.one_shot import candidate_text, generation_config
@@ -112,7 +113,6 @@ INVOCATION_CLEANUP_TIMEOUT_SECONDS = 5.0
 MAX_STAGE_REQUEST_JSON_BYTES = 256 * 1024
 MAX_STAGE_RESULT_JSON_BYTES = MAX_EXPORTED_RESULT_JSON_BYTES
 MAX_RESULT_ARTIFACTS = MAX_EXPORTED_RESULT_ARTIFACTS
-SAFE_TOOL_ERROR_CODE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 
 
 def requires_content_free_telemetry(
@@ -282,7 +282,7 @@ class AdkWorkerRuntime:
         return await self._worker_state.agent_state_snapshot()
 
     async def invoke(self, request: StageContentRequest) -> WorkerCompletion:
-        span = _start_span(
+        span = start_isolated_span(
             self._instrumentation,
             "contractor.worker.a2a_task",
             {"operation.kind": "a2a_task"},
@@ -290,11 +290,11 @@ class AdkWorkerRuntime:
         try:
             result, attributes = await self._invoke(request)
         except asyncio.CancelledError:
-            _end_span(span, outcome="cancelled")
+            end_isolated_span(span, outcome="cancelled")
             raise
         except Exception as error:
-            error_type = _safe_error_type(error)
-            _end_span(
+            error_type = span_error_type(error)
+            end_isolated_span(
                 span,
                 outcome="failed",
                 attributes={"error.type": error_type},
@@ -304,7 +304,7 @@ class AdkWorkerRuntime:
         if result.failure is not None:
             attributes["error.type"] = result.failure.code
             _record_worker_error(self._instrumentation, result.failure.code)
-        _end_span(
+        end_isolated_span(
             span,
             outcome="failed" if result.failure is not None else "succeeded",
             attributes=attributes,
@@ -538,7 +538,7 @@ class AdkWorkerRuntime:
             raise
         except Exception as error:
             sandbox_failure = self._worker_state.execution.failure
-            gateway_error = _gateway_model_error(error)
+            gateway_error = _chained_error(error, GatewayModelError)
             if (
                 sandbox_failure is None
                 and gateway_error is not None
@@ -701,7 +701,7 @@ class AdkWorkerRuntime:
                         # Work that ends after the deadline, including a
                         # summarization request, ends with the deadline.
                         deadline.check()
-                        if _worker_summarization_request(error) is not None:
+                        if _chained_error(error, WorkerSummarizationRequested) is not None:
                             return await self._run_terminal_summarizer(
                                 request=request,
                                 invocation_id=invocation_id,
@@ -709,7 +709,7 @@ class AdkWorkerRuntime:
                                 observed_refs=tuple(self._invocation_observed_refs),
                                 secrets=summary_secrets,
                             )
-                        budget_error = _worker_budget_error(error)
+                        budget_error = _chained_error(error, WorkerBudgetExceeded)
                         if budget_error is None:
                             raise
                         self._metrics.record_worker_budget_exhausted(budget_error.dimension)
@@ -812,7 +812,7 @@ class AdkWorkerRuntime:
                 observed_refs=tuple(self._invocation_observed_refs),
             )
         except Exception as error:
-            budget_error = _worker_budget_error(error)
+            budget_error = _chained_error(error, WorkerBudgetExceeded)
             if budget_error is not None:
                 self._metrics.record_worker_budget_exhausted(budget_error.dimension)
                 return (
@@ -823,10 +823,10 @@ class AdkWorkerRuntime:
                     ),
                     False,
                 )
-            gateway_error = _gateway_model_error(error)
+            gateway_error = _chained_error(error, GatewayModelError)
             if gateway_error is not None:
                 return _gateway_worker_failure(gateway_error), False
-            finalizer_error = _result_finalizer_error(error)
+            finalizer_error = _chained_error(error, ResultFinalizerFailure)
             if finalizer_error is not None:
                 if finalizer_error.code == "output_limit_exceeded":
                     return _failure(
@@ -1369,76 +1369,19 @@ def _summarizer_secrets(context: WorkerBuildContext) -> tuple[str, ...]:
     return tuple(dict.fromkeys(value for value in candidates if len(value) > 1))
 
 
-def _start_span(
-    instrumentation: RuntimeInstrumentation | None,
-    name: str,
-    attributes: Mapping[str, TelemetryAttribute] | None = None,
-) -> RuntimeSpan | None:
-    if instrumentation is None:
-        return None
-    try:
-        return instrumentation.start_span(name, attributes=attributes)
-    except Exception:
-        return None
+def _chained_error[E: BaseException](error: BaseException, kind: type[E]) -> E | None:
+    """Find a Runtime signal or failure of ``kind`` through ADK's callback wrappers.
 
-
-def _end_span(
-    span: RuntimeSpan | None,
-    *,
-    outcome: str,
-    attributes: Mapping[str, TelemetryAttribute] | None = None,
-) -> None:
-    if span is None:
-        return
-    try:
-        span.end(outcome=outcome, attributes=attributes)
-    except Exception:
-        return
-
-
-def _safe_error_type(error: Exception) -> str:
-    error_type = getattr(error, "provider_error_type", type(error).__name__)
-    if not isinstance(error_type, str) or SAFE_TOOL_ERROR_CODE.fullmatch(error_type) is None:
-        return type(error).__name__
-    return error_type
-
-
-def _worker_budget_error(error: BaseException) -> WorkerBudgetExceeded | None:
-    """Find a budget signal through ADK's plugin callback wrappers."""
+    ADK re-raises plugin and callback failures inside its own exceptions, so the
+    walk follows the explicit cause first, then the implicit context, and stops
+    at the first repeated exception.
+    """
 
     current: BaseException | None = error
     seen: set[int] = set()
     while current is not None and id(current) not in seen:
         seen.add(id(current))
-        if isinstance(current, WorkerBudgetExceeded):
-            return current
-        current = current.__cause__ or current.__context__
-    return None
-
-
-def _worker_summarization_request(
-    error: BaseException,
-) -> WorkerSummarizationRequested | None:
-    """Find the Runtime control signal through ADK callback wrappers."""
-
-    current: BaseException | None = error
-    seen: set[int] = set()
-    while current is not None and id(current) not in seen:
-        seen.add(id(current))
-        if isinstance(current, WorkerSummarizationRequested):
-            return current
-        current = current.__cause__ or current.__context__
-    return None
-
-
-def _result_finalizer_error(error: BaseException) -> ResultFinalizerFailure | None:
-    """Find a finalizer control failure through ADK callback wrappers."""
-
-    current: BaseException | None = error
-    seen: set[int] = set()
-    while current is not None and id(current) not in seen:
-        seen.add(id(current))
-        if isinstance(current, ResultFinalizerFailure):
+        if isinstance(current, kind):
             return current
         current = current.__cause__ or current.__context__
     return None
@@ -1448,12 +1391,12 @@ def _record_worker_error(
     instrumentation: RuntimeInstrumentation | None,
     error_type: str,
 ) -> None:
-    span = _start_span(
+    span = start_isolated_span(
         instrumentation,
         "contractor.worker.error",
         {"operation.kind": "worker_error", "error.type": error_type},
     )
-    _end_span(span, outcome="failed")
+    end_isolated_span(span, outcome="failed")
 
 
 def _invocation_count_attributes(snapshot: Mapping[str, Any], invocation_id: str) -> dict[str, int]:
@@ -1507,17 +1450,6 @@ async def _await_safely(awaitable: Any) -> Any:
         with contextlib.suppress(Exception, asyncio.CancelledError):
             await task
         return None
-
-
-def _gateway_model_error(error: BaseException) -> GatewayModelError | None:
-    current: BaseException | None = error
-    seen: set[int] = set()
-    while current is not None and id(current) not in seen:
-        seen.add(id(current))
-        if isinstance(current, GatewayModelError):
-            return current
-        current = current.__cause__ or current.__context__
-    return None
 
 
 def _gateway_worker_failure(error: GatewayModelError) -> WorkerFailure:

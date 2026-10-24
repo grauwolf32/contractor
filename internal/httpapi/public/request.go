@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
@@ -56,15 +55,9 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, target any) error {
 // case aliases, duplicate keys, unknown members and trailing data are
 // rejected rather than guessed (API-R71).
 func decodeJSONBounded(w http.ResponseWriter, r *http.Request, target any, maximum int64) error {
-	if maximum <= 0 || r.ContentLength > maximum {
-		return fmt.Errorf("%w: JSON body is too large", errRequestTooLarge)
-	}
-	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maximum))
+	data, err := readJSONBody(w, r, maximum)
 	if err != nil {
-		if exceedsBodyLimit(err) {
-			return fmt.Errorf("%w: JSON body is too large", errRequestTooLarge)
-		}
-		return fmt.Errorf("%w: read JSON body: %v", errInvalidRequest, err)
+		return err
 	}
 	switch err := strictjson.Decode(data, target); {
 	case errors.Is(err, strictjson.ErrTrailingData):
@@ -73,6 +66,26 @@ func decodeJSONBounded(w http.ResponseWriter, r *http.Request, target any, maxim
 		return fmt.Errorf("%w: decode JSON body: %v", errInvalidRequest, err)
 	}
 	return nil
+}
+
+// readJSONBody reads a JSON request body of at most maximum bytes. A larger
+// body is 413 request_too_large, unread when its declared length is already
+// too large (FAIL-API-1). Any other read failure, such as a body that ends
+// before its declared length, is the client's 400 invalid_request, never a
+// retryable internal error (API-R112); the bytes read so far are cleared.
+func readJSONBody(w http.ResponseWriter, r *http.Request, maximum int64) ([]byte, error) {
+	if maximum <= 0 || r.ContentLength > maximum {
+		return nil, fmt.Errorf("%w: JSON body is too large", errRequestTooLarge)
+	}
+	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maximum))
+	if err != nil {
+		clear(data)
+		if exceedsBodyLimit(err) {
+			return nil, fmt.Errorf("%w: JSON body is too large", errRequestTooLarge)
+		}
+		return nil, fmt.Errorf("%w: read JSON body: %v", errInvalidRequest, err)
+	}
+	return data, nil
 }
 
 // exceedsBodyLimit reports a read stopped by http.MaxBytesReader.
@@ -119,6 +132,29 @@ func requestMediaType(r *http.Request) (string, error) {
 	return httpx.RequestMediaType(errInvalidRequest, r)
 }
 
+// requireJSONMediaType is the media-type check of every operation whose
+// request body is JSON: exactly one Content-Type, application/json without
+// parameters. It runs with the query and path checks, before the mutation
+// headers, any store read and the body (API-R112). The caller reports a
+// failure with its operation's media-type answer: 400 invalid_request, the
+// 415 of the Operations settings or the Managed Eval 422 eval_invalid.
+func requireJSONMediaType(r *http.Request) error {
+	if mediaType, err := requestMediaType(r); err != nil || mediaType != "application/json" {
+		return fmt.Errorf("%w: Content-Type must be application/json", errInvalidRequest)
+	}
+	return nil
+}
+
+// requireOptionalJSONMediaType is requireJSONMediaType for an operation whose
+// JSON body is optional: a request whose framing announces no body, with no
+// positive Content-Length and no Transfer-Encoding, needs no Content-Type.
+func requireOptionalJSONMediaType(r *http.Request) error {
+	if r.ContentLength == 0 && len(r.TransferEncoding) == 0 {
+		return nil
+	}
+	return requireJSONMediaType(r)
+}
+
 // readArtifactBody deliberately differs from the private adapter: it keeps
 // the read cause and does not special-case negative lengths.
 func readArtifactBody(r *http.Request, transfer *artifacttransfer.Transfer) ([]byte, error) {
@@ -163,21 +199,31 @@ func artifactWritePrecondition(r *http.Request) (*string, error) {
 	return &revision, nil
 }
 
-// parseRuntimeRevisionETag reads the one strong If-Match of a resource whose
-// revision is a positive decimal counter.
+// parseRuntimeRevisionETag reads the If-Match of a resource whose revision is
+// a positive decimal counter through the one shared reader
+// (httpx.ParseRevisionETag); a malformed value is 400 invalid_request, never
+// a revision conflict (API-R70).
 func parseRuntimeRevisionETag(raw string) (uint64, error) {
-	revision, err := httpx.ParseStrongETag(raw)
+	revision, err := httpx.ParseRevisionETag(raw)
 	switch {
 	case errors.Is(err, httpx.ErrWeakETag):
-		return 0, fmt.Errorf("%w: binding revision requires one strong ETag", errInvalidRequest)
+		return 0, fmt.Errorf("%w: revision precondition requires one strong ETag", errInvalidRequest)
+	case errors.Is(err, httpx.ErrUnquotedETag):
+		return 0, fmt.Errorf("%w: revision precondition must be quoted", errInvalidRequest)
 	case err != nil:
-		return 0, fmt.Errorf("%w: binding revision must be quoted", errInvalidRequest)
+		return 0, fmt.Errorf("%w: revision precondition must be a positive decimal revision", errInvalidRequest)
 	}
-	parsed, err := strconv.ParseUint(revision, 10, 64)
-	if err != nil || parsed == 0 || strconv.FormatUint(parsed, 10) != revision {
-		return 0, fmt.Errorf("%w: binding revision is invalid", errInvalidRequest)
+	return revision, nil
+}
+
+// requiredRevision returns the revision of the one If-Match, without an
+// If-None-Match, that operation requires (API-R70).
+func requiredRevision(r *http.Request, operation string) (uint64, error) {
+	raw, err := httpx.RequiredIfMatch(r.Header)
+	if err != nil {
+		return 0, fmt.Errorf("%w: %s requires one If-Match", errInvalidRequest, operation)
 	}
-	return parsed, nil
+	return parseRuntimeRevisionETag(raw)
 }
 
 func exactQuery(raw string, allowed ...string) (url.Values, error) {

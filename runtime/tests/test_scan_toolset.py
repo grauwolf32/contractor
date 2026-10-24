@@ -1302,7 +1302,12 @@ def test_rulepack_rejects_entire_invalid_pack(tmp_path, case):
         entries.append(("bad.yaml", content + "\nvariables: " + "[" * 65 + "0" + "]" * 65))
     elif case == "tokens":
         entries.append(("bad.yaml", content + "\nvariables: [" + "a," * 60000 + "a]"))
-    payload = rulepack_zip(entries, stored=case == "zip_bytes")
+    if case == "duplicate":
+        # Building this malformed fixture intentionally emits zipfile's warning.
+        with pytest.warns(UserWarning, match="Duplicate name: 'valid.yaml'"):
+            payload = rulepack_zip(entries)
+    else:
+        payload = rulepack_zip(entries, stored=case == "zip_bytes")
     if case == "lying_count":
         payload = bytearray(payload)
         position = payload.rfind(b"PK\x05\x06")

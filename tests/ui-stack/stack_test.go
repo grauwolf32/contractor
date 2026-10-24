@@ -99,6 +99,10 @@ func TestBrowserOperationsStack(t *testing.T) {
 	runBrowserStack(t, "")
 }
 
+func TestBrowserScanWidgetsStack(t *testing.T) {
+	runBrowserStack(t, "widgets")
+}
+
 func TestManagedEvalsNativeStack(t *testing.T) {
 	runBrowserStack(t, "native")
 }
@@ -108,7 +112,8 @@ func TestManagedEvalsExternalStack(t *testing.T) {
 }
 
 func runBrowserStack(t *testing.T, evalMode string) {
-	managedEvals := evalMode != ""
+	managedEvals := evalMode == "native" || evalMode == "external"
+	widgets := evalMode == "widgets"
 	if testing.Short() {
 		t.Skip("browser end-to-end process test")
 	}
@@ -128,8 +133,7 @@ func runBrowserStack(t *testing.T, evalMode string) {
 	defer cancel()
 
 	isolateURL := isolatedDatabase(t, ctx, databaseURL)
-	serverBinary := filepath.Join(temporaryRoot, "contractor-server")
-	runChecked(t, repositoryRoot, inheritedEnvironment(nil), "go", "build", "-o", serverBinary, "./cmd/contractor-server")
+	serverBinary := sharedServerBinary(t)
 	runChecked(t, repositoryRoot, inheritedEnvironment(map[string]string{
 		"CONTRACTOR_DATABASE_URL": isolateURL,
 	}), serverBinary, "migrate")
@@ -229,12 +233,13 @@ func runBrowserStack(t *testing.T, evalMode string) {
 	// Credential file options intentionally have no environment alias in the
 	// production parser; startServerOrFatal passes their explicit flags.
 	serverEnvironment := inheritedEnvironment(serverOverrides)
+	uiDist := buildBrowserUI(t, filepath.Join(repositoryRoot, "ui"), temporaryRoot)
 	uiEnvironment := cleanEnvironment(map[string]string{
 		"NODE_ENV":                   "production",
 		"CONTRACTOR_UI_API_BASE_URL": serverURL,
 		"CONTRACTOR_UI_HOST":         "127.0.0.1",
 		"CONTRACTOR_UI_PORT":         uiPort,
-		"CONTRACTOR_UI_DIST_DIR":     filepath.Join(repositoryRoot, "ui", "dist"),
+		"CONTRACTOR_UI_DIST_DIR":     uiDist,
 	}, "PATH", "LANG", "LC_ALL", "TZ")
 	secrets := []string{publicBearerCanary, modelGatewayCanary, managerAdminCanary, generatedKeyCanary}
 	assertEnvironmentHasNoSecrets(t, uiEnvironment, secrets)
@@ -291,8 +296,6 @@ func runBrowserStack(t *testing.T, evalMode string) {
 	waitForHTTP(t, ctx, runtimeProcess, controlClient, runtimeURL+"/healthz", http.StatusOK, secrets)
 	waitForProcessLog(t, ctx, runtimeProcess, "runtime agent registered", secrets)
 
-	uiBuildEnvironment := cleanEnvironment(nil, "PATH", "HOME", "XDG_CACHE_HOME", "COREPACK_HOME", "TMPDIR", "LANG", "LC_ALL", "TZ")
-	runChecked(t, filepath.Join(repositoryRoot, "ui"), uiBuildEnvironment, "corepack", "pnpm", "build")
 	stack.startUIOrFatal()
 	stack.startControlServer()
 	if managedEvals {
@@ -320,6 +323,9 @@ func runBrowserStack(t *testing.T, evalMode string) {
 		"e2e/run-repeat.spec.ts",
 		"e2e/performance.spec.ts",
 		"e2e/studio-catalog.spec.ts",
+	}
+	if widgets {
+		requiredBrowserSpecs = []string{"e2e/stack.spec.ts"}
 	}
 	browserReport := filepath.Join(temporaryRoot, "browser-report.json")
 	if evidence := os.Getenv("CONTRACTOR_UI_EVIDENCE_DIR"); evidence != "" {
@@ -354,9 +360,21 @@ func runBrowserStack(t *testing.T, evalMode string) {
 	}, "PATH", "HOME", "XDG_CACHE_HOME", "COREPACK_HOME", "TMPDIR", "LANG", "LC_ALL", "TZ")
 	assertEnvironmentHasNoSecrets(t, playwrightEnvironment, secrets)
 	browserArgs := append([]string{"pnpm", "exec", "playwright", "test", "--reporter=line,json"}, requiredBrowserSpecs...)
+	if widgets {
+		browserArgs = append(browserArgs, "--grep", "widget:")
+	} else {
+		browserArgs = append(browserArgs, "--grep-invert", "widget:")
+	}
 	runChecked(t, filepath.Join(repositoryRoot, "ui"), playwrightEnvironment, "corepack", browserArgs...)
 	assertBrowserReport(t, browserReport, requiredBrowserSpecs)
 	t.Logf("Playwright execution report: %s", browserReport)
+	if widgets {
+		calls, completedStages, failures := modelGateway.snapshot()
+		if calls != 0 || completedStages != 0 || len(failures) != 0 {
+			t.Fatalf("model-free widgets called the model: calls=%d completed=%d failures=%v", calls, completedStages, failures)
+		}
+		return
+	}
 	tracePaths := filesNamed(t, playwrightOutput, "trace.zip")
 
 	stack.assertRunOwnerBoundaries(userID)

@@ -165,5 +165,5 @@ WITH member_input AS MATERIALIZED (
       FROM inserted_members AS member
      WHERE item.item_id = member.item_id AND item.state = 'ready'
 )
-SELECT ` + prefixedExecutionColumns("inserted_execution") + `
+SELECT ` + ExecutionColumns("inserted_execution") + `
   FROM inserted_execution`

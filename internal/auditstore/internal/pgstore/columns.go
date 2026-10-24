@@ -23,7 +23,7 @@ var auditColumnList = []string{
 	"created_at", "updated_at", "started_at", "finished_at", "deletion_requested_at", "paused_at", "phase",
 }
 
-// executionColumnList is the scanExecution order.
+// executionColumnList is the ScanExecution order.
 var executionColumnList = []string{
 	"execution_id", "audit_id", "round_id", "role", "workflow_role", "role_attempt",
 	"manifest_ref", "manifest_digest", "submission_key", "request_digest", "run_id",
@@ -88,7 +88,9 @@ func prefixedAuditColumns(prefix string) string {
 	return qualifiedColumns(prefix, auditColumnList)
 }
 
-func prefixedExecutionColumns(prefix string) string {
+// ExecutionColumns selects the execution columns of the table or alias
+// prefix in the order ScanExecution reads them.
+func ExecutionColumns(prefix string) string {
 	return qualifiedColumns(prefix, executionColumnList)
 }
 

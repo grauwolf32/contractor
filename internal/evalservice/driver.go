@@ -3,6 +3,7 @@ package evalservice
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -35,6 +36,9 @@ type Driver struct {
 	Runs     RunCreator
 	Audits   AuditExecutor
 	Notifier RunNotifier
+	// Now stamps a cancellation intent when it is journaled; every replay
+	// uses the journaled time. Nil is the system clock.
+	Now func() time.Time
 }
 
 type executionAdapter interface {
@@ -51,7 +55,11 @@ func (d *Driver) Reconcile(ctx context.Context, e evalstore.Experiment, m evalst
 	if d.Pool == nil || d.Runs == nil || d.Audits == nil {
 		return errors.New("eval execution dependencies are incomplete")
 	}
-	operations := &executionOperations{pool: d.Pool}
+	now := d.Now
+	if now == nil {
+		now = time.Now
+	}
+	operations := &executionOperations{pool: d.Pool, now: now}
 	resources := &memberResources{operations: operations}
 	var adapter executionAdapter
 	switch m.ExecutionKind {
@@ -77,8 +85,9 @@ func (d *memberReconciler) Reconcile(ctx context.Context, e evalstore.Experiment
 	tombstone, tombErr := store.Tombstone(ctx, e.OwnerID, e.ID, m.MemberID)
 	if tombErr == nil {
 		return d.operations.tx(ctx, func(s *evalstore.Store, _ pgx.Tx) error {
+			recovery := s.RecoverMember(scope(e), e.ID, m.MemberID, c)
 			if !tombstone.NeverStarted {
-				if err := s.BindTombstone(ctx, scope(e), e.ID, m.MemberID, c); err != nil {
+				if err := recovery.BindTombstone(ctx); err != nil {
 					return err
 				}
 			}
@@ -94,12 +103,12 @@ func (d *memberReconciler) Reconcile(ctx context.Context, e evalstore.Experiment
 				}
 				if op.State == "intent" {
 					response, _ := jsonBytes(executionDeleted{ID: tombstone.ID, Deleted: true})
-					if err = s.ResolveSuboperation(ctx, scope(e), e.ID, m.MemberID, kind, c, response, tombstone.NeverStarted && kind == "audit-start"); err != nil {
+					if err = recovery.ResolveSuboperation(ctx, kind, response, tombstone.NeverStarted && kind == "audit-start"); err != nil {
 						return err
 					}
 				}
 			}
-			return s.Settle(ctx, scope(e), e.ID, m.MemberID, c)
+			return recovery.Settle(ctx)
 		})
 	}
 	if !notFound(tombErr) {
@@ -113,6 +122,7 @@ func (d *memberReconciler) Reconcile(ctx context.Context, e evalstore.Experiment
 		op, opErr := store.Suboperation(ctx, e.OwnerID, e.ID, m.MemberID, kind)
 		if e.State == evaldomain.StateCancelling && notFound(opErr) {
 			return d.operations.tx(ctx, func(s *evalstore.Store, _ pgx.Tx) error {
+				recovery := s.RecoverMember(scope(e), e.ID, m.MemberID, c)
 				for _, kind := range []string{"inputs", "project-create"} {
 					op, err := s.Suboperation(ctx, e.OwnerID, e.ID, m.MemberID, kind)
 					if notFound(err) {
@@ -122,16 +132,18 @@ func (d *memberReconciler) Reconcile(ctx context.Context, e evalstore.Experiment
 						return err
 					}
 					if op.State == "intent" {
-						if err = s.ResolveSuboperation(ctx, scope(e), e.ID, m.MemberID, kind, c, []byte(`{"reason":"cancelled_before_submission"}`), true); err != nil {
+						if err = recovery.ResolveSuboperation(ctx, kind, []byte(`{"reason":"cancelled_before_submission"}`), true); err != nil {
 							return err
 						}
 					}
 				}
-				return s.Settle(ctx, scope(e), e.ID, m.MemberID, c)
+				return recovery.Settle(ctx)
 			})
 		}
 		if opErr == nil && op.State == "rejected" {
-			return d.operations.tx(ctx, func(s *evalstore.Store, _ pgx.Tx) error { return s.Settle(ctx, scope(e), e.ID, m.MemberID, c) })
+			return d.operations.tx(ctx, func(s *evalstore.Store, _ pgx.Tx) error {
+				return s.RecoverMember(scope(e), e.ID, m.MemberID, c).Settle(ctx)
+			})
 		}
 		if opErr != nil && !notFound(opErr) {
 			return opErr
@@ -157,10 +169,11 @@ func (d *memberReconciler) Reconcile(ctx context.Context, e evalstore.Experiment
 		return err
 	}
 	return d.operations.tx(ctx, func(s *evalstore.Store, _ pgx.Tx) error {
-		if err := s.ObserveTokens(ctx, scope(e), e.ID, m.MemberID, c, tokens); err != nil {
+		recovery := s.RecoverMember(scope(e), e.ID, m.MemberID, c)
+		if err := recovery.ObserveTokens(ctx, tokens); err != nil {
 			return err
 		}
-		err := s.Settle(ctx, scope(e), e.ID, m.MemberID, c)
+		err := recovery.Settle(ctx)
 		if errors.Is(err, evalstore.ErrDrain) {
 			return nil
 		}

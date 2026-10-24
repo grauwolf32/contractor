@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import asyncio
 import re
-import ssl
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -30,7 +29,6 @@ from contractor_runtime.contracts import (
     validate_media_type,
 )
 from contractor_runtime.contracts.base import is_blank, trim_whitespace
-from contractor_runtime.mtls import verify_control_plane_peer
 
 MAX_ARTIFACT_BYTES = 64 * 1024 * 1024
 MAX_ARTIFACT_JSON_BYTES = 1 << 20
@@ -407,12 +405,18 @@ def raise_for_status(response: ArtifactHTTPResponse) -> None:
 
 
 class MTLSArtifactTransport:
-    """Minimal HTTPS/1.1 transport with pre-request Control Plane role check."""
+    """Minimal HTTPS/1.1 transport with pre-request Control Plane role check.
+
+    Requests reuse the process-owned private connections, which verify the
+    Control Plane role on every new connection before its first request byte
+    (CTL-R163). Only a GET is ever sent again, and only when a reused
+    connection returned no response byte; a write is never repeated.
+    """
 
     def __init__(
         self,
         base_url: str,
-        context: ssl.SSLContext,
+        connections: _https.PrivateConnections,
         timeout_seconds: float,
         runtime_instance_id: str,
     ) -> None:
@@ -441,7 +445,7 @@ class MTLSArtifactTransport:
         self._host = parsed.hostname
         self._port = parsed.port or 443
         self._base_path = base_path
-        self._context = context
+        self._connections = connections
         self._timeout = timeout_seconds
         self._runtime_instance_id = runtime_instance_id
 
@@ -462,20 +466,18 @@ class MTLSArtifactTransport:
             request_headers = {
                 "Host": _https.host_header(self._host, self._port),
                 "Content-Length": str(len(body)),
-                "Connection": "close",
                 **headers,
                 "X-Request-ID": _https.new_request_id(),
                 RUNTIME_INSTANCE_HEADER: self._runtime_instance_id,
             }
             request = _https.encode_request(method, self._base_path + path, request_headers, body)
-            response = await _https.exchange(
+            response = await self._connections.exchange(
                 self._host,
                 self._port,
-                self._context,
                 request,
+                idempotent=method == "GET",
                 timeout_seconds=self._timeout,
                 max_response_bytes=max_response_bytes,
-                verify_peer=verify_control_plane_peer,
             )
         except _https.HTTPResponseTooLargeError:
             raise ArtifactResponseLimitError(

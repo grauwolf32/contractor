@@ -13,6 +13,7 @@ UI dependencies. Choose a check by the boundary you changed:
 | Server/Runtime process integration | `make test-e2e` | Test database and locked Runtime environment |
 | Real scanner process and browser integration | `make test-scan-e2e` | Test database, Chromium, and host `nuclei`, `naabu`, `sqlmap`, `ffuf`, `katana` |
 | Separate Node UI with the real Go/Python stack | `make test-ui-stack` | Test database and Chromium with host libraries |
+| Basic scan/sweep widgets through the real API | `make test-web-scan-ui-stack` | Test database and locked Runtime/UI; no Studio or managed Eval scenarios |
 | API-mocked browser journeys | `make ui-browser-mocked` | Node/Corepack and Chromium with host libraries |
 | Native and external managed Evals | `make test-evals`; [evidence and reproduction](evals-release-gate.md) | Disposable test database, locked Runtime/UI and Chromium |
 | Aggregate deterministic release gate used by CI | `make release-verify` | Go, Python/uv, Node/Corepack, Chromium with host libraries and a test database; no advisory service, host scanners or Podman |
@@ -65,7 +66,9 @@ uses `make -k` and uploads its log and available evidence as a
 PR selection always includes lint. Server and Runtime changes add unit,
 integration and focused cross-process capability checks; UI changes add UI
 checks and the affected browser stacks.
-Changes to `tests/e2e` add all three process shards. Edits confined to
+Changes to `tests/e2e` add all three process shards. Changes to the shared
+Server build helper under `tests/internal/serverbuildtest` add unit, all three
+process shards and both browser shards. Edits confined to
 `ui/e2e/stack.spec.ts` run the focused operations stack; other `ui/e2e`
 edits select the operations browser shard (both browser shards for the
 managed-Evals stack). Shared API and configuration changes select Go, UI,
@@ -75,20 +78,20 @@ available through a tag or a manual full-gate run before a PR is merged.
 | Stage | Runs |
 | --- | --- |
 | `release-verify-lint` | `make lint build test-config`: the generated Go public client check, gofmt, vet, staticcheck, the test-only export check (`tools/testonlyexports`, with its vet and tests), the release-graph guard and its tests, the database ERD freshness check, Ruff, the Runtime import-layer contracts, the command builds, the configuration package tests and validation of the shipped catalog (`config validate --root ./configs`) |
-| `release-verify-unit` | `make test`: the hardening matrices, every Go package (PostgreSQL-backed tests included when the test URL is set) and the Runtime suite |
+| `release-verify-unit` | Every Go package (including untagged e2e gate tests), the seven tagged configuration fixtures, and one full Runtime run with `pytest -W error tests`; shared fixture reads and required Audit/findings cases are verified from these reports |
 | `release-verify-ui` | `make ui-verify`: generated-type check, lint, typecheck, unit and server tests, and the production build |
-| `release-verify-families` | The feature families' Runtime, UI and matrix checks, and the Audit completion and findings process gates |
+| `release-verify-families` | The feature families' UI and matrix checks; Go and Runtime execution belongs to the canonical stages |
 | `release-verify-browser-a` | The API-mocked browser journeys, production operations browser stack, and native managed Evals |
 | `release-verify-browser-b` | External managed Evals in the production browser stack |
 | `release-verify-race` | The deduplicated Go race pass over the platform packages named in `make/release.mk` |
 | `release-verify-race-discovered` | The Go race pass over every other package with tests, discovered by [`scripts/release_race_packages.py`](../../scripts/release_race_packages.py), so a new package is raced automatically |
-| `release-verify-integration` | Every PostgreSQL-only integration-tagged Go test under the race detector, a pass without it for packages whose tests relax a budget under the race detector, such as the 10-second finding-collection deadline, and every package whose tests take their Artifact blob backend from `CONTRACTOR_TEST_ARTIFACT_BACKEND`, run whole on the filesystem backend (`make test-artifact-filesystem`) |
-| `release-verify-process-a` | The first shard of the 21 process e2e tests |
-| `release-verify-process-b` | The second shard of the 21 process e2e tests |
-| `release-verify-process-c` | The third shard of the 21 process e2e tests |
+| `release-verify-integration` | Every PostgreSQL-only integration-tagged Go test and the Audit completion selection under the race detector, with its required cases verified from the report, a pass without it for packages whose tests relax a budget under the race detector, such as the 10-second finding-collection deadline, and every package whose tests take their Artifact blob backend from `CONTRACTOR_TEST_ARTIFACT_BACKEND`, run whole on the filesystem backend (`make test-artifact-filesystem`) |
+| `release-verify-process-a` | The first shard of the 25 process e2e tests |
+| `release-verify-process-b` | The second shard of the 25 process e2e tests |
+| `release-verify-process-c` | The third shard of the 25 process e2e tests, including the four findings process tests and their required-case report check |
 
 The process and browser shards run on separate CI runners. `make test-e2e`
-still runs all 21 process tests in one local command, and `make test-ui-stack`
+still runs all 25 process tests in one local command, and `make test-ui-stack`
 still runs the full browser stack locally. The release-graph guard checks that
 each selected process and browser test runs exactly once.
 
@@ -103,14 +106,24 @@ scheduling. Before increasing it, measure peak PostgreSQL connections
 the runner. PostgreSQL advisory locks also require checking their database
 scope; separate schemas alone do not isolate every resource.
 
-Inside the stages, family targets skip their own Go suites and browser stack
+Inside the stages, family targets skip their own Go and Runtime suites and browser stack
 in favor of the race, integration, process and browser passes; running a
 family target directly still runs its focused suites. Every Go package with
 tests runs under the race detector in exactly one of the two race stages, or
 in the integration stage for tagged tests, unless
 [`scripts/release_race_packages.py`](../../scripts/release_race_packages.py)
-lists it as an exception with the reason. Existing family
-integration commands continue to run their focused untagged race checks.
+lists it as an exception with the reason. The graph guard compares every
+direct family Go selection with the canonical stages, using compiled test
+inventories to retain selected names, race coverage and backend modes. It
+rejects Go, pytest and test-script execution anywhere in the consolidated
+family dependency graph, and requires exactly one full Runtime run with
+warnings as errors. The existing Audit, findings and shared-fixture validators
+consume canonical reports in `reports/`; direct family commands retain their
+focused runs. The shared read journal is initialized once before either language writes,
+including when consolidation is inherited from a target rather than an
+environment flag. Report files are replaced on each run; missing, skipped or
+incomplete required evidence fails the gate. Optional skips outside those
+focused scopes retain their existing policy.
 `make lint` checks the stage order, the CI jobs and this table against the
 Makefile, the race coverage of every package with tests, and the release graph
 against the original process-test inventory, and discovers every
@@ -161,6 +174,25 @@ make test-e2e
 The process harness starts the actual Go Server and Python Runtime entry points,
 creates temporary mTLS identities, and uses a deterministic loopback model
 Gateway. It verifies scheduling, artifacts and cleanup without a live model.
+Each browser process stack builds and serves one private temporary UI snapshot.
+A developer build or another gate may replace ui/dist without invalidating a
+running stack. The scanner browser likewise builds privately, or copies an
+explicitly requested prebuilt snapshot before starting Node.
+
+Each process-test package builds the Server lazily once and retains its binary
+until `TestMain` finishes all tests and their cleanup. Test enumeration and
+configuration-only selections do not build it. Separate CI shards have separate
+binaries. The scratch-container opt-in tests reuse their own `CGO_ENABLED=0`
+binary and copy it into each isolated container build context. PKI, databases,
+scenario state and deadlines remain owned by each test. To measure the build
+portion of 25 scenarios with a warm Go build cache, run:
+
+```shell
+go test -run '^$' -bench '^BenchmarkServerBuild' -benchtime=1x -count=3 ./tests/internal/serverbuildtest
+```
+
+This compares repeated builds with one cached executable; it does not measure
+full process-suite or CI wall time.
 
 For a release, use the same environment:
 

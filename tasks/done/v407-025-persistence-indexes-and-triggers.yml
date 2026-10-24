@@ -1,0 +1,183 @@
+schema_version: '1.0'
+id: V407-025
+title: Reduce Project-drain and held-Audit query work and scope Stage triggers
+milestone: server-runtime-review-2026-10
+epic: persistence
+kind: chore
+introduced_by: V365-004
+priority: P2
+status: completed
+depends_on: []
+languages:
+- go
+- sql
+goal: Existing drain, credential-hold and Stage validation semantics use selective queries and column-scoped
+  triggers without unnecessary repeated work.
+context:
+  review: docs/research/2026-10-23-server-runtime-review.md (corrected dispositions, verified on main
+    dc7012e8; recheck source lines before implementation)
+  specification: docs/spec/platform/persistence.md
+  finding: internal/projectlifecycle/controller_sql.go:9-24 filters workflow_runs by project_id alone,
+    while the useful composite index begins with owner_id. pgstore/store.go:42-48 checks held Audit baseline
+    JSON members without a matching GIN expression index. baseline.sql:2166-2170 invokes the Stage lifecycle,
+    manual-continuation and immutability triggers on every UPDATE, including unrelated columns; PER-R22
+    calls for scoped trigger invocation. These query/trigger structures are verified, but no production
+    EXPLAIN or latency result was obtained.
+  siblings: Other project_id-only predicates (grep 'project_id = ' in *_sql.go) and other AFTER UPDATE
+    triggers without UPDATE OF (grep in the baseline).
+  validation: A sequential scan on every poll is not established without representative data and a plan.
+    The lifecycle function already checks OLD.state IS DISTINCT FROM NEW.state at baseline.sql:148-162,
+    so merely asserting no new event on an unrelated UPDATE already passes. This is a behavior-preserving
+    query/trigger optimization, not evidence that unrelated updates currently create bogus lifecycle events.
+plan:
+- Measure query shape with EXPLAIN on a deterministic realistically seeded PostgreSQL fixture, including
+  multiple owners/projects and held/released Audits. Use owner_id predicates from the claim where appropriate;
+  add an index only where the retained query demonstrably needs it.
+- Give held-Audit membership predicates suitable partial expression indexes if the measured plans require
+  them; preserve ordering/limit/owner semantics and document the indexed selectivity.
+- In a new migration scope the three triggers to the exact guarded columns and state changes, retaining
+  INSERT behavior and every immutability/manual-continuation check. Keep old migration files unchanged.
+- 'Test actual trigger invocation or catalog definitions as well as resulting rows: an unrelated update
+  must avoid unnecessary calls; a guarded change must still reject or emit the same event. Do not use
+  a wall-clock threshold or require an index scan for arbitrarily tiny datasets.'
+scope:
+  in:
+  - Query predicates/indexes, a new trigger-scoping migration and real PostgreSQL plan/invocation tests.
+  out:
+  - Changing drain/purge/hold results, dropping guarded checks, or claiming measured production speedups
+    before measurement.
+acceptance_criteria:
+- id: A1
+  text: On the documented realistic fixture, drain and held-Audit queries have selective plans and bounded
+    examined-row work; recorded before/after plans explain the benefit without relying on disabled sequential
+    scans.
+- id: A2
+  text: Catalog/invocation tests show that unrelated updates skip the guarded trigger bodies, and all
+    INSERT/guarded-column/state-transition behaviors remain identical.
+- id: A3
+  text: At least the trigger-scoping regression distinguishes the original schema; query tests record
+    the original plan rather than assuming every original query must be a sequential scan.
+- id: A4
+  text: Owner isolation, active/deleting/terminal cases and held/released credential cases pass against
+    real PostgreSQL; existing FK-probe index guards remain green.
+tests:
+- command: test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1 ./internal/projectlifecycle/...
+    ./internal/auditstore/... ./internal/persistence/...
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make lint
+  covers:
+  - A2
+  - A4
+verification:
+  date: '2026-10-24'
+  environment: >-
+    macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local), the locked Runtime venv and UI
+    dependencies; local PostgreSQL 17.11 database contractor_test_f with
+    per-test schemas and all 33 migrations.
+  commands:
+    - >-
+      CONTRACTOR_TEST_DATABASE_URL=postgres://…/contractor_test_f go test
+      -tags=integration -count=1 ./internal/projectlifecycle/...
+      ./internal/auditstore/... ./internal/persistence/... — projectlifecycle,
+      auditstore/internal/pgstore, persistence/postgres, persistence/explaintest
+      and persistence/statesettest passed; internal/persistence failed only
+      TestSQLAccessFollowsTableOwnership (internal/cli/scan_sweep_remote.go:196
+      reads projects), which fails identically on the unmodified base 3e2904ff
+      in a temporary worktree, so it is pre-existing and unrelated.
+    - >-
+      go test -tags=integration -count=1 ./internal/runstore/...
+      ./internal/archtest/... passed (touched packages; includes
+      TestPostgresStageExecutionUpdatesFireOnlyTheTriggersTheyConcern and the
+      refactored TestPostgresRunEventAppendsFireNoWorkflowRunTrigger).
+    - >-
+      The new tests repeated with -count=3 in four packages at once, twice,
+      passed (TestProjectDrainChecksReadOnlyTheProjectAndUnreleasedAllocations,
+      TestPostgresHeldAuditCredentialChecksReadOnlyMatchingHeldAudits,
+      TestPostgresStageExecutionUpdatesFireOnlyTheTriggersTheyConcern,
+      TestStageExecutionGuardsFireOnTheColumnsTheyCompare,
+      TestWorkflowRunGuardsFireOnTheColumnsTheyCompare).
+    - >-
+      Can-fail checks (A3): without migration 000034,
+      TestPostgresStageExecutionUpdatesFireOnlyTheTriggersTheyConcern fails on
+      every UPDATE step (admission and output publication failure call the
+      immutability, continuation and capture triggers; transitions call the
+      continuation trigger), TestStageExecutionGuardsFireOnTheColumnsTheyCompare
+      finds 0 column-scoped guards, and
+      TestPostgresHeldAuditCredentialChecksReadOnlyMatchingHeldAudits fails
+      at its plan stage after its result checks pass. Explaining the original
+      drain and purge statements in place of the new ones fails every plan
+      bound (112 workflow_runs rows for 30 unreleased allocations, no fewer
+      blocks, whole-index purge walk, generic plans off the owner index).
+    - make docs-dependencies and make docs-erd (schema 000034) regenerated.
+    - >-
+      make lint passed (layers, staticcheck U1000, testonlyexports, SQL
+      placement, task and spec checks).
+    - >-
+      Review follow-up (c9562ebe): RequireColumnScopedGuards now tokenizes
+      the guard function and WHEN condition and requires every NEW/OLD
+      column reference on the UPDATE path to be listed or declared as a
+      qualifier. TestCheckBeforeUpdateTriggerReadsEveryReferenceToNewAndOld
+      (35 fixtures: reversed order, <>, != with casts, = and INTO
+      assignments, quoted identifiers, whole-row use, unreadable text,
+      TG_OP branches) and TestTokenizeSplitsAsPostgreSQLDoes pass; reading
+      the whole body instead of the UPDATE branch and disabling the pair
+      detection each fail four fixtures. Dropping the Skill snapshot
+      qualifier fails TestWorkflowRunGuardsFireOnTheColumnsTheyCompare on
+      NEW.state/OLD.state. Without migration 000034 the held-Audit test now
+      fails on the plan (no index use, 3000 Audits read for 20 matching,
+      generic plans off the indexes). Reran the task command (only the
+      pre-existing TestSQLAccessFollowsTableOwnership fails), go test
+      ./internal/runstore/... ./internal/archtest/... and make lint: passed.
+  evidence:
+    - >-
+      Drain fixture: 6 owners × 5 Projects, 6000 Runs (1 in 50 active outside
+      the drained target), 3 Stages and 1 allocation each, 30 unreleased
+      allocations, 600 Audits; then grown to 9999 Runs. Every table stays
+      within the 30000 rows ANALYZE samples whole, so plans are
+      deterministic. Drain check of the drained Project: 161 blocks (164
+      grown) versus 267 before; the active-Run part reads 0 heap rows through
+      a BitmapAnd of workflow_runs_owner_project_created_idx and the active
+      partial index, where the original filtered 112 active Runs of every
+      owner through workflow_runs_owner_nonterminal_queue_idx. Purge recheck
+      of a Project without Runs: 4 blocks versus 33 (53 grown), the original
+      walking workflow_runs_run_project_key whole. None of the original plans
+      was a sequential scan.
+    - >-
+      Held-Audit fixture: 3000 Audits, 60 held, about 8 KB baselines stored
+      out of line. Present credential: Bitmap Index Scan on the partial GIN
+      index, 20 rows, 104 blocks versus a sequential scan removing 2980 rows
+      in 361 blocks; absent credential 3 blocks versus 361. The generic plan
+      uses the index too.
+    - >-
+      Block counts are shared buffers of one local run, not latencies; no
+      production speedup is claimed.
+  database_tests_configured: true
+notes:
+  - Migration numbers in this record were renumbered (+1) on 2026-10-24 when main's 000033_audit_snapshot_labels was merged into the integration branch.
+  - >-
+    Siblings ruled out: the other project_id-only predicates (audits by
+    audits_project_state_idx and audits_project_deletion_intent_idx,
+    finding_proposal_receipts by finding_proposal_receipts_project_idx) are
+    already served by an index led by project_id; the remaining *_sql.go
+    predicates name the owner or a primary key. The unscoped BEFORE/AFTER
+    UPDATE triggers of stage_allocations, audits, artifact_bindings,
+    audit_executions and workflow_runs belong to V409-006, which can reuse
+    explaintest.Probe and explaintest.RequireColumnScopedGuards; whole-row
+    immutability guards that reject every UPDATE have nothing to skip.
+  - >-
+    Declined: owner_id in the allocation part of the drain check (the
+    planner then underestimated the Project's Runs and started from its
+    Stage history, 436 blocks); a MATERIALIZED fence (hash join over every
+    Stage at 30000 Runs); extended statistics on (project_id, owner_id)
+    (mixed plans); a new partial active-Run index (not shown to be needed).
+  - >-
+    The generic drain and purge plans may scan the fixture's few hundred
+    Audits when VACUUM cannot mark pages all-visible because another
+    session holds an older snapshot (reproduced with a concurrent
+    REPEATABLE READ transaction); the Audit predicate is unchanged by this
+    task, so the test holds the generic plan on the Run tables only.
+implementation_commit: c9562ebeb4628a77dc0b697eccb8a5a2993f1d24

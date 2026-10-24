@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -11,11 +12,15 @@ import pytest
 from test_caido_read_tools import (
     CAIDO_TOKEN,
     FakeArtifactClient,
+    close_tools,
     create_tools,
+    representative_responses,
     request_detail,
 )
+from test_http_toolset import WorkerToolCallbacks
 
 import contractor_runtime.toolsets.caido.tools as caido_module
+from contractor_runtime.adapters.caido_graphql import MAX_CAIDO_RESPONSE_BYTES
 from contractor_runtime.toolsets.caido.tools import (
     CAIDO_OUTPUT_ARTIFACT_PREFIX,
     CAIDO_TOOL_NAMES,
@@ -660,3 +665,456 @@ def test_request_tag_framing_follows_the_first_header_terminator(raw, expected) 
     tagged, (start, end) = caido_module._inject_request_tag(raw, "tag-1")
     assert tagged == expected
     assert tagged[start:end] == b"X-Request-Id: tag-1"
+
+
+EIGHT_MIB = 8 * 1024 * 1024
+GATEWAY_AUTHORIZATION = b"Authorization: Bearer gateway-token\r\n"
+STORED_REQUEST = b"POST /fuzz HTTP/1.1\r\nHost: target.example\r\n\r\nTARGET=value"
+PAYLOAD_PATHS = {
+    # Each path's payload helpers that must run on a worker thread.
+    "request_detail": {"_blob", "message", "_raw_preview"},
+    "replay": {"_inject_request_tag", "_blob", "message", "_raw_preview"},
+    "workflow": {"_blob", "message"},
+    "replay_stored": {"_blob", "_inject_request_tag"},
+    "automate_run": {"_blob", "_inject_request_tag"},
+    "automate_results": {"_blob"},
+}
+
+
+def large_message(head: bytes) -> bytes:
+    """An 8 MiB raw message whose body echoes a long Runtime secret."""
+
+    echo = f"echo {CAIDO_TOKEN}\n".encode()
+    return head + echo + b"x" * (EIGHT_MIB - len(head) - len(echo))
+
+
+def scrubbed(message: bytes) -> bytes:
+    return message.replace(
+        GATEWAY_AUTHORIZATION, b"Authorization: [runtime-credential]\r\n"
+    ).replace(CAIDO_TOKEN.encode(), b"[REDACTED]")
+
+
+class PayloadBarrier:
+    """Hold the first off-loop Caido Blob decode and record where payload helpers run.
+
+    On the event loop thread nothing blocks, so an inline implementation runs to
+    completion and fails the test instead of deadlocking.
+    """
+
+    def __init__(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        self.loop = asyncio.get_running_loop()
+        self.loop_thread = threading.get_ident()
+        self.started = asyncio.Event()
+        self.release = threading.Event()
+        self.finished = threading.Event()
+        self.threads: dict[str, list[int]] = {}
+        self._held = False
+        original_blob = caido_module._blob
+
+        def blob(value: object) -> bytes:
+            self._record("_blob")
+            if threading.get_ident() == self.loop_thread or self._held:
+                return original_blob(value)
+            self._held = True
+            self.loop.call_soon_threadsafe(self.started.set)
+            try:
+                # A guard against a hung test, not a latency assertion.
+                if not self.release.wait(60):
+                    raise RuntimeError("the test did not release payload processing")
+                return original_blob(value)
+            finally:
+                self.finished.set()
+
+        monkeypatch.setattr(caido_module, "_blob", blob)
+        for name in ("_raw_preview", "_inject_request_tag"):
+            monkeypatch.setattr(
+                caido_module, name, self._recorded(name, getattr(caido_module, name))
+            )
+        monkeypatch.setattr(
+            caido_module._CaidoRedaction,
+            "message",
+            self._recorded("message", caido_module._CaidoRedaction.message),
+        )
+
+    def _record(self, name: str) -> None:
+        self.threads.setdefault(name, []).append(threading.get_ident())
+
+    def _recorded(self, name: str, function: Any) -> Any:
+        def recorded(*args: Any, **kwargs: Any) -> Any:
+            self._record(name)
+            return function(*args, **kwargs)
+
+        return recorded
+
+    def assert_off_loop(self, names: set[str]) -> None:
+        for name in names:
+            assert self.threads.get(name), f"{name} was not exercised"
+        for name, idents in self.threads.items():
+            assert self.loop_thread not in idents, f"{name} ran on the event loop"
+
+
+def payload_handler(observed: list[str]) -> tuple[Any, dict[str, bytes]]:
+    """Adapter-valid responses: every JSON body stays below the 16 MiB bound."""
+
+    large_response = large_message(b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n")
+    large_output = large_message(b"converted ")
+    detail_request = b"GET /large HTTP/1.1\r\nHost: target.example\r\n" + GATEWAY_AUTHORIZATION
+    detail_request += b"\r\n"
+    large_response_blob = base64.b64encode(large_response).decode()
+    bodies = {
+        "large_detail": json.dumps(
+            {"data": {"request": request_detail(detail_request, large_response)}}
+        ).encode(),
+        "stored_detail": json.dumps(
+            {"data": {"request": request_detail(STORED_REQUEST, b"HTTP/1.1 200 OK\r\n\r\n")}}
+        ).encode(),
+        "convert": json.dumps(
+            {
+                "data": {
+                    "runConvertWorkflow": {
+                        "output": base64.b64encode(large_output).decode(),
+                        "error": None,
+                    }
+                }
+            }
+        ).encode(),
+    }
+    replay_raw: list[str] = []
+    automate = representative_responses(b"", b"")
+
+    def data_response(request: httpx.Request, data: dict[str, Any]) -> httpx.Response:
+        return httpx.Response(200, json={"data": data}, request=request)
+
+    def body_response(request: httpx.Request, body: bytes) -> httpx.Response:
+        assert len(body) < MAX_CAIDO_RESPONSE_BYTES
+        return httpx.Response(
+            200, content=body, headers={"content-type": "application/json"}, request=request
+        )
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content)
+        operation = payload["operationName"]
+        variables = payload["variables"]
+        observed.append(operation)
+        if operation == "RequestDetail":
+            large = variables["id"] == "large-request"
+            return body_response(request, bodies["large_detail" if large else "stored_detail"])
+        if operation == "RunConvertWorkflow":
+            return body_response(request, bodies["convert"])
+        if operation == "CreateReplaySession":
+            return data_response(
+                request,
+                {
+                    "createReplaySession": {
+                        "session": {
+                            "id": "replay-session",
+                            "name": "replay",
+                            "activeEntry": {"id": "replay-entry"},
+                        }
+                    }
+                },
+            )
+        if operation == "StartReplayTask":
+            replay_raw.append(variables["input"]["raw"])
+            return data_response(
+                request,
+                {
+                    "startReplayTask": {
+                        "error": None,
+                        "task": {"id": "replay-task", "replayEntry": {"id": "replay-entry"}},
+                    }
+                },
+            )
+        if operation == "ReplayEntry":
+            entry = {
+                "id": "replay-entry",
+                "raw": replay_raw[-1],
+                "error": None,
+                "request": {
+                    "id": "replayed-request",
+                    "method": "GET",
+                    "host": "target.example",
+                    "path": "/probe",
+                    "query": "",
+                    "response": {
+                        "statusCode": 200,
+                        "length": len(large_response),
+                        "roundtripTime": 7,
+                        "raw": large_response_blob,
+                    },
+                },
+            }
+            return body_response(request, json.dumps({"data": {"replayEntry": entry}}).encode())
+        if operation == "CreateAutomateSession":
+            return data_response(
+                request,
+                {
+                    "createAutomateSession": {
+                        "session": {
+                            "id": "automate",
+                            "name": "scan",
+                            "settings": {"strategy": "ALL"},
+                        }
+                    }
+                },
+            )
+        if operation == "UpdateAutomateSession":
+            settings = variables["input"]["settings"]
+            return data_response(
+                request,
+                {
+                    "updateAutomateSession": {
+                        "error": None,
+                        "session": {
+                            "id": "automate",
+                            "name": "scan",
+                            "settings": {
+                                "placeholders": settings["placeholders"],
+                                "strategy": settings["strategy"],
+                            },
+                        },
+                    }
+                },
+            )
+        if operation == "StartAutomateTask":
+            return data_response(
+                request,
+                {
+                    "startAutomateTask": {
+                        "automateTask": {
+                            "id": "automate-task",
+                            "paused": False,
+                            "entry": {"id": "automate-entry", "name": "scan"},
+                        }
+                    }
+                },
+            )
+        if operation in {"AutomateSession", "AutomateEntryRequests"}:
+            return data_response(request, automate[operation])
+        raise AssertionError(f"unexpected operation {operation}")
+
+    return handler, {"response": large_response, "output": large_output, "request": detail_request}
+
+
+def payload_call(path: str, tools: dict[str, Any]) -> Any:
+    if path == "request_detail":
+        return tools["caido_request_detail"]("large-request")
+    if path == "replay":
+        return tools["caido_replay"](
+            raw_request=(
+                b"GET /probe HTTP/1.1\r\nHost: target.example\r\n" + GATEWAY_AUTHORIZATION + b"\r\n"
+            ).decode(),
+            host="target.example",
+        )
+    if path == "workflow":
+        return tools["caido_workflow_run"]("workflow-convert", input="convert this")
+    if path == "replay_stored":
+        return tools["caido_replay"](request_id="request-1", wait=False)
+    if path == "automate_run":
+        return tools["caido_automate_run"]("request-1", targets=["TARGET"], payloads=["one"])
+    return tools["caido_automate_results"]("session-1")
+
+
+async def assert_payload_result(
+    path: str,
+    result: dict[str, Any],
+    state: Any,
+    artifacts: FakeArtifactClient,
+    payloads: dict[str, bytes],
+) -> None:
+    if path == "request_detail":
+        response = scrubbed(payloads["response"])
+        assert result["response"]["raw"]["size"] == len(response) > EIGHT_MIB - 64
+        assert result["response"]["raw"]["truncated"] is True
+        assert "echo [REDACTED]" in result["response"]["raw"]["data"]
+        assert "Authorization: [runtime-credential]" in result["raw"]["data"]
+        capture = (await state.http_captures.get("caido", "request-1"))["attempts"][0]
+        message = capture["response"]["message"]["data_base64"]
+        assert base64.b64decode(message) == response
+        assert base64.b64decode(capture["request"]["message"]["data_base64"]) == scrubbed(
+            payloads["request"]
+        )
+    elif path == "replay":
+        response = scrubbed(payloads["response"])
+        assert result["status"] == "completed"
+        assert result["response_raw"]["size"] == len(response)
+        assert "Authorization: [runtime-credential]" in result["raw"]["data"]
+        capture = (await state.http_captures.get("caido", "replayed-request"))["attempts"][0]
+        assert base64.b64decode(capture["response"]["message"]["data_base64"]) == response
+    elif path == "workflow":
+        output = scrubbed(payloads["output"])
+        assert result["output_truncated"] is True
+        assert result["output_size"] == len(output)
+        assert result["output"].startswith("converted echo [REDACTED]")
+        assert list(artifacts.payloads.values()) == [output]
+    elif path == "automate_results":
+        assert result["results"][0]["payloads"] == ["probe"]
+    else:
+        assert result["status"] == "started"
+    rendered = json.dumps(result)
+    assert CAIDO_TOKEN not in rendered
+    assert "gateway-token" not in rendered
+
+
+@pytest.mark.parametrize("path", sorted(PAYLOAD_PATHS))
+@pytest.mark.parametrize("stop", ["complete", "cancel"])
+def test_caido_payload_processing_runs_off_loop_and_joins_before_release(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, path: str, stop: str
+) -> None:
+    async def scenario() -> None:
+        observed: list[str] = []
+        handler, payloads = payload_handler(observed)
+        artifacts = FakeArtifactClient()
+        tools, state, handle = await create_tools(
+            tmp_path, handler, artifacts, selected=CAIDO_TOOL_NAMES
+        )
+        session = tools["caido_replay"]._session
+        puts: list[str] = []
+        original_put = session._captures.put
+
+        async def recording_put(capture: dict[str, Any], invocation_id: str | None) -> None:
+            puts.append(capture["request_id"])
+            await original_put(capture, invocation_id)
+
+        monkeypatch.setattr(session._captures, "put", recording_put)
+        barrier = PayloadBarrier(monkeypatch)
+        task = asyncio.create_task(payload_call(path, tools))
+        waiter = asyncio.create_task(barrier.started.wait())
+        try:
+            done, _ = await asyncio.wait(
+                {task, waiter}, timeout=60, return_when=asyncio.FIRST_COMPLETED
+            )
+            assert waiter in done, "payload processing did not leave the event loop"
+            assert not task.done()
+            operations = list(observed)
+            if stop == "complete":
+                # The loop keeps serving other work while the payload thread is held.
+                progressed = await asyncio.create_task(asyncio.sleep(0, result="progress"))
+                assert progressed == "progress"
+                assert not barrier.finished.is_set()
+                assert not task.done()
+                barrier.release.set()
+                result = await task
+                assert barrier.finished.is_set()
+                await assert_payload_result(path, result, state, artifacts, payloads)
+            else:
+                task.cancel()
+                close = asyncio.create_task(tools["caido_replay"].close())
+                for _ in range(3):
+                    await asyncio.sleep(0)
+                # Cancellation and release both wait for the joined thread.
+                assert not task.done()
+                assert not close.done()
+                assert session._lock.locked()
+                barrier.release.set()
+                with pytest.raises(asyncio.CancelledError):
+                    await task
+                await close
+                assert barrier.finished.is_set()
+                # Nothing after the held work ran: no capture, no further request.
+                assert puts == []
+                assert observed == operations
+            # A cancelled call stops after the held step; everything that ran ran off loop.
+            barrier.assert_off_loop(PAYLOAD_PATHS[path] if stop == "complete" else {"_blob"})
+        finally:
+            barrier.release.set()
+            waiter.cancel()
+            await close_tools(tools)
+            await handle.close()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("tool_name", ["caido_history", "caido_replay"])
+def test_unexpected_caido_failure_reaches_tool_error_callback_unclassified(
+    tmp_path: Path, tool_name: str
+) -> None:
+    detail = "recognizable-injected-detail"
+    failures = [
+        TypeError(f"implementation failure {detail}"),
+        "connect",
+    ]
+    operations: list[str] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        operation = json.loads(request.content)["operationName"]
+        operations.append(operation)
+        if failures:
+            failure = failures.pop(0)
+            if failure == "connect":
+                raise httpx.ConnectError(f"refused {detail}", request=request)
+            raise failure
+        if operation == "RequestsByOffset":
+            data = {"requestsByOffset": {"count": {"value": 0}, "nodes": []}}
+        elif operation == "CreateReplaySession":
+            data = {
+                "createReplaySession": {
+                    "session": {"id": "session", "name": "replay", "activeEntry": None}
+                }
+            }
+        else:
+            data = {
+                "startReplayTask": {
+                    "error": None,
+                    "task": {"id": "task", "replayEntry": None},
+                }
+            }
+        return httpx.Response(200, json={"data": data}, request=request)
+
+    async def scenario() -> None:
+        tools, state, handle = await create_tools(
+            tmp_path, handler, FakeArtifactClient(), selected={tool_name}
+        )
+        tool = tools[tool_name]
+        callbacks = await WorkerToolCallbacks.start(state)
+        arguments = (
+            {}
+            if tool_name == "caido_history"
+            else {
+                "raw_request": "GET / HTTP/1.1\r\nHost: target.example\r\n\r\n",
+                "host": "target.example",
+                "wait": False,
+            }
+        )
+        response, raised = await callbacks.call(tool, **arguments)
+        assert type(raised) is TypeError
+        assert response == {
+            "ok": False,
+            "error": {
+                "code": "tool_call_failed",
+                "message": f"{tool_name} failed (TypeError)",
+                "retryable": False,
+            },
+        }
+        response, raised = await callbacks.call(tool, **arguments)
+        assert isinstance(raised, CaidoToolError)
+        # A read stays retryable; a mutation keeps its unknown outcome and is
+        # never retried, by the tool or by the model's retry signal.
+        assert response == {
+            "ok": False,
+            "error": {
+                "code": "caido_request_failed",
+                "message": f"{tool_name} failed (CaidoToolError)",
+                "retryable": tool_name == "caido_history",
+            },
+        }
+        result, raised = await callbacks.call(tool, **arguments)
+        assert raised is None
+        if tool_name == "caido_replay":
+            # Neither failure was replayed, and their request tags are not reused.
+            assert operations == [
+                "CreateReplaySession",
+                "CreateReplaySession",
+                "CreateReplaySession",
+                "StartReplayTask",
+            ]
+            assert result["request_tag"].endswith("-c000003")
+        else:
+            assert operations == ["RequestsByOffset"] * 3
+        retained = f"{state.metrics!r} {handle!r}"
+        assert detail not in retained
+        assert CAIDO_TOKEN not in retained
+        await close_tools(tools)
+        await handle.close()
+
+    asyncio.run(scenario())

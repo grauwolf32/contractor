@@ -31,8 +31,7 @@ func TestPodmanSandboxAcrossProductionProcesses(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
 	defer cancel()
 	database := isolatedDatabase(t, ctx, databaseURL)
-	binary := filepath.Join(temporary, "contractor-server")
-	runChecked(t, root, nil, "go", "build", "-o", binary, "./cmd/contractor-server")
+	binary := sharedServerBinary(t)
 	runChecked(t, root, map[string]string{"CONTRACTOR_DATABASE_URL": database}, binary, "migrate")
 	generator := localpki.Generator{}
 	pkiRoot := filepath.Join(temporary, "pki")

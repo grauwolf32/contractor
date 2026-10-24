@@ -2,7 +2,6 @@ package runtimeconfig
 
 import (
 	"context"
-	"errors"
 	"slices"
 	"sort"
 
@@ -66,35 +65,56 @@ func LockAgentLabels(ctx context.Context, db persistencepostgres.DBTX, labels []
 	if err != nil {
 		return err
 	}
-	return validateAgentLayer(ctx, repository, bindings)
+	versions, err := repository.versionsOfBindings(ctx, bindings)
+	if err != nil {
+		return err
+	}
+	return validateAgentLayer(bindings, versions)
 }
 
 // ValidateLockedAgentLabels applies the LockAgentLabels rules to bindings the
 // caller has already locked; a missing binding is ErrUnknownLabel.
 func ValidateLockedAgentLabels(ctx context.Context, db persistencepostgres.DBTX, labels []string) error {
-	repository := NewRepository(db)
-	bindings := make([]Binding, 0, len(labels))
-	for _, label := range labels {
-		binding, err := repository.GetBinding(ctx, label)
-		if err != nil {
-			if errors.Is(err, ErrNotFound) {
-				return ErrUnknownLabel
-			}
-			return err
-		}
-		bindings = append(bindings, binding)
-	}
-	return validateAgentLayer(ctx, repository, bindings)
+	return validateLockedAgentLabelSets(ctx, db, [][]string{labels})
 }
 
-func validateAgentLayer(ctx context.Context, repository *Repository, bindings []Binding) error {
-	entries := make([]LayerEntry, 0, len(bindings))
+// validateLockedAgentLabelSets applies ValidateLockedAgentLabels to each label
+// set in order and reports the first set that fails. It reads the bindings of
+// every label the sets name with one statement and their versions with
+// another, however many sets and labels there are.
+func validateLockedAgentLabelSets(ctx context.Context, db persistencepostgres.DBTX, sets [][]string) error {
+	repository := NewRepository(db)
+	bindings, err := repository.GetBindingsByLabels(ctx, sortedUnion(sets...))
+	if err != nil {
+		return err
+	}
+	all := make([]Binding, 0, len(bindings))
 	for _, binding := range bindings {
-		version, err := repository.GetVersionByRef(ctx, binding.Ref)
-		if err != nil {
+		all = append(all, binding)
+	}
+	versions, err := repository.versionsOfBindings(ctx, all)
+	if err != nil {
+		return err
+	}
+	for _, labels := range sets {
+		selected := make([]Binding, len(labels))
+		for index, label := range labels {
+			selected[index] = bindings[label]
+		}
+		if err := validateAgentLayer(selected, versions); err != nil {
 			return err
 		}
-		worker := version.Spec.Worker
+	}
+	return nil
+}
+
+// validateAgentLayer requires every binding's version, read by
+// versionsOfBindings, to carry a Worker setting and the bindings to merge in
+// one layer.
+func validateAgentLayer(bindings []Binding, versions map[Ref]Version) error {
+	entries := make([]LayerEntry, 0, len(bindings))
+	for _, binding := range bindings {
+		worker := versions[binding.Ref].Spec.Worker
 		if !worker.LLMGateway.Present && !worker.Telemetry.Present && !worker.HTTPProxy.Present && !worker.Caido.Present && !worker.Interactsh.Present {
 			return ErrAgentLabelNotApplicable
 		}

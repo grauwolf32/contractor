@@ -115,13 +115,12 @@ class LocalWorkspaceProvider:
         path = self._root / f"{LOCAL_DIRECTORY_PREFIX}{owner_token}"
         if path.parent != self._root:
             raise RuntimeError("generated project workspace escaped its root")
-        path.mkdir(mode=0o700)
         try:
-            marker = path / LOCAL_OWNER_MARKER
-            marker.write_text(_marker_contents(path.name), encoding="ascii", newline="\n")
-            marker.chmod(0o600)
-        except BaseException:
-            await asyncio.to_thread(shutil.rmtree, path, ignore_errors=True)
+            await to_thread_until_done(_create_owned_local_workspace, path, name="workspace-create")
+        except asyncio.CancelledError:
+            # The thread has returned, and nobody owns what it created yet. The
+            # fresh name cannot belong to anything else below this root.
+            await to_thread_until_done(_discard_new_local_workspace, path, name="workspace-create")
             raise
         return ProjectWorkspaceStorage(
             storage="local",
@@ -231,6 +230,23 @@ def cleanup_stale_local_workspaces(root: Path) -> None:
                 logger.warning("stale project workspace cleanup failed (%s)", type(error).__name__)
     if retained:
         logger.warning("retained %d stale project workspaces for a later start", retained)
+
+
+def _create_owned_local_workspace(path: Path) -> None:
+    path.mkdir(mode=0o700)
+    try:
+        marker = path / LOCAL_OWNER_MARKER
+        marker.write_text(_marker_contents(path.name), encoding="ascii", newline="\n")
+        marker.chmod(0o600)
+    except BaseException:
+        _discard_new_local_workspace(path)
+        raise
+
+
+def _discard_new_local_workspace(path: Path) -> None:
+    # Best effort, as before: a directory left with its marker is removed by
+    # the next start's stale-workspace cleanup.
+    shutil.rmtree(path, ignore_errors=True)
 
 
 def _initialize_and_cleanup_local_root(root: Path) -> None:

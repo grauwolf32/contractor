@@ -22,7 +22,10 @@ from contractor_runtime.toolsets.common.finding_locations import (
     normalize_locations,
 )
 from contractor_runtime.toolsets.common.http_capture import RecentHTTPCaptures
-from contractor_runtime.toolsets.security_findings.anchors import prepare_anchors
+from contractor_runtime.toolsets.security_findings.anchors import (
+    ExactSourceCache,
+    prepare_anchors,
+)
 from contractor_runtime.toolsets.security_findings.submission import build_submission
 
 
@@ -49,6 +52,8 @@ class FindingPublisher:
         self.secrets = secrets
         self.state = state
         self.artifacts = artifacts
+        # The publisher lives as long as the allocation's tools.
+        self.sources = ExactSourceCache()
 
     async def submit(
         self,
@@ -108,7 +113,9 @@ class FindingPublisher:
             for reference in proposal["standard_refs"]:
                 check_cwe_reference(reference)
             if self.artifacts is not None:
-                request["derived_anchors"] = await prepare_anchors(self.artifacts, request)
+                request["derived_anchors"] = await prepare_anchors(
+                    self.artifacts, request, self.sources
+                )
             receipt = await self.client.submit(request)
             if audit_collector is not None:
                 await audit_collector.register_proposal(
@@ -156,6 +163,7 @@ class FindingPublisher:
 
     def close(self) -> None:
         self.secrets = ()
+        self.sources.close()
 
 
 def _bounded_finding_error(error: Exception) -> Exception:

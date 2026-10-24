@@ -621,6 +621,18 @@ Server-reported labels in Audit details. Run forms use their existing metadata
 label editor and repeat copies those labels. RuntimeConfig controls remain
 separate and are titled Runtime configuration.
 
+
+Checks exposes a basic web scan launcher at `/checks/web/new`,
+with optional `project` context. It selects an ordinary Project or standalone
+execution, submits the reviewed target URL explicitly, and offers rule IDs,
+tags, severity and an optional request rate without coercing supplied strings.
+Rulepacks are selected or uploaded in the owner's library and submitted as exact
+refs even for Project Runs. Pickers page through the Server inventory, retain
+selected exact refs across refreshes, and show read/write errors. A pending
+submission disables editing; an unchanged retry reuses its request key. Success
+opens the existing Run detail and result lifecycle. This basic launcher does
+not require the configuration editor.
+
 **UI-R95.** The Run-create UI presents Runtime labels separately, as
 infrastructure configuration.
 
@@ -1237,3 +1249,33 @@ authoritative REST snapshot (UI-R29). Shared rules are in
   query contract.
 - Audit WebSocket subscriptions, their authorization, cursor and sequence
   replay, and resync are deferred as one complete later transport feature.
+
+**UI-R204.** Workflow-specific controls live in bundled widgets, selected by
+an explicit registry and checked against the exact published Workflow version,
+required parameters and input source/media contracts. A widget owns domain
+field labels and controls. Shared hosts own Project and material pickers,
+authenticated API writes, request keys, navigation and execution lifecycle.
+An incompatible contract cannot launch through the widget; the generic
+Workflow form remains available. A widget may be reused by single-Run and
+sweep launchers. No dynamic plugin loader or Studio editing is required.
+
+**UI-R205.** Basic rule sweeps at `/checks/sweeps` share the registered scan
+widget with single-Run launch. Creation selects explicit paged Projects or all
+owner Projects, captures targets on the Server and pins exact library inputs;
+unchanged retries keep one creation key. The view pages parents and members,
+polls only the selected active parent and visible member page with read-error
+backoff, refreshes members once on settlement and links ordinary Runs/results.
+It reports actual Server admission and Run states, without interpreting a
+completed sweep as clean coverage. Cancellation retains Server state; terminal
+purge requires confirmation and preserves child Runs/reports and owner inputs.
+Reads reuse the response ceiling LIM-SCN-79 and no page fetches the full sweep.
+
+**UI-R206.** Specialized scanner result and Audit input views are bundled
+widgets too. Result dispatch uses the report's tool and supported schema,
+independently of its originating Workflow; shared error outcomes remain one
+definition. ffuf completeness and Katana discovery presentation belong to their
+registered adapters. Audit Nuclei/SQLMap widgets own prepared-target labels and
+coverage kind identity; hosts retain authorized evidence links and receipts.
+Unknown reports keep raw preview; unsupported scanner input views remain
+explicit and preserve evidence access. Generic lifecycle and format-based
+OpenAPI/LikeC4 previews remain shared.

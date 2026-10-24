@@ -236,10 +236,11 @@ the retryability of the codes not classified here, are owned by
 
 **ERR-R13.** Stable HTTP and Caido tool errors include:
 
-- `http_request_invalid`, `http_target_denied`, `http_request_failed`,
+- `http_request_invalid`, `http_target_denied`,
   `http_response_invalid`, `http_response_too_large`, `http_body_not_found`,
   `http_cookie_state_invalid`, `http_cookie_state_conflict`, `http_cookie_write_denied`
-  (non-retryable) and `http_cookie_storage_unavailable` (retryable);
+  (non-retryable), `http_request_failed` and `http_cookie_storage_unavailable`
+  (retryable);
 - `caido_not_configured`, `caido_request_invalid`, `caido_request_failed`,
   `caido_response_invalid`, `caido_response_too_large`.
 
@@ -358,7 +359,7 @@ The codes of the public API's HTTP error envelope and WebSocket error frames
 | `eval_precondition_required` | 428 | no | A revision-guarded Eval mutation was sent without its If-Match revision. Retryable false: the recovery action in the details says what to do. | [EVM-R35](../evals/managed-evals.md) |
 | `eval_preparation_unavailable` | 503 | no | An unknown infrastructure failure during Prepare: the experiment reports it as its diagnostic with recovery wait while the coordinator retries Prepare by itself. Retryable false: the recovery action in the details says what to do. | [EVM-R90](../evals/managed-evals.md) |
 | `eval_producer_stale` | 409 | no | An external producer's observation is too old for the request. Retryable false: the recovery action in the details says what to do. | [EVM-R227](../evals/managed-evals.md) |
-| `eval_project_deleting` | 409 | no | The evaluation Project is being deleted, so the request is refused (recovery wait); an external producer returning after the deletion fence cannot recreate deleted attempts. Retryable false: the recovery action in the details says what to do. | [EVM-R227](../evals/managed-evals.md), [DEL-R43](../artifacts/retention-and-deletion.md) |
+| `eval_project_deleting` | 409 | no | The evaluation Project or experiment is being deleted, so the request is refused (recovery wait); a member-level read of an experiment whose purge is in progress is refused instead of answered in part, and an external producer returning after the deletion fence cannot recreate deleted attempts. Retryable false: the recovery action in the details says what to do. | [EVM-R227](../evals/managed-evals.md), [EVM-R244](../evals/managed-evals.md), [DEL-R43](../artifacts/retention-and-deletion.md) |
 | `eval_revision_mismatch` | 412 | no | The If-Match revision is not the current experiment revision. Retryable false: the recovery action in the details says what to do. | [EVM-R36](../evals/managed-evals.md) |
 | `eval_view_changed` | 409 | no | The view snapshot bound to a page or chart request changed; the client keeps its filters and restarts pagination. Retryable false: the recovery action in the details says what to do. | [EVM-R215](../evals/managed-evals.md) |
 | `finding_correlation_item_too_large` | 422 | no | One mandatory comparison item cannot fit the bounded page representation; no observation is silently omitted. | [FND-R179](../findings/findings.md) |
@@ -470,7 +471,7 @@ Assembled from every document.
 | `http_cookie_state_conflict` | — | no | Different current cookie revision; explicit session inspection resolves it without repeating HTTP | [ERR-R13](errors.md), [HTP-R130](../tools/http-caido.md) |
 | `http_cookie_write_denied` | — | no | Permanent Artifact rejection, including fenced allocation or revision budget | [ERR-R13](errors.md), [HTP-R131](../tools/http-caido.md) |
 | `http_cookie_storage_unavailable` | — | yes | Cookie storage timeout or unconfirmed transient operation; retry storage through session inspection | [ERR-R13](errors.md), [HTP-R131](../tools/http-caido.md) |
-| `http_request_failed` | — | yes | HTTP tool request failed: expiry of the call deadline (HTP-R30), or a transient Artifact API or transport failure in `http_read_body`, after which the same request ID can be read again (HTP-R69) | [ERR-R13](errors.md), [HTP-R30](../tools/http-caido.md) |
+| `http_request_failed` | — | yes | HTTP tool request failed: a transport failure of the target exchange (an httpx error or OSError, including a TLS record failure) or a `tool-http` route failure, after the bounded retries of an idempotent send (FAIL-HTP-1, HTP-R55, HTP-R133); more redirects than LIM-HTP-7 allows; or expiry of the call deadline (HTP-R30) | [ERR-R13](errors.md), [HTP-R30](../tools/http-caido.md), [HTP-R133](../tools/http-caido.md) |
 | `http_request_invalid` | — | no | Invalid HTTP tool request, rejected as invalid input before it is sent (SEC-R67, HTP-R25) | [ERR-R13](errors.md), [HTP-R25](../tools/http-caido.md) |
 | `http_response_invalid` | — | not specified | Invalid HTTP response | [ERR-R13](errors.md), [HTP-R58](../tools/http-caido.md) |
 | `http_response_too_large` | — | not specified | HTTP response too large | [ERR-R13](errors.md), [HTP-R122](../tools/http-caido.md) |

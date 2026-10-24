@@ -1022,6 +1022,7 @@ This whole document is the shared observability model.
 | Podman sandbox metrics and metadata-only instrumentation of execution-enabled Workers | [Code execution](../tools/code-execution.md) |
 | Performance collection, `RuntimeReport.resources`, Server and database performance history, HTTP listener dimensions; performance telemetry never affects placement, outcomes, leases, fencing or release | [OPS-R69](../operations/operations.md), [OPS-R70](../operations/operations.md), [OPS-R99](../operations/operations.md), [OPS-R100](../operations/operations.md) |
 | Closing allocation adapters after the flush and keeping them closed at release | [RTA-R58](../execution/runtime-agent.md) |
+| Eval purge progress records: pass count, rows, bytes and age of each experiment and Project purge | [EVM-R243](../evals/managed-evals.md) |
 
 ## Invariants
 

@@ -48,7 +48,8 @@ build:
 	go build ./cmd/...
 	cd runtime && uv run python -m compileall -q src
 
-verify: lint test build ui-verify test-config
+verify: RELEASE_CONSOLIDATED := 1
+verify: lint test test-release-config-fixtures test-release-shared-fixtures build ui-verify test-config
 
 # release-verify runs verify first and then the heavier stages; its stages
 # and their order are defined in make/release.mk.

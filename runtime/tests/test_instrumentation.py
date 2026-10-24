@@ -10,7 +10,12 @@ import pytest
 
 from contractor_runtime.adapters import RuntimeSpan, TelemetryAttribute
 from contractor_runtime.core.tool_metrics import RecordedToolCall
-from contractor_runtime.worker.instrumentation import WorkerInstrumentationPlugin
+from contractor_runtime.telemetry.invocations import InvocationMetricsReducer
+from contractor_runtime.telemetry.metrics import MetricsState
+from contractor_runtime.worker.instrumentation import (
+    WorkerInstrumentationPlugin,
+    span_error_type,
+)
 from contractor_runtime.worker.state import WorkerStateStore
 
 SECRET = "instrumentation-secret-canary"
@@ -499,3 +504,51 @@ def test_plugin_retains_only_latest_sequential_invocation() -> None:
         assert await state.encoded_snapshot_size() <= 4 * 1024 * 1024
 
     asyncio.run(scenario())
+
+
+class ProviderTyped(RuntimeError):
+    def __init__(self, provider_error_type: object) -> None:
+        super().__init__(f"provider failure {SECRET}")
+        self.provider_error_type = provider_error_type
+
+
+@pytest.mark.parametrize(
+    ("error", "expected"),
+    [
+        (ProviderTyped("RateLimitError"), "RateLimitError"),
+        (ProviderTyped("a" * 128), "a" * 128),
+        (ProviderTyped("a" * 129), "ProviderTyped"),
+        (ProviderTyped(f"provider said {SECRET}"), "ProviderTyped"),
+        (ProviderTyped(".leading-dot"), "ProviderTyped"),
+        (ProviderTyped(429), "ProviderTyped"),
+        (TimeoutError(SECRET), "TimeoutError"),
+    ],
+    ids=["safe", "longest", "too-long", "text", "leading-dot", "not-text", "no-provider-type"],
+)
+def test_span_error_type_admits_only_safe_provider_identifiers(
+    error: Exception, expected: str
+) -> None:
+    assert span_error_type(error) == expected
+
+
+@pytest.mark.parametrize(
+    ("name", "identifier"),
+    [
+        ("read_source_file", "read_source_file"),
+        ("Read-File.v2", "read_file_v2"),
+        ("  __Mixed Case__  ", "mixed_case"),
+        ("x" * 80, "x" * 64),
+        ("!!!", "unknown"),
+    ],
+)
+def test_invocation_and_allocation_metrics_key_a_tool_by_one_identifier(
+    name: str, identifier: str
+) -> None:
+    invocation = InvocationMetricsReducer()
+    invocation.record_tool_call(name, failed=False)
+    allocation = MetricsState()
+    allocation.record_tool_call(name, arguments={})
+    report = allocation.build_report(report_id="worker-identifiers", duration_ms=1)
+
+    assert list(invocation.snapshot()["tools"]) == [identifier]
+    assert list(report.metrics.tools) == [identifier]

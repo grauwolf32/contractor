@@ -108,6 +108,15 @@ func PinRunSnapshot(
 	for _, binding := range bindings {
 		byLabel[binding.Label] = binding
 	}
+	// One statement reads every pinned version, however many labels the Run
+	// selects; versions are immutable, so the locked bindings fix them.
+	versions, err := repository.versionsOfBindings(ctx, bindings)
+	if errors.Is(err, ErrNotFound) {
+		return RunSnapshot{}, ErrUnknownLabel
+	}
+	if err != nil {
+		return RunSnapshot{}, err
+	}
 	result := RunSnapshot{Labels: make([]PinnedLabel, 0, len(labels))}
 	explicitEntries := make([]LayerEntry, 0, len(labels))
 	llmIDs := make(map[string]struct{})
@@ -118,13 +127,7 @@ func PinRunSnapshot(
 		if !ok {
 			return RunSnapshot{}, ErrUnknownLabel
 		}
-		version, getErr := repository.GetVersionByRef(ctx, binding.Ref)
-		if errors.Is(getErr, ErrNotFound) {
-			return RunSnapshot{}, ErrUnknownLabel
-		}
-		if getErr != nil {
-			return RunSnapshot{}, getErr
-		}
+		version := versions[binding.Ref]
 		if len(modelFree) == 1 && modelFree[0] {
 			version.Spec = WithoutWorkerModel(PinnedRuntimeConfig{Spec: version.Spec}).Spec
 		}

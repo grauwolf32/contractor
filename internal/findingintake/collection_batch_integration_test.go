@@ -258,7 +258,7 @@ SELECT COALESCE(sum(jsonb_array_length(evidence)), 0)::integer
 		retainedEvidence != proposals*evidencePerProposal {
 		t.Fatalf("retained evidence = %d, %v; want %d", retainedEvidence, err, proposals*evidencePerProposal)
 	}
-	if transactions.committed < proposals*(1+evidencePerProposal)/maxCollectionTransactionWork {
+	if transactions.committed < proposals*(1+evidencePerProposal)/auditdomain.MaximumCollectionTransactionWork {
 		t.Fatalf("page committed in %d transaction(s)", transactions.committed)
 	}
 	transactions.assertBounded(t)
@@ -388,7 +388,7 @@ func (c *collectionTransactionTracer) assertBounded(t *testing.T) {
 	t.Helper()
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.committed == 0 || c.maxImports > maxCollectionTransactionWork+1+MaxEvidenceRefs {
+	if c.committed == 0 || c.maxImports > auditdomain.MaximumCollectionTransactionWork+1+MaxEvidenceRefs {
 		t.Fatalf("%d retention transaction(s), largest imported %d artifacts", c.committed, c.maxImports)
 	}
 }

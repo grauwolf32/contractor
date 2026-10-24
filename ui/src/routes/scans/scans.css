@@ -1,0 +1,39 @@
+.scan-page {
+  max-width: 960px;
+  margin-inline: auto;
+}
+.scan-fields {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.scan-page code {
+  overflow-wrap: anywhere;
+}
+
+.scan-project-options {
+  max-height: 40vh;
+  overflow: auto;
+  padding: var(--space-3);
+}
+.scan-project-options label {
+  display: flex;
+  gap: var(--space-3);
+  padding-block: var(--space-2);
+  align-items: start;
+}
+.scan-project-options span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.scan-project-options small {
+  display: block;
+}
+.scan-detail {
+  padding: var(--space-4);
+  min-width: 0;
+}
+.scan-target {
+  overflow-wrap: anywhere;
+}

@@ -82,8 +82,12 @@ type Store interface {
 	// StageExecutions in one statement, keyed by StageExecution; an execution
 	// without allocations has no entry.
 	ListStageAllocationsBatch(context.Context, []string) (map[string][]runstore.StageAllocation, error)
-	MarkStageAllocationReleaseAttempt(context.Context, string) error
-	MarkStageAllocationReleased(context.Context, string) error
+	// MarkStageAllocationReleaseAttempt and MarkStageAllocationReleased mark
+	// the named allocations together in bounded statements (SCH-R182,
+	// LIM-SCH-22); a missing allocation is ErrNotFound for that allocation
+	// alone.
+	MarkStageAllocationReleaseAttempt(context.Context, ...string) error
+	MarkStageAllocationReleased(context.Context, ...string) error
 	// RecordStageOutputPublicationFailure counts a terminal commit of the
 	// finalizing StageExecution (runID, stageExecutionID) that a transient
 	// Project output publication failure aborted (PRJ-R58).

@@ -381,7 +381,7 @@ func TestSharedPostgresEvalExternalFreezeAdmissionAndDeletionFence(t *testing.T)
 	if blocked, err := NewPostgresStore(pool).ProjectBlocked(ctx, scope.OwnerID, scope.ProjectID); err != nil || !blocked {
 		t.Fatal(blocked, err)
 	}
-	if err = transaction(pool, func(s *Store) error { return s.PurgeProject(ctx, scope) }); !errors.Is(err, ErrDrain) {
+	if err = transaction(pool, func(s *Store) error { _, err := s.PurgeProject(ctx, scope); return err }); !errors.Is(err, ErrDrain) {
 		t.Fatal(err)
 	}
 }
@@ -426,7 +426,9 @@ func TestSharedPostgresEvalNativeFreezeStaleClaimsAndSuboperationRecovery(t *tes
 		t.Fatal(err)
 	}
 	op := Suboperation{Kind: "run-create", Key: ms[0].SubmissionKey, Request: json.RawMessage(`{"workflow":"trace-a@1"}`)}
-	mustTx(t, pool, func(s *Store) error { return s.PutSuboperation(ctx, scope, e.ID, ms[0].MemberID, claim, op) })
+	mustTx(t, pool, func(s *Store) error {
+		return s.RecoverMember(scope, e.ID, ms[0].MemberID, claim).PutSuboperation(ctx, op)
+	})
 	// Force a replacement epoch while an old holder is blocked on the claim row.
 	blocker, err := pool.Begin(ctx)
 	if err != nil {
@@ -439,7 +441,7 @@ func TestSharedPostgresEvalNativeFreezeStaleClaimsAndSuboperationRecovery(t *tes
 	done := make(chan error, 1)
 	go func() {
 		done <- transaction(pool, func(s *Store) error {
-			return s.ResolveSuboperation(ctx, scope, e.ID, ms[0].MemberID, op.Kind, claim, []byte(`{"rejected":true}`), true)
+			return s.RecoverMember(scope, e.ID, ms[0].MemberID, claim).ResolveSuboperation(ctx, op.Kind, []byte(`{"rejected":true}`), true)
 		})
 	}()
 	// Confirm it reached a lock wait before publishing the new epoch.
@@ -474,10 +476,10 @@ func TestSharedPostgresEvalNativeFreezeStaleClaimsAndSuboperationRecovery(t *tes
 		t.Fatal(old, err)
 	}
 	mustTx(t, pool, func(s *Store) error {
-		return s.ResolveSuboperation(ctx, scope, e.ID, ms[0].MemberID, op.Kind, replacement, []byte(`{"rejected":true}`), true)
+		return s.RecoverMember(scope, e.ID, ms[0].MemberID, replacement).ResolveSuboperation(ctx, op.Kind, []byte(`{"rejected":true}`), true)
 	})
-	mustTx(t, pool, func(s *Store) error { return s.Settle(ctx, scope, e.ID, ms[0].MemberID, replacement) })
-	mustTx(t, pool, func(s *Store) error { return s.Settle(ctx, scope, e.ID, ms[0].MemberID, replacement) })
+	mustTx(t, pool, func(s *Store) error { return s.RecoverMember(scope, e.ID, ms[0].MemberID, replacement).Settle(ctx) })
+	mustTx(t, pool, func(s *Store) error { return s.RecoverMember(scope, e.ID, ms[0].MemberID, replacement).Settle(ctx) })
 	e, err = NewPostgresStore(pool).Get(ctx, scope.OwnerID, e.ID)
 	if err != nil || e.Outstanding != 0 {
 		t.Fatal(e, err)
@@ -520,7 +522,9 @@ func TestSharedPostgresEvalBoundedPagesPinnedPurgeAndReceiptRetention(t *testing
 	}}); !code(err, "eval_view_changed") {
 		t.Fatal(err)
 	}
-	mustTx(t, pool, func(s *Store) error { return s.Purge(ctx, scope, "exp-00") })
+	if passes := purgeExperimentUntilDone(t, pool, scope, "exp-00"); len(passes) != 1 {
+		t.Fatalf("draft experiment purge passes = %+v, want one", passes)
+	}
 	mustTx(t, pool, func(s *Store) error {
 		r, err := s.BeginDeletion(ctx, scope, "exp-00", m)
 		if err == nil && !r.Replayed {
@@ -532,7 +536,7 @@ func TestSharedPostgresEvalBoundedPagesPinnedPurgeAndReceiptRetention(t *testing
 		t.Fatal("still-pinned revision removed", err)
 	}
 	beginProjectDeletion(t, pool, scope)
-	mustTx(t, pool, func(s *Store) error { return s.PurgeProject(ctx, scope) })
+	purgeProjectUntilDone(t, pool, scope)
 	for _, table := range []string{"eval_experiments", "eval_dataset_revisions", "mutation_receipts"} {
 		var n int
 		if err = pool.QueryRow(ctx, `SELECT count(*) FROM `+table+` WHERE project_id=$1`, scope.ProjectID).Scan(&n); err != nil || n != 0 {
@@ -616,16 +620,16 @@ func TestSharedPostgresEvalAuditWorkspaceDependencyFencesWithoutDeletingExperime
 	}
 	claim := oneClaim(t, pool)
 	op := Suboperation{Kind: "project-create", Key: m.SubmissionKey + "-project", Request: json.RawMessage(`{"kind":"project"}`)}
-	mustTx(t, pool, func(s *Store) error { return s.PutSuboperation(ctx, scope, e.ID, m.MemberID, claim, op) })
+	mustTx(t, pool, func(s *Store) error { return s.RecoverMember(scope, e.ID, m.MemberID, claim).PutSuboperation(ctx, op) })
 	mustTx(t, pool, func(s *Store) error {
 		_, _, err := projectstore.NewPostgresStore(s.tx).Create(ctx, projectstore.CreateParams{OwnerID: scope.OwnerID, ProjectID: "audit-workspace", Kind: projectstore.KindProject, Name: "Audit member", IdempotencyKey: op.Key, RequestDigest: evaldomain.Digest(op.Request)})
 		if err != nil {
 			return err
 		}
-		return s.RegisterExecutionProject(ctx, scope, e.ID, m.MemberID, "audit-workspace", op.Key, claim)
+		return s.RecoverMember(scope, e.ID, m.MemberID, claim).RegisterExecutionProject(ctx, "audit-workspace", op.Key)
 	})
 	mustTx(t, pool, func(s *Store) error {
-		return s.ResolveSuboperation(ctx, scope, e.ID, m.MemberID, op.Kind, claim, []byte(`{"projectId":"audit-workspace"}`), false)
+		return s.RecoverMember(scope, e.ID, m.MemberID, claim).ResolveSuboperation(ctx, op.Kind, []byte(`{"projectId":"audit-workspace"}`), false)
 	})
 	child := Scope{scope.OwnerID, "audit-workspace"}
 	beginProjectDeletion(t, pool, child)
@@ -636,7 +640,7 @@ func TestSharedPostgresEvalAuditWorkspaceDependencyFencesWithoutDeletingExperime
 	if blocked, err := NewPostgresStore(pool).ProjectBlocked(ctx, child.OwnerID, child.ProjectID); err != nil || !blocked {
 		t.Fatal(blocked, err)
 	}
-	mustTx(t, pool, func(s *Store) error { return s.Settle(ctx, scope, e.ID, m.MemberID, claim) })
+	mustTx(t, pool, func(s *Store) error { return s.RecoverMember(scope, e.ID, m.MemberID, claim).Settle(ctx) })
 	if blocked, err := NewPostgresStore(pool).ProjectBlocked(ctx, child.OwnerID, child.ProjectID); err != nil || blocked {
 		t.Fatal(blocked, err)
 	}
@@ -718,7 +722,7 @@ UPDATE eval_experiments SET state=$2, revision=revision+1,
 			if err != nil || current.State != evaldomain.StateCancelling || current.DeletionRequestedAt == nil || current.Revision != before.Revision+1 {
 				t.Fatalf("own Project did not fence %s Eval: %+v (%v)", terminal, current, err)
 			}
-			mustTx(t, pool, func(s *Store) error { return s.PurgeProject(ctx, scope) })
+			purgeProjectUntilDone(t, pool, scope)
 			var remaining int
 			if err := pool.QueryRow(ctx, `SELECT count(*) FROM eval_experiments WHERE project_id=$1`, scope.ProjectID).Scan(&remaining); err != nil || remaining != 0 {
 				t.Fatalf("terminal Evals after Project purge = %d (%v)", remaining, err)

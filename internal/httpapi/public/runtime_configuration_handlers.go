@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -139,9 +138,8 @@ func (h *runtimeConfigurationHandlers) publishRuntimeConfig(w http.ResponseWrite
 		handleError(w, err)
 		return
 	}
-	mediaType, err := requestMediaType(r)
-	if err != nil || mediaType != "application/json" {
-		handleError(w, errInvalidRequest)
+	if err := requireJSONMediaType(r); err != nil {
+		handleError(w, err)
 		return
 	}
 	idempotencyKey, err := requireIdempotencyKey(r)
@@ -149,7 +147,12 @@ func (h *runtimeConfigurationHandlers) publishRuntimeConfig(w http.ResponseWrite
 		handleError(w, err)
 		return
 	}
-	body, err := readBoundedRuntimeJSON(w, r, maximumRuntimeConfigBodyBytes)
+	// The document is published as sent: its own strict decoder checks the
+	// exact bytes, including duplicate members and nulls.
+	body, err := readJSONBody(w, r, maximumRuntimeConfigBodyBytes)
+	if err == nil && len(body) == 0 {
+		err = fmt.Errorf("%w: RuntimeConfig document is required", errInvalidRequest)
+	}
 	if err != nil {
 		handleError(w, err)
 		return
@@ -239,9 +242,8 @@ func (h *runtimeConfigurationHandlers) putRuntimeLabel(w http.ResponseWriter, r 
 		handleError(w, err)
 		return
 	}
-	mediaType, err := requestMediaType(r)
-	if err != nil || mediaType != "application/json" {
-		handleError(w, errInvalidRequest)
+	if err := requireJSONMediaType(r); err != nil {
+		handleError(w, err)
 		return
 	}
 	label := r.PathValue("label")
@@ -407,9 +409,8 @@ func (h *runtimeConfigurationHandlers) createRuntimeCredential(w http.ResponseWr
 		handleError(w, err)
 		return
 	}
-	mediaType, err := requestMediaType(r)
-	if err != nil || mediaType != "application/json" {
-		handleError(w, errInvalidRequest)
+	if err := requireJSONMediaType(r); err != nil {
+		handleError(w, err)
 		return
 	}
 	idempotencyKey, err := requireIdempotencyKey(r)
@@ -527,28 +528,7 @@ func runtimeLabelPutPrecondition(r *http.Request) (runtimeLabelMutationMode, uin
 }
 
 func runtimeLabelDeletePrecondition(r *http.Request) (uint64, error) {
-	if len(r.Header.Values("If-None-Match")) != 0 || len(r.Header.Values("If-Match")) != 1 {
-		return 0, fmt.Errorf("%w: binding DELETE requires one If-Match", errInvalidRequest)
-	}
-	return parseRuntimeRevisionETag(r.Header.Values("If-Match")[0])
-}
-
-func readBoundedRuntimeJSON(w http.ResponseWriter, r *http.Request, maximum int64) ([]byte, error) {
-	if maximum <= 0 || r.ContentLength > maximum {
-		return nil, fmt.Errorf("%w: JSON body is too large", errRequestTooLarge)
-	}
-	body := http.MaxBytesReader(w, r.Body, maximum)
-	data, err := io.ReadAll(body)
-	if err != nil {
-		if exceedsBodyLimit(err) {
-			return nil, fmt.Errorf("%w: JSON body is too large", errRequestTooLarge)
-		}
-		return nil, errors.New("read RuntimeConfig request")
-	}
-	if len(data) == 0 {
-		return nil, errInvalidRequest
-	}
-	return data, nil
+	return requiredRevision(r, "binding DELETE")
 }
 
 func (h *runtimeConfigurationHandlers) auditRuntimeMutation(r *http.Request, action, resourceID string, replayed bool) {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
@@ -77,7 +78,7 @@ func (s *Store) Snapshot(ctx context.Context, id string) (Snapshot, error) {
 	if err := contentdigest.CheckPinnedSelection(result.WorkflowDigest, result.Workflow); err != nil {
 		return Snapshot{OwnerID: owner}, ErrInvalid
 	}
-	if result.Rulepack != nil && (result.Rulepack.Source.Validate() != nil || result.Rulepack.Retained.ValidateExact() != nil || result.Rulepack.Retained.Namespace != "contractor-system") {
+	if result.Rulepack != nil && (result.Rulepack.Source.Validate() != nil || result.Rulepack.Retained.ValidateExact() != nil || result.Rulepack.Retained.Namespace != artifactpolicy.RunSystemNamespace) {
 		return Snapshot{OwnerID: owner}, ErrInvalid
 	}
 	return result, nil
@@ -178,7 +179,7 @@ func (s *Store) Release(ctx context.Context, c persistencepostgres.ControllerCla
 	// Rotation is fenced by the exact holder. Release accepts its expired lease.
 	_, err := s.db.Exec(ctx, `UPDATE scan_sweeps SET next_tick_at=clock_timestamp()+interval '1 second' WHERE sweep_id=$1 AND holder_id=$2 AND epoch=$3`, c.SubjectID, c.HolderID, c.Epoch)
 	if err != nil {
-		return err
+		return persistencepostgres.WrapError("schedule the next scan sweep tick", err)
 	}
 	return claims.Release(ctx, s.db, c.SubjectID, c.HolderID, c.Epoch)
 }

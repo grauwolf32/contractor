@@ -1,0 +1,205 @@
+schema_version: '1.0'
+id: V407-033
+title: Reuse immutable Audit inputs and finding source bytes, and assemble finding pages linearly
+milestone: server-runtime-review-2026-10
+epic: findings
+kind: chore
+introduced_by: V39-003
+priority: P2
+status: completed
+implementation_commit: b3875b5f13669846ca0c3de78dc1ace61a996d79
+depends_on: []
+languages:
+- python
+goal: Reduce repeated decoding, source downloads and page canonicalization while preserving Audit admission,
+  finding derivation, unsigned cursor and publication contracts.
+context:
+  review: docs/research/2026-10-23-server-runtime-review.md (corrected dispositions, verified on main
+    dc7012e8; recheck source lines before implementation)
+  specification:
+  - docs/spec/findings/findings.md
+  - docs/spec/audits/worker-completion.md
+  finding: runtime/src/contractor_runtime/toolsets/audit_results/collector.py:78-79,307,327-364 and encoding.py:59-92
+    repeatedly decode immutable task inputs and encode the cumulative prospective result under collector
+    ownership; preparation/publication repeat that work in completion.py:122,131 and publication.py:109.
+    The collection is bounded to 64 items. security_findings/anchors.py:47-59 serially resolves up to
+    32 metadata refs and downloads the selected exact ZIP of at most 8 MiB for every finding; selected
+    files are parsed off-loop and ASTs discarded per FND-R169. Anchor timeout yields an unavailable projection,
+    not loss of the ordinary finding. reader.py:245-246 canonicalizes the growing page for each candidate.
+    Its unsigned cursor at :258-294 implements FND-R137 through FND-R141; common/cursors.py uses HMAC
+    and a different schema and is not a drop-in replacement.
+  siblings: Audit prepare/begin, single and batch admission, seal/discard and final publication; security
+    finding anchor preparation and allocation cleanup; list_findings page sizing. ExactArtifactReadCache
+    provides a bounded lifetime precedent but its generic 64-MiB limit is not the anchor-cache bound.
+  validation: 'Partially confirmed on dc7012e8: inputs and prospective packages are repeatedly encoded;
+    30 findings using one exact ZIP caused 30 payload reads; page-size checks repeatedly canonicalize
+    accumulated items. The unsigned finding cursor is explicitly required by FND-R137 through FND-R141
+    and is not a defect.'
+plan:
+- Decode and validate immutable task/manifest inputs once per prepared allocation and reuse trusted immutable
+  records across invocations and publication. Preserve owner binding, membership/order/digest validation
+  and strict failure classifications.
+- Run expensive prospective package encoding through threads.to_thread_until_done while retaining the
+  existing serialized admission owner. Join on cancellation and publish no candidate before admission
+  succeeds. Reuse immutable prepared values without promising that full aggregate ZIP admission becomes
+  linear or weakening aggregate byte checks.
+- Add at most one allocation-owned exact-source-byte cache entry bounded to 8 MiB. Reuse only the same
+  exact artifact identity, preserve metadata/content consistency and per-invocation content-observation
+  accounting, invalidate on replacement/release, and never cache ASTs. Bound any parallel metadata resolution
+  and join all reads before failure or cancellation returns.
+- Canonicalize each page item once and compute the exact candidate JSON byte cost including separators,
+  envelope and its actual unsigned cursor. Preserve FND-R137 through FND-R141 fields, limits, no-signature
+  format and query/snapshot binding; do not substitute the HMAC codec.
+- Use deterministic decode/download/canonicalization counts, barrier-controlled encoding cancellation
+  and exact page-boundary cases. Test a 64-item admitted batch and 30 findings against one ZIP with valid
+  bounded fixtures; retain parse-per-publication and unavailable-anchor behavior.
+decisions:
+- >-
+  Findings re-verified on base 6400875e. collector.py:78-82 ran an empty encode (decoding task set and
+  manifest) and decoded the task input again in every collector constructor; completion.py:122 decoded
+  in prepare and :131 built a validating collector, begin (:145) built another; every admission
+  (_admit) and publication.py:109 re-decoded and re-matched both inputs through the encoder, on the
+  event loop. With a 64-item task set one allocation decoded the task set 70 times (single
+  submissions) or 7 times (one batch), measured by the new count test on the base code.
+  security_findings/anchors.py:47-59 resolved metadata serially and downloaded the exact ZIP for every
+  finding (30 findings, 30 payload reads). reader.py:245-246 canonicalized the whole growing page
+  per candidate (k(k+1)/2 item serializations per page). The unsigned cursor at reader.py:258-294 is
+  required by FND-R137 to FND-R141 and was left unchanged.
+- >-
+  Audit inputs (AWC-R125): one CanonicalAuditPackageEncoder per prepared allocation retains the decoded
+  task records and the matched manifest, keyed by the exact input bytes (one pair; other bytes replace
+  it; the bytes are those AuditTrustedInputs already holds, at most 16 MiB task set and 8 MiB manifest).
+  Preparation decodes off-loop in the old order, so an invalid task input still raises the codec's
+  ValueError, owner/input construction still raises ValueError, a manifest or membership mismatch still
+  raises AuditResultError(audit_result_invalid) and invalid requested coverage still raises ValueError
+  from the collector. Every collector and the publisher share the encoder; admission still encodes the
+  whole prospective package (no incremental or approximate encoder, AWC-R62/R64), now through
+  threads.to_thread_until_done while the collector lock is held, so seal, discard and other admissions
+  wait and a cancellation is delivered only after the thread returns without replacing the collection.
+  Publication encoding is off-loop the same way, before any write. _build_result_package takes the
+  manifest digest computed once; package bytes are unchanged (legacy digest test and a fresh-encoder
+  comparison of the published 64-item package). Because decoded tasks are now shared across
+  invocations, the completed-coverage error returns a copy of allowedValues (follow-up b3875b5f).
+- >-
+  Finding sources (FND-R184, LIM-FND-38): FindingPublisher owns one ExactSourceCache for the
+  allocation's tool lifetime. It retains one ArtifactValue of at most 8 MiB, reused only when the
+  finding's own metadata read reports the same exact ref, media type and size; otherwise the source is
+  read and checked exactly as before. A reuse calls ArtifactClient.observe_cached_read, so the
+  invocation's content observations match a download. Concurrent findings of one exact ref wait for
+  one in-flight read and re-check afterwards; a failed, cancelled or expired read retains nothing and
+  a waiter then reads itself, so no finding inherits another call's failure. close() at release drops
+  the bytes and stops retention. ASTs and derivations are not cached; derive_zip still parses per
+  publication. Metadata resolution stays serial: parallel resolution was optional in the plan, would
+  change which error or ambiguity wins among up to 32 refs, and each metadata read also re-authorizes
+  the exact ref per finding; reopen if metadata latency dominates anchor preparation.
+- >-
+  Finding pages: each candidate is canonicalized once and the exact page size is the RFC 8785 size of
+  the empty envelope with the candidate's actual next_cursor (null or the unsigned cursor) plus the
+  item bytes and one comma between adjacent items, the same identity code_analysis/_fit_result_page
+  already uses; that helper fits a precomputed prefix and was not merged (out of scope). Pages are
+  byte-identical to the replaced algorithm.
+scope:
+  in:
+  - Immutable decoded-input reuse; threaded encoding under existing atomic admission ownership; bounded
+    exact ZIP byte reuse; exact linear finding page assembly.
+  out:
+  - Audit result format, aggregate limits, admission/replay/CAS outcomes, finding schemas and tool signatures.
+  - Signed cursor migration, new cursor fields, relaxed cursor validation or authorization changes.
+  - AST reuse, eliminating required per-file parsing, guaranteeing a network deadline never expires or
+    changing unavailable-anchor fallback.
+acceptance_criteria:
+- id: A1
+  text: A valid 64-item submission sequence decodes the unchanged task/manifest inputs once per allocation;
+    expensive encoding is observed off-loop. Failed or cancelled admission leaves collector state unchanged
+    and no work outlives its owner.
+- id: A2
+  text: Thirty findings against the same exact ZIP perform one source payload download while retaining
+    per-publication derivation and content observations. Replacement, missing/oversized source, metadata
+    mismatch, transport failure, deadline and cancellation preserve existing outcomes; retained source
+    bytes never exceed one 8-MiB entry.
+- id: A3
+  text: list_findings canonicalizes each admitted candidate item once for sizing and honors the exact
+    256-KiB response bound, including the final cursor. Existing unsigned cursors, null fields, 1..100
+    limits and FND-R137 through FND-R141 rejection behavior remain byte-compatible.
+- id: A4
+  text: Count-based regression cases fail on the old repeated-work paths; existing collector, completion,
+    publication, findings and anchor tests retain their success/error/cleanup behavior without wall-clock
+    performance thresholds.
+tests:
+- command: cd runtime && uv run --locked pytest -q tests/test_audit_results_toolset.py tests/test_audit_result_collector.py
+    tests/test_audit_result_publication.py tests/test_audit_completion_runtime.py tests/test_audit_completion_continuation.py
+    tests/test_security_findings_toolset.py tests/test_findings_reader_toolset.py tests/test_finding_anchors.py
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make lint
+  covers:
+  - A1
+  - A3
+  - A4
+verification:
+  date: '2026-10-23'
+  revision: b3875b5f13669846ca0c3de78dc1ace61a996d79
+  environment: >-
+    Worktree branch claude/rv-r4 on base 6400875e, macOS arm64, Python 3.13 with the locked Runtime venv,
+    Go 1.26.9 (GOTOOLCHAIN=local), Node 24.20, local PostgreSQL 17.11 database contractor_test_r4
+    (CONTRACTOR_TEST_DATABASE_URL set for the Go importer bridge test).
+  database_tests_configured: true
+  results:
+  - 'cd runtime && uv run --locked pytest -q tests/test_audit_results_toolset.py tests/test_audit_result_collector.py
+    tests/test_audit_result_publication.py tests/test_audit_completion_runtime.py tests/test_audit_completion_continuation.py
+    tests/test_security_findings_toolset.py tests/test_findings_reader_toolset.py tests/test_finding_anchors.py:
+    285 passed at 6fcacc3b; with test_audit_arguments, test_finding_facades, test_tool_input_errors,
+    test_audit_completion_e2e and test_audit_completion_contracts 464 passed, 1 skipped (the bridge-only
+    e2e module, run below) at b3875b5f.'
+  - 'make lint: passed (after make docs-dependencies and make tasks-backlog).'
+  - 'go test -count=1 -tags integration -run TestAuditCompletionRuntimeZIPImporter ./internal/auditimport/:
+    passed (12 subtests) against contractor_test_r4; the real Go Artifact API and importer accept the
+    Runtime ZIPs, including dropped reply, cancel before/after write and process-loss cases.'
+  - 'make test-runtime: 4433 passed, 39 skipped, 105 failed. The failures are the known macOS-only set:
+    96 Podman tests plus test_code_analysis_graph encoded ceiling, test_local_direct_faults[socket],
+    three projectfs local tests, tool_process (2) and trailmark_child (2). None touches the changed
+    modules.'
+  - 'A1: test_prepared_allocation_decodes_inputs_once_for_64_items_and_encodes_off_loop[single|batch]
+    counts task-set decodes and manifest decodes at the codec (packages module globals, so every alias
+    is counted): exactly one each across prepare, begin, 64 single submissions or one 64-item batch,
+    seal, publication and a second invocation''s begin/read; 65 or 2 encodes; every decode and encode
+    on a thread other than the loop''s. The base code makes 70 and 7 task-set decodes, so the test
+    fails there. test_shared_cancelled_admission_joins_off_loop_encoding_and_keeps_the_collection holds
+    the real encoder at a threading.Event barrier, cancels the admission and shows it and a concurrent
+    snapshot stay pending until the thread exits, then the collection is unchanged and a later
+    submission succeeds; test_shared_discard_waits_for_in_flight_admission_encoding shows discard
+    completes only after the encoding thread exits; test_publication_encodes_off_loop_and_cancellation_joins_before_any_write
+    does the same for publication with no artifact request. Existing size-bound, conflict, replay and
+    publication CAS tests pass unchanged. test_shared_errors_and_reads_never_expose_the_allocation_decoding
+    fails without the allowedValues copy.'
+  - 'A2: test_thirty_findings_reuse_one_exact_source_download_and_parse_each: 30 findings against one
+    exact ZIP make 30 metadata reads, 1 payload read, 30 Python parser loads and 30 identical available
+    derivations, and each finding records exactly the exact source ref as its content observation.
+    test_concurrent_findings_share_one_exact_source_download: 30 concurrent findings, 1 payload read.
+    test_source_reuse_keeps_one_maximum_entry_and_is_released_with_the_tools: two exactly 8 MiB sources
+    read 1,1,2,2,1 give payload reads 1,2,1; a metadata size of 8 MiB + 1 gives input_limit without a
+    read; after close every finding reads again. test_source_reuse_preserves_missing_mismatch_and_transport_outcomes:
+    404 metadata after caching raises ArtifactAPIError without submission or read, a size mismatch
+    re-reads and raises the existing ArtifactTransportError, a lost payload response raises and retains
+    nothing. test_cancelled_or_expired_source_download_retains_nothing: a cancelled leader does not
+    fail its waiter, which reads itself; an expired asyncio.timeout during a read retains nothing. All
+    five fail on the base code.'
+  - 'A3: test_page_sizing_canonicalizes_each_candidate_item_once[256-900-None|256-900-100|256-3000-100]
+    spies on canonical: each page serializes its admitted items once plus at most the one rejected
+    candidate, under 2 x 256 serializations for a full 256-item walk; all three fail on the base code.
+    test_linear_page_assembly_matches_the_replaced_algorithm_byte_for_byte compares canonical bytes of
+    every page with the replaced algorithm for limits default, 1, 2, 7 and 100, filters with null and
+    set subject kind/key, items with null subjects, bounds one byte below, at and above the first four
+    page sizes and 256 KiB, and checks each cursor equals unpadded base64url of the canonical five-field
+    object. test_exact_256_kib_bound_includes_the_actual_final_cursor[True|False] builds pages of exactly
+    262144 bytes with a string or null final cursor and shows one more byte moves the item to the next
+    page. Existing cursor rejection, limit 1..100 and limit-error tests pass unchanged.'
+  - 'A4: every count test above was run against the base implementation files and fails there; no test
+    asserts elapsed time (barriers use threading.Event and bounded asyncio.sleep(0) loops).'
+  - 'Spec: AWC-R125 (new, docs/spec/audits/worker-completion.md, referenced from FAIL-AWC-2) and FND-R184
+    (new, docs/spec/findings/findings.md); LIM-FND-38 enforcement now names one retained exact source
+    per allocation; FAIL-AWC-2 and FAIL-FND-1 in docs/spec/platform/failure-model.md state the
+    cancellation and reuse outcomes. No new limit ID.'

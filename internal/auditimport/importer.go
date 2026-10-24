@@ -210,26 +210,38 @@ func (i *Importer) collectSucceededRole(
 		frozenOutputs = append(frozenOutputs, frozenOutput{logicalName, slotName, descriptor})
 	}
 	// Validate the complete output set before publishing any retained binding.
-	// All accepted preparation descriptors then commit in one receipt write.
-	for _, output := range frozenOutputs {
-		logicalName, slotName, descriptor := output.logical, output.slot, output.artifact
-		scopeID := snapshot.Audit.AuditID
-		if snapshot.Round != nil {
-			scopeID = snapshot.Round.RoundID
-		}
-		retained, retainErr := i.artifacts.RetainRunExact(
-			ctx, run.RunID, descriptor, snapshot.Audit.ProjectID,
-			contracts.ArtifactRef{
+	// The outputs are then retained in bounded artifact-write transactions
+	// (AUX-R98), and all accepted preparation descriptors commit in one
+	// receipt write.
+	scopeID := snapshot.Audit.AuditID
+	if snapshot.Round != nil {
+		scopeID = snapshot.Round.RoundID
+	}
+	retentions := make([]RunRetention, len(frozenOutputs))
+	for index, output := range frozenOutputs {
+		retentions[index] = RunRetention{
+			Source: output.artifact,
+			Target: contracts.ArtifactRef{
 				Namespace: auditdomain.ArtifactNamespace(snapshot.Audit.AuditID),
 				Name: auditdomain.DeterministicID(
 					"role-output", scopeID, execution.WorkflowRole,
-					execution.ExecutionID, logicalName,
+					execution.ExecutionID, output.logical,
 				),
 			},
-		)
-		if retainErr != nil {
-			return false, retainErr
 		}
+	}
+	retainedOutputs, err := i.artifacts.RetainRunExact(ctx, run.RunID, snapshot.Audit.ProjectID, retentions)
+	if err != nil {
+		return false, err
+	}
+	if len(retainedOutputs) != len(retentions) {
+		return false, fmt.Errorf("retain Audit role outputs: %d of %d revisions", len(retainedOutputs), len(retentions))
+	}
+	for index, output := range frozenOutputs {
+		logicalName, slotName, descriptor := output.logical, output.slot, output.artifact
+		retained := retainedOutputs[index]
+		// The first sorted logical output names the receipt source for both
+		// preparation and Round roles.
 		if source == nil {
 			value := descriptor
 			source = &value
@@ -274,10 +286,6 @@ func (i *Importer) collectSucceededRole(
 			),
 			Artifact: retained, SourceProvenance: provenance,
 		})
-		if source == nil {
-			value := descriptor
-			source = &value
-		}
 	}
 	if source == nil {
 		return false, fmt.Errorf("%w: role has no output contract", ErrPermanent)

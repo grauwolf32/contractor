@@ -54,16 +54,16 @@ func (h *queueHandlers) putOwnerQueueControl(w http.ResponseWriter, r *http.Requ
 		handleError(w, err)
 		return
 	}
-	mediaType, err := requestMediaType(r)
-	if err != nil || mediaType != "application/json" {
-		handleError(w, fmt.Errorf("%w: Queue control requires application/json", errInvalidRequest))
+	if err := requireJSONMediaType(r); err != nil {
+		handleError(w, err)
 		return
 	}
-	if len(r.Header.Values("If-None-Match")) != 0 || len(r.Header.Values("If-Match")) != 1 {
+	raw, err := httpx.RequiredIfMatch(r.Header)
+	if err != nil {
 		handleError(w, fmt.Errorf("%w: Queue control requires one If-Match", errInvalidRequest))
 		return
 	}
-	revision, err := parseOwnerQueueControlETag(r.Header.Values("If-Match")[0])
+	revision, err := parseOwnerQueueControlETag(raw)
 	if err != nil {
 		handleError(w, err)
 		return
@@ -102,8 +102,8 @@ func parseOwnerQueueControlETag(raw string) (uint64, error) {
 	case err != nil:
 		return 0, fmt.Errorf("%w: Queue control revision must be quoted", errInvalidRequest)
 	}
-	parsed, err := strconv.ParseUint(revision, 10, 64)
-	if err != nil || strconv.FormatUint(parsed, 10) != revision {
+	parsed, err := httpx.ParseRevision(revision)
+	if err != nil {
 		return 0, fmt.Errorf("%w: Queue control revision is invalid", errInvalidRequest)
 	}
 	return parsed, nil

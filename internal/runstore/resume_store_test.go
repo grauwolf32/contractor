@@ -23,7 +23,6 @@ import (
 
 func failedResumeFixture(t *testing.T, ctx context.Context, pool *pgxpool.Pool, runID string, placement ...[]string) (*PostgresStore, StageExecution) {
 	t.Helper()
-	store := NewPostgresStore(pool)
 	params := testRunParams(runID)
 	if len(placement) > 0 {
 		params.RequiredPlacementLabels = placement[0]
@@ -32,6 +31,15 @@ func failedResumeFixture(t *testing.T, ctx context.Context, pool *pgxpool.Pool, 
 			params.MetadataLabels = RunMetadataLabels{root: value}
 		}
 	}
+	return failedResumeFixtureOf(t, ctx, pool, params)
+}
+
+// failedResumeFixtureOf creates the Run of params with a retained successful
+// Stage and a failed tool Stage after it, and returns the failed Stage.
+func failedResumeFixtureOf(t *testing.T, ctx context.Context, pool *pgxpool.Pool, params CreateRunParams) (*PostgresStore, StageExecution) {
+	t.Helper()
+	store := NewPostgresStore(pool)
+	runID := params.RunID
 	run, err := createRun(ctx, store, params)
 	if err != nil {
 		t.Fatal(err)

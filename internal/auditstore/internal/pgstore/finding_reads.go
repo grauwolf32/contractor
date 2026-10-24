@@ -22,21 +22,8 @@ func (s *QueryStore) ListFindings(
 	if err := validateFindingList(params); err != nil {
 		return nil, err
 	}
-	var state, verdict, severity *string
-	if params.State != nil {
-		value := string(*params.State)
-		state = &value
-	}
-	if params.Verdict != nil {
-		value := string(*params.Verdict)
-		verdict = &value
-	}
-	if params.Severity != nil {
-		value := string(*params.Severity)
-		severity = &value
-	}
-	rows, err := s.db.Query(ctx, listFindingsSQL, params.OwnerID, params.AuditID, state, verdict, params.Unreviewed,
-		severity, params.AfterCreatedAt, params.AfterFindingID, params.Limit)
+	rows, err := s.db.Query(ctx, listFindingsSQL, append(findingFilterArgs(params),
+		params.AfterCreatedAt, params.AfterFindingID, params.Limit)...)
 	if err != nil {
 		return nil, fmt.Errorf("list Audit findings: %w", err)
 	}
@@ -59,6 +46,22 @@ func (s *QueryStore) ListFindings(
 		}
 	}
 	return result, nil
+}
+
+// findingFilterArgs binds the findingFilterSQL parameters $1 to $6 of a
+// finding page, the count and the page alike.
+func findingFilterArgs(params auditstore.FindingListParams) []any {
+	return []any{params.OwnerID, params.AuditID, optionalText(params.State), optionalText(params.Verdict),
+		params.Unreviewed, optionalText(params.Severity)}
+}
+
+// optionalText binds an optional enumerated value as text.
+func optionalText[T ~string](value *T) *string {
+	if value == nil {
+		return nil
+	}
+	text := string(*value)
+	return &text
 }
 
 // ListOwnerFindings reads one keyset page of every finding of an owner's
@@ -120,9 +123,8 @@ func (s *QueryStore) FindingPageBasis(
 	if err := validateFindingList(params); err != nil {
 		return result, err
 	}
-	err := s.db.QueryRow(ctx, findingPageBasisSQL,
-		params.OwnerID, params.AuditID, params.State, params.Verdict, params.Unreviewed, params.Severity,
-	).Scan(&result.AuditRevision, &result.AsOf, &result.Total)
+	err := s.db.QueryRow(ctx, findingPageBasisSQL, findingFilterArgs(params)...).
+		Scan(&result.AuditRevision, &result.AsOf, &result.Total)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return result, auditstore.ErrNotFound
 	}

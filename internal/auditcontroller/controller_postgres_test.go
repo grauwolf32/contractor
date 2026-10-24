@@ -1429,16 +1429,14 @@ func TestPostgresControllerCollectsAndPublishesExactAuditReport(t *testing.T) {
 	}
 	replayed, err := access.WithClaim(auditstore.ControllerClaim{
 		AuditID: completed.AuditID, HolderID: "postgres-audit-controller", Epoch: 1,
-	}).RetainRunExact(
-		ctx, runID,
-		auditstore.ExactArtifact{
+	}).RetainRunExact(ctx, runID, completed.ProjectID, []auditimport.RunRetention{{
+		Source: auditstore.ExactArtifact{
 			Ref: outputMetadata.Ref, Digest: outputMetadata.Digest,
 			MediaType: outputMetadata.MediaType, SizeBytes: outputMetadata.Size,
 		},
-		completed.ProjectID,
-		contracts.ArtifactRef{Namespace: resultLink.Artifact.Ref.Namespace, Name: resultLink.Artifact.Ref.Name},
-	)
-	if !errors.Is(err, auditstore.ErrClaimLost) || replayed.Ref.Revision != nil {
+		Target: contracts.ArtifactRef{Namespace: resultLink.Artifact.Ref.Namespace, Name: resultLink.Artifact.Ref.Name},
+	}})
+	if !errors.Is(err, auditstore.ErrClaimLost) || replayed != nil {
 		t.Fatalf("retained result replay after claim release = (%+v, %v)", replayed, err)
 	}
 

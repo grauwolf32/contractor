@@ -22,7 +22,7 @@ task owns it. The findings below that section describe the reviewed revision.
 | [`main` branch protection request](2026-10-09-main-protection.json) | V347-001 |
 | [v2 research hypotheses — 2026-10-23](2026-10-23-v2-research-hypotheses.md) | Experiment planning; no task yet |
 | [Server and Runtime review — 2026-10-23](2026-10-23-server-runtime-review.md) | Validated dispositions: 15 defects, 24 chores/proposal/gate; V407-001 … V407-039 remain pending |
-| [Test gate cost review — 2026-10-23](2026-10-23-test-gate-cost-review.md) | V408-001 … V408-007 (milestone `test-gate-cost-2026-10`) |
+| [Test gate cost review — 2026-10-23](2026-10-23-test-gate-cost-review.md) | V408-003/004/005 implemented; V408-001/002/006/007 archived at user request |
 | [SQL and schema review — 2026-10-23](2026-10-23-sql-review.md) | V409-001 … V409-013 (milestone `sql-review-2026-10`) |
 
 Evaluation methodology lives in the [portable evaluation specification](../spec/evals/format.md),

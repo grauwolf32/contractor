@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 	"time"
 
@@ -34,6 +35,9 @@ type Options struct {
 	Resolver BindingResolver
 	Driver   ExecutionDriver
 	Now      func() time.Time
+	// Logger receives the purge progress records (EVM-R243); nil discards
+	// them.
+	Logger *slog.Logger
 }
 
 type Service struct {
@@ -41,6 +45,7 @@ type Service struct {
 	resolver BindingResolver
 	driver   ExecutionDriver
 	now      func() time.Time
+	purges   *evalstore.PurgeMeter
 }
 
 func New(o Options) (*Service, error) {
@@ -50,7 +55,13 @@ func New(o Options) (*Service, error) {
 	if o.Now == nil {
 		o.Now = time.Now
 	}
-	return &Service{o.Pool, o.Resolver, o.Driver, o.Now}, nil
+	if o.Logger == nil {
+		o.Logger = slog.New(slog.DiscardHandler)
+	}
+	return &Service{
+		pool: o.Pool, resolver: o.Resolver, driver: o.Driver, now: o.Now,
+		purges: evalstore.NewPurgeMeter(o.Logger, o.Now),
+	}, nil
 }
 
 func (s *Service) tx(ctx context.Context, fn func(*evalstore.Store) error) error {
@@ -192,7 +203,9 @@ func (s *Service) tickExecution(ctx context.Context, claim evalstore.Claim) (pro
 			// Rotate failed observations as well: one uncertain member must not
 			// starve cancellation/recovery of the rest of a large experiment.
 			if ctx.Err() == nil {
-				if rotateErr := s.tx(ctx, func(st *evalstore.Store) error { return st.ObserveTokens(ctx, scope(e), e.ID, m.MemberID, claim, 0) }); rotateErr != nil {
+				if rotateErr := s.tx(ctx, func(st *evalstore.Store) error {
+					return st.RecoverMember(scope(e), e.ID, m.MemberID, claim).ObserveTokens(ctx, 0)
+				}); rotateErr != nil {
 					return false, errors.Join(memberErrors...), rotateErr
 				}
 			}
@@ -252,7 +265,7 @@ func (s *Service) advance(ctx context.Context, e evalstore.Experiment, claim eva
 	case evaldomain.StateCancelling:
 		if e.Outstanding == 0 {
 			if e.DeletionRequestedAt != nil {
-				return s.purge(ctx, e)
+				return s.purge(ctx, e, claim)
 			}
 			if err = s.tx(ctx, func(st *evalstore.Store) error {
 				return st.Transition(ctx, scope(e), e.ID, claim, evaldomain.StateCancelling, evaldomain.StateCancelled, e.ObservedTokens, nil)
@@ -389,7 +402,10 @@ func (s *Service) finishCommands(ctx context.Context, e evalstore.Experiment, cl
 	return nil
 }
 
-func (s *Service) purge(ctx context.Context, e evalstore.Experiment) (bool, error) {
+// purge commits at most one bounded purge pass per tick under the claim and
+// then yields; the next tick continues from the rows that are left. The
+// purge meter records each committed pass (EVM-R243).
+func (s *Service) purge(ctx context.Context, e evalstore.Experiment, claim evalstore.Claim) (bool, error) {
 	deps, err := evalstore.NewPostgresStore(s.pool).Dependencies(ctx, e.OwnerID, e.ID, "", evaldomain.MaxPageSize)
 	if err != nil {
 		return false, err
@@ -408,6 +424,15 @@ func (s *Service) purge(ctx context.Context, e evalstore.Experiment) (bool, erro
 	if len(deps) > 0 {
 		return false, nil
 	}
-	err = s.tx(ctx, func(st *evalstore.Store) error { return st.Purge(ctx, scope(e), e.ID) })
-	return err == nil, err
+	var pass evalstore.PurgeProgress
+	err = s.tx(ctx, func(st *evalstore.Store) error {
+		var err error
+		pass, err = st.Purge(ctx, scope(e), e.ID, claim)
+		return err
+	})
+	if err != nil {
+		return false, err
+	}
+	s.purges.Experiment(e.ID, *e.DeletionRequestedAt, pass)
+	return true, nil
 }
