@@ -3,7 +3,9 @@
 // Audit controller and the Eval coordinator. A pass handles each claim it
 // leased in its own goroutine, joins that handler before it releases the
 // claim under a budget of its own, and reports the failures of every claim
-// once all of them were released (PER-R26).
+// once all of them were released (PER-R26). The durable sweep controller,
+// which leases one sweep per tick and joins that tick through its own drain,
+// keeps its own pass but gives its claim back through the same Release.
 //
 // The package owns no scheduling policy. Each controller leases its own
 // bounded batch, which bounds the goroutines of a pass, gives each handler
@@ -66,10 +68,24 @@ func Run[C any](ctx context.Context, claims []C, lifecycle Lifecycle[C]) (bool, 
 }
 
 func (l Lifecycle[C]) release(ctx context.Context, claim C) error {
-	releaseContext, cancel := context.WithTimeout(context.WithoutCancel(ctx), l.ReleaseBudget)
+	return Release(ctx, l.ReleaseBudget, l.Lost, func(releaseContext context.Context) error {
+		return l.Release(releaseContext, claim)
+	})
+}
+
+// Release gives one claim back through release, under a context that keeps
+// ctx's values but not its cancellation, bounded by budget. It reports a
+// definite failure of release, and nothing when release reports lost: the
+// claim's epoch already fences its stale holder (PER-R25, PER-R26). A missing
+// release, budget or lost error is a programming error and releases nothing.
+func Release(ctx context.Context, budget time.Duration, lost error, release func(context.Context) error) error {
+	if release == nil || budget <= 0 || lost == nil {
+		return errInvalidLifecycle
+	}
+	releaseContext, cancel := context.WithTimeout(context.WithoutCancel(ctx), budget)
 	defer cancel()
-	err := l.Release(releaseContext, claim)
-	if errors.Is(err, l.Lost) {
+	err := release(releaseContext)
+	if errors.Is(err, lost) {
 		return nil
 	}
 	return err

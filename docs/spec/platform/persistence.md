@@ -542,7 +542,12 @@ handler's failure joined with the release's (FAIL-PER-3). The lifecycle owns
 no scheduling policy: each controller keeps its own handler budgets, wake
 hints, poll interval and decision whether to pass again at once. The durable
 sweep controller leases one sweep per tick and joins that tick through its
-own drain, so it does not use this lifecycle.
+own drain, so it keeps its own pass, but it gives the claim back through the
+same release step: after the tick, also a cancelled one, under a budget of its
+own that keeps the tick's values but not its cancellation. A lost claim is not
+a failure there either, and a definite release failure joins the tick's
+error, which the controller logs with the sweep's identity and the failed
+step but no statement or database message (FAIL-PER-3, FAIL-SCN-15).
 
 Rationale: the two controllers pace their passes differently on purpose. The
 Audit controller passes again at once after a pass that changed something
@@ -774,6 +779,16 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
     [`internal/auditcontroller/claim_lifecycle_test.go`](../../../internal/auditcontroller/claim_lifecycle_test.go)
     and `TestCoordinatorRunWaitsForThePollIntervalOrAWakeAfterEveryPass` in
     [`internal/evalcoordinator/claim_lifecycle_test.go`](../../../internal/evalcoordinator/claim_lifecycle_test.go).
+    The release step alone keeps the caller's values but not its
+    cancellation, reports a definite failure and not a lost claim; test
+    `TestReleaseReportsADefiniteFailureAndNotALostClaim` in
+    [`internal/claimpass/claimpass_test.go`](../../../internal/claimpass/claimpass_test.go).
+    A durable sweep tick reports a refused release with the sweep's identity
+    and no database message, keeping the sweep claimed, and a takeover during
+    the tick is no failure and leaves the new holder's claim intact (PER-R26,
+    FAIL-SCN-15); tests `TestPostgresScanSweepTickReportsADefiniteReleaseFailure`
+    and `TestPostgresScanSweepTickToleratesAClaimTakenOverDuringIt` in
+    [`internal/app/scan_sweep_release_postgres_test.go`](../../../internal/app/scan_sweep_release_postgres_test.go).
 23. The lease session carries the working pool's connect timeout, query
     budget tracer and server-side timeouts; each startup lease step runs under
     its configured budget, or exactly under an earlier caller deadline; a

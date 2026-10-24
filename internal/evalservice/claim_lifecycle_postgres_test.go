@@ -1,6 +1,7 @@
 package evalservice
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -252,9 +253,11 @@ func journaledRequestTime(t *testing.T, request []byte) time.Time {
 }
 
 // failingFirstCancel fails the first Audit cancellation before it reaches the
-// Audit service, as a lost connection would, and records every attempt.
+// Audit service, as a lost connection would, and records every attempt. A
+// non-nil move runs another mutation of the Audit before that failure.
 type failingFirstCancel struct {
 	AuditExecutor
+	move     func(context.Context, string) error
 	mu       sync.Mutex
 	attempts []auditservice.MutationParams
 }
@@ -267,6 +270,11 @@ func (a *failingFirstCancel) Cancel(ctx context.Context, p auditservice.Mutation
 	first := len(a.attempts) == 1
 	a.mu.Unlock()
 	if first {
+		if a.move != nil {
+			if err := a.move(ctx, p.AuditID); err != nil {
+				return auditservice.MutationResult{}, err
+			}
+		}
 		return auditservice.MutationResult{}, errCancelUnavailable
 	}
 	return a.AuditExecutor.Cancel(ctx, p)
@@ -274,7 +282,10 @@ func (a *failingFirstCancel) Cancel(ctx context.Context, p auditservice.Mutation
 
 // A member's cancellation reads the Driver clock once, when it journals the
 // intent. The Run cancellation and every replay of an interrupted request
-// carry that journaled time, never a later reading.
+// carry that journaled time, never a later reading. An Audit member's retry
+// repeats its idempotency key and request digest only while the Audit
+// revision is unchanged; after the revision moved it sends new ones for the
+// same journaled request (EVM-R115).
 func TestSharedPostgresCancellationReplaysItsJournaledRequestTime(t *testing.T) {
 	first := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
 	later := first.Add(24 * time.Hour)
@@ -340,33 +351,52 @@ SELECT count(*) FROM eval_submissions WHERE experiment_id = $1 AND state = 'acce
 		}
 	})
 
-	t.Run("audit", func(t *testing.T) {
-		h := newHarness(t)
-		clock := &journalClock{first: first, later: later}
-		h.driver.Now = clock.now
-		e := h.prepared(t, "audit")
-		h.command(t, e, "start")
-		c := h.coordinator(t, "controller")
-		h.tickUntil(t, c, "a started Audit", func() bool {
-			state, _, _ := h.suboperation(t, e.ID, "audit-start")
-			return state == "succeeded"
+	for _, test := range []struct {
+		name  string
+		moved bool
+	}{{name: "audit"}, {name: "audit after its revision moved", moved: true}} {
+		t.Run(test.name, func(t *testing.T) {
+			h := newHarness(t)
+			clock := &journalClock{first: first, later: later}
+			h.driver.Now = clock.now
+			e := h.prepared(t, "audit")
+			h.command(t, e, "start")
+			c := h.coordinator(t, "controller")
+			h.tickUntil(t, c, "a started Audit", func() bool {
+				state, _, _ := h.suboperation(t, e.ID, "audit-start")
+				return state == "succeeded"
+			})
+			cancels := &failingFirstCancel{AuditExecutor: h.driver.Audits}
+			if test.moved {
+				cancels.move = func(ctx context.Context, auditID string) error {
+					_, err := h.pool.Exec(ctx, `UPDATE audits SET revision = revision + 1 WHERE audit_id = $1`, auditID)
+					return err
+				}
+			}
+			h.driver.Audits = cancels
+			h.command(t, h.get(t, e.ID), "cancel")
+			var journaled []byte
+			h.tickUntil(t, c, "an acknowledged Audit cancellation", func() bool {
+				state, request, _ := h.suboperation(t, e.ID, "cancel")
+				if journaled == nil && request != nil {
+					journaled = request
+				}
+				return state == "succeeded"
+			})
+			_, request, _ := h.suboperation(t, e.ID, "cancel")
+			if !bytes.Equal(request, journaled) || !journaledRequestTime(t, request).Equal(first) || clock.count() != 1 {
+				t.Fatalf("journal %s (first %s) after %d clock readings, want one unchanged request stamped %s", request, journaled, clock.count(), first)
+			}
+			cancels.mu.Lock()
+			defer cancels.mu.Unlock()
+			if len(cancels.attempts) != 2 {
+				t.Fatalf("Audit cancellation attempts = %+v, want the interrupted one and its retry", cancels.attempts)
+			}
+			interrupted, retry := cancels.attempts[0], cancels.attempts[1]
+			sameKey := interrupted.IdempotencyKey == retry.IdempotencyKey && interrupted.RequestDigest == retry.RequestDigest
+			if moved := retry.ExpectedRevision == interrupted.ExpectedRevision+1; moved != test.moved || sameKey == test.moved {
+				t.Fatalf("Audit cancellation attempts = %+v, want the key and digest repeated exactly while the revision is unchanged", cancels.attempts)
+			}
 		})
-		cancels := &failingFirstCancel{AuditExecutor: h.driver.Audits}
-		h.driver.Audits = cancels
-		h.command(t, h.get(t, e.ID), "cancel")
-		h.tickUntil(t, c, "an acknowledged Audit cancellation", func() bool {
-			state, _, _ := h.suboperation(t, e.ID, "cancel")
-			return state == "succeeded"
-		})
-		_, request, _ := h.suboperation(t, e.ID, "cancel")
-		if !journaledRequestTime(t, request).Equal(first) || clock.count() != 1 {
-			t.Fatalf("journal %s after %d clock readings, want one reading stamped %s", request, clock.count(), first)
-		}
-		cancels.mu.Lock()
-		defer cancels.mu.Unlock()
-		if len(cancels.attempts) != 2 || cancels.attempts[0].IdempotencyKey != cancels.attempts[1].IdempotencyKey ||
-			cancels.attempts[0].RequestDigest != cancels.attempts[1].RequestDigest {
-			t.Fatalf("Audit cancellation attempts = %+v, want the interrupted request replayed unchanged", cancels.attempts)
-		}
-	})
+	}
 }

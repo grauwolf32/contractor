@@ -3,6 +3,7 @@ package claimpass
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -278,5 +279,47 @@ func TestRunRejectsAnIncompleteLifecycle(t *testing.T) {
 	}
 	if handled {
 		t.Fatal("an incomplete lifecycle handled a claim")
+	}
+}
+
+type releaseKey struct{}
+
+// Release on its own, as the sweep controller uses it: it keeps the caller's
+// values but not its cancellation, reports a definite failure, and treats a
+// lost claim as released (PER-R26).
+func TestReleaseReportsADefiniteFailureAndNotALostClaim(t *testing.T) {
+	cancelled, cancel := context.WithCancel(context.WithValue(t.Context(), releaseKey{}, "pass"))
+	cancel()
+	errStore := errors.New("store refused the release")
+	for name, test := range map[string]struct {
+		result, want error
+	}{
+		"released": {},
+		"lost":     {result: fmt.Errorf("wrapped: %w", errLost)},
+		"refused":  {result: errStore, want: errStore},
+	} {
+		var live bool
+		var value any
+		err := Release(cancelled, time.Minute, errLost, func(ctx context.Context) error {
+			live, value = ctx.Err() == nil, ctx.Value(releaseKey{})
+			return test.result
+		})
+		if !errors.Is(err, test.want) || (test.want == nil && err != nil) {
+			t.Fatalf("%s release: error = %v, want %v", name, err, test.want)
+		}
+		if !live || value != "pass" {
+			t.Fatalf("%s release ran under live=%t value=%v, want a live context with the pass's values", name, live, value)
+		}
+	}
+	for name, call := range map[string]func() error{
+		"release":        func() error { return Release(t.Context(), time.Minute, errLost, nil) },
+		"release budget": func() error { return Release(t.Context(), 0, errLost, func(context.Context) error { return nil }) },
+		"lost error": func() error {
+			return Release(t.Context(), time.Minute, nil, func(context.Context) error { return nil })
+		},
+	} {
+		if err := call(); !errors.Is(err, errInvalidLifecycle) {
+			t.Fatalf("release without a %s: error = %v", name, err)
+		}
 	}
 }
