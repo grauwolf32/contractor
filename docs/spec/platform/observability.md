@@ -302,7 +302,10 @@ Run, the StageExecution, the globally unique allocation ID and the logical Agent
 name. A Worker-supplied payload cannot select or override those identities.
 
 **OBS-R9.** `report_id` makes repeated delivery of a report
-idempotent (FAIL-OBS-1).
+idempotent (FAIL-OBS-1). A repeated report matches the stored one when the two
+documents are equal as jsonb, compared by PostgreSQL itself, so a number the
+column stored in another form (`5e-05` as `0.00005`, `-0.0` as `0.0`) still
+matches; another document under a stored identity is a conflict.
 
 **OBS-R10.** The envelope derives ModelPolicy attribution from the
 Run's immutable ResolvedExecutionConfig. The Planner's LLMGatewayConfig and
@@ -387,7 +390,16 @@ is required.
 
 **OBS-R27.** Tool arguments are recursively redacted before they leave
 the Worker and again at the Server persistence boundary. They are bounded
-(LIM-OBS-6) and carry an explicit truncation marker.
+(LIM-OBS-6) and carry an explicit truncation marker. The value of a member
+with a sensitive name becomes the placeholder `{"redacted": true, "size": n}`,
+where `size` is a non-negative integer or null; every name the Server treats
+as sensitive the Worker treats as sensitive too. Redacting a redacted record
+again changes nothing: a value that already is that placeholder, a
+non-negative integer under a size name the Worker derives from content it
+omits (`content_bytes`, `description_bytes`, `result_content_bytes`,
+`result_description_bytes`) and the summary that replaces arguments above
+LIM-OBS-6 (`{"summary": "[TRUNCATED]", "originalSizeBytes": n}`) pass
+unchanged.
 
 **OBS-R28.** MemoryTools applies a stricter projection: note
 content, description and tags are always dropped rather than merely truncated.
@@ -417,7 +429,16 @@ allocation check applies it is specified in the Control Plane document
 
 **OBS-R32.** Tool names and error codes are Runtime vocabulary
 and are never redacted. An error code that is not an identifier, or that
-contains a long secret, is recorded as `tool_call_failed` (FAIL-OBS-3).
+contains a long secret, is recorded as `tool_call_failed` (FAIL-OBS-3). A
+tool call that raises an exception is recorded once as failed, and the Worker
+answers the model with a failed tool result instead of failing the
+invocation. Its code is the exception's own identifier code, or
+`tool_call_failed` when the exception has none; it is retryable only when the
+exception declares itself retryable, so an unclassified exception is
+non-retryable; and its message names only the tool and the exception class,
+as in `list_symbols failed (TypeError)`, never the exception text. Only a tool
+input validation error replaces that message with its bounded Runtime-authored
+diagnostic.
 
 ### Runtime adapter metrics
 
@@ -467,7 +488,72 @@ counters and sets `truncated`.
 escaping; U+2028 and U+2029 count as three-byte UTF-8 characters. Error-message
 sizes count UTF-8 text bytes, independently of their JSON escaping. These rules
 apply both to final reports and live Worker State, including per-tool errors.
-The shared `execution-error-cases.json` fixture pins both diagnostic bounds.
+The shared `execution-error-cases.json` fixture pins both diagnostic bounds. An
+empty tool `arguments` object counts as absent, as both sides encode it, and a
+number in tool arguments counts as the literal its producer wrote: the Server
+keeps that literal instead of re-formatting it, so it measures and bounds the
+bytes the Runtime measured, and an integer beyond 2^53 keeps its value. Such a
+number is zero or the decimal exponent of its leading digit lies between -7 and
+19, and any exponent it writes lies in that range too (LIM-OBS-16); the Server
+rejects a received report with any other number. The range keeps probabilities
+down to one in ten million, float32 epsilon and every 64-bit integer, so ports,
+counts, sizes and timestamps in seconds, milliseconds or nanoseconds stay as
+written; it is no wider because PostgreSQL stores a number as its full decimal
+expansion (OBS-R110). Both sides judge a number as written, the Runtime by
+Python's `repr` of a float, which switches to exponent form below 1e-4 and at
+1e16. The Runtime writes any other number, NaN and infinities as
+`"[NUMBER_OUT_OF_RANGE]"` and marks the arguments truncated; the Server writes
+the same marker for such a number in a summary it builds itself, such as a
+Planner tool call. The shared `telemetry-report-trim-cases.json` fixture pins
+the range, the marker and the numbers on each side of both edges, and the
+private allocation fixtures hold a report with numbers just inside both edges
+and reports each with one just outside.
+
+**OBS-R110.** A report over its byte bound loses detail in one order: the
+oldest tool-call record first, the oldest error only after no tool-call record
+remains (OBS-R41). The result is the first report of that removal sequence
+whose compact JSON (OBS-R42) fits; once a record is removed `truncated` is
+`true`, and a report that does not fit loses at least one record even when the
+shorter `"truncated":true` alone would make it fit. When no detail is left and
+the report still does not fit, the report is rejected as an oversized
+aggregate. Records are redacted and bounded (OBS-R27, OBS-R30) before anything
+is measured, so unredacted content is never sized. Since the JSON of a list is
+its elements joined by commas, each side measures every candidate record once
+and the complete report at most three times per bound (the candidate, the
+report without detail and the retained result), however many records it
+removes; the retained result must measure exactly the computed size, or the
+report is rejected. The Worker producer and the Server persistence boundary
+implement the rule separately. Given the same records they keep the same
+suffix, and they measure a record the Runtime built at the same size
+(OBS-R42). The Server applies the rule again after its own redaction, first at
+the Worker report bound and then at the 1 MiB allocation bound (LIM-OBS-7); it
+bounds a Planner report at 1 MiB. That redaction leaves a record the Runtime
+redacted unchanged (OBS-R27), except where it replaces a deployment secret it
+holds (OBS-R30) or a text containing `://` that its URL check treats as
+credential-bearing. Only such a change makes the Server remove more detail
+than the Runtime removed. The shared `telemetry-report-trim-cases.json` fixture
+pins the retained suffix at every removal boundary, the equal sizes and the
+unchanged records, including records the Runtime's producer built.
+
+The byte bounds measure the compact JSON a report is received in, and only
+that: the private response bounds the report a Runtime sent at 1 MiB before it
+decodes it (LIM-OBS-7). PostgreSQL stores each number as its exact decimal
+expansion and renders a stored document with a space after each separator, so
+a stored report reads back as longer text and its decoded numbers keep that
+expansion. A stored report is decoded as strictly as a received one and passes
+every rule of a received one except the byte bounds. LIM-OBS-16 bounds the
+expansion: a kept number has at most 20 integer digits, and at most 7 more
+fraction digits than its literal, so no element expands more than `1e19,` does
+into `10000000000000000000, `, 4.4 times, and a stored report reads back as at
+most 4.4 times its 1 MiB bound. Measured on PostgreSQL 17 with 1 MiB reports of
+250 tool calls, arrays of `1e19` read back as 4.27 times the bound, the
+Runtime's `1e+19` as 3.57 times, `1e-07` as 1.81 times, one-character strings
+as 1.24 times, and a mix of ports, counts, timestamps, fractions and paths as
+1.09 times. The StageMetrics rebuild decodes the Planner's report and the
+report of every logical Agent of the Stage at once, encodes them into the
+StageMetrics document and decodes that again; Run detail decodes that
+document, and the replay identity lookup (OBS-R9) decodes one stored report.
+Their memory grows by at most that factor over the received bounds.
 
 **OBS-R43.** Durable telemetry expires after 30 days (LIM-OBS-8). Cleanup
 is batch-bounded and may delete only telemetry that belongs to a terminal
@@ -858,6 +944,8 @@ Limits ([registry](limits.md)):
   (OBS-R83).
 - LIM-OBS-15 — at most one OTLP request after a Planner returns
   (OBS-R99).
+- LIM-OBS-16 — each tool argument number zero or with a leading-digit and
+  written decimal exponent between -7 and 19 (OBS-R42, OBS-R110).
 - The Worker export settings and their ranges belong to
   [Runtime configuration](../configuration/runtime-config.md); the
   `AttemptDiagnostics` bounds to [Runs](../execution/runs.md)
@@ -934,6 +1022,7 @@ This whole document is the shared observability model.
 | Podman sandbox metrics and metadata-only instrumentation of execution-enabled Workers | [Code execution](../tools/code-execution.md) |
 | Performance collection, `RuntimeReport.resources`, Server and database performance history, HTTP listener dimensions; performance telemetry never affects placement, outcomes, leases, fencing or release | [OPS-R69](../operations/operations.md), [OPS-R70](../operations/operations.md), [OPS-R99](../operations/operations.md), [OPS-R100](../operations/operations.md) |
 | Closing allocation adapters after the flush and keeping them closed at release | [RTA-R58](../execution/runtime-agent.md) |
+| Eval purge progress records: pass count, rows, bytes and age of each experiment and Project purge | [EVM-R243](../evals/managed-evals.md) |
 
 ## Invariants
 
@@ -971,15 +1060,39 @@ These properties follow from the cited requirements, which are authoritative.
    `test_overflow_and_shutdown_are_counted_once` and
    `test_drop_counters_saturate_and_reports_are_detached` in
    [`runtime/tests/test_otlp_retries.py`](../../../runtime/tests/test_otlp_retries.py).
-7. Repeated report delivery is idempotent, persisted reports are redacted and
-   durable telemetry expires in bounded batches (OBS-R9,
-   OBS-R27, OBS-R43, OBS-R44); tests
-   `TestMetricsPostgresIdempotencyRedactionAggregationAndRetention` in
+7. Repeated report delivery is idempotent, persisted reports are redacted,
+   every reader decodes a stored report whose rendering exceeds its byte
+   bound, and durable telemetry expires in bounded batches (OBS-R9, OBS-R27,
+   OBS-R43, OBS-R44, OBS-R110); tests
+   `TestMetricsPostgresIdempotencyRedactionAggregationAndRetention`,
+   `TestMetricsPostgresReplayComparesNumbersAsStored` and
+   `TestMetricsPostgresReadsReportsTrimmedToTheByteBound` in
    [`internal/telemetry/postgres_integration_test.go`](../../../internal/telemetry/postgres_integration_test.go)
    and `TestRetentionDrainsFullBatchesBeforeLongWait` in
    [`internal/telemetry/retention_test.go`](../../../internal/telemetry/retention_test.go).
 8. Metadata labels reach telemetry only as bounded attributes and never reach a
    model (OBS-R102, OBS-R106).
+9. Given the same records, the Worker producer and the Server keep the same
+   newest detail of an oversized report and measure the complete report at
+   most three times per bound; they measure a record the Runtime built at the
+   same size, and the Server's redaction leaves it unchanged unless it holds a
+   secret the record contains or treats a `://` text as credential-bearing;
+   both reject an argument number outside LIM-OBS-16 on receipt and write the
+   same marker for one in a summary they build
+   (OBS-R27, OBS-R41, OBS-R42, OBS-R110); tests
+   `TestSharedReportTrimKeepsTheSharedSuffixAtEveryBoundary`,
+   `TestSharedArgumentNumbersAgreeWithTheRuntime`,
+   `TestPolicyMarksNumbersTheServerBuiltOutsideTheirRange` and
+   `TestReportTrimMeasuresTheCompleteReportAtMostThreeTimes` in
+   [`internal/telemetry/trim_test.go`](../../../internal/telemetry/trim_test.go),
+   `TestToolArgumentsKeepTheRuntimeNumberLiterals` and
+   `TestToolArgumentsRejectNumbersOutsideTheirRange` in
+   [`internal/contracts/reporting/telemetry_test.go`](../../../internal/contracts/reporting/telemetry_test.go),
+   and `test_shared_report_trim_keeps_the_shared_suffix_at_every_boundary`,
+   `test_shared_argument_redaction_leaves_redacted_arguments_unchanged`,
+   `test_shared_argument_numbers_agree_with_the_server` and
+   `test_shared_report_trim_measures_the_complete_report_at_most_three_times`
+   in [`runtime/tests/test_metrics.py`](../../../runtime/tests/test_metrics.py).
 
 ## Non-goals
 

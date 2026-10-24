@@ -1,0 +1,265 @@
+schema_version: '1.0'
+id: V409-010
+title: Bound internal Run event fetches by bytes while preserving complete replay
+milestone: sql-review-2026-10
+epic: execution-core
+kind: chore
+introduced_by: V3-009
+priority: P2
+status: completed
+implementation_commit: 89c8038f3c5f94811c06a3ac52a8287f67dd7de8
+depends_on: []
+languages:
+- go
+- sql
+goal: Fetch a bounded amount of Run-event data per internal read and continue WebSocket replay across
+  byte-short pages without changing event payloads, ordering or lifecycle behavior.
+context:
+  review: docs/research/2026-10-23-sql-review.md, D ListRunEvents bytes; Planner-session and Run-purge
+    dispositions are recorded below.
+  specification:
+  - docs/spec/execution/runs.md
+  - docs/spec/api/public-api.md
+  - docs/spec/platform/limits.md
+  - docs/spec/artifacts/retention-and-deletion.md#DEL-R13
+  - docs/spec/artifacts/retention-and-deletion.md#DEL-R22
+  - docs/spec/artifacts/retention-and-deletion.md#DEL-R59
+  finding: internal/runstore/run_event_store.go:435-477 validates limit<=1000 and fetches LIMIT limit
+    without an aggregate byte bound. The production caller internal/httpapi/public/events/run_poller.go:14,137
+    uses 128 rows and :145-146 interprets any shorter page as caught up. Thus a byte cutoff needs
+    an explicit internal continuation signal; introducing it in SQL alone would delay delivery of
+    committed events after a short page. Individual persisted event data is bounded at 2 MiB.
+  validation: 'Revalidated on main 1d533b2db885e0162ebabb01d36470f139546009: wide reads and absent
+    aggregate byte budget are confirmed structurally, not by an observed OOM. The production envelope
+    is 128 times the individual bound, not a 1000-row public page. The current API has no limit+1
+    result metadata. This chore changes only internal fetch boundaries and resource cost; the external
+    replay contract is preserved.'
+  siblings: Store callers and fakes, shared Run poller, WebSocket catch-up/reconnect/gap tests and
+    the Run detail event cursor boundary. Preserve strict validation in both ListRunEvents and public
+    encoding. V407-026 does not authorize removing read validation. Planner detail/scan readers and
+    Run purge are contract-preservation boundaries, not additional implementations in this task.
+  provenance: git blame attributes ListRunEvents to 2fbac4ddcf61709d01fd57025c8aa52d477b44a6, recorded
+    by V3-009.
+  decisions:
+  - Do not project only state->plan or scan in GetPlannerSessions. internal/planner/session/plans_batch.go:27-48
+    and scan_history.go:67,90-99 validate exact identity and decodeState; session/service.go:589-653
+    also checks the closed whole state, status, pinned subtask limit, transition digest and scan
+    structure. Full-state reads remain an optimization candidate; reopen only with an equivalent
+    strict-read design, measured admitted-size bytes and preservation of the one-query-per-related-collection
+    rule RUN-R89.
+  - Do not move artifact_versions/blob metadata to deletePhysicalAfterCommit. internal/artifacts/blob_context.go:150-171
+    only schedules filesystem unlink; ordered reference-safe metadata GC stays transactional under
+    DEL-R13/R22/R59. The existing integration test TestPostgresRunRevisionLimitAndBoundedPurge already
+    passed at 50000 revisions; row locks already end at commit. A deferred metadata-GC design would
+    require a separate lifecycle decision and durable recovery proof.
+  - LIM-ART-6 bounds 50000 non-outputs Run revisions; Scheduler outputs are excluded. Event-count
+    history has no total-count bound. Neither fact justifies silently adding a per-Run append cap
+    here. Reopen a retention/count-bound proposal only with a representative history workload and
+    specified append, replay and deletion failure outcomes.
+  - The 8 MiB persisted-data budget below is a proposed new internal accounting limit, not a current
+    contract or a measured optimum. It allows at least four individually maximum-sized 2 MiB event
+    data values while bounding the large-payload page; small events may still fill the existing row
+    count. It changes fetch boundaries, not accepted events or replay contents.
+plan:
+- Introduce and register the proposed new 8 MiB aggregate budget for persisted data JSON bytes returned
+  by one internal Run-event read, measured as octet_length(data::text), in limits.md and the owning
+  read contract. The existing per-row 2 MiB bound ensures that every valid first event fits, so any
+  nonempty valid history advances the cursor on a fresh page; metadata remains separately bounded
+  by the row count and field limits. Do not describe this payload-data budget as an exact heap or
+  serialized-WebSocket-frame limit.
+- Limit the candidate SQL input by requested row count before cumulative byte accounting, then return
+  only the contiguous sequence prefix within both bounds. Inspect at most one extra candidate for
+  continuation without transferring its payload. Do not let a window aggregate scan an entire retained
+  history merely to serve one page. Keep identity, sequence, kind and strict payload checks for every
+  returned row.
+- Give the internal store result explicit has-more/next-sequence semantics and update every caller/fake.
+  The shared Run poller must keep draining committed work after a byte-short nonterminal page, end
+  only at genuine exhaustion, and retain cancellation, backpressure, per-subscriber cursor and sequence-gap
+  behavior. A malformed or out-of-contract stored row retains the existing classified failure/resync
+  behavior rather than being skipped.
+- Add real-store byte-count and continuity tests with valid large event payloads generated through
+  the actual event validators; do not synthesize 1000 invalid maximum-sized rows and call that a
+  production workload. Cover exact budget, one byte past it, mixed row sizes, empty history and the
+  existing row limit. Count returned bytes and candidate work, not elapsed time.
+- Add deterministic shared-poller tests in which a first page is short because of bytes but has committed
+  successors; prove that all are delivered in order without waiting for another notification or timer.
+  Cover cancellation, disconnect/backpressure, cursor replay and gap detection. Run existing detail
+  snapshot and purge scale checks as preservation evidence, without claiming they were failing before
+  this chore.
+scope:
+  in:
+  - Internal event page result, bounded SQL candidate/byte selection, shared WebSocket poller continuation,
+    related fixtures/fakes and owning limits documentation.
+  out:
+  - Event formats, public API shape, stricter admission, per-Run append/history limits, weakened
+    stored-event validation.
+  - Planner-session projection or extra batch queries, deferred version/blob metadata GC, changed
+    Run deletion transaction or new purge pass behavior.
+acceptance_criteria:
+- id: A1
+  text: Given valid stored events whose requested row page exceeds 8 MiB, when the internal reader
+    fetches it, then returned data JSON bytes are at most 8 MiB, the rows form a contiguous sequence
+    prefix, candidate selection is bounded by the requested limit plus one, and continuation identifies
+    remaining committed work without transferring the lookahead payload. A fresh page containing
+    a largest legal event returns at least that event and advances its cursor.
+- id: A2
+  text: Given a byte-short page with successors already committed, when shared WebSocket catch-up
+    runs, then it delivers every successor in order in the same catch-up cycle without a new wake
+    or elapsed-time wait; a genuinely exhausted page terminates the cycle.
+- id: A3
+  text: Given exact-boundary, empty, mixed-size, corrupt and sequence-gap histories, when store and
+    poller readers run, then valid cursors resume without omissions/duplicates and corrupt rows retain
+    the existing failure behavior; cancellation and backpressure stop work as before.
+- id: A4
+  text: Given the original unbounded-byte reader and length-based catch-up termination, when the
+    new byte-count and continuation regressions run, then they distinguish the old behavior; unchanged
+    detail snapshot, one-query Planner reads and atomic 50000-non-outputs-revision purge tests remain
+    preservation checks, not claimed fixes.
+tests:
+- command: CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?Set an isolated disposable
+    PostgreSQL URL}" go test -tags=integration -count=1 ./internal/runstore/... ./internal/runservice/...
+    ./internal/httpapi/public/... ./internal/planner/session/... ./internal/artifacts/... ./internal/rundeletion/...
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make verify-public-api
+  covers:
+  - A2
+  - A3
+- command: make lint
+  covers: []
+  purpose: Static checks and limits/specification/task consistency only; not evidence of byte counts
+    or replay progress.
+manual_verification:
+- check: Review the documented byte accounting and actual query plan to confirm a row-limited candidate
+    stage before cumulative work; record the relevant plan and non-skipped PostgreSQL test results.
+    Distinguish payload bytes from heap usage and record preserved, unimplemented Planner/purge dispositions.
+  covers:
+  - A1
+  - A4
+verification:
+  date: '2026-10-23'
+  environment: >-
+    macOS arm64; Go 1.26.9; locked Node 24.20 and Runtime venv; local
+    PostgreSQL 17.11 database contractor_test_e with isolated per-test schemas
+    and all 32 migrations; TMPDIR resolved to its symlink-free /private/var
+    path.
+  re_verification: >-
+    The finding held on base 376a1f92: ListRunEvents
+    (internal/runstore/run_event_store.go:435-478) validated limit<=1000 and
+    read LIMIT $3 rows with no aggregate byte bound, and the only production
+    caller, the shared Run poller (internal/httpapi/public/events/run_poller.go:14,137,145-146),
+    read 128-row pages and ended a catch-up at any page shorter than 128.
+    workflow_run_events is read nowhere else in production code. The per-row
+    bound is the CHECK octet_length(data::text) <= 2097152 of
+    000001_baseline.sql, the measure the new budget uses.
+  design_decision: >-
+    The page statement (listRunEventsSQL in run_event_store_sql.go) walks the
+    primary key one event at a time in a recursive CTE and continues from an
+    event only while it is within the requested count and, counting it, the
+    8 MiB budget. Every walked event is a result row and the first one
+    outside both bounds is the look-ahead, returned without data, so the
+    statement measures exactly the returned events plus at most one, under
+    one snapshot. Rejected alternative: LIMIT limit+1 candidates with a
+    running sum(octet_length) window, the readExactBatchSQL pattern; it is
+    bounded by limit+1 too but detoasts and measures every candidate, up to
+    128 events of 2 MiB to return four. Cost of the walk: one index probe per
+    event, 1.3 ms for a 129-event page of 4 KiB events in the plan below.
+    Reopen if probe cost on small-event pages is measured to matter; the
+    window form is then the fallback, with the same result contract.
+  regression_before_fix: >-
+    With the new tests in place and listRunEventsSQL temporarily replaced by
+    the original row-only read (LIMIT limit+1, every row returned within the
+    count), TestPostgresListRunEventsBoundsPageDataBytes failed: the page
+    after start returned p1..p7 with 8,396,800 data bytes where p1..p4 with
+    6,295,552 and More were required, the exact-budget page returned
+    8,392,704 bytes, the replay page from 0 returned 8,397,381 bytes, and the
+    plan had no bounded walk. With the poller's termination temporarily
+    restored to len(page.Events) < runReplayPageSize,
+    TestRunCatchUpContinuesAcrossByteShortPages read once instead of five
+    times, TestRunCatchUpEndsAtTheLastCommittedEvent read twice instead of
+    once, the cursor, gap, undeliverable-event and failed-read tests behind
+    a byte-short page timed out waiting for frames that only another wake-up
+    would deliver, and the socket-closed and Hub-shutdown cases read once
+    instead of twice. Both temporary changes were reverted before commit.
+  manual_verification: >-
+    EXPLAIN (ANALYZE) of listRunEventsSQL on the real schema (3 events of
+    4 KiB, 5 of 2 MiB, 200 of 4 KiB; ANALYZE run): after 0 with limit 128,
+    Recursive Union actual rows=13 (12 returned plus the look-ahead), its
+    non-recursive Limit -> Index Scan using workflow_run_events_pkey rows=1,
+    and the recursive Nested Loop -> WorkTable Scan filtered by
+    position <= 128 AND cumulative_data_bytes <= 8388608 -> Limit -> Index
+    Scan using workflow_run_events_pkey (sequence_number > walk.sequence_number)
+    loops=12; the page returned 12 events, 6,304,315 data bytes, More. After
+    14 with limit 128: Recursive Union rows=129, index probes loops=128,
+    128 events, 524,288 data bytes, More. No plan node reads the history
+    beyond the look-ahead. The budget counts octet_length(data::text) of
+    returned events only; it is not the Server heap (pgx row buffers, the
+    copied json.RawMessage, decoded validation values) nor a WebSocket frame,
+    which LIM-API-9 bounds separately; API-R110 and LIM-API-24 say so.
+    Preserved, unimplemented dispositions: GetPlannerSessions still reads
+    full state (no projection or extra query, RUN-R89 one-query rule
+    unchanged); PurgeRun keeps its transactional version/blob metadata GC; no
+    per-Run append or history cap was added. Their tests ran unchanged as
+    preservation evidence only.
+  commands:
+    - >-
+      CONTRACTOR_TEST_DATABASE_URL=postgres://ruslan@localhost:5432/contractor_test_e?sslmode=disable
+      go test -tags=integration -count=1 ./internal/runstore/...
+      ./internal/runservice/... ./internal/httpapi/public/...
+      ./internal/planner/session/... ./internal/artifacts/...
+      ./internal/rundeletion/... passed; the same run with -json reported
+      1227 passed tests, 0 skipped and 0 failed, including
+      TestPostgresListRunEventsBoundsPageDataBytes,
+      TestPostgresListRunEventsFailsOnInvalidStoredEventsAndKeepsGaps, the
+      new poller tests and the preservation tests
+      TestPostgresRunRevisionLimitAndBoundedPurge (50000 revisions),
+      TestPostgresRunDetailFixedBatchQueries,
+      TestPostgresRunDetailReadsStateAndCursorFromOneSnapshot and
+      TestPostgresRunDetailResponseKeepsStateWithItsCursor.
+    - go test -race -count=1 ./internal/httpapi/public/events/ passed.
+    - make verify-public-api passed.
+    - >-
+      go test -count=1 ./tests/integration/streamline/ passed, and
+      go test -tags=e2e -count=1 -run
+      '^(TestLocalGoToPythonArtifactCopy|TestRoutingAndEscalationProductionBoundaries)$'
+      ./tests/e2e passed (the touched whole-history readers, which now also
+      require More=false).
+    - >-
+      make lint passed. go test ./internal/persistence fails only
+      TestSQLAccessFollowsTableOwnership at internal/cli/scan_sweep_remote.go:196,
+      the known pre-existing failure from b76026f9; SQL placement passes with
+      the new statement in run_event_store_sql.go.
+  database_tests_configured: true
+  siblings_reviewed: >-
+    workflow_run_events has one production reader, ListRunEvents, and one
+    caller, the shared Run poller; GetRunEventCursor reads only the counter.
+    Every implementation of events.RunRepository (PostgresStore, the events
+    test fakes and the public handler fake) returns the page with More; the
+    Run detail cursor tests and every whole-history test reader now require
+    More=false, and the Planner session page test requires More at its
+    count bound. Read validation is unchanged for every returned event.
+  limits_registered: >-
+    LIM-API-24 (8 MiB persisted event data per Run event read) and LIM-API-25
+    (2 MiB persisted data of one Run event, previously enforced but
+    unregistered), both owned by the new API-R110 in docs/spec/api/public-api.md.
+  review_follow_up: >-
+    Review found that LIM-API-25 and the maxRunEventDataBytes comment said
+    every enforcer counts the stored data text. 89c8038f corrects both: the
+    workflow_run_events CHECK on octet_length(data::text) is authoritative
+    and is what LIM-API-24 relies on; the Server append check measures the
+    submitted JSON bytes and is only a pre-check; the read check counts the
+    stored text; the constant also pre-checks Planner session state (stored
+    bound planner_session_state_size, the unregistered 2 MiB session JSON of
+    WFL-R87). A real-PostgreSQL probe (not committed) appended plan data of
+    2,097,121 compact bytes whose stored text is 2,097,652 bytes: the
+    pre-check passed, the CHECK rejected the statement with SQLSTATE 23514
+    and nothing was written (the Run event cursor stayed at 6). The store
+    returns that rejection unwrapped, not as ErrInvalid like the pre-check,
+    but no caller distinguishes them: Begin, the ADK and scan appends only
+    test ErrConflict, and streamline maps every RecordPlan/RecordFact error
+    to planner_plan_persistence_failed. So nothing is misclassified and
+    behaviour is unchanged.
+  remaining: None for this task.

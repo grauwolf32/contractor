@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import hashlib
 import json
 import re
 import subprocess
+import threading
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -13,6 +16,12 @@ from unittest.mock import AsyncMock
 
 import pytest
 import yaml
+from document_preparation_probes import (
+    PreparationGate,
+    loop_callback,
+    observe_threads,
+    yield_to_loop,
+)
 from document_write_faults import FaultInjectingArtifactClient
 
 import contractor_runtime.toolsets.openapi.tools as openapi_module
@@ -33,8 +42,12 @@ from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.factories import built_in_factories
 from contractor_runtime.projectfs.storage import WorkspaceSnapshot, WorkspaceTextFile
 from contractor_runtime.toolsets.openapi.tools import (
+    DOCUMENT_BYTES_MESSAGE,
+    DOCUMENT_DEPTH_MESSAGE,
+    DOCUMENT_NODES_MESSAGE,
     MAX_DOCUMENT_BYTES,
     MAX_DOCUMENT_DEPTH,
+    MAX_DOCUMENT_NODES,
     OpenAPIToolsetFactory,
     _run_vacuum,
     _validate_json_tree,
@@ -43,6 +56,7 @@ from contractor_runtime.worker.instrumentation import _safe_tool_response
 from contractor_runtime.workspace import AllocationWorkspace
 
 SECRET = "openapi-tool-recognizable-secret"
+DOCUMENT_BOUNDS = Path(__file__).resolve().parents[2] / "api/testdata/openapi-document-bounds.json"
 
 
 def test_openapi_tools_build_validate_and_expose_exact_refs(
@@ -444,6 +458,12 @@ def test_yaml_keys_are_json_strings_without_weakening_structure_checks() -> None
         (base + "!!binary aGk=: binary-key\n", "keys must be strings"),
         (base + "released: !!timestamp 2023-01-01\n", "unsupported date value"),
         (base + "x-ref: &a 1\nx-copy: *a\n", "aliases and anchors"),
+        (base + "x-only: &unused {a: 1}\n", "aliases and anchors"),
+        (base + "x-copy: *missing\n", "aliases and anchors"),
+        (base + "&key x-key: value\n", "aliases and anchors"),
+        (base + "x-list: [&item 1, 2]\n", "aliases and anchors"),
+        # The whole stream is composed before any value is constructed.
+        (base + "x-dup: {a: 1, a: 2}\n---\nx-later: &later 1\n", "aliases and anchors"),
     ):
         with pytest.raises(ValueError, match=message):
             openapi_module._parse_document(payload.encode())
@@ -481,7 +501,11 @@ def test_path_and_component_listings_fit_the_model_output_limit(tmp_path: Path) 
             f"{index:04d}" + chr(0x1F600) * 252: {"type": "string"}
             for index in range(openapi_module.MAX_LIST_ITEMS)
         }
-        seed = client.seed("inputs", "seed", "application/yaml", yaml.safe_dump(document).encode())
+        # Unescaped UTF-8 keeps the seed within the 2 MiB document bound while
+        # each listing still exceeds the model output limit.
+        payload = yaml.safe_dump(document, allow_unicode=True).encode()
+        assert len(payload) <= openapi_module.MAX_DOCUMENT_BYTES
+        seed = client.seed("inputs", "seed", "application/yaml", payload)
         tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
         await tools["load_openapi"]("inputs", "seed", seed.revision)
 
@@ -532,7 +556,7 @@ def test_mutation_depth_rejection_preserves_the_published_document(
     asyncio.run(scenario())
 
 
-def test_parser_enforces_byte_depth_and_item_limits(
+def test_parser_enforces_byte_depth_and_node_limits(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     async def oversized_scenario() -> None:
@@ -544,22 +568,170 @@ def test_parser_enforces_byte_depth_and_item_limits(
             b"x" * (MAX_DOCUMENT_BYTES + 1),
         )
         tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
-        with pytest.raises(ValueError, match="4 MiB"):
+        with pytest.raises(ToolInputError, match="2 MiB"):
             await tools["load_openapi"]("inputs", "oversized", seed.revision)
         assert client.read_limits == [MAX_DOCUMENT_BYTES]
         assert client.write_count == 0
 
     asyncio.run(oversized_scenario())
+    with pytest.raises(ToolInputError, match="2 MiB"):
+        openapi_module._parse_document(b"x" * (MAX_DOCUMENT_BYTES + 1))
 
+    # The top-level value is at depth 1, so the leaf of 63 nested arrays is at
+    # the bound and one more array puts it beyond.
     nested: Any = "leaf"
-    for _ in range(MAX_DOCUMENT_DEPTH + 1):
+    for _ in range(MAX_DOCUMENT_DEPTH - 1):
         nested = [nested]
-    with pytest.raises(ValueError, match="nesting depth"):
-        _validate_json_tree(nested)
+    _validate_json_tree(nested)
+    with pytest.raises(ToolInputError, match="nesting depth"):
+        _validate_json_tree([nested])
+    keyed: Any = "leaf"
+    for _ in range(MAX_DOCUMENT_DEPTH - 1):
+        keyed = {"a": keyed}
+    _validate_json_tree(keyed)
+    with pytest.raises(ToolInputError, match="nesting depth"):
+        _validate_json_tree({"a": keyed})
 
-    monkeypatch.setattr(openapi_module, "MAX_DOCUMENT_ITEMS", 3)
-    with pytest.raises(ValueError, match="item limit"):
+    # Member names are nodes: {"a": 1} is three nodes although it holds two values.
+    monkeypatch.setattr(openapi_module, "MAX_DOCUMENT_NODES", 3)
+    _validate_json_tree({"a": 1})
+    _validate_json_tree([1, 2])
+    with pytest.raises(ToolInputError, match="node limit"):
+        _validate_json_tree({"a": 1, "b": 2})
+    with pytest.raises(ToolInputError, match="node limit"):
         _validate_json_tree([1, 2, 3])
+
+
+def test_shared_openapi_document_bounds_match_scan_preparation(tmp_path: Path) -> None:
+    """Loading each shared bound case gives the verdict Server scan preparation gives."""
+
+    fixture = json.loads(DOCUMENT_BOUNDS.read_text(encoding="utf-8"))
+    assert fixture["bounds"] == {
+        "sourceBytes": MAX_DOCUMENT_BYTES,
+        "depth": MAX_DOCUMENT_DEPTH,
+        "nodes": MAX_DOCUMENT_NODES,
+    }
+    assert len(fixture["cases"]) >= 12
+    messages = {
+        "bytes": DOCUMENT_BYTES_MESSAGE,
+        "depth": DOCUMENT_DEPTH_MESSAGE,
+        "nodes": DOCUMENT_NODES_MESSAGE,
+    }
+
+    async def verdict(document: bytes, media_type: str) -> str | None:
+        client = MemoryArtifactClient()
+        seed = client.seed("inputs", "bounds", media_type, document)
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
+        try:
+            loaded = await tools["load_openapi"]("inputs", "bounds", seed.revision)
+        except ToolInputError as error:
+            assert client.write_count == 0
+            return str(error)
+        assert loaded["copied"] is True
+        assert len(client.bindings[("openapi", "openapi")].data) <= MAX_DOCUMENT_BYTES
+        return None
+
+    async def scenario() -> None:
+        for case in fixture["cases"]:
+            for form in ("json", "yaml"):
+                document = bounds_document(
+                    fixture["prefix"][form], case, compact_json=form == "json"
+                )
+                label = f"{case['name']}/{form}"
+                assert hashlib.sha256(document).hexdigest() == case["sha256"][form], label
+                expected = None if case["violation"] is None else messages[case["violation"]]
+                assert await verdict(document, f"application/{form}") == expected, label
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    ("case", "message"),
+    [
+        # The size of the document Server preparation rejected in the review.
+        ({"pad": {"bytes": 3145826, "fill": "a"}}, DOCUMENT_BYTES_MESSAGE),
+        ({"deep": {"kind": "mapping", "depth": 65}}, DOCUMENT_DEPTH_MESSAGE),
+        # 50,007 nodes counting values alone, 100,013 with the member names.
+        ({"members": 50000}, DOCUMENT_NODES_MESSAGE),
+    ],
+    ids=["reproduced-3MiB", "depth-65", "member-names"],
+)
+def test_document_beyond_the_bounds_is_rejected_before_vacuum(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: dict[str, Any], message: str
+) -> None:
+    async def scenario() -> None:
+        vacuum = AsyncMock(side_effect=clean_vacuum)
+        monkeypatch.setattr(openapi_module, "_run_vacuum", vacuum)
+        client = MemoryArtifactClient()
+        payload = bounds_document(BOUNDS_YAML_PREFIX, case)
+        seed = client.seed("inputs", "seed", "application/yaml", payload)
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
+        with pytest.raises(ToolInputError) as rejected:
+            await tools["load_openapi"]("inputs", "seed", seed.revision)
+        assert _safe_tool_response("load_openapi", rejected.value)["error"] == {
+            "code": "tool_input_invalid",
+            "message": message,
+            "retryable": False,
+        }
+        with pytest.raises(ToolInputError, match="must be called first"):
+            await tools["validate_openapi"]()
+        assert client.write_count == 0
+        vacuum.assert_not_awaited()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    ("bound", "value", "message"),
+    [
+        ("MAX_DOCUMENT_BYTES", 64, DOCUMENT_BYTES_MESSAGE),
+        ("MAX_DOCUMENT_DEPTH", 2, DOCUMENT_DEPTH_MESSAGE),
+        ("MAX_DOCUMENT_NODES", 8, DOCUMENT_NODES_MESSAGE),
+    ],
+)
+def test_validation_checks_the_bounds_before_vacuum_and_keeps_semantic_checks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, bound: str, value: int, message: str
+) -> None:
+    async def scenario() -> None:
+        vacuum = AsyncMock(side_effect=clean_vacuum)
+        monkeypatch.setattr(openapi_module, "_run_vacuum", vacuum)
+        client = MemoryArtifactClient()
+        document = minimal_document("Seed")
+        document["paths"]["/health"] = valid_path_item()
+        seed = client.seed("inputs", "seed", "application/yaml", yaml.safe_dump(document).encode())
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
+        await tools["load_openapi"]("inputs", "seed", seed.revision)
+
+        # A document within the bounds keeps its semantic validation beside Vacuum.
+        checked = await tools["validate_openapi"]()
+        assert checked["valid"] is False
+        assert checked["structuralErrors"] == ["OpenAPI path /health is missing source provenance"]
+        vacuum.assert_awaited_once()
+
+        monkeypatch.setattr(openapi_module, bound, value)
+        with pytest.raises(ToolInputError) as rejected:
+            await tools["validate_openapi"]()
+        assert str(rejected.value) == message
+        vacuum.assert_awaited_once()
+
+    asyncio.run(scenario())
+
+
+def test_mutation_beyond_the_byte_bound_preserves_the_published_document(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        client = MemoryArtifactClient()
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
+        initialized = await tools["initialize_openapi"](title="Service")
+        writes = client.write_count
+        with pytest.raises(ToolInputError) as rejected:
+            await tools["set_openapi_info"]("Service", description="a" * MAX_DOCUMENT_BYTES)
+        assert str(rejected.value) == DOCUMENT_BYTES_MESSAGE
+        assert client.write_count == writes
+        assert (await tools["get_openapi_info"]())["artifact"] == initialized["artifact"]
+
+    asyncio.run(scenario())
 
 
 @pytest.mark.parametrize(
@@ -1309,6 +1481,425 @@ def test_openapi_definite_rejection_is_not_replayed(
     asyncio.run(scenario())
 
 
+def test_openapi_document_work_runs_on_worker_threads_while_the_loop_runs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        order: list[str] = []
+        gate = PreparationGate(openapi_module._parse_document, "decoded", order)
+        threads = observe_threads(
+            monkeypatch,
+            openapi_module,
+            {
+                "_parse_document": ("decode", gate),
+                "_prepare_document": ("initialize", None),
+                "_prepare_mutation": ("mutation", None),
+                "_dump_document": ("serialize", None),
+                "_targeted_copy": ("targeted read", None),
+                "_bounded_name_listing": ("listing", None),
+                "_validate_structure": ("validate", None),
+                "_vacuum_report": ("validator output", None),
+            },
+        )
+        monkeypatch.setattr(openapi_module.shutil, "which", lambda _name: "/opt/bin/vacuum")
+        monkeypatch.setattr(
+            "contractor_runtime.core.process.run_command",
+            AsyncMock(return_value=subprocess.CompletedProcess(["vacuum"], 0, b"[]", b"")),
+        )
+        source = tmp_path / "source" / "src"
+        source.mkdir(parents=True)
+        (source / "app.py").write_text("route = '/health'\n")
+        client = MemoryArtifactClient()
+        seed = client.seed(
+            "inputs", "seed", "application/json", json.dumps(minimal_document("Seed")).encode()
+        )
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
+
+        load = asyncio.create_task(tools["load_openapi"]("inputs", "seed", seed.revision))
+        try:
+            await gate.wait_entered(load)
+            await loop_callback(order)
+            assert not load.done()
+        finally:
+            gate.release.set()
+        assert (await load)["copied"] is True
+        assert order == ["loop callback", "decoded"]
+
+        await tools["upsert_openapi_path"]("/health", valid_path_item(), ["src/app.py"])
+        await tools["get_openapi_path"]("/health")
+        await tools["list_openapi_paths"]()
+        await tools["read_openapi_document"]()
+        assert (await tools["validate_openapi"]())["valid"] is True
+        await tools["initialize_openapi"]("Next", target_name="next")
+        assert set(threads) == {
+            "decode",
+            "initialize",
+            "mutation",
+            "serialize",
+            "targeted read",
+            "listing",
+            "validate",
+            "validator output",
+        }
+        assert all(threading.get_ident() not in seen for seen in threads.values()), threads
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("media_type", ["application/yaml", "application/json"])
+def test_openapi_seed_is_parsed_and_validated_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, media_type: str
+) -> None:
+    async def scenario() -> None:
+        document = minimal_document("Seed")
+        document["paths"]["/health"] = valid_path_item()
+        payload = (
+            yaml.safe_dump(document) if media_type == "application/yaml" else json.dumps(document)
+        )
+        client = MemoryArtifactClient()
+        seed = client.seed("inputs", "seed", media_type, payload.encode())
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
+        session = tools["load_openapi"]._session
+        parses = 0
+        start_reader = yaml.reader.Reader.__init__
+
+        def counted_reader(self: Any, stream: Any) -> None:
+            # Every PyYAML pass over the text, a parse or a load, starts a Reader.
+            nonlocal parses
+            parses += 1
+            start_reader(self, stream)
+
+        monkeypatch.setattr(yaml.reader.Reader, "__init__", counted_reader)
+        calls = record_calls(
+            monkeypatch,
+            {
+                "_validate_json_tree": 0,
+                "_validate_structure": 0,
+                "_validate_path_item": 0,
+                "_dump_document": 0,
+            },
+        )
+
+        assert (await tools["load_openapi"]("inputs", "seed", seed.revision))["copied"] is True
+        loaded = session._document
+        assert parses == 1
+        assert [value is loaded for value in calls["_validate_json_tree"]] == [True]
+        assert [value is loaded for value in calls["_validate_structure"]] == [True]
+        assert len(calls["_validate_path_item"]) == 1
+        assert [value is loaded for value in calls["_dump_document"]] == [True]
+
+        # Resuming the copied binding parses its YAML once and renders nothing.
+        writes = client.write_count
+        assert (await tools["load_openapi"]("openapi", "openapi"))["copied"] is False
+        assert parses == 2
+        assert len(calls["_validate_structure"]) == 2
+        assert len(calls["_dump_document"]) == 1
+        assert client.write_count == writes
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("target", ["path", "component"])
+def test_accepted_upsert_validates_its_merged_document_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, target: str
+) -> None:
+    async def scenario() -> None:
+        source = tmp_path / "source" / "src"
+        source.mkdir(parents=True)
+        (source / "app.py").write_text("route = '/health'\n")
+        client = MemoryArtifactClient()
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
+        session = tools["upsert_openapi_path"]._session
+        await tools["initialize_openapi"]("Counted")
+        await tools["upsert_openapi_path"]("/other", valid_path_item(), ["src/app.py"])
+        await tools["upsert_openapi_path"]("/health", valid_path_item(), ["src/app.py"])
+        await tools["upsert_openapi_component"](
+            "responses", "Ok", {"description": "OK"}, ["src/app.py"]
+        )
+        await tools["upsert_openapi_component"](
+            "requestBodies",
+            "Input",
+            {"content": {"application/json": {"schema": {"type": "object"}}}},
+            ["src/app.py"],
+        )
+        calls = record_calls(
+            monkeypatch,
+            {
+                "_validate_json_tree": 0,
+                "_validate_structure": 0,
+                "_validate_path_item": 0,
+                "_validate_component": 1,
+                "_dump_document": 0,
+            },
+        )
+        writes = client.write_count
+        if target == "path":
+            parameters = [{"name": "verbose", "in": "query", "schema": {"type": "boolean"}}]
+            await tools["upsert_openapi_path"](
+                "/health", {"parameters": parameters}, ["src/app.py"]
+            )
+        else:
+            await tools["upsert_openapi_component"](
+                "responses",
+                "Ok",
+                {"content": {"application/json": {"schema": {"type": "string"}}}},
+                ["src/app.py"],
+            )
+        assert client.write_count == writes + 1
+        document = session._document
+        if target == "path":
+            changed, entries = document["paths"]["/health"], "_validate_path_item"
+            assert "parameters" in changed
+        else:
+            changed, entries = document["components"]["responses"]["Ok"], "_validate_component"
+            assert "content" in changed
+        # One pass over the merged document: one tree walk, one structure check
+        # and one rendering. The patch has its own walk before the merge.
+        assert [value is document for value in calls["_validate_json_tree"]].count(True) == 1
+        assert [value is document for value in calls["_validate_structure"]] == [True]
+        assert [value is document for value in calls["_dump_document"]] == [True]
+        # The structure check covers each entry once, the changed one included.
+        assert [value is changed for value in calls[entries]].count(True) == 1
+        assert len(calls["_validate_path_item"]) == len(document["paths"]) == 2
+        assert len(calls["_validate_component"]) == 2
+
+    asyncio.run(scenario())
+
+
+def test_close_joins_a_cancelled_mutation_preparation_before_clearing_the_session(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        client = MemoryArtifactClient()
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
+        session = tools["set_openapi_info"]._session
+        initialized = await tools["initialize_openapi"]("Before")
+        with pytest.raises(RuntimeError, match="session lock"):
+            await session._prepare(len, "unlocked")
+        writes = client.write_count
+        order: list[str] = []
+        gate = PreparationGate(openapi_module._prepare_mutation, "prepared", order)
+        monkeypatch.setattr(openapi_module, "_prepare_mutation", gate)
+
+        async def close() -> None:
+            await tools["set_openapi_info"].close()
+            order.append("closed")
+
+        mutation = asyncio.create_task(tools["set_openapi_info"]("After"))
+        try:
+            await gate.wait_entered(mutation)
+            mutation.cancel()
+            closing = asyncio.create_task(close())
+            await yield_to_loop()
+            # The cancelled call keeps the lock, so close() waits for the thread.
+            assert not mutation.done()
+            assert not closing.done()
+            assert session._revision == initialized["artifact"]["revision"]
+        finally:
+            gate.release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await mutation
+        await closing
+        assert order == ["prepared", "closed"]
+        assert client.write_count == writes
+        assert session._document is None and session._revision is None
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("phase", ["preparation", "vacuum"])
+def test_close_cancels_validation_after_joining_its_preparation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, phase: str
+) -> None:
+    async def scenario() -> None:
+        client = MemoryArtifactClient()
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
+        session = tools["validate_openapi"]._session
+        await tools["initialize_openapi"]("Validated")
+        order: list[str] = []
+        vacuum_started = asyncio.Event()
+        finish_vacuum = asyncio.Event()
+
+        async def pending_vacuum(source: str) -> dict[str, Any]:
+            vacuum_started.set()
+            try:
+                await finish_vacuum.wait()
+            except asyncio.CancelledError:
+                order.append("vacuum cancelled")
+                raise
+            return await clean_vacuum(source)
+
+        vacuum = AsyncMock(side_effect=pending_vacuum)
+        monkeypatch.setattr(openapi_module, "_run_vacuum", vacuum)
+        gate = PreparationGate(openapi_module._validate_structure, "prepared", order)
+        if phase == "preparation":
+            monkeypatch.setattr(openapi_module, "_validate_structure", gate)
+
+        async def close() -> None:
+            await tools["validate_openapi"].close()
+            order.append("closed")
+
+        validation = asyncio.create_task(tools["validate_openapi"]())
+        try:
+            if phase == "preparation":
+                await gate.wait_entered(validation)
+            else:
+                await vacuum_started.wait()
+            closing = asyncio.create_task(close())
+            await yield_to_loop()
+            if phase == "preparation":
+                # close() cancelled the validation, which still waits for its thread.
+                assert not validation.done()
+                assert not closing.done()
+            else:
+                assert closing.done()
+        finally:
+            # Released without a cancellation, the validation would complete.
+            gate.release.set()
+            finish_vacuum.set()
+        with pytest.raises(asyncio.CancelledError):
+            await validation
+        await closing
+        if phase == "preparation":
+            # Cancellation joined the thread and then stopped before Vacuum.
+            assert order == ["prepared", "closed"]
+            vacuum.assert_not_awaited()
+        else:
+            assert order == ["vacuum cancelled", "closed"]
+        assert session._validation_task is None
+        assert session._document is None
+
+    asyncio.run(scenario())
+
+
+def test_openapi_written_bytes_and_noop_results_are_unchanged(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        source = tmp_path / "source" / "src"
+        source.mkdir(parents=True)
+        (source / "app.py").write_text("route = '/health'\n")
+        client = MemoryArtifactClient()
+        seed = client.seed(
+            "inputs",
+            "seed",
+            "application/json",
+            json.dumps(
+                {
+                    "openapi": "3.0.3",
+                    "info": {"title": "Seed", "version": "1"},
+                    "paths": {},
+                    "components": {
+                        "schemas": {
+                            "Thing": {"type": "object", "x-component-files": ["src/app.py"]}
+                        }
+                    },
+                    "x-extra": [1, 2.5, True, None, "2023-01-01"],
+                }
+            ).encode(),
+        )
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
+        await tools["load_openapi"]("inputs", "seed", seed.revision)
+        await tools["set_openapi_info"]("Service", description="desc", framework="fastapi")
+        await tools["set_openapi_servers"]([{"url": "https://a.example", "description": "A"}])
+        await tools["set_openapi_tags"]([{"name": "health", "x-order": 1}])
+        await tools["upsert_openapi_path"](
+            "/health",
+            {"x-path-files": ["stale.py"], **valid_path_item("#/components/schemas/Thing")},
+            ["src/app.py"],
+        )
+        await tools["upsert_openapi_path"](
+            "/health",
+            {"parameters": [{"name": "v", "in": "query", "schema": {"type": "boolean"}}]},
+            ["src/app.py"],
+        )
+        await tools["upsert_openapi_component"](
+            "responses", "Ok", {"description": "OK"}, ["src/app.py"]
+        )
+        await tools["upsert_openapi_component"](
+            "schemas", "Alias", {"$ref": "#/components/schemas/Thing"}, ["src/app.py"]
+        )
+        writes = client.write_count
+        unchanged = await tools["set_openapi_tags"]([{"name": "health", "x-order": 1}])
+        assert unchanged["changed"] is False and client.write_count == writes
+        await tools["remove_openapi_component"]("responses", "Ok")
+        stored = client.bindings[("openapi", "openapi")].data
+        # The bytes of the implementation before off-loop preparation (V407-031).
+        assert stored == WRITTEN_DOCUMENT
+        assert (await tools["read_openapi_document"]())["document"] == stored.decode()
+
+    asyncio.run(scenario())
+
+
+WRITTEN_DOCUMENT = b"""\
+openapi: 3.0.3
+info:
+  title: Service
+  version: '1'
+  description: desc
+  x-framework: fastapi
+paths:
+  /health:
+    x-path-files:
+    - src/app.py
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Thing'
+    parameters:
+    - name: v
+      in: query
+      schema:
+        type: boolean
+components:
+  schemas:
+    Thing:
+      type: object
+      x-component-files:
+      - src/app.py
+    Alias:
+      $ref: '#/components/schemas/Thing'
+  responses: {}
+x-extra:
+- 1
+- 2.5
+- true
+- null
+- '2023-01-01'
+servers:
+- url: https://a.example
+  description: A
+tags:
+- name: health
+  x-order: 1
+"""
+
+
+def record_calls(
+    monkeypatch: pytest.MonkeyPatch, functions: dict[str, int]
+) -> dict[str, list[Any]]:
+    """Record the positional argument at the given index of each module-function call."""
+
+    calls: dict[str, list[Any]] = {name: [] for name in functions}
+    for name, position in functions.items():
+        function = getattr(openapi_module, name)
+
+        def run(
+            *args: Any,
+            _name: str = name,
+            _position: int = position,
+            _function: Callable[..., Any] = function,
+            **kwargs: Any,
+        ) -> Any:
+            calls[_name].append(args[_position])
+            return _function(*args, **kwargs)
+
+        monkeypatch.setattr(openapi_module, name, run)
+    return calls
+
+
 async def make_tools(
     tmp_path: Path,
     client: MemoryArtifactClient,
@@ -1338,6 +1929,54 @@ def runtime_settings() -> RuntimeSettings:
         artifactApiUrl="https://control.example/private/v1",
         requestTimeoutSeconds=30,
     )
+
+
+BOUNDS_YAML_PREFIX = "openapi: 3.0.3\ninfo:\n  title: Bounds\n  version: 1.0.0\npaths: {}\n"
+
+
+def bounds_document(prefix: str, case: dict[str, Any], *, compact_json: bool = False) -> bytes:
+    """Render one case of api/testdata/openapi-document-bounds.json after prefix.
+
+    The fixture's description states the rule; Go's TestSharedOpenAPIDocumentBounds*
+    renders the same bytes, which the fixture's sha256 values pin.
+    """
+
+    text = prefix
+    deep = case.get("deep")
+    if deep is not None:
+        levels = deep["depth"] - 2
+        if deep["kind"] == "mapping":
+            if compact_json:
+                text += ',"x-deep":' + '{"a":' * levels + "0" + "}" * levels
+            else:
+                text += "x-deep:\n" + "".join("  " * level + "a:\n" for level in range(1, levels))
+                text += "  " * levels + "a: 0\n"
+        elif deep["kind"] == "sequence":
+            nested = "[" * levels + "0" + "]" * levels
+            text += (',"x-deep":' + nested) if compact_json else ("x-deep: " + nested + "\n")
+        else:
+            raise ValueError(f"unknown deep kind {deep['kind']!r}")
+    elements = case.get("elements", 0)
+    if elements:
+        if compact_json:
+            text += ',"x-items":[' + ",".join(["0"] * elements) + "]"
+        else:
+            text += "x-items:\n" + "- 0\n" * elements
+    members = case.get("members", 0)
+    if members:
+        if compact_json:
+            text += ',"x-keys":{' + ",".join(f'"k{index:06d}":0' for index in range(members)) + "}"
+        else:
+            text += "x-keys:\n" + "".join(f"  k{index:06d}: 0\n" for index in range(members))
+    pad = case.get("pad")
+    if pad is None:
+        return (text + "}" if compact_json else text).encode()
+    head, tail = (text + ',"x-pad":"', '"}') if compact_json else (text + "x-pad: ", "\n")
+    room = pad["bytes"] - len(head.encode()) - len(tail.encode())
+    fill = pad["fill"].encode()
+    if room < 0 or not fill:
+        raise ValueError(f"a pad of {pad['bytes']} bytes cannot hold the document")
+    return head.encode() + fill * (room // len(fill)) + b"a" * (room % len(fill)) + tail.encode()
 
 
 def minimal_document(title: str) -> dict[str, Any]:

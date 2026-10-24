@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
@@ -605,11 +606,11 @@ func (i *fakeInspector) Inspect(
 	_ context.Context, _ string, ref contracts.ArtifactRef,
 ) (ArtifactMetadata, error) {
 	if ref.Revision == nil {
-		return ArtifactMetadata{}, errors.New("unversioned")
+		return ArtifactMetadata{}, artifacts.ErrExactRevisionRequired
 	}
 	mediaType, ok := i.mediaTypes[ref.Namespace+"/"+ref.Name+"/"+*ref.Revision]
 	if !ok {
-		return ArtifactMetadata{}, errors.New("not found")
+		return ArtifactMetadata{}, artifacts.ErrArtifactNotFound
 	}
 	return ArtifactMetadata{MediaType: mediaType}, nil
 }

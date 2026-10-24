@@ -452,7 +452,9 @@ system.
 finding revision/digest, verdict, severity and rationale.
 
 **REV-R56.** A verdict requires a rationale; `true_positive` also
-requires a severity from `informational | low | medium | high | critical`.
+requires a severity from `informational | low | medium | high | critical`. A
+rationale of a finding or review decision holds at most 64 KiB of UTF-8
+(LIM-REV-11).
 
 **REV-R57.** `false_positive` has no effective severity.
 
@@ -1173,6 +1175,8 @@ Registry entries owned by this document:
   Markdown summary (REV-R194).
 - [LIM-REV-9](../platform/limits.md): report finalization pages and the
   pages one attempt records (REV-R196).
+- [LIM-REV-11](../platform/limits.md): at most 64 KiB of UTF-8 per decision
+  rationale (REV-R56).
 - [FAIL-REV-1](../platform/failure-model.md): owner review decision
   (REV-R27).
 - [FAIL-REV-2](../platform/failure-model.md): creation of an authorized

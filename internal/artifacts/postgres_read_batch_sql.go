@@ -25,3 +25,24 @@ SELECT input.ordinality, revision.revision, version.media_type,
   JOIN artifact_versions AS version ON version.version_id = revision.version_id
   JOIN artifact_blobs AS blob ON blob.sha256 = version.blob_sha256
  ORDER BY input.ordinality`
+
+// describeExactSQL resolves exact revisions $3..$5 of the bindings of scope
+// ($1, $2), passed as parallel arrays, to their media type, size and digest in
+// request order, tagging each row with its 1-based request ordinal; a missing
+// reference yields no row. It reads no payload. Used by
+// PostgresRepository.DescribeExact.
+var describeExactSQL = `
+SELECT input.ordinality, version.media_type, blob.size_bytes,
+       'sha256:' || encode(blob.sha256, 'hex')
+  FROM unnest($3::text[], $4::text[], $5::text[])
+       WITH ORDINALITY AS input(namespace, name, revision, ordinality)
+  JOIN artifact_bindings AS binding
+    ON binding.scope_kind = $1 AND binding.scope_id = $2
+   AND binding.namespace = input.namespace AND binding.name = input.name
+  JOIN artifact_binding_revisions AS revision
+    ON revision.scope_kind = binding.scope_kind AND revision.scope_id = binding.scope_id
+   AND revision.namespace = binding.namespace AND revision.name = binding.name
+   AND revision.revision = input.revision
+  JOIN artifact_versions AS version ON version.version_id = revision.version_id
+  JOIN artifact_blobs AS blob ON blob.sha256 = version.blob_sha256
+ ORDER BY input.ordinality`

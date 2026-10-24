@@ -27,6 +27,9 @@ var layers = []layerSpec{
 			"internal/apierror",
 			"internal/artifactpolicy",
 			"internal/cabundle",
+			// The claim lifecycle of one controller pass that the Audit
+			// controller and the Eval coordinator share (PER-R26).
+			"internal/claimpass",
 			"internal/clone",
 			"internal/configtest",
 			"internal/contentdigest",
@@ -65,6 +68,11 @@ var layers = []layerSpec{
 			"internal/persistence",
 			"internal/persistence/migrations",
 			"internal/persistence/postgres",
+			// Test support: the plans, rows read and trigger calls of statements,
+			// and the statements of SQL text.
+			"internal/persistence/explaintest",
+			// Test support: holds the migrated schema's state sets to Go.
+			"internal/persistence/statesettest",
 		},
 	},
 	{

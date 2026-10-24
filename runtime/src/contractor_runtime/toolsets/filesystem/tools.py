@@ -26,10 +26,10 @@ from contractor_runtime.observations import (
     filesystem_tool_observation,
 )
 from contractor_runtime.projectfs.paths import (
+    ProjectGlob,
     ProjectPathError,
-    normalize_project_glob,
+    compile_project_glob,
     normalize_project_path,
-    project_glob_matches,
 )
 from contractor_runtime.projectfs.storage import (
     WorkspaceReader,
@@ -45,6 +45,7 @@ from contractor_runtime.toolsets.common.cursors import (
     require_limit,
 )
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
+from contractor_runtime.toolsets.common.filesystem_errors import FilesystemToolError
 from contractor_runtime.workspace import AllocationWorkspace
 
 MAX_PAGE_ITEMS = 100
@@ -59,14 +60,6 @@ DEFAULT_READ_LINES = 200
 MAX_READ_BYTES = 128 * 1024
 MAX_READ_SCAN_BYTES = 16 * 1024 * 1024
 REGEX_LINE_TIMEOUT_SECONDS = 0.01
-
-
-class FilesystemToolError(RuntimeError):
-    """Stable model-facing failure without content or physical backend detail."""
-
-    def __init__(self, code: str) -> None:
-        self.code = code
-        super().__init__(f"Filesystem operation failed ({code})")
 
 
 class FilesystemToolsetFactory:
@@ -116,6 +109,14 @@ class _Cursor:
 
 
 @dataclass(frozen=True, slots=True)
+class _ListingPage:
+    entries: list[dict[str, Any]]
+    next_offset: int
+    scanned: int
+    total: int
+
+
+@dataclass(frozen=True, slots=True)
 class _GrepScanResult:
     matches: list[dict[str, Any]]
     file_index: int
@@ -146,47 +147,44 @@ class _FilesystemSession:
         _require_directory(snapshot, root)
         query = query_digest({"tool": "ls", "path": root})
         offset = self._cursor_offset(cursor, snapshot, query).offset if cursor else 0
-        paths = _all_paths(snapshot)
-        page, next_offset, scanned = _scan_page(
-            paths,
+        page = await to_thread_until_done(
+            _listing_page,
+            snapshot,
             offset,
             limit,
             lambda candidate: _immediate_child(candidate, root),
+            name="filesystem-ls-cpu",
         )
-        files = {file.path: file for file in snapshot.files}
-        entries = [_entry(snapshot, files, candidate) for candidate in page]
-        next_cursor = self._next_cursor(snapshot, query, next_offset, len(paths))
+        next_cursor = self._next_cursor(snapshot, query, page.next_offset, page.total)
         return {
             "path": root,
-            "entries": entries,
+            "entries": page.entries,
             "nextCursor": next_cursor,
             "truncated": next_cursor is not None,
-            "scanned": scanned,
+            "scanned": page.scanned,
         }
 
     async def glob(self, pattern: str, cursor: str, limit: int) -> dict[str, Any]:
-        try:
-            normalized = normalize_project_glob(pattern)
-        except ProjectPathError:
-            raise FilesystemToolError("workspace_path_invalid") from None
+        matcher = _glob(pattern)
         limit = _limit(limit)
         snapshot = await self._snapshot()
-        query = query_digest({"tool": "glob", "pattern": normalized})
+        query = query_digest({"tool": "glob", "pattern": matcher.pattern})
         offset = self._cursor_offset(cursor, snapshot, query).offset if cursor else 0
-        paths = _all_paths(snapshot)
-        page, next_offset, scanned = _scan_page(
-            paths,
+        # Matching up to MAX_SCAN_PATHS candidates is CPU work (WSP-R74).
+        page = await to_thread_until_done(
+            _listing_page,
+            snapshot,
             offset,
             limit,
-            lambda candidate: project_glob_matches(candidate, normalized),
+            matcher.matches,
+            name="filesystem-glob-cpu",
         )
-        next_cursor = self._next_cursor(snapshot, query, next_offset, len(paths))
-        files = {file.path: file for file in snapshot.files}
+        next_cursor = self._next_cursor(snapshot, query, page.next_offset, page.total)
         return {
-            "matches": [_entry(snapshot, files, candidate) for candidate in page],
+            "matches": page.entries,
             "nextCursor": next_cursor,
             "truncated": next_cursor is not None,
-            "scanned": scanned,
+            "scanned": page.scanned,
         }
 
     async def read_file(
@@ -236,10 +234,7 @@ class _FilesystemSession:
         ):
             raise FilesystemToolError("workspace_search_invalid")
         root = _path(path, allow_root=True)
-        try:
-            normalized_glob = normalize_project_glob(glob)
-        except ProjectPathError:
-            raise FilesystemToolError("workspace_path_invalid") from None
+        glob_matcher = _glob(glob)
         limit = _limit(limit)
         matcher = _grep_matcher(pattern, regex, case_sensitive)
         snapshot = await self._snapshot()
@@ -249,7 +244,7 @@ class _FilesystemSession:
                 "tool": "grep",
                 "pattern": pattern,
                 "path": root,
-                "glob": normalized_glob,
+                "glob": glob_matcher.pattern,
                 "regex": regex,
                 "caseSensitive": case_sensitive,
             }
@@ -263,7 +258,7 @@ class _FilesystemSession:
             _scan_grep,
             snapshot.files,
             root,
-            normalized_glob,
+            glob_matcher,
             matcher,
             position.offset,
             position.line,
@@ -483,6 +478,13 @@ def _path(value: str, *, allow_root: bool) -> str:
         raise FilesystemToolError("workspace_path_invalid") from None
 
 
+def _glob(value: str) -> ProjectGlob:
+    try:
+        return compile_project_glob(value)
+    except ProjectPathError:
+        raise FilesystemToolError("workspace_path_invalid") from None
+
+
 def _limit(value: int) -> int:
     return require_limit(value, MAX_PAGE_ITEMS, _limit_exceeded)
 
@@ -509,6 +511,19 @@ def _entry(
     if path in files:
         return {"path": path, "type": "file", "size": files[path].size}
     return {"path": path, "type": "binary", "size": None}
+
+
+def _listing_page(
+    snapshot: WorkspaceSnapshot,
+    offset: int,
+    limit: int,
+    predicate: Callable[[str], bool],
+) -> _ListingPage:
+    paths = _all_paths(snapshot)
+    page, next_offset, scanned = _scan_page(paths, offset, limit, predicate)
+    files = {file.path: file for file in snapshot.files}
+    entries = [_entry(snapshot, files, candidate) for candidate in page]
+    return _ListingPage(entries, next_offset, scanned, len(paths))
 
 
 def _scan_page(
@@ -595,7 +610,7 @@ def _read_file_window(
 def _scan_grep(
     files: tuple[WorkspaceTextFile, ...],
     root: str,
-    glob: str,
+    glob: ProjectGlob,
     matcher: Callable[[str], bool],
     file_index: int,
     line_index: int,
@@ -613,7 +628,7 @@ def _scan_grep(
             break
         file = files[file_index]
         scanned_paths += 1
-        if _relative(file.path, root) is None or not project_glob_matches(file.path, glob):
+        if _relative(file.path, root) is None or not glob.matches(file.path):
             file_index += 1
             line_index = 0
             continue

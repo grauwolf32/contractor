@@ -29,18 +29,17 @@ func (h *scanSweepHandlers) create(w http.ResponseWriter, r *http.Request) {
 		handleError(w, err)
 		return
 	}
-	media, err := requestMediaType(r)
-	if err != nil || media != "application/json" {
-		handleError(w, errInvalidRequest)
-		return
-	}
-	var request scanservice.Request
-	if err := decodeJSON(w, r, &request); err != nil {
+	if err := requireJSONMediaType(r); err != nil {
 		handleError(w, err)
 		return
 	}
 	key, err := requireIdempotencyKey(r)
 	if err != nil {
+		handleError(w, err)
+		return
+	}
+	var request scanservice.Request
+	if err := decodeJSON(w, r, &request); err != nil {
 		handleError(w, err)
 		return
 	}
@@ -55,9 +54,6 @@ func (h *scanSweepHandlers) create(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, result)
 }
 func (h *scanSweepHandlers) get(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		handleError(w, err)
 		return
@@ -70,9 +66,6 @@ func (h *scanSweepHandlers) get(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 func (h *scanSweepHandlers) list(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	_, limit, encoded, err := pageQuery(r.URL.RawQuery)
 	if err != nil {
 		handleError(w, err)
@@ -103,9 +96,6 @@ func (h *scanSweepHandlers) list(w http.ResponseWriter, r *http.Request) {
 	}{items, page})
 }
 func (h *scanSweepHandlers) members(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	_, limit, encoded, err := pageQuery(r.URL.RawQuery)
 	if err != nil {
 		handleError(w, err)
@@ -142,6 +132,12 @@ func (h *scanSweepHandlers) members(w http.ResponseWriter, r *http.Request) {
 }
 func (h *scanSweepHandlers) cancel(w http.ResponseWriter, r *http.Request) {
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
+		handleError(w, err)
+		return
+	}
+	// Cancellation is idempotent by sweep (SCN-R250), so the key is optional
+	// and not bound; a supplied one must still be well formed.
+	if err := validateOptionalIdempotencyKey(r); err != nil {
 		handleError(w, err)
 		return
 	}

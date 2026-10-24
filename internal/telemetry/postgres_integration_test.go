@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"os"
 	"strings"
@@ -163,6 +164,199 @@ WHERE stage_execution_id = $1`, extraStage); err != nil {
 	assertTelemetryCount(t, ctx, pool, "stage_metrics", activeStage, 1)
 	assertTelemetryCount(t, ctx, pool, "allocation_execution_reports", newStage, 1)
 	assertTelemetryCount(t, ctx, pool, "stage_metrics", newStage, 1)
+}
+
+// TestMetricsPostgresReplayComparesNumbersAsStored replays both report kinds
+// with argument numbers as the Runtime writes them. jsonb stores 5e-05 as
+// 0.00005, 1e-07 and the large exponents at the edge of LIM-OBS-16 as their
+// decimal expansion and -0.0 as 0.0, and keeps 2^53+1 exactly, so a replay of
+// the same report must stay idempotent (OBS-R42), while a report with another
+// number still conflicts.
+func TestMetricsPostgresReplayComparesNumbersAsStored(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedTelemetryPool(t, ctx)
+	runs := runstore.NewPostgresStore(pool)
+	reports := telemetry.NewRepository(pool)
+	createTelemetryRun(t, ctx, runs)
+	receivedAt := time.Now().UTC()
+	for index, literal := range []string{
+		"5e-05", "1e-07", "1e+16", "1e+19", "-0.0", "9007199254740993", "-9.999999999999998e+19",
+	} {
+		allocationID := fmt.Sprintf("allocation-number-%d", index)
+		sessionID := fmt.Sprintf("session-number-%d", index)
+		stage := createTelemetryStage(
+			t, ctx, runs, fmt.Sprintf("stage-number-%d", index), allocationID, sessionID,
+		)
+		allocation := allocationEnvelope(stage, allocationID, receivedAt, true)
+		allocation.Report.Worker.ToolCalls[0].Arguments = runtimeArguments(t, literal)
+		planner := plannerEnvelope(stage, sessionID, receivedAt)
+		calls, succeeded := int64(1), int64(1)
+		planner.Report.Metrics.Tools = map[string]reporting.ToolMetrics{
+			"probe": {Calls: &calls, Succeeded: &succeeded},
+		}
+		planner.Report.ToolCalls = []reporting.ToolCallRecord{{
+			CallID: "call-" + sessionID, Tool: "probe",
+			Arguments: runtimeArguments(t, literal), Outcome: reporting.ToolCallSucceeded,
+		}}
+		for attempt := range 2 {
+			if err := reports.RecordAllocationReport(ctx, allocation); err != nil {
+				t.Fatalf("%s: allocation report attempt %d: %v", literal, attempt+1, err)
+			}
+			if err := reports.RecordPlannerReport(ctx, planner); err != nil {
+				t.Fatalf("%s: Planner report attempt %d: %v", literal, attempt+1, err)
+			}
+		}
+
+		changedCall := allocation.Report.Worker.ToolCalls[0]
+		changedCall.Arguments = runtimeArguments(t, "7")
+		changed := allocation
+		changed.Report.Worker.ToolCalls = []reporting.ToolCallRecord{changedCall}
+		if err := reports.RecordAllocationReport(ctx, changed); !errors.Is(err, telemetry.ErrConflict) {
+			t.Fatalf("%s: changed allocation report error = %v, want conflict", literal, err)
+		}
+		changedPlanner := planner
+		changedPlanner.Report.ToolCalls = []reporting.ToolCallRecord{{
+			CallID: "call-" + sessionID, Tool: "probe",
+			Arguments: runtimeArguments(t, "7"), Outcome: reporting.ToolCallSucceeded,
+		}}
+		if err := reports.RecordPlannerReport(ctx, changedPlanner); !errors.Is(err, telemetry.ErrConflict) {
+			t.Fatalf("%s: changed Planner report error = %v, want conflict", literal, err)
+		}
+	}
+
+	// A number outside LIM-OBS-16 never reaches the column, where 1e-20000
+	// would fail the insert and 0e-16383 would read back as 16 KB of digits.
+	// Receipt rejects such a Runtime report; persistence, which also normalizes
+	// the Server's own Planner reports, stores the marker the Runtime writes.
+	for index, literal := range []string{"1e-20000", "0e-16383", "1e999999", "1e-08", "1e+20"} {
+		allocationID := fmt.Sprintf("allocation-range-%d", index)
+		stage := createTelemetryStage(
+			t, ctx, runs, fmt.Sprintf("stage-range-%d", index), allocationID,
+			fmt.Sprintf("session-range-%d", index),
+		)
+		allocation := allocationEnvelope(stage, allocationID, receivedAt, true)
+		allocation.Report.Worker.ToolCalls[0].Arguments = runtimeArguments(t, literal)
+		if err := reports.RecordAllocationReport(ctx, allocation); err != nil {
+			t.Fatalf("%s: allocation report: %v", literal, err)
+		}
+		var stored string
+		var truncated bool
+		if err := pool.QueryRow(ctx, `
+SELECT report->'worker'->'toolCalls'->0->'arguments'->>'value',
+       (report->'worker'->'toolCalls'->0->>'argumentsTruncated')::boolean
+FROM allocation_execution_reports WHERE stage_execution_id = $1`, stage).Scan(&stored, &truncated); err != nil {
+			t.Fatal(err)
+		}
+		if stored != reporting.ArgumentNumberMarker || !truncated {
+			t.Fatalf("%s: stored %q (truncated %t), want the marker", literal, stored, truncated)
+		}
+	}
+}
+
+// TestMetricsPostgresReadsReportsTrimmedToTheByteBound stores reports whose
+// rendering exceeds the 1 MiB bound the received report met and reads them
+// back: jsonb renders a stored report with a space after each separator and
+// every number expanded (OBS-R110). Short strings in 280 calls trimmed to the
+// bound add about a tenth; 1e19, the widest expansion LIM-OBS-16 allows, needs
+// only 60 calls of 4096-byte summaries to pass 1 MiB. Every reader of a stored
+// report (ListAllocationReports, RebuildStageMetrics and the replay identity
+// lookup of both kinds) must still decode it.
+func TestMetricsPostgresReadsReportsTrimmedToTheByteBound(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	pool := isolatedTelemetryPool(t, ctx)
+	runs := runstore.NewPostgresStore(pool)
+	reports := telemetry.NewRepository(pool)
+	createTelemetryRun(t, ctx, runs)
+	receivedAt := time.Now().UTC()
+	for index, test := range []struct {
+		element string
+		calls   int
+		trimmed bool
+	}{{`"abcdefgh"`, 280, true}, {"1e19", 60, false}} {
+		element := test.element
+		allocationID := fmt.Sprintf("allocation-bound-%d", index)
+		sessionID := fmt.Sprintf("session-bound-%d", index)
+		stage := createTelemetryStage(
+			t, ctx, runs, fmt.Sprintf("stage-bound-%d", index), allocationID, sessionID,
+		)
+		arguments := runtimeArgumentsJSON(t, boundedArgumentSummary(element))
+		calls := make([]reporting.ToolCallRecord, test.calls)
+		for call := range calls {
+			calls[call] = reporting.ToolCallRecord{
+				CallID: fmt.Sprintf("call-%04d", call), Tool: "probe",
+				Arguments: arguments, Outcome: reporting.ToolCallSucceeded,
+			}
+		}
+		count := int64(len(calls))
+		tools := map[string]reporting.ToolMetrics{"probe": {Calls: &count, Succeeded: &count}}
+		allocation := allocationEnvelope(stage, allocationID, receivedAt, true)
+		allocation.Report.Worker.Metrics.Tools = tools
+		allocation.Report.Worker.ToolCalls = calls
+		planner := plannerEnvelope(stage, sessionID, receivedAt)
+		planner.Report.Metrics.Tools = tools
+		planner.Report.ToolCalls = calls
+		for attempt := range 2 { // The second attempt replays both reports.
+			if err := reports.RecordAllocationReport(ctx, allocation); err != nil {
+				t.Fatalf("%s: allocation report attempt %d: %v", element, attempt+1, err)
+			}
+			if err := reports.RecordPlannerReport(ctx, planner); err != nil {
+				t.Fatalf("%s: Planner report attempt %d: %v", element, attempt+1, err)
+			}
+		}
+		for _, table := range []string{"allocation_execution_reports", "planner_execution_reports"} {
+			var truncated bool
+			var rendered int
+			if err := pool.QueryRow(ctx, `
+SELECT coalesce(report->'worker', report)->>'truncated' = 'true', octet_length(report::text)
+FROM `+table+` WHERE stage_execution_id = $1`, stage).Scan(&truncated, &rendered); err != nil {
+				t.Fatal(err)
+			}
+			if truncated != test.trimmed || rendered <= telemetry.MaxReportJSONBytes {
+				t.Fatalf("%s: %s truncated=%t renders %d bytes, want truncated=%t beyond 1 MiB",
+					element, table, truncated, rendered, test.trimmed)
+			}
+		}
+		stored, err := reports.ListAllocationReports(ctx, stage)
+		if err != nil || len(stored) != 1 || stored[0].Report.Worker.Truncated != test.trimmed {
+			t.Fatalf("%s: stored allocation reports = %d (%v), want one report", element, len(stored), err)
+		}
+		metrics, err := reports.RebuildStageMetrics(ctx, stage, contracts.APIVersion)
+		if err != nil {
+			t.Fatalf("%s: rebuild StageMetrics: %v", element, err)
+		}
+		if metrics.Summary.ToolCalls != 2*count {
+			t.Fatalf("%s: StageMetrics tool calls = %d, want %d", element, metrics.Summary.ToolCalls, 2*count)
+		}
+	}
+}
+
+// runtimeArguments decodes an argument summary holding literal as the Server
+// decodes a Runtime report, which keeps the literal as written.
+func runtimeArguments(t *testing.T, literal string) reporting.ToolArguments {
+	t.Helper()
+	return runtimeArgumentsJSON(t, `{"value":`+literal+`}`)
+}
+
+// boundedArgumentSummary fills a 4096-byte summary with element in arrays of
+// 32, the most items a summary container keeps.
+func boundedArgumentSummary(element string) string {
+	row := "[" + strings.TrimSuffix(strings.Repeat(element+",", 32), ",") + "]"
+	rows := make([]string, 0, 32)
+	for len(rows) < 32 && len(`{"v":[]}`)+len(rows)*(len(row)+1)+len(row) <= 4096 {
+		rows = append(rows, row)
+	}
+	return `{"v":[` + strings.Join(rows, ",") + `]}`
+}
+
+func runtimeArgumentsJSON(t *testing.T, summary string) reporting.ToolArguments {
+	t.Helper()
+	var arguments reporting.ToolArguments
+	if err := json.Unmarshal([]byte(summary), &arguments); err != nil {
+		t.Fatal(err)
+	}
+	return arguments
 }
 
 func TestAllocationResourceHistoryUsesTerminalIdentityAndPinnedPolicy(t *testing.T) {

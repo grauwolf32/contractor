@@ -130,15 +130,22 @@ func (i *Invoker) Invoke(
 	ctx, _ = withResponseCapture(ctx)
 	builder := i.build
 	if i.tlsConfig != nil {
-		bound, bindErr := mtls.BindRuntimeAgentPrincipal(i.tlsConfig, handle.RuntimeAgentID)
+		// The invocation owns its connections (CTL-R164): SendMessage, every
+		// GetTask poll and a best-effort CancelTask reuse them, and the
+		// deferred Close, which runs after the CancelTask below, ends them
+		// before Invoke returns.
+		transports, ownerErr := mtls.NewRuntimeAgentTransports(i.tlsConfig, i.timeout)
+		if ownerErr != nil {
+			return contracts.WorkerCompletion{}, planner.NewError(
+				"worker_unavailable", "A2A client is not configured", false, nil,
+			)
+		}
+		defer transports.Close()
+		transport, bindErr := transports.RoundTripper(handle.RuntimeAgentID)
 		if bindErr != nil {
 			return contracts.WorkerCompletion{}, planner.NewError(
 				"invalid_worker_handle", "Worker handle has no valid Runtime Agent principal", false, nil,
 			)
-		}
-		transport := &http.Transport{
-			TLSClientConfig: bound, ForceAttemptHTTP2: false, DisableKeepAlives: true,
-			TLSHandshakeTimeout: i.timeout, ResponseHeaderTimeout: i.timeout,
 		}
 		client := &http.Client{Transport: transport, Timeout: i.timeout}
 		builder = sdkClientBuilder(cloneBoundedHTTPClient(client))

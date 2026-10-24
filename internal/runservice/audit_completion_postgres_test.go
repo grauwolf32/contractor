@@ -227,6 +227,21 @@ func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T)
 	if err := runs.RecordStageAllocation(ctx, allocation); err != nil {
 		t.Fatal("allocation replay", err)
 	}
+	// An allocation is compared with the Run's authority when it is
+	// recorded; its completion cannot change afterwards (PER-R22).
+	other := completion.Contract
+	other.ResultArtifact.Name += "-other"
+	mismatched := allocation
+	mismatched.AllocationID = "allocation-mismatched"
+	mismatched.CompletionContract = &other
+	if err := runs.RecordStageAllocation(ctx, mismatched); persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation ||
+		!strings.Contains(err.Error(), "Allocation completion differs from Run authority") {
+		t.Fatal("allocation with another completion accepted", err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE stage_allocations SET completion_contract = NULL WHERE allocation_id = 'allocation'`); persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation ||
+		!strings.Contains(err.Error(), "Allocation completion is immutable") {
+		t.Fatal("allocation completion rewrite accepted", err)
+	}
 	// A second Stage attempt belongs to the same Run and keeps the same output
 	// binding; it must record the exact original contract again.
 	abort := func(id string) {

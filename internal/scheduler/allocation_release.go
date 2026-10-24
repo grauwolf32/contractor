@@ -13,6 +13,10 @@ func (s *Scheduler) releaseTerminal(
 	stageExecutionID string,
 	reservations []controlplane.Reservation,
 ) error {
+	// Every caller has committed the Stage's terminal outcome (or its Queue
+	// Pause exception, SCH-R68) after persisting its reports, so the Stage's
+	// preparation secrets have no further reader (SCH-R178).
+	s.preparedSecrets.forget(stageExecutionID)
 	if len(reservations) == 0 {
 		return nil
 	}
@@ -34,17 +38,27 @@ func (s *Scheduler) releaseTerminalOwned(
 	stageExecutionID string,
 	reservations []controlplane.Reservation,
 ) error {
-	var failures []error
-	for _, reservation := range reservations {
-		markContext, cancelMark := context.WithTimeout(context.Background(), s.options.OperationTimeout)
-		err := s.store.MarkStageAllocationReleaseAttempt(
-			markContext, reservation.Grant.AllocationID,
-		)
-		cancelMark()
-		if err != nil {
-			failures = append(failures, err)
-		}
+	allocationIDs := make([]string, len(reservations))
+	for index, reservation := range reservations {
+		allocationIDs[index] = reservation.Grant.AllocationID
 	}
+	markContext, cancelMark := context.WithTimeout(context.Background(), s.options.OperationTimeout)
+	markErr := s.store.MarkStageAllocationReleaseAttempt(markContext, allocationIDs...)
+	cancelMark()
+	return errors.Join(markErr, s.releaseAttempted(stageExecutionID, reservations))
+}
+
+// releaseAttempted releases reservations, whose release attempts are already
+// recorded, in one batch. It then marks released, together, exactly those
+// whose live grant is gone: a grant the batch could not release keeps its
+// fence and its incomplete row for recovery (SCH-R69, SCH-R71, SCH-R182).
+// Each marker batch has the store-operation budget; the release batch has its
+// own cleanup deadline (SCH-R65).
+func (s *Scheduler) releaseAttempted(
+	stageExecutionID string,
+	reservations []controlplane.Reservation,
+) error {
+	var failures []error
 	// The batch has its own cleanup deadline, owned by the WorkerController
 	// (runtimeLifecycle.cleanupTimeout, SCH-R65). The store-operation budget
 	// bounds only the durable markers around it and must not cut the batch.
@@ -57,6 +71,7 @@ func (s *Scheduler) releaseTerminalOwned(
 		)
 		failures = append(failures, releaseErr)
 	}
+	released := make([]string, 0, len(reservations))
 	for _, reservation := range reservations {
 		allocationID := reservation.Grant.AllocationID
 		_, err := s.allocator.GetGrant(allocationID)
@@ -67,12 +82,12 @@ func (s *Scheduler) releaseTerminalOwned(
 			failures = append(failures, err)
 			continue
 		}
+		released = append(released, allocationID)
+	}
+	if len(released) != 0 {
 		markContext, cancelMark := context.WithTimeout(context.Background(), s.options.OperationTimeout)
-		err = s.store.MarkStageAllocationReleased(markContext, allocationID)
+		failures = append(failures, s.store.MarkStageAllocationReleased(markContext, released...))
 		cancelMark()
-		if err != nil {
-			failures = append(failures, err)
-		}
 	}
 	return errors.Join(failures...)
 }
@@ -93,34 +108,66 @@ func (s *Scheduler) endTerminalRelease(stageExecutionID string) {
 	s.releaseMu.Unlock()
 }
 
-func (s *Scheduler) recoverTerminalRelease(ctx context.Context) (bool, error) {
+// terminalReleaseRecoveryConcurrency bounds the terminal release recovery
+// Stage operations one Scheduler runs at once (SCH-R180, LIM-SCH-20). Each
+// holds one Stage's release gate, short store operations and one release batch
+// under its own cleanup deadline (SCH-R65), so up to three Stages whose
+// Runtime Agents stop answering leave a slot for the rest of the batch.
+const terminalReleaseRecoveryConcurrency = 4
+
+// startTerminalReleaseRecovery lists one bounded batch of incomplete terminal
+// releases, least recently attempted first (SCH-R71), and passes at most limit
+// of their Stages to start, in that order. It takes each Stage's release gate
+// first and skips a Stage whose release a lane or an earlier operation still
+// owns; start owns the gate of the Stage it receives and must run
+// recoverTerminalStage, which ends it.
+func (s *Scheduler) startTerminalReleaseRecovery(
+	ctx context.Context, limit int, start func(runstore.StageExecution),
+) (int, error) {
 	listContext, cancelList := context.WithTimeout(ctx, s.options.OperationTimeout)
 	executions, err := s.store.ListTerminalStageExecutionsWithAllocations(listContext)
 	cancelList()
 	if err != nil {
-		return false, err
+		return 0, err
 	}
+	started := 0
 	for _, execution := range executions {
+		if started == limit {
+			break
+		}
 		if !s.beginTerminalRelease(execution.StageExecutionID) {
-			// A Run lane already owns this exact cleanup. Do not report work:
-			// the monitor must wait rather than hot-loop over unchanged rows.
+			// A lane or another operation already owns this exact cleanup. Do
+			// not report work: the monitor must wait rather than hot-loop over
+			// unchanged rows.
 			continue
 		}
-		worked, recoveryErr := func() (bool, error) {
-			defer s.endTerminalRelease(execution.StageExecutionID)
-			return s.recoverTerminalExecution(ctx, execution)
-		}()
-		if worked || recoveryErr != nil {
-			return worked, recoveryErr
-		}
+		start(execution)
+		started++
 	}
-	return false, nil
+	return started, nil
 }
 
+// recoverTerminalStage is one terminal release recovery Stage operation. The
+// caller took the Stage's release gate; the operation ends it.
+func (s *Scheduler) recoverTerminalStage(ctx context.Context, execution runstore.StageExecution) (bool, error) {
+	defer s.endTerminalRelease(execution.StageExecutionID)
+	return s.recoverTerminalExecution(ctx, execution)
+}
+
+// recoverTerminalExecution retries the incomplete releases of one terminal
+// Stage. It records the release attempts of all of them with one marker
+// batch, marks released with another those whose grant is already gone, and
+// releases the remaining live grants in one batch through releaseAttempted,
+// so its durable markers grow with marker batches, not with allocations
+// (SCH-R182, LIM-SCH-22). Each allocation still keeps its own outcome
+// (SCH-R71).
 func (s *Scheduler) recoverTerminalExecution(
 	ctx context.Context,
 	execution runstore.StageExecution,
 ) (bool, error) {
+	// A terminal Stage persists no further report, including one that ended
+	// without reaching its own release (SCH-R102, SCH-R178).
+	s.preparedSecrets.forget(execution.StageExecutionID)
 	allocationContext, cancelAllocations := context.WithTimeout(ctx, s.options.OperationTimeout)
 	allocations, err := s.store.ListStageAllocations(
 		allocationContext, execution.StageExecutionID,
@@ -129,28 +176,27 @@ func (s *Scheduler) recoverTerminalExecution(
 	if err != nil {
 		return true, err
 	}
-	worked := false
-	reservations := make([]controlplane.Reservation, 0, len(allocations))
-	var failures []error
+	unreleased := make([]runstore.StageAllocation, 0, len(allocations))
+	allocationIDs := make([]string, 0, len(allocations))
 	for _, allocation := range allocations {
-		if allocation.ReleaseCompletedAt != nil {
-			continue
+		if allocation.ReleaseCompletedAt == nil {
+			unreleased = append(unreleased, allocation)
+			allocationIDs = append(allocationIDs, allocation.AllocationID)
 		}
-		worked = true
-		markContext, cancelMark := context.WithTimeout(ctx, s.options.OperationTimeout)
-		markErr := s.store.MarkStageAllocationReleaseAttempt(markContext, allocation.AllocationID)
-		cancelMark()
-		if markErr != nil {
-			failures = append(failures, markErr)
-		}
+	}
+	if len(unreleased) == 0 {
+		return false, nil
+	}
+	var failures []error
+	markContext, cancelMark := context.WithTimeout(ctx, s.options.OperationTimeout)
+	failures = append(failures, s.store.MarkStageAllocationReleaseAttempt(markContext, allocationIDs...))
+	cancelMark()
+	reservations := make([]controlplane.Reservation, 0, len(unreleased))
+	gone := make([]string, 0, len(unreleased))
+	for _, allocation := range unreleased {
 		reservation, reservationErr := s.allocator.GetReservation(allocation.AllocationID)
 		if errors.Is(reservationErr, controlplane.ErrAllocationNotFound) {
-			markContext, cancelMark = context.WithTimeout(ctx, s.options.OperationTimeout)
-			markErr = s.store.MarkStageAllocationReleased(markContext, allocation.AllocationID)
-			cancelMark()
-			if markErr != nil {
-				failures = append(failures, markErr)
-			}
+			gone = append(gone, allocation.AllocationID)
 			continue
 		}
 		if reservationErr != nil {
@@ -168,10 +214,15 @@ func (s *Scheduler) recoverTerminalExecution(
 		}
 		reservations = append(reservations, reservation)
 	}
-	if len(reservations) != 0 {
-		failures = append(failures, s.releaseTerminalOwned(execution.StageExecutionID, reservations))
+	if len(gone) != 0 {
+		markContext, cancelMark = context.WithTimeout(ctx, s.options.OperationTimeout)
+		failures = append(failures, s.store.MarkStageAllocationReleased(markContext, gone...))
+		cancelMark()
 	}
-	return worked, errors.Join(failures...)
+	if len(reservations) != 0 {
+		failures = append(failures, s.releaseAttempted(execution.StageExecutionID, reservations))
+	}
+	return true, errors.Join(failures...)
 }
 
 var errDivergedGrantOwned = errors.New("live allocation is still owned by an active StageExecution")

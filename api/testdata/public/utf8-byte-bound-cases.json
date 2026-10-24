@@ -1,0 +1,172 @@
+{
+  "description": "Public strings that the Server bounds in UTF-8 bytes rather than in characters. Each OpenAPI schema below declares its bound as x-max-utf8-bytes next to an equal maxLength (in code points, which no longer binds first); rule names the limits.md entry. A reader builds, for each character, the string of exactly maxBytes bytes (the character repeated, padded with a) and that string plus one a: the first is within the bound and the second is not. Go checks the declarations and each owning validator; the UI checks src/api/contract.ts stringRule.",
+  "characters": [
+    "a",
+    "é",
+    "€",
+    "🛑"
+  ],
+  "fields": [
+    {
+      "schema": "CancelRunRequest",
+      "path": [
+        "properties",
+        "reason"
+      ],
+      "maxBytes": 4096,
+      "rule": "LIM-RUN-10"
+    },
+    {
+      "schema": "Cancellation",
+      "path": [
+        "properties",
+        "reason"
+      ],
+      "maxBytes": 4096,
+      "rule": "LIM-RUN-10"
+    },
+    {
+      "schema": "CreateProjectRequest",
+      "path": [
+        "properties",
+        "name"
+      ],
+      "maxBytes": 160,
+      "rule": "LIM-PRJ-3"
+    },
+    {
+      "schema": "CreateProjectRequest",
+      "path": [
+        "properties",
+        "description"
+      ],
+      "maxBytes": 4096,
+      "rule": "LIM-PRJ-5"
+    },
+    {
+      "schema": "UpdateProjectRequest",
+      "path": [
+        "properties",
+        "name"
+      ],
+      "maxBytes": 160,
+      "rule": "LIM-PRJ-3"
+    },
+    {
+      "schema": "UpdateProjectRequest",
+      "path": [
+        "properties",
+        "description"
+      ],
+      "maxBytes": 4096,
+      "rule": "LIM-PRJ-5"
+    },
+    {
+      "schema": "Project",
+      "path": [
+        "properties",
+        "name"
+      ],
+      "maxBytes": 160,
+      "rule": "LIM-PRJ-3"
+    },
+    {
+      "schema": "Project",
+      "path": [
+        "properties",
+        "description"
+      ],
+      "maxBytes": 4096,
+      "rule": "LIM-PRJ-5"
+    },
+    {
+      "schema": "RunQueueProject",
+      "path": [
+        "properties",
+        "name"
+      ],
+      "maxBytes": 160,
+      "rule": "LIM-PRJ-3"
+    },
+    {
+      "schema": "AuditScope",
+      "path": [
+        "properties",
+        "objective"
+      ],
+      "maxBytes": 65536,
+      "rule": "LIM-AUD-29"
+    },
+    {
+      "schema": "AuditScope",
+      "path": [
+        "properties",
+        "target"
+      ],
+      "maxBytes": 65536,
+      "rule": "LIM-AUD-29"
+    },
+    {
+      "schema": "AuditScope",
+      "path": [
+        "properties",
+        "authorizationScope"
+      ],
+      "maxBytes": 65536,
+      "rule": "LIM-AUD-29"
+    },
+    {
+      "schema": "DecideAuditFindingTruePositiveRequest",
+      "path": [
+        "properties",
+        "rationale"
+      ],
+      "maxBytes": 65536,
+      "rule": "LIM-REV-11"
+    },
+    {
+      "schema": "DecideAuditFindingDuplicateRequest",
+      "path": [
+        "properties",
+        "rationale"
+      ],
+      "maxBytes": 65536,
+      "rule": "LIM-REV-11"
+    },
+    {
+      "schema": "DecideAuditFindingOtherRequest",
+      "path": [
+        "properties",
+        "rationale"
+      ],
+      "maxBytes": 65536,
+      "rule": "LIM-REV-11"
+    },
+    {
+      "schema": "DecideAuditActionRequest",
+      "path": [
+        "properties",
+        "rationale"
+      ],
+      "maxBytes": 65536,
+      "rule": "LIM-REV-11"
+    },
+    {
+      "schema": "AuditReviewDecision",
+      "path": [
+        "properties",
+        "rationale"
+      ],
+      "maxBytes": 65536,
+      "rule": "LIM-REV-11"
+    },
+    {
+      "schema": "RunMetadataLabels",
+      "path": [
+        "additionalProperties"
+      ],
+      "maxBytes": 256,
+      "rule": "LIM-RUN-5"
+    }
+  ]
+}

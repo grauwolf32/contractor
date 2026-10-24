@@ -12,7 +12,8 @@ This document owns the deterministic scanning path of Contractor:
   `scan_naabu` and `scan_ffuf`;
 - the SQLMap HTTP request artifact and the scanner wordlist artifact;
 - deterministic scan request preparation: RequestSet v1 and single-operation
-  preparation from an OpenAPI document;
+  preparation from an OpenAPI document, including the source-document bounds
+  that the OpenAPI authoring Toolset `openapi@1` shares;
 - deterministic scan planning: the `scan-plan@1` Planner, its plan, its
   journal and its aggregate report.
 
@@ -426,6 +427,27 @@ truncation, a completed process and a completed invocation never establish that
 a target is secure or free of vulnerabilities, or a negative SQL-injection
 result.
 
+**SCN-R254.** Scanner adapters keep blocking work off the Runtime event loop.
+Creating and removing the private per-invocation scratch directory (including
+the capability probe's), adapter preparation inside it, wordlist and request
+parsing, writing private scanner input files and projecting scanner output into
+the observation run in worker threads. Destination checks, Artifact reads and
+writes, process supervision and result publication stay awaited on the loop.
+An invocation submits a fixed number of worker threads, independent of its
+input and output size. Cancellation, the scan deadline and allocation close
+join each in-flight thread before scratch removal and before the allocation's
+scan lock is released, so no thread outlives the invocation; the deadline still
+yields `scan_timeout` and a stop still yields cancellation.
+
+**SCN-R255.** The `targets` output of `scan_katana` and the `template-manifest`
+that `scan_nuclei` publishes for a pinned installed package (SCN-R229) or a
+custom rulepack (SCN-R241) are create-only. Before launch, the adapter
+checks that the output name is free with a metadata read
+([ART-R116](../artifacts/artifact-store.md)) and never downloads an existing
+payload for this check. Only `404` admits the invocation; an existing binding
+fails as `scan_output_exists`, and any other read failure fails as
+`scan_artifact_unavailable`. Neither failure launches the scanner.
+
 ### Pinned installed Nuclei web scans
 
 **SCN-R225.** `nuclei-web@1` accepts a required explicit `target` and optional
@@ -685,13 +707,19 @@ Retryable or ambiguous errors retain its captured key and body with bounded
 exponential backoff; admission expires after 24 hours or 100 attempts. A tick
 has a separate 30-second budget, child admission 10 seconds, claim 60 seconds,
 and claim release five seconds (LIM-SCN-90, LIM-SCN-91; FAIL-SCN-15). These
-bounds do not extend ordinary Run execution or scanner deadlines.
+bounds do not extend ordinary Run execution or scanner deadlines. The claim
+is released after every tick, also a cancelled one, as
+[PER-R26](../platform/persistence.md) describes: a lost claim is not a
+failure, and a definite release failure is reported with the tick; the sweep
+then stays claimed until its lease ends.
 
 **SCN-R250.** Owner cancellation sets `cancelling`, blocks further child
 creation through the parent transaction fence, cancels unsent members, and
 requests ordinary cancellation of admitted Runs. Only actual terminal child
 states settle those members; the parent then becomes `cancelled`. Repeated
-cancellation is idempotent. Missing and foreign sweeps are indistinguishable.
+cancellation is idempotent, so it accepts an `Idempotency-Key` that it
+validates but does not bind ([API-R28](../api/public-api.md)). Missing and
+foreign sweeps are indistinguishable.
 
 **SCN-R251.** Owner purge requires a terminal sweep with no live controller
 claim, cancels and joins in-process work before physical deletion, and holds
@@ -995,8 +1023,10 @@ supplied bytes. The caller remains responsible for matching those bytes to the
 selected revision.
 
 The production caller is the OpenAPI Audit scan adapter ([Audit
-scans](../audits/scans.md)), which uses `AuditScanSettings.PrepareOperation`
-for SQLMap requests or a fixed Nuclei target.
+scans](../audits/scans.md)), which prepares SQLMap requests or fixed Nuclei
+targets with `AuditScanSettings.PrepareOperations` when it builds the inventory
+(SCN-R256) and with `AuditScanSettings.PrepareOperation` when it reproduces one
+accepted task.
 
 **SCN-R220.** The `request-set-scan@1` Workflow consumes a separately supplied
 valid RequestSet Artifact; scanner selection and dispatch belong to [scan
@@ -1240,6 +1270,25 @@ skipped operation with diagnostics, never an empty success.
 entire document; reference expansion and request preparation concern only the
 assigned operation.
 
+**SCN-R256.** `AuditScanSettings.PrepareOperations` prepares every operation
+that one settings artifact selects, in pointer order, from one exact source:
+it validates the ref, parses and checks the document and computes the source
+content digest once, then prepares each operation from that parsed source.
+Each operation keeps its own options, reference and concrete-hint budgets and
+depth limits (LIM-SCN-43 to LIM-SCN-46), gaps, coverage and copy of the source
+identity, so every result, digest and error code equals what
+`AuditScanSettings.PrepareOperation` returns for the same bytes, media type,
+exact ref and operation; the first failing operation ends the batch. The
+parsed source is read-only and lives for one call: it holds one document
+within the source bounds (LIM-SCN-39, LIM-SCN-41, LIM-SCN-42) and an index
+with one entry per path key, for at most 1,000 operations (LIM-ASC-12).
+Nothing caches it on the settings or across calls, inventories or Runs, so
+the same settings with other bytes, another media type or another revision
+prepare from that source. The OpenAPI Audit scan inventory
+([Audit scans](../audits/scans.md)) is the batch caller; a caller that
+prepares one operation, such as dispatch-time re-preparation of an accepted
+task, parses its source in each call.
+
 #### Preparation bounds
 
 **SCN-R167.** Preparation enforces these bounds:
@@ -1272,6 +1321,28 @@ serialized bodies must still fit the 64 KiB wire limit (LIM-SCN-52).
 
 **SCN-R169.** Source-document, reference-work and serialized-output bounds fail
 explicitly rather than returning unaccounted partial data.
+
+**SCN-R253.** The source-document bounds count the UTF-8 bytes of the document
+as stored (LIM-SCN-39); the depth of the parsed document, with the top-level
+value at depth 1 and every member name, member value and array element one
+deeper than its container (LIM-SCN-41); and its nodes, one for every object,
+array, scalar and member name (LIM-SCN-42). A JSON document and a YAML document
+of the same tree count alike. The OpenAPI authoring Toolset `openapi@1`
+enforces the same three bounds, counted the same way, on every document it
+loads, on the result of every mutation, on every document it writes or returns,
+and in `validate_openapi` before the external validator runs, so no document it
+accepts or writes exceeds these byte, depth or node bounds of preparation. The
+shared bounds do not make the two parsers agree on anything else: the Runtime
+reads and writes YAML 1.1 while preparation reads YAML 1.2, so scalars such as
+`0o17` or `1e3` and merge keys can still parse differently or fail preparation
+as `invalid_document`. Preparation
+reports an exceeded bound as `source_limit_exceeded`; `openapi@1` reports it as
+the non-retryable `tool_input_invalid` tool error that names the bound and
+leaves the current document unchanged. Sharing these bounds does not make
+authoring validation a scan-readiness check: reference resolution, operation
+selection and the other bounds of SCN-R167 apply only during preparation. Both
+implementations give the same verdict on the
+[shared boundary cases](../../../api/testdata/openapi-document-bounds.json).
 
 ### Scan planning
 

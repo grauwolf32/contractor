@@ -35,12 +35,12 @@ func executionView(r evalstore.ExecutionObservation) ExecutionView {
 		out.Ref = &evaldomain.ExecutionRef{Kind: r.Kind, ID: *r.ExecutionID}
 		out.State = "unknown"
 	}
-	if r.SubmissionState != nil && *r.SubmissionState == "intent" {
+	if r.SubmissionState != nil && *r.SubmissionState == evalstore.SubmissionIntent {
 		out.State = "unknown"
 		reason := "Submission outcome is being reconciled."
 		out.Reason = &reason
 	}
-	if r.SubmissionState != nil && *r.SubmissionState == "rejected" {
+	if r.SubmissionState != nil && *r.SubmissionState == evalstore.SubmissionRejected {
 		reason := "The member was not started."
 		out.Reason = &reason
 	}

@@ -8,6 +8,8 @@ import (
 	"net"
 	"net/http"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/mtls"
 )
 
 type backgroundRunner interface {
@@ -60,7 +62,12 @@ func ServeSystem(
 		Handler: publicHandler, ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout: time.Minute, BaseContext: baseContext,
 	}
-	privateServer := &http.Server{Handler: privateHandler, ReadHeaderTimeout: 5 * time.Second, BaseContext: baseContext}
+	// Runtime Agents reuse private connections; an idle one closes after
+	// the private listener idle bound, longer than their idle reuse (CTL-R165).
+	privateServer := &http.Server{
+		Handler: privateHandler, ReadHeaderTimeout: 5 * time.Second,
+		IdleTimeout: mtls.PrivateListenerIdleTimeout, BaseContext: baseContext,
+	}
 	schedulerContext, cancelScheduler := context.WithCancel(context.WithoutCancel(ctx))
 	defer cancelScheduler()
 

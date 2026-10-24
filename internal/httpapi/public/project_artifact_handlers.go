@@ -9,9 +9,6 @@ import (
 )
 
 func (h *artifactHandlers) listProjectArtifacts(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	store, projectID, err := h.ownedProjectArtifactStore(r)
 	if err != nil {
 		handleError(w, err)
@@ -24,10 +21,6 @@ func (h *artifactHandlers) listProjectArtifacts(w http.ResponseWriter, r *http.R
 }
 
 func (h *artifactHandlers) getProjectArtifact(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodHead {
-		methodNotAllowed(w, r)
-		return
-	}
 	store, _, err := h.ownedProjectArtifactStore(r)
 	if err != nil {
 		handleError(w, err)
@@ -44,15 +37,11 @@ func (h *artifactHandlers) getProjectArtifact(w http.ResponseWriter, r *http.Req
 	h.writeArtifactRead(w, r, store, ref)
 }
 
+// putProjectArtifact checks the request metadata before it reads the Project,
+// so a malformed request answers the same whichever Project it names; then
+// Project ownership and lifecycle, then the Audit-managed namespace, and only
+// then takes a transfer slot for the body (API-R112).
 func (h *artifactHandlers) putProjectArtifact(w http.ResponseWriter, r *http.Request) {
-	store, _, err := h.ownedActiveProjectArtifactStore(r)
-	if err != nil {
-		handleError(w, err)
-		return
-	}
-	if h.rejectAuditManagedProjectArtifact(w, r) {
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		handleError(w, err)
 		return
@@ -69,6 +58,14 @@ func (h *artifactHandlers) putProjectArtifact(w http.ResponseWriter, r *http.Req
 	expectedRevision, err := artifactWritePrecondition(r)
 	if err != nil {
 		handleError(w, err)
+		return
+	}
+	store, _, err := h.ownedActiveProjectArtifactStore(r)
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+	if h.rejectAuditManagedProjectArtifact(w, r) {
 		return
 	}
 	h.writeArtifactUpload(w, r, store, mediaType, expectedRevision)
@@ -92,9 +89,6 @@ func (h *artifactHandlers) ownedActiveProjectArtifactStore(
 }
 
 func (h *artifactHandlers) getProjectArtifactMetadata(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	store, _, err := h.ownedProjectArtifactStore(r)
 	if err != nil {
 		handleError(w, err)
@@ -107,9 +101,6 @@ func (h *artifactHandlers) getProjectArtifactMetadata(w http.ResponseWriter, r *
 }
 
 func (h *artifactHandlers) listProjectArtifactVersions(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	store, projectID, err := h.ownedProjectArtifactStore(r)
 	if err != nil {
 		handleError(w, err)
@@ -122,9 +113,6 @@ func (h *artifactHandlers) listProjectArtifactVersions(w http.ResponseWriter, r 
 }
 
 func (h *artifactHandlers) listProjectArtifactLineage(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	store, projectID, err := h.ownedProjectArtifactStore(r)
 	if err != nil {
 		handleError(w, err)

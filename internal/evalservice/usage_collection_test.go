@@ -2,11 +2,15 @@ package evalservice
 
 import (
 	"encoding/json"
+	"fmt"
+	"math"
+	"reflect"
 	"slices"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/evaldomain"
 )
 
 func TestEvalLegacyPassthroughCountersPreserveWorkerCompleteness(t *testing.T) {
@@ -69,5 +73,60 @@ func TestEvalLegacyPassthroughCountersPreserveWorkerCompleteness(t *testing.T) {
 				t.Fatalf("Worker calls or report completeness changed: %+v", observed)
 			}
 		})
+	}
+}
+
+// A snapshot's counters do not depend on which Worker or tool holds which
+// contribution. A counter whose known contributions exceed the int64 range is
+// overflowed and has no value in every assignment, a sum exactly at the range
+// is kept, and a missing contribution leaves only its own counter incomplete
+// (EVM-R240).
+func TestEvalAttemptMetricsOverflowIsOrderIndependent(t *testing.T) {
+	const top = math.MaxInt64
+	overflowing := []int64{top - 100, 200, 0}
+	exact := []int64{top - 100, 100, 0}
+	toolCalls := []int64{top, 1}
+	value := func(v int64) *int64 { return &v }
+	for _, workers := range [][3]int{{0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1}, {2, 1, 0}} {
+		for _, tools := range [][2]int{{0, 1}, {1, 0}} {
+			reports := map[string]any{}
+			runtime := map[string]any{}
+			for i, contribution := range workers {
+				metrics := reporting.ExecutionMetrics{
+					ModelCalls: value(exact[contribution]), InputTokens: value(overflowing[contribution]),
+					OutputTokens: value(0), TotalTokens: value(overflowing[contribution]),
+					Tools: map[string]reporting.ToolMetrics{},
+				}
+				if contribution == 2 {
+					metrics.OutputTokens = nil
+				}
+				if i == 0 {
+					metrics.Tools["a"] = reporting.ToolMetrics{Calls: value(toolCalls[tools[0]]), Failed: value(1)}
+					metrics.Tools["b"] = reporting.ToolMetrics{Calls: value(toolCalls[tools[1]]), Failed: value(0)}
+				}
+				name := fmt.Sprintf("worker-%d", i)
+				reports[name] = map[string]any{"complete": true, "metrics": metrics}
+				runtime[name] = map[string]any{"complete": true}
+			}
+			raw, err := json.Marshal(map[string]any{"workers": reports, "runtime": runtime})
+			if err != nil {
+				t.Fatal(err)
+			}
+			observed, err := attemptMetrics("run", "stage", raw, 3, resolved.PlannerRef{PlannerID: "streamline", Version: "1"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			// The source digest covers the exact bytes, which name contributions differently.
+			observed.SourceSHA256 = ""
+			want := evaldomain.AttemptObservation{
+				RunID: "run", StageExecutionID: "stage", ReportsComplete: true,
+				Metrics:           map[string]int64{"modelCalls": top, "outputTokens": 0, "toolFailures": 1},
+				IncompleteMetrics: []string{"outputTokens"},
+				OverflowMetrics:   []string{"inputTokens", "toolCalls", "totalTokens"},
+			}
+			if !reflect.DeepEqual(observed, want) {
+				t.Fatalf("workers %v, tools %v:\n got %+v\nwant %+v", workers, tools, observed, want)
+			}
+		}
 	}
 }

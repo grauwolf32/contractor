@@ -356,11 +356,13 @@ func (r *InMemoryRegistry) ReplayOperations(
 		return []OperationsChange{}, current, nil
 	}
 	want := after.Revision + 1
-	if len(r.operationsHistory) == 0 || r.operationsHistory[0].Cursor.Revision > want {
+	history := &r.operationsHistory
+	if history.len() == 0 || history.at(0).Cursor.Revision > want {
 		return nil, current, ErrOperationsCursor
 	}
 	result := make([]OperationsChange, 0, r.operationsRevision-after.Revision)
-	for _, change := range r.operationsHistory {
+	for index := range history.len() {
+		change := history.at(index)
 		if change.Cursor.Revision < want {
 			continue
 		}
@@ -425,19 +427,40 @@ func (r *InMemoryRegistry) recordOperationsChangeLocked(
 		Resource: resource, ResourceID: resourceID,
 		OccurredAt: r.now().UTC().Round(0),
 	}
-	r.operationsHistory = append(r.operationsHistory, change)
-	if len(r.operationsHistory) > operationsHistoryLimit {
-		r.operationsHistory = append(
-			[]OperationsChange(nil),
-			r.operationsHistory[len(r.operationsHistory)-operationsHistoryLimit:]...,
-		)
-	}
+	r.operationsHistory.append(change)
 	for _, watcher := range r.operationsWatchers {
 		select {
 		case watcher <- struct{}{}:
 		default:
 		}
 	}
+}
+
+// operationsChanges holds the latest operationsHistoryLimit typed Operations
+// invalidations, oldest first (LIM-API-7). The array is part of the registry,
+// so appending never allocates: at capacity an append overwrites the oldest
+// change in place instead of copying the retained history.
+type operationsChanges struct {
+	entries [operationsHistoryLimit]OperationsChange
+	start   int
+	count   int
+}
+
+func (c *operationsChanges) append(change OperationsChange) {
+	if c.count < len(c.entries) {
+		c.entries[(c.start+c.count)%len(c.entries)] = change
+		c.count++
+		return
+	}
+	c.entries[c.start] = change
+	c.start = (c.start + 1) % len(c.entries)
+}
+
+func (c *operationsChanges) len() int { return c.count }
+
+// at returns the index-th retained change, oldest first.
+func (c *operationsChanges) at(index int) OperationsChange {
+	return c.entries[(c.start+index)%len(c.entries)]
 }
 
 func validOperationsResource(resource OperationsResource) bool {

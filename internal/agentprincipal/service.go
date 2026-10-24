@@ -193,18 +193,31 @@ func (s *Service) RequiredRuntimeAdapters(ctx context.Context, labels []string) 
 	if err := runtimeconfig.ValidateAgentLabels(labels); err != nil {
 		return nil, err
 	}
-	seen := make(map[string]struct{}, 2)
+	// One statement reads the bindings and one their versions, however many
+	// labels the principal holds. A label or version that disappeared since
+	// the principal was read keeps the single-row reads' class, ErrNotFound.
 	repository := runtimeconfig.NewRepository(s.pool)
+	bindings, err := repository.GetBindingsByLabels(ctx, labels)
+	if errors.Is(err, runtimeconfig.ErrUnknownLabel) {
+		return nil, runtimeconfig.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	refs := make([]runtimeconfig.Ref, 0, len(bindings))
 	for _, label := range labels {
-		binding, err := repository.GetBinding(ctx, label)
-		if err != nil {
-			return nil, err
-		}
-		version, err := repository.GetVersionByRef(ctx, binding.Ref)
-		if err != nil {
-			return nil, err
-		}
-		appendRequiredRuntimeAdapters(seen, version)
+		refs = append(refs, bindings[label].Ref)
+	}
+	versions, err := repository.GetVersionsByRefs(ctx, refs)
+	if errors.Is(err, runtimeconfig.ErrVersionNotFound) {
+		return nil, runtimeconfig.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	seen := make(map[string]struct{}, 2)
+	for _, ref := range refs {
+		appendRequiredRuntimeAdapters(seen, versions[ref])
 	}
 	return sortedAdapters(seen), nil
 }

@@ -70,12 +70,24 @@ type Store interface {
 	// Stage, not the Run's Stage history.
 	GetActiveStageExecution(context.Context, string) (runstore.StageExecution, error)
 	ListStageExecutions(context.Context, string) ([]runstore.StageExecution, error)
+	// ListStageExecutionsWithUnreleasedAllocations reads the Run's
+	// StageExecutions that still have an allocation whose release has not
+	// completed, not the rest of its Stage history (SCH-R179).
+	ListStageExecutionsWithUnreleasedAllocations(context.Context, string) ([]runstore.StageExecution, error)
 	HasSummaryEscalation(context.Context, string, string) (bool, error)
 	ListTerminalStageExecutionsWithAllocations(context.Context) ([]runstore.StageExecution, error)
 	GetStageExecution(context.Context, string) (runstore.StageExecution, error)
 	ListStageAllocations(context.Context, string) ([]runstore.StageAllocation, error)
-	MarkStageAllocationReleaseAttempt(context.Context, string) error
-	MarkStageAllocationReleased(context.Context, string) error
+	// ListStageAllocationsBatch reads the allocations of several existing
+	// StageExecutions in one statement, keyed by StageExecution; an execution
+	// without allocations has no entry.
+	ListStageAllocationsBatch(context.Context, []string) (map[string][]runstore.StageAllocation, error)
+	// MarkStageAllocationReleaseAttempt and MarkStageAllocationReleased mark
+	// the named allocations together in bounded statements (SCH-R182,
+	// LIM-SCH-22); a missing allocation is ErrNotFound for that allocation
+	// alone.
+	MarkStageAllocationReleaseAttempt(context.Context, ...string) error
+	MarkStageAllocationReleased(context.Context, ...string) error
 	// RecordStageOutputPublicationFailure counts a terminal commit of the
 	// finalizing StageExecution (runID, stageExecutionID) that a transient
 	// Project output publication failure aborted (PRJ-R58).

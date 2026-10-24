@@ -13,7 +13,6 @@ from pathlib import Path
 from urllib.parse import quote, urlsplit, urlunsplit
 
 import httpx
-import idna
 
 from contractor_runtime.adapters.host import (
     AdapterFactoryError,
@@ -29,6 +28,7 @@ from contractor_runtime.core.process import (
     run_command,
 )
 from contractor_runtime.core.target_policy import TargetDenied, TargetPolicy
+from contractor_runtime.http_body import HTTP_TRANSPORT_ERRORS
 
 MAX_SUBPROCESS_ARGUMENTS = 128
 MAX_SUBPROCESS_ARGUMENT_BYTES = 4096
@@ -155,13 +155,12 @@ class ProxyHTTPClient:
     ) -> httpx.Response:
         """Send one routed request without buffering its response body."""
 
-        try:
-            client = self.async_client
-            request = client.build_request(method, url, **kwargs)
-        except (httpx.InvalidURL, idna.IDNAError):
-            raise
-        except Exception:
-            raise ProxyRequestError from None
+        # A detached route raises ProxyRequestError. Building the request is
+        # not routing: input that cannot form a request (httpx.InvalidURL,
+        # idna.IDNAError, UnicodeEncodeError) and an implementation failure
+        # keep their types, exactly as on the direct route.
+        client = self.async_client
+        request = client.build_request(method, url, **kwargs)
         self._require_permitted(request, target_policy)
         if request_observer is not None:
             # The caller inspects the exact request before any network I/O;
@@ -177,7 +176,10 @@ class ProxyHTTPClient:
             raise
         except ProxyRequestError:
             raise
-        except Exception:
+        except HTTP_TRANSPORT_ERRORS:
+            # Any other exception is an implementation failure outside the
+            # route transport and keeps its type. Inside the route transport,
+            # which the model Gateway shares, every failure is a route failure.
             raise ProxyRequestError from None
 
     def clear_cookies(self) -> None:

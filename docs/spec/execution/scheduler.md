@@ -431,6 +431,21 @@ a candidate that fails them. It may replace an invalid claimed success with a
 failed `result_contract_violation`. Final report collection may update
 StageMetrics but never rewrites this semantic result.
 
+**SCH-R177.** When its revalidation cannot confirm a result artifact or the
+saved summary artifact of a candidate, Workflow Scheduler classifies the
+failure as the Planners do ([PLN-R118](planners.md)) and ends the Stage through
+bounded `aborting` with an interrupted StageTermination. A rejected exact
+reference — malformed, naming no revision the RunScope holds, or answered with
+metadata of another revision — records the non-retryable
+`result_contract_violation`, like every other contract violation of the
+candidate. A failure that leaves the reference unverified, such as an
+unavailable store, records the retryable `result_verification_unavailable`.
+Result artifacts are verified in result-name order, so the same candidate
+always ends with the same code. The StageContext pins of the next
+StageExecution are checked with the same classification when a progression
+commits: a rejected pin is durable state the Scheduler cannot progress
+(SCH-R102).
+
 **SCH-R36.** Scheduler-driven cancellation or interruption is never represented
 as a StageResult; it uses the distinct `StageTermination` contract.
 
@@ -546,7 +561,39 @@ bindings ([ART-R91](../artifacts/artifact-store.md)).
 finalizing or aborting. It is not embedded into, or used to rewrite, the stored
 StageResult or StageTermination, and missing telemetry never invalidates an
 otherwise valid StageResult or StageTermination. Report shapes are specified in
-[Observability](../platform/observability.md).
+[Observability](../platform/observability.md). Each report-persistence phase
+rebuilds StageMetrics once, after its last report write: a completed Planner
+invocation after its Planner report, so the metrics show the Planner while the
+Stage finalizes or aborts; finalizing or aborting after the Planner placeholder
+([OBS-R37](../platform/observability.md)) and every allocation report or
+placeholder. A phase rebuilds when it recorded the Planner report or listed the
+Stage's allocations, even if one allocation report write failed; a phase that
+recorded nothing rebuilds nothing.
+
+**SCH-R178.** Report persistence removes from a live allocation's report the
+secret values of the RuntimeSettings that allocation was prepared with
+([OBS-R30](../platform/observability.md)). The Scheduler keeps the values it
+materialized for a Stage's Worker preparation in process memory, only as
+self-redacting values ([SEC-R88](../platform/security.md)), and the Stage's
+report persistence in the same process redacts with exactly those values
+instead of resolving and decrypting the pinned credentials again. The values
+are kept from that materialization, including when the preparation then fails,
+until the Stage's terminal release begins or terminal release recovery selects
+the Stage (LIFE-SCH-6), for at most LIM-SCH-19 Stages; beyond that the least
+recently stored Stage is evicted. A Stage without kept values, after a Server
+restart, an eviction or a recovery directly into `finalizing` or `aborting`,
+resolves its pinned credentials again; when that resolution fails, the report
+is redacted with the deployment secrets and whichever of the RuntimeSettings
+and the Project HTTP target credential did resolve, and is still persisted
+([OBS-R38](../platform/observability.md)). Nothing durable, logged or exported
+carries the kept values: the kept store and each of its entries redact
+themselves as a whole in formatted, JSON and log output. Decision: keeping the
+values in memory replaces a second credential decryption per Stage without
+adding a durable secret, and redacts what the Runtime Agent actually received
+even if a credential changed after preparation. The alternative, resolving
+again at report persistence, remains the restart path. Reopen this decision if
+allocations can receive credentials after preparation, since the kept values
+would then no longer cover them.
 
 ### Entering aborting
 
@@ -693,6 +740,43 @@ least-recently-attempted batch of incomplete terminal releases. It retries each
 still-live allocation independently, so one member of a partially released
 multi-Agent Stage cannot hide another (FAIL-SCH-9).
 
+**SCH-R180.** Terminal release recovery runs at most four Stage operations at
+once (LIM-SCH-20). Each operation takes its Stage's release gate, so no lane
+and no other operation of the same Server releases that Stage at the same
+time, and keeps the store-operation budgets and its release batch's own
+cleanup deadline (SCH-R65). A listing starts, in its least-recently-attempted
+order, only Stages whose gate is free and only as many as slots are free. A
+Runtime Agent that holds one Stage's release until the cleanup deadline
+therefore delays only that Stage, while the other slots keep releasing the
+rest of the batch and of later listings. Recovery lists again as soon as an
+operation completed useful work, and otherwise once per
+`scheduler.pollInterval`; a failed operation or listing frees its slot
+without listing again, so a failing Runtime Agent, such as one that answers
+HTTP 409 at once, or a failing store cannot create a hot loop, and its
+recorded attempt moves the Stage behind Stages not yet attempted. Stopping
+the Server joins every operation in flight before the Scheduler stops; an
+operation already in its release batch completes its durable markers. A
+deterministic test tick of recovery (SCH-R125) starts the same operations
+from one listing and runs them one after another. Decision: four slots keep
+the recovery's database connections and Runtime fan-out small next to the
+lanes, which release their own Stages on the normal path, while up to three
+unresponsive Runtime Agents cannot stop the remaining recovery. The
+alternative, one operation at a time, let one slow Runtime Agent hold every
+other terminal release for a whole cleanup deadline per listing. Reopen the
+bound if terminal release recovery becomes the normal release path or if
+Stages routinely bind more than a few Runtime Agents.
+
+**SCH-R179.** A cancelling Run without an active StageExecution ends after the
+Scheduler has fenced and released the live allocations of its earlier
+attempts. It reads only the attempts that have an allocation whose release is
+incomplete, and their allocation rows in one statement, never the attempts
+whose release completed, so its work grows with the incomplete releases, not
+with the Stage history (LIM-RUN-2). A failed read of those attempts keeps the
+Run `cancelling` for its next claim. A failed allocation read, fence or
+release, or an unreadable Workflow snapshot, does not hold the cancellation:
+the Run ends `cancelled` and terminal release recovery (SCH-R71) completes the
+release.
+
 **SCH-R72.** A cleanup error is reported and retried but never prevents
 Scheduler from claiming an unrelated WorkflowRun.
 
@@ -702,6 +786,30 @@ recovery reports the divergence, write-fences that grant and releases it once
 the Stage the grant names is terminal or unknown. A grant still named by an
 active Stage is left to that Stage's own release; the durable row is then
 marked released because the grant no longer exists.
+
+**SCH-R182.** One release of a Stage's allocations, by a lane on the normal
+path or by a terminal release recovery operation that holds the Stage's
+release gate (SCH-R180), writes its durable markers per phase, not per
+allocation. One marker statement records the release attempts of every
+allocation it releases before its release batch; after the batch, one more
+marks released exactly those whose live grant is gone. Recovery marks the
+allocations whose grant was already gone with one statement before its
+release batch. Each marker statement names at most 128 allocations
+(LIM-SCH-22). One store-operation budget, never the batch's cleanup deadline
+(SCH-R65), covers one marker call: its existence check and every statement
+of at most 128 allocations it writes, so a later statement of a Stage with
+more allocations has only what the earlier ones left and an allocation it
+does not reach stays incomplete for the next attempt. Each allocation keeps its own outcome: a completed
+release is left as it is, a missing allocation is an error for that
+allocation alone while the others are still marked, a grant the batch could
+not release keeps its fence and its incomplete row (SCH-R69, SCH-R71), and a
+divergent grant follows SCH-R73. A recovery operation reads and marks only
+its own Stage's allocations and never takes another Stage to fill a marker
+statement. Decision: both markers are idempotent per allocation, so a lost
+response is repaired by the next attempt exactly as for a single-row marker,
+while one statement per allocation made a Stage's store round trips grow
+with its Agents. Reopen the per-statement bound if a Stage may bind more
+Agents than one statement can name within the store-operation budget.
 
 **SCH-R74.** A Runtime Agent has no PostgreSQL or long-lived external telemetry
 credential. It may receive an allocation-scoped exporter credential only inside
@@ -1136,6 +1244,23 @@ one bounded progression attempt (LIM-SCH-7), and repeatedly:
 5. removes its own cancellation registration, then releases the claim before
    selecting more work (LIFE-SCH-3).
 
+**SCH-R181.** The supervisor fills each pool in rounds, opened at startup and
+by every poll and wake. A round may start the lanes its pool lacks at that
+moment, but it starts them one at a time: it starts the next lane of the pool
+only after the previous lane's claim succeeded, while that lane goes on to
+progress its Run, so a pool with runnable work fills every lane of the round
+before any of them completes. A claim that finds no work or fails ends the
+round, and the pool waits for the next poll or wake, so an idle poll costs one
+claim attempt per pool whatever the pool's size (LIM-SCH-21). A claim that
+began before the round opened does not end it, and a lane that ends after
+useful, successful work is still replaced at once. A lane that ends deferred
+is not replaced before the next poll or wake (SCH-R122). Decision: one claim
+in flight per pool keeps the idle cost of the claim query from growing with
+the configured pool sizes; the alternative, one claim per free lane, costs up
+to 32 claims per pool and poll (LIM-OPS-7, LIM-OPS-34). Claims are serialized
+within the Server anyway (SCH-R120), so filling a busy pool takes no longer.
+Reopen this if claims stop being serialized.
+
 **SCH-R117.** The cancellation registration is keyed by the exact claim: once
 the claim is released, another lane of the same process may claim the Run, and
 the finishing lane can neither shadow nor remove that lane's cancellation or
@@ -1212,7 +1337,8 @@ state and its one active StageExecution (SCH-R114), not the Run's Stage
 history of up to 1,024 attempts (LIM-RUN-2); it reads the whole Run again only
 when its state changed since the claim. Only a Run without an active
 StageExecution, whose first Stage is not yet created or whose state the
-Scheduler cannot progress, has its Stage history read.
+Scheduler cannot progress, has its Stage history read; a cancelling one reads
+only the attempts whose allocation release is incomplete (SCH-R179).
 
 **SCH-R125.** Focused tests drive the Scheduler through `RunOnce`, a
 deterministic single-claim helper that only the Scheduler's tests compile and
@@ -1484,6 +1610,15 @@ Limits ([registry](../platform/limits.md)):
   StageTermination and no accepted StageResult (SCH-R43).
 - LIM-SCH-16 — decoded Workflow snapshots kept per Server process: at most 128
   Runs and 128 MiB of stored snapshot text (SCH-R167).
+- LIM-SCH-19 — Stages whose preparation secrets one Server process keeps for
+  report redaction: at most 128 (SCH-R178).
+- LIM-SCH-20 — terminal release recovery Stage operations one Server process
+  runs at once: at most 4 (SCH-R180).
+- LIM-SCH-21 — lanes of one pool claiming at once outside a replacement after
+  useful work: at most 1, so at most 1 claim attempt per idle pool and fill
+  round (SCH-R181).
+- LIM-SCH-22 — allocations one release-marker statement names: at most 128
+  (SCH-R182).
 - Used here, owned elsewhere: concurrent A2A Tasks per Worker
   ([LIM-CTL-6](../platform/limits.md), SCH-R10), slots per Runtime Agent
   process ([LIM-CTL-4](../platform/limits.md), SCH-R139), the
@@ -1498,7 +1633,10 @@ Errors ([registry](../platform/errors.md)):
 - `context_artifact_missing` — a required Stage context binding is missing
   (SCH-R17).
 - `result_contract_violation` — Scheduler replaced an invalid claimed success
-  with a failed result (SCH-R35).
+  with a failed result (SCH-R35), including a rejected result or summary
+  artifact reference (SCH-R177); non-retryable.
+- `result_verification_unavailable` — a candidate artifact could not be
+  verified because the store did not answer; retryable (SCH-R177).
 - `scheduler_state_invalid`, `unsupported_workflow_shape` — durable state the
   Scheduler cannot progress (SCH-R102).
 - `control_lease_expired`, `runtime_state_mismatch` — allocation-loss reasons
@@ -1519,7 +1657,7 @@ Failure outcomes ([failure model](../platform/failure-model.md)):
 - FAIL-SCH-6 — A2A Task cancellation (SCH-R54).
 - FAIL-SCH-7 — abort control command (SCH-R56, SCH-R57).
 - FAIL-SCH-8 — finalize control command (SCH-R99, SCH-R63).
-- FAIL-SCH-9 — allocation release (SCH-R69, SCH-R71).
+- FAIL-SCH-9 — allocation release (SCH-R69, SCH-R71, SCH-R180, SCH-R182).
 - FAIL-SCH-10 — progression transaction (SCH-R78).
 - FAIL-SCH-11 — allocation loss (SCH-R93, SCH-R118).
 - FAIL-SCH-12 — Server restart (SCH-R96).
@@ -1536,6 +1674,8 @@ Lifecycle ([registry](../platform/lifecycle.md)):
 - LIFE-SCH-1 — StageExecution (SCH-R44, SCH-R45).
 - LIFE-SCH-2 — durable Stage allocation and its grant (SCH-R70).
 - LIFE-SCH-3 — Run claim (SCH-R116).
+- LIFE-SCH-6 — Worker-preparation secret values kept for report redaction
+  (SCH-R178).
 - Run hard deletion, which removes StageExecutions and durable allocation rows
   with all other execution state once allocation release has completed, is
   owned by
@@ -1551,6 +1691,9 @@ Lifecycle ([registry](../platform/lifecycle.md)):
   ([ART-R83](../artifacts/artifact-store.md)).
 - A Runtime Agent holds no PostgreSQL or long-lived telemetry credential
   (SCH-R74).
+- Secret values kept from a Stage's Worker preparation for report redaction
+  stay in process memory as self-redacting values, at most LIM-SCH-19 Stages
+  and only until the Stage's terminal release (SCH-R178).
 - `OwnerQueueControl` is keyed by an owner derived from authentication
   (SCH-R145); the concurrency settings API is Operations-authorized and
   CSRF-protected (SCH-R143).
@@ -1561,7 +1704,8 @@ Lifecycle ([registry](../platform/lifecycle.md)):
 ## Observability
 
 - StageMetrics is a separate StageExecution field populated while finalizing or
-  aborting; missing telemetry never invalidates a terminal fact (SCH-R51).
+  aborting and rebuilt once per report-persistence phase; missing telemetry
+  never invalidates a terminal fact (SCH-R51).
 - Memory content never enters durable session facts or execution telemetry
   (SCH-R61).
 - The cause of a Run the Scheduler could not progress is observable in one

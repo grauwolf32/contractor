@@ -707,11 +707,11 @@ func assertModeledPlanEvents(
 		t.Fatal("modeled Planner has no durable session")
 	}
 	runEvents, err := store.ListRunEvents(ctx, execution.RunID, 0, 1000)
-	if err != nil {
-		t.Fatalf("list Run events: %v", err)
+	if err != nil || runEvents.More {
+		t.Fatalf("list Run events: more=%t, %v", runEvents.More, err)
 	}
 	var plannerEvents []runstore.WorkflowRunEvent
-	for _, event := range runEvents {
+	for _, event := range runEvents.Events {
 		if strings.HasPrefix(string(event.Kind), "planner.") {
 			plannerEvents = append(plannerEvents, event)
 		}

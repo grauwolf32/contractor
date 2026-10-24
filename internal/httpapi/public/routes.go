@@ -1,6 +1,10 @@
 package public
 
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
+)
 
 // route is one operation of the public contract: its method, its OpenAPI
 // path template (also the ServeMux pattern, so handlers read OpenAPI's
@@ -11,7 +15,7 @@ type route struct {
 }
 
 // routes lists every public operation once. register serves each of them and
-// answers any other method of their paths with 405;
+// answers any other method of their paths, HEAD included, with 405;
 // TestRouteTableMatchesOpenAPI keeps the table equal to the operations of
 // the OpenAPI contract, and every operation must pass a validated test
 // (TestMain).
@@ -197,28 +201,23 @@ func (c contextHandlers) routes() []route {
 	}
 }
 
-// register serves every route, answers another method of a route's path with
-// 405 and any other path with 404.
-func (c contextHandlers) register(mux *http.ServeMux) {
-	paths := map[string]bool{}
-	for _, route := range c.routes() {
-		mux.HandleFunc(route.method+" "+route.path, route.handler)
-		paths[route.path] = true
+// register serves routes through the routing rule the private API shares:
+// another method of a route's path, HEAD included, is 405 before any
+// operation handler runs (API-R73, API-R111), and any other path is 404.
+// Authentication and authorization wrap the mux, so they still answer first,
+// as they do for GET.
+func register(mux *http.ServeMux, routes []route) {
+	served := make([]httpx.Route, 0, len(routes))
+	for _, route := range routes {
+		served = append(served, httpx.Route{Method: route.method, Path: route.path, Handler: route.handler})
 	}
-	for path := range paths {
-		mux.HandleFunc(path, methodNotAllowed)
-	}
-	mux.HandleFunc("/", notFound)
+	httpx.ServeRoutes(mux, served, methodNotAllowed, notFound)
 }
 
-// evalRoute keeps every Eval response out of caches and refuses HEAD, which
-// the Eval documents do not define.
+// evalRoute keeps every Eval response out of caches.
 func evalRoute(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
-		if rejectHead(w, r) {
-			return
-		}
 		next(w, r)
 	}
 }

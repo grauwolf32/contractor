@@ -128,21 +128,14 @@ func (i *Importer) prepareCheckResults(
 	evidenceByID := make(map[string]validatedEvidence, len(resultPackage.Evidence.Evidence))
 	evidenceOwner := make(map[string]int, len(resultPackage.Evidence.Evidence))
 	proposalOwner := make(map[string]int)
+	descriptors, err := i.describeEvidence(ctx, *execution.RunID, resultPackage.Evidence.Evidence)
+	if err != nil {
+		return preparedCheckResults{}, err
+	}
 	for _, value := range resultPackage.Evidence.Evidence {
 		validated := validatedEvidence{value: value}
 		if value.Artifact != nil {
-			descriptor, _, readErr := i.artifacts.ReadRunExact(ctx, *execution.RunID, *value.Artifact)
-			if readErr != nil {
-				if errors.Is(readErr, artifacts.ErrArtifactNotFound) ||
-					errors.Is(readErr, artifacts.ErrExactRevisionRequired) ||
-					errors.Is(readErr, artifacts.ErrInvalidName) {
-					return preparedCheckResults{}, &invalidCheckResults{code: "evidence-reference-invalid"}
-				}
-				// Storage failures do not prove that the worker's reference is
-				// invalid. Leave this execution collecting so the same terminal
-				// result can be retried without consuming an item attempt.
-				return preparedCheckResults{}, fmt.Errorf("read exact Audit evidence: %w", readErr)
-			}
+			descriptor := descriptors[value.Artifact.Key()]
 			validated.descriptor = &descriptor
 		}
 		evidenceByID[value.ID] = validated
@@ -171,8 +164,59 @@ func (i *Importer) prepareCheckResults(
 			evidenceOwner[evidenceID] = index
 		}
 	}
-
+	// Every evidence record now has exactly one owning member index.
+	// DecodeCheckResultPackage rejects an evidence record no result cites;
+	// collectSucceeded admits exactly len(members) results with distinct
+	// item keys; the members of one execution are distinct Items of one Round
+	// (audit_execution_items FKs, audit_items_round_key), so the loop above
+	// matched every result to one member and recorded each cited ID once.
 	return preparedCheckResults{members: members, evidenceByID: evidenceByID, evidenceOwner: evidenceOwner}, nil
+}
+
+// describeEvidence returns the exact descriptor of every distinct revision
+// that evidence cites, keyed by reference, from metadata reads that fetch no
+// payload: digest, media type and size are all that the evidence budget,
+// retention and the receipt need, and the retained binding shares the stored
+// version whose bytes every reader verifies (AUX-R98). A reference that is not
+// an exact revision of the Run, or that the Run does not hold, is
+// evidence-reference-invalid. Any other failure does not prove the Worker's
+// reference invalid, so it leaves this execution collecting and the same
+// terminal result is retried without consuming an item attempt (AUX-R96).
+func (i *Importer) describeEvidence(
+	ctx context.Context, runID string, evidence []auditdomain.Evidence,
+) (map[string]auditstore.ExactArtifact, error) {
+	refs := make([]contracts.ArtifactRef, 0, len(evidence))
+	seen := make(map[string]struct{}, len(evidence))
+	for _, value := range evidence {
+		if value.Artifact == nil {
+			continue
+		}
+		if _, duplicate := seen[value.Artifact.Key()]; duplicate {
+			continue
+		}
+		seen[value.Artifact.Key()] = struct{}{}
+		refs = append(refs, *value.Artifact)
+	}
+	if len(refs) == 0 {
+		return nil, nil
+	}
+	described, err := i.artifacts.DescribeRunExact(ctx, runID, refs)
+	if errors.Is(err, artifacts.ErrArtifactNotFound) ||
+		errors.Is(err, artifacts.ErrExactRevisionRequired) ||
+		errors.Is(err, artifacts.ErrInvalidName) {
+		return nil, &invalidCheckResults{code: "evidence-reference-invalid"}
+	}
+	if err != nil {
+		return nil, fmt.Errorf("describe exact Audit evidence: %w", err)
+	}
+	if len(described) != len(refs) {
+		return nil, fmt.Errorf("describe exact Audit evidence: %d descriptors for %d references", len(described), len(refs))
+	}
+	descriptors := make(map[string]auditstore.ExactArtifact, len(refs))
+	for index, ref := range refs {
+		descriptors[ref.Key()] = described[index]
+	}
+	return descriptors, nil
 }
 
 func (i *Importer) resolveMemberProposals(
@@ -237,13 +281,40 @@ func (i *Importer) resolveMemberProposals(
 			return nil, &invalidCheckResults{code: "finding-proposal-association-invalid"}
 		}
 		seenProposalReceipts[proposal.ReceiptID] = struct{}{}
-		if validationErr := validateMappedProposalStandards(
-			member.task, proposal.Document, loadStandards,
-		); validationErr != nil {
-			return nil, &invalidCheckResults{code: "finding-proposal-standard-reference-invalid"}
+		if err := validateResolvedProposalStandards(member.task, proposal.Document, loadStandards); err != nil {
+			return nil, err
 		}
 	}
 	return resolved, nil
+}
+
+// validateResolvedProposalStandards separates the pinned standards from the
+// Worker's proposal. Loading them keeps its class: a storage failure stays
+// retryable and invalid pinned standards are ErrPermanent, also when every
+// proposal was retained by an earlier attempt that skipped this read. Only a
+// proposal whose standard references violate their contract is invalid-result.
+func validateResolvedProposalStandards(
+	task auditdomain.ItemTask,
+	document auditdomain.FindingProposal,
+	loadStandards retainedStandardLoader,
+) error {
+	if task.Standard == nil && len(document.StandardRefs) == 0 {
+		return nil
+	}
+	standards, err := loadStandards()
+	if err != nil {
+		return err
+	}
+	if task.Standard != nil {
+		standard, exists := standards[retainedStandardKey(task.Standard.Scheme, task.Standard.Version)]
+		if !exists || !standardTaskMatchesPackage(task, standard) {
+			return fmt.Errorf("%w: pinned standard task does not match its retained package", ErrPermanent)
+		}
+	}
+	if validateMappedProposalStandards(task, document, standards) != nil {
+		return &invalidCheckResults{code: "finding-proposal-standard-reference-invalid"}
+	}
+	return nil
 }
 
 func (i *Importer) retainCheckResults(
@@ -257,13 +328,40 @@ func (i *Importer) retainCheckResults(
 ) (bool, error) {
 	members, evidenceByID, evidenceOwner := prepared.members, prepared.evidenceByID, prepared.evidenceOwner
 	namespace := auditdomain.ArtifactNamespace(snapshot.Audit.AuditID)
-	retainedResult, err := i.artifacts.RetainRunExact(
-		ctx, run.RunID, source, snapshot.Audit.ProjectID,
-		contracts.ArtifactRef{Namespace: namespace, Name: auditdomain.DeterministicID("result", execution.ExecutionID)},
-	)
+	// Copy each distinct exact source once. Evidence records citing the same
+	// revision, or the result output itself, share that copy, so the store
+	// charges exactly the bytes retainedEvidenceFits admitted. The first
+	// sorted evidence ID names a copy, keeping retries deterministic. All
+	// copies are retained in bounded artifact-write transactions (AUX-R98)
+	// before the one collection transaction links them.
+	retentions := []RunRetention{{
+		Source: source,
+		Target: contracts.ArtifactRef{Namespace: namespace, Name: auditdomain.DeterministicID("result", execution.ExecutionID)},
+	}}
+	retentionBySource := map[string]int{source.Ref.Key(): 0}
+	evidenceIDs := sortedEvidenceIDs(evidenceByID)
+	for _, id := range evidenceIDs {
+		descriptor := evidenceByID[id].descriptor
+		if descriptor == nil {
+			continue
+		}
+		if _, planned := retentionBySource[descriptor.Ref.Key()]; planned {
+			continue
+		}
+		retentionBySource[descriptor.Ref.Key()] = len(retentions)
+		retentions = append(retentions, RunRetention{
+			Source: *descriptor,
+			Target: contracts.ArtifactRef{Namespace: namespace, Name: auditdomain.DeterministicID("evidence", execution.ExecutionID, id)},
+		})
+	}
+	retained, err := i.artifacts.RetainRunExact(ctx, run.RunID, snapshot.Audit.ProjectID, retentions)
 	if err != nil {
 		return false, err
 	}
+	if len(retained) != len(retentions) {
+		return false, fmt.Errorf("retain Audit collection material: %d of %d revisions", len(retained), len(retentions))
+	}
+	retainedResult := retained[0]
 	links := make([]auditstore.ArtifactLink, 0, 1+len(evidenceByID))
 	collectionItems := make([]auditstore.CollectionItem, len(members))
 	for index, member := range members {
@@ -297,36 +395,15 @@ func (i *Importer) retainCheckResults(
 			)
 		}
 	}
-	// Copy each distinct exact source once. Evidence records citing the same
-	// revision, or the result output itself, share that copy, so the store
-	// charges exactly the bytes retainedEvidenceFits admitted. The first
-	// sorted evidence ID names a copy, keeping retries deterministic.
-	retainedBySource := map[string]auditstore.ExactArtifact{source.Ref.Key(): retainedResult}
-	evidenceIDs := sortedEvidenceIDs(evidenceByID)
 	for _, id := range evidenceIDs {
 		evidence := evidenceByID[id]
 		artifact := retainedResult
 		displayRef := "member:" + evidence.value.ContentMemberID
 		if evidence.descriptor != nil {
-			key := evidence.descriptor.Ref.Key()
-			shared, retained := retainedBySource[key]
-			if !retained {
-				shared, err = i.artifacts.RetainRunExact(
-					ctx, run.RunID, *evidence.descriptor, snapshot.Audit.ProjectID,
-					contracts.ArtifactRef{Namespace: namespace, Name: auditdomain.DeterministicID("evidence", execution.ExecutionID, id)},
-				)
-				if err != nil {
-					return false, err
-				}
-				retainedBySource[key] = shared
-			}
-			artifact, displayRef = shared, ""
+			artifact, displayRef = retained[retentionBySource[evidence.descriptor.Ref.Key()]], ""
 		}
-		owner, exists := evidenceOwner[id]
-		if !exists || owner < 0 || owner >= len(members) {
-			return i.collectInvalid(ctx, claim, execution, members, source, "evidence-item-membership-invalid")
-		}
-		provenance, provenanceErr := evidenceProvenance(snapshot, execution, members[owner], run, source, evidence.value)
+		// prepareCheckResults established one owning member for every ID.
+		provenance, provenanceErr := evidenceProvenance(snapshot, execution, members[evidenceOwner[id]], run, source, evidence.value)
 		if provenanceErr != nil {
 			return false, provenanceErr
 		}

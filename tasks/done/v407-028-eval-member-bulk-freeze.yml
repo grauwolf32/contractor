@@ -1,0 +1,180 @@
+schema_version: '1.0'
+id: V407-028
+title: Freeze admitted Eval members with bounded set-based inserts
+milestone: server-runtime-review-2026-10
+epic: evals
+kind: chore
+introduced_by: V38-003
+priority: P2
+status: completed
+depends_on: []
+languages:
+- go
+- sql
+goal: An admitted native or external plan inserts its members in set-based statements bounded by rows
+  and stored bytes while preserving projection, identity and transaction semantics.
+context:
+  review: docs/research/2026-10-23-server-runtime-review.md (corrected dispositions, verified on main
+    dc7012e8; recheck source lines before implementation)
+  specification: docs/spec/evals/managed-evals.md
+  finding: internal/evalstore/experiments.go:296-330 inserts one member per Exec in the existing transaction.
+    contractor_eval_members_inserted at baseline.sql:403-413 is a statement trigger, so each Exec separately
+    queues projection work. Native plans admit up to 1000 members; both native and external documents
+    must also fit MaxDocumentBytes=1 MiB (evaldomain/json.go:13-18). The transaction holds Project FOR
+    SHARE and experiment FOR UPDATE; incompatible updates wait, not every concurrent Project operation.
+  siblings: Other per-row insert loops in internal/evalstore and internal/auditstore (grep 'for _, ' near
+    Exec in *_sql callers).
+  validation: 'A public 10000-member registration is not a usable acceptance fixture: even a minimal member
+    array exceeds 3 MiB before recipes. The portable MaxMembers constant does not override the document-byte
+    cap. A real production preparation test at 1000 members already exists in evalservice/plan_reads_postgres_test.go:19-74,89-92
+    through Create/prepare/Tick; extend it instead of claiming only bulk-seeded coverage exists.'
+plan:
+- Validate/prepare bounded member arrays and replace per-member INSERTs with one INSERT SELECT/unnest
+  statement in experiments_sql.go. Preserve row-trigger validation, member order/keys and atomic rollback.
+- Extend the existing 1000-native-member production preparation test with counted member insert statements
+  and projection-trigger effects. Use a valid external fixture sized by both byte and member admission,
+  recording its size and cardinality.
+- Test invalid member and injected transaction failure rollback through real PostgreSQL; retain comparison/paging
+  tests and choose production-path fixtures where they exercise this behavior.
+scope:
+  in:
+  - Set-based insertion and deterministic real-store query/trigger-count coverage at reachable admission
+    sizes.
+  out:
+  - Raising document/member limits, bypassing Freeze to manufacture a 10000-member public plan, or changing
+    locks/projection results.
+acceptance_criteria:
+- id: A1
+  text: Preparing an admitted 1000-member native plan uses one member INSERT statement and one statement-trigger
+    invocation per batch of at most 1,000 rows and 4 MiB of stored recipe bytes (LIM-EVM-18), which is
+    one for ordinary recipes; existing projection rows and member identities are identical.
+- id: A2
+  text: An admitted external registration within 1 MiB has the same insertion property, with the exact
+    bounded statement count asserted. An already-existing projection queue row advances once per member
+    statement, with separate assertions for initial queue creation; recipes that cross the byte bound
+    split into the exact number of statements.
+- id: A3
+  text: Invalid input or an injected transaction failure leaves no partial members, plan or receipt; the
+    existing comparison and native-ceiling tests remain valid.
+- id: A4
+  text: Counted statement/trigger assertions fail on the original per-member loop, with no wall-clock
+    performance threshold.
+tests:
+- command: test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1 ./internal/evalstore/...
+    ./internal/evalservice/...
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make lint
+  covers:
+  - A1
+  - A3
+decisions:
+- >-
+  Finding re-verified on 7bcd8fd6: persistPlan (internal/evalstore/experiments.go:296-330) sent one
+  INSERT per member after the experiment UPDATE and the plan INSERT, and eval_members_projection
+  (000001_baseline.sql:3941, function redefined by 000018_eval_projection_lock_order.sql) is a FOR EACH
+  STATEMENT trigger, so every member ran it again and advanced eval_projection_queue once. Measured on
+  the original code with the new tests: 1,000 member statements and queue revision 1 -> 1,001 at the
+  native ceiling; 1,216 statements and a queue created at revision 1,216 at the external byte ceiling.
+- >-
+  persistPlan now validates and prepares every member (prepareMembers, memberRows) before any write and
+  inserts the matrix with one INSERT ... SELECT FROM unnest WITH ORDINALITY ORDER BY position
+  (insertMembersSQL in experiments_sql.go). The row trigger eval_members_bound, the deferred
+  completeness trigger, unique keys, error normalization, member order, pair IDs and submission keys
+  are unchanged. A recipe is sent as its distinct case part ({"case":<projection>,"variant":) and
+  variant part (<variant>}) and concatenated in SQL, so the parameters follow the document and dataset
+  bounds (LIM-EVF-3, LIM-EVM-4), not members times recipe bytes; the stored bytes equal
+  json.Marshal(Recipe), which assertFrozenMembers checks for every member. Rejected alternatives: one
+  bytea recipe per member (a 1,000-member plan of a large case and variant reaches hundreds of MiB in
+  one bind message) and COPY FROM (streams, but sends the same per-member bytes; the plan named an
+  INSERT SELECT/unnest). Reversal condition: a new Recipe field or custom encoding must change the
+  split (documented on Recipe; the identity assertion fails on drift). ExecutionProjection is
+  memoized per distinct case encoding, of which it is a pure function. EVM-R241 records the guarantee.
+- >-
+  Trigger invocations are measured by effect: each run of contractor_eval_members_inserted upserts the
+  experiment's queue row exactly once. No production writer creates that row before a freeze (only
+  triggers on member-scoped rows write it, and those rows reference members), so the native ceiling test, whose experiment
+  already exists as a draft, pre-creates the row to prove the ON CONFLICT branch advances once (1 -> 2);
+  the external test, where Create inserts the experiment and its members in one transaction, proves
+  initial creation at revision 1 with published_revision 0.
+- >-
+  Siblings. Fixed: putResources (internal/evalstore/resources.go:16-32), the per-row loop in the same
+  freeze transaction, wrote 1,005 resources one INSERT at a time at the native ceiling; it now
+  validates all resources and inserts them with one unnest statement (49d4d514). Ruled out:
+  records.go evidence references (at most 128 outputs plus 1,024 evidence items per result by the
+  managed schema, in the separate result-ingestion transaction, no trigger on eval_evidence_refs, so no
+  projection work is repeated; a separate chore if ingestion round trips matter, and V407-029 works in
+  the same file); selections.go (at most 100 entries per SelectionInput, each reading its records
+  first, and eval_selections_projection is a row-level trigger, so per-entry dirty work is inherent);
+  the projections.go and deletion.go loops run over fixed table lists; projectComparison already uses
+  CopyFrom; auditstore item_review_renewal already inserts through unnest, the Audit purge loop runs a
+  fixed statement list under a row budget, and the other statement-trigger tables (audit_findings,
+  audit_finding_contributions) are written by set-based CTEs in collection_sql.go.
+- >-
+  Review amendment (2026-10-24): one statement for the whole matrix bounded the bind parameters but
+  not the server work. The projection trigger's transition table holds every inserted row
+  uncompressed, so a legal native plan (5 cases of about 190 KB, 100 repetitions, 1,000 members)
+  stored about 190 MB in one statement under one 15 s statement_timeout and spilled 189.7 MB to
+  temporary files. persistPlan and putResources now insert in consecutive batches from
+  freezeBatches: at most freezeBatchRows = 1,000 rows and freezeBatchBytes = 4 MiB of stored recipe
+  or document bytes per statement, but at least one row (LIM-EVM-18 in docs/spec/platform/limits.md;
+  EVM-R241 states the bound and the resulting statement counts). Each member batch sends only the
+  case and variant parts its members use. Why 4 MiB: it equals PostgreSQL's default work_mem, so
+  the transition table stays in memory, and it is at least four maximal 1 MiB recipes, so every
+  batch holds a row (a recipe above the CHECK bound is rejected anyway). Measured on this laptop with
+  incompressible recipes, not asserted: 46 member statements, the slowest 83 ms (about 180x below
+  the 15 s timeout; the reviewer's 42 MB/s laptop gives about 0.1 s) and no temporary bytes, against
+  one 1.8 to 2.5 s statement before. The 1,000-row bound equals the native member ceiling
+  (LIM-EVM-3), so ordinary native plans still use one member statement. Alternatives rejected:
+  per-row inserts (the original defect) and raising statement_timeout for the freeze (still unbounded
+  temporary storage). Reversal condition: a change of the default work_mem or statement_timeout, or
+  a recipe bound above 4 MiB, revisits the constant.
+- >-
+  The comparison paging test keeps seeding 10,000 members directly; a public 10,000-member plan cannot
+  pass Freeze and scope.out excludes manufacturing one. The production-path fixtures are the existing
+  1,000-member native preparation through Create/prepare/Tick and a new external registration at the
+  1 MiB byte ceiling through Service.Create (1,216 members, 1,047,017 to 1,047,024 bytes across runs
+  because generated artifact revision IDs vary; byte admission binds well below the 10,000-member format
+  ceiling).
+verification:
+  date: '2026-10-24'
+  environment: macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local), Node 24.20.0 with pnpm, the locked Runtime venv;
+    isolated PostgreSQL 17.11 database contractor_test_c with per-test schemas and all 32 migrations.
+  commands:
+  - test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1 ./internal/evalstore/...
+    ./internal/evalservice/... passed (82 top-level tests, none skipped), including
+    TestSharedPostgresNativeTickTrustsStoredPlanAtMemberCeiling (1,000 members in exactly 1 member INSERT
+    and 1,005 resources in exactly 2, queue 1 -> 2, 1,000 projection rows at revision 1, every row identical
+    to the plan-derived identity and exact recipe bytes),
+    TestSharedPostgresExternalByteCeilingFreezesMembersInBoundedStatements (1,216 members in exactly 2
+    member INSERTs and 2 resources in 1, queue created at revision 1 and advanced to 2, published 0),
+    TestSharedPostgresEvalFreezeSplitsMatrixAtRecipeByteBound (eight ~950 KB recipes in exactly 2 member
+    INSERTs, queue revision 2, every recipe byte-identical), TestFreezeBatchesBoundRowsAndBytes (row
+    bound, exact byte bound, one byte over, oversized single row) and
+    TestSharedPostgresEvalFreezeLeavesNoPartialMatrix (member rejected before any write, database-rejected
+    last row in the first and in a later member statement via eval_members_recipe_check, invalid resource
+    after the matrix insert, injected failures after the native freeze and after the external receipt;
+    none leaves a plan, member, projection, queue row, resource or receipt, and retries freeze the
+    complete matrix).
+  - 'A4: the same tests run with the original experiments.go and resources.go from 7bcd8fd6 failed
+    deterministically: native 1,000 member and 1,005 resource INSERT statements with queue revision
+    1 -> 1,001; external 1,216 member statements with the queue created at revision 1,216; the rejected
+    matrix sent 9 freeze writes before validation finished. With unbounded batches (the single-statement
+    version) the bounded-count assertions failed: 1 member statement at the external ceiling (queue
+    revision 1), 1 resource statement at the native ceiling, 1 statement for the large recipes. No
+    elapsed-time assertion is used.'
+  - go test -race -tags=integration -count=1 on the new and extended freeze tests passed.
+  - go test -tags=integration -count=1 ./internal/evalcoordinator/... ./internal/projectlifecycle/... passed;
+    go test -tags=integration -count=1 -run 'Eval|Evaluation' ./internal/httpapi/public/ passed (15 tests,
+    none skipped).
+  - go test -count=1 ./internal/persistence/ passed except the known pre-existing
+    TestSQLAccessFollowsTableOwnership failure at internal/cli/scan_sweep_remote.go:196 (named in the brief
+    as failing on the base); TestSQLPlacementKeepsLongStatementsInSQLFiles passed.
+  - make docs-dependencies regenerated docs/spec/audit-workflow-dependencies.html without changes.
+  - make lint passed, including Go vet/staticcheck/unused exports, the SQL placement and spec checkers and
+    the task checks.
+  database_tests_configured: true
+implementation_commit: 3b5ae75b667568e4113afdcec401f94affe89d8f

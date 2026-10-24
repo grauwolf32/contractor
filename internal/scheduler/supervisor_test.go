@@ -577,6 +577,10 @@ func (s *laneTestStore) ListStageExecutions(context.Context, string) ([]runstore
 	return nil, errors.New("unexpected Stage list")
 }
 
+func (s *laneTestStore) ListStageExecutionsWithUnreleasedAllocations(context.Context, string) ([]runstore.StageExecution, error) {
+	return nil, errors.New("unexpected unreleased Stage list")
+}
+
 func (s *laneTestStore) HasSummaryEscalation(context.Context, string, string) (bool, error) {
 	return false, errors.New("unexpected summary escalation lookup")
 }
@@ -597,11 +601,15 @@ func (s *laneTestStore) ListStageAllocations(context.Context, string) ([]runstor
 	return nil, nil
 }
 
-func (s *laneTestStore) MarkStageAllocationReleaseAttempt(context.Context, string) error {
+func (s *laneTestStore) ListStageAllocationsBatch(context.Context, []string) (map[string][]runstore.StageAllocation, error) {
+	return nil, errors.New("unexpected allocation batch read")
+}
+
+func (s *laneTestStore) MarkStageAllocationReleaseAttempt(context.Context, ...string) error {
 	return errors.New("unexpected release attempt")
 }
 
-func (s *laneTestStore) MarkStageAllocationReleased(context.Context, string) error {
+func (s *laneTestStore) MarkStageAllocationReleased(context.Context, ...string) error {
 	return errors.New("unexpected release completion")
 }
 

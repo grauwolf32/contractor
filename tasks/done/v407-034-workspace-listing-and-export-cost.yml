@@ -1,0 +1,180 @@
+schema_version: '1.0'
+id: V407-034
+title: Reduce repeated workspace glob work and export comparisons without changing snapshot semantics
+milestone: server-runtime-review-2026-10
+epic: workspaces
+kind: chore
+introduced_by: V11-007
+priority: P2
+status: completed
+implementation_commit: 5e2950318e98e7273d4984da358acc851c9cda8d
+depends_on:
+- V407-038
+languages:
+- python
+goal: Avoid repeated glob normalization and unnecessary known-revision export payload reads while preserving
+  workspace classification, content-bound cursors and exact CAS behavior.
+context:
+  review: docs/research/2026-10-23-server-runtime-review.md (corrected dispositions, verified on main
+    dc7012e8; recheck source lines before implementation)
+  specification: docs/spec/tools/workspace.md
+  finding: runtime/src/contractor_runtime/toolsets/filesystem/tools.py:145,173 acquires LocalDirectWorkspace.snapshot
+    (projectfs/local_direct.py:73-74), whose local_io.py:368-384 reads text for classification and content
+    digest. Local I/O is already threaded. The public listing distinguishes file/binary (filesystem/tools.py:504-511),
+    and WSP-R69 binds cursors to the content projection; stat-only output is not behavior-equivalent.
+    glob at :177-182 repeatedly normalizes each bounded candidate through project_glob_matches on the
+    loop, with at most 20000 scanned paths. projectfs/exporter.py:126-134 downloads the current payload
+    before equality/CAS. ArtifactReadResult only provides artifact, media_type and size (contracts/artifacts.py:121-124);
+    opaque revisions are not digests. filesystem/tools.py:298-311 masks unexpected exceptions, but FilesystemToolError:64-69
+    has no retryable flag and the callback defaults it to false; that classification is not changed by
+    this performance chore.
+  siblings: ls/glob share workspace snapshot and cursor contracts; grep already offloads its scan. OpenAPI
+    provenance also consumes a full snapshot and is not migrated to a stat-only view here. Export state/diff
+    bindings share _write_binding and need the same comparison/reconciliation treatment.
+  validation: 'Partially confirmed on dc7012e8: listing acquires full content snapshots, glob matching
+    runs inline, and export downloads the prior payload. However filesystem errors are already non-retryable,
+    Artifact metadata has no digest, and content-free listing cannot silently replace current binary classification/content-bound
+    cursor semantics.'
+plan:
+- Offload the bounded glob scan through the existing cancellation-joining helper. Normalize the query
+  once and avoid repeating invariant path/glob work while preserving exact project_glob_matches semantics,
+  ordering, scan counters and cursor digest. Retain content-backed classification/snapshot acquisition
+  unless an equivalent optimization is proven.
+- Before export comparison, resolve current metadata. A differing size or media type proves unequal and
+  can proceed with CAS against that observed exact revision without downloading its payload. Equal-size
+  unknown content still requires bounded exact payload comparison; never treat matching size or an opaque
+  revision as a content digest.
+- Keep an allocation-owned bounded cache of the last confirmed export comparison/write per state/diff
+  binding, keyed by exact revision and the candidate payload identity or local content digest. Reuse it
+  only after current metadata resolves that same exact revision; retain no unbounded history and clear
+  on release. A changed revision must be compared/reconciled normally.
+- Preserve create-only/update CAS, unchanged-content no-op, transport ambiguity reconciliation and concurrent-write
+  handling. Recheck metadata/content identity across races; a metadata read failure remains the existing
+  classified failure and is not a license to overwrite.
+- Use deterministic normalization, execution-thread and artifact-call counters over up to 20000 paths.
+  Test no payload reads for metadata-proven unequal content or repeated unchanged confirmed exact revisions,
+  and required payload reads for unknown equal-size content. Keep binary/opaque paths, external edits
+  and stale cursors in regression coverage.
+scope:
+  in:
+  - Bounded glob CPU work and invariant normalization; metadata size/media export fast path; bounded exact-revision
+    comparison cache with unchanged CAS semantics.
+  out:
+  - Stat-only listing, metadata-based replacement of the workspace content digest, changed file/binary
+    classification or OpenAPI provenance semantics.
+  - A new metadata digest field, treating revision as digest, range/streaming Artifact API additions,
+    or guaranteed zero payload reads on the first equal-size unknown revision.
+  - Filesystem exception classification, edit/change behavior, tool/API shapes, page/scan limits and snapshot/cursor
+    contracts.
+acceptance_criteria:
+- id: A1
+  text: Glob normalizes its pattern once, preserves matching/order/scanned/cursor results for a 20000-path
+    fixture and runs expensive matching on a worker thread. Deterministic barrier/count tests fail on
+    the former inline/repeated-normalization path.
+- id: A2
+  text: Export skips prior payload download when metadata proves different size/media type, and repeated
+    unchanged export of a confirmed exact revision uses its bounded local comparison cache. Unknown equal-size
+    revisions still require exact payload comparison; no absent digest field is assumed.
+- id: A3
+  text: Changed revisions, CAS races, missing bindings, transport ambiguity, cancellation and cleanup
+    preserve existing outcomes; cache entries are allocation-bounded and are cleared on release. No stale
+    cached equality can suppress a required write.
+- id: A4
+  text: Listing still correctly identifies text, binary and opaque paths and rejects changed content-bound
+    cursors; existing workspace/provenance result shapes and error classifications remain unchanged. Regression
+    assertions use counters and ordering, not elapsed-time thresholds.
+tests:
+- command: cd runtime && uv run --locked pytest -q tests/test_filesystem_toolset.py tests/test_projectfs_local_direct.py
+    tests/test_workspace_auto_export.py tests/test_openapi_toolset.py
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A4
+verification:
+  date: '2026-10-23'
+  revision: 5e2950318e98e7273d4984da358acc851c9cda8d
+  environment: Worktree contractor-wt/r3, branch claude/rv-r3 on base 21b005e9, macOS arm64 (Darwin),
+    Python 3.13 via uv sync --locked, Node 24.20 with Corepack pnpm. The change is Runtime-only and has
+    no PostgreSQL tests, so CONTRACTOR_TEST_DATABASE_URL was not used.
+  database_tests_configured: false
+  source_recheck: 'The finding lines were re-verified on 21b005e9: filesystem/tools.py ls/glob acquired
+    a full snapshot and ran _scan_page inline with project_glob_matches normalizing the glob per candidate
+    (20,643 normalizations for 5 glob pages of the 20,840-path fixture); exporter.py _write_binding downloaded
+    the current payload before every comparison; ArtifactReadResult carries no digest. The private metadata
+    read (ART-R116, ArtifactClient.read_artifact_metadata) already existed and is what the fast path uses.'
+  results:
+  - 'A1: projectfs/paths.py compile_project_glob normalizes and translates a glob once into a ProjectGlob
+    (NFA over precompiled fnmatchcase component matchers) and project_glob_matches is removed. ls and
+    glob compute their page (sort, bounded scan, entries) in _listing_page through to_thread_until_done;
+    grep and the source-archive list/search tools use the same compiled glob. test_glob_compiles_once_and_matches_20000_paths_off_the_event_loop
+    pages four patterns over 20,840 paths and compares matches, order, scanned counts and entry shapes
+    with a per-path reference scan, counts one normalization per call, records that candidate matching
+    ran off the loop thread and rejects a stale cursor. test_compiled_glob_matches_exactly_like_per_path_matching
+    compares the compiled glob with the former recursive matcher on more than 250,000 pattern/path pairs
+    (**, *, ?, classes, negation, NFD input). The cancellation barrier test now also covers ls and glob.'
+  - 'A1 fail-before: running the new filesystem tests against the former tools.py (with the old project_glob_matches
+    restored) fails with "assert (20643 - 0) == 5" and with the missing _listing_page barrier hook; disabling
+    the ** closure in the NFA fails the exactness test.'
+  - 'A2: exporter.py resolves metadata first. A different media type or size goes straight to If-Match
+    on the observed revision with no download; equal size reads that exact revision with max_bytes equal
+    to its size unless the exporter recorded the SHA-256 of that same exact revision after writing or
+    comparing it. The record is one _ConfirmedRevision per reserved binding. Tests count metadata/read/write
+    calls: proven differences and repeated unchanged exports make no payload reads, a confirmed revision
+    with different equal-size bytes is rewritten without a read, and unknown equal-size revisions are read
+    exactly and bounded.'
+  - 'A3: the export fake is now the real ArtifactClient over an in-memory private API that enforces If-None-Match/If-Match
+    (409 artifact_conflict), retains exact revisions, serves metadata and bounds responses. Tests cover
+    missing bindings, a foreign equal-size revision after a confirmed one (read and rewritten, never served
+    from the cache), a CAS race after metadata (fresh metadata, then success) and exhausted CAS attempts,
+    a lost write response reconciled by exact comparison, metadata/read failures keeping their cause and
+    retryability without any write, cancellation during metadata and read (nothing written or confirmed),
+    and AdkWorkerRuntime finalize calling release(). Against the former exporter 14 of the 23 export tests
+    fail; making the cache ignore the revision fails the foreign-revision test.'
+  - 'A4: test_listings_classify_current_content_and_bind_cursors_to_it lists a local-direct tree with text,
+    binary and an oversize opaque leaf and checks that a same-size, restored-mtime text-to-binary edit
+    invalidates the glob cursor and flips the entry type. Snapshots, _snapshot_token, query digests, entry
+    shapes and FilesystemToolError codes are unchanged; OpenAPI provenance is untouched. No assertion uses
+    elapsed time.'
+  - 'Spec: new WSP-R178 in docs/spec/tools/workspace.md records the export comparison and the confirmed-revision
+    record; FAIL-WSP-6 in docs/spec/platform/failure-model.md names the lost-response reconciliation.
+    The glob offload implements the existing WSP-R74.'
+  - 'cd runtime && uv run --locked pytest -q tests/test_filesystem_toolset.py tests/test_projectfs_local_direct.py
+    tests/test_workspace_auto_export.py tests/test_openapi_toolset.py: 133 passed, 2 failed. The 2 failures
+    are test_content_scan_stops_after_first_binary_chunk with the NUL and 0xFF markers, which read /proc/self/fd and
+    fail identically on base 21b005e9 (115 passed, 2 failed there).'
+  - 'Sibling suites (test_local_direct_tool_consumers, test_workspace_process_e2e, test_local_direct_faults,
+    test_source_analysis_toolset, test_projectfs_paths, test_projectfs_security, test_toolset_cursors,
+    test_filesystem_observations, test_numbered_file_reads, test_projectfs_legacy_parity, test_edit_files_toolset,
+    test_workspace_changes_toolset): 146 passed, 1 failed (the /proc-based socket case of test_local_direct_faults,
+    which fails identically on base). test_adk_runtime and test_worker_completion: 147 passed.'
+  - 'make lint: passed (ruff check and format, import-linter 4 kept / 0 broken, check_tasks, check_spec
+    and the rest).'
+  - 'make test-runtime: 4304 passed, 106 failed, 39 skipped. All failures are the known macOS environment
+    set: 96 podman_* tests plus tool_process (2), trailmark_child (2), projectfs_local_direct (2), projectfs_local_io
+    (1), local_direct_faults socket (1), code_analysis_graph (1) and the timing-sensitive code_analysis_shallow
+    event-loop-gap test, which also fails intermittently on base 21b005e9. A first run showed three test
+    doubles of the exporter without release() (test_adk_runtime x2, test_worker_completion); they were
+    given the method in the implementation commit.'
+  - 'Review follow-up (2026-10-24, commit 5e295031 after e9810db5): a run of consecutive ** components
+    made every closure as long as the run, so one path step cost components x run length (128 x ** over
+    20,001 deep paths: 72 s against 2.5 s for the former matcher). compile_project_glob now emits one **
+    per run; closures hold at most two indices and matching is O(path components x glob components); .pattern
+    and the cursor query digest are unchanged. test_double_star_runs_compile_once_and_bound_matching_work
+    counts the closure indices each match unions on 20-120 component paths and compares results with the
+    reference matcher; with the former compile it fails (167809 transitions against a bound of 82, and
+    the component-count assertion). The reviewer harness now measures 128 x ** at 0.44 s and 127 x **/zz
+    at 0.50 s on 20,001 deep paths (base 1.68 s and 30.15 s), and its differential runs found 0 mismatches
+    in 600,000 random and 400,000 derived pattern/path pairs.'
+  - 'Follow-up checks: the task test command again gave 133 passed, 2 failed (the same /proc-based tests);
+    the paths, security, source-analysis, local-direct consumer, cursor, observation and parity suites gave
+    108 passed; make lint passed.'
+  declined:
+  - Stat-only listing, a metadata digest field, treating revisions as digests and zero reads for the first
+    unknown equal-size revision are out of scope (scope.out). Moving the source-archive list/search matching
+    off the event loop was not done; it only stopped re-normalizing its glob per member.

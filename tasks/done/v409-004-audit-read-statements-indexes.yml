@@ -1,0 +1,319 @@
+schema_version: "1.0"
+id: V409-004
+title: "Reduce avoidable Audit read work while preserving exact totals and expiry"
+milestone: sql-review-2026-10
+epic: audits
+kind: chore
+introduced_by: V367-009
+priority: P2
+status: completed
+implementation_commit: 02e84782d344d3603e79114d9d8bfe24c19a452b
+depends_on: []
+languages: [go, sql]
+goal: "Optimize evidenced Audit item/inventory read costs and remove test-only production reads without changing counts, cursor semantics, lifecycle authority or reconciliation order."
+context:
+  review: "docs/research/2026-10-23-sql-review.md, A4, A5 and related section C observations; corrected by independent validation on 2026-10-23."
+  specification:
+    - docs/spec/audits/audits.md#AUD-R224
+    - docs/spec/audits/review-and-reports.md#REV-R165
+    - docs/spec/audits/review-and-reports.md#REV-R170
+    - docs/spec/ui/ui.md#UI-R143
+    - docs/spec/ui/ui.md#UI-R144
+    - docs/spec/audits/execution.md
+    - docs/spec/evals/managed-evals.md#EVM-R186
+    - docs/spec/platform/limits.md
+    - docs/spec/platform/persistence.md
+  validation: >-
+    Performance/refactoring opportunity on main
+    1d533b2db885e0162ebabb01d36470f139546009; no universal full-scan plan,
+    production latency regression or wrong workspace count was proved.
+    Existing indexes and mandatory totals/expiry make the original blanket
+    index-only/O(page) goal unsound. listItems' zero-limit branch has a
+    test caller, and CountItems serves next-Round capacity planning in
+    addition to the later atomic acceptance check. Relevant source is
+    unchanged at main e4480ace5ba68e665535a30ee23f4eb4c3a0ceb6.
+  finding: >-
+    internal/auditstore/internal/pgstore/read_sql.go:46-57 orders public
+    items by Round ordinal then item ordinal/ID; read.go:141-167 has a
+    separate bounded reconciliation order that postpones awaiting_review.
+    workspace_sql.go:13-32 computes exact finding counts, pending reviews
+    unexpired at statement time and current-Round coverage in one snapshot.
+    finding_reads_sql.go:47-56 contains filtered list count bases.
+    report_review_sql.go:94-97, report_sql.go:39-42 and
+    lifecycle_sql.go:165-168 have uncollected-execution probes;
+    item_review_renewal_sql.go:13-43 and claimAuditSQL use review joins.
+    internal/evalstore/inventory_pages_sql.go:39-52 compares a prefixed
+    execution key. These shapes need per-query plans before index changes.
+    QueryStore.ListExecutions at read.go:199-221 is production code with
+    only test consumers (tools/testonlyexports/baseline.txt), a separate
+    cleanup opportunity.
+  provenance: >-
+    V367-009, commit 5f37b8c588c7eed996d3a5b3d85f9b7756f756b9,
+    introduced the current workspace coverage aggregation and corrected
+    pending-review expiry. Its semantics are intentional and retained.
+    The item/inventory queries and test-only readers have distinct older
+    origins; this task does not attribute every observation to V367-009.
+  cardinality: >-
+    An Audit admits at most 32 Rounds, 10000 items per Round and 100000
+    items total (pgstore/validation.go:66-75, LIM-AUD-25/26). Those are
+    item limits, not a 100000-finding admission cap: the report-building
+    finding limit does not bound all retained Audit findings. Record the
+    actual finding/review/execution fixture populations separately.
+    Existing audit_items_round_ordinal, dispatch and ready indexes must
+    be considered; a missing state index cannot be assumed.
+  siblings: >-
+    Preserve listItems controller fairness and MaxReconcileRows+1 overflow
+    detection, listReadyItems and settleUndispatched ordering.
+    export_test.go:14-17 calls listItems with zero to inspect all test
+    items; move that read into test-only code rather than deleting it.
+    CountItems (round_reads.go:11-17) feeds
+    auditservice/next_round.go:53-59 before work is prepared; acceptNextRoundSQL
+    at round_sql.go:178-197 checks capacity again under mutation authority.
+    Both guarantees remain. V407-003 covers controller batching and
+    V407-004 covers Audit-list hydration; this task preserves their
+    boundaries and adds no dependency on the V409-013 exit gate.
+plan:
+  - >-
+    Before implementation, add reproducible SELECT-only plan fixtures on
+    a fully migrated disposable database. Cover the named item, workspace,
+    filtered count, execution-existence, review-join and inventory queries,
+    with actual parameters/statistics and prepared-query mode. For every
+    candidate record the measured rows/loops and a specific fixed-or-kept
+    decision. Do not execute mutation EXPLAIN ANALYZE outside an isolated
+    rolled-back test. Store plan/budget evidence with the tests/completion
+    record, not as an unverified lint claim.
+  - >-
+    Implement bounded candidate construction for unfiltered item pages,
+    using Round-ordered per-Round keysets and existing indexes where
+    practical. At most 32 Rounds may contribute at most the fetch limit
+    each before the final merge; sorting that bounded candidate set is
+    allowed. Preserve filtering before pagination, stable ties and owner
+    checks. Measure selective Round/state/subject cases separately and add
+    an index only where a demonstrated access-path gap justifies its write
+    cost; do not promise the same bound for arbitrary sparse filters.
+  - >-
+    Normalize the Eval inventory cursor's parent key "0" and child key
+    "1" plus execution_id before comparing the bare child ID, preserving
+    the existing signed cursor format and parent-first behavior. Test
+    absent parent, first/late child pages, foreign owner and stale revision.
+    Require an execution-key range probe on the selective large fixture,
+    without forcing an index plan on tiny tables.
+  - >-
+    For uncollected probes, first verify the allowed state set and reuse
+    its canonical domain definition when making a partial-index predicate
+    explicit. Keep the exact meaning of pending/decided/expired review
+    joins. Evaluate current indexes before adding a broader subject index.
+    Optimize only cases whose measured cost improves; record an explicit
+    reason for keeping an already suitable query/index.
+  - >-
+    Retain exact filtered totals before cursors and the count/page/hydration
+    revision fence. Retain workspace asOf and the expires_at comparison
+    against the same PostgreSQL statement time, even before any expiry
+    mutation runs. Do not replace these with mutation-only counters or drop
+    totals based on a UI guess. Preserve the single-pass coverage buckets
+    and both next-Round planning capacity and atomic acceptance capacity.
+    Any count-index change must improve a measured case; count cost may
+    still depend on the matching population.
+  - >-
+    Move ListExecutions to the existing auditstoretest helper or the owning
+    package's export_test.go according to its real test consumers; shrink
+    the testonlyexports baseline. Move the zero-limit full-item read to
+    test-only code and keep the production reconciliation read explicitly
+    bounded with identical ordering. Do not introduce a production export
+    used only to keep tests convenient.
+scope:
+  in:
+    - "Measured item-page and Eval inventory keyset optimization, targeted query/index changes and migration coverage where necessary."
+    - "Plan inventory of the listed count/probe/review queries with per-case fixed-or-kept decisions and executable row-budget checks for changed cases."
+    - "Removal of ListExecutions and full-test-item reads from production paths, preserving test behavior and shrinking the test-only export baseline."
+  out:
+    - "Removing public totals, changing response/cursor formats, storing expiry-sensitive mutation-only counters, or weakening next-Round admission."
+    - "A universal ban on Sort/Seq Scan, an O(page) claim for exact arbitrary-filter counts, or changes to controller fairness and lifecycle behavior."
+acceptance_criteria:
+  - id: A1
+    given: "Real-store item fixtures reaching 32 Rounds and 100000 total items with no Round above 10000, plus separate smaller/selective fixtures and early/late cursors."
+    when: "The public unfiltered item query and each changed filtered query run through their production parameter path."
+    then: "Unfiltered candidate/merge work is bounded by 32 times the fetch limit. A changed query has a selected regression budget that the original fails; if the original already meets the budget across the representative matrix, retain it with reproducible evidence. Filtered cases have explicit measured budgets, and every page keeps filter-before-limit, owner, tie-order and cursor semantics."
+  - id: A2
+    given: "A large Audit execution inventory with a parent entry, mixed missing/present child Runs and signed cursors at the parent boundary and late child IDs."
+    when: "InventoryPage reads each page and the selective query plan is inspected."
+    then: "The child keyset constrains the execution-ID access range instead of filtering all preceding IDs; page identities, parent-first order, ownership and revision conflicts are unchanged. A changed query has a row-visit assertion that fails for the original expression; if the existing plan already meets that bound, retain it with reproducible evidence."
+  - id: A3
+    given: "Findings/reviews with verdict and severity filters, all coverage buckets, and pending reviews on both sides of the statement-time expiry boundary without an expiry mutation."
+    when: "Workspace and revision-pinned finding/review pages run, including a synchronized intervening mutation."
+    then: "Exact totals cover the full normalized filter before the cursor, workspace pending count includes only reviews unexpired at its asOf, coverage buckets retain their contract, and count/page/hydration conflicts still return the existing 409. Tests use fixed fixtures/injected time where supported, never sleep-duration assertions."
+  - id: A4
+    given: "The execution/review probe fixture matrix, a next-Round capacity-boundary race and an Audit with active plus awaiting-review items."
+    when: "Changed probes, preparation/acceptance and controller reads run against PostgreSQL."
+    then: "Each changed probe has a falsifiable row-budget and result-equivalence test; kept statements have reproducible plan evidence and a stated reason. Preparation respects available capacity, atomic acceptance rejects overflow, and reconciliation ordering, fairness and overflow detection remain identical."
+  - id: A5
+    given: "The existing test consumers of ListExecutions and zero-limit ListItems."
+    when: "They use the relocated test helpers and the full affected suites plus repository lint run."
+    then: "They receive equivalent test data, production reads remain bounded, ListExecutions is absent from the testonlyexports baseline, and SQL placement/layer/task checks pass without replacing it with another test-only production export."
+tests:
+  - command: 'CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?set a disposable PostgreSQL database URL}" go test -tags=integration -count=1 ./internal/auditstore/... ./internal/auditservice/... ./internal/auditcontroller/... ./internal/evalstore/... ./internal/httpapi/public/... ./internal/persistence/postgres/...'
+    covers: [A1, A2, A3, A4, A5]
+  - command: make lint
+    covers: [A5]
+verification:
+  date: '2026-10-24'
+  environment: >-
+    macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local), Node 24.20 with the pnpm UI
+    install and the locked Runtime venv for make lint; local PostgreSQL
+    17.11 database contractor_test_b3 with per-test schemas and all 36
+    migrations (base 5edff8f7, merged with claude/review-v407-v409
+    c1501bf8 in 4a28d78f and b17035de in 963253de; review fixes in
+    02e84782).
+  database_tests_configured: true
+  commands:
+    - >-
+      CONTRACTOR_TEST_DATABASE_URL=postgres://…/contractor_test_b3 go test
+      -tags=integration -count=1 ./internal/auditstore/...
+      ./internal/auditservice/... ./internal/auditcontroller/...
+      ./internal/evalstore/... ./internal/httpapi/public/...
+      ./internal/persistence/postgres/... passed on the review-fix tree
+      (auditstore/internal/pgstore 100.2s, auditservice 170.3s,
+      auditcontroller 81.4s, evalstore 46.3s, httpapi/public 99.2s,
+      httpapi/public/events 5.5s, persistence/postgres 43.7s). Run with -v,
+      TestPostgresItemPagesBoundCandidatesPerRound,
+      TestPostgresControllerReadsAtItemScale,
+      TestPostgresAuditReadsAtFindingScale,
+      TestPostgresInventoryChildPagesProbeTheExecutionIDRange and all ten
+      item and run cases of
+      TestAuditReadsRejectHistoricalProvenanceWithoutRewritingIt passed.
+    - >-
+      go test -tags=integration -count=1 ./internal/persistence/explaintest/...
+      ./internal/findingintake/... ./internal/projectlifecycle/...
+      ./internal/artifacts/... ./internal/runstore/... passed against
+      contractor_test_b3 (the shared helper and every Explain consumer),
+      including TestPostgresExplainPreparedCountsTheRowsOfEachPlan and
+      TestPostgresAuditInboxRowBudgetIgnoresUnrelatedReceipts.
+    - make verify-public-api passed (public responses, totals, cursors and errors unchanged).
+    - make verify-public-api-postgres passed (TestPublicAuditPaginationBoundary with -race).
+    - >-
+      make lint passed (staticcheck U1000, testonlyexports with the
+      ListExecutions entry removed, SQL placement, table ownership, layers,
+      ERD, task and spec checks) after make tasks-backlog; the ERD was
+      regenerated on the merged tree (schemaVersion 000036, no table change)
+      and make docs-dependencies left its page unchanged.
+    - >-
+      go test -count=1 ./internal/archtest ./internal/persistence: archtest
+      passed; TestKeyedMutationsUseTheSharedHelpers passed (fixed on the
+      integration branch by f7ccfcd6, merged here); internal/persistence
+      fails only TestSQLAccessFollowsTableOwnership at
+      internal/cli/scan_sweep_remote.go:196, which fails identically on a
+      clean worktree of b17035de and is not a table this task touches.
+    - >-
+      Can-fail checks, each reverted after the run: the original item page
+      statement failed every changed case (generic plan 100,002-100,004
+      items for every page; custom plan 50,003 at the middle cursor, 100,028
+      late, 3,125 for one Round, 62,503 settled with a cursor); the original
+      '1' || execution_id keyset failed every inventory position (no
+      execution-ID range probe; 152, 2,552 and 5,000 executions read at the
+      early, middle and late children); the original workspace read 8,004
+      findings, the owner-wide finding filter 12,001 in generic plans, the
+      state <> 'collected' gate 20,004 executions, and the renewal search
+      without audit_review_requests_item_subject_idx 58,290 review requests.
+      Without the OFFSET 0 fence of auditHeldInboxKeysSQL the inbox budget
+      test fails under the shared count (two Audits: held inbox 1,231-1,253
+      receipts against 320 in the small population and 20,134-20,136 in
+      generic plans of the large one; inbox 1,258-1,279 and
+      20,158-20,164 against 710). A generic plan in ExplainPrepared's test
+      read 10 rows instead of 1,000 when the mode was not applied.
+  row_budget_evidence: >-
+    explaintest.ExplainPrepared prepares each statement, runs EXPLAIN ANALYZE
+    EXECUTE under plan_cache_mode force_custom_plan and force_generic_plan in
+    a rolled-back transaction, and Analysis.Reads counts the rows read from
+    pg_stat_get_xact_tuples_returned of the table and its indexes (exact,
+    never time); it is the package's one count of rows read, also used by
+    findingintake's inbox budget through CountReads. Budgets add 8 entries
+    for row versions the fixtures' store writes superseded, which VACUUM
+    cannot always remove while other transactions run in the cluster.
+    Fixtures: (1) one Audit at the item limits, 32 Rounds x 3,125 = 100,000
+    items (Round 1 current with 3,125 unsettled items, every 500th awaiting
+    review; Rounds 2-32 settled), a 21-item Audit and a foreign Audit; fetch
+    201. New reads: unfiltered pages 235/236/236/25/1 items from the first
+    page to the last cursor (budget 32 x 201 = 6,432); Round filter 202
+    custom / 125 generic (budget 402); awaiting review 6/4 (budget 201);
+    ready 201/125; settled 3,360 (budget 3,125 + 6,432); subject filter
+    100,000 custom / 39,625 generic, kept (no index serves a subject; budget
+    100,000 + 6,432). Reconcile window 3,127 of 3,125 unsettled + 8. With
+    9,703 expired item-action requests of settled items, the expired-approval
+    search reads 24 review requests (6 approval items, two row versions,
+    two probes each). (2) Eval inventory: 5,000 child executions of the
+    inventoried Audit among 45,000 of three background Audits; every page
+    reads 39-52 executions through an execution-ID range of
+    audit_executions_audit_identity (late child custom: bitmap scan, 40;
+    last child custom: audit_executions_pkey range, 1). (3) A collected
+    Audit with 4,001 findings, 4,000 pending triage reviews (2,000 past
+    expiry, never stored), 20,001 collected executions, 8 background Audits
+    of the owner with 1,000 findings/reviews and 5,000 executions each, and
+    2,000 empty Audits: workspace 4,002 findings and 4,000 review requests;
+    finding counts 4,002 in both plans; finding pages 202/201 custom, 4,002
+    generic; review count 4,000, review page 201; uncollected gate 0.
+    (4) findingintake's inbox under the shared count: N=255, H=135, L=21;
+    budgets N + 3H + 2L + 8 = 710 (inbox) and 2H + 2L + 8 = 320 (held),
+    because holding a receipt rewrites its retention state and an index may
+    return the superseded version's entry; measured at most 313 and 198 over
+    two runs.
+  decisions: >-
+    Changed: item pages (per-Round LATERAL keyset; unsettled state through
+    audit_items_dispatch_idx), the inventory child keyset, the three
+    uncollected-execution gates (one uncollectedExecutionStatesSQL list,
+    tied to auditstore.ExecutionState by
+    TestUncollectedExecutionStatesSQLMatchesDeclaration and to the reconcile
+    index by the state-set test), the workspace finding counts (one pass),
+    the Audit finding filter (no "$2 IS NULL OR"; owner-wide pages keep it
+    in ownerFindingFilterSQL), and migration 000036
+    audit_review_requests_item_subject_idx (partial on
+    subject_kind = 'audit-item-action', declared in the state-set test; it
+    also serves claimAuditSQL's waiting_review probe, whose SQL V407-027 owns
+    and this task did not change). Kept with evidence: the reconcile window
+    (it must order every unsettled item, awaiting review last), review
+    counts and pages and the workspace pending count (an exact count reads
+    each request it counts once through the Audit's index), the generic
+    finding page sort (the optional decision filters on the left-joined
+    decision defeat the generic estimate; a cursor-only rewrite measured no
+    first-page gain, 4,002 either way; per-filter statements are out of this
+    task's targeted scope), CountItems and acceptNextRoundSQL (unchanged;
+    TestPostgresNextRoundSpreadsLargeProposalsAndReportsUnschedulable,
+    TestPostgresNextRoundRebuildsWorklistAfterFailedAcceptanceAndInboxGrowth
+    and TestPostgresAcceptNextRoundIsAtomicReplaySafeAndConsumeOnce pass),
+    and evalstore's member count (its run_id IS NULL branch has no index
+    path; out of the listed scope). Reconciliation order, fairness and
+    overflow keep their statement and pass
+    TestPostgresControllerDispatchesReadyItemsBehindReviewWindow and
+    TestPostgresControllerWaitsForReviewBeyondReconcileWindow. Statement-time
+    expiry, asOf, coverage buckets and 409 fences are unchanged and pass
+    TestAuditReviewExpiryFollowsDatabaseClock,
+    TestOwnerPendingReviewsLeaveOutRequestsPastExpiry, the coverage cases of
+    service_postgres_test.go,
+    TestFindingPagesBatchRelatedQueriesWithSingleConnection,
+    TestPublicAuditPaginationBoundary and the public inventory test (mixed
+    deleted and missing child Runs, signed cursors, stale-revision 409).
+  relocations: >-
+    QueryStore.ListExecutions left production for auditstoretest.ListExecutions
+    (its 31 test callers in auditcontroller and auditservice), which selects
+    pgstore.ExecutionColumns and decodes each row with pgstore.ScanExecution,
+    the store's own strict decoder (both have production callers in
+    pgstore); the zero-limit listItems branch left for pgstore's
+    export_test.go ListItems; production keeps listReconcileItems with
+    MaxReconcileRows+1 and the same order.
+    TestAuditReadsRejectHistoricalProvenanceWithoutRewritingIt keeps its
+    item and run cases unchanged. plantest was folded into explaintest
+    (ExplainPrepared, Analysis.Reads, CountReads, Node.Nodes and IndexCond)
+    and removed with its layer classification.
+  declined: >-
+    No new limit, error or requirement ID: the 32-Round bound is
+    auditprofile.MaxAuditRounds and audits_max_rounds_check. No index for
+    subject-filtered item pages or for review counts by state: neither had a
+    measured case that the write cost would repay. Node.Examined stays in
+    explaintest as a plan-shape view (EXPLAIN's rounded per-loop rows of
+    table scans), documented as distinct from rows read: V407-025's
+    held-credential and drain tests assert heap rows with it, and under the
+    exact count their claims change (the drain check's BitmapAnd returns 214
+    owner/project and 112 runtime-credential entries of workflow_runs, and a
+    rolled-back insert leaves a dead GIN entry under llm-10 and runtime-10),
+    so moving them is a decision for V407-025's owner, not this review fix.
+notes:
+- Migration numbers in this record were renumbered (+1) on 2026-10-24 when main's 000033_audit_snapshot_labels was merged into the integration branch.

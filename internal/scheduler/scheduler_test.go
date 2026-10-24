@@ -2208,6 +2208,28 @@ func (s *memorySchedulerStore) ListStageExecutions(
 	return append([]runstore.StageExecution(nil), s.stages...), nil
 }
 
+// ListStageExecutionsWithUnreleasedAllocations selects, like the PostgreSQL
+// statement, the Run's executions with an allocation whose release has not
+// completed, in creation order; the double holds the stages of one Run.
+func (s *memorySchedulerStore) ListStageExecutionsWithUnreleasedAllocations(
+	_ context.Context, runID string,
+) ([]runstore.StageExecution, error) {
+	result := make([]runstore.StageExecution, 0)
+	if runID != s.run.RunID {
+		return result, nil
+	}
+	for _, execution := range s.stages {
+		for _, allocation := range s.allocations {
+			if allocation.StageExecutionID == execution.StageExecutionID &&
+				allocation.ReleaseCompletedAt == nil {
+				result = append(result, execution)
+				break
+			}
+		}
+	}
+	return result, nil
+}
+
 func (s *memorySchedulerStore) ListTerminalStageExecutionsWithAllocations(
 	_ context.Context,
 ) ([]runstore.StageExecution, error) {
@@ -2277,31 +2299,60 @@ func (s *memorySchedulerStore) ListStageAllocations(
 	return result, nil
 }
 
-func (s *memorySchedulerStore) MarkStageAllocationReleaseAttempt(
-	_ context.Context, allocationID string,
-) error {
-	for index := range s.allocations {
-		if s.allocations[index].AllocationID == allocationID {
-			now := time.Now().UTC()
-			s.allocations[index].ReleaseAttemptedAt = &now
-			return nil
+func (s *memorySchedulerStore) ListStageAllocationsBatch(
+	_ context.Context, stageExecutionIDs []string,
+) (map[string][]runstore.StageAllocation, error) {
+	result := make(map[string][]runstore.StageAllocation)
+	for _, allocation := range s.allocations {
+		if slices.Contains(stageExecutionIDs, allocation.StageExecutionID) {
+			result[allocation.StageExecutionID] = append(result[allocation.StageExecutionID], allocation)
 		}
 	}
-	return runstore.ErrNotFound
+	return result, nil
+}
+
+// MarkStageAllocationReleaseAttempt and MarkStageAllocationReleased mirror
+// the PostgreSQL markers: a blank ID refuses the call before anything is
+// marked, each named allocation whose release has not completed is marked, a
+// completed one is left as it is, and only a missing one is ErrNotFound,
+// without stopping the others.
+func (s *memorySchedulerStore) MarkStageAllocationReleaseAttempt(
+	_ context.Context, allocationIDs ...string,
+) error {
+	return s.markAllocations(allocationIDs, false)
 }
 
 func (s *memorySchedulerStore) MarkStageAllocationReleased(
-	_ context.Context, allocationID string,
+	_ context.Context, allocationIDs ...string,
 ) error {
-	for index := range s.allocations {
-		if s.allocations[index].AllocationID == allocationID {
-			now := time.Now().UTC()
-			s.allocations[index].ReleaseAttemptedAt = &now
-			s.allocations[index].ReleaseCompletedAt = &now
-			return nil
+	return s.markAllocations(allocationIDs, true)
+}
+
+func (s *memorySchedulerStore) markAllocations(allocationIDs []string, completed bool) error {
+	for _, allocationID := range allocationIDs {
+		if strings.TrimSpace(allocationID) == "" {
+			return runstore.ErrInvalid
 		}
 	}
-	return runstore.ErrNotFound
+	var failures []error
+	for _, allocationID := range allocationIDs {
+		index := slices.IndexFunc(s.allocations, func(allocation runstore.StageAllocation) bool {
+			return allocation.AllocationID == allocationID
+		})
+		if index < 0 {
+			failures = append(failures, fmt.Errorf("Stage allocation %q: %w", allocationID, runstore.ErrNotFound))
+			continue
+		}
+		if s.allocations[index].ReleaseCompletedAt != nil {
+			continue
+		}
+		now := time.Now().UTC()
+		s.allocations[index].ReleaseAttemptedAt = &now
+		if completed {
+			s.allocations[index].ReleaseCompletedAt = &now
+		}
+	}
+	return errors.Join(failures...)
 }
 
 // Memory persistence never publishes Project outputs, so nothing reads the

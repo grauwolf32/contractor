@@ -13,6 +13,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import contractor_runtime.projectfs.paths as paths_module
 import contractor_runtime.toolsets.source_analysis.tools as source_tools_module
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import ArtifactValue
@@ -380,8 +381,16 @@ def test_search_deadline_is_checked_between_lines(
     ],
 )
 def test_source_globs_treat_double_star_as_recursive(
-    tmp_path: Path, pattern: str, expected: list[str]
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, pattern: str, expected: list[str]
 ) -> None:
+    compiled = 0
+    normalize = paths_module.normalize_project_glob
+
+    def counted(value: str) -> str:
+        nonlocal compiled
+        compiled += 1
+        return normalize(value)
+
     async def scenario() -> None:
         client = ReadOnlyArtifactClient()
         ref = client.seed(
@@ -392,12 +401,15 @@ def test_source_globs_treat_double_star_as_recursive(
         )
         tools = await make_tools(tmp_path, client, WorkerState())
         await tools["open_source_archive"]("inputs", "source", ref.revision)
+        monkeypatch.setattr(paths_module, "normalize_project_glob", counted)
         listed = await tools["list_source_files"](pattern)
         assert [item["path"] for item in listed["files"]] == expected
         found = await tools["search_source"]("hit", pattern)
         assert [item["path"] for item in found["matches"]] == expected
 
     asyncio.run(scenario())
+    # Each call compiles its glob once instead of once per member path.
+    assert compiled == 2
 
 
 def test_source_tools_enforce_shared_memory_binding_visibility(tmp_path: Path) -> None:

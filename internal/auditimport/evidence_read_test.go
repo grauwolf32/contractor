@@ -56,6 +56,7 @@ type evidenceReadArtifacts struct {
 	ArtifactAccess
 	descriptor auditstore.ExactArtifact
 	err        error
+	described  [][]contracts.ArtifactRef
 }
 
 func (a *evidenceReadArtifacts) WithClaim(claim auditstore.ControllerClaim) ArtifactAccess {
@@ -63,8 +64,18 @@ func (a *evidenceReadArtifacts) WithClaim(claim auditstore.ControllerClaim) Arti
 	return a
 }
 
-func (a *evidenceReadArtifacts) ReadRunExact(context.Context, string, contracts.ArtifactRef) (auditstore.ExactArtifact, []byte, error) {
-	return a.descriptor, []byte("evidence"), a.err
+func (a *evidenceReadArtifacts) DescribeRunExact(
+	_ context.Context, _ string, refs []contracts.ArtifactRef,
+) ([]auditstore.ExactArtifact, error) {
+	a.described = append(a.described, refs)
+	if a.err != nil {
+		return nil, a.err
+	}
+	described := make([]auditstore.ExactArtifact, len(refs))
+	for index := range refs {
+		described[index] = a.descriptor
+	}
+	return described, nil
 }
 
 func configureExternalEvidence(t *testing.T, harness *importHarness) *evidenceReadArtifacts {

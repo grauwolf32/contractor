@@ -1,0 +1,164 @@
+schema_version: '1.0'
+id: V407-021
+title: Align Idempotency-Key, request body bounds and UTF-8 string limits with the public contract
+milestone: server-runtime-review-2026-10
+epic: api-contracts
+kind: defect
+introduced_by: V370-009
+priority: P1
+status: completed
+depends_on: []
+languages:
+- go
+- typescript
+goal: Eval and sibling mutations enforce the same Idempotency-Key grammar, and declared body/string bounds
+  match their handlers without changing documented media-type or page-size rules.
+context:
+  review: docs/research/2026-10-23-server-runtime-review.md (corrected dispositions, verified on main
+    dc7012e8; recheck source lines before implementation)
+  specification: docs/spec/api/public-api.md
+  severity: medium
+  finding: internal/evaldomain/mutation.go:18-26 accepts ASCII keys such as a!b and a/b; internal/httpapi/public/eval_helpers.go:47-59
+    calls it directly, bypassing the narrower grammar in request.go:25-37. A Go probe accepted both forbidden
+    keys. auth_handlers.go:19-22 admits 8192 login-body bytes while api/openapi/contractor-public-v1.yaml:3149
+    declares 2048; a maximally JSON-escaped supported password needs more than 2048 bytes. Git import/key
+    operations also need their existing body bounds declared. run_handlers.go:323-326 bounds cancellation
+    reason by UTF-8 bytes, whereas CancelRunRequest declares only code-point maxLength. The error registry
+    omits the model-selection use of unsupported_media_type.
+  siblings: internal/publicclient (hand-written) and internal/cli validate some of these client-side;
+    the UI validates Idempotency-Key generation in ui/src/mutations; update both from the same fixture.
+  validation: 'The OpenAPI IdempotencyKey already has maxLength: 128; its unbounded-looking regex does
+    not make the schema unbounded. OPS-R60 intentionally uses 415 for Scheduler settings, and OPS-R168/LIM-OPS-28
+    intentionally cap allocation history at 100. Different domain page sizes are not defects and must
+    not be unified by this task. Related validator extraction is only support for the demonstrated grammar
+    drift.'
+plan:
+- Use one Go owner for the existing Idempotency-Key grammar and 128-byte ASCII bound across public handlers,
+  Eval mutation identity and the sibling stores; add shared accept/reject fixtures including punctuation,
+  duplicate headers and boundaries.
+- Declare the existing 8192-byte login bound and existing Git import/key bounds in OpenAPI. Add operation-to-handler
+  contract coverage for bounded request bodies, identifying and preserving any distinct endpoint-specific
+  limits.
+- Keep the existing byte semantics for cancellation reason and other reviewed byte-bounded fields; document
+  x-max-utf8-bytes alongside applicable maxLength, update their owning limit references, and add multibyte
+  boundary fixtures. Check handwritten clients against that declared unit.
+- Correct the unsupported_media_type registry description for the actual Operations handlers, retaining
+  documented 415 responses and endpoint-specific 400 responses. Preserve allocation-history 100 and other
+  existing domain page bounds.
+- Regenerate public API artifacts through the existing generators and run the contract gates; use shared
+  fixtures for each affected language/client rather than changing generated files manually.
+scope:
+  in:
+  - Idempotency grammar drift, body-limit declarations, string-unit declarations, existing media-type
+    registry description and regression fixtures.
+  out:
+  - Changing domain page sizes, forcing all JSON handlers to use one status, changing unrelated identifier
+    grammars, or a standalone page-limit refactor.
+acceptance_criteria:
+- id: A1
+  text: Eval mutations with a!b or a/b return 400 before a receipt/write; valid boundary keys have the
+    same verdict in every affected validator and shared-fixture consumer.
+- id: A2
+  text: Login accepts the supported maximum decoded password in its worst-case JSON encoding within 8192
+    bytes; each covered operation declares the same body bound as its handler, and oversized bodies still
+    fail with the existing class.
+- id: A3
+  text: The schema explicitly declares the handler UTF-8 byte bounds; multibyte strings at and over each
+    reviewed boundary produce the documented verdict.
+- id: A4
+  text: Scheduler settings and model-selection retain their documented media-type outcomes, allocation
+    history retains its 100 maximum, and registry/OpenAPI descriptions agree with those existing outcomes.
+- id: A5
+  text: Grammar/body-declaration/string-unit regressions fail against the original revision. Existing-contract
+    preservation tests need not fail before the change.
+tests:
+- command: go test -count=1 ./internal/httpapi/... ./internal/contracts/... ./internal/evaldomain/...
+    ./internal/projectstore/... ./internal/auditstore/... ./internal/credentials/... ./internal/publicclient/...
+    ./internal/cli/...
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1 ./internal/httpapi/public/...
+    ./internal/projectstore/... ./internal/auditstore/... ./internal/evalstore/... ./internal/credentials/...
+  covers:
+  - A1
+  - A5
+- command: make verify-public-api
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make ui-verify
+  covers:
+  - A1
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A4
+implementation_commit: cb975a8fc72e90173ba771156354968bf3acae01
+verification:
+  date: '2026-10-24'
+  environment: macOS arm64; Go 1.26.9, Node 24.20.0, pnpm 11.24.0 and the locked Runtime venv; isolated PostgreSQL
+    17.11 database contractor_test_g with all 32 migrations.
+  commands:
+  - go test -count=1 ./internal/httpapi/... ./internal/contracts/... ./internal/evaldomain/... ./internal/projectstore/...
+    ./internal/auditstore/... ./internal/credentials/... ./internal/publicclient/... ./internal/cli/... passed with
+    CONTRACTOR_TEST_DATABASE_URL set.
+  - The integration command (go test -tags=integration -count=1 ./internal/httpapi/public/... ./internal/projectstore/...
+    ./internal/auditstore/... ./internal/evalstore/... ./internal/credentials/...) passed against the database.
+  - 'Full suites of the other touched packages with -tags=integration (contracts, evaldomain, evalstore, runstore, auditservice,
+    config, runtimeconfig, archtest, persistence/..., apierror, cli) passed, except internal/persistence TestSQLAccessFollowsTableOwnership,
+    which fails identically on the base ac982d28 (internal/cli/scan_sweep_remote.go reads projects; not touched here).'
+  - make verify-public-api and make verify-public-api-postgres passed; the new contract tests are in the verify-public-api
+    selection.
+  - 'make ui-verify passed: generated checks, lint, typecheck, 192 files with 2371 tests passed and one existing expected
+    failure, 17 server tests, and build.'
+  - 'make test-wire-cross-language passed: 251 fixtures, 247 Go and 184 Python shared tests; after the merge of claude/review-v407-v409
+    (V409-010), 252 fixtures, 249 Go and 185 Python shared tests.'
+  - make lint passed (after make docs-dependencies regenerated the dependency graph for the spec changes).
+  - 'After review: claude/review-v407-v409 merged (V409-010 owns LIM-API-24 and LIM-API-25, so the Idempotency-Key limit
+    is LIM-API-26), cancelScanSweep declares OptionalIdempotencyKey and the clients are regenerated. Then both task go test
+    commands, the touched-package suites (same base failure only), make verify-public-api, make verify-public-api-postgres,
+    make test-wire-cross-language, make ui-verify (192 files, 2371 tests and one expected failure, 17 server tests, build)
+    and make lint passed again on 2026-10-24.'
+  - V371-016 commands also passed (its go test packages above, cd ui && corepack pnpm test --run src/mutations, make lint).
+  - 'A5 on a temporary worktree at ac982d28 with the new tests and fixtures copied in: TestSharedIdempotencyKeyCasesGateEvalMutations
+    (a!b, a/b, -a and duplicate headers reached the Eval service), TestPublicRequestBodyBoundsMatchHandlers, TestSharedUTF8ByteBoundsAreDeclared,
+    the evaldomain, evalstore (PostgreSQL), runtimeconfig and CLI shared key tests, the grammar scan (seven Go copies) and three
+    UI tests (contract byte bounds, cancellation reason bytes, Idempotency-Key cases) failed; TestSharedIdempotencyKeyCasesGateOptionalKeys
+    fails without the cancelScanSweep fix. Preservation tests (415 media types, allocation history 100, Project, Audit and
+    label byte bounds, PostgreSQL key CHECKs, every keyed operation) pass on both revisions, as A5 allows.'
+  database_tests_configured: true
+  decisions:
+  - A1 status. An invalid Eval key answers the route's documented 422 eval_invalid before any receipt is read or written,
+    not 400; API-R70 and the Eval error enum fix that status, and scope.out excludes forcing one status on JSON handlers.
+    API-R69 states both.
+  - Sibling found and fixed. cancelScanSweep ignored the Idempotency-Key header and did not declare OptionalIdempotencyKey;
+    it now declares the parameter and validates a supplied key like RuntimeCredential deletion, API-R28 names both operations,
+    and the CLI sends no key because cancellation binds none. The generated Go client's CancelScanSweep takes a params argument.
+  - 'New limits: LIM-API-26 (Idempotency-Key), LIM-AUD-28 (Audit start/resume body), LIM-AUD-29 (Audit scope field bytes),
+    LIM-GIT-21 (Git key body), LIM-PRJ-5 (Project description bytes), LIM-REV-11 (rationale bytes), LIM-RUN-10 (cancellation
+    reason bytes); LIM-PRJ-3 now states its 160-byte bound. No migration and no new error code.'
+  declined:
+  - 'No PostgreSQL grammar CHECK for the eval family of mutation_receipts (it bounds the key to 1-128 octets only). evalstore
+    validates every key before it reads or writes a receipt, tested on PostgreSQL; a CHECK needs a migration redefining
+    the family check that other families also change. Reopen if anything writes eval receipts outside evalstore.'
+  - 'x-max-utf8-bytes is declared for the reviewed human free-text fields only. Machine values bounded in bytes (credential
+    material, OTLP header values, caBundlePem, Git ref, repositoryUrl and privateKey, scan sweep parameter values, Gateway
+    failure signature, archive paths, Audit artifact key/revision/member, query parameters, cursors) are ASCII or opaque
+    and not edited as text in the UI; a follow-up task should decide them, which the integrator creates and tracks (V414-009).'
+  - The Audit start form does not pre-check scope field bytes; the Server's 400 is shown. UI Run label key and count literals
+    are a separate rule and were left.
+  v371_016:
+  - A1 satisfied. Invalid keys and duplicate headers sent to every keyed Run, Project, Audit, credential, configuration,
+    RuntimeConfig and scan sweep operation answer 400 invalid_request before the dependency is reached; Eval mutations answer
+    their invalid-request error, 422 eval_invalid, and write no receipt on PostgreSQL.
+  - A2 satisfied. The source scan finds no second Go definition; it now also reports a second same-language pattern in a
+    listed file.
+  - A3 satisfied. The shared cases get one verdict from contracts.ValidIdempotencyKey, the OpenAPI parameter schemas, the
+    PostgreSQL CHECK patterns, the CLI and the UI stringRule, keyring and request-header check.

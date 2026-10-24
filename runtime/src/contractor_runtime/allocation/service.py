@@ -21,7 +21,6 @@ from contractor_runtime.agent_skills.runtime import AgentSkillPreparationError
 from contractor_runtime.allocation.cleanup import (
     _await_before_deadline,
     _close_tools,
-    _consume_background_task,
 )
 from contractor_runtime.allocation.context import AllocationSnapshot, _AllocationContext
 from contractor_runtime.allocation.errors import AllocationError, _conflict, _not_found
@@ -65,6 +64,7 @@ from contractor_runtime.sandbox.contracts import PODMAN_PROFILES
 from contractor_runtime.sandbox.lifecycle import PreparedExecution
 from contractor_runtime.state import ProcessState, RuntimeState
 from contractor_runtime.telemetry.resources import ProcessReading, ResourceCollector
+from contractor_runtime.threads import consume_task_exception
 from contractor_runtime.toolsets.http.errors import HTTPToolError
 from contractor_runtime.toolsets.security_findings.collection import FindingsError
 from contractor_runtime.worker.state import WorkerStateStore
@@ -599,7 +599,7 @@ class AllocationService:
                 self._run_release_cleanup(context, deadline),
                 name=f"allocation-release-cleanup-{context.allocation_id}",
             )
-            cleanup_task.add_done_callback(_consume_background_task)
+            cleanup_task.add_done_callback(consume_task_exception)
             context.release_cleanup_task = cleanup_task
 
         try:
@@ -893,13 +893,13 @@ class AllocationService:
                 done, _ = await asyncio.wait({stop_task}, timeout=remaining)
                 if not done:
                     stop_task.cancel()
-                    stop_task.add_done_callback(_consume_background_task)
+                    stop_task.add_done_callback(consume_task_exception)
                     raise TimeoutError
                 await stop_task
             except asyncio.CancelledError:
                 if stop_task is not None and not stop_task.done():
                     stop_task.cancel()
-                    stop_task.add_done_callback(_consume_background_task)
+                    stop_task.add_done_callback(consume_task_exception)
                 await self._state.fence_allocation(allocation_id)
                 self._force_exit(70)
                 raise
@@ -961,13 +961,13 @@ class AllocationService:
             done, _ = await asyncio.wait({stop_task}, timeout=timeout_seconds)
             if not done:
                 stop_task.cancel()
-                stop_task.add_done_callback(_consume_background_task)
+                stop_task.add_done_callback(consume_task_exception)
                 raise TimeoutError
             await stop_task
         except asyncio.CancelledError:
             if not stop_task.done():
                 stop_task.cancel()
-                stop_task.add_done_callback(_consume_background_task)
+                stop_task.add_done_callback(consume_task_exception)
             await self._state.fence_allocation(context.allocation_id)
             self._force_exit(70)
             raise

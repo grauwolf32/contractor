@@ -56,8 +56,9 @@ func (s *PostgresStore) ListNonTerminalRunIDsByCredential(
 }
 
 // PostgresStore runs most operations on its supplied DBTX. When backed by a
-// pool, ResumeFailedRun starts its own retrying transaction; with a pgx.Tx it
-// joins the caller's transaction. Run deletion locks exist only on
+// pool, ResumeFailedRun and StartPlanner start their own retrying
+// transactions; with a pgx.Tx they join the caller's transaction, and any
+// other DBTX refuses them. Run deletion locks exist only on
 // PostgresTxStore (see internal/rundeletion). Runtime label pinning
 // additionally requires NewRunCreationPostgresStore.
 type PostgresStore struct {
@@ -123,9 +124,17 @@ type runRecord struct {
 	auditSubmissionKey *string
 }
 
+// runProjectOwnerConstraint is the foreign key that requires a Run's Project
+// to exist under the Run's owner. Its rejection is the one reference
+// violation of Run creation that means a parent the caller named is missing:
+// the Project is unknown, or it belongs to another owner (PRJ-R5).
+const runProjectOwnerConstraint = "workflow_runs_project_owner_fkey"
+
 // insertRun stores record after its caller validated it. A unique conflict
 // stores nothing and reports inserted false; each caller resolves that for
-// its own path.
+// its own path. A deleting Project is ErrProjectDeleting and an unknown or
+// foreign Project is ErrNotFound; every other rejection, including the
+// reference violation of the trusted Audit association, keeps its cause.
 func (s *PostgresStore) insertRun(
 	ctx context.Context, operation string, record runRecord,
 ) (WorkflowRun, bool, error) {
@@ -163,16 +172,21 @@ FROM inserted_run`,
 		string(publicationMode), record.auditExecutionID, record.auditSubmissionKey, string(record.LaneClass),
 		append([]string{}, record.RequiredPlacementLabels...),
 	))
-	switch {
-	case err == nil:
+	if err == nil {
 		return result, true, nil
-	case errors.Is(err, pgx.ErrNoRows):
-		return WorkflowRun{}, false, nil
-	case persistencepostgres.Classify(err) == persistencepostgres.ClassDeleting:
-		return WorkflowRun{}, false, fmt.Errorf("%s %q: %w", operation, record.RunID, ErrProjectDeleting)
-	default:
-		return WorkflowRun{}, false, fmt.Errorf("%s %q: %w", operation, record.RunID, err)
 	}
+	if errors.Is(err, pgx.ErrNoRows) {
+		return WorkflowRun{}, false, nil
+	}
+	switch persistencepostgres.Classify(err) {
+	case persistencepostgres.ClassDeleting:
+		return WorkflowRun{}, false, fmt.Errorf("%s %q: %w", operation, record.RunID, ErrProjectDeleting)
+	case persistencepostgres.ClassReferenceViolation:
+		if persistencepostgres.ConstraintName(err) == runProjectOwnerConstraint {
+			return WorkflowRun{}, false, fmt.Errorf("%s %q: Project: %w", operation, record.RunID, ErrNotFound)
+		}
+	}
+	return WorkflowRun{}, false, fmt.Errorf("%s %q: %w", operation, record.RunID, err)
 }
 
 // CreateRunIdempotent atomically claims one public create-Run key. The bool is
@@ -628,15 +642,8 @@ func encodeProjectHTTPTarget(target *runtimesettings.HTTPOriginTargetRef) ([]byt
 }
 
 func validateIdempotencyKey(value string) error {
-	if len(value) == 0 || len(value) > 128 {
-		return invalidf("idempotency key must contain 1 to 128 characters")
-	}
-	for index, character := range value {
-		valid := character >= 'a' && character <= 'z' || character >= 'A' && character <= 'Z' ||
-			character >= '0' && character <= '9' || index > 0 && strings.ContainsRune("._:-", character)
-		if !valid {
-			return invalidf("idempotency key contains an invalid character")
-		}
+	if !contracts.ValidIdempotencyKey(value) {
+		return invalidf("idempotency key is not in the Idempotency-Key grammar")
 	}
 	return nil
 }

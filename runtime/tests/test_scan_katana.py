@@ -17,6 +17,7 @@ from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.toolsets.scan.katana import (
     MAX_TARGET_BYTES,
+    TARGET_LIST_MEDIA_TYPE,
     canonical_url,
     katana_observation,
     scope_regex,
@@ -146,13 +147,19 @@ def test_exact_origin_scope(seed, allowed, forbidden):
 class Artifacts:
     def __init__(self, *, existing=False, fail_write=False):
         self.existing, self.fail_write = existing, fail_write
-        self.reads, self.writes = [], []
+        self.reads, self.writes, self.payload_reads = [], [], []
 
-    async def read_artifact(self, ref, *, max_bytes):
+    async def read_artifact_metadata(self, ref):
         self.reads.append(ref)
         if self.existing:
-            return SimpleNamespace(data=b"already exists")
+            exact = ArtifactRef(namespace=ref.namespace, name=ref.name, revision="r0")
+            return SimpleNamespace(artifact=exact, media_type=TARGET_LIST_MEDIA_TYPE, size=14)
         raise ArtifactAPIError(404, "artifact_not_found", False)
+
+    async def read_artifact(self, ref, **_kwargs):
+        # The existence check never downloads an existing targets payload.
+        self.payload_reads.append(ref)
+        raise AssertionError("unexpected payload read")
 
     async def write_artifact(self, ref, *, data, media_type, expected_revision):
         self.writes.append((ref, data, media_type, expected_revision))

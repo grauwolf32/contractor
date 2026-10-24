@@ -18,24 +18,36 @@ import (
 func (s *PostgresTxStore) LockRunState(
 	ctx context.Context, runID string, expected ...WorkflowRunState,
 ) (WorkflowRunState, error) {
+	state, _, err := s.lockRunOwner(ctx, runID, expected...)
+	return state, err
+}
+
+// lockRunOwner is LockRunState that also returns the Run's owner from the
+// same locking read, so a caller that authorizes the owner under the Run row
+// lock does not read the row again.
+func (s *PostgresTxStore) lockRunOwner(
+	ctx context.Context, runID string, expected ...WorkflowRunState,
+) (WorkflowRunState, string, error) {
 	if err := validateOpaque("runID", runID); err != nil {
-		return "", err
+		return "", "", err
 	}
 	var state WorkflowRunState
-	err := s.tx.QueryRow(ctx, `SELECT state FROM workflow_runs WHERE run_id = $1 FOR UPDATE`, runID).Scan(&state)
+	var ownerID string
+	err := s.tx.QueryRow(ctx, `SELECT state, owner_id FROM workflow_runs WHERE run_id = $1 FOR UPDATE`, runID).
+		Scan(&state, &ownerID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return "", fmt.Errorf("lock WorkflowRun %q: %w", runID, ErrNotFound)
+		return "", "", fmt.Errorf("lock WorkflowRun %q: %w", runID, ErrNotFound)
 	}
 	if err != nil {
-		return "", fmt.Errorf("lock WorkflowRun %q: %w", runID, err)
+		return "", "", fmt.Errorf("lock WorkflowRun %q: %w", runID, err)
 	}
 	if !state.Valid() {
-		return "", fmt.Errorf("lock WorkflowRun %q: stored state %q is not a WorkflowRun state", runID, state)
+		return "", "", fmt.Errorf("lock WorkflowRun %q: stored state %q is not a WorkflowRun state", runID, state)
 	}
 	if len(expected) > 0 && !slices.Contains(expected, state) {
-		return "", &StateConflictError{Resource: "WorkflowRun", ID: runID, Expected: fmt.Sprint(expected)}
+		return "", "", &StateConflictError{Resource: "WorkflowRun", ID: runID, Expected: fmt.Sprint(expected)}
 	}
-	return state, nil
+	return state, ownerID, nil
 }
 
 // LockStageState locks the row of StageExecution stageExecutionID until the

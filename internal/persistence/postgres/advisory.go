@@ -47,6 +47,16 @@ func LockAdvisory(ctx context.Context, db DBTX, key AdvisoryKey) error {
 	return err
 }
 
+// TryLockAdvisory takes key's exclusive transaction advisory lock only when no
+// other transaction holds it, exclusively or shared, and reports whether it
+// did; it never waits. Like LockAdvisory, db must be a transaction.
+func TryLockAdvisory(ctx context.Context, db DBTX, key AdvisoryKey) (bool, error) {
+	var locked bool
+	err := db.QueryRow(ctx, `SELECT pg_try_advisory_xact_lock(hashtextextended($1::text, 0))`, string(key)).
+		Scan(&locked)
+	return locked, err
+}
+
 // LockAdvisoryShared takes key's shared transaction advisory lock, which waits
 // only for a holder of the exclusive lock, under the same rule as
 // LockAdvisory.

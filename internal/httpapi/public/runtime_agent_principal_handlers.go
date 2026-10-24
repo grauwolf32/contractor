@@ -13,9 +13,6 @@ import (
 
 func (h *runtimeConfigurationHandlers) listRuntimeAgentPrincipals(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if rejectHead(w, r) {
-		return
-	}
 	_, limit, encodedCursor, err := pageQuery(r.URL.RawQuery)
 	if err != nil {
 		handleError(w, err)
@@ -61,9 +58,6 @@ func (h *runtimeConfigurationHandlers) listRuntimeAgentPrincipals(w http.Respons
 
 func (h *runtimeConfigurationHandlers) getRuntimeAgentPrincipal(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if rejectHead(w, r) {
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		handleError(w, err)
 		return
@@ -92,8 +86,8 @@ func (h *runtimeConfigurationHandlers) putRuntimeAgentLabels(w http.ResponseWrit
 		handleError(w, err)
 		return
 	}
-	if mediaType, err := requestMediaType(r); err != nil || mediaType != "application/json" {
-		handleError(w, errInvalidRequest)
+	if err := requireJSONMediaType(r); err != nil {
+		handleError(w, err)
 		return
 	}
 	id := r.PathValue("runtimeAgentId")

@@ -6,7 +6,6 @@ import asyncio
 import contextlib
 import json
 import math
-import re
 import uuid
 from collections.abc import AsyncGenerator, Mapping
 from dataclasses import replace
@@ -29,7 +28,8 @@ from contractor_runtime.a2a_server import (
     build_agent_card,
     build_worker_a2a_application,
 )
-from contractor_runtime.adapters import RuntimeInstrumentation, RuntimeSpan, TelemetryAttribute
+from contractor_runtime.adapters import RuntimeInstrumentation
+from contractor_runtime.adapters.instrumentation import end_isolated_span, start_isolated_span
 from contractor_runtime.agent_skills.runtime import (
     PreparedAgentSkills,
 )
@@ -89,6 +89,7 @@ from contractor_runtime.worker.finalizer import (
 from contractor_runtime.worker.instrumentation import (
     WorkerInstrumentationPlugin,
     WorkerSummarizationRequested,
+    span_error_type,
 )
 from contractor_runtime.worker.observations import lean_workspace_summary
 from contractor_runtime.worker.one_shot import candidate_text, generation_config
@@ -112,7 +113,6 @@ INVOCATION_CLEANUP_TIMEOUT_SECONDS = 5.0
 MAX_STAGE_REQUEST_JSON_BYTES = 256 * 1024
 MAX_STAGE_RESULT_JSON_BYTES = MAX_EXPORTED_RESULT_JSON_BYTES
 MAX_RESULT_ARTIFACTS = MAX_EXPORTED_RESULT_ARTIFACTS
-SAFE_TOOL_ERROR_CODE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 
 
 def requires_content_free_telemetry(
@@ -130,6 +130,29 @@ def requires_content_free_telemetry(
         name in sensitive_output_tools or declares_sensitive_output(tool)
         for name, tool in tools.items()
     )
+
+
+class _InvocationDeadline:
+    """The effective Worker-call deadline on the event loop's monotonic clock.
+
+    It is converted once, at invocation start, so continuations never reset it.
+    ``scope`` cancels the work in flight once the loop runs its timer; ADK then
+    joins its node task. ``check`` refuses to start the next phase when the
+    deadline passed while this task ran without yielding to that timer
+    (WRK-R167).
+    """
+
+    def __init__(self, deadline: datetime) -> None:
+        self._loop = asyncio.get_running_loop()
+        self.when = self._loop.time() + (deadline - datetime.now(UTC)).total_seconds()
+        self.scope = asyncio.timeout_at(self.when)
+
+    def passed(self) -> bool:
+        return self.scope.expired() or self._loop.time() >= self.when
+
+    def check(self) -> None:
+        if self.passed():
+            raise TimeoutError("Worker invocation deadline exceeded")
 
 
 class AdkWorkerRuntime:
@@ -208,11 +231,15 @@ class AdkWorkerRuntime:
                 observer=self._plugin,
             )
         )
+        instruction = context.instruction
         self._agent = LlmAgent(
             name="contractor_worker",
             description=context.description,
             model=model,
-            instruction=context.instruction,
+            # A provider delivers the authored text literally: ADK would
+            # otherwise expand {name} from session State and fail on a
+            # missing key before the first model call (WRK-R166).
+            instruction=lambda _: instruction,
             tools=adk_tools,
             generate_content_config=generation,
         )
@@ -255,7 +282,7 @@ class AdkWorkerRuntime:
         return await self._worker_state.agent_state_snapshot()
 
     async def invoke(self, request: StageContentRequest) -> WorkerCompletion:
-        span = _start_span(
+        span = start_isolated_span(
             self._instrumentation,
             "contractor.worker.a2a_task",
             {"operation.kind": "a2a_task"},
@@ -263,11 +290,11 @@ class AdkWorkerRuntime:
         try:
             result, attributes = await self._invoke(request)
         except asyncio.CancelledError:
-            _end_span(span, outcome="cancelled")
+            end_isolated_span(span, outcome="cancelled")
             raise
         except Exception as error:
-            error_type = _safe_error_type(error)
-            _end_span(
+            error_type = span_error_type(error)
+            end_isolated_span(
                 span,
                 outcome="failed",
                 attributes={"error.type": error_type},
@@ -277,7 +304,7 @@ class AdkWorkerRuntime:
         if result.failure is not None:
             attributes["error.type"] = result.failure.code
             _record_worker_error(self._instrumentation, result.failure.code)
-        _end_span(
+        end_isolated_span(
             span,
             outcome="failed" if result.failure is not None else "succeeded",
             attributes=attributes,
@@ -511,7 +538,7 @@ class AdkWorkerRuntime:
             raise
         except Exception as error:
             sandbox_failure = self._worker_state.execution.failure
-            gateway_error = _gateway_model_error(error)
+            gateway_error = _chained_error(error, GatewayModelError)
             if (
                 sandbox_failure is None
                 and gateway_error is not None
@@ -612,25 +639,28 @@ class AdkWorkerRuntime:
                 "worker_draining", "Worker is no longer accepting A2A work", True
             ), False
         prompt = _task_prompt(request)
-        summary_secrets = _summarizer_secrets(self._context)
-        transcript = TranscriptRecorder(secrets=summary_secrets)
+        # Only an enabled terminal summarizer consumes the normal-loop
+        # transcript (WRK-R147); without one no transcript is built.
+        summary_secrets: tuple[str, ...] = ()
+        transcript: TranscriptRecorder | None = None
+        if self._context.summarizer is not None:
+            summary_secrets = _summarizer_secrets(self._context)
+            transcript = TranscriptRecorder(secrets=summary_secrets)
         self._invocation_observed_refs.clear()
         completion = self._completion
-        # The Planner's deadline covers the whole logical invocation. The
-        # request timeout still applies independently inside model/tool clients.
-        deadline = (
-            asyncio.get_running_loop().time()
-            + (request.deadline - datetime.now(UTC)).total_seconds()
-        )
+        # The Planner's deadline covers the whole logical invocation, ordinary
+        # or Audit (WRK-R158, WRK-R167). The request timeout still applies
+        # independently inside model/tool clients (WRK-R157).
+        deadline = _InvocationDeadline(request.deadline)
         try:
             if completion is not None:
                 failure = completion.validate_request(request)
                 if failure is not None:
                     return failure, False
                 completion.begin(invocation_id)
-            async with (
-                asyncio.timeout_at(deadline) if completion is not None else contextlib.nullcontext()
-            ):
+            async with deadline.scope:
+                # An expired request starts no model or tool work.
+                deadline.check()
                 while True:
                     candidate: str | None = None
                     try:
@@ -647,7 +677,8 @@ class AdkWorkerRuntime:
                             )
                         ) as events:
                             async for event in events:
-                                transcript.record(event)
+                                if transcript is not None:
+                                    transcript.record(event)
                                 if completion is not None:
                                     self._check_active()
                                 if output_limit_reached(event):
@@ -667,7 +698,10 @@ class AdkWorkerRuntime:
                                     candidate = text
                     except Exception as error:
                         self._worker_state.execution.check()
-                        if _worker_summarization_request(error) is not None:
+                        # Work that ends after the deadline, including a
+                        # summarization request, ends with the deadline.
+                        deadline.check()
+                        if _chained_error(error, WorkerSummarizationRequested) is not None:
                             return await self._run_terminal_summarizer(
                                 request=request,
                                 invocation_id=invocation_id,
@@ -675,7 +709,7 @@ class AdkWorkerRuntime:
                                 observed_refs=tuple(self._invocation_observed_refs),
                                 secrets=summary_secrets,
                             )
-                        budget_error = _worker_budget_error(error)
+                        budget_error = _chained_error(error, WorkerBudgetExceeded)
                         if budget_error is None:
                             raise
                         self._metrics.record_worker_budget_exhausted(budget_error.dimension)
@@ -687,11 +721,14 @@ class AdkWorkerRuntime:
                             ),
                             False,
                         )
+                    if completion is None:
+                        # No finalizer call starts once the deadline has passed.
+                        deadline.check()
                     outcome, exportable = await self._complete_normal_finish(
                         request=request,
                         candidate=candidate,
                         invocation_id=invocation_id,
-                        deadline=deadline,
+                        deadline=deadline.when,
                     )
                     if not isinstance(outcome, ContinueCompletion):
                         return outcome, exportable
@@ -704,6 +741,10 @@ class AdkWorkerRuntime:
         except TimeoutError as error:
             if completion is not None:
                 return completion.failure(error), False
+            if not deadline.passed():
+                # Only the invocation deadline owns worker_timeout; a nested
+                # operation's own timeout stays an execution failure.
+                raise
             return _failure("worker_timeout", "Worker invocation deadline exceeded", True), False
         except WorkerCompletionError as error:
             self._check_active()
@@ -771,7 +812,7 @@ class AdkWorkerRuntime:
                 observed_refs=tuple(self._invocation_observed_refs),
             )
         except Exception as error:
-            budget_error = _worker_budget_error(error)
+            budget_error = _chained_error(error, WorkerBudgetExceeded)
             if budget_error is not None:
                 self._metrics.record_worker_budget_exhausted(budget_error.dimension)
                 return (
@@ -782,10 +823,10 @@ class AdkWorkerRuntime:
                     ),
                     False,
                 )
-            gateway_error = _gateway_model_error(error)
+            gateway_error = _chained_error(error, GatewayModelError)
             if gateway_error is not None:
                 return _gateway_worker_failure(gateway_error), False
-            finalizer_error = _result_finalizer_error(error)
+            finalizer_error = _chained_error(error, ResultFinalizerFailure)
             if finalizer_error is not None:
                 if finalizer_error.code == "output_limit_exceeded":
                     return _failure(
@@ -859,12 +900,12 @@ class AdkWorkerRuntime:
         *,
         request: StageContentRequest,
         invocation_id: str,
-        transcript: TranscriptRecorder,
+        transcript: TranscriptRecorder | None,
         observed_refs: tuple[ArtifactRef, ...],
         secrets: tuple[str, ...],
     ) -> tuple[WorkerResult | WorkerFailure, bool]:
         config = self._context.summarizer
-        if config is None:
+        if config is None or transcript is None:
             raise RuntimeError("Worker summarization was requested while disabled")
         usage = SummarizerUsage()
         retryable = True
@@ -1099,6 +1140,10 @@ class AdkWorkerRuntime:
                 except Exception as error:
                     failures.append(error)
         finally:
+            exporter = self._workspace_exporter
+            self._workspace_exporter = None
+            if exporter is not None:
+                exporter.release()
             model = self._model
             self._model = None
             if isinstance(model, OpenAICompatibleGatewayLlm):
@@ -1110,7 +1155,6 @@ class AdkWorkerRuntime:
             self._result_finalizer = None
             self._instrumentation = None
             self._agent_skills = None
-            self._workspace_exporter = None
             self._context = None  # type: ignore[assignment]
         if failures:
             raise failures[0]
@@ -1325,76 +1369,19 @@ def _summarizer_secrets(context: WorkerBuildContext) -> tuple[str, ...]:
     return tuple(dict.fromkeys(value for value in candidates if len(value) > 1))
 
 
-def _start_span(
-    instrumentation: RuntimeInstrumentation | None,
-    name: str,
-    attributes: Mapping[str, TelemetryAttribute] | None = None,
-) -> RuntimeSpan | None:
-    if instrumentation is None:
-        return None
-    try:
-        return instrumentation.start_span(name, attributes=attributes)
-    except Exception:
-        return None
+def _chained_error[E: BaseException](error: BaseException, kind: type[E]) -> E | None:
+    """Find a Runtime signal or failure of ``kind`` through ADK's callback wrappers.
 
-
-def _end_span(
-    span: RuntimeSpan | None,
-    *,
-    outcome: str,
-    attributes: Mapping[str, TelemetryAttribute] | None = None,
-) -> None:
-    if span is None:
-        return
-    try:
-        span.end(outcome=outcome, attributes=attributes)
-    except Exception:
-        return
-
-
-def _safe_error_type(error: Exception) -> str:
-    error_type = getattr(error, "provider_error_type", type(error).__name__)
-    if not isinstance(error_type, str) or SAFE_TOOL_ERROR_CODE.fullmatch(error_type) is None:
-        return type(error).__name__
-    return error_type
-
-
-def _worker_budget_error(error: BaseException) -> WorkerBudgetExceeded | None:
-    """Find a budget signal through ADK's plugin callback wrappers."""
+    ADK re-raises plugin and callback failures inside its own exceptions, so the
+    walk follows the explicit cause first, then the implicit context, and stops
+    at the first repeated exception.
+    """
 
     current: BaseException | None = error
     seen: set[int] = set()
     while current is not None and id(current) not in seen:
         seen.add(id(current))
-        if isinstance(current, WorkerBudgetExceeded):
-            return current
-        current = current.__cause__ or current.__context__
-    return None
-
-
-def _worker_summarization_request(
-    error: BaseException,
-) -> WorkerSummarizationRequested | None:
-    """Find the Runtime control signal through ADK callback wrappers."""
-
-    current: BaseException | None = error
-    seen: set[int] = set()
-    while current is not None and id(current) not in seen:
-        seen.add(id(current))
-        if isinstance(current, WorkerSummarizationRequested):
-            return current
-        current = current.__cause__ or current.__context__
-    return None
-
-
-def _result_finalizer_error(error: BaseException) -> ResultFinalizerFailure | None:
-    """Find a finalizer control failure through ADK callback wrappers."""
-
-    current: BaseException | None = error
-    seen: set[int] = set()
-    while current is not None and id(current) not in seen:
-        seen.add(id(current))
-        if isinstance(current, ResultFinalizerFailure):
+        if isinstance(current, kind):
             return current
         current = current.__cause__ or current.__context__
     return None
@@ -1404,12 +1391,12 @@ def _record_worker_error(
     instrumentation: RuntimeInstrumentation | None,
     error_type: str,
 ) -> None:
-    span = _start_span(
+    span = start_isolated_span(
         instrumentation,
         "contractor.worker.error",
         {"operation.kind": "worker_error", "error.type": error_type},
     )
-    _end_span(span, outcome="failed")
+    end_isolated_span(span, outcome="failed")
 
 
 def _invocation_count_attributes(snapshot: Mapping[str, Any], invocation_id: str) -> dict[str, int]:
@@ -1463,17 +1450,6 @@ async def _await_safely(awaitable: Any) -> Any:
         with contextlib.suppress(Exception, asyncio.CancelledError):
             await task
         return None
-
-
-def _gateway_model_error(error: BaseException) -> GatewayModelError | None:
-    current: BaseException | None = error
-    seen: set[int] = set()
-    while current is not None and id(current) not in seen:
-        seen.add(id(current))
-        if isinstance(current, GatewayModelError):
-            return current
-        current = current.__cause__ or current.__context__
-    return None
 
 
 def _gateway_worker_failure(error: GatewayModelError) -> WorkerFailure:

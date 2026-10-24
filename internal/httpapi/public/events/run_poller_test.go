@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -250,6 +251,247 @@ func TestRunPollerEndsOnlyTheSlowSubscription(t *testing.T) {
 	}
 }
 
+// API-R72, API-R110: a page that ends on its data budget while committed
+// events follow does not end the catch-up. The poller reads on at once and
+// delivers every event in order in the same catch-up, without another
+// wake-up or timer, and the page that reports no further committed event
+// ends it, also when that page fills its budget exactly.
+func TestRunCatchUpContinuesAcrossByteShortPages(t *testing.T) {
+	clock := newFakeClock()
+	runs := &countingRunRepository{fakeRunRepository: newFakeRunRepository()}
+	harness := newEventHarness(t, func(options *Options) { options.Runs, options.clock = runs, clock })
+	const runID, generation = "run-byte-short", "run-generation-byte-short"
+	runs.addRun(runID, "user-1", generation)
+	// Run and Stage lifecycle events alternate and a page holds exactly one
+	// of each, far below its event count: ten events take five pages.
+	mixed := func(sequence int64) runstore.WorkflowRunEvent {
+		if sequence%2 == 1 {
+			return testLifecycleEvent(runID, sequence)
+		}
+		return testStageLifecycleEvent(runID, sequence)
+	}
+	runs.setPageDataBytes(len(mixed(1).Data) + len(mixed(2).Data))
+	for sequence := int64(1); sequence <= 10; sequence++ {
+		runs.append(mixed(sequence))
+	}
+	connection := harness.dial(t)
+	subscribeRunStream(t, connection, "byte-short", runID, &Cursor{Generation: generation, Sequence: "0"})
+	// The subscription starts the poller, which arms its first timer before
+	// the subscription wakes it; it arms the next one when the catch-up ends.
+	clock.next(t, harness.hub.catchUp)
+	clock.next(t, harness.hub.catchUp)
+	if reads := runs.reads.Load(); reads != 5 {
+		t.Fatalf("one catch-up across byte-short pages cost %d reads, want 5", reads)
+	}
+	expectRunEvents(t, connection, "byte-short", 1, 10)
+
+	runs.append(mixed(11))
+	runs.append(mixed(12))
+	catchUpOnce(t, runs, clock, harness.hub.catchUp, func() { harness.hub.notifyRun(runID) })
+	expectRunEvents(t, connection, "byte-short", 11, 12)
+}
+
+// API-R110: a catch-up ends at the page that reports no further committed
+// event, even when that page holds its full event count.
+func TestRunCatchUpEndsAtTheLastCommittedEvent(t *testing.T) {
+	clock := newFakeClock()
+	runs := &countingRunRepository{fakeRunRepository: newFakeRunRepository()}
+	harness := newEventHarness(t, func(options *Options) { options.Runs, options.clock = runs, clock })
+	const runID, generation = "run-full-page", "run-generation-full-page"
+	runs.addRun(runID, "user-1", generation)
+	for sequence := int64(1); sequence <= runReplayPageSize; sequence++ {
+		runs.append(testLifecycleEvent(runID, sequence))
+	}
+	connection := harness.dial(t)
+	subscribeRunStream(t, connection, "full-page", runID, &Cursor{Generation: generation, Sequence: "0"})
+	clock.next(t, harness.hub.catchUp)
+	clock.next(t, harness.hub.catchUp)
+	if reads := runs.reads.Load(); reads != 1 {
+		t.Fatalf("a catch-up of exactly one full page cost %d reads, want 1", reads)
+	}
+	expectRunEvents(t, connection, "full-page", 1, runReplayPageSize)
+}
+
+// API-R49, API-R72, API-R110: subscriptions from different cursors each
+// receive exactly the events after their own cursor across byte-short pages.
+func TestRunSubscriptionsFromDifferentCursorsReplayAcrossByteShortPages(t *testing.T) {
+	runs := newFakeRunRepository()
+	harness := newEventHarness(t, func(options *Options) { options.Runs, options.clock = runs, newFakeClock() })
+	const runID, generation = "run-byte-short-cursors", "run-generation-byte-short-cursors"
+	runs.addRun(runID, "user-1", generation)
+	runs.setPageDataBytes(3 * len(testLifecycleEvent(runID, 1).Data))
+	for sequence := int64(1); sequence <= 20; sequence++ {
+		runs.append(testLifecycleEvent(runID, sequence))
+	}
+	early, late := harness.dial(t), harness.dial(t)
+	subscribeRunStream(t, early, "early", runID, &Cursor{Generation: generation, Sequence: "0"})
+	subscribeRunStream(t, late, "late", runID, &Cursor{Generation: generation, Sequence: "11"})
+	expectRunEvents(t, early, "early", 1, 20)
+	expectRunEvents(t, late, "late", 12, 20)
+}
+
+// API-R60, API-R110: a gap or an undeliverable event behind a byte-short page
+// ends the subscription with resync_required in the same catch-up, as within
+// one page, and a failed read behind it ends the subscription with the
+// retryable error; no event is skipped and no timer is needed.
+func TestRunCatchUpChecksEventsBehindByteShortPages(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		fourth func(runID string) runstore.WorkflowRunEvent
+		failed bool
+		final  func(frame map[string]any) bool
+	}{
+		{
+			name:   "sequence gap",
+			fourth: func(runID string) runstore.WorkflowRunEvent { return testLifecycleEvent(runID, 5) },
+			final: func(frame map[string]any) bool {
+				return frame["type"] == "resync_required" && frame["reason"] == "sequence_gap"
+			},
+		},
+		{
+			name: "undeliverable event",
+			fourth: func(runID string) runstore.WorkflowRunEvent {
+				event := testLifecycleEvent(runID, 4)
+				event.Data = json.RawMessage(`{"runId":"run-other","resource":"run","state":"running"}`)
+				return event
+			},
+			final: func(frame map[string]any) bool {
+				return frame["type"] == "resync_required" && frame["reason"] == "cursor_unavailable"
+			},
+		},
+		{
+			name:   "failed read",
+			fourth: func(runID string) runstore.WorkflowRunEvent { return testLifecycleEvent(runID, 4) },
+			failed: true,
+			final: func(frame map[string]any) bool {
+				return frame["type"] == "error" && frame["code"] == "overloaded" && frame["retryable"] == true
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			runs := &countingRunRepository{fakeRunRepository: newFakeRunRepository()}
+			if test.failed {
+				runs.during = func(_ context.Context, read int64) error {
+					if read > 1 {
+						return errors.New("database unavailable")
+					}
+					return nil
+				}
+			}
+			harness := newEventHarness(t, func(options *Options) { options.Runs, options.clock = runs, newFakeClock() })
+			runID := "run-behind-" + strings.ReplaceAll(test.name, " ", "-")
+			generation := "generation-" + runID
+			runs.addRun(runID, "user-1", generation)
+			runs.setPageDataBytes(3 * len(testLifecycleEvent(runID, 1).Data))
+			for sequence := int64(1); sequence <= 3; sequence++ {
+				runs.append(testLifecycleEvent(runID, sequence))
+			}
+			runs.append(test.fourth(runID))
+			connection := harness.dial(t)
+			subscribeRunStream(t, connection, "behind", runID, &Cursor{Generation: generation, Sequence: "0"})
+			expectRunEvents(t, connection, "behind", 1, 3)
+			if frame := readServerJSON(t, connection); frame["subscriptionId"] != "behind" || !test.final(frame) {
+				t.Fatalf("frame behind a byte-short page = %#v", frame)
+			}
+		})
+	}
+}
+
+// API-R64, API-R110: reading behind a byte-short page stops with the
+// subscriptions that need it. A subscription the poller ends as a slow
+// consumer, a socket that closes during a read and a Hub that shuts down
+// during a read each end the catch-up at once, although the last page
+// reported further committed events.
+func TestRunCatchUpBehindByteShortPagesStopsWithItsSubscriptions(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		// prefill frames are queued before the subscription attaches.
+		prefill int
+		// during acts in the given read.
+		during    func(hub *Hub, current *socket)
+		duringRun int64
+		reads     int64
+		events    int
+		ended     bool
+	}{
+		{name: "slow consumer", prefill: maximumQueuedFrames - 2, reads: 1, events: 2, ended: true},
+		{
+			name: "socket closed during a read", during: func(_ *Hub, current *socket) { current.cancel() },
+			duringRun: 2, reads: 2, events: 3,
+		},
+		{
+			name: "Hub shut down during a read", during: func(hub *Hub, _ *socket) { hub.cancel() },
+			duringRun: 2, reads: 2, events: 3,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			clock := newFakeClock()
+			runs := &countingRunRepository{fakeRunRepository: newFakeRunRepository()}
+			harness := newEventHarness(t, func(options *Options) { options.Runs, options.clock = runs, clock })
+			runID := "run-stop-" + strings.ReplaceAll(test.name, " ", "-")
+			runs.addRun(runID, "user-1", "generation-"+runID)
+			runs.setPageDataBytes(3 * len(testLifecycleEvent(runID, 1).Data))
+			for sequence := int64(1); sequence <= 10; sequence++ {
+				runs.append(testLifecycleEvent(runID, sequence))
+			}
+			current, subscriber := newBareRunSubscriber(t, harness.hub, "stop", runID)
+			for range test.prefill {
+				if queued, full := current.offer([]byte(`{}`)); !queued || full {
+					t.Fatal("bounded queue rejected an in-limit frame")
+				}
+			}
+			if test.during != nil {
+				runs.during = func(_ context.Context, read int64) error {
+					if read == test.duringRun {
+						test.during(harness.hub, current)
+					}
+					return nil
+				}
+			}
+			poller, attached := harness.hub.attachRun(runID, subscriber)
+			if !attached {
+				t.Fatal("open Hub refused a Run subscription")
+			}
+			defer harness.hub.detachRun(poller, subscriber)
+			clock.next(t, harness.hub.catchUp)
+			clock.next(t, harness.hub.catchUp)
+			if reads := runs.reads.Load(); reads != test.reads {
+				t.Fatalf("catch-up read %d pages, want %d", reads, test.reads)
+			}
+			for range test.prefill {
+				<-current.queue.channel()
+			}
+			for sequence := int64(1); sequence <= int64(test.events); sequence++ {
+				select {
+				case encoded := <-current.queue.channel():
+					var frame map[string]any
+					if err := json.Unmarshal(encoded, &frame); err != nil || frame["type"] != "event" ||
+						nestedString(t, frame, "cursor", "sequence") != strconv.FormatInt(sequence, 10) {
+						t.Fatalf("frame %d = %s, %v", sequence, encoded, err)
+					}
+				default:
+					t.Fatalf("the subscription received %d events, want %d", sequence-1, test.events)
+				}
+			}
+			select {
+			case encoded := <-current.queue.channel():
+				t.Fatalf("unexpected frame after %d events: %s", test.events, encoded)
+			default:
+			}
+			select {
+			case <-subscriber.ended:
+				if !test.ended || subscriber.closeCode != websocket.CloseTryAgainLater {
+					t.Fatalf("subscription ended with close %d", subscriber.closeCode)
+				}
+			default:
+				if test.ended {
+					t.Fatal("the slow subscription was not ended")
+				}
+			}
+		})
+	}
+}
+
 // catchUpOnce triggers one wake-up of an idle Run poller and requires that it
 // read the Run exactly once before it waits again for want.
 func catchUpOnce(
@@ -323,10 +565,12 @@ func newBareRunSubscriber(t *testing.T, hub *Hub, id, runID string) (*socket, *r
 }
 
 // countingRunRepository counts Run event reads, the cost that must not grow
-// with the number of subscriptions.
+// with the number of subscriptions. A test that sets during acts in each read
+// before it is served; an error fails that read.
 type countingRunRepository struct {
 	*fakeRunRepository
-	reads atomic.Int64
+	reads  atomic.Int64
+	during func(ctx context.Context, read int64) error
 }
 
 func (r *countingRunRepository) ListRunEvents(
@@ -334,8 +578,13 @@ func (r *countingRunRepository) ListRunEvents(
 	runID string,
 	after int64,
 	limit int,
-) ([]runstore.WorkflowRunEvent, error) {
-	r.reads.Add(1)
+) (runstore.WorkflowRunEventPage, error) {
+	read := r.reads.Add(1)
+	if r.during != nil {
+		if err := r.during(ctx, read); err != nil {
+			return runstore.WorkflowRunEventPage{}, err
+		}
+	}
 	return r.fakeRunRepository.ListRunEvents(ctx, runID, after, limit)
 }
 
@@ -350,9 +599,9 @@ func (r *failingRunRepository) ListRunEvents(
 	runID string,
 	after int64,
 	limit int,
-) ([]runstore.WorkflowRunEvent, error) {
+) (runstore.WorkflowRunEventPage, error) {
 	if r.failing.Load() {
-		return nil, errors.New("database unavailable")
+		return runstore.WorkflowRunEventPage{}, errors.New("database unavailable")
 	}
 	return r.fakeRunRepository.ListRunEvents(ctx, runID, after, limit)
 }

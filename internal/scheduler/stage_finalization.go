@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 
@@ -95,10 +97,24 @@ func (s *Scheduler) enterFinalizing(ctx context.Context, run runstore.WorkflowRu
 
 }
 
+// candidateVerificationError is a failure to verify a candidate artifact
+// that leaves it unverified, such as an unavailable store: a later attempt
+// may succeed. A rejected exact reference is never one (SCH-R177).
 type candidateVerificationError struct{ cause error }
 
 func (e *candidateVerificationError) Error() string { return e.cause.Error() }
 func (e *candidateVerificationError) Unwrap() error { return e.cause }
+
+// verificationFailure classifies the failure to resolve an exact candidate
+// artifact as the Planners do (artifacts.IsExactReferenceRejection): a
+// rejected reference stays a contract violation, any other failure is a
+// candidateVerificationError.
+func verificationFailure(err error) error {
+	if artifacts.IsExactReferenceRejection(err) {
+		return err
+	}
+	return &candidateVerificationError{cause: err}
+}
 
 func (s *Scheduler) validateCandidate(
 	ctx context.Context,
@@ -116,25 +132,25 @@ func (s *Scheduler) validateCandidate(
 	if result.SummaryArtifact != nil {
 		metadata, err := s.artifacts.Resolve(ctx, runID, *result.SummaryArtifact)
 		if err != nil {
-			return &candidateVerificationError{cause: err}
+			return verificationFailure(fmt.Errorf("verify summary artifact: %w", err))
 		}
 		if !metadata.Ref.SameExact(*result.SummaryArtifact) || metadata.MediaType != "text/plain" {
 			return fmt.Errorf("summary artifact differs from its exact text version")
 		}
 	}
-	for name := range result.Artifacts {
+	names := sortedArtifactNames(result.Artifacts)
+	for _, name := range names {
 		if _, declared := stage.Result.Artifacts[name]; !declared {
 			return fmt.Errorf("undeclared Stage result artifact %q", name)
 		}
 	}
 	if result.Outcome == stageresult.StageSucceeded {
-		for name, slot := range stage.Result.Artifacts {
-			if _, present := result.Artifacts[name]; slot.Required && !present {
+		for _, name := range slices.Sorted(maps.Keys(stage.Result.Artifacts)) {
+			if _, present := result.Artifacts[name]; stage.Result.Artifacts[name].Required && !present {
 				return fmt.Errorf("required Stage result artifact %q is missing", name)
 			}
 		}
 	}
-	names := sortedArtifactNames(result.Artifacts)
 	mediaTypes := make(map[string]string, len(names))
 	for _, name := range names {
 		ref := result.Artifacts[name]
@@ -143,11 +159,7 @@ func (s *Scheduler) validateCandidate(
 		}
 		resolved, err := s.artifacts.Resolve(ctx, runID, ref)
 		if err != nil {
-			wrapped := fmt.Errorf("verify Stage result artifact %q: %w", name, err)
-			if errors.Is(err, artifacts.ErrArtifactNotFound) || errors.Is(err, artifacts.ErrInvalidName) {
-				return wrapped
-			}
-			return &candidateVerificationError{cause: wrapped}
+			return verificationFailure(fmt.Errorf("verify Stage result artifact %q: %w", name, err))
 		}
 		if !ref.SameExact(resolved.Ref) ||
 			!contracts.AcceptsMediaType(stage.Result.Artifacts[name].MediaTypes, resolved.MediaType) {

@@ -4,9 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
+	"slices"
 	"time"
 
 	"github.com/google/jsonschema-go/jsonschema"
+	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
@@ -403,13 +406,20 @@ func (p *streamlinePlanner) workerRequest(
 	request.SubtaskID = subtask.ID
 	request.Objective = subtask.Objective
 	request.Instructions = subtask.Instructions
-	for _, ref := range request.Artifacts {
+	for _, name := range slices.Sorted(maps.Keys(request.Artifacts)) {
+		ref := request.Artifacts[name]
 		if err := ref.ValidateExact(); err != nil {
 			return contracts.StageContentRequest{}, safeToolFailure(
 				"worker_request_invalid", "Worker request contains an invalid exact artifact reference", false,
 			)
 		}
 		if _, err := p.inspector.Inspect(ctx, p.invocation.RunID, ref.Clone()); err != nil {
+			if artifacts.IsExactReferenceRejection(err) {
+				return contracts.StageContentRequest{}, safeToolFailure(
+					"worker_request_invalid",
+					"Worker request artifact does not identify an exact revision in the RunScope", false,
+				)
+			}
 			return contracts.StageContentRequest{}, safeToolFailure(
 				"worker_artifact_unavailable", "Worker request artifact could not be verified", true,
 			)
@@ -434,8 +444,14 @@ func (p *streamlinePlanner) validateWorkerResult(
 			"invalid_worker_result", "Worker returned an oversized WorkerResult", false, err,
 		)
 	}
-	for _, ref := range result.Artifacts {
-		if _, err := p.inspector.Inspect(ctx, p.invocation.RunID, ref.Clone()); err != nil {
+	for _, name := range slices.Sorted(maps.Keys(result.Artifacts)) {
+		if _, err := p.inspector.Inspect(ctx, p.invocation.RunID, result.Artifacts[name].Clone()); err != nil {
+			if artifacts.IsExactReferenceRejection(err) {
+				return planner.NewError(
+					"invalid_worker_result",
+					"Worker result artifact does not identify an exact revision in the RunScope", false, err,
+				)
+			}
 			return planner.NewError(
 				"result_artifact_unavailable", "Worker result artifact could not be verified", true, err,
 			)
@@ -466,9 +482,15 @@ func (p *streamlinePlanner) finish(
 	if err := planner.ValidateCandidate(
 		ctx, p.invocation.RunID, p.resultContract, result, p.inspector,
 	); err != nil {
+		// The rejection keeps the class of the candidate verification: a
+		// candidate whose artifacts could not be verified may be finished
+		// again unchanged (PLN-R118).
 		failure := planner.Failure{
 			Code: "finish_rejected", Message: "finish candidate does not satisfy the Stage result contract",
 			Retryable: false,
+		}
+		if err.Retryable {
+			failure.Message, failure.Retryable = "finish candidate artifacts could not be verified", true
 		}
 		span.End("rejected", telemetry.PlannerSpanAttributes{ErrorCode: failure.Code})
 		state.recordTool(finishToolName, map[string]any{"outcome": safeOutcome}, false, time.Since(started), 0, &failure)

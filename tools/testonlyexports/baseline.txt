@@ -39,7 +39,6 @@ internal/runtimeconfig.PreparedPublication.Name V372-030
 internal/runtimeconfig.PreparedPublication.Version V372-030
 
 # Audit store reads and writes that only tests use to inspect or seed state.
-internal/auditstore/internal/pgstore.QueryStore.ListExecutions V372-030
 internal/auditstore/internal/pgstore.ReviewStore.AppendReviewEvents V372-030
 
 # Documents and rules the Runtime produces in production; Go tests build them.

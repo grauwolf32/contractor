@@ -76,6 +76,21 @@ WHERE run_id = $1 AND state IN ('preparing', 'running', 'finalizing', 'aborting'
 ORDER BY created_at, stage_execution_id
 LIMIT 2`
 
+// listStageExecutionsWithUnreleasedAllocationsSQL returns, oldest first, the
+// StageExecutions of Run $1 that have an allocation whose release has not
+// completed; an execution whose allocations are all released is not read.
+// Used by PostgresStore.ListStageExecutionsWithUnreleasedAllocations.
+var listStageExecutionsWithUnreleasedAllocationsSQL = `
+SELECT ` + prefixedStageExecutionColumns("execution") + `
+FROM stage_executions AS execution
+WHERE execution.run_id = $1
+  AND EXISTS (
+      SELECT 1 FROM stage_allocations AS allocation
+      WHERE allocation.stage_execution_id = execution.stage_execution_id
+        AND allocation.release_completed_at IS NULL
+  )
+ORDER BY execution.created_at, execution.stage_execution_id`
+
 // listStageExecutionsSQL returns every StageExecution of Run $1, oldest
 // first. Used by PostgresStore.ListStageExecutions.
 var listStageExecutionsSQL = `
@@ -84,10 +99,26 @@ FROM stage_executions
 WHERE run_id = $1
 ORDER BY created_at, stage_execution_id`
 
-// startPlannerSQL moves StageExecution $1 from preparing to running (state
-// CAS) and creates planner session $2. It reserves two Run event sequence
-// numbers and appends a lifecycle.changed event and the planner-started event.
-// Returns the session ID; no row means the Stage was not preparing.
+// lockStartPlannerRunSQL locks the row of the Run that owns StageExecution $1
+// and returns the Run ID; no row means the Stage does not exist. A Stage's
+// Run is immutable, so the scalar subquery reads it exactly without locking
+// the Stage. The lock is the one startPlannerSQL's event allocation takes on
+// that row, taken before its Stage CAS so that Planner start locks the Run
+// before the Stage like every operation that locks both (RUN-R29).
+// Used by PostgresStore.StartPlanner.
+var lockStartPlannerRunSQL = `
+SELECT run.run_id
+FROM workflow_runs AS run
+WHERE run.run_id = (
+    SELECT stage.run_id FROM stage_executions AS stage WHERE stage.stage_execution_id = $1
+)
+FOR NO KEY UPDATE OF run`
+
+// startPlannerSQL moves StageExecution $1 of Run $12, whose row the caller
+// has locked, from preparing to running (state CAS) and creates planner
+// session $2. It reserves two Run event sequence numbers and appends a
+// lifecycle.changed event and the planner-started event. Returns the session
+// ID; no row means the Stage was not preparing.
 // Used by PostgresStore.StartPlanner.
 var startPlannerSQL = `
 WITH transitioned AS (
@@ -99,7 +130,7 @@ WITH transitioned AS (
         planner_invocation_id = $3,
         planner_started_at = clock_timestamp(),
         updated_at = clock_timestamp()
-    WHERE stage_execution_id = $1 AND state = 'preparing'
+    WHERE stage_execution_id = $1 AND run_id = $12 AND state = 'preparing'
     RETURNING stage_execution_id, run_id
 ), inserted_session AS (
     INSERT INTO planner_sessions (

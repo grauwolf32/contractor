@@ -13,6 +13,10 @@ func (h *runHandlers) retryRunGateway(w http.ResponseWriter, r *http.Request) {
 		handleError(w, err)
 		return
 	}
+	if err := requireJSONMediaType(r); err != nil {
+		handleError(w, err)
+		return
+	}
 	var request struct{}
 	if err := decodeJSON(w, r, &request); err != nil {
 		handleError(w, err)

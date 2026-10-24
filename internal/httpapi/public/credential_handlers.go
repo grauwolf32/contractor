@@ -30,9 +30,6 @@ type credentialHandlers struct {
 }
 
 func (h *credentialHandlers) listCredentials(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	_, limit, encodedCursor, err := pageQuery(r.URL.RawQuery)
 	if err != nil {
 		handleError(w, err)
@@ -63,9 +60,6 @@ func (h *credentialHandlers) listCredentials(w http.ResponseWriter, r *http.Requ
 }
 
 func (h *credentialHandlers) getCredential(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		handleError(w, err)
 		return
@@ -84,22 +78,21 @@ func (h *credentialHandlers) getCredential(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *credentialHandlers) createCredential(w http.ResponseWriter, r *http.Request) {
-	mediaType, err := requestMediaType(r)
-	if err != nil || mediaType != "application/json" {
-		handleError(w, fmt.Errorf("%w: Content-Type must be application/json", errInvalidRequest))
+	if err := requireJSONMediaType(r); err != nil {
+		handleError(w, err)
 		return
 	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		handleError(w, err)
 		return
 	}
-	var request createCredentialRequest
-	if err := decodeJSON(w, r, &request); err != nil {
+	idempotencyKey, err := requireIdempotencyKey(r)
+	if err != nil {
 		handleError(w, err)
 		return
 	}
-	idempotencyKey, err := requireIdempotencyKey(r)
-	if err != nil {
+	var request createCredentialRequest
+	if err := decodeJSON(w, r, &request); err != nil {
 		handleError(w, err)
 		return
 	}

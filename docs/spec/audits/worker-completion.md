@@ -469,6 +469,17 @@ that the collector uses for prospective validation, including per-member limits
 and ZIP overhead. The collector must not maintain a second, approximate
 encoder.
 
+**AWC-R125.** Preparation decodes, matches and validates the pinned task and
+execution-manifest bytes once per allocation, outside the event loop, with the
+existing membership, order, digest and owner checks and failure classes. Every
+invocation's collector and the finalizer reuse that immutable decoding and
+never decode the inputs again. Each admission still encodes its whole
+prospective collection (AWC-R62). Admission and final encoding run outside the
+event loop while the collector's serialized admission owner waits for them; a
+cancellation is delivered only after the encoding returns, accepts nothing and
+leaves the collection unchanged (FAIL-AWC-2). Discard waits for an admission in
+progress, so no encoding outlives its invocation.
+
 ### Collection state
 
 **AWC-R65.** Collection state belongs to `(allocation, invocation, pinned
@@ -842,7 +853,7 @@ Failure outcomes ([failure model](../platform/failure-model.md)):
 - FAIL-AWC-1 — placement and direct preparation of an allocation with a pinned
   completion contract (AWC-R25, AWC-R26, AWC-R19).
 - FAIL-AWC-2 — `submit_check_result` changes to the collection (AWC-R41,
-  AWC-R44 to AWC-R48, AWC-R63, AWC-R84).
+  AWC-R44 to AWC-R48, AWC-R63, AWC-R84, AWC-R125).
 - FAIL-AWC-3 — the completion gate with an incomplete collection (AWC-R79,
   AWC-R80).
 - FAIL-AWC-4 — deterministic publication of the `check-results` package

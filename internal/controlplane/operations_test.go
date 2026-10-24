@@ -448,9 +448,105 @@ func TestOperationsReplayIsOrderedBoundedAndNotifiesWithoutBlocking(t *testing.T
 		}
 	}
 	corrupt.mu.Lock()
-	corrupt.operationsHistory = append(corrupt.operationsHistory[:1], corrupt.operationsHistory[2:]...)
+	retained := []OperationsChange{corrupt.operationsHistory.at(0), corrupt.operationsHistory.at(2)}
+	corrupt.operationsHistory = operationsChanges{}
+	for _, change := range retained {
+		corrupt.operationsHistory.append(change)
+	}
 	corrupt.mu.Unlock()
 	if _, _, err := corrupt.ReplayOperations(corruptStart); !errors.Is(err, ErrOperationsGap) {
 		t.Fatalf("Operations sequence gap error = %v", err)
+	}
+}
+
+func TestOperationsHistoryKeepsTheLatestChangesInOrderWithoutCopying(t *testing.T) {
+	registry := newTestRegistry(t, newTestClock())
+	updates, cancel := registry.SubscribeOperations()
+	defer cancel()
+	// The reference keeps every change; the registry must keep its last 255.
+	var reference []OperationsChange
+	record := func(resourceID string) {
+		t.Helper()
+		if err := registry.InvalidateOperations(OperationsConfiguration, resourceID); err != nil {
+			t.Fatal(err)
+		}
+		changes, current, err := registry.ReplayOperations(OperationsCursor{
+			Generation: registry.SnapshotOperations().Cursor.Generation, Revision: 0,
+		})
+		if len(reference) < operationsHistoryLimit {
+			if err != nil || len(changes) != len(reference)+1 {
+				t.Fatalf("replay from the start = (%d changes, %v)", len(changes), err)
+			}
+			reference = append(reference, changes[len(changes)-1])
+			return
+		}
+		if !errors.Is(err, ErrOperationsCursor) {
+			t.Fatalf("replay before the retained changes = %v", err)
+		}
+		oldest := OperationsCursor{Generation: current.Generation, Revision: current.Revision - operationsHistoryLimit}
+		changes, _, err = registry.ReplayOperations(oldest)
+		if err != nil || len(changes) != operationsHistoryLimit {
+			t.Fatalf("replay of the retained changes = (%d changes, %v)", len(changes), err)
+		}
+		reference = append(reference, changes[len(changes)-1])
+	}
+	for index := range 3*operationsHistoryLimit + 7 {
+		record(fmt.Sprintf("config-%d", index))
+	}
+	select {
+	case <-updates:
+	default:
+		t.Fatal("watcher was not notified after the history wrapped")
+	}
+
+	current := registry.SnapshotOperations().Cursor
+	for _, back := range []uint64{1, 2, 100, operationsHistoryLimit} {
+		changes, replayCurrent, err := registry.ReplayOperations(
+			OperationsCursor{Generation: current.Generation, Revision: current.Revision - back})
+		if err != nil || replayCurrent != current || uint64(len(changes)) != back {
+			t.Fatalf("replay of the last %d = (%d, %+v, %v)", back, len(changes), replayCurrent, err)
+		}
+		want := reference[len(reference)-int(back):]
+		for index, change := range changes {
+			if change != want[index] || change.Cursor.Revision != current.Revision-back+uint64(index)+1 ||
+				change.ResourceID != fmt.Sprintf("config-%d", len(reference)-int(back)+index) {
+				t.Fatalf("change %d of the last %d = %+v, want %+v", index, back, change, want[index])
+			}
+		}
+	}
+	if _, _, err := registry.ReplayOperations(OperationsCursor{
+		Generation: current.Generation, Revision: current.Revision - operationsHistoryLimit - 1,
+	}); !errors.Is(err, ErrOperationsCursor) {
+		t.Fatalf("cursor one change older than the history = %v", err)
+	}
+
+	// A replay is a copy: changing it changes no later replay.
+	before := OperationsCursor{Generation: current.Generation, Revision: current.Revision - 2}
+	first, _, _ := registry.ReplayOperations(before)
+	first[0].ResourceID = "mutated"
+	first[1].Cursor.Revision = 0
+	second, _, err := registry.ReplayOperations(before)
+	if err != nil || second[0] != reference[len(reference)-2] || second[1] != reference[len(reference)-1] {
+		t.Fatalf("replay after mutating an earlier replay = (%+v, %v)", second, err)
+	}
+
+	// At capacity an append overwrites the oldest change in place.
+	allocations := testing.AllocsPerRun(100, func() {
+		registry.mu.Lock()
+		registry.recordOperationsChangeLocked(OperationsCredential, "")
+		registry.mu.Unlock()
+	})
+	if allocations != 0 {
+		t.Fatalf("append at history capacity allocated %.1f times", allocations)
+	}
+
+	// A cancelled watcher is gone; later appends neither block nor reach it.
+	cancel()
+	registry.mu.Lock()
+	watchers := len(registry.operationsWatchers)
+	registry.recordOperationsChangeLocked(OperationsCredential, "")
+	registry.mu.Unlock()
+	if watchers != 0 {
+		t.Fatalf("%d watchers remain after cancel", watchers)
 	}
 }

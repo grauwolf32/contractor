@@ -9,6 +9,7 @@ from collections.abc import Awaitable, Callable
 from typing import TypeVar
 
 from contractor_runtime.projectfs.errors import WorkspaceStorageError
+from contractor_runtime.threads import consume_task_exception
 
 T = TypeVar("T")
 
@@ -91,7 +92,7 @@ class WorkspaceOperationGuard:
                     await asyncio.to_thread(cleanup)
 
             self._cleanup = asyncio.create_task(dispose(), name="workspace-disposal")
-            self._cleanup.add_done_callback(_consume_exception)
+            self._cleanup.add_done_callback(consume_task_exception)
         try:
             await asyncio.wait_for(asyncio.shield(self._cleanup), remaining)
         except TimeoutError:
@@ -106,12 +107,7 @@ class WorkspaceOperationGuard:
 
     def _completed(self, task: asyncio.Task[object]) -> None:
         self._owners.discard(task)
-        _consume_exception(task)
-
-
-def _consume_exception(task: asyncio.Task[object]) -> None:
-    if not task.cancelled():
-        task.exception()
+        consume_task_exception(task)
 
 
 def _remaining(deadline: float) -> float:

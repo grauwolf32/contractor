@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
+import random
+import tracemalloc
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+from fakes.artifact_reads import CountingPayload, count_derivations, hold_preparation
 
+import contractor_runtime.toolsets.common.artifact_read_cache as read_cache
+import contractor_runtime.toolsets.text_artifacts.tools as text_module
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import (
     MAX_ARTIFACT_BYTES,
@@ -21,11 +27,14 @@ from contractor_runtime.contracts import (
     ArtifactWriteResult,
     RuntimeSettings,
 )
+from contractor_runtime.core.input_errors import ToolInputError
+from contractor_runtime.core.lines import split_lines
 from contractor_runtime.factories import built_in_factories
 from contractor_runtime.toolsets.run_artifacts.tools import RunArtifactsToolsetFactory
 from contractor_runtime.toolsets.text_artifacts.tools import (
     MAX_TEXT_WRITE_BYTES,
     MAX_VISIBLE_TEXT_BYTES,
+    ReadTextArtifactTool,
     TextArtifactsToolsetFactory,
 )
 from contractor_runtime.workspace import AllocationWorkspace
@@ -181,32 +190,427 @@ def test_exact_artifact_cache_is_shared_bounded_and_cleared_on_close(
             ] == "two\n"
             assert run_client.read_calls == 1 and text_client.read_calls == 0
             assert text_client.observed_exact_refs_since(cursor) == (source,)
-            assert cache._value is not None and len(cache._value.data) == 8
+            assert cache._entry is not None and len(cache._entry.value.data) == 8
 
             updated = text_client.seed("inputs", "report", "text/plain", b"new\n")
             current = await read_text("inputs", "report")
             assert current["artifact"]["revision"] == updated.revision
             assert current["text"] == "new\n"
             assert text_client.read_calls == 1
-            assert cache._value is not None and cache._value.artifact == updated
+            assert cache._entry is not None and cache._entry.value.artifact == updated
 
             await read_bytes.close()
-            assert cache._value is None
+            assert cache._entry is None
             assert (await read_text("inputs", "report", updated.revision))["text"] == "new\n"
             assert text_client.read_calls == 2
-            monkeypatch.setattr(
-                "contractor_runtime.toolsets.common.artifact_read_cache.MAX_CACHED_ARTIFACT_BYTES",
-                3,
-            )
+            monkeypatch.setattr(read_cache, "MAX_ARTIFACT_READ_CACHE_BYTES", 3)
             await read_text("inputs", "report", source.revision)
-            assert cache._value is None
+            assert cache._entry is None
             await read_text("inputs", "report", source.revision)
             assert text_client.read_calls == 4
         finally:
             await read_text.close()
-        assert cache._value is None
+        assert cache._entry is None
 
     asyncio.run(scenario())
+
+
+def numbered_line(number: int) -> str:
+    return f"{number:07d} äöü € 😀 {'x' * (number % 97)}\n"
+
+
+def numbered_document(min_bytes: int) -> tuple[bytes, int]:
+    parts: list[bytes] = []
+    size = 0
+    while size < min_bytes:
+        parts.append(numbered_line(len(parts) + 1).encode())
+        size += len(parts[-1])
+    return b"".join(parts), len(parts)
+
+
+def test_ten_pages_of_a_32_mib_artifact_prepare_once_and_decode_only_their_windows(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        data, total = numbered_document(32 * 1024 * 1024)
+        payload = CountingPayload(data)
+        counted = count_derivations(monkeypatch, text_module)
+        client = MemoryArtifactClient()
+        source = client.seed("inputs", "log", "text/plain", payload)
+        read = (await make_tools(tmp_path, client, WorkerState()))["read_text_artifact"]
+
+        pages = []
+        start, offset = 1, 0
+        for _ in range(8):
+            page = await read("inputs", "log", source.revision, start, 400, offset)
+            pages.append(page)
+            start, offset = page["nextStartLine"], page["nextLineOffset"]
+        pages.append(await read("inputs", "log", source.revision, start_line=total // 2))
+        pages.append(await read("inputs", "log", source.revision, start_line=total))
+
+        for page in pages:
+            expected = range(page["startLine"], page["endLine"] + 1)
+            assert page["text"] == "".join(numbered_line(number) for number in expected)
+            assert page["totalLines"] == total and page["partialLine"] is False
+        assert pages[7]["endLine"] == 3200
+        assert pages[-1]["truncated"] is False and pages[-1]["nextStartLine"] is None
+        # One download and one full-payload derivation serve all ten pages.
+        assert client.read_calls == 1
+        assert (counted.validations, counted.indexes) == (1, 1)
+        # A reader that decoded and split the whole payload per page did ten of each.
+        assert (payload.decodes, counted.splits) == (0, 0)
+        # Each page decodes only its own window.
+        assert counted.window_bytes == [len(page["text"].encode()) for page in pages]
+        assert max(counted.window_bytes) <= MAX_VISIBLE_TEXT_BYTES
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("fixture", ["short-lines", "astral-in-ascii", "astral-only"])
+def test_cache_budget_holds_for_worst_case_inputs_of_the_largest_artifact(
+    tmp_path: Path, fixture: str
+) -> None:
+    emoji = "😀".encode()
+    data = {
+        # One line per byte: a per-line index would dwarf the payload.
+        "short-lines": b"\n" * MAX_ARTIFACT_BYTES,
+        # One astral character makes Python store the decoded text in 4 bytes
+        # per character: four times the payload.
+        "astral-in-ascii": emoji + b"a" * (MAX_ARTIFACT_BYTES - len(emoji)),
+        "astral-only": emoji * (MAX_ARTIFACT_BYTES // len(emoji)),
+    }[fixture]
+    assert len(data) == MAX_ARTIFACT_BYTES
+
+    async def scenario() -> None:
+        client = MemoryArtifactClient()
+        source = client.seed("inputs", "large", "text/plain", data)
+        state = WorkerState()
+        read = (await make_tools(tmp_path, client, state))["read_text_artifact"]
+
+        tracemalloc.start()
+        try:
+            first = await read("inputs", "large", source.revision, max_lines=400)
+            if fixture == "short-lines":
+                assert (first["totalLines"], first["text"]) == (MAX_ARTIFACT_BYTES, "\n" * 400)
+                last = await read("inputs", "large", source.revision, MAX_ARTIFACT_BYTES - 1)
+                assert (last["text"], last["endLine"], last["truncated"]) == (
+                    "\n\n",
+                    MAX_ARTIFACT_BYTES,
+                    False,
+                )
+            else:
+                assert first["totalLines"] == 1 and first["partialLine"] is True
+                assert len(first["text"].encode()) <= MAX_VISIBLE_TEXT_BYTES
+                assert first["nextLineOffset"] == len(first["text"].encode())
+                tail = MAX_ARTIFACT_BYTES - 2 * len(emoji)
+                last = await read("inputs", "large", source.revision, 1, 1, tail)
+                assert last["text"] == data[tail:].decode()
+                assert (last["partialLine"], last["truncated"]) == (False, False)
+            _, peak = tracemalloc.get_traced_memory()
+        finally:
+            tracemalloc.stop()
+        # Paging never materialized the decoded payload or one object per line.
+        assert peak < 16 * 1024 * 1024
+        entry = state._artifact_read_cache._entry
+        assert entry is not None and entry.lines is not None and entry.value.data is data
+        index_budget = read_cache.MAX_ARTIFACT_READ_CACHE_BYTES - MAX_ARTIFACT_BYTES
+        starts = entry.lines._starts_before_block
+        index_bytes = len(starts) * starts.itemsize
+        assert index_bytes == index_budget
+        assert len(data) + index_bytes <= read_cache.MAX_ARTIFACT_READ_CACHE_BYTES
+        assert client.read_calls == 1
+
+    asyncio.run(scenario())
+
+
+def test_cache_budget_is_the_documented_limit() -> None:
+    # LIM-ART-7: one 64 MiB payload plus 16,385 eight-byte line counts.
+    assert read_cache.MAX_CACHED_ARTIFACT_BYTES == MAX_ARTIFACT_BYTES == 67_108_864
+    assert read_cache.MAX_ARTIFACT_READ_CACHE_BYTES == 67_239_944
+
+
+def test_concurrent_first_reads_share_one_preparation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        held = hold_preparation(monkeypatch)
+        client = MemoryArtifactClient()
+        source = client.seed("inputs", "log", "text/plain", b"one\ntwo\n")
+        other = client.seed("inputs", "other", "text/plain", b"other\n")
+        state = WorkerState()
+        read = (await make_tools(tmp_path, client, state))["read_text_artifact"]
+        cursor = client.observation_cursor
+
+        first = asyncio.create_task(read("inputs", "log", source.revision))
+        second = asyncio.create_task(read("inputs", "log", start_line=2))
+        # A read of another revision waits too: it cannot evict the entry
+        # while its preparation runs.
+        replacing = asyncio.create_task(read("inputs", "other", other.revision))
+        assert await asyncio.to_thread(held.started.wait, 60)
+        for _ in range(5):
+            await asyncio.sleep(0)
+        assert not first.done() and not second.done() and not replacing.done()
+        held.release.set()
+
+        assert (await first)["text"] == "one\ntwo\n"
+        assert (await second)["text"] == "two\n"
+        assert (await replacing)["text"] == "other\n"
+        assert held.calls == 2 and client.read_calls == 2
+        # The download and the cached read of the log are content observations.
+        assert client.observed_exact_refs_since(cursor) == (source, source, other)
+        entry = state._artifact_read_cache._entry
+        assert entry is not None and entry.value.artifact == other
+
+    asyncio.run(scenario())
+
+
+def test_cancelled_preparation_is_joined_discarded_and_blocks_close(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        held = hold_preparation(monkeypatch)
+        client = MemoryArtifactClient()
+        source = client.seed("inputs", "log", "text/plain", b"one\ntwo\n")
+        state = WorkerState()
+        read = (await make_tools(tmp_path, client, state))["read_text_artifact"]
+        cache = state._artifact_read_cache
+
+        reading = asyncio.create_task(read("inputs", "log", source.revision))
+        assert await asyncio.to_thread(held.started.wait, 60)
+        reading.cancel()
+        for _ in range(5):
+            await asyncio.sleep(0)
+        # The cancelled read waits for its thread before it ends.
+        assert not reading.done()
+        held.release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await reading
+        # The payload stays cached, its derived state is discarded.
+        entry = cache._entry
+        assert entry is not None and (entry.utf8, entry.lines) == (None, None)
+        assert (await read("inputs", "log", source.revision))["text"] == "one\ntwo\n"
+        assert (client.read_calls, held.calls) == (1, 2)
+
+        await cache.clear()
+        held.started.clear()
+        held.release.clear()
+        reading = asyncio.create_task(read("inputs", "log", source.revision))
+        assert await asyncio.to_thread(held.started.wait, 60)
+        reading.cancel()
+        closing = asyncio.create_task(read.close())
+        for _ in range(5):
+            await asyncio.sleep(0)
+        # Close waits for the cancelled preparation before it clears the cache.
+        assert not reading.done() and not closing.done()
+        held.release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await reading
+        await closing
+        assert cache._entry is None
+        assert (client.read_calls, held.calls) == (2, 3)
+
+    asyncio.run(scenario())
+
+
+def test_replaced_revision_takes_no_derived_state_from_its_predecessor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        counted = count_derivations(monkeypatch, text_module)
+        client = MemoryArtifactClient()
+        old = client.seed("inputs", "log", "text/plain", b"a\nb\nc\n")
+        read = (await make_tools(tmp_path, client, WorkerState()))["read_text_artifact"]
+
+        assert (await read("inputs", "log", old.revision, start_line=3))["text"] == "c\n"
+        new = client.seed("inputs", "log", "text/plain", b"only\n")
+        current = await read("inputs", "log")
+        assert current["artifact"]["revision"] == new.revision
+        assert (current["text"], current["totalLines"]) == ("only\n", 1)
+        assert (client.read_calls, counted.indexes) == (2, 2)
+
+        cursor = client.observation_cursor
+        cached = await read("inputs", "log", new.revision)
+        assert cached["text"] == "only\n"
+        assert client.observed_exact_refs_since(cursor) == (new,)
+        assert (client.read_calls, counted.indexes) == (2, 2)
+
+        again = await read("inputs", "log", old.revision, start_line=3)
+        assert (again["text"], again["totalLines"]) == ("c\n", 3)
+        with pytest.raises(ToolInputError, match="start_line exceeds"):
+            await read("inputs", "log", new.revision, start_line=2)
+        # Every download is validated and indexed once, for its own revision.
+        assert (client.read_calls, counted.indexes, counted.validations) == (4, 4, 4)
+
+    asyncio.run(scenario())
+
+
+def test_run_and_text_readers_share_one_utf8_validation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        counted = count_derivations(monkeypatch, text_module)
+        client = MemoryArtifactClient()
+        source = client.seed("inputs", "log", "text/plain", "één\ntwee\n".encode())
+        state = WorkerState()
+        text_read = (await make_tools(tmp_path, client, state))["read_text_artifact"]
+        run_tools = await RunArtifactsToolsetFactory(
+            lambda _allocation, _settings: client
+        ).create_selected(
+            selected=["read_artifact"],
+            allocation_id="allocation-1",
+            run_id="run-1",
+            namespace="worker-space",
+            runtime_settings=runtime_settings(),
+            workspace=AllocationWorkspace(root=tmp_path, path=tmp_path),
+            state=state,
+        )
+        read_bytes = run_tools["read_artifact"]
+        assert (await read_bytes("inputs", "log", source.revision))["size"] == 11
+        assert (counted.validations, counted.indexes) == (1, 0)
+        assert (await text_read("inputs", "log", source.revision))["totalLines"] == 2
+        assert (await read_bytes("inputs", "log", source.revision))["size"] == 11
+        assert (counted.validations, counted.indexes, client.read_calls) == (1, 1, 1)
+
+    asyncio.run(scenario())
+
+
+def test_utf8_validation_spans_chunks_and_rejects_like_strict_decoding(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        client = MemoryArtifactClient()
+        chunk = read_cache._UTF8_CHUNK_BYTES
+        emoji = "😀".encode()
+        # A character split across a validation chunk boundary is valid.
+        straddling = b"a" * (chunk - 2) + emoji + b"\n"
+        valid = client.seed("inputs", "valid", "text/plain", straddling)
+        tools = await make_tools(tmp_path, client, WorkerState())
+        read = tools["read_text_artifact"]
+        page = await read("inputs", "valid", valid.revision)
+        assert (page["text"], page["partialLine"]) == ("a" * MAX_VISIBLE_TEXT_BYTES, True)
+        assert (await read("inputs", "valid", valid.revision, 1, 1, chunk - 2))["text"] == "😀\n"
+
+        truncated = b"a" * (2 * chunk) + emoji[:3]
+        surrogate = b"a" * chunk + "\ud800".encode("utf-8", "surrogatepass")
+        for name, data in (("truncated", truncated), ("surrogate", surrogate)):
+            with pytest.raises(UnicodeDecodeError):
+                data.decode("utf-8", errors="strict")
+            invalid = client.seed("inputs", name, "application/octet-stream", data)
+            for _ in range(2):
+                with pytest.raises(ToolInputError) as caught:
+                    await read("inputs", name, invalid.revision)
+                assert str(caught.value) == "artifact is not valid UTF-8"
+
+    asyncio.run(scenario())
+
+
+def reference_text_page(
+    document: str, start_line: int, max_lines: int, line_offset: int, visible: int
+) -> dict[str, object] | str:
+    """The read_text_artifact window as computed before the line index existed."""
+
+    lines = split_lines(document, keepends=True)
+    total_lines = len(lines)
+    if total_lines > 0 and start_line > total_lines:
+        return "start_line exceeds artifact line count"
+    window: tuple[str, int, bool, int, int] | None = None
+    if not lines:
+        if line_offset:
+            return "line_offset exceeds the line length"
+        window = ("", 0, False, 1, 0)
+    else:
+        first = lines[start_line - 1].encode()
+        if line_offset and line_offset >= len(first):
+            return "line_offset exceeds the line length"
+        if line_offset and (first[line_offset] & 0xC0) == 0x80:
+            return "line_offset must start a UTF-8 character"
+        parts = [
+            first[line_offset:],
+            *(line.encode() for line in lines[start_line : start_line - 1 + max_lines]),
+        ]
+        result: list[bytes] = []
+        size = 0
+        for encoded in parts:
+            remaining = visible - size
+            if len(encoded) <= remaining:
+                result.append(encoded)
+                size += len(encoded)
+                continue
+            if not result:
+                cut = remaining
+                while cut > 0 and (encoded[cut] & 0xC0) == 0x80:
+                    cut -= 1
+                window = (encoded[:cut].decode(), start_line, True, start_line, line_offset + cut)
+            break
+        if window is None:
+            end_line = start_line + len(result) - 1
+            window = (b"".join(result).decode(), end_line, False, end_line + 1, 0)
+    text, end_line, partial_line, next_start_line, next_line_offset = window
+    truncated = partial_line or end_line < total_lines
+    return {
+        "totalLines": total_lines,
+        "startLine": start_line,
+        "endLine": end_line,
+        "text": text,
+        "truncated": truncated,
+        "partialLine": partial_line,
+        "nextStartLine": next_start_line if truncated else None,
+        "nextLineOffset": next_line_offset if truncated else None,
+    }
+
+
+def test_indexed_pages_match_whole_text_pages(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Tiny blocks and windows put line breaks, CRLF pairs and multi-byte
+    # characters on every block and window boundary.
+    visible = 9
+    monkeypatch.setattr(read_cache, "LINE_INDEX_BLOCK_BYTES", 3)
+    monkeypatch.setattr(text_module, "MAX_VISIBLE_TEXT_BYTES", visible)
+    pieces = ["a", "bc", "ä", "€", "😀", "\r", "\n", "\r\n", "\u2028", "\x85", "\f"]
+    rng = random.Random(407035)
+    documents = ["", "\n", "\r", "\r\n", "x", "\r\r\n\n", "a" * 20, "😀" * 5 + "\r\n"]
+    documents += ["".join(rng.choices(pieces, k=rng.randint(1, 40))) for _ in range(120)]
+
+    async def scenario() -> None:
+        client = MemoryArtifactClient()
+        read = (await make_tools(tmp_path, client, WorkerState()))["read_text_artifact"]
+        compared = 0
+        for number, document in enumerate(documents):
+            name = f"doc-{number}"
+            source = client.seed("inputs", name, "text/plain", document.encode())
+            lines = split_lines(document, keepends=True)
+            longest = max((len(line.encode()) for line in lines), default=0)
+            for start_line in range(1, len(lines) + 2):
+                for max_lines in (1, 3, 400):
+                    offsets = range(longest + 2) if max_lines == 1 else (0, 1)
+                    for line_offset in offsets:
+                        case = (document, start_line, max_lines, line_offset)
+                        expected = reference_text_page(*case, visible)
+                        call = read("inputs", name, source.revision, *case[1:])
+                        if isinstance(expected, str):
+                            with pytest.raises(ToolInputError) as caught:
+                                await call
+                            assert str(caught.value) == expected, case
+                        else:
+                            page = await call
+                            assert {key: page[key] for key in expected} == expected, case
+                        compared += 1
+        assert compared > 5000
+
+    asyncio.run(scenario())
+
+
+def test_reader_signature_is_unchanged() -> None:
+    assert list(inspect.signature(ReadTextArtifactTool.__call__).parameters) == [
+        "self",
+        "namespace",
+        "name",
+        "revision",
+        "start_line",
+        "max_lines",
+        "line_offset",
+    ]
 
 
 def test_read_text_artifact_numbers_lines_like_read_file(tmp_path: Path) -> None:

@@ -68,6 +68,7 @@ type Controller struct {
 	deleter  RunDeleter
 	notifier RunCancellationNotifier
 	options  Options
+	purges   *evalstore.PurgeMeter
 	wake     chan struct{}
 }
 
@@ -108,7 +109,8 @@ func New(
 	}
 	return &Controller{
 		pool: pool, runs: runs, deleter: deleter, notifier: notifier, options: options,
-		wake: make(chan struct{}, 1),
+		purges: evalstore.NewPurgeMeter(options.Logger, options.Clock.Now),
+		wake:   make(chan struct{}, 1),
 	}, nil
 }
 
@@ -319,7 +321,7 @@ func (c *Controller) waitForDrain(
 		return false, false, err
 	}
 	var blocked bool
-	err := c.pool.QueryRow(ctx, waitForDrainSQL, claim.ProjectID).Scan(&blocked)
+	err := c.pool.QueryRow(ctx, waitForDrainSQL, claim.ProjectID, claim.OwnerID).Scan(&blocked)
 	if err != nil {
 		return false, false, fmt.Errorf("inspect Project Run drain: %w", err)
 	}
@@ -372,26 +374,27 @@ func (c *Controller) deferClaim(ctx context.Context, claim projectstore.Deletion
 }
 
 // purgeProject advances the Project purge by one bounded transaction
-// (LIM-DEL-3, LIM-DEL-2). Every transaction first purges the Project's private
-// eval storage, a no-op once done, so no Artifact is removed while eval work
-// could still need it. It then deletes one batch of the Project's finding
-// proposal receipts (DEL-R61) and, once none is left, removes one ProjectScope
-// purge batch, or, when the scope is already empty, the scope and the Project
-// row. It reports whether the Project is gone.
+// (LIM-EVM-20, LIM-DEL-3, LIM-DEL-2). Every transaction first runs one pass of
+// the Project's private Eval data purge. A pass that removed anything, or
+// found more than its budget allows, commits alone, so no Artifact is removed
+// while eval work could still need it and no transaction holds two phases'
+// batches (EVM-R243). A transaction whose Eval pass found nothing left deletes
+// one batch of the Project's finding proposal receipts (DEL-R61) and, once
+// none is left, removes one ProjectScope purge batch, or, when the scope is
+// already empty, the scope and the Project row. The purge meter records the
+// Eval pass of each committed transaction. It reports whether the Project is
+// gone.
 func (c *Controller) purgeProject(ctx context.Context, claim projectstore.DeletionClaim) (bool, error) {
 	var deleted bool
+	var evalPass evalstore.PurgeProgress
 	err := persistencepostgres.InTxWithRetry(ctx, c.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		deleted = false
+		deleted, evalPass = false, evalstore.PurgeProgress{}
 		projects := projectstore.NewPostgresTxStore(tx)
 		if err := projects.LockDeletionClaim(ctx, claim); err != nil {
 			return fmt.Errorf("lock Project for Artifact purge: %w", err)
 		}
 		var runsRemain, auditsRemain bool
-		if err := tx.QueryRow(ctx, `
-SELECT EXISTS (SELECT 1 FROM workflow_runs WHERE project_id = $1),
-       EXISTS (SELECT 1 FROM audits WHERE project_id = $1)`,
-			claim.ProjectID,
-		).Scan(&runsRemain, &auditsRemain); err != nil {
+		if err := tx.QueryRow(ctx, purgeRemainsSQL, claim.ProjectID, claim.OwnerID).Scan(&runsRemain, &auditsRemain); err != nil {
 			return fmt.Errorf("verify Project Run purge: %w", err)
 		}
 		if runsRemain {
@@ -400,8 +403,13 @@ SELECT EXISTS (SELECT 1 FROM workflow_runs WHERE project_id = $1),
 		if auditsRemain {
 			return errors.New("Project still has Audits during Artifact purge")
 		}
-		if err := evalstore.NewTxStore(tx).PurgeProject(ctx, evalstore.Scope{OwnerID: claim.OwnerID, ProjectID: claim.ProjectID}); err != nil {
+		eval, err := evalstore.NewTxStore(tx).PurgeProject(ctx, evalstore.Scope{OwnerID: claim.OwnerID, ProjectID: claim.ProjectID})
+		if err != nil {
 			return err
+		}
+		evalPass = eval
+		if eval.Rows > 0 || !eval.Done {
+			return nil
 		}
 		receiptsGone, err := findingintake.PurgeProjectReceipts(ctx, tx, claim.ProjectID)
 		if err != nil {
@@ -427,6 +435,9 @@ SELECT EXISTS (SELECT 1 FROM workflow_runs WHERE project_id = $1),
 		deleted = true
 		return nil
 	})
+	if err == nil {
+		c.purges.Project(claim.ProjectID, claim.RequestedAt, evalPass)
+	}
 	return deleted, err
 }
 

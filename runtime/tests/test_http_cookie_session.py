@@ -184,12 +184,20 @@ def test_shared_cookie_document_strictness_and_exact_limits() -> None:
     size.set("sid", "x" * (MAX_COOKIE_SESSION_BYTES - overhead + 1))
     with pytest.raises(HTTPToolError):
         encode_cookies(size, None, 0)
+    # The budget counts encoded UTF-8 bytes. A cookie value must be ASCII to be
+    # sent back, but a path (never sent in a Cookie header) may be multibyte.
     remaining = MAX_COOKIE_SESSION_BYTES - overhead
-    size.set("sid", "é" * (remaining // 2) + "x" * (remaining % 2))
-    assert len(encode_cookies(size, None, 0)) == MAX_COOKIE_SESSION_BYTES
-    size.set("sid", "é" * (remaining // 2 + 1))
+    multibyte = httpx.Cookies()
+    multibyte.set("sid", "", path="/" + "é" * (remaining // 2) + "x" * (remaining % 2))
+    assert len(encode_cookies(multibyte, None, 0)) == MAX_COOKIE_SESSION_BYTES
+    multibyte = httpx.Cookies()
+    multibyte.set("sid", "", path="/" + "é" * (remaining // 2 + 1))
     with pytest.raises(HTTPToolError):
-        encode_cookies(size, None, 0)
+        encode_cookies(multibyte, None, 0)
+    # A cookie that could not be sent back is invalid on write and on read.
+    for unsendable in ("caf\u00e9", "trailing ", "a\x0bb"):
+        with pytest.raises(HTTPToolError, match="http_cookie_state_invalid"):
+            encode_cookies(httpx.Cookies({"sid": unsendable}), None, 0)
     for invalid in [
         data + b" ",  # valid whitespace but one-over bound covered separately below
     ]:
@@ -202,6 +210,9 @@ def test_shared_cookie_document_strictness_and_exact_limits() -> None:
         b'{"cookies":' + b"[" * 2000 + b"0" + b"]" * 2000 + b"}",
         exact + b" ",
         b"[]",
+        data.replace(b'"value":"target-cookie"', b'"value":"caf\\u00e9"'),
+        data.replace(b'"value":"target-cookie"', b'"value":"target-cookie "'),
+        data.replace(b'"name":"sid"', b'"name":" sid"'),
     ]:
         with pytest.raises(HTTPToolError, match="http_cookie_state_invalid"):
             decode_cookies(invalid, ORIGIN, 0)
@@ -384,6 +395,49 @@ def test_cancelled_clear_cannot_resurrect_its_committed_cookie_jar(tmp_path: Pat
         assert "cookie" not in seen[-1].headers and "authorization" not in seen[-1].headers
         assert store.writes == 2
         await close(tools)
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("proxy", [False, True])
+def test_target_cookie_that_cannot_be_sent_back_is_ignored(tmp_path: Path, proxy: bool) -> None:
+    async def scenario() -> None:
+        store = CookieArtifactStore()
+        sent: list[str | None] = []
+
+        def target(request: httpx.Request) -> httpx.Response:
+            sent.append(request.headers.get("cookie"))
+            if request.url.path == "/login":
+                return httpx.Response(200, headers={"set-cookie": "sid=good; Path=/"})
+            if request.url.path == "/set":
+                return httpx.Response(
+                    200,
+                    headers=[
+                        # UTF-8 that httpx cannot encode, replacing a good cookie.
+                        (b"set-cookie", "sid=caf\u00e9; Path=/".encode()),
+                        (b"set-cookie", b"ff=a\x0cb; Path=/"),
+                        (b"set-cookie", b"other=fine; Path=/"),
+                    ],
+                )
+            return httpx.Response(200)
+
+        tools = await tools_for(tmp_path, store, target, proxy=proxy)
+        await tools["http_request"]("https://target.example/login")
+        result = await tools["http_request"]("https://target.example/set")
+        assert result["status"] == 200
+        assert "cookie_checkpoint" not in result
+        assert (await tools["http_session_get"]())["cookie_names"] == ["other", "sid"]
+        # The next request to the origin is sent, with the cookie the bad one
+        # would have replaced.
+        assert (await tools["http_request"]("https://target.example/next"))["status"] == 200
+        assert sorted((sent[-1] or "").split("; ")) == ["other=fine", "sid=good"]
+        payload = store.current[("worker", COOKIE_BINDING)].data
+        assert b"good" in payload and b"fine" in payload
+        assert b"caf" not in payload and b'"ff"' not in payload
+        await close(tools)
+        restored = await tools_for(tmp_path, store, target, proxy=proxy)
+        assert (await restored["http_session_get"]())["cookie_names"] == ["other", "sid"]
+        await close(restored)
 
     asyncio.run(scenario())
 

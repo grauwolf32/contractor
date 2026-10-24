@@ -93,7 +93,7 @@ SELECT sum(pg_column_size(report_projection) + pg_column_size(evidence))
 	restoreSize, restoreBytes := receiptPurgeBatchSize, receiptPurgeBatchBytes
 	t.Cleanup(func() { receiptPurgeBatchSize, receiptPurgeBatchBytes = restoreSize, restoreBytes })
 	for _, step := range []struct {
-		size  int
+		size  int64
 		bytes int64
 		want  []string
 		done  bool

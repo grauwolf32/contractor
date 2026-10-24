@@ -16,6 +16,11 @@ receipt replays before revision or deletion checks. New effects recheck the
 Project fence and immutable control mode. Only native dispatch supplies a claim
 at admission. Reconciliation of accepted native/external operations requires a
 current claim; an expired holder cannot acknowledge an operation after replacement.
+Recovery steps run on `RecoverMember`, the recovery authority over one member in
+one caller-owned transaction: its first step takes the Project, experiment and
+claim locks, and each later step of the same transaction proves the live claim
+and rereads the experiment's state and deletion request in one statement
+(EVM-R246). It never outlives its transaction.
 
 `Admit` commits the member intent and outstanding count before any execution.
 Audit Project/create/start and Workflow creation have distinct immutable keys and
@@ -28,8 +33,13 @@ intent with no possible execution creation can settle without inventing a Run.
 Datasets and plans retain byte payloads with database-computed SHA-256. Only
 `Freeze` output reaches the immutable plan row, so `FrozenPlan` restores the
 stored bytes and generated digest without validating the schema again.
-`FrozenPlanMetadata` reads only plan attribution and setup for admission and
-per-member collection; `PlanResource` likewise restores immutable validated
+`FrozenPlanMetadata` reads only plan attribution and setup for admission,
+per-member collection and the selected views; `FrozenPlanView` adds the
+readiness the native freeze derived from the validated plan and stored in the
+plan row, so experiment reads never transfer the document (EVM-R242). It decodes
+that small immutable copy strictly; the service validates the response that
+carries it. Only the comparison publication, which needs the native pins, reads
+the whole document. `PlanResource` likewise restores immutable validated
 resources without repeating their schema validation. External
 registration has its own stored document digest, separate from `Plan.SHA256`,
 which preserves the attributed source plan identity used by the producer. Native
@@ -39,7 +49,11 @@ Private datasets/drafts/plans never enter indexed collection reads or ordinary
 artifact namespaces. The service must choose explicit public projections.
 
 The database freezes expected membership with a deferred completeness check and
-bounded unique ordinals. There is no independently editable public manifest.
+bounded unique ordinals. The freeze validates every member before it writes and
+inserts the matrix, then the plan resources, in statements of at most 1,000 rows
+and 4 MiB of stored bytes (LIM-EVM-18), so the projection trigger runs once per
+member statement rather than once per member (EVM-R241). There is no
+independently editable public manifest.
 Project deletion fences new work in the existing lifecycle transaction. The
 ordinary Project drain waits for unresolved intents and exact Audit workspaces.
 Deleting a child workspace cancels dispatch while retaining its parent experiment.
@@ -75,6 +89,10 @@ pins, selection revision) keeps the current generation; a new generation deletes
 the superseded ones, which `contractor_eval_view_immutable` permits only for
 generations the queue no longer names. Selected-page reads use keyset pagination
 over the current generation and never scan historical executions/artifacts.
+Each page is one statement: the pair row carries each side's member ordinal and
+filter fields next to its document, written by the same publication insert, so
+the filtered count, the sort and the cursor never decode a document, and only
+the page's items transfer one (EVM-R245).
 Histograms retain exact cohort percentiles; progress reads choose real
 observations in at most 200 buckets.
 

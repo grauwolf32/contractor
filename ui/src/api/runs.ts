@@ -1,4 +1,4 @@
-import { RESOURCE_ID, schemaLimit } from "./contract";
+import { RESOURCE_ID, schemaLimit, stringRule } from "./contract";
 import { isStateIn, TERMINAL_RUN_STATES } from "./states";
 import {
   ARTIFACT_NAME_PATTERN,
@@ -241,19 +241,27 @@ export async function getRunRepeatDraft(
 }
 
 /**
- * The longest cancellation reason the Server accepts (CancelRunRequest), in
- * code points as JSON Schema counts them.
+ * The cancellation reason the Server accepts (CancelRunRequest): after
+ * trimming, 1 to x-max-utf8-bytes UTF-8 bytes, so text outside ASCII fits
+ * fewer characters than its maxLength.
  */
-export const CANCELLATION_REASON_LIMIT = schemaLimit(
+const CANCELLATION_REASON = stringRule(
   "CancelRunRequest",
-  "maxLength",
   "properties",
   "reason",
 );
 
-/** The length of a cancellation reason as the Server counts it. */
-export function cancellationReasonLength(reason: string): number {
-  return [...reason].length;
+/** The cancellation reason's bound in UTF-8 bytes. */
+export const CANCELLATION_REASON_BYTES = schemaLimit(
+  "CancelRunRequest",
+  "x-max-utf8-bytes",
+  "properties",
+  "reason",
+);
+
+/** Whether a trimmed cancellation reason is one the Server accepts. */
+export function validCancellationReason(reason: string): boolean {
+  return reason !== "" && CANCELLATION_REASON.test(reason);
 }
 
 export async function cancelRun(
@@ -263,10 +271,9 @@ export async function cancelRun(
 ): Promise<CancelRunResponse> {
   requireRunID(runId);
   const normalizedReason = reason.trim();
-  const length = cancellationReasonLength(normalizedReason);
-  if (length === 0 || length > CANCELLATION_REASON_LIMIT) {
+  if (!validCancellationReason(normalizedReason)) {
     throw new TypeError(
-      `Cancellation reason must contain 1–${CANCELLATION_REASON_LIMIT} characters`,
+      `Cancellation reason must contain 1–${CANCELLATION_REASON_BYTES} bytes`,
     );
   }
   const result = await api.request((client) =>

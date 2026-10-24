@@ -136,6 +136,55 @@ def test_failures_are_classified_bounded_and_content_free(
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize(
+    "failure",
+    [
+        lambda request: httpx.ConnectError(f"refused {SERVER_DETAIL}", request=request),
+        lambda request: httpx.ReadTimeout(f"timed out {SERVER_DETAIL}", request=request),
+        lambda _request: OSError(f"socket failure {SERVER_DETAIL}"),
+        lambda _request: TypeError(f"implementation failure {SERVER_DETAIL}"),
+        lambda _request: AttributeError(f"implementation failure {SERVER_DETAIL}"),
+    ],
+    ids=["connect", "read-timeout", "socket", "type-error", "attribute-error"],
+)
+def test_transport_family_is_classified_and_implementation_failures_keep_their_type(
+    failure: Callable[[httpx.Request], Exception],
+) -> None:
+    async def scenario() -> None:
+        injected: list[Exception] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            error = failure(request)
+            injected.append(error)
+            raise error
+
+        adapter = CaidoGraphQLAdapter(
+            adapter_context(),
+            caido_settings(token=CAIDO_TOKEN),
+            transport=httpx.MockTransport(handler),
+        )
+        handle = adapter.handles.caido_graphql
+        with pytest.raises(Exception) as raised:
+            await handle.execute("scopes")
+        if isinstance(injected[0], (httpx.HTTPError, OSError)):
+            # Connection, timeout and socket failures stay retryable transport
+            # failures without echoing their text.
+            assert isinstance(raised.value, CaidoClientError)
+            assert raised.value.code == "caido_request_failed"
+            assert raised.value.retryable is True
+            assert SERVER_DETAIL not in f"{raised.value!s} {raised.value!r}"
+        else:
+            # An implementation failure is not reclassified as a transport fault.
+            assert raised.value is injected[0]
+        assert adapter.metrics.operations == 1
+        assert adapter.metrics.failed_operations == 1
+        assert adapter.metrics.last_error_code == "request_failed"
+        assert SERVER_DETAIL not in repr(adapter.metrics)
+        await adapter.close()
+
+    asyncio.run(scenario())
+
+
 def test_variable_bounds_and_close_failure_detach_before_error() -> None:
     async def scenario() -> None:
         transport = FailingCloseTransport()

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 import unicodedata
 from datetime import datetime
@@ -161,7 +162,57 @@ def _require_text(field: str, value: str, *, max_bytes: int | None = None) -> st
     return value
 
 
+# Tool argument numbers keep only a small decimal exponent (LIM-OBS-16): the
+# Server stores a number as its full decimal expansion. -7 keeps probabilities
+# to one in ten million and float32 epsilon; 19 keeps every 64-bit integer.
+MIN_ARGUMENT_NUMBER_EXPONENT = -7
+MAX_ARGUMENT_NUMBER_EXPONENT = 19
+# The one marker that replaces a number a summary cannot keep, NaN and
+# infinities included; the Server writes the same marker.
+ARGUMENT_NUMBER_MARKER = "[NUMBER_OUT_OF_RANGE]"
+
+
+def argument_number_in_range(value: int | float) -> bool:
+    """Whether a tool argument number stays within LIM-OBS-16 as JSON writes it.
+
+    A number is kept when it is zero or the decimal exponent of its leading
+    digit lies between -7 and 19. The Server applies the same rule to the
+    literal it receives, which for a float is its repr; an integer is written
+    without an exponent, so its magnitude alone decides.
+    """
+
+    if isinstance(value, int):
+        return abs(value) < 10 ** (MAX_ARGUMENT_NUMBER_EXPONENT + 1)
+    if not math.isfinite(value):
+        return False
+    mantissa, _, exponent = repr(value).lower().partition("e")
+    shift = int(exponent) if exponent else 0
+    if not MIN_ARGUMENT_NUMBER_EXPONENT <= shift <= MAX_ARGUMENT_NUMBER_EXPONENT:
+        return False
+    integer, _, fraction = mantissa.lstrip("-").partition(".")
+    if integer.strip("0"):
+        lead = len(integer.lstrip("0")) - 1
+    elif fraction.strip("0"):
+        lead = -(len(fraction) - len(fraction.lstrip("0")) + 1)
+    else:
+        return True
+    return MIN_ARGUMENT_NUMBER_EXPONENT <= lead + shift <= MAX_ARGUMENT_NUMBER_EXPONENT
+
+
+def _require_argument_numbers(value: object) -> None:
+    if isinstance(value, int | float) and not isinstance(value, bool):
+        if not argument_number_in_range(value):
+            raise ValueError("tool argument numbers must stay within their range")
+    elif isinstance(value, dict):
+        for item in value.values():
+            _require_argument_numbers(item)
+    elif isinstance(value, list):
+        for item in value:
+            _require_argument_numbers(item)
+
+
 def _require_tool_arguments(value: dict[str, object]) -> None:
+    _require_argument_numbers(value)
     try:
         size = json_byte_size(value)
     except (TypeError, ValueError) as error:

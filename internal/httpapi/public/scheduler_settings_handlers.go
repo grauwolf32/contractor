@@ -1,7 +1,6 @@
 package public
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 
@@ -15,9 +14,6 @@ import (
 
 func (h *operationsHandlers) getSchedulerSettings(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if rejectHead(w, r) {
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		handleError(w, err)
 		return
@@ -36,8 +32,7 @@ func (h *operationsHandlers) putSchedulerSettings(w http.ResponseWriter, r *http
 		handleError(w, err)
 		return
 	}
-	mediaType, err := requestMediaType(r)
-	if err != nil || mediaType != "application/json" {
+	if requireJSONMediaType(r) != nil {
 		writeError(w, apierror.UnsupportedMediaType, "")
 		return
 	}
@@ -96,10 +91,7 @@ func (h *operationsHandlers) writeSchedulerSettings(w http.ResponseWriter, setti
 }
 
 func schedulerSettingsPrecondition(r *http.Request) (uint64, error) {
-	if len(r.Header.Values("If-None-Match")) != 0 || len(r.Header.Values("If-Match")) != 1 {
-		return 0, fmt.Errorf("%w: Scheduler settings replacement requires one If-Match", errInvalidRequest)
-	}
-	return parseRuntimeRevisionETag(r.Header.Values("If-Match")[0])
+	return requiredRevision(r, "Scheduler settings replacement")
 }
 
 func (h *operationsHandlers) auditSchedulerSettingsMutation(

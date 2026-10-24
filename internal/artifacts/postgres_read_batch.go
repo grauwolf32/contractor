@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/jackc/pgx/v5"
 )
 
-// MaxExactReadBatchSize bounds the number of references in one metadata query.
-// The combined payload is independently bounded by MaxPayloadSize.
+// MaxExactReadBatchSize bounds the number of references in one metadata query
+// (LIM-ART-8). The combined payload of ReadExactBatch is independently
+// bounded by MaxPayloadSize; DescribeExact reads no payload.
 const MaxExactReadBatchSize = 32
 
 // ExactReadRequest carries a scope selected by the trusted caller, independently
@@ -106,4 +108,65 @@ func scanExactReadBatch(rows pgx.Rows, requests []ExactReadRequest) ([]ReadResul
 		return nil, nil, ErrArtifactNotFound
 	}
 	return results, objects, nil
+}
+
+// DescribeExact returns the exact descriptor of each of refs, at most
+// MaxExactReadBatchSize exact revisions of scope (ErrPayloadTooLarge
+// otherwise, as for ReadExactBatch), in request order, from one statement
+// that reads no payload. A missing reference is ErrArtifactNotFound
+// for the whole batch, and a stored descriptor that fails exact-artifact
+// validation (media type or size) is ErrArtifactIntegrity.
+func (r *PostgresRepository) DescribeExact(
+	ctx context.Context, scope Scope, refs []ArtifactRef,
+) ([]contracts.ExactArtifact, error) {
+	if len(refs) > MaxExactReadBatchSize {
+		return nil, ErrPayloadTooLarge
+	}
+	if len(refs) == 0 {
+		return []contracts.ExactArtifact{}, nil
+	}
+	if err := validateScope(scope); err != nil {
+		return nil, err
+	}
+	namespaces, names, revisions := make([]string, len(refs)), make([]string, len(refs)), make([]string, len(refs))
+	for index, ref := range refs {
+		if err := validateRef(ref); err != nil {
+			return nil, err
+		}
+		if ref.Revision == nil {
+			return nil, ErrExactRevisionRequired
+		}
+		namespaces[index], names[index], revisions[index] = ref.Namespace, ref.Name, *ref.Revision
+	}
+	rows, err := r.db.Query(ctx, describeExactSQL, scope.kind, scope.id, namespaces, names, revisions)
+	if err != nil {
+		return nil, fmt.Errorf("describe exact artifact batch: %w", err)
+	}
+	defer rows.Close()
+	result := make([]contracts.ExactArtifact, 0, len(refs))
+	for rows.Next() {
+		var ordinal int64
+		var described contracts.ExactArtifact
+		if err := rows.Scan(&ordinal, &described.MediaType, &described.SizeBytes, &described.Digest); err != nil {
+			return nil, fmt.Errorf("scan exact artifact description: %w", err)
+		}
+		if ordinal < 1 || ordinal > int64(len(refs)) {
+			return nil, ErrArtifactIntegrity
+		}
+		if ordinal != int64(len(result)+1) {
+			return nil, ErrArtifactNotFound
+		}
+		described.Ref = refs[len(result)].Clone()
+		if described.Validate() != nil {
+			return nil, ErrArtifactIntegrity
+		}
+		result = append(result, described)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate exact artifact descriptions: %w", err)
+	}
+	if len(result) != len(refs) {
+		return nil, ErrArtifactNotFound
+	}
+	return result, nil
 }

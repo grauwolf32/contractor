@@ -8,10 +8,12 @@ from typing import Any
 
 import pytest
 
+import contractor_runtime.toolsets.code_analysis.tools as code_analysis
 from contractor_runtime.contracts import RuntimeSettings
 from contractor_runtime.projectfs.storage import ManagedWorkspaceTree, WorkspaceSnapshot
 from contractor_runtime.telemetry.metrics import MetricsState
 from contractor_runtime.toolsets.code_analysis.ids import (
+    MAX_SYMBOL_ID_BYTES,
     decode_symbol_id,
     encode_symbol_id,
     symbol_id_matches_upstream,
@@ -40,6 +42,54 @@ def test_symbol_id_is_allocation_local_and_bound_to_complete_upstream_id() -> No
     assert symbol_id_matches_upstream(key, decoded, "module:Other.method") is False
     with pytest.raises(ValueError):
         decode_symbol_id(bytes(reversed(key)), symbol_id)
+
+
+SYMBOL_ID_OPERATIONS = {
+    "find_callers": lambda session, value: session.find_relationships(
+        "find_callers", value, "", 10
+    ),
+    "find_callees": lambda session, value: session.find_relationships(
+        "find_callees", value, "", 10
+    ),
+    "paths_between-source": lambda session, value: session.paths_between(value, "cas1", 5, 5),
+    "paths_between-target": lambda session, value: session.paths_between("cas1", value, 5, 5),
+    "entrypoint_paths_to": lambda session, value: session.entrypoint_paths_to(value, 5, 5),
+}
+
+
+@pytest.mark.parametrize("operation", sorted(SYMBOL_ID_OPERATIONS))
+def test_every_symbol_id_operation_applies_the_same_shape_rule_before_the_snapshot(
+    tmp_path: Path,
+    operation: str,
+) -> None:
+    longest = "c" * MAX_SYMBOL_ID_BYTES
+    rejected_shapes: list[Any] = ["", "cas1.é", longest + "c", None, 7]
+
+    async def scenario() -> None:
+        reader = CountingReader({"app.py": "def target():\n    return 1\n"})
+        session = code_analysis._CodeAnalysisSession(reader, graph_scratch=tmp_path)
+        call = SYMBOL_ID_OPERATIONS[operation]
+        for value in rejected_shapes:
+            with pytest.raises(CodeAnalysisError) as rejected:
+                await call(session, value)
+            assert rejected.value.code == "code_analysis_symbol_not_found"
+            assert rejected.value.retryable is False
+        # The shape check rejects before the call reads a workspace snapshot.
+        assert reader.snapshots == 0
+        # The longest ASCII value passes the shape check; the graph host then
+        # rejects the forged token with the same code, without a child.
+        with pytest.raises(CodeAnalysisError) as forged:
+            await call(session, longest)
+        assert forged.value.code == "code_analysis_symbol_not_found"
+        assert reader.snapshots == 1
+        await session.close()
+        assert list(tmp_path.iterdir()) == []
+
+    asyncio.run(scenario())
+    key = bytes(range(32))
+    for value in rejected_shapes:
+        with pytest.raises(ValueError, match="invalid symbol ID"):
+            decode_symbol_id(key, value)
 
 
 def test_c_header_definition_is_mirrored_only_with_an_activating_source(tmp_path: Path) -> None:
@@ -443,7 +493,7 @@ def test_graph_results_are_bounded_relative_and_metrics_are_content_free(
         assert query_canary not in retained
         assert str(tmp_path) not in retained
         assert "cas1." not in retained
-        assert metrics.tool_calls[-1].arguments == {}
+        assert metrics.tool_calls[-1].arguments is None
         await _close(tools)
         assert list(scratch.iterdir()) == []
 
@@ -696,6 +746,16 @@ class MutableReader:
     def write(self, path: str, text: str) -> None:
         self._tree.directories.update(_directories({path: text}))
         self._tree.text_files[path] = text
+
+
+class CountingReader(MutableReader):
+    def __init__(self, files: dict[str, str]) -> None:
+        super().__init__(files)
+        self.snapshots = 0
+
+    async def snapshot(self) -> WorkspaceSnapshot:
+        self.snapshots += 1
+        return await super().snapshot()
 
 
 async def _tools(

@@ -8,6 +8,11 @@ import (
 	"github.com/grauwolf32/contractor/internal/credentials"
 )
 
+// maximumGitKeyBodyBytes bounds the JSON body that replaces the Git SSH key
+// (LIM-GIT-21): room for the escaped form of the largest key input
+// (LIM-GIT-3).
+const maximumGitKeyBodyBytes int64 = 64 << 10
+
 type GitKeySettings interface {
 	Metadata(context.Context, string) (credentials.GitKeyMetadata, error)
 	Replace(context.Context, string, []byte) (credentials.GitKeyMetadata, error)
@@ -24,7 +29,7 @@ type gitKeyHandlers struct {
 }
 
 func (h *gitKeyHandlers) getGitKey(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) || !acceptGitKeyRequest(w, r) {
+	if !acceptGitKeyRequest(w, r) {
 		return
 	}
 	m, err := h.GitKeys.Metadata(r.Context(), principalUserID(r.Context()))
@@ -39,15 +44,14 @@ func (h *gitKeyHandlers) replaceGitKey(w http.ResponseWriter, r *http.Request) {
 	if !acceptGitKeyRequest(w, r) {
 		return
 	}
-	mt, err := requestMediaType(r)
-	if err != nil || mt != "application/json" {
-		handleError(w, errInvalidRequest)
+	if err := requireJSONMediaType(r); err != nil {
+		handleError(w, err)
 		return
 	}
 	var body struct {
 		PrivateKey string `json:"privateKey"`
 	}
-	if err := decodeJSONBounded(w, r, &body, 64<<10); err != nil {
+	if err := decodeJSONBounded(w, r, &body, maximumGitKeyBodyBytes); err != nil {
 		if !errors.Is(err, errRequestTooLarge) {
 			err = credentials.ErrGitKeyInvalid
 		}

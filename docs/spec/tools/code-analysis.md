@@ -325,6 +325,24 @@ its derived state.
 do not retain the workspace lock while parsing: the immutable snapshot is their
 consistency boundary.
 
+Rationale: one session owns one parser set, one compact cache, one graph child
+and one cursor key for the current digest. Serialized calls each see one
+snapshot, a digest change invalidates that state without racing an in-flight
+parse or build, and close (CAN-R84, CAN-R87) waits for the current owner
+instead of tearing state down beneath it. The wait is bounded by the call that
+holds the session: a shallow scan stops at its cooperative budget
+(LIM-CAN-11) after at most one parse of a file within LIM-CAN-5, and graph
+work stops at its build or query deadline (LIM-CAN-13, LIM-CAN-12), after
+which the child is killed (CAN-R83). Cancellation joins the off-loop thread
+before the call releases the session (CAN-R86); a thread that never returns
+keeps the slot fenced under the finite release cleanup deadline
+([WSP-R169](workspace.md), [WSP-R170](workspace.md)) instead of releasing it.
+Tool-call durations and graph build counts in Worker metrics (CAN-R141) show
+how long calls held the session. Concurrent calls within one session are
+reconsidered only on a reproducible case in which close or a queued call waits
+longer than these bounds, or a workload that needs concurrent calls in one
+allocation.
+
 **CAN-R32.** A cursor is bound to its operation, normalized
 arguments and snapshot digest. Reusing it after an edit fails with
 `code_analysis_workspace_changed` rather than combining two trees or pages from
@@ -395,6 +413,18 @@ supported source. Its sorted unique `reasons` are drawn from `file_limit`,
 `byte_limit`, `symbol_limit`, `symbol_name_limit`, `deadline` and
 `parse_errors`.
 
+**CAN-R152.** Shallow `parseErrors` counts analyzed files whose Tree-sitter
+parse result contains an error or missing node; only a parse result reports
+malformed source. Managed text is valid UTF-8 and Tree-sitter recovers from
+any syntax error, so acquiring a parser and extracting definition names raise
+no exception for any source. An exception from either is a Runtime failure,
+such as a defect or a parser that became unusable after the startup probe
+(CAN-R47): it is never counted as source coverage or cached, and it fails the
+call through the Worker's generic tool-error boundary as the non-retryable
+`tool_call_failed` that names only the tool and the exception class
+([OBS-R32](../platform/observability.md)). Parser availability is classified
+only by that probe.
+
 **CAN-R38.** Binary and unsupported-language counts describe
 intentional coverage boundaries and do not alone make the supported-language
 result incomplete.
@@ -462,6 +492,9 @@ snapshot-wide rule picks its grammar for shallow analysis, graph admission and
 `taint-annotations@1`: C++ when the snapshot holds at least as many unambiguous
 C++ files (`.cpp`, `.cc`, `.cxx`, `.hpp`, `.hh`, `.hxx`) as C sources (`.c`),
 otherwise C. A C project with a vendored C++ file therefore keeps C headers.
+The voting extensions are exactly those the shallow mapping (CAN-R46) parses
+with the C and C++ grammars, so every file that votes is analyzed with its
+grammar.
 
 Rationale: a tie favours C++, whose grammar parses nearly every C header, while
 the C grammar rejects every class, namespace, template and reference.
@@ -1106,6 +1139,8 @@ Error codes, with their meaning and retryability, are registered in
 **CAN-R135.** The model-visible error vocabulary of `code-analysis@1`
 is [ERR-R11](../platform/errors.md); this document owns the conditions that
 raise each code (CAN-R32, CAN-R42, CAN-R74, CAN-R83, CAN-R136 to CAN-R138).
+An exception outside that vocabulary is a Runtime failure that the generic
+tool-error boundary reports (CAN-R152).
 
 **CAN-R136.** Invalid input, stale or not-found symbol and deterministic
 capacity failures are non-retryable for the same request. Workspace change is

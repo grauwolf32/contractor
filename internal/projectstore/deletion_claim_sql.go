@@ -5,8 +5,9 @@ package projectstore
 // claimProjectDeletionSQL leases the oldest 'deleting' project whose deletion
 // claim is absent or expired, using FOR UPDATE SKIP LOCKED so controllers do
 // not contend. It stores claim id $1 with an expiry of $2 microseconds, or $3
-// during the purge phases $4/$5, and returns project_id, owner_id and
-// deletion_phase. Used by PostgresStore.ClaimDeletion.
+// during the purge phases $4/$5, and returns project_id, owner_id,
+// deletion_phase and deletion_requested_at. Used by
+// PostgresStore.ClaimDeletion.
 var claimProjectDeletionSQL = `
 WITH candidate AS (
     SELECT project_id
@@ -25,4 +26,4 @@ SET deletion_claim_id = $1,
     END * interval '1 microsecond')
 FROM candidate
 WHERE project.project_id = candidate.project_id
-RETURNING project.project_id, project.owner_id, project.deletion_phase`
+RETURNING project.project_id, project.owner_id, project.deletion_phase, project.deletion_requested_at`

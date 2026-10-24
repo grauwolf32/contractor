@@ -73,7 +73,7 @@ func TestPostgresCancellationCleanupRetainsRunClaim(t *testing.T) {
 			done := make(chan error, 1)
 			go func() {
 				defer close(done)
-				_, err := s.progressOneClaim(ctx, resolved.LaneClassModel)
+				_, err := s.progressOneClaim(ctx, resolved.LaneClassModel, nil)
 				done <- err
 			}()
 			defer func() {
@@ -132,12 +132,20 @@ func (s *cancellationClaimStore) ListStageExecutions(ctx context.Context, runID 
 		<-ctx.Done()
 		return nil, ctx.Err()
 	}
+	return s.PostgresStore.ListStageExecutions(ctx, runID)
+}
+
+// ListStageExecutionsWithUnreleasedAllocations is the first read of the
+// cleanup of a cancelling Run without an active Stage (SCH-R179).
+func (s *cancellationClaimStore) ListStageExecutionsWithUnreleasedAllocations(
+	ctx context.Context, runID string,
+) ([]runstore.StageExecution, error) {
 	s.cleaning <- runID
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	case <-s.finish:
-		return s.PostgresStore.ListStageExecutions(ctx, runID)
+		return s.PostgresStore.ListStageExecutionsWithUnreleasedAllocations(ctx, runID)
 	}
 }
 

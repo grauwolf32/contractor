@@ -12,6 +12,7 @@ from contractor_runtime.toolsets.audit_results.contracts import (
     AuditInvocationOwner,
     AuditTrustedInputs,
 )
+from contractor_runtime.toolsets.audit_results.encoding import CanonicalAuditPackageEncoder
 from contractor_runtime.toolsets.audit_results.v2 import SubmitCheckResultTool
 
 CONTEXT = SimpleNamespace(invocation_id="invocation-1")
@@ -30,7 +31,9 @@ def tools():
     owner = AuditInvocationOwner(
         "allocation-1", CONTEXT.invocation_id, digest(task), ("check-authz",)
     )
-    collector = InvocationAuditCollector(AuditTrustedInputs(owner, task, execution))
+    collector = InvocationAuditCollector(
+        AuditTrustedInputs(owner, task, execution), CanonicalAuditPackageEncoder()
+    )
     return SubmitCheckResultTool(collector, metrics), collector, metrics
 
 

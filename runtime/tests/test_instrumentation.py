@@ -9,7 +9,13 @@ from typing import Any
 import pytest
 
 from contractor_runtime.adapters import RuntimeSpan, TelemetryAttribute
-from contractor_runtime.worker.instrumentation import WorkerInstrumentationPlugin
+from contractor_runtime.core.tool_metrics import RecordedToolCall
+from contractor_runtime.telemetry.invocations import InvocationMetricsReducer
+from contractor_runtime.telemetry.metrics import MetricsState
+from contractor_runtime.worker.instrumentation import (
+    WorkerInstrumentationPlugin,
+    span_error_type,
+)
 from contractor_runtime.worker.state import WorkerStateStore
 
 SECRET = "instrumentation-secret-canary"
@@ -334,6 +340,82 @@ def test_plugin_correlates_every_callback_path_without_double_counting(
     asyncio.run(scenario())
 
 
+class UnclassifiedRetryable(RuntimeError):
+    retryable = True
+
+
+class TextCode(RuntimeError):
+    code = "provider said no"
+
+
+class Classified(RuntimeError):
+    code = "classified_failure"
+    retryable = False
+
+
+@pytest.mark.parametrize(
+    ("error", "code", "retryable"),
+    [
+        (TypeError(f"defect {SECRET}"), "tool_call_failed", False),
+        (UnclassifiedRetryable(f"defect {SECRET}"), "tool_call_failed", True),
+        (TextCode(f"defect {SECRET}"), "tool_call_failed", False),
+        (Classified(f"defect {SECRET}"), "classified_failure", False),
+    ],
+    ids=["unclassified", "retryable-without-code", "non-identifier-code", "classified"],
+)
+def test_raised_tool_exception_is_a_bounded_failed_tool_result(
+    error: Exception, code: str, retryable: bool
+) -> None:
+    async def scenario() -> None:
+        state = WorkerStateStore()
+        plugin = WorkerInstrumentationPlugin(
+            state=state,
+            budget=lambda: None,
+            instrumentation=RecordingInstrumentation(),
+            model_alias="model",
+            observe_artifacts=lambda _owner, _cursor: None,
+        )
+        context = FakeContext("worker-raised-tool")
+        plugin.prepare_invocation(invocation_id=context.invocation_id, subtask_id="1")
+        await plugin.before_run_callback(invocation_context=context)
+        tool = FakeTool("probe", FakeOwner())
+        tool_context = FakeContext(context.invocation_id)
+        assert (
+            await plugin.before_tool_callback(
+                tool=tool, tool_args={"body": SOURCE}, tool_context=tool_context
+            )
+            is None
+        )
+        with pytest.raises(type(error)), RecordedToolCall(state.metrics, "probe", {}):
+            raise error
+
+        response = await plugin.on_tool_error_callback(
+            tool=tool, tool_args={"body": SOURCE}, tool_context=tool_context, error=error
+        )
+
+        class_name = type(error).__name__
+        assert response == {
+            "ok": False,
+            "error": {
+                "code": code,
+                "message": f"probe failed ({class_name})",
+                "retryable": retryable,
+            },
+        }
+        report = state.metrics.build_report(report_id="worker-raised-tool", duration_ms=1)
+        assert len(report.tool_calls) == 1
+        recorded = report.tool_calls[0].error
+        assert recorded is not None
+        assert (recorded.code, recorded.message, recorded.retryable) == (
+            code,
+            f"Tool probe failed ({class_name})",
+            retryable,
+        )
+        assert SECRET not in json.dumps(response) + report.model_dump_json()
+
+    asyncio.run(scenario())
+
+
 def test_plugin_close_records_pending_tool_calls_as_cancelled() -> None:
     async def scenario() -> None:
         state = WorkerStateStore()
@@ -348,11 +430,16 @@ def test_plugin_close_records_pending_tool_calls_as_cancelled() -> None:
         context = FakeContext("worker-close")
         plugin.prepare_invocation(invocation_id=context.invocation_id, subtask_id="1")
         await plugin.before_run_callback(invocation_context=context)
-        for name in ("pending_probe", "self_recorded_probe"):
+        # The plugin keys a pending call by its live tool context, as ADK keeps
+        # it alive for the whole call; a freed context could reuse an id.
+        tool_contexts = [FakeContext(context.invocation_id) for _ in range(2)]
+        for name, tool_context in zip(
+            ("pending_probe", "self_recorded_probe"), tool_contexts, strict=True
+        ):
             pending = await plugin.before_tool_callback(
                 tool=FakeTool(name, FakeOwner()),
                 tool_args={"body": SOURCE},
-                tool_context=FakeContext(context.invocation_id),
+                tool_context=tool_context,
             )
             assert pending is None
         # A toolset that records its own cancellation is not counted twice.
@@ -417,3 +504,51 @@ def test_plugin_retains_only_latest_sequential_invocation() -> None:
         assert await state.encoded_snapshot_size() <= 4 * 1024 * 1024
 
     asyncio.run(scenario())
+
+
+class ProviderTyped(RuntimeError):
+    def __init__(self, provider_error_type: object) -> None:
+        super().__init__(f"provider failure {SECRET}")
+        self.provider_error_type = provider_error_type
+
+
+@pytest.mark.parametrize(
+    ("error", "expected"),
+    [
+        (ProviderTyped("RateLimitError"), "RateLimitError"),
+        (ProviderTyped("a" * 128), "a" * 128),
+        (ProviderTyped("a" * 129), "ProviderTyped"),
+        (ProviderTyped(f"provider said {SECRET}"), "ProviderTyped"),
+        (ProviderTyped(".leading-dot"), "ProviderTyped"),
+        (ProviderTyped(429), "ProviderTyped"),
+        (TimeoutError(SECRET), "TimeoutError"),
+    ],
+    ids=["safe", "longest", "too-long", "text", "leading-dot", "not-text", "no-provider-type"],
+)
+def test_span_error_type_admits_only_safe_provider_identifiers(
+    error: Exception, expected: str
+) -> None:
+    assert span_error_type(error) == expected
+
+
+@pytest.mark.parametrize(
+    ("name", "identifier"),
+    [
+        ("read_source_file", "read_source_file"),
+        ("Read-File.v2", "read_file_v2"),
+        ("  __Mixed Case__  ", "mixed_case"),
+        ("x" * 80, "x" * 64),
+        ("!!!", "unknown"),
+    ],
+)
+def test_invocation_and_allocation_metrics_key_a_tool_by_one_identifier(
+    name: str, identifier: str
+) -> None:
+    invocation = InvocationMetricsReducer()
+    invocation.record_tool_call(name, failed=False)
+    allocation = MetricsState()
+    allocation.record_tool_call(name, arguments={})
+    report = allocation.build_report(report_id="worker-identifiers", duration_ms=1)
+
+    assert list(invocation.snapshot()["tools"]) == [identifier]
+    assert list(report.metrics.tools) == [identifier]

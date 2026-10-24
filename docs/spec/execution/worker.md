@@ -255,6 +255,16 @@ instructions, the exact opaque `subtask_id`, immutable string parameters and
 named exact input ArtifactRefs, and its explicitly selected tools and skills.
 It sees no Contractor result schema or lifecycle envelope.
 
+**WRK-R166.** Every ADK agent that Runtime Agent constructs (the main
+Worker, the result finalizer and the terminal summarizer) receives its
+instruction through an instruction provider that returns the exact text, so
+ADK never applies its session-State or artifact templating to it. A `{name}`
+sequence therefore neither fails the invocation before the first model call
+nor takes a value from ADK State, such as the `contractor` subtree
+(WRK-R105). Authored instruction text keeps its braces
+([AgentTemplates](../configuration/agent-templates.md), TPL-R114 and
+TPL-R51).
+
 How the semantic task is rendered for the Worker model, and which transport,
 allocation and lifecycle facts the rendered task never contains, is owned by
 [Planners](planners.md).
@@ -272,6 +282,29 @@ placed in the Worker model prompt.
 **WRK-R158.** Audit completion uses that absolute deadline for the whole
 invocation, including reminders, model recovery and publication; it does not
 turn `requestTimeoutSeconds` into a whole-invocation cap.
+
+**WRK-R167.** An ordinary ADK invocation applies the same absolute deadline to
+its whole logical invocation: model and tool execution, model recovery waits,
+the result finalizer and the terminal summarizer. Runtime converts it to a
+monotonic deadline once, at invocation start. A request whose deadline has
+already passed starts no model or tool call and adds nothing to the session's
+conversation. When the deadline passes, Runtime cancels the work in flight and joins
+it, starts no further model, tool, finalizer or summarizer call, and returns
+the retryable `worker_timeout` failure; it does not depend on the Server's
+best-effort A2A cancellation. Externally requested cancellation is never
+reported as `worker_timeout`, a sandbox failure keeps its own code, and the
+timeout of a nested operation, such as the Gateway attempt series (WRK-R13,
+WRK-R157), keeps that operation's failure. A summarizer call cut off by the
+deadline, and a summarization request the deadline overtakes before that call
+starts, are recorded with the `cancelled` cause (WRK-R107, WRK-R155).
+
+**WRK-R168.** The deadline bounds the semantic work of WRK-R158 and WRK-R167,
+not what follows its outcome. Pre-terminal workspace auto-export
+([WSP-R143](../tools/workspace.md)) keeps the request timeouts of its writes,
+and Worker State finalization and session release run after an expired
+deadline under their own bounded, cancellation-shielded cleanup budget
+(FAIL-WRK-4). A release that exceeds that budget fences the Worker exactly as
+it does without a deadline.
 
 How the Audit strategy converts and applies the deadline is owned by
 [Audit Worker completion](../audits/worker-completion.md).
@@ -908,7 +941,12 @@ history. Allocation-wide metrics continue across sequential invocations.
 provider prompt-token count in invocation metrics and a required closed
 summarizer section. The section is `disabled` when the pinned AgentTemplate has
 no summarizer; otherwise it moves monotonically through
-`not_requested -> requested -> succeeded|failed`.
+`not_requested -> requested -> succeeded|failed`. No completed invocation
+keeps a `requested` section: when an invocation ends after the request and
+before the summarizer records its outcome, for example through its deadline,
+cancellation or a sandbox failure, completing it closes the section as
+`failed` with the `cancelled` cause and no summarizer usage, and the summarizer
+aggregate (WRK-R155) counts that cancelled attempt.
 
 **WRK-R108.** The summarizer section retains only the normal-loop
 state revision that caused the request, bounded one-call numeric summarizer
@@ -920,6 +958,17 @@ summary prompt or result.
 **WRK-R160.** Snapshot reads take an immutable deep copy under the same
 lock as State mutations; JSON encoding happens after the lock is released, so
 a large read cannot block tool callbacks.
+
+**WRK-R169.** A State revision does not serialize retained metric detail
+again. The allocation metrics reducer serializes each tool-call record and
+error once, when it admits it, and drops that projection when overflow removes
+the record (LIM-OBS-4, LIM-OBS-5); a revision without a metric mutation
+serializes no record. The reducer and the canonical State share these
+projections read-only: a mutation copies only the invocation sections it may
+change, admission (WRK-R101) replaces rather than edits a value it trims, and
+every snapshot that leaves the store remains an independent deep copy
+(WRK-R160). Copying the retained references stays linear in the retained
+detail.
 
 **WRK-R161.** Counters saturate and detail admission stops at the declared
 bounds rather than evicting facts and changing earlier ordering.
@@ -1141,7 +1190,9 @@ endpoints.
 (LIM-WRK-20). Immutable task data is retained first; the newest
 complete event groups that fit are retained next, preserving their original
 order, and a deterministic `transcriptTruncated` marker reports any omission.
-Tool payloads remain subject to their existing model-visible bounds.
+Tool payloads remain subject to their existing model-visible bounds. Runtime
+records the projection only for a Worker whose pinned AgentTemplate has a
+summarizer; without one it records no transcript (WRK-R132).
 
 **WRK-R148.** The 512 KiB projection is the only local
 document-size admission; it does not establish that the complete request fits
@@ -1306,6 +1357,7 @@ Errors ([registry](../platform/errors.md)):
 - `worker_gateway_unavailable`, `worker_gateway_invalid_request`
   (WRK-R19, WRK-R21);
 - `worker_budget_exhausted` (WRK-R25);
+- `worker_timeout` (WRK-R158, WRK-R167);
 - result failures: `worker_result_missing`, `worker_output_limit_exceeded`,
   `worker_result_invalid`, `worker_result_subtask_mismatch`,
   `worker_result_finalizer_mismatch`, `worker_result_finalizer_failed`,
@@ -1431,7 +1483,8 @@ These properties follow from the cited requirements, which are authoritative.
   typed lifecycle commands; and shared mutable Planner and Worker information
   belongs in MemoryTools and artifacts.
 - A generic Planner `get_state`, arbitrary state keys or model-defined filters.
-- Generic or secret-backed ADK instruction templating. Future ADK instruction
+- Generic or secret-backed ADK instruction templating; instructions reach the
+  model literally (WRK-R166). Future ADK instruction
   templating may consume an explicitly specified safe initial-state schema: a
   later closed schema may seed approved non-secret allocation and task values
   without adding a remote State-write endpoint. Arbitrary placeholders and

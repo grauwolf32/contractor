@@ -153,6 +153,34 @@ func (s *PostgresStore) GetActiveStageExecution(ctx context.Context, runID strin
 	}
 }
 
+// ListStageExecutionsWithUnreleasedAllocations returns the StageExecutions of
+// Run runID that still have an allocation whose release has not completed,
+// oldest first, without reading the executions whose release is complete.
+func (s *PostgresStore) ListStageExecutionsWithUnreleasedAllocations(
+	ctx context.Context, runID string,
+) ([]StageExecution, error) {
+	if err := validateOpaque("runID", runID); err != nil {
+		return nil, err
+	}
+	rows, err := s.db.Query(ctx, listStageExecutionsWithUnreleasedAllocationsSQL, runID)
+	if err != nil {
+		return nil, fmt.Errorf("list StageExecutions with unreleased allocations for WorkflowRun %q: %w", runID, err)
+	}
+	defer rows.Close()
+	var result []StageExecution
+	for rows.Next() {
+		execution, scanErr := scanStageExecution(rows)
+		if scanErr != nil {
+			return nil, fmt.Errorf("scan StageExecution with unreleased allocations for WorkflowRun %q: %w", runID, scanErr)
+		}
+		result = append(result, execution)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate StageExecutions with unreleased allocations for WorkflowRun %q: %w", runID, err)
+	}
+	return result, nil
+}
+
 func (s *PostgresStore) ListStageExecutions(ctx context.Context, runID string) ([]StageExecution, error) {
 	if err := validateOpaque("runID", runID); err != nil {
 		return nil, err
@@ -206,23 +234,35 @@ func (s *PostgresStore) StartPlanner(ctx context.Context, params StartPlannerPar
 	); err != nil {
 		return err
 	}
-	var sessionID string
-	err := s.db.QueryRow(ctx, startPlannerSQL,
-		params.StageExecutionID, params.SessionID, params.InvocationID,
-		params.StateSchemaVersion, []byte(params.InitialState), params.Reason.Code, params.Reason.Message,
-		params.RunEvent.EventID, params.RunEvent.EventSchemaVersion,
-		params.RunEvent.Kind, []byte(params.RunEvent.Data),
-	).Scan(&sessionID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return &StateConflictError{Resource: "StageExecution", ID: params.StageExecutionID, Expected: string(StagePreparing)}
-	}
-	if err != nil {
-		if persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate {
-			return fmt.Errorf("start Planner for StageExecution %q: %w", params.StageExecutionID, ErrConflict)
+	// The Stage CAS locks the Stage and the event allocation its Run, so the
+	// Run is locked first (RUN-R29). On a pool the start is its own
+	// replay-safe transaction; in a caller's transaction it runs once.
+	err := persistencepostgres.Within(ctx, s.db, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		var runID string
+		err := tx.QueryRow(ctx, lockStartPlannerRunSQL, params.StageExecutionID).Scan(&runID)
+		if err == nil {
+			var sessionID string
+			err = tx.QueryRow(ctx, startPlannerSQL,
+				params.StageExecutionID, params.SessionID, params.InvocationID,
+				params.StateSchemaVersion, []byte(params.InitialState), params.Reason.Code, params.Reason.Message,
+				params.RunEvent.EventID, params.RunEvent.EventSchemaVersion,
+				params.RunEvent.Kind, []byte(params.RunEvent.Data), runID,
+			).Scan(&sessionID)
 		}
+		if errors.Is(err, pgx.ErrNoRows) {
+			return &StateConflictError{Resource: "StageExecution", ID: params.StageExecutionID, Expected: string(StagePreparing)}
+		}
+		return err
+	})
+	var notPreparing *StateConflictError
+	switch {
+	case err == nil, errors.As(err, &notPreparing):
+		return err
+	case persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate:
+		return fmt.Errorf("start Planner for StageExecution %q: %w", params.StageExecutionID, ErrConflict)
+	default:
 		return fmt.Errorf("start Planner for StageExecution %q: %w", params.StageExecutionID, err)
 	}
-	return nil
 }
 
 func (s *PostgresStore) EnterFinalizing(ctx context.Context, params EnterFinalizingParams) error {

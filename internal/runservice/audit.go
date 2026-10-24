@@ -240,9 +240,12 @@ func validateAuditIntent(intent auditstore.RunCreationIntent, params AuditCreate
 			!maps.Equal(execution.Preparation.Parameters, params.Parameters) || len(execution.Preparation.Inputs) != len(params.Inputs) {
 			return fmt.Errorf("%w: preparation submission differs from its immutable intent", auditstore.ErrConflict)
 		}
-		pinned, _ := json.Marshal(binding.Workflow)
-		submitted, _ := json.Marshal(params.Workflow)
-		if !bytes.Equal(pinned, submitted) {
+		// Both values are resolved.ResolvedWorkflow values that a JSON decode
+		// just produced, so re-encoding is not expected to fail; a failure is
+		// still a conflict, so two failed encodings never compare equal.
+		pinned, pinnedErr := json.Marshal(binding.Workflow)
+		submitted, submittedErr := json.Marshal(params.Workflow)
+		if pinnedErr != nil || submittedErr != nil || !bytes.Equal(pinned, submitted) {
 			return fmt.Errorf("%w: preparation Workflow differs from its pinned binding", auditstore.ErrConflict)
 		}
 		for slot, pinned := range execution.Preparation.Inputs {

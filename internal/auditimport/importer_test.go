@@ -319,6 +319,55 @@ func TestImporterRecordsMissingNamedRoleOutputWithoutItems(t *testing.T) {
 	}
 }
 
+// A failed or cancelled preparation execution reads the pinned AuditProfile
+// before it retains its attempt outputs. A snapshot that cannot be decoded
+// never decodes on a retry, so it settles through the contract-invalid receipt.
+// With the production wiring (a finding intake, internal/app), proposal
+// retention decodes the profile first and already rejects it. The importer
+// without a finding intake, which New accepts, reaches the defensive decode
+// in commitRoleFailure instead; that case must settle the same way.
+func TestImporterSettlesFailedPreparationWithInvalidPinnedProfileAsContractInvalid(t *testing.T) {
+	for _, wiring := range []struct {
+		name    string
+		harness func(*testing.T) (importHarness, *fakeFindingRetention)
+	}{
+		{name: "production finding intake", harness: newFindingImportHarness},
+		{name: "defensive without finding intake", harness: func(t *testing.T) (importHarness, *fakeFindingRetention) {
+			return newImportHarness(t), nil
+		}},
+	} {
+		for _, outcome := range []auditstore.TerminalOutcome{auditstore.TerminalFailed, auditstore.TerminalCancelled} {
+			t.Run(wiring.name+"/"+string(outcome), func(t *testing.T) {
+				harness, findings := wiring.harness(t)
+				harness.snapshot.Audit.ProfileSnapshot = json.RawMessage(`{"schema":"not an AuditProfile"}`)
+				harness.execution.Role = auditstore.ExecutionPrepare
+				harness.execution.WorkflowRole = "z-seed"
+				attempt := 1
+				harness.execution.RoleAttempt = &attempt
+				harness.execution.RoundID = nil
+				harness.execution.Preparation = &auditstore.PreparationSnapshot{
+					Inputs: map[string]auditstore.ExactArtifact{}, Parameters: map[string]string{},
+				}
+				harness.execution.TerminalOutcome = &outcome
+				harness.store.members = nil
+
+				worked, err := harness.importer.Collect(
+					context.Background(), harness.claim, harness.snapshot, harness.execution,
+				)
+				collected := harness.store.collected
+				if err != nil || !worked || collected.Disposition != auditstore.CollectionContractInvalid ||
+					collected.ErrorCode == nil || *collected.ErrorCode != "collection-contract-invalid" ||
+					len(collected.Items) != 0 {
+					t.Fatalf("failed preparation with invalid pinned profile = (%t, %v, %+v)", worked, err, collected)
+				}
+				if findings != nil && len(findings.imports) != 0 {
+					t.Fatalf("invalid pinned profile retained proposals: %+v", findings.imports)
+				}
+			})
+		}
+	}
+}
+
 func TestImporterRetainsAuditChildFindingProposalsBeforeCollection(t *testing.T) {
 	harness, findings := newFindingImportHarness(t)
 	worked, err := harness.importer.Collect(
@@ -2080,12 +2129,20 @@ func (f *fakeImportArtifacts) ReadRunBinding(context.Context, string, contracts.
 func (*fakeImportArtifacts) ReadRunExact(context.Context, string, contracts.ArtifactRef) (auditstore.ExactArtifact, []byte, error) {
 	return auditstore.ExactArtifact{}, nil, errors.New("unexpected external evidence read")
 }
-func (f *fakeImportArtifacts) RetainRunExact(_ context.Context, _ string, source auditstore.ExactArtifact, _ string, target contracts.ArtifactRef) (auditstore.ExactArtifact, error) {
-	f.retainedTargets = append(f.retainedTargets, target)
-	revision := "retained-" + *source.Ref.Revision
-	target.Revision = &revision
-	source.Ref = target
-	return source, nil
+func (*fakeImportArtifacts) DescribeRunExact(context.Context, string, []contracts.ArtifactRef) ([]auditstore.ExactArtifact, error) {
+	return nil, errors.New("unexpected external evidence read")
+}
+func (f *fakeImportArtifacts) RetainRunExact(_ context.Context, _, _ string, retentions []RunRetention) ([]auditstore.ExactArtifact, error) {
+	retained := make([]auditstore.ExactArtifact, 0, len(retentions))
+	for _, retention := range retentions {
+		f.retainedTargets = append(f.retainedTargets, retention.Target)
+		target, source := retention.Target, retention.Source
+		revision := "retained-" + *source.Ref.Revision
+		target.Revision = &revision
+		source.Ref = target
+		retained = append(retained, source)
+	}
+	return retained, nil
 }
 func (f *fakeImportArtifacts) WithClaim(auditstore.ControllerClaim) ArtifactAccess { return f }
 

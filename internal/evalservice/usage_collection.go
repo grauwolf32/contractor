@@ -3,7 +3,8 @@ package evalservice
 import (
 	"context"
 	"encoding/json"
-	"math"
+	"maps"
+	"slices"
 	"sort"
 	"time"
 
@@ -53,8 +54,8 @@ func attemptMetrics(run, stage string, raw []byte, expectedWorkers int, planner 
 		}
 		participants = append(participants, *snap.Planner)
 	}
-	for _, r := range snap.Workers {
-		participants = append(participants, r)
+	for _, name := range slices.Sorted(maps.Keys(snap.Workers)) {
+		participants = append(participants, snap.Workers[name])
 	}
 	if len(participants) == 0 || len(snap.Workers) != expectedWorkers || len(snap.Runtime) != expectedWorkers {
 		out.ReportsComplete = false
@@ -62,17 +63,20 @@ func attemptMetrics(run, stage string, raw []byte, expectedWorkers int, planner 
 	for _, r := range snap.Runtime {
 		out.ReportsComplete = out.ReportsComplete && r.Complete
 	}
+	// A missing or negative contribution leaves its counter incomplete; one
+	// whose known contributions exceed the int64 range is overflowed and has no
+	// value, whichever participant or tool is read first (EVM-R240).
 	missing := map[string]bool{}
+	sums := map[string]*evaldomain.CounterSum{}
 	add := func(name string, n *int64) {
 		if n == nil || *n < 0 {
 			missing[name] = true
 			return
 		}
-		if *n > math.MaxInt64-out.Metrics[name] {
-			missing[name] = true
-			return
+		if sums[name] == nil {
+			sums[name] = &evaldomain.CounterSum{}
 		}
-		out.Metrics[name] += *n
+		sums[name].Add(*n)
 	}
 	for _, r := range participants {
 		out.ReportsComplete = out.ReportsComplete && r.Complete
@@ -87,7 +91,8 @@ func attemptMetrics(run, stage string, raw []byte, expectedWorkers int, planner 
 			zero := int64(0)
 			add("toolCalls", &zero)
 			add("toolFailures", &zero)
-			for _, tool := range r.Metrics.Tools {
+			for _, name := range slices.Sorted(maps.Keys(r.Metrics.Tools)) {
+				tool := r.Metrics.Tools[name]
 				add("toolCalls", tool.Calls)
 				add("toolFailures", tool.Failed)
 			}
@@ -96,6 +101,14 @@ func attemptMetrics(run, stage string, raw []byte, expectedWorkers int, planner 
 			missing["inputTokens"], missing["outputTokens"], missing["totalTokens"] = true, true, true
 		}
 	}
+	for name, sum := range sums {
+		if total, fits := sum.Value(); fits {
+			out.Metrics[name] = total
+		} else {
+			out.OverflowMetrics = append(out.OverflowMetrics, name)
+		}
+	}
+	sort.Strings(out.OverflowMetrics)
 	for name := range missing {
 		out.IncompleteMetrics = append(out.IncompleteMetrics, name)
 	}

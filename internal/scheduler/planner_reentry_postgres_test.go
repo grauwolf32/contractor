@@ -30,7 +30,7 @@ func TestPostgresLivePlannerSurvivesExpiredClaimBeforeRenewal(t *testing.T) {
 	joined := make(chan struct{})
 	go func() {
 		defer close(joined)
-		_, err := h.scheduler.progressOneClaim(ctx, resolved.LaneClassModel)
+		_, err := h.scheduler.progressOneClaim(ctx, resolved.LaneClassModel, nil)
 		done <- err
 	}()
 	finished := false
@@ -60,7 +60,7 @@ SET scheduler_claimed_at = clock_timestamp() - interval '3 minutes',
 WHERE run_id = 'run-1'`); err != nil {
 		t.Fatal(err)
 	}
-	if worked, err := h.scheduler.progressOneClaim(ctx, resolved.LaneClassModel); worked || err != nil {
+	if worked, err := h.scheduler.progressOneClaim(ctx, resolved.LaneClassModel, nil); worked || err != nil {
 		t.Fatalf("competing lane re-entered the live Planner: worked=%v err=%v", worked, err)
 	}
 	current, err := h.store.GetRun(ctx, "run-1")

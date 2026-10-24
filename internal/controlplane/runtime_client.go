@@ -3,7 +3,6 @@ package controlplane
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -46,9 +45,12 @@ func (e *RuntimeAPIError) Error() string {
 
 // RuntimeControlClient implements the Runtime Agent HTTP protocol, including
 // principal binding and validation of allocation responses and Worker State.
+// It owns the reusable connections of every lifecycle and Worker State call
+// (CTL-R164): Release closes the released principal's connections and Close
+// ends them all when the Server stops.
 type RuntimeControlClient struct {
 	client       *http.Client
-	tlsConfig    *tls.Config
+	transports   *mtls.RuntimeAgentTransports
 	timeout      time.Duration
 	requireHTTPS bool
 }
@@ -61,9 +63,21 @@ func NewMTLSRuntimeControlClient(files mtls.Files, timeout time.Duration) (*Runt
 	if err != nil {
 		return nil, fmt.Errorf("build Runtime Agent TLS client: %w", err)
 	}
+	transports, err := mtls.NewRuntimeAgentTransports(tlsConfig, timeout)
+	if err != nil {
+		return nil, fmt.Errorf("build Runtime Agent connections: %w", err)
+	}
 	return &RuntimeControlClient{
-		tlsConfig: tlsConfig, timeout: timeout, requireHTTPS: true,
+		transports: transports, timeout: timeout, requireHTTPS: true,
 	}, nil
+}
+
+// Close ends every Runtime Agent connection the client owns. The Server calls
+// it after the Scheduler stopped; a call started later fails.
+func (c *RuntimeControlClient) Close() {
+	if c.transports != nil {
+		c.transports.Close()
+	}
 }
 
 func (c *RuntimeControlClient) Prepare(
@@ -135,7 +149,7 @@ func (c *RuntimeControlClient) Finalize(
 		return reporting.AllocationFinalReport{}, err
 	}
 	sanitizeRuntimeAdapterMetrics(&response.Report.Runtime, reservation)
-	sanitizeRuntimeResources(&response.Report.Runtime, reservation)
+	response.Report.Runtime.ApplyResourcePolicy(reservation.PerformanceCollectionPolicy)
 	if err := response.Validate(); err != nil {
 		return reporting.AllocationFinalReport{}, errors.New("Runtime Agent returned a lifecycle response that violates the contract")
 	}
@@ -167,7 +181,7 @@ func (c *RuntimeControlClient) Abort(
 		return reporting.AllocationFinalReport{}, err
 	}
 	sanitizeRuntimeAdapterMetrics(&response.Report.Runtime, reservation)
-	sanitizeRuntimeResources(&response.Report.Runtime, reservation)
+	response.Report.Runtime.ApplyResourcePolicy(reservation.PerformanceCollectionPolicy)
 	if err := response.Validate(); err != nil {
 		return reporting.AllocationFinalReport{}, errors.New("Runtime Agent returned a lifecycle response that violates the contract")
 	}
@@ -178,6 +192,12 @@ func (c *RuntimeControlClient) Abort(
 }
 
 func (c *RuntimeControlClient) Release(ctx context.Context, reservation Reservation) error {
+	if c.transports != nil {
+		// One slot per Runtime Agent: after a release attempt no lifecycle
+		// call of this allocation follows, and a retry or the next allocation
+		// opens and verifies a new connection (CTL-R164).
+		defer c.transports.Evict(reservation.Grant.RuntimeAgentID)
+	}
 	request := control.ReleaseAllocationRequest{
 		APIVersion: contracts.APIVersion, AllocationID: reservation.Grant.AllocationID,
 	}
@@ -385,26 +405,6 @@ func clonePerformanceMetricsRequest(source *reporting.PerformanceMetricsRequest)
 	return &result
 }
 
-// Resource telemetry is optional and must never poison Worker truth. Only a
-// Server-pinned request may contribute measurements. A malformed requested
-// block is retained as one bounded diagnostic sentinel, not raw input.
-func sanitizeRuntimeResources(report *reporting.RuntimeReport, reservation Reservation) {
-	if reservation.PerformanceCollectionPolicy != reporting.PerformanceCollectionRequested {
-		report.Resources = nil
-		report.ResourcesError = nil
-		return
-	}
-	if report.ResourcesError != nil ||
-		(report.Resources != nil && report.Resources.Validate() != nil) {
-		reason := reporting.ResourceInvalidReport
-		report.Resources = &reporting.RuntimeResources{
-			Version: reporting.PerformanceMetricsVersion, Scope: "runtime_process",
-			Status: reporting.ResourceUnavailable, Reason: &reason,
-		}
-		report.ResourcesError = nil
-	}
-}
-
 func (c *RuntimeControlClient) do(
 	ctx context.Context, target string, body []byte, runtimeAgentID string,
 ) (*http.Response, error) {
@@ -436,17 +436,14 @@ func (c *RuntimeControlClient) doRequest(
 		request.Header.Set(name, value)
 	}
 	client := c.client
-	if c.tlsConfig != nil {
-		bound, bindErr := mtls.BindRuntimeAgentPrincipal(c.tlsConfig, runtimeAgentID)
+	if c.transports != nil {
+		transport, bindErr := c.transports.RoundTripper(runtimeAgentID)
 		if bindErr != nil {
 			return nil, errors.New("Runtime Agent principal binding is invalid")
 		}
 		client = &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: bound, ForceAttemptHTTP2: false, DisableKeepAlives: true,
-				TLSHandshakeTimeout: c.timeout, ResponseHeaderTimeout: c.timeout,
-			},
-			Timeout: c.timeout,
+			Transport: transport,
+			Timeout:   c.timeout,
 			CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
 				return errors.New("Runtime Agent redirects are not allowed")
 			},

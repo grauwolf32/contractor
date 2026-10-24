@@ -15,7 +15,7 @@ func (s *Service) Admit(ctx context.Context, runID string, routes []Route) (bool
 	ordered := append([]Route(nil), routes...)
 	sort.Slice(ordered, func(i, j int) bool { return ordered[i].Key() < ordered[j].Key() })
 	err := persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if err := lockRun(ctx, tx, s.runs, runID, false); err != nil {
+		if _, err := lockRun(ctx, tx, s.runs, runID, false); err != nil {
 			return err
 		}
 		// Candidate selection may change between attempts. Keep only the routes

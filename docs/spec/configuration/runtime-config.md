@@ -70,7 +70,7 @@ following ones.
 | Credential manager | The optional Gateway declaration (`credentialManager`) through which Server Operations creates and deletes LLM credentials |
 | Failure signatures | The optional provider-specific part of model recovery classification declared by a Gateway (`failureSignatures`) |
 | Gateway policy | The immutable key policy (`gatewayPolicy`) sent when an LLM credential is created |
-| Credential-lifecycle barrier | The lock shared by Run initialization, binding and Agent-label mutation, allocation config pinning and credential deletion |
+| Credential-lifecycle barrier | The lock shared by Run initialization, RuntimeConfig publication and binding mutation, Project target attachment, allocation config pinning, Runtime credential use and credential deletion |
 | Runtime label | A bounded name such as `debug` or `caido` selected through `runtimeLabels` on a Run or assigned to a Runtime Agent |
 | Default binding | The reserved `default` binding used as the base for every Run, including a Run with no labels |
 | RuntimeConfig | One immutable versioned typed non-secret infrastructure configuration stored by Server |
@@ -407,7 +407,10 @@ credential-management boundary has returned the bounded non-secret
 `remote_key_id` and token.
 
 **RCF-R42.** Plaintext is retained only for the bounded encryption or
-decryption operation and the model-client settings that actively need it.
+decryption operation and the model-client settings that actively need it. The
+one longer Server retention is the self-redacting copy of a Stage's
+Worker-preparation values that its report persistence redacts with, kept until
+the Stage's terminal release ([SCH-R178](../execution/scheduler.md)).
 
 **RCF-R43.** An LLM credential read response contains exactly the fields listed
 under [LLM credential read model](#llm-credential-read-model).
@@ -427,7 +430,9 @@ unauthenticated request (FAIL-RCF-3).
 
 **RCF-R46.** Planner construction and Control Plane allocation preparation
 decrypt exactly the credential ID pinned by the Run or by the durable
-allocation-config snapshot, just in time. The token is never copied into
+allocation-config snapshot, just in time; so does a Stage's report persistence
+when it has no values kept from that Stage's preparation
+([SCH-R178](../execution/scheduler.md)). The token is never copied into
 WorkflowRun, StageExecution, Planner Session, audit rows or metrics.
 
 **RCF-R47.** Credential existence is checked again during Run initialization,
@@ -465,20 +470,47 @@ credential row. The completed delete operation is the non-secret audit
 tombstone, containing only the ID, actor and deletion time; it is not a
 credential and cannot be selected for execution (LIFE-RCF-1, LIFE-RCF-2).
 
-**RCF-R52.** Run initialization, RuntimeConfig binding and Agent-label
-mutation, allocation config pinning and credential deletion share one
-credential-lifecycle barrier. Readers hold it from current credential
-revalidation through their immutable Run or allocation commit; deletion holds
-the write side from all durable and live reference checks through remote
-deletion and local tombstone commit.
+**RCF-R52.** Run initialization (including Audit start, resume and
+Audit-managed Runs, and Eval preflight), RuntimeConfig publication and binding
+mutation, Project target credential attachment, allocation config pinning,
+Runtime credential use and credential deletion share one credential-lifecycle
+barrier. Readers hold it from current credential revalidation through their
+immutable Run or allocation commit, and Runtime credential use holds it while
+its consumer reads the decrypted material; deletion holds the write side from
+all durable and live reference checks through remote deletion and local
+tombstone commit. Agent-label mutation does not take it: an Agent label names a binding,
+which is itself a counted reference, and allocation config pinning revalidates
+every credential the label resolves to.
 
 **RCF-R53.** If a delete call has an ambiguous Gateway or database result, the
 encrypted row remains active and inspectable, the write intent remains
 prepared, and new Run initialization is rejected until the same request or
-startup recovery resolves it (FAIL-RCF-2).
+startup recovery resolves it (FAIL-RCF-2). A durable prepared intent rejects
+only references to its own credential. If the transaction that records the
+intent fails without a definite outcome, Server instead rejects Run
+initialization and allocation references to every credential with
+`credential_recovery_required` until it reconciles that transaction with
+durable state: it takes the credential's deletion lock without waiting, which
+proves that the transaction has ended, and only then reads whether a prepared
+deletion of the credential remains. When none remains, references are admitted
+again in the same process without a delete retry or restart. A prepared
+deletion keeps them rejected until the same request or recovery completes it.
+A lock still held or a failed read keeps them rejected with
+`credential_recovery_required`, never a storage error, and a cancelled caller
+receives its own cancellation while the fence stays; the next reference, the
+next delete or recovery reconciles again, and a delete of another credential is
+rejected with `credential_recovery_required` rather than running beside the
+unsettled one.
 
 Rationale: this prevents a newly committed Run from pinning a remote key that
-may already have been deleted.
+may already have been deleted. A journal read taken without the deletion lock
+cannot prove absence, because the COMMIT of the recording transaction may still
+be in flight. Reconciliation runs only while such an outcome is uncertain, so an
+ordinary reference performs no extra query. Keeping every reference rejected
+while a durable prepared intent exists, instead of narrowing the fence to its
+credential once reconciliation finds it, preserves the earlier guarantee
+until that deletion completes; narrowing it is a separate decision
+([proposal 0044](../../proposals/0044-credential-deletion-availability.md)).
 
 **RCF-R54.** The deletion fence of RCF-R48, RCF-R52 and RCF-R128 applies to
 both LLM credentials and runtime credentials.
@@ -1544,7 +1576,10 @@ Agent](../execution/runtime-agent.md).
 9. Secret material is encrypted at rest, decrypted just in time, transported
    only over mTLS, held in memory for the consumer lifetime and never durable
    execution provenance (RCF-R40, RCF-R46, RCF-R166,
-   [Security](../platform/security.md)).
+   [Security](../platform/security.md)); on the Server, a Stage's
+   Worker-preparation values stay in memory, self-redacting, until the Stage's
+   terminal release for report redaction
+   ([SCH-R178](../execution/scheduler.md)).
 10. Telemetry export is bounded and best-effort; exporter failure never changes
     semantic execution outcome or prevents allocation release
     ([Observability](../platform/observability.md)).

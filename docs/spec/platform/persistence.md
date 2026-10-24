@@ -7,14 +7,18 @@ Requirement prefix: `PER` · [Specification index](../README.md)
 This document owns the persistence rules that belong to no single domain: one
 active Server per PostgreSQL database, the session-level PostgreSQL advisory
 lease that enforces it, the standby Server, detection of lease-session loss and
-its time bounds, the connection pooling that the lease needs, and what must
+its time bounds, the budgets of the lease session's startup steps, the
+connection pooling that the lease needs, and what must
 not stand in for that lease: an unfenced shared `runtime_agents` table or a
 durable Runtime Agent principal. It owns the one classification of a failed
 PostgreSQL call into an outcome class, how SQL names the members of `jsonb`
 documents the Server encodes from Go types, and the owner package of every
 table and view, the only package whose SQL may write it. It owns the one flow
 and the one receipt table of keyed mutations, how advisory lock keys are
-built, and the shape and lease rule of controller claims. It also indexes the
+built, and the shape and lease rule of controller claims. It owns the schema
+migrator: the one transaction of a migration run, the migration ledger that
+keeps applied migrations immutable, the migration budget and what a migration
+may do within it. It also indexes the
 PostgreSQL state and the transaction and serialization rules that domain
 documents own, so each can be found from here while it is stated only in its
 owner.
@@ -53,21 +57,29 @@ the following ones.
 | Active Server | The Server process that holds the advisory lease of a database and therefore runs credential recovery, the process-local Control Plane, the Scheduler and the private API. |
 | Standby Server | A Server process on the same database that does not hold the advisory lease. |
 | Lease-session loss | A single liveness probe of the lease session that fails within the tolerance window. |
-| Tolerance window | The bounded time a lease-session liveness probe may run. |
+| Tolerance window | The bounded time a lease-session liveness probe, a standby acquisition probe or a reconnect of the standby's lock-free lease session may run. |
+| Startup lease steps | What a starting Server does on the lease session before it is active or stands by: connecting the session, configuring its keepalives, the first acquisition probe and, when the lease is held elsewhere, the holder lookup. |
+| Migration ledger | The table `contractor_schema_migrations`: one row per applied migration with its version, its file name and the SHA-256 of the file's bytes. |
+| Migration budget | The operation budget of a migration run: its statement, lock and idle-in-transaction timeouts, its client deadlines and the deadline of the whole run. |
 
 ## Model
 
 ### Server roles
 
-A Server process is a standby until it holds the advisory lease, and the active
-Server stops when it detects lease-session loss:
+A starting Server takes its startup lease steps and is then active, or a
+standby until it holds the advisory lease; the active Server stops when it
+detects lease-session loss:
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Standby: Server process starts
+    [*] --> Starting: Server process starts
+    Starting --> Active: the first acquisition probe acquires the advisory lease
+    Starting --> Standby: the lease is held elsewhere
+    Starting --> Stopped: a startup lease step other than the holder lookup fails or ends at its database budget (PER-R27)
     Standby --> Standby: lease not acquired, or an acquisition probe stalls and the lock-free session reconnects
     Standby --> Active: advisory lease acquired on the lease session
     Active --> Stopped: lease-session loss, a single liveness probe fails within the 10 s tolerance window
+    note right of Starting: startup lease steps under the database budgets, no tolerance window
     note right of Standby: serves /healthz, 503 from /readyz and 503 server_standby under /v1, no private API
     note right of Active: credential recovery, Control Plane, Scheduler and private API run
     note right of Stopped: listeners closed, Scheduler cancelled
@@ -230,6 +242,49 @@ standby (FAIL-PER-1).
 reconnects its lock-free session and keeps polling rather than exiting the
 process (FAIL-PER-2).
 
+### Budgets of the lease session
+
+**PER-R27.** The lease session is opened from a copy of the working pool's
+connection settings, so it carries the `database` budgets of the process
+settings ([OPS-R15](../operations/operations.md), values and defaults in the
+[operational timeout reference](../../operations/timeout-configuration.md)).
+The startup lease steps run under the process context, which has no deadline
+of its own, and the budget that owns each step bounds it:
+
+| Startup lease step | Owning budget |
+| --- | --- |
+| Connecting the lease session: dial, TLS, startup handshake and authentication | `database.connectTimeout`, for each connection attempt |
+| Configuring the keepalives (PER-R6), the first acquisition probe and the holder lookup | `database.queryTimeout`, for each statement; the session also carries the server-side `database.statementTimeout`, `database.lockTimeout` and `database.idleTransactionTimeout` |
+
+An earlier caller deadline or a cancellation, such as Server shutdown, ends a
+step sooner, and no budget extends the caller's deadline. A step other than
+the holder lookup that fails or ends at its budget closes the session and
+stops startup with an error; the Server neither stands by nor retries the
+step (FAIL-PER-4). A failed holder lookup only leaves the logged holder
+unknown, and the Server stands by; its next acquisition probe reconnects a
+session the lookup left unusable (PER-R8). Opening the working pool and
+verifying its migrations come before these steps and are bounded by the
+working pool's own budgets: `database.queryTimeout` for its first ping, and
+the acquisition and query budgets for each statement of the migration check.
+
+**PER-R28.** Once the Server stands by or is active, the tolerance window
+(LIM-PER-3) bounds each lease-session probe instead. It bounds each standby
+acquisition probe and each reconnect of the lock-free session (PER-R8); the
+inherited budgets of PER-R27 still apply inside them, so whichever ends first
+ends the probe or reconnect. It alone bounds each liveness probe of the
+active Server (PER-R5): that probe is a protocol-level ping that the client
+query budget does not shorten, so a query budget configured below the
+tolerance window cannot turn a transient stall into lease-session loss. The
+tolerance window does not bound the startup lease steps.
+
+Rationale: before a Server has a role, its startup lease steps are ordinary
+database calls under the operator's database budgets; the tolerance window
+exists to keep a role already taken and to stop an active Server before
+PostgreSQL releases its lock (PER-R7). A startup that must reach standby or
+active within a fixed time, or that must stand by and retry after a failed
+step instead of exiting, is a separate availability decision that would
+replace this requirement.
+
 ### Connection pooling for the lease
 
 **PER-R9.** The lease session requires direct PostgreSQL or session pooling,
@@ -378,6 +433,130 @@ in a REPEATABLE READ transaction sees only that transaction's snapshot, so a
 concurrent winner that committed after it began is found by the caller's
 replay after rollback (FAIL-AUD-4), not inside the transaction.
 
+### Schema migrations
+
+**PER-R29.** `contractor server migrate` (or `contractor-server migrate`, the
+migrator) is the only process that changes the schema. A run applies every embedded migration the migration
+ledger lacks, in version order, in one PostgreSQL transaction: the statements
+of each file, then the file's ledger row. The schema and the ledger therefore
+commit together or not at all. A statement that fails or times out, a
+cancellation, a lost connection or the end of the run's deadline rolls back
+every migration of the run, and the next run applies the same files; a commit
+whose answer is lost leaves the database at either the old or the new
+version, which the ledger records, so the next run applies only what is still
+missing (FAIL-PER-5). Before it reads the ledger, a run takes the migration
+lock of its target schema, the first existing schema of `search_path`
+(PER-R24), by polling rather than by a blocking call, so concurrent runs on
+one schema apply each migration once while other schemas of the database
+migrate independently. The Server never migrates: it starts only when the
+ledger records exactly the migrations it embeds, and otherwise stops with
+migration drift or with the pending versions.
+
+**PER-R30.** The ledger keeps an applied migration immutable. A run and the
+Server's startup check compare every ledger row with the embedded file of its
+version and refuse, as migration drift, a ledger that records a version the
+binary does not embed or another name or checksum for one; a run then applies
+nothing. A schema change is therefore a new migration with the next free
+version: a migration file that a database has applied is not edited, not even
+in a comment, renamed, renumbered or removed, and no ledger row is rewritten
+or deleted. A later migration that redefines a function with `CREATE OR
+REPLACE` is a successive schema version, not a duplicate to remove: the
+installed schema holds one current definition.
+
+**PER-R31.** The migration budget is the operation budget (PER-R19) of the
+migrator's transaction. The operator chooses it for each run, with
+`--statement-timeout` and `--lock-timeout` or with
+`CONTRACTOR_MIGRATE_STATEMENT_TIMEOUT` and `CONTRACTOR_MIGRATE_LOCK_TIMEOUT`,
+which the flags override; an unset value keeps its default, and the
+ServerConfig `database` budgets do not apply. The migrator sets the statement,
+lock and idle-in-transaction timeouts transaction-locally, never for the
+session, so its commit or rollback leaves the pooled connection as it found
+it. PostgreSQL applies the statement timeout (LIM-PER-9) to each statement of
+a migration file separately, the lock timeout (LIM-PER-10) to each lock wait,
+whether for a relation or a row, and the idle-in-transaction timeout
+(LIM-PER-12) while the transaction waits for the migrator's next call. The
+migrator sends each migration file as one simple query, and its client ends
+that query 5 seconds after the statement timeout: this client deadline covers
+all statements of the file together, not each of them. A statement that
+outlasts the statement timeout is therefore cancelled by PostgreSQL (SQLSTATE
+`57014`), and a file whose statements each fit but together outlast the
+client deadline is ended by the client, without a SQLSTATE; both fail the run
+as a timeout (PER-R13). The client also bounds each connection acquisition
+(LIM-PER-13). The run deadline (LIM-PER-11) bounds the whole run, including
+the wait for the schema's migration lock, which therefore outlasts the lock
+timeout. Neither a migration file nor the Server changes these settings.
+
+**PER-R32.** A migration file must fit the default migration budget on the
+largest data it can meet: each statement within the statement timeout, and all
+statements of the file together within the client deadline of the file, the
+statement timeout plus 5 seconds (PER-R31, LIM-PER-9). A file with several
+heavy statements therefore shares that deadline among them. Where a limit
+bounds the rows or bytes a statement handles, such as the revisions of one Run
+(LIM-ART-6), the file fits at that limit; over a collection that no limit
+bounds, each statement reads each row a bounded number of times, in one pass
+rather than once per other row, at a bounded cost per row. Raising the budget
+is the operator's remedy for one slow upgrade, not a design input: a backfill
+that cannot meet this is designed as a separate data migration with bounded
+steps and a durable record of its progress, not written as a longer statement
+or split into more statements of one file. No gate measures a migration at its
+bound: the author shows the fit when writing the migration, from its statement
+plans and cardinality (AGENTS.md section 3.3), and its review checks it, as
+the non-goals of this document record. Because a run is one transaction, a
+migration must not use a statement that PostgreSQL refuses inside a
+transaction block, such as `CREATE INDEX CONCURRENTLY`, `REINDEX
+CONCURRENTLY` or `VACUUM`, and contains no transaction control: an index is
+built inside the run, holding its table's lock until the run commits, and
+counts against the budget of its file. Two hazards apply to every backfill
+that reads documents stored as JSON text or bytes:
+
+- PostgreSQL rejects the valid JSON escape `\u0000` (SQLSTATE 22P05) when such
+  a document is cast to `jsonb`, and every `json` operator and set-returning
+  function fails on it the same way. Go encodes a NUL character in any string
+  that way, so a document with free text can hold it, and one such row rolls
+  back the whole run. The backfill rewrites the escape injectively before the
+  cast or reads the value without a JSON cast, unless a schema the document
+  was validated against excludes it.
+- PostgreSQL may pull a subquery, or a CTE referenced once, up into the
+  statement that uses it and substitute its output expressions at each
+  reference, so a parse in its select list, such as `convert_from(document,
+  'UTF8')::jsonb`, that several lookups read parses each document once per
+  lookup and can exceed the statement budget on large documents. The backfill
+  parses each stored document once per row, behind a fence such as `OFFSET 0`
+  or `AS MATERIALIZED`.
+
+**PER-R33.** A migration that moves, folds or backfills data has an upgrade
+test on real PostgreSQL. The test installs the schema of the preceding version
+in an isolated schema, seeds the rows an older Server stored there, including
+the boundary cases of the migration's rule and, where a limit bounds that
+rule, data at the limit, and applies the embedded migration through the
+migrator. It then compares the result with the rule computed independently of
+the migration's SQL, checks that unrelated rows are unchanged and exercises
+the schema the migration leaves behind; a backfill that is omitted or
+miscounts makes it fail. A backfill whose statement plan determines its cost,
+such as the number of document parses, has that plan pinned by the test. The
+test may apply the migration through a pool without the client deadline of
+PER-R31, as the isolated test pools are: at test sizes a file takes far less
+than that deadline, so the deadline could not fail it, and the deadline has
+its own test (invariant 26). A test that measures a file near the default
+budget applies it through a pool opened as the migrator opens it. Like
+PER-R32, this requirement is checked when the migration is written and
+reviewed (AGENTS.md section 6, Go server), not by a gate.
+
+Rationale: one transaction keeps every database at one complete schema
+version, so the ledger is the only record a run or the Server's startup check
+needs, and a failed run needs no repair. Its price is that a migration cannot
+build an index concurrently or commit work in steps, and that the slowest
+migration file of the largest database sets the budget the operator must
+grant.
+Per-file transactions, a non-transactional migration step or Server-side
+background backfills would lift those restrictions at the cost of
+partially applied versions, a ledger that records more than complete
+migrations, and reads of rows that are not yet migrated. Reopen this when a
+required change cannot fit the default budget at its bound or needs a
+statement PostgreSQL refuses inside a transaction; the replacement must state
+its ledger handling, its behaviour on a partial failure and the backup and
+data preservation of an existing database.
+
 ### Indexes of foreign keys
 
 **PER-R21.** Every foreign key has a valid index on its referencing table
@@ -397,8 +576,11 @@ never runs.
 
 **PER-R22.** A row trigger fires only when what it guards or checks can
 change. A guard that rejects changes to some columns fires on `UPDATE OF`
-exactly the columns its function or WHEN condition compares, and no BEFORE UPDATE trigger of its
-table assigns a column, so only an UPDATE that lists a guarded column runs it;
+exactly the columns its function or WHEN condition compares, reads no other
+column of NEW or OLD except a value that only qualifies a change of a listed
+column, such as the state in which that change is still allowed, and no
+BEFORE UPDATE trigger of its table assigns a column, so only an UPDATE that
+lists a guarded column runs it;
 an after-row or deferred trigger states in its WHEN condition the change it
 reacts to, and fires on every INSERT when its function checks new rows. A Run
 event append, which only advances the Run's event sequence, therefore fires no
@@ -406,7 +588,31 @@ trigger of `workflow_runs` except the deferred binding check of an
 audit-managed Run. The deferred Audit completion check runs when a Run is
 inserted and when its completion changes, not on later updates that keep it:
 the completion cannot change once set, and the profile binding it is checked
-against is immutable ([AWC-R7](../audits/worker-completion.md)).
+against is immutable ([AWC-R7](../audits/worker-completion.md)). Likewise a
+StageExecution admission and a counted output publication failure, which
+change neither a guarded column nor the state, fire no trigger of
+`stage_executions`; the manual continuation check still runs on every INSERT
+and on an UPDATE only when the resume source is assigned, and the lifecycle
+capture on every INSERT and on a state change. A Stage allocation's release
+attempt, release and execution report mark fire no trigger of
+`stage_allocations`: the completion check looks up the Run's completion
+authority when an allocation is inserted and afterwards only rejects a changed
+completion, because the allocation's Stage and agent and the Stage's Run and
+name are immutable, and the Run's completion is fixed when the Run is created,
+before any Stage can exist ([RUN-R26](../execution/runs.md)). An Audit update that assigns neither its
+phase nor a baseline column, such as an event append, fires no preparation
+guard, and the guard looks for a prepare execution only to decide a changed
+baseline or a return to `not-started`. The Eval output projection reacts to a
+Run output that is inserted or deleted or whose revision or frozen flag
+changes; the deferred Run association check of an AuditExecution runs on every
+INSERT and on an UPDATE that changes a column it reads; and the Eval retention
+trigger of `workflow_runs` fires only for a Run deletion that can match a
+`run-create` suboperation, one with a Project, request key and request digest.
+A trigger whose decision reads other tables keeps firing on every change it
+may have to reject, with the reason stated beside it: Project admission runs on
+every INSERT and UPDATE of a Project-scoped artifact binding, each of which is
+an artifact write that a deleting Project rejects at the write itself
+([DEL-R40](../artifacts/retention-and-deletion.md)).
 
 ### Keyed mutations and controller claims
 
@@ -476,6 +682,41 @@ Audit controller claim afterward. A definite transaction conflict retries the
 whole collection with a fresh snapshot under PER-R16, and is never treated as
 a damaged member when retries are exhausted.
 
+**PER-R26.** The Audit controller and the Eval coordinator run the claims of
+a pass through one claim lifecycle. Each controller leases a bounded batch
+with its own admission query and batch bound, then handles each leased claim
+in its own goroutine, so one slow or failing subject does not hold back
+another and a pass runs at most as many handlers as it leased claims. A claim
+is released only after its handler returned, also when the pass was
+cancelled, and its release runs under a budget of its own that keeps the
+pass's values but not its cancellation, so shutdown still gives every claim
+back. A release that finds its claim lost, because the lease ended and
+another holder leased the subject or the claim was already released, is not
+a failure: the epoch already fences the stale holder (PER-R25). The pass ends
+once every claim was released and reports, per subject in claim order, the
+handler's failure joined with the release's (FAIL-PER-3). The lifecycle owns
+no scheduling policy: each controller keeps its own handler budgets, wake
+hints, poll interval and decision whether to pass again at once. The durable
+sweep controller leases one sweep per tick and joins that tick through its
+own drain, so it keeps its own pass, but it gives the claim back through the
+same release step: after the tick, also a cancelled one, under a budget of its
+own that keeps the tick's values but not its cancellation. A lost claim is not
+a failure there either, and a definite release failure joins the tick's
+error, which the controller logs with the sweep's identity and the failed
+step but no statement or database message (FAIL-PER-3, FAIL-SCN-15).
+
+Rationale: the two controllers pace their passes differently on purpose. The
+Audit controller passes again at once after a pass that changed something
+without failing and waits for its poll interval otherwise; the Eval
+coordinator waits for its poll interval or a wake hint after every pass,
+because observing an active execution counts as work and must not become a
+hot poll. An Audit step owns its budgets (the snapshot read's operation
+budget, or the cleanup budget of a deletion step under a renewed lease) and
+its release has the operation budget, while an Eval tick runs under one
+operation budget and its release has a fixed five seconds. Only the
+lifecycle that both repeated identically is shared; merging the policies
+would change when each controller works.
+
 ## Limits, failures and errors
 
 Limits ([registry](limits.md)):
@@ -484,7 +725,8 @@ Limits ([registry](limits.md)):
   (PER-R1). The single active Server/Control Plane of the deployment host is
   LIM-SYS-2 ([Overview](../overview.md)).
 - LIM-PER-2 — a single failed liveness probe is lease-session loss (PER-R5).
-- LIM-PER-3 — tolerance window of a liveness probe: ten seconds (PER-R5).
+- LIM-PER-3 — tolerance window of a liveness probe, a standby acquisition
+  probe and a standby reconnect: ten seconds (PER-R5, PER-R28).
 - LIM-PER-4 — lease-session TCP keepalive idle time: 10 s (PER-R6).
 - LIM-PER-5 — lease-session TCP keepalive interval: 5 s (PER-R6).
 - LIM-PER-6 — lease-session TCP keepalive probes: 3 (PER-R6).
@@ -495,12 +737,26 @@ Limits ([registry](limits.md)):
   without closing the connection: within about half a minute; where the server
   lacks `TCP_USER_TIMEOUT` and a reply is unacknowledged at that moment,
   possibly only within its TCP retransmission limit (minutes) (PER-R6).
+- LIM-PER-9 — statement timeout of a migration run: 120 s by default, chosen
+  by the operator per run (PER-R31).
+- LIM-PER-10 — lock timeout of a migration run: 10 s by default, chosen by
+  the operator per run and shorter than the statement timeout (PER-R31).
+- LIM-PER-11 — deadline of a whole migration run: 15 minutes, or the
+  statement timeout plus 5 minutes 5 seconds when that is longer (PER-R31).
+- LIM-PER-12 — idle-in-transaction timeout of a migration run: 60 s
+  (PER-R31).
+- LIM-PER-13 — connection acquisition of a migration run: 5 s (PER-R31).
 
 Failure outcomes ([failure model](failure-model.md)):
 
 - FAIL-PER-1 — the active Server's lease session (PER-R4, PER-R5, PER-R6,
   PER-R7, PER-R10).
-- FAIL-PER-2 — a standby's lease acquisition probe (PER-R3, PER-R8).
+- FAIL-PER-2 — a standby's lease acquisition probe (PER-R3, PER-R8,
+  PER-R28).
+- FAIL-PER-3 — the release of a controller claim at the end of a pass
+  (PER-R25, PER-R26).
+- FAIL-PER-4 — the startup lease steps of a starting Server (PER-R27).
+- FAIL-PER-5 — a migration run (PER-R29, PER-R30, PER-R31).
 
 Lifecycle ([lifecycle](lifecycle.md)):
 
@@ -556,6 +812,12 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
    (PER-R13, PER-R14); test
    `TestClassifyPostgreSQLConditionsOnTheMigratedSchema` in
    [`internal/persistence/postgres/sqlstate_postgres_test.go`](../../../internal/persistence/postgres/sqlstate_postgres_test.go).
+   Run creation derives not-found from the reference violation of the
+   Project foreign key alone, so an unknown or another owner's Project is not
+   found and stores nothing ([PRJ-R5](../artifacts/projects.md)), while the
+   reference violation of the trusted Audit association keeps its class
+   (PER-R13); test `TestPostgresRunCreationClassifiesTheMissingProjectParent`
+   in [`internal/runstore/run_creation_postgres_test.go`](../../../internal/runstore/run_creation_postgres_test.go).
 8. A CHECK rejection of a telemetry report stays a permanent invalid report
    (PER-R15); test `TestReportWriteKeepsDatabaseRejectionsPermanent` in
    [`internal/telemetry/write_classification_postgres_test.go`](../../../internal/telemetry/write_classification_postgres_test.go).
@@ -619,9 +881,46 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
     An append to a Run with an Audit completion fires only the binding
     check; test `TestAuditCompletionPostgresAtomicCreationRestartAndAllocation`
     in [`internal/runservice/audit_completion_postgres_test.go`](../../../internal/runservice/audit_completion_postgres_test.go).
-    Each column-scoped guard of `workflow_runs` lists exactly the columns its
-    function compares; test `TestWorkflowRunGuardsFireOnTheColumnsTheyCompare`
-    in [`internal/persistence/postgres/workflow_run_triggers_postgres_test.go`](../../../internal/persistence/postgres/workflow_run_triggers_postgres_test.go).
+    Each column-scoped guard of `workflow_runs` and `stage_executions` reads
+    through NEW and OLD, in any spelling, only the columns it lists and the
+    qualifiers declared for it, and reads every listed column through NEW;
+    tests
+    `TestWorkflowRunGuardsFireOnTheColumnsTheyCompare` and
+    `TestStageExecutionGuardsFireOnTheColumnsTheyCompare` in
+    [`internal/persistence/postgres/workflow_run_triggers_postgres_test.go`](../../../internal/persistence/postgres/workflow_run_triggers_postgres_test.go).
+    Each StageExecution store transition calls only the `stage_executions`
+    triggers it concerns, a guarded change is still rejected and the
+    lifecycle events are one per state entered; test
+    `TestPostgresStageExecutionUpdatesFireOnlyTheTriggersTheyConcern` in
+    [`internal/runstore/stage_triggers_postgres_test.go`](../../../internal/runstore/stage_triggers_postgres_test.go).
+    The guards of `stage_allocations`, `audits`, `artifact_bindings` and
+    `audit_executions` meet the same column rule, and every trigger of those
+    tables and of `workflow_runs` has a stated event and column condition or
+    a stated reason to fire on every change; tests
+    `TestRowTriggerGuardsFireOnTheColumnsTheyCompare` and
+    `TestRowTriggerInventory` in
+    [`internal/persistence/postgres/row_trigger_scope_postgres_test.go`](../../../internal/persistence/postgres/row_trigger_scope_postgres_test.go).
+    Each allocation write calls only the `stage_allocations` triggers it
+    concerns and each guarded column changed alone is rejected; test
+    `TestPostgresStageAllocationUpdatesFireOnlyTheTriggersTheyConcern` in
+    [`internal/runstore/allocation_triggers_postgres_test.go`](../../../internal/runstore/allocation_triggers_postgres_test.go).
+    An Audit event append calls no preparation guard and probes no
+    AuditExecution, and each AuditExecution write from intent to collection
+    calls only the triggers it concerns while a changed Run association or
+    receipt column is still rejected; tests
+    `TestPostgresAuditUpdatesSkipThePreparationProbe` and
+    `TestPostgresAuditExecutionWritesFireOnlyTheTriggersTheyConcern` in
+    [`internal/auditstore/internal/pgstore/trigger_scope_postgres_test.go`](../../../internal/auditstore/internal/pgstore/trigger_scope_postgres_test.go).
+    Each artifact write calls only the `artifact_bindings` triggers it
+    concerns, the preparation guards still reject each guarded column, and a
+    Project deletion that commits between a write's scope and its binding
+    still rejects the write while an Audit that deletion cancels may still
+    import; tests in
+    [`internal/artifacts/trigger_scope_postgres_test.go`](../../../internal/artifacts/trigger_scope_postgres_test.go).
+    The Eval output projection marks a member dirty for each output change
+    and for no other write; test
+    `TestSharedPostgresEvalProjectionFollowsOnlyRunOutputChanges` in
+    [`internal/evalstore/trigger_scope_postgres_test.go`](../../../internal/evalstore/trigger_scope_postgres_test.go).
 18. Only its owner package writes a relation; every other access is a granted
     read or a known access that names an open task, and no registry entry
     outlives its access (PER-R23); tests
@@ -661,9 +960,123 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
     are lost, and a release accepts its holder's ended lease (PER-R25); test
     `TestPostgresControllerClaimsLeaseProveAndRelease` in
     [`internal/persistence/postgres/receipts_postgres_test.go`](../../../internal/persistence/postgres/receipts_postgres_test.go).
+22. A controller pass joins each handler before it releases that handler's
+    claim, releases under a live bounded context also after the pass was
+    cancelled, treats a lost claim as released, reports each subject's
+    failures in claim order and handles its claims concurrently (PER-R26);
+    tests `TestRunJoinsEachHandlerBeforeReleasingItsClaim`,
+    `TestRunHandlesTheClaimsOfAPassConcurrently`,
+    `TestRunReportsFailuresPerClaimInClaimOrder` and
+    `TestRunBoundsEachReleaseByItsBudget` in
+    [`internal/claimpass/claimpass_test.go`](../../../internal/claimpass/claimpass_test.go).
+    On the real store a cancelled pass still releases its claim and a stale
+    holder's release leaves the new holder's claim intact; tests
+    `TestPostgresControllerReleasesTheClaimOfACancelledStep` and
+    `TestPostgresControllerPassToleratesAClaimTakenOverDuringItsStep` in
+    [`internal/auditcontroller/claim_lifecycle_postgres_test.go`](../../../internal/auditcontroller/claim_lifecycle_postgres_test.go),
+    and `TestSharedPostgresCoordinatorReleasesTheClaimOfACancelledTick` and
+    `TestSharedPostgresCoordinatorPassToleratesAClaimTakenOverDuringItsTick` in
+    [`internal/evalservice/claim_lifecycle_postgres_test.go`](../../../internal/evalservice/claim_lifecycle_postgres_test.go).
+    Each controller keeps its own pacing; tests
+    `TestControllerRunPassesAgainAfterWorkAndPollsOtherwise` in
+    [`internal/auditcontroller/claim_lifecycle_test.go`](../../../internal/auditcontroller/claim_lifecycle_test.go)
+    and `TestCoordinatorRunWaitsForThePollIntervalOrAWakeAfterEveryPass` in
+    [`internal/evalcoordinator/claim_lifecycle_test.go`](../../../internal/evalcoordinator/claim_lifecycle_test.go).
+    The release step alone keeps the caller's values but not its
+    cancellation, reports a definite failure and not a lost claim; test
+    `TestReleaseReportsADefiniteFailureAndNotALostClaim` in
+    [`internal/claimpass/claimpass_test.go`](../../../internal/claimpass/claimpass_test.go).
+    A durable sweep tick reports a refused release with the sweep's identity
+    and no database message, keeping the sweep claimed, and a takeover during
+    the tick is no failure and leaves the new holder's claim intact (PER-R26,
+    FAIL-SCN-15); tests `TestPostgresScanSweepTickReportsADefiniteReleaseFailure`
+    and `TestPostgresScanSweepTickToleratesAClaimTakenOverDuringIt` in
+    [`internal/app/scan_sweep_release_postgres_test.go`](../../../internal/app/scan_sweep_release_postgres_test.go).
+23. The lease session carries the working pool's connect timeout, query
+    budget tracer and server-side timeouts; each startup lease step runs under
+    its configured budget, or exactly under an earlier caller deadline; a
+    standby acquisition probe and a standby reconnect run under the tolerance
+    window when that ends first; and the liveness probe runs outside the
+    client query budget (PER-R27, PER-R28); test
+    `TestPostgresControlPlaneLeaseSessionInheritsStartupBudgets` in
+    [`internal/app/single_active_budget_postgres_test.go`](../../../internal/app/single_active_budget_postgres_test.go).
+    A stalled handshake, keepalive configuration, first acquisition or holder
+    lookup ends at its configured budget under a process context without a
+    deadline, or at the caller's earlier deadline or cancellation; the Server
+    cancels the stalled statement with the session's backend key and closes
+    the session; only after a stalled holder lookup does it stand by, logging
+    an unknown holder, and its next acquisition probe reconnects the session
+    (PER-R27, FAIL-PER-4); test
+    `TestControlPlaneLeaseStartupStallEndsAtItsBudgetOwner` in
+    [`internal/app/single_active_budget_test.go`](../../../internal/app/single_active_budget_test.go).
+24. A migration run commits every pending migration with its ledger row or
+    none: a lock that a later pending migration cannot get within the chosen
+    lock timeout fails the run as a timeout and leaves the ledger and the
+    schema at the version the run started from, a drifted ledger is refused
+    before any migration runs, and the next run applies the same migrations
+    (PER-R29, PER-R30, PER-R31); test
+    `TestPostgresMigrationRunCommitsEveryPendingMigrationOrNone` in
+    [`internal/persistence/postgres/migration_run_postgres_test.go`](../../../internal/persistence/postgres/migration_run_postgres_test.go).
+    Concurrent runs on one schema wait for its leader beyond the lock timeout
+    and apply each migration once, while other schemas migrate independently
+    (PER-R29); tests `TestPostgresMigrationLeaderIsScopedToTargetSchema` in
+    [`internal/persistence/postgres/migration_lock_postgres_test.go`](../../../internal/persistence/postgres/migration_lock_postgres_test.go)
+    and `TestPostgresMigrationLeaderWaitOutlivesDDLLockTimeout` in
+    [`internal/persistence/postgres/budgets_postgres_test.go`](../../../internal/persistence/postgres/budgets_postgres_test.go).
+25. The migrator and the Server's startup check classify a ledger with an
+    unknown version, another name or another checksum as drift and one that
+    lacks an embedded version as pending (PER-R29, PER-R30); tests
+    `TestCompareMigrationLedgerClassifiesPendingAndDrift` in
+    [`internal/persistence/postgres/migrate_test.go`](../../../internal/persistence/postgres/migrate_test.go)
+    and `TestPostgresVerifyMigrationsRejectsMissingBehindAndDriftedLedgers` in
+    [`internal/persistence/postgres/migration_verify_postgres_test.go`](../../../internal/persistence/postgres/migration_verify_postgres_test.go).
+26. The migration budget takes the operator's values, defaults and bounds,
+    and the client deadlines and run deadline derived from them; it is set
+    transaction-locally, so the pooled connection keeps its own settings after
+    commit and rollback (PER-R31); tests
+    `TestMigrationBudgetsFollowConfiguredTimeouts` in
+    [`internal/persistence/postgres/budgets_test.go`](../../../internal/persistence/postgres/budgets_test.go)
+    and `TestPostgresMaintenanceBudgetsRestorePoolSettings` in
+    [`internal/persistence/postgres/budgets_postgres_test.go`](../../../internal/persistence/postgres/budgets_postgres_test.go).
+    On a pool opened as the migrator opens it, the client deadline covers a
+    whole migration file while PostgreSQL times out each statement: a file
+    whose statements each fit but together outlast the deadline fails as a
+    timeout without a SQLSTATE, a statement beyond the statement timeout fails
+    with SQLSTATE `57014`, and neither leaves the file or its ledger row
+    behind (PER-R31, PER-R32); test
+    `TestPostgresMigrationClientDeadlineCoversAWholeFile` in
+    [`internal/persistence/postgres/migration_run_postgres_test.go`](../../../internal/persistence/postgres/migration_run_postgres_test.go).
+    No embedded migration controls the transaction, uses a statement
+    PostgreSQL refuses inside a transaction block or names a timeout setting,
+    read as psql splits statements, and a file the check cannot split fails it
+    (PER-R31, PER-R32); test
+    `TestEmbeddedMigrationsStayInsideTheMigrationTransaction` in
+    [`internal/persistence/postgres/migrate_test.go`](../../../internal/persistence/postgres/migrate_test.go).
+27. Upgraded data keeps the rules of its data-moving migrations (PER-R33).
+    After the revision-count backfill every RunScope counts exactly its
+    revisions outside outputs, User and Project scopes count none, later
+    writes keep counting and stop at LIM-ART-6, and the purge removes the
+    counter with its scope; test
+    `TestPostgresRunArtifactRevisionLimitMigrationBackfillsRunScopes` in
+    [`internal/persistence/postgres/run_artifact_revision_limit_migration_test.go`](../../../internal/persistence/postgres/run_artifact_revision_limit_migration_test.go).
+    After the controller claim shape migration every Eval claim is free at
+    its previous epoch, no pre-upgrade lease proves a write and the next
+    lease advances the epoch (PER-R25); test
+    `TestPostgresControllerClaimShapeMigrationReleasesEvalLeases` in
+    [`internal/persistence/postgres/controller_claim_shape_migration_test.go`](../../../internal/persistence/postgres/controller_claim_shape_migration_test.go).
 
 ## Non-goals
 
+- A gate that measures each migration at its bound or detects a data-moving
+  migration without an upgrade test. PER-R32's budget fit and PER-R33 are
+  accepted as review obligations: the migration's author and reviewer check
+  them against AGENTS.md (sections 3.3 and 6), and the automated checks cover
+  only what invariants 26 and 27 name. A run that exceeds its budget fails as
+  a timeout and applies nothing (FAIL-PER-5), so a missed case costs a retry
+  with a larger budget, not data. Reopen this when an upgrade of a database
+  within the documented limits exceeds the default budget, or a data-moving
+  migration lands without an upgrade test; the replacement is a gate, such as
+  a test that requires an upgrade test for every migration that changes rows.
 - Multiple active Control Plane replicas, shared fleet coordination and durable
   liveness state; they are deferred together and must not be approximated by
   sharing an unfenced `runtime_agents` table (PER-R11).

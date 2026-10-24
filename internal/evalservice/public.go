@@ -30,7 +30,7 @@ type ExperimentView struct {
 	LastProducerActivityAt *time.Time               `json:"lastProducerActivityAt"`
 	Draft                  json.RawMessage          `json:"draft,omitempty"`
 	Setup                  json.RawMessage          `json:"setup,omitempty"`
-	Readiness              *Readiness               `json:"readiness,omitempty"`
+	Readiness              *evaldomain.Readiness    `json:"readiness,omitempty"`
 	Expected               int                      `json:"expectedMembers"`
 	AllowedCommands        []evaldomain.CommandKind `json:"allowedCommands"`
 	Diagnostics            []json.RawMessage        `json:"diagnostics"`
@@ -81,7 +81,7 @@ func (s *Service) Get(ctx context.Context, owner, id string) (ExperimentView, er
 			out.ExecutionKind = draft.Variants[0].Kind
 			out.Expected = len(draft.CaseIDs) * draft.Repetitions * 2
 		} else {
-			plan, err := st.FrozenPlan(ctx, owner, id)
+			plan, err := st.FrozenPlanView(ctx, owner, id)
 			if notFound(err) && e.Draft.Kind() == "Draft" {
 				// Deleting an unprepared draft still needs a safe authoring projection.
 				var draft evaldomain.Draft
@@ -99,10 +99,7 @@ func (s *Service) Get(ctx context.Context, owner, id string) (ExperimentView, er
 					return err
 				}
 				out.Setup = plan.Setup
-				out.Readiness, err = nativeReadiness(plan)
-				if err != nil {
-					return err
-				}
+				out.Readiness = plan.Readiness
 				out.PlanSHA256 = &plan.SHA256
 				var setup struct {
 					Variants []evaldomain.Variant `json:"variants"`
@@ -221,7 +218,7 @@ func (s *Service) GetCommand(ctx context.Context, owner, id, command string) (ev
 	if err != nil {
 		return record, nil, err
 	}
-	plan, err := st.FrozenPlan(ctx, owner, id)
+	plan, err := st.FrozenPlanMetadata(ctx, owner, id)
 	if notFound(err) {
 		return record, nil, nil
 	}

@@ -17,9 +17,6 @@ type auditStandardResponse struct {
 }
 
 func (h *auditHandlers) listAuditStandards(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		handleError(w, err)
 		return
@@ -35,9 +32,6 @@ func (h *auditHandlers) listAuditStandards(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *auditHandlers) getAuditStandard(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		handleError(w, err)
 		return

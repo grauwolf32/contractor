@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from fnmatch import fnmatchcase
-from functools import cache
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from fnmatch import translate as fnmatch_translate
 
 from contractor_runtime.contracts.base import (
     MAX_WORKER_STATE_PATH_BYTES,
@@ -99,23 +100,67 @@ def normalize_project_glob(value: str) -> str:
     return "/".join(parts)
 
 
-def project_glob_matches(path: str, pattern: str) -> bool:
-    path_parts = normalize_project_path(path, allow_root=False).split("/")
-    pattern_parts = normalize_project_glob(pattern).split("/")
+@dataclass(frozen=True, slots=True)
+class ProjectGlob:
+    """A normalized project glob, compiled once to match many paths.
 
-    @cache
-    def match(path_index: int, pattern_index: int) -> bool:
-        if pattern_index == len(pattern_parts):
-            return path_index == len(path_parts)
-        component = pattern_parts[pattern_index]
-        if component == "**":
-            return match(path_index, pattern_index + 1) or (
-                path_index < len(path_parts) and match(path_index + 1, pattern_index)
-            )
-        return (
-            path_index < len(path_parts)
-            and fnmatchcase(path_parts[path_index], component)
-            and match(path_index + 1, pattern_index + 1)
-        )
+    A ``**`` component matches zero or more whole path components; any other
+    component matches exactly one component as ``fnmatch.fnmatchcase`` does.
+    Callers that test many paths compile the glob once instead of normalizing
+    and translating it again for every path.
+    """
 
-    return match(0, 0)
+    pattern: str
+    # One fnmatchcase matcher per component, or None for "**". A run of "**"
+    # components means the same as one and is compiled as one, so no two
+    # adjacent entries are None.
+    _components: tuple[Callable[[str], object] | None, ...] = field(repr=False)
+    # The component indices reachable from each index by letting a "**"
+    # component match nothing; index len(_components) means a full match.
+    # Without adjacent "**" entries each closure holds at most two indices,
+    # so one path component costs O(len(_components)) and a path
+    # O(path components x glob components).
+    _closures: tuple[frozenset[int], ...] = field(repr=False)
+
+    def matches(self, path: str) -> bool:
+        """Return whether project ``path`` matches; ProjectPathError if it is invalid."""
+
+        parts = normalize_project_path(path, allow_root=False).split("/")
+        components = self._components
+        closures = self._closures
+        accepted = len(components)
+        states = closures[0]
+        for part in parts:
+            following: set[int] = set()
+            for index in states:
+                if index == accepted:
+                    continue
+                component = components[index]
+                if component is None:
+                    following |= closures[index]
+                elif component(part) is not None:
+                    following |= closures[index + 1]
+            if not following:
+                return False
+            states = frozenset(following)
+        return accepted in states
+
+
+def compile_project_glob(value: str) -> ProjectGlob:
+    """Normalize ``value`` once, as normalize_project_glob does, and compile it."""
+
+    pattern = normalize_project_glob(value)
+    compiled: list[Callable[[str], object] | None] = []
+    for part in pattern.split("/"):
+        if part != "**":
+            compiled.append(re.compile(fnmatch_translate(part)).match)
+        elif not compiled or compiled[-1] is not None:
+            compiled.append(None)
+    components = tuple(compiled)
+    closures: list[frozenset[int]] = []
+    for index in range(len(components) + 1):
+        reachable = [index]
+        while reachable[-1] < len(components) and components[reachable[-1]] is None:
+            reachable.append(reachable[-1] + 1)
+        closures.append(frozenset(reachable))
+    return ProjectGlob(pattern=pattern, _components=components, _closures=tuple(closures))

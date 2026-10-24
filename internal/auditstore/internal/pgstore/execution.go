@@ -38,7 +38,7 @@ func (s *ClaimStore) CreateExecutionIntent(
 		if err != nil {
 			return fmt.Errorf("lock Audit dispatch window: %w", err)
 		}
-		execution, err = scanExecution(persistencepostgres.SavepointQueryRow(ctx, tx, createExecutionIntentSQL,
+		execution, err = ScanExecution(persistencepostgres.SavepointQueryRow(ctx, tx, createExecutionIntentSQL,
 			params.Claim.AuditID, params.Claim.HolderID, params.Claim.Epoch,
 			params.ExecutionID, string(params.Role), prepared.roundID, prepared.roleAttempt,
 			prepared.manifestRef, params.Manifest.Digest, params.SubmissionKey,
@@ -80,8 +80,8 @@ func (s *ClaimStore) CreateExecutionIntent(
 func (s *ClaimStore) lookupExecutionReplay(
 	ctx context.Context, auditID, submissionKey, digest string,
 ) (auditstore.Execution, bool, error) {
-	execution, err := scanExecution(s.db.QueryRow(ctx, `
-SELECT `+prefixedExecutionColumns("audit_executions")+` FROM audit_executions
+	execution, err := ScanExecution(s.db.QueryRow(ctx, `
+SELECT `+ExecutionColumns("audit_executions")+` FROM audit_executions
  WHERE submission_key = $1`, submissionKey))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return auditstore.Execution{}, false, nil
@@ -107,7 +107,7 @@ func (s *ClaimStore) BindRun(ctx context.Context, params auditstore.BindRunParam
 	if err := validateBindRun(params); err != nil {
 		return auditstore.Execution{}, err
 	}
-	execution, err := scanExecution(s.db.QueryRow(ctx, bindRunSQL+prefixedExecutionColumns("changed")+` FROM changed`,
+	execution, err := ScanExecution(s.db.QueryRow(ctx, bindRunSQL+ExecutionColumns("changed")+` FROM changed`,
 		params.Claim.AuditID, params.Claim.HolderID, params.Claim.Epoch,
 		params.ExecutionID, params.RunID,
 	))
@@ -156,8 +156,8 @@ func (s *ClaimStore) GetRunCreationIntent(
 	var result auditstore.RunCreationIntent
 	var placement []byte
 	var metadata []byte
-	execution, err := scanExecution(withColumns{row: s.db.QueryRow(ctx, `
-SELECT audit.owner_id, audit.project_id, audit.baseline_snapshot->'labels', audit.baseline_snapshot->'requiredPlacementLabels', `+profileRoleSQL("#>", "execution.workflow_role")+`, `+prefixedExecutionColumns("execution")+`
+	execution, err := ScanExecution(withColumns{row: s.db.QueryRow(ctx, `
+SELECT audit.owner_id, audit.project_id, audit.baseline_snapshot->'labels', audit.baseline_snapshot->'requiredPlacementLabels', `+profileRoleSQL("#>", "execution.workflow_role")+`, `+ExecutionColumns("execution")+`
   FROM audit_executions AS execution
   JOIN audits AS audit USING (audit_id)
   JOIN audit_controller_claims AS claim USING (audit_id)
@@ -207,7 +207,7 @@ func (s *ClaimStore) ObserveTerminal(
 	if err := validateObserveTerminal(params); err != nil {
 		return auditstore.Execution{}, err
 	}
-	execution, err := scanExecution(s.db.QueryRow(ctx, observeTerminalSQL+prefixedExecutionColumns("changed")+` FROM changed`,
+	execution, err := ScanExecution(s.db.QueryRow(ctx, observeTerminalSQL+ExecutionColumns("changed")+` FROM changed`,
 		params.Claim.AuditID, params.Claim.HolderID, params.Claim.Epoch,
 		params.ExecutionID, params.RunID, params.Generation, int64(params.Sequence),
 	))
@@ -242,7 +242,7 @@ func (s *ClaimStore) ObserveSubmissionFailure(
 	if err := validateSubmissionFailure(params); err != nil {
 		return auditstore.Execution{}, err
 	}
-	execution, err := scanExecution(s.db.QueryRow(ctx, observeSubmissionFailureSQL+prefixedExecutionColumns("changed")+` FROM changed`,
+	execution, err := ScanExecution(s.db.QueryRow(ctx, observeSubmissionFailureSQL+ExecutionColumns("changed")+` FROM changed`,
 		params.Claim.AuditID, params.Claim.HolderID, params.Claim.Epoch, params.ExecutionID,
 	))
 	if err == nil {
@@ -268,8 +268,8 @@ func (s *ClaimStore) ObserveSubmissionFailure(
 }
 
 func (s *ClaimStore) getExecution(ctx context.Context, auditID, executionID string) (auditstore.Execution, error) {
-	execution, err := scanExecution(s.db.QueryRow(ctx, `
-SELECT `+prefixedExecutionColumns("audit_executions")+` FROM audit_executions
+	execution, err := ScanExecution(s.db.QueryRow(ctx, `
+SELECT `+ExecutionColumns("audit_executions")+` FROM audit_executions
  WHERE audit_id = $1 AND execution_id = $2`, auditID, executionID))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return auditstore.Execution{}, auditstore.ErrNotFound

@@ -448,11 +448,11 @@ func assertDurableExecution(
 		t.Fatalf("accepted result/output mismatch: %+v / %+v", execution.AcceptedResult, output)
 	}
 	runEvents, err := store.ListRunEvents(ctx, execution.RunID, 0, 1000)
-	if err != nil {
-		t.Fatalf("list Run events: %v", err)
+	if err != nil || runEvents.More {
+		t.Fatalf("list Run events: more=%t, %v", runEvents.More, err)
 	}
 	var plannerKinds []runstore.RunEventKind
-	for _, event := range runEvents {
+	for _, event := range runEvents.Events {
 		if strings.HasPrefix(string(event.Kind), "planner.") {
 			plannerKinds = append(plannerKinds, event.Kind)
 		}

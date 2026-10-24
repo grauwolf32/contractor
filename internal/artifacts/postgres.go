@@ -2,13 +2,11 @@ package artifacts
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/randomid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // runRevisionLimitConstraint names the database rejection of LIM-ART-6 raised
@@ -19,9 +17,8 @@ const runRevisionLimitConstraint = "artifact_scopes_run_revision_limit"
 // revision beyond a RunScope's limit: a stored bound the classifier reports,
 // named by the revision limit's constraint.
 func isRunRevisionLimit(err error) bool {
-	var pgError *pgconn.PgError
 	return persistencepostgres.Classify(err) == persistencepostgres.ClassLimitExceeded &&
-		errors.As(err, &pgError) && pgError.ConstraintName == runRevisionLimitConstraint
+		persistencepostgres.ConstraintName(err) == runRevisionLimitConstraint
 }
 
 // storeError classifies the failure of a statement that creates scopes,

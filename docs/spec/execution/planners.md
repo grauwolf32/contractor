@@ -554,6 +554,54 @@ bindings.
 **PLN-R72.** An invalid completion call returns a bounded tool
 error so the model may correct it within the remaining budget (FAIL-PLN-4).
 
+**PLN-R118.** A Planner verifies inside the current RunScope every exact
+artifact reference of a Worker result it receives and of a Stage candidate it
+returns, whether the candidate is mapped from a Worker completion, passed to
+`finish` or recovered from a completed session (PLN-R106). Streamline and
+Router also verify the StageContext refs of the Worker request that the
+current-subtask step builds (PLN-R42). Passthrough sends the Stage request
+unchanged; its StageContext refs are the exact refs the Scheduler resolved
+when it created the StageExecution ([SCH-R15](scheduler.md)), and it does not
+verify them again. A Planner classifies a failed verification by its typed
+cause, never by error text:
+
+- a rejected reference — malformed or versionless, naming no revision the
+  RunScope holds, or answered with metadata of another revision — is
+  non-retryable, because verifying it again gives the same answer: it is
+  `result_contract_violation` for a Stage candidate, `invalid_worker_result`
+  for a Worker result and `worker_request_invalid` for a Worker request;
+- a failure that leaves the reference unverified, such as an unavailable
+  database, a lock or statement timeout or a cancelled lookup, is retryable:
+  `result_artifact_unavailable` for a Stage candidate or Worker result and
+  `worker_artifact_unavailable` for a Worker request.
+
+References are verified in name order, so a candidate or Worker result with
+several failing references always fails with the same one. The class does not
+change the caller's control flow: Passthrough ends its invocation with the
+error (FAIL-PLN-2), while Streamline and Router return it as the tool error of
+`execute_current_subtask`, or reject `finish` with `finish_rejected` of the
+same retryability, and keep reasoning within their budget (PLN-R72, PLN-R77,
+FAIL-PLN-3, FAIL-PLN-4). The Scheduler classifies its own revalidation the
+same way ([SCH-R177](scheduler.md)).
+
+Rationale: a reference the Worker never wrote does not appear when the same
+candidate is verified again, so a retryable class would let a `retry` action
+repeat a deterministic defect; a store that cannot answer must not end a Stage
+that a later attempt can complete.
+
+**PLN-R119.** The Passthrough `ExecutionReport` records its single Worker
+invocation as one `a2a.invoke` tool call whose outcome is the Planner's
+verdict on that invocation. The call succeeds when the Worker returns a
+successful result that maps to a valid candidate. It fails when the invocation
+errors, when the Worker returns a `WorkerFailure`, and when the Planner rejects
+the completion or its candidate; a rejection fails the call with the
+rejection's code and retryability and counts the invocation once. The
+report-level error is the error the Planner returns, which is the rejection
+unless recording the completion in the Planner session then fails. In that
+case the Planner returns `planner_session_unavailable` (PLN-R106) instead of
+the candidate or the rejection, and the call keeps its verdict, because the
+session write is not part of the invocation.
+
 **PLN-R73.** A successful `finish` requires at least one `succeeded`
 subtask, no `pending` or `running` subtask and no active dispatch.
 
@@ -746,7 +794,10 @@ database record commits.
 **PLN-R106.** The database record supports inspection, statistics,
 audit and completed-result recovery. A completed Planner session returns its
 recorded candidate or failure without invoking ADK, the Gateway or a Worker
-again (FAIL-PLN-8).
+again (FAIL-PLN-8). A Planner whose session cannot be started or written
+returns `planner_session_unavailable` instead of a candidate. The error is
+retryable, except that a failed write of a Planner failure keeps the
+retryability of that failure.
 
 **PLN-R107.** The record is not authority for resuming a partially
 completed model invocation: a session still running after process loss yields
@@ -856,10 +907,21 @@ Errors ([registry](../platform/errors.md)):
   table owned by [Errors](../platform/errors.md).
 - `worker_state_unavailable`, `worker_state_changed` — projection tool errors
   (PLN-R57, PLN-R59).
+- `invalid_worker_result`, `worker_request_invalid` — non-retryable rejections
+  of a Worker result or request, including a rejected exact artifact
+  reference; `result_artifact_unavailable`, `worker_artifact_unavailable` —
+  retryable failures to verify a result or request artifact (PLN-R118);
+  `finish_rejected` — a rejected `finish` call, retryable only when its
+  candidate artifacts could not be verified (PLN-R72, PLN-R118).
+- `planner_session_unavailable` — the Planner session could not be started
+  or written; retryable, except that a failed write of a Planner failure keeps
+  that failure's retryability (PLN-R106, PLN-R119).
 - the invocation-in-progress error, which has no assigned code — retryable
   (PLN-R107).
-- `result_contract_violation` belongs to [Scheduler](scheduler.md) and
-  `worker_budget_exhausted` to [Worker](worker.md).
+- `result_contract_violation` belongs to [Scheduler](scheduler.md); a
+  Planner raises it, non-retryable, for a candidate that violates the Stage
+  result contract, including a rejected result reference (PLN-R118).
+  `worker_budget_exhausted` belongs to [Worker](worker.md).
 
 ## Security
 

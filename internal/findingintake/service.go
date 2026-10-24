@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
@@ -91,7 +92,8 @@ func (s *Service) Submit(
 	} else if found {
 		return previous, true, nil
 	}
-	anchors, err := s.prepareAnchors(ctx, grant, canonical.request)
+	readStage := s.lazyPreparationStage(ctx, grant)
+	anchors, err := s.prepareAnchors(ctx, grant, canonical.request, readStage)
 	if err != nil {
 		return Receipt{}, false, err
 	}
@@ -99,7 +101,7 @@ func (s *Service) Submit(
 	if err != nil {
 		return Receipt{}, false, err
 	}
-	fingerprint, err := s.prepareFingerprint(ctx, grant, canonical.request)
+	fingerprint, err := s.prepareFingerprint(ctx, grant, canonical.request, readStage)
 	if err != nil {
 		return Receipt{}, false, err
 	}
@@ -271,6 +273,28 @@ SELECT count(*) FROM finding_proposal_receipts WHERE run_id = $1`, grant.RunID).
 		return Receipt{}, false, err
 	}
 	return result, replayed, nil
+}
+
+// preparationStage reads the grant's StageExecution for the optional anchor
+// and fingerprint derivations before the intake transaction.
+type preparationStage func() (runstore.StageExecution, error)
+
+// lazyPreparationStage returns a loader scoped to one Submit call: the first
+// derivation that needs the Stage reads it, and the other reuses that
+// snapshot. A derivation with no Stage input never reads it. The snapshot
+// only selects optional evidence inputs; verifyTrustedExecution re-reads the
+// Stage inside the intake transaction for provenance and authorization.
+func (s *Service) lazyPreparationStage(ctx context.Context, grant controlplane.AllocationGrant) preparationStage {
+	return sync.OnceValues(func() (runstore.StageExecution, error) {
+		stage, err := runstore.NewPostgresStore(s.pool).GetStageExecution(ctx, grant.StageExecutionID)
+		if err != nil {
+			return runstore.StageExecution{}, err
+		}
+		if stage.RunID != grant.RunID {
+			return runstore.StageExecution{}, ErrAccessDenied
+		}
+		return stage, nil
+	})
 }
 
 func verifyTrustedExecution(

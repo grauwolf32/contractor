@@ -159,9 +159,7 @@ func TestStandardTaskMatchesItsExactRetainedMapping(t *testing.T) {
 		StandardRefs: []auditdomain.StandardReference{{
 			Scheme: "CWE", Version: "4.20", RequirementID: "CWE-89",
 		}},
-	}, func() (retainedStandardIndex, error) {
-		return retainedStandardIndex{retainedStandardKey(pkg.Reference().Scheme, pkg.Reference().Version): standard}, nil
-	}); err == nil {
+	}, retainedStandardIndex{retainedStandardKey(pkg.Reference().Scheme, pkg.Reference().Version): standard}); err == nil {
 		t.Fatal("CWE classification satisfied an assigned standard entry")
 	}
 	task.Standard.EntryIDs = []string{"A02:2025"}
@@ -255,9 +253,17 @@ func top10ImportPackage(t *testing.T) auditstandards.Package {
 	return *pkg
 }
 
-// One collection uses the same pinned standard during receipt retention and
-// validation of several result proposals. A later attempt must read it anew.
-func TestCollectionLoadsPinnedStandardsOncePerAttempt(t *testing.T) {
+// pinnedStandardCollection is an import harness whose Audit pins one retained
+// standard and whose result selects two proposals that reference it.
+type pinnedStandardCollection struct {
+	harness  importHarness
+	counter  *standardReadCounter
+	findings *fakeFindingRetention
+	pinned   auditstandards.PinnedPackage
+}
+
+func newPinnedStandardCollection(t *testing.T) pinnedStandardCollection {
+	t.Helper()
 	harness := newImportHarness(t)
 	profile := loadResultProfileWithFindingConfirmation(t, "human-required")
 	profileSnapshot, err := json.Marshal(profile)
@@ -282,14 +288,7 @@ func TestCollectionLoadsPinnedStandardsOncePerAttempt(t *testing.T) {
 	if err := auditstandards.ValidatePinnedPackage(pinned); err != nil {
 		t.Fatal(err)
 	}
-	baseline, err := json.Marshal(struct {
-		Schema    string                         `json:"schema"`
-		Standards []auditstandards.PinnedPackage `json:"standards"`
-	}{Schema: "contractor.audit.baseline.v1", Standards: []auditstandards.PinnedPackage{pinned}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	harness.snapshot.Audit.BaselineSnapshot = baseline
+	harness.snapshot.Audit.BaselineSnapshot = standardBaseline(t, pinned)
 	standardKey := refKey(pinned.Retained.Artifact)
 	harness.artifacts.project[standardKey] = pkg.Payload()
 	counter := &standardReadCounter{ArtifactAccess: harness.artifacts, key: standardKey}
@@ -321,6 +320,37 @@ func TestCollectionLoadsPinnedStandardsOncePerAttempt(t *testing.T) {
 		t.Fatal(err)
 	}
 	rebuildHarnessResult(t, &harness, selections)
+	return pinnedStandardCollection{harness: harness, counter: counter, findings: findings, pinned: pinned}
+}
+
+func standardBaseline(t *testing.T, pinned ...auditstandards.PinnedPackage) json.RawMessage {
+	t.Helper()
+	baseline, err := json.Marshal(struct {
+		Schema    string                         `json:"schema"`
+		Standards []auditstandards.PinnedPackage `json:"standards"`
+	}{Schema: "contractor.audit.baseline.v1", Standards: pinned})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return baseline
+}
+
+// markProposalsRetained models a retry after an earlier attempt retained every
+// proposal: retention then skips them and never reads the pinned standards.
+func (c pinnedStandardCollection) markProposalsRetained() {
+	c.findings.collection = make([]findingintake.CollectionReceipt, len(c.findings.receipts))
+	for index, receipt := range c.findings.receipts {
+		c.findings.collection[index] = findingintake.CollectionReceipt{
+			Receipt: receipt, Retained: true, PostTerminalRetained: true,
+		}
+	}
+}
+
+// One collection uses the same pinned standard during receipt retention and
+// validation of several result proposals. A later attempt must read it anew.
+func TestCollectionLoadsPinnedStandardsOncePerAttempt(t *testing.T) {
+	fixture := newPinnedStandardCollection(t)
+	harness, counter, findings := fixture.harness, fixture.counter, fixture.findings
 	for attempt := 1; attempt <= 2; attempt++ {
 		changed, err := harness.importer.Collect(context.Background(), harness.claim, harness.snapshot, harness.execution)
 		if err != nil || !changed || harness.store.collected.Disposition != auditstore.CollectionAccepted {
@@ -336,11 +366,128 @@ func TestCollectionLoadsPinnedStandardsOncePerAttempt(t *testing.T) {
 			t.Fatalf("CWE proposal was not retained: imports=%d rejections=%v", len(findings.imports), findings.rejections)
 		}
 	}
-	harness.artifacts.project[standardKey] = []byte("corrupted pinned package")
+	harness.artifacts.project[counter.key] = []byte("corrupted pinned package")
 	harness.store.collected = auditstore.CollectParams{}
 	changed, err := harness.importer.Collect(context.Background(), harness.claim, harness.snapshot, harness.execution)
 	if changed || !errors.Is(err, artifacts.ErrArtifactNotFound) || counter.reads != 3 || harness.store.collected.Disposition != "" {
 		t.Fatalf("later attempt reused cached package: changed=%t err=%v reads=%d", changed, err, counter.reads)
+	}
+}
+
+// When an earlier attempt retained every proposal, the first read of the
+// pinned standards happens while resolving the result's proposal selections.
+// That read keeps its failure class: a storage failure leaves the execution
+// collecting without a receipt, and invalid pinned standards settle through
+// the contract-invalid receipt. Neither is the Worker's invalid result.
+func TestCollectionKeepsPinnedStandardFailureClassAfterProposalsWereRetained(t *testing.T) {
+	t.Run("transient read retries without a receipt", func(t *testing.T) {
+		fixture := newPinnedStandardCollection(t)
+		fixture.markProposalsRetained()
+		harness := fixture.harness
+		transient := errors.New("artifact storage unavailable")
+		fixture.counter.fail = transient
+		changed, err := harness.importer.Collect(context.Background(), harness.claim, harness.snapshot, harness.execution)
+		if changed || !errors.Is(err, transient) || errors.Is(err, ErrPermanent) ||
+			harness.store.collected.ExecutionID != "" || fixture.counter.reads != 1 ||
+			len(fixture.findings.imports) != 0 || len(fixture.findings.rejections) != 0 {
+			t.Fatalf("transient standard read = (%t, %v, reads=%d, collection=%+v)",
+				changed, err, fixture.counter.reads, harness.store.collected)
+		}
+		fixture.counter.fail = nil
+		changed, err = harness.importer.Collect(context.Background(), harness.claim, harness.snapshot, harness.execution)
+		if err != nil || !changed || harness.store.collected.Disposition != auditstore.CollectionAccepted ||
+			len(harness.store.collected.Items[0].FindingAssociations) != 2 || fixture.counter.reads != 2 {
+			t.Fatalf("retry after transient standard read = (%t, %v, %+v)", changed, err, harness.store.collected)
+		}
+	})
+	for name, change := range map[string]func(*pinnedStandardCollection){
+		"invalid baseline": func(c *pinnedStandardCollection) {
+			c.harness.snapshot.Audit.BaselineSnapshot = json.RawMessage(`{"schema":"contractor.audit.baseline.v1"}`)
+		},
+		"retained package differs from its pin": func(c *pinnedStandardCollection) {
+			pinned := c.pinned
+			pinned.Title += " (changed)"
+			c.harness.snapshot.Audit.BaselineSnapshot = standardBaseline(t, pinned)
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			fixture := newPinnedStandardCollection(t)
+			fixture.markProposalsRetained()
+			change(&fixture)
+			harness := fixture.harness
+			changed, err := harness.importer.Collect(context.Background(), harness.claim, harness.snapshot, harness.execution)
+			collected := harness.store.collected
+			if err != nil || !changed || collected.Disposition != auditstore.CollectionContractInvalid ||
+				collected.ErrorCode == nil || *collected.ErrorCode != "collection-contract-invalid" ||
+				len(collected.Items) != 1 || collected.Items[0].Retryable ||
+				collected.Items[0].Coverage.Status != auditstore.CoverageBlocked {
+				t.Fatalf("invalid pinned standard = (%t, %v, %+v)", changed, err, collected)
+			}
+		})
+	}
+}
+
+// The task/standard check compares two pinned documents, so its failure is
+// ErrPermanent; only the proposal's own standard references are the Worker's.
+func TestResolvedProposalStandardsSeparatePinnedDataFromProposalViolations(t *testing.T) {
+	pkg := top10ImportPackage(t)
+	revision := "standard-r1"
+	ref := contracts.ArtifactRef{Namespace: "audit-example", Name: "standard", Revision: &revision}
+	pinned := auditstandards.PinnedPackage{
+		Reference: pkg.Reference(), Title: pkg.Document.Standard.Title,
+		Source: pkg.Document.Standard.Source, License: pkg.Document.Standard.License,
+		Retained: auditstandards.ExactPackage{
+			Artifact: ref, Digest: pkg.Digest, MediaType: auditstandards.MediaType,
+			SizeBytes: int64(len(pkg.Payload())),
+		},
+	}
+	inventory, err := auditdomain.BuildStandardMappingInventory(pkg, auditdomain.InventoryOptions{
+		Round: 1, WorkflowRole: "check", SourceInputName: "standard", SourceRef: ref,
+		ApprovalRequirement: auditdomain.ApprovalNone,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	task := inventory.Tasks[0].Document
+	standards := retainedStandardIndex{
+		retainedStandardKey(pkg.Reference().Scheme, pkg.Reference().Version): indexRetainedStandard(pinned, pkg),
+	}
+	loaded := func() (retainedStandardIndex, error) { return standards, nil }
+	assigned := make([]auditdomain.StandardReference, 0, len(task.Standard.EntryIDs))
+	for _, entryID := range task.Standard.EntryIDs {
+		assigned = append(assigned, auditdomain.StandardReference{
+			Scheme: task.Standard.Scheme, Version: task.Standard.Version, RequirementID: entryID,
+		})
+	}
+	valid := auditdomain.FindingProposal{StandardRefs: assigned}
+	if err := validateResolvedProposalStandards(task, valid, loaded); err != nil {
+		t.Fatalf("proposal naming its assigned entries = %v", err)
+	}
+	var invalid *invalidCheckResults
+	omitted := auditdomain.FindingProposal{StandardRefs: []auditdomain.StandardReference{{
+		Scheme: "CWE", Version: "4.20", RequirementID: "CWE-89",
+	}}}
+	if err := validateResolvedProposalStandards(task, omitted, loaded); !errors.As(err, &invalid) || errors.Is(err, ErrPermanent) {
+		t.Fatalf("proposal omitting its assigned entry = %v, want invalid result", err)
+	}
+	checklist := *task.Checklist
+	checklist.ReviewPolicy = "manual"
+	mismatched := task
+	mismatched.Checklist = &checklist
+	if err := validateResolvedProposalStandards(mismatched, valid, loaded); !errors.Is(err, ErrPermanent) || errors.As(err, &invalid) {
+		t.Fatalf("pinned task differing from its retained standard = %v, want ErrPermanent", err)
+	}
+	transient := errors.New("artifact storage unavailable")
+	if err := validateResolvedProposalStandards(task, valid, func() (retainedStandardIndex, error) {
+		return nil, transient
+	}); !errors.Is(err, transient) || errors.Is(err, ErrPermanent) || errors.As(err, &invalid) {
+		t.Fatalf("standard read failure = %v, want it unchanged", err)
+	}
+	if err := validateResolvedProposalStandards(auditdomain.ItemTask{}, auditdomain.FindingProposal{}, func() (retainedStandardIndex, error) {
+		t.Fatal("a proposal without standard references loaded pinned standards")
+		return nil, nil
+	}); err != nil {
+		t.Fatalf("proposal without standard references = %v", err)
 	}
 }
 
@@ -353,11 +500,16 @@ type standardReadCounter struct {
 	ArtifactAccess
 	key   string
 	reads int
+	// fail, when set, is the outcome of every read of the standard.
+	fail error
 }
 
 func (c *standardReadCounter) ReadProjectExact(ctx context.Context, projectID string, artifact auditstore.ExactArtifact) ([]byte, error) {
 	if refKey(artifact.Ref) == c.key {
 		c.reads++
+		if c.fail != nil {
+			return nil, c.fail
+		}
 	}
 	return c.ArtifactAccess.ReadProjectExact(ctx, projectID, artifact)
 }

@@ -1,7 +1,6 @@
 package telemetry
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -77,7 +76,7 @@ func (r *Repository) RecordAllocationReport(
 	if err := validateAllocationEnvelope(envelope); err != nil {
 		return err
 	}
-	normalizeAllocationResources(&envelope.Report.Runtime, envelope.PerformanceCollectionPolicy)
+	envelope.Report.Runtime.ApplyResourcePolicy(envelope.PerformanceCollectionPolicy)
 	report, err := NewPolicy(envelope.Secrets...).NormalizeAllocationReport(envelope.Report)
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalid, err)
@@ -121,9 +120,9 @@ ON CONFLICT DO NOTHING`,
 	if command.RowsAffected() == 1 {
 		return nil
 	}
-	existing, err := r.allocationReportForIdentity(
+	existing, sameReport, err := r.allocationReportForIdentity(
 		ctx, report.ReportID, envelope.StageExecutionID, envelope.AllocationID,
-		envelope.LogicalAgentName,
+		envelope.LogicalAgentName, encoded,
 	)
 	if err != nil {
 		return err
@@ -132,29 +131,10 @@ ON CONFLICT DO NOTHING`,
 		existing.AllocationID != envelope.AllocationID ||
 		existing.LogicalAgentName != envelope.LogicalAgentName ||
 		existing.ReportSchemaVersion != envelope.ReportSchemaVersion ||
-		!sameJSON(existing.Report, report) {
+		!sameReport {
 		return fmt.Errorf("record allocation report: %w", ErrConflict)
 	}
 	return nil
-}
-
-func normalizeAllocationResources(
-	report *reporting.RuntimeReport,
-	policy reporting.PerformanceCollectionPolicy,
-) {
-	if policy != reporting.PerformanceCollectionRequested {
-		report.Resources = nil
-		report.ResourcesError = nil
-		return
-	}
-	if report.ResourcesError != nil || (report.Resources != nil && report.Resources.Validate() != nil) {
-		reason := reporting.ResourceInvalidReport
-		report.Resources = &reporting.RuntimeResources{
-			Version: reporting.PerformanceMetricsVersion, Scope: "runtime_process",
-			Status: reporting.ResourceUnavailable, Reason: &reason,
-		}
-		report.ResourcesError = nil
-	}
 }
 
 func (r *Repository) ListAllocationReports(
@@ -232,7 +212,9 @@ ON CONFLICT DO NOTHING`,
 	if command.RowsAffected() == 1 {
 		return nil
 	}
-	existing, err := r.plannerReportForIdentity(ctx, report.ReportID, envelope.StageExecutionID)
+	existing, sameReport, err := r.plannerReportForIdentity(
+		ctx, report.ReportID, envelope.StageExecutionID, encoded,
+	)
 	if err != nil {
 		return err
 	}
@@ -250,7 +232,7 @@ ON CONFLICT DO NOTHING`,
 	}
 	if !existing.StartedAt.Equal(envelope.StartedAt) ||
 		!existing.FinishedAt.Equal(envelope.FinishedAt) ||
-		!sameJSON(existing.Report, report) {
+		!sameReport {
 		return fmt.Errorf("record Planner report: %w", ErrConflict)
 	}
 	return nil
@@ -367,28 +349,35 @@ func (r *Repository) CleanupExpired(
 	return settled, nil
 }
 
+// allocationReportForIdentity returns the stored report that holds one of the
+// identities of a replayed report, and whether the stored document equals
+// encoded. PostgreSQL compares the two as jsonb, so a number the column
+// normalized (5e-05 stored as 0.00005) still equals the literal the Runtime
+// wrote, and a replay stays idempotent (OBS-R42).
 func (r *Repository) allocationReportForIdentity(
 	ctx context.Context,
 	reportID string,
 	stageExecutionID string,
 	allocationID string,
 	logicalAgentName string,
-) (StoredAllocationReport, error) {
-	result, err := scanAllocationReport(r.db.QueryRow(ctx, `
+	encoded []byte,
+) (StoredAllocationReport, bool, error) {
+	var sameReport bool
+	result, err := scanAllocationReport(sameReportRow{r.db.QueryRow(ctx, `
 SELECT stage_execution_id, allocation_id, logical_agent_name,
-       report_schema_version, report, received_at, expires_at
+       report_schema_version, report, received_at, expires_at, report = $5::jsonb
 FROM allocation_execution_reports
 WHERE report_id = $1 OR allocation_id = $3
    OR (stage_execution_id = $2 AND logical_agent_name = $4)
 ORDER BY (report_id = $1) DESC, (allocation_id = $3) DESC
-LIMIT 1`, reportID, stageExecutionID, allocationID, logicalAgentName))
+LIMIT 1`, reportID, stageExecutionID, allocationID, logicalAgentName, encoded), &sameReport})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return StoredAllocationReport{}, fmt.Errorf("get allocation report: %w", ErrNotFound)
+		return StoredAllocationReport{}, false, fmt.Errorf("get allocation report: %w", ErrNotFound)
 	}
 	if err != nil {
-		return StoredAllocationReport{}, fmt.Errorf("get allocation report: %w", err)
+		return StoredAllocationReport{}, false, fmt.Errorf("get allocation report: %w", err)
 	}
-	return result, nil
+	return result, sameReport, nil
 }
 
 func (r *Repository) allocationReportForParticipant(
@@ -414,17 +403,24 @@ LIMIT 1`, stageExecutionID, logicalAgentName))
 	return result, nil
 }
 
+// plannerReportForIdentity returns the stored Planner report that holds one of
+// the identities of a replayed report, and whether the stored document equals
+// encoded as jsonb, like allocationReportForIdentity.
 func (r *Repository) plannerReportForIdentity(
 	ctx context.Context,
 	reportID string,
 	stageExecutionID string,
-) (StoredPlannerReport, error) {
-	return r.scanPlannerReport(r.db.QueryRow(ctx, `
+	encoded []byte,
+) (StoredPlannerReport, bool, error) {
+	var sameReport bool
+	result, err := r.scanPlannerReport(sameReportRow{r.db.QueryRow(ctx, `
 SELECT stage_execution_id, session_id, invocation_id,
-	   started_at, finished_at, report_schema_version, report, received_at, expires_at
+	   started_at, finished_at, report_schema_version, report, received_at, expires_at,
+	   report = $3::jsonb
 FROM planner_execution_reports
 WHERE report_id = $1 OR stage_execution_id = $2
-ORDER BY (report_id = $1) DESC LIMIT 1`, reportID, stageExecutionID))
+ORDER BY (report_id = $1) DESC LIMIT 1`, reportID, stageExecutionID, encoded), &sameReport})
+	return result, sameReport, err
 }
 
 func (r *Repository) plannerReportForStage(
@@ -460,6 +456,17 @@ func (r *Repository) scanPlannerReport(row rowScanner) (StoredPlannerReport, err
 
 type rowScanner interface {
 	Scan(...any) error
+}
+
+// sameReportRow scans a replay identity row whose last column is the jsonb
+// comparison of the stored and the replayed report into same.
+type sameReportRow struct {
+	row  rowScanner
+	same *bool
+}
+
+func (r sameReportRow) Scan(dest ...any) error {
+	return r.row.Scan(append(dest, r.same)...)
 }
 
 func scanAllocationReport(row rowScanner) (StoredAllocationReport, error) {
@@ -532,10 +539,4 @@ func classifyWriteError(operation string, err error) error {
 	default:
 		return fmt.Errorf("%s: %w", operation, err)
 	}
-}
-
-func sameJSON(left, right any) bool {
-	leftJSON, leftErr := json.Marshal(left)
-	rightJSON, rightErr := json.Marshal(right)
-	return leftErr == nil && rightErr == nil && bytes.Equal(leftJSON, rightJSON)
 }

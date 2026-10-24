@@ -1,5 +1,5 @@
-// Package httpx holds request-parsing helpers shared by the public and
-// private Server HTTP adapters. Helpers that classify a request as invalid
+// Package httpx holds the routing rule and request-parsing helpers shared by
+// the public and private Server HTTP adapters. Helpers that classify a request as invalid
 // wrap the caller's own sentinel, so each adapter keeps its error identity
 // and its error-to-status mapping.
 package httpx
@@ -21,6 +21,12 @@ var (
 	// tag: unquoted, otherwise quoted, padded, or holding a byte outside the
 	// opaque-tag grammar.
 	ErrUnquotedETag = errors.New("entity tag is not one quoted value")
+	// ErrIfMatchCount reports a request that does not carry exactly one
+	// If-Match header and no If-None-Match header.
+	ErrIfMatchCount = errors.New("exactly one If-Match and no If-None-Match header are required")
+	// ErrRevision reports a value that is not a revision counter in canonical
+	// decimal form, or a counter outside the range its reader accepts.
+	ErrRevision = errors.New("value is not a canonical decimal revision")
 )
 
 // ExactQuery parses raw and rejects parameters outside allowed as well as
@@ -99,6 +105,45 @@ func ParseStrongETag(raw string) (string, error) {
 		}
 	}
 	return value, nil
+}
+
+// RequiredIfMatch returns the one If-Match value of a request whose operation
+// requires exactly one If-Match header and no If-None-Match header (API-R70),
+// or ErrIfMatchCount.
+func RequiredIfMatch(header http.Header) (string, error) {
+	values := header.Values("If-Match")
+	if len(values) != 1 || len(header.Values("If-None-Match")) != 0 {
+		return "", ErrIfMatchCount
+	}
+	return values[0], nil
+}
+
+// ParseRevision reads a revision counter in canonical decimal form: ASCII
+// digits only, no sign, no leading zero other than "0" itself, and at most
+// 2^64-1. Any other spelling, "01" and "+1" included, is ErrRevision, so
+// one counter has exactly one spelling.
+func ParseRevision(value string) (uint64, error) {
+	parsed, err := strconv.ParseUint(value, 10, 64)
+	if err != nil || strconv.FormatUint(parsed, 10) != value {
+		return 0, ErrRevision
+	}
+	return parsed, nil
+}
+
+// ParseRevisionETag reads one strong entity tag (ParseStrongETag) whose value
+// is a positive revision counter (ParseRevision). It is the one reader of
+// the counter preconditions of the public API, Managed Eval included; the
+// shared cases are api/testdata/public/revision-etag-cases.json.
+func ParseRevisionETag(raw string) (uint64, error) {
+	value, err := ParseStrongETag(raw)
+	if err != nil {
+		return 0, err
+	}
+	revision, err := ParseRevision(value)
+	if err != nil || revision == 0 {
+		return 0, ErrRevision
+	}
+	return revision, nil
 }
 
 // opaqueTagByte reports whether c is a visible ASCII etagc byte

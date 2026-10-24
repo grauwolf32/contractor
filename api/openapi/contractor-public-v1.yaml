@@ -395,6 +395,7 @@ paths:
           }
         }
       },
+      "x-max-request-body-bytes": 1048576,
       "requestBody": {
         "required": true,
         "content": {
@@ -644,6 +645,7 @@ paths:
           }
         }
       },
+      "x-max-request-body-bytes": 1048576,
       "requestBody": {
         "required": true,
         "content": {
@@ -1036,6 +1038,7 @@ paths:
           }
         }
       },
+      "x-max-request-body-bytes": 1048576,
       "requestBody": {
         "required": true,
         "content": {
@@ -1152,6 +1155,7 @@ paths:
           }
         }
       },
+      "x-max-request-body-bytes": 1048576,
       "requestBody": {
         "required": true,
         "content": {
@@ -1297,6 +1301,7 @@ paths:
           }
         }
       },
+      "x-max-request-body-bytes": 1048576,
       "requestBody": {
         "required": true,
         "content": {
@@ -1718,6 +1723,7 @@ paths:
           }
         }
       },
+      "x-max-request-body-bytes": 1048576,
       "requestBody": {
         "required": true,
         "content": {
@@ -1838,6 +1844,7 @@ paths:
           }
         }
       },
+      "x-max-request-body-bytes": 1048576,
       "requestBody": {
         "required": true,
         "content": {
@@ -1958,6 +1965,7 @@ paths:
           }
         }
       },
+      "x-max-request-body-bytes": 1048576,
       "requestBody": {
         "required": true,
         "content": {
@@ -2320,6 +2328,7 @@ paths:
           }
         }
       },
+      "x-max-request-body-bytes": 1048576,
       "requestBody": {
         "required": true,
         "content": {
@@ -3005,6 +3014,7 @@ paths:
       operationId: replaceGitKey
       tags: [Settings]
       summary: Validate and replace the owner's encrypted Git SSH private key
+      x-max-request-body-bytes: 65536
       parameters:
         - $ref: '#/components/parameters/OptionalOrigin'
         - $ref: '#/components/parameters/OptionalCSRFToken'
@@ -3057,6 +3067,7 @@ paths:
         existing binding requires one strong quoted `If-Match` revision;
         supplying both headers is invalid. No automatic refresh or mutation
         retry. The whole operation is bounded to 120 seconds.
+      x-max-request-body-bytes: 65536
       parameters:
         - $ref: '#/components/parameters/OptionalOrigin'
         - $ref: '#/components/parameters/OptionalCSRFToken'
@@ -3107,6 +3118,7 @@ paths:
         existing binding requires one strong quoted `If-Match` revision;
         supplying both headers is invalid. No automatic refresh or mutation
         retry. The whole operation is bounded to 120 seconds.
+      x-max-request-body-bytes: 65536
       parameters:
         - $ref: '#/components/parameters/OptionalOrigin'
         - $ref: '#/components/parameters/OptionalCSRFToken'
@@ -3147,7 +3159,7 @@ paths:
       operationId: login
       tags: [Auth]
       summary: Create a local browser session
-      x-max-request-body-bytes: 2048
+      x-max-request-body-bytes: 8192
       security: []
       parameters:
         - $ref: '#/components/parameters/OptionalOrigin'
@@ -3323,6 +3335,7 @@ paths:
       operationId: updateProject
       tags: [Projects]
       summary: CAS-update Project display metadata
+      x-max-request-body-bytes: 1048576
       parameters:
         - $ref: '#/components/parameters/RequiredIfMatch'
         - $ref: '#/components/parameters/OptionalOrigin'
@@ -3971,6 +3984,7 @@ paths:
       operationId: startAudit
       tags: [Audits]
       summary: Atomically pin an Audit baseline and accept its first deterministic Round
+      x-max-request-body-bytes: 1024
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/RequiredIfMatch'
@@ -4042,6 +4056,7 @@ paths:
       operationId: resumeAudit
       tags: [Audits]
       summary: Resume a paused Audit with retained results and an optional time-limit override
+      x-max-request-body-bytes: 1024
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/RequiredIfMatch'
@@ -4427,6 +4442,7 @@ paths:
       operationId: createAuditFindingReview
       tags: [Audits]
       summary: Create or reuse a pending review bound to the exact finding revision
+      x-max-request-body-bytes: 1048576
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/RequiredIfMatch'
@@ -4483,6 +4499,7 @@ paths:
       operationId: decideAuditReview
       tags: [Audits]
       summary: Append one owner decision for an exact unexpired review subject
+      x-max-request-body-bytes: 1048576
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/RequiredIfMatch'
@@ -4568,6 +4585,7 @@ paths:
         Exact CAS over the effective representation. The update serializes with
         every normal Stage admission; setting the current value is an
         idempotent no-op that retains its revision.
+      x-max-request-body-bytes: 1048576
       parameters:
         - $ref: '#/components/parameters/RequiredQueueControlIfMatch'
         - $ref: '#/components/parameters/OptionalOrigin'
@@ -5821,6 +5839,7 @@ paths:
       operationId: replaceRuntimeAgentPrincipalLabels
       tags: [Operations]
       summary: CAS-replace the complete authoritative label set of one principal
+      x-max-request-body-bytes: 1048576
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/RequiredIfMatch'
@@ -6632,6 +6651,7 @@ paths:
         required: true
         schema:
           $ref: '#/components/schemas/ResourceId'
+      - $ref: '#/components/parameters/OptionalIdempotencyKey'
       responses:
         '200':
           description: Owner-authorized sweep result
@@ -7106,7 +7126,7 @@ components:
       headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
       content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
     Error415:
-      description: Request Content-Type does not match the operation contract
+      description: An Operations settings update is not sent as exactly application/json (unsupported_media_type), or an archive preview names an Artifact that is not a ZIP or Skill package (archive_media_type)
       headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
       content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
     Error422:
@@ -12106,6 +12126,7 @@ components:
         type: string
         minLength: 0
         maxLength: 256
+        x-max-utf8-bytes: 256
         description: Opaque non-NUL UTF-8 value bounded by the Server to 256 encoded bytes. An empty string represents a key-only label.
     CreateProjectRequest:
       type: object
@@ -12113,8 +12134,8 @@ components:
       required: [kind, name]
       properties:
         kind: {$ref: '#/components/schemas/ProjectKind'}
-        name: {type: string, minLength: 1, maxLength: 160}
-        description: {type: string, maxLength: 4096}
+        name: {type: string, minLength: 1, maxLength: 160, x-max-utf8-bytes: 160}
+        description: {type: string, maxLength: 4096, x-max-utf8-bytes: 4096}
         activeChecks:
           allOf: [{$ref: '#/components/schemas/ActiveChecksPolicy'}]
           description: Defaults to automatic when omitted.
@@ -12123,8 +12144,8 @@ components:
       additionalProperties: false
       minProperties: 1
       properties:
-        name: {type: string, minLength: 1, maxLength: 160}
-        description: {type: string, maxLength: 4096}
+        name: {type: string, minLength: 1, maxLength: 160, x-max-utf8-bytes: 160}
+        description: {type: string, maxLength: 4096, x-max-utf8-bytes: 4096}
         activeChecks: {$ref: '#/components/schemas/ActiveChecksPolicy'}
         httpTarget:
           oneOf:
@@ -12168,8 +12189,8 @@ components:
       properties:
         projectId: {$ref: '#/components/schemas/ResourceId'}
         kind: {$ref: '#/components/schemas/ProjectKind'}
-        name: {type: string, minLength: 1, maxLength: 160}
-        description: {type: string, maxLength: 4096}
+        name: {type: string, minLength: 1, maxLength: 160, x-max-utf8-bytes: 160}
+        description: {type: string, maxLength: 4096, x-max-utf8-bytes: 4096}
         httpTarget: {$ref: '#/components/schemas/ProjectHTTPTarget'}
         activeChecks: {$ref: '#/components/schemas/ActiveChecksPolicy'}
         lifecycle: {$ref: '#/components/schemas/ProjectLifecycle'}
@@ -12554,9 +12575,9 @@ components:
       type: object
       additionalProperties: false
       properties:
-        objective: {type: string, maxLength: 65536}
-        target: {type: string, maxLength: 65536}
-        authorizationScope: {type: string, maxLength: 65536}
+        objective: {type: string, maxLength: 65536, x-max-utf8-bytes: 65536}
+        target: {type: string, maxLength: 65536, x-max-utf8-bytes: 65536}
+        authorizationScope: {type: string, maxLength: 65536, x-max-utf8-bytes: 65536}
     CreateAuditRequest:
       type: object
       additionalProperties: false
@@ -13584,7 +13605,7 @@ components:
         action: {$ref: '#/components/schemas/AuditReviewAction'}
         verdict: {$ref: '#/components/schemas/AuditAnalystVerdict'}
         severity: {$ref: '#/components/schemas/AuditFindingSeverity'}
-        rationale: {type: string, minLength: 1, maxLength: 65536}
+        rationale: {type: string, minLength: 1, maxLength: 65536, x-max-utf8-bytes: 65536}
         duplicateTargetId: {$ref: '#/components/schemas/ResourceId'}
         subjectRevision: {type: integer, minimum: 1}
         subjectDigest: {$ref: '#/components/schemas/Digest'}
@@ -13724,7 +13745,7 @@ components:
       properties:
         verdict: {type: string, const: true_positive}
         severity: {$ref: '#/components/schemas/AuditFindingSeverity'}
-        rationale: {type: string, minLength: 1, maxLength: 65536}
+        rationale: {type: string, minLength: 1, maxLength: 65536, x-max-utf8-bytes: 65536}
     DecideAuditFindingDuplicateRequest:
       type: object
       additionalProperties: false
@@ -13732,21 +13753,21 @@ components:
       properties:
         verdict: {type: string, const: duplicate}
         duplicateTargetId: {$ref: '#/components/schemas/ResourceId'}
-        rationale: {type: string, minLength: 1, maxLength: 65536}
+        rationale: {type: string, minLength: 1, maxLength: 65536, x-max-utf8-bytes: 65536}
     DecideAuditFindingOtherRequest:
       type: object
       additionalProperties: false
       required: [verdict, rationale]
       properties:
         verdict: {type: string, enum: [false_positive, reopen, needs_evidence]}
-        rationale: {type: string, minLength: 1, maxLength: 65536}
+        rationale: {type: string, minLength: 1, maxLength: 65536, x-max-utf8-bytes: 65536}
     DecideAuditActionRequest:
       type: object
       additionalProperties: false
       required: [action, rationale]
       properties:
         action: {$ref: '#/components/schemas/AuditReviewAction'}
-        rationale: {type: string, minLength: 1, maxLength: 65536}
+        rationale: {type: string, minLength: 1, maxLength: 65536, x-max-utf8-bytes: 65536}
     DecideAuditReviewRequest:
       oneOf:
         - $ref: '#/components/schemas/DecideAuditFindingRequest'
@@ -14119,7 +14140,7 @@ components:
         code: {type: string, const: user_cancelled}
         requestedAt: {type: string, format: date-time}
         requestedBy: {$ref: '#/components/schemas/ConfigId'}
-        reason: {type: string, minLength: 1, maxLength: 4096}
+        reason: {type: string, minLength: 1, maxLength: 4096, x-max-utf8-bytes: 4096}
     MetricsSummary:
       type: object
       additionalProperties: false
@@ -14893,7 +14914,7 @@ components:
       required: [projectId, name, kind]
       properties:
         projectId: {$ref: '#/components/schemas/ResourceId'}
-        name: {type: string, minLength: 1, maxLength: 160}
+        name: {type: string, minLength: 1, maxLength: 160, x-max-utf8-bytes: 160}
         kind: {$ref: '#/components/schemas/ProjectKind'}
     RunQueueItem:
       type: object
@@ -14936,7 +14957,7 @@ components:
       type: object
       additionalProperties: false
       properties:
-        reason: {type: [string, 'null'], minLength: 1, maxLength: 4096}
+        reason: {type: [string, 'null'], minLength: 1, maxLength: 4096, x-max-utf8-bytes: 4096}
     CancelRunResponse:
       type: object
       additionalProperties: false

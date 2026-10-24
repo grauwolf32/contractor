@@ -203,10 +203,12 @@ func (s *ManagementService) rebindInTransaction(
 		}
 		return BindingMutationResult{}, err
 	}
-	for _, holder := range locked {
-		if err := ValidateLockedAgentLabels(ctx, tx, holder.Labels); err != nil {
-			return BindingMutationResult{}, err
-		}
+	sets := make([][]string, len(locked))
+	for index, holder := range locked {
+		sets[index] = holder.Labels
+	}
+	if err := validateLockedAgentLabelSets(ctx, tx, sets); err != nil {
+		return BindingMutationResult{}, err
 	}
 	return BindingMutationResult{Binding: &binding}, nil
 }

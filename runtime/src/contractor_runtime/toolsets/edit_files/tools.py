@@ -20,7 +20,7 @@ from contractor_runtime.observations import WorkspaceToolObservation, edit_tool_
 from contractor_runtime.projectfs.paths import ProjectPathError
 from contractor_runtime.projectfs.storage import WorkspaceStorageError, WorkspaceWriter
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
-from contractor_runtime.toolsets.filesystem.tools import FilesystemToolError
+from contractor_runtime.toolsets.common.filesystem_errors import FilesystemToolError
 from contractor_runtime.workspace import AllocationWorkspace
 
 MAX_EDIT_REPLACEMENTS = 1000

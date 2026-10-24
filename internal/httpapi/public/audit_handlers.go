@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -42,7 +41,8 @@ type AuditManagement interface {
 	Preparation(context.Context, string, string) (map[string]auditservice.PreparationRoleProjection, error)
 	ReadArtifact(context.Context, string, string, string, string) (artifacts.ReadResult, error)
 	GeneratedInventory(context.Context, string, string, uint64) (*auditservice.GeneratedInventoryProjection, error)
-	List(context.Context, auditstore.ListParams) ([]auditstore.Audit, error)
+	ListPage(context.Context, auditstore.ListParams, func(auditstore.Audit) bool) (
+		[]auditstore.Audit, map[string]map[string]auditservice.PreparationRoleProjection, error)
 	ListItems(context.Context, auditstore.ListItemsParams) ([]auditstore.Item, error)
 	ListItemAttempts(context.Context, string, string, []string) (map[string][]auditstore.ItemAttempt, error)
 	GetRound(context.Context, string, string, string) (auditstore.Round, error)
@@ -71,9 +71,6 @@ type auditHandlers struct {
 }
 
 func (h *auditHandlers) listAuditProfiles(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	_, limit, encodedCursor, err := pageQuery(r.URL.RawQuery)
 	if err != nil {
 		handleError(w, err)
@@ -116,9 +113,6 @@ func (h *auditHandlers) listAuditProfiles(w http.ResponseWriter, r *http.Request
 }
 
 func (h *auditHandlers) getAuditProfile(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		handleError(w, err)
 		return
@@ -143,18 +137,17 @@ func (h *auditHandlers) createAudit(w http.ResponseWriter, r *http.Request) {
 		handleError(w, err)
 		return
 	}
-	mediaType, err := requestMediaType(r)
-	if err != nil || mediaType != "application/json" {
-		handleError(w, errInvalidRequest)
-		return
-	}
-	var request createAuditRequest
-	if err := decodeJSON(w, r, &request); err != nil {
+	if err := requireJSONMediaType(r); err != nil {
 		handleError(w, err)
 		return
 	}
 	key, err := requireIdempotencyKey(r)
 	if err != nil {
+		handleError(w, err)
+		return
+	}
+	var request createAuditRequest
+	if err := decodeJSON(w, r, &request); err != nil {
 		handleError(w, err)
 		return
 	}
@@ -193,9 +186,6 @@ func (h *auditHandlers) createAudit(w http.ResponseWriter, r *http.Request) {
 
 func (h *auditHandlers) listProjectAudits(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if rejectHead(w, r) {
-		return
-	}
 	projectID := r.PathValue("projectId")
 	if projectID != "" {
 		if _, err := h.Projects.Get(r.Context(), principalUserID(r.Context()), projectID); err != nil {
@@ -262,7 +252,9 @@ func (h *auditHandlers) listProjectAudits(w http.ResponseWriter, r *http.Request
 		}
 		params.BeforeCreatedAt, params.BeforeAuditID = &before, cursor[1]
 	}
-	audits, err := h.Audits.List(r.Context(), params)
+	// The page and the preparation of its preparing and inventory items come
+	// from one commit (ASC-R150).
+	audits, preparation, err := h.Audits.ListPage(r.Context(), params, auditListHydratesPreparation)
 	if err != nil {
 		handleError(w, err)
 		return
@@ -277,12 +269,12 @@ func (h *auditHandlers) listProjectAudits(w http.ResponseWriter, r *http.Request
 	items := make([]auditResponse, 0, len(audits))
 	for _, audit := range audits {
 		item, modelErr := auditReadModel(audit)
-		if modelErr == nil && (audit.Phase == auditdomain.AuditPhasePreparing || audit.Phase == auditdomain.AuditPhaseInventory) {
-			item, modelErr = h.auditDetailReadModel(r, audit)
-		}
 		if modelErr != nil {
 			handleError(w, modelErr)
 			return
+		}
+		if roles, selected := preparation[audit.AuditID]; selected {
+			item.Preparation = auditPreparationReadModel(roles)
 		}
 		items = append(items, item)
 	}
@@ -291,9 +283,6 @@ func (h *auditHandlers) listProjectAudits(w http.ResponseWriter, r *http.Request
 
 func (h *auditHandlers) getAudit(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if rejectHead(w, r) {
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		handleError(w, err)
 		return
@@ -317,21 +306,16 @@ func (h *auditHandlers) startAudit(w http.ResponseWriter, r *http.Request) {
 		handleError(w, err)
 		return
 	}
+	if err := requireOptionalJSONMediaType(r); err != nil {
+		handleError(w, err)
+		return
+	}
+	key, revision, err := auditMutationHeaders(r)
+	if err != nil {
+		handleError(w, err)
+		return
+	}
 	seconds, err := readAuditTimeLimit(w, r)
-	if err != nil {
-		handleError(w, err)
-		return
-	}
-	key, err := requireIdempotencyKey(r)
-	if err != nil {
-		handleError(w, err)
-		return
-	}
-	if len(r.Header.Values("If-None-Match")) != 0 || len(r.Header.Values("If-Match")) != 1 {
-		handleError(w, fmt.Errorf("%w: Audit start requires one If-Match", errInvalidRequest))
-		return
-	}
-	revision, err := parseRuntimeRevisionETag(r.Header.Values("If-Match")[0])
 	if err != nil {
 		handleError(w, err)
 		return
@@ -393,27 +377,23 @@ func (h *auditHandlers) mutateAudit(w http.ResponseWriter, r *http.Request, acti
 		handleError(w, err)
 		return
 	}
+	if action == "resume" {
+		if err := requireOptionalJSONMediaType(r); err != nil {
+			handleError(w, err)
+			return
+		}
+	}
+	key, revision, err := auditMutationHeaders(r)
+	if err != nil {
+		handleError(w, err)
+		return
+	}
 	var seconds *int
-	var err error
 	if action == "resume" {
 		seconds, err = readAuditTimeLimit(w, r)
 	} else {
 		err = requireEmptyBody(w, r)
 	}
-	if err != nil {
-		handleError(w, err)
-		return
-	}
-	key, err := requireIdempotencyKey(r)
-	if err != nil {
-		handleError(w, err)
-		return
-	}
-	if len(r.Header.Values("If-None-Match")) != 0 || len(r.Header.Values("If-Match")) != 1 {
-		handleError(w, fmt.Errorf("%w: Audit mutation requires one If-Match", errInvalidRequest))
-		return
-	}
-	revision, err := parseRuntimeRevisionETag(r.Header.Values("If-Match")[0])
 	if err != nil {
 		handleError(w, err)
 		return
@@ -454,9 +434,6 @@ func (h *auditHandlers) mutateAudit(w http.ResponseWriter, r *http.Request, acti
 
 func (h *auditHandlers) listAuditItems(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if rejectHead(w, r) {
-		return
-	}
 	query, limit, encodedCursor, err := pageQuery(r.URL.RawQuery, "round", "state", "subject")
 	if err != nil {
 		handleError(w, err)
@@ -545,9 +522,6 @@ func (h *auditHandlers) listAuditItems(w http.ResponseWriter, r *http.Request) {
 
 func (h *auditHandlers) listAuditCoverage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if rejectHead(w, r) {
-		return
-	}
 	query, limit, encodedCursor, err := pageQuery(r.URL.RawQuery, "round", "auditRevision")
 	if err != nil {
 		handleError(w, err)
@@ -620,9 +594,6 @@ func (h *auditHandlers) listAuditCoverage(w http.ResponseWriter, r *http.Request
 
 func (h *auditHandlers) getAuditReport(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if rejectHead(w, r) {
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		handleError(w, err)
 		return

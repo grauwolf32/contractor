@@ -5,8 +5,10 @@ import stat
 import threading
 import uuid
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
+from filesystem_audit import FilesystemAudit
 
 import contractor_runtime.projectfs.provider as provider_module
 import contractor_runtime.workspace as workspace_module
@@ -249,6 +251,223 @@ def test_recursive_local_cleanup_runs_off_the_event_loop(
         assert project_threads and project_threads[0] != loop_thread
         assert not scratch.path.exists()
         assert not project_path.exists()
+
+    asyncio.run(scenario())
+
+
+def test_local_preparation_writes_owned_directories_off_the_event_loop(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        loop_thread = threading.get_ident()
+        provider = LocalWorkspaceProvider(local_settings(tmp_path / "projects"))
+        with FilesystemAudit(str(tmp_path), str(tmp_path.resolve())) as audit:
+            scratch = await LocalWorkdirFactory(tmp_path / "scratch").prepare()
+            project = await provider.create("allocation-1")
+        scratch_root = scratch.root
+        marker = scratch_root / f"{scratch.path.name}{workspace_module.ALLOCATION_OWNER_SUFFIX}"
+        project_path = Path(project.root)
+        project_marker = project_path / provider_module.LOCAL_OWNER_MARKER
+
+        assert {
+            ("os.mkdir", str(scratch_root)),
+            ("open", str(marker)),
+            ("os.mkdir", str(scratch.path)),
+            ("os.mkdir", str(project_path)),
+            ("open", str(project_marker)),
+            ("os.chmod", str(project_marker)),
+        } <= set(audit.events())
+        assert audit.on_thread(loop_thread) == []
+        assert stat.S_IMODE(scratch_root.stat().st_mode) == 0o700
+        assert stat.S_IMODE(scratch.path.stat().st_mode) == 0o700
+        assert stat.S_IMODE(marker.stat().st_mode) == 0o600
+        assert workspace_module._owns(scratch_root, scratch.path.name)
+        assert stat.S_IMODE(project_path.stat().st_mode) == 0o700
+        assert stat.S_IMODE(project_marker.stat().st_mode) == 0o600
+        assert provider_module._is_owned_directory(project_path)
+
+    asyncio.run(scenario())
+
+
+def test_cancelled_workdir_preparation_joins_its_thread_before_rollback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    started = threading.Event()
+    release = threading.Event()
+    events: list[tuple[str, int, bool, bool]] = []
+    original_create = workspace_module._create_owned_workdir
+    original_remove = workspace_module._remove_owned_workdir
+
+    def owned(root: Path, name: str) -> tuple[bool, bool]:
+        marker = root / f"{name}{workspace_module.ALLOCATION_OWNER_SUFFIX}"
+        return (root / name).is_dir(), marker.is_file()
+
+    def blocking_create(root: Path, name: str) -> None:
+        original_create(root, name)
+        events.append(("created", threading.get_ident(), *owned(root, name)))
+        started.set()
+        if not release.wait(10):
+            raise RuntimeError("the test never released preparation")
+
+    def tracked_remove(root: Path, name: str) -> None:
+        events.append(("rollback", threading.get_ident(), *owned(root, name)))
+        original_remove(root, name)
+
+    monkeypatch.setattr(workspace_module, "_create_owned_workdir", blocking_create)
+    monkeypatch.setattr(workspace_module, "_remove_owned_workdir", tracked_remove)
+    root = tmp_path / "scratch"
+
+    async def scenario() -> None:
+        loop_thread = threading.get_ident()
+        with FilesystemAudit(str(tmp_path), str(tmp_path.resolve())) as audit:
+            await prepare_and_cancel(loop_thread)
+        assert audit.events() and audit.on_thread(loop_thread) == []
+
+    async def prepare_and_cancel(loop_thread: int) -> None:
+        task = asyncio.create_task(LocalWorkdirFactory(root).prepare())
+        assert await asyncio.to_thread(started.wait, 10)
+        task.cancel()
+        for _ in range(5):
+            await asyncio.sleep(0)
+        # The cancelled owner waits for the thread and rolls nothing back yet.
+        assert not task.done()
+        assert [event[0] for event in events] == ["created"]
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert [event[0] for event in events] == ["created", "rollback"]
+        assert all(thread != loop_thread for _, thread, _, _ in events)
+        # The rollback saw the directory and marker that the joined thread made.
+        assert events[1][2:] == (True, True)
+        assert list(root.iterdir()) == []
+
+    asyncio.run(scenario())
+
+
+def test_failed_workdir_rollback_keeps_cancellation_and_marker_for_startup_cleanup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    started = threading.Event()
+    release = threading.Event()
+    original_create = workspace_module._create_owned_workdir
+
+    def blocking_create(root: Path, name: str) -> None:
+        original_create(root, name)
+        started.set()
+        if not release.wait(10):
+            raise RuntimeError("the test never released preparation")
+
+    def failing_removal(path: Path) -> None:
+        raise PermissionError("directory removal failed")
+
+    monkeypatch.setattr(workspace_module, "_create_owned_workdir", blocking_create)
+    monkeypatch.setattr(workspace_module, "_remove_workspace_path", failing_removal)
+    root = tmp_path / "scratch"
+
+    async def scenario() -> None:
+        task = asyncio.create_task(LocalWorkdirFactory(root).prepare())
+        assert await asyncio.to_thread(started.wait, 10)
+        task.cancel()
+        release.set()
+        # The cancellation, not the removal failure, ends preparation.
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    asyncio.run(scenario())
+    (directory,) = [entry for entry in root.iterdir() if entry.is_dir()]
+    assert workspace_module._owns(root, directory.name)
+    monkeypatch.undo()
+    workspace_module.cleanup_orphan_workdirs(root)
+    assert list(root.iterdir()) == []
+
+
+def test_cancelled_project_workspace_creation_joins_its_thread_before_rollback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    started = threading.Event()
+    release = threading.Event()
+    events: list[tuple[str, int, bool, bool]] = []
+    original_create = provider_module._create_owned_local_workspace
+    original_discard = provider_module._discard_new_local_workspace
+
+    def owned(path: Path) -> tuple[bool, bool]:
+        return path.is_dir(), (path / provider_module.LOCAL_OWNER_MARKER).is_file()
+
+    def blocking_create(path: Path) -> None:
+        original_create(path)
+        events.append(("created", threading.get_ident(), *owned(path)))
+        started.set()
+        if not release.wait(10):
+            raise RuntimeError("the test never released creation")
+
+    def tracked_discard(path: Path) -> None:
+        events.append(("rollback", threading.get_ident(), *owned(path)))
+        original_discard(path)
+
+    monkeypatch.setattr(provider_module, "_create_owned_local_workspace", blocking_create)
+    monkeypatch.setattr(provider_module, "_discard_new_local_workspace", tracked_discard)
+    root = tmp_path / "projects"
+    provider = LocalWorkspaceProvider(local_settings(root))
+
+    async def scenario() -> None:
+        loop_thread = threading.get_ident()
+        with FilesystemAudit(str(tmp_path), str(tmp_path.resolve())) as audit:
+            await create_and_cancel(loop_thread)
+        assert audit.events() and audit.on_thread(loop_thread) == []
+
+    async def create_and_cancel(loop_thread: int) -> None:
+        task = asyncio.create_task(provider.create("allocation-1"))
+        assert await asyncio.to_thread(started.wait, 10)
+        task.cancel()
+        for _ in range(5):
+            await asyncio.sleep(0)
+        assert not task.done()
+        assert [event[0] for event in events] == ["created"]
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert [event[0] for event in events] == ["created", "rollback"]
+        assert all(thread != loop_thread for _, thread, _, _ in events)
+        assert events[1][2:] == (True, True)
+        assert list(root.iterdir()) == []
+
+    asyncio.run(scenario())
+
+
+def test_failed_local_preparation_rolls_back_in_its_thread(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        loop_thread = threading.get_ident()
+        # A directory that cannot be created after its marker was written.
+        scratch_root = tmp_path / "scratch"
+        scratch_root.mkdir()
+        token = "0" * 32
+        monkeypatch.setattr(workspace_module.uuid, "uuid4", lambda: SimpleNamespace(hex=token))
+        blocker = scratch_root / f"{workspace_module.ALLOCATION_DIRECTORY_PREFIX}{token}"
+        blocker.write_text("operator file", encoding="utf-8")
+        with pytest.raises(FileExistsError):
+            await LocalWorkdirFactory(scratch_root).prepare()
+        assert sorted(entry.name for entry in scratch_root.iterdir()) == [blocker.name]
+        assert blocker.read_text(encoding="utf-8") == "operator file"
+        monkeypatch.undo()
+
+        # A project workspace whose marker cannot be written is removed.
+        discarded: list[int] = []
+        original_discard = provider_module._discard_new_local_workspace
+
+        def failing_marker(name: str) -> str:
+            raise OSError("marker write failed")
+
+        def tracked_discard(path: Path) -> None:
+            discarded.append(threading.get_ident())
+            original_discard(path)
+
+        monkeypatch.setattr(provider_module, "_marker_contents", failing_marker)
+        monkeypatch.setattr(provider_module, "_discard_new_local_workspace", tracked_discard)
+        project_root = tmp_path / "projects"
+        with pytest.raises(OSError, match="marker write failed"):
+            await LocalWorkspaceProvider(local_settings(project_root)).create("allocation-1")
+        assert list(project_root.iterdir()) == []
+        assert discarded and loop_thread not in discarded
 
     asyncio.run(scenario())
 
