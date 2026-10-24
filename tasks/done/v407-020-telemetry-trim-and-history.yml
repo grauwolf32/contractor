@@ -7,7 +7,7 @@ kind: chore
 introduced_by: V1-004
 priority: P2
 status: completed
-implementation_commit: 38e9ab65818527d95c89834f4347657eda253af0
+implementation_commit: 138aca3dcdba5fd52f72cad6549494c776e85f59
 depends_on: []
 languages:
 - go
@@ -88,8 +88,8 @@ tests:
   - A3
   - A4
 verification:
-  date: '2026-10-23'
-  revision: 38e9ab65818527d95c89834f4347657eda253af0
+  date: '2026-10-24'
+  revision: 138aca3dcdba5fd52f72cad6549494c776e85f59
   environment: Worktree contractor-wt/r1, branch claude/rv-r1 on base 33f73b27, macOS arm64 (Darwin),
     Go 1.26.9 (GOTOOLCHAIN=local), Python 3.13 via uv sync --locked, Node 24.20 with Corepack pnpm, local
     PostgreSQL 17.11 with CONTRACTOR_TEST_DATABASE_URL=postgres://ruslan@localhost:5432/contractor_test_r1.
@@ -115,9 +115,10 @@ verification:
     operations append allocates 2 times at capacity. The shared fixture and differential tests pass on
     the old loop, which is what they pin.'
   - 'A1/A2 equivalence: api/testdata/v1alpha1/telemetry-report-trim-cases.json (generated with the previous
-    loop; covered by readers.json v1alpha1/ for go and python) holds four reports (ASCII, multibyte with
-    U+2028/U+2029, <>&, quotes, backslash, control characters and astral characters, error-only, already
-    truncated) and 58 limits: every size of the removal sequence, that size minus one byte, the untrimmed
+    loop; covered by readers.json v1alpha1/ for go and python) holds six reports (ASCII, multibyte with
+    U+2028/U+2029, <>&, quotes, backslash, control characters and astral characters, error-only, records
+    the Runtime MetricsState built, received numbers with empty arguments objects, already truncated) and
+    100 limits: every size of the removal sequence, that size minus one byte, the untrimmed
     size plus one, and aggregateTooLarge below the envelope. TestSharedReportTrimKeepsTheSharedSuffixAtEveryBoundary
     and test_shared_report_trim_keeps_the_shared_suffix_at_every_boundary check suffixes, truncated and
     exact sizes on both sides; the Go side also checks the untrimmed size equals the Runtime measure.
@@ -145,6 +146,33 @@ verification:
     Finalize and Abort against an HTTP Runtime and TestRecordAllocationReportAppliesThePinnedResourcePolicy
     drives RecordAllocationReport on PostgreSQL, each with the same expected requested/disabled/invalid
     outcomes.'
+  - 'Review follow-up (2026-10-24, commit 138aca3d): the fixture had excluded the records on which the
+    two sides measured differently. Fixed in the encoders: Python ToolCallRecord holds an empty summary as
+    absent (Go omits an empty map); Go keeps argument number literals (reporting.ToolArguments, json.Number)
+    in final reports and Worker State, so 1e+16, 5e-05, -0.0, 1.0 and 9007199254740993 keep their text.
+    Before the fix a Python summary at the 4096-byte bound holding 1e+16 was rejected by DecodePrivateStrict
+    (TestToolArgumentsKeepTheRuntimeNumberLiterals fails on the old type) and the received-numbers case
+    measured 856 bytes in Go against 838. The probe also showed the Server re-redacting every Runtime placeholder
+    (size changed, argumentsTruncated flipped), content_bytes, the summary''s originalSizeBytes, database_url
+    and names longer than 64 characters; both sanitizers now keep an existing placeholder and the derived size
+    names, Go keeps an argument summary, the Runtime classifies whole names and adds database_url, and bytes
+    project to the placeholder. TestSharedReportTrimKeepsTheSharedSuffixAtEveryBoundary now requires every
+    case to measure exactly the Runtime bytes and NormalizeExecutionReport to leave every record unchanged;
+    test_shared_report_trim_keeps_the_shared_suffix_at_every_boundary rebuilds the Runtime-built case from
+    runtimeInputs and compares it byte for byte; TestSharedRedactionNamesAgreeWithTheRuntime and test_shared_redaction_names_agree_with_the_server
+    pin that every Server-sensitive name rule is Runtime-sensitive and both derived size lists are equal;
+    test_shared_argument_redaction_leaves_redacted_arguments_unchanged re-records redacted arguments unchanged.
+    The trim count tests build a counting Policy (injected measure) instead of swapping a package variable.'
+  - 'After the follow-up: go test -race -count=1 ./internal/telemetry/... ./internal/controlplane/... ./internal/contracts/...
+    with the database set: all ok (the only skip is TestPlannerOTLPCollectorProjection, which needs CONTRACTOR_TEST_OTLP_ENDPOINT).
+    go vet -tags ''e2e integration'' ./...: ok. go test -count=1 ./...: failures only in internal/artifactpolicy
+    (TestReservedNamespacesAreNamedOnlyByArtifactPolicy) and internal/persistence (TestKeyedMutationsUseTheSharedHelpers,
+    TestSQLAccessFollowsTableOwnership), which fail identically on base 33f73b27 (temporary worktree, removed),
+    and three contention timeouts (internal/app, internal/httpapi/privateartifacts, tests/integration/lease)
+    that pass when rerun on the branch. Runtime suite (uv run pytest): 4452 passed, 105 failed, 39 skipped;
+    the known macOS set plus test_real_four_mib_parser_keeps_event_loop_gaps_below_100_ms, a wall-clock test
+    that fails three times out of three on base. make test-wire-cross-language: passed (253 fixtures, 254 Go
+    and 193 Python shared tests). make lint: passed. make docs-dependencies: no change.'
   - 'go test -count=1 ./internal/telemetry/... ./internal/controlplane/... ./internal/contracts/...: all
     ok with the database set; the only skip is TestPlannerOTLPCollectorProjection, which needs CONTRACTOR_TEST_OTLP_ENDPOINT
     (an external collector, unrelated). go test -race -count=1 on internal/telemetry, internal/controlplane
@@ -167,6 +195,19 @@ verification:
     encodes, still more than three, and halving would change the retained suffix) and incremental prefix
     sums (chosen, exact and linear). Reversal: if a record field gains a custom marshaler or the report
     encoding stops being element-additive, trimDetail/trim_report_detail fail loudly on the exact-size
-    check and the differential tests; then return to measuring candidates.'
+    check and the differential tests; then return to measuring candidates. Equal record sizes across the
+    boundary are a guarantee of the encoders, not of the fixture: empty arguments are absent on both sides
+    and the Server keeps the Runtime''s number literals (OBS-R42) rather than both sides formatting numbers
+    alike, because the Runtime''s float text is fixed by its JSON encoder and re-formatting loses integers
+    beyond 2^53. The Server''s redaction stays a second, independent pass (OBS-R27) but must leave Runtime
+    records unchanged; it may still change a record that holds a deployment secret it alone matches or a
+    text containing :// that its URL parser rejects, and only then removes more detail. Reopen if the Runtime
+    starts writing number text the Server must normalize, or if a Server-only redaction rule is added.
+    Out of scope, reported: the Go metrics policy replaces every configured secret wherever it occurs,
+    while OBS-R31 limits secrets under 16 bytes to whole strings (controlplane/runtime_client.go has the
+    OBS-R31 matcher).'
   new_spec_ids:
   - OBS-R110 (docs/spec/platform/observability.md) and observability invariant 9
+  amended_spec_ids:
+  - OBS-R27 (placeholder shape, sensitive-name subset, idempotent second redaction)
+  - OBS-R42 (empty arguments absent, number literals kept)
