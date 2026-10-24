@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -170,6 +171,100 @@ WHERE scope_kind = 'run' AND scope_id = 'run-invalid-skills'
 		len(running.SkillSnapshot) != 1 || running.SkillSnapshot[0].Source == nil ||
 		valid.Ref.Revision == nil || *running.SkillSnapshot[0].Source.Revision != *valid.Ref.Revision {
 		t.Fatalf("unrelated valid Run after invalid package = (%+v, %v)", running, err)
+	}
+}
+
+// A Run's Skill sources are a lenient holder (DEL-R63): a Run may commit a
+// selection whose exact revision history retention already removed. Its
+// initialization fails the Run once with the permanent
+// skill_artifact_not_found (RUN-R27) before any StageExecution exists, instead
+// of leaving it initializing behind the retryable skill_artifact_unavailable.
+func TestPostgresRunSkillInitializerFailsRunWhosePinnedSourceIsGone(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedAppPool(t, ctx)
+	policy, err := artifacts.NewHistoryPolicy(artifacts.HistoryRevisionsFloor, artifacts.HistoryBytesFloor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx = artifacts.WithHistoryPolicy(ctx, policy)
+	workflow := appSkillWorkflow(t)
+	workflowSnapshot, err := json.Marshal(workflow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	refs, err := resolved.WorkflowSkillRefs(workflow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	owner, _ := service.User("owner-1")
+	binding := artifacts.ArtifactRef{Namespace: contracts.AgentSkillNamespace, Name: "review"}
+	pinned, err := owner.Write(
+		ctx, binding, artifacts.Payload{MediaType: agentskills.MediaType, Data: appSkillPackage(t, "Pinned.")}, nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog, _ := agentskills.NewCatalog(service)
+	selected, err := catalog.SelectRunSources(ctx, "owner-1", refs)
+	if err != nil || len(selected) != 1 || selected[0].Source == nil ||
+		*selected[0].Source.Revision != *pinned.Ref.Revision {
+		t.Fatalf("selected Skill source = (%+v, %v)", selected, err)
+	}
+	// Two newer revisions push the pinned one out of the binding's retained
+	// history before any holder names it.
+	current := pinned.Ref.Revision
+	for _, description := range []string{"Newer.", "Newest."} {
+		written, err := owner.Write(
+			ctx, binding, artifacts.Payload{MediaType: agentskills.MediaType, Data: appSkillPackage(t, description)},
+			current,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		current = written.Ref.Revision
+	}
+	if _, err := owner.Read(ctx, artifacts.ArtifactRef(*selected[0].Source)); !errors.Is(err, artifacts.ErrArtifactNotFound) {
+		t.Fatalf("read of the removed pinned revision = %v, want not found", err)
+	}
+	err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
+		store := runstore.NewPostgresStore(tx)
+		if _, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
+			LaneClass: resolved.LaneClassModel,
+			RunID:     "run-source-gone", OwnerID: "owner-1",
+			WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
+			WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: workflowSnapshot,
+			Parameters: map[string]string{}, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
+		}); err != nil {
+			return err
+		}
+		return store.SetRunSkillSelections(ctx, "run-source-gone", selected)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	initializer := &runSkillInitializer{pool: pool}
+	for attempt := range 2 {
+		failed, err := initializer.InitializeRunSkills(ctx, "run-source-gone")
+		if err != nil || failed.State != runstore.RunFailed ||
+			failed.StateReason.Code != agentskills.CodeArtifactNotFound ||
+			failed.StateReason.Message != "skills/review" {
+			t.Fatalf("initialization attempt %d of a Run whose pinned source is gone = (%s %+v, %v)",
+				attempt, failed.State, failed.StateReason, err)
+		}
+	}
+	var stageExecutions, forks int
+	if err := pool.QueryRow(ctx, `
+SELECT (SELECT count(*) FROM stage_executions WHERE run_id = 'run-source-gone'),
+       (SELECT count(*) FROM artifact_binding_revisions
+        WHERE scope_kind = 'run' AND scope_id = 'run-source-gone' AND namespace = 'skills')`).
+		Scan(&stageExecutions, &forks); err != nil {
+		t.Fatal(err)
+	}
+	if stageExecutions != 0 || forks != 0 {
+		t.Fatalf("failed initialization left %d StageExecutions and %d Skill forks", stageExecutions, forks)
 	}
 }
 
