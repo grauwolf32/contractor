@@ -89,7 +89,7 @@ context:
 scope:
   in:
     - "The scan resolves the relation arguments of package-level SQL helpers and lock clauses appended with += or passed as arguments, or a source check forbids those forms and the three sites are rewritten; the limits paragraph of sql_access_test.go shrinks to what is still unseen."
-    - "A registry section for migration functions called from Go SQL and for trigger functions, each with the tables it reads, writes or locks and its reason, checked on PostgreSQL against the migrated schema (triggers, function bodies and the functions Go SQL calls), and PER-R23 updated to cover them; the cross-owner exclusive lock of contractor_lock_finding_correlation_project is either moved behind projectstore or recorded as an accepted exception with its reversal condition."
+    - "A registry section for migration functions called from Go SQL and for trigger functions, each with the tables it reads, writes or locks and its reason, checked on PostgreSQL against the migrated schema (triggers, function bodies and the functions Go SQL calls), and PER-R23 updated to cover them; the cross-owner exclusive lock of contractor_lock_finding_correlation_project and the correlation triggers' writes to projects are removed by V414-030, so the registry lists them only while V414-030 is open."
   out:
     - "Moving the trigger writes behind the owners' Go APIs, and the Eval projection lock order."
     - "Deciding the upward reads (V372-008)."
