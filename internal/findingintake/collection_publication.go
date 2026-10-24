@@ -161,7 +161,8 @@ func readCollectionReplay(ctx context.Context, user artifacts.ScopedStore, key, 
 
 // captureCollection reads the selection with a fixed number of statements
 // per source and per publication, never per entry: one authorization of
-// every source, one receipt authorization per source, then the selected
+// every source, one receipt authorization per source (after one expansion of
+// an Audit source's selected findings, FND-R159), then the selected
 // receipts, their holds, the Audits of those holds and the source Runs in one
 // statement each, and the documents in exact-read batches.
 func (p *CollectionPublisher) captureCollection(ctx context.Context, tx pgx.Tx, ownerID string, request PublishCollectionRequest, captured time.Time) (auditdomain.FindingCollection, map[string][]byte, error) {

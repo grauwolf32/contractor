@@ -130,6 +130,37 @@ func (s ScopedStore) ReadExact(ctx context.Context, expected contracts.ExactArti
 	return read, nil
 }
 
+// DescribeExact returns the exact descriptors (revision, digest, media type
+// and size) of refs, exact revisions of the scope, in request order without
+// reading their payloads. It issues one statement per MaxExactReadBatchSize
+// references (LIM-ART-8, ART-R121). A reference without a revision is
+// ErrExactRevisionRequired and an invalid name ErrInvalidName, both before
+// any read; a missing revision is ErrArtifactNotFound and a stored media
+// type that fails validation ErrArtifactIntegrity. Any other error, such as
+// a database failure or a cancelled context, leaves the references
+// unverified.
+func (s ScopedStore) DescribeExact(ctx context.Context, refs []ArtifactRef) ([]contracts.ExactArtifact, error) {
+	for _, ref := range refs {
+		if err := validateRef(ref); err != nil {
+			return nil, err
+		}
+		if ref.Revision == nil {
+			return nil, ErrExactRevisionRequired
+		}
+	}
+	result := make([]contracts.ExactArtifact, 0, len(refs))
+	for start := 0; start < len(refs); start += MaxExactReadBatchSize {
+		described, err := s.service.repository.DescribeExact(
+			ctx, s.scope, refs[start:min(start+MaxExactReadBatchSize, len(refs))],
+		)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, described...)
+	}
+	return result, nil
+}
+
 func (s ScopedStore) Metadata(ctx context.Context, ref ArtifactRef) (Metadata, error) {
 	if err := validateRef(ref); err != nil {
 		return Metadata{}, err

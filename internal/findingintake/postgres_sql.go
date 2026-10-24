@@ -12,12 +12,6 @@ SELECT ` + receiptProjection + `
  WHERE receipt.allocation_id = $1 AND receipt.invocation_id = $2
    AND receipt.submission_id = $3`
 
-// readReceiptByIDSQL reads proposal receipt $1. Used by readReceiptByID.
-var readReceiptByIDSQL = `
-SELECT ` + receiptProjection + `
-  FROM finding_proposal_receipts AS receipt
- WHERE receipt.receipt_id = $1`
-
 // listRunReceiptRowsSQL returns one page of owner $1's proposal receipts of
 // Run $2, which the owner also owns, oldest first. ($3, $4) is the
 // (created_at, receipt_id) cursor of the previous page; a NULL $3 starts at

@@ -44,10 +44,6 @@ func readReceiptBySubmission(
 	return scanReceipt(ctx, db, db.QueryRow(ctx, readReceiptBySubmissionSQL, allocationID, invocationID, submissionID))
 }
 
-func readReceiptByID(ctx context.Context, db querier, receiptID string) (Receipt, error) {
-	return scanReceipt(ctx, db, db.QueryRow(ctx, readReceiptByIDSQL, receiptID))
-}
-
 func scanReceipt(ctx context.Context, db querier, row pgx.Row) (Receipt, error) {
 	result, err := scanReceiptRow(row)
 	if err != nil {
@@ -250,97 +246,6 @@ func (s *Service) GetAuditReceipt(
 	return receipts[0], nil
 }
 
-// ResolveAuditProposals converts Runtime-injected invocation-local keys into
-// exact receipts already retained by the same Audit execution. It rejects
-// ambiguous, foreign, missing, or repeated keys and never falls back to a
-// Run-wide client-key guess.
-func (s *Service) ResolveAuditProposals(
-	ctx context.Context,
-	ownerID, auditID, executionID, runID string,
-	keys []ProposalKey,
-) ([]ResolvedProposal, error) {
-	if ownerID == "" || auditID == "" || executionID == "" || runID == "" ||
-		len(keys) > auditdomain.MaximumProposalsPerItem {
-		return nil, ErrInvalid
-	}
-	result := make([]ResolvedProposal, 0, len(keys))
-	seen := make(map[string]struct{}, len(keys))
-	for _, key := range keys {
-		if !validIdentity(key.InvocationID) || !validIdentity(key.ClientKey) {
-			return nil, ErrInvalid
-		}
-		identity := key.InvocationID + "\x00" + key.ClientKey
-		if _, duplicate := seen[identity]; duplicate {
-			return nil, ErrConflict
-		}
-		seen[identity] = struct{}{}
-		var receiptID string
-		var heldProposalJSON []byte
-		err := s.pool.QueryRow(ctx, `
-SELECT receipt.receipt_id, hold.proposal_ref
-  FROM finding_proposal_receipts AS receipt
-  JOIN finding_proposal_audit_holds AS hold
-    ON hold.receipt_id = receipt.receipt_id AND hold.audit_id = $2
-  JOIN audits AS audit ON audit.audit_id = hold.audit_id
- WHERE audit.owner_id = $1 AND receipt.owner_id = $1
-   AND receipt.audit_id = $2 AND receipt.audit_execution_id = $3
-   AND receipt.run_id = $4 AND receipt.invocation_id = $5
-   AND receipt.client_key = $6`, ownerID, auditID, executionID, runID,
-			key.InvocationID, key.ClientKey).Scan(&receiptID, &heldProposalJSON)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrNotFound
-		}
-		if err != nil {
-			return nil, fmt.Errorf("resolve Audit proposal selection: %w", err)
-		}
-		var proposal ExactArtifact
-		if json.Unmarshal(heldProposalJSON, &proposal) != nil || proposal.Ref.ValidateExact() != nil {
-			return nil, artifacts.ErrArtifactIntegrity
-		}
-		receipt, err := readReceiptByID(ctx, s.pool, receiptID)
-		if err != nil {
-			return nil, err
-		}
-		hydrated, err := s.hydrateReceiptDocuments(ctx, []Receipt{receipt})
-		if err != nil {
-			return nil, err
-		}
-		if len(hydrated) != 1 {
-			return nil, artifacts.ErrArtifactIntegrity
-		}
-		result = append(result, ResolvedProposal{
-			ReceiptID: receiptID, Proposal: proposal, Origin: receipt.Origin,
-			Document: hydrated[0].Document,
-		})
-	}
-	return result, nil
-}
-
-func (s *Service) hydrateReceiptDocuments(ctx context.Context, receipts []Receipt) ([]Receipt, error) {
-	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(s.pool))
-	for index := range receipts {
-		receipt := &receipts[index]
-		request, expected, err := receiptArtifact(*receipt)
-		if err != nil {
-			return nil, err
-		}
-		store, err := artifactService.Scoped(request.Scope)
-		if err != nil {
-			return nil, err
-		}
-		read, err := store.Read(ctx, request.Ref)
-		if err != nil {
-			return nil, err
-		}
-		document, err := decodeReceiptDocument(read, expected, receipt.ClientKey)
-		if err != nil {
-			return nil, err
-		}
-		receipt.Document = document
-	}
-	return receipts, nil
-}
-
 func validListQuery(query ListQuery) bool {
 	if !pagelimit.ValidFetch(query.Limit) {
 		return false
@@ -408,14 +313,6 @@ func (s *Service) importTransaction(ctx context.Context, fn func(pgx.Tx) error) 
 	return persistencepostgres.InTxWithRetry(ctx, s.pool, pgx.TxOptions{}, fn)
 }
 
-// maxCollectionTransactionWork bounds the work of one collection transaction.
-// A proposal counts once for its receipt, hold and direct-verification work,
-// plus once for each proposal or evidence revision it imports. A transaction
-// always retains at least one proposal, so even one with the maximum evidence
-// commits alone, and a collection attempt that outlives one bounded
-// transaction commits progress instead of rolling back a whole page.
-const maxCollectionTransactionWork = 512
-
 // RetainAuditCollectionBatch transfers a bounded page of an Audit child Run's
 // proposals into its owning Audit during collection. Unlike ImportIntoAudit
 // it admits a finalizing or cancelling Audit, and a terminal (or deleting)
@@ -423,8 +320,12 @@ const maxCollectionTransactionWork = 512
 // its data is being purged, so the proposals stay held by their source Run and
 // the caller must not retry.
 //
-// The page commits in transactions bounded by maxCollectionTransactionWork.
-// Each holds the source-Run and destination-Audit locks until it commits, and
+// The page commits in transactions bounded by
+// auditdomain.MaximumCollectionTransactionWork (LIM-AUX-7). A transaction
+// always retains at least one proposal, so even one with the maximum evidence
+// commits alone, and a collection attempt that outlives one bounded
+// transaction commits progress instead of rolling back a whole page. Each
+// holds the source-Run and destination-Audit locks until it commits, and
 // each receipt uses the same exact artifact and direct-verification checks as
 // an owner import. A definite transaction conflict replays only the failed
 // transaction. A failed transaction leaves earlier ones committed; a retry
@@ -461,8 +362,8 @@ func (s *Service) RetainAuditCollectionBatch(ctx context.Context, requests []Imp
 }
 
 // retainAuditCollectionPrefix retains requests in order in one transaction
-// until their work reaches maxCollectionTransactionWork, at least one, and
-// returns how many it committed. With rejection set, it rejects the request at
+// until their work reaches auditdomain.MaximumCollectionTransactionWork, at
+// least one, and returns how many it committed. With rejection set, it rejects the request at
 // rejection.index once it reaches it and commits through that request. A
 // transaction conflict replays only this transaction (importTransaction), so
 // its prefix and work are counted again from requests[0] and never include a
@@ -478,7 +379,7 @@ func (s *Service) retainAuditCollectionPrefix(
 		}
 		work := 0
 		for index, request := range requests {
-			if work >= maxCollectionTransactionWork {
+			if work >= auditdomain.MaximumCollectionTransactionWork {
 				break
 			}
 			if rejection != nil && index == rejection.index {
@@ -501,7 +402,10 @@ func (s *Service) retainAuditCollectionPrefix(
 	return committed, err
 }
 
-// collectionWork weighs one retained receipt for maxCollectionTransactionWork.
+// collectionWork weighs one retained receipt for
+// auditdomain.MaximumCollectionTransactionWork: once for its receipt, hold and
+// direct-verification work plus once for each proposal or evidence revision it
+// imports, and once in all when an earlier transaction retained it.
 func collectionWork(hold AuditHold, replayed bool) int {
 	if replayed {
 		return 1

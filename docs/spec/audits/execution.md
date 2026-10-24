@@ -466,6 +466,41 @@ non-retryable `invalid-result` receipt with `evidence-budget-exhausted` that
 links and charges no retained revision, rather than leaving the execution
 collecting (FAIL-AUX-2).
 
+### Collection store work
+
+**AUX-R98.** Collection store work stays within fixed row and byte bounds per
+statement and per transaction at the accepted collection sizes: at most 64
+items (LIM-AUD-3) and 1,024 retained links per receipt (LIM-AUX-15).
+
+- Evidence descriptors are read without payloads, one statement per 32
+  distinct exact references (LIM-ART-8, ART-R121). Digest, media type and
+  size are all that the evidence budget (AUX-R45), retention and the receipt
+  need, and the retained copy shares the stored version, whose bytes every
+  reader verifies. A reference that is not an exact revision the source Run
+  holds is `evidence-reference-invalid`; any other read failure leaves the
+  execution collecting (AUX-R96).
+- The result, its distinct evidence revisions (AUX-R44) and role outputs are
+  retained in artifact-write transactions of at most 512 revisions each
+  (LIM-AUX-7). Each such transaction holds the live Controller claim and the
+  Audit row, as every claimed artifact write does, so takeover and purge
+  serialize with every retention. It issues five statements (begin, claim
+  lock, Audit lock, claim check and commit), plus two for each new retention
+  and five for each retention an earlier attempt committed, whose content and
+  lineage it verifies; it writes three rows for each new retained revision and
+  copies no payload bytes.
+- Retained copies stay out of public projections until the one collection
+  transaction links them. A failed or interrupted retention transaction
+  therefore leaves earlier ones committed but unlinked, writes no receipt and
+  leaves the execution collecting; the next attempt finds each committed copy
+  retained from the same source and retains only the rest.
+- One item's at most 128 proposal selections (LIM-AWC-4) are resolved by one
+  statement that reads, for each selection, at most two receipts retained by
+  the execution together with the Audit's hold, plus the exact proposal
+  documents in batches (LIM-ART-8, LIM-ART-4). An invalid or repeated
+  selection fails before any read. The first selection in input order that
+  matches no retained receipt, or more than one, rejects the association
+  before any document is read (AUX-R54).
+
 ### Finding proposals during collection
 
 **AUX-R47.** Finding intake retains every trusted child-Run proposal in the
@@ -829,8 +864,9 @@ Registry entries owned by this document:
   (AUX-R42).
 - [LIM-AUX-6](../platform/limits.md): `maxEvidenceBytes` retained evidence
   bytes per Audit (AUX-R45).
-- [LIM-AUX-7](../platform/limits.md): a bounded number of proposal and
-  evidence revisions retained per collection transaction (AUX-R49).
+- [LIM-AUX-7](../platform/limits.md): 512 work units of proposal, evidence,
+  result and role output retention per collection transaction (AUX-R49,
+  AUX-R98).
 - [LIM-AUX-8](../platform/limits.md): each discovery role executed exactly
   once, or by bounded retry, per accepted Round (AUX-R57).
 - [LIM-AUX-9](../platform/limits.md): at most 10,000 held finding receipts
@@ -845,6 +881,8 @@ Registry entries owned by this document:
   per Audit (AUX-R78).
 - [LIM-AUX-14](../platform/limits.md): at most 32 drain mutations per claimed
   reconcile step and batched phase (AUX-R97).
+- [LIM-AUX-15](../platform/limits.md): at most 1,024 retained artifact links
+  per collection receipt (AUX-R98).
 - [FAIL-AUX-1](../platform/failure-model.md): child Run submission
   (AUX-R26, AUX-R76, AUX-R82).
 - [FAIL-AUX-2](../platform/failure-model.md): collection and result import of

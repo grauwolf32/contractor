@@ -180,6 +180,9 @@ type completionOptions struct {
 	// standards, when set, retains standard packages in the fixture Project
 	// and returns their pins for the Audit baseline.
 	standards func(*testing.T, *completionFixture) []auditstandards.PinnedPackage
+	// items, when set, replaces the two checklist items with that many, all
+	// in the one batch the fixture executes.
+	items int
 }
 
 func newCompletionFixtureWithOptions(t *testing.T, pool *pgxpool.Pool, options completionOptions) *completionFixture {
@@ -200,6 +203,22 @@ func newCompletionFixtureWithOptions(t *testing.T, pool *pgxpool.Pool, options c
 	}
 	f.source = write("source", "application/zip", []byte("scripted source"))
 	checklist := []byte(`{"schema":"contractor.audit.checklist.v1","items":[{"key":"first","version":"1","statement":"First check","applicability":"always","allowed_methods":["static"],"required_evidence":["source-trace"],"review_policy":"automatic"},{"key":"second","version":"1","statement":"Second check","applicability":"always","allowed_methods":["static"],"required_evidence":["source-trace"],"review_policy":"automatic"}]}`)
+	limits := auditstore.Limits{MaxRounds: 1, BatchSize: 2, MaxItemsPerRound: 10, MaxItemsTotal: 10, MaxSubmittedRuns: 10, MaxItemRunAttempts: 2, MaxEvidenceBytes: 1 << 20}
+	if options.items > 0 {
+		f.keys = make([]string, options.items)
+		entries := make([]map[string]any, options.items)
+		for i := range f.keys {
+			f.keys[i] = fmt.Sprintf("item-%03d", i)
+			entries[i] = map[string]any{
+				"key": f.keys[i], "version": "1", "statement": "Check " + f.keys[i], "applicability": "always",
+				"allowed_methods": []string{"static"}, "required_evidence": []string{"source-trace"}, "review_policy": "automatic",
+			}
+		}
+		checklist, err = json.Marshal(map[string]any{"schema": "contractor.audit.checklist.v1", "items": entries})
+		mustCompletion(t, err)
+		limits.BatchSize = options.items
+		limits.MaxItemsPerRound, limits.MaxItemsTotal = max(options.items, 10), max(options.items, 10)
+	}
 	checklistRef := write("checklist", "application/json", checklist)
 	inventory, err := auditdomain.BuildChecklistInventory(checklist, "application/json", auditdomain.InventoryOptions{Round: 1, WorkflowRole: "check", SourceInputName: "source", SourceRef: f.source.Ref, ApprovalRequirement: auditdomain.ApprovalNone})
 	mustCompletion(t, err)
@@ -253,7 +272,7 @@ func newCompletionFixtureWithOptions(t *testing.T, pool *pgxpool.Pool, options c
 	mustCompletion(t, err)
 	_, err = auditprofile.DecodeResolvedAuditProfileSnapshot(profileBytes)
 	mustCompletion(t, err)
-	draft, _, err := f.audits.CreateDraft(ctx, auditstore.CreateDraftParams{AuditID: f.id, OwnerID: "owner", ProjectID: f.id, Profile: auditstore.ProfileIdentity{Name: f.profile.Ref.Name, Version: f.profile.Ref.Version, Digest: f.profile.Ref.Digest}, ProfileSnapshot: profileBytes, InputSelection: json.RawMessage(`{}`), Limits: auditstore.Limits{MaxRounds: 1, BatchSize: 2, MaxItemsPerRound: 10, MaxItemsTotal: 10, MaxSubmittedRuns: 10, MaxItemRunAttempts: 2, MaxEvidenceBytes: 1 << 20}, IdempotencyKey: f.id, RequestDigest: completionDigest([]byte("audit"))})
+	draft, _, err := f.audits.CreateDraft(ctx, auditstore.CreateDraftParams{AuditID: f.id, OwnerID: "owner", ProjectID: f.id, Profile: auditstore.ProfileIdentity{Name: f.profile.Ref.Name, Version: f.profile.Ref.Version, Digest: f.profile.Ref.Digest}, ProfileSnapshot: profileBytes, InputSelection: json.RawMessage(`{}`), Limits: limits, IdempotencyKey: f.id, RequestDigest: completionDigest([]byte("audit"))})
 	mustCompletion(t, err)
 	// Run creation copies the Audit's labels and placement requirements from
 	// the baseline, so the fixture pins both, empty.
