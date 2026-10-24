@@ -18,6 +18,7 @@ import httpcore
 import httpx
 import idna
 import pytest
+from credential_field_values import read_credential_field_value_cases
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -39,8 +40,9 @@ from contractor_runtime.contracts import (
     HTTPProxySettings,
     RuntimeSettings,
 )
+from contractor_runtime.contracts.fields import is_credential_field_value, is_field_value
 from contractor_runtime.core.target_policy import TargetDenied
-from contractor_runtime.toolsets.http.fields import is_cookie_pair, is_field_value
+from contractor_runtime.toolsets.http.fields import is_cookie_pair
 from contractor_runtime.toolsets.http.tools import (
     HTTPToolError,
 )
@@ -671,6 +673,128 @@ def test_field_grammar_matches_the_h11_serializer() -> None:
     assert not is_cookie_pair("sid", "caf\u00e9")
 
 
+def test_shared_credential_field_values_are_sent_unchanged_by_h11() -> None:
+    # The corpus of the shared credential field-value grammar: is_field_value
+    # still agrees with h11 on all of it, and h11 sends every credential value
+    # the grammar accepts, so no configured token fails at send time.
+    cases = read_credential_field_value_cases().grammar
+    disagreements = [
+        case.name for case in cases if is_field_value(case.value) != h11_sends(case.value)
+    ]
+    assert disagreements == []
+    assert [case.name for case in cases if case.valid and not h11_sends(case.value)] == []
+    assert [
+        case.name
+        for case in cases
+        if is_credential_field_value(case.value) and not is_field_value(case.value)
+    ] == []
+
+
+def loopback_tls_client(certificate: tuple[Path, Path], port: int) -> httpx.AsyncClient:
+    """A client whose pool connects target.example to a local server over real TLS."""
+
+    transport = httpx.AsyncHTTPTransport(trust_env=False, retries=0)
+    # As PolicyHTTPTransport does, replace httpx's private pool to choose
+    # the network backend; the TLS stack and exception mapping stay real.
+    transport._pool = httpcore.AsyncConnectionPool(
+        ssl_context=ssl.create_default_context(cafile=str(certificate[0])),
+        retries=0,
+        network_backend=LoopbackBackend(port),
+    )
+    return httpx.AsyncClient(transport=transport, trust_env=False)
+
+
+class RecordingTLSTarget:
+    """A real TLS target that records each request head and answers 200 OK."""
+
+    def __init__(self, tmp_path: Path) -> None:
+        self.certificate = issue_target_certificate(tmp_path)
+        self._context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        self._context.load_cert_chain(*self.certificate)
+        self._listener = socket.create_server(("127.0.0.1", 0))
+        self.port = self._listener.getsockname()[1]
+        self.heads: list[bytes] = []
+        self._thread = threading.Thread(target=self._serve, daemon=True)
+        self._thread.start()
+
+    def _serve(self) -> None:
+        while True:
+            try:
+                raw, _ = self._listener.accept()
+            except OSError:
+                return
+            try:
+                with self._context.wrap_socket(raw, server_side=True) as tls:
+                    head = b""
+                    while b"\r\n\r\n" not in head:
+                        chunk = tls.recv(65536)
+                        if not chunk:
+                            break
+                        head += chunk
+                    self.heads.append(head)
+                    tls.sendall(
+                        b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok"
+                    )
+            except OSError:
+                pass
+
+    def client(self) -> httpx.AsyncClient:
+        return loopback_tls_client(self.certificate, self.port)
+
+    def close(self) -> None:
+        self._listener.close()
+        self._thread.join(30)
+
+
+def test_project_target_token_is_sent_unchanged_over_real_tls(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A configured token with inner space and tab runs is a credential field
+    # value (RCF-R114): it reaches the target as configured, on one attempt.
+    token = "tok\ten  inner-runs!~"
+    assert is_credential_field_value(token)
+
+    async def scenario() -> None:
+        delays: list[float] = []
+
+        async def record_retry(delay: float) -> None:
+            delays.append(delay)
+
+        monkeypatch.setattr(http_tools, "_retry_sleep", record_retry)
+        target = RecordingTLSTarget(tmp_path)
+        state = WorkerState()
+        settings = RuntimeSettings(
+            llmGatewayUrl="https://gateway.example/v1",
+            artifactApiUrl="https://control.example/private/v1",
+            httpOriginTarget=HTTPOriginTargetSettings(
+                url="https://target.example", bearerToken=token
+            ),
+            requestTimeoutSeconds=30,
+        )
+        tools = await make_tools(
+            HTTPToolsetFactory(target.client), tmp_path, state=state, settings=settings
+        )
+        callbacks = await WorkerToolCallbacks.start(state)
+        try:
+            response, raised = await callbacks.call(
+                tools["http_request"], url="https://target.example/"
+            )
+            assert raised is None
+            assert response["status"] == 200
+        finally:
+            await close_tools(tools)
+            target.close()
+        assert delays == []
+        assert len(target.heads) == 1
+        lines = target.heads[0].split(b"\r\n")
+        authorization = [
+            line.split(b":", 1)[1] for line in lines if line.lower().startswith(b"authorization:")
+        ]
+        assert authorization == [b" Bearer " + token.encode("ascii")]
+
+    asyncio.run(scenario())
+
+
 class CorruptTLSRecordTarget:
     """A real TLS target that answers with a record the client cannot decrypt.
 
@@ -713,17 +837,7 @@ class CorruptTLSRecordTarget:
                 pass
 
     def client(self) -> httpx.AsyncClient:
-        """A client whose pool connects target.example to this server over real TLS."""
-
-        transport = httpx.AsyncHTTPTransport(trust_env=False, retries=0)
-        # As PolicyHTTPTransport does, replace httpx's private pool to choose
-        # the network backend; the TLS stack and exception mapping stay real.
-        transport._pool = httpcore.AsyncConnectionPool(
-            ssl_context=ssl.create_default_context(cafile=str(self.certificate[0])),
-            retries=0,
-            network_backend=LoopbackBackend(self.port),
-        )
-        return httpx.AsyncClient(transport=transport, trust_env=False)
+        return loopback_tls_client(self.certificate, self.port)
 
     def close(self) -> None:
         self._listener.close()

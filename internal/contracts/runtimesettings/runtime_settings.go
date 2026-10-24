@@ -16,6 +16,19 @@ import (
 	"github.com/grauwolf32/contractor/internal/sourcezip"
 )
 
+// Byte bounds of the secret field values RuntimeSettings carries: a bearer or
+// Interactsh token (LIM-RCF-24) and one OTLP header value (LIM-RCF-21).
+const (
+	maxBearerTokenBytes          = 8192
+	maxTelemetryHeaderValueBytes = 4096
+)
+
+// validFieldValue reports whether a secret field value is within its byte
+// bound and is sent unchanged as an HTTP field value.
+func validFieldValue(value string, maximum int) bool {
+	return len(value) <= maximum && contracts.ValidCredentialFieldValue(value)
+}
+
 var headerNamePattern = regexp.MustCompile(`^[!#$%&'*+\-.^_` + "`" + `|~0-9A-Za-z]+$`)
 
 var forbiddenRuntimeHeaderNames = map[string]struct{}{
@@ -60,7 +73,7 @@ func (s TelemetrySettings) Validate() error {
 			return contracts.Invalidf("telemetry header is forbidden")
 		}
 		secret := value.Reveal()
-		if len(secret) == 0 || len(secret) > 4096 || strings.ContainsAny(secret, "\r\n") {
+		if !validFieldValue(secret, maxTelemetryHeaderValueBytes) {
 			return contracts.Invalidf("telemetry header value is invalid")
 		}
 		total += len(secret)
@@ -114,11 +127,8 @@ func (s CaidoSettings) Validate() error {
 	if err := validateRuntimeEndpoint("caido.endpoint", s.Endpoint); err != nil {
 		return err
 	}
-	if s.BearerToken != nil {
-		value := s.BearerToken.Reveal()
-		if len(value) < 1 || len([]byte(value)) > 8192 {
-			return contracts.Invalidf("Caido bearerToken is outside its size bound")
-		}
+	if s.BearerToken != nil && !validFieldValue(s.BearerToken.Reveal(), maxBearerTokenBytes) {
+		return contracts.Invalidf("Caido bearerToken is invalid")
 	}
 	if s.CABundlePEM != nil {
 		if err := validateCABundle("Caido", *s.CABundlePEM); err != nil {
@@ -159,11 +169,8 @@ func (s InteractshSettings) Validate() error {
 			return contracts.Invalidf("Interactsh callback hostname is invalid")
 		}
 	}
-	if s.Token != nil {
-		value := s.Token.Reveal()
-		if len(value) < 1 || len([]byte(value)) > 8192 || strings.ContainsAny(value, "\r\n") {
-			return contracts.Invalidf("Interactsh token is outside its size bound")
-		}
+	if s.Token != nil && !validFieldValue(s.Token.Reveal(), maxBearerTokenBytes) {
+		return contracts.Invalidf("Interactsh token is invalid")
 	}
 	if s.CABundlePEM != nil {
 		if err := validateCABundle("Interactsh", *s.CABundlePEM); err != nil {
@@ -192,11 +199,8 @@ func (s HTTPProxySettings) Validate() error {
 			return contracts.Invalidf("HTTP proxy basicAuth is outside its size bound")
 		}
 	}
-	if s.BearerToken != nil {
-		value := s.BearerToken.Reveal()
-		if len(value) < 1 || len(value) > 8192 {
-			return contracts.Invalidf("HTTP proxy bearerToken is outside its size bound")
-		}
+	if s.BearerToken != nil && !validFieldValue(s.BearerToken.Reveal(), maxBearerTokenBytes) {
+		return contracts.Invalidf("HTTP proxy bearerToken is invalid")
 	}
 	if s.CABundlePEM != nil {
 		if err := validateCABundle("HTTP proxy", *s.CABundlePEM); err != nil {
@@ -296,6 +300,9 @@ func (s RuntimeSettings) Validate() error {
 	}
 	if s.LLMGatewayToken != nil && s.LLMGatewayToken.Reveal() == "" {
 		return contracts.Invalidf("an unauthenticated Gateway omits llmGatewayToken")
+	}
+	if s.LLMGatewayToken != nil && !contracts.ValidCredentialFieldValue(s.LLMGatewayToken.Reveal()) {
+		return contracts.Invalidf("llmGatewayToken is not an HTTP field value")
 	}
 	if s.LLMGatewayFailureSignatures != nil {
 		if err := s.LLMGatewayFailureSignatures.Validate(); err != nil {
@@ -407,11 +414,8 @@ func (s HTTPOriginTargetSettings) Validate() error {
 			return contracts.Invalidf("HTTP origin target basicAuth is outside its size bound")
 		}
 	}
-	if s.BearerToken != nil {
-		value := s.BearerToken.Reveal()
-		if len(value) < 1 || len(value) > 8192 {
-			return contracts.Invalidf("HTTP origin target bearerToken is outside its size bound")
-		}
+	if s.BearerToken != nil && !validFieldValue(s.BearerToken.Reveal(), maxBearerTokenBytes) {
+		return contracts.Invalidf("HTTP origin target bearerToken is invalid")
 	}
 	return nil
 }

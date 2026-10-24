@@ -85,9 +85,9 @@
     {"name": "Interactsh timeout 120", "set": {"/interactsh/requestTimeoutSeconds": 120}, "valid": true},
     {"name": "Interactsh timeout 121", "set": {"/interactsh/requestTimeoutSeconds": 121}, "valid": false},
     {"name": "Interactsh invalid adapter 4", "set": {"/interactsh/adapter": "caido-graphql@1"}, "valid": false, "crossField": true},
-    {"name": "Interactsh invalid token 5", "set": {"/interactsh/token": ""}, "valid": false, "crossField": true},
+    {"name": "Interactsh invalid token 5", "set": {"/interactsh/token": ""}, "valid": false},
     {"name": "Interactsh invalid endpoint 6", "set": {"/interactsh/endpoint": "https://user:secret@oast.example"}, "valid": false, "crossField": true},
-    {"name": "Interactsh invalid token 7", "set": {"/interactsh/token": "line\nbreak"}, "valid": false, "crossField": true},
+    {"name": "Interactsh invalid token 7", "set": {"/interactsh/token": "line\nbreak"}, "valid": false},
     {"name":"Interactsh literal endpoint", "set":{"/interactsh/endpoint":"http://127.1"}, "valid":false, "crossField":true}
   ]
 }
