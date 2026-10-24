@@ -109,6 +109,13 @@ tokens, the public create request, Go RuntimeSettings decoding, the Runtime's
 schema are checked against it; the Runtime also checks that h11 sends every
 value it accepts.
 
+`target-credential-cases.json` holds the pentest target credentials (RCF-R184).
+Its references are `RuntimeCredentialRef` texts checked by Go decoding, the
+Runtime model and the `RuntimeCredentialRef` definition of this schema; its
+materials are the creation material of each target kind, checked by the
+Server's constructors, stored material decoding, the public create request and
+its OpenAPI material schemas. The Runtime reads no target material yet.
+
 `gateway-recovery-participant-cases.json` holds the model recovery participant
 protocol of `POST /private/v1/allocations/{allocationID}/gateway-recovery`
 (SCH-R168): the updates and which are terminal, the codes a `failed` update may

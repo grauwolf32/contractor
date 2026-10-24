@@ -222,7 +222,18 @@ export function RuntimeCredentialCreateForm({
                 {...control}
                 value={kind}
                 onChange={(event) => {
-                  setKind(event.target.value as CredentialKind);
+                  const next = event.target.value as CredentialKind;
+                  setKind(next);
+                  setHeaders(
+                    (next === "target-login@1"
+                      ? ["username", "password"]
+                      : ["Authorization"]
+                    ).map((name) => ({
+                      id: nextHeaderID.current++,
+                      name,
+                      value: "",
+                    })),
+                  );
                   clearSecretFields();
                 }}
               >

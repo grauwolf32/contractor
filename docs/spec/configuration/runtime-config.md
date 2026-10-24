@@ -883,18 +883,6 @@ adapters. Operations authoring and detail preserve clear versus omission.
 Protocol, endpoint domain, timeouts and evidence belong to
 [Interactsh](../tools/interactsh.md#INT-R2).
 
-**RCF-R184.** A pentest target identity credential is a runtime credential of
-kind `target-basic@1` (a Basic username and password under the RCF-R114
-bounds), `target-bearer@1` (a bearer token that is a credential field value,
-RCF-R114) or `target-login@1`: a `fields` object of 1–16 named login secrets
-(LIM-RCF-30) whose names match `^[a-z][a-z0-9_-]{0,63}$` and whose values are
-1–8,192 UTF-8 bytes without control characters, at most 16 KiB in total
-(LIM-RCF-31), inside the plaintext bound of RCF-R112. A runtime credential is
-create-only, so its credential ID is the immutable, owner-scoped revision
-identity: an exact target credential reference is the credential ID with its
-kind, used by its creator or by Operations (RCF-R115), and no public hash of the
-secret identifies it (RCF-R177).
-
 ### Runtime credentials
 
 **RCF-R110.** RuntimeConfig stores only exact credential references. Secret
@@ -920,7 +908,11 @@ The same store holds the pentest target identity kinds `target-basic@1`,
 `target-bearer@1` and `target-login@1` (RCF-R184).
 
 **RCF-R112.** One encrypted runtime-credential plaintext is canonical JSON of
-at most 32 KiB (LIM-RCF-18).
+at most 32 KiB (LIM-RCF-18). Creation material is one JSON object of at most
+32 KiB decoded strictly for its kind: a repeated or unknown member, invalid
+UTF-8 and a lone surrogate escape are invalid input, and stored plaintext that
+is not exactly the canonical JSON of valid material is a decryption failure
+(FAIL-RCF-3).
 
 **RCF-R113.** `otlp-headers@1` contains 1–32 unique RFC 9110 field names
 (LIM-RCF-19), each at most 64 ASCII bytes (LIM-RCF-20), with values from 1
@@ -945,6 +937,30 @@ without control characters and a username without a colon. The Server, the
 Runtime, the private schema and the public API are held to the credential
 field-value rule by
 [`credential-field-value-cases.json`](../../../api/testdata/v1alpha1/credential-field-value-cases.json).
+
+**RCF-R184.** The pentest target identity kinds are `target-basic@1`, a Basic
+username and password under the RCF-R114 bounds; `target-bearer@1`, a bearer
+token that is a credential field value (RCF-R114); and `target-login@1`, a
+`fields` object of 1–16 named login secrets (LIM-RCF-30) whose names match
+`^[a-z][a-z0-9_-]{0,63}$` and whose values are 1–8,192 UTF-8 bytes without
+control characters, at most 16 KiB in total (LIM-RCF-31), with canonical JSON
+within RCF-R112. A runtime credential is create-only and its ID is never
+reused after deletion, so its credential ID with its kind, the private
+`RuntimeCredentialRef` and the `credentialId` and `kind` of its public
+metadata, is the exact reference to one immutable revision. There is no
+mutable alias to resolve first, and no public hash of the secret identifies a
+revision (RCF-R177). A reference resolves only for the credential's creator or
+Operations and only as its exact kind; a missing, deleted, foreign or
+other-kind reference reads as not found, so the reader learns nothing about
+the secret's existence. Whoever pins a reference resolves it in the
+transaction that commits the pin, under the shared side of the credential
+lifecycle fence, so a concurrent deletion either commits first and the
+resolution fails, or finds the pin and is refused with
+`runtime_credential_in_use` (AUD-R16). Private use decrypts only the expected
+kind for a synchronous consumer and wipes the plaintext when the consumer
+returns, fails or is cancelled. The Server, the Runtime, the private schema
+and the public API are held to these rules by
+[`target-credential-cases.json`](../../../api/testdata/v1alpha1/target-credential-cases.json).
 
 **RCF-R115.** Runtime-credential read projections expose only the credential
 ID, kind and creation metadata.
