@@ -6,7 +6,8 @@ epic: findings
 kind: defect
 introduced_by: V397-003
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: cc9b13159bcb66b3b3bf40dd55d5b8f22cb0217f
 depends_on: []
 languages: [go, sql, markdown]
 goal: >-
@@ -155,7 +156,7 @@ acceptance_criteria:
 tests:
   - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 -tags=integration ./internal/findingintake ./internal/auditimport ./internal/auditservice ./internal/auditstore/... ./internal/persistence/..."
     covers: [A1, A2, A3, A4, A5, A6]
-  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 -run 'TestPostgresFindingIntakeSerializesWithProjectDeletion|TestTableOwnership|TestSQLAccess' ./internal/findingintake ./internal/persistence"
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 -tags=integration -run 'TestPostgresFindingIntakeSerializesWithProjectDeletion|TestTableOwnership|TestSQLAccess' ./internal/findingintake ./internal/persistence"
     covers: [A3, A5]
   - command: make docs-erd
     covers: [A5]
@@ -164,3 +165,115 @@ tests:
 verification_requirements:
   - "Run with CONTRACTOR_TEST_DATABASE_URL set; a skipped database test is not a pass."
   - "Show A6 by running the A1 test against b523ae77 and recording that it fails."
+verification:
+  date: '2026-10-24'
+  environment: >-
+    macOS arm64; Go 1.26.9; local PostgreSQL 17.11 (Homebrew), database
+    contractor_test_v414_fence with per-test schemas and all 41 migrations;
+    the locked Runtime venv and the pnpm UI install for make lint. Branch
+    claude/v414-fence from main 17245309, implementation cc9b1315, then main
+    2193cef5 merged in.
+  commands:
+    - >-
+      go test -count=1 -tags=integration ./internal/findingintake
+      ./internal/auditimport ./internal/auditservice ./internal/auditstore/...
+      ./internal/persistence/... passed before the merge of main (findingintake
+      305s, auditservice 397s, persistence/postgres 78s, persistence 3s;
+      auditimport 106s and auditstore/internal/pgstore 220s in a rerun, see
+      the notes). It ran the new tests
+      TestPostgresFindingIntakeSharesTheProjectWithConcurrentAdmissions (Run
+      creation, Audit start, Project artifact admission),
+      TestPostgresFindingDecisionSharesTheProjectWithChildRunCreation,
+      TestPostgresFindingPurgeSerializesWithProjectDeletionClaim (both
+      orders), TestPostgresSourceRunDeletionWithoutAuditFencesNothing and
+      TestSharedPostgresFindingCorrelationFenceMigrationKeepsEveryRevision,
+      and the reworked V409-001 replay tests with a real conflicting finding
+      writer or Project metadata update.
+    - >-
+      After the merge of main 2193cef5 the same command plus
+      ./internal/projectlifecycle passed except
+      TestPostgresFindingRunDeletionSerializesWithAuditPurge/run_deletion_commits_first
+      ("waited at the wrong lock stage"), a known regression on main since
+      the V414-029 merge that V414-031 fixes, independent of this change.
+    - >-
+      go test -count=1 -tags=integration -run
+      'TestPostgresFindingIntakeSerializesWithProjectDeletion|TestTableOwnership|TestSQLAccess'
+      ./internal/findingintake ./internal/persistence passed. The listed
+      command lacked -tags=integration and selected no test in findingintake,
+      whose test is in an integration-tagged file; the command above is
+      corrected.
+    - >-
+      go test -count=1 -tags=integration ./internal/projectlifecycle
+      ./internal/auditcontroller ./internal/rundeletion ./internal/runservice
+      ./internal/evalstore ./internal/evalservice ./internal/httpapi/public/...
+      ./internal/auditbaseline ./internal/httpapi/privateartifacts passed
+      (dependents of the changed packages). The Project purge test
+      TestProjectDeletionPurgesAuditWithDecidedReviewsAndAssessments now
+      checks the fence row before deletion and its absence after.
+    - make docs-erd regenerated docs/spec/database-erd.html (73 tables, schema 000041).
+    - >-
+      make lint passed before and after the merge of main, after make
+      docs-dependencies.
+  a6: >-
+    In a temporary worktree at b523ae77, the final A1 tests (appended to
+    that revision's own test files, with helpers that need no new API)
+    failed: every subtest of
+    TestPostgresFindingIntakeSharesTheProjectWithConcurrentAdmissions (Run
+    creation, Audit start, Project artifact admission) and
+    TestPostgresFindingDecisionSharesTheProjectWithChildRunCreation ended
+    with "Project correlation is concurrently changing" (SQLSTATE 40001).
+    The worktree was removed.
+  can_fail_checks:
+    - >-
+      Dropping the fence-row join from contractor_finding_correlation_source_deleted
+      failed TestPostgresSourceRunDeletionWithoutAuditFencesNothing with
+      "Project delete-project has no finding correlation fence (SQLSTATE
+      P0004)"; reverted.
+    - >-
+      The migration test's scan of function bodies for writes and exclusive
+      locks of projects matched functions with the old lock and advance
+      statements in a scratch-schema probe, and matches none after the
+      migration.
+  decisions:
+    - >-
+      Receipts exist for every Project-bound Run, Audit or not. A Project
+      that never had an Audit has no fence row, so the source-Run-deletion
+      trigger steps only Projects with a fence row; no finding, contribution
+      or hold can cite such a receipt. Readers read revision 1 for a Project
+      without the row, the row's starting revision.
+    - >-
+      A BEFORE DELETE trigger keeps the fence row while its Project row
+      exists, so only the Project cascade removes it and the revision never
+      restarts (LIFE-FND-4).
+    - >-
+      Audit creation inserts the fence row only when its snapshot shows none,
+      before ON CONFLICT DO NOTHING, so it never waits on a finding writer
+      that holds the existing row; only two first Audits of one Project wait
+      on each other's insert.
+    - >-
+      FND-R177 records the guarantee, the rejected alternatives (projectstore
+      lock API, advisory lock, FOR KEY SHARE admissions) and the reversal
+      condition. FAIL-FND-6 and LIFE-FND-4 follow it; FAIL-AUX-3, FAIL-REV-1
+      and FAIL-REV-7 still describe the unchanged V409-001 replay.
+  notes:
+    - >-
+      The first run of auditimport failed only in
+      TestAuditCompletionRuntimeZIPImporter, because the Runtime venv was
+      still being created (fork/exec runtime/.venv/bin/python); the rerun
+      passed.
+    - >-
+      The Project artifact admission contender writes one committed artifact
+      first, so its ProjectScope row exists: the first artifact of a Project
+      creates that row, and a concurrent first admission waits on its unique
+      key, an artifact-store wait unrelated to the fence.
+    - >-
+      Under five packages in parallel, the budget tests
+      TestPostgresAuditClaimReadsOnlyTheReconcilableAudits and, after the
+      merge, TestPostgresAuditDeletionProbesReadOnlyTheLiveRuns read one or
+      two rows over budget; both passed when the package ran alone, before
+      and after the merge. Their statements do not read the fence table.
+    - >-
+      The finding_proposal_receipts correlation trigger (findingintake) still
+      writes auditstore's finding_correlation_fences through
+      contractor_advance_finding_correlation; V372-009 now lists that write
+      for its registry. Nothing writes projects outside projectstore any more.
