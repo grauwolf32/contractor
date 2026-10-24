@@ -6,7 +6,8 @@ epic: audits
 kind: chore
 introduced_by: V45-004
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 72b9c7666ea1bc76d35517b0b1828ffce9c205a4
 depends_on: []
 languages:
 - go
@@ -170,3 +171,61 @@ tests:
   - A3
   - A4
   - A5
+verification:
+  date: '2026-10-23'
+  revision: 72b9c7666ea1bc76d35517b0b1828ffce9c205a4
+  environment: >-
+    Worktree branch claude/rv-a on base f42665bd, macOS arm64, Go 1.26.9 (GOTOOLCHAIN=local), local
+    PostgreSQL 17.11 database contractor_test_a (CONTRACTOR_TEST_DATABASE_URL set for every Go run).
+  database_tests_configured: true
+  results:
+  - 'test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1 ./internal/auditimport/...
+    ./internal/findingintake/... ./internal/auditstore/...: passed (auditimport, findingintake, auditstore/internal/pgstore
+    ok; findingintake rerun after the last test-helper move, ok).'
+  - 'make lint: passed (after make docs-dependencies and make tasks-backlog).'
+  - 'go test -tags=integration -count=1 ./internal/artifacts/... ./internal/auditservice/... ./internal/auditcontroller/...
+    ./internal/auditdomain/... ./internal/app/...: passed; go test -count=1 (no tags) of artifacts, auditimport,
+    findingintake and auditstore/...: passed.'
+  - 'go test -count=1 ./internal/persistence/: fails TestSQLAccessFollowsTableOwnership (internal/cli/scan_sweep_remote.go:196)
+    and TestKeyedMutationsUseTheSharedHelpers (internal/app/single_active_budget_test.go); both fail identically
+    on base f42665bd in a temporary worktree, and neither names a file this task changed.'
+  - 'A1: TestPostgresMaximumCollectionDescribesEvidenceAndRetainsInBoundedTransactions collects 64 items with 15
+    evidence records each (1,024 links, 958 distinct evidence revisions, two repeats) through the production
+    importer on a traced pool: 0 evidence payload reads, 30 description statements (ceil(958/32)), 2
+    artifact-write transactions, 959 forks and 5x2 + 2x959 = 1,928 statements inside them; the receipt is
+    accepted with 1,024 links, 959 retained copies with the expected names and digests and the same retained
+    evidence bytes. Base: 960 payload reads, 0 descriptions, 959 artifact-write transactions (fails).
+    TestDescribeExactReadsBoundedMetadataBatchesWithoutPayloads: 103 references in ceil(103/32) statements, no
+    payload read, descriptors equal Metadata; missing and foreign revisions are not found, latest aliases and
+    invalid names fail before any statement, a cancelled read is not reported as invalid.'
+  - 'A2: TestPostgresResolveAuditProposalsUsesBoundedSetReads retains 4,096 proposals in 200-receipt pages and
+    resolves them in 32 calls of 128 keys, each exactly 1 + ceil(128/32) = 5 statements (160 in all). Base:
+    512 statements per call (fails). TestPostgresResolveAuditProposalsPreservesSelectionOutcomes: too many
+    keys and invalid identities ErrInvalid and repeated keys ErrConflict with 0 statements; missing,
+    unretained, foreign Audit, owner or Run and stale execution ErrNotFound and an ambiguous key ErrConflict
+    with 1 statement; no partial result. Base: 4 and 8 statements before rejection, ErrNotFound for an
+    invalid key after a missing one, and the ambiguous key resolved (fails).'
+  - 'A3: TestPostgresMaximumCollectionResumesAfterInterruptedRetention cancels the attempt after its first
+    artifact-write transaction commits: 1 transaction of 512 forks (5 + 2x512 statements), execution
+    collecting, 512 unlinked bindings, 0 links; the next attempt makes 2 transactions with 5x2 + 2x447 +
+    5x512 statements, keeps every committed revision and links exactly the uninterrupted result. Base: the
+    interrupted attempt committed 1 fork (fails). TestPostgresMaximumCollectionStopsAtTransientFailureAndClaimLoss:
+    a transient description failure returns that error (not permanent), writes nothing and leaves the
+    execution collecting; a claim released after the first transaction stops the second at ErrClaimLost with
+    512 unlinked bindings, and the next holder replays them with the same statement formula and links
+    everything. The auditcontroller claim-release replay test passes through the batch API.'
+  - 'A4: TestPostgresCollectionReceiptIDsReadsSelectedFindingsInOneStatement: 255 findings holding exactly 256
+    receipts (one contributing) return the same sorted IDs in 1 statement; 256 findings with 257 receipts
+    ErrInvalid in 1 statement; stale finding plus overflow ErrConflict; missing finding and foreign owner
+    ErrNotFound; 257 findings ErrInvalid with 0 statements. Base: 510 statements for 255 findings (fails).'
+  - 'A5: every count test above was run against the base implementation (tests copied into a temporary base
+    worktree, since removed) and failed there, except the transient/claim-loss test, which needs the new
+    batch API to compile and asserts failure outcomes. No test asserts elapsed time. Existing collection,
+    deletion, cancellation and claim-fencing suites in auditimport, auditcontroller, auditservice,
+    findingintake and pgstore pass unchanged.'
+  - 'Spec: new AUX-R98 (docs/spec/audits/execution.md), ART-R121 (docs/spec/artifacts/artifact-store.md),
+    LIM-ART-8 and LIM-AUX-15 (docs/spec/platform/limits.md); LIM-AUX-7 now states 512 work units; FND-R159
+    states the one-statement expansion. No migration.'
+  declined:
+  - 'Role-output payload reads and per-member resolveTaskProposal reads were left unchanged (see decisions).
+    The late 1,024-link receipt bound and oversized-envelope handling stay out of scope.'
