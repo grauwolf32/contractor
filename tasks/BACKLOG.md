@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-126 open tasks: 10 in progress, 91 pending, 25 deferred. 1073 finished: 1063 completed, 10 archived.
+127 open tasks: 11 in progress, 91 pending, 25 deferred. 1073 finished: 1063 completed, 10 archived.
 
 ## In progress
 
@@ -21,6 +21,7 @@ the epics are in [epics.yml](epics.yml).
 | [V414-023](v414-023-go-telemetry-secret-matching.yml) | operations | defect | P2 | Match secrets at the Go telemetry boundary by the shared 16-byte rule, longest first |
 | [V414-026](v414-026-eval-summary-generic-plan.yml) | evals | defect | P2 | Bound Eval experiment summary pages by page size in generic plans |
 | [V414-029](v414-029-audit-deletion-next-run-probe.yml) | audits | defect | P2 | Find a deleting Audit's next live child Run without reading every execution and Run |
+| [V415-002](v415-002-compact-installed-nuclei-manifest.yml) | scan-tools | defect | P1 | Keep one package digest in installed Nuclei Run manifests |
 
 ## Pending
 
@@ -240,7 +241,7 @@ tasks in `introduced_by`.
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 13 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 0 | 14 | 14 | 2 | 19 |
 | HTTP and Caido tools (`http-tools`) | 10 | 19 | 15 | 5 | 16 |
-| Scanner tool Workers and scan planning (`scan-tools`) | 4 | 16 | 6 | 7 | 12 |
+| Scanner tool Workers and scan planning (`scan-tools`) | 5 | 16 | 7 | 7 | 13 |
 | Findings tools and collections (`findings`) | 10 | 16 | 7 | 8 | 12 |
 | Workflow catalog and document workflows (`workflows`) | 7 | 18 | 14 | 12 | 18 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 5 | 35 | 33 | 6 | 38 |

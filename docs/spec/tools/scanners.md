@@ -499,18 +499,27 @@ file with a top-level scalar Nuclei ID (plain or quoted ASCII ID). Empty,
 duplicate, escaping or malformed selections fail as `nuclei_selection_invalid`.
 The installed engine's version probe must yield a version and finish within two
 seconds and the remaining preparation budget. Runtime publishes create-only
-`template-manifest` in the scanner Namespace before target scanning. It contains
-schemaVersion 1, packageDigest, all file records, selectedTemplates with ID/path/
-content digest/size, and engineVersion. Publication ambiguity or failure stops
-before scanning; existing receipt semantics prevent another invocation.
+`template-manifest` in the scanner Namespace before target scanning. Schema
+version 2 always contains `packageDigest`, `engineVersion`,
+`selectedTemplateCount` and a source kind. For the installed package, the
+manifest contains only its one verified `packageDigest` content hash, not a
+per-Run copy of the package inventory or selected template records. For an
+owner rulepack, it also contains the exact source ArtifactRef and source
+content digest, all verified file records, and selected templates with
+ID/path/content digest/size. Publication ambiguity or failure stops before
+scanning; existing receipt semantics prevent another invocation.
 
 **SCN-R230.** The web Workflow declares the `template_manifest` result and
 output as `application/vnd.contractor.nuclei-manifest+json`. The bounded ordinary
 report contains expectedPackageDigest, actualPackageDigest when computed,
 engineVersion when known, selectedTemplateCount, resolved filters/rateLimit and
-the exact templateManifest ArtifactRef. The separate manifest carries the large
-rule list and follows ordinary Run retention/purge. Reports remain bounded by
-SCN-R41; additional revision verification follows SCN-R45.
+the exact templateManifest ArtifactRef. The separate manifest carries compact
+installed-package provenance or detailed owner-rulepack provenance and follows
+ordinary Run retention/purge. The installed package digest is computed from
+every verified file record (SCN-R227); the report's filters and engine version
+describe its selection without duplicating thousands of records in each Run.
+Reports remain bounded by SCN-R41; additional revision verification follows
+SCN-R45.
 
 **SCN-R231.** Missing installed content yields `nuclei_templates_unavailable`;
 invalid/unbounded package content yields `nuclei_package_invalid`; a differing
