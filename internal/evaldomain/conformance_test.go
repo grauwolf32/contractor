@@ -74,6 +74,19 @@ func TestSharedEvalConformanceFixtures(t *testing.T) {
 	}
 }
 
+// The shared NUL fixture is rejected for its escapes alone (EVF-R236): one in
+// a free string and one in a member name. Spelled as another character, the
+// same bytes are a valid creation request.
+func TestSharedEvalNULEscapeIsTheOnlyDefectOfItsFixture(t *testing.T) {
+	raw := contractstest.ReadFile(t, "api", "testdata", "evals", "invalid", "nul-escape.json")
+	if bytes.Count(raw, []byte(`\u0000`)) != 3 {
+		t.Fatalf("nul-escape.json holds %d NUL escapes, want the name, a parameter name and its value", bytes.Count(raw, []byte(`\u0000`)))
+	}
+	if err := Validate("CreateExperiment", bytes.ReplaceAll(raw, []byte(`\u0000`), []byte("-"))); err != nil {
+		t.Fatalf("nul-escape.json without its escapes: %v", err)
+	}
+}
+
 func TestSharedEvalTypedAuthoringRoundTrips(t *testing.T) {
 	for _, name := range []string{"create-workflow", "create-media-type", "create-audit", "external-workflow", "external-audit"} {
 		t.Run(name, func(t *testing.T) {

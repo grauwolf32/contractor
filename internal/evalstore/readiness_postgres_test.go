@@ -20,6 +20,7 @@ type readinessCase struct {
 	Plan       json.RawMessage       `json:"plan"`
 	Comparison evaldomain.Comparison `json:"comparison"`
 	Readiness  json.RawMessage       `json:"readiness"`
+	ErrorCode  string                `json:"errorCode"`
 }
 
 // bypassPlanImmutability runs statement on eval_frozen_plans with
@@ -43,7 +44,9 @@ func checkViolation(err error) bool {
 
 // The freeze stores the readiness of each shared fixture plan exactly, and
 // FrozenPlanView returns it with the plan metadata in one statement that does
-// not select the document. An external registration stores none.
+// not select the document. A plan the fixture marks rejected never reaches
+// the store: the freeze takes only a document Freeze accepted. An external
+// registration stores none.
 func TestSharedPostgresFreezeStoresNativeReadinessForTheView(t *testing.T) {
 	var fixtures struct {
 		Cases []readinessCase `json:"cases"`
@@ -53,6 +56,12 @@ func TestSharedPostgresFreezeStoresNativeReadinessForTheView(t *testing.T) {
 	}
 	for _, c := range fixtures.Cases {
 		t.Run(c.Name, func(t *testing.T) {
+			if c.ErrorCode != "" {
+				if _, err := evaldomain.Freeze("playground.plan/v1", c.Plan); !code(err, c.ErrorCode) {
+					t.Fatalf("Freeze = %v, want %s", err, c.ErrorCode)
+				}
+				return
+			}
 			pool := testPool(t)
 			ctx := t.Context()
 			f := newNativeFreeze(t, pool)

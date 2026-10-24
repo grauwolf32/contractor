@@ -208,6 +208,30 @@ non-finite numbers or implicit date objects.
 
 **EVF-R16.** Frozen records are persisted as UTF-8 JSON.
 
+**EVF-R236.** No string and no object member name of an Eval document holds
+U+0000, which JSON spells as the escape `\u0000`, or a lone UTF-16 surrogate
+escape. Every codec rejects such a document as `eval_invalid` whatever its
+kind, before schema validation and before any side effect; a document
+authored as YAML is held to the rule in its JSON form. The rule governs
+documents, not the bytes of an execution output that a native check inspects:
+the `json@1` structural check keeps the verdicts of its pinned implementation
+digest, so an output that holds the escape still passes it.
+
+Rationale: PostgreSQL cannot hold U+0000 in `text` or `jsonb`. A cast to
+`jsonb` of a stored document that holds the escape, and every `json` operator
+on it, fails with SQLSTATE 22P05, so one such document broke every read that
+casts it, among them the owner's experiment list, and a dataset failed at its
+`jsonb` metadata write, both as an unclassified internal error. Rejecting the
+escape at write keeps every stored Eval document castable, which the few
+production reads that cast a stored Eval document rely on;
+`TestEvalSQLCastsStoredValuesToJSONBOnlyWhereListed` names each one, so a new
+cast is a visible decision. Reads that never cast a stored document would
+tolerate the escape, but they leave the metadata write failing and every new
+read to remember the hazard. Reverse this if the portable format must carry
+U+0000 in a free string, and then remove every production cast of a stored
+Eval document instead. A lone surrogate is rejected because a decoder
+replaces it with U+FFFD, which would merge distinct byte identities.
+
 **EVF-R17.** Validation is JSON Schema validation plus semantic
 validation; matching JSON types alone does not prove consistency or
 completeness.

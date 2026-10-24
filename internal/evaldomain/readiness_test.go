@@ -3,6 +3,7 @@ package evaldomain
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -12,11 +13,16 @@ import (
 	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
+// readinessCase is one case of the shared readiness fixture: an accepted
+// plan with its readiness, or a plan Freeze rejects with ErrorCode and the
+// readiness the backfill derives for it as stored before that rule.
 type readinessCase struct {
-	Name       string          `json:"name"`
-	Plan       json.RawMessage `json:"plan"`
-	Comparison Comparison      `json:"comparison"`
-	Readiness  json.RawMessage `json:"readiness"`
+	Name              string          `json:"name"`
+	Plan              json.RawMessage `json:"plan"`
+	Comparison        Comparison      `json:"comparison"`
+	Readiness         json.RawMessage `json:"readiness"`
+	ErrorCode         string          `json:"errorCode"`
+	BackfillReadiness json.RawMessage `json:"backfillReadiness"`
 }
 
 func readinessCases(t *testing.T) []readinessCase {
@@ -27,17 +33,47 @@ func readinessCases(t *testing.T) []readinessCase {
 	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "evals", "readiness-cases.json"), &document); err != nil {
 		t.Fatal(err)
 	}
-	if len(document.Cases) == 0 {
-		t.Fatal("readiness fixture has no cases")
+	rejected := 0
+	for _, c := range document.Cases {
+		if (c.ErrorCode == "") != (c.BackfillReadiness == nil) || (c.ErrorCode == "") == (c.Readiness == nil) {
+			t.Fatalf("readiness case %s needs either readiness or errorCode with backfillReadiness", c.Name)
+		}
+		if c.ErrorCode != "" {
+			rejected++
+		}
+	}
+	if len(document.Cases) == rejected || rejected == 0 {
+		t.Fatalf("readiness fixture has %d cases, %d of them rejected; it needs both kinds", len(document.Cases), rejected)
 	}
 	return document.Cases
 }
 
 // Every implementation of native readiness (this function, the freeze that
-// stores it and the backfill migration) must reproduce the shared fixture.
+// stores it and the backfill migration) must reproduce the shared fixture. A
+// plan the fixture marks rejected never reaches NativeReadiness through
+// Freeze; as an older Server stored it, NativeReadiness derived what the
+// backfill derives for it.
 func TestSharedEvalNativeReadinessMatchesFixtures(t *testing.T) {
 	for _, c := range readinessCases(t) {
 		t.Run(c.Name, func(t *testing.T) {
+			if c.ErrorCode != "" {
+				var safe *Error
+				if _, err := Freeze("playground.plan/v1", c.Plan); !errors.As(err, &safe) || safe.Code != c.ErrorCode {
+					t.Fatalf("Freeze = %v, want %s", err, c.ErrorCode)
+				}
+				got, err := NativeReadiness(Restore("playground.plan/v1", c.Plan, ""), c.Comparison)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var want Readiness
+				if err = strictjson.Decode(c.BackfillReadiness, &want); err != nil {
+					t.Fatal(err)
+				}
+				if !reflect.DeepEqual(got, want) {
+					t.Fatalf("readiness of the stored plan:\n got %+v\nwant %+v", got, want)
+				}
+				return
+			}
 			plan, err := Freeze("playground.plan/v1", c.Plan)
 			if err != nil {
 				t.Fatal(err)

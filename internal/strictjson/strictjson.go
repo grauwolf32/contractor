@@ -1,8 +1,8 @@
 // Package strictjson adds the checks encoding/json does not make on its own:
 // duplicate object keys, member names that match a field only when case is
 // ignored, unknown members, missing required members, trailing values, lone
-// UTF-16 surrogate escapes, and RFC 8785 canonical encoding. Callers map the
-// errors to their own codes.
+// UTF-16 surrogate escapes, the NUL escape PostgreSQL cannot store, and RFC
+// 8785 canonical encoding. Callers map the errors to their own codes.
 //
 // A struct field tagged `strictjson:"required"` names a member every object
 // decoded into the struct must set to a non-null value, and
@@ -146,6 +146,27 @@ func ValidUnicodeEscapes(data []byte) bool {
 		}
 	}
 	return true
+}
+
+// HasNULEscape reports whether a JSON text holds the escape \u0000 in a
+// string or member name. PostgreSQL cannot hold U+0000 in text or jsonb: a
+// cast of such a text to jsonb, and every json operator on it, fails with
+// SQLSTATE 22P05. A raw NUL byte is not valid JSON, so the escape is its only
+// spelling; an escaped backslash before "u0000" is text, not an escape.
+func HasNULEscape(data []byte) bool {
+	for index := 0; index < len(data); index++ {
+		if data[index] != '\\' {
+			continue
+		}
+		index++
+		if index >= len(data) || data[index] != 'u' {
+			continue
+		}
+		if code, ok := hexQuad(data, index+1); ok && code == 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func hexQuad(data []byte, start int) (uint16, bool) {

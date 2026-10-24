@@ -156,3 +156,21 @@ tests:
     covers: [A2]
   - command: make lint
     covers: [A1, A2, A3, A4]
+progress: >-
+  Checkpoint 2026-10-24 before a pause. Done: strictjson.HasNULEscape; evaldomain.StrictJSON rejects
+  \u0000 (422 eval_invalid before side effects, no receipt); json@1 output check keeps its pinned
+  verdicts via evaldomain.StrictOutputJSON; shared fixture invalid/nul-escape.json with its cases.json
+  row; readiness-cases.json escaped-pin-values without NULs plus rejected case nul-escape-in-plan with
+  backfillReadiness (consumers in evaldomain, evalstore and the 000035 migration test updated); public
+  API regressions internal/httpapi/public/eval_nul_escape_postgres_test.go; guard
+  internal/persistence/eval_jsonb_casts_test.go (summaryPageSQL 2 casts, viewSourcesSQL 3); spec
+  EVF-R236, EVM-R51, PER-R32 hazard; api/testdata/evals/README.md. Passed on contractor_test_v414_evals:
+  go test ./internal/evaldomain/... ./internal/strictjson/...; go test -tags=integration
+  ./internal/evalstore/... ./internal/evalservice/... ./internal/httpapi/public/...
+  ./internal/persistence/postgres/...; go test ./internal/persistence. A4 shown with the rule disabled:
+  dataset POST 500, create 201, owner list 500; store probe PutDataset and SummaryPage 22P05.
+  Unverified: make lint and make test-wire-cross-language were running at the pause (no result).
+  Next: rerun make lint and make test-wire-cross-language, git merge main, then the close commit
+  (status, implementation_commit, verification, the pre-deployment NUL detection query over the Eval
+  bytea columns and mutation_receipts with key_scope[1]='eval', add go test ./internal/persistence to
+  tests, move to tasks/done/, make tasks-backlog).
