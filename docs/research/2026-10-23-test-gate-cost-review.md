@@ -19,7 +19,7 @@ race runs and closes the review.
 | --- | --- |
 | T1 per-test schema and migrations, 34 helper copies | V408-002 |
 | T2 serial race stages (`-p 1`), almost no `t.Parallel` | [V408-003](../../tasks/done/v408-003-parallel-race-stages.yml): package scheduling implemented; in-package parallelism excluded |
-| T3 e2e builds the Server and PKI per test | V408-004 |
+| T3 e2e builds the Server and PKI per test | V408-004: binary reuse only; PKI and deadlines remain per test |
 | T4 family-target guard gaps, 20 unguarded pytest runs, unused `test-runtime-hardening` | [V408-005](../../tasks/done/v408-005-family-guard-gaps.yml): implemented and verified |
 | T5 `-count=1` on pure packages | V408-006 |
 | Baseline and final measurement | V408-001, V408-007 |
@@ -193,3 +193,53 @@ suites detect them. Reopen these separately before claiming a green full release
 gate. They are not Runtime-suite, duplicate-execution or coverage defects fixed
 by V408-005. This follow-up claims the listed task checks, not a complete
 `release-verify` or CI run. Logs remain under `/private/tmp/v408-close-*.log`.
+
+
+## V408-004: package-lifetime Server builds (2026-10-24)
+
+The accepted scope is binary reuse only. The original shared CA, deadline
+reductions and shard rebalancing are excluded. V408-001 is no longer a
+prerequisite for this narrower change. The broader CI timing and repeated
+Linux stability checks remain with V408-007.
+
+The ordinary process selection previously invoked `go build` 25 times. The
+four browser stack scenarios each built again. Both harnesses now request a
+lazy package-owned executable from `tests/internal/serverbuildtest`; `sync.Once`
+shares one build and its error across callers. `TestMain` removes it after all
+tests and their cleanup finish. Listing tests and configuration-only selections
+allocate no executable. No binary survives into another test-package run.
+Separate CI runners each still build once. The two opt-in scratch-container
+paths keep a separate `CGO_ENABLED=0` build and copy that executable into each
+test's own build context. Migrations, databases, PKI, Runtime processes,
+assertions, deadlines and shard selections are unchanged. A source guard rejects
+Server build commands in either harness tree; CI path selection includes all
+process and browser consumers when the shared build helper changes.
+
+### Local build-overhead measurement
+
+Measured on macOS arm64 (18 logical CPUs, 36 GiB RAM), Go 1.26.9, based on
+`main` `64e2f214745ea3e4c571ec9d070056bb6a1ca766`. The production Server
+sources are unchanged. The Go build cache was warm. The benchmark compares
+25 builds into distinct output paths with 25 requests to one fresh package
+cache, including its one real build and cleanup. Each strategy ran three
+one-iteration samples; repeated-build samples ran before reuse samples.
+
+```shell
+go test -run '^$' -bench '^BenchmarkServerBuild' -benchtime=1x -count=3 ./tests/internal/serverbuildtest
+```
+
+| Sample | 25 separate builds | One build reused 25 times |
+| --- | ---: | ---: |
+| 1 | 52.904 s | 1.501 s |
+| 2 | 40.351 s | 2.584 s |
+| 3 | 36.167 s | 1.526 s |
+| Median | 40.351 s | 1.526 s |
+
+The difference between medians is **38.825 seconds**, or **96.2% of the build
+portion** for 25 scenarios. This is a local measurement on a shared development
+machine with other checks running, not a guaranteed full-suite saving. It does
+not establish full process-suite or CI wall-time speedup; there is no matched
+before/after full-suite run. The browser suite avoids three repeated builds
+when invoked together, while the three process and two browser CI shards each
+retain their own build. Raw benchmark output remains outside git at
+`/private/tmp/v408-004-build-benchmark.log`.

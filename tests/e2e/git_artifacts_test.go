@@ -36,8 +36,7 @@ func TestGitArtifactsProductionContainers(t *testing.T) {
 		t.Fatal("CONTRACTOR_TEST_DATABASE_URL is required")
 	}
 	root, build := repoRoot(t), t.TempDir()
-	binary := filepath.Join(build, "contractor-server")
-	runChecked(t, root, map[string]string{"CGO_ENABLED": "0"}, "go", "build", "-o", binary, "./cmd/contractor-server")
+	binary := containerServerBinary(t, build)
 	if err := os.WriteFile(filepath.Join(build, "Containerfile"), []byte("FROM scratch\nCOPY contractor-server /contractor-server\nENTRYPOINT [\"/contractor-server\"]\n"), 0600); err != nil {
 		t.Fatal(err)
 	}

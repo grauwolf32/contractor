@@ -38,8 +38,7 @@ func TestArtifactBlobBackendsContainers(t *testing.T) {
 		t.Fatal("podman is required")
 	}
 	repositoryRoot, buildRoot := repoRoot(t), t.TempDir()
-	binary := filepath.Join(buildRoot, "contractor-server")
-	runChecked(t, repositoryRoot, map[string]string{"CGO_ENABLED": "0"}, "go", "build", "-o", binary, "./cmd/contractor-server")
+	binary := containerServerBinary(t, buildRoot)
 	if err := os.WriteFile(filepath.Join(buildRoot, "Containerfile"), []byte("FROM scratch\nCOPY contractor-server /contractor-server\nENTRYPOINT [\"/contractor-server\"]\n"), 0600); err != nil {
 		t.Fatal(err)
 	}

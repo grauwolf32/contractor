@@ -133,8 +133,7 @@ func runBrowserStack(t *testing.T, evalMode string) {
 	defer cancel()
 
 	isolateURL := isolatedDatabase(t, ctx, databaseURL)
-	serverBinary := filepath.Join(temporaryRoot, "contractor-server")
-	runChecked(t, repositoryRoot, inheritedEnvironment(nil), "go", "build", "-o", serverBinary, "./cmd/contractor-server")
+	serverBinary := sharedServerBinary(t)
 	runChecked(t, repositoryRoot, inheritedEnvironment(map[string]string{
 		"CONTRACTOR_DATABASE_URL": isolateURL,
 	}), serverBinary, "migrate")
