@@ -3,11 +3,13 @@ package evalstore
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"slices"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 type CreateParams struct {
@@ -180,6 +182,37 @@ WHERE e.owner_id = $1 AND e.experiment_id = $2`, owner, id).Scan(&out.SHA256, &o
 	return out, normalize(err)
 }
 
+// PlanView is what the experiment view shows of its frozen plan: the plan
+// metadata and, for a native plan, the readiness its freeze stored. An
+// external registration has none.
+type PlanView struct {
+	PlanMetadata
+	Readiness *evaldomain.Readiness
+}
+
+// FrozenPlanView reads the plan metadata and stored readiness without the
+// matrix document (EVM-R242). The readiness must decode strictly, with every
+// member present and none unknown; a malformed stored copy fails the read as
+// an internal error. The caller still validates the response that carries it.
+func (s *Store) FrozenPlanView(ctx context.Context, owner, id string) (PlanView, error) {
+	var out PlanView
+	var readiness []byte
+	err := s.db.QueryRow(ctx, `
+SELECT p.plan_sha256, p.setup, p.readiness
+FROM eval_frozen_plans p JOIN eval_experiments e USING (experiment_id)
+WHERE e.owner_id = $1 AND e.experiment_id = $2`, owner, id).Scan(&out.SHA256, &out.Setup, &readiness)
+	if err != nil {
+		return PlanView{}, normalize(err)
+	}
+	if readiness != nil {
+		out.Readiness = &evaldomain.Readiness{}
+		if err = strictjson.Decode(readiness, out.Readiness); err != nil {
+			return PlanView{}, fmt.Errorf("stored readiness of eval experiment %s does not decode: %w", id, err)
+		}
+	}
+	return out, nil
+}
+
 // FreezePrepared is called after read-only preparation, under the coordinator's
 // claim. The whole expected matrix and its exact bytes commit together.
 func (s *Store) FreezePrepared(ctx context.Context, scope Scope, id string, claim Claim, document evaldomain.Frozen, setup []byte, cases map[string]evaldomain.Case, resources ...PlanResource) error {
@@ -217,8 +250,9 @@ func (s *Store) persistPlan(ctx context.Context, e Experiment, document evaldoma
 		return err
 	}
 	var settings struct {
-		Variants []evaldomain.Variant `json:"variants"`
-		Budgets  evaldomain.Budgets   `json:"budgets"`
+		Variants   []evaldomain.Variant  `json:"variants"`
+		Budgets    evaldomain.Budgets    `json:"budgets"`
+		Comparison evaldomain.Comparison `json:"comparison"`
 	}
 	if err := json.Unmarshal(setup, &settings); err != nil {
 		return err
@@ -229,6 +263,7 @@ func (s *Store) persistPlan(ctx context.Context, e Experiment, document evaldoma
 	identity := document.Digest()
 	var manifest evaldomain.PublicPlan
 	var order []string
+	var readiness []byte
 	reasons := map[string]*string{}
 	if document.Kind() == "ExternalRegistration" {
 		var reg evaldomain.ExternalRegistration
@@ -256,6 +291,16 @@ func (s *Store) persistPlan(ctx context.Context, e Experiment, document evaldoma
 		order = native.Order
 		for _, member := range native.Members {
 			reasons[member.ID] = member.Reason
+		}
+		// Readiness is immutable with the plan, so the view stores it once
+		// instead of reading the document to recompute it (EVM-R242).
+		view, err := evaldomain.NativeReadiness(document, settings.Comparison)
+		if err != nil {
+			return err
+		}
+		readiness = bytesOf(view)
+		if err = evaldomain.Validate("Readiness", readiness); err != nil {
+			return err
 		}
 	}
 	if manifest.ExperimentID != e.PortableID || len(manifest.Members) != len(cases) || len(manifest.Members) > settings.Budgets.MaxMembers {
@@ -297,7 +342,7 @@ func (s *Store) persistPlan(ctx context.Context, e Experiment, document evaldoma
 	if err != nil {
 		return err
 	}
-	_, err = s.db.Exec(ctx, `INSERT INTO eval_frozen_plans(experiment_id,document_kind,document,setup,plan_sha256) VALUES($1,$2,$3,$4,$5)`, e.ID, document.Kind(), document.Bytes(), setup, identity)
+	_, err = s.db.Exec(ctx, `INSERT INTO eval_frozen_plans(experiment_id,document_kind,document,setup,plan_sha256,readiness) VALUES($1,$2,$3,$4,$5,$6)`, e.ID, document.Kind(), document.Bytes(), setup, identity, readiness)
 	if err != nil {
 		return normalize(err)
 	}

@@ -81,6 +81,37 @@ func historicalAttemptID(attempt int) string { return fmt.Sprintf("stage-history
 func newHistoricalCancellation(t *testing.T, ctx context.Context) historicalCancellation {
 	t.Helper()
 	h := newDeferredPlacementHarness(t, ctx, nil)
+	allocator := h.workers.allocator
+	allocations := createTerminalAttempts(t, ctx, h, historicalAttempts,
+		func(attempt int, id string, reservations []controlplane.Reservation) {
+			switch {
+			case attempt <= releasedHistoricalAttempt:
+				if err := h.scheduler.releaseTerminal(id, reservations); err != nil {
+					t.Fatalf("release attempt %d: %v", attempt, err)
+				}
+			case attempt == releasedHistoricalAttempt+1:
+				delete(allocator.grants, reservations[0].Grant.AllocationID)
+				allocator.cached = nil
+			}
+		})
+	requireUnreleasedAllocations(t, ctx, h, allocations,
+		historicalAttemptID(historicalAttempts-1), historicalAttemptID(historicalAttempts))
+	requestTestCancellation(t, ctx, h.store)
+	reads := &cancellationCleanupReads{Store: h.store}
+	h.scheduler.store = reads
+	return historicalCancellation{deferredPlacementHarness: h, reads: reads, allocations: allocations}
+}
+
+// createTerminalAttempts creates count interrupted attempts of run-1's Stage
+// on PostgreSQL, named by historicalAttemptID. Each is placed through the
+// harness allocator, which pins its durable allocation row, and ended with
+// its grant still live; ended then sees the attempt before the next one is
+// created. It returns each attempt's allocation ID by StageExecution ID.
+func createTerminalAttempts(
+	t *testing.T, ctx context.Context, h deferredPlacementHarness, count int,
+	ended func(attempt int, id string, reservations []controlplane.Reservation),
+) map[string]string {
+	t.Helper()
 	persistence, err := NewPostgresPersistence(h.pool)
 	if err != nil {
 		t.Fatal(err)
@@ -110,10 +141,9 @@ func newHistoricalCancellation(t *testing.T, ctx context.Context) historicalCanc
 		Parameters: map[string]string{"objective": "copy exactly"},
 		Artifacts:  map[string]runstore.PinnedContextArtifact{"source": {Required: true, Artifact: &input.Ref}},
 	}
-	allocator := h.workers.allocator
-	allocations := make(map[string]string, historicalAttempts)
+	allocations := make(map[string]string, count)
 	var previous *string
-	for attempt := 1; attempt <= historicalAttempts; attempt++ {
+	for attempt := 1; attempt <= count; attempt++ {
 		id := historicalAttemptID(attempt)
 		if _, err := persistence.CreateStageWithContext(ctx, runstore.CreateStageExecutionParams{
 			LaneClass:        resolved.LaneClassModel,
@@ -133,7 +163,7 @@ func newHistoricalCancellation(t *testing.T, ctx context.Context) historicalCanc
 		if err != nil {
 			t.Fatal(err)
 		}
-		reservations, err := allocator.ReserveAllContext(ctx, stagePlacementRequest(run, workflow, execution, requirements))
+		reservations, err := h.workers.allocator.ReserveAllContext(ctx, stagePlacementRequest(run, workflow, execution, requirements))
 		if err != nil || len(reservations) != 1 {
 			t.Fatalf("place attempt %d = (%d, %v)", attempt, len(reservations), err)
 		}
@@ -154,22 +184,9 @@ func newHistoricalCancellation(t *testing.T, ctx context.Context) historicalCanc
 		if err := h.store.CompleteStageTermination(ctx, id); err != nil {
 			t.Fatalf("end attempt %d: %v", attempt, err)
 		}
-		switch {
-		case attempt <= releasedHistoricalAttempt:
-			if err := h.scheduler.releaseTerminal(id, reservations); err != nil {
-				t.Fatalf("release attempt %d: %v", attempt, err)
-			}
-		case attempt == releasedHistoricalAttempt+1:
-			delete(allocator.grants, allocations[id])
-			allocator.cached = nil
-		}
+		ended(attempt, id, reservations)
 	}
-	requireUnreleasedAllocations(t, ctx, h, allocations,
-		historicalAttemptID(historicalAttempts-1), historicalAttemptID(historicalAttempts))
-	requestTestCancellation(t, ctx, h.store)
-	reads := &cancellationCleanupReads{Store: h.store}
-	h.scheduler.store = reads
-	return historicalCancellation{deferredPlacementHarness: h, reads: reads, allocations: allocations}
+	return allocations
 }
 
 // requireUnreleasedAllocations checks that exactly the allocations of the
@@ -224,7 +241,7 @@ func TestPostgresCancellationReadsOnlyIncompleteReleases(t *testing.T) {
 	live := f.allocations[historicalAttemptID(historicalAttempts)]
 	releaseCalls := f.workers.releaseCalls
 
-	worked, err := f.scheduler.progressOneClaim(ctx, resolved.LaneClassModel)
+	worked, err := f.scheduler.progressOneClaim(ctx, resolved.LaneClassModel, nil)
 	if err != nil || !worked {
 		t.Fatalf("cancellation claim = (%v, %v)", worked, err)
 	}
@@ -282,7 +299,7 @@ func TestPostgresCancellationCleanupFailuresKeepRetries(t *testing.T) {
 			f := newHistoricalCancellation(t, ctx)
 			test.inject(f)
 
-			worked, err := f.scheduler.progressOneClaim(ctx, resolved.LaneClassModel)
+			worked, err := f.scheduler.progressOneClaim(ctx, resolved.LaneClassModel, nil)
 			if f.reads.histories != 0 || f.reads.allocationReads != 0 {
 				t.Fatalf("cleanup read the full history %d times and per-Stage allocations %d times",
 					f.reads.histories, f.reads.allocationReads)
@@ -292,7 +309,7 @@ func TestPostgresCancellationCleanupFailuresKeepRetries(t *testing.T) {
 					t.Fatal("failed history read ended the claim without an error")
 				}
 				requireRunState(t, ctx, f.deferredPlacementHarness, runstore.RunCancelling)
-				worked, err = f.scheduler.progressOneClaim(ctx, resolved.LaneClassModel)
+				worked, err = f.scheduler.progressOneClaim(ctx, resolved.LaneClassModel, nil)
 			}
 			if err != nil || !worked {
 				t.Fatalf("cancellation claim = (%v, %v)", worked, err)
@@ -304,13 +321,16 @@ func TestPostgresCancellationCleanupFailuresKeepRetries(t *testing.T) {
 			}
 			requireUnreleasedAllocations(t, ctx, f.deferredPlacementHarness, f.allocations, want...)
 
+			// One recovery listing takes every pending attempt: there are
+			// fewer than its operation bound (SCH-R180).
 			f.workers.releaseErrors = nil
-			for range test.unreleased {
-				if worked, err := f.scheduler.recoverTerminalRelease(ctx); err != nil || !worked {
-					t.Fatalf("terminal release recovery = (%v, %v)", worked, err)
-				}
+			if worked, err := f.scheduler.recoverTerminalRelease(ctx); err != nil || !worked {
+				t.Fatalf("terminal release recovery = (%v, %v)", worked, err)
 			}
 			requireUnreleasedAllocations(t, ctx, f.deferredPlacementHarness, f.allocations)
+			if worked, err := f.scheduler.recoverTerminalRelease(ctx); err != nil || worked {
+				t.Fatalf("terminal release recovery after completion = (%v, %v), want no work", worked, err)
+			}
 			if _, err := f.workers.allocator.GetGrant(f.allocations[historicalAttemptID(historicalAttempts)]); err == nil {
 				t.Fatal("live grant outlived terminal release recovery")
 			}

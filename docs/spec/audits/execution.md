@@ -582,7 +582,9 @@ retryable (FAIL-AUX-5).
 ### Recovery
 
 **AUX-R69.** PostgreSQL is authoritative. The Controller periodically claims
-and reconciles a bounded number of nonterminal Audits (LIM-AUX-11).
+and reconciles a bounded number of nonterminal Audits (LIM-AUX-11) through
+the shared controller claim lifecycle
+([PER-R26](../platform/persistence.md)).
 
 **AUX-R70.** Process-local notifications are wake hints only; their loss,
 duplication or reordering cannot prevent progress. Public WebSocket is not an

@@ -385,6 +385,28 @@ single statement timeout. A 4 MiB batch keeps that table within PostgreSQL's
 default work_mem and each statement far below the default 15 s statement
 timeout; the 1,000-row bound equals the native member ceiling (LIM-EVM-3).
 
+**EVM-R242.** The transaction that freezes a native plan stores the plan's
+readiness with it: for each dimension that any arm pins, in byte order,
+whether the comparison requires it equal, each arm's pin origin and whether
+the observed values are equal, different or unavailable; then, for the
+baseline and the candidate, the expected, eligible, unsupported and blocked
+member counts. The freeze derives it from the validated plan and its
+comparison and validates it against the closed readiness schema before it
+writes the plan; it is as immutable as the plan and bounded by the pinned
+dimensions, not by the members (LIM-EVM-19). An external registration stores
+none, and its experiment has no readiness. An experiment read returns the
+stored readiness with the plan digest and setup, without reading the plan
+document or deriving readiness again; the command, member, pair, chart,
+report and review reads take only the plan digest and setup. A stored
+readiness that does not decode strictly fails the read as an internal error,
+and the assembled experiment response is still validated against its schema.
+
+Rationale: readiness depends only on the immutable plan, yet each poll of an
+experiment read the plan document, up to 1 MiB (LIM-EVM-4), to recompute it.
+Aggregating the member rows on every read would replace that with a scan of up
+to 1,000 rows. Coordinator publication still reads the document's pins to
+verify the required-equal dimensions (EVM-R167); it is no polled view.
+
 **EVM-R41.** Secret values do not enter public DTOs, logs, cursors or error
 text.
 
@@ -680,9 +702,10 @@ accepted`, `experimentRevision` and the command resource link.
 
 ### Coordinator claims and native controls
 
-**EVM-R108.** Native coordinator claims use an expiring owner/epoch lease.
-Durable intents and execution keys, rather than the lease alone, prevent
-duplicate side effects (FAIL-EVM-3).
+**EVM-R108.** Native coordinator claims use an expiring owner/epoch lease,
+and each pass runs them through the shared controller claim lifecycle
+([PER-R26](../platform/persistence.md)). Durable intents and execution keys,
+rather than the lease alone, prevent duplicate side effects (FAIL-EVM-3).
 
 **EVM-R109.** A replacement claim holder first reconciles all uncertain
 submissions (FAIL-EVM-3).
@@ -707,8 +730,16 @@ experiments are resumable. Expired remaining budget completes pending members
 as not submitted with the budget reason (FAIL-EVM-4).
 
 **EVM-R115.** Cancel fences new intents, requests normal Run and Audit
-cancellation and remains `cancelling` until drain is confirmed. Unknown
-outcomes stay unknown; pending members retain their original denominator and
+cancellation and remains `cancelling` until drain is confirmed. A member's
+cancellation request, naming its execution and the time it was requested, is
+journaled before it is sent, and every retry reuses the journaled request
+instead of building a new one, so the request and its time never change. A
+Run member's retry sends the journaled time. An Audit member's cancellation is
+a revision-checked Audit mutation whose idempotency key and request digest
+derive from the journaled request and the Audit revision it expects: a retry
+against the same revision repeats both, and a retry after the revision moved
+sends a new key and digest for the same journaled request. Unknown outcomes
+stay unknown; pending members retain their original denominator and
 not-submitted reason (FAIL-EVM-4).
 
 **EVM-R116.** A terminal attempt is not resampled; duplicating an experiment or
@@ -1303,6 +1334,8 @@ Limits ([registry](../platform/limits.md)):
 - LIM-EVM-16 — one exact binding per arm (EVM-R53).
 - LIM-EVM-17 — one materialized summary read per managed Eval list, pair or
   chart request (EVM-R217).
+- LIM-EVM-19 — at most 2,048 pins and 2 arms per stored native plan readiness
+  (EVM-R242).
 - The portable format's document, nesting, case, variant, repetition and
   10,000-member limits, [LIM-EVF-3](../platform/limits.md) to
   [LIM-EVF-8](../platform/limits.md), belong to the [portable

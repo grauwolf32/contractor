@@ -27,6 +27,9 @@ var layers = []layerSpec{
 			"internal/apierror",
 			"internal/artifactpolicy",
 			"internal/cabundle",
+			// The claim lifecycle of one controller pass that the Audit
+			// controller and the Eval coordinator share (PER-R26).
+			"internal/claimpass",
 			"internal/clone",
 			"internal/configtest",
 			"internal/contentdigest",

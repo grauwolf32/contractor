@@ -707,7 +707,11 @@ Retryable or ambiguous errors retain its captured key and body with bounded
 exponential backoff; admission expires after 24 hours or 100 attempts. A tick
 has a separate 30-second budget, child admission 10 seconds, claim 60 seconds,
 and claim release five seconds (LIM-SCN-90, LIM-SCN-91; FAIL-SCN-15). These
-bounds do not extend ordinary Run execution or scanner deadlines.
+bounds do not extend ordinary Run execution or scanner deadlines. The claim
+is released after every tick, also a cancelled one, as
+[PER-R26](../platform/persistence.md) describes: a lost claim is not a
+failure, and a definite release failure is reported with the tick; the sweep
+then stays claimed until its lease ends.
 
 **SCN-R250.** Owner cancellation sets `cancelling`, blocks further child
 creation through the parent transaction fence, cancels unsent members, and

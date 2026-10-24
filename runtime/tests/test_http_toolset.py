@@ -2,14 +2,26 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import os
+import select
+import socket
+import ssl
 import sys
+import threading
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+import h11
+import httpcore
 import httpx
 import idna
 import pytest
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.x509.oid import NameOID
 from http_cookie_store import HTTPToolsetFactory
 
 import contractor_runtime.toolsets.http.tools as http_tools
@@ -28,13 +40,17 @@ from contractor_runtime.contracts import (
     RuntimeSettings,
 )
 from contractor_runtime.core.target_policy import TargetDenied
+from contractor_runtime.toolsets.http.fields import is_cookie_pair, is_field_value
 from contractor_runtime.toolsets.http.tools import (
     HTTPToolError,
 )
+from contractor_runtime.worker.instrumentation import WorkerInstrumentationPlugin
 from contractor_runtime.workspace import AllocationWorkspace
 
 SECRET = "recognizable-http-session-secret"
 TARGET_SECRET = "recognizable-project-origin-secret"
+# Header values httpx or h11 refuse to send.
+UNSENDABLE_FIELD_VALUES = ("caf\u00e9", "trailing ", "trailing\t", " leading", "a\x0bb", "a\x0cb")
 
 
 @pytest.mark.parametrize(
@@ -440,6 +456,50 @@ def test_malformed_urls_fail_before_send_without_proxy_retries(
                     assert calls == []
                     assert delays == []
 
+            # Input from which no request can be sent is invalid on both routes:
+            # an unusable port, or a header value the HTTP/1.1 field grammar
+            # rejects (non-ASCII, VT, FF, leading or trailing space or tab).
+            for url, headers in (
+                ("https://target.example:99999/", None),
+                *(
+                    ("https://target.example/", {"X-Note": value})
+                    for value in UNSENDABLE_FIELD_VALUES
+                ),
+            ):
+                with pytest.raises(HTTPToolError) as failure:
+                    await tools["http_request"](url, headers=headers)
+                assert failure.value.code == "http_request_invalid", repr((url, headers))
+                assert failure.value.retryable is False
+                assert calls == []
+                assert delays == []
+            # The session rejects the same input before storing it, so a stored
+            # session value can never make later requests invalid.
+            for update in (
+                *({"headers": {"X-Note": value}} for value in UNSENDABLE_FIELD_VALUES),
+                # A cookie's name=value pair is one field value: a leading
+                # space only matters before the name.
+                *(
+                    {"cookies": {"session": value}}
+                    for value in UNSENDABLE_FIELD_VALUES
+                    if not value.startswith(" ")
+                ),
+                {"cookies": {" session": "value"}},
+                *(
+                    {"auth": {"kind": "bearer", "token": value}}
+                    for value in UNSENDABLE_FIELD_VALUES
+                ),
+            ):
+                with pytest.raises(HTTPToolError) as rejected:
+                    await tools["http_session_set"](**update)
+                assert rejected.value.code == "http_request_invalid", repr(update)
+            session = await tools["http_session_get"]()
+            assert (session["auth_kind"], session["default_headers"], session["cookie_count"]) == (
+                "none",
+                {},
+                0,
+            )
+            assert calls == []
+
             if route == "proxy":
                 with pytest.raises(HTTPToolError) as transport_failure:
                     await tools["http_request"]("https://target.example/transport")
@@ -451,6 +511,321 @@ def test_malformed_urls_fail_before_send_without_proxy_retries(
             await close_tools(tools)
             if proxy_client is not None:
                 await proxy_client.aclose()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    ("route", "injection"),
+    [
+        ("direct", "transport"),
+        ("direct", "client"),
+        ("proxy", "client"),
+        ("direct", "capture"),
+        ("proxy", "capture"),
+    ],
+)
+def test_unexpected_send_exception_reaches_tool_error_callback_unclassified(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, route: str, injection: str
+) -> None:
+    async def scenario() -> None:
+        calls: list[str] = []
+        delays: list[float] = []
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            calls.append(request.url.path)
+            if request.url.path == "/bug" and injection == "transport":
+                raise TypeError(f"injected implementation failure {SECRET}")
+            if request.url.path == "/connect":
+                raise httpx.ConnectError("recognizable connection failure")
+            return httpx.Response(200, content=b"ok", request=request)
+
+        async def record_retry(delay: float) -> None:
+            delays.append(delay)
+
+        original_from_request = http_tools.CapturedAttempt.from_request.__func__
+
+        def failing_from_request(
+            cls: type, request: httpx.Request, *, target_credential: bool = False
+        ) -> Any:
+            if request.url.path == "/bug":
+                raise TypeError(f"injected implementation failure {SECRET}")
+            return original_from_request(cls, request, target_credential=target_credential)
+
+        original_extract_cookies = httpx.Cookies.extract_cookies
+
+        def failing_extract_cookies(cookies: httpx.Cookies, response: httpx.Response) -> None:
+            # httpx client code that runs after the transport on both routes.
+            if response.request.url.path == "/bug":
+                raise TypeError(f"injected implementation failure {SECRET}")
+            original_extract_cookies(cookies, response)
+
+        monkeypatch.setattr(http_tools, "_retry_sleep", record_retry)
+        if injection == "capture":
+            monkeypatch.setattr(
+                http_tools.CapturedAttempt, "from_request", classmethod(failing_from_request)
+            )
+        if injection == "client":
+            monkeypatch.setattr(httpx.Cookies, "extract_cookies", failing_extract_cookies)
+        state = WorkerState()
+        proxy_client: httpx.AsyncClient | None = None
+        if route == "direct":
+            tools = await make_tools(
+                HTTPToolsetFactory(
+                    lambda: httpx.AsyncClient(
+                        transport=httpx.MockTransport(handler), trust_env=False
+                    )
+                ),
+                tmp_path,
+                state=state,
+            )
+        else:
+            proxy_client = httpx.AsyncClient(
+                transport=httpx.MockTransport(handler), trust_env=False
+            )
+            tools = await make_tools(
+                HTTPToolsetFactory(),
+                tmp_path,
+                state=state,
+                settings=proxy_runtime_settings(),
+                adapter_handles=AdapterHandles(tool_http=ProxyHTTPClient(proxy_client)),
+            )
+        callbacks = await WorkerToolCallbacks.start(state)
+        try:
+            request = tools["http_request"]
+            # Even an idempotent request is not retried: the exception keeps
+            # its identity and is not a transport failure.
+            response, raised = await callbacks.call(request, url="https://target.example/bug")
+            assert type(raised) is TypeError
+            assert response == {
+                "ok": False,
+                "error": {
+                    "code": "tool_call_failed",
+                    "message": "http_request failed (TypeError)",
+                    "retryable": False,
+                },
+            }
+            assert delays == []
+            assert calls == ([] if injection == "capture" else ["/bug"])
+
+            # A known connection failure keeps its classified retryability and
+            # the idempotent retry policy.
+            response, raised = await callbacks.call(request, url="https://target.example/connect")
+            assert isinstance(raised, HTTPToolError)
+            assert response == {
+                "ok": False,
+                "error": {
+                    "code": "http_request_failed",
+                    "message": "http_request failed (HTTPToolError)",
+                    "retryable": True,
+                },
+            }
+            assert delays == [0.25, 0.5]
+
+            # Request IDs stay monotonic; the failed send keeps its explicit record.
+            response, raised = await callbacks.call(request, url="https://target.example/ok")
+            assert raised is None
+            assert response["request_id"] == 3
+            history = {item["request_id"]: item for item in await tools["http_history"]()}
+            if injection == "capture":
+                assert 1 not in history
+            else:
+                assert history[1]["error"] == "transport_error"
+            assert history[2]["error"] == "transport_error"
+            assert history[3]["status"] == 200
+            retained = repr(state.metrics)
+            assert "tool_call_failed" in retained
+            assert SECRET not in retained
+            assert "injected implementation failure" not in retained
+        finally:
+            await close_tools(tools)
+            if proxy_client is not None:
+                await proxy_client.aclose()
+
+    asyncio.run(scenario())
+
+
+def h11_sends(value: str) -> bool:
+    try:
+        h11.Request(method="GET", target="/", headers=[("Host", "t"), ("X-Note", value)])
+    except (h11.LocalProtocolError, UnicodeEncodeError):
+        return False
+    return True
+
+
+def test_field_grammar_matches_the_h11_serializer() -> None:
+    # Every ASCII character alone, inside, leading and trailing a value, plus
+    # whitespace runs and non-ASCII text.
+    corpus = {"", "a b", "a \t b", "a\t\tb", "caf\u00e9", "\u00e9"}
+    for code in range(128):
+        char = chr(code)
+        corpus.update({char, f"a{char}b", f"{char}a", f"a{char}"})
+    disagreements = [value for value in sorted(corpus) if is_field_value(value) != h11_sends(value)]
+    assert disagreements == []
+    assert (
+        is_cookie_pair("sid", "a b") and is_cookie_pair("sid", "") and is_cookie_pair("sid", None)
+    )
+    assert not is_cookie_pair("", "value")
+    assert not is_cookie_pair(" sid", "value")
+    assert not is_cookie_pair("sid", "value ")
+    assert not is_cookie_pair("sid", "caf\u00e9")
+
+
+class CorruptTLSRecordTarget:
+    """A real TLS target that answers with a record the client cannot decrypt.
+
+    In the ``headers`` phase the corrupt record replaces the response; in the
+    ``body`` phase it follows the response head and part of the body. httpcore
+    lets the resulting ssl.SSLError (an OSError) escape unmapped.
+    """
+
+    def __init__(self, tmp_path: Path, phase: str) -> None:
+        self.phase = phase
+        self.certificate = issue_target_certificate(tmp_path)
+        self._context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        self._context.load_cert_chain(*self.certificate)
+        self._listener = socket.create_server(("127.0.0.1", 0))
+        self.port = self._listener.getsockname()[1]
+        self.connections = 0
+        self._thread = threading.Thread(target=self._serve, daemon=True)
+        self._thread.start()
+
+    def _serve(self) -> None:
+        while True:
+            try:
+                raw, _ = self._listener.accept()
+            except OSError:
+                return
+            self.connections += 1
+            try:
+                with self._context.wrap_socket(raw, server_side=True) as tls:
+                    tls.recv(65536)
+                    if self.phase == "body":
+                        tls.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 1000\r\n\r\nabc")
+                    # An application-data record with a wrong authentication tag.
+                    os.write(tls.fileno(), b"\x17\x03\x03\x00\x40" + b"\x00" * 64)
+                    # Close only after the client has: closing first could reset
+                    # the connection before the client reads the corrupt record.
+                    while select.select([tls.fileno()], [], [], 30)[0]:
+                        if not os.read(tls.fileno(), 65536):
+                            break
+            except OSError:
+                pass
+
+    def client(self) -> httpx.AsyncClient:
+        """A client whose pool connects target.example to this server over real TLS."""
+
+        transport = httpx.AsyncHTTPTransport(trust_env=False, retries=0)
+        # As PolicyHTTPTransport does, replace httpx's private pool to choose
+        # the network backend; the TLS stack and exception mapping stay real.
+        transport._pool = httpcore.AsyncConnectionPool(
+            ssl_context=ssl.create_default_context(cafile=str(self.certificate[0])),
+            retries=0,
+            network_backend=LoopbackBackend(self.port),
+        )
+        return httpx.AsyncClient(transport=transport, trust_env=False)
+
+    def close(self) -> None:
+        self._listener.close()
+        self._thread.join(30)
+
+
+class LoopbackBackend(httpcore.AsyncNetworkBackend):
+    def __init__(self, port: int) -> None:
+        self._port = port
+        self._backend = httpcore.AnyIOBackend()
+
+    async def connect_tcp(self, host: str, port: int, **kwargs: Any) -> httpcore.AsyncNetworkStream:
+        return await self._backend.connect_tcp("127.0.0.1", self._port, **kwargs)
+
+    async def sleep(self, seconds: float) -> None:
+        await self._backend.sleep(seconds)
+
+
+def issue_target_certificate(tmp_path: Path) -> tuple[Path, Path]:
+    key = ec.generate_private_key(ec.SECP256R1())
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "target.example")])
+    now = datetime.now(UTC)
+    certificate = (
+        x509.CertificateBuilder()
+        .subject_name(name)
+        .issuer_name(name)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - timedelta(days=1))
+        .not_valid_after(now + timedelta(days=1))
+        .add_extension(x509.SubjectAlternativeName([x509.DNSName("target.example")]), False)
+        .add_extension(x509.BasicConstraints(ca=True, path_length=None), True)
+        .sign(key, hashes.SHA256())
+    )
+    certificate_path = tmp_path / "target-cert.pem"
+    key_path = tmp_path / "target-key.pem"
+    certificate_path.write_bytes(certificate.public_bytes(serialization.Encoding.PEM))
+    key_path.write_bytes(
+        key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8,
+            serialization.NoEncryption(),
+        )
+    )
+    return certificate_path, key_path
+
+
+@pytest.mark.parametrize("route", ["direct", "proxy"])
+@pytest.mark.parametrize("phase", ["headers", "body"])
+def test_tls_record_failure_from_a_target_is_a_classified_transport_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, route: str, phase: str
+) -> None:
+    async def scenario() -> None:
+        delays: list[float] = []
+
+        async def record_retry(delay: float) -> None:
+            delays.append(delay)
+
+        monkeypatch.setattr(http_tools, "_retry_sleep", record_retry)
+        target = CorruptTLSRecordTarget(tmp_path, phase)
+        state = WorkerState()
+        proxy_client: httpx.AsyncClient | None = None
+        if route == "direct":
+            tools = await make_tools(HTTPToolsetFactory(target.client), tmp_path, state=state)
+        else:
+            proxy_client = target.client()
+            tools = await make_tools(
+                HTTPToolsetFactory(),
+                tmp_path,
+                state=state,
+                settings=proxy_runtime_settings(),
+                adapter_handles=AdapterHandles(tool_http=ProxyHTTPClient(proxy_client)),
+            )
+        callbacks = await WorkerToolCallbacks.start(state)
+        try:
+            response, raised = await callbacks.call(
+                tools["http_request"], url="https://target.example/"
+            )
+            assert isinstance(raised, HTTPToolError)
+            assert response == {
+                "ok": False,
+                "error": {
+                    "code": "http_request_failed",
+                    "message": "http_request failed (HTTPToolError)",
+                    "retryable": True,
+                },
+            }
+            if phase == "headers":
+                # A failed send of an idempotent request is retried on both routes.
+                assert delays == [0.25, 0.5]
+                assert target.connections == 3
+            else:
+                # A response body that fails after delivery is not re-requested.
+                assert delays == []
+                assert target.connections == 1
+            history = await tools["http_history"]()
+            assert history[-1]["error"] == "transport_error"
+        finally:
+            await close_tools(tools)
+            if proxy_client is not None:
+                await proxy_client.aclose()
+            target.close()
 
     asyncio.run(scenario())
 
@@ -770,6 +1145,52 @@ async def make_tools(
 async def close_tools(tools: dict[str, Any]) -> None:
     for tool in tools.values():
         await tool.close()
+
+
+class WorkerToolCallbacks:
+    """Call real tools between the Worker's ADK callbacks, exactly as ADK does.
+
+    ADK runs before_tool_callback, awaits the tool and hands a raised exception
+    to on_tool_error_callback, whose response replaces the tool result.
+    """
+
+    def __init__(self, plugin: WorkerInstrumentationPlugin, invocation_id: str) -> None:
+        self._plugin = plugin
+        self._context = SimpleNamespace(
+            invocation_id=invocation_id, session=SimpleNamespace(id="session", state={})
+        )
+
+    @classmethod
+    async def start(cls, state: WorkerState) -> WorkerToolCallbacks:
+        plugin = WorkerInstrumentationPlugin(
+            state=state,
+            budget=lambda: None,
+            instrumentation=None,
+            model_alias="model",
+            observe_artifacts=lambda _owner, _cursor: None,
+        )
+        callbacks = cls(plugin, "worker-tool-errors")
+        plugin.prepare_invocation(invocation_id="worker-tool-errors", subtask_id="1")
+        await plugin.before_run_callback(invocation_context=callbacks._context)
+        return callbacks
+
+    async def call(self, tool: Any, **arguments: Any) -> tuple[Any, Exception | None]:
+        adk_tool = SimpleNamespace(name=tool.name, func=tool)
+        rejection = await self._plugin.before_tool_callback(
+            tool=adk_tool, tool_args=arguments, tool_context=self._context
+        )
+        assert rejection is None
+        try:
+            result = await tool(**arguments)
+        except Exception as error:
+            response = await self._plugin.on_tool_error_callback(
+                tool=adk_tool, tool_args=arguments, tool_context=self._context, error=error
+            )
+            return response, error
+        await self._plugin.after_tool_callback(
+            tool=adk_tool, tool_args=arguments, tool_context=self._context, result=result
+        )
+        return result, None
 
 
 def proxy_runtime_settings() -> RuntimeSettings:
