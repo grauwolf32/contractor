@@ -6,7 +6,8 @@ epic: workspaces
 kind: defect
 introduced_by: V2-002
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: b3f04f659dc1fd2d5c515b596d5621836ae1824f
 depends_on: []
 languages: [python]
 goal: >-
@@ -110,3 +111,36 @@ tests:
     covers: [A1, A2, A3, A4]
   - command: make lint
     covers: [A2]
+verification:
+  date: '2026-10-24'
+  environment: >-
+    macOS arm64; Go 1.26.9 and Node 24.20 (portable copies under /private/tmp),
+    the locked Runtime venv and a pnpm UI install for make lint; branch
+    claude/v414-rt with main 030e195a merged (45b32a82), head b3f04f65.
+  commands:
+    - >-
+      cd runtime && uv run --locked pytest -q -W error
+      tests/test_source_analysis_toolset.py tests/test_filesystem_toolset.py:
+      47 passed, 0 skipped, on 576e9506 and again on b3f04f65.
+    - >-
+      A4: the new A1 and A3 regressions fail against the unfixed tools.py
+      (unchanged since 19f7477f), because the held path match blocks the
+      loop thread.
+    - "make lint: exit 0 on 45b32a82."
+    - >-
+      make test-runtime on 45b32a82, run while six other lanes were testing
+      on the same machine: 4581 passed, 39 skipped, 111 failed. 104 of the
+      failures are the macOS set that V401-007 records (97 in
+      test_podman_*.py, and the code_analysis, local_direct_faults[socket],
+      projectfs_local_direct, projectfs_local_io, tool_process and
+      trailmark_child cases). The other seven,
+      test_owned_mutation_blocks_allocation_release_and_slot_reuse[False],
+      test_retained_read_edit_tree_and_newline_behavior[overlay-memory] and
+      test_capabilities_check_each_binary_independently (5 cases), pass when
+      rerun on their own (7 passed); they touch no source-analysis code.
+  notes: >-
+    Under the same load the 50,000-entry case first failed with
+    workspace_unavailable, because its held match ran under the 30 s
+    requestTimeoutSeconds operation deadline of the test settings.
+    b3f04f65 gives that test a 600 s deadline; it checks which thread
+    matches and sorts paths, not how fast.
