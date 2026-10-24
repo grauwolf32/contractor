@@ -266,8 +266,15 @@ function WorkflowRunFormBody({
         (notice) => notice.field === "executionConfig",
       ) === true,
   );
+  // The only owner-scoped Workflow input is the Nuclei rulepack. Its Project
+  // Run still belongs to the Project, while input selection uses Library.
+  const inputProjectId =
+    projectId !== undefined &&
+    Object.values(workflow.inputs).every((slot) => slot.sourceScope !== "user")
+      ? projectId
+      : undefined;
   const inventories = useRunFormInventories({
-    projectId,
+    projectId: inputProjectId,
     knownArtifacts: draft.knownArtifacts,
     executionOptionsOpen,
     runtimeOptionsOpen,
@@ -481,7 +488,7 @@ function WorkflowRunFormBody({
       <InputFields
         workflow={workflow}
         presentation={presentation}
-        projectId={projectId}
+        projectId={inputProjectId}
         draft={draft}
         errors={errors}
         inventories={inventories}

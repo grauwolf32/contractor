@@ -770,6 +770,185 @@ describe("Workflow routes", () => {
     },
   );
 
+  it("uses Library for a Project Nuclei rulepack and leaves installed mode empty", async () => {
+    const projectYaml = artifactMetadata("openapi", "nashdom", {
+      ...sourceArtifact,
+      artifact: {
+        namespace: "openapi",
+        name: "nashdom",
+        revision: "revision-openapi-1",
+      },
+      mediaType: "application/yaml",
+    });
+    const ownerPack = artifactMetadata("rules", "web", {
+      ...sourceArtifact,
+      artifact: {
+        namespace: "rules",
+        name: "web",
+        revision: "revision-rulepack-1",
+      },
+      mediaType: "application/yaml",
+    });
+    const nucleiWorkflow: WorkflowResource = {
+      ...workflow,
+      ref: { name: "nuclei-web", version: "1" },
+      parameters: { target: { required: true } },
+      inputs: {
+        rulepack: {
+          required: false,
+          sourceScope: "user",
+          mediaTypes: ["application/yaml"],
+        },
+      },
+    };
+    const posts: unknown[] = [];
+    const { requests, user } = renderRunForm(
+      <WorkflowRunForm workflow={nucleiWorkflow} projectId="project_example" />,
+      {
+        "GET /v1/artifacts": () => json(page([ownerPack])),
+        "GET /v1/projects/{projectId}/artifacts": () =>
+          json(page([projectYaml])),
+        "POST /v1/projects/{projectId}/runs": async ({ request }) => {
+          posts.push(await request.clone().json());
+          return json(
+            createdRun("run_nuclei", { projectId: "project_example" }),
+            202,
+          );
+        },
+      },
+    );
+
+    const rulepack = screen.getByRole("combobox", { name: "rulepack" });
+    await within(rulepack).findByRole("option", {
+      name: /rules\/web@revision-rulepack-1/,
+    });
+    expect(
+      within(rulepack).queryByRole("option", { name: /openapi\/nashdom/ }),
+    ).toBeNull();
+    expect(rulepack).toHaveValue("");
+    expect(requests.map((request) => new URL(request.url).pathname)).toContain(
+      "/v1/artifacts",
+    );
+    expect(
+      requests.map((request) => new URL(request.url).pathname),
+    ).not.toContain("/v1/projects/project_example/artifacts");
+
+    await user.type(
+      screen.getByRole("textbox", { name: "target required" }),
+      "https://example.test",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Start Project Workflow Run" }),
+    );
+    await waitFor(() => expect(posts).toHaveLength(1));
+    expect(posts[0]).toMatchObject({
+      workflow: "nuclei-web@1",
+      parameters: { target: "https://example.test" },
+    });
+    expect((posts[0] as { artifacts?: unknown }).artifacts).toEqual({});
+  });
+
+  it("selects and previews a Project Run rulepack from Library", async () => {
+    const ownerPack = artifactMetadata("rules", "web", {
+      ...sourceArtifact,
+      artifact: {
+        namespace: "rules",
+        name: "web",
+        revision: "revision-rulepack-1",
+      },
+      mediaType: "application/yaml",
+    });
+    const nucleiWorkflow: WorkflowResource = {
+      ...workflow,
+      ref: { name: "nuclei-web", version: "1" },
+      parameters: { target: { required: true } },
+      inputs: {
+        rulepack: {
+          required: false,
+          sourceScope: "user",
+          mediaTypes: ["application/yaml"],
+        },
+      },
+    };
+    const uploadedPack = artifactMetadata("inputs", "custom", {
+      ...ownerPack,
+      artifact: {
+        namespace: "inputs",
+        name: "custom",
+        revision: "revision-upload-1",
+      },
+      size: 11,
+    });
+    const posts: unknown[] = [];
+    const { requests, user } = renderRunForm(
+      <WorkflowRunForm workflow={nucleiWorkflow} projectId="project_example" />,
+      {
+        "GET /v1/artifacts": () => json(page([ownerPack])),
+        "PUT /v1/artifacts/{namespace}/{name}": ({ params }) => {
+          expect(params).toEqual({ namespace: "inputs", name: "custom" });
+          return json(artifactWrite(uploadedPack), 201, {
+            ETag: '"revision-upload-1"',
+          });
+        },
+        "POST /v1/projects/{projectId}/runs": async ({ request }) => {
+          posts.push(await request.clone().json());
+          return json(
+            createdRun("run_nuclei", { projectId: "project_example" }),
+            202,
+          );
+        },
+      },
+    );
+    const rulepack = screen.getByRole("combobox", { name: "rulepack" });
+    await within(rulepack).findByRole("option", {
+      name: /rules\/web@revision-rulepack-1/,
+    });
+    await user.selectOptions(rulepack, "rules/web@revision-rulepack-1");
+    expect(
+      screen.getByRole("link", { name: "Preview file details" }),
+    ).toHaveAttribute(
+      "href",
+      "/artifacts/rules/web?revision=revision-rulepack-1",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Upload local file for rulepack" }),
+    );
+    const dialog = screen.getByRole("dialog", {
+      name: "Upload local file for rulepack",
+    });
+    expect(within(dialog).getByText("Library input")).toBeVisible();
+    expect(within(dialog).getByLabelText("Namespace")).toHaveValue("inputs");
+    await user.upload(
+      within(dialog).getByLabelText("Drop a file here"),
+      new File(["id: custom\n"], "custom.yaml", { type: "application/yaml" }),
+    );
+    await user.click(
+      within(dialog).getByRole("button", { name: "Upload and select" }),
+    );
+    await waitFor(() => expect(dialog).not.toBeInTheDocument());
+    expect(rulepack).toHaveValue("inputs/custom@revision-upload-1");
+    expect(
+      requests.map((request) => new URL(request.url).pathname),
+    ).not.toContain("/v1/projects/project_example/artifacts/artifacts/custom");
+    await user.type(
+      screen.getByRole("textbox", { name: "target required" }),
+      "https://example.test",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Start Project Workflow Run" }),
+    );
+    await waitFor(() => expect(posts).toHaveLength(1));
+    expect(posts[0]).toMatchObject({
+      artifacts: {
+        rulepack: {
+          namespace: "inputs",
+          name: "custom",
+          revision: "revision-upload-1",
+        },
+      },
+    });
+  });
+
   it("isolates infinite Run inventories from finite Operations picker cache", async () => {
     const queryClient = createApplicationQueryClient();
     queryClient.setQueryData(queryKeys.configurations.picker("llm-gateways"), {

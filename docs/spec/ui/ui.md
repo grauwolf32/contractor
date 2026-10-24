@@ -746,7 +746,9 @@ Git import flows.
 **UI-R120.** Project Workflow setup uses the shared drawer in ProjectScope,
 retains its ProjectScope form, the selected exact version and exact version
 semantics, and keeps its draft across close and section navigation in the
-current tab (LIFE-UI-2).
+current tab (LIFE-UI-2). A Workflow input declaring `sourceScope: user`, such
+as the optional Nuclei rulepack, is selected, uploaded and previewed in the
+owner's Library even when the Run belongs to a Project (SCN-R238).
 
 **UI-R121.** Project Runs use pages of 25 (LIM-UI-9) and Server-backed
 lifecycle and state filters. Workflow, state, Audit origin and update time

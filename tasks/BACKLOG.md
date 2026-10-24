@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-126 open tasks: 10 in progress, 91 pending, 25 deferred. 1072 finished: 1062 completed, 10 archived.
+127 open tasks: 11 in progress, 91 pending, 25 deferred. 1072 finished: 1062 completed, 10 archived.
 
 ## In progress
 
@@ -21,6 +21,7 @@ the epics are in [epics.yml](epics.yml).
 | [V414-023](v414-023-go-telemetry-secret-matching.yml) | operations | defect | P2 | Match secrets at the Go telemetry boundary by the shared 16-byte rule, longest first |
 | [V414-026](v414-026-eval-summary-generic-plan.yml) | evals | defect | P2 | Bound Eval experiment summary pages by page size in generic plans |
 | [V414-029](v414-029-audit-deletion-next-run-probe.yml) | audits | defect | P2 | Find a deleting Audit's next live child Run without reading every execution and Run |
+| [V415-001](v415-001-project-rulepack-scope-ui.yml) | ui | defect | P1 | Select owner rulepacks from Library in Project Run setup |
 
 ## Pending
 
@@ -247,7 +248,7 @@ tasks in `introduced_by`.
 | Audits (`audits`) | 27 | 60 | 78 | 23 | 100 |
 | Evaluations (`evals`) | 7 | 21 | 37 | 11 | 45 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
-| Web UI (`ui`) | 2 | 25 | 61 | 13 | 55 |
+| Web UI (`ui`) | 3 | 25 | 62 | 13 | 56 |
 | Operations, authentication, CLI and deployment (`operations`) | 3 | 16 | 37 | 6 | 13 |
 | Public API and wire contracts (`api-contracts`) | 6 | 2 | 36 | 21 | 11 |
 | PostgreSQL persistence and schema (`persistence`) | 8 | 0 | 24 | 42 | 13 |
