@@ -55,7 +55,7 @@ func TestSharedPostgresEvalUsageTicksKeepListCursors(t *testing.T) {
 	before := h.get(t, e.ID)
 	for _, observed := range []int64{10, 20} {
 		if err = h.service.tx(t.Context(), func(s *evalstore.Store) error {
-			return s.ObserveTokens(t.Context(), h.scope, e.ID, member, claim, observed)
+			return s.RecoverMember(h.scope, e.ID, member, claim).ObserveTokens(t.Context(), observed)
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -119,7 +119,7 @@ func TestSharedPostgresEvalIdleCoordinatorTicksKeepSelectedView(t *testing.T) {
 		t.Fatalf("claim: %v %v", claims, err)
 	}
 	if err := h.service.tx(t.Context(), func(s *evalstore.Store) error {
-		return s.ObserveTokens(t.Context(), h.scope, e.ID, outstanding[0], claims[0], 17)
+		return s.RecoverMember(h.scope, e.ID, outstanding[0], claims[0]).ObserveTokens(t.Context(), 17)
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -204,7 +204,7 @@ func TestSharedPostgresEvalSettleSurfacesTombstoneReadFailures(t *testing.T) {
 	// A live execution without a tombstone drains; a failed tombstone read
 	// must abort instead of being committed as a drain.
 	if err := h.service.tx(t.Context(), func(s *evalstore.Store) error {
-		return s.Settle(t.Context(), h.scope, e.ID, member, claim)
+		return s.RecoverMember(h.scope, e.ID, member, claim).Settle(t.Context())
 	}); !errors.Is(err, evalstore.ErrDrain) {
 		t.Fatal("live execution did not drain", err)
 	}
@@ -212,7 +212,7 @@ func TestSharedPostgresEvalSettleSurfacesTombstoneReadFailures(t *testing.T) {
 		t.Fatal(err)
 	}
 	err := h.service.tx(t.Context(), func(s *evalstore.Store) error {
-		return s.Settle(t.Context(), h.scope, e.ID, member, claim)
+		return s.RecoverMember(h.scope, e.ID, member, claim).Settle(t.Context())
 	})
 	if err == nil || errors.Is(err, evalstore.ErrDrain) {
 		t.Fatal("tombstone read failure was treated as drain", err)

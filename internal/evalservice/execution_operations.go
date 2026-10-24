@@ -51,7 +51,7 @@ func prepareOperation[T any](ctx context.Context, d *executionOperations, e eval
 	}
 	op = evalstore.Suboperation{Kind: kind, Key: m.SubmissionKey + "-" + kind, Request: raw, State: "intent"}
 	err = d.tx(ctx, func(s *evalstore.Store, _ pgx.Tx) error {
-		return s.PutSuboperation(ctx, scope(e), e.ID, m.MemberID, c, op)
+		return s.RecoverMember(scope(e), e.ID, m.MemberID, c).PutSuboperation(ctx, op)
 	})
 	return op, err
 }
@@ -62,12 +62,13 @@ func resolveOperation[T any](ctx context.Context, d *executionOperations, e eval
 		return err
 	}
 	return d.tx(ctx, func(s *evalstore.Store, _ pgx.Tx) error {
+		recovery := s.RecoverMember(scope(e), e.ID, m.MemberID, c)
 		if executionID != "" {
-			if err := s.BindExecution(ctx, scope(e), e.ID, m.MemberID, executionID, c); err != nil {
+			if err := recovery.BindExecution(ctx, executionID); err != nil {
 				return err
 			}
 		}
-		return s.ResolveSuboperation(ctx, scope(e), e.ID, m.MemberID, op.Kind, c, raw, rejected)
+		return recovery.ResolveSuboperation(ctx, op.Kind, raw, rejected)
 	})
 }
 
@@ -97,7 +98,8 @@ func (d *executionOperations) rejectPreparation(ctx context.Context, e evalstore
 		return cause
 	}
 	return d.tx(ctx, func(s *evalstore.Store, _ pgx.Tx) error {
-		if err := s.LockMemberRecovery(ctx, scope(e), e.ID, m.MemberID, c); err != nil {
+		recovery := s.RecoverMember(scope(e), e.ID, m.MemberID, c)
+		if err := recovery.LockMember(ctx); err != nil {
 			return err
 		}
 		if _, err := s.Suboperation(ctx, e.OwnerID, e.ID, m.MemberID, kind); !notFound(err) {
@@ -112,18 +114,18 @@ func (d *executionOperations) rejectPreparation(ctx context.Context, e evalstore
 				return err
 			}
 			if op.State == "intent" {
-				if err = s.ResolveSuboperation(ctx, scope(e), e.ID, m.MemberID, k, c, diagnostic(domain.Code), true); err != nil {
+				if err = recovery.ResolveSuboperation(ctx, k, diagnostic(domain.Code), true); err != nil {
 					return err
 				}
 			}
 		}
 		raw, _ := jsonBytes(preparationRejected{RejectedBeforeCreation: true, Code: domain.Code})
-		if err := s.PutSuboperation(ctx, scope(e), e.ID, m.MemberID, c, evalstore.Suboperation{Kind: kind, Key: m.SubmissionKey + "-" + kind, Request: raw, State: "intent"}); err != nil {
+		if err := recovery.PutSuboperation(ctx, evalstore.Suboperation{Kind: kind, Key: m.SubmissionKey + "-" + kind, Request: raw, State: "intent"}); err != nil {
 			return err
 		}
-		if err := s.ResolveSuboperation(ctx, scope(e), e.ID, m.MemberID, kind, c, diagnostic(domain.Code), true); err != nil {
+		if err := recovery.ResolveSuboperation(ctx, kind, diagnostic(domain.Code), true); err != nil {
 			return err
 		}
-		return s.Settle(ctx, scope(e), e.ID, m.MemberID, c)
+		return recovery.Settle(ctx)
 	})
 }

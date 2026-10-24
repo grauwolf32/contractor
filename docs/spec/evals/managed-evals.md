@@ -717,6 +717,31 @@ its intent atomically; a stale holder cannot commit transitions (FAIL-EVM-3).
 after Pause or Cancel was requested, and it remains counted as outstanding
 (FAIL-EVM-3).
 
+**EVM-R246.** A database transaction that composes several recovery steps for
+one member, such as acknowledging a created Run or Audit and resolving its
+suboperation, or observing tokens and settling, takes the recovery authority
+once, in its first step: the evaluation Project row for share, the member's
+execution workspace Project when the step writes into it, the experiment row
+for update and the live claim row for update, in that order. The transaction
+holds these locks until it ends, so no other transaction can fence or cancel
+the experiment, start the Project's deletion or lease the claim in between.
+Each later step proves in one statement that the claim is still live at its
+epoch, as every write must ([PER-R25](../platform/persistence.md)), and
+rereads the experiment's state and deletion request, so a cancellation or
+deletion request that an earlier statement of the same transaction wrote
+still fences new side effects (EVM-R110, EVM-R113, EVM-R115). The authority
+belongs to that one transaction and is never reused by another; no
+transaction spans an intent commit, the Run or Audit call that the intent
+records and that call's acknowledgement (FAIL-EVM-3, FAIL-EVM-5).
+
+Rationale: taking all locks again in every step repeated two locking reads
+per later step without adding a guarantee, because the first step's locks
+were still held. Trusting the first step without a per-step claim proof was
+rejected, because a later step of the same transaction could then write after
+its own transaction ended the lease. A step that must run in a savepoint that
+can roll back the first step, or in another transaction, takes the authority
+again.
+
 **EVM-R112.** Start initializes the deadline and accounting once and dispatches
 in frozen order.
 
@@ -1174,6 +1199,27 @@ total.
 artifact listings. Requests use indexed bounded rows and one materialized
 summary read (LIM-EVM-17).
 
+**EVM-R245.** A member or pair page of a view generation reads its exact
+`filteredCount`, its items and whether another page follows in one
+statement; an empty page after the last cursor reports the same count. The
+filters, the sort and the cursor read only columns that the view publication
+writes with each pair row in the same statement as its document: the pair's
+flags and measures and, for each side, the member's frozen ordinal, variant,
+eligibility, execution state, assessment, evidence conflict and collection
+completeness. No stored document is decoded to filter, sort or count. Only
+the page's items transfer a pair document, once per pair, which the Server
+decodes; the lookahead row that decides whether another page follows carries
+none. Counting examines the generation's filtered cohort, at most one row per
+member, so the statement's work grows with the cohort and its transfer with
+the page.
+
+Rationale: a count statement and a page statement each evaluated the
+cohort, and the member page decoded every pair document of the generation to
+filter it, which also failed for a document whose free string holds a NUL
+escape that PostgreSQL cannot decode. Columns on the immutable pair row
+need no second table and no second writer. A filter on another member field
+adds its column with the same writer and a backfill.
+
 ### Authorization
 
 **EVM-R218.** Standard bearer and cookie owner authentication applies. Unknown
@@ -1413,7 +1459,7 @@ Failure outcomes ([failure model](../platform/failure-model.md)):
   EVM-R99, EVM-R101, EVM-R103, EVM-R106).
 - FAIL-EVM-2 — native plan preparation (EVM-R89, EVM-R90).
 - FAIL-EVM-3 — coordinator claim and reconciliation (EVM-R94, EVM-R95,
-  EVM-R108, EVM-R109, EVM-R110, EVM-R111).
+  EVM-R108, EVM-R109, EVM-R110, EVM-R111, EVM-R246).
 - FAIL-EVM-4 — stopping and draining an experiment: Pause, Resume after budget
   expiry, Cancel, token and deadline thresholds, Finalize and external
   cancellation (EVM-R113, EVM-R114, EVM-R115, EVM-R119, EVM-R140, EVM-R141).
@@ -1495,8 +1541,8 @@ These properties follow from the cited requirements, which are authoritative.
    the native UI process tests run with Playground entirely absent.
 8. No request scans all historical Runs or deserializes arbitrary artifact
    listings; reads use indexed bounded rows and one materialized summary read
-   (EVM-R217). Owning test: a 10,000-member fixture verifies query counts and
-   response bounds.
+   (EVM-R217), and a member or pair page is one statement (EVM-R245). Owning
+   test: a 10,000-member fixture verifies query counts and response bounds.
 
 ## Examples
 

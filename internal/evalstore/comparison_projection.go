@@ -8,10 +8,36 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+// selectedSide is what a pair row stores of one side's selected member
+// besides the pair document: its frozen ordinal and collection completeness.
+type selectedSide struct {
+	ordinal  int
+	complete bool
+}
+
+// viewPairColumns are the columns projectComparison writes to a pair row. The
+// member fields of both sides that member pages filter and sort by come from
+// the same member views the pair document encodes (EVM-R245).
+var viewPairColumns = []string{
+	"experiment_id", "generation", "ordinal", "pair_id", "suite_id", "document", "regression", "unresolved",
+	"tokens_a", "tokens_b", "duration_a", "duration_b", "complete_a", "complete_b",
+	"member_ordinal_a", "member_ordinal_b", "variant_a", "variant_b", "eligibility_a", "eligibility_b",
+	"execution_state_a", "execution_state_b", "assessment_a", "assessment_b", "conflicting_a", "conflicting_b",
+}
+
+// executionState is a member view's execution state, or nil when the view has
+// no execution.
+func executionState(view evaldomain.MemberView) *string {
+	if view.Execution == nil {
+		return nil
+	}
+	return &view.Execution.State
+}
+
 // projectComparison retains safe pair rows, with each side's collection
-// completeness, and whole-cohort chart aggregates in the same transaction as
-// the view generation. HTTP reads never collect Runs.
-func (s *Store) projectComparison(ctx context.Context, id string, generation int64, view evaldomain.ComparisonView, complete map[string]bool, verified bool) error {
+// completeness and member filter fields, and whole-cohort chart aggregates in
+// the same transaction as the view generation. HTTP reads never collect Runs.
+func (s *Store) projectComparison(ctx context.Context, id string, generation int64, view evaldomain.ComparisonView, sides map[string]selectedSide, verified bool) error {
 	rows := make([][]any, 0, len(view.Pairs))
 	suites := map[string][]evaldomain.Pair{"": view.Pairs}
 	for ordinal, pair := range view.Pairs {
@@ -25,9 +51,20 @@ func (s *Store) projectComparison(ctx context.Context, id string, generation int
 		if durationGap == "" {
 			durationA, durationB = da.Value, db.Value
 		}
-		rows = append(rows, []any{id, generation, ordinal, pair.ID, pair.SuiteID, bytesOf(pair), pair.Regression, len(pair.Exclusions) > 0, tokensA, tokensB, durationA, durationB, complete[pair.A.Member.ID], complete[pair.B.Member.ID]})
+		a, foundA := sides[pair.A.Member.ID]
+		b, foundB := sides[pair.B.Member.ID]
+		if !foundA || !foundB {
+			return evaldomain.Failure("eval_member_conflict")
+		}
+		rows = append(rows, []any{
+			id, generation, ordinal, pair.ID, pair.SuiteID, bytesOf(pair), pair.Regression, len(pair.Exclusions) > 0,
+			tokensA, tokensB, durationA, durationB, a.complete, b.complete,
+			a.ordinal, b.ordinal, pair.A.Member.VariantID, pair.B.Member.VariantID,
+			pair.A.Member.Eligibility, pair.B.Member.Eligibility, executionState(pair.A), executionState(pair.B),
+			pair.A.Assessment, pair.B.Assessment, pair.A.Conflicting, pair.B.Conflicting,
+		})
 	}
-	if _, err := s.tx.CopyFrom(ctx, pgx.Identifier{"eval_view_pairs"}, []string{"experiment_id", "generation", "ordinal", "pair_id", "suite_id", "document", "regression", "unresolved", "tokens_a", "tokens_b", "duration_a", "duration_b", "complete_a", "complete_b"}, pgx.CopyFromRows(rows)); err != nil {
+	if _, err := s.tx.CopyFrom(ctx, pgx.Identifier{"eval_view_pairs"}, viewPairColumns, pgx.CopyFromRows(rows)); err != nil {
 		return err
 	}
 	charts := make([][]any, 0, len(suites)*2)

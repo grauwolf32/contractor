@@ -117,7 +117,9 @@ func TestSharedPostgresEvalBindsOnlyTheAuditItsMemberCreated(t *testing.T) {
 	}
 	claim := oneClaim(t, pool)
 	workspace := Suboperation{Kind: "project-create", Key: m.SubmissionKey + "-project", Request: json.RawMessage(`{"kind":"project"}`)}
-	mustTx(t, pool, func(s *Store) error { return s.PutSuboperation(ctx, scope, e.ID, m.MemberID, claim, workspace) })
+	mustTx(t, pool, func(s *Store) error {
+		return s.RecoverMember(scope, e.ID, m.MemberID, claim).PutSuboperation(ctx, workspace)
+	})
 	mustTx(t, pool, func(s *Store) error {
 		_, _, err := projectstore.NewPostgresStore(s.tx).Create(ctx, projectstore.CreateParams{
 			OwnerID: scope.OwnerID, ProjectID: "audit-workspace", Kind: projectstore.KindProject, Name: "Audit member",
@@ -126,13 +128,15 @@ func TestSharedPostgresEvalBindsOnlyTheAuditItsMemberCreated(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		return s.RegisterExecutionProject(ctx, scope, e.ID, m.MemberID, "audit-workspace", workspace.Key, claim)
+		return s.RecoverMember(scope, e.ID, m.MemberID, claim).RegisterExecutionProject(ctx, "audit-workspace", workspace.Key)
 	})
 	mustTx(t, pool, func(s *Store) error {
-		return s.ResolveSuboperation(ctx, scope, e.ID, m.MemberID, workspace.Kind, claim, []byte(`{"projectId":"audit-workspace"}`), false)
+		return s.RecoverMember(scope, e.ID, m.MemberID, claim).ResolveSuboperation(ctx, workspace.Kind, []byte(`{"projectId":"audit-workspace"}`), false)
 	})
 	create := Suboperation{Kind: "audit-create", Key: m.SubmissionKey, Request: json.RawMessage(`{"audit":"member"}`)}
-	mustTx(t, pool, func(s *Store) error { return s.PutSuboperation(ctx, scope, e.ID, m.MemberID, claim, create) })
+	mustTx(t, pool, func(s *Store) error {
+		return s.RecoverMember(scope, e.ID, m.MemberID, claim).PutSuboperation(ctx, create)
+	})
 	audits := ownerstore.New(pool)
 	createAudit := func(auditID, key string) {
 		t.Helper()
@@ -151,7 +155,7 @@ func TestSharedPostgresEvalBindsOnlyTheAuditItsMemberCreated(t *testing.T) {
 	}
 	bind := func(auditID string) error {
 		return transaction(pool, func(s *Store) error {
-			return s.BindExecution(ctx, scope, e.ID, m.MemberID, auditID, claim)
+			return s.RecoverMember(scope, e.ID, m.MemberID, claim).BindExecution(ctx, auditID)
 		})
 	}
 	createAudit("audit-other-key", m.SubmissionKey+"-other")

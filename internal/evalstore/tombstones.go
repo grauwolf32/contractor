@@ -24,8 +24,12 @@ WHERE e.owner_id=$1
 	return t, normalize(err)
 }
 
-func (s *Store) BindTombstone(ctx context.Context, scope Scope, id, member string, claim Claim) error {
-	if _, err := s.recovery(ctx, scope, id, claim); err != nil {
+// BindTombstone accepts the member's submission for the execution its
+// tombstone retains, so a lost creation acknowledgement settles without
+// another creation call.
+func (r *MemberRecovery) BindTombstone(ctx context.Context) error {
+	s, scope, id, member := r.store, r.scope, r.id, r.member
+	if _, err := r.authority(ctx); err != nil {
 		return err
 	}
 	t, err := s.Tombstone(ctx, scope.OwnerID, id, member)
