@@ -911,28 +911,6 @@ SELECT (SELECT count(*) FROM eval_experiments WHERE owner_id = $1 AND project_id
 	}
 }
 
-// Every column of every table an Eval purge deletes or rewrites is in its
-// stored-size accounting, so a new column cannot escape the byte budget.
-func TestSharedPostgresEvalPurgeMeasuresEveryColumn(t *testing.T) {
-	pool := testPool(t)
-	schema := evalTables(t, pool)
-	for table, columns := range purgeRowColumns {
-		if fmt.Sprint(schema[table]) != fmt.Sprint(columns) {
-			t.Errorf("%s columns = %v, purge measures %v", table, schema[table], columns)
-		}
-	}
-	for table := range schema {
-		if _, ok := purgeRowColumns[table]; !ok && table != "mutation_receipts" {
-			t.Errorf("Eval table %s is not measured by the purge", table)
-		}
-	}
-	for _, table := range experimentPurgePhases {
-		if _, ok := purgeRowBytes[table]; !ok {
-			t.Errorf("purge phase %s has no row size", table)
-		}
-	}
-}
-
 // A started native experiment's plan resources and commands go in its purge,
 // while its receipts stay until its Project's purge, which then removes them
 // with the Project's dataset revision and collection row (EVM-R243,

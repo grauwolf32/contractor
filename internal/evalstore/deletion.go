@@ -31,6 +31,14 @@ func purgeProgress(budget pg.CleanupBudget, done bool) PurgeProgress {
 	return PurgeProgress{Rows: budget.Rows, Bytes: budget.Bytes, Done: done}
 }
 
+// purgeDelete is the bounded delete of the rows of table that filter selects,
+// charged at the row cost and bytes the purge declares for that table.
+func purgeDelete(table, filter string, args ...any) pg.BoundedDelete {
+	return pg.BoundedDelete{
+		Table: table, Filter: filter, RowBytes: purgeChargedBytes(table), RowCost: purgeRowCost(table), Args: args,
+	}
+}
+
 func (s *Store) BeginDeletion(ctx context.Context, scope Scope, id string, mutation evaldomain.MutationIdentity) (Receipt, error) {
 	return mutate(ctx, s, scope, id, "delete", mutation, func() (ExperimentReceipt, error) {
 		e, err := s.locked(ctx, scope, id)
@@ -154,26 +162,15 @@ func (s *Store) PurgeProject(ctx context.Context, scope Scope) (PurgeProgress, e
 		}
 	}
 	// Every experiment is gone, so no dataset revision is still referenced.
-	steps := []func() (bool, error){
-		func() (bool, error) {
-			return pg.DeleteWithinBudget(ctx, s.db, &budget, "eval_dataset_revisions",
-				purgeRowBytes["eval_dataset_revisions"]+" + "+collectionPairBytes,
-				"owner_id = $5 AND project_id = $6", 3, scope.OwnerID, scope.ProjectID)
-		},
-		func() (bool, error) {
-			return pg.DeleteWithinBudget(ctx, s.db, &budget, "eval_collections", purgeRowBytes["eval_collections"],
-				"owner_id = $5 AND project_id = $6", 1, scope.OwnerID, scope.ProjectID)
-		},
-		func() (bool, error) {
-			return pg.DeleteEvalReceiptsWithinBudget(ctx, s.db, &budget, scope.OwnerID, scope.ProjectID)
-		},
-	}
-	for _, step := range steps {
-		if gone, err := step(); err != nil || !gone {
+	for _, table := range projectPurgeTables {
+		gone, err := pg.DeleteWithinBudget(ctx, s.db, &budget, purgeDelete(table,
+			"owner_id = $5 AND project_id = $6", scope.OwnerID, scope.ProjectID))
+		if err != nil || !gone {
 			return purgeProgress(budget, false), err
 		}
 	}
-	return purgeProgress(budget, true), nil
+	gone, err := pg.DeleteEvalReceiptsWithinBudget(ctx, s.db, &budget, scope.OwnerID, scope.ProjectID)
+	return purgeProgress(budget, gone), err
 }
 
 // Purging reports whether a purge may already have removed rows that the
@@ -225,7 +222,7 @@ func (s *Store) purgeExperiment(ctx context.Context, e Experiment, budget *pg.Cl
 		budget.Charge(1, queueBytes)
 	}
 	for _, table := range experimentPurgePhases {
-		gone, err := pg.DeleteWithinBudget(ctx, s.db, budget, table, purgeRowBytes[table], "experiment_id = $5", 1, e.ID)
+		gone, err := pg.DeleteWithinBudget(ctx, s.db, budget, purgeDelete(table, "experiment_id = $5", e.ID))
 		if err != nil || !gone {
 			return false, err
 		}

@@ -68,6 +68,7 @@ type Controller struct {
 	deleter  RunDeleter
 	notifier RunCancellationNotifier
 	options  Options
+	purges   *evalstore.PurgeMeter
 	wake     chan struct{}
 }
 
@@ -108,7 +109,8 @@ func New(
 	}
 	return &Controller{
 		pool: pool, runs: runs, deleter: deleter, notifier: notifier, options: options,
-		wake: make(chan struct{}, 1),
+		purges: evalstore.NewPurgeMeter(options.Logger, options.Clock.Now),
+		wake:   make(chan struct{}, 1),
 	}, nil
 }
 
@@ -379,12 +381,14 @@ func (c *Controller) deferClaim(ctx context.Context, claim projectstore.Deletion
 // batches (EVM-R243). A transaction whose Eval pass found nothing left deletes
 // one batch of the Project's finding proposal receipts (DEL-R61) and, once
 // none is left, removes one ProjectScope purge batch, or, when the scope is
-// already empty, the scope and the Project row. It reports whether the
-// Project is gone.
+// already empty, the scope and the Project row. The purge meter records the
+// Eval pass of each committed transaction. It reports whether the Project is
+// gone.
 func (c *Controller) purgeProject(ctx context.Context, claim projectstore.DeletionClaim) (bool, error) {
 	var deleted bool
+	var evalPass evalstore.PurgeProgress
 	err := persistencepostgres.InTxWithRetry(ctx, c.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		deleted = false
+		deleted, evalPass = false, evalstore.PurgeProgress{}
 		projects := projectstore.NewPostgresTxStore(tx)
 		if err := projects.LockDeletionClaim(ctx, claim); err != nil {
 			return fmt.Errorf("lock Project for Artifact purge: %w", err)
@@ -403,6 +407,7 @@ func (c *Controller) purgeProject(ctx context.Context, claim projectstore.Deleti
 		if err != nil {
 			return err
 		}
+		evalPass = eval
 		if eval.Rows > 0 || !eval.Done {
 			return nil
 		}
@@ -430,6 +435,9 @@ func (c *Controller) purgeProject(ctx context.Context, claim projectstore.Deleti
 		deleted = true
 		return nil
 	})
+	if err == nil {
+		c.purges.Project(claim.ProjectID, claim.RequestedAt, evalPass)
+	}
 	return deleted, err
 }
 

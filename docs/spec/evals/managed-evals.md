@@ -1243,6 +1243,17 @@ no execution workspace that still exists; until then the controller waits.
   removed or left anything alone, before any finding receipt or Artifact
   purge ([DEL-R60](../artifacts/retention-and-deletion.md)).
 - An experiment purge keeps the experiment's receipts (EVM-R226).
+- The purge rate is an accepted risk, owned by the Eval coordinator. It
+  commits one experiment pass per tick (one second by default), so it removes
+  at most about 1,000 row mutations a second, and an experiment of 10 million
+  rows takes about three hours, during which its member-level reads answer
+  409. The Project deletion controller runs its passes back to back.
+  Detection: for each experiment and Project purge the Server logs, with the
+  pass count, rows, bytes and age since the deletion request, its first
+  committed pass, every 600th pass and the pass that finishes it; a progress
+  record of a purge older than one hour is a warning. Counts are per Server
+  process. Reopen when that warning is logged, or when the deletion of an
+  experiment must finish faster than one pass per tick.
 
 **EVM-R244.** While an experiment is purged, that is, while its deletion is
 requested and it has no selected view, its detail and list reads keep its

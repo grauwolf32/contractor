@@ -1,7 +1,12 @@
 package evalservice
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"log/slog"
+	"slices"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/evaldomain"
@@ -18,6 +23,12 @@ import (
 func TestSharedPostgresEvalPurgeYieldsBetweenTicksAndRefusesPartialReads(t *testing.T) {
 	h := newHarness(t)
 	ctx := t.Context()
+	var logs bytes.Buffer
+	logged, err := New(Options{Pool: h.pool, Resolver: h.resolver, Driver: h.driver, Logger: slog.New(slog.NewJSONHandler(&logs, nil))})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.service = logged
 	e := h.prepared(t, "workflow")
 	h.command(t, e, "start")
 	c := h.coordinator(t, "controller")
@@ -125,5 +136,26 @@ FROM generate_series(1, 2500) AS n`, e.ID, member); err != nil {
 	}
 	if n := count(t, h.pool, "workflow_runs"); n != 8 {
 		t.Fatalf("ordinary Runs = %d, want the eight executions kept", n)
+	}
+	// The purge meter logged the purge's start and its end with every pass.
+	var records []string
+	for decoder := json.NewDecoder(&logs); decoder.More(); {
+		var record struct {
+			Msg          string `json:"msg"`
+			ExperimentID string `json:"experiment_id"`
+			Passes, Rows int64
+		}
+		if err := decoder.Decode(&record); err != nil {
+			t.Fatal(err)
+		}
+		if record.ExperimentID == e.ID {
+			records = append(records, fmt.Sprintf("%s after %d passes", record.Msg, record.Passes))
+			if record.Msg == "Eval purge finished" && record.Rows <= 2500 {
+				t.Errorf("finished purge counted %d rows, want more than the 2500 evidence references", record.Rows)
+			}
+		}
+	}
+	if want := []string{"Eval purge started after 1 passes", fmt.Sprintf("Eval purge finished after %d passes", ticks)}; !slices.Equal(records, want) {
+		t.Fatalf("purge records = %q, want %q", records, want)
 	}
 }

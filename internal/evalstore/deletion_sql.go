@@ -2,6 +2,8 @@ package evalstore
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 )
 
@@ -37,11 +39,12 @@ SELECT EXISTS(SELECT 1
     WHERE s.experiment_id=$1)
 `
 
-// purgeRowColumns lists every column of each table an Eval purge deletes or
-// rewrites. A row's stored size is the sum of pg_column_size over them
-// (purgeRowBytes), which counts a compressed or out-of-line value at its
-// stored size without reading it. TestSharedPostgresEvalPurgeMeasuresEveryColumn
-// keeps the lists equal to the schema.
+// purgeRowColumns lists every column of each table an Eval purge deletes
+// from or counts in its final unit. A row's stored size is the sum of
+// pg_column_size over them (purgeRowBytes), which counts a compressed or
+// out-of-line value at its stored size without reading it.
+// TestSharedPostgresEvalPurgeCoversCascadesAndTriggers keeps the lists equal
+// to the schema.
 var purgeRowColumns = map[string][]string{
 	"eval_collections": {"owner_id", "project_id", "revision"},
 	"eval_commands": {"command_id", "experiment_id", "actor_id", "kind", "state", "accepted_revision",
@@ -100,6 +103,54 @@ var purgeRowBytes = func() map[string]string {
 // these owner_id and project_id columns is deleted; revision is a bigint.
 const collectionPairBytes = `(2 * pg_column_size(owner_id) + pg_column_size(''::text) + pg_column_size(project_id) + 16)`
 
+// purgeTrigger is a deletion trigger of a purged table that writes rows: the
+// rows it writes, and the SQL expression of the bytes the purge charges for
+// them, for each row the purge deletes from its table.
+type purgeTrigger struct {
+	table string
+	rows  int64
+	bytes string
+}
+
+// purgeDeleteTriggers are the deletion triggers that write rows when the
+// purge deletes from their tables. The statement trigger of eval_experiments
+// and the row trigger of eval_dataset_revisions each rewrite the two
+// collection rows of the deleted row's owner and Project; the purge deletes
+// one experiment per statement, so the statement trigger also writes two rows
+// per experiment. Every other trigger that a purge statement fires only
+// checks. TestSharedPostgresEvalPurgeCoversCascadesAndTriggers keeps this map
+// equal to the schema, and the purge accounting tests compare the rows it
+// declares with the rows PostgreSQL counts.
+var purgeDeleteTriggers = map[string]purgeTrigger{
+	"eval_experiments_collection_delete": {table: "eval_experiments", rows: 2, bytes: collectionPairBytes},
+	"eval_datasets_collection":           {table: "eval_dataset_revisions", rows: 2, bytes: collectionPairBytes},
+}
+
+// purgeRowCost is the row mutations that deleting one row of table makes: the
+// row itself and the rows its deletion triggers write.
+func purgeRowCost(table string) int64 {
+	cost := int64(1)
+	for _, trigger := range purgeDeleteTriggers {
+		if trigger.table == table {
+			cost += trigger.rows
+		}
+	}
+	return cost
+}
+
+// purgeChargedBytes is the SQL expression of the bytes the purge charges for
+// deleting one row of table: the row's stored size and that of the rows its
+// deletion triggers write.
+func purgeChargedBytes(table string) string {
+	terms := []string{purgeRowBytes[table]}
+	for _, name := range slices.Sorted(maps.Keys(purgeDeleteTriggers)) {
+		if trigger := purgeDeleteTriggers[name]; trigger.table == table {
+			terms = append(terms, trigger.bytes)
+		}
+	}
+	return strings.Join(terms, " + ")
+}
+
 // experimentPurgePhases are the tables one experiment's purge empties before
 // its final unit, leaf first (EVM-R243): the view rows and progress
 // observations of its invalidated view; selections before the records they
@@ -107,13 +158,25 @@ const collectionPairBytes = `(2 * pg_column_size(owner_id) + pg_column_size(''::
 // projection and tombstone triggers find members through, before the
 // projections and tombstones those triggers write; members and plan
 // resources, the children of the frozen plan; and the commands, which stay
-// readable until then.
+// readable until then. No table has a child that a later phase or the final
+// unit removes (TestSharedPostgresEvalPurgeCoversCascadesAndTriggers).
 var experimentPurgePhases = []string{
 	"eval_view_pairs", "eval_view_charts", "eval_progress_observations", "eval_selections",
 	"eval_evidence_refs", "eval_suboperations", "eval_submissions", "eval_records",
 	"eval_execution_tombstones", "eval_member_projections", "eval_members", "eval_plan_resources",
 	"eval_commands",
 }
+
+// finalPurgeCascades are the children of eval_experiments that deleting the
+// experiment row, the last unit of its purge, cascades to. Their own children
+// are phases, so the cascade removes nothing else.
+var finalPurgeCascades = []string{"eval_frozen_plans", "eval_projection_queue", "eval_controller_claims"}
+
+// projectPurgeTables are the tables a Project pass empties after its
+// experiments and before its Eval receipts (pg.DeleteEvalReceiptsWithinBudget):
+// its dataset revisions, which no experiment references any more, and then
+// its collection row, which their deletion triggers rewrote.
+var projectPurgeTables = []string{"eval_dataset_revisions", "eval_collections"}
 
 // lockPurgedQueueSQL locks an experiment's projection queue row for one purge
 // pass and reports whether it still names a selected view, with its stored
@@ -139,28 +202,28 @@ WHERE experiment_id = $1
 `
 
 // finalPurgeUnitSQL measures the last unit of an experiment's purge: its row,
-// the frozen plan, projection queue and controller claim its deletion
-// cascades to, and the two collection rows its deletion trigger rewrites. It
-// returns the unit's row mutations and stored bytes. Every other child is
-// already gone, so the cascade removes nothing else. Used by
-// Store.purgeExperiment.
-var finalPurgeUnitSQL = fmt.Sprintf(`
-SELECT 3 + plan.n + queue.n + claim.n,
-    (experiment.stored_bytes + plan.stored_bytes + queue.stored_bytes + claim.stored_bytes)::bigint
-FROM (SELECT (%[1]s) + %[2]s AS stored_bytes
+// the rows its deletion trigger writes and the rows of finalPurgeCascades its
+// deletion cascades to. It returns the unit's row mutations and charged
+// bytes. Every other child is already gone, so the cascade removes nothing
+// else. Used by Store.purgeExperiment.
+var finalPurgeUnitSQL = func() string {
+	rows := []string{fmt.Sprint(purgeRowCost("eval_experiments"))}
+	bytes := []string{"experiment.charged_bytes"}
+	from := fmt.Sprintf(`
+FROM (SELECT (%s)::bigint AS charged_bytes
     FROM eval_experiments
-    WHERE experiment_id = $1) experiment
-CROSS JOIN (SELECT count(*) AS n, COALESCE(sum(%[3]s), 0) AS stored_bytes
-    FROM eval_frozen_plans
-    WHERE experiment_id = $1) plan
-CROSS JOIN (SELECT count(*) AS n, COALESCE(sum(%[4]s), 0) AS stored_bytes
-    FROM eval_projection_queue
-    WHERE experiment_id = $1) queue
-CROSS JOIN (SELECT count(*) AS n, COALESCE(sum(%[5]s), 0) AS stored_bytes
-    FROM eval_controller_claims
-    WHERE experiment_id = $1) claim
-`, purgeRowBytes["eval_experiments"], collectionPairBytes, purgeRowBytes["eval_frozen_plans"],
-	purgeRowBytes["eval_projection_queue"], purgeRowBytes["eval_controller_claims"])
+    WHERE experiment_id = $1) experiment`, purgeChargedBytes("eval_experiments"))
+	for i, table := range finalPurgeCascades {
+		alias := fmt.Sprintf("cascade%d", i)
+		rows = append(rows, fmt.Sprintf("%d * %s.n", purgeRowCost(table), alias))
+		bytes = append(bytes, alias+".charged_bytes")
+		from += fmt.Sprintf(`
+CROSS JOIN (SELECT count(*) AS n, COALESCE(sum(%s), 0) AS charged_bytes
+    FROM %s
+    WHERE experiment_id = $1) %s`, purgeChargedBytes(table), table, alias)
+	}
+	return "\nSELECT " + strings.Join(rows, " + ") + ", (" + strings.Join(bytes, " + ") + ")::bigint" + from + "\n"
+}()
 
 // nextPurgedExperimentSQL names the first experiment left in a Project
 // purge. Used by Store.PurgeProject.

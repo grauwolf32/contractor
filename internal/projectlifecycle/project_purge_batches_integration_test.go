@@ -3,14 +3,20 @@
 package projectlifecycle
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"log/slog"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
@@ -325,7 +331,14 @@ SELECT (SELECT count(*) FROM finding_proposal_receipts WHERE project_id = $1)
 		return rows
 	}
 	otherBefore := evalFootprint(other.ProjectID)
-	controller := newTestController(t, pool, runstore.NewPostgresStore(pool), &recordingNotifier{}, "eval")
+	var logs bytes.Buffer
+	controller, err := New(pool, runstore.NewPostgresStore(pool), rundeletion.New(pool), &recordingNotifier{}, Options{
+		PollInterval: time.Millisecond, ClaimDuration: time.Minute, OperationTimeout: 5 * time.Second,
+		Logger: slog.New(slog.NewJSONHandler(&logs, nil)),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	evalSteps := 0
 	for step := 0; ; step++ {
 		if step > (3*datasets+evalReceipts)/evalPurgeBatchRows+20 {
@@ -366,5 +379,24 @@ SELECT (SELECT count(*) FROM finding_proposal_receipts WHERE project_id = $1)
 	}
 	if got := evalFootprint(other.ProjectID); got != otherBefore {
 		t.Fatalf("another evaluation Project's Eval rows = %+v, want %+v", got, otherBefore)
+	}
+	// The purge meter logged the Eval purge's start and its end with every
+	// Eval pass.
+	var records []string
+	for decoder := json.NewDecoder(&logs); decoder.More(); {
+		var record struct {
+			Msg       string `json:"msg"`
+			ProjectID string `json:"project_id"`
+			Passes    int64  `json:"passes"`
+		}
+		if err := decoder.Decode(&record); err != nil {
+			t.Fatal(err)
+		}
+		if record.ProjectID == project.ProjectID && strings.HasPrefix(record.Msg, "Eval purge") {
+			records = append(records, fmt.Sprintf("%s after %d passes", record.Msg, record.Passes))
+		}
+	}
+	if want := []string{"Eval purge started after 1 passes", fmt.Sprintf("Eval purge finished after %d passes", evalSteps)}; !slices.Equal(records, want) {
+		t.Fatalf("Eval purge records = %q, want %q", records, want)
 	}
 }

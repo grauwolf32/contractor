@@ -17,7 +17,7 @@ type evalServices struct {
 func configureEvals(pool *pgxpool.Pool, catalog *workflowconfig.Manager, credentials credentialServices, audits auditServices, workflows workflowServices, logger *slog.Logger) (evalServices, error) {
 	resolver := &evalservice.Resolver{Pool: pool, Catalog: catalog, Credentials: credentials.transactionLookup, Barrier: credentials.lifecycle}
 	driver := &evalservice.Driver{Pool: pool, Runs: audits.runs, Audits: audits.service, Notifier: workflows.scheduler}
-	service, err := evalservice.New(evalservice.Options{Pool: pool, Resolver: resolver, Driver: driver})
+	service, err := evalservice.New(evalservice.Options{Pool: pool, Resolver: resolver, Driver: driver, Logger: logger})
 	if err != nil {
 		return evalServices{}, err
 	}

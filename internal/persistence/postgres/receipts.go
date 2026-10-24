@@ -199,8 +199,10 @@ const receiptRowBytes = `pg_column_size(key_scope) + pg_column_size(idempotency_
 func DeleteEvalReceiptsWithinBudget(
 	ctx context.Context, db DBTX, budget *CleanupBudget, ownerID, projectID string,
 ) (bool, error) {
-	gone, err := DeleteWithinBudget(ctx, db, budget, "mutation_receipts", receiptRowBytes,
-		`owner_id = $5 AND project_id = $6 AND key_scope[1] = 'eval'`, 1, ownerID, projectID)
+	gone, err := DeleteWithinBudget(ctx, db, budget, BoundedDelete{
+		Table: "mutation_receipts", Filter: `owner_id = $5 AND project_id = $6 AND key_scope[1] = 'eval'`,
+		RowBytes: receiptRowBytes, RowCost: 1, Args: []any{ownerID, projectID},
+	})
 	if err != nil {
 		return false, WrapError("purge Eval mutation receipts", err)
 	}

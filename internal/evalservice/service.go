@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 	"time"
 
@@ -34,6 +35,9 @@ type Options struct {
 	Resolver BindingResolver
 	Driver   ExecutionDriver
 	Now      func() time.Time
+	// Logger receives the purge progress records (EVM-R243); nil discards
+	// them.
+	Logger *slog.Logger
 }
 
 type Service struct {
@@ -41,6 +45,7 @@ type Service struct {
 	resolver BindingResolver
 	driver   ExecutionDriver
 	now      func() time.Time
+	purges   *evalstore.PurgeMeter
 }
 
 func New(o Options) (*Service, error) {
@@ -50,7 +55,13 @@ func New(o Options) (*Service, error) {
 	if o.Now == nil {
 		o.Now = time.Now
 	}
-	return &Service{o.Pool, o.Resolver, o.Driver, o.Now}, nil
+	if o.Logger == nil {
+		o.Logger = slog.New(slog.DiscardHandler)
+	}
+	return &Service{
+		pool: o.Pool, resolver: o.Resolver, driver: o.Driver, now: o.Now,
+		purges: evalstore.NewPurgeMeter(o.Logger, o.Now),
+	}, nil
 }
 
 func (s *Service) tx(ctx context.Context, fn func(*evalstore.Store) error) error {
@@ -390,7 +401,8 @@ func (s *Service) finishCommands(ctx context.Context, e evalstore.Experiment, cl
 }
 
 // purge commits at most one bounded purge pass per tick under the claim and
-// then yields; the next tick continues from the rows that are left (EVM-R243).
+// then yields; the next tick continues from the rows that are left. The
+// purge meter records each committed pass (EVM-R243).
 func (s *Service) purge(ctx context.Context, e evalstore.Experiment, claim evalstore.Claim) (bool, error) {
 	deps, err := evalstore.NewPostgresStore(s.pool).Dependencies(ctx, e.OwnerID, e.ID, "", evaldomain.MaxPageSize)
 	if err != nil {
@@ -410,9 +422,15 @@ func (s *Service) purge(ctx context.Context, e evalstore.Experiment, claim evals
 	if len(deps) > 0 {
 		return false, nil
 	}
+	var pass evalstore.PurgeProgress
 	err = s.tx(ctx, func(st *evalstore.Store) error {
-		_, err := st.Purge(ctx, scope(e), e.ID, claim)
+		var err error
+		pass, err = st.Purge(ctx, scope(e), e.ID, claim)
 		return err
 	})
-	return err == nil, err
+	if err != nil {
+		return false, err
+	}
+	s.purges.Experiment(e.ID, *e.DeletionRequestedAt, pass)
+	return true, nil
 }
