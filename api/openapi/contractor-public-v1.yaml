@@ -3601,6 +3601,7 @@ paths:
         '404': {$ref: '#/components/responses/NotFound'}
         '409': {$ref: '#/components/responses/Conflict'}
         '413': {$ref: '#/components/responses/PayloadTooLarge'}
+        '422': {$ref: '#/components/responses/RunSkillLimitExceeded'}
         '503': {$ref: '#/components/responses/RunCreationUnavailable'}
         '500': {$ref: '#/components/responses/InternalError'}
     get:
@@ -3958,8 +3959,8 @@ paths:
         '409': {$ref: '#/components/responses/Conflict'}
         '412': {$ref: '#/components/responses/PreconditionFailed'}
         '413': {$ref: '#/components/responses/PayloadTooLarge'}
-        '422': {$ref: '#/components/responses/UnprocessableEntity'}
-        '503': {$ref: '#/components/responses/CredentialRecoveryRequired'}
+        '422': {$ref: '#/components/responses/AuditStartUnprocessable'}
+        '503': {$ref: '#/components/responses/AuditStartUnavailable'}
         '500': {$ref: '#/components/responses/InternalError'}
 
   /v1/audits/{auditId}/pause:
@@ -4607,6 +4608,7 @@ paths:
         '404': {$ref: '#/components/responses/NotFound'}
         '409': {$ref: '#/components/responses/Conflict'}
         '413': {$ref: '#/components/responses/PayloadTooLarge'}
+        '422': {$ref: '#/components/responses/RunSkillLimitExceeded'}
         '503': {$ref: '#/components/responses/RunCreationUnavailable'}
         '500': {$ref: '#/components/responses/InternalError'}
     get:
@@ -7047,7 +7049,46 @@ components:
         application/json:
           schema: {$ref: '#/components/schemas/Error'}
     RunCreationUnavailable:
-      description: Credential recovery is in progress or a definite database transaction conflict exhausted retries; retry with the same Idempotency-Key
+      description: >-
+        Credential recovery is in progress, a definite database transaction
+        conflict exhausted retries, or a transient failure read the owner's
+        Skill packages (`skill_artifact_unavailable`); nothing is created, so
+        retry with the same Idempotency-Key
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestId'}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    RunSkillLimitExceeded:
+      description: >-
+        A Skill package that the Workflow's AgentTemplates select exceeds the
+        stored package bound, or the selected packages exceed the stored-byte
+        limit of one AgentTemplate or of the Run (`skill_limit_exceeded`,
+        retryable false); nothing is created
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestId'}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    AuditStartUnprocessable:
+      description: >-
+        Exact Audit input or requested profile policy cannot be processed by
+        this Server, or the Skill packages that the child Workflows select
+        cannot be pinned: a Skill has no current package
+        (`skill_artifact_not_found`) or the packages exceed a stored-byte
+        limit (`skill_limit_exceeded`); retryable false, and nothing is
+        started
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestId'}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    AuditStartUnavailable:
+      description: >-
+        Credential lifecycle recovery has not completed, a definite database
+        transaction conflict exhausted retries, or a transient failure read
+        the owner's Skill packages (`skill_artifact_unavailable`); nothing is
+        started, so retry after it settles
       headers:
         X-Request-ID: {$ref: '#/components/headers/RequestId'}
       content:

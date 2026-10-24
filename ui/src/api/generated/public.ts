@@ -6839,8 +6839,38 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description Credential recovery is in progress or a definite database transaction conflict exhausted retries; retry with the same Idempotency-Key */
+        /** @description Credential recovery is in progress, a definite database transaction conflict exhausted retries, or a transient failure read the owner's Skill packages (`skill_artifact_unavailable`); nothing is created, so retry with the same Idempotency-Key */
         RunCreationUnavailable: {
+            headers: {
+                "X-Request-ID": components["headers"]["RequestId"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description A Skill package that the Workflow's AgentTemplates select exceeds the stored package bound, or the selected packages exceed the stored-byte limit of one AgentTemplate or of the Run (`skill_limit_exceeded`, retryable false); nothing is created */
+        RunSkillLimitExceeded: {
+            headers: {
+                "X-Request-ID": components["headers"]["RequestId"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description Exact Audit input or requested profile policy cannot be processed by this Server, or the Skill packages that the child Workflows select cannot be pinned: a Skill has no current package (`skill_artifact_not_found`) or the packages exceed a stored-byte limit (`skill_limit_exceeded`); retryable false, and nothing is started */
+        AuditStartUnprocessable: {
+            headers: {
+                "X-Request-ID": components["headers"]["RequestId"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description Credential lifecycle recovery has not completed, a definite database transaction conflict exhausted retries, or a transient failure read the owner's Skill packages (`skill_artifact_unavailable`); nothing is started, so retry after it settles */
+        AuditStartUnavailable: {
             headers: {
                 "X-Request-ID": components["headers"]["RequestId"];
                 [name: string]: unknown;
@@ -9393,6 +9423,7 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             413: components["responses"]["PayloadTooLarge"];
+            422: components["responses"]["RunSkillLimitExceeded"];
             500: components["responses"]["InternalError"];
             503: components["responses"]["RunCreationUnavailable"];
         };
@@ -9800,9 +9831,9 @@ export interface operations {
             409: components["responses"]["Conflict"];
             412: components["responses"]["PreconditionFailed"];
             413: components["responses"]["PayloadTooLarge"];
-            422: components["responses"]["UnprocessableEntity"];
+            422: components["responses"]["AuditStartUnprocessable"];
             500: components["responses"]["InternalError"];
-            503: components["responses"]["CredentialRecoveryRequired"];
+            503: components["responses"]["AuditStartUnavailable"];
         };
     };
     pauseAudit: {
@@ -10675,6 +10706,7 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             413: components["responses"]["PayloadTooLarge"];
+            422: components["responses"]["RunSkillLimitExceeded"];
             500: components["responses"]["InternalError"];
             503: components["responses"]["RunCreationUnavailable"];
         };

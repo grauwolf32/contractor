@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
@@ -90,6 +91,32 @@ func TestCatalogRunSelectionPersistsMissingAndFailsDeterministically(t *testing.
 		context.Background(), "owner-1", "run-missing", selected, [][]string{{"missing"}},
 	)
 	assertRunSkillError(t, err, CodeArtifactNotFound, "missing", false)
+}
+
+// A current package above the stored package bound (LIM-SKL-17) is the
+// permanent skill_limit_exceeded at selection, never a transient read
+// (SKL-R117); one at the bound is selected.
+func TestCatalogRunSelectionRejectsAnOversizedCurrentPackage(t *testing.T) {
+	ctx := context.Background()
+	service := artifacts.NewService(newMemoryArtifactRepository())
+	catalog, _ := NewCatalog(service)
+	owner, _ := service.User("owner-1")
+	for _, size := range []int{MaximumArchiveBytes, MaximumArchiveBytes + 1} {
+		name := fmt.Sprintf("size-%d", size)
+		if _, err := owner.Write(ctx, artifacts.ArtifactRef{Namespace: SkillNamespace, Name: name},
+			artifacts.Payload{MediaType: MediaType, Data: make([]byte, size)}, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	refs := func(size int) []contracts.ArtifactRef {
+		return []contracts.ArtifactRef{{Namespace: SkillNamespace, Name: fmt.Sprintf("size-%d", size)}}
+	}
+	if selected, err := catalog.SelectRunSources(ctx, "owner-1", refs(MaximumArchiveBytes)); err != nil ||
+		len(selected) != 1 || selected[0].SourceSize != MaximumArchiveBytes {
+		t.Fatalf("selection at the bound = (%+v, %v)", selected, err)
+	}
+	_, err := catalog.SelectRunSources(ctx, "owner-1", refs(MaximumArchiveBytes+1))
+	assertRunSkillError(t, err, CodeLimitExceeded, fmt.Sprintf("size-%d", MaximumArchiveBytes+1), false)
 }
 
 // An exact source revision the store no longer holds is the permanent
@@ -219,5 +246,40 @@ func assertRunSkillError(t *testing.T, err error, code, name string, retryable b
 	if !errors.As(err, &skillErr) || skillErr.Code != code || skillErr.Name != name ||
 		skillErr.Retryable != retryable {
 		t.Fatalf("Run Skill error = %#v (%v), want code=%s name=%s retryable=%t", skillErr, err, code, name, retryable)
+	}
+	// A code that a public operation answers keeps the retryability of its
+	// registered Kind (SKL-R117).
+	if kind := skillErr.ErrorKind(); kind != apierror.InternalError && (kind.Code() != code || kind.Retryable() != retryable) {
+		t.Fatalf("Run Skill error %s answers public code %s retryable=%t", code, kind.Code(), kind.Retryable())
+	}
+}
+
+// TestRunSkillErrorsAnswerTheirRegisteredPublicCode checks the one mapping
+// from a Run Skill code to its public Kind (SKL-R117): the codes that Run
+// creation and Audit start return answer themselves, with a message naming
+// the logical Skill, while the codes that only Run initialization raises are
+// never public answers.
+func TestRunSkillErrorsAnswerTheirRegisteredPublicCode(t *testing.T) {
+	public := map[string]bool{CodeArtifactNotFound: false, CodeArtifactUnavailable: true, CodeLimitExceeded: false}
+	for _, code := range []string{
+		CodeArtifactNotFound, CodeArtifactUnavailable, CodeLimitExceeded, CodeMediaTypeInvalid, CodeForkConflict,
+		CodeForkFailed, CodeArchiveInvalid, CodePathInvalid, CodeMemberForbidden, CodeManifestInvalid, CodeNameMismatch,
+	} {
+		classified, ok := apierror.Of(fmt.Errorf("create Run: %w", &RunSkillError{Code: code, Name: "review"}))
+		if !ok {
+			t.Fatalf("%s is not classified", code)
+		}
+		kind, message := classified.ErrorKind(), apierror.MessageOf(classified)
+		retryable, answered := public[code]
+		if answered && (kind.Code() != code || kind.Retryable() != retryable || message != kind.Message()+": skills/review") {
+			t.Errorf("%s answers %s retryable=%t %q", code, kind.Code(), kind.Retryable(), message)
+		}
+		if !answered && (kind != apierror.InternalError || message != kind.Message()) {
+			t.Errorf("Run initialization code %s answers %s %q", code, kind.Code(), message)
+		}
+	}
+	unnamed, _ := apierror.Of(&RunSkillError{Code: CodeArtifactUnavailable, Retryable: true})
+	if message := apierror.MessageOf(unnamed); message != apierror.SkillArtifactUnavailable.Message() {
+		t.Errorf("unnamed Skill failure message = %q", message)
 	}
 }

@@ -8066,6 +8066,12 @@ type ArtifactWriteUnavailable = Error
 // ArtifactWritten defines model for ArtifactWritten.
 type ArtifactWritten = ArtifactWriteResponse
 
+// AuditStartUnavailable defines model for AuditStartUnavailable.
+type AuditStartUnavailable = Error
+
+// AuditStartUnprocessable defines model for AuditStartUnprocessable.
+type AuditStartUnprocessable = Error
+
 // Error400 defines model for BadRequest.
 type Error400 = Error
 
@@ -8131,6 +8137,9 @@ type RateLimited = Error
 
 // RunCreationUnavailable defines model for RunCreationUnavailable.
 type RunCreationUnavailable = Error
+
+// RunSkillLimitExceeded defines model for RunSkillLimitExceeded.
+type RunSkillLimitExceeded = Error
 
 // RuntimeCredentialMutationUnavailable defines model for RuntimeCredentialMutationUnavailable.
 type RuntimeCredentialMutationUnavailable = Error
@@ -35560,11 +35569,11 @@ type StartAuditResponse struct {
 	// JSON413 the response for an HTTP 413 `application/json` response
 	JSON413 *PayloadTooLarge
 	// JSON422 the response for an HTTP 422 `application/json` response
-	JSON422 *UnprocessableEntity
+	JSON422 *AuditStartUnprocessable
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
 	// JSON503 the response for an HTTP 503 `application/json` response
-	JSON503 *CredentialRecoveryRequired
+	JSON503 *AuditStartUnavailable
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *StartAuditResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -35630,7 +35639,7 @@ func (r StartAuditResponse) GetJSON413() *PayloadTooLarge {
 }
 
 // GetJSON422 returns the response for an HTTP 422 `application/json` response
-func (r StartAuditResponse) GetJSON422() *UnprocessableEntity {
+func (r StartAuditResponse) GetJSON422() *AuditStartUnprocessable {
 	return r.JSON422
 }
 
@@ -35640,7 +35649,7 @@ func (r StartAuditResponse) GetJSON500() *InternalError {
 }
 
 // GetJSON503 returns the response for an HTTP 503 `application/json` response
-func (r StartAuditResponse) GetJSON503() *CredentialRecoveryRequired {
+func (r StartAuditResponse) GetJSON503() *AuditStartUnavailable {
 	return r.JSON503
 }
 
@@ -47789,6 +47798,11 @@ type CreateProjectRunResponse413Headers struct {
 	XRequestID RequestId
 }
 
+// CreateProjectRunResponse422Headers the declared response headers of an HTTP 422 response for CreateProjectRun
+type CreateProjectRunResponse422Headers struct {
+	XRequestID RequestId
+}
+
 // CreateProjectRunResponse500Headers the declared response headers of an HTTP 500 response for CreateProjectRun
 type CreateProjectRunResponse500Headers struct {
 	XRequestID RequestId
@@ -47816,6 +47830,8 @@ type CreateProjectRunResponse struct {
 	JSON409 *Conflict
 	// JSON413 the response for an HTTP 413 `application/json` response
 	JSON413 *PayloadTooLarge
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *RunSkillLimitExceeded
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
 	// JSON503 the response for an HTTP 503 `application/json` response
@@ -47834,6 +47850,8 @@ type CreateProjectRunResponse struct {
 	Headers409 *CreateProjectRunResponse409Headers
 	// Headers413 the parsed response headers for an HTTP 413 response
 	Headers413 *CreateProjectRunResponse413Headers
+	// Headers422 the parsed response headers for an HTTP 422 response
+	Headers422 *CreateProjectRunResponse422Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *CreateProjectRunResponse500Headers
 	// Headers503 the parsed response headers for an HTTP 503 response
@@ -47873,6 +47891,11 @@ func (r CreateProjectRunResponse) GetJSON409() *Conflict {
 // GetJSON413 returns the response for an HTTP 413 `application/json` response
 func (r CreateProjectRunResponse) GetJSON413() *PayloadTooLarge {
 	return r.JSON413
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r CreateProjectRunResponse) GetJSON422() *RunSkillLimitExceeded {
+	return r.JSON422
 }
 
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
@@ -48529,6 +48552,11 @@ type CreateRunResponse2413Headers struct {
 	XRequestID RequestId
 }
 
+// CreateRunResponse2422Headers the declared response headers of an HTTP 422 response for CreateRun
+type CreateRunResponse2422Headers struct {
+	XRequestID RequestId
+}
+
 // CreateRunResponse2500Headers the declared response headers of an HTTP 500 response for CreateRun
 type CreateRunResponse2500Headers struct {
 	XRequestID RequestId
@@ -48556,6 +48584,8 @@ type CreateRunResponse2 struct {
 	JSON409 *Conflict
 	// JSON413 the response for an HTTP 413 `application/json` response
 	JSON413 *PayloadTooLarge
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *RunSkillLimitExceeded
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
 	// JSON503 the response for an HTTP 503 `application/json` response
@@ -48574,6 +48604,8 @@ type CreateRunResponse2 struct {
 	Headers409 *CreateRunResponse2409Headers
 	// Headers413 the parsed response headers for an HTTP 413 response
 	Headers413 *CreateRunResponse2413Headers
+	// Headers422 the parsed response headers for an HTTP 422 response
+	Headers422 *CreateRunResponse2422Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *CreateRunResponse2500Headers
 	// Headers503 the parsed response headers for an HTTP 503 response
@@ -48613,6 +48645,11 @@ func (r CreateRunResponse2) GetJSON409() *Conflict {
 // GetJSON413 returns the response for an HTTP 413 `application/json` response
 func (r CreateRunResponse2) GetJSON413() *PayloadTooLarge {
 	return r.JSON413
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r CreateRunResponse2) GetJSON422() *RunSkillLimitExceeded {
+	return r.JSON422
 }
 
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
@@ -60638,7 +60675,7 @@ func ParseStartAuditResponse(rsp *http.Response) (*StartAuditResponse, error) {
 		response.JSON413 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest UnprocessableEntity
+		var dest AuditStartUnprocessable
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -60652,7 +60689,7 @@ func ParseStartAuditResponse(rsp *http.Response) (*StartAuditResponse, error) {
 		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest CredentialRecoveryRequired
+		var dest AuditStartUnavailable
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -75757,6 +75794,13 @@ func ParseCreateProjectRunResponse(rsp *http.Response) (*CreateProjectRunRespons
 		}
 		response.JSON413 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest RunSkillLimitExceeded
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -75865,6 +75909,16 @@ func ParseCreateProjectRunResponse(rsp *http.Response) (*CreateProjectRunRespons
 			headers.XRequestID = value
 		}
 		response.Headers413 = &headers
+	case rsp.StatusCode == 422:
+		var headers CreateProjectRunResponse422Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers422 = &headers
 	case rsp.StatusCode == 500:
 		var headers CreateProjectRunResponse500Headers
 		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
@@ -76644,6 +76698,13 @@ func ParseCreateRunResponse2(rsp *http.Response) (*CreateRunResponse2, error) {
 		}
 		response.JSON413 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest RunSkillLimitExceeded
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -76752,6 +76813,16 @@ func ParseCreateRunResponse2(rsp *http.Response) (*CreateRunResponse2, error) {
 			headers.XRequestID = value
 		}
 		response.Headers413 = &headers
+	case rsp.StatusCode == 422:
+		var headers CreateRunResponse2422Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers422 = &headers
 	case rsp.StatusCode == 500:
 		var headers CreateRunResponse2500Headers
 		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {

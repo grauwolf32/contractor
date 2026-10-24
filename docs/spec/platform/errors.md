@@ -132,9 +132,11 @@ validator code (ERR-R4), or `skill_fork_conflict`.
 **ERR-R7.** A transient exact read or fork does not select current again
 after Run creation committed.
 
-**ERR-R8.** A transient failure of the source-selection transaction itself
-commits no Run or idempotency row and is a retryable `POST /v1/runs` failure
-rather than a partially initialized Run.
+**ERR-R8.** A transient failure reading the owner's Skill packages in the
+source-selection transaction commits no Run or idempotency row and is the
+retryable `503 skill_artifact_unavailable` answer of `POST /v1/runs`, and of
+Audit start, rather than a partially initialized Run
+([SKL-R117](../tools/skills.md)).
 
 **ERR-R9.** Allocation preparation distinguishes at least:
 
@@ -147,7 +149,7 @@ rather than a partially initialized Run.
 ```mermaid
 flowchart TD
     subgraph creation["Run creation"]
-        S["Transient failure of the<br/>Skill source-selection transaction"] --> SF["Retryable POST /v1/runs failure;<br/>no Run or idempotency row committed"]
+        S["Transient failure reading the<br/>owner's Skill packages"] --> SF["Retryable 503 skill_artifact_unavailable;<br/>no Run or idempotency row committed"]
     end
     subgraph init["Run initialization"]
         R["Skill initialization failure"]
@@ -402,6 +404,9 @@ The codes of the public API's HTTP error envelope and WebSocket error frames
 | `runtime_label_in_use` | 409 | no | A Runtime label binding cannot be removed while the label is assigned to a Runtime Agent (the details list the Agents), or the label is the reserved default. | [RCF-R178](../configuration/runtime-config.md), [RCF-R129](../configuration/runtime-config.md) |
 | `runtime_label_unknown` | 400 | no | A Runtime label without a binding was selected or assigned. | [RCF-R178](../configuration/runtime-config.md), [RUN-R85](../execution/runs.md) |
 | `server_standby` | 503 | yes | This Server is a standby: another Server holds the database's single-active lease, so it answers every public API request, the event upgrade included, without authenticating or routing it, until it takes over or the client reaches the active Server; nothing changes. | [PER-R3](persistence.md) |
+| `skill_artifact_not_found` | 422 | no | A Skill that a selected AgentTemplate requires has no owner package. Audit start, which pins the Skill packages of every child Run, refuses it and starts nothing; Run creation instead commits the missing source, and the Run's initialization fails with this code, as it does for a pinned exact Skill revision that the read or the fork no longer finds; no retry brings it back. | [SKL-R117](../tools/skills.md), [ERR-R5](errors.md) |
+| `skill_artifact_unavailable` | 503 | yes | A transient failure read the owner's Skill packages while Run creation or Audit start selected them; nothing is committed, so the same request may succeed. At Run initialization the same code leaves the Run initializing for Scheduler recovery, and in allocation preparation it is a transient exact private read. | [ERR-R8](errors.md), [ERR-R6](errors.md), [ERR-R9](errors.md) |
+| `skill_limit_exceeded` | 422 | no | A selected current Skill package exceeds the stored package bound (LIM-SKL-17), or the stored bytes of the packages that one AgentTemplate or the whole Run selects exceed their limit (LIM-SKL-22, LIM-SKL-24), and Run creation or Audit start creates nothing. The same code reports any per-member, count or aggregate package bound at Run initialization or allocation preparation, terminal and non-retryable for the recorded Run snapshot. | [SKL-R117](../tools/skills.md), [ERR-R4](errors.md) |
 | `storage_transaction_conflict` | 503 | yes | A definite PostgreSQL transaction conflict (serialization failure or deadlock), including one that outlasts the bounded transaction retries of its operation; nothing committed, so the request may be repeated. | [PER-R16](persistence.md) |
 | `subscription_limit` | — (WebSocket error frame) | no | A socket already holds its maximum of subscriptions (LIM-API-11); only the new subscription is refused. | [API-R62](../api/public-api.md), [API-R63](../api/public-api.md) |
 | `unauthorized` | 401; also a WebSocket error frame | no | Authentication is absent or invalid: no valid bearer token or browser session, or a login with invalid credentials. | [SEC-R45](security.md), [API-R33](../api/public-api.md) |
@@ -539,12 +544,9 @@ Assembled from every document.
 | `schema_version_unsupported` | — | not specified | A document has an unknown schema version; the reader never guesses v1 or silently discards required fields. | [EVF-R13](../evals/format.md) |
 | `scorer_error` | — | yes | Core diagnostic for a scorer or validator failure, recorded separately from execution state; scoring may be retried under a new Assessment without rerunning the model. | [EVF-R223](../evals/format.md) |
 | `skill_archive_invalid` | — | no | Malformed, encrypted or unsupported Skill ZIP structure; a terminal Run initialization code and non-retryable for the recorded Run snapshot | [ERR-R4](errors.md) |
-| `skill_artifact_not_found` | — | no | Terminal WorkflowRun initialization code: Skill artifact not found | [ERR-R5](errors.md) |
-| `skill_artifact_unavailable` | — | yes | Transient exact Skill read: at Run initialization the Run stays `initializing` and follows input-fork Scheduler recovery; in allocation preparation a transient exact private read | [ERR-R6](errors.md) |
 | `skill_digest_mismatch` | — | no | Skill digest mismatch in allocation preparation; non-retryable for the recorded Run snapshot | [ERR-R9](errors.md) |
 | `skill_fork_conflict` | — | no | Terminal WorkflowRun initialization code: Skill fork conflict | [ERR-R5](errors.md) |
 | `skill_fork_failed` | — | yes | Transient exact Skill fork at Run initialization; the Run stays `initializing` and follows input-fork Scheduler recovery | [ERR-R6](errors.md) |
-| `skill_limit_exceeded` | — | no | Any per-member, count or aggregate Skill package bound exceeded; a terminal Run initialization code and non-retryable for the recorded Run snapshot | [ERR-R4](errors.md) |
 | `skill_manifest_invalid` | — | no | Skill manifest encoding, frontmatter or body violation; a terminal Run initialization code and non-retryable for the recorded Run snapshot | [ERR-R4](errors.md) |
 | `skill_media_type_invalid` | — | no | Terminal WorkflowRun initialization code: invalid Skill media type | [ERR-R5](errors.md) |
 | `skill_member_forbidden` | — | no | Unknown root, link or special member in a Skill package; a terminal Run initialization code and non-retryable for the recorded Run snapshot | [ERR-R4](errors.md) |

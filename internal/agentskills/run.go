@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -37,6 +38,34 @@ func (e *RunSkillError) Error() string {
 		return e.Code
 	}
 	return fmt.Sprintf("%s: skills/%s", e.Code, e.Name)
+}
+
+// ErrorKind answers a public operation with the code itself where one can
+// return it: Run creation and Audit start select the owner's Skill sources,
+// Audit start refuses a missing one, and both check the stored-byte limits
+// (SKL-R117). Every other code ends Run initialization in the Scheduler
+// (ERR-R5, ERR-R6) and no public operation returns it, so one that did would
+// be a Server defect, which internal_error reports.
+func (e *RunSkillError) ErrorKind() apierror.Kind {
+	switch e.Code {
+	case CodeArtifactNotFound:
+		return apierror.SkillArtifactNotFound
+	case CodeArtifactUnavailable:
+		return apierror.SkillArtifactUnavailable
+	case CodeLimitExceeded:
+		return apierror.SkillLimitExceeded
+	}
+	return apierror.InternalError
+}
+
+// PublicMessage names the logical Skill, which is the caller's own
+// configuration and never package content.
+func (e *RunSkillError) PublicMessage() string {
+	kind := e.ErrorKind()
+	if e.Name == "" || kind == apierror.InternalError {
+		return ""
+	}
+	return kind.Message() + ": skills/" + e.Name
 }
 
 func runSkillError(code, name string, retryable bool) error {
@@ -75,6 +104,11 @@ func (c *Catalog) SelectRunSources(
 		snapshot := RunSkillSnapshot{
 			Name: ref.Name, Source: exactRefPointer(metadata.Ref),
 			SourceDigest: metadata.Digest, SourceSize: metadata.Size,
+		}
+		// A current package above the stored package bound (LIM-SKL-17) can
+		// be neither selected nor ever become valid by a retry (SKL-R117).
+		if snapshot.SourceSize > MaximumArchiveBytes {
+			return nil, runSkillError(CodeLimitExceeded, ref.Name, false)
 		}
 		if err := snapshot.Validate(); err != nil {
 			return nil, runSkillError(CodeArtifactUnavailable, ref.Name, true)
