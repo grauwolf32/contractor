@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
+import math
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from google.adk.events import Event
 from google.genai import types
 
+import contractor_runtime.worker.summarizer as summarizer_module
 from contractor_runtime.contracts import (
     API_VERSION,
     ArtifactRef,
@@ -235,3 +238,40 @@ def test_summary_sends_large_projection_without_local_context_trimming() -> None
         assert model.requests[0]["contentText"] == prompt
 
     asyncio.run(scenario())
+
+
+LONE_SURROGATE = "\ud800"
+
+
+def test_summary_json_measure_rejects_values_the_document_cannot_encode() -> None:
+    # Deliberately unlike the tolerant telemetry measure (telemetry/metrics.py).
+    payload = {"b": "é", "a": [1, None, True]}
+    compact = len(
+        json.dumps(
+            payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
+        ).encode("utf-8")
+    )
+    preamble = len(summarizer_module._DOCUMENT_PREAMBLE.encode("utf-8"))
+    assert summarizer_module._json_size(payload) == compact
+    assert summarizer_module._document_size(payload) == preamble + compact
+    for measure in (summarizer_module._json_size, summarizer_module._document_size):
+        with pytest.raises(ValueError):
+            measure({"value": math.nan})
+        with pytest.raises(TypeError):
+            measure({"value": object()})
+        with pytest.raises(TypeError):
+            measure({1: "integer key", "a": "text key"})
+        with pytest.raises(UnicodeEncodeError):
+            measure({"value": LONE_SURROGATE})
+
+
+def test_summary_text_bound_keeps_whole_characters_and_appends_its_marker() -> None:
+    limit = summarizer_module._MAX_PROJECTED_TEXT_BYTES
+    bound = summarizer_module._bound_text
+    assert bound("short", ()) == ("short", False)
+    assert bound(f"a {SECRET} b", (SECRET,)) == ("a [REDACTED] b", True)
+    assert bound("a" * limit, ()) == ("a" * limit, False)
+    # A character crossing the limit is dropped whole; the marker follows it.
+    assert bound("a" * (limit - 1) + "é", ()) == ("a" * (limit - 1) + "[TRUNCATED]", True)
+    with pytest.raises(UnicodeEncodeError):
+        bound(LONE_SURROGATE, ())

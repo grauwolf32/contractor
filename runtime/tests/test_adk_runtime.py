@@ -75,11 +75,15 @@ from contractor_runtime.llm.openai import (
 )
 from contractor_runtime.toolsets.memory.tools import MemoryToolsetFactory
 from contractor_runtime.toolsets.run_artifacts.tools import RunArtifactsToolsetFactory
+from contractor_runtime.worker.budget import WorkerBudgetExceeded
 from contractor_runtime.worker.factory import AdkWorkerRuntimeFactory
 from contractor_runtime.worker.finalizer import _SYSTEM_INSTRUCTION as FINALIZER_INSTRUCTION
+from contractor_runtime.worker.finalizer import ResultFinalizerFailure
+from contractor_runtime.worker.instrumentation import WorkerSummarizationRequested
 from contractor_runtime.worker.runtime import (
     INVOCATION_CLEANUP_TIMEOUT_SECONDS,
     AdkWorkerRuntime,
+    _chained_error,
     _summarizer_secrets,
 )
 from contractor_runtime.worker.sessions import WorkerSessionLifecycleError
@@ -640,6 +644,119 @@ def test_a2a_task_span_counts_are_per_invocation_and_absent_on_rejection(
         await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
     asyncio.run(scenario())
+
+
+class FailingTelemetrySink:
+    """A telemetry sink whose span start, or else span end, always raises."""
+
+    def __init__(self, *, fail_start: bool) -> None:
+        self.fail_start = fail_start
+        self.started: list[str] = []
+        self.end_attempts = 0
+
+    def start_span(
+        self,
+        name: str,
+        *,
+        attributes: dict[str, TelemetryAttribute] | None = None,
+    ) -> RuntimeSpan:
+        self.started.append(name)
+        if self.fail_start:
+            raise RuntimeError(f"telemetry sink failed {SECRET}")
+        return EndFailingSpan(self)
+
+
+class EndFailingSpan:
+    def __init__(self, sink: FailingTelemetrySink) -> None:
+        self._sink = sink
+
+    def end(
+        self,
+        *,
+        outcome: str,
+        attributes: dict[str, TelemetryAttribute] | None = None,
+    ) -> None:
+        self._sink.end_attempts += 1
+        raise RuntimeError(f"telemetry sink failed {SECRET}")
+
+
+@pytest.mark.parametrize("fail_start", [True, False], ids=["start-fails", "end-fails"])
+def test_failing_telemetry_sink_cannot_change_the_worker_outcome(
+    tmp_path: Path, fail_start: bool
+) -> None:
+    async def scenario() -> None:
+        client = FakeArtifactClient()
+        state = WorkerState()
+        tools = await selected_tools(tmp_path, client, state)
+        model = scripted_model(
+            [
+                tool_call(
+                    "read_artifact",
+                    {"namespace": "inputs", "name": "source", "revision": "input-r1"},
+                    call_id="read-with-failing-sink",
+                ),
+                terminal_text("Result despite telemetry"),
+            ]
+        )
+        sink = FailingTelemetrySink(fail_start=fail_start)
+        runtime = await create_runtime(tmp_path, state, tools, model, instrumentation=sink)
+
+        result = await runtime.invoke(stage_request())
+
+        assert result.failure is None
+        assert result.result is not None
+        assert sink.started == [
+            "contractor.worker.a2a_task",
+            "contractor.worker.model",
+            "contractor.worker.tool",
+            "contractor.worker.model",
+            "contractor.worker.model",
+        ]
+        assert sink.end_attempts == (0 if fail_start else len(sink.started))
+        assert state.metrics.counters["llm_calls"] == 3
+        assert state.metrics.counters["tool_calls"] == 1
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "signal",
+    [
+        WorkerBudgetExceeded("model_calls", 1, 2),
+        WorkerSummarizationRequested(),
+        ResultFinalizerFailure("output_limit_exceeded"),
+        GatewayModelError("APIConnectionError", retryable=True),
+    ],
+    ids=lambda signal: type(signal).__name__,
+)
+def test_runtime_signals_are_found_through_callback_wrappers(signal: Exception) -> None:
+    kind = type(signal)
+
+    def wrapper(
+        *, cause: BaseException | None = None, context: BaseException | None = None
+    ) -> RuntimeError:
+        error = RuntimeError("ADK callback wrapper")
+        error.__cause__ = cause
+        error.__context__ = context
+        return error
+
+    assert _chained_error(signal, kind) is signal
+    assert _chained_error(wrapper(cause=signal), kind) is signal
+    assert _chained_error(wrapper(context=signal), kind) is signal
+    # A cause, then a context, further down the chain.
+    assert _chained_error(wrapper(cause=wrapper(context=signal)), kind) is signal
+    # ``raise ... from None`` hides the context from tracebacks, not from the walk.
+    suppressed = wrapper(context=signal)
+    suppressed.__suppress_context__ = True
+    assert _chained_error(suppressed, kind) is signal
+    # The walk is linear: an explicit cause is followed instead of the context.
+    assert _chained_error(wrapper(cause=ValueError("other"), context=signal), kind) is None
+    assert _chained_error(wrapper(context=ValueError("other")), kind) is None
+    first = wrapper()
+    second = wrapper(context=first)
+    first.__context__ = second
+    assert _chained_error(first, kind) is None
 
 
 def test_sensitive_output_registry_and_declared_attribute_select_content_free_telemetry(

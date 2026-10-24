@@ -11,9 +11,10 @@ from typing import Any, Protocol
 
 from google.adk.plugins import BasePlugin
 
-from contractor_runtime.adapters import RuntimeInstrumentation, RuntimeSpan, TelemetryAttribute
+from contractor_runtime.adapters import RuntimeInstrumentation, RuntimeSpan
 from contractor_runtime.adapters.content import capture_span_content, model_request_content
 from contractor_runtime.adapters.genai import usage_attributes
+from contractor_runtime.adapters.instrumentation import end_isolated_span, start_isolated_span
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.llm.response import output_limit_reached
 from contractor_runtime.observations import WorkspaceToolObservation
@@ -202,7 +203,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
             self._metrics.record_model_call()
             reducer.record_model_call()
             self._pending_models.append(
-                _start_span(
+                start_isolated_span(
                     self._instrumentation,
                     "contractor.worker.model",
                     {
@@ -229,7 +230,9 @@ class WorkerInstrumentationPlugin(BasePlugin):
             limited = output_limit_reached(llm_response)
             if limited:
                 attributes["error.type"] = "OutputTokenLimitExceeded"
-            _end_span(span, outcome="failed" if limited else "succeeded", attributes=attributes)
+            end_isolated_span(
+                span, outcome="failed" if limited else "succeeded", attributes=attributes
+            )
             try:
                 budget = self._budget()
                 if budget is not None:
@@ -251,11 +254,11 @@ class WorkerInstrumentationPlugin(BasePlugin):
             span = self._pending_models.pop(0)
             try:
                 received, usage = _rejected_response_usage(error)
-                _end_span(
+                end_isolated_span(
                     span,
                     outcome="failed",
                     attributes={
-                        "error.type": _safe_error_type(error),
+                        "error.type": span_error_type(error),
                         **usage_attributes(usage),
                     },
                 )
@@ -280,7 +283,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
                 budget.before_model_call()
             self._metrics.record_model_call()
             self._require_reducer().record_model_call()
-            self._pending_auxiliary_models[phase] = _start_span(
+            self._pending_auxiliary_models[phase] = start_isolated_span(
                 self._instrumentation,
                 "contractor.worker.model",
                 {
@@ -299,7 +302,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
             span = self._pending_auxiliary_models.pop(phase)
             self._metrics.record_model_usage(usage)
             self._require_reducer().record_model_usage(usage)
-            _end_span(
+            end_isolated_span(
                 span,
                 outcome="succeeded",
                 attributes={"model.phase": phase, **usage_attributes(usage)},
@@ -332,17 +335,17 @@ class WorkerInstrumentationPlugin(BasePlugin):
             span = self._pending_auxiliary_models.pop(phase)
             try:
                 if isinstance(error, asyncio.CancelledError):
-                    _end_span(span, outcome="cancelled", attributes={"model.phase": phase})
+                    end_isolated_span(span, outcome="cancelled", attributes={"model.phase": phase})
                 else:
                     safe_error = (
                         error if isinstance(error, Exception) else RuntimeError("model failed")
                     )
                     received, usage = _rejected_response_usage(safe_error)
-                    _end_span(
+                    end_isolated_span(
                         span,
                         outcome="failed",
                         attributes={
-                            "error.type": _safe_error_type(safe_error),
+                            "error.type": span_error_type(safe_error),
                             "model.phase": phase,
                             **usage_attributes(usage),
                         },
@@ -380,7 +383,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
                 invocation_id=invocation_id,
                 name=str(tool.name),
                 started_ns=time.perf_counter_ns(),
-                span=_start_span(
+                span=start_isolated_span(
                     self._instrumentation,
                     "contractor.worker.tool",
                     {"operation.kind": "tool", "tool.name": str(tool.name)},
@@ -463,7 +466,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
                     # must not become a State key or telemetry attribute.
                     name="unknown_tool",
                     started_ns=time.perf_counter_ns(),
-                    span=_start_span(
+                    span=start_isolated_span(
                         self._instrumentation,
                         "contractor.worker.tool",
                         {"operation.kind": "tool", "tool.name": "unknown_tool"},
@@ -517,10 +520,10 @@ class WorkerInstrumentationPlugin(BasePlugin):
             if not self._is_active(invocation_id):
                 raise RuntimeError("Worker instrumentation completion is stale")
             while self._pending_models:
-                _end_span(self._pending_models.pop(0), outcome="cancelled")
+                end_isolated_span(self._pending_models.pop(0), outcome="cancelled")
             for phase, span in tuple(self._pending_auxiliary_models.items()):
                 self._pending_auxiliary_models.pop(phase, None)
-                _end_span(span, outcome="cancelled", attributes={"model.phase": phase})
+                end_isolated_span(span, outcome="cancelled", attributes={"model.phase": phase})
             for key, pending in tuple(self._pending_tools.items()):
                 self._pending_tools.pop(key, None)
                 await self._finish_tool_locked(
@@ -558,10 +561,10 @@ class WorkerInstrumentationPlugin(BasePlugin):
             self._prepared = None
             self._continuation = None
             while self._pending_models:
-                _end_span(self._pending_models.pop(0), outcome="cancelled")
+                end_isolated_span(self._pending_models.pop(0), outcome="cancelled")
             for phase, span in tuple(self._pending_auxiliary_models.items()):
                 self._pending_auxiliary_models.pop(phase, None)
-                _end_span(span, outcome="cancelled", attributes={"model.phase": phase})
+                end_isolated_span(span, outcome="cancelled", attributes={"model.phase": phase})
             for pending in self._pending_tools.values():
                 # A tool still running when the Worker closes was cancelled; the
                 # allocation report records it like any other tool call.
@@ -570,7 +573,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
                     failed=True,
                     error=_RecordedToolFailure("tool_call_cancelled", retryable=True),
                 )
-                _end_span(pending.span, outcome="cancelled")
+                end_isolated_span(pending.span, outcome="cancelled")
                 self._metrics.release_tool_correlation(pending.correlation_id)
                 with contextlib.suppress(RuntimeError, ValueError):
                     reset_tool_metric_correlation(pending.metric_token)
@@ -615,11 +618,11 @@ class WorkerInstrumentationPlugin(BasePlugin):
                 except Exception:
                     workspace.mark_incomplete()
                     self._projection_failed = True
-        _end_span(
+        end_isolated_span(
             pending.span,
             outcome="failed" if failed else "succeeded",
             attributes=(
-                {"error.type": _safe_error_type(error)} if failed and error is not None else None
+                {"error.type": span_error_type(error)} if failed and error is not None else None
             ),
         )
         self._metrics.release_tool_correlation(pending.correlation_id)
@@ -738,38 +741,13 @@ def _result_is_failure(result: Any) -> bool:
     )
 
 
-def _safe_error_type(error: Exception) -> str:
+def span_error_type(error: Exception) -> str:
+    """The ``error.type`` span attribute: a safe provider type or the class name."""
+
     error_type = getattr(error, "provider_error_type", type(error).__name__)
     if not isinstance(error_type, str) or SAFE_ERROR_CODE.fullmatch(error_type) is None:
         return type(error).__name__
     return error_type
-
-
-def _start_span(
-    instrumentation: RuntimeInstrumentation | None,
-    name: str,
-    attributes: Mapping[str, TelemetryAttribute] | None = None,
-) -> RuntimeSpan | None:
-    if instrumentation is None:
-        return None
-    try:
-        return instrumentation.start_span(name, attributes=attributes)
-    except Exception:
-        return None
-
-
-def _end_span(
-    span: RuntimeSpan | None,
-    *,
-    outcome: str,
-    attributes: Mapping[str, TelemetryAttribute] | None = None,
-) -> None:
-    if span is None:
-        return
-    try:
-        span.end(outcome=outcome, attributes=attributes)
-    except Exception:
-        return
 
 
 def _rejected_response_usage(error: BaseException) -> tuple[bool, Any | None]:

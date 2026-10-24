@@ -2,14 +2,18 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import threading
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 from fakes.model import scripted_model
 from fakes.spec import allocation_spec
+from filesystem_audit import FilesystemAudit
 from test_agent_skill_toolset import FakeSkillClient, resolved_value, skill_package
 
+import contractor_runtime.agent_skills.runtime as skill_runtime
+from contractor_runtime.agent_skills import probe_native_agent_skills
 from contractor_runtime.allocation import AllocationError, AllocationService
 from contractor_runtime.capabilities import CapabilitySnapshot
 from contractor_runtime.contracts import (
@@ -171,6 +175,97 @@ async def skilled_service(
         force_exit=(exit_codes.append if exit_codes is not None else lambda _: None),
     )
     return service, state, allocation_spec(skills=[selected])
+
+
+PROBE_DIRECTORY_PREFIX = "contractor-skill-probe-"
+
+
+class ProbeFilesystemTrace:
+    """Record where the startup probe touches the filesystem."""
+
+    def __init__(self, monkeypatch: pytest.MonkeyPatch, *, block: bool = False) -> None:
+        self.started = threading.Event()
+        self.release = threading.Event()
+        self.events: list[tuple[str, int, bool]] = []
+        self.probe_root: Path | None = None
+        load = skill_runtime.load_skill_from_dir
+        cleanup = skill_runtime._ProbeSkillDirectory.cleanup
+
+        def traced_load(directory: Path) -> object:
+            skill = load(directory)
+            self.probe_root = directory.parent
+            self.events.append(("loaded", threading.get_ident(), self.probe_root.is_dir()))
+            self.started.set()
+            if block and not self.release.wait(10):
+                raise RuntimeError("the test never released the probe")
+            return skill
+
+        def traced_cleanup(owner: skill_runtime._ProbeSkillDirectory) -> None:
+            exists = self.probe_root is not None and self.probe_root.is_dir()
+            self.events.append(("cleanup", threading.get_ident(), exists))
+            cleanup(owner)
+
+        monkeypatch.setattr(skill_runtime, "load_skill_from_dir", traced_load)
+        monkeypatch.setattr(skill_runtime._ProbeSkillDirectory, "cleanup", traced_cleanup)
+
+
+def test_native_skill_probe_writes_and_removes_its_skill_off_the_event_loop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    trace = ProbeFilesystemTrace(monkeypatch)
+
+    async def scenario() -> None:
+        loop_thread = threading.get_ident()
+        with FilesystemAudit(PROBE_DIRECTORY_PREFIX) as audit:
+            assert await probe_native_agent_skills() is True
+        assert [event[0] for event in trace.events] == ["loaded", "cleanup"]
+        assert all(thread != loop_thread for _, thread, _ in trace.events)
+        assert all(exists for _, _, exists in trace.events)
+        root = trace.probe_root
+        assert root is not None and not root.exists()
+        skill = root / "probe-skill"
+        assert {
+            ("tempfile.mkdtemp", str(root)),
+            ("os.mkdir", str(skill)),
+            ("open", str(skill / "SKILL.md")),
+            ("open", str(skill / "scripts" / "check.cjs")),
+            ("shutil.rmtree", str(root)),
+        } <= set(audit.events())
+        assert audit.on_thread(loop_thread) == []
+
+    asyncio.run(scenario())
+
+
+def test_cancelled_native_skill_probe_joins_its_thread_before_cleanup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    trace = ProbeFilesystemTrace(monkeypatch, block=True)
+
+    async def scenario() -> None:
+        loop_thread = threading.get_ident()
+        with FilesystemAudit(PROBE_DIRECTORY_PREFIX) as audit:
+            await probe_and_cancel(loop_thread)
+        assert audit.events() and audit.on_thread(loop_thread) == []
+
+    async def probe_and_cancel(loop_thread: int) -> None:
+        task = asyncio.create_task(probe_native_agent_skills())
+        assert await asyncio.to_thread(trace.started.wait, 10)
+        task.cancel()
+        for _ in range(5):
+            await asyncio.sleep(0)
+        # The written Skill stays until the joined thread has returned.
+        assert not task.done()
+        assert [event[0] for event in trace.events] == ["loaded"]
+        assert trace.probe_root is not None and trace.probe_root.is_dir()
+        trace.release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert [event[0] for event in trace.events] == ["loaded", "cleanup"]
+        assert all(thread != loop_thread for _, thread, _ in trace.events)
+        assert trace.events[1][2] is True
+        assert not trace.probe_root.exists()
+
+    asyncio.run(scenario())
 
 
 def capabilities_for(factories: object) -> CapabilitySnapshot:

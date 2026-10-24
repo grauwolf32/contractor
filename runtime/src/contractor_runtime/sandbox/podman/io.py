@@ -15,6 +15,7 @@ from types import MappingProxyType
 from typing import Protocol, TypeVar
 
 from contractor_runtime.sandbox.contracts import SandboxContractError, SandboxErrorCode
+from contractor_runtime.threads import consume_task_exception
 
 T = TypeVar("T")
 MAX_CLI_BYTES = 1 << 20
@@ -60,8 +61,7 @@ class OwnedOperations:
             raise SandboxContractError(SandboxErrorCode.TIMEOUT) from None
 
     def _completed(self, task: asyncio.Task[object]) -> None:
-        if not task.cancelled():
-            task.exception()
+        consume_task_exception(task)
         if self._task is task:
             self._task = None
 
