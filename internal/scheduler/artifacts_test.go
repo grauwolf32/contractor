@@ -78,22 +78,34 @@ func TestOutputForksBindAndPublishOnlyExactOutputs(t *testing.T) {
 
 // The memory double of the result commit binds each Workflow output once, as
 // the store does (ART-R90): the binding of the candidate's own source is
-// replayed, and one of another revision refuses the acceptance as invalid
+// replayed, while one of another revision, or a candidate source revision
+// that is gone when the acceptance commits, refuses the acceptance as invalid
 // output state, which ends the Run without replacing the binding.
 func TestMemoryResultCommitBindsEachOutputOnce(t *testing.T) {
 	for _, test := range []struct {
-		name     string
-		existing string
-		state    runstore.WorkflowRunState
-		reason   string
+		name          string
+		existing      string
+		sourceRemoved bool
+		state         runstore.WorkflowRunState
+		reason        string
 	}{
-		{"candidate source", "output-result-r1", runstore.RunSucceeded, "workflow_succeeded"},
-		{"another revision", "output-earlier", runstore.RunFailed, "scheduler_state_invalid"},
+		{"candidate source", "output-result-r1", false, runstore.RunSucceeded, "workflow_succeeded"},
+		{"another revision", "output-earlier", false, runstore.RunFailed, "scheduler_state_invalid"},
+		{"source gone", "", true, runstore.RunFailed, "scheduler_state_invalid"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			h := newSchedulerHarness(t)
-			existing := exactRef("outputs", "result", test.existing)
-			h.persistence.outputs["result"] = existing
+			var existing contracts.ArtifactRef
+			if test.existing != "" {
+				existing = exactRef("outputs", "result", test.existing)
+				h.persistence.outputs["result"] = existing
+			}
+			if test.sourceRemoved {
+				h.scheduler.persistence = &removeSourceBeforeResultCommit{
+					memoryAtomicPersistence: h.persistence, artifacts: h.artifacts,
+					key: "run-1/builder/copied/result-r1",
+				}
+			}
 			if worked, err := h.scheduler.RunOnce(t.Context()); err != nil || !worked {
 				t.Fatalf("RunOnce = (%v, %v)", worked, err)
 			}
@@ -104,9 +116,27 @@ func TestMemoryResultCommitBindsEachOutputOnce(t *testing.T) {
 				h.store.stages[0].AcceptedResult == nil {
 				t.Fatalf("StageExecutions = %+v, want the candidate accepted", h.store.stages)
 			}
-			if !reflect.DeepEqual(h.persistence.outputs, map[string]contracts.ArtifactRef{"result": existing}) {
-				t.Fatalf("outputs = %+v, want only %+v", h.persistence.outputs, existing)
+			want := map[string]contracts.ArtifactRef{}
+			if test.existing != "" {
+				want["result"] = existing
+			}
+			if !reflect.DeepEqual(h.persistence.outputs, want) {
+				t.Fatalf("outputs = %+v, want %+v", h.persistence.outputs, want)
 			}
 		})
 	}
+}
+
+// removeSourceBeforeResultCommit removes one artifact revision from the
+// memory store after the candidate was validated, just before its acceptance
+// commits.
+type removeSourceBeforeResultCommit struct {
+	*memoryAtomicPersistence
+	artifacts *memoryArtifactResolver
+	key       string
+}
+
+func (p *removeSourceBeforeResultCommit) CommitResultProgression(ctx context.Context, value ResultProgression) error {
+	delete(p.artifacts.values, p.key)
+	return p.memoryAtomicPersistence.CommitResultProgression(ctx, value)
 }

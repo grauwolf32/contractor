@@ -267,9 +267,10 @@ func (s *Scheduler) resumeFinalizing(
 	cancelCommit()
 	if errors.Is(err, errInvalidRunState) {
 		// No replay can progress this candidate, such as an escalation
-		// history that the budget cannot count or a mapping onto an output
-		// the Run already bound at another revision (ART-R90): end the Run
-		// as durable state the Scheduler cannot progress (SCH-R102).
+		// history that the budget cannot count, a mapping onto an output
+		// the Run already bound at another revision, or an output source
+		// revision that no longer exists (ART-R90): end the Run as durable
+		// state the Scheduler cannot progress (SCH-R102).
 		return s.failInvalidRunState(ctx, run.RunID, err)
 	}
 	if errors.Is(err, errTransientOutputPublication) {
