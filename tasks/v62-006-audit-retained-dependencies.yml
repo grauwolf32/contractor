@@ -1,92 +1,258 @@
-schema_version: "1.0"
+schema_version: '1.0'
 id: V62-006
 title: Retain exact item dependencies across Audit rounds
-milestone: audit-workflow-composition
+milestone: audit-iterative-composition-2026-10
 epic: audits
 kind: feature
 priority: P2
 status: deferred
 deferral:
-  date: "2026-09-20"
+  date: '2026-09-20'
   previous_status: pending
   reason: Cross-round item dependencies belong to the later iterative Audit slice.
   reactivate_when: Explicit user approval of an actual later-round consumer and its exact dependency contract.
 implementation_commit: null
-depends_on: [V62-004]
-languages: [go, json, sql]
-goal: Let a later check consume precise earlier artifacts and accepted results through an immutable dependency manifest.
+depends_on:
+- V62-004
+- V410-010
+languages:
+- go
+- json
+- sql
+goal: Let accepted later-round work consume precise earlier Audit materials, results and their declared
+  dependency closure through exact retained manifests, independently of how the trusted plan was admitted.
 context:
-  authority: User-requested V62 Audit Workflow composition task series.
+  authority: The user requested planning-only decomposition of proposal 0045 and revision of unfinished
+    dependencies on 2026-10-24. The original V62 deferral remains in force; this edit authorizes no implementation.
+  proposal:
+  - docs/proposals/0045-audit-hypothesis-search.md
+  - docs/proposals/0033-autonomous-pentest-audits.md
   design: docs/plans/2026-09-20-audit-workflow-composition.md
   specification:
-    - docs/spec/audits/audits.md
-    - docs/spec/artifacts/artifact-store.md
-    - docs/proposals/0033-autonomous-pentest-audits.md
-  boundary: Define the generic retained-dependency contract on reactivation; V62-001 covers preparation only. Pentest-specific recipe, proof and authorization checks remain outside this task.
-  revalidated: >-
-    2026-10-24 on b523ae77: still deferred, not superseded. Every V62 foundation is complete:
-    V62-001 (22fcba08), V62-002 (c13dfbb9), V62-003 and V62-004 (11471640), V62-009 (4bd4fd6d),
-    V62-010 (233b94a5), V62-011 (a597d779) and V62-012 (8c2441f0). The Audit specification was split
-    on 2026-10-11: mapping sources and preparation are docs/spec/audits/scans.md ASC-R13 to ASC-R19
-    (the ASC-R17 table keeps retained-output same-Round only and lets prepare-output feed every
-    Round), role bindings are docs/spec/audits/audits.md AUD-R31 to AUD-R43 (AUD-R41 forbids
-    dependencies on per-item check outputs), and execution, review and completion moved to
-    execution.md (AUX), review-and-reports.md (REV) and worker-completion.md (AWC); the scans.md and
-    audits.md non-goals still list round-results, retained dependencies, proposed-check routing and
-    standalone project-analysis as not provided. Schema changes since deferral:
-    audit_collection_receipts folded into audit_executions (V365-017, b97fa2b6), audit_coverage_rows
-    and audit_proposal_items into audit_items (V365-018, b2deb200), and audit_report_candidates into
-    the report-acceptance review request (V365-019, b74c3f5c); keyed receipts use mutation_receipts
-    and controller leases use audit_controller_claims through ControllerClaims (V370-007, PER-R24,
-    PER-R25); migrations restart at 000001_baseline.sql (V367-001) and the next free number is
-    000040. internal/auditstore is now split into claimstore, hookstore, ownerstore, querystore,
-    reviewstore and internal/pgstore. A planned consumer now exists: V411-012 (pending) depends on
-    V62-005, V62-006 and V62-007 as blocking prerequisites and must reuse their contracts, so
-    V411-015 to V411-018, V411-020, V411-021 and V412-003 to V412-005 (directly or through
-    V411-020), and the autonomous-http-pentest-2026-10 milestone, cannot finish until the user
-    reactivates and completes them. Proposal 0033 sections 7.4 and 8 now propose the shared shapes
-    to settle on reactivation: profile proposedChecks entries {planSchema, phase, workflowRole,
-    requiredCapabilities} with phase verify or replay, the retained-dependency input source resolved
-    from an accepted item's manifest, and findingConfirmation: optional. V410-006 explicitly leaves
-    V62-006/007 routing out of the sitemap slice. This note reactivates nothing. Task-specific:
-    retained-dependency would add a sixth mapping source to the ASC-R17 table and change ASC-R18;
-    its holds must reuse Artifact bindings and the Audit purge path rather than a new hold table.
-    V410-006 and proposal 0042 take a fresh sitemap snapshot per Round instead of a cross-round
-    lookup, so they do not cover this task.
+  - docs/spec/audits/audits.md
+  - docs/spec/audits/scans.md
+  - docs/spec/audits/execution.md
+  - docs/spec/audits/review-and-reports.md
+  - docs/spec/artifacts/artifact-store.md
+  - docs/spec/artifacts/retention-and-deletion.md
+  - docs/spec/platform/persistence.md
+  - docs/spec/platform/limits.md
+  - docs/spec/platform/errors.md
+  - docs/spec/platform/failure-model.md
+  - docs/spec/platform/lifecycle.md
+  replan_history: Deferred on 2026-09-20 outside the delivered OpenAPI/preparation slice; the original
+    deferral record is preserved. The 2026-10-24 review at b523ae77 confirmed that this iterative capability
+    was still absent. Proposal 0045 now adds a planned consumer without reactivating this task. Completed
+    V62 preparation/API/UI/release tasks and their original milestone remain unchanged.
+  ownership: Generic iterative Audit composition owns these contracts. V64-001 defines research contracts,
+    V64-003 owns opt-in research lifecycle, V64-004 consumes exact context, V64-006 owns the base research-to-ordinary-AuditItem
+    adapter, and V64-018 adds only its pentest specialization. These are consumers, not dependencies of
+    generic V62.
+  boundary: The generic source descriptor carries typed accepted origin and exact retained content. Finding
+    receipt/ordinal is required only for a finding-intake origin; a domain adapter must prove every other
+    origin. V411-012 and future research context/admission reuse this transport without a V64 dependency.
 scope:
   in:
-    - Persist bounded named dependencies binding Audit/baseline, source execution/round/item/attempt, retained ref/digest and intake receipt/ordinal where applicable.
-    - Validate source ownership, accepted collection, semantic dependency type, exact content and retention before admitting a dependent item.
-    - Resolve retained-dependency inputs only from the accepted item's manifest and create exact RunScope forks while preserving original-to-child ref mappings.
-    - Reuse Audit-level prepare outputs in later rounds without rerunning preparation or searching mutable Project bindings.
-    - Support exact selection of one accepted check result without relaxing generic retained-output or choosing an arbitrary batch/attempt.
-    - Preserve holds through source Run deletion and check cancellation, purge them through Audit deletion and report missing/corrupt dependencies explicitly.
+  - Define strict named retained-dependency manifests for exact Audit baseline, prepare output, accepted
+    item result and explicitly accepted plan/input sources.
+  - Wire manifest validation/retention into the existing accepted item/task-package builder and retained-dependency
+    resolution into actual Run preparation/dispatch, preserving original source mappings.
+  - Resolve all required explicitly declared dependency closure before the consumer becomes schedulable,
+    with bounded work and exact configuration/Skill content digests where those are selected inputs.
+  - Register new holders with V410-010 and existing Audit purge; exercise source deletion, eviction races,
+    restart, cancellation and ambiguous fork outcomes.
   out:
-    - Cross-owner or cross-Audit lookup, latest-version fallback, implicit previous-round role search or new proposal routing.
+  - Cross-owner/cross-Audit lookup, live Project search, latest fallback, arbitrary recursive traversal
+    of references embedded in JSON, or a new hold/receipt service.
+  - Hypothesis semantics, source-mode policy invention, new model authority, role routing (V62-007), pentest
+    recipes/proof (V411-012) or changes to generic same-Round retained-output.
 deliverables:
-  - path: internal/auditdomain
-    description: Versioned item dependency manifest and canonical validation fixtures.
-  - path: internal/auditservice
-    description: Admission/retention of exact dependencies and task package references.
-  - path: internal/auditcontroller
-    description: Authorized dependency resolution and RunScope fork construction.
-  - path: internal/auditstore
-    description: Dependency holds, provenance relations and deletion lifecycle tests.
+- path: internal/auditdomain
+  description: Exact source-origin/dependency manifest validation and canonical fixtures.
+- path: internal/auditservice
+  description: Production accepted-item manifest retention and source ownership validation.
+- path: internal/auditcontroller
+  description: Actual declared retained-dependency resolution and consumer forks.
+- path: internal/auditstore
+  description: Indexed source associations, holder acquisition/release and purge integration.
+- path: internal/config
+  description: Strict retained-dependency mapping compatibility and current-profile regressions.
+- path: docs/spec/audits/scans.md
+  description: New mapping contract with exact closure, failure, limit and lifecycle definitions.
 acceptance_criteria:
-  - id: A1
-    text: A second-round check consumes the exact prepare and first-round accepted result revisions even after source Runs or current catalog entries are removed.
-  - id: A2
-    text: Foreign, unaccepted, ambiguous, missing, corrupt or media-incompatible dependencies are rejected or block the item with explicit reasons and no fallback lookup.
-  - id: A3
-    text: Batches and retries preserve item/attempt/result attribution and correct original-to-Run ref mappings; Workers receive only declared inputs.
-  - id: A4
-    text: Restart, cancellation and Audit deletion preserve then release required holds under existing fences; current same-round retained-output behavior is unchanged.
+- id: A1
+  given: A later-round item from the existing receipt adapter with exact prepare and accepted first-round
+    result inputs
+  when: The production item builder and Run preparation reader materialize retained-dependency inputs
+  then: The consumer receives precisely those bytes and mappings after producer Run deletion/current binding
+    changes; no arbitrary prior-role lookup or preparation rerun occurs.
+- id: A2
+  given: Registered trusted origin variants, a finding source without its required receipt/ordinal, and
+    self-declared/foreign origins
+  when: Manifest validation runs
+  then: The finding source requires its identity while other valid registered origins are not forced to
+    invent receipts; unsupported or foreign variants are rejected without dispatch.
+- id: A3
+  given: Batches/retries, embedded JSON refs, denied or mixed-provenance context and incomplete required
+    closure
+  when: Inputs are admitted and materialized
+  then: Only explicitly enumerated authorized exact dependencies are supplied; omitted closure, incompatible
+    media and unsupported projection block affected work with precise reasons and no latest fallback.
+- id: A4
+  given: Concurrent history eviction, source deletion, lost retention/fork replies and cancellation
+  when: Real PostgreSQL admission/materialization and cleanup race
+  then: Exactly one valid ordering retains sources or reports unavailable; replay causes no duplicate
+    hold/evidence charge/Run and work joins before release.
+- id: A5
+  given: Maximum manifests and a large unrelated holder population
+  when: Admission, dispatch and populated Audit purge execute with deterministic work counters
+  then: All row/byte/statement/purge bounds hold; complete accepted closure survives until proper release
+    and no orphan reader/hold remains.
+- id: A6
+  given: Ordinary direct Runs and existing Audit mappings without retained-dependency
+  when: Existing preparation, same-Round consumption, retry and cancel scenarios run
+  then: Their mapping semantics and lifecycle outcomes remain unchanged and they require no research entity
+    or new source adapter.
 tests:
-  - command: go test -tags=integration -count=1 ./internal/auditdomain ./internal/auditservice ./internal/auditstore/... ./internal/auditcontroller ./internal/runservice ./internal/auditimport
-    covers: [A1, A2, A3, A4]
-  - command: go test ./internal/config ./internal/artifacts
-    covers: [A2, A4]
+- command: go test -tags=integration -count=1 ./internal/auditdomain ./internal/auditservice ./internal/auditstore/...
+    ./internal/auditcontroller ./internal/runservice ./internal/auditimport ./internal/artifacts
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+  - A6
+- command: go test ./internal/config/...
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+  - A6
+- command: make test-audit-composition-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+  - A6
+- command: make test-wire-cross-language
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+  - A6
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+  - A6
 test_prerequisites:
-  - Disposable PostgreSQL for mandatory retention, source-deletion, restart and cross-owner isolation scenarios.
+- Disposable PostgreSQL is mandatory for store cases. Set CONTRACTOR_TEST_DATABASE_URL; absent or unreachable
+  required infrastructure, skipped mandatory cases and zero matched tests fail the dedicated gate.
+- Tests use isolated testdata, not the live configs tree. Process cases use actual Server/Runtime and
+  scripted local model/provider fixtures; no paid models or live targets are needed.
+- Run the complete suites of every touched package. Shared schema changes update every reader, owning
+  numbered specifications, limit/error/lifecycle registries and cross-language fixtures in the same implementation
+  change.
 verification_requirements:
-  - Record exact source and child refs/digests in assertions and prove no current-binding read is used during dependent dispatch.
+- Assert exact original/retained/consumer refs and digests, actual production callers, indexed holder
+  acquisition against eviction and absence of current-binding fallback. V410-010 generic retention gates
+  remain mandatory prerequisite evidence.
+- No new source-origin implementation is added only for tests. Exercise existing receipt-origin and baseline/prepare
+  accepted origins; V64-006 introduces the base research origin with its real ordinary-AuditItem caller,
+  and V64-018 adds only pentest-specific validation and proof/replay integration.
+requirements:
+- id: R1
+  text: An accepted manifest binds owner/Audit/baseline, dependency name/kind, exact source and retained
+    refs/digests, source execution/Round/item/attempt where applicable, and a trusted accepted origin.
+    Finding receipt/ordinal is one origin, not a universal required field. Reject self-declared or undeclared
+    origin variants.
+- id: R2
+  text: Validate accepted source membership, exact payload/media type, source classification and consumer
+    authorization before retention/dispatch. Shared metadata is not authority. Domain adapters supply
+    approved source-mode projections; unknown or mixed provenance cannot be relabelled safe by the transport.
+- id: R3
+  text: Enumerate the complete required dependency closure explicitly with bounded descriptors; JSON refs
+    are neither recursive loading instructions nor grants. An accepted plan pins source-to-retained-to-consumer
+    mapping and exact content digests, including selected guides/Skills/config closure rather than name/version
+    alone.
+- id: R4
+  text: Use V410-010 existing protected-binding/holder lifecycle to acquire exact obligations atomically
+    against eviction. Registers and readers of any new JSON-backed authoritative refs ship in this task.
+    Existing Audit retained bindings and lineage own storage; no extra hold table or lease.
+- id: R5
+  text: Add retained-dependency as a strict declared input source and wire the existing item/task-package
+    production path and Run preparation reader in this change. Resolve only from the accepted manifest;
+    never select a current Project binding or arbitrary prior role/batch/attempt. A no-manifest ordinary
+    check keeps existing mappings.
+- id: R6
+  text: Preserve prepare-output reuse and same-Round retained-output contracts. Selected dependencies
+    can survive source Run deletion and cancellation; independent retained copies remain after producer
+    cleanup until their owning Audit lifecycle releases them.
+- id: R7
+  text: Distinct retained exact revisions consume existing evidence accounting once; manifest/closure
+    count and byte limits below apply before acceptance. Partial retained work may be durable under existing
+    staged retention recovery, but cannot publish a successful accepted item or make its Run schedulable
+    before the whole declared closure is valid.
+failure_outcomes:
+- operation: Validate and retain an accepted dependency manifest
+  permanent: Foreign/unaccepted origin, ambiguous attempt, invalid schema/digest/media, unauthorized projection
+    or closure overflow produces a durable permanent rejection or unavailable/blocked disposition. Shared
+    artifact_history_protected is permanent; no new public endpoint is added.
+  retryable: Existing bounded storage_transaction_conflict/503 and V410-010 maintenance-backpressure retries
+    apply within the original admission deadline; no unbounded revalidation loop.
+  ambiguous: Reconcile the same accepted item/manifest and keyed mutation identity; verify exact retained
+    descriptors and finish only missing retention work without repeating an append or evidence charge.
+  cancelled: Owning Audit fences acceptance and joins current retention work before cleanup; accepted
+    holds remain for terminal collection and normal deletion.
+  timeout: Manifest admission and retention use the existing finite admission/collection allowance, independent
+    of target requests and model work.
+- operation: Materialize accepted exact dependencies into a child Run
+  permanent: Missing/evicted/corrupt/denied sources fail input preparation explicitly; never refresh to
+    latest or turn a missing dependency into an empty success.
+  retryable: Ordinary finite Run input preparation/store retries preserve the exact manifest and fork
+    intent; protected-history capacity conflict is not retried automatically.
+  ambiguous: Read/reconcile the existing exact fork/source mapping and child-Run intent. A response lost
+    after commit cannot create another child or replay target activity.
+  cancelled: Join all fetch/fork work before release and use existing cancellation/drain; no orphan work
+    or authority remains.
+  timeout: The input materialization deadline owns storage work; expiration does not reset the target
+    execution budget or mint a new admission identity.
+cardinality:
+- collection: One accepted item dependency manifest and its explicit closure
+  expected: A few named inputs and 1-16 exact dependency descriptors.
+  maximum: Proposed 32 exact descriptors and 256 KiB encoded manifest per item; tighter existing binding
+    mapping, item-package and evidence bounds apply.
+  bound: Validate every descriptor and full closure before acceptance. Source payloads remain separate;
+    consumer reads follow ordinary bounded artifact access. DescribeExact uses at most 32 refs per statement.
+- collection: Dependencies across one admission/materialization slice and its owning Audit
+  expected: One selected item or a small compatible batch, within an Audit with many settled items.
+  maximum: Existing Audit item limits and 1,024 retained-link per-call cap; each slice at most 128 primary
+    records, 512 total descriptors and 1 MiB metadata, whichever is tighter.
+  bound: Indexed selected-item/accepted-source reads only; stage bounded exact retention work under existing
+    identity when necessary. Never split final accepted-item visibility or make a partially materialized
+    child schedulable.
+- collection: Retained payloads and source holder population
+  expected: Shared evidence reused by later items while the containing Project has unrelated artifacts.
+  maximum: Existing profile maxEvidenceBytes, ArtifactStore payload/history limits and ordinary RunScope
+    insert ceiling.
+  bound: Account distinct retained revisions once, use indexed holder checks, and test at least 2,000
+    unrelated bindings plus the maximum manifest. No payload or all-domain-JSON scan determines availability.
+lifecycle:
+- entity: Accepted item dependency manifest, exact retained copies and consumer forks
+  delete: Audit deletion after drain releases owned obligations; producer Run deletion cannot remove accepted
+    retained dependencies.
+  cascade: Audit purge covers every manifest relation and holder acquisition, including incomplete admission;
+    child Run purges its local forks independently. Shared versions remain until their final legitimate
+    reference is removed.
+  retention: Accepted manifests and source mappings are immutable through retries and cancellation; no
+    TTL, no quota refund or latest substitution. Receipt retention is not itself an artifact hold.
