@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-121 open tasks: 4 in progress, 84 pending, 33 deferred. 1091 finished: 1081 completed, 10 archived.
+121 open tasks: 4 in progress, 106 pending, 11 deferred. 1091 finished: 1081 completed, 10 archived.
 
 ## In progress
 
@@ -105,6 +105,28 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
+| [V62-005](v62-005-audit-round-result-snapshots.yml) | feature | P2 | — | Supply complete immutable settled-Round snapshots to declared consumers |
+| [V62-006](v62-006-audit-retained-dependencies.yml) | feature | P2 | — | Retain exact item dependencies across Audit rounds |
+| [V62-007](v62-007-audit-check-routing.yml) | feature | P2 | V62-005, V62-006 | Route trusted typed check plans through explicit profile bindings |
+| [V62-013](v62-013-audit-iterative-composition-release.yml) | chore | P2 | V62-005, V62-006, V62-007 | Gate generic iterative Audit composition through real processes |
+| [V64-001](v64-001-audit-priority-contracts.yml) | feature | P2 | — | Specify optional Audit research contracts and deterministic bypass |
+| [V64-002](v64-002-audit-priority-store.yml) | feature | P2 | V64-001, V64-012 | Persist research cycles and exact selection decisions |
+| [V64-003](v64-003-planner-only-priority-execution.yml) | feature | P2 | V64-002 | Execute resumable research phases through ordinary Workflow Runs |
+| [V64-004](v64-004-audit-priority-context.yml) | feature | P2 | V64-012, V62-005, V62-006, V64-003 | Assemble bounded exact research context for each experiment |
+| [V64-005](v64-005-independent-priority-verdicts.yml) | feature | P2 | V64-003, V64-004, V64-006 | Add optional model evaluation of bounded experiment shortlists |
+| [V64-006](v64-006-audit-priority-selection.yml) | feature | P2 | V64-002, V64-004, V64-013, V62-007 | Select feasible experiments deterministically and admit exact work |
+| [V64-007](v64-007-audit-priority-controller.yml) | feature | P2 | V64-003, V64-006, V64-013, V64-014, V64-015 | Close the deterministic hypothesis feedback loop across Audit rounds |
+| [V64-008](v64-008-audit-priority-api-coverage.yml) | feature | P2 | V64-007 | Expose paginated research state and separate coverage through the public API |
+| [V64-009](v64-009-audit-priority-ui.yml) | feature | P2 | V64-008 | Show hypotheses, selection reasons and bounded lineage in the Audit UI |
+| [V64-010](v64-010-audit-priority-profile.yml) | feature | P2 | V64-007, V64-008 | Publish opt-in guide and material research profiles with deterministic selection |
+| [V64-011](v64-011-audit-priority-release.yml) | chore | P2 | V64-009, V64-010, V64-015, V62-013 | Verify deterministic hypothesis search and unchanged direct execution end to end |
+| [V64-012](v64-012-audit-hypothesis-registry.yml) | feature | P2 | V64-001 | Store Audit hypotheses and sparse provenance with trusted ingestion |
+| [V64-013](v64-013-audit-hypothesis-generation.yml) | feature | P2 | V64-003, V64-004, V64-012 | Generate cold hypotheses and accept bounded concrete experiment plans |
+| [V64-014](v64-014-audit-hypothesis-assessments.yml) | feature | P2 | V64-003, V64-004, V64-012, V64-006 | Import scoped research assessments and preserve conflicting contributions |
+| [V64-015](v64-015-audit-research-frontier.yml) | feature | P2 | V64-012, V64-014, V64-006 | Maintain indexed research readiness and bounded priority refresh |
+| [V64-016](v64-016-audit-research-ranking-evaluation.yml) | chore | P2 | V64-005, V64-011 | Measure optional research ranking against deterministic baselines |
+| [V64-017](v64-017-audit-attack-tree-projection.yml) | feature | P2 | V64-014, V64-008, V64-009 | Project optional attack trees over exact research evidence |
+| [V64-018](v64-018-audit-research-pentest-integration.yml) | feature | P2 | V64-011, V411-012, V411-015, V411-016, V411-020 | Connect optional hypothesis research to pentest proof and reports |
 | [V411-002](v411-002-engagement-baseline-preflight.yml) | feature | P1 | — | Validate and pin a typed pentest engagement at Audit start |
 | [V411-003](v411-003-action-journal-request-permits.yml) | feature | P1 | V411-002 | Fence and execute scoped HTTP preflight through the durable Audit action ledger |
 | [V411-006](v411-006-cumulative-budget-finalization.yml) | feature | P1 | V411-002, V411-003 | Enforce cumulative pentest budgets and finalize at the hard active-time cap |
@@ -195,29 +217,7 @@ the epics are in [epics.yml](epics.yml).
 | [V61-007](v61-007-toolset-configuration-read-api.yml) | runtime-config | 2026-10-11 | Explicit user decision that external MCP tools are needed (for example for autonomous pentest Audits, proposal 0033); then port the branch onto main rather than reimplementing, renumber its migration and rerun the V61-009 release gate. |
 | [V61-008](v61-008-toolset-connections-ui.yml) | runtime-config | 2026-10-11 | Explicit user decision that external MCP tools are needed (for example for autonomous pentest Audits, proposal 0033); then port the branch onto main rather than reimplementing, renumber its migration and rerun the V61-009 release gate. |
 | [V61-009](v61-009-toolset-configuration-release.yml) | runtime-config | 2026-10-11 | Explicit user decision that external MCP tools are needed (for example for autonomous pentest Audits, proposal 0033); then port the branch onto main rather than reimplementing, renumber its migration and rerun the V61-009 release gate. |
-| [V62-005](v62-005-audit-round-result-snapshots.yml) | audits | 2026-09-20 | Explicit user approval after the first scan slice demonstrates useful results; define the snapshot contract in this task before execution. |
-| [V62-006](v62-006-audit-retained-dependencies.yml) | audits | 2026-09-20 | Explicit user approval of an actual later-round consumer and its exact dependency contract. |
-| [V62-007](v62-007-audit-check-routing.yml) | audits | 2026-09-20 | Explicit user approval of iterative checks after dependency and snapshot contracts are reviewed. |
 | [V62-008](v62-008-project-analysis-preparation.yml) | audits | 2026-09-20 | Explicit user approval of standalone analysis-report reuse and the additional two-Workflow chain. |
-| [V62-013](v62-013-audit-iterative-composition-release.yml) | audits | 2026-10-24 | Explicit user reactivation of the reviewed V62 iterative slice; all implementation prerequisites must then complete before this release gate starts. |
-| [V64-001](v64-001-audit-priority-contracts.yml) | audits | 2026-10-21 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
-| [V64-002](v64-002-audit-priority-store.yml) | audits | 2026-10-21 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
-| [V64-003](v64-003-planner-only-priority-execution.yml) | audits | 2026-10-21 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
-| [V64-004](v64-004-audit-priority-context.yml) | audits | 2026-10-21 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
-| [V64-005](v64-005-independent-priority-verdicts.yml) | audits | 2026-10-21 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
-| [V64-006](v64-006-audit-priority-selection.yml) | audits | 2026-10-21 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
-| [V64-007](v64-007-audit-priority-controller.yml) | audits | 2026-10-21 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
-| [V64-008](v64-008-audit-priority-api-coverage.yml) | audits | 2026-10-21 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
-| [V64-009](v64-009-audit-priority-ui.yml) | audits | 2026-10-21 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
-| [V64-010](v64-010-audit-priority-profile.yml) | audits | 2026-10-21 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
-| [V64-011](v64-011-audit-priority-release.yml) | audits | 2026-10-21 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
-| [V64-012](v64-012-audit-hypothesis-registry.yml) | audits | 2026-10-24 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
-| [V64-013](v64-013-audit-hypothesis-generation.yml) | audits | 2026-10-24 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
-| [V64-014](v64-014-audit-hypothesis-assessments.yml) | audits | 2026-10-24 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
-| [V64-015](v64-015-audit-research-frontier.yml) | audits | 2026-10-24 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
-| [V64-016](v64-016-audit-research-ranking-evaluation.yml) | audits | 2026-10-24 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
-| [V64-017](v64-017-audit-attack-tree-projection.yml) | audits | 2026-10-24 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
-| [V64-018](v64-018-audit-research-pentest-integration.yml) | audits | 2026-10-24 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
 | [V365-016](v365-016-fold-planner-execution-reports.yml) | persistence | 2026-10-04 | Explicit user approval of making Planner reports a mutable slot on stage_metrics. |
 
 ## Epics

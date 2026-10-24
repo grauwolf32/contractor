@@ -1,6 +1,6 @@
 # Contextual Audit checklist prioritization
 
-Date: 2026-09-20. Series: **V64**. Status: **V64-000 completed; V64-001–011 deferred by user decision on 2026-10-21**.
+Date: 2026-09-20. Series: **V64**. Status: **historical integration plan; V64-000 completed; revised V64-001–018 pending by explicit user direction on 2026-10-24**.
 
 Design update, 2026-10-24: [proposal 0045](../proposals/0045-audit-hypothesis-search.md)
 replaces the future integration direction with optional Audit hypothesis search
@@ -8,7 +8,9 @@ and experiment selection. Direct deterministic execution remains independent.
 The [current staged plan](2026-10-24-audit-hypothesis-search.md) now owns the
 revised V64 task boundaries and dependencies. The decomposition below is
 historical, not an instruction to implement the old minimum-ten/full-pool
-policy. Existing tasks remain deferred; the new tasks are also deferred.
+policy. The later explicit 2026-10-24 instruction moves revised V64-001–018
+and V62-005/006/007/013 to pending with unchanged dependencies. It does not
+implement the capability or reactivate unrelated deferred work.
 
 The original request was optional service/finding context, independent checklist-item
 priority verdicts and selection of at least ten highest-priority checks for each
@@ -23,15 +25,15 @@ Planning/review does not satisfy any implementation acceptance criterion.
 ## Recorded delivery decision (2026-10-21)
 
 Deliver V377-001 target-cookie continuity first, then V62-010–012 to finish the
-existing preparation-to-scan user journey. V64-001–011 are deferred at P2;
-the completed V64-000 pure core remains available and unchanged. The earlier
-reactivation condition required representative evidence of model-ranking
-benefit. The revised plan preserves this as historical context and assigns
-that evidence to optional V64-016; the deterministic research core requires
-an explicit implementation decision on its own reviewed scope. The design
-below is retained as history, not the current implementation queue.
+existing preparation-to-scan user journey. At that time V64-001–011 were
+deferred at P2; the completed V64-000 pure core remained available and
+unchanged. The earlier reactivation condition required representative evidence
+of model-ranking benefit. This remains historical context: the revised plan
+assigns that evidence to optional V64-016, and the explicit 2026-10-24 status
+decision has moved its reviewed task scope to pending. The design below is
+retained as history, not the current implementation queue.
 
-## Agreed outcome and design decisions
+## Historical outcome and design decisions
 
 - Count distinct checklist checks: `selected = min(topN, remainingCandidates)`,
   default `topN = 10`, configurable only from 10 upward. All if fewer remain.
@@ -98,13 +100,18 @@ this planning change unless explicitly referenced.
   behavior before a Round exists. V64 consumes those foundations explicitly;
   it does not present planned V62 behavior as already implemented.
 
-## Task decomposition
+## Historical task decomposition
 
-Implementation starts with the independent V64-000 core extracted from 001/006.
+This table records the previous design, not the current task graph or status.
+The current staged plan owns the revised boundaries and optional paths.
+
+The original implementation started with the independent V64-000 core extracted from 001/006.
 On 2026-09-20 concurrent V62 replanning placed the already in-progress V62-009
 ahead of V62-001. The core has no pre-Round lifecycle dependency; this extraction
-allows implementation without taking over that work. Tasks 001–011 are deferred by the 2026-10-21 decision. Each implementation commit must satisfy its own acceptance checks and
-keep unimplemented capabilities unavailable.
+allowed implementation without taking over that work. Tasks 001–011 were
+subsequently deferred by the 2026-10-21 decision; their revised definitions are
+now pending under the 2026-10-24 instruction. Every implementation still needs
+its own acceptance evidence, and unimplemented capabilities remain unavailable.
 
 | Task | Deliverable | Dependencies |
 | --- | --- | --- |
@@ -121,12 +128,13 @@ keep unimplemented capabilities unavailable.
 | [010](../../tasks/v64-010-audit-priority-profile.yml) | Complete custom-checklist profile, Workflow, rubric and examples | 008 |
 | [011](../../tasks/v64-011-audit-priority-release.yml) | Required database, real-process and browser release gate | 009, 010 |
 
-The release task transitively depends on every task. After explicit reactivation, contract/shape/selector work can proceed
-independently where the dependency graph allows it. This plan
-does not assign or take over pending/in-progress V62 tasks; their statuses remain
-authoritative.
+In this historical decomposition the release task depended transitively on
+every listed task. That is not the current core gate: optional model ranking,
+attack-tree analysis and the pentest bridge do not block V64-011. The current
+staged plan and task files own the dependencies and status; this historical
+plan does not assign or take over active V62 work.
 
-## Delivery boundaries
+## Historical delivery boundaries
 
 - The 2026-09-21 schema alignment follows V62's
   [current schema policy](2026-09-20-audit-workflow-composition.md#current-schema-policy).

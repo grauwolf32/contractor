@@ -5,7 +5,7 @@ milestone: audit-check-prioritization
 epic: audits
 kind: feature
 priority: P2
-status: deferred
+status: pending
 depends_on:
 - V64-012
 - V62-005
@@ -17,8 +17,10 @@ languages:
 goal: Give each producer and check a useful selected context with exact source provenance, mode filtering
   and authorized Run-local dependencies.
 context:
-  authority: User requested the staged task breakdown and revision of V64/V62 for proposal 0045 on 2026-10-24;
-    this change plans work only and does not start implementation.
+  authority: >-
+    On 2026-10-24 the user explicitly requested pending status for the reviewed
+    proposal 0045 plan, including shared V62 prerequisites. The earlier deferral
+    is historical; dependency completion still gates implementation start.
   proposal: docs/proposals/0045-audit-hypothesis-search.md
   design: docs/plans/2026-10-24-audit-hypothesis-search.md
   specification:
@@ -133,7 +135,12 @@ tests:
   - A3
 - command: make lint
 implementation_commit: null
-deferral:
+reactivation:
+  date: '2026-10-24'
+  previous_status: deferred
+  reason: Explicit user request to queue the reviewed proposal 0045 tasks as pending.
+  execution_rule: Implementation may start after declared dependencies complete; this update starts no implementation.
+previous_deferral:
   date: '2026-10-21'
   previous_status: pending
   previous_priority: P1

@@ -32,7 +32,7 @@ context:
   - docs/spec/platform/errors.md
   - docs/spec/tools/http-caido.md
   boundary: The live sitemap is shared research context, not current Audit coverage, complete traffic archival or
-    proof. The HTTP/OpenAPI first slice has no dependency on proposal 0033 implementation or deferred V61/V62/V64
+    proof. The HTTP/OpenAPI first slice has no dependency on proposal 0033 implementation or V61/V62/V64
     work.
   code:
   - runtime/src/contractor_runtime/toolsets/caido/tools.py

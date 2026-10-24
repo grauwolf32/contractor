@@ -10,8 +10,10 @@ integration design with contextual experiment selection, dynamic hypotheses
 and optional model ranking. Existing deterministic Run/Audit paths bypass
 research entirely. The fixed checklist design below records the previous
 target and the implemented pure-core contract; its minimum ten, full-pool
-evaluation and fixed membership are not constraints on 0045. Implementation
-tasks remain deferred and are not reactivated by this design update.
+evaluation and fixed membership are not constraints on 0045. The design update
+initially preserved deferral; a later explicit user instruction on 2026-10-24
+moved revised V64-001–018 and V62-005/006/007/013 to pending. Implementation
+and feature availability remain unchanged.
 
 Only the pure core is implemented: the `internal/auditpriority` package with
 its schema and fixtures in `api/audit-priority/v1` (see
@@ -23,8 +25,9 @@ draft target, and the Audit capability is not enabled; the authoring field
 `prioritization` is reserved and the current profile schema rejects it. The
 [original plan](../plans/2026-09-20-audit-check-prioritization.md) records the
 previous sequencing. The [0045 delivery plan](../plans/2026-10-24-audit-hypothesis-search.md)
-now owns the revised task boundaries and dependencies; implementation remains
-deferred.
+now owns the revised task boundaries and unchanged dependencies. Those tasks
+are pending and require completed prerequisites; no further reactivation
+decision is required for this scope.
 Existing profiles and [Audit contracts](../spec/audits/audits.md) remain
 unchanged until this opt-in capability is implemented and advertised.
 

@@ -14,17 +14,18 @@ execution_policy:
     V410-002, V410-003/004/005, V410-006, V410-007 and V410-008; V413-001 starts
     after V410-010 lands. Pentest lane: V414-015 before V411-001, then V411-002
     up to V411-009, V411-013 and V411-014; V411-012 and everything after it wait
-    for the deferred V62-005, V62-006 and V62-007, which only the user can
-    reactivate. The V414 follow-ups run in groups that share code (secrets and
+    for completion of V62-005, V62-006 and V62-007, now pending after the
+    explicit user request. The V414 follow-ups run in groups that share code (secrets and
     telemetry; Evals; Planner session and store error classes; SQL read bounds;
     OpenAPI rules and byte bounds; Audit read model; Server lifecycle; Runtime;
     finding fence) and close through V414-027. This is delivery order, not an
-    additional technical dependency. The 2026-10-24 proposal 0045 breakdown
-    replans V64 and shared V62 iterative composition without activating them.
-    They remain deferred until explicit implementation reactivation; optional
-    model-ranking evidence belongs to V64-016, not the deterministic core exit.
-    Resumed on 2026-10-24 evening with every task that the deferred
-    V62-005/006/007 do not block. Each lane works on its branch claude/<lane>
+    additional technical dependency. Following the 2026-10-24 proposal 0045 review,
+    the user explicitly queued V64-001 through V64-018 and V62-005/006/007/013
+    as pending. Implementation starts only after declared dependencies complete;
+    this status update starts no work. Optional model-ranking evidence belongs
+    to V64-016, not the deterministic core exit. V61 and V62-008 remain deferred.
+    The earlier evening resumption covered tasks not blocked by V62; the
+    newly pending shared tasks can now enter execution once their prerequisites complete. Each lane works on its branch claude/<lane>
     and merges each closed task into main. claude/sitemap and claude/pentest
     both add migration 000040, so the second to land renumbers its migration.
   task_files_are_self_contained: true
@@ -110,7 +111,7 @@ milestones:
     outcome: Managed browser observations update the shared Project sitemap through the same safe reducer and allocation-bound context.
   - id: autonomous-http-pentest-2026-10
     exit_task: V411-020
-    outcome: HTTP/API pentest Audits provide controlled transport, isolated identities, bounded discovery, fresh-session proof replay and retained reports through a passing deterministic process gate; deferred generic round prerequisites must be explicitly completed first.
+    outcome: HTTP/API pentest Audits provide controlled transport, isolated identities, bounded discovery, fresh-session proof replay and retained reports through a passing deterministic process gate; generic round prerequisites must be completed first.
   - id: autonomous-pentest-quality-2026-10
     exit_task: V411-021
     outcome: A frozen repeated-sample experiment records independent pentest quality results against equal-input baselines without conflating protocol conformance with model quality.
@@ -657,7 +658,8 @@ milestones:
       First prove SQLMap request checks and Nuclei checks of pinned OpenAPI URLs
       with truthful Audit results, then add opt-in preparation before the initial
       worklist with existing OpenAPI Workflows and public lifecycle/provenance.
-      Iterative snapshots, dependency routing and standalone analysis are deferred.
+      Iterative snapshots and routing are pending in their separate milestone;
+      standalone analysis V62-008 remains deferred.
   - id: toolset-runtime-configuration
     exit_task: V61-009
     outcome: >-
