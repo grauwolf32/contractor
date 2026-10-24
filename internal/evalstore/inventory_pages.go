@@ -17,11 +17,15 @@ type InventoryPage struct {
 
 func (s *Store) InventoryPage(ctx context.Context, owner, id, member, after string, limit int, revision *int64) (InventoryPage, error) {
 	out := InventoryPage{Items: []InventoryEntry{}, Gaps: []string{}}
+	afterChild, err := inventoryChildAfter(after)
+	if err != nil {
+		return out, err
+	}
 	var kind string
 	var parentID, state *string
 	var available, closed bool
 	var unresolved, deleted int
-	err := s.db.QueryRow(ctx, inventoryPageMemberSQL, owner, id, member).Scan(&out.Revision, &kind, &parentID, &state, &available, &closed, &unresolved, &deleted)
+	err = s.db.QueryRow(ctx, inventoryPageMemberSQL, owner, id, member).Scan(&out.Revision, &kind, &parentID, &state, &available, &closed, &unresolved, &deleted)
 	if err != nil {
 		return out, normalize(err)
 	}
@@ -57,7 +61,7 @@ func (s *Store) InventoryPage(ctx context.Context, owner, id, member, after stri
 	if kind != "audit" {
 		return out, nil
 	}
-	rows, err := s.db.Query(ctx, inventoryPageAuditExecutionsSQL, owner, *parentID, after, limit-len(out.Items)+1)
+	rows, err := s.db.Query(ctx, inventoryPageAuditExecutionsSQL, owner, *parentID, afterChild, limit-len(out.Items)+1)
 	if err != nil {
 		return out, err
 	}
@@ -87,4 +91,19 @@ func (s *Store) InventoryPage(ctx context.Context, owner, id, member, after stri
 		out.LastKey = "1" + child.IntentID
 	}
 	return out, rows.Err()
+}
+
+// inventoryChildAfter returns the execution ID after which a page's child
+// entries continue. A page key is "0" for the parent entry and "1" followed
+// by the execution ID for a child entry, so the parent sorts first; an empty
+// key starts at the parent. Before the first child the result is empty,
+// which every execution ID follows. Any other key is invalid.
+func inventoryChildAfter(after string) (string, error) {
+	switch {
+	case after == "" || after == "0":
+		return "", nil
+	case len(after) > 1 && after[0] == '1':
+		return after[1:], nil
+	}
+	return "", evaldomain.Failure("eval_invalid")
 }

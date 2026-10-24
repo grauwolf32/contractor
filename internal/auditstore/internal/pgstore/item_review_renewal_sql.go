@@ -9,7 +9,10 @@ package pgstore
 // $2 caps the rows and NULL means no cap. Used by renewExpiredItemReviews.
 // Keep the live-authority lookup correlated to one item: pulling this volatile
 // view into an anti join can repeatedly scan every pending review before the
-// expired-review filter has eliminated the outer rows.
+// expired-review filter has eliminated the outer rows. Both the join and the
+// live-authority lookup probe audit_review_requests_item_subject_idx per
+// approval item; without it each reconciliation read every review request
+// of the Audit (TestPostgresControllerReadsAtItemScale).
 var expiredItemReviewsSQL = `
 SELECT item.item_id, item.approval_kind, item.approval_subject_digest,
        review.request_id, review.state

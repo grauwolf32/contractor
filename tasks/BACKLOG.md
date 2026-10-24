@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-84 open tasks: 4 in progress, 55 pending, 25 deferred. 1034 finished: 1030 completed, 4 archived.
+83 open tasks: 4 in progress, 54 pending, 25 deferred. 1035 finished: 1031 completed, 4 archived.
 
 ## In progress
 
@@ -80,7 +80,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V371-009](v371-009-audit-list-preparation-batch.yml) | defect | P3 | — | Read the preparation state of a whole Audit page in bounded statements |
-| [V409-004](v409-004-audit-read-statements-indexes.yml) | chore | P2 | — | Reduce avoidable Audit read work while preserving exact totals and expiry |
 
 ### Evaluations (`evals`)
 
@@ -120,8 +119,8 @@ the epics are in [epics.yml](epics.yml).
 | [V372-009](v372-009-ownership-check-blind-spots.yml) | chore | P3 | — | Close the blind spots of the table ownership check |
 | [V372-010](v372-010-erd-usage-from-ownership-scan.yml) | chore | P3 | — | Take the ERD's code-usage lists from the ownership scan and document the new-table workflow |
 | [V408-002](v408-002-shared-postgres-test-schema.yml) | chore | P2 | V408-001 | Apply migrations once per package: one shared PostgreSQL test helper with per-test truncation |
-| [V409-007](v409-007-dead-and-redundant-indexes.yml) | chore | P2 | V409-004 | Consolidate indexes only where reader and constraint evidence permits it |
-| [V409-013](v409-013-verify-sql-review-on-database.yml) | chore | P2 | V409-004, V409-007, V409-014 | Verify retained SQL-review changes and record evidence for every accepted or declined claim |
+| [V409-007](v409-007-dead-and-redundant-indexes.yml) | chore | P2 | — | Consolidate indexes only where reader and constraint evidence permits it |
+| [V409-013](v409-013-verify-sql-review-on-database.yml) | chore | P2 | V409-007, V409-014 | Verify retained SQL-review changes and record evidence for every accepted or declined claim |
 
 ### Quality, CI and process (`quality`)
 
@@ -192,7 +191,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 7 | 14 | 6 | 8 | 11 |
 | Workflow catalog and document workflows (`workflows`) | 3 | 14 | 14 | 12 | 16 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 30 | 33 | 6 | 37 |
-| Audits (`audits`) | 18 | 53 | 72 | 22 | 91 |
+| Audits (`audits`) | 17 | 53 | 72 | 22 | 91 |
 | Evaluations (`evals`) | 3 | 21 | 34 | 8 | 41 |
 | Podman sandbox (`sandbox`) | 0 | 9 | 2 | 1 | 3 |
 | Web UI (`ui`) | 3 | 24 | 58 | 12 | 53 |
