@@ -356,6 +356,31 @@ the Audit revision after hydration. A changed revision returns conflict rather
 than mixing an earlier phase or ETag with newer accepted output descriptors.
 Public coverage pagination retains its existing revision pin.
 
+**ASC-R150.** The owner-wide and Project Audit lists give every item in the
+`preparing` or `inventory` phase whose pinned profile has a prepare role the
+`preparation` that `GET /v1/audits/{auditId}` returns for it; items in other
+phases keep their list projection. A list reads its page of Audits and that
+preparation in one read-only REPEATABLE READ transaction, so the page shows
+every item and its preparation as of one commit: an owner mutation, a new
+attempt or a purge that commits during the read is in neither part of the
+page, and never fails it with a conflict or a missing Audit. The lists stay
+live lists, not revision-pinned snapshots, and a later request sees the
+change. The transaction issues the list statement and, only when the page
+holds such an item, one preparation statement, whatever the number of items
+(at most the page plus the row that decides whether a next page exists,
+LIM-API-18). Between the two statements the transaction only checks each
+listed Audit's phase, which suffices because an Audit in either phase must
+pin a prepare role; pinned profiles are decoded and preparation projected
+after it commits, so no profile decoding holds it open. The preparation
+statement reads each item's pinned prepare roles (at most LIM-ASC-2), each
+role's attempt count and latest attempt, and the output descriptors of an
+accepted attempt (at most LIM-ASC-5); it never reads preparation snapshots or
+earlier attempts. A transaction conflict follows
+the store's transaction retry and then returns the retryable `503`
+`storage_transaction_conflict`; other storage failures keep their own class.
+Neither phase has `generatedInventory` (ASC-R146), so the lists read no
+inventory link or payload.
+
 ### Inventory phase and the first Round
 
 **ASC-R46.** After all prepare roles are accepted, `phase: inventory`
@@ -799,7 +824,8 @@ interruption between scanner completion and package publication (FAIL-ASC-7).
   (ASC-R72 to ASC-R84); the rest of the Workflow
   definition is specified in [workflows](../configuration/workflows.md).
 - Public Audit projection: `preparation.roles` (ASC-R41 to
-  ASC-R45), with the schemas `AuditPreparation`,
+  ASC-R45) on the Audit and on preparing and inventory list items
+  (ASC-R150), with the schemas `AuditPreparation`,
   `AuditPreparationRole` and `AuditPreparationOutput` in
   [contractor-public-v1.yaml](../../../api/openapi/contractor-public-v1.yaml).
 - The start response before the first Round (ASC-R53).

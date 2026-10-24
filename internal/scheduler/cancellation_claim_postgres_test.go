@@ -73,7 +73,7 @@ func TestPostgresCancellationCleanupRetainsRunClaim(t *testing.T) {
 			done := make(chan error, 1)
 			go func() {
 				defer close(done)
-				_, err := s.progressOneClaim(ctx, resolved.LaneClassModel)
+				_, err := s.progressOneClaim(ctx, resolved.LaneClassModel, nil)
 				done <- err
 			}()
 			defer func() {

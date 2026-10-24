@@ -43,30 +43,66 @@ func (s *Scheduler) Run(ctx context.Context) error {
 		s.monitorTerminalRelease(monitorContext)
 	}()
 
-	type laneResult struct {
-		class  resolved.LaneClass
-		worked bool
-		err    error
+	// laneEvent reports that a lane's claim was admitted (the lane keeps
+	// progressing its Run) or, last, that the lane ended; claimed tells
+	// whether that ended lane had reported its admission, and round is the
+	// fill round of its pool that was current when it started. A lane sends
+	// at most one of each, so two events per possible lane never block a lane
+	// after the supervisor stops receiving.
+	type laneEvent struct {
+		class    resolved.LaneClass
+		round    uint64
+		admitted bool
+		claimed  bool
+		worked   bool
+		err      error
 	}
-	results := make(chan laneResult, settingsstore.MaximumLanes)
+	events := make(chan laneEvent, 2*settingsstore.MaximumLanes)
 	var lanes sync.WaitGroup
 	activeLanes := make(map[resolved.LaneClass]int, len(resolved.LaneClasses))
+	// Each poll or wake opens a fill round of every pool: round numbers them,
+	// wanted counts the lanes the current round may still start, and claiming
+	// counts the pool's lanes that have not claimed a Run yet.
+	round := make(map[resolved.LaneClass]uint64, len(resolved.LaneClasses))
+	wanted := make(map[resolved.LaneClass]int, len(resolved.LaneClasses))
+	claiming := make(map[resolved.LaneClass]int, len(resolved.LaneClasses))
 	admissionHealthy := true
+	canStart := func(class resolved.LaneClass) bool {
+		return admissionHealthy && ctx.Err() == nil && activeLanes[class] < desired[class]
+	}
 	startLane := func(class resolved.LaneClass) {
 		activeLanes[class]++
+		claiming[class]++
 		lanes.Add(1)
+		started := round[class]
 		go func() {
 			defer lanes.Done()
-			worked, laneErr := s.progressOneClaim(ctx, class)
-			results <- laneResult{class: class, worked: worked, err: laneErr}
+			claimed := false
+			worked, laneErr := s.progressOneClaim(ctx, class, func() {
+				claimed = true
+				events <- laneEvent{class: class, round: started, admitted: true}
+			})
+			events <- laneEvent{class: class, round: started, claimed: claimed, worked: worked, err: laneErr}
 		}()
 	}
-	// Each pool resizes and drains on its own (SCH-R134, SCH-R135).
+	// continueFill starts the round's next lane only once no lane of the pool
+	// is still claiming, so an idle pool costs one claim attempt per round
+	// however many lanes it has, while a pool with runnable work fills every
+	// lane of the round before any of them completes (SCH-R181, LIM-SCH-21).
+	continueFill := func(class resolved.LaneClass) {
+		if claiming[class] == 0 && wanted[class] > 0 && canStart(class) {
+			wanted[class]--
+			startLane(class)
+		}
+	}
+	// A round may start the lanes its pool lacks when it opens, as many as
+	// the serial fill of every free lane did. Each pool resizes and drains
+	// on its own (SCH-R134, SCH-R135).
 	fillLanes := func() {
 		for _, class := range resolved.LaneClasses {
-			for admissionHealthy && ctx.Err() == nil && activeLanes[class] < desired[class] {
-				startLane(class)
-			}
+			round[class]++
+			wanted[class] = max(0, desired[class]-activeLanes[class])
+			continueFill(class)
 		}
 	}
 	defer func() {
@@ -80,18 +116,40 @@ func (s *Scheduler) Run(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return nil
-		case result := <-results:
-			activeLanes[result.class]--
-			if result.err != nil && !errors.Is(result.err, ErrDeferred) && ctx.Err() == nil {
-				s.options.Logger.Error("Workflow Scheduler lane failed", "lane_class", string(result.class), "error", result.err)
+		case event := <-events:
+			if event.admitted {
+				// The lane holds its claim while it progresses the Run; the
+				// round's next lane may look for more work at once.
+				claiming[event.class]--
+				continueFill(event.class)
+				continue
+			}
+			activeLanes[event.class]--
+			if !event.claimed {
+				claiming[event.class]--
+				if event.round == round[event.class] {
+					// The round found no work or could not claim: the pool
+					// waits for the next poll or wake.
+					wanted[event.class] = 0
+				} else {
+					// The claim predates the current round, which counted
+					// the lane's slot as taken and whose own first claim has
+					// been waiting for it.
+					wanted[event.class] = min(wanted[event.class]+1,
+						max(0, desired[event.class]-activeLanes[event.class]))
+					continueFill(event.class)
+				}
+			}
+			if event.err != nil && !errors.Is(event.err, ErrDeferred) && ctx.Err() == nil {
+				s.options.Logger.Error("Workflow Scheduler lane failed", "lane_class", string(event.class), "error", event.err)
 			}
 			// Preserve the serial loop's eager progression only after useful,
-			// successful work. No-work and deferred attempts wait for a bounded
-			// poll/wake so incompatible Runs cannot create a hot loop. A Run
-			// handed to the other pool is claimed there on its next refill.
-			if result.worked && result.err == nil && admissionHealthy &&
-				ctx.Err() == nil && activeLanes[result.class] < desired[result.class] {
-				startLane(result.class)
+			// successful work: the freed lane is replaced at once. No-work and
+			// deferred attempts wait for a bounded poll/wake so incompatible
+			// Runs cannot create a hot loop. A Run handed to the other pool is
+			// claimed there on its next refill.
+			if event.worked && event.err == nil && canStart(event.class) {
+				startLane(event.class)
 			}
 		case <-s.wake:
 			next, refreshErr := s.readLaneLimits(ctx)
@@ -122,8 +180,12 @@ func (s *Scheduler) Run(ctx context.Context) error {
 
 // progressOneClaim is the production lane primitive of the pool of class. It
 // owns exactly one claim/progression/release cycle of a Run of that class and
-// performs no global maintenance.
-func (s *Scheduler) progressOneClaim(ctx context.Context, class resolved.LaneClass) (bool, error) {
+// performs no global maintenance. It calls admitted, when not nil, once its
+// claim succeeded and the Run is registered, before progressing the Run; it
+// reports work (true) exactly when it claimed a Run.
+func (s *Scheduler) progressOneClaim(
+	ctx context.Context, class resolved.LaneClass, admitted func(),
+) (bool, error) {
 	claimID, err := s.newID("claim_")
 	if err != nil {
 		return false, fmt.Errorf("generate Scheduler claim ID: %w", err)
@@ -142,6 +204,9 @@ func (s *Scheduler) progressOneClaim(ctx context.Context, class resolved.LaneCla
 	}
 	if err != nil {
 		return false, err
+	}
+	if admitted != nil {
+		admitted()
 	}
 
 	// Cancelling Planner work does not release ownership of the Run. Keep its
@@ -288,19 +353,58 @@ func (s *Scheduler) monitorAllocationLosses(ctx context.Context) {
 	}
 }
 
+// monitorTerminalRelease runs terminal release recovery outside the lanes
+// (SCH-R159) with at most terminalReleaseRecoveryConcurrency Stage operations
+// in flight (SCH-R180, LIM-SCH-20), so a Runtime Agent that holds one Stage's
+// release until its cleanup deadline delays only that Stage. It lists again
+// once an operation completed useful work and otherwise each poll interval; a
+// failed operation frees its slot without listing, so a failing Runtime or
+// store cannot create a hot loop. It returns only after every operation it
+// started has ended.
 func (s *Scheduler) monitorTerminalRelease(ctx context.Context) {
+	type outcome struct {
+		worked bool
+		err    error
+	}
+	// Each operation sends one outcome and at most the bound are in flight,
+	// so no operation blocks once the monitor stops receiving.
+	outcomes := make(chan outcome, terminalReleaseRecoveryConcurrency)
+	var operations sync.WaitGroup
+	defer operations.Wait()
+	start := func(execution runstore.StageExecution) {
+		operations.Add(1)
+		go func() {
+			defer operations.Done()
+			worked, err := s.recoverTerminalStage(ctx, execution)
+			outcomes <- outcome{worked: worked, err: err}
+		}()
+	}
+	inFlight, list := 0, true
+	var poll <-chan time.Time
 	for {
-		worked, err := s.recoverTerminalRelease(ctx)
-		if err != nil && ctx.Err() == nil {
-			s.options.Logger.Warn("terminal allocation release recovery failed", "error", err)
+		if list && inFlight < terminalReleaseRecoveryConcurrency {
+			list = false
+			started, err := s.startTerminalReleaseRecovery(ctx, terminalReleaseRecoveryConcurrency-inFlight, start)
+			inFlight += started
+			if err != nil && ctx.Err() == nil {
+				s.options.Logger.Warn("list terminal allocation releases failed", "error", err)
+			}
 		}
-		if worked && err == nil {
-			continue
+		if poll == nil {
+			poll = s.after(s.options.PollInterval)
 		}
 		select {
 		case <-ctx.Done():
 			return
-		case <-s.after(s.options.PollInterval):
+		case result := <-outcomes:
+			inFlight--
+			if result.err != nil && ctx.Err() == nil {
+				s.options.Logger.Warn("terminal allocation release recovery failed", "error", result.err)
+			}
+			list = list || (result.worked && result.err == nil)
+		case <-poll:
+			poll = nil
+			list = true
 		}
 	}
 }

@@ -573,6 +573,8 @@ type fakeAuditManagement struct {
 	coverage            auditservice.CoveragePage
 	preparation         map[string]auditservice.PreparationRoleProjection
 	preparationOwner    string
+	preparationPages    []int
+	preparationErr      error
 	artifactRead        artifacts.ReadResult
 	created             auditservice.CreateDraftParams
 	start               auditservice.StartParams
@@ -726,14 +728,29 @@ func (f *fakeAuditManagement) Get(context.Context, string, string) (auditstore.A
 	return f.audit, f.err
 }
 
-func (f *fakeAuditManagement) List(_ context.Context, params auditstore.ListParams) ([]auditstore.Audit, error) {
+// ListPage lists the fake Audit, recording how many listed Audits prepared
+// selected; preparationErr fails the page read after the selection.
+func (f *fakeAuditManagement) ListPage(
+	_ context.Context, params auditstore.ListParams, prepared func(auditstore.Audit) bool,
+) ([]auditstore.Audit, map[string]map[string]auditservice.PreparationRoleProjection, error) {
 	if err := fakePageFetch(params.Limit, auditstore.ErrInvalid); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if f.err != nil {
-		return nil, f.err
+		return nil, nil, f.err
 	}
-	return []auditstore.Audit{f.audit}, nil
+	audits := []auditstore.Audit{f.audit}
+	result := map[string]map[string]auditservice.PreparationRoleProjection{}
+	for _, audit := range audits {
+		if prepared(audit) {
+			result[audit.AuditID] = f.preparation
+		}
+	}
+	f.preparationPages = append(f.preparationPages, len(result))
+	if f.preparationErr != nil {
+		return nil, nil, f.preparationErr
+	}
+	return audits, result, nil
 }
 
 func (f *fakeAuditManagement) ListItems(_ context.Context, params auditstore.ListItemsParams) ([]auditstore.Item, error) {

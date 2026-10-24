@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -42,7 +41,8 @@ type AuditManagement interface {
 	Preparation(context.Context, string, string) (map[string]auditservice.PreparationRoleProjection, error)
 	ReadArtifact(context.Context, string, string, string, string) (artifacts.ReadResult, error)
 	GeneratedInventory(context.Context, string, string, uint64) (*auditservice.GeneratedInventoryProjection, error)
-	List(context.Context, auditstore.ListParams) ([]auditstore.Audit, error)
+	ListPage(context.Context, auditstore.ListParams, func(auditstore.Audit) bool) (
+		[]auditstore.Audit, map[string]map[string]auditservice.PreparationRoleProjection, error)
 	ListItems(context.Context, auditstore.ListItemsParams) ([]auditstore.Item, error)
 	ListItemAttempts(context.Context, string, string, []string) (map[string][]auditstore.ItemAttempt, error)
 	GetRound(context.Context, string, string, string) (auditstore.Round, error)
@@ -253,7 +253,9 @@ func (h *auditHandlers) listProjectAudits(w http.ResponseWriter, r *http.Request
 		}
 		params.BeforeCreatedAt, params.BeforeAuditID = &before, cursor[1]
 	}
-	audits, err := h.Audits.List(r.Context(), params)
+	// The page and the preparation of its preparing and inventory items come
+	// from one commit (ASC-R150).
+	audits, preparation, err := h.Audits.ListPage(r.Context(), params, auditListHydratesPreparation)
 	if err != nil {
 		handleError(w, err)
 		return
@@ -268,12 +270,12 @@ func (h *auditHandlers) listProjectAudits(w http.ResponseWriter, r *http.Request
 	items := make([]auditResponse, 0, len(audits))
 	for _, audit := range audits {
 		item, modelErr := auditReadModel(audit)
-		if modelErr == nil && (audit.Phase == auditdomain.AuditPhasePreparing || audit.Phase == auditdomain.AuditPhaseInventory) {
-			item, modelErr = h.auditDetailReadModel(r, audit)
-		}
 		if modelErr != nil {
 			handleError(w, modelErr)
 			return
+		}
+		if roles, selected := preparation[audit.AuditID]; selected {
+			item.Preparation = auditPreparationReadModel(roles)
 		}
 		items = append(items, item)
 	}

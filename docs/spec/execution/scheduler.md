@@ -740,6 +740,32 @@ least-recently-attempted batch of incomplete terminal releases. It retries each
 still-live allocation independently, so one member of a partially released
 multi-Agent Stage cannot hide another (FAIL-SCH-9).
 
+**SCH-R180.** Terminal release recovery runs at most four Stage operations at
+once (LIM-SCH-20). Each operation takes its Stage's release gate, so no lane
+and no other operation of the same Server releases that Stage at the same
+time, and keeps the store-operation budgets and its release batch's own
+cleanup deadline (SCH-R65). A listing starts, in its least-recently-attempted
+order, only Stages whose gate is free and only as many as slots are free. A
+Runtime Agent that holds one Stage's release until the cleanup deadline
+therefore delays only that Stage, while the other slots keep releasing the
+rest of the batch and of later listings. Recovery lists again as soon as an
+operation completed useful work, and otherwise once per
+`scheduler.pollInterval`; a failed operation or listing frees its slot
+without listing again, so a failing Runtime Agent, such as one that answers
+HTTP 409 at once, or a failing store cannot create a hot loop, and its
+recorded attempt moves the Stage behind Stages not yet attempted. Stopping
+the Server joins every operation in flight before the Scheduler stops; an
+operation already in its release batch completes its durable markers. A
+deterministic test tick of recovery (SCH-R125) starts the same operations
+from one listing and runs them one after another. Decision: four slots keep
+the recovery's database connections and Runtime fan-out small next to the
+lanes, which release their own Stages on the normal path, while up to three
+unresponsive Runtime Agents cannot stop the remaining recovery. The
+alternative, one operation at a time, let one slow Runtime Agent hold every
+other terminal release for a whole cleanup deadline per listing. Reopen the
+bound if terminal release recovery becomes the normal release path or if
+Stages routinely bind more than a few Runtime Agents.
+
 **SCH-R179.** A cancelling Run without an active StageExecution ends after the
 Scheduler has fenced and released the live allocations of its earlier
 attempts. It reads only the attempts that have an allocation whose release is
@@ -1194,6 +1220,23 @@ one bounded progression attempt (LIM-SCH-7), and repeatedly:
 5. removes its own cancellation registration, then releases the claim before
    selecting more work (LIFE-SCH-3).
 
+**SCH-R181.** The supervisor fills each pool in rounds, opened at startup and
+by every poll and wake. A round may start the lanes its pool lacks at that
+moment, but it starts them one at a time: it starts the next lane of the pool
+only after the previous lane's claim succeeded, while that lane goes on to
+progress its Run, so a pool with runnable work fills every lane of the round
+before any of them completes. A claim that finds no work or fails ends the
+round, and the pool waits for the next poll or wake, so an idle poll costs one
+claim attempt per pool whatever the pool's size (LIM-SCH-21). A claim that
+began before the round opened does not end it, and a lane that ends after
+useful, successful work is still replaced at once. A lane that ends deferred
+is not replaced before the next poll or wake (SCH-R122). Decision: one claim
+in flight per pool keeps the idle cost of the claim query from growing with
+the configured pool sizes; the alternative, one claim per free lane, costs up
+to 32 claims per pool and poll (LIM-OPS-7, LIM-OPS-34). Claims are serialized
+within the Server anyway (SCH-R120), so filling a busy pool takes no longer.
+Reopen this if claims stop being serialized.
+
 **SCH-R117.** The cancellation registration is keyed by the exact claim: once
 the claim is released, another lane of the same process may claim the Run, and
 the finishing lane can neither shadow nor remove that lane's cancellation or
@@ -1545,6 +1588,11 @@ Limits ([registry](../platform/limits.md)):
   Runs and 128 MiB of stored snapshot text (SCH-R167).
 - LIM-SCH-19 — Stages whose preparation secrets one Server process keeps for
   report redaction: at most 128 (SCH-R178).
+- LIM-SCH-20 — terminal release recovery Stage operations one Server process
+  runs at once: at most 4 (SCH-R180).
+- LIM-SCH-21 — lanes of one pool claiming at once outside a replacement after
+  useful work: at most 1, so at most 1 claim attempt per idle pool and fill
+  round (SCH-R181).
 - Used here, owned elsewhere: concurrent A2A Tasks per Worker
   ([LIM-CTL-6](../platform/limits.md), SCH-R10), slots per Runtime Agent
   process ([LIM-CTL-4](../platform/limits.md), SCH-R139), the
@@ -1583,7 +1631,7 @@ Failure outcomes ([failure model](../platform/failure-model.md)):
 - FAIL-SCH-6 — A2A Task cancellation (SCH-R54).
 - FAIL-SCH-7 — abort control command (SCH-R56, SCH-R57).
 - FAIL-SCH-8 — finalize control command (SCH-R99, SCH-R63).
-- FAIL-SCH-9 — allocation release (SCH-R69, SCH-R71).
+- FAIL-SCH-9 — allocation release (SCH-R69, SCH-R71, SCH-R180).
 - FAIL-SCH-10 — progression transaction (SCH-R78).
 - FAIL-SCH-11 — allocation loss (SCH-R93, SCH-R118).
 - FAIL-SCH-12 — Server restart (SCH-R96).
