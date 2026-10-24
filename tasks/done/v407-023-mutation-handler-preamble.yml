@@ -95,6 +95,10 @@ verification:
     answered 500 internal_error, retryable), TestProjectArtifactPutValidatesMetadataBeforeTheProject, TestMutationPrecedenceTable
     and TestPrivateArtifactNamesRejectBeforeStore (unknown allocation answered 404 allocation_not_found; a known one read
     the payload before rejecting the name) failed; TestPublicRequestBodyBoundsMatchHandlers passed on both revisions.'
+  - 'After merging claude/review-v407-v409 (V407-022 took API-R111 for central HEAD rejection, so this requirement is
+    API-R112; both routers dispatch through httpx.ServeRoutes): go test -count=1 ./internal/httpapi/... ./internal/evaldomain/...
+    with and without -tags=integration against contractor_test_g, make verify-public-api and make lint passed. TestPrivateArtifactNamesRejectBeforeStore
+    now also requires 405 for HEAD on each malformed-name path and no store read, so ART-R45 and ART-R120 hold together.'
   database_tests_configured: true
   acceptance:
   - A1 satisfied. publishRuntimeConfig reads through readJSONBody, the reader decodeJSONBounded uses; a body ending before

@@ -13,7 +13,8 @@ import (
 // TestPrivateArtifactNamesRejectBeforeStore rejects a malformed namespace or
 // name as request syntax: 400 invalid_request before the allocation is
 // looked up and before a byte of the payload is read or stored, so the answer
-// is the same for an unknown allocation.
+// is the same for an unknown allocation (ART-R45). The router answers first:
+// HEAD on the same path is 405 whatever the names (ART-R120).
 func TestPrivateArtifactNamesRejectBeforeStore(t *testing.T) {
 	repository := newMemoryRepository()
 	handler := newTestHandler(t, &fakeRegistry{grant: testGrant("run-a")}, repository)
@@ -36,8 +37,15 @@ func TestPrivateArtifactNamesRejectBeforeStore(t *testing.T) {
 				if body.reads != 0 || repository.writeCalls != 0 {
 					t.Errorf("%s %q read the body %d times and wrote %d times", allocationID, path, body.reads, repository.writeCalls)
 				}
+				target := fmt.Sprintf("/private/v1/allocations/%s/artifacts/%s", allocationID, path)
+				head := httptest.NewRecorder()
+				handler.ServeHTTP(head, trustedRequest(http.MethodHead, target, nil))
+				checkPrivateMethodNotAllowed(t, head, target)
 			}
 		}
+	}
+	if repository.readCalls != 0 || repository.metadataCalls != 0 {
+		t.Fatalf("malformed names reached the store: %d payload and %d metadata reads", repository.readCalls, repository.metadataCalls)
 	}
 	response := putArtifact(t, handler, "worker", "review_notes", "*", []byte("report"))
 	if response.Code != http.StatusCreated {

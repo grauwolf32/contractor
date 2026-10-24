@@ -496,7 +496,9 @@ with a weak validator, with a list of validators or with an escaped or
 otherwise quoted value is `400 invalid_request` before the store is read. A
 PUT whose namespace or name is not a portable Artifact name is `400
 invalid_request` before the allocation is looked up and before a byte of the
-payload is read, so its answer is the same for an unknown allocation.
+payload is read, so its answer is the same for an unknown allocation. The
+mTLS checks and the router's method answers (ART-R120) come before these
+request checks.
 
 **ART-R46.** Successful private reads return the resolved revision in
 `ETag`; successful writes return the same exact revision in both `ETag` and the

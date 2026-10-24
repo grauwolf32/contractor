@@ -400,7 +400,9 @@ Scanners ([SCN-R250](../tools/scanners.md)).
 
 **API-R112.** A mutation checks its request metadata before it reads its
 body or a store, and a request that fails one of these checks reads no byte
-of its body and gets the same answer whatever resource it names. First come
+of its body and gets the same answer whatever resource it names. These checks
+run in the operation handler, so authentication and the route table's method
+answers (API-R73, API-R111) come before them. First come
 the query, the path parameters it checks syntactically, such as Artifact
 names, and the media type, with each endpoint's own media-type status (such
 as the `415` of [OPS-R60](../operations/operations.md)); then the
