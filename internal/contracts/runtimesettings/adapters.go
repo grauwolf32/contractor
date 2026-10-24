@@ -17,6 +17,10 @@ const (
 	RuntimeCredentialInteractshToken RuntimeCredentialKind = "interactsh-token@1"
 	RuntimeCredentialOriginBasic     RuntimeCredentialKind = "http-origin-basic@1"
 	RuntimeCredentialOriginBearer    RuntimeCredentialKind = "http-origin-bearer@1"
+	// The pentest target identity kinds (RCF-R184).
+	RuntimeCredentialTargetBasic  RuntimeCredentialKind = "target-basic@1"
+	RuntimeCredentialTargetBearer RuntimeCredentialKind = "target-bearer@1"
+	RuntimeCredentialTargetLogin  RuntimeCredentialKind = "target-login@1"
 )
 
 type RuntimeAdapterRef string
@@ -30,12 +34,16 @@ func (r RuntimeAdapterRef) Validate() error {
 	}
 }
 
+// RuntimeCredentialKind is the one Server definition of the Runtime
+// credential kinds: the encrypted store, the private wire refs and the
+// runtime_credentials CHECK all hold to its constants.
 type RuntimeCredentialKind string
 
 func (k RuntimeCredentialKind) Validate() error {
 	switch k {
 	case RuntimeCredentialOTLPHeaders, RuntimeCredentialProxyBasic, RuntimeCredentialProxyBearer,
-		RuntimeCredentialCaidoBearer, RuntimeCredentialInteractshToken, RuntimeCredentialOriginBasic, RuntimeCredentialOriginBearer:
+		RuntimeCredentialCaidoBearer, RuntimeCredentialInteractshToken, RuntimeCredentialOriginBasic, RuntimeCredentialOriginBearer,
+		RuntimeCredentialTargetBasic, RuntimeCredentialTargetBearer, RuntimeCredentialTargetLogin:
 		return nil
 	default:
 		return contracts.Invalidf("unknown Runtime credential kind")

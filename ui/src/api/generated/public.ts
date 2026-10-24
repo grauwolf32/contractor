@@ -5173,7 +5173,9 @@ export interface components {
             token: string;
         };
         TargetBasicMaterial: {
+            /** @description At most 256 UTF-8 bytes without control characters or a colon (RCF-R184). */
             username: string;
+            /** @description At most 8,192 UTF-8 bytes without control characters (RCF-R184). */
             password: string;
         };
         TargetBearerMaterial: {
@@ -5181,7 +5183,7 @@ export interface components {
             token: string;
         };
         TargetLoginMaterial: {
-            /** @description Named login secret fields (RCF-R184); values total at most 16 KiB. */
+            /** @description Named login secret fields (RCF-R184); each value is at most 8,192 UTF-8 bytes without control characters, and the values total at most 16 KiB. */
             fields: {
                 [key: string]: string;
             };

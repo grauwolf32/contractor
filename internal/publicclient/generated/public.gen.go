@@ -7620,8 +7620,11 @@ type StageTransition struct {
 
 // TargetBasicMaterial defines model for TargetBasicMaterial.
 type TargetBasicMaterial struct {
+	// Password At most 8,192 UTF-8 bytes without control characters (RCF-R184).
 	Password *string `json:"password,omitempty"`
-	Username string  `json:"username"`
+
+	// Username At most 256 UTF-8 bytes without control characters or a colon (RCF-R184).
+	Username *string `json:"username,omitempty"`
 }
 
 // TargetBearerMaterial defines model for TargetBearerMaterial.
@@ -7632,7 +7635,7 @@ type TargetBearerMaterial struct {
 
 // TargetLoginMaterial defines model for TargetLoginMaterial.
 type TargetLoginMaterial struct {
-	// Fields Named login secret fields (RCF-R184); values total at most 16 KiB.
+	// Fields Named login secret fields (RCF-R184); each value is at most 8,192 UTF-8 bytes without control characters, and the values total at most 16 KiB.
 	Fields *map[string]string `json:"fields,omitempty"`
 }
 

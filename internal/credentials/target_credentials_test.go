@@ -1,77 +1,112 @@
 package credentials
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
-func TestTargetCredentialMaterialRoundTripsThroughCanonicalDecoding(t *testing.T) {
-	fields := map[string]string{"username": "alice@example.test", "password": "pässwörd with spaces"}
-	cases := []struct {
-		name  string
-		build func() (RuntimeCredentialMaterial, error)
-		kind  RuntimeCredentialKind
-	}{
-		{"basic", func() (RuntimeCredentialMaterial, error) { return NewTargetBasicCredential("alice", "s3cret") }, RuntimeCredentialTargetBasic},
-		{"bearer", func() (RuntimeCredentialMaterial, error) { return NewTargetBearerCredential("tok \t en") }, RuntimeCredentialTargetBearer},
-		{"login", func() (RuntimeCredentialMaterial, error) { return NewTargetLoginCredential(fields) }, RuntimeCredentialTargetLogin},
+// TestSharedTargetCredentialMaterialCases holds the target credential
+// constructors, the creation decoder and the stored-plaintext decoder to the
+// material cases of api/testdata/v1alpha1/target-credential-cases.json
+// (RCF-R184). A valid material seals, opens and re-decodes to the same
+// canonical plaintext; an invalid one is refused by both decoders, and no
+// refusal repeats a material value.
+func TestSharedTargetCredentialMaterialCases(t *testing.T) {
+	cases := contractstest.ReadTargetCredentialCases(t)
+	cipher, err := NewTokenCipher(bytes.Repeat([]byte{0x75}, 32))
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			material, err := tc.build()
-			if err != nil {
-				t.Fatalf("build: %v", err)
+	kinds := map[RuntimeCredentialKind]int{}
+	for _, test := range cases.Materials {
+		kind := RuntimeCredentialKind(test.Kind)
+		material, err := DecodeRuntimeCredentialMaterial(kind, test.Data)
+		if (err == nil) != test.Valid {
+			t.Errorf("%s: creation decoder accepted = %t, want %t: %v", test.Name, err == nil, test.Valid, err)
+			material.Destroy()
+			continue
+		}
+		if err != nil {
+			if !errors.Is(err, ErrRuntimeCredentialInvalid) {
+				t.Errorf("%s: creation error = %v, want ErrRuntimeCredentialInvalid", test.Name, err)
 			}
-			defer material.Destroy()
-			if material.Kind() != tc.kind {
-				t.Fatalf("kind = %q", material.Kind())
-			}
-			err = material.WithPlaintext(func(kind RuntimeCredentialKind, canonical []byte) error {
-				decoded, err := runtimeCredentialMaterialFromCanonical(kind, append([]byte(nil), canonical...))
-				if err != nil {
-					return err
+			for _, value := range materialStrings(test.Data) {
+				if strings.Contains(err.Error(), value) {
+					t.Errorf("%s: creation error repeats a material value: %v", test.Name, err)
 				}
-				decoded.Destroy()
+			}
+			if _, storedErr := runtimeCredentialMaterialFromCanonical(kind, test.Data); !errors.Is(storedErr, ErrCrypto) {
+				t.Errorf("%s: stored plaintext decoder error = %v, want ErrCrypto", test.Name, storedErr)
+			}
+			continue
+		}
+		kinds[material.Kind()]++
+		if material.Kind() != kind {
+			t.Errorf("%s: kind = %q, want %q", test.Name, material.Kind(), kind)
+		}
+		envelope, err := cipher.SealRuntimeCredential("target-case", material)
+		if err != nil {
+			t.Fatalf("%s: seal: %v", test.Name, err)
+		}
+		opened, err := cipher.OpenRuntimeCredential("target-case", kind, envelope)
+		if err != nil {
+			t.Fatalf("%s: open: %v", test.Name, err)
+		}
+		if err := material.WithPlaintext(func(_ RuntimeCredentialKind, canonical []byte) error {
+			return opened.WithPlaintext(func(openedKind RuntimeCredentialKind, reopened []byte) error {
+				if openedKind != kind || !bytes.Equal(canonical, reopened) {
+					return fmt.Errorf("opened %q differs from the created material", openedKind)
+				}
 				return nil
 			})
-			if err != nil {
-				t.Fatalf("canonical decode: %v", err)
-			}
-		})
+		}); err != nil {
+			t.Errorf("%s: %v", test.Name, err)
+		}
+		material.Destroy()
+		opened.Destroy()
+	}
+	for _, kind := range []RuntimeCredentialKind{
+		RuntimeCredentialTargetBasic, RuntimeCredentialTargetBearer, RuntimeCredentialTargetLogin,
+	} {
+		if kinds[kind] == 0 {
+			t.Errorf("no valid material case of %s", kind)
+		}
 	}
 }
 
-func TestTargetLoginCredentialRejectsOutOfBoundsFields(t *testing.T) {
-	tooMany := map[string]string{}
-	for i := 0; i <= MaximumTargetLoginFields; i++ {
-		tooMany["f"+strings.Repeat("x", i)] = "v"
+// materialStrings returns the string values of at least three bytes in a
+// material that parses as JSON; member names are not secret.
+func materialStrings(data []byte) []string {
+	var document any
+	if json.Unmarshal(data, &document) != nil {
+		return nil
 	}
-	tooLarge := map[string]string{}
-	for i := 0; i < 3; i++ {
-		tooLarge["f"+strings.Repeat("x", i)] = strings.Repeat("v", 6000)
-	}
-	for name, fields := range map[string]map[string]string{
-		"empty":          {},
-		"too many":       tooMany,
-		"too large":      tooLarge,
-		"uppercase name": {"Password": "v"},
-		"empty value":    {"password": ""},
-		"control value":  {"password": "a\nb"},
-		"invalid utf8":   {"password": "\xff"},
-	} {
-		if _, err := NewTargetLoginCredential(fields); !errors.Is(err, ErrRuntimeCredentialInvalid) {
-			t.Fatalf("%s: err = %v", name, err)
+	var values []string
+	var walk func(any)
+	walk = func(value any) {
+		switch typed := value.(type) {
+		case map[string]any:
+			for _, child := range typed {
+				walk(child)
+			}
+		case []any:
+			for _, child := range typed {
+				walk(child)
+			}
+		case string:
+			if len(typed) >= 3 {
+				values = append(values, typed)
+			}
 		}
 	}
-	if _, err := NewTargetBasicCredential("a:b", "p"); !errors.Is(err, ErrRuntimeCredentialInvalid) {
-		t.Fatalf("basic username with colon: err = %v", err)
-	}
-	if _, err := NewTargetBearerCredential(" leading"); !errors.Is(err, ErrRuntimeCredentialInvalid) {
-		t.Fatalf("bearer leading space: err = %v", err)
-	}
+	walk(document)
+	return values
 }
 
 func TestTargetLoginMaterialIsWipedAfterCallbackFailureAndNeverFormatted(t *testing.T) {
@@ -89,10 +124,8 @@ func TestTargetLoginMaterialIsWipedAfterCallbackFailureAndNeverFormatted(t *test
 	if !errors.Is(err, failure) {
 		t.Fatalf("callback error = %v", err)
 	}
-	for _, text := range []string{fmt.Sprintf("%v %+v %#v %s", material, material, material, material)} {
-		if strings.Contains(text, canary) {
-			t.Fatalf("formatted material exposes the secret: %s", text)
-		}
+	if text := fmt.Sprintf("%v %+v %#v %s", material, material, material, material); strings.Contains(text, canary) {
+		t.Fatalf("formatted material exposes the secret: %s", text)
 	}
 	if encoded, err := json.Marshal(material); err == nil || strings.Contains(string(encoded), canary) {
 		t.Fatalf("material encoded: %s, %v", encoded, err)

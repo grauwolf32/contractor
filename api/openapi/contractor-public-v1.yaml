@@ -14552,8 +14552,20 @@ components:
       additionalProperties: false
       required: [username, password]
       properties:
-        username: {type: string, minLength: 1, maxLength: 256}
-        password: {type: string, minLength: 1, maxLength: 8192, writeOnly: true}
+        username:
+          type: string
+          minLength: 1
+          maxLength: 256
+          pattern: '^[^\x00-\x1F\x7F:]+$'
+          writeOnly: true
+          description: At most 256 UTF-8 bytes without control characters or a colon (RCF-R184).
+        password:
+          type: string
+          minLength: 1
+          maxLength: 8192
+          pattern: '^[^\x00-\x1F\x7F]+$'
+          writeOnly: true
+          description: At most 8,192 UTF-8 bytes without control characters (RCF-R184).
     TargetBearerMaterial:
       type: object
       additionalProperties: false
@@ -14576,9 +14588,14 @@ components:
           minProperties: 1
           maxProperties: 16
           propertyNames: {pattern: '^[a-z][a-z0-9_-]{0,63}$'}
-          additionalProperties: {type: string, minLength: 1, maxLength: 8192, writeOnly: true}
+          additionalProperties:
+            type: string
+            minLength: 1
+            maxLength: 8192
+            pattern: '^[^\x00-\x1F\x7F]+$'
+            writeOnly: true
           writeOnly: true
-          description: Named login secret fields (RCF-R184); values total at most 16 KiB.
+          description: Named login secret fields (RCF-R184); each value is at most 8,192 UTF-8 bytes without control characters, and the values total at most 16 KiB.
     CreateRuntimeCredentialRequest:
       oneOf:
         - type: object

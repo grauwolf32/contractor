@@ -121,88 +121,8 @@ func (r *createRuntimeCredentialRequest) UnmarshalJSON(data []byte) error {
 	if len(envelope.Material) == 0 || isJSONNull(envelope.Material) {
 		return errors.New("Runtime credential material is required")
 	}
-	var material credentials.RuntimeCredentialMaterial
-	var err error
-	switch envelope.Kind {
-	case credentials.RuntimeCredentialOTLPHeaders:
-		var value struct {
-			Headers map[string]string `json:"headers"`
-		}
-		if err = strictjson.Decode(envelope.Material, &value); err == nil {
-			material, err = credentials.NewOTLPHeadersCredential(value.Headers)
-		}
-	case credentials.RuntimeCredentialProxyBasic:
-		var value struct {
-			Username string `json:"username"`
-			Password string `json:"password"`
-		}
-		if err = strictjson.Decode(envelope.Material, &value); err == nil {
-			material, err = credentials.NewHTTPProxyBasicCredential(value.Username, value.Password)
-		}
-	case credentials.RuntimeCredentialProxyBearer:
-		var value struct {
-			Token string `json:"token"`
-		}
-		if err = strictjson.Decode(envelope.Material, &value); err == nil {
-			material, err = credentials.NewHTTPProxyBearerCredential(value.Token)
-		}
-	case credentials.RuntimeCredentialCaidoBearer:
-		var value struct {
-			Token string `json:"token"`
-		}
-		if err = strictjson.Decode(envelope.Material, &value); err == nil {
-			material, err = credentials.NewCaidoBearerCredential(value.Token)
-		}
-	case credentials.RuntimeCredentialInteractshToken:
-		var value struct {
-			Token string `json:"token"`
-		}
-		if err = strictjson.Decode(envelope.Material, &value); err == nil {
-			material, err = credentials.NewInteractshTokenCredential(value.Token)
-		}
-	case credentials.RuntimeCredentialOriginBasic:
-		var value struct {
-			Username string `json:"username"`
-			Password string `json:"password"`
-		}
-		if err = strictjson.Decode(envelope.Material, &value); err == nil {
-			material, err = credentials.NewHTTPOriginBasicCredential(value.Username, value.Password)
-		}
-	case credentials.RuntimeCredentialOriginBearer:
-		var value struct {
-			Token string `json:"token"`
-		}
-		if err = strictjson.Decode(envelope.Material, &value); err == nil {
-			material, err = credentials.NewHTTPOriginBearerCredential(value.Token)
-		}
-	case credentials.RuntimeCredentialTargetBasic:
-		var value struct {
-			Username string `json:"username"`
-			Password string `json:"password"`
-		}
-		if err = strictjson.Decode(envelope.Material, &value); err == nil {
-			material, err = credentials.NewTargetBasicCredential(value.Username, value.Password)
-		}
-	case credentials.RuntimeCredentialTargetBearer:
-		var value struct {
-			Token string `json:"token"`
-		}
-		if err = strictjson.Decode(envelope.Material, &value); err == nil {
-			material, err = credentials.NewTargetBearerCredential(value.Token)
-		}
-	case credentials.RuntimeCredentialTargetLogin:
-		var value struct {
-			Fields map[string]string `json:"fields"`
-		}
-		if err = strictjson.Decode(envelope.Material, &value); err == nil {
-			material, err = credentials.NewTargetLoginCredential(value.Fields)
-		}
-		clear(value.Fields)
-	default:
-		err = credentials.ErrRuntimeCredentialInvalid
-	}
+	material, err := credentials.DecodeRuntimeCredentialMaterial(envelope.Kind, envelope.Material)
 	if err != nil {
-		material.Destroy()
 		return err
 	}
 	r.CredentialID = envelope.CredentialID
