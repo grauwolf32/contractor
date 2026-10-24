@@ -138,6 +138,30 @@ SELECT 'owner-' || o, 'project-' || o || '-' || p, 'dataset-' || d, '1', convert
 			if !slices.Equal(got, want) {
 				t.Fatalf("%s %+v: pages returned %d experiments, want %d in order", mode, filter, len(got), len(want))
 			}
+			// V414-026: each page reads experiments in proportion to the
+			// page, in generic plans too, at the first page and at a deep
+			// cursor. The statement with optional predicates read every
+			// experiment of the owner in a generic plan.
+			const budgetLimit = 25
+			var deep time.Time
+			if err := pool.QueryRow(ctx, `SELECT created_at FROM eval_experiments WHERE experiment_id = $1`, want[len(want)/2]).Scan(&deep); err != nil {
+				t.Fatal(err)
+			}
+			for _, after := range []*time.Time{nil, &deep} {
+				page := SummaryPageParams{ListParams: filter}
+				page.Limit = budgetLimit
+				if after != nil {
+					page.AfterCreatedAt, page.AfterID = after, want[len(want)/2]
+				}
+				query, args := summaryPageQuery(page)
+				analysis, err := explaintest.ExplainPrepared(ctx, pool, mode, query, args...)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if reads := analysis.Reads.Of("eval_experiments"); reads > 2*(budgetLimit+1) {
+					t.Errorf("%s %+v after %v: the summary page read %d experiments for a page of %d:\n%s", mode, filter, after != nil, reads, budgetLimit+1, analysis.Plan)
+				}
+			}
 		}
 
 		var member string

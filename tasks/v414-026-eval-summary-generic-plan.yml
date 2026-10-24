@@ -8,6 +8,39 @@ introduced_by: V38-005
 priority: P2
 status: in_progress
 depends_on: [V414-017]
+progress: >-
+  Checkpoint 2026-10-24 20:15 MSK, not closable. Done: summaryPageSQL keeps one
+  statement with a /* filters */ marker; Store.SummaryPage calls
+  summaryPageQuery (public_read.go), which adds only the predicates of the set
+  Project, state, dataset and control-mode filters and the keyset cursor, so
+  each of the 32 combinations is its own statement text without IS NULL OR or
+  = '' predicates (unit test TestSummaryPageQueryNamesOnlySetFilters). The
+  V414-017 cast guard still names summaryPageSQL (2 casts) and passes.
+  Verified: go build ./..., go test ./internal/persistence, and the existing
+  summary paging tests against PostgreSQL (TestPostgresEvalReadersWithoutOwnerPageIndex
+  paging identical to an independent read in Custom and Generic modes,
+  TestSharedPostgresEvalBoundedPagesPinnedPurgeAndReceiptRetention, the
+  httpapi/public Eval list, cursor, UTC and NUL tests,
+  TestSharedPostgresEvalUsageTicksKeepListCursors) passed before the budget
+  check was added. Measured (900 experiments per owner, page 26): Custom plans
+  read 9-38 experiments for every filter; Generic plans read 26 with no filter
+  and with the Project filter (created-order indexes), but 900 at the first
+  page and 406-499 at a deep cursor for state=paused, dataset-3 and
+  control_mode=external, because the state, dataset and control page indexes
+  are (owner_id, X, experiment_id) without created_at, so a generic plan picks
+  the created-order index and filters. The new budget check in
+  TestPostgresEvalReadersWithoutOwnerPageIndex (reads <= 2 x page, first page
+  and deep cursor, both modes) fails for those three Generic cases.
+  Decision needed (scope.out forbids index changes): either add created-order
+  filter indexes (owner_id, state|dataset_id|control_mode, created_at DESC,
+  experiment_id DESC), replacing the experiment_id-ordered ones if no other
+  reader needs them, or execute the summary page with
+  pgx.QueryExecModeExec so every execution gets a custom plan, and keep the
+  Generic budget only for the no-filter, Project and cursor shapes. Next step:
+  get that decision, align with V414-025, raise the fixture to 3,000
+  experiments per owner (A1), add the A2 comparison against the unfixed
+  statement for every combination and the A3 failing run, then run the task's
+  test commands, make verify-public-api and make lint.
 languages: [go, sql]
 goal: >-
   The managed Eval experiment list reads a number of experiments

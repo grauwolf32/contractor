@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -124,7 +125,8 @@ func (s *Store) SummaryPage(ctx context.Context, p SummaryPageParams) (SummaryPa
 	}
 	var result SummaryPage
 	var raw []byte
-	err := s.db.QueryRow(ctx, summaryPageSQL, p.OwnerID, p.ProjectID, p.State, p.DatasetID, p.ControlMode, p.AfterCreatedAt, p.AfterID, p.Limit+1).Scan(&result.Revision, &raw)
+	query, args := summaryPageQuery(p)
+	err := s.db.QueryRow(ctx, query, args...).Scan(&result.Revision, &raw)
 	if err != nil {
 		return result, err
 	}
@@ -151,4 +153,36 @@ func (s *Store) SummaryPage(ctx context.Context, p SummaryPageParams) (SummaryPa
 		result.LastCreatedAt = row.CreatedAt
 	}
 	return result, nil
+}
+
+// summaryPageFilters marks where summaryPageQuery adds predicates to
+// summaryPageSQL.
+const summaryPageFilters = " /* filters */"
+
+// summaryPageQuery returns summaryPageSQL with the predicates of the filters
+// p sets, and its arguments. Each combination of the Project, state, dataset
+// and control-mode filters and the cursor is its own statement text (at most
+// 32), so a cached generic plan never carries an optional predicate that
+// cannot be an index condition (V414-026). $1 is the owner, $2 the Project
+// (also read for the collection revision) and $3 the limit plus one; set
+// filters follow.
+func summaryPageQuery(p SummaryPageParams) (string, []any) {
+	var b strings.Builder
+	args := []any{p.OwnerID, p.ProjectID, p.Limit + 1}
+	if p.ProjectID != "" {
+		b.WriteString(" AND project_id = $2")
+	}
+	for _, f := range [...]struct{ column, value string }{
+		{"state", p.State}, {"dataset_id", p.DatasetID}, {"control_mode", p.ControlMode},
+	} {
+		if f.value != "" {
+			args = append(args, f.value)
+			fmt.Fprintf(&b, " AND %s = $%d", f.column, len(args))
+		}
+	}
+	if p.AfterCreatedAt != nil {
+		args = append(args, *p.AfterCreatedAt, p.AfterID)
+		fmt.Fprintf(&b, " AND (created_at, experiment_id) < ($%d, $%d)", len(args)-1, len(args))
+	}
+	return strings.Replace(summaryPageSQL, summaryPageFilters, b.String(), 1), args
 }
