@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-125 open tasks: 5 in progress, 95 pending, 25 deferred. 997 finished: 994 completed, 3 archived.
+124 open tasks: 4 in progress, 95 pending, 25 deferred. 998 finished: 995 completed, 3 archived.
 
 ## In progress
 
@@ -15,7 +15,6 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
-| [V408-004](v408-004-e2e-build-once.yml) | quality | chore | P2 | Reuse one Server build per e2e package run and build mode |
 
 ## Pending
 
@@ -202,7 +201,7 @@ the epics are in [epics.yml](epics.yml).
 | [V407-039](v407-039-close-server-runtime-review.yml) | chore | P3 | V407-001, V407-002, V407-003, V407-004, V407-005, V407-006, V407-007, V407-008, V407-009, V407-010, V407-011, V407-012, V407-013, V407-014, V407-015, V407-016, V407-017, V407-018, V407-019, V407-020, V407-021, V407-022, V407-023, V407-024, V407-025, V407-026, V407-027, V407-028, V407-029, V407-030, V407-031, V407-032, V407-033, V407-034, V407-035, V407-036, V407-037, V407-038 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V408-001](v408-001-gate-duration-baseline.yml) | chore | P2 | — | Record the baseline duration of every release stage and local test target |
 | [V408-006](v408-006-go-test-cache.yml) | chore | P3 | — | Let pure Go packages use the test cache: -count=1 only for database and process tests |
-| [V408-007](v408-007-gate-duration-after.yml) | chore | P3 | V408-001, V408-002, V408-004, V408-006 | Record the release gate durations after the optimisations and close the test gate cost review |
+| [V408-007](v408-007-gate-duration-after.yml) | chore | P3 | V408-001, V408-002, V408-006 | Record the release gate durations after the optimisations and close the test gate cost review |
 
 ## Deferred
 
@@ -260,4 +259,4 @@ tasks in `introduced_by`.
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 16 | 33 | 6 | 11 |
 | Public API and wire contracts (`api-contracts`) | 8 | 1 | 34 | 20 | 11 |
 | PostgreSQL persistence and schema (`persistence`) | 13 | 0 | 21 | 41 | 9 |
-| Quality, CI and process (`quality`) | 17 | 1 | 21 | 89 | 20 |
+| Quality, CI and process (`quality`) | 16 | 1 | 21 | 89 | 20 |

@@ -5,9 +5,10 @@ milestone: test-gate-cost-2026-10
 epic: quality
 kind: chore
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: ba6fc0a50142dd3af03aa6db53ebe606c48e8e3d
 depends_on: []
-languages: [go]
+languages: [go, python]
 goal: "Process tests reuse a lazily built Server binary without sharing their PKI, databases or scenario state."
 context:
   review: "docs/research/2026-10-23-test-gate-cost-review.md, finding T3"
