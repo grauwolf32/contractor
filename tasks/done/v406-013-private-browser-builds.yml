@@ -6,7 +6,7 @@ epic: ui
 kind: defect
 introduced_by: V4-011
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V4-011, V55-006]
 languages: [go]
 goal: Keep each process browser server's index and hashed assets together for its entire lifetime, independently of sibling UI builds.
@@ -53,3 +53,14 @@ tests:
   covers: [A3]
 - command: make lint
   covers: [A1, A2, A3]
+implementation_commit: 624b3a47a648819be12969aad9966b23b16ab5a9
+verification:
+  date: '2026-10-24'
+  baseline: The real Vite/Node regression failed before isolation with HTTP 404 for the original index's hashed script after a distinct sibling rebuild. A clean native Eval baseline passed separately in 510.02 seconds.
+  passed:
+  - make test-ui-stack; complete package passed in 1174.506 seconds. Operations 90, scan/sweep widgets 2, native Evals 1 and external Evals 1 browser scenarios; zero skipped/unexpected/flaky. The private-build regression passed too.
+  - CONTRACTOR_SCAN_BROWSER=1 make test-scan-e2e; real scanner/browser fixtures passed in 203.679 seconds, with trace and upload/report evidence.
+  - CONTRACTOR_SCAN_BROWSER=1 CONTRACTOR_SCAN_UI_PREBUILT=1 make test-scan-e2e; passed in 204.167 seconds with independent browser evidence.
+  - make lint on the branch integrated with main's SQL-ownership guard correction.
+  - go test -count=1 ./tests/e2e
+  scope: Test-owned immutable UI snapshots; production static serving, configured models and execution deadlines are unchanged.
