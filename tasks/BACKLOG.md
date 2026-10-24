@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-127 open tasks: 6 in progress, 96 pending, 25 deferred. 1071 finished: 1061 completed, 10 archived.
+128 open tasks: 7 in progress, 96 pending, 25 deferred. 1071 finished: 1061 completed, 10 archived.
 
 ## In progress
 
@@ -17,6 +17,7 @@ the epics are in [epics.yml](epics.yml).
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V410-010](v410-010-artifact-history-retention.yml) | projects-artifacts | feature | P1 | Apply automatic bounded history retention to every logical Artifact |
 | [V414-028](v414-028-audit-claim-reconcilable-candidates.yml) | audits | defect | P2 | Lease Audit controller claims from the reconcilable Audits instead of reading every claim row |
+| [V415-001](v415-001-macos-mesh-routes.yml) | operations | defect | P1 | Restore macOS mesh routes when another VPN captures peer traffic |
 
 ## Pending
 
@@ -249,7 +250,7 @@ tasks in `introduced_by`.
 | Evaluations (`evals`) | 7 | 21 | 37 | 11 | 45 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 2 | 25 | 61 | 13 | 55 |
-| Operations, authentication, CLI and deployment (`operations`) | 3 | 16 | 37 | 6 | 13 |
+| Operations, authentication, CLI and deployment (`operations`) | 4 | 16 | 38 | 6 | 13 |
 | Public API and wire contracts (`api-contracts`) | 6 | 2 | 36 | 21 | 11 |
 | PostgreSQL persistence and schema (`persistence`) | 8 | 0 | 24 | 42 | 13 |
 | Quality, CI and process (`quality`) | 15 | 1 | 25 | 92 | 23 |

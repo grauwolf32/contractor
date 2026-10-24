@@ -44,6 +44,19 @@ python3 deploy/wireguard/egress.py check-kill-switch
 `init` refuses an existing deployment; `render` preserves existing private keys.
 The local `local-up` step asks for sudo in your terminal. On macOS the actual
 interface is named `utunN`, even though the configuration is `wg-mesh.conf`.
+On macOS, `local-up` also restores an explicit route for the deployment's private
+mesh /24. It discovers the interface by the controller address, verifies its
+WireGuard public identity, and checks that each peer routes through it. Repeating
+the command repairs routing without restarting an existing matching CLI tunnel:
+run it again after activating a personal VPN that captures mesh traffic. The
+personal VPN, default route, DNS and keys are unchanged. A conflicting or
+unverifiable interface, denied administrator privileges, or a failed route check
+fails the command. Graphical-client tunnels remain manually managed.
+
+The route is temporary and `wg-quick down` removes routes on its interface.
+There is no background route monitor for VPN changes or automatic activation
+added by this helper; rerun `local-up` after such a change. Linux cloud startup
+continues to use `wg-quick@wg-mesh` and the per-peer /32 routes.
 Remote peers listen on UDP 51821; allow this in the cloud security group. The
 Mac can be behind NAT and initiates connections with keepalives. On cloudru1
 the provider tunnel additionally needs outbound UDP to its configured endpoint.

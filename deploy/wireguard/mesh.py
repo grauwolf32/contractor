@@ -7,6 +7,7 @@ import argparse
 import ipaddress
 import json
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -20,6 +21,7 @@ from common import (
     apply_remote,
     load_state,
     run,
+    secret,
     secure_write,
     ssh,
     ssh_hostname,
@@ -155,16 +157,116 @@ def apply(args):
     )
 
 
+def privileged(argv):
+    if os.geteuid() == 0:
+        return argv
+    return ["sudo", "env", "PATH=" + os.environ.get("PATH", ""), *argv]
+
+
+def macos_interface(ifconfig, wg, address, public_key):
+    output = run([ifconfig, "-a"])
+    interfaces = []
+    current = None
+    for line in output.splitlines():
+        if line and not line[0].isspace():
+            current = line.split(":", 1)[0]
+        elif current and line.split()[:2] == ["inet", address]:
+            interfaces.append(current)
+    if not interfaces:
+        return None
+    if len(interfaces) != 1 or not re.fullmatch(r"utun[0-9]+", interfaces[0]):
+        raise RuntimeError("the controller address does not identify one macOS mesh interface")
+    interface = interfaces[0]
+    identities = dict(
+        line.split() for line in run(privileged([wg, "show", "all", "public-key"])).splitlines()
+    )
+    if identities.get(interface) != public_key:
+        raise RuntimeError("the controller address belongs to an unverified WireGuard interface")
+    return interface
+
+
+def macos_route(route, destination, *, network=False):
+    argv = [route, "-n", "get"]
+    if network:
+        argv.append("-net")
+    result = subprocess.run(
+        [*argv, str(destination)], capture_output=True, text=True, timeout=10, check=False
+    )
+    if result.returncode:
+        return {}
+    return dict(line.strip().split(": ", 1) for line in result.stdout.splitlines() if ": " in line)
+
+
+def macos_local_up(state, doc, executable):
+    network = ipaddress.ip_network(doc["network"])
+    address = ipaddress.ip_address(doc["controller_address"])
+    hosts = doc["hosts"]
+    if (
+        network.version != 4
+        or network.prefixlen != 24
+        or not network.is_private
+        or address not in network
+        or not 1 <= len(hosts) <= 16
+        or any(ipaddress.ip_address(host["address"]) not in network for host in hosts)
+    ):
+        raise ValueError(
+            "local mesh routing requires its declared private IPv4 /24 and 1..16 peers"
+        )
+    tools = {name: shutil.which(name) for name in ("wg", "ifconfig", "route")}
+    if not all(tools.values()):
+        raise RuntimeError("local mesh routing requires wg, ifconfig and route")
+    public_key = run(
+        [tools["wg"], "pubkey"], data=secret(state / "wireguard/controller/private.key")
+    ).strip()
+    interface = macos_interface(tools["ifconfig"], tools["wg"], str(address), public_key)
+    if interface is None:
+        config = state / "wireguard/controller/wg-mesh.conf"
+        run(privileged([executable, "up", str(config)]))
+        interface = macos_interface(tools["ifconfig"], tools["wg"], str(address), public_key)
+        if interface is None:
+            raise RuntimeError("wg-quick returned without creating the mesh interface")
+    route = tools["route"]
+    before = macos_route(route, network, network=True)
+    exact = before.get("destination") == str(network.network_address) and before.get("mask") == str(
+        network.netmask
+    )
+    if not exact or before.get("interface") != interface:
+        run(
+            privileged(
+                [
+                    route,
+                    "-n",
+                    "change" if exact else "add",
+                    "-net",
+                    str(network),
+                    "-interface",
+                    interface,
+                ]
+            )
+        )
+    after = macos_route(route, network, network=True)
+    if (
+        after.get("destination") != str(network.network_address)
+        or after.get("mask") != str(network.netmask)
+        or after.get("interface") != interface
+        or any(macos_route(route, host["address"]).get("interface") != interface for host in hosts)
+    ):
+        raise RuntimeError(
+            "mesh route verification failed; check conflicting VPN routes and rerun local-up"
+        )
+    print(f"Local mesh ready: {network} via {interface}; default route unchanged")
+
+
 def local_up(args):
-    state, _ = load_state(args.state)
-    config = state / "wireguard" / "controller" / "wg-mesh.conf"
+    state, doc = load_state(args.state)
+    config = state / "wireguard/controller/wg-mesh.conf"
     executable = shutil.which("wg-quick")
     if not executable:
         raise RuntimeError("install WireGuard tools and wireguard-go locally first")
-    cmd = [executable, "up", str(config)]
-    if os.geteuid() != 0:
-        cmd = ["sudo", "env", "PATH=" + os.environ.get("PATH", ""), *cmd]
-    subprocess.run(cmd, check=True)
+    if sys.platform == "darwin":
+        macos_local_up(state, doc, executable)
+    else:
+        subprocess.run(privileged([executable, "up", str(config)]), check=True)
 
 
 def status(args):
