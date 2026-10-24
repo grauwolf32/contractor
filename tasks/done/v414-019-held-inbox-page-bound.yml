@@ -154,7 +154,7 @@ verification:
   environment: >-
     macOS arm64; Go from /private/tmp/contractor-go-darwin; PostgreSQL 17.11 database
     contractor_test_v414_sql with disposable per-test schemas; branch claude/v414-sql with main
-    (63861457) merged; TMPDIR set to a path without symlinked components, because the filesystem
+    (63861457, then 0f5bed13) merged; TMPDIR set to a path without symlinked components, because the filesystem
     blob store rejects the /var -> /private/var symlink of the macOS default TMPDIR (unrelated to
     this change).
   commands:
@@ -179,7 +179,18 @@ verification:
       Run with -v, TestPostgresAuditHeldInboxPageReadsOnlyThePage,
       TestPostgresNextRoundHeldInboxPassReadsGrowWithPages, TestPostgresAuditHoldKeepsItsReceiptTime
       and TestPostgresFindingHoldReceiptTimeMigrationBackfillsHolds report PASS and no SKIP.
-    - make docs-erd regenerated docs/spec/database-erd.html for migration 000041.
+    - make docs-erd regenerated docs/spec/database-erd.html for migration 000042.
+    - >-
+      After main (0f5bed13) brought V414-030's 000041_finding_correlation_fences.sql, the
+      migration was renumbered to 000042 (12c504e8). The migration test now installs the prefix
+      through 000041 and writes the Project's correlation fence as an Audit draft does.
+      Afterwards these were rerun and passed:
+      TestPostgresFindingHoldReceiptTimeMigrationBackfillsHolds with -v (PASS, no SKIP);
+      go test -tags=integration -count=1 ./internal/persistence/...;
+      TestPostgresAuditHeldInboxPageReadsOnlyThePage,
+      TestPostgresNextRoundHeldInboxPassReadsGrowWithPages,
+      TestPostgresAuditHoldKeepsItsReceiptTime and the TestPostgresAuditInbox tests in
+      internal/findingintake; and make lint.
   database_tests_configured: true
   evidence:
     - >-
@@ -214,9 +225,9 @@ verification:
       another time is ClassRejected, and an insert for a missing receipt is
       ClassReferenceViolation, the class the receipt foreign key gave before. An insert naming
       the receipt's own time is accepted.
-      TestPostgresFindingHoldReceiptTimeMigrationBackfillsHolds applies migrations 1 to 40 and
+      TestPostgresFindingHoldReceiptTimeMigrationBackfillsHolds applies migrations 1 to 41 and
       writes two holds whose hold order is the reverse of their receipt order, then applies
-      000041. It checks that the backfill equals the receipt times, the column is NOT NULL, the
+      000042. It checks that the backfill equals the receipt times, the column is NOT NULL, the
       index (audit_id, receipt_created_at, receipt_id) replaces
       finding_proposal_audit_holds_audit_idx, an update is rejected, and a later hold gets its
       time from the trigger.
