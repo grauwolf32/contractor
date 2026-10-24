@@ -24,8 +24,8 @@ type EvalControlMode = EvalExperiment["controlMode"];
 type EvalFreshness = NonNullable<EvalExperiment["freshness"]>;
 type EvalSection = "overview" | "comparison" | "attempts" | "setup";
 
-// Key order is the lifecycle order of the list filter.
-export const EVAL_STATE_LABELS: Readonly<Record<EvalState, VocabularyLabel>> = {
+// The Record type gives every lifecycle state a word and a status tone.
+const EVAL_STATE_LABELS: Readonly<Record<EvalState, VocabularyLabel>> = {
   draft: { label: "Draft", tone: "idle" },
   preparing: { label: "Preparing", tone: "progress" },
   ready: { label: "Ready to start", tone: "info" },

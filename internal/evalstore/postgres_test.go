@@ -497,29 +497,29 @@ func TestSharedPostgresEvalBoundedPagesPinnedPurgeAndReceiptRetention(t *testing
 		createExperiment(t, pool, scope, fmt.Sprintf("exp-%02d", i), fmt.Sprintf("portable-%02d", i), "create-workflow")
 	}
 	reader := NewPostgresStore(pool)
-	page, err := reader.SummaryPage(ctx, SummaryPageParams{ListParams: ListParams{
+	page, err := reader.SummaryPage(ctx, SummaryPageParams{
 		OwnerID: scope.OwnerID, ProjectID: scope.ProjectID, Limit: 5,
-	}})
+	})
 	if err != nil || len(page.Items) != 5 {
 		t.Fatal(page, err)
 	}
 	page2, err := reader.SummaryPage(ctx, SummaryPageParams{
-		ListParams: ListParams{OwnerID: scope.OwnerID, ProjectID: scope.ProjectID,
-			AfterID: page.Items[4].ID, Limit: 5, Revision: &page.Revision},
+		OwnerID: scope.OwnerID, ProjectID: scope.ProjectID,
+		AfterID: page.Items[4].ID, Limit: 5, Revision: &page.Revision,
 		AfterCreatedAt: &page.LastCreatedAt,
 	})
 	if err != nil || len(page2.Items) != 5 || page2.Items[0].ID == page.Items[4].ID {
 		t.Fatal(page2, err)
 	}
-	if _, err = reader.SummaryPage(ctx, SummaryPageParams{ListParams: ListParams{OwnerID: scope.OwnerID, Limit: 101}}); !code(err, "eval_invalid") {
+	if _, err = reader.SummaryPage(ctx, SummaryPageParams{OwnerID: scope.OwnerID, Limit: 101}); !code(err, "eval_invalid") {
 		t.Fatal(err)
 	}
 	del := fixture(t, "delete", "Delete")
 	m := mutation(t, "delete", 1, del)
 	mustTx(t, pool, func(s *Store) error { _, err := s.BeginDeletion(ctx, scope, "exp-00", m); return err })
-	if _, err = reader.SummaryPage(ctx, SummaryPageParams{ListParams: ListParams{
+	if _, err = reader.SummaryPage(ctx, SummaryPageParams{
 		OwnerID: scope.OwnerID, Limit: 5, ProjectID: scope.ProjectID, Revision: &page.Revision,
-	}}); !code(err, "eval_view_changed") {
+	}); !code(err, "eval_view_changed") {
 		t.Fatal(err)
 	}
 	if passes := purgeExperimentUntilDone(t, pool, scope, "exp-00"); len(passes) != 1 {

@@ -20,7 +20,7 @@ describe("Experiments list", () => {
   it("keeps the selection in the URL and previews the selected experiment", async () => {
     const fixture = createEvalFixture({ prepared: true });
     const user = userEvent.setup();
-    const router = start(fixture, "/evals?state=ready");
+    const router = start(fixture, "/evals?projectId=evaluation-1");
     const list = await screen.findByRole("region", { name: "Experiments" });
     expect(
       within(list).getByRole("heading", { level: 1, name: "Experiments" }),
@@ -34,7 +34,7 @@ describe("Experiments list", () => {
     });
     expect(row).toHaveAttribute(
       "href",
-      "/evals?state=ready&experiment=experiment-1",
+      "/evals?projectId=evaluation-1&experiment=experiment-1",
     );
     expect(
       within(list).getByText("Ready to start", { selector: "strong" }),
@@ -43,7 +43,7 @@ describe("Experiments list", () => {
     await user.click(row);
     await waitFor(() =>
       expect(router.state.location.search).toBe(
-        "?state=ready&experiment=experiment-1",
+        "?projectId=evaluation-1&experiment=experiment-1",
       ),
     );
     expect(row).toHaveAttribute("aria-current", "true");
@@ -141,7 +141,17 @@ describe("Experiments list", () => {
     );
   });
 
-  it("continues a draft's setup and labels the lifecycle filter in words", async () => {
+  it("does not send the removed filters of an older link", async () => {
+    const fixture = createEvalFixture();
+    start(fixture, "/evals?state=ready&controlMode=external&datasetId=d");
+    const list = await screen.findByRole("region", { name: "Experiments" });
+    // The fixture answers 422 to a list request with an undeclared filter.
+    expect(
+      await within(list).findByRole("link", { name: "Trace instructions" }),
+    ).toBeVisible();
+  });
+
+  it("continues a draft's setup and filters by workspace only", async () => {
     const fixture = createEvalFixture();
     const user = userEvent.setup();
     const router = start(fixture, "/evals?experiment=experiment-1");
@@ -155,29 +165,21 @@ describe("Experiments list", () => {
       ),
     ).toBeInTheDocument();
     await user.click(screen.getByText("Filter experiments"));
-    const lifecycle = screen.getByLabelText("Lifecycle");
+    const workspace = screen.getByLabelText("Evaluation workspace");
     expect(
-      within(lifecycle)
+      within(workspace)
         .getAllByRole("option")
         .map((option) => option.textContent),
-    ).toEqual([
-      "All states",
-      "Draft",
-      "Preparing",
-      "Ready to start",
-      "Running",
-      "Finishing",
-      "Finished",
-      "Pausing",
-      "Paused",
-      "Cancelling",
-      "Cancelled",
-    ]);
-    await user.selectOptions(lifecycle, "draft");
+    ).toEqual(["All workspaces", "Evaluation workspace"]);
+    for (const removed of ["Lifecycle", "Control mode", "Dataset ID"])
+      expect(screen.queryByLabelText(removed)).not.toBeInTheDocument();
+    await user.selectOptions(workspace, "evaluation-1");
     await waitFor(() =>
-      expect(router.state.location.search).toContain("state=draft"),
+      expect(router.state.location.search).toBe(
+        "?experiment=experiment-1&projectId=evaluation-1",
+      ),
     );
-    await user.click(screen.getByRole("button", { name: "Clear filters" }));
+    await user.selectOptions(workspace, "");
     await waitFor(() =>
       expect(router.state.location.search).toBe("?experiment=experiment-1"),
     );

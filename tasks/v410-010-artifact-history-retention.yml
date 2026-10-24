@@ -421,7 +421,7 @@ progress: >-
   LIM-ART-9 to LIM-ART-11, DEL-R62 to DEL-R64 (holder classification), DEL-R3
   and SKL-R81/LIFE-SKL-1 conflicts fixed; OpenAPI ArtifactWriteConflict and
   ArtifactWriteUnavailable (optional Retry-After) on putArtifact and
-  putProjectArtifact, clients regenerated; migration 000040
+  putProjectArtifact, clients regenerated; migration 000041
   artifact_history_accounting adds and backfills
   artifact_bindings.retained_revisions/retained_bytes (NOT NULL, checked),
   maintained by writeSQL and forkSQL; migration test and a store accounting
@@ -431,7 +431,7 @@ progress: >-
   removed again in this checkpoint because nothing calls them yet (make lint
   dead-code gates); restore that file together with admission, and name the
   two apierror kinds (registered as blank definitions for now). Not started: hold_count and holder
-  triggers (migration 000041), eligible partial index, trusted retention
+  triggers (migration 000042), eligible partial index, trusted retention
   delete exception, admission/eviction/maintenance, collector refactor,
   adapters (public Retry-After, private API, Runtime, Memory Go/Python,
   gitimport), Server config fields, read-race not-found recheck, shared
@@ -479,9 +479,9 @@ progress: >-
   Skill init maps a missing source to retryable skill_artifact_unavailable
   (RUN-R27 says skill_artifact_not_found); bindOutput leaves a missing
   candidate source as an ordinary error.
-  Next step: merge main and recheck that 000040 is still the next free
+  Next step: merge main and recheck that 000041 is still the next free
   migration number; verify the inventory claims against code; write migration
-  000041 (hold_count, lineage/publication and JSON holder triggers,
+  000042 (hold_count, lineage/publication and JSON holder triggers,
   eligible partial index, trusted retention delete exception, validation of
   stored references, migration test); then admission/eviction, adapters,
   fixtures, make targets and e2e.

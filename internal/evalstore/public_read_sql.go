@@ -20,24 +20,21 @@ SELECT COALESCE((SELECT revision
             ORDER BY dataset_id, revision LIMIT $5) page), '[]'::jsonb)
 `
 
-// summaryPageSQL returns the Project's collection revision (0 when absent) and
-// a JSON array of the owner's experiment summaries, filtered by Project, state,
-// dataset and control mode, keyset-paged on (created_at, experiment_id)
-// descending after ($6, $7) and limited to $8. Items combine the frozen plan
-// (or draft) setup, the published view summary and its freshness against the
-// projection queue. Used by Store.SummaryPage.
-var summaryPageSQL = `
+// summaryPageSQL returns the Project's ($2) collection revision (0 when absent
+// or when $2 is empty) and a JSON array of the owner's ($1) experiment
+// summaries, newest first by (created_at, experiment_id) and limited to $3.
+// Items combine the frozen plan (or draft) setup, the published view summary
+// and its freshness against the projection queue. summaryPageQuery replaces
+// summaryPagePredicates with the Project and keyset cursor predicates a page
+// needs; none is optional inside a statement, so a generic plan keeps them as
+// index conditions (EVM-R247). Used by Store.SummaryPage.
+const summaryPageSQL = `
 WITH page AS MATERIALIZED (
     SELECT experiment_id, project_id, name, control_mode, state, revision,
         expected_count, draft, created_at, updated_at, dataset_id
     FROM eval_experiments
-    WHERE owner_id = $1
-        AND ($2 = '' OR project_id = $2)
-        AND ($3 = '' OR state = $3)
-        AND ($4 = '' OR dataset_id = $4)
-        AND ($5 = '' OR control_mode = $5)
-        AND ($6::timestamptz IS NULL OR (created_at, experiment_id) < ($6, $7))
-    ORDER BY created_at DESC, experiment_id DESC LIMIT $8
+    WHERE owner_id = $1 /* predicates */
+    ORDER BY created_at DESC, experiment_id DESC LIMIT $3
 ), details AS (
     SELECT page.*, convert_from(COALESCE(p.setup, page.draft), 'UTF8')::jsonb AS setup,
         convert_from(q.summary, 'UTF8')::jsonb AS summary,
