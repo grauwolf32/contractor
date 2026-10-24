@@ -38,14 +38,7 @@ func (s *CredentialHolds) listHeldAuditIDsByCredential(
 	if err := validateText("credentialID", credentialID, 128, true); err != nil || limit < 1 || limit > 128 {
 		return nil, invalidf("Audit credential hold query is invalid")
 	}
-	// An Audit baseline repeats the RunSnapshot credential members.
-	rows, err := s.db.Query(ctx, `
-SELECT audit_id
-  FROM audits
- WHERE hold_state = 'held'
-   AND (baseline_snapshot->'`+member+`') ? $1
- ORDER BY created_at, audit_id
- LIMIT $2`, credentialID, limit)
+	rows, err := s.db.Query(ctx, heldAuditIDsByCredentialSQL(member), credentialID, limit)
 	if err != nil {
 		return nil, fmt.Errorf("inspect Audit %s credential holds: %w", kind, err)
 	}
