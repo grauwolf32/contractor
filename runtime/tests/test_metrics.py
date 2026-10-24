@@ -7,6 +7,9 @@ from types import SimpleNamespace
 import pytest
 from fakes.private_codec import encode_private
 
+from contractor_runtime.contracts import ExecutionReport, TerminationError
+from contractor_runtime.core.input_errors import ToolInputError
+from contractor_runtime.telemetry import metrics as metrics_module
 from contractor_runtime.telemetry.metrics import (
     MAX_ARGUMENT_SUMMARY_BYTES,
     MAX_METRIC_COUNTER,
@@ -14,6 +17,7 @@ from contractor_runtime.telemetry.metrics import (
     MAX_METRIC_TOOL_CALLS,
     MAX_REPORT_JSON_BYTES,
     MetricsState,
+    trim_report_detail,
 )
 from contractor_runtime.toolsets.audit_results.arguments import AuditArgumentError
 from contractor_runtime.toolsets.audit_results.collector import AuditCollectionError
@@ -22,6 +26,13 @@ SECRET = "metrics-secret-that-must-not-survive"
 TELEMETRY_SIZE_CASES = json.loads(
     (Path(__file__).parents[2] / "api/testdata/v1alpha1/telemetry-json-size-cases.json").read_text()
 )
+REPORT_TRIM_CASES = json.loads(
+    (
+        Path(__file__).parents[2] / "api/testdata/v1alpha1/telemetry-report-trim-cases.json"
+    ).read_text(encoding="utf-8")
+)["cases"]
+# The Worker report bound before the allocation envelope is added.
+WORKER_REPORT_BYTES = MAX_REPORT_JSON_BYTES - 4096
 
 
 class ToolFailure(RuntimeError):
@@ -285,3 +296,190 @@ def test_shared_allocation_counters_saturate_at_the_state_wire_limit() -> None:
         "output_tokens": MAX_METRIC_COUNTER,
         "total_tokens": MAX_METRIC_COUNTER,
     }
+
+
+class LongInputError(ToolInputError):
+    """A tool input error whose diagnostic fills the error-message bound."""
+
+
+def _report_bytes(report: ExecutionReport) -> int:
+    return len(
+        json.dumps(
+            report.model_dump(mode="json", by_alias=True, exclude_none=True),
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ).encode()
+    )
+
+
+def _projections(records) -> list[dict]:
+    return [record.model_dump(mode="json", by_alias=True, exclude_none=True) for record in records]
+
+
+def _trim(report: ExecutionReport, maximum: int) -> ExecutionReport:
+    return trim_report_detail(
+        report,
+        maximum,
+        tool_call_projections=_projections(report.tool_calls),
+        error_projections=_projections(report.errors),
+    )
+
+
+def _previous_trim(report: ExecutionReport, maximum: int) -> ExecutionReport:
+    """The loop trim_report_detail replaced: measure the whole report after each removal."""
+
+    tool_calls = list(report.tool_calls)
+    errors = list(report.errors)
+    while _report_bytes(report) > maximum:
+        if tool_calls:
+            tool_calls.pop(0)
+        elif errors:
+            errors.pop(0)
+        else:
+            raise ValueError("aggregate execution report exceeds the 1 MiB limit")
+        report = report.model_copy(
+            update={"tool_calls": list(tool_calls), "errors": list(errors), "truncated": True}
+        )
+    return report
+
+
+def _removal_sequence(report: ExecutionReport) -> list[ExecutionReport]:
+    states = [report]
+    tool_calls, errors = list(report.tool_calls), list(report.errors)
+    while tool_calls or errors:
+        if tool_calls:
+            tool_calls.pop(0)
+        else:
+            errors.pop(0)
+        states.append(
+            report.model_copy(
+                update={"tool_calls": list(tool_calls), "errors": list(errors), "truncated": True}
+            )
+        )
+    return states
+
+
+def _count_measurements(monkeypatch) -> dict[str, int]:
+    """Count complete-report and single-record JSON measurements by the metrics module."""
+
+    counts = {"reports": 0, "records": 0}
+    measure = metrics_module._json_size
+
+    def counting(value):
+        counts["reports" if isinstance(value, dict) and "reportId" in value else "records"] += 1
+        return measure(value)
+
+    monkeypatch.setattr(metrics_module, "_json_size", counting)
+    return counts
+
+
+@pytest.mark.parametrize("case", REPORT_TRIM_CASES, ids=lambda case: case["name"])
+def test_shared_report_trim_keeps_the_shared_suffix_at_every_boundary(case) -> None:
+    report = ExecutionReport.model_validate_json(json.dumps(case["report"]))
+    assert _report_bytes(report) == case["bytes"]
+    for limit in case["limits"]:
+        if limit.get("aggregateTooLarge"):
+            with pytest.raises(ValueError, match="aggregate execution report"):
+                _trim(report, limit["maximumBytes"])
+            continue
+        trimmed = _trim(report, limit["maximumBytes"])
+        assert trimmed.tool_calls == report.tool_calls[limit["toolCallsFrom"] :]
+        assert trimmed.errors == report.errors[limit["errorsFrom"] :]
+        assert trimmed.truncated is limit["truncated"]
+        assert trimmed.metrics == report.metrics
+        assert _report_bytes(trimmed) == limit["bytes"] <= limit["maximumBytes"]
+
+
+def test_shared_report_trim_matches_the_previous_loop_byte_for_byte() -> None:
+    state = MetricsState()
+    units = ("a", "ж", "界", "😀", "\u2028", "<>&", '"\\', "\n\t\u0001")
+    for index in range(24):
+        unit = units[index % len(units)]
+        error = LongInputError("failed " + unit * (index * 11 + 1)) if index % 3 == 0 else None
+        state.record_tool_call(
+            "search_text",
+            arguments={"pattern": unit * (index * 7 + 1), "limit": index},
+            error=error,
+            duration_ms=index,
+        )
+    state.record_model_error(RuntimeError("provider failed"))
+    report = state.build_report(
+        report_id="worker-differential",
+        duration_ms=5,
+        extra_errors=(
+            TerminationError(code="run_cancelled", message="界 cancelled", retryable=False),
+        ),
+    )
+    assert not report.truncated and len(report.tool_calls) == 24 and len(report.errors) == 10
+    boundaries = sorted(
+        {
+            maximum
+            for candidate in _removal_sequence(report)
+            for size in (_report_bytes(candidate),)
+            for maximum in (size - 1, size, size + 1)
+        }
+    )
+    for maximum in boundaries:
+        try:
+            expected = _previous_trim(report, maximum)
+        except ValueError:
+            with pytest.raises(ValueError, match="aggregate execution report"):
+                _trim(report, maximum)
+            continue
+        encoded = _trim(report, maximum).model_dump_json(by_alias=True, exclude_none=True)
+        assert encoded == expected.model_dump_json(by_alias=True, exclude_none=True), maximum
+
+
+def test_shared_report_trim_measures_the_complete_report_at_most_three_times(monkeypatch) -> None:
+    state = MetricsState()
+    message = "界" * 1365 + "a"  # 4096 UTF-8 bytes, the error-message bound
+    for index in range(MAX_METRIC_TOOL_CALLS):
+        failed = index >= MAX_METRIC_TOOL_CALLS - MAX_METRIC_ERRORS
+        state.record_tool_call(
+            "read_source_file",
+            arguments={"path": f"{index:04d}" + "ж" * 1990},
+            error=LongInputError(message) if failed else None,
+        )
+    assert len(state.tool_calls) == MAX_METRIC_TOOL_CALLS
+    assert [len(error.message.encode()) for error in state.errors] == [4096] * MAX_METRIC_ERRORS
+    projected = []
+    projection = metrics_module._record_projection
+    monkeypatch.setattr(
+        metrics_module,
+        "_record_projection",
+        lambda record: projected.append(record) or projection(record),
+    )
+    counts = _count_measurements(monkeypatch)
+
+    report = state.build_report(report_id="worker-maximum-detail", duration_ms=1)
+
+    # The candidate, the envelope without detail and the retained result; each
+    # admitted record is measured once and none is projected again.
+    assert counts == {"reports": 3, "records": MAX_METRIC_TOOL_CALLS + MAX_METRIC_ERRORS}
+    assert projected == []
+    removed = MAX_METRIC_TOOL_CALLS - len(report.tool_calls)
+    assert 0 < removed < MAX_METRIC_TOOL_CALLS
+    assert report.tool_calls == list(state.tool_calls[removed:])
+    assert report.errors == list(state.errors) and report.truncated
+    assert report.metrics.tools["read_source_file"].calls == MAX_METRIC_TOOL_CALLS
+    # It is the first report of the removal sequence that fits.
+    assert _report_bytes(report) <= WORKER_REPORT_BYTES
+    one_more = report.model_copy(update={"tool_calls": list(state.tool_calls[removed - 1 :])})
+    assert _report_bytes(one_more) > WORKER_REPORT_BYTES
+
+
+def test_shared_report_trim_rejects_an_aggregate_larger_than_the_bound() -> None:
+    state = MetricsState()
+    for index in range(20_000):
+        state.record_tool_call(f"tool_{index:05d}_" + "x" * 50, arguments={"value": index})
+    with pytest.raises(ValueError, match="aggregate execution report exceeds the 1 MiB limit"):
+        state.build_report(report_id="worker-aggregate", duration_ms=1)
+
+
+def test_shared_report_trim_measures_a_fitting_report_once(monkeypatch) -> None:
+    state = MetricsState()
+    state.record_tool_call("read_source_file", arguments={"path": "src/a.py"})
+    counts = _count_measurements(monkeypatch)
+    report = state.build_report(report_id="worker-small", duration_ms=1)
+    assert counts == {"reports": 1, "records": 0}
+    assert not report.truncated and len(report.tool_calls) == 1

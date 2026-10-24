@@ -1,0 +1,701 @@
+{
+  "description": "Bounded execution-report trimming (OBS-R41, OBS-R110): when a report's compact UTF-8 JSON (OBS-R42) exceeds maximumBytes, the oldest tool-call record is removed first, the oldest error only after no tool-call record remains, and truncated becomes true; the result is the first report of that sequence that fits. bytes is the size of the untrimmed report; each limit gives the retained suffixes (toolCallsFrom, errorsFrom), truncated and the retained size, or aggregateTooLarge when even the report without detail exceeds the limit. The limits are every size of the removal sequence, that size minus one byte and the untrimmed size plus one. Go checks telemetry Policy.NormalizeExecutionReport, Python telemetry.metrics.trim_report_detail. The reports use only content both models render identically: integers, no empty arguments object, no completion block.",
+  "cases": [
+    {
+      "name": "ASCII detail, calls removed before errors",
+      "bytes": 1157,
+      "report": {
+        "reportId": "worker-ascii",
+        "complete": true,
+        "metrics": {
+          "durationMs": 12,
+          "modelCalls": 3,
+          "tools": {
+            "read_source_file": {
+              "calls": 5
+            }
+          }
+        },
+        "toolCalls": [
+          {
+            "callId": "call-00",
+            "tool": "read_source_file",
+            "argumentsTruncated": false,
+            "outcome": "succeeded",
+            "arguments": {
+              "path": "src/module_0.py",
+              "line": 0
+            }
+          },
+          {
+            "callId": "call-01",
+            "tool": "read_source_file",
+            "argumentsTruncated": false,
+            "outcome": "succeeded",
+            "arguments": {
+              "path": "src/module_1.py",
+              "line": 7
+            }
+          },
+          {
+            "callId": "call-02",
+            "tool": "read_source_file",
+            "argumentsTruncated": false,
+            "outcome": "succeeded",
+            "arguments": {
+              "path": "src/module_2.py",
+              "line": 14
+            }
+          },
+          {
+            "callId": "call-03",
+            "tool": "read_source_file",
+            "argumentsTruncated": false,
+            "outcome": "succeeded",
+            "arguments": {
+              "path": "src/module_3.py",
+              "line": 21
+            }
+          },
+          {
+            "callId": "call-04",
+            "tool": "read_source_file",
+            "argumentsTruncated": false,
+            "outcome": "succeeded",
+            "arguments": {
+              "path": "src/module_4.py",
+              "line": 28
+            }
+          }
+        ],
+        "errors": [
+          {
+            "code": "model_call_failed",
+            "message": "Model call failed (attempt 0)",
+            "retryable": true
+          },
+          {
+            "code": "model_call_failed",
+            "message": "Model call failed (attempt 1)",
+            "retryable": true
+          },
+          {
+            "code": "model_call_failed",
+            "message": "Model call failed (attempt 2)",
+            "retryable": true
+          }
+        ],
+        "truncated": false
+      },
+      "limits": [
+        {
+          "maximumBytes": 170,
+          "aggregateTooLarge": true
+        },
+        {
+          "maximumBytes": 171,
+          "toolCallsFrom": 5,
+          "errorsFrom": 3,
+          "truncated": true,
+          "bytes": 171
+        },
+        {
+          "maximumBytes": 257,
+          "toolCallsFrom": 5,
+          "errorsFrom": 3,
+          "truncated": true,
+          "bytes": 171
+        },
+        {
+          "maximumBytes": 258,
+          "toolCallsFrom": 5,
+          "errorsFrom": 2,
+          "truncated": true,
+          "bytes": 258
+        },
+        {
+          "maximumBytes": 345,
+          "toolCallsFrom": 5,
+          "errorsFrom": 2,
+          "truncated": true,
+          "bytes": 258
+        },
+        {
+          "maximumBytes": 346,
+          "toolCallsFrom": 5,
+          "errorsFrom": 1,
+          "truncated": true,
+          "bytes": 346
+        },
+        {
+          "maximumBytes": 433,
+          "toolCallsFrom": 5,
+          "errorsFrom": 1,
+          "truncated": true,
+          "bytes": 346
+        },
+        {
+          "maximumBytes": 434,
+          "toolCallsFrom": 5,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 434
+        },
+        {
+          "maximumBytes": 577,
+          "toolCallsFrom": 5,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 434
+        },
+        {
+          "maximumBytes": 578,
+          "toolCallsFrom": 4,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 578
+        },
+        {
+          "maximumBytes": 722,
+          "toolCallsFrom": 4,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 578
+        },
+        {
+          "maximumBytes": 723,
+          "toolCallsFrom": 3,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 723
+        },
+        {
+          "maximumBytes": 867,
+          "toolCallsFrom": 3,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 723
+        },
+        {
+          "maximumBytes": 868,
+          "toolCallsFrom": 2,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 868
+        },
+        {
+          "maximumBytes": 1011,
+          "toolCallsFrom": 2,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 868
+        },
+        {
+          "maximumBytes": 1012,
+          "toolCallsFrom": 1,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 1012
+        },
+        {
+          "maximumBytes": 1156,
+          "toolCallsFrom": 1,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 1012
+        },
+        {
+          "maximumBytes": 1157,
+          "toolCallsFrom": 0,
+          "errorsFrom": 0,
+          "truncated": false,
+          "bytes": 1157
+        },
+        {
+          "maximumBytes": 1158,
+          "toolCallsFrom": 0,
+          "errorsFrom": 0,
+          "truncated": false,
+          "bytes": 1157
+        }
+      ]
+    },
+    {
+      "name": "multibyte and escaped detail",
+      "bytes": 1681,
+      "report": {
+        "reportId": "worker-multibyte",
+        "complete": true,
+        "metrics": {
+          "durationMs": 99,
+          "modelCalls": 4,
+          "inputTokens": 1200,
+          "outputTokens": 300,
+          "totalTokens": 1500,
+          "tools": {
+            "list_symbols": {
+              "calls": 1,
+              "succeeded": 1,
+              "failed": 0
+            },
+            "read_source_file": {
+              "calls": 2,
+              "succeeded": 1,
+              "failed": 1
+            },
+            "search_text": {
+              "calls": 2,
+              "succeeded": 2,
+              "failed": 0
+            }
+          },
+          "workerBudget": {
+            "maxModelCalls": 8,
+            "maxToolCalls": 16,
+            "maxTotalTokens": 32768,
+            "observedModelCalls": 4,
+            "observedToolCalls": 5,
+            "observedTotalTokens": 1500,
+            "tokenUsageUnavailable": 0
+          }
+        },
+        "toolCalls": [
+          {
+            "callId": "call-00",
+            "tool": "search_text",
+            "argumentsTruncated": false,
+            "outcome": "succeeded",
+            "arguments": {
+              "pattern": "Привет, 漢字 😀  line para <>& \"q\" \\ \n\t\u0001",
+              "limit": 20
+            },
+            "durationMs": 4
+          },
+          {
+            "callId": "call-01",
+            "tool": "read_source_file",
+            "argumentsTruncated": false,
+            "outcome": "failed",
+            "arguments": {
+              "path": "докум/漢字/😀.md"
+            },
+            "error": {
+              "code": "tool_failed",
+              "message": "Tool read_source_file failed (OSError) — ошибка 😀",
+              "retryable": false
+            }
+          },
+          {
+            "callId": "call-02",
+            "tool": "list_symbols",
+            "argumentsTruncated": false,
+            "outcome": "succeeded",
+            "arguments": {
+              "query": "                  <a href=\"x\">&amp;</a>"
+            },
+            "resultSizeBytes": 2048
+          },
+          {
+            "callId": "call-03",
+            "tool": "search_text",
+            "argumentsTruncated": false,
+            "outcome": "succeeded"
+          },
+          {
+            "callId": "call-04",
+            "tool": "read_source_file",
+            "argumentsTruncated": false,
+            "outcome": "succeeded",
+            "arguments": {
+              "path": "a\\b\\c",
+              "items": [
+                "ж",
+                "界",
+                "😀",
+                1,
+                true
+              ]
+            }
+          }
+        ],
+        "errors": [
+          {
+            "code": "tool_search_text_failed",
+            "message": "Ошибка поиска: 界界界 😀 ",
+            "retryable": false
+          },
+          {
+            "code": "worker_budget_exhausted",
+            "message": "Worker invocation budget exhausted (tool_calls)"
+          }
+        ],
+        "truncated": false
+      },
+      "limits": [
+        {
+          "maximumBytes": 533,
+          "aggregateTooLarge": true
+        },
+        {
+          "maximumBytes": 534,
+          "toolCallsFrom": 5,
+          "errorsFrom": 2,
+          "truncated": true,
+          "bytes": 534
+        },
+        {
+          "maximumBytes": 627,
+          "toolCallsFrom": 5,
+          "errorsFrom": 2,
+          "truncated": true,
+          "bytes": 534
+        },
+        {
+          "maximumBytes": 628,
+          "toolCallsFrom": 5,
+          "errorsFrom": 1,
+          "truncated": true,
+          "bytes": 628
+        },
+        {
+          "maximumBytes": 737,
+          "toolCallsFrom": 5,
+          "errorsFrom": 1,
+          "truncated": true,
+          "bytes": 628
+        },
+        {
+          "maximumBytes": 738,
+          "toolCallsFrom": 5,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 738
+        },
+        {
+          "maximumBytes": 898,
+          "toolCallsFrom": 5,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 738
+        },
+        {
+          "maximumBytes": 899,
+          "toolCallsFrom": 4,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 899
+        },
+        {
+          "maximumBytes": 989,
+          "toolCallsFrom": 4,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 899
+        },
+        {
+          "maximumBytes": 990,
+          "toolCallsFrom": 3,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 990
+        },
+        {
+          "maximumBytes": 1206,
+          "toolCallsFrom": 3,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 990
+        },
+        {
+          "maximumBytes": 1207,
+          "toolCallsFrom": 2,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 1207
+        },
+        {
+          "maximumBytes": 1470,
+          "toolCallsFrom": 2,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 1207
+        },
+        {
+          "maximumBytes": 1471,
+          "toolCallsFrom": 1,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 1471
+        },
+        {
+          "maximumBytes": 1680,
+          "toolCallsFrom": 1,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 1471
+        },
+        {
+          "maximumBytes": 1681,
+          "toolCallsFrom": 0,
+          "errorsFrom": 0,
+          "truncated": false,
+          "bytes": 1681
+        },
+        {
+          "maximumBytes": 1682,
+          "toolCallsFrom": 0,
+          "errorsFrom": 0,
+          "truncated": false,
+          "bytes": 1681
+        }
+      ]
+    },
+    {
+      "name": "error-only overflow",
+      "bytes": 554,
+      "report": {
+        "reportId": "worker-errors",
+        "complete": true,
+        "metrics": {
+          "durationMs": 12,
+          "modelCalls": 3,
+          "tools": {
+            "read_source_file": {
+              "calls": 0
+            }
+          }
+        },
+        "toolCalls": [],
+        "errors": [
+          {
+            "code": "model_call_failed",
+            "message": "Model call failed (HTTP 503) 界",
+            "retryable": true
+          },
+          {
+            "code": "model_call_failed",
+            "message": "Model call failed (HTTP 503) 界界",
+            "retryable": true
+          },
+          {
+            "code": "model_call_failed",
+            "message": "Model call failed (HTTP 503) 界界界",
+            "retryable": true
+          },
+          {
+            "code": "model_call_failed",
+            "message": "Model call failed (HTTP 503) 界界界界",
+            "retryable": true
+          }
+        ],
+        "truncated": false
+      },
+      "limits": [
+        {
+          "maximumBytes": 171,
+          "aggregateTooLarge": true
+        },
+        {
+          "maximumBytes": 172,
+          "toolCallsFrom": 0,
+          "errorsFrom": 4,
+          "truncated": true,
+          "bytes": 172
+        },
+        {
+          "maximumBytes": 270,
+          "toolCallsFrom": 0,
+          "errorsFrom": 4,
+          "truncated": true,
+          "bytes": 172
+        },
+        {
+          "maximumBytes": 271,
+          "toolCallsFrom": 0,
+          "errorsFrom": 3,
+          "truncated": true,
+          "bytes": 271
+        },
+        {
+          "maximumBytes": 367,
+          "toolCallsFrom": 0,
+          "errorsFrom": 3,
+          "truncated": true,
+          "bytes": 271
+        },
+        {
+          "maximumBytes": 368,
+          "toolCallsFrom": 0,
+          "errorsFrom": 2,
+          "truncated": true,
+          "bytes": 368
+        },
+        {
+          "maximumBytes": 461,
+          "toolCallsFrom": 0,
+          "errorsFrom": 2,
+          "truncated": true,
+          "bytes": 368
+        },
+        {
+          "maximumBytes": 462,
+          "toolCallsFrom": 0,
+          "errorsFrom": 1,
+          "truncated": true,
+          "bytes": 462
+        },
+        {
+          "maximumBytes": 553,
+          "toolCallsFrom": 0,
+          "errorsFrom": 1,
+          "truncated": true,
+          "bytes": 462
+        },
+        {
+          "maximumBytes": 554,
+          "toolCallsFrom": 0,
+          "errorsFrom": 0,
+          "truncated": false,
+          "bytes": 554
+        },
+        {
+          "maximumBytes": 555,
+          "toolCallsFrom": 0,
+          "errorsFrom": 0,
+          "truncated": false,
+          "bytes": 554
+        }
+      ]
+    },
+    {
+      "name": "already truncated report",
+      "bytes": 648,
+      "report": {
+        "reportId": "worker-truncated",
+        "complete": true,
+        "metrics": {
+          "durationMs": 12,
+          "modelCalls": 3,
+          "tools": {
+            "read_source_file": {
+              "calls": 3
+            }
+          }
+        },
+        "toolCalls": [
+          {
+            "callId": "call-00",
+            "tool": "read_source_file",
+            "argumentsTruncated": false,
+            "outcome": "succeeded",
+            "arguments": {
+              "path": "жжж"
+            }
+          },
+          {
+            "callId": "call-01",
+            "tool": "read_source_file",
+            "argumentsTruncated": false,
+            "outcome": "succeeded",
+            "arguments": {
+              "path": "жжжж"
+            }
+          },
+          {
+            "callId": "call-02",
+            "tool": "read_source_file",
+            "argumentsTruncated": false,
+            "outcome": "succeeded",
+            "arguments": {
+              "path": "жжжжж"
+            }
+          }
+        ],
+        "errors": [
+          {
+            "code": "tool_report_failed",
+            "message": "Tool report publication failed",
+            "retryable": false
+          }
+        ],
+        "truncated": true
+      },
+      "limits": [
+        {
+          "maximumBytes": 174,
+          "aggregateTooLarge": true
+        },
+        {
+          "maximumBytes": 175,
+          "toolCallsFrom": 3,
+          "errorsFrom": 1,
+          "truncated": true,
+          "bytes": 175
+        },
+        {
+          "maximumBytes": 264,
+          "toolCallsFrom": 3,
+          "errorsFrom": 1,
+          "truncated": true,
+          "bytes": 175
+        },
+        {
+          "maximumBytes": 265,
+          "toolCallsFrom": 3,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 265
+        },
+        {
+          "maximumBytes": 393,
+          "toolCallsFrom": 3,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 265
+        },
+        {
+          "maximumBytes": 394,
+          "toolCallsFrom": 2,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 394
+        },
+        {
+          "maximumBytes": 521,
+          "toolCallsFrom": 2,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 394
+        },
+        {
+          "maximumBytes": 522,
+          "toolCallsFrom": 1,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 522
+        },
+        {
+          "maximumBytes": 647,
+          "toolCallsFrom": 1,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 522
+        },
+        {
+          "maximumBytes": 648,
+          "toolCallsFrom": 0,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 648
+        },
+        {
+          "maximumBytes": 649,
+          "toolCallsFrom": 0,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 648
+        }
+      ]
+    }
+  ]
+}

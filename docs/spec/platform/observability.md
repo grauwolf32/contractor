@@ -478,6 +478,26 @@ sizes count UTF-8 text bytes, independently of their JSON escaping. These rules
 apply both to final reports and live Worker State, including per-tool errors.
 The shared `execution-error-cases.json` fixture pins both diagnostic bounds.
 
+**OBS-R110.** A report over its byte bound loses detail in one order: the
+oldest tool-call record first, the oldest error only after no tool-call record
+remains (OBS-R41). The result is the first report of that removal sequence
+whose compact JSON (OBS-R42) fits; once a record is removed `truncated` is
+`true`, and a report that does not fit loses at least one record even when the
+shorter `"truncated":true` alone would make it fit. When no detail is left and
+the report still does not fit, the report is rejected as an oversized
+aggregate. Records are redacted and bounded (OBS-R27, OBS-R30) before anything
+is measured, so unredacted content is never sized. The Worker producer and the
+Server persistence boundary implement the rule separately and reach the same
+result, which the shared `telemetry-report-trim-cases.json` fixture pins at
+every removal boundary. Since the JSON of a list is its elements joined by
+commas, each side measures every candidate record once and the complete report
+at most three times per bound (the candidate, the report without detail and
+the retained result), however many records it removes; the retained result
+must measure exactly the computed size, or the report is rejected. The Server
+applies the rule again after its own redaction, which can lengthen a record
+the Runtime already bounded, first at the Worker report bound and then at the
+1 MiB allocation bound (LIM-OBS-7); it bounds a Planner report at 1 MiB.
+
 **OBS-R43.** Durable telemetry expires after 30 days (LIM-OBS-8). Cleanup
 is batch-bounded and may delete only telemetry that belongs to a terminal
 StageExecution (LIFE-OBS-2). Expired StageMetrics of a Run that an existing
@@ -989,6 +1009,15 @@ These properties follow from the cited requirements, which are authoritative.
    [`internal/telemetry/retention_test.go`](../../../internal/telemetry/retention_test.go).
 8. Metadata labels reach telemetry only as bounded attributes and never reach a
    model (OBS-R102, OBS-R106).
+9. The Worker producer and the Server keep the same newest detail of an
+   oversized report and measure the complete report at most three times per
+   bound (OBS-R41, OBS-R110); tests
+   `TestSharedReportTrimKeepsTheSharedSuffixAtEveryBoundary` and
+   `TestReportTrimMeasuresTheCompleteReportAtMostThreeTimes` in
+   [`internal/telemetry/trim_test.go`](../../../internal/telemetry/trim_test.go)
+   and `test_shared_report_trim_keeps_the_shared_suffix_at_every_boundary` and
+   `test_shared_report_trim_measures_the_complete_report_at_most_three_times`
+   in [`runtime/tests/test_metrics.py`](../../../runtime/tests/test_metrics.py).
 
 ## Non-goals
 

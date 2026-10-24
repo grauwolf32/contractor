@@ -150,6 +150,58 @@ func TestAllocationResourceProjectionPreservesOptionalResourceStates(t *testing.
 	}
 }
 
+// RecordAllocationReport applies the one resource policy definition
+// (reporting.RuntimeReport.ApplyResourcePolicy) before it persists a report,
+// with the outcomes the Control Plane client applies to a Runtime response.
+func TestRecordAllocationReportAppliesThePinnedResourcePolicy(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedTelemetryPool(t, ctx)
+	runs := runstore.NewPostgresStore(pool)
+	reports := telemetry.NewRepository(pool)
+	createTelemetryRun(t, ctx, runs)
+	duration, negative := 1.0, -1.0
+	decodeError := reporting.ResourceInvalidReport
+	reason := reporting.ResourceInvalidReport
+	valid := &reporting.RuntimeResources{Version: 1, Scope: "runtime_process", Status: reporting.ResourcePartial, DurationSeconds: &duration}
+	invalid := &reporting.RuntimeResources{Version: 1, Scope: "runtime_process", Status: reporting.ResourcePartial, DurationSeconds: &negative}
+	sentinel := &reporting.RuntimeResources{Version: 1, Scope: "runtime_process", Status: reporting.ResourceUnavailable, Reason: &reason}
+	for _, test := range []struct {
+		name      string
+		policy    reporting.PerformanceCollectionPolicy
+		resources *reporting.RuntimeResources
+		decodeErr *reporting.ResourceReason
+		want      *reporting.RuntimeResources
+	}{
+		{name: "requested-valid", policy: reporting.PerformanceCollectionRequested, resources: valid, want: valid},
+		{name: "requested-malformed", policy: reporting.PerformanceCollectionRequested, decodeErr: &decodeError, want: sentinel},
+		{name: "requested-invalid", policy: reporting.PerformanceCollectionRequested, resources: invalid, want: sentinel},
+		{name: "requested-absent", policy: reporting.PerformanceCollectionRequested},
+		{name: "disabled-valid", policy: reporting.PerformanceCollectionDisabled, resources: valid},
+		{name: "unsupported-malformed", policy: reporting.PerformanceCollectionUnsupported, decodeErr: &decodeError},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			allocation := "allocation-policy-" + test.name
+			stage := createTelemetryStageWithPolicy(t, ctx, runs, "stage-policy-"+test.name, allocation, "session-policy-"+test.name, test.policy)
+			envelope := allocationEnvelope(stage, allocation, time.Now().UTC(), true)
+			envelope.PerformanceCollectionPolicy = test.policy
+			envelope.Report.Runtime.Resources = test.resources
+			envelope.Report.Runtime.ResourcesError = test.decodeErr
+			if err := reports.RecordAllocationReport(ctx, envelope); err != nil {
+				t.Fatal(err)
+			}
+			stored, err := reports.ListAllocationReports(ctx, stage)
+			if err != nil || len(stored) != 1 {
+				t.Fatalf("stored reports = (%d, %v)", len(stored), err)
+			}
+			runtime := stored[0].Report.Runtime
+			if !reflect.DeepEqual(runtime.Resources, test.want) || runtime.ResourcesError != nil || !runtime.Complete {
+				t.Fatalf("stored resources = %+v, diagnostic %v; want %+v", runtime.Resources, runtime.ResourcesError, test.want)
+			}
+		})
+	}
+}
+
 func TestAllocationResourceProjectionSelectsEffectiveReportAndPreservesPagination(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()

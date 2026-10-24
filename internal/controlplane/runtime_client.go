@@ -135,7 +135,7 @@ func (c *RuntimeControlClient) Finalize(
 		return reporting.AllocationFinalReport{}, err
 	}
 	sanitizeRuntimeAdapterMetrics(&response.Report.Runtime, reservation)
-	sanitizeRuntimeResources(&response.Report.Runtime, reservation)
+	response.Report.Runtime.ApplyResourcePolicy(reservation.PerformanceCollectionPolicy)
 	if err := response.Validate(); err != nil {
 		return reporting.AllocationFinalReport{}, errors.New("Runtime Agent returned a lifecycle response that violates the contract")
 	}
@@ -167,7 +167,7 @@ func (c *RuntimeControlClient) Abort(
 		return reporting.AllocationFinalReport{}, err
 	}
 	sanitizeRuntimeAdapterMetrics(&response.Report.Runtime, reservation)
-	sanitizeRuntimeResources(&response.Report.Runtime, reservation)
+	response.Report.Runtime.ApplyResourcePolicy(reservation.PerformanceCollectionPolicy)
 	if err := response.Validate(); err != nil {
 		return reporting.AllocationFinalReport{}, errors.New("Runtime Agent returned a lifecycle response that violates the contract")
 	}
@@ -383,26 +383,6 @@ func clonePerformanceMetricsRequest(source *reporting.PerformanceMetricsRequest)
 	}
 	result := *source
 	return &result
-}
-
-// Resource telemetry is optional and must never poison Worker truth. Only a
-// Server-pinned request may contribute measurements. A malformed requested
-// block is retained as one bounded diagnostic sentinel, not raw input.
-func sanitizeRuntimeResources(report *reporting.RuntimeReport, reservation Reservation) {
-	if reservation.PerformanceCollectionPolicy != reporting.PerformanceCollectionRequested {
-		report.Resources = nil
-		report.ResourcesError = nil
-		return
-	}
-	if report.ResourcesError != nil ||
-		(report.Resources != nil && report.Resources.Validate() != nil) {
-		reason := reporting.ResourceInvalidReport
-		report.Resources = &reporting.RuntimeResources{
-			Version: reporting.PerformanceMetricsVersion, Scope: "runtime_process",
-			Status: reporting.ResourceUnavailable, Reason: &reason,
-		}
-		report.ResourcesError = nil
-	}
 }
 
 func (c *RuntimeControlClient) do(

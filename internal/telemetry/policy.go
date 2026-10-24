@@ -59,19 +59,19 @@ func (p Policy) NormalizeAllocationReport(
 		value := p.redactText(*result.Runtime.StopReason)
 		result.Runtime.StopReason = &value
 	}
-	for encodedSize(result) > MaxReportJSONBytes {
-		if len(result.Worker.ToolCalls) > 0 {
-			result.Worker.ToolCalls = result.Worker.ToolCalls[1:]
-			result.Worker.Truncated = true
-			continue
-		}
-		if len(result.Worker.Errors) > 0 {
-			result.Worker.Errors = result.Worker.Errors[1:]
-			result.Worker.Truncated = true
-			continue
-		}
+	worker, fits, err := trimDetail(result.Worker, MaxReportJSONBytes,
+		func(candidate reporting.ExecutionReport) int {
+			report := result
+			report.Worker = candidate
+			return encodedSize(report)
+		})
+	if err != nil {
+		return reporting.AllocationFinalReport{}, fmt.Errorf("normalize allocation report: %w", err)
+	}
+	if !fits {
 		return reporting.AllocationFinalReport{}, errors.New("allocation report aggregate exceeds 1 MiB")
 	}
+	result.Worker = worker
 	if err := result.Validate(); err != nil {
 		return reporting.AllocationFinalReport{}, fmt.Errorf("normalize allocation report: %w", err)
 	}
@@ -107,10 +107,10 @@ func (p Policy) NormalizeExecutionReport(
 			arguments, changed := p.sanitizeMap(sourceCall.Arguments)
 			call.Arguments = arguments
 			call.ArgumentsTruncated = call.ArgumentsTruncated || changed
-			if encodedSize(arguments) > MaxArgumentBytes {
+			if size := encodedSize(arguments); size > MaxArgumentBytes {
 				call.Arguments = map[string]any{
 					"summary":           truncatedValue,
-					"originalSizeBytes": encodedSize(arguments),
+					"originalSizeBytes": size,
 				}
 				call.ArgumentsTruncated = true
 			}
@@ -129,17 +129,13 @@ func (p Policy) NormalizeExecutionReport(
 	for _, item := range source.Errors[errorStart:] {
 		result.Errors = append(result.Errors, p.normalizeError(item))
 	}
-	for encodedSize(result) > maximumBytes {
-		if len(result.ToolCalls) > 0 {
-			result.ToolCalls = result.ToolCalls[1:]
-			result.Truncated = true
-			continue
-		}
-		if len(result.Errors) > 0 {
-			result.Errors = result.Errors[1:]
-			result.Truncated = true
-			continue
-		}
+	result, fits, err := trimDetail(result, maximumBytes, func(candidate reporting.ExecutionReport) int {
+		return encodedSize(candidate)
+	})
+	if err != nil {
+		return reporting.ExecutionReport{}, fmt.Errorf("normalize execution report: %w", err)
+	}
+	if !fits {
 		return reporting.ExecutionReport{}, errors.New("execution report aggregate exceeds byte limit")
 	}
 	if err := result.Validate(); err != nil {
@@ -308,8 +304,92 @@ func cloneWorkerBudget(source *reporting.WorkerBudgetMetrics) *reporting.WorkerB
 	return &result
 }
 
+// trimDetail bounds a report whose complete JSON, as measure counts it, may
+// exceed maximum. Overflow removes the oldest tool-call record first and the
+// oldest error only after no tool-call record remains, and marks the report
+// truncated (OBS-R41): the result is the first report of that removal
+// sequence that fits. The JSON of a list is its elements' JSON joined by
+// commas, so each record is measured once and every removal is subtracted
+// from the size; measure runs at most three times, for the candidate, for the
+// envelope without detail and for the retained result, however many records
+// are removed (OBS-R110). fits is false when even the envelope exceeds
+// maximum. An error means the computed and the measured size of the retained
+// result disagree, which the JSON encoding rules exclude.
+func trimDetail(
+	report reporting.ExecutionReport,
+	maximum int,
+	measure func(reporting.ExecutionReport) int,
+) (result reporting.ExecutionReport, fits bool, err error) {
+	if measure(report) <= maximum {
+		return report, true, nil
+	}
+	envelope := report
+	envelope.ToolCalls = []reporting.ToolCallRecord{}
+	envelope.Errors = []reporting.ExecutionError{}
+	envelope.Truncated = true
+	callSizes := make([]int, len(report.ToolCalls))
+	for index, call := range report.ToolCalls {
+		callSizes[index] = encodedSize(call)
+	}
+	errorSizes := make([]int, len(report.Errors))
+	for index, item := range report.Errors {
+		errorSizes[index] = encodedSize(item)
+	}
+	size := measure(envelope) + listSize(callSizes) + listSize(errorSizes)
+	// The candidate does not fit, so at least one record goes even when the
+	// shorter "truncated":true alone would make it fit.
+	calls, errorsFrom := 0, 0
+	for removed := false; !removed || size > maximum; removed = true {
+		switch {
+		case calls < len(callSizes):
+			size -= removalSize(callSizes[calls:])
+			calls++
+		case errorsFrom < len(errorSizes):
+			size -= removalSize(errorSizes[errorsFrom:])
+			errorsFrom++
+		default:
+			return reporting.ExecutionReport{}, false, nil
+		}
+	}
+	result = report
+	result.ToolCalls = report.ToolCalls[calls:]
+	result.Errors = report.Errors[errorsFrom:]
+	result.Truncated = true
+	if measured := measure(result); measured != size {
+		return reporting.ExecutionReport{}, false, fmt.Errorf(
+			"retained report measures %d bytes, not the computed %d", measured, size)
+	}
+	return result, true, nil
+}
+
+// listSize is the JSON size of a list's elements and the commas between them;
+// the brackets belong to the envelope's empty list.
+func listSize(sizes []int) int {
+	total := max(0, len(sizes)-1)
+	for _, size := range sizes {
+		total += size
+	}
+	return total
+}
+
+// removalSize is what removing the first element of a list saves: the element
+// and, unless it is the last one, the comma after it.
+func removalSize(remaining []int) int {
+	if len(remaining) > 1 {
+		return remaining[0] + 1
+	}
+	return remaining[0]
+}
+
+// jsonSize is the shared compact UTF-8 JSON measure (OBS-R42). Tests replace
+// it to count the measurements a normalization performs (OBS-R110).
+var jsonSize = contracts.ResultJSONSize
+
+// encodedSize is jsonSize, except that a value which cannot be encoded counts
+// as larger than any report bound, so trimming removes the record carrying it
+// and a report that still carries it is rejected.
 func encodedSize(value any) int {
-	size, err := contracts.ResultJSONSize(value)
+	size, err := jsonSize(value)
 	if err != nil {
 		return MaxReportJSONBytes + 1
 	}

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import math
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from typing import Any
@@ -477,18 +477,20 @@ class MetricsState:
         complete: bool = True,
         extra_errors: tuple[TerminationError, ...] = (),
     ) -> ExecutionReport:
-        errors = list(self.errors)
+        errors = list(self._errors)
+        error_projections = list(self._error_projections)
         truncated = self.truncated
         for item in extra_errors:
-            errors.append(
-                ExecutionError(
-                    code=item.code,
-                    message=_bounded_error(item.message, ()),
-                    retryable=item.retryable,
-                )
+            error = ExecutionError(
+                code=item.code,
+                message=_bounded_error(item.message, ()),
+                retryable=item.retryable,
             )
+            errors.append(error)
+            error_projections.append(_record_projection(error))
         if len(errors) > MAX_METRIC_ERRORS:
             errors = errors[-MAX_METRIC_ERRORS:]
+            error_projections = error_projections[-MAX_METRIC_ERRORS:]
             truncated = True
 
         tools = {
@@ -512,30 +514,21 @@ class MetricsState:
             tools=tools,
             **{key: value for key, value in optional_metrics.items() if value is not None},
         )
-        tool_calls = list(self.tool_calls)
         report = ExecutionReport(
             reportId=report_id,
             complete=complete,
             metrics=metrics,
-            toolCalls=tool_calls,
+            toolCalls=list(self._tool_calls),
             errors=errors,
             truncated=truncated,
             **({"completion": self._completion.model_copy(deep=True)} if self._completion else {}),
         )
-        maximum = MAX_REPORT_JSON_BYTES - _ALLOCATION_ENVELOPE_RESERVE_BYTES
-        while (
-            _json_size(report.model_dump(mode="json", by_alias=True, exclude_none=True)) > maximum
-        ):
-            if tool_calls:
-                tool_calls.pop(0)
-            elif errors:
-                errors.pop(0)
-            else:
-                raise ValueError("aggregate execution report exceeds the 1 MiB limit")
-            report = report.model_copy(
-                update={"tool_calls": list(tool_calls), "errors": list(errors), "truncated": True}
-            )
-        return report
+        return trim_report_detail(
+            report,
+            MAX_REPORT_JSON_BYTES - _ALLOCATION_ENVELOPE_RESERVE_BYTES,
+            tool_call_projections=self._tool_call_projections,
+            error_projections=error_projections,
+        )
 
     def _increment(self, name: str, value: int = 1) -> None:
         if type(value) is not int or value < 0:
@@ -543,7 +536,7 @@ class MetricsState:
         self.counters[name] = min(MAX_METRIC_COUNTER, self.counters.get(name, 0) + value)
 
     def _append_tool_call(self, record: ToolCallRecord) -> None:
-        projection = record.model_dump(mode="json", by_alias=True, exclude_none=True)
+        projection = _record_projection(record)
         if len(self._tool_calls) >= MAX_METRIC_TOOL_CALLS:
             self._tool_calls.pop(0)
             self._tool_call_projections.pop(0)
@@ -552,13 +545,94 @@ class MetricsState:
         self._tool_call_projections.append(projection)
 
     def _append_error(self, error: ExecutionError) -> None:
-        projection = error.model_dump(mode="json", by_alias=True, exclude_none=True)
+        projection = _record_projection(error)
         if len(self._errors) >= MAX_METRIC_ERRORS:
             self._errors.pop(0)
             self._error_projections.pop(0)
             self.truncated = True
         self._errors.append(error)
         self._error_projections.append(projection)
+
+
+def trim_report_detail(
+    report: ExecutionReport,
+    maximum: int,
+    *,
+    tool_call_projections: Sequence[Mapping[str, Any]],
+    error_projections: Sequence[Mapping[str, Any]],
+) -> ExecutionReport:
+    """Bound a report's JSON size by removing its oldest detail (OBS-R41, OBS-R110).
+
+    Overflow removes the oldest tool-call record first and the oldest error
+    only after no tool-call record remains, and marks the report truncated: the
+    result is the first report of that removal sequence whose compact JSON fits
+    ``maximum``. The projections are the records' JSON projections, index-aligned
+    with ``report.tool_calls`` and ``report.errors``. The JSON of a list is its
+    elements' JSON joined by commas, so each record is measured once and every
+    removal is subtracted from the size; the complete report is measured at most
+    three times, for the candidate, the envelope without detail and the retained
+    result, however many records are removed. The Server's telemetry.trimDetail
+    applies the same rule, and api/testdata/v1alpha1/telemetry-report-trim-cases.json
+    pins both.
+    """
+
+    if len(tool_call_projections) != len(report.tool_calls) or len(error_projections) != len(
+        report.errors
+    ):
+        raise RuntimeError("report record projections are not aligned with the report")
+    if _report_size(report) <= maximum:
+        return report
+    envelope = report.model_copy(update={"tool_calls": [], "errors": [], "truncated": True})
+    call_sizes = [_json_size(projection) for projection in tool_call_projections]
+    error_sizes = [_json_size(projection) for projection in error_projections]
+    size = _report_size(envelope) + _list_size(call_sizes) + _list_size(error_sizes)
+    # The candidate does not fit, so at least one record goes even when the
+    # shorter "truncated":true alone would make it fit.
+    calls = errors = 0
+    removed = False
+    while not removed or size > maximum:
+        if calls < len(call_sizes):
+            size -= _removal_size(call_sizes, calls)
+            calls += 1
+        elif errors < len(error_sizes):
+            size -= _removal_size(error_sizes, errors)
+            errors += 1
+        else:
+            raise ValueError("aggregate execution report exceeds the 1 MiB limit")
+        removed = True
+    result = report.model_copy(
+        update={
+            "tool_calls": report.tool_calls[calls:],
+            "errors": report.errors[errors:],
+            "truncated": True,
+        }
+    )
+    measured = _report_size(result)
+    if measured != size:
+        raise RuntimeError(f"retained report measures {measured} bytes, not the computed {size}")
+    return result
+
+
+def _record_projection(record: ToolCallRecord | ExecutionError) -> dict[str, Any]:
+    """The JSON projection of one record, as the complete report renders it."""
+
+    return record.model_dump(mode="json", by_alias=True, exclude_none=True)
+
+
+def _report_size(report: ExecutionReport) -> int:
+    return _json_size(report.model_dump(mode="json", by_alias=True, exclude_none=True))
+
+
+def _list_size(sizes: Sequence[int]) -> int:
+    """JSON size of a list's elements and separators; the envelope holds the brackets."""
+
+    return sum(sizes) + max(0, len(sizes) - 1)
+
+
+def _removal_size(sizes: Sequence[int], index: int) -> int:
+    """What removing ``sizes[index]``, the first remaining element, saves."""
+
+    return sizes[index] + (1 if index + 1 < len(sizes) else 0)
 
 
 def _sanitize_metric_value(
@@ -624,9 +698,10 @@ def _sanitize_metric_value(
 def _bound_arguments(value: Any) -> tuple[dict[str, Any], bool]:
     if not isinstance(value, dict):
         return {"value": value}, False
-    if _json_size(value) <= MAX_ARGUMENT_SUMMARY_BYTES:
+    size = _json_size(value)
+    if size <= MAX_ARGUMENT_SUMMARY_BYTES:
         return value, False
-    return {"summary": "[TRUNCATED]", "originalSizeBytes": _json_size(value)}, True
+    return {"summary": "[TRUNCATED]", "originalSizeBytes": size}, True
 
 
 def _bounded_text(value: str, secrets: tuple[str, ...]) -> str:

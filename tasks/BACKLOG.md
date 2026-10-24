@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-99 open tasks: 4 in progress, 70 pending, 25 deferred. 1019 finished: 1015 completed, 4 archived.
+99 open tasks: 5 in progress, 69 pending, 25 deferred. 1019 finished: 1015 completed, 4 archived.
 
 ## In progress
 
@@ -15,6 +15,7 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
+| [V407-020](v407-020-telemetry-trim-and-history.yml) | operations | chore | P2 | Reduce bounded telemetry trimming and operations-history copying |
 
 ## Pending
 
@@ -106,12 +107,6 @@ the epics are in [epics.yml](epics.yml).
 | [V403-003](v403-003-openapi-preview-at-1mib.yml) | defect | P3 | — | Keep a 1 MiB OpenAPI preview from blocking the page |
 | [V406-005](v406-005-web-scan-settings-ui.yml) | feature | P2 | — | Launch a web scan with rule settings and owner rulepack selection |
 | [V406-006](v406-006-scope-sweep-ui-cli.yml) | feature | P2 | V406-005 | Launch and follow durable rule sweeps from the UI |
-
-### Operations, authentication, CLI and deployment (`operations`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V407-020](v407-020-telemetry-trim-and-history.yml) | chore | P2 | — | Reduce bounded telemetry trimming and operations-history copying |
 
 ### Public API and wire contracts (`api-contracts`)
 

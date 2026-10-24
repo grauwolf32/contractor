@@ -77,7 +77,7 @@ func (r *Repository) RecordAllocationReport(
 	if err := validateAllocationEnvelope(envelope); err != nil {
 		return err
 	}
-	normalizeAllocationResources(&envelope.Report.Runtime, envelope.PerformanceCollectionPolicy)
+	envelope.Report.Runtime.ApplyResourcePolicy(envelope.PerformanceCollectionPolicy)
 	report, err := NewPolicy(envelope.Secrets...).NormalizeAllocationReport(envelope.Report)
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalid, err)
@@ -136,25 +136,6 @@ ON CONFLICT DO NOTHING`,
 		return fmt.Errorf("record allocation report: %w", ErrConflict)
 	}
 	return nil
-}
-
-func normalizeAllocationResources(
-	report *reporting.RuntimeReport,
-	policy reporting.PerformanceCollectionPolicy,
-) {
-	if policy != reporting.PerformanceCollectionRequested {
-		report.Resources = nil
-		report.ResourcesError = nil
-		return
-	}
-	if report.ResourcesError != nil || (report.Resources != nil && report.Resources.Validate() != nil) {
-		reason := reporting.ResourceInvalidReport
-		report.Resources = &reporting.RuntimeResources{
-			Version: reporting.PerformanceMetricsVersion, Scope: "runtime_process",
-			Status: reporting.ResourceUnavailable, Reason: &reason,
-		}
-		report.ResourcesError = nil
-	}
 }
 
 func (r *Repository) ListAllocationReports(

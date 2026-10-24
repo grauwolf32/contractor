@@ -6,7 +6,7 @@ epic: operations
 kind: chore
 introduced_by: V1-004
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages:
 - go
