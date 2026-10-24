@@ -6,7 +6,7 @@ epic: persistence
 kind: chore
 introduced_by: V397-004
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V407-025, V409-002, V409-004, V409-006]
 languages: [sql, go]
 goal: >-
@@ -165,3 +165,181 @@ tests:
     covers: [A5]
   - command: make lint
     covers: [A6]
+decisions:
+  - >-
+    Method. Target schema: this branch (base eb3e4649, migrations through
+    000036, plus 000038). Catalog inventory came from pg_index,
+    pg_constraint.conindid and pg_get_constraintdef on a migrated schema;
+    readers from a source search of every statement over each table with a
+    matching predicate. Each candidate was measured with
+    explaintest.ExplainPrepared in force_custom_plan and force_generic_plan,
+    before on the migrated schema and after with the DROP (or replacement)
+    executed inside a transaction that was rolled back, on per-test schemas
+    of the disposable database contractor_test_f (PostgreSQL 17.11). Mutating
+    statements ran only there, inside EXPLAIN ANALYZE in rolled-back
+    transactions. Numbers are Analysis.Reads (rows read from the table and
+    its indexes). pg_stat_user_indexes scan counts were not used as evidence.
+  - >-
+    workflow_run_events_time_idx (run_id, occurred_at, sequence_number):
+    REMOVED. No statement reads events by occurred_at. listRunEventsSQL walks
+    the primary key one event at a time. Fixture: 6,000 Runs, 2,000 events
+    for one Run and 40 for each of 299 others, ten events per occurred_at
+    value. Pages of 100 read 101/101/50 events (first/middle/last) and a
+    40-event Run 40, in both plans, before and after, through
+    workflow_run_events_pkey. The only plan that chose the index was the
+    generic plan of the Run-deletion cascade (DELETE ... WHERE run_id = $1,
+    2,000 rows), which reads the same 2,000 through the primary key
+    afterwards; the primary key is the foreign key's probe index (PER-R21).
+    The UNIQUE event_id constraint is kept.
+  - >-
+    workflow_runs_runtime_labels_idx (GIN on runtime_labels): REMOVED. No
+    statement applies an operator to runtime_labels; it is only inserted,
+    returned, CHECKed and held immutable by a guard trigger.
+  - >-
+    workflow_runs_publication_mode_idx (publication_mode, run_id) WHERE
+    audit-managed: REMOVED. Every reader also selects one Run by run_id:
+    SetAuditCompletion's update read 1 Run (0 for an ordinary Run) through the
+    index and 1 through workflow_runs_run_project_key afterwards; the matching
+    Audit-Run probe, the completion requirement, the output publication mode
+    read and the Eval Run verification read 1 or 0 Runs through the same
+    indexes before and after (fixture: 6,000 Runs, every 25th Audit-managed).
+    run_states_postgres_test.go no longer lists the index.
+  - >-
+    stage_executions_recovery_idx (state, updated_at) over the active states:
+    REMOVED. Every active-Stage statement names its Run.
+    getActiveStageExecutionSQL read 1/0 Stages, terminateActiveStagesSQL and
+    commitAbortingStagesSQL 1, resumableStageSQL 9, the stage probe of
+    claimRunnableRunSQL 0, all through stage_executions_run_active_idx or the
+    Run identity indexes before and after. acceptFinalizingCandidatesSQL read
+    0 Stages through the dropped index (no finalizing Stage) and reads the
+    Run's one active Stage through stage_executions_run_active_idx after
+    (fixture: 6,000 Runs x 3 Stages, 30 aborting). stage_states_postgres_test.go
+    no longer lists the index.
+  - >-
+    eval_experiments_owner_page_idx (owner_id, experiment_id): REMOVED. Every
+    reader names the experiment ID: get by owner and ID, the Project of an
+    experiment, the purging check, the deletion, latestNativeRecordSQL and
+    latestRecord read 1 experiment through the index before and through
+    eval_experiments_pkey after, in both plans; the V409-014 comparison owner
+    probe (claude/rv-c comparison_pages_sql.go, EXISTS ... experiment_id = $2
+    AND owner_id = $1) reads 1 through the primary key. Summary pages read the
+    same rows: custom plans 51 per page through the created-order indexes,
+    generic plans the owner's 3,001 experiments before (through this index)
+    and after (through another owner-led index); that generic cost exists
+    with or without the index. Fixture: 3 owners x 3,000 experiments, 4
+    Projects, created_at shared by three experiments, 1% paused, 1% (and in a
+    second run 10%) external, half naming one of 80 datasets.
+  - >-
+    eval_experiments_state_page_idx, _dataset_page_idx, _control_page_idx and
+    _project_page_idx: KEPT. Without them the filtered summary pages read
+    more in the custom plan: paused 30 -> 90 (first page) and 30 -> 1,589
+    (cursor page); dataset 75 -> 225 and 75 -> 1,724; external control mode
+    at 1% 31 -> 9,001 and 31 -> 1,499 (no difference at 10%); without the
+    Project index nextPurgedExperimentSQL reads more than its one experiment,
+    and it is the probe index of eval_experiments_owner_id_project_id_fkey.
+  - >-
+    eval_records_native_recent: KEPT. latestNativeRecordSQL reads 1 record
+    with it and 201 plus a Sort through eval_records_recent without it (50
+    members x 201 records per kind, the collector's the oldest), in both
+    plans.
+  - >-
+    audit_findings_list_idx (audit_id, created_at, finding_id) and
+    audit_findings_correlation_audit_scan_idx (..., finding_id COLLATE "C"):
+    BOTH KEPT. They serve two order contracts: the public finding pages and
+    report pages order and page by the database collation, the comparison
+    candidate windows by "C". The finding_id CHECK admits IDs whose order
+    differs between the two (case, '.', ':', '-', '_'), so neither index can
+    replace the other's order. Fixture: 12,001 findings (one Audit 4,001,
+    eight with 1,000, 2,000 empty Audits). Without the list index,
+    listFindingsSQL reads 202 -> 203 and 201 -> 203 findings in the custom
+    plan with an Incremental Sort over the "C" index; without the "C" index,
+    the candidate windows read 211 -> 212, 203 -> 204 and 201 -> 203 with an
+    Incremental Sort over the list index. Either drop replaces an exact keyset
+    walk with a sort whose work grows with created_at ties, for no reader's
+    gain; the public sort and cursor stay unchanged.
+  - >-
+    audit_findings_correlation_scope_idx (audit_id, correlation_project_id):
+    KEPT. With the migration dropping it, the existing at-scale test
+    TestPostgresAuditReadsAtFindingScale failed: the custom plan of the
+    finding page count (unfiltered, unreviewed and state filters) read all
+    12,001 findings by a sequential scan against a budget of 4,009, where the
+    narrow index serves the Audit's 4,001 findings index-only; the other
+    audit_id-led indexes are wider and lose to the sequential scan. It also
+    stays the correlation foreign key's PER-R21 probe index, so no allowance
+    was added. Scratch probes of the foreign key's shapes (the NO ACTION
+    check of a Project change and the delete cascade) read the same rows
+    either way except that cascade's custom plan, which also chose a
+    sequential scan (12,001 rows) for the Audit holding a third of the table.
+  - >-
+    projects_project_owner_key UNIQUE (project_id, owner_id): REMOVED. It is
+    the referenced index of no foreign key; projects_owner_identity (owner_id,
+    project_id) is the conindid of audits_project_owner_fkey,
+    eval_dataset_revisions_owner_id_project_id_fkey,
+    eval_experiments_owner_id_project_id_fkey and
+    workflow_runs_project_owner_fkey and stays, and project_id is the primary
+    key, so uniqueness is unchanged; Project inserts use ON CONFLICT DO
+    NOTHING without a conflict target (projectstore/store.go:37). Readers
+    (correlationFenceSQL, checkCorrelationFenceSQL, authorizeCorrelationRead,
+    candidateSourceSQL, collectionHoldAuditsSQL, the Project get, lifecycle
+    FOR SHARE, deletion lookup and delete, the deletion claim's update) read
+    the same 1-3 Projects through projects_pkey, projects_owner_identity or
+    projects_sweep_selection_idx after, in both plans (fixture: 3,000 other
+    Projects of 30 owners beside the Audit fixture).
+  - >-
+    audits_project_owner_identity UNIQUE (audit_id, project_id, owner_id):
+    REMOVED. audit_id is the primary key and no foreign key references it;
+    Audit inserts use ON CONFLICT DO NOTHING without a target
+    (auditstore/internal/pgstore/store_sql.go:55). authorizeCorrelationRead
+    and collectionHoldAuditsSQL read the same 2 Audits through audits_pkey or
+    audits_correlation_scope after. audits_correlation_scope (audit_id,
+    project_id), the target of audit_findings_correlation_scope, stays with
+    its foreign key.
+  - >-
+    projects_deletion_claim_idx: REPLACED by (deletion_requested_at,
+    project_id) WHERE lifecycle_state = 'deleting', under the same name.
+    claimProjectDeletionSQL orders by (deletion_requested_at, project_id);
+    the old key (deletion_claim_expires_at, deletion_requested_at,
+    project_id) served neither that order nor the OR-ed claim predicate, so a
+    claim read and sorted every deleting Project: 416/419 reads (5,030
+    Projects, 416 deleting) and 603/604 in the committed fixture (12,000
+    Projects, 600 deleting, 16 held claims at the head), custom/generic. In
+    claim order it reads the held claims ahead of the first claimable Project
+    and that Project: 1-4 and 20 reads. The claim, renewal and release no
+    longer change an indexed column. Claim order, eligibility (unclaimed or
+    expired claims) and the state-set test are unchanged.
+  - >-
+    Allocation resource history (telemetry allocation_resources_sql.go):
+    indexes KEPT, no change. Its order (terminal_at DESC, allocation_id DESC)
+    spans stage_executions and stage_allocations, so no index can carry it;
+    stage_executions_terminal_history_idx orders by terminal_at and an
+    Incremental Sort orders each terminal_at group by allocation ID, bounded
+    by the group. Fixture: 6,000 Runs of 6 owners, 18,000 terminal Stages
+    with one allocation each (three Stages per terminal_at), 12,000 reports.
+    The first owner page of 51 read 318 Stages, 108 Runs and 54 allocations.
+    Two costs found that are not index questions and are outside this task:
+    a cursor page 1,500 rows deep read 9,306 Stages (the cross-table cursor
+    row comparison cannot bound the index scan), and the generic plan of a
+    one-Run history ignores the optional Run filter and read 17,944 Stages.
+    Both need statement changes (a derived terminal_at bound, the
+    optional-filter generic-plan class) and are reported for a follow-up.
+  - >-
+    Telemetry cleanup (repository.go:340-358): KEPT, no change.
+    allocation_execution_reports_expiry_idx (expires_at, stage_execution_id)
+    reads the expired range in expiry order; an Incremental Sort orders equal
+    expires_at values by report_id. With 50-report expiry ties (synthetic;
+    production expiry is the receipt time plus 30 days, so ties need equal
+    receipt microseconds) a batch of 100 read 152 reports and of 1,000 read
+    1,053; an aligned (expires_at, report_id) index read 102 and 1,005. The
+    difference is at most one tie group per batch, so a replacement brings
+    no established benefit. The planner_execution_reports cleanup has the
+    same shape and index.
+  - >-
+    audit_executions_audit_identity UNIQUE (execution_id, audit_id): KEPT.
+    No foreign key references it, but the V409-004 inventory child keyset
+    (inventoryPageAuditExecutionsSQL) probes the execution ID range and
+    checks the Audit inside it: 51-52 executions per page of 51 in both
+    plans. With it dropped, TestPostgresInventoryChildPagesProbeTheExecutionIDRange
+    failed: the custom plans of the first, parent-boundary, first-child and
+    early-child pages chose audit_executions_pkey and read 449-486
+    executions (budget 102), filtering the other Audits' rows after the
+    heap fetch.

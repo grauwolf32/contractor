@@ -352,7 +352,6 @@ ORDER BY conname`)
 		"workflow_runs_project_http_target_credential_idx": declared["active"],
 		"workflow_runs_owner_idempotency_key":              nil,
 		"workflow_runs_owner_project_created_idx":          nil,
-		"workflow_runs_publication_mode_idx":               nil,
 	}
 	rows, err = pool.Query(ctx, `
 SELECT index.relname, pg_get_expr(i.indpred, i.indrelid)

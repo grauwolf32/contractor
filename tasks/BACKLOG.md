@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-83 open tasks: 4 in progress, 54 pending, 25 deferred. 1035 finished: 1031 completed, 4 archived.
+83 open tasks: 5 in progress, 53 pending, 25 deferred. 1035 finished: 1031 completed, 4 archived.
 
 ## In progress
 
@@ -15,6 +15,7 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
+| [V409-007](v409-007-dead-and-redundant-indexes.yml) | persistence | chore | P2 | Consolidate indexes only where reader and constraint evidence permits it |
 
 ## Pending
 
@@ -119,7 +120,6 @@ the epics are in [epics.yml](epics.yml).
 | [V372-009](v372-009-ownership-check-blind-spots.yml) | chore | P3 | — | Close the blind spots of the table ownership check |
 | [V372-010](v372-010-erd-usage-from-ownership-scan.yml) | chore | P3 | — | Take the ERD's code-usage lists from the ownership scan and document the new-table workflow |
 | [V408-002](v408-002-shared-postgres-test-schema.yml) | chore | P2 | V408-001 | Apply migrations once per package: one shared PostgreSQL test helper with per-test truncation |
-| [V409-007](v409-007-dead-and-redundant-indexes.yml) | chore | P2 | — | Consolidate indexes only where reader and constraint evidence permits it |
 | [V409-013](v409-013-verify-sql-review-on-database.yml) | chore | P2 | V409-007, V409-014 | Verify retained SQL-review changes and record evidence for every accepted or declined claim |
 
 ### Quality, CI and process (`quality`)

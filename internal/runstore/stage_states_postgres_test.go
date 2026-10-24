@@ -41,7 +41,6 @@ func TestPostgresStageExecutionStateSetsMatchSchema(t *testing.T) {
 			// Escalation ordinals are unique per configuration variant in
 			// every state.
 			"stage_execution_escalation_ordinal_unique": nil,
-			"stage_executions_recovery_idx":             {"state": "active"},
 			"stage_executions_run_active_idx":           {"state": "active"},
 			"stage_executions_run_terminal_history_idx": {"state": "terminal"},
 			"stage_executions_terminal_history_idx":     {"state": "terminal"},
