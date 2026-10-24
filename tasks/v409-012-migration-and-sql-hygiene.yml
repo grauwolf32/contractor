@@ -6,7 +6,7 @@ epic: persistence
 kind: chore
 introduced_by: V370-024
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [sql, go]
 goal: "Prove that the two data-moving migrations preserve their intended invariants and document the existing migration runner without rewriting applied history."
@@ -66,6 +66,60 @@ acceptance_criteria:
     text: "Given free and held pre-000014 Eval claims, when the original migration is applied, then lease fields are cleared as specified, epochs and unrelated data are preserved, and reacquisition invalidates the previous epoch. The test fails if release or epoch preservation is removed."
   - id: A3
     text: "The persistence documentation accurately describes the single transaction, immutable ledger, configurable timeout defaults and concurrent-DDL restriction; existing ledger, budget and SQL-placement tests pass without weakening their assertions. No historical migration bytes change."
+decisions:
+  - >-
+    Claims re-verified on base 1af545e9: the backfill is 000008_run_artifact_revision_limit.sql:25-33
+    and the release 000014_controller_claim_shape.sql:14-16; no later migration touches revision_count
+    or eval_controller_claims, and the only earlier coverage of 000014 was one held claim inside
+    TestPostgresMutationReceiptsFoldMigration (000013), which stays unchanged.
+  - >-
+    Both upgrade tests use the existing migration test support: installMigrationPrefix at the
+    preceding version (7 and 13) in an isolated schema, then ApplyMigrations, which applies the
+    original embedded files in one run as a real upgrade does. The predecessor numbers are written
+    out, as in every merged migration test, because applied versions are fixed by the ledger
+    (PER-R30) and cannot be renumbered. The by-name lookup on the unmerged V407-029 branch
+    (embeddedMigration in eval_plan_readiness_migration_test.go) exists for a migration whose number
+    the integrator may still change; adding a copy here would be a second mechanism and would clash
+    with that helper on merge, so these tests do not add one.
+  - >-
+    The 000008 test purges the upgraded RunScope with the lifecycle purge's own statements (the
+    contractor.lifecycle_purge setting, then bindings, revisions and the scope row in one transaction)
+    because internal/persistence/postgres cannot import internal/artifacts (import cycle). The real
+    PurgeRun of a Run at 50,000 trigger-counted revisions stays covered by
+    TestPostgresRunRevisionLimitAndBoundedPurge in internal/artifacts, which passes. No per-revision
+    decrement is assumed: the test shows the counter unchanged after the revisions are gone and
+    removed with its scope row.
+  - >-
+    The 000014 test proves "the old claim cannot authorize a mutation" through
+    NewControllerClaims("eval_controller_claims", "experiment_id").Lock, Renew, Release and Live, the
+    helper and table evalstore.checkClaim and ReleaseClaim use; evalstore tests cannot install a
+    migration prefix. The lease uses LeaseSQL with the AvailableCondition candidates, as the shared
+    claim test does.
+  - >-
+    Documentation lives in docs/spec/platform/persistence.md (Schema migrations: PER-R29 one
+    transaction, ledger and lock; PER-R30 immutable ledger and drift; PER-R31 migration budget, chosen
+    by the operator, transaction-local; PER-R32 bounded statements, separate data migration when a
+    backfill cannot fit, statements refused inside a transaction block, the NUL-escape and
+    pulled-up-subquery hazards; PER-R33 upgrade tests; a rationale with the reversal condition),
+    limits LIM-PER-9..LIM-PER-13, failure outcome FAIL-PER-5, glossary terms Migration budget and
+    Migration ledger, and invariants 24-27. docs/deployment.md said lock_timeout bounds "each DDL
+    relation-lock wait"; PostgreSQL applies it to every lock wait, rows included, so the guide now says
+    so and links the rules.
+  - >-
+    The two hazards were checked on PostgreSQL 17.11: '"a\u0000b"'::jsonb fails with 22P05, and json
+    -> and ->> fail the same way; EXPLAIN (VERBOSE) of an UPDATE over a subquery that parses
+    convert_from(doc)::jsonb shows the parse substituted at each of its two references, and once with
+    OFFSET 0. statement_timeout applies to each statement of a multi-statement simple query (two
+    0.7 s sleeps pass under a 1 s timeout), which is how pgx sends a migration file without
+    arguments.
+  - >-
+    Two checks were added so the documented contract is enforced (AGENTS 3.9), without behaviour
+    change: TestEmbeddedMigrationsStayInsideTheMigrationTransaction (no transaction control, no
+    statement PostgreSQL refuses in a transaction block, no timeout setting in any embedded
+    migration, with cases that show the checker refuses each) and
+    TestPostgresMigrationRunCommitsEveryPendingMigrationOrNone (a lock timeout in 000014 rolls back
+    000008 with it, a drifted ledger is refused before any migration runs, and the next run applies
+    8 onward). No historical migration byte and no ledger handling changed.
 verification:
   - "Manually compare the maintenance description with ApplyMigrations and MigrationBudgets; inspect the diff to confirm that no historical migration changed. This is required for A3 and is not established by lint alone."
 tests:

@@ -594,6 +594,10 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Metadata-only instrumentation** — Instrumentation that exports no content whatever the content-capture setting, used for a whole allocation whose Worker selects a sensitive-output tool. Owner: [Observability](platform/observability.md).
 
+**Migration budget** — The operation budget of a migration run, chosen by the operator per run of `contractor server migrate`: its statement, lock and idle-in-transaction timeouts, its client deadlines and the deadline of the whole run. Owner: [Persistence](platform/persistence.md).
+
+**Migration ledger** — The table `contractor_schema_migrations`, one row per applied migration with its version, file name and the SHA-256 of the file's bytes, which the migrator and the Server's startup check compare with the embedded migrations. Owner: [Persistence](platform/persistence.md).
+
 **Minute record** — One row of performance_minutes holding the minute aggregates of one Server generation. Owner: [Operations](operations/operations.md).
 
 **Mirror** — The uniquely named copy of a snapshot's admitted managed UTF-8 files below the allocation's private scratch directory, from which the Trailmark child builds its graph. Owner: [Code analysis](tools/code-analysis.md).
