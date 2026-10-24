@@ -1,83 +1,169 @@
-schema_version: "1.0"
+schema_version: '1.0'
 id: V64-004
-title: Freeze bounded service and finding context for each priority cycle
+title: Assemble bounded exact research context for each experiment
 milestone: audit-check-prioritization
 epic: audits
 kind: feature
 priority: P2
 status: deferred
-deferral:
-  date: "2026-10-21"
-  previous_status: pending
-  previous_priority: P1
-  reason: User deferred the remaining V64 integration to focus on authenticated HTTP continuity and completion of the existing V62 audit journey.
-  reactivate_when: Explicit user decision after cookies and V62 are delivered and representative audit measurements show that model-based prioritization improves useful-result yield or time/cost over fixed ordering.
-implementation_commit: null
-depends_on: [V64-002]
-languages: [go, json]
-goal: >-
-  Give each independent checklist verdict the same immutable optional context
-  and exact candidate facts without accumulating prior verdict conversations.
+depends_on:
+- V64-012
+- V62-005
+- V62-006
+- V64-003
+languages:
+- go
+- json
+goal: Give each producer and check a useful selected context with exact source provenance, mode filtering
+  and authorized Run-local dependencies.
 context:
-  authority: User requested optional service description and existing findings as context for independent checklist verdicts.
-  design: docs/plans/2026-09-20-audit-check-prioritization.md
-  specification: [docs/proposals/0034-audit-check-prioritization.md, docs/spec/audits/audits.md]
-  contract: V64-001 fixes bounds and source semantics; V64-002 supplies immutable cycle state and protected retention.
-  revalidated: >-
-    2026-10-24 on b523ae77: still deferred under execution_policy.current_delivery_focus, not
-    superseded. The deliveries named in reactivate_when have landed (cookie persistence V377-001,
-    c50d6ab0; the V62 journey through V62-012, 8c2441f0) and every dependency outside V64 is
-    complete (V64-000, V62-001, V62-002, V62-003, V25-011); what remains is representative audit
-    evidence and an explicit user decision. The new plans do not supersede it: proposal 0033 section
-    14 says V64 is not a prerequisite, its section 8.2 orders pentest hypotheses by frozen
-    assessment order, policy, budget and plan digest rather than per-candidate model verdicts,
-    V411-012 excludes V64 ranking integration, and V55-009 (pending scanner ranking) stays
-    independent per proposal 0034. The V64-000 pure core in internal/auditpriority (domain layer,
-    internal/archtest/layers_test.go:117) still has no production importer:
-    tools/testonlyexports/baseline.txt:67-70 holds BindVerdict and DecodeVerdict for V64-005 and
-    ResolveTopN and SelectionDigest for V64-006, so archiving the series would also require removing
-    those exports. Its schema and fixtures live in api/audit-priority/v1, not the
-    api/testdata/audit-priority path named in the V64-001, V64-005 and V64-010 deliverables.
-    Proposal 0034 was last refreshed on 2026-10-21 (631d6d51) and already cites the domain
-    specification documents. Task-specific: V397-001 to V397-005 (completed) added finding
-    fingerprints, structural anchors, automatic duplicate marks and cross-Audit comparison reads;
-    V397-007 (pending) adds frozen finding export snapshots and V411-011 (pending) adds a
-    Project-bound live findings reader within LIM-FND-26 and LIM-FND-29. A frozen priority context
-    should reuse those readers and snapshot rules rather than add a third finding read path.
+  authority: User requested the staged task breakdown and revision of V64/V62 for proposal 0045 on 2026-10-24;
+    this change plans work only and does not start implementation.
+  proposal: docs/proposals/0045-audit-hypothesis-search.md
+  design: docs/plans/2026-10-24-audit-hypothesis-search.md
+  specification:
+  - docs/spec/audits/audits.md
+  - docs/spec/audits/execution.md
+  - docs/spec/artifacts/artifact-store.md
+  - docs/spec/platform/persistence.md
+  deterministic_boundary: Direct Runs and current deterministic Audit inventories bypass research; no
+    mandatory hypotheses, generation, ranking, new Scheduler mode or attack tree.
+  implementation_boundary: Each new table, state, export and schema must have its named production writer/reader
+    in this task; include the smallest actual integration caller, not a test-only placeholder waiting
+    for another task.
+  previous_definition:
+    revision: a31579d33e81315818a277b822e3b087ce5c76c1
+    path: tasks/v64-004-audit-priority-context.yml
+    title: Freeze bounded service and finding context for each priority cycle
+    depends_on:
+    - V64-002
+    note: The former fixed-checklist/minimum-ten integration scope is replaced by this task. Its original
+      definition and deferral history remain in Git; completed V64-000 is unchanged.
 scope:
   in:
-    - Resolve the declared optional service description and authorized finding inputs into a versioned cycle context using exact owner/project/source references.
-    - Snapshot accepted findings, analyst dispositions/severity revisions and settled previous-pass results at the cycle boundary; preserve their distinct source meanings.
-    - Give every request the same complete common context and exactly one pinned checklist statement/applicability/method/evidence package; no selective fact retrieval or sibling verdicts enter the prompt.
-    - Freeze canonical context, candidate, prompt template and policy digests before calls; feed every candidate a fresh request without other candidates' verdicts or chat history.
-    - Enforce 128 KiB canonical context artifact, 24 KiB common-context projection, 8 KiB service description, 100 combined finding/result entries and 48 KiB encoded per-item request limits without silent truncation or secret authorization/body fields.
-    - Reject unavailable/foreign/oversized declared sources explicitly while permitting all optional context to be absent; overflow produces priority_context_limit_exceeded before model dispatch and absence alone does not lower priority.
-    - Retain the exact model-visible snapshot and provenance under protected Audit storage and reuse it after allowed source Run deletion or Controller restart.
+  - Select declared description/OpenAPI/guide inputs and relevant hypothesis, prior result and alternative
+    descriptors; distinguish absent, omitted and unavailable context.
+  - Consume the complete settled snapshot as a source, then build a separately bounded task projection
+    without changing coverage or concealing failed/cancelled results.
+  - Apply blackbox/source-assisted source classification before summary, ranking, previews or model disclosure;
+    unknown provenance does not become blackbox-safe.
+  - Pin exact guide/Skill/rubric/policy bytes and digests and materialize the declared transitive closure
+    through V62-006 into consumer Run-local refs.
+  - Expose a production context assembly path for the optional research phase and selected experiment
+    dispatch; no passive-only artifact schema.
   out:
-    - LLM summarization, growing conversational memory, automatic proposed-check insertion or materializing V62 generated OpenAPI inventory.
-deliverables:
-  - path: internal/auditpriority
-    description: New typed frozen-context builder, canonicalization, finite-limit validation and per-candidate request facts.
-  - path: internal/auditservice
-    description: Authorized source resolution and analyst/settled-result revision pins at each cycle boundary.
-  - path: internal/artifacts
-    description: Protected context snapshots and exact evidence source references surviving allowed source deletion.
+  - A global worldview.json, generic Project artifact tools, optional live source adapters, or automatic
+    analysis/OpenAPI generation.
+  - Implementation during this planning change, changing existing task statuses, or modifying completed/in-progress
+    task records.
+requirements:
+- id: R1
+  text: Runtime receives no generic live Project authority. JSON refs and Memory notes are not a cross-Run
+    transport.
+- id: R2
+  text: Large source/evidence payloads remain scoped artifacts; summaries retain exact sources and do
+    not replace accepted evidence.
+- id: R3
+  text: Historical cross-Audit data enters only through an explicitly imported authorized input snapshot;
+    generic dependency resolution stays Audit-local.
+- id: R4
+  text: Live sitemap/findings are optional later adapters; guides, description and existing OpenAPI need
+    no V410 sitemap or V62-008 producer.
+failure_outcomes:
+- operation: Context selection, hold acquisition and Run input materialization
+  permanent: Invalid, foreign, unsupported or oversized input is rejected with the owning V64-001/standard
+    contract reason; deterministic ErrInvalid is never endlessly retried and no partial authoritative
+    result is accepted.
+  retryable: Use existing bounded transient storage/provider retries for the owning operation; retry attempt/deadline
+    limits are explicit and do not switch research policies or models.
+  ambiguous: Reconcile the same existing keyed mutation, accepted producer association or exact result;
+    never create another logical effect or repeat target activity to repair acknowledgement loss.
+  cancelled: Existing Audit/Run owner fences and join/drain rules apply; allow authorized terminal collection,
+    block new dispatch and release resources only after in-flight work is joined.
+  timeout: Use the owning operation/Run deadline. Audit admission deadline pauses and drains; non-time
+    budget exhaustion follows bounded finalization with gaps.
+cardinality:
+- collection: Selected context dependencies and prompt projection
+  expected: 16 refs and 256 KiB text
+  maximum: 32 refs and 1 MiB text, plus existing model/package limits
+  bound: Enumerate bounded closure; use separately retained large artifacts; reject overflow rather than
+    silently truncating required dependencies.
+lifecycle:
+- entity: Task-owned research records, exact artifacts and projections
+  delete: Audit/Project ownership and existing deletion gates apply; accepted evidence used by work is
+    retained, not removed by settling or withdrawing a candidate.
+  cascade: Use the owning Audit relations and existing artifact hold lifecycle; register any new holder
+    inventory entry in this change and leave no independent cleanup owner.
+  retention: Preserve exact accepted inputs/results and history through permitted source Run deletion,
+    pause and recovery; release only through the owning lifecycle. Stateless validation/read-only outputs
+    acquire no artificial persistent state.
 acceptance_criteria:
-  - id: A1
-    text: Description/findings may each be absent; identical pins produce identical context digests and requests contain only shared frozen context plus the current candidate.
-  - id: A2
-    text: Analyst edits and new findings during a cycle cannot change its context; the next cycle captures accepted revisions and settled results, while concurrent snapshot edits retry capture rather than mix revisions.
-  - id: A3
-    text: Foreign, missing, oversized and prohibited secret-bearing inputs follow explicit contract outcomes, and every emitted evidence reference resolves within the authorized pinned snapshot.
-  - id: A4
-    text: Restart and permitted source Run deletion preserve the exact prior snapshot and provenance while Audit deletion releases owned holds through existing fences.
+- id: A1
+  given: Guide-only, description-only and description plus OpenAPI sources
+  when: context is assembled
+  then: A bounded valid package records known/unknown facts and exact methodological sources without live
+    discovery prerequisites.
+- id: A2
+  given: A large settled snapshot with negative, missing and conflicting results
+  when: a small experiment context is selected
+  then: Relevant retained inputs and omissions are explicit; neither requirement coverage nor conclusions
+    are silently broadened.
+- id: A3
+  given: Mixed source-assisted inputs and a blackbox consumer
+  when: summary/ranker/preview inputs are prepared
+  then: Prohibited or unknown-origin content is excluded before disclosure, with an explicit gap.
+- id: A4
+  given: Source deletion, same-version changed guide bytes, missing refs or interrupted materialization
+  when: dispatch/recovery consumes context
+  then: The pinned bytes and source-to-child mapping remain exact or work blocks; no latest lookup or
+    incomplete Run becomes schedulable.
 tests:
-  - command: go test -race ./internal/auditpriority ./internal/auditservice ./internal/artifacts
-    covers: [A1, A2, A3, A4]
-  - command: go test -tags=integration -count=1 ./internal/auditservice ./internal/auditstore/... ./internal/artifacts
-    covers: [A2, A3, A4]
+- command: make require-database
+- command: go test -tags=integration -count=1 ./internal/auditdomain ./internal/auditservice ./internal/auditstore/...
+    ./internal/auditcontroller ./internal/artifacts/...
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make test-wire-cross-language
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+implementation_commit: null
+deferral:
+  date: '2026-10-21'
+  previous_status: pending
+  previous_priority: P1
+  reason: User deferred the remaining V64 integration to focus on authenticated HTTP continuity and completion
+    of the existing V62 audit journey.
+  reactivate_when: Explicit user authorization to implement this reviewed proposal 0045 scope, after its
+    declared dependencies are completed. Replanning alone does not activate it.
+  previous_reactivate_when: Explicit user decision after cookies and V62 are delivered and representative
+    audit measurements show that model-based prioritization improves useful-result yield or time/cost
+    over fixed ordering.
+deliverables:
+- path: internal/auditservice
+  description: Bounded context selection and provenance policy with production readers.
+- path: internal/auditcontroller
+  description: Exact context/input assembly for ordinary research and check Runs.
+- path: internal/auditdomain
+  description: Context manifest contract and canonical fixtures consuming V62 dependency descriptors.
 test_prerequisites:
-  - The new internal/auditpriority package is a deliverable of this task; required retention and revision cases use disposable PostgreSQL.
+- Commands are implementation acceptance requirements, not results of this planning change. New named
+  gates must be created, registered and fail on zero matching cases.
+- Persistence/lifecycle acceptance uses disposable PostgreSQL with CONTRACTOR_TEST_DATABASE_URL set; an
+  unavailable configured database or mandatory skipped case fails.
+- Use testdata catalogs and pseudo-Skills, not live configs in unit/integration tests. Shipped configuration
+  has its dedicated validation command.
+- Run complete suites for touched packages; use injected clocks and deterministic work counters. Put timing
+  measurements in benchmarks.
 verification_requirements:
-  - Compare exact frozen request bytes/digests and source revisions across candidates, restarts and edits rather than checking only that a context object exists.
-  - No real or paid model calls are needed to verify deterministic context construction.
+- Update owning numbered specifications, strict public/wire contracts and shared fixtures with implementation;
+  do not cite task IDs from normative specifications.
+- Record actual commands, case counts, required prerequisites and exact evidence after implementation.
+  Planning does not populate implementation_commit or fabricate successful checks.
+- Keep direct deterministic behavior, existing claims/receipts and source-to-consumer exact provenance
+  explicit in real-path assertions.

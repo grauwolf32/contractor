@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-117 open tasks: 8 in progress, 84 pending, 25 deferred. 1087 finished: 1077 completed, 10 archived.
+125 open tasks: 8 in progress, 84 pending, 33 deferred. 1087 finished: 1077 completed, 10 archived.
 
 ## In progress
 
@@ -203,17 +203,25 @@ the epics are in [epics.yml](epics.yml).
 | [V62-006](v62-006-audit-retained-dependencies.yml) | audits | 2026-09-20 | Explicit user approval of an actual later-round consumer and its exact dependency contract. |
 | [V62-007](v62-007-audit-check-routing.yml) | audits | 2026-09-20 | Explicit user approval of iterative checks after dependency and snapshot contracts are reviewed. |
 | [V62-008](v62-008-project-analysis-preparation.yml) | audits | 2026-09-20 | Explicit user approval of standalone analysis-report reuse and the additional two-Workflow chain. |
-| [V64-001](v64-001-audit-priority-contracts.yml) | audits | 2026-10-21 | Explicit user decision after cookies and V62 are delivered and representative audit measurements show that model-based prioritization improves useful-result yield or time/cost over fixed ordering. |
-| [V64-002](v64-002-audit-priority-store.yml) | audits | 2026-10-21 | Explicit user decision after cookies and V62 are delivered and representative audit measurements show that model-based prioritization improves useful-result yield or time/cost over fixed ordering. |
-| [V64-003](v64-003-planner-only-priority-execution.yml) | audits | 2026-10-21 | Explicit user decision after cookies and V62 are delivered and representative audit measurements show that model-based prioritization improves useful-result yield or time/cost over fixed ordering. |
-| [V64-004](v64-004-audit-priority-context.yml) | audits | 2026-10-21 | Explicit user decision after cookies and V62 are delivered and representative audit measurements show that model-based prioritization improves useful-result yield or time/cost over fixed ordering. |
-| [V64-005](v64-005-independent-priority-verdicts.yml) | audits | 2026-10-21 | Explicit user decision after cookies and V62 are delivered and representative audit measurements show that model-based prioritization improves useful-result yield or time/cost over fixed ordering. |
-| [V64-006](v64-006-audit-priority-selection.yml) | audits | 2026-10-21 | Explicit user decision after cookies and V62 are delivered and representative audit measurements show that model-based prioritization improves useful-result yield or time/cost over fixed ordering. |
-| [V64-007](v64-007-audit-priority-controller.yml) | audits | 2026-10-21 | Explicit user decision after cookies and V62 are delivered and representative audit measurements show that model-based prioritization improves useful-result yield or time/cost over fixed ordering. |
-| [V64-008](v64-008-audit-priority-api-coverage.yml) | audits | 2026-10-21 | Explicit user decision after cookies and V62 are delivered and representative audit measurements show that model-based prioritization improves useful-result yield or time/cost over fixed ordering. |
-| [V64-009](v64-009-audit-priority-ui.yml) | audits | 2026-10-21 | Explicit user decision after cookies and V62 are delivered and representative audit measurements show that model-based prioritization improves useful-result yield or time/cost over fixed ordering. |
-| [V64-010](v64-010-audit-priority-profile.yml) | audits | 2026-10-21 | Explicit user decision after cookies and V62 are delivered and representative audit measurements show that model-based prioritization improves useful-result yield or time/cost over fixed ordering. |
-| [V64-011](v64-011-audit-priority-release.yml) | audits | 2026-10-21 | Explicit user decision after cookies and V62 are delivered and representative audit measurements show that model-based prioritization improves useful-result yield or time/cost over fixed ordering. |
+| [V62-013](v62-013-audit-iterative-composition-release.yml) | audits | 2026-10-24 | Explicit user reactivation of the reviewed V62 iterative slice; all implementation prerequisites must then complete before this release gate starts. |
+| [V64-001](v64-001-audit-priority-contracts.yml) | audits | 2026-10-21 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
+| [V64-002](v64-002-audit-priority-store.yml) | audits | 2026-10-21 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
+| [V64-003](v64-003-planner-only-priority-execution.yml) | audits | 2026-10-21 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
+| [V64-004](v64-004-audit-priority-context.yml) | audits | 2026-10-21 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
+| [V64-005](v64-005-independent-priority-verdicts.yml) | audits | 2026-10-21 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
+| [V64-006](v64-006-audit-priority-selection.yml) | audits | 2026-10-21 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
+| [V64-007](v64-007-audit-priority-controller.yml) | audits | 2026-10-21 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
+| [V64-008](v64-008-audit-priority-api-coverage.yml) | audits | 2026-10-21 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
+| [V64-009](v64-009-audit-priority-ui.yml) | audits | 2026-10-21 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
+| [V64-010](v64-010-audit-priority-profile.yml) | audits | 2026-10-21 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
+| [V64-011](v64-011-audit-priority-release.yml) | audits | 2026-10-21 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
+| [V64-012](v64-012-audit-hypothesis-registry.yml) | audits | 2026-10-24 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
+| [V64-013](v64-013-audit-hypothesis-generation.yml) | audits | 2026-10-24 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
+| [V64-014](v64-014-audit-hypothesis-assessments.yml) | audits | 2026-10-24 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
+| [V64-015](v64-015-audit-research-frontier.yml) | audits | 2026-10-24 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
+| [V64-016](v64-016-audit-research-ranking-evaluation.yml) | audits | 2026-10-24 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
+| [V64-017](v64-017-audit-attack-tree-projection.yml) | audits | 2026-10-24 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
+| [V64-018](v64-018-audit-research-pentest-integration.yml) | audits | 2026-10-24 | Explicit user authorization to implement this reviewed proposal 0045 scope, after its declared dependencies are completed. Replanning alone does not activate it. |
 | [V365-016](v365-016-fold-planner-execution-reports.yml) | persistence | 2026-10-04 | Explicit user approval of making Planner reports a mutable slot on stage_metrics. |
 
 ## Epics
@@ -235,7 +243,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 9 | 16 | 7 | 8 | 12 |
 | Workflow catalog and document workflows (`workflows`) | 7 | 18 | 14 | 12 | 18 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 5 | 35 | 33 | 6 | 38 |
-| Audits (`audits`) | 25 | 60 | 78 | 23 | 101 |
+| Audits (`audits`) | 33 | 65 | 78 | 26 | 101 |
 | Evaluations (`evals`) | 6 | 21 | 37 | 11 | 45 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 2 | 25 | 62 | 13 | 57 |

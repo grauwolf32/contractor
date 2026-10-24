@@ -25,6 +25,7 @@ context:
   proposal:
   - docs/proposals/0033-autonomous-pentest-audits.md#62-stateful-checks
   - docs/proposals/0033-autonomous-pentest-audits.md#5-budgets-and-durable-accounting
+  - docs/proposals/0045-audit-hypothesis-search.md#92-proposed-first-release-bounds
   - docs/proposals/0033-autonomous-pentest-audits.md#11-action-journal-cancellation-and-recovery
   specification:
   - docs/spec/platform/persistence.md#PER-R24
@@ -33,6 +34,11 @@ context:
   - docs/spec/audits/audits.md#AUD-R162
   - docs/spec/audits/review-and-reports.md
   - docs/spec/execution/scheduler.md
+  replanned: >-
+    2026-10-24: align resource accounting with proposal 0045 without changing this task's
+    status or dependencies. Resources and cleanup reservations belong to admitted target
+    actions; storing a research candidate creates neither. V64-018 owns optional
+    research-to-pentest integration; this action lifecycle remains independently usable.
   code:
   - internal/auditstore
   - internal/auditservice
@@ -112,8 +118,11 @@ failure_outcomes:
     permits no target cleanup request.
 cardinality:
 - collection: Test resources and mutation actions across an owner
-  expected: One test object per admitted hypothesis, up to 100 default hypotheses
-  maximum: 1000 hypotheses and 100000 intents per Audit; owner Audit history is unbounded but paginated
+  expected: Test resources for admitted mutation actions under the base allowance of 100 receipt-backed
+    pentest candidates; a stored candidate alone creates no target object.
+  maximum: Base candidate allowance 1000, at most 100000 target intents and the existing item/Run limits
+    per Audit; owner Audit history is unbounded but paginated. Research pool limits are separate and
+    cannot increase action or cleanup allowances.
   bound: Indexed conflict lookup touches only the normalized target/resource domain; at most 100 unresolved-effect
     rows/256 KiB per page, never all owner Audits.
 - collection: Setup/control/cleanup descriptions

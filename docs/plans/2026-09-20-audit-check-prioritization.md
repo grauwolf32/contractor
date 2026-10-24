@@ -5,11 +5,12 @@ Date: 2026-09-20. Series: **V64**. Status: **V64-000 completed; V64-001–011 de
 Design update, 2026-10-24: [proposal 0045](../proposals/0045-audit-hypothesis-search.md)
 replaces the future integration direction with optional Audit hypothesis search
 and experiment selection. Direct deterministic execution remains independent.
-The decomposition below is historical input to replanning, not an instruction
-to implement the old minimum-ten/full-pool policy. This documentation change
-does not reactivate or rewrite task files.
+The [current staged plan](2026-10-24-audit-hypothesis-search.md) now owns the
+revised V64 task boundaries and dependencies. The decomposition below is
+historical, not an instruction to implement the old minimum-ten/full-pool
+policy. Existing tasks remain deferred; the new tasks are also deferred.
 
-The user requested optional service/finding context, independent checklist-item
+The original request was optional service/finding context, independent checklist-item
 priority verdicts and selection of at least ten highest-priority checks for each
 Audit pass. Lower-ranked items must retain explanations. The user then requested
 self-contained implementation tasks followed by a detailed review.
@@ -23,10 +24,12 @@ Planning/review does not satisfy any implementation acceptance criterion.
 
 Deliver V377-001 target-cookie continuity first, then V62-010–012 to finish the
 existing preparation-to-scan user journey. V64-001–011 are deferred at P2;
-the completed V64-000 pure core remains available and unchanged. Reactivation
-requires an explicit user decision after representative audits demonstrate a
-benefit from model-based prioritization over fixed ordering. The design below
-is retained for that review; it is not the current implementation queue.
+the completed V64-000 pure core remains available and unchanged. The earlier
+reactivation condition required representative evidence of model-ranking
+benefit. The revised plan preserves this as historical context and assigns
+that evidence to optional V64-016; the deterministic research core requires
+an explicit implementation decision on its own reviewed scope. The design
+below is retained as history, not the current implementation queue.
 
 ## Agreed outcome and design decisions
 

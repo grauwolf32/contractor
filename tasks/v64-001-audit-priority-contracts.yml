@@ -1,94 +1,195 @@
-schema_version: "1.0"
+schema_version: '1.0'
 id: V64-001
-title: Specify opt-in Audit checklist prioritization and exact top-N contracts
+title: Specify optional Audit research contracts and deterministic bypass
 milestone: audit-check-prioritization
 epic: audits
 kind: feature
 priority: P2
 status: deferred
-deferral:
-  date: "2026-10-21"
-  previous_status: pending
-  previous_priority: P1
-  reason: User deferred the remaining V64 integration to focus on authenticated HTTP continuity and completion of the existing V62 audit journey.
-  reactivate_when: Explicit user decision after cookies and V62 are delivered and representative audit measurements show that model-based prioritization improves useful-result yield or time/cost over fixed ordering.
-implementation_commit: null
-depends_on: [V64-000, V62-001, V25-011]
-languages: [go, json, yaml, openapi, markdown]
-goal: >-
-  Freeze independently scored checklist candidates, complete ranking cycles and
-  exact top-N admission as an opt-in Audit contract before execution is enabled.
+depends_on:
+- V64-000
+- V62-001
+- V25-011
+languages:
+- go
+- python
+- json
+- yaml
+- openapi
+- markdown
+goal: Define the strict hypothesis, experiment, assessment, context and selection boundaries before enabling
+  research; direct Runs and deterministic Audit inventories retain their current execution path.
 context:
-  authority: User requested independent contextual checklist verdicts, at least ten highest-priority checks per pass, task specifications and detailed review on 2026-09-20.
-  design: docs/plans/2026-09-20-audit-check-prioritization.md
-  specification: [docs/proposals/0034-audit-check-prioritization.md, docs/spec/audits/audits.md]
-  foundations: >-
-    V64-000 supplies the pure model-verdict and selection core. V62-001 supplies
-    shared pre-Round lifecycle contracts; its current ordering through V62-009
-    is a transitive delivery dependency, not a requirement to use OpenAPI input.
-  schema_policy: Use V62-001's current explicit inventory mappings; migrate repository profiles, fixtures and clients and reject obsolete fields and snapshots without compatibility readers or implicit conversion.
-  revalidated: >-
-    2026-10-24 on b523ae77: still deferred under execution_policy.current_delivery_focus, not
-    superseded. The deliveries named in reactivate_when have landed (cookie persistence V377-001,
-    c50d6ab0; the V62 journey through V62-012, 8c2441f0) and every dependency outside V64 is
-    complete (V64-000, V62-001, V62-002, V62-003, V25-011); what remains is representative audit
-    evidence and an explicit user decision. The new plans do not supersede it: proposal 0033 section
-    14 says V64 is not a prerequisite, its section 8.2 orders pentest hypotheses by frozen
-    assessment order, policy, budget and plan digest rather than per-candidate model verdicts,
-    V411-012 excludes V64 ranking integration, and V55-009 (pending scanner ranking) stays
-    independent per proposal 0034. The V64-000 pure core in internal/auditpriority (domain layer,
-    internal/archtest/layers_test.go:117) still has no production importer:
-    tools/testonlyexports/baseline.txt:67-70 holds BindVerdict and DecodeVerdict for V64-005 and
-    ResolveTopN and SelectionDigest for V64-006, so archiving the series would also require removing
-    those exports. Its schema and fixtures live in api/audit-priority/v1, not the
-    api/testdata/audit-priority path named in the V64-001, V64-005 and V64-010 deliverables.
-    Proposal 0034 was last refreshed on 2026-10-21 (631d6d51) and already cites the domain
-    specification documents. Task-specific: verification_requirements still call V62-001 a pending
-    dependency; it completed in 22fcba08. Public shapes would now be checked by the generated UI
-    validators (ui/src/api/generated/public-schemas.json, V385-001) rather than hand-written
-    parsers.
+  authority: User requested the staged task breakdown and revision of V64/V62 for proposal 0045 on 2026-10-24;
+    this change plans work only and does not start implementation.
+  proposal: docs/proposals/0045-audit-hypothesis-search.md
+  design: docs/plans/2026-10-24-audit-hypothesis-search.md
+  specification:
+  - docs/spec/audits/audits.md
+  - docs/spec/audits/execution.md
+  - docs/spec/artifacts/artifact-store.md
+  - docs/spec/platform/persistence.md
+  deterministic_boundary: Direct Runs and current deterministic Audit inventories bypass research; no
+    mandatory hypotheses, generation, ranking, new Scheduler mode or attack tree.
+  implementation_boundary: Each new table, state, export and schema must have its named production writer/reader
+    in this task; include the smallest actual integration caller, not a test-only placeholder waiting
+    for another task.
+  previous_definition:
+    revision: a31579d33e81315818a277b822e3b087ce5c76c1
+    path: tasks/v64-001-audit-priority-contracts.yml
+    title: Specify opt-in Audit checklist prioritization and exact top-N contracts
+    depends_on:
+    - V64-000
+    - V62-001
+    - V25-011
+    note: The former fixed-checklist/minimum-ten integration scope is replaced by this task. Its original
+      definition and deferral history remain in Git; completed V64-000 is unchanged.
 scope:
   in:
-    - Define strict versioned profile opt-in, prioritization role, inventory/cycle/context/verdict/selection schemas and finite field/collection limits from proposal 0034.
-    - Integrate V64-000 stable candidate identity and strict verdicts into Audit-wide contracts; fix remaining-pool membership as never-admitted candidates and the distinction between inventory capacity and immutable selected Round item budgets.
-    - Define optional description/findings snapshots, analyst revision pins, evidence references and a common low/medium/high/critical rubric with confidence separate from priority.
-    - Require complete valid verdicts for the entire remaining pool before sorting and selecting exact min(topN, remaining), with topN default 10 and range 10 through 1000.
-    - Define profile topN/maxTopN and optional Draft/Start prioritization.topN within the profile ceiling, pinned into baseline/cycle/selection and immutable after start; changed-value idempotency replay conflicts.
-    - Reject an inventory larger than 1000 explicitly; do not truncate to satisfy maxModelCalls or silently sample before ranking.
-    - Specify exact failed/cancelled/paused/report-closure mappings, atomic budget admission, approval without backfill, no automatic model or whole-ranking-Run retries and all no-Round controls.
-    - Pin sequential calls, complete context limits, utf8-bytes-v1 token admission and conservative ranking-plus-one-initial-check-Run-per-selected-item capacity reservations.
-    - Specify exact context/candidates RunScope inputs and priorities output using application/vnd.contractor.audit-priorities+json with contractor.audit.priorities.v1 schema, frozen ordinary Run outputs and receipt-bound journal validation.
-    - Define the narrow audit-priority@1 zero-Worker execution contract, policy validation, capability gating and deterministic canonicalization for all current supported shapes.
-    - Add strict public/config/domain types, current-schema valid/invalid fixtures and obsolete-schema rejection fixtures while leaving new execution unavailable until dependent capabilities exist.
+  - Specify the profile opt-in, research lifecycle before the first Round, proposed schemas, limit/error/lifecycle
+    registries and capability gating from proposal 0045.
+  - Define Audit-owned immutable semantic fields, exact revision descriptors, typed lineage, source classifications,
+    many-to-many result membership and candidate-source adapter contracts.
+  - Separate pool capacity, research metadata, selected experiments, Run costs and normative coverage;
+    define optional deterministic and model-evaluated policies without mandatory minimum-ten or whole-pool
+    scoring.
+  - Add strict codecs and executable common fixtures with real configuration validation callers; unsupported
+    execution remains non-runnable until the complete capability is registered.
+  - Revise owning numbered specifications and public/config contract descriptions together; retain existing
+    modes without legacy readers or silently translating old priority shapes.
   out:
-    - Execute models or Workers, enable a runnable profile, revise finding severity, generate new checklist entries or add deterministic fallback ranking.
-deliverables:
-  - path: docs/proposals/0034-audit-check-prioritization.md
-    description: Implementation-ready contract with exact bounds, transitions, independent verdict schema, eligibility and atomic selection behavior.
-  - path: internal/config
-    description: Strict opt-in profile and planner/policy validation with capability gating and current-schema canonical fixtures.
-  - path: internal/contracts
-    description: Versioned request/result shapes and strict validation for complete independent ranking.
-  - path: api/testdata/audit-priority
-    description: New positive, boundary, invalid, current-schema round-trip and obsolete-snapshot rejection fixtures selected by executable tests.
-  - path: api/openapi/contractor-public-v1.yaml
-    description: Proposed public priority/cycle/inventory shapes and synchronized generated types and parsers without premature executable capability claims.
+  - Executing research, creating new persistence tables, enabling profiles or revising completed V64-000
+    task history.
+  - Implementation during this planning change, changing existing task statuses, or modifying completed/in-progress
+    task records.
+requirements:
+- id: R1
+  text: The current deterministic Run and inventory path neither creates research records nor requires
+    generation, ranking, research context or an optional attack tree.
+- id: R2
+  text: Code owns identifiers, exact content digests, membership, result assembly and authority. Models
+    author bounded claims/judgments and cannot select arbitrary Workflows or widen scope.
+- id: R3
+  text: Define an explicit upper bound of eight declared hypothesis revisions per ExperimentPlan and at
+    most one contribution per declared revision per accepted result; primary/descriptor/byte transaction
+    bounds still apply.
+- id: R4
+  text: Preserve AUD-R163 versus AUD-R164 semantics and extend AUD-R171 only for an opted-in persisted
+    research phase; new observations alone do not invalidate an accepted cycle watermark.
+- id: R5
+  text: Use one schema/fixture source for each rule across Go, Runtime and public validators. Existing
+    api/audit-priority/v1 is a completed pure-core input, not a mandate for a second competing grammar.
+- id: R6
+  text: A human can submit a hypothesis at Audit setup or during permitted research lifecycle states.
+    Server-authenticated authorship and default high requested verification priority are distinct from
+    inferred usefulness, evidence support and confidence; producer output cannot impersonate a human or
+    lower their requested priority.
+failure_outcomes:
+- operation: Configuration, input and output contract validation
+  permanent: Invalid, foreign, unsupported or oversized input is rejected with the owning V64-001/standard
+    contract reason; deterministic ErrInvalid is never endlessly retried and no partial authoritative
+    result is accepted.
+  retryable: Use existing bounded transient storage/provider retries for the owning operation; retry attempt/deadline
+    limits are explicit and do not switch research policies or models.
+  ambiguous: Reconcile the same existing keyed mutation, accepted producer association or exact result;
+    never create another logical effect or repeat target activity to repair acknowledgement loss.
+  cancelled: Existing Audit/Run owner fences and join/drain rules apply; allow authorized terminal collection,
+    block new dispatch and release resources only after in-flight work is joined.
+  timeout: Use the owning operation/Run deadline. Audit admission deadline pauses and drains; non-time
+    budget exhaustion follows bounded finalization with gaps.
+cardinality:
+- collection: Research contract fixtures
+  expected: One complete positive/negative set per proposed document kind
+  maximum: 0045 section 9.2 ceilings, plus eight hypothesis refs and eight contributions per experiment/result
+  bound: Exercise limit-minus-one, limit and limit-plus-one counts and bytes; do not materialize a Cartesian
+    association set.
+lifecycle:
+- entity: Task-owned research records, exact artifacts and projections
+  delete: Audit/Project ownership and existing deletion gates apply; accepted evidence used by work is
+    retained, not removed by settling or withdrawing a candidate.
+  cascade: Use the owning Audit relations and existing artifact hold lifecycle; register any new holder
+    inventory entry in this change and leave no independent cleanup owner.
+  retention: Preserve exact accepted inputs/results and history through permitted source Run deletion,
+    pause and recovery; release only through the owning lifecycle. Stateless validation/read-only outputs
+    acquire no artificial persistent state.
 acceptance_criteria:
-  - id: A1
-    text: Contract fixtures cover empty, one, nine, ten, eleven, 1000 and 1001 candidates, topN bounds, absent optional context and exact source/revision references; 100 inventory candidates with maxItemsPerRound ten remain valid.
-  - id: A2
-    text: Unknown IDs, duplicate verdicts, malformed/over-limit fields, invented evidence, unsupported roles, conflicting opt-ins and model-selected workflows are rejected by strict executable tests.
-  - id: A3
-    text: Every lifecycle outcome before a Round exists and after selection has one defined projection; priority, confidence, disposition, execution state and finding severity cannot be conflated.
-  - id: A4
-    text: Current-schema profiles and policies have deterministic canonical bytes/digests and preserve non-priority behavior; obsolete fields and snapshots are rejected, and unsupported opt-ins remain non-runnable rather than partially executing.
+- id: A1
+  given: Current deterministic profiles and direct Runs
+  when: new contract validation runs
+  then: Their canonical selection, route and result contracts remain valid without research fields, model
+    ranker or new runtime capability.
+- id: A2
+  given: Valid and malformed research fixtures including 0, 1, 8 and 9 hypothesis associations
+  when: Go, Runtime and public/config validators decode them
+  then: Membership, duplicate/unknown fields, exact refs, byte bounds and unsupported capabilities agree;
+    invalid fixtures fail explicitly.
+- id: A3
+  given: No Round exists and a research phase is paused, cancelled or reaches its admission deadline
+  when: the state contract is evaluated
+  then: Resume, drain, stop reason and write ownership are defined independently of semantic assessment
+    and finding triage.
+- id: A4
+  given: Guide-only input, missing applicability, conflicting evidence or a changed semantic proposition
+  when: domain fixtures are validated
+  then: Unknown remains representable, contributions stay separate, and changed meaning requires a successor
+    rather than overwriting an accepted claim.
 tests:
-  - command: go test ./internal/config ./internal/contracts ./internal/auditdomain ./internal/auditservice
-    covers: [A1, A2, A3, A4]
-  - command: make verify-public-api ui-generate-check ui-typecheck test-config
-    covers: [A2, A3, A4]
-  - command: git diff --check
-    covers: [A1, A3]
+- command: go test ./internal/config/... ./internal/contracts ./internal/auditdomain
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make test-wire-cross-language
+  covers:
+  - A2
+  - A4
+- command: make verify-public-api ui-generate-check ui-typecheck
+  covers:
+  - A1
+  - A2
+- command: make lint
+implementation_commit: null
+deferral:
+  date: '2026-10-21'
+  previous_status: pending
+  previous_priority: P1
+  reason: User deferred the remaining V64 integration to focus on authenticated HTTP continuity and completion
+    of the existing V62 audit journey.
+  reactivate_when: Explicit user authorization to implement this reviewed proposal 0045 scope, after its
+    declared dependencies are completed. Replanning alone does not activate it.
+  previous_reactivate_when: Explicit user decision after cookies and V62 are delivered and representative
+    audit measurements show that model-based prioritization improves useful-result yield or time/cost
+    over fixed ordering.
+deliverables:
+- path: docs/spec/audits/
+  description: Owning numbered research contracts and unaffected deterministic-path guarantees.
+- path: docs/spec/platform/
+  description: Single-source proposed limits, error classification, failure and lifecycle definitions.
+- path: internal/auditdomain
+  description: Strict research codecs invoked by configuration/domain validation, without placeholder
+    exports.
+- path: internal/config
+  description: Explicit profile selection and unsupported-capability validation.
+- path: api/audit-research/v1
+  description: New shared schema and fixtures, wired into cross-language validation rather than passive
+    JSON files.
+- path: api/openapi/contractor-public-v1.yaml
+  description: Current public contract changes synchronized with generated clients/validators; no manual
+    generated-file editing.
+test_prerequisites:
+- Commands are implementation acceptance requirements, not results of this planning change. New named
+  gates must be created, registered and fail on zero matching cases.
+- Persistence/lifecycle acceptance uses disposable PostgreSQL with CONTRACTOR_TEST_DATABASE_URL set; an
+  unavailable configured database or mandatory skipped case fails.
+- Use testdata catalogs and pseudo-Skills, not live configs in unit/integration tests. Shipped configuration
+  has its dedicated validation command.
+- Run complete suites for touched packages; use injected clocks and deterministic work counters. Put timing
+  measurements in benchmarks.
 verification_requirements:
-  - Review the transition, limit, capability and current/obsolete-schema matrices against proposal 0034; prose-only cases do not satisfy executable fixture criteria.
-  - Treat V62-001 as a real pending dependency and avoid claiming the contract alone enables prioritization.
+- Update owning numbered specifications, strict public/wire contracts and shared fixtures with implementation;
+  do not cite task IDs from normative specifications.
+- Record actual commands, case counts, required prerequisites and exact evidence after implementation.
+  Planning does not populate implementation_commit or fabricate successful checks.
+- Keep direct deterministic behavior, existing claims/receipts and source-to-consumer exact provenance
+  explicit in real-path assertions.
