@@ -69,7 +69,8 @@ requirements:
     valid records only with explicit source gaps and deterministic rejected/omitted counts.
 - id: R3
   text: One import step processes at most one bounded page/batch before checkpointing. Repeated source imports use
-    immutable report identity and source timestamps; replays do not multiply summaries or accepted publication charges.
+    immutable report identity and source timestamps; receipt replay after history eviction confirms the old commit
+    without republishing, multiplying summaries or charging again. Exact evicted reads never substitute latest.
 - id: R4
   text: Selected Caido request/detail results are not durable exchange refs; their IDs remain provenance unless
     actual authorized retained evidence exists. No entire-instance selection is inferred from tool availability.
@@ -89,9 +90,10 @@ failure_outcomes:
   timeout: A bounded import-step deadline limits parsing and publication; incomplete continuation remains explicit.
 - operation: Selected Caido projection and map publication
   permanent: Provider invalidity, absent raw exchange or collection denial never fabricate HTTP success; no raw
-    private data is retained.
-  retryable: Existing Caido read retries and sitemap write retries keep separate budgets; neither retries a target
-    mutation for collection.
+    private data is retained. Exhausted cumulative Run budget or history filled by protected revisions is an
+    explicit conflict without automatic retry.
+  retryable: Existing Caido read retries and sitemap write retries keep separate budgets; bounded ArtifactStore
+    eviction backpressure retries publication only and never a target mutation for collection.
   ambiguous: Replay the same source/correlation identity and accepted receipt; no exact request-count claim when
     correlation is unavailable.
   cancelled: Join provider decode and collector work before Caido session cleanup.
@@ -111,8 +113,9 @@ lifecycle:
   delete: Allocation cleanup removes transient parsers; Project purge removes its durable map source metadata.
   cascade: Deleting source Run bytes leaves safe map metadata and explicit unavailable evidence, not dangling claimed
     readable exchanges.
-  retention: Exact report inputs selected for proof acquire ordinary holds; metadata-only import does not preserve
-    all raw traffic.
+  retention: Exact report inputs selected for proof acquire ordinary holds before acceptance, atomically against
+    eviction. Metadata refs/checkpoints/receipts alone do not pin history; the collector never performs eviction
+    and metadata-only import does not preserve all raw traffic.
 acceptance_criteria:
 - id: A1
   given: Exact ffuf, Katana and documented dirsearch reports with partial/malformed/oversized cases
@@ -120,10 +123,10 @@ acceptance_criteria:
   then: Valid records retain source limitations, malformed input has deterministic errors/counts and no scanner
     process is launched.
 - id: A2
-  given: Many records spanning batches and a lost acknowledgement
+  given: Many records spanning batches, a lost acknowledgement and eviction of an accepted revision
   when: The import resumes or repeats with the same source
   then: Checkpointed work is bounded, accepted observations are not duplicated and receipt replay does not charge
-    another revision.
+    another revision or republish evicted history; unavailable exact bytes never fall back to latest.
 - id: A3
   given: Selected Caido results plus unrelated traffic in the same provider
   when: A selected tool inspects/generates requests

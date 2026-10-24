@@ -78,7 +78,7 @@ requirements:
 - id: R5
   text: Publication preserves concurrent append observations but compares expected source generation/ref/digest/policy
     and manual state. A stale old-schema Workflow cannot refresh its predecessor and retry as a new intended source
-    replacement.
+    replacement. A predecessor ref is a CAS condition, not a retention hold or a chain pinning map history.
 - id: R6
   text: Use declared artifact slots for large map/report outputs; keep the tool completion envelope bounded. Apply
     the same source-mode filtering before materialization as live reads and do not fork raw mixed content into blackbox.
@@ -93,11 +93,12 @@ failure_outcomes:
   timeout: The reconciliation deadline owns parse/reindex/output work; budgets bound nested reference expansion
     and source bytes.
 - operation: Optional guarded live source replacement
-  permanent: Stale source/manual preconditions or quotas are permanent conflicts; retaining the private computation
-    does not authorize shared rollback.
-  retryable: Only append-compatible CAS races may rebase within three attempts/deadline; source conflicts never
-    refresh intent automatically.
-  ambiguous: Existing keyed receipt returns the original generation/revision without charging again.
+  permanent: Stale source/manual preconditions, exhausted cumulative Run budget or all-protected history capacity
+    are nonautomatic-retry conflicts; retaining the private computation does not authorize shared rollback.
+  retryable: Append-compatible CAS races may rebase within three attempts/deadline; bounded ArtifactStore eviction
+    backpressure retries publication only. Source conflicts never refresh intent automatically.
+  ambiguous: Existing keyed receipt confirms the original generation/revision even after eviction without republishing
+    or charging again; unavailable exact bytes never substitute latest.
   cancelled: A fenced allocation cannot publish after cleanup begins.
   timeout: Publication acknowledgement reconciliation has its own remaining operation allowance and never changes
     pinned input intent.
@@ -118,8 +119,9 @@ lifecycle:
     follows existing policy.
   cascade: Independent observed traffic survives source replacement; Run deletion does not erase published Project
     metadata.
-  retention: Exact computation inputs/outputs and selected evidence use ordinary refs/holds; live publication records
-    actual updated revision separately.
+  retention: Selected exact computation inputs/outputs and evidence acquire real holds before acceptance, atomically
+    against eviction; refs/metadata/receipts alone do not pin history. Live publication records its actual revision
+    separately and ArtifactStore owns eviction of eligible history.
 acceptance_criteria:
 - id: A1
   given: Exact OpenAPI/map inputs and supported/unsupported reference/origin fixtures
@@ -142,10 +144,11 @@ acceptance_criteria:
   then: Shared source rollback is rejected, appended observations survive and a retry preserves the original expected
     predecessor.
 - id: A5
-  given: Mixed source-mode inputs, large output and a lost publication reply
+  given: Mixed source-mode inputs, large output, a lost publication reply and a concurrent hold/eviction race
   when: A blackbox tool computes/publishes through production boundaries
   then: Only safe authorized outputs materialize in explicit slots, receipt replay retains exact result identity
-    and quotas are charged once.
+    without republishing evicted history; acceptance obtains its hold or fails unavailable, and Run write work
+    remains charged once even after eviction.
 deliverables:
 - path: internal/scanplan
   description: Reuse the existing normalization/reference authority; extract common lower-layer types only with

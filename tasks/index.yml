@@ -85,7 +85,7 @@ milestones:
     outcome: Local-storage Runtimes reuse authorized immutable source archives and Skill packages across allocations with a bounded 1-GiB private disk cache, preserving exact provenance, access checks and memory-only operation.
   - id: project-sitemap-2026-10
     exit_task: V410-007
-    outcome: A bounded shared Project sitemap supports safe concurrent edits, automatic HTTP observations, structured imports and deterministic OpenAPI reconciliation with real-store and scale evidence.
+    outcome: A bounded shared Project sitemap supports safe concurrent edits, automatic HTTP observations, structured imports and deterministic OpenAPI reconciliation, with oldest-unpinned history eviction that preserves current revisions and exact holds, backed by real-store and scale evidence.
   - id: sitemap-caido-history-2026-10
     exit_task: V410-008
     outcome: Optional incremental Caido history collection preserves pinned continuation, safe observations and bounded restart behavior independently of browser support.

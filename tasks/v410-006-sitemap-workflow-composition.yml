@@ -74,8 +74,9 @@ requirements:
     Caido history produces source-specific gaps, not failure of HTTP/OpenAPI availability.
 - id: R3
   text: Preparation outputs use existing prepare-output semantics; same-round discovery uses retained-output. Fresh
-    live map snapshots use the authorized adapter and never imply previous-round lookup or mutate the immutable
-    Audit baseline.
+    live map reads use bounded allocation-owned materialized authorized snapshots, not history pins; replacement
+    or release expires their cursors. Exact selected inputs/outputs need real holds before acceptance, atomically
+    against eviction. Neither a cursor nor metadata refs imply previous-round lookup or mutate the Audit baseline.
 - id: R4
   text: Catalog identity follows the current pre-production rules; validate actual shipped configurations explicitly,
     while ordinary tests use testdata and never read live configs.
@@ -85,11 +86,13 @@ requirements:
 failure_outcomes:
 - operation: Workflow input selection, model-free execution and output publication
   permanent: Unknown/missing required input, capability or tool/output contract fails at existing validation/prepare/result
-    boundaries; unsupported source policy is not guessed.
-  retryable: Use ordinary Scheduler/Worker retry policy with exact pinned inputs; storage publication retries preserve
-    receipts.
+    boundaries; unsupported source policy is not guessed. Evicted exact inputs remain unavailable; protected-history
+    capacity conflicts and exhausted cumulative Run budgets do not automatically retry.
+  retryable: Use ordinary Scheduler/Worker retry policy with exact held inputs; bounded ArtifactStore eviction
+    backpressure retries only publication and preserves receipts, never redispatching target discovery.
   ambiguous: Reconcile existing output/Artifact receipts and source-generation intent; never repeat discovery target
-    calls to recover a lost output acknowledgement.
+    calls to recover a lost output acknowledgement. Receipt replay after eviction confirms the old commit without
+    republishing/recharging; it does not make evicted exact bytes available.
   cancelled: Existing Scheduler cancellation joins allocations and sitemap publishers before release.
   timeout: Separate Run/task deadlines from collector drain and exact-output publication allowances.
 - operation: Audit mapping and accepted reconciliation collection
@@ -113,8 +116,9 @@ lifecycle:
 - entity: Workflow/Audit context snapshots and shared updates
   delete: Ordinary Run/Audit/Project lifecycle authorities retain control.
   cascade: Run deletion leaves committed shared metadata and accepted held context intact.
-  retention: Exact accepted inputs/outputs are retained normally; live map changes never rewrite an accepted worklist
-    or report.
+  retention: Exact accepted inputs/outputs are protected by their existing real holds; unselected metadata refs,
+    CAS predecessors and research read snapshots do not pin history. Live map changes or eviction never rewrite
+    an accepted worklist or report.
 acceptance_criteria:
 - id: A1
   given: A Project with HTTP access but no OpenAPI, browser or Caido history
@@ -125,10 +129,11 @@ acceptance_criteria:
   when: A tool@1 Worker executes without an LLM
   then: Declared outputs hold the canonical map/report and optional guarded publication records its actual revision.
 - id: A3
-  given: An Audit using prepare and same-round discovery fixtures
+  given: An Audit using prepare and same-round discovery fixtures with snapshot replacement and concurrent eviction
   when: Fresh map snapshots are reconciled before inventory/checks
   then: Existing exact mappings feed consumers and no baseline mutation or implicit cross-round artifact lookup
-    occurs.
+    occurs; expired research cursors fail and selected context obtains its real hold before acceptance or fails
+    unavailable, never substituting latest.
 - id: A4
   given: Invalid schema, quota/source conflict, cancellation and lost output/collection replies
   when: The production composition hits each boundary
