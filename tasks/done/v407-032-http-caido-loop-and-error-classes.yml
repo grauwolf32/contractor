@@ -1,0 +1,198 @@
+schema_version: '1.0'
+id: V407-032
+title: Offload bounded Caido payload processing and preserve unexpected HTTP/Caido failures
+milestone: server-runtime-review-2026-10
+epic: http-tools
+kind: defect
+introduced_by: V12-004
+priority: P2
+status: completed
+implementation_commit: c45a3739d40f21358fbf6590f32a4454a6a58831
+depends_on: []
+languages:
+- python
+goal: Process reachable Caido payloads off the event loop and keep unexpected code exceptions distinct
+  from classified transport failures without changing session or wire contracts.
+context:
+  review: docs/research/2026-10-23-server-runtime-review.md (corrected dispositions, verified on main
+    dc7012e8; recheck source lines before implementation)
+  specification: docs/spec/tools/http-caido.md
+  severity: medium
+  finding: 'runtime/src/contractor_runtime/toolsets/caido/tools.py:471-475,491-493 and corresponding replay/workflow
+    paths perform _blob, credential redaction and full UTF-8 preview decoding inline. The production boundary
+    is adapters/caido_graphql.py:28,511-524: at most 16 MiB for the complete decoded JSON response, including
+    base64, so its raw payloads total less than 12 MiB. http/tools.py:721-724,990-992 and caido/tools.py:1131-1132,2359-2360
+    map unexpected TypeError/AttributeError to retryable transport codes. _safe_tool_response already
+    emits a bounded non-retryable response for an unexpected exception. _blob currently rejects noncanonical
+    base64 by decode/re-encode equality; validate=True alone accepts nonzero pad bits. HTTP locking supports
+    HTP-R75 request-state serialization and HTP-R129 cookie CAS ownership.'
+  siblings: Caido request_detail, replay polling and workflow_run payload transforms; HTTP _send_once
+    and RecordedToolCall boundary; Caido read and mutation error boundaries. Inspect interactsh expected
+    transport classification as a sibling without changing its ambiguous-mutation outcomes. Filesystem
+    and parser classification are separate domains.
+  validation: 'Partially confirmed on dc7012e8: payload transforms run inline and TypeError becomes retryable
+    caido_request_failed. The production adapter caps the whole JSON response at 16 MiB; a 32- or 64-MiB
+    raw-message scenario is unreachable. Canonical base64 checks and HTTP session serialization are intentional.'
+plan:
+- Run pure Caido blob decode, canonical validation, redaction and preview preparation through threads.to_thread_until_done,
+  retaining session ownership until work joins on cancellation and without leaking raw secrets into metrics.
+- Preserve canonical base64 rejection, including noncanonical pad bits, exact response validation, byte
+  bounds and output shapes. Keep the 16-MiB adapter response limit as the reachable test boundary.
+- At HTTP/Caido transport and recorded-call boundaries, preserve existing domain errors and catch their
+  documented transport families. Let unexpected implementation exceptions reach the existing tool-error
+  callback with their identity intact; do not reclassify them as retryable transport faults. Preserve
+  Caido mutation ambiguity handling and no blind replay.
+- Use an adapter-valid fixture with approximately 8 MiB of raw content and total JSON below 16 MiB. Assert
+  execution thread and barrier-controlled loop progress for each payload path; separately prove the real
+  adapter rejects oversized JSON before payload processing.
+- Inject unexpected exceptions and known transport errors through the actual tools and callbacks. Keep
+  HTTP session mutation, request IDs, cookie recovery, cancellation and read serialization unchanged;
+  test existing behavior rather than adding concurrent history/session reads.
+scope:
+  in:
+  - Threaded bounded Caido payload transformations and joined cleanup; HTTP/Caido error-boundary classification;
+    deterministic regression coverage.
+  out:
+  - Changing HTTP/Caido session serialization, request ID/cookie ownership, retry policy, mutation ambiguity
+    outcomes or deadlines.
+  - Target/redirect policy, base64 grammar, capture formats, adapter limits and tool schemas.
+  - New concurrent-read behavior or raw-message tests that bypass the production response limit.
+acceptance_criteria:
+- id: A1
+  text: For adapter-valid request_detail, replay and workflow payload fixtures, payload transforms run
+    on worker threads; deterministic barriers demonstrate loop progress and joined cancellation. The offload
+    test fails on the inline implementation.
+- id: A2
+  text: An injected TypeError in the HTTP or Caido send path reaches the existing tool-error callback
+    as an unexpected exception and produces a bounded non-retryable failure; known connection failures
+    retain their existing classified retryability. Caido mutations retain their existing unknown-outcome
+    handling.
+- id: A3
+  text: 'Canonical base64 remains strict: YQ== is accepted for b''a'' and YR== is rejected. Adapter responses
+    exceeding 16 MiB are rejected before tool processing; accepted response/output schemas and redaction
+    remain unchanged.'
+- id: A4
+  text: Existing request ID ordering, session/cookie serialization, cancellation, recovery and bounded
+    transport tests pass without relaxing their guarantees; no new tests assert wall-clock latency.
+tests:
+- command: cd runtime && uv run --locked pytest -q tests/test_caido_read_tools.py tests/test_caido_action_tools.py
+    tests/test_http_toolset.py tests/test_http_caido_security.py tests/test_caido_adapter.py tests/test_caido_graphql_fixtures.py
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make lint
+  covers:
+  - A2
+  - A3
+  - A4
+verification:
+  date: '2026-10-23'
+  revision: c45a3739d40f21358fbf6590f32a4454a6a58831
+  environment: Worktree contractor-wt/r4b, branch claude/rv-r4b on base d7b825c4, macOS arm64 (Darwin),
+    Python 3.13 via uv sync --locked, Node 24.20 with Corepack pnpm. Python Runtime only; no PostgreSQL
+    test is in scope, so CONTRACTOR_TEST_DATABASE_URL was not used.
+  database_tests_configured: false
+  implementation_commits:
+  - 4c7d1d99e4f09e689ba51fcc31e63c042484db3d offloads Caido payload steps, narrows the HTTP, Caido adapter
+    and tool error boundaries, and updates the spec.
+  - 835cc2152385bd231471e0ae45546554e2409ff8 narrows the tool-http proxy handle's build and send catch-alls
+    so the direct and proxy routes classify the same failures alike.
+  - c45a3739d40f21358fbf6590f32a4454a6a58831 answers the review (after merging claude/review-v407-v409
+    in c1144f25) - the httpx transport family (httpx errors and OSError) is defined once in http_body and
+    used by every send and read path; header, bearer and cookie values follow the h11 field grammar; a
+    target Set-Cookie that cannot be sent back is ignored; the errors registry row is corrected.
+  recheck: 'Finding lines were re-verified on d7b825c4: request_detail, Replay polling, convert output,
+    Replay/Automate tagging and Automate results decoded, scrubbed and previewed inline; http/tools.py
+    _send_once and _recorded, caido/tools.py _execute, _write_artifact and _bounded_caido_error, and
+    adapters/caido_graphql.py execute mapped any exception to retryable http_request_failed/caido_request_failed.'
+  results:
+  - 'A1: test_caido_payload_processing_runs_off_loop_and_joins_before_release (12 cases: request_detail,
+    Replay with wait, Replay of a stored request, workflow convert, automate_run, automate_results; each
+    completed and cancelled with a concurrent close) uses adapter-valid ~8 MiB raw messages with JSON
+    bodies below 16 MiB. A threading.Event barrier holds the first off-loop Blob decode; the loop runs
+    another task while it is held; a cancelled call and close stay pending until release, then the call
+    raises CancelledError with no capture and no further GraphQL request. Recorded thread ids show _blob,
+    scrubbing, previews and tag injection never ran on the loop thread. All 12 cases fail on d7b825c4
+    (the call completes inline before the barrier).'
+  - 'A2: test_unexpected_send_exception_reaches_tool_error_callback_unclassified (direct transport, httpx
+    client code on both routes, capture construction on both routes) and test_unexpected_caido_failure_reaches_tool_error_callback_unclassified
+    (caido_history read, caido_replay mutation) drive the real tools through WorkerInstrumentationPlugin
+    callbacks: an injected TypeError keeps its type and answers {code tool_call_failed, message "<tool>
+    failed (TypeError)", retryable false} without retries; httpx.ConnectError keeps retryable http_request_failed
+    with two retry waits and retryable caido_request_failed for a read; a Caido mutation stays non-retryable,
+    is sent once and its tag is not reused; HTTP request IDs stay monotonic and history keeps the interrupted
+    attempt as transport_error. test_transport_family_is_classified_and_implementation_failures_keep_their_type
+    covers the adapter. All of these fail on d7b825c4; the proxy-client case also fails on 4c7d1d99.'
+  - 'A2 siblings: a port outside 0..65535 and a non-ASCII header or session cookie value were retried
+    as transport failures on the proxy route; they are now http_request_invalid on both routes (HTP-R33,
+    extended test_malformed_urls_fail_before_send_without_proxy_retries, which fails on d7b825c4).'
+  - 'A3: test_canonical_blob_decodes (YQ== -> b''a'') and test_noncanonical_blob_is_rejected (YR==,
+    missing or extra padding, whitespace, URL-safe alphabet, non-strings); test_response_over_adapter_bound_fails_before_tool_payload_processing
+    sends a real request detail whose JSON exceeds 16 MiB, declared and streamed without length, and
+    gets caido_response_too_large with no Blob decode, capture or artifact. These pass before and after
+    the change (preserved behaviour). The offload tests assert unchanged result shapes and redaction
+    ([runtime-credential], [REDACTED]) on previews, captures and the convert artifact.'
+  - 'A4: existing ordering, session, cookie, cancellation, recovery and transport tests pass unchanged;
+    the new tests use event and thread barriers only (asyncio.wait timeout=60 and Event.wait(60) guard
+    hangs and assert nothing about latency).'
+  - 'cd runtime && uv run --locked pytest -q tests/test_caido_read_tools.py tests/test_caido_action_tools.py
+    tests/test_http_toolset.py tests/test_http_caido_security.py tests/test_caido_adapter.py tests/test_caido_graphql_fixtures.py:
+    117 passed.'
+  - 'cd runtime && uv run --locked pytest -k "http or caido or interactsh or instrumentation or proxy
+    or gateway or llm or model_http": 935 passed, 5 skipped.'
+  - 'make lint: passed (ruff, import-linter 4 kept / 0 broken, check_spec, check_tasks, release graph).'
+  - 'Review follow-up, TLS: test_tls_record_failure_from_a_target_is_a_classified_transport_failure runs
+    a real local TLS target (cryptography-issued certificate, httpcore AnyIO backend) that answers with
+    a corrupt application-data record, in the header and in the body phase, on both routes. All four answer
+    retryable http_request_failed; the header phase is retried twice (three connections), a body failure
+    after delivery is not re-requested, and history keeps transport_error. On c1144f25 headers-direct,
+    body-direct and body-proxy fail (SSLError reached the Worker as tool_call_failed); headers-proxy passed,
+    which was the route disagreement the review found.'
+  - 'Review follow-up, field grammar: test_field_grammar_matches_the_h11_serializer compares is_field_value
+    with h11.Request on every ASCII character alone, inside, leading and trailing a value, whitespace runs
+    and non-ASCII text, with no disagreement. test_malformed_urls_fail_before_send_without_proxy_retries
+    now covers non-ASCII, trailing space or tab, leading space, VT and FF header values on both routes
+    (http_request_invalid, nothing sent, no retry wait) and their rejection by http_session_set as header,
+    cookie or bearer token, leaving the session empty. It fails on c1144f25.'
+  - 'Review follow-up, cookies: test_target_cookie_that_cannot_be_sent_back_is_ignored (direct and proxy)
+    receives a UTF-8 and a form-feed Set-Cookie beside a valid one; the bad ones are not stored, the cookie
+    the UTF-8 one would replace is kept and sent, the next request succeeds, and the checkpoint and a restored
+    toolset hold only sendable cookies. test_shared_cookie_document_strictness_and_exact_limits rejects
+    unsendable cookies on encode and decode and keeps the UTF-8 byte budget check through a multibyte
+    path. Both fail on c1144f25.'
+  - 'Review follow-up reruns at c45a3739: the task pytest command 122 passed; -k "http or caido or interactsh
+    or instrumentation or proxy or gateway" 943 passed, 5 skipped; make lint passed.'
+  - 'make test-runtime at c45a3739: 4475 passed, 105 failed, 39 skipped. 95 podman_* failures (a subset
+    of the earlier 96; one podman engine case passed this time) and the 9 known macOS failures listed above.
+    The other one, test_code_analysis_child_lifecycle::test_child_faults_are_reaped_and_remove_the_mirror[malformed]
+    (a child pid still set during reaping), touches no HTTP or Caido code and passed 3 of 3 reruns alone.
+    An earlier run of the same revision was interrupted by a network outage and suspend (58 min); its
+    extra test_http_caido_process_e2e failure was an allocation preparation TimeoutError and the file passes
+    alone (3 passed).'
+  - 'make test-runtime at 835cc215: 4380 passed, 106 failed, 39 skipped. 96 failures are podman_* tests
+    and 9 are the known macOS environment failures (code_analysis_graph fixture path, local_direct_faults
+    socket, projectfs_local_*, tool_process, trailmark_child); the same 105 fail on d7b825c4 in a temporary
+    worktree. The 106th, test_real_four_mib_parser_keeps_event_loop_gaps_below_100_ms, is the known timing-sensitive
+    test and passes when rerun alone on this branch.'
+  dispositions:
+  - 'Kept on the loop: structural validation of at most one page (100 nodes) of history, findings, scopes
+    and workflows, and redaction of a result already bounded by LIM-HTP-35 (1 MiB); convert input is
+    a model argument within LIM-HTP-20.'
+  - 'http-proxy@1 route transport (_ObservedProxyTransport): every failure inside it stays a route failure
+    because the model Gateway client shares it and Gateway retryability is a separate rule; recorded
+    in HTP-R133.'
+  - 'interactsh@1: inspected, unchanged. Its adapter already classifies only httpx/OS transport errors
+    and invalid responses, and its tool boundary has no bound_error mapping.'
+  - 'HTTP cookie checkpoint and http_read_body: the checkpoint already classifies its Artifact client
+    errors; read_body now maps only ValueError (evicted or undecodable capture) to http_body_not_found.'
+  - 'Capture formats are unchanged: an interrupted HTTP attempt is still recorded as transport_error with
+    complete false, while the raised exception keeps its type.'
+  declined:
+  - 'failure-model.md FAIL-HTP rows were not changed: FAIL-OBS-3 already owns raised tool exceptions.'
+  - 'The Project target bearer token (HTTPOriginTargetSettings, a Server-validated wire contract shared with
+    Go) is not checked against the field grammar here: changing it needs both sides of the contract.
+    A token with a trailing space would still fail at send as a retried transport failure.'
+  - 'llm/client.py (Gateway) and adapters/otlp_http.py keep their own httpx classification: Gateway
+    retryability and telemetry export retries are separate rules from tool transport failures.'
