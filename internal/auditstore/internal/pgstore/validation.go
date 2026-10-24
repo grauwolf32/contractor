@@ -250,7 +250,7 @@ func validateTransition(params auditstore.TransitionParams) error {
 		if err := validateText("reason code", params.Reason.Code, 128, true); err != nil {
 			return err
 		}
-		if err := validateText("reason message", params.Reason.Message, 4096, false); err != nil {
+		if err := validateText("reason message", params.Reason.Message, auditstore.MaxStopReasonMessageBytes, false); err != nil {
 			return err
 		}
 	}
@@ -303,7 +303,7 @@ func ValidateClaimedTransition(params auditstore.ClaimedTransitionParams) error 
 		if err := validateText("reason code", params.Reason.Code, 128, true); err != nil {
 			return err
 		}
-		return validateText("reason message", params.Reason.Message, 4096, false)
+		return validateText("reason message", params.Reason.Message, auditstore.MaxStopReasonMessageBytes, false)
 	}
 	return nil
 }
@@ -321,7 +321,7 @@ func validateTrustedTransition(params auditstore.TrustedTransitionParams) error 
 		if err := validateText("reason code", params.Reason.Code, 128, true); err != nil {
 			return err
 		}
-		return validateText("reason message", params.Reason.Message, 4096, false)
+		return validateText("reason message", params.Reason.Message, auditstore.MaxStopReasonMessageBytes, false)
 	}
 	return nil
 }

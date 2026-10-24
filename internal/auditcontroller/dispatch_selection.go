@@ -43,16 +43,10 @@ func (c *Controller) dispatchReadyBatch(ctx context.Context, claim auditstore.Co
 			return false, nil
 		}
 		if attempt > audit.Limits.MaxItemRunAttempts {
-			reason := auditstore.StopReason{
+			return c.closeActiveAudit(ctx, claim, audit, &auditstore.StopReason{
 				Code:    "item_attempt_budget_exhausted",
 				Message: "An Audit item remained ready after its configured attempt budget was exhausted.",
-			}
-			_, err := c.store.TransitionClaimed(ctx, auditstore.ClaimedTransitionParams{
-				Claim: claim, ExpectedRevision: audit.Revision,
-				ExpectedState: auditstore.AuditActive, TargetState: auditstore.AuditFinalizing,
-				Reason: &reason,
 			})
-			return err == nil, err
 		}
 		selected = append(selected, CheckExecutionMember{Item: item, Attempt: attempt})
 	}
