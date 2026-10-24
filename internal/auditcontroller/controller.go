@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
@@ -223,18 +224,67 @@ func (c *Controller) reconcileRolePhase(
 	return false, true, nil, nil
 }
 
-func (c *Controller) closeForRoleFailure(
+// closeActiveAudit closes dispatch of the active Audit and moves it to
+// finalizing with reason. The closing transition cannot itself be closed, so
+// the message is bounded to valid UTF-8 within the store's stop reason bound:
+// a builder may compose it from a diagnostic of any length, and a refused
+// closure would be retried on every pass (AUX-R100).
+func (c *Controller) closeActiveAudit(
 	ctx context.Context,
 	claim auditstore.ControllerClaim,
 	audit auditstore.Audit,
 	reason *auditstore.StopReason,
 ) (bool, error) {
+	bounded := *reason
+	// PostgreSQL text holds no NUL, so it is replaced like an invalid byte.
+	bounded.Message = strings.ReplaceAll(strings.ToValidUTF8(bounded.Message, "\uFFFD"), "\x00", "\uFFFD")
+	if len(bounded.Message) > auditstore.MaxStopReasonMessageBytes {
+		// Cutting inside a multi-byte character leaves a partial one, which
+		// ToValidUTF8 drops.
+		bounded.Message = strings.ToValidUTF8(bounded.Message[:auditstore.MaxStopReasonMessageBytes], "")
+	}
 	_, err := c.store.TransitionClaimed(ctx, auditstore.ClaimedTransitionParams{
 		Claim: claim, ExpectedRevision: audit.Revision,
 		ExpectedState: auditstore.AuditActive, TargetState: auditstore.AuditFinalizing,
-		Reason: reason,
+		Reason: &bounded,
 	})
 	return err == nil, err
+}
+
+// refusedWrite reports whether the Audit store refused a Controller write as
+// invalid input (auditstore.ErrInvalid): its validation or a named CHECK
+// constraint rejected values the write derives from durable Audit state, so
+// the same write is refused on every pass and the caller closes the Audit
+// instead of retrying it (AUX-R99). A transient failure, such as a
+// serialization failure or a lost connection, is never ErrInvalid and stays
+// retryable. The stop reason does not carry the store's cause, so the
+// refusal is logged with it.
+func (c *Controller) refusedWrite(audit auditstore.Audit, operation string, err error) bool {
+	if !errors.Is(err, auditstore.ErrInvalid) {
+		return false
+	}
+	c.options.Logger.Error("Audit store refused a Controller write as invalid",
+		"audit_id", audit.AuditID, "operation", operation, "error", err)
+	return true
+}
+
+// roleDispatchInvalid is the stop reason of a role execution whose pinned
+// dispatch data failed deterministic validation, in the submission builder
+// or in the store that refused its intent.
+func roleDispatchInvalid() *auditstore.StopReason {
+	return &auditstore.StopReason{
+		Code:    "role_dispatch_contract_invalid",
+		Message: "Pinned Audit role dispatch data failed deterministic validation.",
+	}
+}
+
+// dispatchInvalid is the stop reason of a check execution whose pinned
+// dispatch data failed deterministic validation, in the submission builder
+// or in the store that refused its intent.
+func dispatchInvalid() *auditstore.StopReason {
+	return &auditstore.StopReason{
+		Code: "dispatch_contract_invalid", Message: "Pinned Audit dispatch data failed deterministic validation.",
+	}
 }
 
 func (c *Controller) dispatchRole(
@@ -247,10 +297,7 @@ func (c *Controller) dispatchRole(
 	prepared, err := c.builder.WithClaim(claim).PrepareRole(ctx, snapshot, workflowRole, attempt)
 	if err != nil {
 		if errors.Is(err, ErrInvalidSubmission) {
-			return false, false, &auditstore.StopReason{
-				Code:    "role_dispatch_contract_invalid",
-				Message: "Pinned Audit role dispatch data failed deterministic validation.",
-			}, nil
+			return false, false, roleDispatchInvalid(), nil
 		}
 		return false, false, nil, err
 	}
@@ -258,6 +305,9 @@ func (c *Controller) dispatchRole(
 	execution, _, err := c.store.CreateExecutionIntent(ctx, prepared.Intent)
 	if errors.Is(err, auditstore.ErrPrecondition) {
 		return false, false, nil, nil
+	}
+	if c.refusedWrite(snapshot.Audit, "create role execution intent", err) {
+		return false, false, roleDispatchInvalid(), nil
 	}
 	if err != nil {
 		return false, false, nil, err
@@ -626,15 +676,7 @@ func (c *Controller) dispatch(
 	prepared, err := c.builder.WithClaim(claim).PrepareBatch(ctx, snapshot, selected)
 	if err != nil {
 		if errors.Is(err, ErrInvalidSubmission) {
-			reason := auditstore.StopReason{
-				Code: "dispatch_contract_invalid", Message: "Pinned Audit dispatch data failed deterministic validation.",
-			}
-			_, transitionErr := c.store.TransitionClaimed(ctx, auditstore.ClaimedTransitionParams{
-				Claim: claim, ExpectedRevision: snapshot.Audit.Revision,
-				ExpectedState: auditstore.AuditActive, TargetState: auditstore.AuditFinalizing,
-				Reason: &reason,
-			})
-			return transitionErr == nil, transitionErr
+			return c.closeActiveAudit(ctx, claim, snapshot.Audit, dispatchInvalid())
 		}
 		return false, err
 	}
@@ -644,6 +686,9 @@ func (c *Controller) dispatch(
 		// The derived dispatch window, deadline, budget, item state, or a
 		// concurrent fence won. A later authoritative snapshot decides which.
 		return false, nil
+	}
+	if c.refusedWrite(snapshot.Audit, "create check execution intent", err) {
+		return c.closeActiveAudit(ctx, claim, snapshot.Audit, dispatchInvalid())
 	}
 	if err != nil {
 		return false, err
@@ -772,8 +817,14 @@ func terminalRun(state runstore.WorkflowRunState) bool {
 	return runstore.RunLifecycleTerminal.Includes(state)
 }
 
+// permanentSubmissionError reports whether creating the child Run of an
+// intent failed in a way the same submission repeats on every attempt: the
+// Run Service, the Run store or the Audit store refused it as invalid, its
+// intent conflicts, or a pinned input is missing or corrupt. The intent then
+// fails instead of being resumed (AUX-R99, FAIL-AUX-1).
 func permanentSubmissionError(err error) bool {
-	return errors.Is(err, runservice.ErrInvalid) || errors.Is(err, auditstore.ErrConflict) ||
+	return errors.Is(err, runservice.ErrInvalid) || errors.Is(err, runstore.ErrInvalid) ||
+		errors.Is(err, auditstore.ErrInvalid) || errors.Is(err, auditstore.ErrConflict) ||
 		errors.Is(err, artifacts.ErrArtifactNotFound) || errors.Is(err, artifacts.ErrArtifactIntegrity)
 }
 

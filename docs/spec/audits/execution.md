@@ -694,6 +694,48 @@ receipts.
 **AUX-R74.** A claim alone does not authorize stale commits. Every mutation
 checks epoch or revision plus uniqueness constraints (FAIL-AUX-4).
 
+**AUX-R99.** A reconcile write that the Audit Store refuses as invalid,
+whether its own validation or a stored constraint refuses it, would be
+refused again on every pass, so the Controller never retries it. A refused
+write that carries work the Audit cannot do without closes dispatch with the
+stop reason of that work, after one attempt and in the same step:
+
+- a refused initial Round fails the Audit with `invalid_inventory`
+  (ASC-R51);
+- a refused preparation role intent fails it with `preparation_failed`
+  (ASC-R59);
+- a refused discovery or assessment role intent finalizes it with
+  `role_dispatch_contract_invalid`;
+- a refused check execution intent finalizes it with
+  `dispatch_contract_invalid`;
+- a refused next Round finalizes it with `next_round_invalid` (AUX-R66).
+
+The stop reason carries a fixed message, and the Controller logs the Store's
+cause with the Audit and the refused operation. A child Run creation that
+the Run Service, the Run Store or the Audit Store refuses as invalid fails
+its submission intent once and is never resumed (FAIL-AUX-1); collection
+then requeues or settles its members under their attempt policy (AUX-R31).
+Collection's own refusals are AUX-R96's. A failure that is not classified invalid, such as a serialization
+failure or a lost connection, stays retryable: the step fails, its claim is
+released and a later pass attempts the same write again (FAIL-AUX-4).
+
+**AUX-R100.** The writes that close or drain an Audit cannot themselves be
+closed by AUX-R99, so they write only values the Store accepts:
+
+- the closing transition bounds its stop reason message to 4 KiB of valid
+  UTF-8 without NUL, replacing invalid bytes and NUL and cutting a longer
+  message a builder composed;
+- settlement of undispatched items, the barrier every closure waits for
+  (AUD-R186), appends its closure gap only while the item's gap array stays
+  within its stored bound of 1 MiB of JSON text, and otherwise records the
+  closure through the item's final disposition and rationale alone;
+- the other drain writes (review expiry, terminal observation, intent
+  failure, child Run cancellation and deletion, hold release and purge)
+  carry only the claim, values read from the snapshot and fixed values.
+
+A refusal of one of these writes is a Store defect, not an Audit outcome: the
+step fails and a later pass retries it.
+
 **AUX-R95.** A reconcile step reads its snapshot of the claimed Audit (the
 Audit, its current Round, the bounded windows of unsettled items, ready items
 and unsettled executions, role executions and collection receipts) in one
@@ -907,7 +949,7 @@ Registry entries owned by this document:
 - [FAIL-AUX-3](../platform/failure-model.md): Audit-side retention of
   child-Run proposals and evidence (AUX-R49, AUX-R51, AUX-R92).
 - [FAIL-AUX-4](../platform/failure-model.md): Controller claims and
-  reconcile mutations (AUX-R74, AUX-R76, AUX-R97).
+  reconcile mutations (AUX-R74, AUX-R76, AUX-R97, AUX-R99, AUX-R100).
 - [FAIL-AUX-5](../platform/failure-model.md): next-Round building
   (AUX-R65 to AUX-R68).
 - [FAIL-AUX-6](../platform/failure-model.md): a change of the global
@@ -924,9 +966,10 @@ Registry entries owned by this document:
 - [Errors](../platform/errors.md): the receipt dispositions `missing-output`,
   `invalid-result`, `execution-failed` and `execution-cancelled` (AUX-R31);
   `evidence-budget-exhausted` (AUX-R46); `dispatch_contract_invalid`
-  (AUX-R16); and the stop reasons `proposal_inventory_limit_exceeded`
-  (AUX-R65), `next_round_invalid` (AUX-R66) and `next_round_contract_invalid`
-  (AUX-R67).
+  (AUX-R16, AUX-R99); and the stop reasons
+  `proposal_inventory_limit_exceeded` (AUX-R65), `next_round_invalid`
+  (AUX-R66), `next_round_contract_invalid` (AUX-R67) and
+  `role_dispatch_contract_invalid` (AUX-R99).
 
 Entries owned elsewhere and used here: `batchSize` (LIM-AUD-3, LIM-AUD-8), the
 Audit package hard limits including 4,096 inventory items (LIM-AUD-9 to
@@ -967,7 +1010,10 @@ durable member counts and attempt history, with missing provider usage kept
 unknown (AUX-R88 to AUX-R91). Wake hints never carry authority (AUX-R70). A
 `next_round_contract_invalid` stop reason names the violated invariant and the
 Controller logs the full error (AUX-R67). A deleting step that outlasts
-`OperationTimeout` logs a warning with its Audit and duration (AUX-R97).
+`OperationTimeout` logs a warning with its Audit and duration (AUX-R97). A
+write the Audit Store refuses as invalid is logged with its Audit, its
+operation and the Store's cause, while the stop reason keeps a fixed message
+(AUX-R99).
 Shared rules are in
 [observability](../platform/observability.md).
 
@@ -1022,6 +1068,17 @@ Shared rules are in
     tests `TestPostgresAuditDeletionProbesReadOnlyTheLiveRuns` and
     `TestPostgresAuditDeletionProbeTraversesRunsInOriginalOrder` in
     [`internal/auditstore/internal/pgstore/deletion_probe_postgres_test.go`](../../../internal/auditstore/internal/pgstore/deletion_probe_postgres_test.go).
+14. A reconcile write that the Audit Store refuses as invalid is attempted
+    once: the Audit closes with the work's stop reason and releases its
+    claim, while a serialization failure or a lost connection is retried
+    (AUX-R99); a closing Audit's undispatched items settle whatever their
+    coverage gaps (AUX-R100); tests
+    `TestPostgresControllerClosesAuditWhoseInitialRoundIsRefused`,
+    `TestPostgresControllerClosesAuditWhoseRoleIntentIsRefused`,
+    `TestPostgresControllerClosesAuditWhoseCheckIntentIsRefused`,
+    `TestPostgresControllerRetriesTransientIntentFailures` and
+    `TestPostgresControllerSettlesAnItemWhoseCoverageGapsAreFull` in
+    [`internal/auditcontroller/refused_write_postgres_test.go`](../../../internal/auditcontroller/refused_write_postgres_test.go).
 
 ## Non-goals
 

@@ -1,5 +1,11 @@
 package pgstore
 
+import (
+	"strconv"
+
+	"github.com/grauwolf32/contractor/internal/auditstore"
+)
+
 // SQL statements for lifecycle.go.
 
 // settledUndispatchedEvents record how many items dispatch closed and one
@@ -20,6 +26,10 @@ var settledUndispatchedEvents = auditEvents(
 // live controller claim ($1-$3), records a coverage gap, expires their pending
 // reviews and records items.dispatch_closed plus one review.expired each.
 // Returns whether the Audit qualified and how many items were settled.
+// Settlement is the barrier every closure waits for (AUD-R186), so nothing it
+// derives may break a stored bound: the closure gap is appended only while
+// the gap array's jsonb text stays within audit_items_coverage_gaps_check,
+// as the rationale is extended only within its own bound (AUX-R100).
 // Used by ClaimStore.SettleUndispatched.
 var settleUndispatchedSQL = `
 WITH live_claim AS MATERIALIZED (
@@ -67,6 +77,8 @@ WITH live_claim AS MATERIALIZED (
                WHEN candidates.state = 'finalizing' THEN 'not-tested' ELSE 'blocked' END,
            coverage_gaps = CASE
                WHEN item.coverage_gaps ? candidates.gap
+                   OR octet_length((item.coverage_gaps || jsonb_build_array(candidates.gap))::text) > ` +
+	strconv.Itoa(auditstore.MaxCoverageArrayBytes) + `
                THEN item.coverage_gaps
                ELSE item.coverage_gaps || jsonb_build_array(candidates.gap)
            END,

@@ -6,10 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
@@ -301,6 +303,75 @@ func TestControllerReplaysIntentAfterSubmissionFailure(t *testing.T) {
 	}
 	if state := harness.store.itemState(0); state != auditstore.ItemCollecting {
 		t.Fatalf("recovered item state = %q", state)
+	}
+}
+
+// A Run creation that the Run Service, the Run store or the Audit store
+// refuses as invalid is refused again for the same intent, so the intent
+// fails after one attempt instead of being resumed on every pass (AUX-R99).
+func TestControllerFailsAnIntentWhoseRunCreationIsRefusedAsInvalid(t *testing.T) {
+	for _, refusal := range []struct {
+		name string
+		err  error
+	}{
+		{"Run Service", runservice.ErrInvalid},
+		{"Run store", runstore.ErrInvalid},
+		{"Audit store", auditstore.ErrInvalid},
+	} {
+		t.Run(refusal.name, func(t *testing.T) {
+			harness := newControllerHarness(t, 1, 1)
+			harness.creator.refusal = fmt.Errorf("create Audit child Run: %w", refusal.err)
+			var failed []error
+			for range 4 {
+				if _, err := harness.controller.RunOnce(harness.ctx); err != nil {
+					failed = append(failed, err)
+				}
+			}
+			if got := harness.creator.attempts.Load(); got != 1 {
+				t.Fatalf("refused Run creation was attempted %d times, want 1", got)
+			}
+			if len(failed) != 0 {
+				t.Fatalf("passes failed: %v", failed)
+			}
+			harness.store.mu.Lock()
+			defer harness.store.mu.Unlock()
+			if len(harness.store.executions) != 1 || harness.store.executions[0].TerminalOutcome == nil ||
+				*harness.store.executions[0].TerminalOutcome != auditstore.TerminalSubmissionFailed {
+				t.Fatalf("refused submission left executions %+v, want one failed intent", harness.store.executions)
+			}
+		})
+	}
+}
+
+// The closing transition is the one write the Controller cannot close again,
+// so a stop reason a builder composed past the store's bound, or with invalid
+// UTF-8, is bounded before it is stored instead of being refused on every
+// pass (AUX-R100).
+func TestControllerBoundsTheStopReasonItClosesWith(t *testing.T) {
+	harness := newControllerHarness(t, 1, 1)
+	harness.store.mu.Lock()
+	harness.store.round.State = auditstore.RoundClosed
+	harness.store.items = nil
+	harness.store.executions = nil
+	harness.store.audit.Limits.MaxRounds = 2
+	harness.store.mu.Unlock()
+	message := "\xff\x00" + strings.Repeat("é", auditstore.MaxStopReasonMessageBytes)
+	builder := &fakeRoundBuilder{reason: &auditstore.StopReason{Code: "proposal_inventory_limit_exceeded", Message: message}}
+	harness.controller.roundBuilder = builder
+	for range 2 {
+		if _, err := harness.controller.RunOnce(harness.ctx); err != nil {
+			t.Fatalf("close with a long stop reason: %v", err)
+		}
+	}
+	audit := harness.store.auditSnapshot()
+	if builder.calls.Load() != 1 || audit.State != auditstore.AuditFinalizing || audit.StopReason == nil {
+		t.Fatalf("Audit after a long stop reason = %+v, builder calls=%d", audit, builder.calls.Load())
+	}
+	stored := audit.StopReason.Message
+	if !utf8.ValidString(stored) || len(stored) > auditstore.MaxStopReasonMessageBytes ||
+		len(stored) < auditstore.MaxStopReasonMessageBytes-utf8.UTFMax || !strings.HasPrefix(stored, "\uFFFD\uFFFDéé") {
+		t.Fatalf("stored stop reason is %d bytes, valid UTF-8 %t, prefix %q",
+			len(stored), utf8.ValidString(stored), stored[:min(len(stored), 8)])
 	}
 }
 
@@ -1593,10 +1664,17 @@ type fakeControllerCreator struct {
 	store    *fakeControllerStore
 	runs     *fakeControllerRuns
 	failNext atomic.Bool
+	// refusal, when set before a pass, refuses every Run creation with it.
+	refusal  error
+	attempts atomic.Int64
 	created  atomic.Int64
 }
 
 func (c *fakeControllerCreator) CreateAudit(_ context.Context, params runservice.AuditCreateParams) (runservice.CreateResult, error) {
+	c.attempts.Add(1)
+	if c.refusal != nil {
+		return runservice.CreateResult{}, c.refusal
+	}
 	if c.failNext.CompareAndSwap(true, false) {
 		return runservice.CreateResult{}, errors.New("temporary database outage")
 	}
