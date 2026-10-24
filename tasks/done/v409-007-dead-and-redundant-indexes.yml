@@ -6,7 +6,8 @@ epic: persistence
 kind: chore
 introduced_by: V397-004
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 20ef8ffc35fac6db14e8449b4e7c6de7c63cbb90
 depends_on: [V407-025, V409-002, V409-004, V409-006]
 languages: [sql, go]
 goal: >-
@@ -167,8 +168,9 @@ tests:
     covers: [A6]
 decisions:
   - >-
-    Method. Target schema: this branch (base eb3e4649, migrations through
-    000036, plus 000038). Catalog inventory came from pg_index,
+    Method. Evidence schema: the branch base eb3e4649 with every migration
+    it carried; the final tests reran after merging the integration branch
+    with migration 000039 on top. Catalog inventory came from pg_index,
     pg_constraint.conindid and pg_get_constraintdef on a migrated schema;
     readers from a source search of every statement over each table with a
     matching predicate. Each candidate was measured with
@@ -343,3 +345,94 @@ decisions:
     early-child pages chose audit_executions_pkey and read 449-486
     executions (budget 102), filtering the other Audits' rows after the
     heap fetch.
+verification:
+  date: '2026-10-23'
+  environment: >-
+    macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local), Node 24.20 with the pnpm UI
+    install and the locked Runtime venv for make lint; local PostgreSQL
+    17.11, disposable database contractor_test_f with per-test schemas.
+    Evidence and the first test runs used the branch base eb3e4649; the
+    final runs used claude/rv-f after merging claude/review-v407-v409 at
+    19f7477f (merge 64a60cf1), with migrations through 000038 and this
+    task's 000039.
+  database_tests_configured: true
+  commands:
+    - >-
+      Merged tree: go test -tags=integration -count=1 -timeout 30m over every
+      package except tests/e2e (the make test-go set with the integration
+      tag; it includes the task's command over ./internal/persistence/...,
+      ./internal/runstore/..., ./internal/auditstore/...,
+      ./internal/telemetry/..., ./internal/projectstore/... and
+      ./internal/evalstore/...) against contractor_test_f: 95 packages
+      passed in 271 s, among them persistence 2.3s, persistence/postgres
+      95.4s, runstore 90.6s, auditstore/internal/pgstore 176.4s (with
+      TestPostgresAuditReadsAtFindingScale and
+      TestPostgresAuditPurgeAtScaleProbesForeignKeysThroughIndexes),
+      telemetry 14.3s, projectstore 11.2s, evalstore 138.3s, auditservice
+      266.4s and projectlifecycle 48.0s. Three failed: gitimport
+      TestRealGitReadOnlyContainer (the alpine container image is not
+      present on this host; same failure on a clean worktree of eb3e4649),
+      and auditimport TestPostgresMaximumCollectionStopsAtTransientFailureAndClaimLoss
+      ("cannot remove disposable completion database") and performance
+      TestPostgresDiagnosticsIsolationVisibilityAndOptionalPrivileges, which
+      depend on concurrent connections and passed when rerun alone.
+    - >-
+      Before the merge, the same suite on base eb3e4649 plus the
+      implementation: the task's packages passed; the only other failures
+      were artifactpolicy TestReservedNamespacesAreNamedOnlyByArtifactPolicy
+      and persistence TestSQLAccessFollowsTableOwnership, both failing
+      identically on a clean worktree of eb3e4649 and both passing after
+      the merge brought main's fixes, plus the environment-dependent tests
+      above.
+    - >-
+      Can-fail and before/after runs of the new tests, without the
+      consolidation migration and then with it:
+      TestPostgresProjectDeletionClaimFollowsRequestOrder read 603/604
+      Projects (custom/generic) without it, failing its budget of 26, and
+      20/20 with it; its claim traversal agreed with the independent order
+      in both. TestPostgresRunReadersStayBoundedWithoutConsolidatedIndexes
+      read at most 101 events per page (20 pages of the 2,000-event Run, one
+      page of 40) and 1/0/1/1 Stages for the active-Stage, terminal-Run,
+      terminate and commit-aborting statements both times; the
+      finalizing-candidate update read 0 Stages before and 1 after.
+      TestPostgresEvalReadersWithoutOwnerPageIndex returned identical summary
+      traversals and read 1 experiment and 1 record both times.
+      TestSharedPostgresIndexConsolidationKeepsGuarantees needs the
+      migration: it compares the catalog of the schema before it with the
+      result.
+    - >-
+      Decision probes that failed existing tests, each reverted: dropping
+      audit_findings_correlation_scope_idx failed
+      TestPostgresAuditReadsAtFindingScale (12,001 findings read against a
+      budget of 4,009); dropping audit_executions_audit_identity failed
+      TestPostgresInventoryChildPagesProbeTheExecutionIDRange (449-486
+      executions against 102).
+    - >-
+      make docs-erd with ERD_DATABASE_URL on the local server's postgres
+      database (the script creates and drops its own scratch database), on
+      the merged tree: compared with the integration branch's page, the
+      regenerated docs/spec/database-erd.html only drops the duplicate
+      unique keys (audit_id, project_id, owner_id) of audits and (project_id,
+      owner_id) of projects and moves schemaVersion to 000039; no table,
+      column or foreign key changed.
+    - make lint passed on the merged tree after make tasks-backlog.
+  manual_verification: >-
+    Per-candidate catalog, reader and plan decisions are under decisions,
+    with fixture sizes and before/after row counts from
+    explaintest.ExplainPrepared in both plan modes. The scratch evidence
+    harnesses ran only in per-test schemas of contractor_test_f; every
+    mutating statement (claim, cleanup, Stage updates, cascades, deletes)
+    ran inside EXPLAIN ANALYZE in a rolled-back transaction, and every
+    "after" state was a DROP or CREATE INDEX inside a rolled-back
+    transaction. The harnesses were not committed. The ERD diff was compared
+    with migration 000039 (A5).
+  declined: >-
+    Two allocation-history costs that are not index questions stay out of
+    scope: a deep cursor page reads in proportion to its depth (9,306 Stages
+    1,500 rows deep) because the cross-table cursor comparison cannot bound
+    the terminal-history index scan, and the generic plan of a one-Run
+    history ignores the optional Run filter (17,944 Stages). Both need
+    statement changes and are reported for a follow-up task. The eval
+    summary pages' generic plans read all of the owner's experiments with or
+    without the dropped index (the optional-filter class), also unchanged
+    here.
