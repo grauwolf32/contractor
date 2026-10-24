@@ -6,7 +6,7 @@ epic: quality
 kind: defect
 introduced_by: V408-008
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V408-008]
 languages: [go]
 goal: Keep the paginated Skills process regression on the same validated configuration boundary as Server startup and restore test-config.
@@ -35,3 +35,12 @@ tests:
   covers: [A2]
 - command: make lint
   covers: [A1, A2]
+implementation_commit: 2fb310c642d09f609135ea7570b3765391a12b03
+verification:
+  date: '2026-10-24'
+  baseline: make test-config rejected the direct discovery reference at agent_skills_test.go:66 before the fix.
+  passed:
+  - make test-config; complete config packages and shipped configuration validation passed.
+  - go test -count=1 ./tests/e2e
+  - go test -tags=e2e -count=1 -timeout=6m ./tests/e2e -run '^TestAgentSkillsMVPProcesses$'; real PostgreSQL/Server/Runtime journey passed in 164.311 seconds.
+  - make lint on the branch integrated with main's SQL-ownership guard correction.

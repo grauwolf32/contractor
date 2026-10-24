@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-127 open tasks: 7 in progress, 95 pending, 25 deferred. 1000 finished: 997 completed, 3 archived.
+126 open tasks: 6 in progress, 95 pending, 25 deferred. 1001 finished: 998 completed, 3 archived.
 
 ## In progress
 
@@ -17,7 +17,6 @@ the epics are in [epics.yml](epics.yml).
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
 | [V406-007](v406-007-web-scan-release-gate.yml) | scan-tools | chore | P2 | Gate the complete web scan and rule sweep journeys |
 | [V406-013](v406-013-private-browser-builds.yml) | ui | defect | P2 | Isolate production UI builds owned by process browser gates |
-| [V406-014](v406-014-skills-fixture-configload.yml) | quality | defect | P2 | Obtain the Skills process fixture seed through configload |
 
 ## Pending
 
@@ -262,4 +261,4 @@ tasks in `introduced_by`.
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 16 | 33 | 6 | 11 |
 | Public API and wire contracts (`api-contracts`) | 8 | 1 | 34 | 20 | 11 |
 | PostgreSQL persistence and schema (`persistence`) | 13 | 0 | 21 | 41 | 10 |
-| Quality, CI and process (`quality`) | 18 | 1 | 23 | 89 | 21 |
+| Quality, CI and process (`quality`) | 17 | 1 | 23 | 89 | 21 |
