@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-98 open tasks: 6 in progress, 67 pending, 25 deferred. 1060 finished: 1052 completed, 8 archived.
+98 open tasks: 7 in progress, 66 pending, 25 deferred. 1060 finished: 1052 completed, 8 archived.
 
 ## In progress
 
@@ -17,6 +17,7 @@ the epics are in [epics.yml](epics.yml).
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
 | [V406-007](v406-007-web-scan-release-gate.yml) | scan-tools | chore | P2 | Gate the complete web scan and rule sweep journeys |
 | [V406-016](v406-016-release-report-initialization.yml) | quality | defect | P2 | Initialize shared release evidence before either language writes it |
+| [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 
 ## Pending
 
@@ -159,7 +160,6 @@ the epics are in [epics.yml](epics.yml).
 | [V372-029](v372-029-shared-fixture-gate-scope.yml) | chore | P3 | — | Extend the shared fixture gate to every cross-language fixture and keep slow store suites out of it |
 | [V372-030](v372-030-shrink-test-only-export-baseline.yml) | chore | P3 | — | Resolve the exported identifiers that only tests use and empty the test-only export baseline |
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | chore | P3 | — | Find out why about a hundred Runtime tests fail on a macOS host and make each one pass or declare its platform |
-| [V407-039](v407-039-close-server-runtime-review.yml) | chore | P3 | — | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V410-027](v410-027-close-review-followups.yml) | chore | P3 | V410-001, V410-002, V410-003, V410-004, V410-005, V410-006, V410-007, V410-008, V410-009, V410-010, V410-011, V410-012, V410-013, V410-014, V410-015, V410-016, V410-017, V410-018, V410-019, V410-020, V410-021, V410-022, V410-023, V410-024, V410-025, V410-026 | Close the V407/V409 review follow-ups |
 
 ## Deferred
