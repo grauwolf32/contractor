@@ -539,13 +539,29 @@ the PostgreSQL plan may read more.
 lists, oldest first in receipt (creation time, receipt ID) order, the
 Audit's native receipts whose source Run still exists and every receipt the
 Audit holds, each once (REV-R141, REV-R142). An imported receipt keeps its
-own creation time, not the time of its hold. The read takes at most one page
-from the native receipts and one from the held receipts before merging them,
-so its work grows with the Audit's native receipts and holds and never with
-other Audits' or owners' receipts. It is not bounded by the page alone:
-holds are not ordered by receipt time, so the held branch examines every
-hold of the Audit. The next-Round builder's held-only view
+own creation time, not the time of its hold. Each hold keeps an immutable
+copy of its receipt's creation time: the database copies it when the hold is
+inserted, rejects a hold that names another time, and rejects every update of
+a hold. The Audit's holds are indexed in receipt order. The read takes the
+first page after the cursor from the native receipts and from the held
+receipts, each in index order, merges them, and reads only the merged page's
+receipts whole. Its work therefore grows with the page size and never with
+the Audit's other receipts and holds, or with other Audits' or owners'
+receipts. The next-Round builder's held-only view
 ([execution](../audits/execution.md), AUX-R60) reads the same held branch.
+
+The held branch is bounded by ordering holds by receipt time, not by a limit
+on the holds one Audit keeps. A hold limit would bound each page by that
+limit rather than by the page. It would also give owner imports and Audit
+collection a new rejection. The copied time changes nothing an owner sees,
+and the database enforces it for every hold writer. With 20,150 holds in one
+Audit, a held page of 200 receipts read every hold (20,150 hold and about
+20,350 receipt rows) when holds were ordered by their own time. With the
+receipt-time order it reads 200 hold and 402 receipt rows. A next-Round pass
+of 51 calls reads 10,001 holds in all, where it read 1,082,650. The
+index on hold time was replaced, because no reader asks for an Audit's holds
+in hold-time order. Reopen the decision if a receipt's creation time can ever
+change, or if a reader needs an Audit's holds in hold-time order.
 
 ```mermaid
 sequenceDiagram
@@ -1497,6 +1513,8 @@ errors never carry source bytes (FND-R143).
    (FND-R94).
 5. The Go and Python codecs and Runtime preparation conform exactly to the
    shared collection fixture (FND-R151).
+6. A hold's copied receipt time equals its receipt's creation time, so an
+   Audit inbox page reads its page of holds in receipt order (FND-R186).
 
 ## Examples
 

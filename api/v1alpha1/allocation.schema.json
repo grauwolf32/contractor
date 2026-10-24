@@ -31,16 +31,13 @@
       "additionalProperties": false,
       "properties": {
         "calls": {
-          "type": "integer",
-          "minimum": 0
+          "$ref": "performance.schema.json#/$defs/resourceInteger"
         },
         "succeeded": {
-          "type": "integer",
-          "minimum": 0
+          "$ref": "performance.schema.json#/$defs/resourceInteger"
         },
         "failed": {
-          "type": "integer",
-          "minimum": 0
+          "$ref": "performance.schema.json#/$defs/resourceInteger"
         }
       }
     },
@@ -73,20 +70,16 @@
           "maximum": 100000000
         },
         "observedModelCalls": {
-          "type": "integer",
-          "minimum": 0
+          "$ref": "performance.schema.json#/$defs/resourceInteger"
         },
         "observedToolCalls": {
-          "type": "integer",
-          "minimum": 0
+          "$ref": "performance.schema.json#/$defs/resourceInteger"
         },
         "observedTotalTokens": {
-          "type": "integer",
-          "minimum": 0
+          "$ref": "performance.schema.json#/$defs/resourceInteger"
         },
         "tokenUsageUnavailable": {
-          "type": "integer",
-          "minimum": 0
+          "$ref": "performance.schema.json#/$defs/resourceInteger"
         },
         "exhausted": {
           "enum": [
@@ -113,36 +106,29 @@
       ],
       "properties": {
         "attempts": {
-          "type": "integer",
+          "$ref": "performance.schema.json#/$defs/resourceInteger",
           "minimum": 1
         },
         "succeeded": {
-          "type": "integer",
-          "minimum": 0
+          "$ref": "performance.schema.json#/$defs/resourceInteger"
         },
         "failed": {
-          "type": "integer",
-          "minimum": 0
+          "$ref": "performance.schema.json#/$defs/resourceInteger"
         },
         "modelCalls": {
-          "type": "integer",
-          "minimum": 0
+          "$ref": "performance.schema.json#/$defs/resourceInteger"
         },
         "inputTokens": {
-          "type": "integer",
-          "minimum": 0
+          "$ref": "performance.schema.json#/$defs/resourceInteger"
         },
         "outputTokens": {
-          "type": "integer",
-          "minimum": 0
+          "$ref": "performance.schema.json#/$defs/resourceInteger"
         },
         "totalTokens": {
-          "type": "integer",
-          "minimum": 0
+          "$ref": "performance.schema.json#/$defs/resourceInteger"
         },
         "tokenUsageUnavailable": {
-          "type": "integer",
-          "minimum": 0
+          "$ref": "performance.schema.json#/$defs/resourceInteger"
         },
         "failureCodes": {
           "type": "object",
@@ -153,7 +139,7 @@
             "pattern": "^[a-z][a-z0-9_]{0,63}$"
           },
           "additionalProperties": {
-            "type": "integer",
+            "$ref": "performance.schema.json#/$defs/resourceInteger",
             "minimum": 1
           }
         }
@@ -167,24 +153,19 @@
       ],
       "properties": {
         "durationMs": {
-          "type": "integer",
-          "minimum": 0
+          "$ref": "performance.schema.json#/$defs/resourceInteger"
         },
         "modelCalls": {
-          "type": "integer",
-          "minimum": 0
+          "$ref": "performance.schema.json#/$defs/resourceInteger"
         },
         "inputTokens": {
-          "type": "integer",
-          "minimum": 0
+          "$ref": "performance.schema.json#/$defs/resourceInteger"
         },
         "outputTokens": {
-          "type": "integer",
-          "minimum": 0
+          "$ref": "performance.schema.json#/$defs/resourceInteger"
         },
         "totalTokens": {
-          "type": "integer",
-          "minimum": 0
+          "$ref": "performance.schema.json#/$defs/resourceInteger"
         },
         "workerBudget": {
           "$ref": "#/$defs/workerBudgetMetrics"

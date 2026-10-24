@@ -169,6 +169,31 @@ def test_shared_execution_argument_json_byte_bounds() -> None:
             assert accepted == case["valid"], (filename, case["name"])
 
 
+def test_shared_execution_metric_integer_bounds() -> None:
+    """The model rejects exactly the report integers the schema and Server reject."""
+
+    document = json.loads((FIXTURES / "execution-metric-integer-cases.json").read_text())
+    filename, cases = document["fixture"], document["cases"]
+    assert {case["valid"] for case in cases} == {True, False}
+    schema = private_validator(INDEX["valid"][filename]["schema"])
+    model = VALID_MODELS[filename]
+    for case in cases:
+        report = json.loads((FIXTURES / "valid" / filename).read_text())
+        for pointer, value in case["set"].items():
+            target = report
+            tokens = pointer.strip("/").split("/")
+            for token in tokens[:-1]:
+                target = target[int(token)] if isinstance(target, list) else target[token]
+            target[tokens[-1]] = value
+        try:
+            decode_private(model, json.dumps(report, separators=(",", ":")).encode())
+        except PrivateProtocolDecodeError:
+            accepted = False
+        else:
+            accepted = True
+        assert (schema.is_valid(report), accepted) == (case["valid"], case["valid"]), case["name"]
+
+
 def test_shared_stage_content_request_does_not_expose_session_controls() -> None:
     assert {
         "session",

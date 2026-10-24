@@ -31,10 +31,12 @@ var (
 
 // knownTokensSQL sums the totalTokens summary of at most $3 stage metric rows,
 // in stage execution order, of the Runs that the statement owned selects;
-// a row without a total counts zero.
+// a row without a total counts zero. sum(bigint) is numeric, so the exact sum
+// is capped at the bigint maximum, 9223372036854775807, which reaches every
+// token limit (EVM-R248), instead of failing to fit int64.
 func knownTokensSQL(owned string) string {
 	return `WITH owned AS (` + owned + `)
- SELECT COALESCE(sum(known_tokens), 0)
+ SELECT LEAST(COALESCE(sum(known_tokens), 0), 9223372036854775807)::bigint
  FROM (
    SELECT COALESCE((metrics.summary->>'totalTokens')::bigint, 0) AS known_tokens
    FROM stage_metrics metrics

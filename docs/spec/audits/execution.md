@@ -574,7 +574,11 @@ specified in [ASC-R29](scans.md) to [ASC-R34](scans.md).
 ### Next-Round building
 
 **AUX-R60.** The next-Round builder scans at most 10,000 held finding
-receipts per pass (LIM-AUX-9).
+receipts per pass (LIM-AUX-9). It pages the held inbox of FND-R186
+([findings](../findings/findings.md)) in pages of at most 200 receipts and
+then reads one look-ahead receipt. Each page reads only that page's holds
+and receipts, so a pass reads in proportion to the receipts it scans, not to
+the Audit's holds once per page.
 
 **AUX-R61.** Reaching that count is a scan-budget stop only when another
 receipt exists; a fully scanned inbox with no unscheduled checks completes the

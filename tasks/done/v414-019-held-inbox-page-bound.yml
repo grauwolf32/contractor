@@ -1,0 +1,288 @@
+schema_version: "1.0"
+id: V414-019
+title: "Bound the held Audit inbox page by the page, not by the Audit's holds"
+milestone: review-v407-v409-followups-2026-10
+epic: audits
+kind: defect
+introduced_by: V25-011
+priority: P2
+status: completed
+implementation_commit: 96a2fc37ee269cdbf0de84ec8157fe0c108ca7f8
+depends_on: []
+languages: [go, sql]
+goal: >-
+  One page of an Audit's held finding receipts reads a number of hold and
+  receipt rows bounded by the page size, whatever the number of holds the
+  Audit has, so the next-Round builder's 10,000-receipt pass and the public
+  inbox cost O(pages) instead of O(pages x holds); or, if that is declined,
+  the hold count per Audit has a registered limit that is enforced and
+  detected instead of a reopen note.
+context:
+  review: >-
+    tasks/done/v409-002-finding-inbox-index.yml (held_branch_bound and
+    declined: "reopen when one Audit's holds approach the 10,000-per-pass
+    scan budget (LIM-AUX-9) in practice"; nothing measures or enforces it,
+    AGENTS.md 3.9).
+  specification:
+    - docs/spec/findings/findings.md#FND-R186
+    - docs/spec/audits/execution.md#AUX-R60
+    - docs/spec/audits/execution.md#AUX-R61
+    - docs/spec/audits/execution.md#AUX-R63
+    - docs/spec/platform/limits.md
+  severity: medium
+  finding: >-
+    internal/findingintake/postgres_sql.go:53-69 (auditHeldInboxKeysSQL)
+    probes the receipt of every hold of the Audit by primary key and sorts
+    them before LIMIT, because finding_proposal_audit_holds
+    (000001_baseline.sql:3583-3597, index (audit_id, created_at,
+    receipt_id)) carries the hold time, not the receipt time the inbox is
+    ordered by. listAuditHeldInboxSQL (:102-108) is that branch alone and
+    listAuditInboxSQL (:85-96) unions it with the native branch.
+    selectNextProposalChecksFromInbox
+    (internal/auditservice/next_round_selection.go:27-75) calls
+    ListAuditHeldInbox in pages of pagelimit.MaxRows = 200 until it has
+    scanned maxNextRoundInboxScan = 10,000 receipts
+    (internal/auditservice/next_round.go:17-20), plus one look-ahead call:
+    up to 51 calls per pass, each O(H). Nothing bounds H: native holds
+    are bounded only by maxSubmittedRuns (up to MaxAuditSubmittedRuns =
+    1,000,000, internal/config/auditprofile/audit_profile.go:31) times 4096
+    proposals per Run, and owner imports (findingintake/postgres.go:597)
+    have no count limit; limits.md registers no hold limit. Reproduced on
+    19f7477f with a temporary integration test in internal/findingintake
+    reusing the inbox_budget_integration_test.go seeders: one Audit holding
+    H = 20,000 receipts, pages of 200 through listAuditHeldInboxSQL under
+    explaintest custom plans. Every one of the 50 calls read 20,000 hold
+    rows and about 27,700 receipt rows; the pass read 1,000,000 hold rows
+    and 1,390,122 receipt rows to return 10,000 receipts. A pass repeats
+    when AcceptNextRound answers ErrPrecondition or the build fails
+    transiently (internal/auditcontroller/round_progression.go:108-130).
+  siblings: >-
+    In scope: the held branch of listAuditInboxSQL (GET
+    /v1/audits/{auditId}/finding-proposals, one page per request, so a
+    client that pages through H holds reads O(H^2 / page)), and
+    listAuditHeldInboxSQL (next-Round builder). Every hold writer must fill
+    any new column: findingintake/postgres.go:597 (collection retention and
+    owner import) and any test seeder that inserts holds directly
+    (inbox_budget_integration_test.go:119-128, collection_postgres_test.go,
+    round_postgres_test.go, postgres_integration_test.go,
+    finding_inbox_postgres_test.go, audit_pagination_postgres_test.go,
+    inbox_service_integration_test.go, multi_audit_import_test.go,
+    evalservice/audit_purge_postgres_test.go). Unchanged: the native branch
+    (already O(page) through finding_proposal_receipts_audit_idx), exact hold
+    hydration (readAuditHoldsBatch), the quota COUNT (FND-R185), and the
+    hold update protection trigger
+    (contractor_protect_finding_proposal_receipt), which must also protect
+    the new column.
+  provenance: >-
+    git log -S maxNextRoundInboxScan finds 3d2547de (feat(audit): materialize
+    proposal-driven rounds), two commits before 9311fa60, the
+    implementation_commit of V25-011 (bounded multiple rounds): it added the
+    10,000-receipt paged inbox scan per next-Round pass without a bound on
+    the work per page or on holds per Audit. 429d4a48 (no task) later
+    switched the scan to the held-only list, and V409-002 measured the O(H)
+    branch, recorded it in FND-R186 and declined the fix with the reopen
+    condition above.
+  decision: >-
+    (a) Preferred: add an immutable receipt_created_at column to
+    finding_proposal_audit_holds, copied from the receipt when the hold is
+    inserted (in the same statement or a BEFORE INSERT trigger that reads
+    the receipt), protected by the existing column-scoped update trigger,
+    with an index (audit_id, receipt_created_at, receipt_id); the held
+    branch walks that index after the cursor and stops at the page. A
+    column-scoped immutable copy is preferred over a 1:1 side table
+    (AGENTS.md 3.7). The migration backfills existing holds and gets a
+    *_migration_test.go. (b) Fallback: register a per-Audit hold limit in
+    limits.md, enforce it under the Audit lock that hold writers already
+    take, give collection and import a classified outcome when it is
+    reached, and detect approach to it; this changes behaviour for owners
+    and needs the outcomes specified first. Record the choice, the measured
+    before and after reads and the reversal condition in FND-R186.
+scope:
+  in:
+    - "The chosen fix for both statements that use the held branch, every hold writer and seeder, FND-R186 and AUX-R60 updated to state the new work bound, and limits.md updated if (b) adds a limit."
+    - "Under (a): the migration, its backfill test on PostgreSQL and the update protection of the new column."
+    - "A PostgreSQL test at a realistic size (one Audit with at least 20,000 holds and unrelated Audits' holds) that measures hold and receipt rows read per page with explaintest under custom, generic and cached-statement plans, at the first, a middle and the last page, against a budget derived from the page size and planning rows only."
+  out:
+    - "The native inbox branch, the quota COUNT and the 10,000-receipt pass budget (LIM-AUX-9) itself."
+    - "Inbox order: receipts stay ordered by receipt creation time and ID, including old receipts imported later."
+failure_outcomes:
+  - operation: "Hold insert (collection retention and owner import) writing the receipt time"
+    permanent: "A missing receipt or a time that differs from the receipt's is a constraint violation that rolls back the hold transaction with the existing classified error; never a hold without the column."
+    retryable: "Unchanged: definite transaction conflicts follow the writer's existing InTx retry."
+    ambiguous: "Unchanged: collection retention and import keep their existing receipts and idempotent replay."
+    cancelled: "The transaction rolls back; no hold without its receipt time is visible."
+    timeout: "The writer's existing transaction budget."
+  - operation: "Migration backfill of existing holds (choice a)"
+    permanent: "A hold whose receipt is missing cannot exist (FK ON DELETE CASCADE); the migration fails rather than leaving NULL."
+    retryable: "Not applicable: migrations run once under the migration lock."
+    ambiguous: "The migration ledger records the version only after the file commits."
+    cancelled: "The migration transaction rolls back."
+    timeout: "The migration deadline (see PER-R31/R32)."
+cardinality:
+  - collection: "Holds of one Audit"
+    expected: "tens to hundreds"
+    maximum: "unbounded today: maxSubmittedRuns (up to 1,000,000) x 4096 native proposals plus unlimited imports"
+    bound: "after the fix, at most page size + planning rows hold and receipt rows per page"
+  - collection: "Inbox pages per next-Round pass"
+    expected: "1"
+    maximum: "51 (10,000 / 200 plus one look-ahead)"
+    bound: "O(page) each"
+acceptance_criteria:
+  - id: A1
+    given: "One Audit with 20,000 holds and other Audits with holds"
+    when: "the held inbox page and the combined inbox page are read at the first, a middle and the last cursor"
+    then: "each reads at most a budget derived from the page size and planning rows, independent of H, under custom, generic and cached-statement plans, and returns the same receipts in the same order as the current statements."
+  - id: A2
+    given: "A next-Round pass over 10,000 held receipts"
+    when: "selectNextProposalChecks runs on PostgreSQL"
+    then: "the rows it reads grow with the pages it takes, not with pages x H, and its selection is unchanged."
+  - id: A3
+    given: "The unfixed statements at 19f7477f"
+    when: "the row-budget test runs"
+    then: "it fails (20,000 hold rows read per page)."
+  - id: A4
+    given: "A hold written by collection, by owner import and by the migration backfill"
+    when: "it is read or an update tries to change the new column (choice a), or the limit is reached (choice b)"
+    then: "the column equals the receipt's creation time and cannot change, or the limit outcome is the specified classified error and is detectable."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -tags=integration -count=1 ./internal/findingintake ./internal/auditservice ./internal/auditstore/... ./internal/persistence/... ./internal/httpapi/public"
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+verification:
+  date: '2026-10-24'
+  environment: >-
+    macOS arm64; Go from /private/tmp/contractor-go-darwin; PostgreSQL 17.11 database
+    contractor_test_v414_sql with disposable per-test schemas; branch claude/v414-sql with main
+    (63861457, then 0f5bed13) merged; TMPDIR set to a path without symlinked components, because the filesystem
+    blob store rejects the /var -> /private/var symlink of the macOS default TMPDIR (unrelated to
+    this change).
+  commands:
+    - >-
+      CONTRACTOR_TEST_DATABASE_URL=postgres://.../contractor_test_v414_sql go test
+      -tags=integration -count=1 ./internal/findingintake ./internal/auditservice
+      ./internal/auditstore/... ./internal/persistence/... ./internal/httpapi/public, run before and
+      after merging main: auditservice, persistence, persistence/explaintest, persistence/postgres,
+      persistence/statesettest and httpapi/public ok. findingintake failed only
+      TestPostgresFindingRunDeletionSerializesWithAuditPurge/run_deletion_commits_first, the
+      pg_stat_activity prefix truncation that V414-029 caused and V414-031 owns; every V414-019
+      test and every other findingintake test passed. auditstore/internal/pgstore failed only the
+      V414-028/V414-029 scale tests TestPostgresAuditDeletionProbesReadOnlyTheLiveRuns (both
+      runs) and TestPostgresAuditClaimReadsOnlyTheReconcilableAudits (first run only). Each read
+      1 to 4 rows more than its budget from superseded index entries that VACUUM could not
+      remove while the other packages ran in the same database. This change does not touch
+      that package, and go test -tags=integration -count=1 ./internal/auditstore/internal/pgstore
+      run alone passed.
+    - make lint passed, before and after merging main (after make docs-dependencies for the changed spec document).
+    - go test -count=1 ./internal/persistence/ ./internal/archtest/... passed (SQL placement and layers).
+    - >-
+      Run with -v, TestPostgresAuditHeldInboxPageReadsOnlyThePage,
+      TestPostgresNextRoundHeldInboxPassReadsGrowWithPages, TestPostgresAuditHoldKeepsItsReceiptTime
+      and TestPostgresFindingHoldReceiptTimeMigrationBackfillsHolds report PASS and no SKIP.
+    - make docs-erd regenerated docs/spec/database-erd.html for migration 000042.
+    - >-
+      After main (0f5bed13) brought V414-030's 000041_finding_correlation_fences.sql, the
+      migration was renumbered to 000042 (12c504e8). The migration test now installs the prefix
+      through 000041 and writes the Project's correlation fence as an Audit draft does.
+      Afterwards these were rerun and passed:
+      TestPostgresFindingHoldReceiptTimeMigrationBackfillsHolds with -v (PASS, no SKIP);
+      go test -tags=integration -count=1 ./internal/persistence/...;
+      TestPostgresAuditHeldInboxPageReadsOnlyThePage,
+      TestPostgresNextRoundHeldInboxPassReadsGrowWithPages,
+      TestPostgresAuditHoldKeepsItsReceiptTime and the TestPostgresAuditInbox tests in
+      internal/findingintake; and make lint.
+  database_tests_configured: true
+  evidence:
+    - >-
+      A1: one Audit holds 20,150 receipts: 20,000 old receipts of an ordinary Run, imported in
+      the reverse of receipt order, plus 100 held native and 50 held native receipts of a deleted
+      Run. It also has 300 native receipts. A sibling Audit holds 5,000 receipts, and 20 Audits of
+      both owners hold 300 each. At the first, a middle and the last cursor, in pages of 21 and
+      200, under force_custom_plan, force_generic_plan and the service's cached statement, the
+      held inbox read at most 44 receipt and 21 hold rows per page of 21 (budget 92 and 29) and
+      402 and 200 per page of 200 (budget 808 and 208). The combined inbox read at most 67 and
+      21 (budget 134 and 29), and 633 and 200 (budget 1,208 and 208). The budget is
+      2 x (branches + 1) x page receipt rows plus 8 planning rows, and page plus 8 hold rows; it
+      does not depend on H. Every page equals the corresponding slice of the original
+      statements.
+    - >-
+      A3: the held branch as V409-002 left it (holdOrderedHeldInboxKeysSQL, kept verbatim in the
+      test) read 20,150 hold rows per page under generic and cached plans, and 31,150 (the whole
+      hold relation) under custom plans. It read 20,161 to 20,583 receipt rows per page, at every
+      cursor and page size, for both the held and the combined inbox. The test requires each of
+      these readings to exceed the page budget.
+    - >-
+      A2: the next-Round paging protocol of selectNextProposalChecksFromInbox ran over the same
+      Audit through pgx's statement cache. It made 51 calls: 50 pages of 200, then one look-ahead
+      of 1. Together they read 20,018 receipt and 10,001 hold rows (budget 40,412 and 10,409)
+      and listed exactly the original statement's first 10,001 held receipts. The hold-ordered
+      statement made the same 51 calls and read 1,037,685 receipt and 1,082,650 hold rows; the
+      test requires it to read at least 51 x 20,150 hold rows.
+    - >-
+      A4: TestPostgresAuditHoldKeepsItsReceiptTime covers holds written by owner import
+      (ImportIntoAudit) and by collection retention (RetainAuditCollectionBatch). Both hold
+      their receipt's creation time. An update of the column is ClassRejected, an insert naming
+      another time is ClassRejected, and an insert for a missing receipt is
+      ClassReferenceViolation, the class the receipt foreign key gave before. An insert naming
+      the receipt's own time is accepted.
+      TestPostgresFindingHoldReceiptTimeMigrationBackfillsHolds applies migrations 1 to 41 and
+      writes two holds whose hold order is the reverse of their receipt order, then applies
+      000042. It checks that the backfill equals the receipt times, the column is NOT NULL, the
+      index (audit_id, receipt_created_at, receipt_id) replaces
+      finding_proposal_audit_holds_audit_idx, an update is rejected, and a later hold gets its
+      time from the trigger.
+  decisions:
+    - >-
+      Choice (a), not (b). An immutable copy of the receipt time with an index in receipt order
+      bounds each page by the page. A per-Audit hold limit would bound it only by the limit, and
+      would give owner imports and collection a new classified rejection, which needs new
+      outcomes. The copy changes nothing an owner sees, so limits.md registers no limit.
+      FND-R186 records the measurements and the reversal condition: reopen if a receipt's
+      creation time can change, or if a reader needs an Audit's holds in hold-time order.
+    - >-
+      A BEFORE INSERT trigger (contractor_copy_finding_hold_receipt_time) fills the column, so
+      every writer is covered without change. That includes the only production INSERT,
+      internal/findingintake/postgres.go:597, and every test seeder. A writer that supplies a
+      different time is rejected (23514, no constraint name). A missing receipt raises 23503
+      before the foreign key would. The existing finding_proposal_audit_holds_protect_update
+      already rejects every hold update, so the column needs no new update guard. The backfill
+      disables only that guard, for the one UPDATE, inside the migration transaction.
+    - >-
+      The hold-time index (audit_id, created_at, receipt_id) was replaced, not kept beside the
+      new one. No statement reads an Audit's holds in hold-time order. The purge batch
+      (audit_purge.go) needs only the leading audit_id. postgres.go:116 orders one receipt's
+      holds and uses the receipt-keyed index.
+    - >-
+      The held branch reads the Audit's Project once in an InitPlan
+      (hold.project_id = (SELECT project_id FROM audits WHERE audit_id = $2 AND owner_id = $1)).
+      It is no longer joined with the Audit row, so the walk keeps the index order and its LIMIT
+      stops it. A hold in another Project, or of another owner's receipt, is filtered during the
+      walk, before the LIMIT, so pages are never short.
+    - >-
+      A2 is measured at the statement the builder calls, not through selectNextProposalChecks
+      end to end. Service.ListAuditHeldInbox runs listAuditHeldInboxSQL once per call and then
+      hydrates only that page's keys. Hydration needs real proposal artifacts for each receipt,
+      which the 20,000-receipt synthetic fixture does not have. The selection consumes the list
+      as returned, so an identical listing gives an identical selection. The test mirrors the
+      builder's paging exactly: limit min(200, 10,000 - scanned), cursor from the last receipt,
+      stop on a short page, then one look-ahead of 1.
+    - >-
+      The 20,000- and 5,000-hold groups are seeded with the hold table's user triggers disabled.
+      Through the triggers, each hold admits a finding, writes an event and bumps the Audit
+      revision, and one statement of 20,000 holds of one Audit did not finish within the
+      4-minute test deadline. These bulk holds are read-model fixtures: they write
+      receipt_created_at = receipt.created_at, and the inbox reads neither findings nor
+      retention state. The smaller groups go through the triggers.
+  siblings:
+    - "Fixed: the held branch of listAuditInboxSQL (public inbox) and listAuditHeldInboxSQL (next-Round builder), which share auditHeldInboxKeysSQL."
+    - "Ruled out (keyed by receipt_id or the Audit prefix, unchanged): audit_receipt_batch_sql.go, proposal_resolution_sql.go, collection_list_sql.go, collection_publication_sql.go, run_deletion_sql.go in findingintake and pgstore, round_sql.go, audit_purge.go."
+    - "Unchanged as scoped: the native branch, the quota COUNT (FND-R185), LIM-AUX-9."
+  open_items:
+    - >-
+      Owned by V414-031, not changed here:
+      TestPostgresFindingRunDeletionSerializesWithAuditPurge/run_deletion_commits_first.
+    - >-
+      The V414-028/V414-029 pgstore scale tests exceed their budgets by 1 to 4 rows when other
+      packages share the database, because superseded index entries survive VACUUM while
+      another backend holds an old snapshot. They pass alone. This is reported to the
+      coordinator, not fixed here.

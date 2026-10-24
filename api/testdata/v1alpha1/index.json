@@ -9,6 +9,7 @@
     "agent-state-snapshot.json": {"type": "AgentStateSnapshot", "schema": "agent-state.schema.json"},
     "allocation-final-response.json": {"type": "AllocationFinalResponse", "schema": "allocation.schema.json"},
     "allocation-final-response-argument-number-edges.json": {"type": "AllocationFinalResponse", "schema": "allocation.schema.json"},
+    "allocation-final-response-metric-integer-bound.json": {"type": "AllocationFinalResponse", "schema": "allocation.schema.json"},
     "allocation-spec-skills.json": {"type": "AllocationSpec", "schema": "allocation.schema.json"},
     "allocation-spec-summarizer-instructions.json": {"type": "AllocationSpec", "schema": "allocation.schema.json"},
     "allocation-spec-summarizer.json": {"type": "AllocationSpec", "schema": "allocation.schema.json"},

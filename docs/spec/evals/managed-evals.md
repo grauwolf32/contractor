@@ -785,6 +785,20 @@ remain unchanged.
 retries, Planners, Workers and finalizers when available, and expose missing
 scope.
 
+**EVM-R248.** The token threshold compares a known lower bound, not the usage
+read model. A member's bound sums the `totalTokens` of its owned Runs' Stage
+summaries ([OBS-R112](../platform/observability.md)), at most 10,000 Stage
+rows, and the experiment's `observedTokens` adds each member's increase over
+its retained high-water mark. Both sums saturate at the signed 64-bit maximum,
+9,223,372,036,854,775,807, instead of failing: a bound beyond that range is the
+maximum, which reaches every `maxObservedTotalTokens`, so the threshold stops
+new work (EVM-R119) and the member settles once its execution drains. A large
+but valid bound is never `eval_invalid`, a scan error or a bigint overflow
+that would leave the member accepted forever. A member's mark never decreases,
+so replaying an observation after a lost commit adds nothing (FAIL-EVM-4).
+The usage read model keeps its own rule and marks an overflowing counter
+unavailable (EVM-R240).
+
 **EVM-R119.** A reached threshold stops new work and requests cancellation
 according to the frozen policy; active work may overshoot (FAIL-EVM-4).
 
@@ -1489,7 +1503,8 @@ Failure outcomes ([failure model](../platform/failure-model.md)):
   EVM-R108, EVM-R109, EVM-R110, EVM-R111, EVM-R246).
 - FAIL-EVM-4 — stopping and draining an experiment: Pause, Resume after budget
   expiry, Cancel, token and deadline thresholds, Finalize and external
-  cancellation (EVM-R113, EVM-R114, EVM-R115, EVM-R119, EVM-R140, EVM-R141).
+  cancellation (EVM-R113, EVM-R114, EVM-R115, EVM-R119, EVM-R140, EVM-R141,
+  EVM-R248).
 - FAIL-EVM-5 — member submission creating a Run or Audit (EVM-R126, EVM-R127,
   EVM-R130, EVM-R134).
 - FAIL-EVM-6 — human review followed by selection (EVM-R161).

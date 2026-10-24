@@ -198,11 +198,29 @@ func TestOperationsSnapshotStoresOnlyFinalReportAggregates(t *testing.T) {
 		"first": {Calls: &maximum}, "second": {Calls: &maximum},
 	}}
 	if err := registry.RecordAllocationReport(allocationID, overflow); !errors.Is(err, ErrInvalidRequest) {
-		t.Fatalf("overflowing aggregate error = %v", err)
+		t.Fatalf("counter above the report bound error = %v", err)
 	}
 	afterOverflow := registry.SnapshotOperations()
 	if afterOverflow.Cursor != beforeOverflow || afterOverflow.Allocations[0].Metrics != metrics {
-		t.Fatalf("overflowing aggregate mutated snapshot: %+v", afterOverflow)
+		t.Fatalf("rejected report mutated snapshot: %+v", afterOverflow)
+	}
+	// Valid counters whose sum passes math.MaxInt64 saturate, as the Stage
+	// summary does, instead of rejecting the report (OBS-R112): 1,025 tools at
+	// 2^53-1 sum to more than 2^63-1.
+	bound := int64(reporting.MaxResourceInteger)
+	saturating := report
+	saturating.ReportID = "allocation-final-saturating"
+	saturating.Worker.ReportID = "worker-saturating"
+	saturating.Worker.Metrics = reporting.ExecutionMetrics{Tools: map[string]reporting.ToolMetrics{}}
+	for index := range 1025 {
+		saturating.Worker.Metrics.Tools[fmt.Sprintf("tool_%04d", index)] = reporting.ToolMetrics{Calls: &bound, Failed: &bound}
+	}
+	if err := registry.RecordAllocationReport(allocationID, saturating); err != nil {
+		t.Fatalf("saturating aggregate error = %v", err)
+	}
+	saturated := registry.SnapshotOperations().Allocations[0].Metrics
+	if saturated.ToolCalls != maximum || saturated.ToolFailures != maximum || saturated.ModelCalls != 0 {
+		t.Fatalf("saturating aggregate = %+v", saturated)
 	}
 }
 

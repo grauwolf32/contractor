@@ -6,7 +6,8 @@ epic: quality
 kind: defect
 introduced_by: V414-029
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: 5f2cfa8978f78d83371ec0ac720fcfa41f8c4868
 depends_on: []
 languages: [go]
 goal: >-
@@ -59,3 +60,46 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
+decisions:
+  - >-
+    The purge case now waits for "audit.dispatch_state = 'closed' AND
+    audit.hold_state <> 'held'", the drain predicate on the fourth line of
+    purgeClaimedAuditSQL; no other production statement contains it.
+    awaitDeletionDatabaseWait also reads
+    pg_size_bytes(current_setting('track_activity_query_size')) and, when the
+    fragment is missing from a recording that fills the prefix, fails with
+    "recorded text stops at N bytes before <fragment>" instead of "waited at
+    the wrong lock stage", so every caller is checked by the helper itself.
+  - >-
+    Siblings measured on main 63861457 with temporary logging (reverted):
+    internal/evalstore/postgres_test.go:451 finds eval_controller_claims at
+    byte 38 of a 224-byte statement; internal/auditservice
+    start_staging_postgres_test.go:243 finds FOR KEY SHARE at byte 911 of a
+    924-byte statement, inside the 1,023 recorded bytes with 99 bytes to
+    spare. Both left unchanged. The other four awaitDeletionDatabaseWait
+    callers pass through the new helper check (whole findingintake package
+    green). V414-030 rewrote the "UPDATE projects" wait to a short statement.
+verification:
+  date: '2026-10-24'
+  environment: >-
+    macOS arm64, PostgreSQL 17 with the default track_activity_query_size
+    (1kB), Go 1.26.9; branch claude/v414-fix from main 63861457, database
+    contractor_test_v414_fix.
+  commands:
+    - >-
+      go test -tags=integration -count=1 -run
+      TestPostgresFindingRunDeletionSerializesWithAuditPurge -v
+      ./internal/findingintake/: PASS, both subtests (A1). The same test on
+      main 0e2d3072 failed with "waited at the wrong lock stage".
+    - >-
+      go test -tags=integration -count=1 ./internal/findingintake/: ok
+      (313s); go test -count=1 ./internal/findingintake/: ok.
+    - >-
+      go test -tags=integration -count=1 -v ./internal/evalstore/
+      ./internal/auditservice/ with temporary offset logging: ok, offsets as
+      recorded in decisions (A2).
+    - >-
+      A3: with the fragment set back to "FOR UPDATE OF audit, claim" and,
+      separately, to the unrelated "UPDATE projects", the run_deletion
+      subtest fails with "recorded text stops at 1023 bytes before ...".
+    - make lint: exit 0.

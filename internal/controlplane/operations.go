@@ -3,7 +3,6 @@ package controlplane
 import (
 	"encoding/json"
 	"fmt"
-	"math"
 	"sort"
 	"strconv"
 	"sync"
@@ -14,6 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
 const (
@@ -515,11 +515,7 @@ func (r *InMemoryRegistry) RecordAllocationReport(
 	if !ok {
 		return ErrAllocationNotFound
 	}
-	summary, valid := summarizeAllocationReport(report)
-	if !valid {
-		return ErrInvalidRequest
-	}
-	stored.metrics = summary
+	stored.metrics = summarizeAllocationReport(report)
 	stored.exhaustedDimension = nil
 	if report.Worker.Metrics.WorkerBudget != nil && report.Worker.Metrics.WorkerBudget.Exhausted != nil {
 		value := *report.Worker.Metrics.WorkerBudget.Exhausted
@@ -713,24 +709,12 @@ func validSafeReason(reason SafeReason) bool {
 	return true
 }
 
-func summarizeAllocationReport(report reporting.AllocationFinalReport) (MetricsSummary, bool) {
-	result := MetricsSummary{
-		ReportsComplete: report.Worker.Complete && report.Runtime.Complete,
-		ErrorCount:      int64(len(report.Worker.Errors)),
-		Truncated:       report.Worker.Truncated,
-	}
-	if !addMetric(&result.ModelCalls, report.Worker.Metrics.ModelCalls) ||
-		!addMetric(&result.InputTokens, report.Worker.Metrics.InputTokens) ||
-		!addMetric(&result.OutputTokens, report.Worker.Metrics.OutputTokens) ||
-		!addMetric(&result.TotalTokens, report.Worker.Metrics.TotalTokens) {
-		return MetricsSummary{}, false
-	}
-	for _, tool := range report.Worker.Metrics.Tools {
-		if !addMetric(&result.ToolCalls, tool.Calls) || !addMetric(&result.ToolFailures, tool.Failed) {
-			return MetricsSummary{}, false
-		}
-	}
-	return result, true
+// summarizeAllocationReport is the Stage summary of this one allocation, so
+// operations totals add counters by the same saturating rule (OBS-R112).
+func summarizeAllocationReport(report reporting.AllocationFinalReport) MetricsSummary {
+	return MetricsSummary(telemetry.Summarize(telemetry.BuildStageMetrics(
+		nil, map[string]reporting.AllocationFinalReport{report.AllocationID: report},
+	)))
 }
 
 func validMetricsSummary(summary MetricsSummary) bool {
@@ -746,17 +730,6 @@ func validExhaustedDimension(value string) bool {
 	default:
 		return false
 	}
-}
-
-func addMetric(target *int64, value *int64) bool {
-	if value == nil {
-		return true
-	}
-	if *value < 0 || *target > math.MaxInt64-*value {
-		return false
-	}
-	*target += *value
-	return true
 }
 
 func cloneSafeReason(source *SafeReason) *SafeReason {
