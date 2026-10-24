@@ -35,7 +35,7 @@ context:
   - docs/spec/execution/control-plane.md
   - docs/spec/execution/worker.md
   boundary: The live sitemap is shared research context, not current Audit coverage, complete traffic archival or
-    proof. The HTTP/OpenAPI first slice has no dependency on proposal 0033 implementation or deferred V61/V62/V64
+    proof. The HTTP/OpenAPI first slice has no dependency on proposal 0033 implementation or V61/V62/V64
     work.
   proposal_integration: Proposal 0033 managed browser adapter supplied by V412-001 is the required browser execution
     owner; this task only feeds its trusted network events into the sitemap.

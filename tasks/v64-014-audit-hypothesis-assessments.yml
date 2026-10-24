@@ -1,0 +1,175 @@
+schema_version: '1.0'
+id: V64-014
+title: Import scoped research assessments and preserve conflicting contributions
+milestone: audit-check-prioritization
+epic: audits
+kind: feature
+priority: P2
+status: pending
+depends_on:
+- V64-003
+- V64-004
+- V64-012
+- V64-006
+languages:
+- go
+- python
+- json
+goal: Bind exact experiment evidence to each declared hypothesis and build a policy-versioned current
+  view without last-arrival-wins inference or finding confirmation.
+context:
+  authority: >-
+    On 2026-10-24 the user explicitly requested pending status for the reviewed
+    proposal 0045 plan, including shared V62 prerequisites. The earlier deferral
+    is historical; dependency completion still gates implementation start.
+  proposal: docs/proposals/0045-audit-hypothesis-search.md
+  design: docs/plans/2026-10-24-audit-hypothesis-search.md
+  specification:
+  - docs/spec/audits/audits.md
+  - docs/spec/audits/execution.md
+  - docs/spec/artifacts/artifact-store.md
+  - docs/spec/platform/persistence.md
+  deterministic_boundary: Direct Runs and current deterministic Audit inventories bypass research; no
+    mandatory hypotheses, generation, ranking, new Scheduler mode or attack tree.
+  implementation_boundary: Each new table, state, export and schema must have its named production writer/reader
+    in this task; include the smallest actual integration caller, not a test-only placeholder waiting
+    for another task.
+scope:
+  in:
+  - Add Runtime-assembled research assessment attachments alongside the existing CheckResult contract
+    for research-enabled items.
+  - Validate sparse predeclared experiment-to-hypothesis membership, exact item/attempt/producer/result/evidence
+    associations and one contribution per declared revision.
+  - Persist immutable accepted contributions and implement the current-view reducer plus its real read/import
+    callers in the same change.
+  - Keep support/refutation, applicability, freshness, conflict indication and proof type distinct; preserve
+    predicate/source/documentary/model provenance.
+  - Trigger bounded dirty-state notifications for V64-015 without importing all historical evidence during
+    each collection.
+  out:
+  - Changing ordinary CheckResult semantics, finding triage or pentest proof/replay guarantees.
+  - Implementation during this planning change, changing existing task statuses, or modifying completed/in-progress
+    task records.
+requirements:
+- id: R1
+  text: The existing single CheckResult assessment is not copied onto every related hypothesis. A prerequisite
+    result cannot confirm the whole violation claim.
+- id: R2
+  text: Do not inherit AUD-R111 finding highest-batch-ordinal semantics; incompatible contributions remain
+    visible and policy determines a scoped view.
+- id: R3
+  text: New hypotheses discovered during a check enter a later candidate batch; undeclared hypothesis
+    IDs cannot receive a contribution from the accepted item.
+- id: R4
+  text: No missing evidence, technical failure or model confidence automatically establishes refuted,
+    not-applicable or confirmed.
+failure_outcomes:
+- operation: Research assessment result collection and current-view reduction
+  permanent: Invalid, foreign, unsupported or oversized input is rejected with the owning V64-001/standard
+    contract reason; deterministic ErrInvalid is never endlessly retried and no partial authoritative
+    result is accepted.
+  retryable: Use existing bounded transient storage/provider retries for the owning operation; retry attempt/deadline
+    limits are explicit and do not switch research policies or models.
+  ambiguous: Reconcile the same existing keyed mutation, accepted producer association or exact result;
+    never create another logical effect or repeat target activity to repair acknowledgement loss.
+  cancelled: Existing Audit/Run owner fences and join/drain rules apply; allow authorized terminal collection,
+    block new dispatch and release resources only after in-flight work is joined.
+  timeout: Use the owning operation/Run deadline. Audit admission deadline pauses and drains; non-time
+    budget exhaustion follows bounded finalization with gaps.
+cardinality:
+- collection: Declared hypothesis associations and accepted contributions
+  expected: One or a few hypotheses per experiment
+  maximum: Eight exact revisions per plan and eight contributions per accepted result; lifetime aggregate
+    metadata cap
+  bound: Process batches within 128 primary/512 descriptors/1 MiB; paginate history and reject excess
+    associations before admission.
+lifecycle:
+- entity: Task-owned research records, exact artifacts and projections
+  delete: Audit/Project ownership and existing deletion gates apply; accepted evidence used by work is
+    retained, not removed by settling or withdrawing a candidate.
+  cascade: Use the owning Audit relations and existing artifact hold lifecycle; register any new holder
+    inventory entry in this change and leave no independent cleanup owner.
+  retention: Preserve exact accepted inputs/results and history through permitted source Run deletion,
+    pause and recovery; release only through the owning lifecycle. Stateless validation/read-only outputs
+    acquire no artificial persistent state.
+acceptance_criteria:
+- id: A1
+  given: Several experiments for one hypothesis and one experiment addressing several exact revisions
+  when: accepted results are imported
+  then: Each contribution has correct sparse membership, evidence and interpretation scope; no accidental
+    Cartesian association occurs.
+- id: A2
+  given: Conflicting supported/refuted evidence arriving in opposite orders
+  when: the current view is rebuilt under the same policy
+  then: Both contributions survive, conflicts remain visible and the conclusion does not depend on arrival
+    order.
+- id: A3
+  given: An undeclared hypothesis, foreign evidence, ninth association or malformed result
+  when: the declared batch is collected
+  then: It rejects explicitly without partial semantic state or promotion based on Run success.
+- id: A4
+  given: Duplicate delivery, restart, source deletion or cancellation during collection
+  when: recovery and retention execute
+  then: One accepted contribution per identity is retained, terminal receipts survive drain, and no finding
+    is auto-confirmed.
+tests:
+- command: make test-runtime test-wire-cross-language
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make require-database
+- command: go test -tags=integration -count=1 ./internal/auditdomain ./internal/auditimport ./internal/auditstore/...
+    ./internal/auditservice
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make test-audit-completion-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make lint
+implementation_commit: null
+reactivation:
+  date: '2026-10-24'
+  previous_status: deferred
+  reason: Explicit user request to queue the reviewed proposal 0045 tasks as pending.
+  execution_rule: Implementation may start after declared dependencies complete; this update starts no implementation.
+previous_deferral:
+  date: '2026-10-24'
+  previous_status: pending
+  reason: Planning-only breakdown of proposal 0045; implementation has not been activated.
+  reactivate_when: Explicit user authorization to implement this reviewed proposal 0045 scope, after its
+    declared dependencies are completed. Replanning alone does not activate it.
+deliverables:
+- path: runtime/src/contractor_runtime/toolsets/audit_results
+  description: Typed research contribution collection and exact Runtime assembly.
+- path: internal/auditdomain
+  description: Sparse assessment attachment schemas and canonical policy-view fixtures.
+- path: internal/auditimport
+  description: Trusted complete-result import and membership validation.
+- path: internal/auditstore
+  description: Immutable contribution storage and bounded current-view readers.
+- path: scripts/audit-completion-matrix.json
+  description: Register new applicable completion/import cases and update the target selector where required;
+    adding an unselected test is not coverage.
+test_prerequisites:
+- Commands are implementation acceptance requirements, not results of this planning change. New named
+  gates must be created, registered and fail on zero matching cases.
+- Persistence/lifecycle acceptance uses disposable PostgreSQL with CONTRACTOR_TEST_DATABASE_URL set; an
+  unavailable configured database or mandatory skipped case fails.
+- Use testdata catalogs and pseudo-Skills, not live configs in unit/integration tests. Shipped configuration
+  has its dedicated validation command.
+- Run complete suites for touched packages; use injected clocks and deterministic work counters. Put timing
+  measurements in benchmarks.
+verification_requirements:
+- Update owning numbered specifications, strict public/wire contracts and shared fixtures with implementation;
+  do not cite task IDs from normative specifications.
+- Record actual commands, case counts, required prerequisites and exact evidence after implementation.
+  Planning does not populate implementation_commit or fabricate successful checks.
+- Keep direct deterministic behavior, existing claims/receipts and source-to-consumer exact provenance
+  explicit in real-path assertions.

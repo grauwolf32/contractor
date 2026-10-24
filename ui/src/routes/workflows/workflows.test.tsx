@@ -110,6 +110,19 @@ const nextWorkflow = conforming("WorkflowResource", {
   outputs: workflow.outputs,
   stages: workflow.stages,
 });
+const mixedInputWorkflow: WorkflowResource = {
+  ...workflow,
+  ref: { name: "mixed-nuclei", version: "1" },
+  parameters: {},
+  inputs: {
+    source: { required: true, mediaTypes: ["application/zip"] },
+    rulepack: {
+      required: false,
+      sourceScope: "user",
+      mediaTypes: ["application/yaml"],
+    },
+  },
+};
 const sourceArtifact = artifactMetadata("projects", "source", {
   artifact: { namespace: "projects", name: "source", revision: "revision-7" },
   size: 1024,
@@ -767,6 +780,440 @@ describe("Workflow routes", () => {
       expect(
         screen.getByRole("dialog", { name: "Import Git repository" }),
       ).toBeVisible();
+    },
+  );
+
+  it("uses Library for a Project Nuclei rulepack and leaves installed mode empty", async () => {
+    const projectYaml = artifactMetadata("openapi", "nashdom", {
+      ...sourceArtifact,
+      artifact: {
+        namespace: "openapi",
+        name: "nashdom",
+        revision: "revision-openapi-1",
+      },
+      mediaType: "application/yaml",
+    });
+    const ownerPack = artifactMetadata("rules", "web", {
+      ...sourceArtifact,
+      artifact: {
+        namespace: "rules",
+        name: "web",
+        revision: "revision-rulepack-1",
+      },
+      mediaType: "application/yaml",
+    });
+    const nucleiWorkflow: WorkflowResource = {
+      ...workflow,
+      ref: { name: "nuclei-web", version: "1" },
+      parameters: { target: { required: true } },
+      inputs: {
+        rulepack: {
+          required: false,
+          sourceScope: "user",
+          mediaTypes: ["application/yaml"],
+        },
+      },
+    };
+    const posts: unknown[] = [];
+    const { requests, user } = renderRunForm(
+      <WorkflowRunForm workflow={nucleiWorkflow} projectId="project_example" />,
+      {
+        "GET /v1/artifacts": () => json(page([ownerPack])),
+        "GET /v1/projects/{projectId}/artifacts": () =>
+          json(page([projectYaml])),
+        "POST /v1/projects/{projectId}/runs": async ({ request }) => {
+          posts.push(await request.clone().json());
+          return json(
+            createdRun("run_nuclei", { projectId: "project_example" }),
+            202,
+          );
+        },
+      },
+    );
+
+    const rulepack = screen.getByRole("combobox", { name: "rulepack" });
+    await within(rulepack).findByRole("option", {
+      name: /rules\/web@revision-rulepack-1/,
+    });
+    expect(
+      within(rulepack).queryByRole("option", { name: /openapi\/nashdom/ }),
+    ).toBeNull();
+    expect(rulepack).toHaveValue("");
+    expect(requests.map((request) => new URL(request.url).pathname)).toContain(
+      "/v1/artifacts",
+    );
+    expect(
+      requests.map((request) => new URL(request.url).pathname),
+    ).not.toContain("/v1/projects/project_example/artifacts");
+
+    await user.type(
+      screen.getByRole("textbox", { name: "target required" }),
+      "https://example.test",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Start Project Workflow Run" }),
+    );
+    await waitFor(() => expect(posts).toHaveLength(1));
+    expect(posts[0]).toMatchObject({
+      workflow: "nuclei-web@1",
+      parameters: { target: "https://example.test" },
+    });
+    expect((posts[0] as { artifacts?: unknown }).artifacts).toEqual({});
+  });
+
+  it("selects and previews a Project Run rulepack from Library", async () => {
+    const ownerPack = artifactMetadata("rules", "web", {
+      ...sourceArtifact,
+      artifact: {
+        namespace: "rules",
+        name: "web",
+        revision: "revision-rulepack-1",
+      },
+      mediaType: "application/yaml",
+    });
+    const nucleiWorkflow: WorkflowResource = {
+      ...workflow,
+      ref: { name: "nuclei-web", version: "1" },
+      parameters: { target: { required: true } },
+      inputs: {
+        rulepack: {
+          required: false,
+          sourceScope: "user",
+          mediaTypes: ["application/yaml"],
+        },
+      },
+    };
+    const uploadedPack = artifactMetadata("inputs", "custom", {
+      ...ownerPack,
+      artifact: {
+        namespace: "inputs",
+        name: "custom",
+        revision: "revision-upload-1",
+      },
+      size: 11,
+    });
+    const posts: unknown[] = [];
+    const { requests, user } = renderRunForm(
+      <WorkflowRunForm workflow={nucleiWorkflow} projectId="project_example" />,
+      {
+        "GET /v1/artifacts": () => json(page([ownerPack])),
+        "PUT /v1/artifacts/{namespace}/{name}": ({ params }) => {
+          expect(params).toEqual({ namespace: "inputs", name: "custom" });
+          return json(artifactWrite(uploadedPack), 201, {
+            ETag: '"revision-upload-1"',
+          });
+        },
+        "POST /v1/projects/{projectId}/runs": async ({ request }) => {
+          posts.push(await request.clone().json());
+          return json(
+            createdRun("run_nuclei", { projectId: "project_example" }),
+            202,
+          );
+        },
+      },
+    );
+    const rulepack = screen.getByRole("combobox", { name: "rulepack" });
+    await within(rulepack).findByRole("option", {
+      name: /rules\/web@revision-rulepack-1/,
+    });
+    await user.selectOptions(rulepack, "rules/web@revision-rulepack-1");
+    expect(
+      screen.getByRole("link", { name: "Preview file details" }),
+    ).toHaveAttribute(
+      "href",
+      "/artifacts/rules/web?revision=revision-rulepack-1",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Upload local file for rulepack" }),
+    );
+    const dialog = screen.getByRole("dialog", {
+      name: "Upload local file for rulepack",
+    });
+    expect(within(dialog).getByText("Library input")).toBeVisible();
+    expect(within(dialog).getByLabelText("Namespace")).toHaveValue("inputs");
+    await user.upload(
+      within(dialog).getByLabelText("Drop a file here"),
+      new File(["id: custom\n"], "custom.yaml", { type: "application/yaml" }),
+    );
+    await user.click(
+      within(dialog).getByRole("button", { name: "Upload and select" }),
+    );
+    await waitFor(() => expect(dialog).not.toBeInTheDocument());
+    expect(rulepack).toHaveValue("inputs/custom@revision-upload-1");
+    expect(
+      requests.map((request) => new URL(request.url).pathname),
+    ).not.toContain("/v1/projects/project_example/artifacts/artifacts/custom");
+    await user.type(
+      screen.getByRole("textbox", { name: "target required" }),
+      "https://example.test",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Start Project Workflow Run" }),
+    );
+    await waitFor(() => expect(posts).toHaveLength(1));
+    expect(posts[0]).toMatchObject({
+      artifacts: {
+        rulepack: {
+          namespace: "inputs",
+          name: "custom",
+          revision: "revision-upload-1",
+        },
+      },
+    });
+  });
+
+  it("keeps mixed input pages, previews and retained metadata in their own scopes", async () => {
+    const projectSource = artifactMetadata("inputs", "shared", {
+      ...sourceArtifact,
+      artifact: {
+        namespace: "inputs",
+        name: "shared",
+        revision: "revision-shared",
+      },
+      mediaType: "application/zip",
+    });
+    // Exact refs have meaning inside their scope. Equal keys must not merge metadata.
+    const ownerPack = {
+      ...projectSource,
+      mediaType: "application/yaml",
+      size: 11,
+    };
+    const exactKey = "inputs/shared@revision-shared";
+    const store = new RunDraftMemoryStore("user_local");
+    const queryClient = createApplicationQueryClient();
+    const posts: unknown[] = [];
+    let inventoryVisible = true;
+    const { user, router } = renderWithAPI(null, {
+      path: "/form",
+      queryClient,
+      routes: [
+        {
+          path: "/form",
+          element: (
+            <RunDraftStoreContext.Provider value={store}>
+              <WorkflowRunForm
+                workflow={mixedInputWorkflow}
+                projectId="project_example"
+              />
+            </RunDraftStoreContext.Provider>
+          ),
+        },
+        { path: "/away", element: <p>Away</p> },
+      ],
+      server: fakeServer({
+        "GET /v1/artifacts": ({ url }) =>
+          json(
+            !inventoryVisible
+              ? page([])
+              : url.searchParams.has("cursor")
+                ? page([ownerPack])
+                : page([], "owner-page"),
+          ),
+        "GET /v1/projects/{projectId}/artifacts": ({ url }) =>
+          json(
+            !inventoryVisible
+              ? page([])
+              : url.searchParams.has("cursor")
+                ? page([projectSource])
+                : page([], "project-page"),
+          ),
+        "POST /v1/projects/{projectId}/runs": async ({ request }) => {
+          posts.push(await request.clone().json());
+          return json(
+            createdRun("run_mixed", { projectId: "project_example" }),
+            202,
+          );
+        },
+      }),
+    });
+    await user.click(
+      await screen.findByRole("button", { name: "Load more materials" }),
+    );
+    const source = screen.getByRole("combobox", { name: "source required" });
+    await within(source).findByRole("option", {
+      name: /inputs\/shared.*application\/zip/,
+    });
+    const rulepack = screen.getByRole("combobox", { name: "rulepack" });
+    expect(
+      within(rulepack).queryByRole("option", { name: /inputs\/shared/ }),
+    ).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Load more files" }));
+    await within(rulepack).findByRole("option", {
+      name: /inputs\/shared.*application\/yaml/,
+    });
+    await user.selectOptions(source, exactKey);
+    await user.selectOptions(rulepack, exactKey);
+    expect(
+      screen.getByRole("link", { name: "Preview material details" }),
+    ).toHaveAttribute(
+      "href",
+      "/projects/project_example/artifacts/inputs/shared?revision=revision-shared",
+    );
+    expect(
+      screen.getByRole("link", { name: "Preview file details" }),
+    ).toHaveAttribute(
+      "href",
+      "/artifacts/inputs/shared?revision=revision-shared",
+    );
+    inventoryVisible = false;
+    await act(async () => {
+      await router.navigate("/away");
+    });
+    queryClient.removeQueries({ queryKey: queryKeys.artifacts.picker });
+    queryClient.removeQueries({
+      queryKey: queryKeys.projects.artifacts.picker("project_example"),
+    });
+    await act(async () => {
+      await router.navigate("/form");
+    });
+    expect(
+      await screen.findByRole("combobox", { name: "source required" }),
+    ).toHaveValue(exactKey);
+    expect(screen.getByRole("combobox", { name: "rulepack" })).toHaveValue(
+      exactKey,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Start Project Workflow Run" }),
+    );
+    await waitFor(() => expect(posts).toHaveLength(1));
+    expect(posts[0]).toMatchObject({
+      artifacts: {
+        source: projectSource.artifact,
+        rulepack: ownerPack.artifact,
+      },
+    });
+  });
+
+  it.each(["source", "rulepack"] as const)(
+    "uploads mixed input %s in its declared scope",
+    async (slot) => {
+      const projectSource = artifactMetadata("sources", "project", {
+        artifact: {
+          namespace: "sources",
+          name: "project",
+          revision: "revision-7",
+        },
+        mediaType: "application/zip",
+      });
+      const ownerPack = artifactMetadata("rules", "owner", {
+        artifact: { namespace: "rules", name: "owner", revision: "revision-7" },
+        mediaType: "application/yaml",
+      });
+      const uploaded = artifactMetadata(
+        slot === "source" ? "artifacts" : "inputs",
+        "custom",
+        {
+          ...sourceArtifact,
+          artifact: {
+            namespace: slot === "source" ? "artifacts" : "inputs",
+            name: "custom",
+            revision: "revision-uploaded",
+          },
+          mediaType: slot === "source" ? "application/zip" : "application/yaml",
+          size: 11,
+        },
+      );
+      const posts: unknown[] = [];
+      const upload = () =>
+        json(artifactWrite(uploaded), 201, { ETag: '"revision-uploaded"' });
+      const { requests, user } = renderRunForm(
+        <WorkflowRunForm
+          workflow={{
+            ...mixedInputWorkflow,
+            inputs: {
+              ...mixedInputWorkflow.inputs,
+              additional_source: {
+                required: false,
+                mediaTypes: ["application/zip"],
+              },
+            },
+          }}
+          projectId="project_example"
+        />,
+        {
+          "GET /v1/artifacts": () => json(page([ownerPack])),
+          "GET /v1/projects/{projectId}/artifacts": () =>
+            json(page([projectSource])),
+          "PUT /v1/artifacts/{namespace}/{name}": upload,
+          "PUT /v1/projects/{projectId}/artifacts/{namespace}/{name}": upload,
+          "POST /v1/projects/{projectId}/runs": async ({ request }) => {
+            posts.push(await request.clone().json());
+            return json(
+              createdRun("run_mixed", { projectId: "project_example" }),
+              202,
+            );
+          },
+        },
+      );
+      await within(
+        screen.getByRole("combobox", { name: "source required" }),
+      ).findByRole("option", {
+        name: /sources\/project@revision-7/,
+      });
+      await screen.findByRole("option", { name: /rules\/owner@revision-7/ });
+      await user.selectOptions(
+        await screen.findByRole("combobox", { name: "source required" }),
+        "sources/project@revision-7",
+      );
+      await user.selectOptions(
+        screen.getByRole("combobox", { name: "rulepack" }),
+        "rules/owner@revision-7",
+      );
+      await user.click(
+        screen.getByRole("button", { name: `Upload local file for ${slot}` }),
+      );
+      const dialog = screen.getByRole("dialog", {
+        name: `Upload local file for ${slot}`,
+      });
+      expect(
+        within(dialog).getByText(
+          slot === "source" ? "Project input" : "Library input",
+        ),
+      ).toBeVisible();
+      await user.upload(
+        within(dialog).getByLabelText("Drop a file here"),
+        new File(
+          ["id: custom\n"],
+          slot === "source" ? "custom.zip" : "custom.yaml",
+          { type: uploaded.mediaType },
+        ),
+      );
+      await user.click(
+        within(dialog).getByRole("button", { name: "Upload and select" }),
+      );
+      await waitFor(() => expect(dialog).not.toBeInTheDocument());
+      if (slot === "source") {
+        expect(
+          within(
+            screen.getByRole("combobox", {
+              name: "additional source (additional_source)",
+            }),
+          ).getByRole("option", {
+            name: /artifacts\/custom@revision-uploaded/,
+          }),
+        ).toBeInTheDocument();
+      }
+      expect(
+        requests
+          .filter((request) => request.method === "PUT")
+          .map((request) => new URL(request.url).pathname),
+      ).toEqual([
+        slot === "source"
+          ? "/v1/projects/project_example/artifacts/artifacts/custom"
+          : "/v1/artifacts/inputs/custom",
+      ]);
+      await user.click(
+        screen.getByRole("button", { name: "Start Project Workflow Run" }),
+      );
+      await waitFor(() => expect(posts).toHaveLength(1));
+      expect(posts[0]).toMatchObject({
+        artifacts: {
+          source:
+            slot === "source" ? uploaded.artifact : projectSource.artifact,
+          rulepack:
+            slot === "rulepack" ? uploaded.artifact : ownerPack.artifact,
+        },
+      });
     },
   );
 

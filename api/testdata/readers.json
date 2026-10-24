@@ -40,6 +40,7 @@
     "public/finding-decision-cases.json": {"readers": ["go"], "reason": "public review decision requests checked against the generated Go client, the Audit service and the HTTP handler; the UI builds these requests from its typed client"},
     "model-profile-id-cases.json": {"readers": ["go", "ui"]},
     "openapi-document-bounds.json": {"readers": ["go", "python"]},
+    "openapi-yaml-scalar-cases.json": {"readers": ["go", "python"]},
     "scan-host-syntax.json": {"readers": ["go", "python"]},
     "toolset-descriptors.json": {"readers": ["go", "python"]},
     "telemetry-genai-cases.json": {"readers": ["go", "python"]},

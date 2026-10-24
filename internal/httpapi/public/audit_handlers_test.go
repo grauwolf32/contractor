@@ -573,6 +573,8 @@ type fakeAuditManagement struct {
 	coverage            auditservice.CoveragePage
 	preparation         map[string]auditservice.PreparationRoleProjection
 	preparationOwner    string
+	snapshot            *auditstore.Audit
+	detailErr           error
 	preparationPages    []int
 	preparationErr      error
 	artifactRead        artifacts.ReadResult
@@ -594,17 +596,44 @@ type fakeAuditManagement struct {
 	decisionReplayed    bool
 }
 
-func (f *fakeAuditManagement) Preparation(_ context.Context, ownerID, _ string) (map[string]auditservice.PreparationRoleProjection, error) {
+// Detail returns audit unless prepared selects it. A selected Audit is read
+// again, as the service does, in its snapshot: the fake's later state when
+// snapshot is set, with the fake's preparation; detailErr fails that read.
+func (f *fakeAuditManagement) Detail(
+	_ context.Context, ownerID string, audit auditstore.Audit, prepared func(auditstore.Audit) bool,
+) (auditservice.AuditDetail, error) {
+	if !prepared(audit) {
+		return auditservice.AuditDetail{Audit: audit}, nil
+	}
 	f.preparationOwner = ownerID
-	return f.preparation, f.err
+	if f.detailErr != nil {
+		return auditservice.AuditDetail{}, f.detailErr
+	}
+	if f.snapshot != nil {
+		audit = *f.snapshot
+	}
+	return auditservice.AuditDetail{Audit: audit, Preparation: f.preparation}, f.err
+}
+
+// StartedDetail is Detail for a start response; a selected Audit's Round and
+// items are those of the fake's start.
+func (f *fakeAuditManagement) StartedDetail(
+	ctx context.Context, ownerID string, started auditservice.StartedAudit, prepared func(auditstore.Audit) bool,
+) (auditservice.StartedDetail, error) {
+	detail, err := f.Detail(ctx, ownerID, started.Audit, prepared)
+	if err != nil {
+		return auditservice.StartedDetail{}, err
+	}
+	result := auditservice.StartedDetail{AuditDetail: detail, Items: started.Items}
+	if detail.Audit.CurrentRoundID != nil {
+		round := started.Round
+		result.Round = &round
+	}
+	return result, nil
 }
 
 func (f *fakeAuditManagement) ReadArtifact(_ context.Context, _, _, _, _ string) (artifacts.ReadResult, error) {
 	return f.artifactRead, f.err
-}
-
-func (f *fakeAuditManagement) GeneratedInventory(_ context.Context, _, _ string, _ uint64) (*auditservice.GeneratedInventoryProjection, error) {
-	return nil, f.err
 }
 
 type fakeFindingProposalManagement struct {

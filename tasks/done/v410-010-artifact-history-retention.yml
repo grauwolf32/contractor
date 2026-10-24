@@ -1,0 +1,538 @@
+schema_version: '1.0'
+id: V410-010
+title: Apply automatic bounded history retention to every logical Artifact
+milestone: project-sitemap-2026-10
+epic: projects-artifacts
+kind: feature
+priority: P1
+status: completed
+depends_on: []
+languages: [go, python, sql, json, yaml, markdown]
+goal: >-
+  Bound the retained history of every logical Artifact automatically, deleting
+  its oldest unprotected revisions when needed while preserving current content,
+  legitimate exact holds, shared blobs and all existing authorization boundaries.
+context:
+  authority: >-
+    The user explicitly selected 1 GiB per logical artifact, for all artifacts,
+    on 2026-10-24. This is planned implementation work, not implementation evidence.
+    There is no sitemap-only opt-in, family ledger or aggregate Project/scope quota.
+  proposal: docs/proposals/0042-live-project-sitemap.md
+  proposal_sections: Sections 9-11; common ArtifactStore retention and sitemap integration.
+  specification:
+    - docs/spec/artifacts/artifact-store.md#ART-R118
+    - docs/spec/artifacts/artifact-store.md#ART-R121
+    - docs/spec/artifacts/retention-and-deletion.md
+    - docs/spec/artifacts/blob-storage.md
+    - docs/spec/artifacts/projects.md
+    - docs/spec/platform/persistence.md
+    - docs/spec/platform/limits.md
+    - docs/spec/platform/errors.md
+    - docs/spec/platform/failure-model.md
+    - docs/spec/platform/lifecycle.md
+    - docs/spec/execution/runs.md
+    - docs/spec/execution/scheduler.md
+    - docs/spec/execution/planners.md
+    - docs/spec/audits/review-and-reports.md
+    - docs/spec/findings/findings.md
+    - docs/spec/evals/managed-evals.md
+    - docs/spec/tools/skills.md
+    - docs/spec/tools/memory.md
+    - docs/spec/api/public-api.md
+  boundary: >-
+    ArtifactStore owns policy, accounting, admission, deletion and shared errors.
+    Existing ordinary UserScope, ProjectScope and RunScope write/fork/publication
+    paths are production callers in this task. Sitemap semantics and its 32-MiB
+    current-document bound belong to V410-001; no sitemap implementation is needed
+    for this task to deliver useful behavior.
+  code:
+    - internal/artifacts
+    - internal/persistence/migrations
+    - internal/persistence/postgres
+    - internal/httpapi/public
+    - internal/httpapi/privateartifacts
+    - internal/runstore
+    - internal/scheduler
+    - internal/auditimport
+    - internal/projectlifecycle
+    - internal/contracts
+    - runtime/src/contractor_runtime/artifacts.py
+    - runtime/src/contractor_runtime/toolsets
+    - api/openapi/contractor-public-v1.yaml
+    - api/testdata
+scope:
+  in:
+    - >-
+      Apply automatic history admission and oldest-unprotected eviction to every
+      logical binding in all three scopes through common ArtifactStore operations,
+      including trusted internal writers, forks, output publications and rebinds.
+      Wire existing public/private APIs and actual internal consumers in this
+      change; no generic helper or new state may have only test callers.
+    - >-
+      Inventory exact-reference holders and all mutation/error adapters, integrate
+      indexed protection acquisition/release with their authoritative lifecycles,
+      and update normative immutability/deletion exceptions and SQL triggers under
+      the named trusted ArtifactStore retention owner.
+    - >-
+      Implement per-binding retained accounting, bounded indexed maintenance and
+      shared-version/blob reclamation using existing transactions, receipts and
+      lifecycle machinery. Add real-store/process and cross-language coverage.
+  out:
+    - >-
+      Registration, artifact-family ledgers, name/MIME/type-specific enablement,
+      aggregate Project/User/Run byte quotas, fabricated alias anti-quota rules,
+      a per-Run publication-byte/count quota, or replacement domain rate limits.
+    - >-
+      New manual pin/public policy configuration APIs, delta storage, TTL history
+      expiry, distributed caches, a new receipt/hold-lease system or modification
+      of existing domain document limits, grants and frozen-binding write rules.
+    - >-
+      Sitemap reducer/tools, automatic collectors and UI features; those consume
+      this ordinary ArtifactStore behavior through their separate tasks.
+requirements:
+  - id: R1
+    text: >-
+      The policy key is the logical binding (scope kind, scope ID, namespace,
+      name). Apply it automatically to every UserScope, ProjectScope and RunScope
+      binding without registration or name/media-type/reducer branches. Each
+      distinct binding, including a fork target or separately named partition,
+      has its own history budget. There is no 1-GiB aggregate scope/Project/family
+      cap. A rebind within the same identity cannot reset its retained history.
+  - id: R2
+    text: >-
+      Default retained history is at most 2,000 revisions and 1 GiB of full encoded
+      logical bytes, with configurable hard ceilings of 20,000 and 8 GiB. Both
+      current and protected revisions count. Keep one typed common policy/limit
+      definition; use existing Server configuration conventions if exposing these
+      parameters, not a new public settings API. Charge each retained revision's
+      full encoded size even when versions/blobs deduplicate. Cumulative accepted
+      bytes/revisions are metrics, not a lifetime history quota. True no-op,
+      failed CAS and receipt replay do not add a retained charge.
+  - id: R3
+    text: >-
+      Preserve the separate ART-R118/LIM-ART-6 lifetime admission ceiling of
+      50,000 inserted non-output RunScope revisions exactly, including concurrent
+      inserts and every writer. History eviction never refunds that counter while
+      the Run exists. Preserve artifact_limit_exceeded and the existing Memory
+      adapter mapping; do not rename it or apply it to Project/User writes merely
+      because a Run produced them. Preserve the outputs exception, generic payload
+      bounds, and ART-R121's 32-reference-per-statement DescribeExact bound.
+  - id: R4
+    text: >-
+      Before enabling deletion, record a complete inventory of exact-ref holders,
+      their authoritative writer/reader, acquire/release transaction and lifecycle.
+      Cover current pointers, legitimate explicit pins, Run inputs, StageContext
+      including continuations, persisted completed Planner sessions/accepted
+      WorkerResults before Stage finalizing, durable finalizing candidates,
+      candidate/accepted StageResult, output publications, lineage, Audit baseline/
+      imports/proofs and pending report requests before publication, finding
+      evidence, selected Skill/config artifacts, frozen sweep User inputs and
+      lineage, Eval selections/eval_evidence_refs, and other JSON-backed exact refs.
+      Classify durable retention obligations separately from availability-only
+      references, receipts, provenance mentions and caches; do not silently turn
+      every mention or Eval evidence projection into a pin. An indexed
+      eval_evidence_refs row or a delete trigger that marks a projection dirty does
+      not itself protect bytes; classify it under the owning contract. Existing
+      protected bindings/exact-reference lifecycles own holds. FK checks alone are insufficient;
+      indexed checks/hooks must cover every required JSON-backed holder without
+      rescanning all domain JSON per publication or inventing another hold lease.
+  - id: R5
+    text: >-
+      Evict the oldest unprotected historical revision first, ordered by immutable
+      revision-creation timestamp then revision. Preserve current and every genuine
+      hold/lineage obligation; ordinary CAS must not create a predecessor pin chain.
+      Memory's current note remains protected under MEM-R94; eligible historical
+      note revisions follow the same generic policy. Never cut lineage to obtain
+      space or reuse scope-purge helpers that sever lineage for normal history
+      eviction; authorized full scope purge retains its separate semantics.
+      Serialize hold acquire/release, CAS,
+      admission, eviction and byte/revision accounting in the existing caller-owned
+      ArtifactStore transaction/lock discipline. Reuse transfer admission and trusted
+      metadata reads. Fit the post-publication state; new current is protected and
+      former current can be removed in the same commit only without another hold.
+      Prior current remains readable before commit. A failed attempted publication
+      rolls back its current/hold/accounting/eviction changes.
+  - id: R6
+    text: >-
+      Each database transaction examines at most 64 history candidate rows and
+      removes at most 64 revision-metadata rows across all affected bindings,
+      loading no payload. Preserve existing multi-artifact caller transactions;
+      do not split their atomic mutation or reset the work bound per nested call.
+      If more work is needed, retain bounded keyset/index continuation and return
+      artifact_history_maintenance_pending 503 with Retry-After; at most three
+      caller attempts fit the original deadline. Bind eligibility conclusions to
+      the hold/eligibility generation or an index preserving current oldest order;
+      release of a pin behind the cursor forces bounded reseek before a younger
+      victim or false all-protected result. No incomplete scan proves exhaustion.
+      If protected post-publication state cannot fit, artifact_history_protected
+      409 is permanent and preserves current/holds, with no automatic retry.
+  - id: R7
+    text: >-
+      Publication pressure triggers bounded maintenance only for that binding;
+      subsequent write/admission retries resume its keyset continuation in ordinary
+      binding metadata. Hold release atomically invalidates eligibility so the next
+      admission reseeks; it may perform bounded cleanup through its existing caller
+      and lifecycle limits. Do not add a pending-work queue, periodic sweep,
+      maintenance controller/worker, receipt or lease. Already committed authorized
+      maintenance may survive a failed publication and must be reported separately.
+      Idle unpin does not promise immediate reclamation; scope purge retains its
+      existing explicit owner and semantics.
+  - id: R8
+    text: >-
+      Reference-safe physical reclamation is a separate bounded step after eligible
+      revision deletion, triggered by the existing retention/lifecycle owner.
+      At most 64 version/blob candidates and 64 MiB encoded payload per pass,
+      accounted from metadata; any surviving binding/revision/hold keeps shared
+      content alive. PostgreSQL deletion is transactional; filesystem unlink is
+      post-commit under the existing blob cleanup contract. Failed unlink retains
+      truthful orphan diagnostics/cleanup behavior. Logical quota release never
+      promises immediate physical disk reclamation. No loop exceeds its deadline.
+  - id: R9
+    text: >-
+      Where keyed receipts already exist, keep them after result eviction; replay
+      confirms the original commit/ref without republishing, charging or pinning.
+      Raw generic CAS has no keyed receipt: preserve its existing ambiguous-lost-
+      response reconciliation by exact/current read, without inventing a receipt
+      or unconditionally republishing under a refreshed precondition. Missing exact
+      revisions never fall forward to latest. Preserve existing
+      not-found mappings (private artifact_not_found/public not_found, HTTP 404),
+      distinct from artifact_content_missing for a missing retained blob. Selecting
+      a durable exact input/proof/context acquires its legitimate hold atomically
+      against eviction or reports exact-source unavailability; no silent refresh.
+      Bounded materialized read views and memory/disk caches are not server pins
+      or authority to restore a removed exact ref or fabricate its retained proof.
+  - id: R10
+    text: >-
+      Extend every real writer's failure adapter, including public/private API,
+      Runtime ArtifactClient/tool results, internal Run/Scheduler publications,
+      imports, Memory and domain producers found in the inventory. Extend MEM-R72's
+      finite tool-error mapping and shared fixtures for common history outcomes;
+      do not falsely map history pressure to the 50,000-revision memory_namespace_full
+      outcome. Propagate shared history conflict/backpressure without endless deterministic retries, generic
+      500s, ignored publication failures or false success. Preserve grant/fence,
+      cancellation, operation deadline and existing response-loss receipt semantics.
+      Shared Go/Python fixtures and public schemas own new codes once; no domain
+      ledger or parallel retry classifier. Named APIs/controllers are production
+      callers of the common policy immediately in this task.
+  - id: R11
+    text: >-
+      Update ArtifactStore, retention, blob/lifecycle/error/limit registries and
+      each affected holder contract with the narrow trusted immutable-delete
+      exception. SQL trigger changes and migrations must preserve business data,
+      establish correct counters/protection indexes, and validate real stored
+      references before enabling eviction. Handle populated/over-limit bindings
+      through bounded ordinary maintenance or explicit protected conflict; do not
+      rewrite, drop holds, add lenient legacy readers or silently reset accounting.
+      Frozen bindings remain frozen; retention does not grant write/delete authority.
+failure_outcomes:
+  - operation: Any authorized Artifact write, fork, rebind or trusted publication
+    permanent: >-
+      Shared artifact_history_protected 409 when protected post-publication history
+      cannot fit; existing CAS/validation/grant/not-found and artifact_limit_exceeded
+      outcomes retain their scope and retryability. A failed publication changes no
+      current/holds/counters, and no permanent result is blindly retried.
+    retryable: >-
+      artifact_history_maintenance_pending 503 with bounded Retry-After, and existing
+      storage_transaction_conflict/unavailable-storage classifications, stay inside
+      the original operation deadline and at most three history-admission attempts.
+    ambiguous: >-
+      Reconcile the existing keyed receipt/natural publication identity where one
+      exists. Raw CAS preserves its current unkeyed reconciliation behavior; no
+      unconditional republish or implicit new receipt. An evicted keyed result is
+      still a committed receipt, not permission to append again. Report separately
+      committed maintenance independently.
+    cancelled: >-
+      The caller joins transaction and publication work before allocation/lifecycle
+      release. Rollback discards that attempt; committed state remains reconcilable.
+    timeout: >-
+      Existing API/controller/Runtime operation deadlines own the work; maintenance
+      backpressure creates no new unlimited deadline or detached retry worker.
+  - operation: Exact-ref hold acquisition/release and scope purge racing retention
+    permanent: >-
+      Absent/evicted source returns existing exact 404 before acquiring a new hold;
+      required lineage/holds cannot be weakened. Deleted/fenced parent rejects work.
+      Protected-history conflict remains distinct from missing content or access.
+    retryable: >-
+      Existing storage/lifecycle retry classification and claims apply within their
+      deadlines; invalidated eligibility checkpoints reseek in bounded batches.
+    ambiguous: >-
+      Reconcile authoritative holder state/existing mutation receipts; missing
+      acknowledgement never means a hold was released or a ref became protected.
+    cancelled: >-
+      Join holder/maintenance work before parent cleanup; transactional state stays
+      atomic and already committed progress is resumed by its existing owner.
+    timeout: >-
+      Holder deadlines and existing scope-purge deadlines remain distinct from
+      publication; expiry never authorizes latest substitution or dropping a hold.
+  - operation: Version/blob collection and post-commit filesystem unlink
+    permanent: >-
+      Surviving references forbid physical collection. Invalid ownership/path or
+      integrity failures retain existing classified diagnostics, never delete an
+      unverified object or declare content reclaimed.
+    retryable: >-
+      Existing bounded blob/lifecycle cleanup handles transient failures; no busy
+      loop or payload scan, and no new publication merely to retry cleanup.
+    ambiguous: >-
+      Recheck authoritative references and existing object state; reconcile absent
+      files under the current cleanup contract, not through a new receipt table.
+    cancelled: >-
+      Cleanup owner joins in-flight local/storage work; failed or interrupted unlink
+      leaves truthful reclaimable/orphan state rather than reverting a committed write.
+    timeout: >-
+      Existing physical-cleanup deadline plus the 64-candidate/64-MiB pass ceiling
+      bounds each attempt independently from metadata admission.
+cardinality:
+  - collection: Retained revisions of one logical binding in any scope
+    expected: 1-100 revisions; source scope may contain many independent bindings
+    maximum: Default 2,000 revisions/1 GiB per binding; hard configurable ceilings 20,000/8 GiB
+    bound: >-
+      Current and protected revisions count; each transaction scans at most 64
+      candidates/removes at most 64 metadata rows with indexed holder checks and
+      no payload/all-JSON scan. Separate bindings have independent counters.
+  - collection: Owning scope and exact-ref holders around the binding under admission
+    expected: One selected binding among thousands of unrelated bindings
+    maximum: Explicitly affected bindings within existing caller batch limits; 32 refs per DescribeExact statement
+    bound: >-
+      Resolve selected bindings and holders through indexed reads within existing
+      caller/batch limits and the shared 64-candidate transaction bound; do not select
+      a global pending population or split an existing atomic multi-artifact write. Test with at
+      least 2,000 unrelated bindings and all declared holder classes. Holder indexes
+      and per-binding eligibility change atomically with their authoritative lifecycle.
+  - collection: Unreferenced physical versions/blobs after revision eviction
+    expected: Shared content frequently remains referenced after logical eviction
+    maximum: 64 version/blob candidates and 64 MiB encoded payload per pass
+    bound: >-
+      Use stored sizes and reference predicates; preserve transactional PostgreSQL
+      deletion and bounded post-commit filesystem unlink without loading payloads.
+lifecycle:
+  - entity: Per-binding retained-history accounting and admission continuation
+    delete: >-
+      Trusted retention evicts unprotected history automatically; ordinary scope
+      lifecycle owns full binding deletion. No user-controlled opt-in or pin bypass.
+    cascade: >-
+      Scope deletion removes owned binding/accounting state through existing purge;
+      independently held/forked references keep their versions/blobs. New bindings
+      start independent history, not a reset of another binding's surviving revisions.
+    retention: >-
+      No TTL. Current and legitimate exact holds survive; oldest unprotected history
+      yields to admission pressure. RunScope lifetime insert count is never refunded.
+  - entity: Authoritative exact-reference obligations and keyed mutation receipts
+    delete: Only each existing holder lifecycle releases its obligation; receipt replay does not acquire one.
+    cascade: >-
+      Parent close/purge updates indexed protection in the same lifecycle transaction;
+      subsequent admission scans revalidate generation. Never cut lineage merely to free history.
+    retention: >-
+      Existing receipt retention remains independent of artifact availability. Exact
+      reads after eviction report unavailable; caches cannot extend Server authority.
+acceptance_criteria:
+  - id: A1
+    given: Ordinary UserScope, ProjectScope and RunScope bindings with different names and media types
+    when: Existing public/private and trusted internal write/fork/rebind/publication paths exceed history limits
+    then: >-
+      Common automatic policy applies without registration; oldest unprotected
+      history is evicted. Two distinct bindings each retain their own allowed
+      history even when aggregate bytes exceed 1 GiB. No name/MIME branch, family
+      ledger, opt-in or domain budget exists, and frozen/grant rules still hold.
+  - id: A2
+    given: Real PostgreSQL current/mixed/all-protected history covering every inventoried holder, including JSON refs
+    when: Pin acquisition/release, publication, former-current replacement and parent purge race
+    then: >-
+      Exactly one valid transaction ordering wins; every genuine hold/lineage is
+      preserved, absent-source acquisition fails explicitly, ordinary mentions/CAS
+      do not pin history, and failed publication rolls back its changes. A protected
+      conflict and already committed eligible maintenance remain distinguishable.
+  - id: A3
+    given: More than 64 history candidates, a released pin behind a cursor and at least 2,000 unrelated bindings
+    when: A subsequent write resumes admission after unpin with injected deadlines and work counters
+    then: >-
+      Each pass respects 64-candidate/64-deletion bounds, preserves oldest
+      eligibility after reseek and returns bounded shared backpressure. Only the
+      selected binding and indexed holders are examined; no global queue, sweep or
+      timer is introduced, and idle unpin does not falsely report reclamation.
+      Physical collection respects its separate 64-candidate/64-MiB ceiling and
+      shared PostgreSQL/filesystem payloads survive until their last reference.
+  - id: A4
+    given: Evicted results with retained receipts, exact readers, materialized views and cache bytes
+    when: Responses are lost, receipts replay, exact selections race eviction or access is revoked
+    then: >-
+      No repeat append, charge, implicit pin, false availability or latest substitution
+      occurs. Private/public missing-ref mappings and missing-blob distinctions remain
+      intact; views/caches preserve their bounded contracts without granting authority.
+  - id: A5
+    given: A Run near its lifetime 50,000 non-output insert limit and Project/User writes produced by that Run
+    when: Run history is evicted and all relevant API, Memory and internal publication paths are exercised
+    then: >-
+      Eviction never refunds the Run insert count, existing artifact_limit_exceeded
+      and Memory mappings still apply, outputs keep their exception, and producing
+      a Project/User write does not charge the RunScope counter. Shared history
+      conflicts/backpressure have correct caller-visible permanent/retryable outcomes.
+  - id: A6
+    given: Populated stores, retained shared blobs, active holders and injected cancellation/storage/unlink faults
+    when: Migrations, automatic retention, restart and existing Run/Project/Audit/sweep lifecycle cleanup execute
+    then: >-
+      Business content and legitimate references remain correct; over-limit history
+      is processed in bounded batches or explicitly blocked by holds. Work joins,
+      no cleanup reports false disk reclamation, and the mandatory real-store/process
+      gates run nonzero cases without skipped database prerequisites. UserScope
+      history is covered by ordinary retention fixtures; frozen sweep-input cleanup
+      uses its existing selective authority, not a new full UserScope purge.
+deliverables:
+  - path: internal/artifacts
+    description: Common automatic per-binding admission/accounting/eviction with existing production writer callers.
+  - path: internal/persistence/migrations
+    description: Data-preserving accounting/protection and trusted immutable-delete trigger updates, with migration tests.
+  - path: docs/spec/artifacts/retention-and-deletion.md
+    description: Owning automatic retention contract and complete authoritative holder/writer inventory with lifecycle classification.
+  - path: make/features.mk
+    description: New test-artifact-history-postgres and test-artifact-history-e2e targets, required in the release graph.
+  - path: api/testdata
+    description: Shared retention/error fixtures and Go/Python readers; public schema changes through normal generation targets.
+tests:
+  - command: make test-artifact-history-postgres
+    covers: [A1, A2, A3, A4, A5, A6]
+  - command: make test-artifact-history-e2e
+    covers: [A1, A2, A4, A5, A6]
+  - command: make verify-public-api verify-public-api-postgres test-wire-cross-language
+    covers: [A1, A4, A5]
+  - command: make test-runtime
+    covers: [A4, A5, A6]
+  - command: make lint
+    covers: [A1, A2, A3, A4, A5, A6]
+test_prerequisites:
+  - >-
+    New history targets are implementation deliverables, not existing passing
+    evidence. Require a disposable PostgreSQL database with schema create/drop
+    rights, actual Server/Runtime processes and local fixtures; fail missing or
+    unreachable prerequisites, skipped mandatory cases and zero-match selections.
+  - >-
+    Run complete suites of all touched packages, including artifacts, persistence/
+    migrations, public/private HTTP, contracts and every holder/writer adapter in
+    the inventory. Register process tests in the release graph; regenerate public
+    clients normally. Tests never read live configs outside allowed process gates.
+  - >-
+    Use deterministic counters, injected clocks and real temporary filesystems.
+    Exercise actual PostgreSQL references/transactions and failure adapters;
+    permissive fakes, wall-clock assertions and only three-row fixtures do not prove
+    retention safety or bounded maintenance over the containing collections.
+implementation_commit: a2d94244e6237b5950ae00bde28d951e9a655297
+decisions:
+  - >-
+    Only a CAS write (an expected revision) grows history; creates and forks
+    are create-only and start a binding at one revision. Each binding keeps
+    retained_revisions and retained_bytes (blob size per revision, also when
+    deduplicated), maintained by the write and fork statements and by
+    eviction; the Run's 50,000 inserted-revision counter is untouched by
+    eviction (ART-R118, ART-R123). The typed policy is
+    artifacts.HistoryPolicy (one definition with its floors and ceilings),
+    installed in the request context from the Server configuration
+    (artifactHistoryMaxRevisions/Bytes, CONTRACTOR_ARTIFACT_HISTORY_MAX_*,
+    --artifact-history-max-*); api/testdata/v1alpha1/artifact-history-cases.json
+    holds the same numbers and the error contract for Go and Python.
+  - >-
+    Holds are counted on the revision row (artifact_binding_revisions.hold_count)
+    by triggers of each holder table in the transaction that records or
+    releases the reference, so admission reads one partial index of unheld
+    revisions in (binding, created_at, revision) order instead of probing
+    holder JSON. A released hold is found again first because the index has
+    no stored cursor. Alternative considered: indexed per-holder probes at
+    eviction, which need one index per JSON path and repeat on every
+    admission. Reopen if a holder cannot maintain its count in its own
+    transaction (DEL-R65 rationale).
+  - >-
+    Strict holders (StageExecutions, Audit inputs, finding proposal
+    receipts) reject a missing revision of an existing scope with
+    artifact_exact_hold, which each writer reports as its existing not-found
+    outcome; finding intake now maps it to ErrAccessDenied. Lenient holders
+    (Planner sessions, Run and Audit baseline Skill sources) protect nothing
+    when the revision is missing. A reference into a scope that no longer
+    exists holds nothing, in triggers and in the migration backfill alike.
+  - >-
+    Eval dataset case inputs are classified availability-only (DEL-R64), not
+    holders: one dataset revision may name up to 1,000 cases of up to 128
+    inputs (LIM-EVF-5, LIM-EVF-9), which would make dataset registration and
+    the bounded Eval purge (LIM-EVM-20) write an unbounded number of revision
+    rows. Eval preflight already reports a missing input as
+    eval_evidence_unavailable. Reopen if Eval needs a registered dataset to
+    stay runnable without re-upload.
+  - >-
+    A write needing more than one transaction's 64 removals commits one
+    maintenance pass of its own binding and answers the retryable
+    artifact_history_maintenance_pending (503, Retry-After 1). Writers that
+    own their transaction (Memory, Git import) roll back and then commit the
+    pass through PostgresRepository.MaintainHistory. Memory maps both
+    history answers to the retryable memory_unavailable and never to
+    memory_namespace_full (MEM-R99); the Runtime's document writes resend
+    once on pending and the workspace exporter retries it within its CAS
+    attempts. No queue, sweep, controller, receipt or lease was added.
+  - >-
+    The two migrations of this task were folded into
+    000043_artifact_history_retention.sql (accounting first, then holds),
+    the number the coordinator assigned after main took 000040 to 000042.
+verification:
+  date: '2026-10-24'
+  environment: >-
+    macOS arm64; Go 1.26.9; Python 3.13.16 in the locked Runtime venv; Node
+    from the portable toolchain for UI typecheck and make lint; local
+    PostgreSQL 17.11 (Homebrew) database contractor_test_sitemap with
+    per-test schemas and all 43 migrations; TMPDIR=/private/tmp for
+    filesystem-blob tests.
+  commands:
+    - >-
+      make test-artifact-history-postgres passed: artifacts, persistence/postgres,
+      memory, httpapi/public, httpapi/privateartifacts, findingintake and app;
+      24 selected tests ran, none skipped (TestPostgresHistory* including the
+      2,000-unrelated-binding bounded-maintenance, released-hold reseek,
+      64 MiB pass, read race and sweep-input cases,
+      TestPostgresRunRevisionLimitIsNotRefundedByHistoryRetention, the three
+      migration tests, the shared fixture readers, the Memory and Git import
+      maintenance-after-rollback tests, the public outcome test, the receipt
+      hold mapping and the configuration precedence tests).
+    - >-
+      make test-artifact-history-e2e passed (TestArtifactHistoryAcrossProductionProcesses,
+      34.8s: Server and Python Runtime processes, two Runs holding inputs,
+      not_found for a removed revision, artifact_history_protected without
+      Retry-After, restart with a larger limit).
+    - >-
+      make verify-public-api verify-public-api-postgres test-wire-cross-language
+      passed (after the last merge of main: 269 shared fixtures, 318 Go and
+      211 Python shared tests).
+    - >-
+      make test-runtime: 4633 passed, 39 skipped, 106 failed on this macOS
+      host, all in modules this task does not touch (podman_* 96, projectfs
+      local_io/local_direct and local_direct_faults 4, trailmark_child 2,
+      tool_process 2, code_analysis 2 including a 100 ms event-loop timing
+      bound); none of them imports the changed Runtime modules. The suites of
+      the touched modules (test_shared_artifact_history, test_workspace_auto_export,
+      test_memory_toolset, test_memory, test_artifacts, the artifact, text,
+      LikeC4 and OpenAPI toolsets) passed: 309 tests. Ruff, ruff format and
+      import-linter passed. These Linux-only and container suites need the
+      Linux release-verify run.
+    - >-
+      After the last merge of main (000044_target_credentials follows this
+      task's 000043), make test-artifact-history-postgres,
+      make test-artifact-history-e2e and go test -tags integration -count=1
+      ./internal/persistence/... ./internal/credentials/...
+      ./internal/httpapi/... ./internal/contracts/... passed again.
+    - >-
+      go test -tags integration -count=1 ./cmd/... ./internal/... after
+      merging main: every package passed except tests that failed only under
+      the full parallel load and passed when rerun alone
+      (auditimport completion database drop, auditstore/internal/pgstore
+      claim_scale and deletion_probe plan-read budgets) and
+      gitimport TestRealGitReadOnlyContainer, which needs the alpine image in
+      podman. Touched packages were rerun whole after the last change.
+    - make lint passed (staticcheck U1000, testonlyexports, SQL placement, table ownership, layers, spec, tasks, ERD and release graph).
+    - cd ui && corepack pnpm typecheck passed against the regenerated public types.
+notes:
+  - >-
+    Suspected defect outside this task: internal/agentskills/run.go:173-176
+    maps any read failure of a Run Skill source, including not found, to the
+    retryable skill_artifact_unavailable, while RUN-R27
+    (docs/spec/execution/runs.md:391-394) requires skill_artifact_not_found
+    for a committed missing source.
+  - >-
+    Suspected defect outside this task: internal/scheduler/artifacts.go:95-121
+    (bindOutput) converts only ErrArtifactConflict; a missing candidate
+    source stays an ordinary error that Stage finalization recovery retries.
+    The candidate is now held by its StageExecution, so retention cannot
+    cause it, but the classification gap remains.

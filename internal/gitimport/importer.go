@@ -170,6 +170,11 @@ func (i *Importer) DoImport(ctx context.Context, request ImportRequest, respond 
 		}
 		return repository.RecordGitSource(ctx, scope, result.Ref, source)
 	})
+	if errors.Is(err, artifacts.ErrHistoryMaintenancePending) {
+		// The import's transaction rolled back and stored nothing; commit the
+		// one maintenance pass its binding needs before answering (ART-R127).
+		err = artifacts.NewPostgresRepository(i.pool).MaintainHistory(ctx, err)
+	}
 	if err != nil {
 		return err
 	}

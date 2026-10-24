@@ -631,6 +631,31 @@ Contractor committed its encrypted token and `token_id`, startup recovery
 removes the deterministic alias and retries creation instead of creating an
 untracked second key. An unfinished deletion is likewise completed before
 Server accepts Run or Operations traffic (FAIL-RCF-1, FAIL-RCF-2).
+Startup recovery reads the operation journal only after the lease handover
+([PER-R34](../platform/persistence.md)), and every write of a managed
+credential operation, the create and delete intents, their completions and the
+abandonment of a create, is a lease-fenced write. An intent of the previous
+active Server is therefore durable before recovery reads the journal, and
+recovery completes it, or it never commits, and that Server answers the
+retryable `credential_recovery_required` without a Gateway call. A retried
+prepared create proves the lease before its first Gateway call, which would
+remove the deterministic alias. Runtime credential create and the delete
+tombstone are lease-fenced in the same way (FAIL-RCF-8).
+
+Rationale: without the fence a new active Server's recovery could read the
+journal while its predecessor's delete intent was still committing, admit a
+Run of that credential, and leave a prepared delete beside a Run that pins it,
+which the next start's recovery refuses with `credential_in_use`. Guarantee:
+no managed credential write of a previous active Server becomes durable after
+its successor's recovery read the journal. Alternatives: a grace period after
+acquisition, rejected because a COMMIT already sent can land after any delay;
+taking every credential's deletion lock before the read, rejected because it
+misses create intents and intents that start later; a lease proof in each
+write under a lock the successor takes exclusively, chosen. Evidence and the
+full record are in PER-R34. Reopen with PER-R34, when a database has more than
+one active Server ([OPS-R5](../operations/operations.md)). The references a
+previous Server may still commit across the handover are the accepted risk of
+[PER-R36](../platform/persistence.md).
 
 **RCF-R73.** The pinned LiteLLM compatibility envelope must enforce unique
 aliases; an adapter that cannot prove this fails its startup conformance check.
@@ -904,8 +929,15 @@ The same store holds the Project target-origin kinds `http-origin-basic@1` and
 requires detaching it from every Project ([Projects](../artifacts/projects.md),
 PRJ-R79).
 
+The same store holds the pentest target identity kinds `target-basic@1`,
+`target-bearer@1` and `target-login@1` (RCF-R184).
+
 **RCF-R112.** One encrypted runtime-credential plaintext is canonical JSON of
-at most 32 KiB (LIM-RCF-18).
+at most 32 KiB (LIM-RCF-18). Creation material is one JSON object of at most
+32 KiB decoded strictly for its kind: a repeated or unknown member, invalid
+UTF-8 and a lone surrogate escape are invalid input, and stored plaintext that
+is not exactly the canonical JSON of valid material is a decryption failure
+(FAIL-RCF-3).
 
 **RCF-R113.** `otlp-headers@1` contains 1–32 unique RFC 9110 field names
 (LIM-RCF-19), each at most 64 ASCII bytes (LIM-RCF-20), with values from 1
@@ -926,10 +958,38 @@ invalid input, the Server refuses stored material outside the rule as a
 decryption failure (FAIL-RCF-3), and RuntimeSettings validation on both sides
 rejects it (RCF-R164). A Basic-auth username and password are base64-encoded
 before sending, so creation holds them only to their byte bounds, valid UTF-8
-without control characters and a username without a colon. The Server, the
+without control characters and a username without a colon; every Basic kind
+shares this rule, which the public API states once (`BasicCredentialUsername`,
+`BasicCredentialPassword`) and which the `target-basic@1` cases of
+[`target-credential-cases.json`](../../../api/testdata/v1alpha1/target-credential-cases.json)
+check for each Basic kind. The Server, the
 Runtime, the private schema and the public API are held to the credential
 field-value rule by
 [`credential-field-value-cases.json`](../../../api/testdata/v1alpha1/credential-field-value-cases.json).
+
+**RCF-R184.** The pentest target identity kinds are `target-basic@1`, a Basic
+username and password under the RCF-R114 bounds; `target-bearer@1`, a bearer
+token that is a credential field value (RCF-R114); and `target-login@1`, a
+`fields` object of 1–16 named login secrets (LIM-RCF-30) whose names match
+`^[a-z][a-z0-9_-]{0,63}$` and whose values are 1–8,192 UTF-8 bytes without
+control characters, at most 16 KiB in total (LIM-RCF-31), with canonical JSON
+within RCF-R112. A runtime credential is create-only and its ID is never
+reused after deletion, so its credential ID with its kind, the private
+`RuntimeCredentialRef` and the `credentialId` and `kind` of its public
+metadata, is the exact reference to one immutable revision. There is no
+mutable alias to resolve first, and no public hash of the secret identifies a
+revision (RCF-R177). A reference resolves only for the credential's creator or
+Operations and only as its exact kind; a missing, deleted, foreign or
+other-kind reference reads as not found, so the reader learns nothing about
+the secret's existence. Whoever pins a reference resolves it in the
+transaction that commits the pin, under the shared side of the credential
+lifecycle fence, so a concurrent deletion either commits first and the
+resolution fails, or finds the pin and is refused with
+`runtime_credential_in_use` (AUD-R16). Private use decrypts only the expected
+kind for a synchronous consumer and wipes the plaintext when the consumer
+returns, fails or is cancelled. The Server, the Runtime, the private schema
+and the public API are held to these rules by
+[`target-credential-cases.json`](../../../api/testdata/v1alpha1/target-credential-cases.json).
 
 **RCF-R115.** Runtime-credential read projections expose only the credential
 ID, kind and creation metadata.
@@ -1497,6 +1557,9 @@ Limits ([registry](../platform/limits.md)):
   (RCF-R161).
 - LIM-RCF-29 — `tpmLimit`, `rpmLimit` and `maxParallelRequests` of at most
   2^31-1 (RCF-R63).
+- LIM-RCF-30 — `target-login@1` of 1–16 named fields (RCF-R184).
+- LIM-RCF-31 — `target-login@1` field values of at most 16 KiB in total
+  (RCF-R184).
 - Telemetry span, attribute, string and content bounds belong to
   [Observability](../platform/observability.md); the `worker.caido` endpoint
   and request-timeout bounds to [HTTP and Caido tools](../tools/http-caido.md).

@@ -24,6 +24,12 @@ defines source-optional web/API auditing, enforced scope, isolated identities,
 typed evidence, independent replay, recovery, budgets and acceptance gates; it
 is not yet implemented.
 
+[Hypothesis search within Audits](proposals/0045-audit-hypothesis-search.md)
+records an optional research pool, provenance, experiment selection, exact
+cross-Run context and the revised V64 direction. Direct deterministic execution
+remains independent; attack trees are an optional analytical layer. It is a
+draft and does not enable the capability.
+
 [Runtime placement labels](proposals/0043-runtime-placement-labels.md) records
 the selected `cloud` and `local` namespaces, startup declarations and dynamic
 parent matching for WorkflowRun and Audit launches; it is not yet implemented.
@@ -39,7 +45,7 @@ current readiness:
   [ScanTools](plans/2026-09-19-scan-tools.md) (V55),
   [run-scoped toolset configuration](plans/2026-09-19-toolset-runtime-configuration.md) (V61),
   [Audit preparation and Workflow composition](plans/2026-09-20-audit-workflow-composition.md) (V62),
-  [contextual checklist prioritization](plans/2026-09-20-audit-check-prioritization.md) (V64)
+  [optional hypothesis search](plans/2026-10-24-audit-hypothesis-search.md) (revised V64 and shared V62 dependencies),
   [schema reduction](plans/2026-10-04-schema-reduction.md) (V365)
   and [schema reduction, round two](plans/2026-10-23-schema-reduction-round-2.md) (analysis, no task yet).
 - [Research](research/README.md) holds dated reviews that open or deferred

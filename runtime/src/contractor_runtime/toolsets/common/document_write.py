@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from contractor_runtime.artifacts import (
+    ARTIFACT_HISTORY_MAINTENANCE_PENDING,
     ArtifactAPIError,
     ArtifactClient,
     ArtifactTransportError,
@@ -66,7 +67,11 @@ async def write_document_exact(
     try:
         return await put()
     except ArtifactAPIError as error:
-        if _definite_rejection(error) and error.code != "artifact_conflict":
+        if error.code == ARTIFACT_HISTORY_MAINTENANCE_PENDING or (
+            _definite_rejection(error) and error.code != "artifact_conflict"
+        ):
+            # Pending history maintenance stored nothing; it is no lost reply
+            # to reconcile.
             raise
     except ArtifactTransportError:
         pass

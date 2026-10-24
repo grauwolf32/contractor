@@ -53,7 +53,7 @@ func (p *PostgresPurger) PurgeAuditNamespace(
 	if err != nil {
 		return false, fmt.Errorf("purge Audit Artifact namespace: %w", err)
 	}
-	if err := p.collectUnreferencedVersions(ctx, batch.versionIDs); err != nil {
+	if err := collectUnreferencedVersions(ctx, p.tx, batch.versionIDs); err != nil {
 		return false, err
 	}
 	return len(batch.versionIDs) < purgeBatchSize, nil
@@ -98,7 +98,7 @@ DELETE FROM artifact_scopes
 WHERE scope_kind = $1 AND scope_id = $2`, scope.kind, scope.id); err != nil {
 		return fmt.Errorf("delete WorkflowRun Artifact scope: %w", err)
 	}
-	return p.collectUnreferencedVersions(ctx, versionIDs)
+	return collectUnreferencedVersions(ctx, p.tx, versionIDs)
 }
 
 // PurgeProject removes the ProjectScope of a deleting Project in bounded
@@ -132,7 +132,7 @@ func (p *PostgresPurger) PurgeProject(ctx context.Context, projectID string) (bo
 		return false, fmt.Errorf("purge Project Artifact batch: %w", err)
 	}
 	if len(batch.versionIDs) > 0 {
-		return false, p.collectUnreferencedVersions(ctx, batch.versionIDs)
+		return false, collectUnreferencedVersions(ctx, p.tx, batch.versionIDs)
 	}
 	if _, err := p.tx.Exec(ctx, `
 DELETE FROM artifact_scopes
@@ -270,11 +270,10 @@ func (p *PostgresPurger) purgeRevisionBatch(
 
 // collectUnreferencedVersions locks every candidate version and then every
 // candidate blob in one global order, at most purgeBatchSize per statement,
-// before it deletes the ones nothing references any more.
-func (p *PostgresPurger) collectUnreferencedVersions(
-	ctx context.Context,
-	versionIDs []string,
-) error {
+// before it deletes the ones nothing references any more. Its callers are the
+// controlled scope purge and automatic history retention, which enable their
+// delete exception for tx and run it under READ COMMITTED (see lockScope).
+func collectUnreferencedVersions(ctx context.Context, tx pgx.Tx, versionIDs []string) error {
 	if len(versionIDs) == 0 {
 		return nil
 	}
@@ -287,10 +286,10 @@ func (p *PostgresPurger) collectUnreferencedVersions(
 	// versions of the same blob, or different references to the same version.
 	candidateDigests := make([][]byte, 0, len(versionIDs))
 	for chunk := range slices.Chunk(versionIDs, purgeBatchSize) {
-		if _, err := p.tx.Exec(ctx, purgeLockVersionsSQL, chunk); err != nil {
+		if _, err := tx.Exec(ctx, purgeLockVersionsSQL, chunk); err != nil {
 			return fmt.Errorf("lock Artifact purge versions: %w", err)
 		}
-		digests, err := p.queryDigests(ctx, `SELECT DISTINCT blob_sha256 FROM artifact_versions
+		digests, err := queryDigests(ctx, tx, `SELECT DISTINCT blob_sha256 FROM artifact_versions
 WHERE version_id = ANY($1::text[])`, chunk)
 		if err != nil {
 			return fmt.Errorf("list Artifact purge blobs: %w", err)
@@ -298,29 +297,29 @@ WHERE version_id = ANY($1::text[])`, chunk)
 		candidateDigests = append(candidateDigests, digests...)
 	}
 	for chunk := range slices.Chunk(sortedDigests(candidateDigests), purgeBatchSize) {
-		if _, err := p.tx.Exec(ctx, `SELECT sha256 FROM artifact_blobs
+		if _, err := tx.Exec(ctx, `SELECT sha256 FROM artifact_blobs
 WHERE sha256 = ANY($1::bytea[]) ORDER BY sha256 FOR UPDATE`, chunk); err != nil {
 			return fmt.Errorf("lock Artifact purge blobs: %w", err)
 		}
 	}
 	blobDigests := make([][]byte, 0, len(candidateDigests))
 	for chunk := range slices.Chunk(versionIDs, purgeBatchSize) {
-		digests, err := p.queryDigests(ctx, purgeUnreferencedVersionsSQL, chunk)
+		digests, err := queryDigests(ctx, tx, purgeUnreferencedVersionsSQL, chunk)
 		if err != nil {
 			return fmt.Errorf("collect unreferenced Artifact versions: %w", err)
 		}
 		blobDigests = append(blobDigests, digests...)
 	}
 	for chunk := range slices.Chunk(sortedDigests(blobDigests), purgeBatchSize) {
-		if err := p.collectUnreferencedBlobs(ctx, chunk); err != nil {
+		if err := collectUnreferencedBlobs(ctx, tx, chunk); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (p *PostgresPurger) collectUnreferencedBlobs(ctx context.Context, digests [][]byte) error {
-	deleted, err := p.tx.Query(ctx, purgeUnreferencedBlobsSQL, digests)
+func collectUnreferencedBlobs(ctx context.Context, tx pgx.Tx, digests [][]byte) error {
+	deleted, err := tx.Query(ctx, purgeUnreferencedBlobsSQL, digests)
 	if err != nil {
 		return fmt.Errorf("collect unreferenced Artifact blobs: %w", err)
 	}
@@ -332,7 +331,7 @@ func (p *PostgresPurger) collectUnreferencedBlobs(ctx context.Context, digests [
 			return err
 		}
 		if kind == BlobFilesystem && key != nil {
-			if err := deletePhysicalAfterCommit(ctx, p.tx, BlobObject{Backend: kind, Key: *key}); err != nil {
+			if err := deletePhysicalAfterCommit(ctx, tx, BlobObject{Backend: kind, Key: *key}); err != nil {
 				return err
 			}
 		}
@@ -340,8 +339,8 @@ func (p *PostgresPurger) collectUnreferencedBlobs(ctx context.Context, digests [
 	return deleted.Err()
 }
 
-func (p *PostgresPurger) queryDigests(ctx context.Context, sql string, versionIDs []string) ([][]byte, error) {
-	rows, err := p.tx.Query(ctx, sql, versionIDs)
+func queryDigests(ctx context.Context, tx pgx.Tx, sql string, versionIDs []string) ([][]byte, error) {
+	rows, err := tx.Query(ctx, sql, versionIDs)
 	if err != nil {
 		return nil, err
 	}

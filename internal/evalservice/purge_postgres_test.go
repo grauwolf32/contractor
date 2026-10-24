@@ -85,7 +85,7 @@ FROM generate_series(1, 2500) AS n`, e.ID, member); err != nil {
 	if view.DeletionRequestedAt == nil || view.ViewSnapshot != nil || view.Summary != nil || view.Freshness != "pending" || view.PlanSHA256 == nil {
 		t.Fatalf("experiment during the purge = %+v", view)
 	}
-	list, err := h.service.List(ctx, evalstore.SummaryPageParams{ListParams: evalstore.ListParams{OwnerID: e.OwnerID, ProjectID: e.ProjectID, Limit: 10}})
+	list, err := h.service.List(ctx, evalstore.SummaryPageParams{OwnerID: e.OwnerID, ProjectID: e.ProjectID, Limit: 10})
 	if err != nil || len(list.Items) != 1 || list.Items[0].ID != e.ID || list.Items[0].Summary != nil || list.Items[0].Freshness != "pending" {
 		t.Fatalf("list during the purge = %+v, %v", list, err)
 	}

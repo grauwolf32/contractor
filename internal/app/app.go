@@ -35,10 +35,13 @@ type Config struct {
 	WorkerRequestTimeout  time.Duration
 	// DatabaseURL may carry the database password, so it is held as a
 	// self-redacting SecretString (SEC-R88).
-	DatabaseURL                 contracts.SecretString
-	ArtifactBlobBackend         artifacts.BlobBackend
-	ArtifactBlobPath            string
-	ArtifactBlobInlineMaxBytes  int64
+	DatabaseURL                contracts.SecretString
+	ArtifactBlobBackend        artifacts.BlobBackend
+	ArtifactBlobPath           string
+	ArtifactBlobInlineMaxBytes int64
+	// ArtifactHistory is the retained-history limit of every Artifact
+	// binding (LIM-ART-9).
+	ArtifactHistory             artifacts.HistoryPolicy
 	GitImport                   gitimport.Config
 	OperatorConfigRoot          string
 	ManagedConfigRoot           string
@@ -172,6 +175,7 @@ func runCLI(
 	}
 	logger.Info("artifact blob storage initialized", "large_payload_backend", backend)
 	ctx = artifacts.WithBlobRuntime(ctx, artifacts.NewBlobRuntime(blobStore, logger))
+	ctx = artifacts.WithHistoryPolicy(ctx, cfg.ArtifactHistory)
 	configurationManager, bundles, err := loadServerConfiguration(cfg.OperatorConfigRoot, cfg.ManagedConfigRoot, logger)
 	if err != nil {
 		return fmt.Errorf("load configuration: %w", err)
@@ -179,7 +183,7 @@ func runCLI(
 	if err := configurationManager.ConfigureModelSelection(ctx, settingsstore.NewPostgresStore(pool)); err != nil {
 		return fmt.Errorf("configure deployment model selection: %w", err)
 	}
-	credentialSet, err := configureCredentials(ctx, pool, configurationManager, cfg)
+	credentialSet, err := configureCredentials(ctx, pool, lease.server, configurationManager, cfg)
 	if err != nil {
 		return err
 	}

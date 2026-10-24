@@ -37,7 +37,7 @@ export interface RunDraftState {
   artifactSelections: Record<string, string>;
   artifactSuggestions: Record<string, string>;
   artifactReviews: Record<string, string>;
-  knownArtifacts: ArtifactMetadata[];
+  knownArtifacts: Record<string, ArtifactMetadata[]>;
   overrides: ExecutionOverrideDraft;
   repeat?: RepeatDraftContext;
 }
@@ -79,7 +79,7 @@ function identityKey(identity: RunDraftIdentity): string {
 }
 
 function meaningfulState(state: RunDraftState): RunDraftState {
-  return { ...state, knownArtifacts: [] };
+  return { ...state, knownArtifacts: {} };
 }
 
 function sameState(left: RunDraftState, right: RunDraftState): boolean {
@@ -91,7 +91,7 @@ function sameState(left: RunDraftState, right: RunDraftState): boolean {
 
 export function initialRunDraftState(
   artifactSelections: Readonly<Record<string, string>> = {},
-  knownArtifacts: readonly ArtifactMetadata[] = [],
+  knownArtifacts: Readonly<Record<string, readonly ArtifactMetadata[]>> = {},
 ): RunDraftState {
   return {
     parameters: {},
@@ -101,7 +101,12 @@ export function initialRunDraftState(
     artifactSelections: { ...artifactSelections },
     artifactSuggestions: { ...artifactSelections },
     artifactReviews: {},
-    knownArtifacts: structuredClone([...knownArtifacts]),
+    knownArtifacts: Object.fromEntries(
+      Object.entries(knownArtifacts).map(([slot, metadata]) => [
+        slot,
+        structuredClone([...metadata]),
+      ]),
+    ),
     overrides: emptyExecutionOverrides(),
   };
 }
@@ -124,19 +129,23 @@ interface InternalRunDraftEntry extends RunDraftEntry {
 }
 
 function mergeKnownArtifacts(
-  retained: readonly ArtifactMetadata[],
-  incoming: readonly ArtifactMetadata[],
-): ArtifactMetadata[] {
-  const byExactRef = new Map(
-    retained.map((metadata) => [
-      artifactOptionKey(metadata.artifact),
-      metadata,
-    ]),
+  retained: Readonly<Record<string, readonly ArtifactMetadata[]>>,
+  incoming: Readonly<Record<string, readonly ArtifactMetadata[]>>,
+): Record<string, ArtifactMetadata[]> {
+  return Object.fromEntries(
+    [...new Set([...Object.keys(retained), ...Object.keys(incoming)])].map(
+      (slot) => [
+        slot,
+        Array.from(
+          new Map(
+            [...(retained[slot] ?? []), ...(incoming[slot] ?? [])].map(
+              (metadata) => [artifactOptionKey(metadata.artifact), metadata],
+            ),
+          ).values(),
+        ),
+      ],
+    ),
   );
-  for (const metadata of incoming) {
-    byExactRef.set(artifactOptionKey(metadata.artifact), metadata);
-  }
-  return Array.from(byExactRef.values());
 }
 
 function reconcileSuggestions(

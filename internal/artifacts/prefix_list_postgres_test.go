@@ -33,8 +33,8 @@ func TestPostgresPrefixListIsLiteralBoundedAndIsolated(t *testing.T) {
 	// Many ordinary current bindings can point to one already valid immutable
 	// version. Insert both relations in the same statement for the deferred FK.
 	_, err := pool.Exec(ctx, `WITH bindings AS (
- INSERT INTO artifact_bindings (scope_kind,scope_id,namespace,name,current_revision)
- SELECT 'user','prefix-owner','builder','artifact_' || lpad(i::text,6,'0') || '_' || repeat('x',110),'bulk-rev' FROM generate_series(1,7000) i
+ INSERT INTO artifact_bindings (scope_kind,scope_id,namespace,name,current_revision,retained_revisions,retained_bytes)
+ SELECT 'user','prefix-owner','builder','artifact_' || lpad(i::text,6,'0') || '_' || repeat('x',110),'bulk-rev',1,0 FROM generate_series(1,7000) i
  RETURNING scope_kind,scope_id,namespace,name,current_revision
  ) INSERT INTO artifact_binding_revisions(scope_kind,scope_id,namespace,name,revision,version_id)
  SELECT scope_kind,scope_id,namespace,name,current_revision,(SELECT version_id FROM artifact_versions LIMIT 1) FROM bindings`)

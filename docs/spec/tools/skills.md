@@ -642,9 +642,13 @@ Artifact routes, just as it may inspect the owner source package
 exposed to Worker model tools.
 
 **SKL-R81.** Exact owner source and Run fork revisions stay readable
-while a retained Run snapshot refers to them: UserScope revisions are immutable
-and never purged (LIFE-SKL-1), and the fork lives as long as its Run
-(LIFE-SKL-2). Ordinary current updates therefore never invalidate a Run.
+while a retained Run snapshot refers to them: UserScope revisions are
+immutable, and the Run's Skill selection and its fork lineage protect the
+source revision from automatic history retention
+([DEL-R63](../artifacts/retention-and-deletion.md)) (LIFE-SKL-1); the fork
+lives as long as its Run (LIFE-SKL-2). Ordinary current updates therefore
+never invalidate a Run. Historical revisions of an owner Skill binding that
+nothing protects follow the ordinary retained-history policy (ART-R122).
 
 ### Allocation contract
 

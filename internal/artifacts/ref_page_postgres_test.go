@@ -47,8 +47,8 @@ func seedRunBindings(t *testing.T, ctx context.Context, pool *pgxpool.Pool, runI
 		names = append(names, ref.Name)
 	}
 	_, err := pool.Exec(ctx, `WITH bindings AS (
- INSERT INTO artifact_bindings (scope_kind, scope_id, namespace, name, current_revision)
- SELECT 'run', $1, input.namespace, input.name, 'bulk-rev'
+ INSERT INTO artifact_bindings (scope_kind, scope_id, namespace, name, current_revision, retained_revisions, retained_bytes)
+ SELECT 'run', $1, input.namespace, input.name, 'bulk-rev', 1, 0
  FROM unnest($2::text[], $3::text[]) AS input(namespace, name)
  RETURNING scope_kind, scope_id, namespace, name, current_revision
 ) INSERT INTO artifact_binding_revisions (scope_kind, scope_id, namespace, name, revision, version_id)

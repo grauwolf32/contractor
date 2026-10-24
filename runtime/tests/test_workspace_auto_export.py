@@ -564,6 +564,56 @@ def test_cas_race_after_metadata_is_retried_against_fresh_metadata() -> None:
     asyncio.run(scenario())
 
 
+def test_pending_history_maintenance_is_retried_within_the_cas_attempts() -> None:
+    """A 503 artifact_history_maintenance_pending stored nothing (ART-R127).
+
+    The Server committed one maintenance pass before it answered, so the
+    exporter sends the write again within its bounded CAS attempts, and a
+    binding that stays pending fails retryably with the Server's code.
+    """
+
+    async def scenario() -> None:
+        session = await overlay("history")
+        client = MemoryArtifactClient()
+        exporter = make_exporter(session, client)
+        await session.write_text("source.txt", "first result\n")
+        await exporter.export(worker_result())
+        await session.write_text("source.txt", "second result\n")
+        bundle = await session.prepare_export()
+        pending = private_error(503, "artifact_history_maintenance_pending", retryable=True)
+        client.fault("write", "workspace_state", pending)
+        client.calls.clear()
+        exported = await exporter.export(worker_result())
+        assert client.calls[:4] == [
+            ("metadata", "workspace_state"),
+            ("write", "workspace_state"),
+            ("metadata", "workspace_state"),
+            ("write", "workspace_state"),
+        ]
+        assert client.binding("workspace_state").data == bundle.state
+        assert exported.result.artifacts["workspace_state"].revision == "revision-2"
+
+        await session.write_text("source.txt", "third result\n")
+        attempts = MAX_CAS_ATTEMPTS
+
+        def still_pending(name: str) -> None:
+            nonlocal attempts
+            if name == "workspace_state" and attempts:
+                attempts -= 1
+                client.fault("write", name, pending)
+
+        client.after_metadata = still_pending
+        client.calls.clear()
+        with pytest.raises(WorkspaceExportError) as failure:
+            await exporter.export(worker_result())
+        assert failure.value.cause == "artifact_history_maintenance_pending"
+        assert failure.value.retryable
+        assert client.calls.count(("write", "workspace_state")) == MAX_CAS_ATTEMPTS
+        assert tuple(entry.path for entry in await session.change_entries()) == ("source.txt",)
+
+    asyncio.run(scenario())
+
+
 @pytest.mark.parametrize(
     ("kind", "status", "cause", "retryable"),
     [

@@ -8,6 +8,8 @@ import (
 	"slices"
 	"testing"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/persistence/leasetest"
 )
 
 // recordingRuntimeAuditHolds is an Audit dispatch-hold lookup with fixed
@@ -46,15 +48,17 @@ func TestRuntimeCredentialDeletionRejectsAuditDispatchHold(t *testing.T) {
 		t.Fatal(err)
 	}
 	holds := &recordingRuntimeAuditHolds{held: map[string][]string{"held-auth": {"audit-z", "audit-a"}}}
+	lease := leasetest.Hold(t, pool).Lease
 	service, err := NewRuntimeCredentialService(RuntimeCredentialServiceOptions{
-		Pool: pool, Cipher: cipher, Usage: NewRuntimeCredentialRepository(pool), Audits: holds,
+		Pool: pool, Lease: lease, Cipher: cipher, Usage: NewRuntimeCredentialRepository(pool), Audits: holds,
 		Barrier: NewLifecycleBarrier(),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := NewRuntimeCredentialService(RuntimeCredentialServiceOptions{
-		Pool: pool, Cipher: cipher, Usage: NewRuntimeCredentialRepository(pool), Barrier: NewLifecycleBarrier(),
+		Pool: pool, Lease: lease, Cipher: cipher, Usage: NewRuntimeCredentialRepository(pool),
+		Barrier: NewLifecycleBarrier(),
 	}); err == nil {
 		t.Fatal("a Runtime credential service without the Audit hold lookup was configured")
 	}

@@ -693,61 +693,6 @@ paths:
             "minLength": 1,
             "maxLength": 256
           }
-        },
-        {
-          "name": "state",
-          "in": "query",
-          "schema": {
-            "enum": [
-              "draft",
-              "preparing",
-              "ready",
-              "running",
-              "settling",
-              "finished",
-              "pausing",
-              "paused",
-              "cancelling",
-              "cancelled"
-            ],
-            "type": "string",
-            "x-enum-varnames": [
-              "EvalListevalexperimentsStateDraft",
-              "EvalListevalexperimentsStatePreparing",
-              "EvalListevalexperimentsStateReady",
-              "EvalListevalexperimentsStateRunning",
-              "EvalListevalexperimentsStateSettling",
-              "EvalListevalexperimentsStateFinished",
-              "EvalListevalexperimentsStatePausing",
-              "EvalListevalexperimentsStatePaused",
-              "EvalListevalexperimentsStateCancelling",
-              "EvalListevalexperimentsStateCancelled"
-            ]
-          }
-        },
-        {
-          "name": "datasetId",
-          "in": "query",
-          "schema": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 256
-          }
-        },
-        {
-          "name": "controlMode",
-          "in": "query",
-          "schema": {
-            "enum": [
-              "server",
-              "external"
-            ],
-            "type": "string",
-            "x-enum-varnames": [
-              "EvalListevalexperimentsControlmodeServer",
-              "EvalListevalexperimentsControlmodeExternal"
-            ]
-          }
         }
       ],
       "responses": {
@@ -3087,7 +3032,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
-        '409': {$ref: '#/components/responses/Conflict'}
+        '409': {$ref: '#/components/responses/ArtifactWriteConflict'}
         '408':
           description: Import interrupted; inspect metadata before retrying
           content:
@@ -3101,7 +3046,7 @@ paths:
         '413': {$ref: '#/components/responses/PayloadTooLarge'}
         '422': {$ref: '#/components/responses/Error422'}
         '500': {$ref: '#/components/responses/InternalError'}
-        '503': {$ref: '#/components/responses/ArtifactUnavailable'}
+        '503': {$ref: '#/components/responses/ArtifactWriteUnavailable'}
 
   /v1/projects/{projectId}/artifacts/{namespace}/{name}/git-import:
     parameters:
@@ -3138,7 +3083,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
-        '409': {$ref: '#/components/responses/Conflict'}
+        '409': {$ref: '#/components/responses/ArtifactWriteConflict'}
         '408':
           description: Import interrupted; inspect metadata before retrying
           content:
@@ -3152,7 +3097,7 @@ paths:
         '413': {$ref: '#/components/responses/PayloadTooLarge'}
         '422': {$ref: '#/components/responses/Error422'}
         '500': {$ref: '#/components/responses/InternalError'}
-        '503': {$ref: '#/components/responses/ArtifactUnavailable'}
+        '503': {$ref: '#/components/responses/ArtifactWriteUnavailable'}
 
   /v1/auth/login:
     post:
@@ -3452,10 +3397,10 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
-        '409': {$ref: '#/components/responses/Conflict'}
+        '409': {$ref: '#/components/responses/ArtifactWriteConflict'}
         '413': {$ref: '#/components/responses/PayloadTooLarge'}
         '500': {$ref: '#/components/responses/InternalError'}
-        '503': {$ref: '#/components/responses/ArtifactUnavailable'}
+        '503': {$ref: '#/components/responses/ArtifactWriteUnavailable'}
     get:
       operationId: downloadProjectArtifact
       tags: [Projects, Artifacts]
@@ -5206,10 +5151,10 @@ paths:
         '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
-        '409': {$ref: '#/components/responses/Conflict'}
+        '409': {$ref: '#/components/responses/ArtifactWriteConflict'}
         '413': {$ref: '#/components/responses/PayloadTooLarge'}
         '500': {$ref: '#/components/responses/InternalError'}
-        '503': {$ref: '#/components/responses/ArtifactUnavailable'}
+        '503': {$ref: '#/components/responses/ArtifactWriteUnavailable'}
     get:
       operationId: downloadArtifact
       tags: [Artifacts]
@@ -7014,6 +6959,27 @@ components:
     ArtifactUnavailable:
       description: Transfer capacity exhausted or a definite database transaction conflict exhausted retries (retryable), or stored content missing/corrupt (not automatically retryable).
       headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
+      content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
+    ArtifactWriteConflict:
+      description: >-
+        A stale or already-consumed CAS precondition (`conflict`), a
+        frozen binding (`artifact_frozen`), or protected history that cannot
+        fit the binding's retained-history limit (`artifact_history_protected`,
+        not retryable).
+      headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
+      content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
+    ArtifactWriteUnavailable:
+      description: >-
+        Transfer capacity exhausted, a definite database transaction conflict
+        exhausted retries, or history maintenance pending
+        (`artifact_history_maintenance_pending`, which carries Retry-After)
+        (retryable); or stored content missing/corrupt (not automatically
+        retryable).
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestId'}
+        Retry-After:
+          required: false
+          schema: {type: integer, minimum: 1, maximum: 60}
       content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
     PayloadTooLarge: {$ref: '#/components/responses/Error413'}
     RateLimited:
@@ -14452,7 +14418,7 @@ components:
       properties:
         config: {$ref: '#/components/schemas/RuntimeConfigRef'}
     RuntimeCredentialKind:
-      enum: [otlp-headers@1, http-proxy-basic@1, http-proxy-bearer@1, caido-bearer@1, interactsh-token@1, http-origin-basic@1, http-origin-bearer@1]
+      enum: [otlp-headers@1, http-proxy-basic@1, http-proxy-bearer@1, caido-bearer@1, interactsh-token@1, http-origin-basic@1, http-origin-bearer@1, target-basic@1, target-bearer@1, target-login@1]
     RuntimeCredentialMetadata:
       type: object
       additionalProperties: false
@@ -14490,8 +14456,8 @@ components:
       additionalProperties: false
       required: [username, password]
       properties:
-        username: {type: string, minLength: 1, maxLength: 256}
-        password: {type: string, minLength: 1, maxLength: 8192, writeOnly: true}
+        username: {$ref: '#/components/schemas/BasicCredentialUsername'}
+        password: {$ref: '#/components/schemas/BasicCredentialPassword'}
     HTTPProxyBearerMaterial:
       type: object
       additionalProperties: false
@@ -14528,13 +14494,26 @@ components:
           pattern: '^[!-~]+(?:[ \t]+[!-~]+)*$'
           writeOnly: true
           description: An HTTP/1.1 field value sent unchanged by every client (RCF-R114), visible ASCII characters with runs of space or tab only between them.
+    BasicCredentialUsername:
+      type: string
+      minLength: 1
+      maxLength: 256
+      pattern: '^[^\x00-\x1F\x7F:]+$'
+      description: The username of a Basic credential, at most 256 UTF-8 bytes without control characters or a colon (RCF-R114).
+    BasicCredentialPassword:
+      type: string
+      minLength: 1
+      maxLength: 8192
+      pattern: '^[^\x00-\x1F\x7F]+$'
+      writeOnly: true
+      description: The password of a Basic credential, at most 8,192 UTF-8 bytes without control characters (RCF-R114).
     HTTPOriginBasicMaterial:
       type: object
       additionalProperties: false
       required: [username, password]
       properties:
-        username: {type: string, minLength: 1, maxLength: 256}
-        password: {type: string, minLength: 1, maxLength: 8192, writeOnly: true}
+        username: {$ref: '#/components/schemas/BasicCredentialUsername'}
+        password: {$ref: '#/components/schemas/BasicCredentialPassword'}
     HTTPOriginBearerMaterial:
       type: object
       additionalProperties: false
@@ -14547,6 +14526,43 @@ components:
           pattern: '^[!-~]+(?:[ \t]+[!-~]+)*$'
           writeOnly: true
           description: An HTTP/1.1 field value sent unchanged by every client (RCF-R114), visible ASCII characters with runs of space or tab only between them.
+    TargetBasicMaterial:
+      type: object
+      additionalProperties: false
+      required: [username, password]
+      properties:
+        username: {$ref: '#/components/schemas/BasicCredentialUsername'}
+        password: {$ref: '#/components/schemas/BasicCredentialPassword'}
+    TargetBearerMaterial:
+      type: object
+      additionalProperties: false
+      required: [token]
+      properties:
+        token:
+          type: string
+          minLength: 1
+          maxLength: 8192
+          pattern: '^[!-~]+(?:[ \t]+[!-~]+)*$'
+          writeOnly: true
+          description: An HTTP/1.1 field value sent unchanged by every client (RCF-R114), visible ASCII characters with runs of space or tab only between them.
+    TargetLoginMaterial:
+      type: object
+      additionalProperties: false
+      required: [fields]
+      properties:
+        fields:
+          type: object
+          minProperties: 1
+          maxProperties: 16
+          propertyNames: {pattern: '^[a-z][a-z0-9_-]{0,63}$'}
+          additionalProperties:
+            type: string
+            minLength: 1
+            maxLength: 8192
+            pattern: '^[^\x00-\x1F\x7F]+$'
+            writeOnly: true
+          writeOnly: true
+          description: Named login secret fields (RCF-R184); each value is at most 8,192 UTF-8 bytes without control characters, and the values total at most 16 KiB.
     CreateRuntimeCredentialRequest:
       oneOf:
         - type: object
@@ -14598,6 +14614,27 @@ components:
             credentialId: {$ref: '#/components/schemas/RuntimeCredentialId'}
             kind: {type: string, const: http-origin-bearer@1}
             material: {$ref: '#/components/schemas/HTTPOriginBearerMaterial', writeOnly: true}
+        - type: object
+          additionalProperties: false
+          required: [credentialId, kind, material]
+          properties:
+            credentialId: {$ref: '#/components/schemas/RuntimeCredentialId'}
+            kind: {type: string, const: target-basic@1}
+            material: {$ref: '#/components/schemas/TargetBasicMaterial', writeOnly: true}
+        - type: object
+          additionalProperties: false
+          required: [credentialId, kind, material]
+          properties:
+            credentialId: {$ref: '#/components/schemas/RuntimeCredentialId'}
+            kind: {type: string, const: target-bearer@1}
+            material: {$ref: '#/components/schemas/TargetBearerMaterial', writeOnly: true}
+        - type: object
+          additionalProperties: false
+          required: [credentialId, kind, material]
+          properties:
+            credentialId: {$ref: '#/components/schemas/RuntimeCredentialId'}
+            kind: {type: string, const: target-login@1}
+            material: {$ref: '#/components/schemas/TargetLoginMaterial', writeOnly: true}
     PinnedRuntimeConfig:
       type: object
       additionalProperties: false

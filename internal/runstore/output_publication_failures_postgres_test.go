@@ -56,11 +56,10 @@ func TestPostgresStageOutputPublicationFailuresCountOnlyWhileFinalizing(t *testi
 	}); err != nil {
 		t.Fatal(err)
 	}
-	revision := "revision-publication-failures"
 	candidate := stageresult.StageContentResult{
 		APIVersion: contracts.APIVersion, Outcome: stageresult.StageSucceeded, Summary: "copied",
 		Artifacts: map[string]contracts.ArtifactRef{
-			"copied": {Namespace: "builder", Name: "result", Revision: &revision},
+			"copied": storeTestRunArtifact(t, ctx, store.db, run.RunID, "builder", "result"),
 		},
 	}
 	if err := store.EnterFinalizing(ctx, EnterFinalizingParams{

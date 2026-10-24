@@ -451,7 +451,7 @@ func validImportRequest(request ImportRequest) bool {
 
 // lockFindingImportAuthority takes the source-Run and destination-Audit locks
 // that every hold creation in tx relies on, in the order Run deletion and
-// Audit purge use.
+// Audit purge use, and then the Project's finding correlation fence.
 func lockFindingImportAuthority(
 	ctx context.Context, tx pgx.Tx, request ImportRequest, collection bool,
 ) error {
@@ -474,10 +474,11 @@ SELECT project_id FROM workflow_runs
 		return ErrAuditClosed
 	}
 	// Keep Run -> Audit authority unchanged. Project artifact admission takes
-	// FOR SHARE, so acquire the non-key parent lock without waiting before any
-	// retained artifact write; otherwise a Project deleter can wait on our
+	// the Project row FOR SHARE and waits for a Project deleter that holds it,
+	// so take the fence, which shares the Project row without waiting, before
+	// any retained artifact write; otherwise a Project deleter can wait on our
 	// Audit while its parent lock blocks that artifact admission.
-	if _, err := tx.Exec(ctx, "SELECT contractor_lock_finding_correlation_project($1)", sourceProjectID); err != nil {
+	if err := hookstore.NewFindingEventsTx(tx).LockFindingCorrelationFence(ctx, sourceProjectID); err != nil {
 		return fmt.Errorf("lock Project correlation before finding retention: %w", err)
 	}
 	return nil

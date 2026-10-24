@@ -184,7 +184,9 @@ func TestPostgresFindingRunDeletionSerializesWithAuditPurge(t *testing.T) {
 			}
 			waitingQuery := "ORDER BY audit.audit_id"
 			if first == "run deletion" {
-				waitingQuery = "FOR UPDATE OF audit, claim"
+				// The purge gate's closing FOR UPDATE lies past the recorded
+				// query prefix; its drain predicate opens the statement.
+				waitingQuery = "audit.dispatch_state = 'closed' AND audit.hold_state <> 'held'"
 			}
 			// In particular, deletion must wait on the Audit before taking any
 			// retention/artifact locks held by the purger. A later Audit UPDATE
@@ -385,16 +387,23 @@ func awaitDeletionDatabaseWait(t *testing.T, fixture deletionImportFixture, wait
 	for {
 		var blocked bool
 		var query string
+		var recorded int
 		if err := fixture.pool.QueryRow(ctx, `
-SELECT $2::integer = ANY(pg_blocking_pids($1::integer)), query
-  FROM pg_stat_activity WHERE pid = $1`, waiter, holder).Scan(&blocked, &query); err != nil {
+SELECT $2::integer = ANY(pg_blocking_pids($1::integer)), query,
+       pg_size_bytes(current_setting('track_activity_query_size'))::integer
+  FROM pg_stat_activity WHERE pid = $1`, waiter, holder).Scan(&blocked, &query, &recorded); err != nil {
 			t.Fatalf("backend %d never waited on backend %d: %v", waiter, holder, err)
 		}
 		if blocked {
-			if !strings.Contains(query, expectedQuery) {
-				t.Fatalf("backend %d waited at the wrong lock stage; expected query containing %q, got %s", waiter, expectedQuery, query)
+			if strings.Contains(query, expectedQuery) {
+				return
 			}
-			return
+			// pg_stat_activity keeps only the first track_activity_query_size
+			// bytes minus the terminator; a fragment past them cannot match.
+			if len(query) >= recorded-1 {
+				t.Fatalf("backend %d waits in a statement whose recorded text stops at %d bytes before %q; match a fragment inside the prefix: %s", waiter, len(query), expectedQuery, query)
+			}
+			t.Fatalf("backend %d waited at the wrong lock stage; expected query containing %q, got %s", waiter, expectedQuery, query)
 		}
 	}
 }

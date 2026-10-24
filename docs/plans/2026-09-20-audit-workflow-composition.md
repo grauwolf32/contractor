@@ -1,6 +1,6 @@
 # Audit preparation and Workflow composition
 
-Date: 2026-09-20. Series: **V62**. Status: **selected preparation/source-to-scan delivery implemented and verified on 2026-10-21; iterative extensions remain deferred**.
+Date: 2026-09-20. Series: **V62**. Status: **preparation/source-to-scan delivery implemented and verified on 2026-10-21; V62-005/006/007/013 pending by explicit user direction on 2026-10-24; V62-008 remains deferred**.
 
 After review, the user requested explicit deferral of disputed work and accepted
 the order supplied OpenAPI → useful scan results → source preparation. Nuclei
@@ -37,11 +37,27 @@ that check's item already exists. The preparation contract must extend exact
 input mappings to accepted outputs without coupling an inventory implementation
 to a particular Workflow name or graph shape.
 The [task index](../../tasks/index.yml) and individual V62 files own execution
-status; this document does not establish feature readiness. Tasks V62-005/006/007/008
-have status `deferred`, priority P2 and explicit reactivation conditions. Neither
-dependency completion nor broad instructions to continue V62 reactivate them.
+status; this document does not establish feature readiness. By explicit user
+direction on 2026-10-24, V62-005/006/007/013 are pending with unchanged
+dependencies. V62-008 remains deferred; its reactivation condition is unchanged.
 
-## Current delivery decision (2026-10-21)
+## Iterative planning update (2026-10-24)
+
+The [hypothesis-search plan](2026-10-24-audit-hypothesis-search.md) revises
+V62-005 (settled result snapshots), V62-006 (exact retained dependencies) and
+V62-007 (typed profile routing). They remain generic composition capabilities,
+with no V64 dependency. Their new `audit-iterative-composition-2026-10`
+milestone exits through the pending V62-013 real-process gate. Snapshot and
+dependency holders use V410-010 retention; they do not require live sitemap.
+
+All four tasks are pending under the explicit 2026-10-24 instruction; they
+need completed prerequisites, not another reactivation decision. V62-008
+remains deferred and is not required for cold research from existing materials.
+Completed preparation/scan tasks and
+their `audit-workflow-composition` milestone remain historical delivery
+evidence, not proof that the iterative extensions are implemented.
+
+## Recorded delivery decision (2026-10-21)
 
 The user clarified the delivery order: finish V62-010 → V62-011 → V62-012
 and implement the accepted A overview/B endpoint details first, then start
@@ -67,7 +83,7 @@ selects one AuditProfile and starts an Audit. Preparation analyzes the project
 and generates validated OpenAPI. Server derives the bounded initial worklist
 from the retained OpenAPI revision. Checks consume that same revision, prepare
 concrete requests, scan the selected operations and publish Audit results.
-Assessment snapshots and later routed checks are deferred extensions.
+Assessment snapshots and later routed checks are pending, unimplemented extensions.
 
 ```mermaid
 flowchart TD
@@ -133,10 +149,10 @@ Profiles without preparation keep start-time inventory; all profiles migrate
 to the current mapping schema rather than preserving old canonical
 snapshot bytes. Preparation is opt-in even for an already supplied checklist.
 
-### Explicit input sources and deferred extensions
+### Explicit input sources and pending iterative extensions
 
 `prepare-output` is accepted by V62-001 validation and capability-gated for
-execution. The other proposed additions below remain deferred:
+execution. The other proposed additions below are pending and unimplemented:
 
 | Source | Meaning and allowed consumers |
 | --- | --- |
@@ -144,9 +160,10 @@ execution. The other proposed additions below remain deferred:
 | `round-results` | One immutable, versioned snapshot of the settled current round; usable by assessment |
 | `retained-dependency` | A named exact dependency from the accepted item's dependency manifest; usable by its check Run |
 
-Only `prepare-output` belongs to the active preparation slice. The following
-snapshot and cross-round dependency design is retained for review when
-V62-005/006/007 are explicitly reactivated; V62-001 does not implement it.
+Only `prepare-output` belongs to the delivered preparation slice. The
+following snapshot and cross-round dependency design belongs to pending
+V62-005/006/007; V62-001 does not implement it. Their implementation may start
+after their declared prerequisites complete.
 
 `retained-output` keeps its existing same-round semantics. Validate role kind,
 execution scope, phase order, cycles, required outputs and media compatibility.
@@ -163,13 +180,14 @@ reviews do not rewrite a consumed snapshot. Freeze only after the settlement
 barrier; bound bytes/counts and define partitioning or an explicit limit failure.
 Workers can read evidence only through inputs authorized for their Run.
 
-### Later checks and routing — deferred
+### Later checks and routing — pending
 
 Reuse the typed `proposedChecks` mapping and `retained-dependency` direction in
 [specification 33](../proposals/0033-autonomous-pentest-audits.md).
 Generic routing belongs to V62; pentest recipe, predicate, proof and transport
-semantics remain owned by that separate specification. Fix the shared contract
-when the deferred tasks are reactivated so the two implementations cannot create incompatible mechanisms.
+semantics remain owned by that separate specification. The pending V62 tasks
+settle the shared contract before their dependent implementations, so the two
+paths cannot create incompatible mechanisms.
 
 A profile maps a validated plan schema and phase to an exact `kind: check`
 binding. `verify` and `replay` remain check roles, not new lifecycle kinds.
@@ -203,7 +221,7 @@ does not enable autonomous pentest authorization or change target transport.
 ## Task decomposition
 
 Each file owns its status, scope, dependencies, acceptance and verification.
-The active sequence is 009 → 001 → 002 → 003 → 004 → 010 → 011 → 012.
+The completed preparation sequence was 009 → 001 → 002 → 003 → 004 → 010 → 011 → 012.
 Minimal no-Round public lifecycle support ships in 003; 010 adds richer provenance.
 
 | Task | Deliverable | Depends on within V62 |
@@ -213,16 +231,18 @@ Minimal no-Round public lifecycle support ships in 003; 010 adds richer provenan
 | [002](../../tasks/done/v62-002-audit-preparation-store.yml) | **Accepted:** durable preparation state, executions, retention and migration 98 | 001 |
 | [003](../../tasks/done/v62-003-audit-preparation-controller.yml) | Prepare Runs, recovery and minimal public controls before a Round exists | 002 |
 | [004](../../tasks/done/v62-004-audit-prepared-inventory.yml) | Atomic generated inventory and a profile using existing source-to-OpenAPI Workflow | 003 |
-| [005](../../tasks/v62-005-audit-round-result-snapshots.yml) | **Deferred:** settled round snapshots | 004 |
-| [006](../../tasks/v62-006-audit-retained-dependencies.yml) | **Deferred:** cross-round item dependencies | 004 |
-| [007](../../tasks/v62-007-audit-check-routing.yml) | **Deferred:** proposed-check routing | 005, 006 |
+| [005](../../tasks/v62-005-audit-round-result-snapshots.yml) | **Pending:** settled round snapshots | 004 |
+| [006](../../tasks/v62-006-audit-retained-dependencies.yml) | **Pending:** cross-round item dependencies | 004 |
+| [007](../../tasks/v62-007-audit-check-routing.yml) | **Pending:** proposed-check routing | 005, 006 |
 | [008](../../tasks/v62-008-project-analysis-preparation.yml) | **Deferred:** standalone analysis and two-Workflow preparation | 004 |
 | [010](../../tasks/done/v62-010-audit-composition-api.yml) | Preparation provenance and scan coverage projections | 004 |
 | [011](../../tasks/done/v62-011-audit-composition-ui.yml) | Prepare/progress/results/dependencies and control journey | 009, 010 |
 | [012](../../tasks/done/v62-012-audit-composition-release.yml) | Mandatory database, process and browser release verification | 011 |
 
-Deferred tasks retain their proposed scope but are excluded from eligible work.
-Existing in-progress tasks outside V62 retain their owners and scope.
+The pending iterative milestone also includes V62-013, whose prerequisites
+are V62-005/006/007. Their exact dependency lists, including V410-010 for new
+holders, remain in the current task files. V62-008 stays deferred and excluded
+from eligible work. Existing in-progress tasks retain their owners and scope.
 
 ## Schema and delivery boundaries
 

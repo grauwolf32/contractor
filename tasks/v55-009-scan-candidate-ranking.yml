@@ -17,6 +17,12 @@ goal: >-
 context:
   authority: User suggested optional LLM filtering of the highest-priority prepared scans.
   design: docs/plans/2026-09-19-scan-tools.md
+  proposal: docs/proposals/0045-audit-hypothesis-search.md#6-prioritization-and-the-v64-revision
+  replanned: >-
+    2026-10-24: proposal 0045 revises the separate Audit search/selection direction.
+    This task still ranks only already prepared scan candidates inside a Run. It is
+    neither a prerequisite for Audit research nor a second Audit-level ranker; status,
+    dependencies and the deterministic ranking-off contract are unchanged.
   specification:
     - docs/spec/tools/scanners.md#SCN-R171
     - docs/spec/tools/scanners.md#SCN-R173
@@ -60,11 +66,11 @@ context:
     scan-plan@1 stays model-free and in the tool lane; the candidate set must
     then be computable before ranking by the same pure code BuildPlan uses.
     Record the choice, the alternatives and the reversal condition in
-    scanners.md (AGENTS.md 3.10). The user's broader priority goal, Audit
-    checklist prioritization (V64, proposal 0034), is deferred pending
-    representative Audit evidence (current_delivery_focus, 2026-10-21); if
-    this task should wait for the same evidence, it needs the user's
-    deferral.
+    scanners.md (AGENTS.md 3.10). The broader Audit search/selection direction
+    is now proposal 0045; it does not choose this scan-stage boundary or
+    make a hypothesis registry mandatory for standalone scans. This task
+    remains independently pending; planning V64 does not change its status
+    or authorize implementation of the unresolved scanner contract choice.
   revalidated: >-
     2026-10-24 on b523ae77: still needed and still not started, but the old
     task predated the normative scan-plan contract. Rewritten as a small
@@ -76,12 +82,12 @@ context:
     goal and the out-of-scope list are unchanged.
 related_work:
   - >-
-    User refined the immediate priority-selection goal to Audit checklist items
-    with optional service/finding context and at least ten checks per pass.
-    V64 specifies that separate Audit feature in
-    docs/proposals/0034-audit-check-prioritization.md (deferred; only the pure
-    core V64-000 is implemented). This narrower scanner-candidate ranking task
-    remains pending and is not a prerequisite for V64.
+    Proposal 0045 replaces the future V64 integration direction with optional
+    Audit research and bounded experiment selection; fixed checklist ranking
+    remains one policy, and a minimum of ten is not a universal requirement.
+    Completed V64-000 remains implementation history. This narrower task
+    ranks existing scanner jobs within an ordinary Run, does not create
+    hypotheses or Audit research cycles, and remains independent of V64.
 scope:
   in:
     - "An opt-in ranking policy per scan Stage, off by default, with its own model selection, deadline and attempt budget."
@@ -91,7 +97,7 @@ scope:
     - "Amend SCN-R171, SCN-R173 and SCN-R196, register the new limits (summary bytes per candidate and in total, reason length) and failure outcomes, and record the boundary decision."
   out:
     - "Model-authored executable commands, scanner arguments, new targets or automatic budget expansion."
-    - "Audit checklist prioritization (V64, deferred)."
+    - "Audit hypothesis generation, research pools, experiment selection and checklist prioritization (V64, proposal 0045)."
     - "Changing BuildPlan's output when ranking is off."
 requirements:
   - id: R1

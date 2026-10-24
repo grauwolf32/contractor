@@ -25,12 +25,18 @@ context:
   - docs/proposals/0033-autonomous-pentest-audits.md#9-recipe-and-deterministic-predicate-contract
   - docs/proposals/0033-autonomous-pentest-audits.md#10-trusted-evidence-proof-and-retention
   - docs/proposals/0033-autonomous-pentest-audits.md#102-result-dimensions
+  - docs/proposals/0045-audit-hypothesis-search.md#33-experiments-and-assessment
   specification:
   - docs/spec/tools/http-caido.md#HTP-R1
   - docs/spec/audits/worker-completion.md
   - docs/spec/audits/execution.md#AUX-R45
   - docs/spec/findings/findings.md#FND-R1
   - docs/spec/execution/worker.md
+  replanned: >-
+    2026-10-24: distinguish a changed immutable recipe/plan from a technical execution
+    retry, as required by proposal 0045. This executor requires exact recipe/context
+    inputs, not a research registry. V64-018 later connects research plans to the same
+    proof contract; task status, dependencies and target retry policy are unchanged.
   code:
   - runtime/src/contractor_runtime/toolsets/common
   - runtime/src/contractor_runtime/toolsets
@@ -50,7 +56,7 @@ scope:
     operands, controls and outcome; Server independently recomputes accepted observation admissibility.
   out:
   - Cross-round admission/routing/fresh-session replay and reproduced proof collection are V411-012;
-    no reimplementation or reactivation of deferred V62 tasks.
+    no reimplementation of the shared V62 tasks in this change.
   - No browser step in HTTP v1, callback oracle, arbitrary code/JavaScript/regex, loops, model-authored
     success authority or timing-only injection proof.
 requirements:
@@ -60,8 +66,9 @@ requirements:
     Do not introduce only an unused validation library.
 - id: R2
   text: Close every schema and step union; preserve exact canonical recipe/predicate digest before
-    the first verification action. Changed payload/control/predicate creates a new attempt, never
-    retroactive success.
+    the first verification action. Changed payload/control/predicate creates a new immutable
+    recipe/plan requiring its own authorized admission, never retroactive success or an automatic
+    target retry. Technical retry retains the original plan identity and existing retry policy.
 - id: R3
   text: Typed substitution cannot change origin/scheme/port, inject headers or escape canonical path
     policy. Runtime revalidates fully resolved requests before permits/sends. Extraction pins producing
@@ -104,8 +111,10 @@ failure_outcomes:
     retain operands leaves explicit unavailable/unknown evidence.
 cardinality:
 - collection: Plans/recipes inside an Audit
-  expected: 100 hypotheses, 16 steps per recipe and one observation per invocation
-  maximum: 1000 hypotheses, 64 total steps and the parent 512-Run/100000-action bounds
+  expected: Base allowance of 100 receipt-backed pentest candidates, 16 steps per recipe and one
+    observation per invocation; only admitted plans execute.
+  maximum: Base candidate allowance 1000, 64 total steps per recipe and the parent 512-Run/100000-action
+    bounds. An optional research pool has separate limits and grants no executor capacity.
   bound: Validate one exact document at most 4 MiB under tighter package/evidence limits; no search
     across all artifact bindings to resolve operands.
 - collection: Predicate tree and extracted values
@@ -116,7 +125,7 @@ cardinality:
     only safe regions and exact source receipt references.
 lifecycle:
 - entity: Frozen recipe, observation and executor invocation
-  delete: Exact documents are immutable; later changes create new recipe/attempt. Source deletion
+  delete: Exact documents are immutable; later changes create a new recipe/plan, not a technical retry. Source deletion
     obeys existing retention before accepted use.
   cascade: Cancel/release joins executor and publisher; Audit purge handles retained links after drain.
     No pending callback or background target work survives.

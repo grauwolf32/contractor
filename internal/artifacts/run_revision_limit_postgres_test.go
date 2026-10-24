@@ -5,6 +5,8 @@ package artifacts_test
 import (
 	"context"
 	"errors"
+	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -155,6 +157,63 @@ SELECT (SELECT count(*) FROM artifact_scopes WHERE scope_id = 'limit-run')
 	}
 }
 
+// History retention never refunds a Run's lifetime revision limit (ART-R118,
+// ART-R123): a binding at its history limit removes its oldest revision on
+// every write while the Run's inserted-revision count keeps growing, so the
+// write after the 50,000th answers the limit although the binding retains
+// two revisions, and that refused write removes nothing. UserScope writes
+// made alongside never charge the Run, and outputs keep their exception.
+func TestPostgresRunRevisionLimitIsNotRefundedByHistoryRetention(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	pool := isolatedArtifactPool(t, ctx)
+	ctx = WithHistoryPolicy(ctx, NewTestHistoryPolicy(2, 1<<30))
+	createArtifactRun(t, ctx, pool, "limit-run", true)
+	seedRunRevisions(t, ctx, pool, "limit-run", runRevisionLimit-3)
+	service := NewService(NewPostgresRepository(pool))
+	run, _ := service.Run("limit-run")
+	user, _ := service.User("user-1")
+	journal := historyBinding{"run", "limit-run", "notes", "journal"}
+	counted := func() int64 {
+		t.Helper()
+		var count int64
+		if err := pool.QueryRow(ctx, `SELECT revision_count FROM artifact_scopes
+WHERE scope_kind = 'run' AND scope_id = 'limit-run'`).Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+		return count
+	}
+	var current *string
+	for index := range 3 {
+		written, err := run.Write(ctx, journal.ref(), Payload{MediaType: "text/plain", Data: fmt.Appendf(nil, "entry %d", index)}, current)
+		if err != nil {
+			t.Fatalf("write %d: %v", index, err)
+		}
+		current = written.Ref.Revision
+		if _, err := user.Write(ctx, ArtifactRef{Namespace: "notes", Name: fmt.Sprintf("user-%d", index)},
+			Payload{MediaType: "text/plain", Data: []byte("user")}, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	retained := historyRevisions(t, ctx, pool, journal)
+	if len(retained) != 2 || counted() != runRevisionLimit {
+		t.Fatalf("journal retains %v, Run counted %d; want two revisions and %d", retained, counted(), runRevisionLimit)
+	}
+	_, err := run.Write(ctx, journal.ref(), Payload{MediaType: "text/plain", Data: []byte("over")}, current)
+	if !errors.Is(err, ErrRunRevisionLimit) {
+		t.Fatalf("write after the limit = %v, want the Run revision limit", err)
+	}
+	if got := historyRevisions(t, ctx, pool, journal); !slices.Equal(got, retained) || counted() != runRevisionLimit {
+		t.Fatalf("the refused write left %v and count %d", got, counted())
+	}
+	assertHistoryCounters(t, ctx, pool, journal)
+	exact := journal.ref()
+	exact.Revision = current
+	if _, err := artifactstest.BindOutput(ctx, service, "limit-run", "result", exact); err != nil {
+		t.Fatalf("bind output of an exhausted Run: %v", err)
+	}
+}
+
 // seedRunRevisions creates count binding revisions in a RunScope in a few
 // set-based statements, through the revision limit trigger like any other
 // write. The first sharedInputs are inputs forked from UserScope artifacts,
@@ -181,8 +240,8 @@ FROM generate_series(1, $1::int) AS i`, shared}, {`
 INSERT INTO artifact_binding_revisions (scope_kind, scope_id, namespace, name, revision, version_id)
 SELECT 'user', 'user-1', 'sources', 'source-' || i, 'rev-' || i, 'shared-version-' || i
 FROM generate_series(1, $1::int) AS i`, shared}, {`
-INSERT INTO artifact_bindings (scope_kind, scope_id, namespace, name, current_revision)
-SELECT 'user', 'user-1', 'sources', 'source-' || i, 'rev-' || i
+INSERT INTO artifact_bindings (scope_kind, scope_id, namespace, name, current_revision, retained_revisions, retained_bytes)
+SELECT 'user', 'user-1', 'sources', 'source-' || i, 'rev-' || i, 1, 0
 FROM generate_series(1, $1::int) AS i`, shared}, {`
 INSERT INTO artifact_binding_revisions (scope_kind, scope_id, namespace, name, revision, version_id)
 SELECT 'run', $1, 'inputs', 'source-' || i, 'fork-' || i, 'shared-version-' || i
@@ -203,8 +262,8 @@ FROM generate_series($2::int + 1, $3::int) AS i`, scratch}, {`
 INSERT INTO artifact_binding_revisions (scope_kind, scope_id, namespace, name, revision, version_id)
 SELECT 'run', $1, 'scratch', 'item-' || (i % 16667), 'rev-' || i, $1 || '-version-' || i
 FROM generate_series($2::int + 1, $3::int) AS i`, scratch}, {`
-INSERT INTO artifact_bindings (scope_kind, scope_id, namespace, name, current_revision)
-SELECT DISTINCT ON (namespace, name) scope_kind, scope_id, namespace, name, revision
+INSERT INTO artifact_bindings (scope_kind, scope_id, namespace, name, current_revision, retained_revisions, retained_bytes)
+SELECT DISTINCT ON (namespace, name) scope_kind, scope_id, namespace, name, revision, 1, 0
 FROM artifact_binding_revisions
 WHERE scope_kind = 'run' AND scope_id = $1
 ORDER BY namespace, name, revision DESC`, []any{runID}}} {

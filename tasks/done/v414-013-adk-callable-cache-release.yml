@@ -1,0 +1,255 @@
+schema_version: "1.0"
+id: V414-013
+title: "Stop ADK's module-level callable caches from keeping a released allocation's tools alive"
+milestone: review-v407-v409-followups-2026-10
+epic: planner-worker
+kind: defect
+introduced_by: MVP-012
+priority: P2
+status: completed
+implementation_commit: 456727448b697c98efda05b23a7968f84e54f8d2
+depends_on: []
+languages: [python]
+goal: >-
+  After allocation release nothing in the Runtime process, including google-adk's
+  module-level LRU caches, references the allocation's tool instances, their
+  ArtifactClient, sessions or MetricsState, so release erases them as LIFE-WRK-3
+  and RTA-R90 require.
+context:
+  review: >-
+    tasks/done/v407-011-worker-state-publication-cost.yml, verification results:
+    "Pre-existing finding, not fixed (outside scope): ... find_context_parameter
+    is a module-level functools.lru_cache(maxsize=1024) keyed on the tool
+    callable ... the retention itself needs its own defect task."
+  specification:
+    - docs/spec/execution/runtime-agent.md#RTA-R87
+    - docs/spec/execution/runtime-agent.md#RTA-R90
+    - docs/spec/platform/lifecycle.md
+    - docs/spec/platform/security.md#SEC-R32
+  severity: medium
+  finding: >-
+    runtime/src/contractor_runtime/worker/runtime.py:207 wraps every
+    allocation-bound tool instance in FunctionTool(tool). In the pinned
+    google-adk 2.8.0 (runtime/pyproject.toml google-adk==2.8.0, uv.lock),
+    FunctionTool.__init__ calls google/adk/utils/context_utils.py:67-68
+    find_context_parameter, a module-level @functools.lru_cache(maxsize=1024)
+    whose key is the callable itself, and FunctionTool._get_declaration calls
+    google/adk/tools/function_tool.py:75-76 _build_declaration_cached, a second
+    lru_cache(maxsize=1024) keyed on self.func, on every model request. Both
+    caches hold strong references to the key. Reproduction on 19f7477f
+    (temporary pytest probe using test_allocation.make_service/make_spec):
+    after prepare, finalize, release and gc.collect(), weakrefs to the
+    released read_artifact and write_artifact tools and their ArtifactClient
+    are still alive (find_context_parameter currsize=2); after
+    find_context_parameter.cache_clear() and gc.collect() they are gone.
+    Each retained tool keeps its MetricsState (up to 1000 tool-call records with
+    4 KiB argument summaries), ArtifactClient and toolset session reachable
+    until 1024 newer callables evict them, which is dozens of allocations.
+    runtime/tests/test_worker_state.py:674-678 works around exactly this with a
+    manual cache_clear(). Secret values: every holder inspected erases its
+    secrets on close (ArtifactTool._secrets, HTTP session, Caido metric
+    secrets, Interactsh private values, FindingPublisher.secrets), and in the
+    probe gc.get_referrers on the RuntimeSettings token found only the test's
+    own spec after release, so plaintext retention is not demonstrated; the
+    retained graph still violates LIFE-WRK-3 ("Release erases ... clients")
+    and makes SEC-R32 depend on every close() succeeding.
+  siblings: >-
+    Both ADK caches (find_context_parameter and _build_declaration_cached) are
+    in scope. Other ADK callers of find_context_parameter (mcp_tool,
+    workflow/_function_node, eventarc) are not used by the Runtime.
+    ContractorSkillTool (agent_skills/runtime.py:253) subclasses BaseTool and
+    does not pass through these caches; verify and record. The summarizer and
+    result finalizer LlmAgents receive no FunctionTools; verify and record.
+    test_worker_state.py:674-678 must drop its cache_clear() workaround.
+  provenance: >-
+    The FunctionTool(tool) pattern over allocation-bound tool instances was
+    added in a565c242 ("feat: add ADK worker and allocation-scoped A2A",
+    runtime/src/contractor_runtime/adk_runtime.py:124), the
+    implementation_commit of tasks/done/mvp-012-python-adk-a2a.yml (MVP-012),
+    with google-adk pinned at 2.8.0 from the same commit; 22b5ebc1 (V17-002)
+    only moved the line.
+  decision: >-
+    Choose and record (AGENTS 3.10) one of: (a) clear both caches at the end
+    of allocation release after every tool is closed; the Runtime has one
+    allocation slot, so no other allocation's entries exist, and the cost is
+    one declaration rebuild per tool per allocation; it touches a private ADK
+    name (_build_declaration_cached), so a guard test must fail when an ADK
+    upgrade renames or removes it; (b) hand FunctionTool an allocation-agnostic
+    callable (for example a thin wrapper that exposes the tool's signature and
+    docstring and reaches the tool through a weak reference cleared at
+    release), so the cached key retains nothing allocation-owned; (c) subclass
+    FunctionTool to bypass both caches. Reversal condition: an ADK release
+    that keys these caches weakly or per instance.
+scope:
+  in:
+    - "Remove the retention for both ADK caches with the chosen design, applied in the release path
+      (allocation/service.py release) or at tool construction, for every Toolset."
+    - "Record the decision, alternatives and reversal condition in docs/spec/execution/runtime-agent.md
+      next to RTA-R90 (new numbered requirement) and in this task."
+    - "A regression test on the real prepare -> invocation (fake model that triggers declaration
+      building) -> finalize -> release path, without a manual cache_clear(), asserting that tools,
+      their ArtifactClient and the MetricsState are collected and that no object still refers to
+      the RuntimeSettings secret values."
+    - "Drop the cache_clear() workaround in test_worker_state.py."
+  out:
+    - "Upstream ADK changes or a google-adk version bump."
+    - "Changing tool close() semantics, metric retention bounds or the release protocol."
+failure_outcomes:
+  - operation: "Cache eviction or wrapper teardown during release"
+    permanent: "A failure to clear is a Runtime bug: release must still erase State and secrets
+      and report the cleanup failure through the existing release-cleanup error path, keeping the
+      slot fenced (RTA-R91)."
+    retryable: "An idempotent release retry repeats the step."
+    ambiguous: "Not applicable; local in-process state only."
+    cancelled: "Release cleanup is not cancellable by the tool call; the step runs after tools are
+      closed."
+    timeout: "Owned by the existing release cleanup deadline."
+acceptance_criteria:
+  - id: A1
+    given: "An allocation prepared with run-artifacts tools and one Worker invocation that builds tool
+      declarations"
+    when: "it is finalized and released and gc.collect() runs, with no test-side cache_clear()"
+    then: "weak references to every tool, its ArtifactClient and the allocation MetricsState are dead"
+  - id: A2
+    given: "The same scenario with HTTP, Caido or Interactsh toolsets prepared through their test
+      adapters where available"
+    when: "release completes"
+    then: "no live object refers to the RuntimeSettings secret values or the session credentials"
+  - id: A3
+    given: "Two allocations prepared one after the other in the same process"
+    when: "the second runs after the first is released"
+    then: "the second's tools work and their declarations are identical to a fresh process"
+  - id: A4
+    given: "The unfixed implementation (19f7477f)"
+    when: "the A1 regression test runs"
+    then: "it fails because the released tools are still reachable from the ADK caches"
+tests:
+  - command: "cd runtime && uv run --locked pytest -q tests/test_worker_state.py tests/test_allocation.py tests/test_adk_runtime.py"
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A3]
+decisions:
+  - >-
+    Chosen: option (a). AllocationService clears both ADK caches through
+    contractor_runtime.worker.adk_caches.release_adk_tool_caches at the end
+    of _run_release_cleanup, after every Toolset is closed and State,
+    RuntimeSettings and the prepare response are dropped, and in the
+    non-execution branch of _rollback_prepare after the tools are closed (the
+    execution branch already runs _run_release_cleanup). A failure in release
+    raises through the existing allocation_cleanup_failed path, leaves
+    release_prepared false and the slot fenced, and the idempotent retry
+    repeats the step; a failure in rollback marks it failed, which fences the
+    slot and forces exit as any other rollback failure does. Recorded as
+    RTA-R116 with its rationale in docs/spec/execution/runtime-agent.md.
+  - >-
+    ADK version and caches checked: google-adk 2.8.0 (runtime/pyproject.toml,
+    uv.lock). The caches that key on a FunctionTool callable are
+    google/adk/utils/context_utils.py:67-68 find_context_parameter
+    (lru_cache(maxsize=1024), called by FunctionTool.__init__ at
+    function_tool.py:140 and by build_function_declaration at
+    _automatic_function_calling_util.py:165) and
+    google/adk/tools/function_tool.py:75-76 _build_declaration_cached
+    (lru_cache(maxsize=1024), called by FunctionTool._get_declaration at
+    function_tool.py:149 on every model request). Every other memoization in
+    the package was ruled out: workflow/_function_node.py:88
+    _get_type_hints_for_unwrapped (Workflow FunctionNode, not used by the
+    Runtime), plugins/auto_tracing_helpers.py:103 and :108 (keyed on a type
+    and on a parameter name), models/registry.py:146 LLMRegistry.resolve (model
+    name string), flows/llm_flows/contents.py:46, telemetry/_agent_engine.py:223,
+    cli/utils/envs.py:30, sessions/_restricted_pickle.py:142 and
+    memory/vertex_ai_memory_bank_service.py:131 and :153 (no callable key),
+    and the WeakKeyDictionaries in flows/llm_flows/functions.py:75 (keyed on
+    the event loop) and mcp_tool/_agent_to_mcp.py:215 (weak). The Runtime's
+    own only memoization is toolsets/common/cwe.py:27 (no arguments).
+    adk_caches resolves both names at import, so an upgrade that renames or
+    removes one fails Runtime startup; an upgrade that keys them weakly or
+    per instance fails test_adk_tool_caches_keep_wrapped_callables_until_released,
+    which checks each cache separately.
+  - >-
+    Alternatives rejected. (b) An allocation-agnostic wrapper reaching the tool
+    through a weak reference: ADK derives the declaration and the call from
+    the callable's __name__, __doc__, inspect.signature, typing.get_type_hints
+    (falling back to __call__) and coroutine kind, so the wrapper would have to
+    reproduce that introspection for sync and async tools, and the cached
+    FunctionDeclaration values would still keep allocation-specific
+    descriptions (code_execution formats its limits into the description).
+    (c) A FunctionTool subclass that bypasses both caches would have to
+    re-implement FunctionTool.__init__ (find_context_parameter runs there) and
+    _get_declaration, touching more private ADK names than (a). Cost of (a):
+    one declaration build per tool per allocation; the next allocation's new
+    tool instances would miss the cache anyway. Reversal condition: a
+    google-adk release that keys these caches weakly or per instance.
+  - >-
+    Siblings verified. ContractorSkillTool (agent_skills/runtime.py:253)
+    subclasses BaseTool and wraps ADK's native ListSkillsTool, LoadSkillTool,
+    LoadSkillResourceTool and RunSkillScriptTool, all BaseTool subclasses;
+    SkillToolset is built without additional_tools, so its FunctionTool path
+    (skill_toolset.py:1235) is unreachable. A temporary probe that recorded
+    every call of both caches saw none while
+    test_worker_uses_exact_native_script_free_skill_surface and
+    test_worker_loads_binary_skill_asset_through_text_gateway ran Skill-only
+    Workers, and saw exactly ReadArtifactTool and WriteArtifactTool for
+    test_adk_worker_executes_selected_tools_and_validates_exact_result. The
+    result finalizer (worker/finalizer.py:92) and terminal summarizer
+    (worker/summarizer.py:232) LlmAgents pass tools=[], so ADK adds no
+    SetModelResponseTool and no FunctionTool. worker/runtime.py:207 is the
+    only FunctionTool construction in runtime/src; tool@1 builds none.
+  - >-
+    A2 found no plaintext retention on the unfixed code either: the content
+    scan after release is empty with or without the fix, because every holder
+    erases its secrets on close. The A2 test still fails on the unfixed code,
+    because the HTTP, Caido and Interactsh tools and their sessions stay
+    reachable; its scan proves it can see the secrets by finding holders
+    before release.
+verification:
+  date: '2026-10-24'
+  environment: >-
+    macOS arm64; Go 1.26.9 and Node 24.20 (portable copies under /private/tmp),
+    the locked Runtime venv (google-adk 2.8.0) and a pnpm UI install for make
+    lint; branch claude/v414-rt, fix 45672744, main 17245309 merged in
+    e41bc652.
+  commands:
+    - >-
+      cd runtime && uv run --locked pytest -q tests/test_worker_state.py
+      tests/test_allocation.py tests/test_adk_runtime.py: exit 0 (206 passed
+      before the cache-failure test was added; 207 passed, 0 skipped, on
+      45672744 and again on e41bc652). With test_agent_state_endpoint.py,
+      test_audit_completion_diagnostics.py and test_http_caido_process_e2e.py,
+      which import test_allocation, and -W error: 290 passed.
+    - >-
+      A4: with only the service.py change reverted (the unfixed release path
+      of 19f7477f), six tests fail because released tools stay reachable:
+      test_release_leaves_no_allocation_tool_reachable_after_an_invocation
+      (metrics and both tools alive),
+      test_failed_prepare_rollback_leaves_no_allocation_tool_reachable,
+      test_failed_cache_release_keeps_the_slot_fenced_until_the_retry_repeats_it,
+      test_next_allocation_rebuilds_identical_tool_declarations (2 clients
+      alive), test_release_retains_no_adapter_secret_or_session_credential
+      (metrics and the HTTP, Caido and Interactsh tools alive) and
+      test_worker_state.py::test_released_allocation_retains_no_worker_state_projection
+      without its former cache_clear().
+    - "make lint: exit 0 on 45672744 and on e41bc652 (the dependency graph was regenerated for the new module and spec text)."
+    - >-
+      make test-runtime on 45672744, run beside other lanes: 4601 passed, 39
+      skipped, 106 failed. On e41bc652: 4613 passed, 39 skipped, 109 failed.
+      The macOS set V401-007 records accounts for 105 of the 109: 95 in
+      test_podman_*.py (capabilities 32, supervisor 18, allocation 15,
+      command_coordination 13, network 9, recovery 5, workflow 2, engine 1)
+      and the 10 code_analysis_graph, code_analysis_shallow,
+      local_direct_faults[socket], projectfs_local_direct (2),
+      projectfs_local_io, tool_process (2) and trailmark_child (2) cases.
+      The other four pass when rerun on their own (86 passed with their
+      files): test_podman_settings.py::test_invalid_or_unsupported_podman_options_fail[arguments3]
+      and test_source_analysis_toolset.py::test_source_path_selection_runs_off_the_event_loop_at_the_entry_bound[10000]
+      failed only on unraisable ResourceWarnings for AF_UNIX sockets leaked by
+      the failing Podman tests (on 45672744 the same cascade hit
+      test_podman_contracts.py::test_execution_contract_is_not_an_installed_factory_or_capability),
+      and test_workspace_timeouts.py::test_configured_io_budget_and_shorter_close_deadline_preserve_owner
+      and ::test_initialization_uses_earlier_operation_or_enclosing_deadline
+      failed with workspace_unavailable under load. None touches allocation
+      release or the ADK caches.
+  notes: >-
+    test_workspace_timeouts.py runs real workspace I/O under a 0.1 s
+    --workspace-operation-timeout-seconds budget and a 5 s hydrate timeout, a
+    wall-clock deadline that a loaded machine misses (AGENTS 3.5). It is
+    outside this task and is reported for its own task.

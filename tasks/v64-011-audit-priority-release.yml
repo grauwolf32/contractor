@@ -1,101 +1,194 @@
-schema_version: "1.0"
+schema_version: '1.0'
 id: V64-011
-title: Verify contextual checklist prioritization across process and browser boundaries
+title: Verify deterministic hypothesis search and unchanged direct execution end to end
 milestone: audit-check-prioritization
 epic: audits
-kind: feature
+kind: chore
 priority: P2
-status: deferred
-deferral:
-  date: "2026-10-21"
-  previous_status: pending
-  previous_priority: P1
-  reason: User deferred the remaining V64 integration to focus on authenticated HTTP continuity and completion of the existing V62 audit journey.
-  reactivate_when: Explicit user decision after cookies and V62 are delivered and representative audit measurements show that model-based prioritization improves useful-result yield or time/cost over fixed ordering.
-implementation_commit: null
-depends_on: [V64-009, V64-010]
-languages: [go, python, typescript, yaml, markdown]
-goal: >-
-  Gate release on complete-pool independent verdicts, exact minimum-ten selection,
-  truthful deferred coverage and durable recovery through real service boundaries.
+status: pending
+depends_on:
+- V64-009
+- V64-010
+- V64-015
+- V62-013
+languages:
+- go
+- python
+- typescript
+- yaml
+- markdown
+goal: Gate the first optional research release on working feedback, exact context, recovery and a separately
+  proven deterministic bypass; model ranking and attack trees are not prerequisites.
 context:
-  authority: User requested task specifications followed by detailed review before implementation of Audit checklist prioritization.
-  design: docs/plans/2026-09-20-audit-check-prioritization.md
-  specification: [docs/proposals/0034-audit-check-prioritization.md, docs/spec/audits/audits.md]
-  boundary: Use disposable local infrastructure and scripted gateway replies; this gate proves behavior and persistence, not live-model ranking quality.
-  revalidated: >-
-    2026-10-24 on b523ae77: still deferred under execution_policy.current_delivery_focus, not
-    superseded. The deliveries named in reactivate_when have landed (cookie persistence V377-001,
-    c50d6ab0; the V62 journey through V62-012, 8c2441f0) and every dependency outside V64 is
-    complete (V64-000, V62-001, V62-002, V62-003, V25-011); what remains is representative audit
-    evidence and an explicit user decision. The new plans do not supersede it: proposal 0033 section
-    14 says V64 is not a prerequisite, its section 8.2 orders pentest hypotheses by frozen
-    assessment order, policy, budget and plan digest rather than per-candidate model verdicts,
-    V411-012 excludes V64 ranking integration, and V55-009 (pending scanner ranking) stays
-    independent per proposal 0034. The V64-000 pure core in internal/auditpriority (domain layer,
-    internal/archtest/layers_test.go:117) still has no production importer:
-    tools/testonlyexports/baseline.txt:67-70 holds BindVerdict and DecodeVerdict for V64-005 and
-    ResolveTopN and SelectionDigest for V64-006, so archiving the series would also require removing
-    those exports. Its schema and fixtures live in api/audit-priority/v1, not the
-    api/testdata/audit-priority path named in the V64-001, V64-005 and V64-010 deliverables.
-    Proposal 0034 was last refreshed on 2026-10-21 (631d6d51) and already cites the domain
-    specification documents. Task-specific: the Makefile is split into make/*.mk;
-    scripts/check_release_verify_graph.py requires new e2e tests to run in release-verify or carry
-    an allowlist reason; family targets skip inside release-verify (RELEASE_CONSOLIDATED=1);
-    test-audits-e2e, test-audit-program-library-e2e and test-audit-completion-e2e still exist.
+  authority: >-
+    On 2026-10-24 the user explicitly requested pending status for the reviewed
+    proposal 0045 plan, including shared V62 prerequisites. The earlier deferral
+    is historical; dependency completion still gates implementation start.
+  proposal: docs/proposals/0045-audit-hypothesis-search.md
+  design: docs/plans/2026-10-24-audit-hypothesis-search.md
+  specification:
+  - docs/spec/audits/audits.md
+  - docs/spec/audits/execution.md
+  - docs/spec/artifacts/artifact-store.md
+  - docs/spec/platform/persistence.md
+  deterministic_boundary: Direct Runs and current deterministic Audit inventories bypass research; no
+    mandatory hypotheses, generation, ranking, new Scheduler mode or attack tree.
+  implementation_boundary: Each new table, state, export and schema must have its named production writer/reader
+    in this task; include the smallest actual integration caller, not a test-only placeholder waiting
+    for another task.
+  previous_definition:
+    revision: a31579d33e81315818a277b822e3b087ce5c76c1
+    path: tasks/v64-011-audit-priority-release.yml
+    title: Verify contextual checklist prioritization across process and browser boundaries
+    depends_on:
+    - V64-009
+    - V64-010
+    note: The former fixed-checklist/minimum-ten integration scope is replaced by this task. Its original
+      definition and deferral history remain in Git; completed V64-000 is unchanged.
 scope:
   in:
-    - Add a fail-on-missing/skip case matrix mapping all V64 acceptance criteria to executable owners and reporting exact case counts.
-    - Run ordinary prioritization Runs through real Server/PostgreSQL/Scheduler and scripted gateway with zero Runtime registrations, asserting no allocations or Worker calls.
-    - Run the standalone checklist profile through real Runtime-selected checks, fixed Round barriers and multiple passes, then inspect full inventory and provenance via public APIs and authenticated browser.
-    - Cover 0, 1, 3, 9, 10, 11, 25, 100, 1000 and 1001 candidate boundaries, topN nine rejection/twelve acceptance, 100 candidates with ten execution slots, stable ties, absent context and high-priority deferral.
-    - Inject invalid/missing model responses, invented references, exhausted model/check budgets and approval rejection/expiry; prove no partial scores, undersized Round or replacement backfill is accepted.
-    - Inject restart, lost replies, duplicate receipts, claim races and cancellation/Run-Stage-cycle-deadline/delete at per-item intent, dispatch, result acceptance and atomic Round admission boundaries.
-    - Expire the Audit admission deadline before a Round and during ranking, assert pause with admitted Stage drain, then extend/disable/resume without repeating accepted verdicts or accepting a Round while paused.
-    - Verify immutable snapshots, exact cycle pagination, retained evidence after source Run deletion, ownership fences and complete reference/credential hold cleanup.
-    - Preflight an impossible final candidate/token total with zero observed gateway calls, verify whole-pool/per-call reservation transfer and eleven-Run capacity accounting without replay double charges, and reconcile separate Audit/cycle coverage counts.
-    - Run current-schema Audit, review, completion, profile canonicalization, obsolete-schema rejection and Scheduler/scan regressions and document capability rollout plus residual limitations.
+  - Build a fail-on-missing process/browser matrix for cold starts, deterministic next-step changes, many-to-many
+    assessments, context materialization and lifecycle recovery.
+  - Start real Server/PostgreSQL/Runtime with scripted or deterministic producers, preserving current
+    configured model policy; prove selection without a ranker.
+  - Assert direct model-free Run and deterministic Audit execution with zero hypothesis/cycle records
+    and zero generator/ranker calls.
+  - Register test-audit-research-e2e and its process/browser/store suites in release verification, respecting
+    consolidated gate behavior.
+  - Publish measured contract evidence and operator-facing feature limits without treating scripted success
+    as model-quality evidence.
   out:
-    - Deploy production or demo services, call paid models, scan external targets or claim ranking accuracy from scripted responses.
-deliverables:
-  - path: Makefile
-    description: New test-audit-priority-e2e fail-on-missing release target combining mandatory process, browser and current-schema regression selections.
-  - path: scripts/test-audit-priority-e2e.py
-    description: New prerequisite-checking orchestrator with executed case counts, zero-match detection and no silent mandatory skips.
-  - path: tests/e2e/audit_priority_matrix.yml
-    description: New explicit contract/fault matrix tracing all V64 acceptance criteria to required executable cases.
-  - path: tests/e2e
-    description: Real process and database cases with scripted gateway, ranking without Runtime and actual Runtime-selected checks.
-  - path: ui/e2e
-    description: Authenticated browser creation, ranking, selected/deferred coverage, review, later-pass and failure journeys.
-  - path: docs/guides/audits.md
-    description: Verified rollout prerequisites, bounded behavior, recovery diagnostics and known first-version limitations.
-  - path: tasks/evidence/v64-011.json
-    description: Create during implementation verification only with actual revision, commands, cases, prerequisites, browser artifacts and remaining limitations.
+  - Live quality experiments, external target scans, deployment or mandatory optional adapters.
+  - Implementation during this planning change, changing existing task statuses, or modifying completed/in-progress
+    task records.
 acceptance_criteria:
-  - id: A1
-    text: Real ranking succeeds with no Runtime; real selected checks require and use Runtime normally, with model/Worker/allocation counts proving the intended boundary.
-  - id: A2
-    text: The authenticated browser/API multiround journey proves full-pool scoring, exact min(topN, remaining) membership, independent baseline progression and whole-inventory report coverage.
-  - id: A3
-    text: Every required fault and boundary executes and proves durable identities, no repeated unknown calls, no partial or undersized admission, truthful outcomes and bounded budgets/holds.
-  - id: A4
-    text: Ownership, immutable context/report history, exact-revision pagination and retained provenance survive source deletion and concurrent analyst/control edits without data leaks.
-  - id: A5
-    text: Current-schema non-prioritized Audit, profile, review, completion, Scheduler and scan paths pass regression gates with obsolete-schema rejection; mandatory skips or zero-match selections fail release, and historical schema bytes or old client support are not required.
+- id: A1
+  given: Guide-only and material-based cold starts
+  when: a multi-Round real process run completes
+  then: Selected later checks reflect prior evidence and retain exact chain, negative results and unknown
+    applicability.
+- id: A2
+  given: Direct deterministic execution without research services selected
+  when: baseline journeys run beside research cases
+  then: Original item membership, route, coverage and retry/cancel behavior remain unchanged with no research
+    calls/rows.
+- id: A3
+  given: Faults at intent, materialization, import and decision admission
+  when: restart, lost response, pause/deadline/cancel and source deletion occur
+  then: Exactly-once logical effects, correct resume/drain and retained evidence are proven.
+- id: A4
+  given: Large sparse pools, conflicts and forbidden/malformed context
+  when: public/browser/store cases execute
+  then: Bounds, source-mode isolation, honest projections and non-last-write assessment hold.
+- id: A5
+  given: The release matrix is run directly and through release verification
+  when: a mandatory case is missing or prerequisites unavailable
+  then: The gate fails rather than reporting empty or skipped success, and executed cases are retained
+    as evidence.
+- id: A6
+  given: A human hypothesis competes with a large automatically generated pool
+  when: manual entry, shortlist, selection and check execute through API/UI/process paths
+  then: The high requested attention is retained, model output cannot impersonate or downgrade it, and
+    blocked requests remain visible without gaining unauthorized execution.
 tests:
-  - command: make test-audit-priority-e2e
-    covers: [A1, A2, A3, A4, A5]
-  - command: make test-audits-e2e test-audit-program-library-e2e test-audit-completion-e2e
-    covers: [A3, A4, A5]
-  - command: go test -race ./internal/planner/... ./internal/scheduler ./internal/controlplane ./internal/scanplan/...
-    covers: [A1, A3, A5]
-  - command: make verify-public-api ui-generate-check ui-typecheck ui-test ui-build test-config
-    covers: [A2, A4, A5]
+- command: make test-audit-research-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+  - A6
+- command: make test-audit-composition-e2e test-audit-completion-e2e
+  covers:
+  - A2
+  - A3
+- command: make verify-public-api ui-verify test-config
+  covers:
+  - A2
+  - A4
+- command: make lint
+implementation_commit: null
+reactivation:
+  date: '2026-10-24'
+  previous_status: deferred
+  reason: Explicit user request to queue the reviewed proposal 0045 tasks as pending.
+  execution_rule: Implementation may start after declared dependencies complete; this update starts no implementation.
+previous_deferral:
+  date: '2026-10-21'
+  previous_status: pending
+  previous_priority: P1
+  reason: User deferred the remaining V64 integration to focus on authenticated HTTP continuity and completion
+    of the existing V62 audit journey.
+  reactivate_when: Explicit user authorization to implement this reviewed proposal 0045 scope, after its
+    declared dependencies are completed. Replanning alone does not activate it.
+  previous_reactivate_when: Explicit user decision after cookies and V62 are delivered and representative
+    audit measurements show that model-based prioritization improves useful-result yield or time/cost
+    over fixed ordering.
+requirements:
+- id: R1
+  text: No dependency on V64-005/016/017/018 or baseline pentest release is allowed in this gate.
+- id: R2
+  text: Every required case executes against the real owning boundary; mandatory skips, unavailable configured
+    databases and zero matching tests fail.
+- id: R3
+  text: The test demonstrates a changed later question from accepted prior evidence, not merely serialization
+    of another summary.
+failure_outcomes:
+- operation: Core release process/browser/store verification
+  permanent: Invalid, foreign, unsupported or oversized input is rejected with the owning V64-001/standard
+    contract reason; deterministic ErrInvalid is never endlessly retried and no partial authoritative
+    result is accepted.
+  retryable: Use existing bounded transient storage/provider retries for the owning operation; retry attempt/deadline
+    limits are explicit and do not switch research policies or models.
+  ambiguous: Reconcile the same existing keyed mutation, accepted producer association or exact result;
+    never create another logical effect or repeat target activity to repair acknowledgement loss.
+  cancelled: Existing Audit/Run owner fences and join/drain rules apply; allow authorized terminal collection,
+    block new dispatch and release resources only after in-flight work is joined.
+  timeout: Use the owning operation/Run deadline. Audit admission deadline pauses and drains; non-time
+    budget exhaustion follows bounded finalization with gaps.
+cardinality:
+- collection: Required release cases
+  expected: All declared cold-input, lifecycle, association and direct-bypass cases
+  maximum: Task contract ceilings including sparse 10,000-hypothesis / 100,000-edge fixtures
+  bound: Explicit executed IDs/counts; bound fixture setup separately from production operation assertions.
+lifecycle:
+- entity: Task-owned research records, exact artifacts and projections
+  delete: Audit/Project ownership and existing deletion gates apply; accepted evidence used by work is
+    retained, not removed by settling or withdrawing a candidate.
+  cascade: Use the owning Audit relations and existing artifact hold lifecycle; register any new holder
+    inventory entry in this change and leave no independent cleanup owner.
+  retention: Preserve exact accepted inputs/results and history through permitted source Run deletion,
+    pause and recovery; release only through the owning lifecycle. Stateless validation/read-only outputs
+    acquire no artificial persistent state.
+deliverables:
+- path: make/features.mk
+  description: New test-audit-research-e2e family with explicit prerequisites and release graph registration.
+- path: scripts/test-audit-research-e2e.py
+  description: New case-counting process/browser orchestrator; no silent skips.
+- path: tests/e2e
+  description: Cold-input, feedback, provenance and lifecycle real-process matrix.
+- path: ui/e2e
+  description: Authenticated research and independent deterministic-path browser cases.
+- path: docs/guides/audits.md
+  description: Verified feature selection, limits and recovery guidance.
+- path: tasks/evidence/v64-011.json
+  description: Create during implementation verification only, using actual revision and executed cases.
 test_prerequisites:
-  - The new test-audit-priority-e2e target, orchestrator and matrix are deliverables, not existing commands or completed verification evidence.
-  - Disposable PostgreSQL via CONTRACTOR_TEST_DATABASE_URL, real Server, controlled scripted gateway, locked Runtime dependencies, mTLS, local fixture inputs and installed browser dependencies.
-  - The ranking-without-Runtime case must start in isolation with zero registered Runtime agents; other cases require actual Runtime check completion rather than fabricated final API responses.
+- Commands are implementation acceptance requirements, not results of this planning change. New named
+  gates must be created, registered and fail on zero matching cases.
+- Persistence/lifecycle acceptance uses disposable PostgreSQL with CONTRACTOR_TEST_DATABASE_URL set; an
+  unavailable configured database or mandatory skipped case fails.
+- Use testdata catalogs and pseudo-Skills, not live configs in unit/integration tests. Shipped configuration
+  has its dedicated validation command.
+- Run complete suites for touched packages; use injected clocks and deterministic work counters. Put timing
+  measurements in benchmarks.
+- test-audit-research-e2e and its orchestrator/matrix are deliverables of this task; no execution evidence
+  exists during planning.
 verification_requirements:
-  - Record complete required case IDs/counts, zero mandatory skips, exact revision, prerequisite versions and process/browser evidence retained after the run.
-  - Keep tasks pending/in_progress until implementation and every required check pass; planning must not populate implementation_commit or invented success evidence.
+- Update owning numbered specifications, strict public/wire contracts and shared fixtures with implementation;
+  do not cite task IDs from normative specifications.
+- Record actual commands, case counts, required prerequisites and exact evidence after implementation.
+  Planning does not populate implementation_commit or fabricate successful checks.
+- Keep direct deterministic behavior, existing claims/receipts and source-to-consumer exact provenance
+  explicit in real-path assertions.

@@ -2,6 +2,7 @@ package artifacts
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -60,6 +61,15 @@ func (r *PostgresRepository) ReadExactBatch(ctx context.Context, requests []Exac
 	}
 	for index, object := range objects {
 		data, err := activeBlobStore(ctx).Read(ctx, object)
+		if errors.Is(err, ErrBlobMissing) {
+			removed, recheckErr := r.revisionRemoved(ctx, requests[index].Scope, requests[index].Ref, *results[index].Ref.Revision)
+			if recheckErr != nil {
+				return nil, recheckErr
+			}
+			if removed {
+				return nil, ErrArtifactNotFound
+			}
+		}
 		if err != nil {
 			return nil, err
 		}

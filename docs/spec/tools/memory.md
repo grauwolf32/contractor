@@ -403,6 +403,16 @@ once the Run has used up its Artifact revision limit (LIM-ART-6) both
 MemoryTools adapters return `memory_namespace_full` for any further write,
 create or not; no retry can succeed in that Run.
 
+**MEM-R99.** A note write that its binding's retained Artifact history
+cannot admit (ART-R126, ART-R127) is not a full Namespace: both MemoryTools
+adapters return `memory_unavailable` for `artifact_history_protected` and
+`artifact_history_maintenance_pending`, never `memory_namespace_full`, and
+treat both as definite answers that stored nothing, so neither replays the
+write nor reconciles it as `memory_changed`. For a pending answer the store
+has already committed one maintenance pass for the note's binding, so a
+later retry of the same write can succeed. The shared cases are
+api/testdata/v1alpha1/artifact-history-cases.json.
+
 **MEM-R46.** Old immutable note revisions remain ordinary Run
 artifacts under ArtifactStore retention but do not count as active notes
 (LIFE-MEM-2).
@@ -709,7 +719,8 @@ holds each code's meaning and its retryability without changing input
   (MEM-R63, MEM-R75).
 - `memory_unavailable` — bounded infrastructure failure (MEM-R72); corrupt
   stored ordinal state also returns it, but is never repaired from model
-  input, so retrying cannot clear it (MEM-R48).
+  input, so retrying cannot clear it (MEM-R48); so does a note write that its
+  binding's retained history cannot admit now (MEM-R99).
 
 Failure outcomes ([failure model](../platform/failure-model.md)):
 

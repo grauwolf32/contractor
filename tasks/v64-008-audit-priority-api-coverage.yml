@@ -1,89 +1,183 @@
-schema_version: "1.0"
+schema_version: '1.0'
 id: V64-008
-title: Expose complete priority inventory, pass history and truthful Audit coverage
+title: Expose paginated research state and separate coverage through the public API
 milestone: audit-check-prioritization
 epic: audits
 kind: feature
 priority: P2
-status: deferred
-deferral:
-  date: "2026-10-21"
-  previous_status: pending
-  previous_priority: P1
-  reason: User deferred the remaining V64 integration to focus on authenticated HTTP continuity and completion of the existing V62 audit journey.
-  reactivate_when: Explicit user decision after cookies and V62 are delivered and representative audit measurements show that model-based prioritization improves useful-result yield or time/cost over fixed ordering.
-implementation_commit: null
-depends_on: [V64-007]
-languages: [go, openapi, typescript]
-goal: >-
-  Make every checklist candidate and priority decision reviewable through public
-  APIs while retaining the full inventory as the Audit coverage denominator.
+status: pending
+depends_on:
+- V64-007
+languages:
+- go
+- openapi
+- typescript
+goal: Allow users and the UI to inspect hypotheses, exact evidence, decisions and waiting conditions without
+  conflating research progress with normative coverage or execution authority.
 context:
-  authority: User wants both selected and deferred checklist checks with their priorities and reasons visible.
-  design: docs/plans/2026-09-20-audit-check-prioritization.md
-  specification: [docs/proposals/0034-audit-check-prioritization.md, docs/spec/audits/audits.md]
-  contract: Selection, approval readiness, execution completion, verification outcomes and finding severity are independent projections.
-  revalidated: >-
-    2026-10-24 on b523ae77: still deferred under execution_policy.current_delivery_focus, not
-    superseded. The deliveries named in reactivate_when have landed (cookie persistence V377-001,
-    c50d6ab0; the V62 journey through V62-012, 8c2441f0) and every dependency outside V64 is
-    complete (V64-000, V62-001, V62-002, V62-003, V25-011); what remains is representative audit
-    evidence and an explicit user decision. The new plans do not supersede it: proposal 0033 section
-    14 says V64 is not a prerequisite, its section 8.2 orders pentest hypotheses by frozen
-    assessment order, policy, budget and plan digest rather than per-candidate model verdicts,
-    V411-012 excludes V64 ranking integration, and V55-009 (pending scanner ranking) stays
-    independent per proposal 0034. The V64-000 pure core in internal/auditpriority (domain layer,
-    internal/archtest/layers_test.go:117) still has no production importer:
-    tools/testonlyexports/baseline.txt:67-70 holds BindVerdict and DecodeVerdict for V64-005 and
-    ResolveTopN and SelectionDigest for V64-006, so archiving the series would also require removing
-    those exports. Its schema and fixtures live in api/audit-priority/v1, not the
-    api/testdata/audit-priority path named in the V64-001, V64-005 and V64-010 deliverables.
-    Proposal 0034 was last refreshed on 2026-10-21 (631d6d51) and already cites the domain
-    specification documents. Task-specific: V62-010 (233b94a5) added the no-Round preparation
-    provenance projections to reuse; Audit report pages exist (000004_audit_report_pages.sql, REV);
-    V414-018 (pending) makes the Audit detail projection a single snapshot read; UI consumers use
-    generated validators (V385-001).
+  authority: >-
+    On 2026-10-24 the user explicitly requested pending status for the reviewed
+    proposal 0045 plan, including shared V62 prerequisites. The earlier deferral
+    is historical; dependency completion still gates implementation start.
+  proposal: docs/proposals/0045-audit-hypothesis-search.md
+  design: docs/plans/2026-10-24-audit-hypothesis-search.md
+  specification:
+  - docs/spec/audits/audits.md
+  - docs/spec/audits/execution.md
+  - docs/spec/artifacts/artifact-store.md
+  - docs/spec/platform/persistence.md
+  deterministic_boundary: Direct Runs and current deterministic Audit inventories bypass research; no
+    mandatory hypotheses, generation, ranking, new Scheduler mode or attack tree.
+  implementation_boundary: Each new table, state, export and schema must have its named production writer/reader
+    in this task; include the smallest actual integration caller, not a test-only placeholder waiting
+    for another task.
+  previous_definition:
+    revision: a31579d33e81315818a277b822e3b087ce5c76c1
+    path: tasks/v64-008-audit-priority-api-coverage.yml
+    title: Expose complete priority inventory, pass history and truthful Audit coverage
+    depends_on:
+    - V64-007
+    note: The former fixed-checklist/minimum-ten integration scope is replaced by this task. Its original
+      definition and deferral history remain in Git; completed V64-000 is unchanged.
 scope:
   in:
-    - Add owner-authenticated inventory, ranking-cycle and verdict reads with exact candidate/context/policy/revision references, rank, rationale and selected/deferred/blocked disposition.
-    - Expose profile topN/maxTopN and optional Draft/Start prioritization.topN with strict profile-ceiling validation, immutable effective value and changed-request idempotency conflict semantics.
-    - Expose bounded cycle progress and explicit incomplete/unknown/budget-blocked reasons before any currentRound exists, with no fabricated Round or score.
-    - Define revision-bound pagination/filtering across the full inventory and cycle history; stale cursors conflict rather than combine decisions from different snapshots.
-    - Separate Audit unique-candidate counts for inventory, ever-evaluated, ever-selected, remaining, ever-started, settled and accepted results from cycle frozen-pool outcome/selected/deferred counts; retries and repeated verdicts never double count, and approval rejection may settle an item without execution start.
-    - Add candidate-to-selection-to-Round-item-to-Run/result backtrace with exact source/prompt/policy digests and retained provenance after permitted source Run deletion.
-    - Include full inventory and explicit deferred/incomplete gaps in accepted reports; selected-only counts cannot imply complete Audit coverage and priority never rewrites analyst severity.
-    - Update public OpenAPI, generated Go/TypeScript clients, strict parsers and capability projections while retaining old profile/API semantics.
+  - Expose supported research configuration, hypotheses/revisions, typed relationships, exact cycles/decisions,
+    experiments and scoped assessment projections.
+  - Use generated clients/validators, strict request validation, current revision guards and owner-scoped
+    keyset pagination.
+  - Separate selected requirement coverage, explored directions, deferred candidates and finding triage;
+    no generated-pool ratio implies whole-application security.
+  - Provide exact retained evidence descriptors through existing authorized artifact/download paths without
+    live foreign-Run access.
+  - Expose authorized manual hypothesis create/revise and requested-priority operations through the existing
+    owner boundary, with strict input validation, exact revisions, stale conflicts and existing keyed
+    mutations. Return authorship, requested attention, evidence state and blocking reasons as distinct
+    fields.
   out:
-    - Public raw secret-bearing prompts, model-call replay controls, analytics dashboards or exposing protected artifacts through generic Project routes.
-deliverables:
-  - path: api/openapi/contractor-public-v1.yaml
-    description: Complete priority inventory/cycle/progress/coverage/backtrace contracts and precise nullable no-Round projections.
-  - path: internal/httpapi/public
-    description: Owner-bound list/detail/history endpoints with strict filters and exact-revision pagination.
-  - path: internal/auditservice
-    description: Truthful whole-inventory coverage and retained candidate/selection/execution provenance reads.
-  - path: internal/auditimport
-    description: Immutable report acceptance incorporating deferred and incomplete inventory gaps.
-  - path: ui/src/api
-    description: Regenerated and strictly parsed priority, cycle and coverage response contracts.
+  - Manual authoritative score editing, graph execution endpoints or automatically altering finding severity.
+  - Implementation during this planning change, changing existing task statuses, or modifying completed/in-progress
+    task records.
+requirements:
+- id: R1
+  text: The API returns authoritative states only, and read operations do not submit experiments or reinterpret
+    provenance edges as dependencies.
+- id: R2
+  text: Lifecycle mutations use existing owner control and keyed operations; stale decisions cannot overwrite
+    newer state.
+- id: R3
+  text: Existing non-research endpoints/payload behavior keep their strict current contract; no implicit
+    opt-in or mandatory hypothesis field.
+failure_outcomes:
+- operation: Public research read and existing control requests
+  permanent: Invalid, foreign, unsupported or oversized input is rejected with the owning V64-001/standard
+    contract reason; deterministic ErrInvalid is never endlessly retried and no partial authoritative
+    result is accepted.
+  retryable: Use existing bounded transient storage/provider retries for the owning operation; retry attempt/deadline
+    limits are explicit and do not switch research policies or models.
+  ambiguous: Reconcile the same existing keyed mutation, accepted producer association or exact result;
+    never create another logical effect or repeat target activity to repair acknowledgement loss.
+  cancelled: Existing Audit/Run owner fences and join/drain rules apply; allow authorized terminal collection,
+    block new dispatch and release resources only after in-flight work is joined.
+  timeout: Use the owning operation/Run deadline. Audit admission deadline pauses and drains; non-time
+    budget exhaustion follows bounded finalization with gaps.
+cardinality:
+- collection: Research API pages and lineage responses
+  expected: 50 entries or nodes per page
+  maximum: 100 entries/nodes, 200 edges and 256 KiB per lineage response
+  bound: Keyset pagination; pinned score generation or explicit live-list semantics, no hidden unbounded
+    filter.
+lifecycle:
+- entity: Task-owned research records, exact artifacts and projections
+  delete: Audit/Project ownership and existing deletion gates apply; accepted evidence used by work is
+    retained, not removed by settling or withdrawing a candidate.
+  cascade: Use the owning Audit relations and existing artifact hold lifecycle; register any new holder
+    inventory entry in this change and leave no independent cleanup owner.
+  retention: Preserve exact accepted inputs/results and history through permitted source Run deletion,
+    pause and recovery; release only through the owning lifecycle. Stateless validation/read-only outputs
+    acquire no artificial persistent state.
 acceptance_criteria:
-  - id: A1
-    text: Twenty-five inventory candidates after two ten-item passes report Audit ever-selected 20 and remaining five, while cycle two reports evaluated 15, selected ten and deferred five; approval rejection is settled without started and retries never double count.
-  - id: A2
-    text: Every selected or deferred candidate has exact cycle/rank/reason provenance, while unscored or unknown outcomes have no fabricated priority and no-Round failures remain readable.
-  - id: A3
-    text: Stale pagination cursors and cross-owner references cannot mix revisions or disclose data; retained history survives allowed source Run deletion and later analyst edits.
-  - id: A4
-    text: Reports and current-schema clients preserve independent priority/confidence/disposition/approval/execution/severity; Draft/Start topN obeys profile ceilings and immutable replay rules, and synchronized API/client regression checks pass without legacy response readers.
+- id: A1
+  given: An authorized owner and a paginated research Audit
+  when: API traversal reads cycles, lineage and evidence
+  then: Every page is bounded, exact revisions remain attributable and deferred/unknown entries remain
+    visible.
+- id: A2
+  given: Foreign IDs, stale revisions or oversized paging inputs
+  when: requests are issued
+  then: Stable errors reject unauthorized or conflicting access without leaking context or changing state.
+- id: A3
+  given: Both research and standard coverage exist
+  when: reports and list projections are read
+  then: Requirement denominators, explored directions and findings are distinct and accepted histories
+    do not change with later views.
+- id: A4
+  given: Existing direct/deterministic clients
+  when: the new contract is generated and checked
+  then: Current supported routes remain functional without research fields; generated clients and validators
+    agree.
+- id: A5
+  given: An authorized owner adds or edits a human hypothesis while another caller submits stale/foreign
+    input
+  when: public mutation and read APIs execute
+  then: One exact high-priority human revision is visible with its author; stale and foreign writes fail
+    without changing accepted plans or evidence conclusions.
 tests:
-  - command: go test ./internal/auditservice ./internal/auditimport ./internal/httpapi/public
-    covers: [A1, A2, A3, A4]
-  - command: go test -tags=integration -count=1 ./internal/auditservice ./internal/auditstore/... ./internal/auditimport ./internal/httpapi/public
-    covers: [A1, A2, A3, A4]
-  - command: make verify-public-api ui-generate-check ui-typecheck
-    covers: [A2, A4]
+- command: make require-database
+- command: make verify-public-api verify-public-api-postgres
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: go test -tags=integration -count=1 ./internal/httpapi/... ./internal/auditstore/... ./internal/auditservice
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make ui-generate-check ui-typecheck
+- command: make lint
+implementation_commit: null
+reactivation:
+  date: '2026-10-24'
+  previous_status: deferred
+  reason: Explicit user request to queue the reviewed proposal 0045 tasks as pending.
+  execution_rule: Implementation may start after declared dependencies complete; this update starts no implementation.
+previous_deferral:
+  date: '2026-10-21'
+  previous_status: pending
+  previous_priority: P1
+  reason: User deferred the remaining V64 integration to focus on authenticated HTTP continuity and completion
+    of the existing V62 audit journey.
+  reactivate_when: Explicit user authorization to implement this reviewed proposal 0045 scope, after its
+    declared dependencies are completed. Replanning alone does not activate it.
+  previous_reactivate_when: Explicit user decision after cookies and V62 are delivered and representative
+    audit measurements show that model-based prioritization improves useful-result yield or time/cost
+    over fixed ordering.
+deliverables:
+- path: api/openapi/contractor-public-v1.yaml
+  description: Strict public research request/response shapes synchronized with generated clients.
+- path: internal/httpapi/public
+  description: Owner-scoped paginated handlers using real research services.
+- path: internal/auditstore
+  description: Bounded public read projections with stable revisions.
+- path: ui/src/api
+  description: Generated contract consumption without manual generated-file edits.
 test_prerequisites:
-  - Required pagination, source-deletion, report snapshot and ownership cases use disposable PostgreSQL.
+- Commands are implementation acceptance requirements, not results of this planning change. New named
+  gates must be created, registered and fail on zero matching cases.
+- Persistence/lifecycle acceptance uses disposable PostgreSQL with CONTRACTOR_TEST_DATABASE_URL set; an
+  unavailable configured database or mandatory skipped case fails.
+- Use testdata catalogs and pseudo-Skills, not live configs in unit/integration tests. Shipped configuration
+  has its dedicated validation command.
+- Run complete suites for touched packages; use injected clocks and deterministic work counters. Put timing
+  measurements in benchmarks.
 verification_requirements:
-  - Retrieve every inventory/provenance page through public APIs for a multiround fixture and reconcile counts to exact persisted candidate/selection identities.
-  - Verify report revisions stay immutable after reprioritization and analyst edits; current projections may advance without rewriting accepted history.
+- Update owning numbered specifications, strict public/wire contracts and shared fixtures with implementation;
+  do not cite task IDs from normative specifications.
+- Record actual commands, case counts, required prerequisites and exact evidence after implementation.
+  Planning does not populate implementation_commit or fabricate successful checks.
+- Keep direct deterministic behavior, existing claims/receipts and source-to-consumer exact provenance
+  explicit in real-path assertions.

@@ -51,7 +51,7 @@ describe("Run draft validation", () => {
         artifactReviews: { source: key },
         overrides: emptyExecutionOverrides(),
       },
-      new Map([[key, incompatible]]),
+      () => new Map([[key, incompatible]]),
     );
     expect(result.request).toBeUndefined();
     expect(result.errors).toEqual({
@@ -71,7 +71,7 @@ describe("Run draft validation", () => {
         artifactReviews: {},
         overrides: emptyExecutionOverrides(),
       },
-      new Map(),
+      () => new Map(),
     );
     expect(missing.request).toBeUndefined();
     // The optional input may stay empty.
@@ -90,7 +90,7 @@ describe("Run draft validation", () => {
         artifactReviews: { source: key },
         overrides: emptyExecutionOverrides(),
       },
-      new Map(),
+      () => new Map(),
     );
     expect(unloaded.request).toBeUndefined();
     expect(unloaded.errors).toEqual({
@@ -115,7 +115,7 @@ describe("Run draft validation", () => {
         artifactReviews: { source: key },
         overrides: emptyExecutionOverrides(),
       },
-      new Map([[key, source]]),
+      () => new Map([[key, source]]),
     );
     expect(result.errors).toEqual({});
     expect(result.request).toEqual({
@@ -145,7 +145,7 @@ describe("Run draft validation", () => {
         artifactReviews: { source: key },
         overrides,
       },
-      new Map([[key, source]]),
+      () => new Map([[key, source]]),
     );
     expect(result.request?.executionConfig).toEqual({
       planner: { modelPolicy: "planner-strong@2", credential: null },
@@ -184,7 +184,7 @@ describe("Run draft validation", () => {
         artifactReviews: {},
         overrides: emptyExecutionOverrides(),
       },
-      new Map(),
+      () => new Map(),
     );
     expect(result.request).toBeUndefined();
     expect(result.errors).toMatchObject({
@@ -210,7 +210,7 @@ describe("Run draft validation", () => {
         artifactReviews: {},
         overrides: emptyExecutionOverrides(),
       },
-      new Map([[key, source]]),
+      () => new Map([[key, source]]),
     );
 
     expect(result.request).toBeUndefined();
@@ -244,7 +244,7 @@ describe("Run draft validation", () => {
         artifactReviews: { dependency_report: key },
         overrides: emptyExecutionOverrides(),
       },
-      new Map([[key, report]]),
+      () => new Map([[key, report]]),
     );
     expect(partial.errors).toEqual({
       "artifactReview:project_report":
@@ -261,7 +261,7 @@ describe("Run draft validation", () => {
         artifactReviews: { dependency_report: key, project_report: key },
         overrides: emptyExecutionOverrides(),
       },
-      new Map([[key, report]]),
+      () => new Map([[key, report]]),
     );
     expect(complete.request?.artifacts).toEqual({
       dependency_report: report.artifact,

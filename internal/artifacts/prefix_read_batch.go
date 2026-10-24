@@ -2,6 +2,7 @@ package artifacts
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -26,7 +27,21 @@ func (r *PostgresRepository) ReadPrefixBatch(
 		return nil, err
 	}
 	defer releaseTransfer()
+	results, err := r.readPrefixBatch(ctx, scope, namespace, prefix, limit)
+	if errors.Is(err, errRevisionRemoved) {
+		// History retention removed a revision that was current when the
+		// metadata was read, after a newer write; read the batch once more.
+		results, err = r.readPrefixBatch(ctx, scope, namespace, prefix, limit)
+	}
+	if errors.Is(err, errRevisionRemoved) {
+		return nil, fmt.Errorf("%w: current revisions kept moving", ErrHistoryMaintenancePending)
+	}
+	return results, err
+}
 
+func (r *PostgresRepository) readPrefixBatch(
+	ctx context.Context, scope Scope, namespace, prefix string, limit int,
+) ([]ReadResult, error) {
 	// Limit bindings before joining versions and blobs. LEFT JOINs make a
 	// dangling current revision or missing blob an integrity error rather than
 	// silently dropping a binding from the notebook.
@@ -40,6 +55,15 @@ func (r *PostgresRepository) ReadPrefixBatch(
 	}
 	for index, object := range objects {
 		data, err := activeBlobStore(ctx).Read(ctx, object)
+		if errors.Is(err, ErrBlobMissing) {
+			removed, recheckErr := r.revisionRemoved(ctx, scope, results[index].Ref, *results[index].Ref.Revision)
+			if recheckErr != nil {
+				return nil, recheckErr
+			}
+			if removed {
+				return nil, errRevisionRemoved
+			}
+		}
 		if err != nil {
 			return nil, err
 		}

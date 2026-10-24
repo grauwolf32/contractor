@@ -574,6 +574,10 @@ func mapStoreError(err error) error {
 		// The Run can store no further revision, so no note write succeeds (MEM-R45).
 		return toolError(CodeNamespaceFull, false)
 	default:
+		// Everything else, including retained-history pressure on one note's
+		// binding (artifacts.ErrHistoryProtected and
+		// ErrHistoryMaintenancePending), leaves the note unavailable, never
+		// the Namespace full (MEM-R72).
 		return toolError(CodeUnavailable, true)
 	}
 }

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/apierror"
+	"github.com/grauwolf32/contractor/internal/persistence/leasetest"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
 	"github.com/jackc/pgx/v5"
@@ -324,7 +325,9 @@ func TestCredentialDeleteFenceCleanGuardRunsNoQueryAndReconciliationIsBounded(t 
 type deleteFenceFixture struct {
 	lifecycleFixture
 	// pool reaches the same schema outside the injected faults.
-	pool      *pgxpool.Pool
+	pool *pgxpool.Pool
+	// lease is the Service's lease session, outside the injected faults.
+	lease     *leasetest.Session
 	faults    *connectionFaults
 	manager   *fakeGatewayManager
 	deleting  CreateRequest
@@ -348,9 +351,10 @@ func newDeleteFenceFixture(t *testing.T) (deleteFenceFixture, context.Context) {
 		faults.closeAll()
 	})
 	manager := newFakeGatewayManager()
+	lease := leasetest.Hold(t, pool)
 	f := deleteFenceFixture{
-		lifecycleFixture: newLifecycleFixture(t, faulty, manager, ServiceOptions{}),
-		pool:             pool, faults: faults, manager: manager,
+		lifecycleFixture: newLifecycleFixture(t, faulty, manager, ServiceOptions{Lease: lease.Lease}),
+		pool:             pool, lease: lease, faults: faults, manager: manager,
 	}
 	if err := f.service.Recover(ctx); err != nil {
 		t.Fatal(err)

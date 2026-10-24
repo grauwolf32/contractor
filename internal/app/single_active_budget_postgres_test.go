@@ -42,8 +42,9 @@ func TestPostgresControlPlaneLeaseSessionInheritsStartupBudgets(t *testing.T) {
 	defer pool.Close()
 
 	// The process context has no deadline: the configured budgets own the
-	// connection, the keepalive configuration, the first acquisition and the
-	// holder lookup.
+	// connection, the keepalive configuration, the first acquisition, the
+	// identification of the session that took the lease and the holder
+	// lookup.
 	ctx := t.Context()
 	if _, ok := ctx.Deadline(); ok {
 		t.Fatal("the startup context must have no deadline of its own")
@@ -61,10 +62,27 @@ func TestPostgresControlPlaneLeaseSessionInheritsStartupBudgets(t *testing.T) {
 	after := time.Now()
 	assertBudgetDeadlines(t, "lease session connect", recorder.dialsSince(0), settings.ConnectTimeout, before, after)
 	startup := recorder.queriesSince(0)
-	if len(startup) != 3 {
-		t.Fatalf("recorded %d startup statements, want keepalives, acquisition and holder lookup", len(startup))
+	if len(startup) != 5 {
+		t.Fatalf("recorded %d startup statements, want keepalives, acquisition, the two of the "+
+			"holder's identification and holder lookup", len(startup))
 	}
 	assertBudgetDeadlines(t, "startup lease statement", startup, settings.QueryTimeout, before, after)
+
+	// The handover runs on the working pool: database.queryTimeout bounds
+	// each of its statements, and the session's lock_timeout, checked on
+	// the lease session below from the same startup parameters, its wait
+	// (PER-R34).
+	traced := len(recorder.queriesSince(0))
+	before = time.Now()
+	if err := active.awaitHandover(ctx); err != nil {
+		t.Fatal(err)
+	}
+	after = time.Now()
+	if handover := recorder.queriesSince(traced); len(handover) == 0 {
+		t.Fatal("the lease handover ran no statement")
+	} else {
+		assertBudgetDeadlines(t, "lease handover statement", handover, settings.QueryTimeout, before, after)
+	}
 
 	session := active.conn.Config()
 	if session.ConnectTimeout != settings.ConnectTimeout || session.Tracer != pool.Config().ConnConfig.Tracer {
@@ -96,7 +114,7 @@ WHERE name IN ('statement_timeout', 'lock_timeout', 'idle_in_transaction_session
 
 	// The active liveness probe is a protocol-level ping: the client query
 	// budget never shortens it, only the tolerance window does.
-	traced := len(recorder.queriesSince(0))
+	traced = len(recorder.queriesSince(0))
 	if err := active.conn.Ping(ctx); err != nil {
 		t.Fatal(err)
 	}

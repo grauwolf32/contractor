@@ -82,7 +82,9 @@ export function emptyExecutionOverrides(): ExecutionOverrideDraft {
 export function validateRunDraft(
   workflow: WorkflowResource,
   values: RunDraftValues,
-  artifacts: ReadonlyMap<string, ArtifactMetadata>,
+  artifactsForSlot: (
+    slot: string,
+  ) => ReadonlyMap<string, ArtifactMetadata> | undefined,
 ): RunDraftValidation {
   const errors: Record<string, string> = {};
   const runtimeLabels = [...values.runtimeLabels].sort();
@@ -153,7 +155,7 @@ export function validateRunDraft(
       }
       continue;
     }
-    const metadata = artifacts.get(key);
+    const metadata = artifactsForSlot(name)?.get(key);
     if (metadata === undefined) {
       errors[`artifact:${name}`] =
         "The selected revision is no longer in the loaded list.";

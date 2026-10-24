@@ -1,0 +1,176 @@
+schema_version: "1.0"
+id: V414-028
+title: "Lease Audit controller claims from the reconcilable Audits instead of reading every claim row"
+milestone: review-v407-v409-followups-2026-10
+epic: audits
+kind: defect
+introduced_by: V25-003
+priority: P2
+status: completed
+implementation_commit: bfeeb3896f70b434767e8ce051ae10cbca5a3fb9
+depends_on: []
+languages: [go, sql]
+goal: >-
+  One Audit controller claim pass reads a number of claim and Audit rows
+  bounded by the reconcilable Audits and the claim batch, independent of how
+  many terminal or draft Audits the database retains, in both custom and
+  generic plans, with the same candidates, order, SKIP LOCKED and lease
+  semantics.
+context:
+  review: >-
+    docs/research/2026-10-23-sql-review.md, open question F ("partial-index
+    choice for the claim probes claimAuditSQL and nextLiveRunForDeletionSQL")
+    and its Status disposition; measured by V409-013 on 2026-10-24.
+  specification:
+    - docs/spec/platform/persistence.md#PER-R25
+    - docs/spec/platform/persistence.md#PER-R21
+    - docs/spec/audits/execution.md
+  severity: medium
+  finding: >-
+    internal/auditstore/internal/pgstore/claims_sql.go:14-85 (claimAuditSQL,
+    called by ClaimStore.Claim in claims.go:25 on every Audit controller pass,
+    internal/auditcontroller/controller.go:50-62) builds its candidates by
+    joining audit_controller_claims with audits and ordering by
+    (claim.epoch, audit.updated_at, audit.audit_id). Every Audit has a claim
+    row from CreateDraft (store_sql.go:58) until the Audit is purged, so the
+    claim table grows with the retained Audit history. V409-013 measured the
+    statement with explaintest.ExplainPrepared (Analysis.Reads, both plan
+    cache modes, rolled back) on the finding-scale fixture of
+    internal/auditstore/internal/pgstore (newFindingScaleFixture) with the
+    2,000 empty Audits reshaped into 1,600 completed, 101 draft, 100 active
+    with free claims, 100 active with live foreign claims and 99 paused
+    without executions (with the fixture's nine other Audits, 306 entries of
+    audits_reconcile_idx), then with 48,000 more completed Audits and their
+    claim rows. With 2,009 Audits a pass of 8 read
+    2,012 claim rows in the custom plan and 4,020 in the generic plan (a pass
+    of 64: 4,020 in both); with 50,009 Audits every case read 50,011 claim
+    rows (a sequential scan of audit_controller_claims hashed against the
+    candidates). Audit rows read stayed 920 because audits_reconcile_idx is
+    used, but it is BitmapAnd-ed with three whole-index scans of
+    audits_project_state_idx (state without its leading project_id), so
+    shared blocks grew from 364-998 to 3,992-4,782 although the reconcilable
+    set did not change. Analysis.Reads counts index entries returned, not
+    visited, so a budget on reads alone does not see that index walk.
+  siblings: >-
+    internal/evalstore/claims_sql.go:5-51 (Eval coordinator claim) already
+    starts from the actionable experiments and looks each claim up by key in
+    a LATERAL OFFSET 0 subquery ("Parameterized lookups avoid scanning
+    retained terminal populations"); it is the pattern to reuse, not a
+    defect. internal/scanstore/store_sql.go:7-14 (scan sweep claim) keeps the
+    claim columns on scan_sweeps and filters by state and next_tick_at: not
+    measured, check it under the same budget. The Project deletion claim
+    (internal/projectstore/deletion_claim_sql.go) was measured and aligned by
+    V409-007 (20 reads for 600 deleting Projects). The deletion Run probe of
+    the same review question is V414-029.
+scope:
+  in:
+    - >-
+      Rewrite claimAuditSQL so candidates come from the reconcilable Audits
+      (the states of audits_reconcile_idx and the paused and waiting_review
+      conditions it already states) and each claim is read by its primary key,
+      keeping AvailableCondition, the candidate predicate, the
+      (epoch, updated_at, audit_id) order, FOR UPDATE SKIP LOCKED, LIMIT and
+      the shared LeaseSQL.
+    - >-
+      Real PostgreSQL regression with explaintest.ExplainPrepared in Custom
+      and Generic modes on a committed fixture with a few hundred
+      reconcilable Audits and tens of thousands of terminal Audits with claim
+      rows: Analysis.Reads budgets for audits and audit_controller_claims
+      derived from the reconcilable count and the batch, and a check that
+      adding terminal Audits changes neither the reads nor, beyond a stated
+      allowance, the shared blocks.
+    - >-
+      A candidate-equivalence test against the original statement: the same
+      claims in the same order for every reconcilable condition (active,
+      finalizing, cancelling, deleting, paused with and without a submitted or
+      collecting execution, waiting_review past the deadline without a report,
+      with an expired report review, with an expired item approval with and
+      without a live replacement), free, expired and live claims, and rows
+      locked by another transaction.
+  out:
+    - "Claim batch size, lease length, fairness order and the reconcile predicates themselves."
+    - "The Eval, scan sweep and Project deletion claims, except the scan sweep measurement listed under siblings."
+    - "A new index, unless the measurement shows the rewrite cannot meet the budget with the existing ones."
+failure_outcomes:
+  - operation: "Audit controller claim pass"
+    success: "unchanged: up to the batch of available reconcilable Audits leased with an advanced epoch"
+    permanent: "unchanged: invalid parameters are rejected before SQL"
+    retryable: "unchanged: a definite transaction conflict is returned to the controller loop, which retries on its next pass"
+    ambiguous: "unchanged: a lost lease reply leaves claims that expire; the epoch fences the old holder"
+    cancelled: "unchanged: the pass context cancels the statement and nothing is leased"
+    timeout: "the existing operation timeout owns it; the fix must not depend on raising it"
+acceptance_criteria:
+  - id: A1
+    text: >-
+      Given the committed fixture, when the claim statement runs for batches
+      of 8 and 64 in Custom and Generic plans, then Analysis.Reads of
+      audit_controller_claims and audits stay within budgets derived from the
+      reconcilable Audits and the batch, and adding the terminal Audits
+      changes neither the reads nor the shared blocks beyond the stated
+      allowance.
+  - id: A2
+    text: >-
+      Given the candidate matrix, when the rewritten and original statements
+      lease in turn from identical states, then they lease the same Audits in
+      the same order with the same epochs, and SKIP LOCKED still skips a row
+      another transaction holds.
+  - id: A3
+    text: >-
+      Given the original statement, when the A1 test runs, then it fails
+      (50,011 claim rows read with 50,009 Audits in V409-013's measurement).
+tests:
+  - command: >-
+      CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?Set a
+      disposable PostgreSQL URL}" go test -tags=integration -count=1
+      ./internal/auditstore/... ./internal/auditcontroller/... ./internal/scanstore/...
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A2]
+verification:
+  date: '2026-10-24'
+  environment: >-
+    macOS arm64; Go from /private/tmp/contractor-go-darwin; PostgreSQL 17.11 database
+    contractor_test_v414_sql with disposable per-test schemas; branch claude/v414-sql with main
+    (030e195a) merged; TMPDIR set to a path without symlinked components, because the
+    filesystem blob store rejects the /var -> /private/var symlink of the macOS default TMPDIR
+    (TestPostgresImmutableProjectArtifactReuseLeavesNoFilesystemOrphans fails on that default; neither
+    that test nor the blob store is touched by this change).
+  commands:
+    - >-
+      CONTRACTOR_TEST_DATABASE_URL=postgres://.../contractor_test_v414_sql go test
+      -tags=integration -count=1 ./internal/auditstore/... ./internal/auditcontroller/...
+      ./internal/scanstore/... passed (every package with tests ok).
+    - make lint passed after make docs-dependencies (the graph fingerprint covers the two changed spec documents).
+    - go test -count=1 ./internal/persistence/ ./internal/archtest/... passed (SQL placement and layers).
+    - >-
+      Run with -v, TestPostgresAuditClaimReadsOnlyTheReconcilableAudits,
+      TestPostgresAuditClaimLeasesTheOriginalCandidatesInOrder,
+      TestReconcilableAuditStatesSQLMatchesDeclaration and
+      TestPostgresSweepClaimReadsOnlyActiveSweeps report PASS and no SKIP.
+  database_tests_configured: true
+  evidence:
+    - >-
+      A1: with 361 claimable of 411 reconcilable Audits, the rewrite reads 369 (batch 8) and 425
+      (batch 64) claim rows and 411 Audit rows in Custom and Generic plans, unchanged after adding
+      48,000 completed Audits with claim rows; the candidates' shared blocks grow 1,581 -> 1,950
+      (batch 8) and 1,806 -> 2,232 (batch 64), within the allowance of one page per claim
+      descent and lock.
+    - >-
+      A3: the original statement reads 16,714 -> 64,714 claim rows and 1,646 Audit rows on the same
+      fixture, and the test requires it to violate the budget.
+    - >-
+      A2: on 84 Audits (28 reconcilable and near-miss conditions x free, expired and live claims),
+      the rewrite and the original lease the same Audits in the same order with the same epochs
+      one at a time and in batches of 5 and 100, and both skip rows locked by another
+      transaction; changing the ORDER BY or the paused predicate makes the test fail.
+    - >-
+      Sibling scan sweep claim (internal/scanstore/store_sql.go, unchanged): 101 sweeps read and
+      6 candidate blocks with 2,000 or 22,000 settled sweeps; with every due sweep held it reads
+      the 220 ready entries and leases nothing.
+  decisions:
+    - >-
+      The shared LeaseSQL may hash-join the candidates with a sequential scan of a small
+      audit_controller_claims table (seen for batch 64 at about 6,700 claim rows; a TID scan at
+      16,700). It is bounded and cost-chosen, and LeaseSQL is shared by every controller claim, so
+      it stays unchanged; the scale fixture uses 16,000 completed Audits so the measurement
+      covers the plan used at scale.

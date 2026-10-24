@@ -14,19 +14,20 @@ execution_policy:
     V410-002, V410-003/004/005, V410-006, V410-007 and V410-008; V413-001 starts
     after V410-010 lands. Pentest lane: V414-015 before V411-001, then V411-002
     up to V411-009, V411-013 and V411-014; V411-012 and everything after it wait
-    for the deferred V62-005, V62-006 and V62-007, which only the user can
-    reactivate. The V414 follow-ups run in groups that share code (secrets and
+    for completion of V62-005, V62-006 and V62-007, now pending after the
+    explicit user request. The V414 follow-ups run in groups that share code (secrets and
     telemetry; Evals; Planner session and store error classes; SQL read bounds;
     OpenAPI rules and byte bounds; Audit read model; Server lifecycle; Runtime;
     finding fence) and close through V414-027. This is delivery order, not an
-    additional technical dependency. Remaining V64 integration is deferred until
-    an explicit user decision supported by representative audit evidence.
-    Paused on 2026-10-24 at the user's request. Unfinished checkpoints of the
-    tasks in progress live on their lane branches, each with a progress note in
-    the task file: claude/sitemap (V410-010), claude/pentest (V414-015),
-    claude/v414-sec (V414-011), claude/v414-evals (V414-017), claude/v414-plan
-    (V414-006), claude/v414-sql (V414-028) and claude/v414-rt (V414-005).
-    Resume from those branches; the rest of each lane's queue is pending.
+    additional technical dependency. Following the 2026-10-24 proposal 0045 review,
+    the user explicitly queued V64-001 through V64-018 and V62-005/006/007/013
+    as pending. Implementation starts only after declared dependencies complete;
+    this status update starts no work. Optional model-ranking evidence belongs
+    to V64-016, not the deterministic core exit. V61 and V62-008 remain deferred.
+    The earlier evening resumption covered tasks not blocked by V62; the
+    newly pending shared tasks can now enter execution once their prerequisites complete. Each lane works on its branch claude/<lane>
+    and merges each closed task into main. claude/sitemap and claude/pentest
+    both add migration 000040, so the second to land renumbers its migration.
   task_files_are_self_contained: true
   task_statuses:
     pending: Not yet taken into development.
@@ -110,7 +111,7 @@ milestones:
     outcome: Managed browser observations update the shared Project sitemap through the same safe reducer and allocation-bound context.
   - id: autonomous-http-pentest-2026-10
     exit_task: V411-020
-    outcome: HTTP/API pentest Audits provide controlled transport, isolated identities, bounded discovery, fresh-session proof replay and retained reports through a passing deterministic process gate; deferred generic round prerequisites must be explicitly completed first.
+    outcome: HTTP/API pentest Audits provide controlled transport, isolated identities, bounded discovery, fresh-session proof replay and retained reports through a passing deterministic process gate; generic round prerequisites must be completed first.
   - id: autonomous-pentest-quality-2026-10
     exit_task: V411-021
     outcome: A frozen repeated-sample experiment records independent pentest quality results against equal-input baselines without conflating protocol conformance with model quality.
@@ -616,9 +617,35 @@ milestones:
   - id: audit-check-prioritization
     exit_task: V64-011
     outcome: >-
-      Optional context informs independent checklist verdicts; each Audit pass
-      selects at least ten highest-priority checks, or all remaining if fewer,
-      with durable explanations, unchanged review gates and full inventory coverage.
+      An opt-in Audit research profile generates bounded hypotheses from guides
+      and selected materials, selects experiments deterministically, and uses
+      accepted results for later choices with exact context, lineage and honest
+      coverage. Direct Runs and deterministic inventories bypass research;
+      model ranking, attack trees and pentest integration are independent slices.
+  - id: audit-iterative-composition-2026-10
+    exit_task: V62-013
+    outcome: >-
+      Ordinary later-Round checks consume exact settled results and retained
+      dependencies through profile-owned typed routing, with real-process
+      recovery, deletion and direct-path evidence independent of V64 and pentest.
+  - id: audit-research-ranking-quality-2026-10
+    exit_task: V64-016
+    outcome: >-
+      Optional bounded model evaluation of experiment shortlists is measured
+      against deterministic selection on repeated equal-budget samples; failures,
+      overhead and no-improvement outcomes remain visible and do not block the core.
+  - id: audit-research-attack-tree-2026-10
+    exit_task: V64-017
+    outcome: >-
+      A bounded optional attack-tree reader evaluates declared AND/OR predicates
+      over compatible exact evidence, preserving unknowns and keeping analytical
+      relationships separate from execution authority and causal lineage.
+  - id: audit-research-pentest-2026-10
+    exit_task: V64-018
+    outcome: >-
+      A separately selected research-enabled pentest profile connects accepted
+      hypothesis experiments to the existing proof/replay contracts and report
+      projection. Both baseline research and baseline pentest remain independent.
   - id: findings-benchmark-contracts
     exit_task: V63-001
     outcome: >-
@@ -631,7 +658,8 @@ milestones:
       First prove SQLMap request checks and Nuclei checks of pinned OpenAPI URLs
       with truthful Audit results, then add opt-in preparation before the initial
       worklist with existing OpenAPI Workflows and public lifecycle/provenance.
-      Iterative snapshots, dependency routing and standalone analysis are deferred.
+      Iterative snapshots and routing are pending in their separate milestone;
+      standalone analysis V62-008 remains deferred.
   - id: toolset-runtime-configuration
     exit_task: V61-009
     outcome: >-

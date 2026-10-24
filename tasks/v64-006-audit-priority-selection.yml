@@ -1,85 +1,190 @@
-schema_version: "1.0"
+schema_version: '1.0'
 id: V64-006
-title: Select exact top-N candidates and reject incomplete or undersized admission
+title: Select feasible experiments deterministically and admit exact work
 milestone: audit-check-prioritization
 epic: audits
 kind: feature
 priority: P2
-status: deferred
-deferral:
-  date: "2026-10-21"
-  previous_status: pending
-  previous_priority: P1
-  reason: User deferred the remaining V64 integration to focus on authenticated HTTP continuity and completion of the existing V62 audit journey.
-  reactivate_when: Explicit user decision after cookies and V62 are delivered and representative audit measurements show that model-based prioritization improves useful-result yield or time/cost over fixed ordering.
-implementation_commit: null
-depends_on: [V64-000, V64-002]
-languages: [go]
-goal: >-
-  Select at least ten highest-priority remaining checklist checks when ten exist,
-  with explicit deferral reasons and no silent budget-based downsizing.
+status: pending
+depends_on:
+- V64-000
+- V64-002
+- V64-004
+- V64-013
+- V62-007
+languages:
+- go
+- json
+goal: Choose useful next experiments from a bounded eligible frontier with transparent budgets and diversity,
+  without requiring LLM scores or a minimum round size.
 context:
-  authority: User explicitly required filtering no fewer than ten candidates with the highest priority.
-  design: docs/plans/2026-09-20-audit-check-prioritization.md
-  specification: [docs/proposals/0034-audit-check-prioritization.md, docs/spec/audits/audits.md]
-  contract: The V64-000 pure selector consumes complete validated verdicts; this task verifies accepted receipt/journal authority and delegates atomic admission to the V64-002 store interface.
-  revalidated: >-
-    2026-10-24 on b523ae77: still deferred under execution_policy.current_delivery_focus, not
-    superseded. The deliveries named in reactivate_when have landed (cookie persistence V377-001,
-    c50d6ab0; the V62 journey through V62-012, 8c2441f0) and every dependency outside V64 is
-    complete (V64-000, V62-001, V62-002, V62-003, V25-011); what remains is representative audit
-    evidence and an explicit user decision. The new plans do not supersede it: proposal 0033 section
-    14 says V64 is not a prerequisite, its section 8.2 orders pentest hypotheses by frozen
-    assessment order, policy, budget and plan digest rather than per-candidate model verdicts,
-    V411-012 excludes V64 ranking integration, and V55-009 (pending scanner ranking) stays
-    independent per proposal 0034. The V64-000 pure core in internal/auditpriority (domain layer,
-    internal/archtest/layers_test.go:117) still has no production importer:
-    tools/testonlyexports/baseline.txt:67-70 holds BindVerdict and DecodeVerdict for V64-005 and
-    ResolveTopN and SelectionDigest for V64-006, so archiving the series would also require removing
-    those exports. Its schema and fixtures live in api/audit-priority/v1, not the
-    api/testdata/audit-priority path named in the V64-001, V64-005 and V64-010 deliverables.
-    Proposal 0034 was last refreshed on 2026-10-21 (631d6d51) and already cites the domain
-    specification documents. Task-specific: internal/auditpriority/selection.go and
-    selection_test.go already implement the pure selector; ResolveTopN and SelectionDigest wait on
-    this task in the test-only export baseline. V380-001 (b8a9e325) made automatic active checks the
-    Project default, which changes how often selected items await approval.
+  authority: >-
+    On 2026-10-24 the user explicitly requested pending status for the reviewed
+    proposal 0045 plan, including shared V62 prerequisites. The earlier deferral
+    is historical; dependency completion still gates implementation start.
+  proposal: docs/proposals/0045-audit-hypothesis-search.md
+  design: docs/plans/2026-10-24-audit-hypothesis-search.md
+  specification:
+  - docs/spec/audits/audits.md
+  - docs/spec/audits/execution.md
+  - docs/spec/artifacts/artifact-store.md
+  - docs/spec/platform/persistence.md
+  deterministic_boundary: Direct Runs and current deterministic Audit inventories bypass research; no
+    mandatory hypotheses, generation, ranking, new Scheduler mode or attack tree.
+  implementation_boundary: Each new table, state, export and schema must have its named production writer/reader
+    in this task; include the smallest actual integration caller, not a test-only placeholder waiting
+    for another task.
+  previous_definition:
+    revision: a31579d33e81315818a277b822e3b087ce5c76c1
+    path: tasks/v64-006-audit-priority-selection.yml
+    title: Select exact top-N candidates and reject incomplete or undersized admission
+    depends_on:
+    - V64-000
+    - V64-002
+    note: The former fixed-checklist/minimum-ten integration scope is replaced by this task. Its original
+      definition and deferral history remain in Git; completed V64-000 is unchanged.
 scope:
   in:
-    - Integrate the V64-000 pure selector with the exact frozen remaining pool and complete receipt/journal-accepted verdict set using critical/high/medium/low descending and canonical candidate ID ascending for ties.
-    - Select exact min(topN, remaining) using the immutable effective topN pinned from profile/default or valid Draft/Start override within maxTopN; select all candidates when fewer remain.
-    - Reject missing, extra, duplicate, stale-cycle or mixed-context verdicts before selection; confidence and finding severity are never implicit sorting keys.
-    - Preserve actual priority and rationale for all candidates and distinguish selected, deferred and blocked from approval readiness and execution status.
-    - Record rank, cutoff, cycle/context revisions and explicit deferred explanations; a high-priority candidate below the cutoff remains high priority.
-    - Check whole selected-set reservation/admission preconditions after ranking overhead, without lowering topN, substituting lower-ranked candidates or creating a partial Round.
-    - Count selected checks awaiting approval within the immutable selected set; rejection, expiry, failure or cancellation does not backfill a different candidate into the Round.
-    - Distinguish failed empty_inventory for an empty original checklist from normal no_remaining_candidates closure after accepted Rounds; selection_blocked_budget fails after drain without any undersized Round.
-    - Keep never-admitted inventory members as the only remaining candidates; selected failed/inconclusive checks stay owned by their original Round and cannot be implicitly reranked.
+  - Implement deterministic feasibility, shortlist formation, policy evaluation and selection as separate
+    operations with stable input/output identities.
+  - Select one or more useful plans under count/cost/approval/coverage constraints; record considered
+    and unconsidered candidates and reasons accurately.
+  - Select a bounded indexed frontier using the registry/plan indexes and exact context from V64-004;
+    include a versioned exploration/aging rule. V64-015 later extends this working selector with incremental
+    feedback readiness, never the reverse dependency.
+  - Bind the accepted decision to V62-007 routing/admission with hypothesis-plan provenance; retain the
+    current receipt source and direct inventory bypass.
+  - Rework V64-000 pure selector APIs where needed; remove minimum-ten, fixed-membership and whole-pool
+    assumptions from the new policy, without changing completed-task history.
   out:
-    - Model calls, confidence-weighted sorting, arbitrary fallback scores, implicit applicability filtering or insertion of model-proposed checks.
-deliverables:
-  - path: internal/auditpriority
-    description: Integration of the existing pure selector with trusted accepted verdicts and exact admission request construction.
-  - path: internal/auditstore
-    description: Integration of selection revision and full-set reservations with the atomic admission contract from V64-002.
+  - Executing a model ranker, finding confirmation, mutable accepted Rounds, or scheduling Runtime allocations.
+  - Implementation during this planning change, changing existing task statuses, or modifying completed/in-progress
+    task records.
+requirements:
+- id: R1
+  text: Priority is not finding severity, confidence is not a calibrated probability, and deferred high-priority
+    work retains its verdict.
+- id: R2
+  text: An exact accepted decision and its authorization/reservations are required for admission; a plain
+    selection artifact cannot schedule work.
+- id: R3
+  text: No selected work distinguishes exhaustion, unmet prerequisite, unavailable capacity, waiting review
+    and budget stop. New observations alone do not invalidate the frozen cycle.
+- id: R4
+  text: Optional model verdicts are an input adapter; deterministic policies do not invoke or depend on
+    that adapter.
+- id: R5
+  text: Human-requested high verification priority participates in eligibility and shortlist construction
+    before optional scoring, so a large automatic pool cannot hide it. Prefer it over otherwise comparable
+    automated work, with stable ordering among human requests. Models cannot lower this attention; scope,
+    capability, approval, prerequisites and remaining budgets still gate admission and produce visible
+    waiting/block reasons. An explicit human edit is recorded; high attention never implies stronger evidence.
+failure_outcomes:
+- operation: Shortlist capture, selection reservation and immutable Round admission
+  permanent: Invalid, foreign, unsupported or oversized input is rejected with the owning V64-001/standard
+    contract reason; deterministic ErrInvalid is never endlessly retried and no partial authoritative
+    result is accepted.
+  retryable: Use existing bounded transient storage/provider retries for the owning operation; retry attempt/deadline
+    limits are explicit and do not switch research policies or models.
+  ambiguous: Reconcile the same existing keyed mutation, accepted producer association or exact result;
+    never create another logical effect or repeat target activity to repair acknowledgement loss.
+  cancelled: Existing Audit/Run owner fences and join/drain rules apply; allow authorized terminal collection,
+    block new dispatch and release resources only after in-flight work is joined.
+  timeout: Use the owning operation/Run deadline. Audit admission deadline pauses and drains; non-time
+    budget exhaustion follows bounded finalization with gaps.
+cardinality:
+- collection: Pool, shortlist and selected experiments
+  expected: 1,000 stored hypotheses, 32 shortlist candidates, 16 selected plans
+  maximum: 10,000 stored identities, 128 shortlisted/selected plans, remaining Audit execution limits
+  bound: Index eligibility and freeze shortlist; transaction 128 primary/512 total descriptors/1 MiB;
+    never score/download the entire pool per tick.
+lifecycle:
+- entity: Task-owned research records, exact artifacts and projections
+  delete: Audit/Project ownership and existing deletion gates apply; accepted evidence used by work is
+    retained, not removed by settling or withdrawing a candidate.
+  cascade: Use the owning Audit relations and existing artifact hold lifecycle; register any new holder
+    inventory entry in this change and leave no independent cleanup owner.
+  retention: Preserve exact accepted inputs/results and history through permitted source Run deletion,
+    pause and recovery; release only through the owning lifecycle. Stateless validation/read-only outputs
+    acquire no artificial persistent state.
 acceptance_criteria:
-  - id: A1
-    text: Fixtures with 0, 1, 3, 9, 10, 11, 100 and 1000 remaining candidates and topN ten/twelve produce exact declared closure or min(topN, remaining); topN below 10 or above 1000 and oversized inventory are rejected.
-  - id: A2
-    text: Permuting accepted verdict rows leaves selection unchanged; tied priorities use canonical ID and never confidence, severity or response order.
-  - id: A3
-    text: Missing or malformed verdicts block admission, and budgets sufficient for only three or nine of ten checks create no smaller Round or partial reservation.
-  - id: A4
-    text: Selected awaiting-approval items stay selected, and later rejected/failed items never cause backfill; deferred high-priority entries retain their score and a truthful cutoff reason.
-  - id: A5
-    text: Concurrent admission or changed revision/control state creates at most one exact selected Round and cannot evade total item, Run, model or time limits.
+- id: A1
+  given: Equivalent candidate rows in different order with equal priorities
+  when: the deterministic policy selects
+  then: Canonical selected membership, reasons and digest are identical, including a valid single-plan
+    choice.
+- id: A2
+  given: A huge pool with few ready plans and small budget
+  when: a cycle forms its shortlist
+  then: Only indexed bounded work is processed, exploration rules are observable and out-of-shortlist
+    records are not labeled low priority.
+- id: A3
+  given: Concurrent or stale selection, exhausted budgets or invalid prerequisites
+  when: admission runs
+  then: Exactly one valid decision binds to immutable work; failures preserve explicit reasons without
+    partial unknown reservations or backfill.
+- id: A4
+  given: Model ranker is absent and a normal deterministic profile is also executed
+  when: both paths select/dispatch
+  then: Research uses its deterministic policy and the existing profile bypasses research entirely with
+    original membership/coverage.
+- id: A5
+  given: Human-submitted high-priority hypotheses coexist with a large automatic pool and one blocked
+    human request
+  when: shortlist and selection run with or without a model evaluator
+  then: Feasible human requests retain elevated attention and are selected ahead of comparable automatic
+    work; the blocked request keeps its priority and explicit reason, without bypassing policy or budget.
 tests:
-  - command: go test -race ./internal/auditpriority ./internal/auditservice
-    covers: [A1, A2, A3, A4]
-  - command: go test -tags=integration -count=1 ./internal/auditstore/...
-    covers: [A3, A4, A5]
+- command: make require-database
+- command: go test -race ./internal/auditpriority ./internal/auditdomain
+  covers:
+  - A1
+  - A2
+  - A5
+- command: go test -tags=integration -count=1 ./internal/auditservice ./internal/auditstore/... ./internal/auditcontroller
+  covers:
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make lint
+implementation_commit: null
+reactivation:
+  date: '2026-10-24'
+  previous_status: deferred
+  reason: Explicit user request to queue the reviewed proposal 0045 tasks as pending.
+  execution_rule: Implementation may start after declared dependencies complete; this update starts no implementation.
+previous_deferral:
+  date: '2026-10-21'
+  previous_status: pending
+  previous_priority: P1
+  reason: User deferred the remaining V64 integration to focus on authenticated HTTP continuity and completion
+    of the existing V62 audit journey.
+  reactivate_when: Explicit user authorization to implement this reviewed proposal 0045 scope, after its
+    declared dependencies are completed. Replanning alone does not activate it.
+  previous_reactivate_when: Explicit user decision after cookies and V62 are delivered and representative
+    audit measurements show that model-based prioritization improves useful-result yield or time/cost
+    over fixed ordering.
+deliverables:
+- path: internal/auditpriority
+  description: Policy selector with strict exact inputs and revised production API.
+- path: internal/auditservice
+  description: Eligibility/selection application and trusted source adapter into generic admission.
+- path: internal/auditstore
+  description: Decision reservation and admission associations used by the real selector.
 test_prerequisites:
-  - Reuse internal/auditpriority from V64-000; pure calculation tests do not satisfy receipt/journal or persisted admission acceptance criteria.
-  - Required admission/race cases use disposable PostgreSQL and no model service.
+- Commands are implementation acceptance requirements, not results of this planning change. New named
+  gates must be created, registered and fail on zero matching cases.
+- Persistence/lifecycle acceptance uses disposable PostgreSQL with CONTRACTOR_TEST_DATABASE_URL set; an
+  unavailable configured database or mandatory skipped case fails.
+- Use testdata catalogs and pseudo-Skills, not live configs in unit/integration tests. Shipped configuration
+  has its dedicated validation command.
+- Run complete suites for touched packages; use injected clocks and deterministic work counters. Put timing
+  measurements in benchmarks.
 verification_requirements:
-  - Test the user-facing minimum-ten rule as exact selected membership and persisted Round size; an assertion on a configurable limit alone is insufficient.
-  - Include adversarial priority/confidence/severity combinations and insufficient budgets after already consumed ranking overhead.
+- Update owning numbered specifications, strict public/wire contracts and shared fixtures with implementation;
+  do not cite task IDs from normative specifications.
+- Record actual commands, case counts, required prerequisites and exact evidence after implementation.
+  Planning does not populate implementation_commit or fabricate successful checks.
+- Keep direct deterministic behavior, existing claims/receipts and source-to-consumer exact provenance
+  explicit in real-path assertions.

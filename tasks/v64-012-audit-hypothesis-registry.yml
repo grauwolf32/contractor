@@ -1,0 +1,171 @@
+schema_version: '1.0'
+id: V64-012
+title: Store Audit hypotheses and sparse provenance with trusted ingestion
+milestone: audit-check-prioritization
+epic: audits
+kind: feature
+priority: P2
+status: pending
+depends_on:
+- V64-001
+- V410-010
+languages:
+- go
+- json
+goal: Create the bounded research registry and real ingestion/read path for exact hypotheses and relationships
+  without introducing a second finding store.
+context:
+  authority: >-
+    On 2026-10-24 the user explicitly requested pending status for the reviewed
+    proposal 0045 plan, including shared V62 prerequisites. The earlier deferral
+    is historical; dependency completion still gates implementation start.
+  proposal: docs/proposals/0045-audit-hypothesis-search.md
+  design: docs/plans/2026-10-24-audit-hypothesis-search.md
+  specification:
+  - docs/spec/audits/audits.md
+  - docs/spec/audits/execution.md
+  - docs/spec/artifacts/artifact-store.md
+  - docs/spec/platform/persistence.md
+  deterministic_boundary: Direct Runs and current deterministic Audit inventories bypass research; no
+    mandatory hypotheses, generation, ranking, new Scheduler mode or attack tree.
+  implementation_boundary: Each new table, state, export and schema must have its named production writer/reader
+    in this task; include the smallest actual integration caller, not a test-only placeholder waiting
+    for another task.
+scope:
+  in:
+  - Persist Audit-owned identity, admission ordinal, immutable semantic fields, exact revision pointers
+    and bounded source/lineage records.
+  - Wire trusted complete-batch ingestion into the existing accepted Audit output importer, plus an authorized
+    manual create/revise and bounded read path in the same change. Activate these paths only for explicit
+    research selection; ordinary inventories create no research records.
+  - Validate same-Audit ownership, source membership, causal DAG rules, successors and explicit duplicate
+    candidates; do not merge by title or CWE.
+  - Register every new exact-ref holder with V410-010 retention inventory and protect acquisition/release
+    against eviction and Audit purge.
+  - Keep observations/assessments in their owning contracts; no finding creation is required for an unsupported
+    or refuted research hypothesis.
+  - Accept authorized human hypotheses with trusted author/time, reason and default high requested verification
+    priority; support explicit owner edits with stale-revision detection. Keep accepted experiment pins
+    immutable, preserve provenance and reuse existing keyed mutations. The same text submitted by a model
+    is not human-authored.
+  out:
+  - Selection policies, active Run scheduling, current-assessment reducer or attack-tree graph engine.
+  - Implementation during this planning change, changing existing task statuses, or modifying completed/in-progress
+    task records.
+requirements:
+- id: R1
+  text: Model client keys are invocation/batch-local; Server identity and accepted producer association
+    supply authority.
+- id: R2
+  text: Changed proposition/scope/expectation creates a successor; revision enrichment cannot overwrite
+    semantic fields or rebind accepted evidence.
+- id: R3
+  text: Causal edges reference earlier accepted hypotheses and remain distinct from execution dependencies
+    and evidence relations.
+- id: R4
+  text: Storage ships with named real writer/reader integration; no orphan tables, test-only exports or
+    speculative universal graph APIs.
+failure_outcomes:
+- operation: Hypothesis batch admission, revision enrichment and lineage persistence
+  permanent: Invalid, foreign, unsupported or oversized input is rejected with the owning V64-001/standard
+    contract reason; deterministic ErrInvalid is never endlessly retried and no partial authoritative
+    result is accepted.
+  retryable: Use existing bounded transient storage/provider retries for the owning operation; retry attempt/deadline
+    limits are explicit and do not switch research policies or models.
+  ambiguous: Reconcile the same existing keyed mutation, accepted producer association or exact result;
+    never create another logical effect or repeat target activity to repair acknowledgement loss.
+  cancelled: Existing Audit/Run owner fences and join/drain rules apply; allow authorized terminal collection,
+    block new dispatch and release resources only after in-flight work is joined.
+  timeout: Use the owning operation/Run deadline. Audit admission deadline pauses and drains; non-time
+    budget exhaustion follows bounded finalization with gaps.
+cardinality:
+- collection: Audit hypothesis registry and revisions
+  expected: 1,000 identities; 10,000 revisions / 64 MiB
+  maximum: 10,000 identities; 50,000 revisions / 256 MiB within aggregate metadata budget
+  bound: 32 default / 128 max candidates per 1 MiB batch; eight causal parents and depth 32; never release
+    lifetime quota by settling nodes.
+- collection: Sparse lineage
+  expected: 20,000 edges per Audit
+  maximum: 100,000 edges, 100 nodes/200 edges/256 KiB per response
+  bound: Indexed endpoints, paginated traversal, and at most 512 descriptors per mutation slice.
+lifecycle:
+- entity: Task-owned research records, exact artifacts and projections
+  delete: Audit/Project ownership and existing deletion gates apply; accepted evidence used by work is
+    retained, not removed by settling or withdrawing a candidate.
+  cascade: Use the owning Audit relations and existing artifact hold lifecycle; register any new holder
+    inventory entry in this change and leave no independent cleanup owner.
+  retention: Preserve exact accepted inputs/results and history through permitted source Run deletion,
+    pause and recovery; release only through the owning lifecycle. Stateless validation/read-only outputs
+    acquire no artificial persistent state.
+acceptance_criteria:
+- id: A1
+  given: An accepted producer batch with several hypotheses and exact origins
+  when: ingestion repeats after acknowledgement loss
+  then: One set of identities/revisions/edges is accepted, with equivalent read results and no duplicate
+    quota debit.
+- id: A2
+  given: Foreign IDs, invented sources, semantic edits or dependency cycles
+  when: the batch is validated
+  then: It fails permanently and atomically with an explicit reason rather than partially admitting records.
+- id: A3
+  given: New exact holders and eviction/source deletion/purge races
+  when: retention lifecycle executes on PostgreSQL
+  then: Required bytes remain readable until authorized release; no race substitutes latest or leaks orphan
+    holds.
+- id: A4
+  given: Pool/byte/parent/depth limits and a mostly settled history
+  when: new candidates are submitted and pages read
+  then: Lifetime quotas and indexed pagination are enforced without full graph scans; omissions are explicit.
+- id: A5
+  given: An authorized person submits or revises a hypothesis and an automated producer spoofs its author/priority
+  when: trusted intake processes the requests
+  then: The human record has exact author/revision and high requested attention with one logical mutation;
+    forged authority is rejected and existing plan pins remain unchanged.
+tests:
+- command: make require-database
+- command: go test -tags=integration -count=1 ./internal/auditdomain ./internal/auditstore/... ./internal/auditimport
+    ./internal/auditservice ./internal/artifacts/...
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make lint
+implementation_commit: null
+reactivation:
+  date: '2026-10-24'
+  previous_status: deferred
+  reason: Explicit user request to queue the reviewed proposal 0045 tasks as pending.
+  execution_rule: Implementation may start after declared dependencies complete; this update starts no implementation.
+previous_deferral:
+  date: '2026-10-24'
+  previous_status: pending
+  reason: Planning-only breakdown of proposal 0045; implementation has not been activated.
+  reactivate_when: Explicit user authorization to implement this reviewed proposal 0045 scope, after its
+    declared dependencies are completed. Replanning alone does not activate it.
+deliverables:
+- path: internal/auditdomain
+  description: Hypothesis/revision/relationship codecs and exact producer membership.
+- path: internal/auditstore
+  description: Registry and adjacency projections with real admission/read services.
+- path: internal/auditimport
+  description: Trusted accepted-output ingestion hook with bounded complete batches.
+- path: internal/persistence/migrations
+  description: Sequential schema changes with immutable/FK/ownership constraints if required.
+test_prerequisites:
+- Commands are implementation acceptance requirements, not results of this planning change. New named
+  gates must be created, registered and fail on zero matching cases.
+- Persistence/lifecycle acceptance uses disposable PostgreSQL with CONTRACTOR_TEST_DATABASE_URL set; an
+  unavailable configured database or mandatory skipped case fails.
+- Use testdata catalogs and pseudo-Skills, not live configs in unit/integration tests. Shipped configuration
+  has its dedicated validation command.
+- Run complete suites for touched packages; use injected clocks and deterministic work counters. Put timing
+  measurements in benchmarks.
+verification_requirements:
+- Update owning numbered specifications, strict public/wire contracts and shared fixtures with implementation;
+  do not cite task IDs from normative specifications.
+- Record actual commands, case counts, required prerequisites and exact evidence after implementation.
+  Planning does not populate implementation_commit or fabricate successful checks.
+- Keep direct deterministic behavior, existing claims/receipts and source-to-consumer exact provenance
+  explicit in real-path assertions.

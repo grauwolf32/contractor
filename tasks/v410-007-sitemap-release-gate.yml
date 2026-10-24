@@ -32,7 +32,7 @@ context:
   - docs/testing/README.md
   - docs/spec/operations/operations.md
   boundary: The live sitemap is shared research context, not current Audit coverage, complete traffic archival or
-    proof. The HTTP/OpenAPI first slice has no dependency on proposal 0033 implementation or deferred V61/V62/V64
+    proof. The HTTP/OpenAPI first slice has no dependency on proposal 0033 implementation or V61/V62/V64
     work.
   code:
   - make/features.mk

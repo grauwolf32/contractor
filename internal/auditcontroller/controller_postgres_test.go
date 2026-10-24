@@ -2173,8 +2173,8 @@ SELECT 'run',$1,'bulk','item-' || n,'bulk-' || n,$3 FROM generate_series(1,$2::i
 		t.Fatal(err)
 	}
 	if _, err := h.pool.Exec(ctx, `INSERT INTO artifact_bindings
-(scope_kind,scope_id,namespace,name,current_revision)
-SELECT 'run',$1,'bulk','item-' || n,'bulk-' || n FROM generate_series(1,$2::int) AS n`, runID, remaining); err != nil {
+(scope_kind,scope_id,namespace,name,current_revision,retained_revisions,retained_bytes)
+SELECT 'run',$1,'bulk','item-' || n,'bulk-' || n,1,0 FROM generate_series(1,$2::int) AS n`, runID, remaining); err != nil {
 		t.Fatal(err)
 	}
 }

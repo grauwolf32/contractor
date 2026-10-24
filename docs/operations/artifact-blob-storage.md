@@ -112,6 +112,40 @@ their metadata. The command does not read payload bytes or delete unknown file
 names. Interrupted cleanup can be rerun offline. No automatic reconciliation
 service, persistent cleanup queue or populated-store migration is provided.
 
+## Retained history
+
+Every Artifact binding in every scope keeps a bounded history: by default its
+newest 2,000 revisions and 1 GiB of encoded payload, counting its current
+revision and every revision something still references exactly, such as a
+Run's pinned input, a Stage result, lineage, an Audit input or a finding's
+evidence. A write that would exceed the limit removes the binding's oldest
+unreferenced revisions in the same transaction, together with the versions
+and blobs nothing else uses; files are unlinked after the commit. There is no
+background sweep: only a binding that receives a write is trimmed.
+
+```yaml
+spec:
+  artifactHistoryMaxRevisions: 2000
+  artifactHistoryMaxBytes: 1073741824
+```
+
+The flags are `--artifact-history-max-revisions` and
+`--artifact-history-max-bytes`; the environment names are
+`CONTRACTOR_ARTIFACT_HISTORY_MAX_REVISIONS` and
+`CONTRACTOR_ARTIFACT_HISTORY_MAX_BYTES`, with the same precedence as above.
+The limits range from 2 revisions and 128 MiB up to 20,000 revisions and
+8 GiB; startup fails outside that range. Lowering them takes effect binding
+by binding, at each binding's next write.
+
+One transaction removes at most 64 revisions. A write that needs more
+answers `503 artifact_history_maintenance_pending` with `Retry-After: 1`
+after it has committed one removal pass, so the same write succeeds after a
+few attempts. When the current revision, the new revision and the referenced
+revisions alone exceed the limit, the write fails with permanent
+`409 artifact_history_protected`; only releasing a reference (for example
+deleting the Audit or Run that holds it) or a higher limit lets it succeed.
+A removed revision reads as `not_found`, never as missing content.
+
 ## Offline backup and restore
 
 Pause admission, drain or cancel active allocations, confirm release, then stop

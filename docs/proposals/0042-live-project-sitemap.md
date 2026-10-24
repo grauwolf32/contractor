@@ -305,7 +305,9 @@ Obtaining the fresh Project snapshot uses the explicit Project sitemap
 adapter described above, with its read revision recorded. Do not add an
 unsupported mapping source to illustrative manifests or infer an earlier
 round's output through `retained-output`. Reusing a previous round's individual
-check artifacts still belongs to the separately deferred dependency contract.
+check artifacts still belongs to the separate V62-006 dependency contract.
+That task is pending under the explicit 2026-10-24 instruction and remains
+unimplemented; it is not part of the sitemap slice.
 
 Only run a new reconciliation pass at a declared boundary or when a selected
 schema/grouping policy changes. Ordinary HTTP observations already use the
@@ -787,7 +789,7 @@ unimplemented until those records are completed with evidence.
 
 | Task | Outcome | Depends on |
 | --- | --- | --- |
-| [V410-010](../../tasks/v410-010-artifact-history-retention.yml) | Bound each artifact's history through automatic shared retention in every scope | None |
+| [V410-010](../../tasks/done/v410-010-artifact-history-retention.yml) | Bound each artifact's history through automatic shared retention in every scope | None |
 | [V410-001](../../tasks/v410-001-project-sitemap-store.yml) | Publish a bounded Project sitemap through one authorized reducer | V410-010 |
 | [V410-002](../../tasks/v410-002-project-sitemap-toolset.yml) | Expose authorized live sitemap tools to Project allocations | V410-001 |
 | [V410-003](../../tasks/v410-003-http-sitemap-collection.yml) | Collect HTTP observations into the live Project sitemap | V410-002 |
@@ -803,7 +805,9 @@ accounting, exact-reference protection, eviction and all ordinary production
 callers in every scope. V410-001 depends on that feature and uses it without a
 sitemap quota store or registration hook. The generic feature and the sitemap
 slice are independent of pentest implementation; they use completed ordinary
-Workflow and Audit contracts and do not depend on deferred V61/V62/V64 work.
+Workflow and Audit contracts and do not depend on V61, iterative V62 or V64
+work. The 2026-10-24 move of V62-005/006/007/013 and V64-001–018 to pending
+does not add a dependency here; V61 and V62-008 remain deferred.
 V410-008 and V410-009 each own their follow-up milestone exit.
 V410-009 consumes the managed browser adapter from V412-001, then V412-003
 can publish the combined browser program. This dependency does not feed back

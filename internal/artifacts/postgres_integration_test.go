@@ -178,8 +178,8 @@ WHERE (scope_kind, scope_id, namespace, name, revision) IN (
 
 	_, err = pool.Exec(ctx, `
 INSERT INTO artifact_bindings (
-    scope_kind, scope_id, namespace, name, current_revision
-) VALUES ('run', 'run-fork', 'illegal', 'cross-binding', $1)`, *fork.TargetRef.Revision)
+    scope_kind, scope_id, namespace, name, current_revision, retained_revisions, retained_bytes
+) VALUES ('run', 'run-fork', 'illegal', 'cross-binding', $1, 1, 0)`, *fork.TargetRef.Revision)
 	if persistencepostgres.SQLState(err) != persistencepostgres.SQLStateForeignKeyViolation {
 		t.Fatalf("cross-binding revision SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
 	}

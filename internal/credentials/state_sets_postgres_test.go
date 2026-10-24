@@ -25,3 +25,19 @@ func TestPostgresCredentialOperationPhasesMatchSchema(t *testing.T) {
 		},
 	})
 }
+
+// TestPostgresRuntimeCredentialKindsMatchSchema holds the kind column of the
+// migrated runtime_credentials table to runtimesettings.RuntimeCredentialKind,
+// the one Server definition the store and the private wire share: its CHECK
+// lists exactly the declared kinds.
+func TestPostgresRuntimeCredentialKindsMatchSchema(t *testing.T) {
+	pool, ctx := lifecycleTestPool(t)
+	statesettest.Require(t, ctx, pool, statesettest.Table{
+		Name: "runtime_credentials",
+		Columns: []statesettest.Column{{
+			Name: "credential_kind", Check: "runtime_credentials_credential_kind_check",
+			Values: statesettest.DeclaredValues(t, "internal/contracts/runtimesettings", "RuntimeCredentialKind"),
+		}},
+		Indexes: map[string]map[string]string{},
+	})
+}

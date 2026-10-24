@@ -256,6 +256,16 @@ func (f *preparedListFixture) attempt(projectID, auditID, role string, number in
 	if outcome == "submitted" {
 		return
 	}
+	f.settle(projectID, auditID, role, number, outcome)
+}
+
+// settle ends the submitted prepare attempt number of the role of the claimed
+// Audit with outcome, failed or succeeded, and collects it.
+func (f *preparedListFixture) settle(projectID, auditID, role string, number int, outcome string) {
+	f.t.Helper()
+	ctx, claim := f.ctx, f.claims[auditID]
+	executionID := auditdomain.DeterministicID("prepare", auditID, role, strconv.Itoa(number))
+	runID := "run-" + executionID
 	var outputs []auditstore.PreparationOutput
 	if outcome == "succeeded" {
 		run, err := f.artifacts.Run(runID)
@@ -488,7 +498,7 @@ func TestSharedPostgresAuditListsHydratePreparationInFixedStatements(t *testing.
 		for _, audit := range listed {
 			item, err := auditReadModel(audit)
 			if err == nil && (audit.Phase == auditdomain.AuditPhasePreparing || audit.Phase == auditdomain.AuditPhaseInventory) {
-				item, err = h.auditDetailReadModel(request, audit)
+				item, err = h.readAuditDetail(request, audit)
 			}
 			if err != nil {
 				t.Fatal(err)

@@ -22,8 +22,8 @@ func TestPostgresMemoryIgnoresOrdinaryBindingsAndDetectsQuotaOverflow(t *testing
 		t.Fatal(err)
 	}
 	_, err = pool.Exec(ctx, `WITH bindings AS (
- INSERT INTO artifact_bindings(scope_kind,scope_id,namespace,name,current_revision)
- SELECT 'run','prefix-run','builder','artifact_' || lpad(i::text,6,'0') || '_' || repeat('x',110),'bulk' FROM generate_series(1,7000)i
+ INSERT INTO artifact_bindings(scope_kind,scope_id,namespace,name,current_revision,retained_revisions,retained_bytes)
+ SELECT 'run','prefix-run','builder','artifact_' || lpad(i::text,6,'0') || '_' || repeat('x',110),'bulk',1,0 FROM generate_series(1,7000)i
  RETURNING scope_kind,scope_id,namespace,name,current_revision
  ) INSERT INTO artifact_binding_revisions(scope_kind,scope_id,namespace,name,revision,version_id)
  SELECT scope_kind,scope_id,namespace,name,current_revision,(SELECT version_id FROM artifact_versions LIMIT 1) FROM bindings`)

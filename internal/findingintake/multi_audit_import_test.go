@@ -385,6 +385,19 @@ func insertAuditChildReceiptWithEvidence(
 	t *testing.T, f deletionImportFixture, clientKey string, evidence []ExactArtifact, padding ...int,
 ) Receipt {
 	t.Helper()
+	receipt, err := recordAuditChildReceipt(t, f, clientKey, evidence, padding...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return receipt
+}
+
+// recordAuditChildReceipt records the receipt of insertAuditChildReceipt-
+// WithEvidence through the intake's own insert and returns its error.
+func recordAuditChildReceipt(
+	t *testing.T, f deletionImportFixture, clientKey string, evidence []ExactArtifact, padding ...int,
+) (Receipt, error) {
+	t.Helper()
 	source, err := readReceiptByID(f.ctx, f.pool, f.receiptID)
 	if err != nil {
 		t.Fatal(err)
@@ -422,13 +435,9 @@ func insertAuditChildReceiptWithEvidence(
 	if err := persistencepostgres.InTx(f.ctx, f.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		return insertReceipt(f.ctx, tx, receiptID, clientKey+"-proposal", canonical, fingerprint, proposal, evidence, origin, f.request.OwnerID, &project, grant)
 	}); err != nil {
-		t.Fatal(err)
+		return Receipt{}, err
 	}
-	receipt, err := readReceiptByID(f.ctx, f.pool, receiptID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return receipt
+	return readReceiptByID(f.ctx, f.pool, receiptID)
 }
 
 func TestPostgresDirectAssessmentReplayRequiresAuditScopedIdentity(t *testing.T) {

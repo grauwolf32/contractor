@@ -29,45 +29,53 @@ SELECT ` + receiptProjection + `
 // order, a total order because receipt_id is unique. ($3, $4) is the cursor of
 // the previous page, as for listRunReceiptRowsSQL; with a NULL $3 and an empty
 // $4 the bound becomes minus infinity and the empty ID, which every receipt
-// follows. Spelled as one row comparison, the bound stays an index condition
-// in a generic plan, which a "$3 IS NULL OR ..." disjunction does not.
-const auditInboxAfterCursorSQL = `(receipt.created_at, receipt.receipt_id) >
+// follows. Spelled as one row comparison over the (time, ID) columns of the
+// index a branch walks, the bound stays an index condition in a generic plan,
+// which a "$3 IS NULL OR ..." disjunction does not.
+func auditInboxAfterCursorSQL(createdAt, receiptID string) string {
+	return `(` + createdAt + `, ` + receiptID + `) >
            (COALESCE($3::timestamptz, '-infinity'), COALESCE($4::text, ''))`
+}
 
 // auditNativeInboxKeysSQL selects the keys of the first $5 receipts after the
 // cursor that owner $1's Audit $2 originated while their source Run exists.
 // It walks finding_proposal_receipts_audit_idx in page order, so it reads the
 // Audit's own receipts after the cursor until $5 pass, never another Audit's.
-const auditNativeInboxKeysSQL = `
+var auditNativeInboxKeysSQL = `
     SELECT receipt.receipt_id, receipt.created_at
       FROM finding_proposal_receipts AS receipt
      WHERE receipt.audit_id = $2 AND receipt.owner_id = $1
        AND receipt.source_run_deleted_at IS NULL
-       AND ` + auditInboxAfterCursorSQL + `
+       AND ` + auditInboxAfterCursorSQL("receipt.created_at", "receipt.receipt_id") + `
      ORDER BY receipt.created_at, receipt.receipt_id
      LIMIT $5`
 
 // auditHeldInboxKeysSQL selects the keys of the first $5 receipts of owner $1
-// after the cursor that the owner's Audit $2 holds in its own Project. The
-// hold index has no receipt time, so it probes the receipt of each of the
-// Audit's holds by primary key and sorts them: its work grows with the
-// Audit's holds, not with the page. OFFSET 0 keeps that probe per hold, so a
-// generic plan that overestimates the Audit's holds cannot turn it into a scan
-// of every owner's receipts.
-const auditHeldInboxKeysSQL = `
+// after the cursor that the owner's Audit $2 holds in its own Project. Each
+// hold keeps its receipt's creation time (receipt_created_at, copied when the
+// hold is inserted), so the branch walks
+// finding_proposal_audit_holds_audit_receipt_idx in page order after the
+// cursor and probes the receipt of each hold it passes by primary key: it
+// reads the page's holds, not every hold of the Audit (FND-R186). The Audit's
+// Project is read once, so the walk is not joined with the Audit row and keeps
+// its index order. OFFSET 0 keeps the receipt probe per hold, so a generic
+// plan cannot turn it into a scan of every owner's receipts.
+var auditHeldInboxKeysSQL = `
     SELECT receipt.receipt_id, receipt.created_at
       FROM finding_proposal_audit_holds AS hold
-      JOIN audits AS audit
-        ON audit.audit_id = hold.audit_id AND audit.project_id = hold.project_id
      CROSS JOIN LATERAL (
            SELECT candidate.receipt_id, candidate.created_at
              FROM finding_proposal_receipts AS candidate
             WHERE candidate.receipt_id = hold.receipt_id AND candidate.owner_id = $1
            OFFSET 0
        ) AS receipt
-     WHERE hold.audit_id = $2 AND audit.owner_id = $1
-       AND ` + auditInboxAfterCursorSQL + `
-     ORDER BY receipt.created_at, receipt.receipt_id
+     WHERE hold.audit_id = $2
+       AND hold.project_id = (
+           SELECT audit.project_id FROM audits AS audit
+            WHERE audit.audit_id = $2 AND audit.owner_id = $1
+       )
+       AND ` + auditInboxAfterCursorSQL("hold.receipt_created_at", "hold.receipt_id") + `
+     ORDER BY hold.receipt_created_at, hold.receipt_id
      LIMIT $5`
 
 // listAuditInboxSQL returns one page of the inbox of owner $1's Audit $2:
@@ -80,7 +88,8 @@ const auditHeldInboxKeysSQL = `
 // receipt among the inbox's first $5 has fewer than $5 predecessors in its own
 // branch. UNION keeps a receipt that is both native and held once, so it takes
 // one slot, and the next page starts after the last receipt returned in both
-// branches alike. Only the page's rows are read whole.
+// branches alike. Each branch reads its first $5 entries after the cursor, and
+// only the page's rows are read whole.
 // Used by Service.ListAuditInbox.
 var listAuditInboxSQL = `
 WITH page AS (

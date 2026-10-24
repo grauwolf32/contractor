@@ -711,6 +711,56 @@ they are read later.
 How long an old revision remains resolvable to its immutable internal version
 is owned by [Retention and deletion](retention-and-deletion.md).
 
+### Retained history
+
+**ART-R122.** Every logical binding, identified by scope kind, scope ID,
+Namespace and name, has its own bounded retained history in every
+UserScope, ProjectScope and RunScope. The policy applies automatically,
+without registration and without branches on name, Namespace, media type or
+producer. A fork target or a separately named binding has its own budget;
+there is no aggregate budget per scope, Project, User or Run, and a later
+write to the same identity never resets the history it retains.
+
+**ART-R123.** One binding retains at most 2,000 revisions and 1 GiB of full
+encoded bytes (LIM-ART-9). Its current revision and every protected revision
+count. Each retained revision is charged its full encoded size, even when
+versions or blobs are shared with other revisions. A Server configuration
+may raise both limits up to the hard ceilings of 20,000 revisions and 8 GiB.
+A failed CAS, a rejected write and a keyed receipt replay add no charge.
+This bound is separate from the lifetime insert limit of a RunScope
+(ART-R118): removing history never gives inserted revisions back.
+
+**ART-R124.** A write that would leave its binding over the limit first
+removes the oldest unprotected historical revisions, ordered by their
+immutable creation time and then by revision, inside the same transaction.
+The current revision, the new revision and every revision that an
+exact-reference holder protects are never removed. Which holders protect a
+revision, and which references are only provenance, is owned by
+[Retention and deletion](retention-and-deletion.md#automatic-history-retention).
+A write that fails stores nothing and removes nothing.
+
+**ART-R125.** One database transaction examines at most 64 history
+candidates and removes at most 64 revisions across every binding it admits,
+and loads no payload (LIM-ART-10). The versions and blobs that the removed
+revisions leave unreferenced are reclaimed in the same pass, at most 64
+candidates and 64 MiB of encoded payload per pass (LIM-ART-11).
+
+**ART-R126.** When the current revision, the new revision and the protected
+revisions alone exceed the limit, the write fails with
+`artifact_history_protected` (HTTP 409, `retryable` false). Nothing changes;
+only the release of a protecting reference or a higher configured limit lets
+the same write succeed, so no caller retries it automatically.
+
+**ART-R127.** When admitting a write needs more removals than one
+transaction may make, the write stores nothing and fails with
+`artifact_history_maintenance_pending` (HTTP 503, `retryable` true) and a
+`Retry-After` of one second. Before it answers, the store commits one bounded
+maintenance pass for that binding alone, which removes its oldest
+unprotected history and never its current revision; that committed removal
+stands although the write failed. A later attempt continues with the oldest
+unprotected revision left. At most three attempts fit the original operation
+deadline. There is no queue, sweep or background worker.
+
 ### Payloads and media types
 
 **ART-R62.** One resolved, versioned ref identifies one payload with
@@ -1155,6 +1205,12 @@ Limits ([registry](../platform/limits.md)):
   50,000 (ART-R118).
 - LIM-ART-8 — exact references per batched read or description statement:
   32 (ART-R121).
+- LIM-ART-9 — retained history of one binding: 2,000 revisions and 1 GiB by
+  default, configurable up to 20,000 revisions and 8 GiB (ART-R123).
+- LIM-ART-10 — history work per transaction: 64 candidates examined and 64
+  revisions removed (ART-R125).
+- LIM-ART-11 — physical reclamation per history pass: 64 version or blob
+  candidates and 64 MiB of encoded payload (ART-R125).
 
 Errors ([registry](../platform/errors.md)):
 
@@ -1163,6 +1219,11 @@ Errors ([registry](../platform/errors.md)):
 - `artifact_frozen` — a write to a frozen binding; permanent (ART-R59).
 - `artifact_limit_exceeded` — a write beyond the Run revision limit; nothing
   is stored; permanent (ART-R118).
+- `artifact_history_protected` — protected history cannot fit the binding's
+  limit; nothing changes; permanent (ART-R126).
+- `artifact_history_maintenance_pending` — admission needs more history
+  maintenance than one transaction may do; nothing is stored; retryable with
+  `Retry-After` (ART-R127).
 - `context_artifact_missing` is owned by [Scheduler](../execution/scheduler.md).
 
 Failure outcomes ([failure model](../platform/failure-model.md)):
@@ -1180,6 +1241,8 @@ Failure outcomes ([failure model](../platform/failure-model.md)):
 - FAIL-ART-6 — StageResult acceptance, output mapping and terminal transition
   (ART-R92).
 - FAIL-ART-7 — paged private listing (ART-R47, ART-R48).
+- FAIL-ART-8 — history admission and its maintenance pass (ART-R124 to
+  ART-R127).
 
 Lifecycle ([registry](../platform/lifecycle.md)):
 

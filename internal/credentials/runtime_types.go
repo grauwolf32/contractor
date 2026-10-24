@@ -15,6 +15,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/credentialerrors"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 )
@@ -26,18 +27,27 @@ const (
 	MaximumOTLPHeaderValueBytes    = 4 * 1024
 	MaximumOTLPHeaderValuesBytes   = 16 * 1024
 	MaximumOTLPHeaders             = 32
+	// MaximumTargetLoginFields and MaximumTargetLoginValuesBytes bound one
+	// target-login@1 material inside the 32 KiB plaintext envelope.
+	MaximumTargetLoginFields      = 16
+	MaximumTargetLoginValuesBytes = 16 * 1024
 )
 
+// RuntimeCredentialKind is a stored Runtime credential kind. Its values are
+// runtimesettings.RuntimeCredentialKind's, the one Server definition.
 type RuntimeCredentialKind string
 
 const (
-	RuntimeCredentialOTLPHeaders     RuntimeCredentialKind = "otlp-headers@1"
-	RuntimeCredentialProxyBasic      RuntimeCredentialKind = "http-proxy-basic@1"
-	RuntimeCredentialProxyBearer     RuntimeCredentialKind = "http-proxy-bearer@1"
-	RuntimeCredentialCaidoBearer     RuntimeCredentialKind = "caido-bearer@1"
-	RuntimeCredentialInteractshToken RuntimeCredentialKind = "interactsh-token@1"
-	RuntimeCredentialOriginBasic     RuntimeCredentialKind = "http-origin-basic@1"
-	RuntimeCredentialOriginBearer    RuntimeCredentialKind = "http-origin-bearer@1"
+	RuntimeCredentialOTLPHeaders     = RuntimeCredentialKind(runtimesettings.RuntimeCredentialOTLPHeaders)
+	RuntimeCredentialProxyBasic      = RuntimeCredentialKind(runtimesettings.RuntimeCredentialProxyBasic)
+	RuntimeCredentialProxyBearer     = RuntimeCredentialKind(runtimesettings.RuntimeCredentialProxyBearer)
+	RuntimeCredentialCaidoBearer     = RuntimeCredentialKind(runtimesettings.RuntimeCredentialCaidoBearer)
+	RuntimeCredentialInteractshToken = RuntimeCredentialKind(runtimesettings.RuntimeCredentialInteractshToken)
+	RuntimeCredentialOriginBasic     = RuntimeCredentialKind(runtimesettings.RuntimeCredentialOriginBasic)
+	RuntimeCredentialOriginBearer    = RuntimeCredentialKind(runtimesettings.RuntimeCredentialOriginBearer)
+	RuntimeCredentialTargetBasic     = RuntimeCredentialKind(runtimesettings.RuntimeCredentialTargetBasic)
+	RuntimeCredentialTargetBearer    = RuntimeCredentialKind(runtimesettings.RuntimeCredentialTargetBearer)
+	RuntimeCredentialTargetLogin     = RuntimeCredentialKind(runtimesettings.RuntimeCredentialTargetLogin)
 )
 
 var (
@@ -47,8 +57,9 @@ var (
 	ErrRuntimeCredentialNotFound = credentialerrors.RuntimeNotFound
 	ErrRuntimeCredentialInUse    = errors.New("Runtime adapter credential is in use")
 
-	headerNamePattern    = regexp.MustCompile("^[!#$%&'*+.^_`|~0-9A-Za-z-]+$")
-	forbiddenOTLPHeaders = map[string]struct{}{
+	targetLoginFieldNamePattern = regexp.MustCompile("^[a-z][a-z0-9_-]{0,63}$")
+	headerNamePattern           = regexp.MustCompile("^[!#$%&'*+.^_`|~0-9A-Za-z-]+$")
+	forbiddenOTLPHeaders        = map[string]struct{}{
 		"connection": {}, "content-length": {}, "forwarded": {}, "host": {},
 		"keep-alive": {}, "proxy-authenticate": {}, "proxy-authorization": {},
 		"te": {}, "trailer": {}, "transfer-encoding": {}, "upgrade": {},
@@ -144,6 +155,54 @@ func NewHTTPOriginBearerCredential(token string) (RuntimeCredentialMaterial, err
 	return newRuntimeCredentialMaterial(RuntimeCredentialOriginBearer, struct {
 		Token string `json:"token"`
 	}{Token: token})
+}
+
+// NewTargetBasicCredential is a pentest target identity's Basic pair. It
+// keeps the HTTP origin Basic bounds (RCF-R114).
+func NewTargetBasicCredential(username, password string) (RuntimeCredentialMaterial, error) {
+	if !validBoundedSecret(username, 256) || !validBoundedSecret(password, MaximumRuntimeSecretBytes) || strings.Contains(username, ":") {
+		return RuntimeCredentialMaterial{}, runtimeInvalid("Target basic credential is invalid")
+	}
+	return newRuntimeCredentialMaterial(RuntimeCredentialTargetBasic, struct {
+		Password string `json:"password"`
+		Username string `json:"username"`
+	}{Password: password, Username: username})
+}
+
+// NewTargetBearerCredential is a pentest target identity's bearer token. It
+// keeps the bearer token bound and field-value grammar (RCF-R114).
+func NewTargetBearerCredential(token string) (RuntimeCredentialMaterial, error) {
+	if !validFieldValue(token, MaximumRuntimeSecretBytes) {
+		return RuntimeCredentialMaterial{}, runtimeInvalid("Target bearer credential is invalid")
+	}
+	return newRuntimeCredentialMaterial(RuntimeCredentialTargetBearer, struct {
+		Token string `json:"token"`
+	}{Token: token})
+}
+
+// NewTargetLoginCredential is a pentest login identity's named secret
+// fields: 1-16 names of the login field grammar, each value a bounded secret,
+// at most 16 KiB of values in total.
+func NewTargetLoginCredential(fields map[string]string) (RuntimeCredentialMaterial, error) {
+	if len(fields) < 1 || len(fields) > MaximumTargetLoginFields {
+		return RuntimeCredentialMaterial{}, runtimeInvalid("Target login field count is invalid")
+	}
+	totalValueBytes := 0
+	for name, value := range fields {
+		if !targetLoginFieldNamePattern.MatchString(name) {
+			return RuntimeCredentialMaterial{}, runtimeInvalid("Target login field name is invalid")
+		}
+		if !validBoundedSecret(value, MaximumRuntimeSecretBytes) {
+			return RuntimeCredentialMaterial{}, runtimeInvalid("Target login field value is invalid")
+		}
+		totalValueBytes += len(value)
+		if totalValueBytes > MaximumTargetLoginValuesBytes {
+			return RuntimeCredentialMaterial{}, runtimeInvalid("Target login field values exceed their total bound")
+		}
+	}
+	return newRuntimeCredentialMaterial(RuntimeCredentialTargetLogin, struct {
+		Fields map[string]string `json:"fields"`
+	}{Fields: fields})
 }
 
 func (m RuntimeCredentialMaterial) Kind() RuntimeCredentialKind { return m.kind }
@@ -325,71 +384,95 @@ func newRuntimeCredentialMaterial(kind RuntimeCredentialKind, value any) (Runtim
 	return RuntimeCredentialMaterial{kind: kind, canonical: canonical}, nil
 }
 
-func runtimeCredentialMaterialFromCanonical(kind RuntimeCredentialKind, canonical []byte) (RuntimeCredentialMaterial, error) {
-	if len(canonical) == 0 || len(canonical) > MaximumRuntimePlaintextBytes {
-		return RuntimeCredentialMaterial{}, ErrCrypto
+// DecodeRuntimeCredentialMaterial strictly decodes the creation material of
+// kind, the JSON object a public create request carries, and builds it with
+// the kind's constructor. Duplicate keys, unknown or case-aliased members,
+// lone surrogate escapes, trailing data, an unknown kind and any value outside
+// the kind's rules are invalid; the error names no input. encoding/json
+// would turn invalid UTF-8 and a lone surrogate escape into U+FFFD, so both
+// are refused before decoding.
+func DecodeRuntimeCredentialMaterial(kind RuntimeCredentialKind, data []byte) (RuntimeCredentialMaterial, error) {
+	if len(data) == 0 || len(data) > MaximumRuntimePlaintextBytes || !utf8.Valid(data) ||
+		!strictjson.ValidUnicodeEscapes(data) {
+		return RuntimeCredentialMaterial{}, runtimeInvalid("Runtime credential material is invalid")
 	}
-	var material RuntimeCredentialMaterial
+	material, err := decodeRuntimeCredentialMaterial(kind, data)
+	if err != nil {
+		return RuntimeCredentialMaterial{}, runtimeInvalid("Runtime credential material is invalid")
+	}
+	return material, nil
+}
+
+func decodeRuntimeCredentialMaterial(kind RuntimeCredentialKind, data []byte) (RuntimeCredentialMaterial, error) {
 	switch kind {
 	case RuntimeCredentialOTLPHeaders:
 		var source struct {
 			Headers map[string]string `json:"headers"`
 		}
-		if strictjson.Decode(canonical, &source) != nil {
-			return RuntimeCredentialMaterial{}, ErrCrypto
+		if err := strictjson.Decode(data, &source); err != nil {
+			return RuntimeCredentialMaterial{}, err
 		}
-		material, _ = NewOTLPHeadersCredential(source.Headers)
-	case RuntimeCredentialProxyBasic:
+		return NewOTLPHeadersCredential(source.Headers)
+	case RuntimeCredentialProxyBasic, RuntimeCredentialOriginBasic, RuntimeCredentialTargetBasic:
 		var source struct {
 			Password string `json:"password"`
 			Username string `json:"username"`
 		}
-		if strictjson.Decode(canonical, &source) != nil {
-			return RuntimeCredentialMaterial{}, ErrCrypto
+		if err := strictjson.Decode(data, &source); err != nil {
+			return RuntimeCredentialMaterial{}, err
 		}
-		material, _ = NewHTTPProxyBasicCredential(source.Username, source.Password)
-	case RuntimeCredentialProxyBearer:
+		switch kind {
+		case RuntimeCredentialProxyBasic:
+			return NewHTTPProxyBasicCredential(source.Username, source.Password)
+		case RuntimeCredentialOriginBasic:
+			return NewHTTPOriginBasicCredential(source.Username, source.Password)
+		default:
+			return NewTargetBasicCredential(source.Username, source.Password)
+		}
+	case RuntimeCredentialProxyBearer, RuntimeCredentialCaidoBearer, RuntimeCredentialInteractshToken,
+		RuntimeCredentialOriginBearer, RuntimeCredentialTargetBearer:
 		var source struct {
 			Token string `json:"token"`
 		}
-		if strictjson.Decode(canonical, &source) != nil {
-			return RuntimeCredentialMaterial{}, ErrCrypto
+		if err := strictjson.Decode(data, &source); err != nil {
+			return RuntimeCredentialMaterial{}, err
 		}
-		material, _ = NewHTTPProxyBearerCredential(source.Token)
-	case RuntimeCredentialCaidoBearer:
+		switch kind {
+		case RuntimeCredentialProxyBearer:
+			return NewHTTPProxyBearerCredential(source.Token)
+		case RuntimeCredentialCaidoBearer:
+			return NewCaidoBearerCredential(source.Token)
+		case RuntimeCredentialInteractshToken:
+			return NewInteractshTokenCredential(source.Token)
+		case RuntimeCredentialOriginBearer:
+			return NewHTTPOriginBearerCredential(source.Token)
+		default:
+			return NewTargetBearerCredential(source.Token)
+		}
+	case RuntimeCredentialTargetLogin:
 		var source struct {
-			Token string `json:"token"`
+			Fields map[string]string `json:"fields"`
 		}
-		if strictjson.Decode(canonical, &source) != nil {
-			return RuntimeCredentialMaterial{}, ErrCrypto
+		if err := strictjson.Decode(data, &source); err != nil {
+			return RuntimeCredentialMaterial{}, err
 		}
-		material, _ = NewCaidoBearerCredential(source.Token)
-	case RuntimeCredentialInteractshToken:
-		var source struct {
-			Token string `json:"token"`
-		}
-		if strictjson.Decode(canonical, &source) != nil {
-			return RuntimeCredentialMaterial{}, ErrCrypto
-		}
-		material, _ = NewInteractshTokenCredential(source.Token)
-	case RuntimeCredentialOriginBasic:
-		var source struct {
-			Password string `json:"password"`
-			Username string `json:"username"`
-		}
-		if strictjson.Decode(canonical, &source) != nil {
-			return RuntimeCredentialMaterial{}, ErrCrypto
-		}
-		material, _ = NewHTTPOriginBasicCredential(source.Username, source.Password)
-	case RuntimeCredentialOriginBearer:
-		var source struct {
-			Token string `json:"token"`
-		}
-		if strictjson.Decode(canonical, &source) != nil {
-			return RuntimeCredentialMaterial{}, ErrCrypto
-		}
-		material, _ = NewHTTPOriginBearerCredential(source.Token)
+		material, err := NewTargetLoginCredential(source.Fields)
+		clear(source.Fields)
+		return material, err
 	default:
+		return RuntimeCredentialMaterial{}, runtimeInvalid("Runtime credential kind is invalid")
+	}
+}
+
+// runtimeCredentialMaterialFromCanonical decodes decrypted plaintext: it must
+// be valid material of kind and exactly the canonical JSON its constructor
+// produces, or the record is refused as a decryption failure (FAIL-RCF-3).
+func runtimeCredentialMaterialFromCanonical(kind RuntimeCredentialKind, canonical []byte) (RuntimeCredentialMaterial, error) {
+	if len(canonical) == 0 || len(canonical) > MaximumRuntimePlaintextBytes {
+		return RuntimeCredentialMaterial{}, ErrCrypto
+	}
+	material, err := decodeRuntimeCredentialMaterial(kind, canonical)
+	if err != nil {
 		return RuntimeCredentialMaterial{}, ErrCrypto
 	}
 	if len(material.canonical) == 0 || !bytes.Equal(material.canonical, canonical) {
@@ -400,9 +483,7 @@ func runtimeCredentialMaterialFromCanonical(kind RuntimeCredentialKind, canonica
 }
 
 func validRuntimeCredentialKind(kind RuntimeCredentialKind) bool {
-	return kind == RuntimeCredentialOTLPHeaders || kind == RuntimeCredentialProxyBasic ||
-		kind == RuntimeCredentialProxyBearer || kind == RuntimeCredentialCaidoBearer || kind == RuntimeCredentialInteractshToken ||
-		kind == RuntimeCredentialOriginBasic || kind == RuntimeCredentialOriginBearer
+	return runtimesettings.RuntimeCredentialKind(kind).Validate() == nil
 }
 
 func validBoundedSecret(value string, maximum int) bool {

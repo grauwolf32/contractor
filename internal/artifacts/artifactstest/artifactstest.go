@@ -7,6 +7,7 @@ package artifactstest
 
 import (
 	"context"
+	"errors"
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
@@ -100,4 +101,30 @@ func WriteAuditArtifact(
 		return artifacts.WriteResult{}, err
 	}
 	return service.CreateFrozen(ctx, project, target, payload)
+}
+
+// WriteRunArtifact writes payload to target of runID as a Worker's ordinary
+// write does, creating the binding or advancing its current revision, and
+// returns the exact ref of the revision it wrote. An exact ref that a
+// StageExecution, a receipt or an Audit records must name a stored revision.
+func WriteRunArtifact(
+	ctx context.Context, service *artifacts.Service, runID string, target contracts.ArtifactRef, payload artifacts.Payload,
+) (contracts.ArtifactRef, error) {
+	run, err := service.Run(runID)
+	if err != nil {
+		return contracts.ArtifactRef{}, err
+	}
+	var expected *string
+	current, err := run.Metadata(ctx, contracts.ArtifactRef{Namespace: target.Namespace, Name: target.Name})
+	switch {
+	case err == nil:
+		expected = current.Ref.Revision
+	case !errors.Is(err, artifacts.ErrArtifactNotFound):
+		return contracts.ArtifactRef{}, err
+	}
+	written, err := run.Write(ctx, contracts.ArtifactRef{Namespace: target.Namespace, Name: target.Name}, payload, expected)
+	if err != nil {
+		return contracts.ArtifactRef{}, err
+	}
+	return written.Ref, nil
 }

@@ -108,7 +108,8 @@ epics:
     title: Audits
     scope: >-
       Audit coordination, profiles and programs, rounds, inventory, result
-      collection, finding review, preparation and check prioritization.
+      collection, finding review, preparation, iterative composition and optional
+      hypothesis search.
     specs:
       - docs/spec/audits/audits.md
       - docs/spec/audits/execution.md
@@ -117,6 +118,7 @@ epics:
       - docs/spec/audits/scans.md
       - docs/proposals/0033-autonomous-pentest-audits.md
       - docs/proposals/0034-audit-check-prioritization.md
+      - docs/proposals/0045-audit-hypothesis-search.md
 
   - id: evals
     title: Evaluations

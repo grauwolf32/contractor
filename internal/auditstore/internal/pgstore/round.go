@@ -102,7 +102,7 @@ func (s *OwnerStore) MaterializeRound(
 				return auditMutationResult{}, auditstore.ErrConflict
 			}
 			if !errors.Is(err, pgx.ErrNoRows) {
-				return auditMutationResult{}, fmt.Errorf("materialize Audit round: %w", err)
+				return auditMutationResult{}, writeError("materialize Audit round", err)
 			}
 			return auditMutationResult{}, ownerMutationRefusal(ctx, tx, params.OwnerID, params.AuditID)
 		})
@@ -179,7 +179,7 @@ func (s *ClaimStore) AcceptNextRound(
 		}
 		return auditstore.Round{}, false, auditstore.ErrPrecondition
 	}
-	return auditstore.Round{}, false, fmt.Errorf("accept next Audit round: %w", err)
+	return auditstore.Round{}, false, writeError("accept next Audit round", err)
 }
 
 func (s *ClaimStore) lookupAcceptedRoundReplay(

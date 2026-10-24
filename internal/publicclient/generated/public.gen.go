@@ -321,6 +321,51 @@ func (e CreateRuntimeCredentialRequest6Kind) Valid() bool {
 	}
 }
 
+// Defines values for CreateRuntimeCredentialRequest7Kind.
+const (
+	TargetBasic1 CreateRuntimeCredentialRequest7Kind = "target-basic@1"
+)
+
+// Valid indicates whether the value is a known member of the CreateRuntimeCredentialRequest7Kind enum.
+func (e CreateRuntimeCredentialRequest7Kind) Valid() bool {
+	switch e {
+	case TargetBasic1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateRuntimeCredentialRequest8Kind.
+const (
+	TargetBearer1 CreateRuntimeCredentialRequest8Kind = "target-bearer@1"
+)
+
+// Valid indicates whether the value is a known member of the CreateRuntimeCredentialRequest8Kind enum.
+func (e CreateRuntimeCredentialRequest8Kind) Valid() bool {
+	switch e {
+	case TargetBearer1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateRuntimeCredentialRequest9Kind.
+const (
+	TargetLogin1 CreateRuntimeCredentialRequest9Kind = "target-login@1"
+)
+
+// Valid indicates whether the value is a known member of the CreateRuntimeCredentialRequest9Kind enum.
+func (e CreateRuntimeCredentialRequest9Kind) Valid() bool {
+	switch e {
+	case TargetLogin1:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CredentialInUseDetailsKind.
 const (
 	CredentialInUseDetailsKindCredentialInUse CredentialInUseDetailsKind = "credential_in_use"
@@ -2451,66 +2496,6 @@ func (e GetEvalCapabilitiesParamsKind) Valid() bool {
 	}
 }
 
-// Defines values for ListEvalExperimentsParamsState.
-const (
-	EvalListevalexperimentsStateCancelled  ListEvalExperimentsParamsState = "cancelled"
-	EvalListevalexperimentsStateCancelling ListEvalExperimentsParamsState = "cancelling"
-	EvalListevalexperimentsStateDraft      ListEvalExperimentsParamsState = "draft"
-	EvalListevalexperimentsStateFinished   ListEvalExperimentsParamsState = "finished"
-	EvalListevalexperimentsStatePaused     ListEvalExperimentsParamsState = "paused"
-	EvalListevalexperimentsStatePausing    ListEvalExperimentsParamsState = "pausing"
-	EvalListevalexperimentsStatePreparing  ListEvalExperimentsParamsState = "preparing"
-	EvalListevalexperimentsStateReady      ListEvalExperimentsParamsState = "ready"
-	EvalListevalexperimentsStateRunning    ListEvalExperimentsParamsState = "running"
-	EvalListevalexperimentsStateSettling   ListEvalExperimentsParamsState = "settling"
-)
-
-// Valid indicates whether the value is a known member of the ListEvalExperimentsParamsState enum.
-func (e ListEvalExperimentsParamsState) Valid() bool {
-	switch e {
-	case EvalListevalexperimentsStateCancelled:
-		return true
-	case EvalListevalexperimentsStateCancelling:
-		return true
-	case EvalListevalexperimentsStateDraft:
-		return true
-	case EvalListevalexperimentsStateFinished:
-		return true
-	case EvalListevalexperimentsStatePaused:
-		return true
-	case EvalListevalexperimentsStatePausing:
-		return true
-	case EvalListevalexperimentsStatePreparing:
-		return true
-	case EvalListevalexperimentsStateReady:
-		return true
-	case EvalListevalexperimentsStateRunning:
-		return true
-	case EvalListevalexperimentsStateSettling:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for ListEvalExperimentsParamsControlMode.
-const (
-	EvalListevalexperimentsControlmodeExternal ListEvalExperimentsParamsControlMode = "external"
-	EvalListevalexperimentsControlmodeServer   ListEvalExperimentsParamsControlMode = "server"
-)
-
-// Valid indicates whether the value is a known member of the ListEvalExperimentsParamsControlMode enum.
-func (e ListEvalExperimentsParamsControlMode) Valid() bool {
-	switch e {
-	case EvalListevalexperimentsControlmodeExternal:
-		return true
-	case EvalListevalexperimentsControlmodeServer:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for GetEvalChartParamsMeasurementScope.
 const (
 	EvalGetevalchartMeasurementscopeAudit    GetEvalChartParamsMeasurementScope = "audit"
@@ -4042,6 +4027,12 @@ type AuthSession struct {
 	Principal         AuthPrincipal `json:"principal"`
 }
 
+// BasicCredentialPassword The password of a Basic credential, at most 8,192 UTF-8 bytes without control characters (RCF-R114).
+type BasicCredentialPassword = string
+
+// BasicCredentialUsername The username of a Basic credential, at most 256 UTF-8 bytes without control characters or a colon (RCF-R114).
+type BasicCredentialUsername = string
+
 // CaidoBearerMaterial defines model for CaidoBearerMaterial.
 type CaidoBearerMaterial struct {
 	// Token An HTTP/1.1 field value sent unchanged by every client (RCF-R114), visible ASCII characters with runs of space or tab only between them.
@@ -4261,6 +4252,36 @@ type CreateRuntimeCredentialRequest6 struct {
 
 // CreateRuntimeCredentialRequest6Kind defines model for CreateRuntimeCredentialRequest.6.Kind.
 type CreateRuntimeCredentialRequest6Kind string
+
+// CreateRuntimeCredentialRequest7 defines model for CreateRuntimeCredentialRequest.7.
+type CreateRuntimeCredentialRequest7 struct {
+	CredentialId RuntimeCredentialId                 `json:"credentialId"`
+	Kind         CreateRuntimeCredentialRequest7Kind `json:"kind"`
+	Material     *TargetBasicMaterial                `json:"material,omitempty"`
+}
+
+// CreateRuntimeCredentialRequest7Kind defines model for CreateRuntimeCredentialRequest.7.Kind.
+type CreateRuntimeCredentialRequest7Kind string
+
+// CreateRuntimeCredentialRequest8 defines model for CreateRuntimeCredentialRequest.8.
+type CreateRuntimeCredentialRequest8 struct {
+	CredentialId RuntimeCredentialId                 `json:"credentialId"`
+	Kind         CreateRuntimeCredentialRequest8Kind `json:"kind"`
+	Material     *TargetBearerMaterial               `json:"material,omitempty"`
+}
+
+// CreateRuntimeCredentialRequest8Kind defines model for CreateRuntimeCredentialRequest.8.Kind.
+type CreateRuntimeCredentialRequest8Kind string
+
+// CreateRuntimeCredentialRequest9 defines model for CreateRuntimeCredentialRequest.9.
+type CreateRuntimeCredentialRequest9 struct {
+	CredentialId RuntimeCredentialId                 `json:"credentialId"`
+	Kind         CreateRuntimeCredentialRequest9Kind `json:"kind"`
+	Material     *TargetLoginMaterial                `json:"material,omitempty"`
+}
+
+// CreateRuntimeCredentialRequest9Kind defines model for CreateRuntimeCredentialRequest.9.Kind.
+type CreateRuntimeCredentialRequest9Kind string
 
 // CreateScanSweepRequest Select exactly one of projectIds or allProjects=true. The server captures each Project target; parameters cannot override target. Omitted workflow selects nuclei-web@1.
 type CreateScanSweepRequest struct {
@@ -6064,8 +6085,11 @@ type GitSource struct {
 
 // HTTPOriginBasicMaterial defines model for HTTPOriginBasicMaterial.
 type HTTPOriginBasicMaterial struct {
-	Password *string `json:"password,omitempty"`
-	Username string  `json:"username"`
+	// Password The password of a Basic credential, at most 8,192 UTF-8 bytes without control characters (RCF-R114).
+	Password *BasicCredentialPassword `json:"password,omitempty"`
+
+	// Username The username of a Basic credential, at most 256 UTF-8 bytes without control characters or a colon (RCF-R114).
+	Username BasicCredentialUsername `json:"username"`
 }
 
 // HTTPOriginBearerMaterial defines model for HTTPOriginBearerMaterial.
@@ -6082,8 +6106,11 @@ type HTTPOriginCredentialRef struct {
 
 // HTTPProxyBasicMaterial defines model for HTTPProxyBasicMaterial.
 type HTTPProxyBasicMaterial struct {
-	Password *string `json:"password,omitempty"`
-	Username string  `json:"username"`
+	// Password The password of a Basic credential, at most 8,192 UTF-8 bytes without control characters (RCF-R114).
+	Password *BasicCredentialPassword `json:"password,omitempty"`
+
+	// Username The username of a Basic credential, at most 256 UTF-8 bytes without control characters or a colon (RCF-R114).
+	Username BasicCredentialUsername `json:"username"`
 }
 
 // HTTPProxyBearerMaterial defines model for HTTPProxyBearerMaterial.
@@ -7543,6 +7570,27 @@ type StageTransition struct {
 	TargetStage         *ConfigId   `json:"targetStage,omitempty"`
 }
 
+// TargetBasicMaterial defines model for TargetBasicMaterial.
+type TargetBasicMaterial struct {
+	// Password The password of a Basic credential, at most 8,192 UTF-8 bytes without control characters (RCF-R114).
+	Password *BasicCredentialPassword `json:"password,omitempty"`
+
+	// Username The username of a Basic credential, at most 256 UTF-8 bytes without control characters or a colon (RCF-R114).
+	Username BasicCredentialUsername `json:"username"`
+}
+
+// TargetBearerMaterial defines model for TargetBearerMaterial.
+type TargetBearerMaterial struct {
+	// Token An HTTP/1.1 field value sent unchanged by every client (RCF-R114), visible ASCII characters with runs of space or tab only between them.
+	Token *string `json:"token,omitempty"`
+}
+
+// TargetLoginMaterial defines model for TargetLoginMaterial.
+type TargetLoginMaterial struct {
+	// Fields Named login secret fields (RCF-R184); each value is at most 8,192 UTF-8 bytes without control characters, and the values total at most 16 KiB.
+	Fields *map[string]string `json:"fields,omitempty"`
+}
+
 // TerminationError defines model for TerminationError.
 type TerminationError struct {
 	Code      ConfigId `json:"code"`
@@ -8009,6 +8057,12 @@ type ArtifactCreated = ArtifactWriteResponse
 // ArtifactUnavailable defines model for ArtifactUnavailable.
 type ArtifactUnavailable = Error
 
+// ArtifactWriteConflict defines model for ArtifactWriteConflict.
+type ArtifactWriteConflict = Error
+
+// ArtifactWriteUnavailable defines model for ArtifactWriteUnavailable.
+type ArtifactWriteUnavailable = Error
+
 // ArtifactWritten defines model for ArtifactWritten.
 type ArtifactWritten = ArtifactWriteResponse
 
@@ -8411,19 +8465,10 @@ type GetEvalCapabilitiesParamsKind string
 
 // ListEvalExperimentsParams defines parameters for ListEvalExperiments.
 type ListEvalExperimentsParams struct {
-	Limit       *int                                  `form:"limit,omitempty" json:"limit,omitempty"`
-	Cursor      *string                               `form:"cursor,omitempty" json:"cursor,omitempty"`
-	ProjectId   *string                               `form:"projectId,omitempty" json:"projectId,omitempty"`
-	State       *ListEvalExperimentsParamsState       `form:"state,omitempty" json:"state,omitempty"`
-	DatasetId   *string                               `form:"datasetId,omitempty" json:"datasetId,omitempty"`
-	ControlMode *ListEvalExperimentsParamsControlMode `form:"controlMode,omitempty" json:"controlMode,omitempty"`
+	Limit     *int    `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor    *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+	ProjectId *string `form:"projectId,omitempty" json:"projectId,omitempty"`
 }
-
-// ListEvalExperimentsParamsState defines parameters for ListEvalExperiments.
-type ListEvalExperimentsParamsState string
-
-// ListEvalExperimentsParamsControlMode defines parameters for ListEvalExperiments.
-type ListEvalExperimentsParamsControlMode string
 
 // DeleteEvalExperimentParams defines parameters for DeleteEvalExperiment.
 type DeleteEvalExperimentParams struct {
@@ -11072,6 +11117,84 @@ func (t *CreateRuntimeCredentialRequest) FromCreateRuntimeCredentialRequest6(v C
 
 // MergeCreateRuntimeCredentialRequest6 performs a merge with any union data inside the CreateRuntimeCredentialRequest, using the provided CreateRuntimeCredentialRequest6
 func (t *CreateRuntimeCredentialRequest) MergeCreateRuntimeCredentialRequest6(v CreateRuntimeCredentialRequest6) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsCreateRuntimeCredentialRequest7 returns the union data inside the CreateRuntimeCredentialRequest as a CreateRuntimeCredentialRequest7
+func (t CreateRuntimeCredentialRequest) AsCreateRuntimeCredentialRequest7() (CreateRuntimeCredentialRequest7, error) {
+	var body CreateRuntimeCredentialRequest7
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCreateRuntimeCredentialRequest7 overwrites any union data inside the CreateRuntimeCredentialRequest as the provided CreateRuntimeCredentialRequest7
+func (t *CreateRuntimeCredentialRequest) FromCreateRuntimeCredentialRequest7(v CreateRuntimeCredentialRequest7) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCreateRuntimeCredentialRequest7 performs a merge with any union data inside the CreateRuntimeCredentialRequest, using the provided CreateRuntimeCredentialRequest7
+func (t *CreateRuntimeCredentialRequest) MergeCreateRuntimeCredentialRequest7(v CreateRuntimeCredentialRequest7) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsCreateRuntimeCredentialRequest8 returns the union data inside the CreateRuntimeCredentialRequest as a CreateRuntimeCredentialRequest8
+func (t CreateRuntimeCredentialRequest) AsCreateRuntimeCredentialRequest8() (CreateRuntimeCredentialRequest8, error) {
+	var body CreateRuntimeCredentialRequest8
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCreateRuntimeCredentialRequest8 overwrites any union data inside the CreateRuntimeCredentialRequest as the provided CreateRuntimeCredentialRequest8
+func (t *CreateRuntimeCredentialRequest) FromCreateRuntimeCredentialRequest8(v CreateRuntimeCredentialRequest8) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCreateRuntimeCredentialRequest8 performs a merge with any union data inside the CreateRuntimeCredentialRequest, using the provided CreateRuntimeCredentialRequest8
+func (t *CreateRuntimeCredentialRequest) MergeCreateRuntimeCredentialRequest8(v CreateRuntimeCredentialRequest8) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsCreateRuntimeCredentialRequest9 returns the union data inside the CreateRuntimeCredentialRequest as a CreateRuntimeCredentialRequest9
+func (t CreateRuntimeCredentialRequest) AsCreateRuntimeCredentialRequest9() (CreateRuntimeCredentialRequest9, error) {
+	var body CreateRuntimeCredentialRequest9
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCreateRuntimeCredentialRequest9 overwrites any union data inside the CreateRuntimeCredentialRequest as the provided CreateRuntimeCredentialRequest9
+func (t *CreateRuntimeCredentialRequest) FromCreateRuntimeCredentialRequest9(v CreateRuntimeCredentialRequest9) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCreateRuntimeCredentialRequest9 performs a merge with any union data inside the CreateRuntimeCredentialRequest, using the provided CreateRuntimeCredentialRequest9
+func (t *CreateRuntimeCredentialRequest) MergeCreateRuntimeCredentialRequest9(v CreateRuntimeCredentialRequest9) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -21843,42 +21966,6 @@ func NewListEvalExperimentsRequest(server string, params *ListEvalExperimentsPar
 
 		}
 
-		if params.State != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "state", *params.State, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.DatasetId != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "datasetId", *params.DatasetId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.ControlMode != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "controlMode", *params.ControlMode, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
 		if encoded := queryValues.Encode(); encoded != "" {
 			rawQueryFragments = append(rawQueryFragments, encoded)
 		}
@@ -30955,6 +31042,7 @@ type PutArtifactResponse500Headers struct {
 
 // PutArtifactResponse503Headers the declared response headers of an HTTP 503 response for PutArtifact
 type PutArtifactResponse503Headers struct {
+	RetryAfter *int
 	XRequestID RequestId
 }
 
@@ -30972,13 +31060,13 @@ type PutArtifactResponse struct {
 	// JSON403 the response for an HTTP 403 `application/json` response
 	JSON403 *Forbidden
 	// JSON409 the response for an HTTP 409 `application/json` response
-	JSON409 *Conflict
+	JSON409 *ArtifactWriteConflict
 	// JSON413 the response for an HTTP 413 `application/json` response
 	JSON413 *PayloadTooLarge
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
 	// JSON503 the response for an HTTP 503 `application/json` response
-	JSON503 *ArtifactUnavailable
+	JSON503 *ArtifactWriteUnavailable
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *PutArtifactResponse200Headers
 	// Headers201 the parsed response headers for an HTTP 201 response
@@ -31025,7 +31113,7 @@ func (r PutArtifactResponse) GetJSON403() *Forbidden {
 }
 
 // GetJSON409 returns the response for an HTTP 409 `application/json` response
-func (r PutArtifactResponse) GetJSON409() *Conflict {
+func (r PutArtifactResponse) GetJSON409() *ArtifactWriteConflict {
 	return r.JSON409
 }
 
@@ -31040,7 +31128,7 @@ func (r PutArtifactResponse) GetJSON500() *InternalError {
 }
 
 // GetJSON503 returns the response for an HTTP 503 `application/json` response
-func (r PutArtifactResponse) GetJSON503() *ArtifactUnavailable {
+func (r PutArtifactResponse) GetJSON503() *ArtifactWriteUnavailable {
 	return r.JSON503
 }
 
@@ -31455,6 +31543,7 @@ type ImportGitArtifactResponse500Headers struct {
 
 // ImportGitArtifactResponse503Headers the declared response headers of an HTTP 503 response for ImportGitArtifact
 type ImportGitArtifactResponse503Headers struct {
+	RetryAfter *int
 	XRequestID RequestId
 }
 
@@ -31476,7 +31565,7 @@ type ImportGitArtifactResponse struct {
 	// JSON408 the response for an HTTP 408 `application/json` response
 	JSON408 *Error
 	// JSON409 the response for an HTTP 409 `application/json` response
-	JSON409 *Conflict
+	JSON409 *ArtifactWriteConflict
 	// JSON413 the response for an HTTP 413 `application/json` response
 	JSON413 *PayloadTooLarge
 	// JSON422 the response for an HTTP 422 `application/json` response
@@ -31484,7 +31573,7 @@ type ImportGitArtifactResponse struct {
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
 	// JSON503 the response for an HTTP 503 `application/json` response
-	JSON503 *ArtifactUnavailable
+	JSON503 *ArtifactWriteUnavailable
 	// JSON504 the response for an HTTP 504 `application/json` response
 	JSON504 *Error
 	// Headers200 the parsed response headers for an HTTP 200 response
@@ -31547,7 +31636,7 @@ func (r ImportGitArtifactResponse) GetJSON408() *Error {
 }
 
 // GetJSON409 returns the response for an HTTP 409 `application/json` response
-func (r ImportGitArtifactResponse) GetJSON409() *Conflict {
+func (r ImportGitArtifactResponse) GetJSON409() *ArtifactWriteConflict {
 	return r.JSON409
 }
 
@@ -31567,7 +31656,7 @@ func (r ImportGitArtifactResponse) GetJSON500() *InternalError {
 }
 
 // GetJSON503 returns the response for an HTTP 503 `application/json` response
-func (r ImportGitArtifactResponse) GetJSON503() *ArtifactUnavailable {
+func (r ImportGitArtifactResponse) GetJSON503() *ArtifactWriteUnavailable {
 	return r.JSON503
 }
 
@@ -45191,6 +45280,7 @@ type PutProjectArtifactResponse500Headers struct {
 
 // PutProjectArtifactResponse503Headers the declared response headers of an HTTP 503 response for PutProjectArtifact
 type PutProjectArtifactResponse503Headers struct {
+	RetryAfter *int
 	XRequestID RequestId
 }
 
@@ -45210,13 +45300,13 @@ type PutProjectArtifactResponse struct {
 	// JSON404 the response for an HTTP 404 `application/json` response
 	JSON404 *NotFound
 	// JSON409 the response for an HTTP 409 `application/json` response
-	JSON409 *Conflict
+	JSON409 *ArtifactWriteConflict
 	// JSON413 the response for an HTTP 413 `application/json` response
 	JSON413 *PayloadTooLarge
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
 	// JSON503 the response for an HTTP 503 `application/json` response
-	JSON503 *ArtifactUnavailable
+	JSON503 *ArtifactWriteUnavailable
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *PutProjectArtifactResponse200Headers
 	// Headers201 the parsed response headers for an HTTP 201 response
@@ -45270,7 +45360,7 @@ func (r PutProjectArtifactResponse) GetJSON404() *NotFound {
 }
 
 // GetJSON409 returns the response for an HTTP 409 `application/json` response
-func (r PutProjectArtifactResponse) GetJSON409() *Conflict {
+func (r PutProjectArtifactResponse) GetJSON409() *ArtifactWriteConflict {
 	return r.JSON409
 }
 
@@ -45285,7 +45375,7 @@ func (r PutProjectArtifactResponse) GetJSON500() *InternalError {
 }
 
 // GetJSON503 returns the response for an HTTP 503 `application/json` response
-func (r PutProjectArtifactResponse) GetJSON503() *ArtifactUnavailable {
+func (r PutProjectArtifactResponse) GetJSON503() *ArtifactWriteUnavailable {
 	return r.JSON503
 }
 
@@ -45700,6 +45790,7 @@ type ImportProjectGitArtifactResponse500Headers struct {
 
 // ImportProjectGitArtifactResponse503Headers the declared response headers of an HTTP 503 response for ImportProjectGitArtifact
 type ImportProjectGitArtifactResponse503Headers struct {
+	RetryAfter *int
 	XRequestID RequestId
 }
 
@@ -45721,7 +45812,7 @@ type ImportProjectGitArtifactResponse struct {
 	// JSON408 the response for an HTTP 408 `application/json` response
 	JSON408 *Error
 	// JSON409 the response for an HTTP 409 `application/json` response
-	JSON409 *Conflict
+	JSON409 *ArtifactWriteConflict
 	// JSON413 the response for an HTTP 413 `application/json` response
 	JSON413 *PayloadTooLarge
 	// JSON422 the response for an HTTP 422 `application/json` response
@@ -45729,7 +45820,7 @@ type ImportProjectGitArtifactResponse struct {
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
 	// JSON503 the response for an HTTP 503 `application/json` response
-	JSON503 *ArtifactUnavailable
+	JSON503 *ArtifactWriteUnavailable
 	// JSON504 the response for an HTTP 504 `application/json` response
 	JSON504 *Error
 	// Headers200 the parsed response headers for an HTTP 200 response
@@ -45792,7 +45883,7 @@ func (r ImportProjectGitArtifactResponse) GetJSON408() *Error {
 }
 
 // GetJSON409 returns the response for an HTTP 409 `application/json` response
-func (r ImportProjectGitArtifactResponse) GetJSON409() *Conflict {
+func (r ImportProjectGitArtifactResponse) GetJSON409() *ArtifactWriteConflict {
 	return r.JSON409
 }
 
@@ -45812,7 +45903,7 @@ func (r ImportProjectGitArtifactResponse) GetJSON500() *InternalError {
 }
 
 // GetJSON503 returns the response for an HTTP 503 `application/json` response
-func (r ImportProjectGitArtifactResponse) GetJSON503() *ArtifactUnavailable {
+func (r ImportProjectGitArtifactResponse) GetJSON503() *ArtifactWriteUnavailable {
 	return r.JSON503
 }
 
@@ -55046,7 +55137,7 @@ func ParsePutArtifactResponse(rsp *http.Response) (*PutArtifactResponse, error) 
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Conflict
+		var dest ArtifactWriteConflict
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -55067,7 +55158,7 @@ func ParsePutArtifactResponse(rsp *http.Response) (*PutArtifactResponse, error) 
 		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest ArtifactUnavailable
+		var dest ArtifactWriteUnavailable
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -55186,6 +55277,13 @@ func ParsePutArtifactResponse(rsp *http.Response) (*PutArtifactResponse, error) 
 		response.Headers500 = &headers
 	case rsp.StatusCode == 503:
 		var headers PutArtifactResponse503Headers
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value int
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.RetryAfter = &value
+		}
 		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
 			var value RequestId
 			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
@@ -55655,7 +55753,7 @@ func ParseImportGitArtifactResponse(rsp *http.Response) (*ImportGitArtifactRespo
 		response.JSON408 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Conflict
+		var dest ArtifactWriteConflict
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -55683,7 +55781,7 @@ func ParseImportGitArtifactResponse(rsp *http.Response) (*ImportGitArtifactRespo
 		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest ArtifactUnavailable
+		var dest ArtifactWriteUnavailable
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -55829,6 +55927,13 @@ func ParseImportGitArtifactResponse(rsp *http.Response) (*ImportGitArtifactRespo
 		response.Headers500 = &headers
 	case rsp.StatusCode == 503:
 		var headers ImportGitArtifactResponse503Headers
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value int
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.RetryAfter = &value
+		}
 		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
 			var value RequestId
 			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
@@ -72566,7 +72671,7 @@ func ParsePutProjectArtifactResponse(rsp *http.Response) (*PutProjectArtifactRes
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Conflict
+		var dest ArtifactWriteConflict
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -72587,7 +72692,7 @@ func ParsePutProjectArtifactResponse(rsp *http.Response) (*PutProjectArtifactRes
 		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest ArtifactUnavailable
+		var dest ArtifactWriteUnavailable
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -72716,6 +72821,13 @@ func ParsePutProjectArtifactResponse(rsp *http.Response) (*PutProjectArtifactRes
 		response.Headers500 = &headers
 	case rsp.StatusCode == 503:
 		var headers PutProjectArtifactResponse503Headers
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value int
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.RetryAfter = &value
+		}
 		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
 			var value RequestId
 			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
@@ -73185,7 +73297,7 @@ func ParseImportProjectGitArtifactResponse(rsp *http.Response) (*ImportProjectGi
 		response.JSON408 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Conflict
+		var dest ArtifactWriteConflict
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -73213,7 +73325,7 @@ func ParseImportProjectGitArtifactResponse(rsp *http.Response) (*ImportProjectGi
 		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest ArtifactUnavailable
+		var dest ArtifactWriteUnavailable
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -73359,6 +73471,13 @@ func ParseImportProjectGitArtifactResponse(rsp *http.Response) (*ImportProjectGi
 		response.Headers500 = &headers
 	case rsp.StatusCode == 503:
 		var headers ImportProjectGitArtifactResponse503Headers
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value int
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.RetryAfter = &value
+		}
 		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
 			var value RequestId
 			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {

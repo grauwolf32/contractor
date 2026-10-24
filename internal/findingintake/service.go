@@ -417,8 +417,20 @@ func insertReceipt(
 		evidenceJSON, string(canonical.reportProjection), string(fingerprintJSON), string(canonical.anchorProjection),
 	)
 	if err != nil {
-		if persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate {
+		switch persistencepostgres.Classify(err) {
+		case persistencepostgres.ClassDuplicate:
 			return ErrConflict
+		case persistencepostgres.ClassInvalid:
+			// A named CHECK, such as the comparison projection's size bound
+			// on its stored jsonb text, refused the submitted proposal; the
+			// same submission is refused again (PER-R13).
+			return fmt.Errorf("insert finding proposal receipt: %w: %w", ErrInvalid, err)
+		}
+		// The receipt holds its proposal and evidence strictly: a revision
+		// that history retention removed after this transaction proved it is
+		// the same outcome as evidence that was never there (FAIL-DEL-7).
+		if artifacts.IsExactRevisionMissing(err) {
+			return ErrAccessDenied
 		}
 		return fmt.Errorf("insert finding proposal receipt: %w", err)
 	}

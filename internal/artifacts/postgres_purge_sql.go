@@ -69,7 +69,7 @@ WHERE scope_kind = $1 AND scope_id = $2
 
 // purgeLockVersionsSQL locks the candidate versions $1 in byte order, the
 // order collectUnreferencedVersions chunks them in. Used by
-// PostgresPurger.collectUnreferencedVersions.
+// collectUnreferencedVersions.
 var purgeLockVersionsSQL = `
 SELECT version_id FROM artifact_versions
 WHERE version_id = ANY($1::text[])
@@ -78,7 +78,7 @@ FOR UPDATE`
 
 // purgeUnreferencedVersionsSQL deletes the candidate versions $1 that no
 // binding revision references any more and returns their blob digests. Used by
-// PostgresPurger.collectUnreferencedVersions.
+// collectUnreferencedVersions.
 var purgeUnreferencedVersionsSQL = `
 DELETE FROM artifact_versions AS version
 WHERE version.version_id = ANY($1::text[])
@@ -91,7 +91,7 @@ RETURNING version.blob_sha256`
 
 // purgeUnreferencedBlobsSQL deletes the candidate blobs $1 that no version
 // references any more and returns their backend and filesystem object key.
-// Used by PostgresPurger.collectUnreferencedBlobs.
+// Used by collectUnreferencedBlobs.
 var purgeUnreferencedBlobsSQL = `
 DELETE FROM artifact_blobs AS blob
 WHERE blob.sha256 = ANY($1::bytea[])

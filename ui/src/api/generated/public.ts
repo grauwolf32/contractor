@@ -5131,7 +5131,7 @@ export interface components {
             config: components["schemas"]["RuntimeConfigRef"];
         };
         /** @enum {unknown} */
-        RuntimeCredentialKind: "otlp-headers@1" | "http-proxy-basic@1" | "http-proxy-bearer@1" | "caido-bearer@1" | "interactsh-token@1" | "http-origin-basic@1" | "http-origin-bearer@1";
+        RuntimeCredentialKind: "otlp-headers@1" | "http-proxy-basic@1" | "http-proxy-bearer@1" | "caido-bearer@1" | "interactsh-token@1" | "http-origin-basic@1" | "http-origin-bearer@1" | "target-basic@1" | "target-bearer@1" | "target-login@1";
         RuntimeCredentialMetadata: {
             credentialId: components["schemas"]["RuntimeCredentialId"];
             kind: components["schemas"]["RuntimeCredentialKind"];
@@ -5149,8 +5149,8 @@ export interface components {
             };
         };
         HTTPProxyBasicMaterial: {
-            username: string;
-            password: string;
+            username: components["schemas"]["BasicCredentialUsername"];
+            password: components["schemas"]["BasicCredentialPassword"];
         };
         HTTPProxyBearerMaterial: {
             /** @description An HTTP/1.1 field value sent unchanged by every client (RCF-R114), visible ASCII characters with runs of space or tab only between them. */
@@ -5164,13 +5164,31 @@ export interface components {
             /** @description An HTTP/1.1 field value sent unchanged by every client (RCF-R114), visible ASCII characters with runs of space or tab only between them. */
             token: string;
         };
+        /** @description The username of a Basic credential, at most 256 UTF-8 bytes without control characters or a colon (RCF-R114). */
+        BasicCredentialUsername: string;
+        /** @description The password of a Basic credential, at most 8,192 UTF-8 bytes without control characters (RCF-R114). */
+        BasicCredentialPassword: string;
         HTTPOriginBasicMaterial: {
-            username: string;
-            password: string;
+            username: components["schemas"]["BasicCredentialUsername"];
+            password: components["schemas"]["BasicCredentialPassword"];
         };
         HTTPOriginBearerMaterial: {
             /** @description An HTTP/1.1 field value sent unchanged by every client (RCF-R114), visible ASCII characters with runs of space or tab only between them. */
             token: string;
+        };
+        TargetBasicMaterial: {
+            username: components["schemas"]["BasicCredentialUsername"];
+            password: components["schemas"]["BasicCredentialPassword"];
+        };
+        TargetBearerMaterial: {
+            /** @description An HTTP/1.1 field value sent unchanged by every client (RCF-R114), visible ASCII characters with runs of space or tab only between them. */
+            token: string;
+        };
+        TargetLoginMaterial: {
+            /** @description Named login secret fields (RCF-R184); each value is at most 8,192 UTF-8 bytes without control characters, and the values total at most 16 KiB. */
+            fields: {
+                [key: string]: string;
+            };
         };
         CreateRuntimeCredentialRequest: {
             credentialId: components["schemas"]["RuntimeCredentialId"];
@@ -5207,6 +5225,21 @@ export interface components {
             /** @constant */
             kind: "http-origin-bearer@1";
             material: components["schemas"]["HTTPOriginBearerMaterial"];
+        } | {
+            credentialId: components["schemas"]["RuntimeCredentialId"];
+            /** @constant */
+            kind: "target-basic@1";
+            material: components["schemas"]["TargetBasicMaterial"];
+        } | {
+            credentialId: components["schemas"]["RuntimeCredentialId"];
+            /** @constant */
+            kind: "target-bearer@1";
+            material: components["schemas"]["TargetBearerMaterial"];
+        } | {
+            credentialId: components["schemas"]["RuntimeCredentialId"];
+            /** @constant */
+            kind: "target-login@1";
+            material: components["schemas"]["TargetLoginMaterial"];
         };
         PinnedRuntimeConfig: {
             label: components["schemas"]["ConfigId"];
@@ -6705,6 +6738,27 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description A stale or already-consumed CAS precondition (`conflict`), a frozen binding (`artifact_frozen`), or protected history that cannot fit the binding's retained-history limit (`artifact_history_protected`, not retryable). */
+        ArtifactWriteConflict: {
+            headers: {
+                "X-Request-ID": components["headers"]["RequestId"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description Transfer capacity exhausted, a definite database transaction conflict exhausted retries, or history maintenance pending (`artifact_history_maintenance_pending`, which carries Retry-After) (retryable); or stored content missing/corrupt (not automatically retryable). */
+        ArtifactWriteUnavailable: {
+            headers: {
+                "X-Request-ID": components["headers"]["RequestId"];
+                "Retry-After"?: number;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         PayloadTooLarge: {
             headers: {
                 [name: string]: unknown;
@@ -7307,9 +7361,6 @@ export interface operations {
                 limit?: number;
                 cursor?: string;
                 projectId?: string;
-                state?: "draft" | "preparing" | "ready" | "running" | "settling" | "finished" | "pausing" | "paused" | "cancelling" | "cancelled";
-                datasetId?: string;
-                controlMode?: "server" | "external";
             };
             header?: never;
             path?: never;
@@ -8624,11 +8675,11 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            409: components["responses"]["Conflict"];
+            409: components["responses"]["ArtifactWriteConflict"];
             413: components["responses"]["PayloadTooLarge"];
             422: components["responses"]["Error422"];
             500: components["responses"]["InternalError"];
-            503: components["responses"]["ArtifactUnavailable"];
+            503: components["responses"]["ArtifactWriteUnavailable"];
             /** @description Import deadline exceeded; inspect metadata before retrying */
             504: {
                 headers: {
@@ -8680,11 +8731,11 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            409: components["responses"]["Conflict"];
+            409: components["responses"]["ArtifactWriteConflict"];
             413: components["responses"]["PayloadTooLarge"];
             422: components["responses"]["Error422"];
             500: components["responses"]["InternalError"];
-            503: components["responses"]["ArtifactUnavailable"];
+            503: components["responses"]["ArtifactWriteUnavailable"];
             /** @description Import deadline exceeded; inspect metadata before retrying */
             504: {
                 headers: {
@@ -9090,10 +9141,10 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
+            409: components["responses"]["ArtifactWriteConflict"];
             413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
-            503: components["responses"]["ArtifactUnavailable"];
+            503: components["responses"]["ArtifactWriteUnavailable"];
         };
     };
     getProjectArtifactArchive: {
@@ -11214,10 +11265,10 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
-            409: components["responses"]["Conflict"];
+            409: components["responses"]["ArtifactWriteConflict"];
             413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
-            503: components["responses"]["ArtifactUnavailable"];
+            503: components["responses"]["ArtifactWriteUnavailable"];
         };
     };
     getArtifactArchive: {

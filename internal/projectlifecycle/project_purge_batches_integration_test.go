@@ -59,8 +59,8 @@ FROM generate_series(1, $2::int) AS i`, `
 INSERT INTO artifact_binding_revisions (scope_kind, scope_id, namespace, name, revision, version_id)
 SELECT 'project', $1, 'notes', 'item-' || (i % 16667), 'rev-' || i, $1 || '-version-' || i
 FROM generate_series(1, $2::int) AS i`, `
-INSERT INTO artifact_bindings (scope_kind, scope_id, namespace, name, current_revision)
-SELECT DISTINCT ON (namespace, name) scope_kind, scope_id, namespace, name, revision
+INSERT INTO artifact_bindings (scope_kind, scope_id, namespace, name, current_revision, retained_revisions, retained_bytes)
+SELECT DISTINCT ON (namespace, name) scope_kind, scope_id, namespace, name, revision, 1, 0
 FROM artifact_binding_revisions
 WHERE scope_kind = 'project' AND scope_id = $1
 ORDER BY namespace, name, revision DESC`} {

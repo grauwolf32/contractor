@@ -37,7 +37,7 @@ context:
   - docs/spec/audits/scans.md
   - docs/spec/audits/worker-completion.md
   boundary: The live sitemap is shared research context, not current Audit coverage, complete traffic archival or
-    proof. The HTTP/OpenAPI first slice has no dependency on proposal 0033 implementation or deferred V61/V62/V64
+    proof. The HTTP/OpenAPI first slice has no dependency on proposal 0033 implementation or V61/V62/V64
     work.
   code:
   - configs/workflows
@@ -62,7 +62,7 @@ scope:
   - Validate shipped catalog and introduce test-only fixture copies and local process cases; document failure outcomes
     and source-specific gaps.
   out:
-  - Cross-round item artifacts, deferred V62-006/007 routing, autonomous pentest program/profile release, browser
+  - Cross-round item artifacts, V62-006/007 routing, autonomous pentest program/profile release, browser
     requirements or generated OpenAPI prerequisites.
   - Full HTTP capture, heuristic grouping, a new Audit semantic step kind or automatic target execution during import.
 requirements:

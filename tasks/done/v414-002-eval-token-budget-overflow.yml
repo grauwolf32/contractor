@@ -1,0 +1,271 @@
+schema_version: "1.0"
+id: V414-002
+title: "Keep the Eval token budget and stage token summaries defined when token counters exceed int64"
+milestone: review-v407-v409-followups-2026-10
+epic: evals
+kind: defect
+introduced_by: V38-004
+priority: P2
+status: completed
+depends_on: []
+languages: [go, python, sql]
+goal: >-
+  A token count that no declared limit bounds can no longer wrap a stage summary negative, make
+  the Eval token lower bound fail to scan or overflow the experiment's bigint observed_tokens;
+  an exceeded int64 range has one stated outcome (the budget is reached) instead of a stuck
+  member.
+context:
+  review: >-
+    tasks/done/v407-030-eval-preparing-lifecycle-and-usage.yml, siblings note ("The token-budget
+    lower bound (evalstore KnownTokens, EVM-R118) ... a sum above the bigint range would surface
+    as a scan error ... Reopen it as a separate budget task").
+  specification:
+    - docs/spec/evals/managed-evals.md#EVM-R118
+    - docs/spec/evals/managed-evals.md#EVM-R119
+    - docs/spec/evals/managed-evals.md#EVM-R120
+    - docs/spec/evals/managed-evals.md#EVM-R240
+    - docs/spec/platform/observability.md#OBS-R16
+    - docs/spec/platform/observability.md#OBS-R34
+    - docs/spec/configuration/agent-templates.md#TPL-R25
+  severity: medium
+  finding: >-
+    Reachability under the declared limits. Honest usage cannot reach 2^63-1: members are at most
+    10,000 (eval_experiments_expected_count_check; native 1,000, LIM-EVM-3), KnownTokens reads at
+    most 10,000 stage_metrics rows per member (internal/evalstore/observed_usage.go:10), and a
+    Planner or Worker invocation stops at maxTotalTokens <= 100,000,000 (LIM-TPL-6) plus one call
+    bounded by contextWindowTokens <= 100,000,000 (LIM-TPL-7). The product of those ceilings with
+    up to 1,000 subtasks per stage (LIM-PLN-3) is about 3e19, above 9.22e18 only on paper; it needs
+    ~1e19 real tokens. But no declared limit bounds a reported counter: the LLM Gateway's
+    usage.total_tokens is accepted up to 2^64-1 (runtime/src/contractor_runtime/llm/usage.py:8,
+    :47-54), ExecutionMetrics.total_tokens is only ge=0 in the Runtime
+    (runtime/src/contractor_runtime/contracts/reports.py:196-200) and only >= 0 on the Server
+    (internal/contracts/reporting/telemetry.go:207-214, api/v1alpha1/allocation.schema.json
+    totalTokens minimum 0, no maximum). One Gateway response reporting a huge total therefore
+    reaches every overflow below:
+    (1) telemetry.Summarize adds the Planner and Worker totals with plain int64 +=
+    (internal/telemetry/aggregate.go:169-187). Probe: a Planner report with totalTokens
+    MaxInt64 that passes ExecutionReport.Validate plus a Worker report with 1 gives a stored
+    summary totalTokens of -9223372036854775808, which violates the public MetricsSummary schema
+    (api/openapi/contractor-public-v1.yaml MetricsSummary.totalTokens minimum 0) and is written by
+    internal/telemetry/repository.go:290-300.
+    (2) knownTokensSQL sums summary totalTokens with sum(bigint), which returns numeric
+    (internal/evalstore/observed_usage_sql.go:35-46); probe on PostgreSQL 17: two rows of 2^62 sum to
+    numeric 9223372036854775808, which Store.KnownTokens cannot scan into int64
+    (observed_usage.go:27-30). A wrapped negative summary instead makes the lower bound smaller,
+    and a negative total makes ObserveTokens return eval_invalid (internal/evalstore/reconcile.go:151-155).
+    Either way internal/evalservice/driver.go:167-178 returns before Settle on every tick, so the
+    accepted member never settles and the experiment cannot leave running, settling or cancelling.
+    (3) ObserveTokens adds the member delta to eval_experiments.observed_tokens with bigint +
+    (reconcile.go:169-171); probe: SELECT 9223372036854775000::bigint + 1000 fails with 22003
+    bigint out of range.
+  siblings: >-
+    In scope: telemetry.Summarize (all counters it adds: modelCalls, input/output/total tokens,
+    tool calls and failures), knownRunTokensSQL and knownAuditTokensSQL, MemberRecovery.ObserveTokens
+    and the commands.go Transition path that writes observed_tokens, the Runtime and Go wire bounds
+    of ExecutionMetrics counters and the allocation schema. Already correct: Eval usage collection
+    (evaldomain.CounterSum, V407-030) marks an overflowing counter unavailable; WorkerBudgetMetrics
+    maxTotalTokens is bounded by MaxWorkerTotalTokens; the Runtime saturates its own per-invocation
+    counters at 2^64-1 (telemetry/metrics.py:39). Related but separate: V371-004 bounds WorkerCompletion
+    integers carried over A2A, not execution report counters; the public operations totals
+    (internal/controlplane/operations.go:66) read the same stored summary and are fixed by (1).
+  provenance: >-
+    ObserveTokens and the experiment sum come from 859cc500f829fb88051cc6e47036ba5c43543b8a
+    (implementation_commit of V38-004, reconcile.go:160-172 by git blame); the KnownTokens SQL sum was
+    added by e7183230bda98cea2b84c3f457394d00472b80c7, a V38-004 review follow-up recorded in its file,
+    and moved unchanged by 27e1e099 (SQL placement). The unchecked Summarize addition dates from
+    a1db02a5 (V1-004), which only becomes harmful with the unbounded wire counters.
+scope:
+  in:
+    - "Declare one upper bound for ExecutionMetrics token and call counters (reuse
+      reporting.MaxResourceInteger, 2^53-1, or state why another bound) in the allocation schema,
+      the Go validator and the Runtime model, with a shared fixture case at and above the bound."
+    - "Make telemetry.Summarize saturate (or mark the total unavailable) instead of wrapping, and
+      keep the stored summary within the public MetricsSummary schema."
+    - "Make KnownTokens and the experiment observed_tokens update saturate at the int64 maximum:
+      a known lower bound that exceeds the range means any token_limit is reached (EVM-R119); no
+      scan error, no 22003 and no eval_invalid for a large but valid total."
+    - "State the overflow outcome in EVM-R118 (or a new EVM requirement) and the counter bound in
+      docs/spec/platform/limits.md and observability.md."
+    - "Real PostgreSQL regressions through the driver path: a member whose stage summaries sum past
+      int64 settles and exhausts the budget; the experiment sum at the maximum stays at the maximum."
+  out:
+    - "Billing-grade token accounting (OBS-R16) and the Eval usage read model, already order
+      independent since V407-030."
+    - "WorkerCompletion A2A integer bounds (V371-004)."
+    - "Changing ModelPolicy ceilings or Worker budget enforcement."
+failure_outcomes:
+  - operation: "Allocation final report delivery with a counter above the declared bound"
+    permanent: "The report is invalid on both sides of the wire and takes the existing outcome of
+      an invalid allocation report (state which one in the task's spec change); it never reaches
+      Summarize."
+    retryable: "none added"
+    ambiguous: "Report delivery stays idempotent by report_id (OBS-R9)."
+    cancelled: "unchanged"
+    timeout: "unchanged"
+  - operation: "KnownTokens read and ObserveTokens write in the Eval driver"
+    permanent: "A total above the int64 range saturates and reaches the budget; it is never eval_invalid."
+    retryable: "A store or connection failure keeps the existing classified retry; the member stays
+      accepted until a later tick settles it."
+    ambiguous: "ObserveTokens keeps its per-member high-water mark, so replay after a lost commit adds
+      no second delta."
+    cancelled: "unchanged; the coordinator transaction rolls back."
+    timeout: "The existing operation budget of the coordinator transaction."
+acceptance_criteria:
+  - id: A1
+    given: "A Planner report with totalTokens at the declared counter bound and Worker reports with
+      positive totals"
+    when: "the stage metrics are rebuilt"
+    then: "the stored summary is non-negative and within the public schema, by saturation or an
+      unavailable total as specified; no counter wraps"
+  - id: A2
+    given: "An accepted Eval member whose owned stage summaries sum above 2^63-1 on PostgreSQL"
+    when: "the coordinator reconciles the member"
+    then: "KnownTokens returns the saturated value, the experiment's observed_tokens saturates
+      without 22003, a token limit is reported exhausted, and the member settles"
+  - id: A3
+    given: "An execution report counter above the declared bound"
+    when: "the Runtime builds it and the Server decodes it"
+    then: "both reject it the same way, as the shared fixture states"
+  - id: A4
+    given: "The unfixed code"
+    when: "the regression tests run"
+    then: "the Summarize test sees a negative total and the PostgreSQL driver test fails with a
+      scan error or 22003"
+decisions:
+  - >-
+    Counter bound: every integer of ExecutionMetrics, with its tools,
+    workerBudget and summarizer members (durationMs included, so the rule has
+    no exception), is between 0 and 2^53-1, reusing reporting.MaxResourceInteger
+    and the performance schema's resourceInteger (OBS-R111, LIM-OBS-17). The
+    Runtime defines it once as contracts.MAX_REPORT_INTEGER, which its resource
+    sampler now reuses instead of a second 2^53-1. Alternatives: int64 would
+    keep the stage sums able to wrap after two reports and is not exact in
+    TypeScript; uint64 (the summarizer's former bound) did not even fit the
+    Go int64 fields. With 2^53-1 a Stage of 1,000 Workers and its Planner sums
+    to at most 9,016,206,453,995,731,991, below 2^63-1. Reversal: a provider
+    whose honest usage per allocation approaches 9e15 tokens.
+  - >-
+    Producers saturate instead of failing: the Runtime keeps its allocation
+    counters at the Worker State bound (2^64-1) and projects them into the
+    report as at most 2^53-1 (build_report, the Worker budget's observed
+    tokens and missing-usage count, the summarizer aggregate). The budget's
+    model_copy skips validation, so without that projection the Runtime would
+    have sent a report the Server rejects. Go Planners need no change: usage
+    arrives as int32 counts per response and the streamline Planner stops at
+    its ModelPolicy ceilings, so its counters stay below about 4.4e9.
+  - >-
+    Outcome of a received report above the bound (state it, failure
+    outcomes): it violates the contract like any other invalid lifecycle
+    response, FinalizeAll/AbortAll drop it, and persistReports records the
+    incomplete allocation_report_unavailable placeholder (FAIL-OBS-1); an
+    invalid Planner report is not recorded (RecordPlannerReport returns
+    ErrInvalid and the Scheduler logs it). Report delivery stays idempotent by
+    report_id (OBS-R9).
+  - >-
+    Summary overflow: telemetry.Summarize saturates every counter at
+    math.MaxInt64 rather than marking it unavailable, so the public
+    MetricsSummary keeps its required integer fields and minimum 0 and needs
+    no API change (OBS-R112). The Operations allocation totals
+    (controlplane.summarizeAllocationReport) were a second sum of the same
+    counters that rejected an overflowing valid report with
+    ErrInvalidRequest; they now are telemetry.Summarize of that one
+    allocation (controlplane may import telemetry by the layer table), so one
+    rule adds report counters.
+  - >-
+    Eval lower bound: knownTokensSQL caps the numeric sum with
+    LEAST(..., 9223372036854775807)::bigint and ObserveTokens adds the member
+    delta as LEAST(observed_tokens::numeric + $2, max)::bigint, so a bound past
+    int64 is the maximum, which reaches every maxObservedTotalTokens (bigint)
+    and stops new work (EVM-R248, FAIL-EVM-4 permanent). The per-member
+    high-water mark is unchanged, so a replay adds no second delta.
+  - >-
+    Siblings ruled out: Store.Transition (commands.go) writes back the
+    observed_tokens its callers read under the same claim and never adds;
+    submissions.go and service.go only compare observed_tokens with the
+    limit; the Eval usage read model already marks an overflowing counter
+    unavailable (EVM-R240); Worker State counters (agent-state, uint64) are
+    the State contract and not execution report counters. Found but out of
+    scope: evalservice.attemptMetrics decodes stored StageMetrics with plain
+    json.Unmarshal, tolerates negative contributions and keeps an "older
+    passthrough@1 reports" path that fills missing Planner counters; stored
+    reports are validated on write, so that tolerance is a lenient legacy
+    reader that the no-backward-compatibility rule would remove in a
+    separate task.
+tests:
+  - command: "go test -count=1 ./internal/telemetry/... ./internal/contracts/reporting/..."
+    covers: [A1, A3, A4]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -tags=integration -count=1
+      ./internal/evalstore/... ./internal/evalservice/... ./internal/telemetry/..."
+    covers: [A2, A4]
+  - command: "cd runtime && uv run --locked pytest -q tests -k \"report or usage or telemetry\""
+    covers: [A3]
+  - command: make test-wire-cross-language
+    covers: [A3]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+implementation_commit: e1ecccdafb6cc1e95dd60f468e6c5682279980ef
+verification:
+  date: '2026-10-24'
+  environment: >-
+    macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local), the locked Runtime venv
+    (Python 3.13); local PostgreSQL 17.11 database contractor_test_v414_evals
+    with per-test schemas; branch claude/v414-evals with main 0f5bed13 merged
+    (4f66b157).
+  commands:
+    - >-
+      go test -count=1 ./internal/telemetry/... ./internal/contracts/reporting/...
+      passed (telemetry 11 s with TestSummarizeSaturatesCountersInsteadOfWrapping:
+      A1 exact sum below the range, every counter math.MaxInt64 for the
+      Planner and 1,024 Workers at 2^53-1).
+    - >-
+      go test -tags=integration -count=1 ./internal/evalstore/...
+      ./internal/evalservice/... ./internal/telemetry/... with
+      CONTRACTOR_TEST_DATABASE_URL passed (evalstore 100 s, evalservice 118 s,
+      telemetry 15 s), including
+      TestSharedPostgresEvalTokenLowerBoundSaturatesPastInt64 (A2: two
+      accepted members, each Run with two stages of the largest valid summary,
+      9,016,206,453,995,731,991 tokens; both member marks and the experiment
+      observed_tokens are 9223372036854775807, a limit of
+      9223372036854775807 moves the experiment to cancelling, and after the
+      Runs drain it is cancelled with no accepted member) and
+      TestMetricsPostgresStageSummaryKeepsTokenCountersInRange (A1 on the
+      store: a Planner report with totalTokens 2^63-1 is ErrInvalid; one at
+      2^53-1 plus a Worker report of 7 rebuilds and stores 2^53+6).
+    - >-
+      go test -tags=integration -count=1 ./internal/contracts/...
+      ./internal/controlplane/... ./internal/archtest/... passed, including
+      TestSharedExecutionMetricIntegerBounds (A3: 24 cases, the schema and the
+      Go decoder accept exactly the valid ones) and the Operations aggregate
+      test (a report above the bound is ErrInvalidRequest; 1,025 tools at
+      2^53-1 saturate at math.MaxInt64). The generated required-member and
+      mutation cases were regenerated for the new valid fixture.
+    - >-
+      cd runtime && uv run --locked pytest -q tests -k "report or usage or
+      telemetry": every selected test passed except
+      test_podman_capabilities.py::test_failed_probe_create_reports_supervisor_unavailable_after_cleanup,
+      which fails identically with the unchanged Runtime sources (macOS has no
+      AF_UNIX SOCK_SEQPACKET); without it 184 passed and 1 skipped (live
+      Gateway). test_shared_execution_metric_integer_bounds (A3) and
+      test_shared_report_counters_saturate_at_the_report_integer_bound passed.
+    - >-
+      Full Runtime suite (pytest -W error tests): 105 failures, all in podman,
+      projectfs, tool_process, scan_katana and trailmark tests, the same 105
+      as with the unchanged Runtime sources on this macOS host; two more
+      projectfs tests failed once and passed on rerun.
+    - make test-wire-cross-language passed (267 fixtures, 309 Go and 206 Python shared tests).
+    - make lint passed (regenerated docs/spec/audit-workflow-dependencies.html).
+    - >-
+      Can-fail checks (A4; temporary edits, reverted): without the KnownTokens
+      cap the driver test failed with "can't scan into dest[0]:
+      18032412907991463982 is out of range for int64"; without the
+      ObserveTokens cap it failed with bigint out of range (SQLSTATE 22003);
+      without saturation in Summarize every counter read
+      -9214364837600035841; with the Go bound removed 17 shared cases were
+      accepted and the Planner report of 2^63-1 was stored; with the Runtime
+      model bound widened the shared Python test accepted durationMs above
+      the bound; without the Runtime projection build_report raised a
+      ValidationError.
+    - >-
+      After merging main 0f5bed13: go build ./..., the Go suites above,
+      make test-wire-cross-language, the Runtime selection and make lint
+      passed again.

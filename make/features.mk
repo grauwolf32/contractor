@@ -7,7 +7,8 @@
 	test-audit-program-library-hardening test-audit-program-library-process \
 	test-audit-program-library-browser test-audit-program-library-e2e \
 	test-audit-completion-e2e test-evals test-findings-e2e \
-	test-openapi-audit-scan-e2e test-audit-composition-e2e
+	test-openapi-audit-scan-e2e test-audit-composition-e2e \
+	test-artifact-history-postgres test-artifact-history-e2e
 
 test-audits-matrix: test-hardening-matrices
 
@@ -59,3 +60,13 @@ test-openapi-audit-scan-e2e:
 
 test-audit-composition-e2e:
 	$(call run-family-test,python3 scripts/test-audit-composition-e2e.py)
+
+# Automatic retained history of every Artifact binding: the store's admission,
+# eviction and holds, the migration, every writer adapter and the shared
+# fixture readers against PostgreSQL, then the Server and Runtime processes
+# with a configured limit.
+test-artifact-history-postgres: require-database
+	$(call run-family-test,CONTRACTOR_TEST_DATABASE_URL="$$CONTRACTOR_TEST_DATABASE_URL" go test -tags=integration -count=1 ./internal/artifacts ./internal/persistence/postgres ./internal/memory ./internal/httpapi/public ./internal/httpapi/privateartifacts ./internal/findingintake ./internal/app -run '^(TestPostgresHistory.*|TestPostgresRunRevisionLimitIsNotRefundedByHistoryRetention|TestSharedArtifactHistory.*|TestSharedPostgresArtifactHistory.*|TestPostgresPlannerMemoryCommitsHistoryMaintenanceAfterRollback|TestPostgresPublicArtifactHistoryOutcomes|TestPostgresGitImportCommitsHistoryMaintenanceAfterItsRollback|TestPostgresReceiptCitingARemovedRevisionIsAccessDenied|TestPostgresCollectionRejectsOnlyUnretainableProposals|TestArtifactHistoryConfig.*)$$')
+
+test-artifact-history-e2e: require-database runtime-venv
+	$(call run-family-test,go test -tags=e2e -count=1 -timeout=10m ./tests/e2e -run '^TestArtifactHistoryAcrossProductionProcesses$$')
