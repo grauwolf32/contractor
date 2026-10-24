@@ -429,12 +429,16 @@ connection, connecting, peer verification and the response, and a peer that
 fails verification fails the request before any request byte with the error
 it caused before reuse. A connection is closed instead of reused after a
 timeout, cancellation, transport or parse error, a response without length
-framing, an HTTP/1.0 or `Connection: close` response, an interim (1xx)
-response, or bytes beyond the response. An interim response carries no
-content and is skipped, at most five per exchange; a protocol switch (101),
-more interim responses, and a 204 or 304 response that declares content
-(`Transfer-Encoding` or a non-zero `Content-Length`) fail the exchange as
-malformed responses. The connection layer repeats a request only when none of its bytes
+framing, an HTTP/1.0 or `Connection: close` response, or bytes beyond the
+response. The Runtime, whose HTTP/1.1 client is its own, also closes a
+connection after an interim (1xx) response: an interim response carries no
+content and is skipped, at most five per exchange, and a protocol switch
+(101), more interim responses, and a 204 or 304 response that declares
+content (`Transfer-Encoding` or a non-zero `Content-Length`) fail the
+exchange as malformed responses. The Server's transports follow Go
+`net/http` for these responses: it skips interim responses within its
+response-header byte bound and may reuse the connection afterwards, treats
+101 as a final response and ignores declared content on 204 and 304. The connection layer repeats a request only when none of its bytes
 were written, or when it is a read (`GET`) that received no response byte on
 a reused connection, and then on another connection; the Runtime repeats such
 a read once, on a new verified connection. A write whose
