@@ -510,7 +510,11 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Lane class** — The Scheduler lane pool, `model` or `tool`, that progresses a Run's next StageExecution; `tool` when the Stage's Planner is model-free and every Worker it binds runs on `tool@1`. Owner: [Scheduler](execution/scheduler.md).
 
+**Lease handover** — The wait of a Server that acquired the advisory lease, before its startup reads durable state, until every lease-fenced write of an earlier holder has committed or rolled back. Owner: [Persistence](platform/persistence.md).
+
 **Lease session** — The dedicated PostgreSQL connection that holds the advisory lease and requires direct PostgreSQL or session pooling. Owner: [Persistence](platform/persistence.md).
+
+**Lease-fenced write** — A write transaction that proves, under the shared lock of the lease handover and before it writes, that its Server's lease session still holds the advisory lease, and otherwise commits nothing. Owner: [Persistence](platform/persistence.md).
 
 **Lease-session loss** — A single liveness probe of the lease session that fails within the tolerance window, upon which the active Server closes its listeners and cancels the Scheduler. Owner: [Persistence](platform/persistence.md).
 
@@ -1047,7 +1051,7 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Standby Server** — A Server process on the same database that does not hold the advisory lease and has only public health, 503 readiness and the retryable `server_standby` answer under `/v1` until it acquires it. Owner: [Persistence](platform/persistence.md).
 
-**Startup lease steps** — What a starting Server does on the lease session before it is active or stands by: connecting the session, configuring its keepalives, the first acquisition probe and, when the lease is held elsewhere, the holder lookup, each bounded by the database budget the session inherits from the working pool. Owner: [Persistence](platform/persistence.md).
+**Startup lease steps** — What a starting Server does on the lease session before it is active or stands by: connecting the session, configuring its keepalives, the first acquisition probe with the identification of a session that acquired the lease and, when the lease is held elsewhere, the holder lookup, each bounded by the database budget the session inherits from the working pool. Owner: [Persistence](platform/persistence.md).
 
 **Static operation** — A GraphQL document that is a source-code constant selected by a Caido tool method. Owner: [HTTP and Caido tools](tools/http-caido.md).
 

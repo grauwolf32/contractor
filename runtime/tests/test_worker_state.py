@@ -12,8 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from google.adk.utils.context_utils import find_context_parameter
-from test_allocation import NOW, make_service, make_spec
+from test_allocation import NOW, TrackedMetricsState, make_service, make_spec
 
 import contractor_runtime.worker.state as state_module
 from contractor_runtime.capabilities import CapabilitySnapshot
@@ -629,12 +628,6 @@ def test_conflicting_revision_retries_admission_from_the_validated_observation(
     asyncio.run(scenario())
 
 
-class TrackedMetricsState(MetricsState):
-    """An allocation metrics reducer whose lifetime a test can observe."""
-
-    __slots__ = ("__weakref__",)
-
-
 def test_released_allocation_retains_no_worker_state_projection(
     tmp_path: Path,
     runtime_capabilities: CapabilitySnapshot,
@@ -671,14 +664,8 @@ def test_released_allocation_retains_no_worker_state_projection(
         )
         gc.collect()
         assert retained_state() is None
-        # ADK's module-level find_context_parameter LRU keeps the released
-        # allocation's tool callables, and through them this reducer, until
-        # 1024 newer callables evict them. That retention predates the record
-        # projections; with it removed, nothing else holds the reducer.
-        find_context_parameter.cache_clear()
-        gc.collect()
-
-        # The record projections belong to the allocation's metrics reducer.
+        # The record projections belong to the allocation's metrics reducer,
+        # and release leaves nothing that holds it, ADK's caches included.
         assert retained_metrics() is None
 
     asyncio.run(scenario())

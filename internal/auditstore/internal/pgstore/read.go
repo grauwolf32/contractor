@@ -548,7 +548,8 @@ SELECT count(*) FILTER (WHERE collection_disposition = 'accepted-result'),
 }
 
 // snapshotTransaction reads every part of a reconcile snapshot, of an event
-// page or of an Audit list page and its preparation, from one commit. On a pool, persistencepostgres.Within replays
+// page, of an Audit list page and its preparation or of an Audit's detail,
+// from one commit. On a pool, persistencepostgres.Within replays
 // a transaction conflict, but a read-only REPEATABLE READ transaction takes
 // no row locks and cannot fail with a serialization conflict, so that retry
 // never triggers and the snapshot is never read twice.

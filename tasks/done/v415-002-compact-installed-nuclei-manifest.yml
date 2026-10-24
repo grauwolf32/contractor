@@ -1,0 +1,73 @@
+schema_version: "1.0"
+id: V415-002
+title: Keep one package digest in installed Nuclei Run manifests
+milestone: web-nuclei-rule-sweeps-2026-10
+epic: scan-tools
+kind: defect
+introduced_by: V406-001
+priority: P1
+status: completed
+depends_on: []
+languages: [python, go, markdown]
+goal: Installed Nuclei Runs publish a small provenance manifest with one verified package digest, while custom owner rulepacks retain exact per-rule evidence.
+context:
+  severity: medium
+  specification:
+    - docs/spec/tools/scanners.md#SCN-R226
+    - docs/spec/tools/scanners.md#SCN-R227
+    - docs/spec/tools/scanners.md#SCN-R229
+    - docs/spec/tools/scanners.md#SCN-R230
+    - docs/spec/tools/scanners.md#SCN-R238
+  finding: >-
+    runtime/src/contractor_runtime/toolsets/scan/nuclei_package.py:177-186
+    serializes the complete installed package inventory and every selected
+    template into every Run manifest. The shipped v10.5.0 package selects
+    11925 HTTP templates and produces 4214853 bytes. In the cloudru2 demo Run
+    run_fabb31329c612186f4aec6426bec335e and diagnostic Run
+    run_12bc013d90f0a54eb7f37c488cd7986c, the private Artifact PUT returned
+    HTTP 500 before target scanning. A same-size direct WireGuard transfer
+    took 11.948 seconds while the Server's size-based socket read deadline is
+    10 seconds. Increasing only the Runtime request timeout to 60 seconds did
+    not prevent the failure; the deployment was restored afterward.
+  siblings: >-
+    Custom owner rulepacks use the same selected_manifest helper but need
+    per-file digests and selected rule IDs; keep those details. The installed
+    package remains verified against the AgentTemplate pin before any scan.
+    Public and private generic Artifact transfer deadlines are independent
+    platform limits; this task removes the redundant large installed manifest
+    without changing their policy. The Workflow output stays required and
+    retains its exact ArtifactRef and media type.
+scope:
+  in:
+    - Publish schemaVersion 2 provenance manifests with an installed variant containing one packageDigest, engineVersion and selectedTemplateCount, and a custom rulepack variant retaining source content and per-file digests.
+    - Keep snapshot verification and native Nuclei selection validation before publication and scanning.
+    - Update Runtime and real-process Nuclei regressions for installed and custom modes, including a realistic 12001-template size bound.
+    - Update the scanner specification for the variant contract and failure outcome.
+  out:
+    - Changing generic Artifact transfer socket deadlines or Runtime transport timeout policy.
+    - Changing Workflow identities, required outputs, or scanner target/rate settings.
+acceptance_criteria:
+  - id: A1
+    text: An installed pinned package publishes a manifest with exactly one content hash (packageDigest), no file inventory or selectedTemplates, and a bounded small payload at 12001 selected templates.
+  - id: A2
+    text: A custom owner rulepack manifest retains its source content digest, each file digest and selected rule IDs; invalid and empty selections still fail before target scanning.
+  - id: A3
+    text: The real Server and Runtime process gate publishes the required exact template_manifest output in both modes, and existing scan report provenance stays correct.
+tests:
+  - command: cd runtime && uv run pytest -W error tests/test_scan_*.py
+    covers: [A1, A2]
+  - command: make test-nuclei-web-e2e
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+implementation_commit: 634d0ba0afa10caa2ef883e3bb06b2e5907baace
+verification:
+  date: "2026-10-24"
+  passed:
+    - cd runtime && uv run pytest -W error tests/test_scan_*.py; 502 passed.
+    - make test-nuclei-web-e2e; real Server and Runtime process gate passed with a disposable PostgreSQL database.
+    - make lint; task, specification, layer and other lint checks passed.
+  scope: >-
+    The full make test-runtime gate was attempted separately and did not pass:
+    107 unrelated macOS host and timing failures, 4594 passed, 39 skipped.
+    No scanner suite test failed. The change is not merged or deployed to demo.

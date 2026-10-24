@@ -67,6 +67,7 @@ from contractor_runtime.telemetry.resources import ProcessReading, ResourceColle
 from contractor_runtime.threads import consume_task_exception
 from contractor_runtime.toolsets.http.errors import HTTPToolError
 from contractor_runtime.toolsets.security_findings.collection import FindingsError
+from contractor_runtime.worker.adk_caches import release_adk_tool_caches
 from contractor_runtime.worker.state import WorkerStateStore
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -646,6 +647,11 @@ class AllocationService:
         context.worker_state = None
         context.runtime_settings = None
         context.prepare_response = None
+        # After every Toolset is closed and State and secrets are dropped:
+        # ADK's process-wide caches would otherwise keep the wrapped tools,
+        # and through them their clients and MetricsState (RTA-R116). A
+        # failure leaves release unprepared, so the retry repeats this step.
+        release_adk_tool_caches()
         context.release_prepared = True
 
     async def expire_control_lease(self, shutdown_grace_seconds: float) -> None:
@@ -1174,6 +1180,13 @@ class AllocationService:
         if worker is not None:
             await attempt(lambda: worker.abort(deadline))
         await attempt(lambda: _close_tools(tools))
+        # A Worker built before the failure already registered the tools in
+        # ADK's process-wide caches, and this prepare never reaches release
+        # (RTA-R116).
+        try:
+            release_adk_tool_caches()
+        except Exception:
+            failed = True
         if project_workspace is not None:
             await attempt(
                 lambda: self._cleanup_project_workspace(project_workspace, deadline=deadline)

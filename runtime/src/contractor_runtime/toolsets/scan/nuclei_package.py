@@ -175,14 +175,17 @@ def selected_manifest(
         if not selected:
             raise ValueError
         manifest = {
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "packageDigest": snapshot.digest,
-            "files": snapshot.files,
-            "selectedTemplates": [selected[name] for name in sorted(selected)],
             "engineVersion": engine_version,
+            "selectedTemplateCount": len(selected),
+            "source": source if source is not None else {"kind": "installed"},
         }
         if source is not None:
-            manifest["source"] = source
+            # Owner packs are bounded to 1000 files. Keep their exact rule
+            # evidence; the installed package already has one authored pin.
+            manifest["files"] = snapshot.files
+            manifest["selectedTemplates"] = [selected[name] for name in sorted(selected)]
         data = jcs.canonicalize(manifest)
         if len(data) > MAX_MANIFEST_BYTES:
             raise ValueError
