@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-156 open tasks: 6 in progress, 125 pending, 25 deferred. 1009 finished: 1002 completed, 7 archived.
+157 open tasks: 6 in progress, 126 pending, 25 deferred. 1009 finished: 1002 completed, 7 archived.
 
 ## In progress
 
@@ -90,7 +90,7 @@ the epics are in [epics.yml](epics.yml).
 | [V411-009](v411-009-http-recipes-predicates.yml) | feature | P1 | V411-005, V411-007, V411-008 | Execute frozen HTTP recipes and evaluate trusted three-valued predicates |
 | [V412-001](v412-001-managed-pentest-browser.yml) | feature | P2 | V411-007, V411-008, V411-010 | Add a managed browser with isolated contexts and enforced target transport |
 | [V412-002](v412-002-browser-login-replay-recipes.yml) | feature | P2 | V412-001, V411-009 | Execute closed browser login and replay recipes with trusted markers |
-| [V412-004](v412-004-trusted-pentest-callback-proof.yml) | feature | P2 | V411-009, V411-012, V411-020 | Integrate independently attributable callback evidence and its release gate |
+| [V412-004](v412-004-trusted-pentest-callback-proof.yml) | feature | P2 | V411-009, V411-012, V411-020 | Integrate trusted Interactsh callback evidence and its release gate |
 
 ### Scanner tool Workers and scan planning (`scan-tools`)
 
@@ -140,6 +140,7 @@ the epics are in [epics.yml](epics.yml).
 | [V410-001](v410-001-project-sitemap-store.yml) | feature | P1 | — | Publish a bounded Project sitemap through one authorized reducer |
 | [V410-002](v410-002-project-sitemap-toolset.yml) | feature | P1 | V410-001 | Expose authorized live sitemap tools to Project allocations |
 | [V410-005](v410-005-sitemap-openapi-reconciliation.yml) | feature | P1 | V410-002 | Reconcile exact OpenAPI declarations with live sitemap members |
+| [V413-001](v413-001-runtime-artifact-disk-cache.yml) | feature | P2 | — | Reuse authorized immutable archives in a bounded Runtime disk cache |
 
 ### Audits (`audits`)
 
@@ -288,7 +289,7 @@ tasks in `introduced_by`.
 | Scanner tool Workers and scan planning (`scan-tools`) | 6 | 16 | 5 | 7 | 11 |
 | Findings tools and collections (`findings`) | 12 | 16 | 6 | 8 | 11 |
 | Workflow catalog and document workflows (`workflows`) | 8 | 18 | 14 | 12 | 15 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 4 | 33 | 33 | 6 | 37 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 5 | 34 | 33 | 6 | 37 |
 | Audits (`audits`) | 31 | 60 | 73 | 22 | 93 |
 | Evaluations (`evals`) | 8 | 21 | 34 | 9 | 40 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
