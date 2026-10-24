@@ -822,6 +822,20 @@ interrupted StageTermination with `retryable: false`: a `retry` action under
 not start, because it needs the recorded candidate
 ([SCH-R174](scheduler.md)).
 
+A session write that the store refuses as invalid, such as a session state
+or Run event whose stored jsonb text exceeds its bound although the submitted
+JSON passed the Server's pre-check, returns the non-retryable
+`planner_session_rejected` instead of `planner_session_unavailable`, whether it
+starts the session or records a request, plan progress, a fact or the
+completion. Repeating the same write is refused the same way, so it is a
+deterministic rejection, never an outage. It is non-retryable like every other
+deterministic store rejection rather than retryable like the budget stops of
+PLN-R85: a fresh StageExecution receives the same request, Workflow and
+AgentTemplate, and nothing bounds the plan or completion it builds below the
+size that was refused, so a retry would most likely repeat the rejection after
+another full invocation. Reopen this when a retried invocation is given a
+smaller state budget than the one that was refused.
+
 Rationale: a retryable error would turn the summary into an ordinary Stage
 retry that dispatches the Worker again from the start, discarding its saved
 progress and bypassing the single `on.summarized` escalation. Reopen this if
@@ -951,6 +965,8 @@ Errors ([registry](../platform/errors.md)):
   failure or failed candidate is non-retryable (PLN-R106, PLN-R119, PLN-R120).
 - `planner_invocation_in_progress` — retryable; the Planner session is still
   running after process loss (PLN-R107).
+- `planner_session_rejected` — non-retryable; the session store refused a
+  write as invalid, such as a value over its stored size bound (PLN-R106).
 - `result_contract_violation` belongs to [Scheduler](scheduler.md); a
   Planner raises it, non-retryable, for a candidate that violates the Stage
   result contract, including a rejected result reference (PLN-R118).

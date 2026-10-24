@@ -123,3 +123,39 @@ tests:
     covers: [A2, A3]
   - command: make lint
     covers: [A2]
+progress: >-
+  Checkpoint 2026-10-24 20:20. Done: runstore StartPlanner and
+  AppendPlannerEvent wrap a ClassInvalid or ClassRejected write error as
+  "...: ErrInvalid: <pgconn cause>" (plannerWriteRejected in
+  planner_store.go); planner.SessionError maps runstore.ErrInvalid
+  (SessionWriteRejected) to the new non-retryable planner_session_rejected,
+  so Begin, RecordRequest and Complete (CompletionWriteError keeps it
+  non-retryable) report it; Streamline planPersistenceFailure (RecordPlan and
+  RecordFact) returns planner_session_rejected instead of
+  planner_plan_persistence_failed for it; the session memoryStore fake
+  refuses a state whose jsonb text exceeds 2 MiB with ErrInvalid. Spec:
+  PLN-R106 records the decision (non-retryable, evidence, reversal
+  condition), planners.md error list, errors.md row, FAIL-PLN-9.
+  Verified: TestPostgresPlannerSizeCheckRejectionIsInvalid (A1) passes on
+  PostgreSQL and fails on ee2c9658 with the raw 23514 (A4 method, run against
+  main's tree, not 19f7477f yet); new unit tests TestSessionSpansCarryTheReturnedCode
+  (store rejection), TestPassthroughRejectedCompletionIsNotRetryable,
+  TestStreamlineRejectedPlanWriteIsNotRetryable; go test ./internal/planner/...
+  with the DB URL and go test -tags=integration ./internal/runstore/... pass.
+  make lint passed (exit 0) before the last PLN-R106 wording edit, after which
+  make docs-dependencies was rerun; go test ./internal/httpapi/public/... passes
+  once TMPDIR is a resolved path (two Git import blob tests fail with the
+  /var symlink TMPDIR, unrelated to this change).
+  Decisions: the code is planner_session_rejected, not
+  planner_session_state_limit, because runstore.ErrInvalid covers every
+  CHECK or trigger rejection of a session write, not only the size bound;
+  runstore classifies with Classify(ClassInvalid, ClassRejected) instead of
+  ConstraintError because ConstraintError would also turn a duplicate or a
+  reference violation into conflict or invalid, which these writers already
+  map to ErrConflict and ErrNotFound. Next: a session-service PostgreSQL
+  test that drives Begin, RecordRequest, RecordPlan, RecordFact and Complete
+  into the rejection (A2 over the real store); the sibling-writer inventory
+  of context.siblings with a disposition each and fixes for raw ClassInvalid
+  paths (A3, including the public 500 storage_constraint_failed check);
+  scan.go:315 sibling; run the A4 regression at 19f7477f; rerun make
+  docs-dependencies, make lint and the task's test commands.
