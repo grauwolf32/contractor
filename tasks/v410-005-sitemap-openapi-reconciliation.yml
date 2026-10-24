@@ -93,12 +93,12 @@ failure_outcomes:
   timeout: The reconciliation deadline owns parse/reindex/output work; budgets bound nested reference expansion
     and source bytes.
 - operation: Optional guarded live source replacement
-  permanent: Stale source/manual preconditions, exhausted cumulative Run budget or all-protected history capacity
-    are nonautomatic-retry conflicts; retaining the private computation does not authorize shared rollback.
+  permanent: Stale source/manual preconditions, generic Artifact admission rejection or all-protected history capacity
+    are nonautomatic-retry outcomes; retaining the private computation does not authorize shared rollback.
   retryable: Append-compatible CAS races may rebase within three attempts/deadline; bounded ArtifactStore eviction
     backpressure retries publication only. Source conflicts never refresh intent automatically.
-  ambiguous: Existing keyed receipt confirms the original generation/revision even after eviction without republishing
-    or charging again; unavailable exact bytes never substitute latest.
+  ambiguous: Existing keyed receipt confirms the original generation/revision even after eviction without republishing;
+    unavailable exact bytes never substitute latest.
   cancelled: A fenced allocation cannot publish after cleanup begins.
   timeout: Publication acknowledgement reconciliation has its own remaining operation allowance and never changes
     pinned input intent.
@@ -147,8 +147,8 @@ acceptance_criteria:
   given: Mixed source-mode inputs, large output, a lost publication reply and a concurrent hold/eviction race
   when: A blackbox tool computes/publishes through production boundaries
   then: Only safe authorized outputs materialize in explicit slots, receipt replay retains exact result identity
-    without republishing evicted history; acceptance obtains its hold or fails unavailable, and Run write work
-    remains charged once even after eviction.
+    without republishing evicted history; acceptance obtains its hold or fails unavailable, and generic Artifact
+    admission/operation limits apply without a sitemap-specific cumulative Run quota.
 deliverables:
 - path: internal/scanplan
   description: Reuse the existing normalization/reference authority; extract common lower-layer types only with

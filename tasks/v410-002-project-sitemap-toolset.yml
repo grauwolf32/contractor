@@ -65,8 +65,12 @@ requirements:
   text: Reader selection grants no collection/edit authority; unknown capability/version fails validation, and a
     Skill/input file is not a grant. Every operation checks allocation ownership/fence and the Project lifecycle.
 - id: R2
-  text: Use the V410-001 schemas, limits and shared fixtures; do not define independent URL/context grammars or
-    a second reduction policy in Python.
+  text: Use the V410-001 domain schemas and V410-010 common ArtifactStore size/admission/CAS/receipt/grant/retention
+    policy for all User/Project/Run bindings through ordinary Artifact APIs, without registration. Do not copy
+    accounting into Runtime/collectors or add a per-Run
+    sitemap publication quota; no independent URL/context grammar or second reduction policy in Python. Preserve
+    bounded coalescing/flush inputs, deadlines and generic backpressure. The existing RunScope artifact_limit_exceeded
+    does not apply to a ProjectScope write merely because a Run produced it.
 - id: R3
   text: Blackbox views filter contribution content and grouping effects before returning previews or materializing
     bytes. Source-assisted notes remain restricted unless trusted policy permits them; explicitly authorized OpenAPI
@@ -94,15 +98,18 @@ failure_outcomes:
   permanent: Stable invalid-request/access-denied outcomes for unknown tools/versions or missing grants; owner-safe
     not-found for foreign refs; stale manual/source mutations retain permanent conflict. Replaced/missing view
     returns sitemap_cursor_expired (409 at the private HTTP boundary); denied/fenced page access returns no bytes.
-  retryable: Retry only classified transport/storage failures and bounded V410-001 maintenance backpressure
-    within the original operation deadline; permanent cursor/protection conflicts are never automatically retried.
+    Preserve shared artifact_history_protected 409 without inventing a domain-specific history error.
+  retryable: Retry only classified transport/storage failures and shared artifact_history_maintenance_pending
+    503 with bounded Retry-After within the original deadline; permanent cursor/protection conflicts are never
+    automatically retried. The ArtifactStore policy owns classification and retry bounds, not a collector ledger.
   ambiguous: Reuse the service receipt/accepted revision; never send an alternate mutation or target request after
     a lost reply.
   cancelled: Join read/index/materialization work before allocation release; fenced requests cannot publish.
   timeout: Caller operation deadline bounds network, decoding and cache work; timeout does not substitute latest
     for an exact ref.
 - operation: Source-mode view or exact context snapshot/materialization
-  permanent: Unavailable/denied/evicted exact source stays explicit (artifact_not_found 404 for an absent revision);
+  permanent: Unavailable/denied/evicted exact source stays explicit (private artifact_not_found 404 for an absent
+    revision; preserve public not_found mapping where materialization is exposed publicly);
     unsafe mixed-source projection fails without producing a consumer artifact. A proof-selection race cannot use
     cached bytes to manufacture a retained source or silently substitute the current revision.
   retryable: Use existing Artifact transport/transaction retry classification only.
@@ -135,7 +142,8 @@ acceptance_criteria:
   given: Reader-only and editor/collector templates on two Projects
   when: Production Runtime tools call the private service
   then: Only explicitly selected operations succeed, Project comes from allocation context and foreign Project/ref
-    probes disclose nothing.
+    probes disclose nothing. Automatic per-binding history admission/errors come from the shared ArtifactStore API,
+    with no Runtime/domain publication counter or rate quota.
 - id: A2
   given: A mixed source-assisted Project map with canaries in paths, notes, parameter names and grouping rules
   when: A blackbox Worker lists, reads, imports and snapshots selected context

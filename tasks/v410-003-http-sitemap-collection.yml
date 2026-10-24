@@ -75,20 +75,20 @@ requirements:
     counters.
 - id: R5
   text: A map write failure cannot replace a valid HTTP response with target failure or resend target traffic. Receipt/unknown
-    acknowledgements reconcile only publication. ArtifactStore owns managed-history eviction; the collector
-    never deletes revisions. Keep cumulative per-Run write charges distinct from retained-history capacity.
+    acknowledgements reconcile only publication. ArtifactStore owns shared policy admission, retention/accounting,
+    CAS, receipts and blob GC; the collector never deletes revisions or implements a custom cumulative Run quota.
 - id: R6
   text: Completion/cancellation/release joins the collector and fences publication; on Runtime crash, Run closure/collection
     status truthfully reports the bounded pending loss without claiming zero-loss capture.
 failure_outcomes:
 - operation: HTTP target call followed by collection submission/flush
-  permanent: Preserve the real target outcome; invalid projection, exhausted cumulative Run budget, all-protected
-    history capacity or collection denial is a separate nonautomatic-retry sitemap outcome. Invalid unsent requests
+  permanent: Preserve the real target outcome; invalid projection, generic Artifact admission rejection,
+    all-protected history capacity or collection denial is a separate nonautomatic-retry sitemap outcome. Invalid unsent requests
     create no successful observation.
   retryable: Storage conflicts and bounded history-cleanup backpressure use only the reducer/flush budget;
     target retries remain governed solely by existing HTTP policy.
   ambiguous: Reconcile the same publication receipt even after its revision is evicted; confirm the old commit
-    without republishing/recharging or resending the target request. Exact evicted bytes remain unavailable.
+    without republishing or resending the target request. Exact evicted bytes remain unavailable.
   cancelled: Join target/capture/collector work before release and mark unsaved metadata incomplete.
   timeout: HTTP request and sitemap flush have separate owning deadlines; flush cannot extend target permission
     or turn a timeout into a response.
@@ -103,8 +103,8 @@ failure_outcomes:
 cardinality:
 - collection: Pending observations and publication batches
   expected: 1-10 Workers coalescing repeated requests into small batches
-  maximum: Batch rows/bytes and per-Run publication quotas from proposal section 10; one explicitly bounded pending
-    buffer per allocation
+  maximum: Batch rows/bytes, generic Artifact admission/operation limits and automatic common per-binding history policy;
+    one explicitly bounded pending buffer per allocation
   bound: Flush at count/time limits and never retain one unbounded queue item per target request.
 - collection: Attempt outcomes, contexts and omitted metadata
   expected: A few response/auth variants per group
@@ -130,7 +130,7 @@ acceptance_criteria:
 - id: A3
   given: A target that counts side effects and a store that loses publication responses or rejects writes
   when: A successful request is followed by failed/ambiguous collection, history eviction or cleanup backpressure
-  then: Its HTTP response remains available, the target count does not increase, old receipts never republish/recharge,
+  then: Its HTTP response remains available, the target count does not increase, old receipts never republish,
     and protected-capacity conflicts stay distinct from retryable cleanup backpressure.
 - id: A4
   given: Many observations up to pending/batch/publication bounds

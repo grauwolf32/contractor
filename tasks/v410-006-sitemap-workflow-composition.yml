@@ -87,12 +87,12 @@ failure_outcomes:
 - operation: Workflow input selection, model-free execution and output publication
   permanent: Unknown/missing required input, capability or tool/output contract fails at existing validation/prepare/result
     boundaries; unsupported source policy is not guessed. Evicted exact inputs remain unavailable; protected-history
-    capacity conflicts and exhausted cumulative Run budgets do not automatically retry.
+    capacity conflicts and generic Artifact admission rejection do not automatically retry.
   retryable: Use ordinary Scheduler/Worker retry policy with exact held inputs; bounded ArtifactStore eviction
     backpressure retries only publication and preserves receipts, never redispatching target discovery.
   ambiguous: Reconcile existing output/Artifact receipts and source-generation intent; never repeat discovery target
     calls to recover a lost output acknowledgement. Receipt replay after eviction confirms the old commit without
-    republishing/recharging; it does not make evicted exact bytes available.
+    republishing; it does not make evicted exact bytes available.
   cancelled: Existing Scheduler cancellation joins allocations and sitemap publishers before release.
   timeout: Separate Run/task deadlines from collector drain and exact-output publication allowances.
 - operation: Audit mapping and accepted reconciliation collection
@@ -110,8 +110,9 @@ cardinality:
   bound: Use selected snapshots/projections and existing paged inventory; never fan out a Workflow per HTTP observation.
 - collection: Discovery requests/import work and reconciliations
   expected: Bounded discovery Run and one reconciliation per selected boundary
-  maximum: Explicit Workflow request/time/depth and shared collection/publication quotas
-  bound: Declare separate discovery and import budgets; missing surface remains a coverage gap.
+  maximum: Explicit Workflow request/time/depth, bounded collection operations and generic Artifact admission/retention limits
+  bound: Discovery/import deadlines and bounded coalescing/backpressure limit work; no custom aggregate Run
+    publication budget is added and missing surface remains a coverage gap.
 lifecycle:
 - entity: Workflow/Audit context snapshots and shared updates
   delete: Ordinary Run/Audit/Project lifecycle authorities retain control.

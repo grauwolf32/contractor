@@ -94,12 +94,12 @@ failure_outcomes:
   cancelled: Context close/cancel drains and joins handlers and off-thread parsing before disposal.
   timeout: Capture/flush deadlines remain distinct from browser action/wait deadlines.
 - operation: Publish browser batch or close collector
-  permanent: Source/grant rejection, exhausted cumulative Run budget or all-protected history capacity reports
+  permanent: Source/grant rejection, generic Artifact admission rejection or all-protected history capacity reports
     a separate nonautomatic-retry collection outcome without changing the browser action result.
   retryable: Use only the bounded reducer policy for storage conflicts and ArtifactStore eviction backpressure;
     collectors do not perform eviction or repeat browser actions.
-  ambiguous: Replay accepted mutation receipts even after revision eviction without republishing, rerunning browser
-    actions or charging duplicate publications; exact evicted bytes remain unavailable.
+  ambiguous: Replay accepted mutation receipts even after revision eviction without republishing or rerunning browser
+    actions; exact evicted bytes remain unavailable.
   cancelled: Fenced allocation rejects late writes; cleanup joins every publisher.
   timeout: Drain expiry records incomplete collection and performs joined cleanup; no publisher outlives release.
 cardinality:
@@ -110,7 +110,7 @@ cardinality:
     graph.
 - collection: Published browser metadata and exact references
   expected: Representative safe examples and sparse retained evidence links
-  maximum: Proposal section 10 per-group limits, cumulative per-Run write budget and Project retained-history limits
+  maximum: Proposal section 10 per-group limits, generic Artifact admission/operation limits and automatic common per-binding history policy
   bound: Record unavailable evidence and bounded gaps; do not materialize unbounded browser traces.
 lifecycle:
 - entity: Managed BrowserContext collector
@@ -136,7 +136,7 @@ acceptance_criteria:
 - id: A4
   given: Event bursts, protected-history conflicts, eviction backpressure and context cancellation during flush
   when: Real browser/Runtime/Server/PostgreSQL execute the lifecycle
-  then: Retained-history and cumulative Run bounds stay distinct, retries never repeat browser actions and
+  then: Shared Artifact admission/retention bounds hold without a custom Run quota, retries never repeat browser actions and
     handlers/publishers join before release; receipts cannot republish evicted history.
 - id: A5
   given: Missing optional browser capability and a first-slice HTTP/OpenAPI Workflow
