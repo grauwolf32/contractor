@@ -405,11 +405,19 @@ connection for reuse for at most LIM-CTL-14, which is shorter, so a client
 normally never writes to a connection the listener already closed. No request
 starts on a connection as old as LIM-CTL-15, so a renewed or replaced peer
 certificate is verified within that time even while requests keep a
-connection busy. One owner keeps at most LIM-CTL-16 connections per peer
-endpoint; a request beyond that waits for a connection within its own
-deadline. The Server's Runtime control client keeps connections for at most
-LIM-CTL-17 Runtime principals and the Runtime for at most LIM-CTL-18 Control
-Plane origins, evicting the least recently used. The Server
+connection busy. The Server's transport closes an idle connection when the
+idle bound ends; the Runtime stops reusing it then and closes it at its next
+exchange to that origin, at shutdown or when the listener closes it after
+LIM-CTL-13. One owner keeps at most LIM-CTL-16 connections per peer endpoint;
+a request beyond that waits for a connection within its own deadline. The
+Server's Runtime control client keeps connections for at most LIM-CTL-17
+Runtime principals and the Runtime for at most LIM-CTL-18 Control Plane
+origins, evicting the least recently used; an exchange already waiting on an
+evicted origin still runs, on a connection of its own that is not kept. While
+the requests of a retired Server transport (after the lifetime or an
+eviction) or of an evicted Runtime origin finish, their connections add to
+those of the replacement, so one endpoint can briefly carry up to twice
+LIM-CTL-16; none of them takes a new request. The Server
 (`internal/mtls`) and the Runtime (`contractor_runtime._https`) hold the
 shared values, which
 [`private-connection-reuse.json`](../../../api/testdata/v1alpha1/private-connection-reuse.json)
@@ -421,8 +429,12 @@ connection, connecting, peer verification and the response, and a peer that
 fails verification fails the request before any request byte with the error
 it caused before reuse. A connection is closed instead of reused after a
 timeout, cancellation, transport or parse error, a response without length
-framing, an HTTP/1.0 or `Connection: close` response, or bytes beyond the
-response. The connection layer repeats a request only when none of its bytes
+framing, an HTTP/1.0 or `Connection: close` response, an interim (1xx)
+response, or bytes beyond the response. An interim response carries no
+content and is skipped, at most five per exchange; a protocol switch (101),
+more interim responses, and a 204 or 304 response that declares content
+(`Transfer-Encoding` or a non-zero `Content-Length`) fail the exchange as
+malformed responses. The connection layer repeats a request only when none of its bytes
 were written, or when it is a read (`GET`) that received no response byte on
 a reused connection, and then on another connection; the Runtime repeats such
 a read once, on a new verified connection. A write whose

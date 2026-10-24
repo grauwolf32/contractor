@@ -33,7 +33,10 @@ const (
 	privateConnectionReuseLifetime = 5 * time.Minute
 	// privateConnectionsPerPeer and privateIdleConnectionsPerPeer bound the
 	// open and idle connections one owner keeps per peer endpoint
-	// (LIM-CTL-16).
+	// (LIM-CTL-16). The bound holds per generation: while a retired
+	// generation finishes its requests, the endpoint may carry its
+	// connections in use as well, up to twice the bound, and none of them
+	// takes a new request.
 	privateConnectionsPerPeer     = 8
 	privateIdleConnectionsPerPeer = 2
 	// runtimeAgentTransportCapacity bounds the principals one owner keeps
@@ -238,12 +241,14 @@ func (o *RuntimeAgentTransports) removeLocked(
 	return closing
 }
 
+// retireLocked stops new requests on a generation and closes its idle
+// connections at once. net/http then closes each connection still in use as
+// it goes idle. A request that began before the retirement (or a net/http
+// retry of one) asks the transport for a connection and so undoes that, so
+// finish closes the idle connections once more after the last request.
 func retireLocked(generation *transportGeneration, closing []*http.Transport) []*http.Transport {
 	generation.retired = true
-	if generation.inflight == 0 {
-		closing = append(closing, generation.transport)
-	}
-	return closing
+	return append(closing, generation.transport)
 }
 
 func (o *RuntimeAgentTransports) newGeneration(entry *principalTransports, now time.Time) *transportGeneration {

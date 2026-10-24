@@ -45,6 +45,8 @@ PRIVATE_CONNECTIONS_PER_PEER = 8
 PRIVATE_IDLE_CONNECTIONS_PER_PEER = 2
 # LIM-CTL-18: Control Plane origins one Runtime owner keeps connections for.
 MAX_PRIVATE_ORIGINS = 4
+# Interim (1xx) responses skipped before the final response of one exchange.
+MAX_INTERIM_RESPONSES = 5
 
 _HTTP_FIELD_NAME = re.compile(rb"[!#$%&'*+.^_`|~0-9A-Za-z-]+")
 _CHUNK_SIZE = re.compile(rb"[0-9a-fA-F]+")
@@ -153,7 +155,17 @@ def encode_request(method: str, target: str, headers: Mapping[str, str], body: b
 
 
 class ConnectionReader(asyncio.StreamReader):
-    """Stream reader that reports bytes received beyond the last response."""
+    """Stream reader that counts received bytes and reports unread ones."""
+
+    def __init__(
+        self, limit: int = MAX_RESPONSE_HEADER_BYTES, loop: asyncio.AbstractEventLoop | None = None
+    ) -> None:
+        super().__init__(limit=limit, loop=loop)
+        self.received = 0
+
+    def feed_data(self, data: bytes) -> None:
+        self.received += len(data)
+        super().feed_data(data)
 
     def has_unread_data(self) -> bool:
         return bool(self._buffer)
@@ -193,7 +205,9 @@ class PrivateConnections:
     connection carries no allocation authority. Each origin keeps at most
     PRIVATE_CONNECTIONS_PER_PEER connections, of which at most
     PRIVATE_IDLE_CONNECTIONS_PER_PEER stay idle, and at most
-    MAX_PRIVATE_ORIGINS origins are kept.
+    MAX_PRIVATE_ORIGINS origins are kept. An idle connection past the idle
+    bound or the lifetime is never reused; it closes at the next exchange to
+    its origin, at aclose, or when the peer listener closes it (LIFE-CTL-5).
     """
 
     def __init__(
@@ -234,14 +248,20 @@ class PrivateConnections:
             raise ValueError("private requests leave connection management to their owner")
         key = (host, port)
         origin = self._origins.get(key)
-        evicted: list[_OriginConnections] = []
+        stale: list[asyncio.StreamWriter] = []
         if origin is None:
-            origin = _OriginConnections(host, port, self._context, self._verify_peer, self._clock)
+            origin = _OriginConnections(
+                host, port, self._context, self._verify_peer, self._clock, self._is_closed
+            )
             self._origins[key] = origin
             while len(self._origins) > MAX_PRIVATE_ORIGINS:
-                evicted.append(self._origins.popitem(last=False)[1])
+                stale.extend(self._origins.popitem(last=False)[1].detach())
         else:
             self._origins.move_to_end(key)
+        # The evicted origin's idle connections start closing now; waiting for
+        # them to finish happens after the exchange, outside its timeout.
+        for writer in stale:
+            writer.close()
         try:
             return await origin.exchange(
                 request,
@@ -250,16 +270,17 @@ class PrivateConnections:
                 max_response_bytes=max_response_bytes,
             )
         finally:
-            # Like every close, this waits outside the exchange timeout.
-            await _close_all(
-                [writer for stale in evicted for writer in stale.detach()], timeout_seconds
-            )
+            await _close_all(stale, timeout_seconds)
+
+    def _is_closed(self) -> bool:
+        return self._closed
 
     async def aclose(self) -> None:
         """Close every connection and refuse later exchanges.
 
         Idle connections close now; a connection in use closes when its
-        exchange ends.
+        exchange ends, and an exchange still waiting for a connection fails
+        without opening one.
         """
 
         self._closed = True
@@ -279,15 +300,19 @@ class _OriginConnections:
         context: ssl.SSLContext,
         verify_peer: PeerVerifier,
         clock: Callable[[], float],
+        owner_closed: Callable[[], bool],
     ) -> None:
         self._host = host
         self._port = port
         self._context = context
         self._verify_peer = verify_peer
         self._clock = clock
+        self._owner_closed = owner_closed
         self._idle: list[_Connection] = []
         self._slots = asyncio.Semaphore(PRIVATE_CONNECTIONS_PER_PEER)
-        self._closed = False
+        # A retired origin (evicted or closed) still serves the exchanges that
+        # already reached it but keeps no connection for reuse.
+        self._retired = False
 
     async def exchange(
         self,
@@ -300,7 +325,7 @@ class _OriginConnections:
         discarded: list[_Connection] = []
         try:
             async with asyncio.timeout(timeout_seconds), self._slots:
-                if self._closed:
+                if self._owner_closed():
                     raise PrivateConnectionsClosedError("private connections are closed")
                 connection = self._take_idle(discarded)
                 if connection is not None:
@@ -365,24 +390,39 @@ class _OriginConnections:
         retry_on_fresh_connection: bool,
     ) -> HTTPResponse:
         reusable = False
+        received_before = connection.reader.received
         try:
             try:
                 connection.writer.write(request)
                 await connection.writer.drain()
                 head = await read_response_head(connection.reader)
             except (HTTPResponseNotStartedError, ConnectionError) as error:
-                if retry_on_fresh_connection:
+                # Only a request that received no response byte may go again.
+                if retry_on_fresh_connection and connection.reader.received == received_before:
                     raise _ReuseFailedError from error
                 raise
+            interim = 0
+            while 100 <= head.status_code < 200:
+                # An interim response has no content; the final one follows.
+                if head.status_code == 101:
+                    raise HTTPResponseError("unexpected HTTP protocol switch")
+                interim += 1
+                if interim > MAX_INTERIM_RESPONSES:
+                    raise HTTPResponseError("too many interim HTTP responses")
+                head = await read_response_head(connection.reader)
             if head.status_code in {204, 304}:
+                if _declares_content(head.headers):
+                    raise HTTPResponseError("HTTP response without content declares a body")
                 body = b""
             else:
                 body = await read_response_body(connection.reader, head.headers, max_response_bytes)
             # A body delimited by the end of the connection leaves nothing to
-            # reuse, and bytes beyond the framed body would answer the next
-            # request: both close the connection.
+            # reuse, bytes beyond the framed body would answer the next request
+            # and an interim response is not worth the doubt: each closes the
+            # connection.
             reusable = (
-                head.persistent
+                interim == 0
+                and head.persistent
                 and (
                     head.status_code in {204, 304}
                     or "content-length" in head.headers
@@ -400,7 +440,7 @@ class _OriginConnections:
         now = self._clock()
         if (
             not reusable
-            or self._closed
+            or self._retired
             or now - connection.created_at >= PRIVATE_CONNECTION_REUSE_LIFETIME_SECONDS
         ):
             discarded.append(connection)
@@ -411,14 +451,24 @@ class _OriginConnections:
             discarded.append(self._idle.pop(0))
 
     def detach(self) -> list[asyncio.StreamWriter]:
-        """Refuse later exchanges and hand over the idle connections to close.
+        """Stop reuse and hand over the idle connections to close.
 
-        A connection in use closes when its exchange ends.
+        An exchange already waiting here still runs, on a connection of its
+        own, unless the owner closed; a connection in use closes when its
+        exchange ends.
         """
 
-        self._closed = True
+        self._retired = True
         idle, self._idle = self._idle, []
         return [connection.writer for connection in idle]
+
+
+def _declares_content(headers: Mapping[str, str]) -> bool:
+    length = headers.get("content-length")
+    return "transfer-encoding" in headers or (
+        length is not None
+        and not (length.isascii() and length.isdecimal() and set(length) == {"0"})
+    )
 
 
 def _requests_close(request: bytes) -> bool:

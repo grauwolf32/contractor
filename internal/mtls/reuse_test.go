@@ -540,8 +540,60 @@ func TestRuntimeAgentTransportsCloseCancelledConnectionsAndFinishInFlightOnes(t 
 	if err := <-held; err != nil {
 		t.Fatal(err)
 	}
-	if f.dials.open() != 0 {
-		t.Fatalf("Close left %d connections open after the in-flight response", f.dials.open())
+	awaitCondition(t, func() bool { return f.dials.open() == 0 },
+		"Close left a connection open after the in-flight response")
+}
+
+// TestRuntimeAgentTransportsCloseIdleConnectionsAtOnceWhileOthersAreInFlight
+// holds one request of a principal while its other connection is idle: Evict
+// and Close end the idle connection at once and the held one when its
+// response completes (CTL-R164).
+func TestRuntimeAgentTransportsCloseIdleConnectionsAtOnceWhileOthersAreInFlight(t *testing.T) {
+	for _, closer := range []string{"Evict", "Close"} {
+		t.Run(closer, func(t *testing.T) {
+			arrived := make(chan struct{}, 2)
+			release := make(chan struct{})
+			var releaseOnce sync.Once
+			releaseHeld := func() { releaseOnce.Do(func() { close(release) }) }
+			f := newReuseFixture(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Header.Get("X-Probe") == "held" {
+					arrived <- struct{}{}
+					<-release
+				}
+				echoProbe(w, r)
+			}))
+			// Registered after the fixture, so a failing test releases the
+			// held handler before the server closes.
+			t.Cleanup(releaseHeld)
+			owner := f.owner(t)
+			client := f.client(t, owner, f.principal)
+			held := make(chan error, 1)
+			go func() {
+				_, err := call(context.Background(), client, http.MethodPost, f.server.URL, "held")
+				held <- err
+			}()
+			<-arrived
+			if _, err := call(context.Background(), client, http.MethodPost, f.server.URL, "idle"); err != nil {
+				t.Fatal(err)
+			}
+			if f.dials.dialed.Load() != 2 || f.dials.open() != 2 {
+				t.Fatalf("dials=%d open=%d, want one held and one idle connection", f.dials.dialed.Load(), f.dials.open())
+			}
+			if closer == "Evict" {
+				owner.Evict(f.principal)
+			} else {
+				owner.Close()
+			}
+			if f.dials.open() != 1 {
+				t.Fatalf("%s left the idle connection open: open=%d", closer, f.dials.open())
+			}
+			releaseHeld()
+			if err := <-held; err != nil {
+				t.Fatal(err)
+			}
+			awaitCondition(t, func() bool { return f.dials.open() == 0 },
+				closer+" left the held connection open after its response")
+		})
 	}
 }
 

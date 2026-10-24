@@ -9,10 +9,13 @@ import subprocess
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
+from contractor_runtime import _https
 from contractor_runtime._https import (
+    MAX_INTERIM_RESPONSES,
     MAX_PRIVATE_ORIGINS,
     MAX_RESPONSE_HEADER_BYTES,
     MAX_RESPONSE_HEADERS,
@@ -21,6 +24,7 @@ from contractor_runtime._https import (
     PRIVATE_CONNECTIONS_PER_PEER,
     PRIVATE_IDLE_CONNECTIONS_PER_PEER,
     PRIVATE_LISTENER_IDLE_TIMEOUT_SECONDS,
+    ConnectionReader,
     HTTPResponseError,
     HTTPResponseNotStartedError,
     HTTPResponseTooLargeError,
@@ -290,7 +294,9 @@ class ServedRequest:
     headers: dict[str, str]
 
 
-type Responder = Callable[[ServedRequest], Awaitable[bytes | None]]
+# A responder returns the raw response, parts of it to send apart (an interim
+# response before the final one), or None to close without a response.
+type Responder = Callable[[ServedRequest], Awaitable[bytes | list[bytes] | None]]
 
 
 def keep_alive_echo(request: ServedRequest) -> bytes:
@@ -381,9 +387,15 @@ class PrivatePeer:
                 response = await self._respond(reader, request)
                 if response is None:
                     return
-                writer.write(response)
-                await writer.drain()
-                if b"\r\nConnection: close\r\n" in response.partition(b"\r\n\r\n")[0] + b"\r\n":
+                parts = [response] if isinstance(response, bytes) else response
+                for number, part in enumerate(parts):
+                    if number:
+                        # Let the client read the previous part on its own.
+                        await asyncio.sleep(0.02)
+                    writer.write(part)
+                    await writer.drain()
+                final_head = parts[-1].partition(b"\r\n\r\n")[0] + b"\r\n"
+                if b"\r\nConnection: close\r\n" in final_head:
                     return
         except (ConnectionError, ssl.SSLError, asyncio.IncompleteReadError):
             return
@@ -393,7 +405,9 @@ class PrivatePeer:
             with contextlib.suppress(ConnectionError, ssl.SSLError):
                 await writer.wait_closed()
 
-    async def _respond(self, reader: asyncio.StreamReader, request: ServedRequest) -> bytes | None:
+    async def _respond(
+        self, reader: asyncio.StreamReader, request: ServedRequest
+    ) -> bytes | list[bytes] | None:
         """Run the responder while watching for the client to go away."""
 
         responding = asyncio.ensure_future(self.responder(request))
@@ -712,6 +726,213 @@ def test_private_connections_bound_the_origins_they_keep(private_pki: PrivatePKI
         finally:
             await connections.aclose()
             for peer in peers:
+                await peer.stop()
+
+    asyncio.run(scenario())
+
+
+INTERIM_EARLY_HINTS = b"HTTP/1.1 103 Early Hints\r\nLink: </style.css>\r\n\r\n"
+
+
+@pytest.mark.parametrize(
+    "interim",
+    [
+        # The Go Server strips framing from an interim response.
+        [INTERIM_EARLY_HINTS],
+        # A peer that frames one must not shift the next response.
+        [b"HTTP/1.1 103 Early Hints\r\nContent-Length: 0\r\n\r\n"],
+        [b"HTTP/1.1 100 Continue\r\n\r\n", INTERIM_EARLY_HINTS],
+        [INTERIM_EARLY_HINTS] * MAX_INTERIM_RESPONSES,
+    ],
+    ids=["unframed-103", "framed-103", "100-then-103", "bounded-interim"],
+)
+def test_private_connections_skip_interim_responses_and_never_reuse_after_them(
+    private_pki: PrivatePKI, interim: list[bytes]
+) -> None:
+    async def scenario() -> None:
+        async def respond(request: ServedRequest) -> bytes | list[bytes]:
+            if request.path == "/first":
+                return [*interim, keep_alive_echo(request)]
+            return keep_alive_echo(request)
+
+        peer = await PrivatePeer(private_pki, respond).start()
+        connections = runtime_connections(private_pki)
+        try:
+            assert await private_call(connections, peer, "GET", "/first") == b"/first"
+            assert await private_call(connections, peer, "GET", "/second") == b"/second"
+            assert await private_call(connections, peer, "GET", "/third") == b"/third"
+            assert [request.connection for request in peer.requests] == [0, 1, 1]
+        finally:
+            await connections.aclose()
+            await peer.stop()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    ("response", "message"),
+    [
+        (
+            [b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: h2c\r\n\r\n"],
+            "protocol switch",
+        ),
+        ([INTERIM_EARLY_HINTS] * (MAX_INTERIM_RESPONSES + 1), "too many interim"),
+        ([b"HTTP/1.1 204 No Content\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n"], "body"),
+        ([b"HTTP/1.1 204 No Content\r\nContent-Length: 2\r\n\r\n{}"], "body"),
+        ([b"HTTP/1.1 304 Not Modified\r\nContent-Length: 2\r\n\r\n"], "body"),
+    ],
+    ids=["101", "too-many-interim", "204-chunked", "204-length", "304-length"],
+)
+def test_private_connections_reject_switching_and_content_on_empty_responses(
+    private_pki: PrivatePKI, response: list[bytes], message: str
+) -> None:
+    async def scenario() -> None:
+        async def respond(request: ServedRequest) -> bytes | list[bytes]:
+            if request.path == "/bad":
+                return [*response, keep_alive_echo(request)]
+            return keep_alive_echo(request)
+
+        peer = await PrivatePeer(private_pki, respond).start()
+        connections = runtime_connections(private_pki)
+        try:
+            await private_call(connections, peer, "GET", "/warm")
+            with pytest.raises(HTTPResponseError, match=message):
+                await private_call(connections, peer, "GET", "/bad")
+            assert await private_call(connections, peer, "GET", "/after") == b"/after"
+            assert [request.connection for request in peer.requests] == [0, 0, 1]
+        finally:
+            await connections.aclose()
+            await peer.stop()
+
+    asyncio.run(scenario())
+
+
+def test_private_connections_reuse_after_an_empty_response(private_pki: PrivatePKI) -> None:
+    async def scenario() -> None:
+        async def respond(request: ServedRequest) -> bytes:
+            if request.path == "/empty":
+                return b"HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n"
+            return keep_alive_echo(request)
+
+        peer = await PrivatePeer(private_pki, respond).start()
+        connections = runtime_connections(private_pki)
+        try:
+            assert await private_call(connections, peer, "POST", "/empty") == b""
+            assert await private_call(connections, peer, "GET", "/after") == b"/after"
+            assert [request.connection for request in peer.requests] == [0, 0]
+        finally:
+            await connections.aclose()
+            await peer.stop()
+
+    asyncio.run(scenario())
+
+
+class ScriptedConnection:
+    """A connection whose response to each request is fed when it is sent."""
+
+    def __init__(self, replies: list[bytes | tuple[bytes, BaseException]]) -> None:
+        context = ssl.create_default_context()
+        self.reader = ConnectionReader()
+        self.writer = Mock(spec=asyncio.StreamWriter)
+        self.writer.get_extra_info.return_value = context.wrap_bio(
+            ssl.MemoryBIO(), ssl.MemoryBIO(), server_hostname="localhost"
+        )
+        self.writer.is_closing.return_value = False
+        self.writer.transport = Mock()
+        self.writer.wait_closed = AsyncMock()
+        self.writer.drain = AsyncMock(side_effect=self._reply)
+        self.replies = list(replies)
+
+    async def _reply(self) -> None:
+        reply = self.replies.pop(0)
+        if isinstance(reply, bytes):
+            self.reader.feed_data(reply)
+            return
+        data, error = reply
+        self.reader.feed_data(data)
+        self.reader.set_exception(error)
+
+
+@pytest.mark.parametrize(
+    ("received", "resent"), [(b"", True), (b"HTTP/1.1 2", False)], ids=["no-byte", "partial-head"]
+)
+def test_private_connections_resend_a_read_only_when_no_response_byte_arrived(
+    monkeypatch: pytest.MonkeyPatch, received: bytes, resent: bool
+) -> None:
+    async def scenario() -> None:
+        reused = ScriptedConnection(
+            [
+                b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}",
+                (received, ConnectionResetError("reset by peer")),
+            ]
+        )
+        fresh = ScriptedConnection([b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nfresh"])
+        opened = AsyncMock(
+            side_effect=[(reused.reader, reused.writer), (fresh.reader, fresh.writer)]
+        )
+        monkeypatch.setattr(_https, "_open_connection", opened)
+        connections = PrivateConnections(ssl.create_default_context(), Mock())
+        request = encode_request("GET", "/x", {"Host": "localhost:8443"}, b"")
+
+        async def read() -> bytes:
+            response = await connections.exchange(
+                "localhost",
+                8443,
+                request,
+                idempotent=True,
+                timeout_seconds=1,
+                max_response_bytes=16,
+            )
+            return response.body
+
+        assert await read() == b"{}"
+        if resent:
+            assert await read() == b"fresh"
+        else:
+            with pytest.raises(ConnectionResetError):
+                await read()
+        assert opened.await_count == (2 if resent else 1)
+        await connections.aclose()
+
+    asyncio.run(scenario())
+
+
+def test_private_connections_serve_waiters_of_an_evicted_origin(private_pki: PrivatePKI) -> None:
+    async def scenario() -> None:
+        release = asyncio.Event()
+
+        async def respond(request: ServedRequest) -> bytes:
+            if request.path.startswith("/held/"):
+                await release.wait()
+            return keep_alive_echo(request)
+
+        busy = await PrivatePeer(private_pki, respond).start()
+        others = [await PrivatePeer(private_pki).start() for _ in range(MAX_PRIVATE_ORIGINS)]
+        connections = runtime_connections(private_pki)
+        try:
+            held = [
+                asyncio.create_task(private_call(connections, busy, "GET", f"/held/{index}"))
+                for index in range(PRIVATE_CONNECTIONS_PER_PEER)
+            ]
+            await eventually(
+                lambda: len(busy.requests) == PRIVATE_CONNECTIONS_PER_PEER,
+                "held requests did not arrive",
+            )
+            waiting = asyncio.create_task(private_call(connections, busy, "GET", "/waiting"))
+            await asyncio.sleep(0)
+            # Four more origins evict the busy one while a request waits on it.
+            for peer in others:
+                await private_call(connections, peer, "GET", "/other")
+            release.set()
+            assert await waiting == b"/waiting"
+            await asyncio.gather(*held)
+            # The evicted origin keeps nothing for reuse.
+            await eventually(lambda: busy.open == 0, "the evicted origin kept a connection")
+        finally:
+            release.set()
+            await connections.aclose()
+            await busy.stop()
+            for peer in others:
                 await peer.stop()
 
     asyncio.run(scenario())
