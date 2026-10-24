@@ -1,9 +1,11 @@
 package reporting
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -66,10 +68,128 @@ const (
 	ToolCallFailed    ToolCallOutcome = "failed"
 )
 
+// ToolArguments is the bounded, redacted argument summary of one tool call;
+// an empty summary encodes as an absent member, as the Runtime writes it. A
+// decoded number keeps the literal its producer wrote (json.Number), so the
+// Server encodes, bounds and measures the bytes the Runtime measured
+// (OBS-R42), and an integer beyond 2^53 keeps its value.
+type ToolArguments map[string]any
+
+// UnmarshalJSON decodes the summary with its number literals kept. The
+// private codec's scan has already rejected duplicate member names, null and
+// trailing data; validation checks the numbers (LIM-OBS-16) and the size.
+func (a *ToolArguments) UnmarshalJSON(data []byte) error {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	var value map[string]any
+	if err := decoder.Decode(&value); err != nil {
+		return err
+	}
+	*a = value
+	return nil
+}
+
+// Tool argument numbers (LIM-OBS-16) keep only a small decimal exponent:
+// PostgreSQL stores a jsonb number as its full decimal expansion, so a stored
+// number renders at most 20 integer digits and 7 decimal places beyond its own
+// fraction digits. -7 keeps probabilities to one in ten million and float32
+// epsilon; 19 keeps every 64-bit integer, which includes millisecond and
+// nanosecond timestamps, counts and sizes.
+const (
+	minArgumentNumberExponent = -7
+	maxArgumentNumberExponent = 19
+	// ArgumentNumberMarker replaces a number a summary cannot keep: one
+	// outside LIM-OBS-16, NaN or an infinity.
+	ArgumentNumberMarker = "[NUMBER_OUT_OF_RANGE]"
+)
+
+// numbersInRange reports whether every number in the summary stays within
+// LIM-OBS-16.
+func (a ToolArguments) numbersInRange() bool {
+	return argumentNumbersInRange(map[string]any(a))
+}
+
+func argumentNumbersInRange(value any) bool {
+	switch typed := value.(type) {
+	case map[string]any:
+		for _, item := range typed {
+			if !argumentNumbersInRange(item) {
+				return false
+			}
+		}
+	case []any:
+		for _, item := range typed {
+			if !argumentNumbersInRange(item) {
+				return false
+			}
+		}
+	default:
+		return !ArgumentNumberOutOfRange(value)
+	}
+	return true
+}
+
+// ArgumentNumberOutOfRange reports whether value is a number that a tool
+// argument summary cannot keep (LIM-OBS-16), judged by the JSON it is written
+// as: the literal a producer wrote (json.Number) or encoding/json's text for a
+// number the Server built. A number is kept when it is zero or the decimal
+// exponent of its leading digit lies between minArgumentNumberExponent and
+// maxArgumentNumberExponent, and it writes no exponent outside that range.
+// Any other value is no number and reports false.
+func ArgumentNumberOutOfRange(value any) bool {
+	var literal string
+	switch typed := value.(type) {
+	case json.Number:
+		literal = string(typed)
+	case float64, float32, int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
+		encoded, err := json.Marshal(typed)
+		if err != nil { // NaN or an infinity
+			return true
+		}
+		literal = string(encoded)
+	default:
+		return false
+	}
+	return !argumentLiteralInRange(literal)
+}
+
+func argumentLiteralInRange(literal string) bool {
+	mantissa, exponentText, hasExponent := strings.Cut(strings.ToLower(literal), "e")
+	exponent := 0
+	if hasExponent {
+		negative := strings.HasPrefix(exponentText, "-")
+		digits := strings.TrimLeft(strings.TrimLeft(exponentText, "+-"), "0")
+		if len(digits) > 2 {
+			return false
+		}
+		exponent, _ = strconv.Atoi("0" + digits)
+		if negative {
+			exponent = -exponent
+		}
+		if exponent < minArgumentNumberExponent || exponent > maxArgumentNumberExponent {
+			return false
+		}
+	}
+	integer, fraction, _ := strings.Cut(strings.TrimPrefix(mantissa, "-"), ".")
+	lead := 0
+	if index := strings.IndexFunc(integer, isNonZeroDigit); index >= 0 {
+		lead = len(integer) - 1 - index
+	} else if index := strings.IndexFunc(fraction, isNonZeroDigit); index >= 0 {
+		lead = -(index + 1)
+	} else {
+		return true // zero, whose written exponent is already in range
+	}
+	return lead+exponent >= minArgumentNumberExponent && lead+exponent <= maxArgumentNumberExponent
+}
+
+func isNonZeroDigit(r rune) bool {
+	return r >= '1' && r <= '9'
+}
+
 type ToolCallRecord struct {
 	CallID             string          `json:"callId" strictjson:"required"`
 	Tool               string          `json:"tool" strictjson:"required"`
-	Arguments          map[string]any  `json:"arguments,omitempty"`
+	Arguments          ToolArguments   `json:"arguments,omitempty"`
 	ArgumentsTruncated bool            `json:"argumentsTruncated" strictjson:"required"`
 	Outcome            ToolCallOutcome `json:"outcome" strictjson:"required"`
 	DurationMS         *int64          `json:"durationMs,omitempty"`
@@ -166,11 +286,11 @@ type AllocationFinalReport struct {
 	Runtime      RuntimeReport   `json:"runtime" strictjson:"required"`
 }
 
+// UnmarshalJSON strictly decodes a report wherever it comes from: the private
+// response that carries it, which bounds its received bytes, or the jsonb
+// column that stores it, which renders it longer than it was received
+// (OBS-R110).
 func (r *AllocationFinalReport) UnmarshalJSON(data []byte) error {
-	// Check the original report before optional invalid resources are removed.
-	if len(data) > 1024*1024 {
-		return contracts.Invalidf("allocation final report exceeds 1 MiB")
-	}
 	type wireReport AllocationFinalReport
 	var value wireReport
 	if err := strictjson.DecodeNonNull(data, &value); errors.Is(err, strictjson.ErrDuplicateKey) {
@@ -182,7 +302,21 @@ func (r *AllocationFinalReport) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// Validate checks a report as its producer sent it, including the byte bounds
+// its compact JSON must meet (LIM-OBS-6, OBS-R40).
 func (r ExecutionReport) Validate() error {
+	return r.validate(true)
+}
+
+// validateStored checks a report read back from storage. It applies every
+// rule of Validate except the byte bounds: jsonb renders each number as its
+// full decimal expansion, so the stored report no longer measures the bytes it
+// met when it was received and trimmed (OBS-R110).
+func (r ExecutionReport) validateStored() error {
+	return r.validate(false)
+}
+
+func (r ExecutionReport) validate(received bool) error {
 	if r.Completion != nil {
 		if err := r.Completion.Validate(); err != nil {
 			return err
@@ -274,8 +408,10 @@ func (r ExecutionReport) Validate() error {
 			return contracts.Invalidf("tool call %d marks absent arguments truncated", index)
 		}
 		if call.Arguments != nil {
-			size, err := contracts.ResultJSONSize(call.Arguments)
-			if err != nil || size > 4096 {
+			if !call.Arguments.numbersInRange() {
+				return contracts.Invalidf("tool call %d arguments hold a number outside their range", index)
+			}
+			if size, err := contracts.ResultJSONSize(call.Arguments); err != nil || received && size > 4096 {
 				return contracts.Invalidf("tool call %d arguments exceed 4096 bytes", index)
 			}
 		}
@@ -308,7 +444,7 @@ func (r ExecutionReport) Validate() error {
 	if err != nil {
 		return contracts.Invalidf("execution report cannot be encoded")
 	}
-	if size > 1024*1024 {
+	if received && size > 1024*1024 {
 		return contracts.Invalidf("execution report exceeds 1 MiB")
 	}
 	return nil
@@ -324,12 +460,14 @@ func (e ExecutionError) Validate() error {
 	return nil
 }
 
+// Validate checks StageMetrics built from stored reports, so each report is
+// checked as a stored report (validateStored).
 func (m StageMetrics) Validate() error {
 	if m.Workers == nil || m.Runtime == nil {
 		return contracts.Invalidf("StageMetrics maps must not be null")
 	}
 	if m.Planner != nil {
-		if err := m.Planner.Validate(); err != nil {
+		if err := m.Planner.validateStored(); err != nil {
 			return fmt.Errorf("planner report: %w", err)
 		}
 	}
@@ -337,7 +475,7 @@ func (m StageMetrics) Validate() error {
 		if err := contracts.ValidateOpaqueID("worker logical Agent name", name); err != nil {
 			return err
 		}
-		if err := report.Validate(); err != nil {
+		if err := report.validateStored(); err != nil {
 			return fmt.Errorf("worker report %q: %w", name, err)
 		}
 	}
@@ -468,6 +606,29 @@ func (r RuntimeReport) Validate() error {
 type AllocationFinalResponse struct {
 	APIVersion string                `json:"apiVersion" strictjson:"required"`
 	Report     AllocationFinalReport `json:"report" strictjson:"required"`
+}
+
+// UnmarshalJSON bounds the report a Runtime sent at 1 MiB (LIM-OBS-7) before
+// any of it is decoded, so the original bytes are measured before optional
+// invalid resources and adapter metrics are discarded. The bound applies to
+// these received bytes only; a stored report is decoded without it.
+func (r *AllocationFinalResponse) UnmarshalJSON(data []byte) error {
+	var wire struct {
+		APIVersion string          `json:"apiVersion" strictjson:"required"`
+		Report     json.RawMessage `json:"report" strictjson:"required"`
+	}
+	if err := strictjson.DecodeNonNull(data, &wire); err != nil {
+		return err
+	}
+	if len(wire.Report) > 1024*1024 {
+		return contracts.Invalidf("allocation final report exceeds 1 MiB")
+	}
+	var report AllocationFinalReport
+	if err := strictjson.DecodeNonNull(wire.Report, &report); err != nil {
+		return err
+	}
+	*r = AllocationFinalResponse{APIVersion: wire.APIVersion, Report: report}
+	return nil
 }
 
 func (r AllocationFinalResponse) Validate() error {

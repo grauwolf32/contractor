@@ -56,7 +56,7 @@ def test_complete_edit_matrix_matches_all_direct_overlay_local_memory_backends(
                 )
                 snapshot = await session.snapshot()
                 results.append(snapshot)
-                assert all(call.arguments == {} for call in state.metrics.tool_calls)
+                assert all(call.arguments is None for call in state.metrics.tool_calls)
 
                 if storage == "local" and mode == "direct":
                     physical_crlf = Path(f"{physical_root}/crlf.txt").read_bytes()

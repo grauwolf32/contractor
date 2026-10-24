@@ -1,9 +1,11 @@
 package telemetry
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
+	"regexp"
 	"strings"
 	"unicode/utf8"
 
@@ -30,10 +32,30 @@ var sensitiveKeys = map[string]struct{}{
 	"setcookie": {}, "token": {},
 }
 
+// A name containing one of sensitiveFragments or ending in one of
+// sensitiveSuffixes, after normalizeKey, is sensitive as well.
+var (
+	sensitiveFragments = []string{"apikey", "authorization", "base64", "cookie", "password", "secret", "token"}
+	sensitiveSuffixes  = []string{"body", "bytes", "content", "data", "payload"}
+)
+
+// safeDerivedSizeKeys name the sizes the Runtime derives from content it
+// does not report. A non-negative integer under one of them is kept although
+// the name ends in "bytes"; the Runtime's SAFE_DERIVED_SIZE_METRIC_KEYS lists
+// the same names, and telemetry-report-trim-cases.json pins both lists.
+var safeDerivedSizeKeys = map[string]struct{}{
+	"content_bytes": {}, "description_bytes": {},
+	"result_content_bytes": {}, "result_description_bytes": {},
+}
+
 // Policy is the mandatory Control Plane persistence-boundary sanitizer.
 // Secrets are copied so callers can erase their own configuration independently.
 type Policy struct {
 	secrets []string
+	// size is the compact UTF-8 JSON measure (OBS-R42). NewPolicy sets
+	// contracts.ResultJSONSize; a test builds a Policy with a measure that
+	// counts, so no package state changes and tests may run in parallel.
+	size func(any) (int, error)
 }
 
 func NewPolicy(secrets ...string) Policy {
@@ -43,7 +65,7 @@ func NewPolicy(secrets ...string) Policy {
 			filtered = append(filtered, secret)
 		}
 	}
-	return Policy{secrets: filtered}
+	return Policy{secrets: filtered, size: contracts.ResultJSONSize}
 }
 
 func (p Policy) NormalizeAllocationReport(
@@ -59,19 +81,19 @@ func (p Policy) NormalizeAllocationReport(
 		value := p.redactText(*result.Runtime.StopReason)
 		result.Runtime.StopReason = &value
 	}
-	for encodedSize(result) > MaxReportJSONBytes {
-		if len(result.Worker.ToolCalls) > 0 {
-			result.Worker.ToolCalls = result.Worker.ToolCalls[1:]
-			result.Worker.Truncated = true
-			continue
-		}
-		if len(result.Worker.Errors) > 0 {
-			result.Worker.Errors = result.Worker.Errors[1:]
-			result.Worker.Truncated = true
-			continue
-		}
+	worker, fits, err := p.trimDetail(result.Worker, MaxReportJSONBytes,
+		func(candidate reporting.ExecutionReport) int {
+			report := result
+			report.Worker = candidate
+			return p.encodedSize(report)
+		})
+	if err != nil {
+		return reporting.AllocationFinalReport{}, fmt.Errorf("normalize allocation report: %w", err)
+	}
+	if !fits {
 		return reporting.AllocationFinalReport{}, errors.New("allocation report aggregate exceeds 1 MiB")
 	}
+	result.Worker = worker
 	if err := result.Validate(); err != nil {
 		return reporting.AllocationFinalReport{}, fmt.Errorf("normalize allocation report: %w", err)
 	}
@@ -103,14 +125,14 @@ func (p Policy) NormalizeExecutionReport(
 	}
 	for _, sourceCall := range source.ToolCalls[start:] {
 		call := sourceCall
-		if sourceCall.Arguments != nil {
+		if sourceCall.Arguments != nil && !isArgumentSummary(sourceCall.Arguments) {
 			arguments, changed := p.sanitizeMap(sourceCall.Arguments)
 			call.Arguments = arguments
 			call.ArgumentsTruncated = call.ArgumentsTruncated || changed
-			if encodedSize(arguments) > MaxArgumentBytes {
+			if size := p.encodedSize(arguments); size > MaxArgumentBytes {
 				call.Arguments = map[string]any{
 					"summary":           truncatedValue,
-					"originalSizeBytes": encodedSize(arguments),
+					"originalSizeBytes": size,
 				}
 				call.ArgumentsTruncated = true
 			}
@@ -129,17 +151,13 @@ func (p Policy) NormalizeExecutionReport(
 	for _, item := range source.Errors[errorStart:] {
 		result.Errors = append(result.Errors, p.normalizeError(item))
 	}
-	for encodedSize(result) > maximumBytes {
-		if len(result.ToolCalls) > 0 {
-			result.ToolCalls = result.ToolCalls[1:]
-			result.Truncated = true
-			continue
-		}
-		if len(result.Errors) > 0 {
-			result.Errors = result.Errors[1:]
-			result.Truncated = true
-			continue
-		}
+	result, fits, err := p.trimDetail(result, maximumBytes, func(candidate reporting.ExecutionReport) int {
+		return p.encodedSize(candidate)
+	})
+	if err != nil {
+		return reporting.ExecutionReport{}, fmt.Errorf("normalize execution report: %w", err)
+	}
+	if !fits {
 		return reporting.ExecutionReport{}, errors.New("execution report aggregate exceeds byte limit")
 	}
 	if err := result.Validate(); err != nil {
@@ -181,18 +199,86 @@ func (p Policy) sanitizeMap(source map[string]any) (map[string]any, bool) {
 	result := make(map[string]any, len(source))
 	changed := false
 	for key, value := range source {
-		targetKey := truncateUTF8(p.redactText(key), MaxArgumentBytes)
-		changed = changed || targetKey != key
-		if isSensitiveKey(key) {
-			result[targetKey] = map[string]any{"redacted": true, "size": valueSize(value)}
-			changed = true
-			continue
-		}
-		normalized, itemChanged := p.sanitizeValue(value, 0)
+		targetKey, normalized, itemChanged := p.sanitizeMember(key, value, 0)
 		result[targetKey] = normalized
 		changed = changed || itemChanged
 	}
 	return result, changed
+}
+
+// sanitizeMember redacts one member of an argument object (OBS-R27). A
+// sensitive name replaces its value with the redaction placeholder, except a
+// size the Runtime derives and a value that already is the placeholder, so a
+// record the Runtime redacted passes unchanged and keeps its size (OBS-R110).
+// Every name isSensitiveKey accepts the Runtime treats as sensitive too.
+func (p Policy) sanitizeMember(key string, value any, depth int) (string, any, bool) {
+	targetKey := truncateUTF8(p.redactText(key), MaxArgumentBytes)
+	changed := targetKey != key
+	if isSafeDerivedSize(key, value) {
+		return targetKey, value, changed
+	}
+	if isSensitiveKey(key) {
+		if isRedactionPlaceholder(value) {
+			return targetKey, value, changed
+		}
+		return targetKey, map[string]any{"redacted": true, "size": p.encodedSize(value)}, true
+	}
+	normalized, itemChanged := p.sanitizeValue(value, depth)
+	return targetKey, normalized, changed || itemChanged
+}
+
+// isArgumentSummary reports whether arguments already are the summary that
+// replaces arguments above MaxArgumentBytes; its size member is no content.
+func isArgumentSummary(arguments map[string]any) bool {
+	return len(arguments) == 2 && arguments["summary"] == truncatedValue &&
+		isSizeInRange(arguments["originalSizeBytes"])
+}
+
+// isRedactionPlaceholder reports whether value is exactly the placeholder a
+// sensitive member's value becomes: redacted true and a size that is a
+// non-negative integer within LIM-OBS-16 or null.
+func isRedactionPlaceholder(value any) bool {
+	placeholder, ok := value.(map[string]any)
+	if !ok || len(placeholder) != 2 || placeholder["redacted"] != true {
+		return false
+	}
+	size, present := placeholder["size"]
+	return present && (size == nil || isSizeInRange(size))
+}
+
+func isSafeDerivedSize(key string, value any) bool {
+	_, safe := safeDerivedSizeKeys[metricIdentifier(key)]
+	return safe && isSizeInRange(value)
+}
+
+// isSizeInRange reports whether value is a size a Runtime record may carry:
+// a non-negative integer that LIM-OBS-16 keeps.
+func isSizeInRange(value any) bool {
+	return isNonNegativeInteger(value) && !reporting.ArgumentNumberOutOfRange(value)
+}
+
+// isNonNegativeInteger accepts a decoded literal of digits only, which JSON
+// writes for a non-negative integer, and a Go integer that is not negative.
+func isNonNegativeInteger(value any) bool {
+	switch typed := value.(type) {
+	case json.Number:
+		return typed != "" && strings.Trim(string(typed), "0123456789") == ""
+	case int:
+		return typed >= 0
+	case int64:
+		return typed >= 0
+	}
+	return false
+}
+
+var metricIdentifierSeparators = regexp.MustCompile(`[^a-z0-9_]+`)
+
+// metricIdentifier is the Runtime's _metric_identifier: the lower-case name
+// with every run of characters other than a-z, 0-9 and _ replaced by _,
+// without leading or trailing _, cut to 64 bytes.
+func metricIdentifier(value string) string {
+	normalized := strings.Trim(metricIdentifierSeparators.ReplaceAllString(strings.ToLower(value), "_"), "_")
+	return normalized[:min(len(normalized), 64)]
 }
 
 func (p Policy) sanitizeValue(source any, depth int) (any, bool) {
@@ -200,26 +286,26 @@ func (p Policy) sanitizeValue(source any, depth int) (any, bool) {
 		return truncatedValue, true
 	}
 	switch value := source.(type) {
-	case nil, bool, float64, float32, int, int8, int16, int32, int64,
+	case nil, bool:
+		return value, false
+	case json.Number, float64, float32, int, int8, int16, int32, int64,
 		uint, uint8, uint16, uint32, uint64:
+		// A number the summary cannot keep becomes the marker the Runtime
+		// writes for it (LIM-OBS-16); a Runtime number is already in range.
+		if reporting.ArgumentNumberOutOfRange(value) {
+			return reporting.ArgumentNumberMarker, true
+		}
 		return value, false
 	case string:
 		result := p.redactText(value)
 		return truncateUTF8(result, MaxArgumentBytes), result != value || len(result) > MaxArgumentBytes
 	case []byte:
-		return map[string]any{"bytes": len(value)}, true
+		return map[string]any{"redacted": true, "size": len(value)}, true
 	case map[string]any:
 		result := make(map[string]any, len(value))
 		changed := false
 		for key, item := range value {
-			targetKey := truncateUTF8(p.redactText(key), MaxArgumentBytes)
-			changed = changed || targetKey != key
-			if isSensitiveKey(key) {
-				result[targetKey] = map[string]any{"redacted": true, "size": valueSize(item)}
-				changed = true
-				continue
-			}
-			normalized, itemChanged := p.sanitizeValue(item, depth+1)
+			targetKey, normalized, itemChanged := p.sanitizeMember(key, item, depth+1)
 			result[targetKey] = normalized
 			changed = changed || itemChanged
 		}
@@ -273,14 +359,12 @@ func isSensitiveKey(value string) bool {
 	if _, sensitive := sensitiveKeys[normalized]; sensitive {
 		return true
 	}
-	for _, fragment := range []string{
-		"apikey", "authorization", "base64", "cookie", "password", "secret", "token",
-	} {
+	for _, fragment := range sensitiveFragments {
 		if strings.Contains(normalized, fragment) {
 			return true
 		}
 	}
-	for _, suffix := range []string{"body", "bytes", "content", "data", "payload"} {
+	for _, suffix := range sensitiveSuffixes {
 		if strings.HasSuffix(normalized, suffix) {
 			return true
 		}
@@ -308,17 +392,92 @@ func cloneWorkerBudget(source *reporting.WorkerBudgetMetrics) *reporting.WorkerB
 	return &result
 }
 
-func encodedSize(value any) int {
-	size, err := contracts.ResultJSONSize(value)
+// trimDetail bounds a report whose complete JSON, as measure counts it, may
+// exceed maximum. Overflow removes the oldest tool-call record first and the
+// oldest error only after no tool-call record remains, and marks the report
+// truncated (OBS-R41): the result is the first report of that removal
+// sequence that fits. The JSON of a list is its elements' JSON joined by
+// commas, so each record is measured once and every removal is subtracted
+// from the size; measure runs at most three times, for the candidate, for the
+// envelope without detail and for the retained result, however many records
+// are removed (OBS-R110). fits is false when even the envelope exceeds
+// maximum. An error means the computed and the measured size of the retained
+// result disagree, which the JSON encoding rules exclude.
+func (p Policy) trimDetail(
+	report reporting.ExecutionReport,
+	maximum int,
+	measure func(reporting.ExecutionReport) int,
+) (result reporting.ExecutionReport, fits bool, err error) {
+	if measure(report) <= maximum {
+		return report, true, nil
+	}
+	envelope := report
+	envelope.ToolCalls = []reporting.ToolCallRecord{}
+	envelope.Errors = []reporting.ExecutionError{}
+	envelope.Truncated = true
+	callSizes := make([]int, len(report.ToolCalls))
+	for index, call := range report.ToolCalls {
+		callSizes[index] = p.encodedSize(call)
+	}
+	errorSizes := make([]int, len(report.Errors))
+	for index, item := range report.Errors {
+		errorSizes[index] = p.encodedSize(item)
+	}
+	size := measure(envelope) + listSize(callSizes) + listSize(errorSizes)
+	// The candidate does not fit, so at least one record goes even when the
+	// shorter "truncated":true alone would make it fit.
+	calls, errorsFrom := 0, 0
+	for removed := false; !removed || size > maximum; removed = true {
+		switch {
+		case calls < len(callSizes):
+			size -= removalSize(callSizes[calls:])
+			calls++
+		case errorsFrom < len(errorSizes):
+			size -= removalSize(errorSizes[errorsFrom:])
+			errorsFrom++
+		default:
+			return reporting.ExecutionReport{}, false, nil
+		}
+	}
+	result = report
+	result.ToolCalls = report.ToolCalls[calls:]
+	result.Errors = report.Errors[errorsFrom:]
+	result.Truncated = true
+	if measured := measure(result); measured != size {
+		return reporting.ExecutionReport{}, false, fmt.Errorf(
+			"retained report measures %d bytes, not the computed %d", measured, size)
+	}
+	return result, true, nil
+}
+
+// listSize is the JSON size of a list's elements and the commas between them;
+// the brackets belong to the envelope's empty list.
+func listSize(sizes []int) int {
+	total := max(0, len(sizes)-1)
+	for _, size := range sizes {
+		total += size
+	}
+	return total
+}
+
+// removalSize is what removing the first element of a list saves: the element
+// and, unless it is the last one, the comma after it.
+func removalSize(remaining []int) int {
+	if len(remaining) > 1 {
+		return remaining[0] + 1
+	}
+	return remaining[0]
+}
+
+// encodedSize is the policy's JSON measure, except that a value which cannot
+// be encoded counts as larger than any report bound, so trimming removes the
+// record carrying it and a report that still carries it is rejected.
+func (p Policy) encodedSize(value any) int {
+	size, err := p.size(value)
 	if err != nil {
 		return MaxReportJSONBytes + 1
 	}
 	return size
-}
-
-func valueSize(value any) *int {
-	size := encodedSize(value)
-	return &size
 }
 
 func truncateUTF8(value string, maximum int) string {

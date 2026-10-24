@@ -94,7 +94,7 @@ def forbid_launch(tmp_path, monkeypatch):
 def assert_failed_call_is_private(state, tmp_path):
     assert state.metrics.counters["tool_calls"] == 1
     assert state.metrics.counters["tool_errors"] == 1
-    assert state.metrics.tool_calls[0].arguments == {}
+    assert state.metrics.tool_calls[0].arguments is None
     assert "canary" not in repr(state.metrics)
     assert list((tmp_path / "workspace").iterdir()) == []
 

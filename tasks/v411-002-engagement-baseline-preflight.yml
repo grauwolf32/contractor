@@ -1,0 +1,180 @@
+schema_version: '1.0'
+id: V411-002
+title: Validate and pin a typed pentest engagement at Audit start
+milestone: autonomous-http-pentest-2026-10
+epic: audits
+kind: feature
+priority: P1
+status: pending
+depends_on:
+- V411-001
+languages:
+- go
+- python
+- json
+- sql
+- yaml
+goal: Make scope, source mode, target identities and finite policy explicit immutable Audit inputs,
+  with non-executing owner-visible preflight and a narrow allocation projection that cannot be widened
+  by mutable Project configuration.
+context:
+  authority: User request on 2026-10-24 to decompose the updated proposals into implementation tasks.
+    This record authorizes no implementation during planning and does not reactivate deferred work.
+  proposal:
+  - docs/proposals/0033-autonomous-pentest-audits.md#3-engagement-document-and-immutable-baseline
+  - docs/proposals/0033-autonomous-pentest-audits.md#41-route-policy
+  - docs/proposals/0033-autonomous-pentest-audits.md#5-budgets-and-durable-accounting
+  - docs/proposals/0033-autonomous-pentest-audits.md#7-preflight-reconnaissance-and-surface-identity
+  - docs/proposals/0033-autonomous-pentest-audits.md#13-api-cli-ui-and-reports
+  specification:
+  - docs/spec/audits/audits.md#AUD-R12
+  - docs/spec/audits/audits.md#AUD-R97
+  - docs/spec/audits/audits.md#AUD-R227
+  - docs/spec/execution/control-plane.md#CTL-R6
+  - docs/spec/execution/control-plane.md#CTL-R149
+  - docs/spec/platform/persistence.md#PER-R24
+  code:
+  - internal/auditbaseline
+  - internal/auditservice
+  - internal/config/auditprofile
+  - internal/contracts/control
+  - internal/httpapi/public
+  - api/v1alpha1
+  - runtime/src/contractor_runtime/contracts
+scope:
+  in:
+  - Implement the closed engagement artifact, canonical route/identity/input/budget types and shared
+    Go/Python/schema fixtures.
+  - Wire draft validation and POST /v1/audits/{auditId}/preflight with If-Match into existing Audit
+    services; validate ownership/syntax/capability requirements without target requests or public
+    secret resolution.
+  - Extend start snapshots and credential holds with exact engagement/input/policy/tool/Skill/configuration
+    revisions and trusted authorizer/time metadata; materialize only task-authorized private allocation
+    projections.
+  out:
+  - Controlled target transport and live Runtime reachability belong to V411-003; login belongs to
+    V411-005; user journeys/catalog release are later tasks.
+  - No claim that existing authorizationScope text enforces scope, no compatibility reader, scope
+    expansion, source-mode conversion after start or implicit external schema fetch.
+requirements:
+- id: R1
+  text: Public preflight and existing start/prepare readers are the production consumers of every
+    new contract type. Unknown Server contracts fail audit_profile_unsupported; start repeats authoritative
+    checks and never trusts old preflight success.
+- id: R2
+  text: Use proposal 0033 section 3 exact fields and section 4.1 grammar. Reject duplicate/unknown
+    members, null optional fields, nonfinite/fractional/out-of-range numbers, alternate IP spellings,
+    forbidden escapes and unauthorized seeds; canonical matching and transmitted paths share fixtures.
+- id: R3
+  text: Blackbox rejects repository hydration/source-analysis closures and inherited source-bearing
+    inputs/Skills. Source-assisted requires exact source input. Live context reads never mutate baseline
+    and require their later source-mode projection.
+- id: R4
+  text: Resolve credentials to immutable V411-001 refs and atomically retain them with start. Mutable
+    labels/aliases cannot reinterpret pinned scope/identity; incompatible placement fails prepare.
+- id: R5
+  text: Introduce only declared finite limits from proposal section 5 and shared registries. Unsupported
+    pentest execution remains unavailable until its concrete Runtime/Server capabilities exist; registration
+    of metadata does not advertise working transport/proof.
+failure_outcomes:
+- operation: Draft/preflight validation
+  permanent: Malformed documents use existing 400 audit_document_invalid/validation shape; foreign/missing
+    IDs use safe 404; stale If-Match or invalid lifecycle use existing 409 conflict; no retries for
+    these outcomes.
+  retryable: Read-only 503 storage_transaction_conflict follows existing bounded policy and Retry-After.
+  ambiguous: Preflight creates no authorization or hold, so retry recomputes from the same requested
+    revision and may return a stale-revision conflict.
+  cancelled: Service cancels and joins storage reads; it must have started no target/DNS/login work.
+  timeout: Preflight has a bounded computation/read deadline independent of later target checks.
+- operation: Authoritative start and private projection
+  permanent: Unsupported contracts return audit_profile_unsupported; missing/wrong-owner refs, unsupported
+    revisions and invalid closures fail permanently before dispatch.
+  retryable: Retry only classified storage conflicts within existing start deadlines.
+  ambiguous: Reconcile the original start key/baseline receipt; retain the committed pins and never
+    select newer inputs.
+  cancelled: Existing start/Project-deleting fences decide the race; any committed owner holds are
+    released by normal cancellation/delete.
+  timeout: Storage/start deadlines cannot consume or extend target-request allowances; partial pinning
+    is rolled back or reconciled by the existing start receipt.
+cardinality:
+- collection: One engagement inside one Audit baseline
+  expected: One origin, 16 routes/exclusions, three identities and a few exact inputs
+  maximum: 16 origins, 128 routes, 128 exclusions, eight identities; document at most 4 MiB and existing
+    tighter package bounds
+  bound: Read selected refs in bounded batches; no whole-Project artifact scan or unbounded closure
+    traversal. Reuse existing closure/input cardinality limits.
+- collection: Owner Audits and capability/preflight metadata
+  expected: One selected draft
+  maximum: One revision per request; existing public list limits
+  bound: Public responses remain bounded metadata; never serialize secret material or all Runtime
+    records.
+lifecycle:
+- entity: Engagement baseline and exact input/credential holds
+  delete: Draft can be edited through existing CAS; started engagement changes require a new Audit.
+    Project deletion blocks new start.
+  cascade: Existing Audit deletion releases owned exact links/holds after children drain; source Run
+    deletion cannot reinterpret a retained baseline.
+  retention: Immutable baseline and authorization metadata remain with the Audit; credential material
+    remains in its encrypted owner boundary.
+acceptance_criteria:
+- id: A1
+  given: URL-only anonymous and source-assisted authenticated engagements
+  when: Draft validation and start run with declared compatible contracts
+  then: Public and private projections agree on exact pins, authorizer and finite policy; private
+    projection includes only assigned identities/routes.
+- id: A2
+  given: A stale successful preflight and concurrently changed input/credential/Project policy
+  when: Start repeats authoritative validation
+  then: It either pins one consistent authorized baseline or returns a conflict; preflight cannot
+    authorize stale work.
+- id: A3
+  given: Blackbox with source-bearing inherited inputs, Skills or source-analysis tools
+  when: Closure validation runs
+  then: Start rejects the source path before exposure while allowing public HTTP resources and scratch
+    workspaces.
+- id: A4
+  given: Shared boundary and invalid grammar fixtures
+  when: Go/Python/OpenAPI validation and canonicalization run
+  then: Every side agrees; unknown schema/capability fails closed and no old-format fallback is introduced.
+- id: A5
+  given: Duplicate start, cancellation/Project deletion and source removal
+  when: Real PostgreSQL and process tests interleave these operations
+  then: One exact baseline is committed/replayed; holds and private materialization respect ownership,
+    deletion fences and cleanup.
+tests:
+- command: go test -tags=integration -count=1 ./internal/auditbaseline ./internal/auditservice ./internal/auditstore/...
+    ./internal/config/... ./internal/contracts/... ./internal/controlplane ./internal/httpapi/public
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make verify-public-api test-wire-cross-language test-runtime
+  covers:
+  - A1
+  - A3
+  - A4
+  - A5
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+test_prerequisites:
+- Disposable PostgreSQL able to create/drop isolated schemas; never print its connection secret.
+- Repository-pinned Go and locked Runtime dependencies; run commands from the repository root unless
+  the command explicitly changes directory.
+verification_requirements:
+- Use testdata fixtures, never the live configs tree outside the documented e2e/eval exceptions. Keep
+  model choice unchanged; deterministic targets need no real Gateway.
+- Run every touched package in full, including any new package introduced by this task. Database tests
+  require disposable PostgreSQL through CONTRACTOR_TEST_DATABASE_URL; an unreachable configured database
+  fails and skipped mandatory cases do not pass.
+- New shared fixtures must be registered with their Go/Python/schema readers in the existing shared-fixture
+  gate. New process selections must fail when zero tests match and be reachable from release-verify.
+- Update the owning normative specification, shared limits/errors/lifecycle registries and public/private
+  contracts in the same change. Preserve existing contract ownership; do not add backward-compatibility
+  readers or edit generated clients manually.

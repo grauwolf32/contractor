@@ -1,0 +1,356 @@
+schema_version: '1.0'
+id: V407-020
+title: Reduce bounded telemetry trimming and operations-history copying
+milestone: server-runtime-review-2026-10
+epic: operations
+kind: chore
+introduced_by: V1-004
+priority: P2
+status: completed
+implementation_commit: f41fdbdb18860290634a798c3b60240c37a0c9ee
+depends_on: []
+languages:
+- go
+- python
+goal: Make report trimming proportional to retained detail and avoid copying the full operations history
+  on each append, preserving report content, limits and cursor behavior.
+context:
+  review: docs/research/2026-10-23-server-runtime-review.md (corrected dispositions, verified on main
+    dc7012e8; recheck source lines before implementation)
+  specification: docs/spec/platform/observability.md
+  finding: internal/telemetry/policy.go:62-70,132-140 removes one detail record and re-encodes the report
+    on each trim step. The same pattern occurs before transport in runtime/src/contractor_runtime/telemetry/metrics.py:502-514,
+    including repeated model_dump. Runtime already trims its report and the private client rejects bodies
+    above 1MiB, so a 1000-by-4KiB Worker report does not normally reach Server normalization intact. operations.go:428-433
+    copies the bounded 255-entry history after each append at capacity; runtime_client.go:391-406 and
+    telemetry/repository.go:141-157 duplicate resource-policy normalization.
+  validation: Validated against main dc7012e8 on 2026-10-23. The trim loops, ring-buffer opportunity and
+    sentinel duplication were verified on dc7012e8; their production latency was not measured. Runtime
+    is the reachable large-input sibling. Server trim tests must distinguish local producers/redaction
+    expansion from an oversized report already rejected at the private boundary.
+  siblings: Cover Python MetricsState.build_report, Go execution/allocation normalization, exact shared
+    JSON-size accounting and resource sentinel callers. Preserve oldest-detail eviction order, aggregate
+    counters, error priority, redaction, 1MiB report limits and operations cursor overflow behavior.
+plan:
+- Create representative Runtime producer and Server sanitizer cases with deterministic counters for record
+  serialization and complete-report encodes. Include near-limit input, error-only overflow, redaction
+  expansion and oversized aggregates.
+- Compute exact per-record encoded contribution once and choose the same retained suffix using additive
+  sizes/prefix sums or another bounded algorithm; verify the final envelope exactly. Preserve the current
+  eviction result rather than dropping half the records merely to reduce iterations.
+- Apply the optimization on both Runtime and Server paths, maintaining each format and shared escaping/byte-size
+  rules. Use a small constant bound on full-report encodes independent of removed-record count and linear
+  record projection counts.
+- Replace the capped operations slice copying with a bounded ring and preserve ordered snapshots, cursor
+  gaps and watcher notifications. Share resource-policy sentinel construction without changing either
+  caller outcome.
+- Test retention equivalence, mutation isolation, append allocations at capacity and lifecycle cleanup;
+  use counts and fixtures rather than elapsed-time assertions.
+scope:
+  in:
+  - Runtime and Server report-trimming cost without semantic changes.
+  - Bounded operations-history storage and shared resource-policy normalization.
+  out:
+  - Changing report/truncation order, size caps, retention, public metrics shape or operations cursor
+    semantics.
+  - Claiming that an oversized Runtime lifecycle report bypasses existing wire validation.
+acceptance_criteria:
+- id: A1
+  text: At 1000 retained candidate calls and maximum error detail, trimming performs a documented constant
+    number of complete-report encodes and linear record projections in both Runtime and Server paths;
+    output retains exactly the same detail suffix and aggregates as characterization fixtures.
+- id: A2
+  text: Tests cover producer-to-private-boundary behavior, local Server normalization/redaction expansion,
+    exact byte limits and aggregate-too-large failures without requiring an impossible oversized Worker
+    response to pass validation.
+- id: A3
+  text: Appending an operations change at history capacity allocates no new history backing array; ordered
+    read snapshots, generation/revision cursors and gap behavior remain unchanged.
+- id: A4
+  text: Resource-policy normalization has one production definition and identical requested/disabled/invalid
+    outcomes at both callers; deterministic encode/allocation count regressions distinguish the old implementation.
+tests:
+- command: go test -count=1 ./internal/telemetry/... ./internal/controlplane/... ./internal/contracts/...
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: cd runtime && uv run --locked pytest -q tests/test_metrics.py tests/test_allocation.py
+  covers:
+  - A1
+  - A2
+  - A4
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+verification:
+  date: '2026-10-24'
+  revision: f41fdbdb18860290634a798c3b60240c37a0c9ee
+  environment: Worktree contractor-wt/r1, branch claude/rv-r1 on base 33f73b27, macOS arm64 (Darwin),
+    Go 1.26.9 (GOTOOLCHAIN=local), Python 3.13 via uv sync --locked, Node 24.20 with Corepack pnpm, local
+    PostgreSQL 17.11 with CONTRACTOR_TEST_DATABASE_URL=postgres://ruslan@localhost:5432/contractor_test_r1.
+  database_tests_configured: true
+  source_recheck: 'Re-verified on 33f73b27: internal/telemetry/policy.go removed one record and re-encoded
+    the report per step in NormalizeAllocationReport (62-74) and NormalizeExecutionReport (132-144), and
+    encoded oversized arguments twice (113-118); runtime/src/contractor_runtime/telemetry/metrics.py build_report
+    (525-538) re-ran model_dump and json.dumps per removal and _bound_arguments measured twice;
+    internal/controlplane/operations.go:428-433 copied the 255-entry history after every append at capacity;
+    runtime_client.go:391-406 and telemetry/repository.go:141-157 held identical resource-policy code.'
+  results:
+  - 'A1: telemetry.trimDetail (Go) and trim_report_detail (Python, called by MetricsState.build_report)
+    measure each record once, subtract each removal (element plus its comma) and measure the complete
+    report at most three times per bound: candidate, envelope without detail, retained result, which
+    must equal the computed size (OBS-R110, docs/spec/platform/observability.md). TestReportTrimMeasuresTheCompleteReportAtMostThreeTimes
+    (1000 calls of ~4 KiB, newest 100 failed, 100 errors of 4096 bytes) counts {reports 3, records 1100,
+    argument summaries 1000} for a Planner report at 1 MiB and {reports 3, allocation reports 3, records
+    1100 + the 176 the Worker bound kept} when both bounds trim; test_shared_report_trim_measures_the_complete_report_at_most_three_times
+    counts {reports 3, records 1100} and no record re-projection. Both check the retained suffix is the
+    first that fits (one more older call does not fit) and that aggregates are unchanged.'
+  - 'A1 fail-before: the new tests on base 33f73b27 (temporary worktree, old loop behind the new signature,
+    removed afterwards) count 925 complete Go encodes (22.8 s) and 926 Python measurements; the old
+    operations append allocates 2 times at capacity. The shared fixture and differential tests pass on
+    the old loop, which is what they pin.'
+  - 'A1/A2 equivalence: api/testdata/v1alpha1/telemetry-report-trim-cases.json (generated with the previous
+    loop; covered by readers.json v1alpha1/ for go and python) holds six reports (ASCII, multibyte with
+    U+2028/U+2029, <>&, quotes, backslash, control characters and astral characters, error-only, records
+    the Runtime MetricsState built, received numbers with empty arguments objects, already truncated) and
+    100 limits: every size of the removal sequence, that size minus one byte, the untrimmed
+    size plus one, and aggregateTooLarge below the envelope. TestSharedReportTrimKeepsTheSharedSuffixAtEveryBoundary
+    and test_shared_report_trim_keeps_the_shared_suffix_at_every_boundary check suffixes, truncated and
+    exact sizes on both sides; the Go side also checks the untrimmed size equals the Runtime measure.
+    TestReportTrimMatchesThePreviousLoopAtEveryBoundary and test_shared_report_trim_matches_the_previous_loop_byte_for_byte
+    compare the new code with the previous loop byte for byte at size-1, size and size+1 of every state,
+    including the allocation envelope (HTML-escaped RuntimeReport) and an unencodable record. The fixture
+    caught that a non-fitting report must lose at least one record even when "truncated":true alone
+    would fit.'
+  - 'A2: test_maximum_worker_detail_crosses_the_private_report_boundary aborts a real allocation holding
+    1000 calls and 100 maximum errors plus a 4096-byte reason; the Starlette-shaped body is <= 1 MiB,
+    decode_private accepts it, the newest suffix and the reason are kept, aggregates exact. TestAllocationNormalizationTrimsRedactionExpansionOfABoundedReport
+    decodes a <= 1 MiB AllocationFinalResponse through DecodePrivateStrict, then a 3-byte secret expands
+    on Server redaction and the Worker bound trims redacted records (3 report measures), secret absent.
+    TestReportNormalizationRejectsAnAggregateAboveItsBound and test_shared_report_trim_rejects_an_aggregate_larger_than_the_bound
+    pin the aggregate errors; TestReportTrimRejectsInconsistentSizeAccounting and test_shared_report_trim_rejects_inconsistent_size_accounting
+    pin the accounting-mismatch error. No test needs a > 1 MiB Worker response to pass validation.'
+  - 'A3: operationsChanges is a fixed [255]OperationsChange ring inside the registry. TestOperationsHistoryKeepsTheLatestChangesInOrderWithoutCopying
+    appends 772 changes against a reference, checks ordered replays of the last 1, 2, 100 and 255, cursor
+    expiry one change older, a watcher hint after the wrap, replay copy isolation, testing.AllocsPerRun
+    = 0 for an append at capacity and a cancelled watcher. TestOperationsReplayIsOrderedBoundedAndNotifiesWithoutBlocking
+    keeps its cursor and gap checks; only its corrupt-history setup now rebuilds the ring.'
+  - 'A4: reporting.RuntimeReport.ApplyResourcePolicy is the one definition (CTL-R136); both private copies
+    were deleted. TestApplyResourcePolicyKeepsOnlyRequestedValidResources covers requested valid/absent/undecodable/invalid,
+    disabled, unsupported and unknown policy; TestRuntimeResourcesAreIsolatedFromLifecycleTruth drives
+    Finalize and Abort against an HTTP Runtime and TestRecordAllocationReportAppliesThePinnedResourcePolicy
+    drives RecordAllocationReport on PostgreSQL, each with the same expected requested/disabled/invalid
+    outcomes.'
+  - 'Review follow-up (2026-10-24, commit 138aca3d): the fixture had excluded the records on which the
+    two sides measured differently. Fixed in the encoders: Python ToolCallRecord holds an empty summary as
+    absent (Go omits an empty map); Go keeps argument number literals (reporting.ToolArguments, json.Number)
+    in final reports and Worker State, so 1e+16, 5e-05, -0.0, 1.0 and 9007199254740993 keep their text.
+    Before the fix a Python summary at the 4096-byte bound holding 1e+16 was rejected by DecodePrivateStrict
+    (TestToolArgumentsKeepTheRuntimeNumberLiterals fails on the old type) and the received-numbers case
+    measured 856 bytes in Go against 838. The probe also showed the Server re-redacting every Runtime placeholder
+    (size changed, argumentsTruncated flipped), content_bytes, the summary''s originalSizeBytes, database_url
+    and names longer than 64 characters; both sanitizers now keep an existing placeholder and the derived size
+    names, Go keeps an argument summary, the Runtime classifies whole names and adds database_url, and bytes
+    project to the placeholder. TestSharedReportTrimKeepsTheSharedSuffixAtEveryBoundary now requires every
+    case to measure exactly the Runtime bytes and NormalizeExecutionReport to leave every record unchanged;
+    test_shared_report_trim_keeps_the_shared_suffix_at_every_boundary rebuilds the Runtime-built case from
+    runtimeInputs and compares it byte for byte; TestSharedRedactionNamesAgreeWithTheRuntime and test_shared_redaction_names_agree_with_the_server
+    pin that every Server-sensitive name rule is Runtime-sensitive and both derived size lists are equal;
+    test_shared_argument_redaction_leaves_redacted_arguments_unchanged re-records redacted arguments unchanged.
+    The trim count tests build a counting Policy (injected measure) instead of swapping a package variable.'
+  - 'After the follow-up: go test -race -count=1 ./internal/telemetry/... ./internal/controlplane/... ./internal/contracts/...
+    with the database set: all ok (the only skip is TestPlannerOTLPCollectorProjection, which needs CONTRACTOR_TEST_OTLP_ENDPOINT).
+    go vet -tags ''e2e integration'' ./...: ok. go test -count=1 ./...: failures only in internal/artifactpolicy
+    (TestReservedNamespacesAreNamedOnlyByArtifactPolicy) and internal/persistence (TestKeyedMutationsUseTheSharedHelpers,
+    TestSQLAccessFollowsTableOwnership), which fail identically on base 33f73b27 (temporary worktree, removed),
+    and three contention timeouts (internal/app, internal/httpapi/privateartifacts, tests/integration/lease)
+    that pass when rerun on the branch. Runtime suite (uv run pytest): 4452 passed, 105 failed, 39 skipped;
+    the known macOS set plus test_real_four_mib_parser_keeps_event_loop_gaps_below_100_ms, a wall-clock test
+    that fails three times out of three on base. make test-wire-cross-language: passed (253 fixtures, 254 Go
+    and 193 Python shared tests). make lint: passed. make docs-dependencies: no change.'
+  - 'go test -count=1 ./internal/telemetry/... ./internal/controlplane/... ./internal/contracts/...: all
+    ok with the database set; the only skip is TestPlannerOTLPCollectorProjection, which needs CONTRACTOR_TEST_OTLP_ENDPOINT
+    (an external collector, unrelated). go test -race -count=1 on internal/telemetry, internal/controlplane
+    and internal/contracts/reporting: ok. go build ./... and go vet ./internal/...: ok.'
+  - 'cd runtime && uv run --locked pytest -q tests/test_metrics.py tests/test_allocation.py: 62 passed.'
+  - 'make test-runtime equivalent (uv run pytest -p no:randomly): 4448 passed, 104 failed, 39 skipped;
+    all failures are the known macOS set (95 podman_*, tool_process 2, trailmark_child 2, projectfs_local_direct
+    2, projectfs_local_io 1, local_direct_faults socket 1, code_analysis_graph 1).'
+  - 'make test-wire-cross-language: passed (253 fixtures, 191 Python shared tests). make lint: passed.
+    make docs-dependencies: regenerated, no change.'
+  - 'Re-review follow-up (2026-10-24, commit 6cfc21ab), two regressions of keeping number literals. (1) Replay:
+    jsonb stores 5e-05 as 0.00005, 1e+16 and 1e+300 as digits and -0.0 as 0.0, so the Go byte comparison
+    (sameJSON) turned a replayed report into ErrConflict. RecordAllocationReport and RecordPlannerReport now
+    read report = $n::jsonb with the identity row and sameJSON is deleted; they were its only callers, and
+    no other replay compares documents holding tool arguments (stage_metrics.metrics holds the full reports
+    but is an upsert that compares nothing; Worker State is not persisted). TestMetricsPostgresReplayComparesNumbersAsStored replays both kinds with 5e-05, 1e+16,
+    1e+300, -0.0, 9007199254740993, 5e-324 and -1.7976931348623157e+308, and checks that another number
+    conflicts. On 990846cd it fails with a conflict for 5e-05, 1e+16, 1e+300 and -0.0, in both kinds (2^53+1
+    is stored exactly and passes there). (2) Range: a number in a tool argument summary must be finite as a
+    float64 and write an exponent between -324 and 308 (LIM-OBS-16). ToolCallRecord and Worker State
+    validation check it beside the 4096-byte bound, so the class is invariant on both sides. Python
+    _require_tool_arguments rejects an integer beyond the float64 range; floats were already rejected through
+    allow_nan=False. MetricsState writes such an integer as "[NON_FINITE]" with argumentsTruncated. The new
+    invalid fixtures allocation-final-response-argument-float-overflow.json (1e999999) and -integer-overflow.json
+    (a nested 310-digit integer) carry reason invariant and strict. Without the fix, Go accepts both fixtures
+    and TestToolArgumentsRejectNumbersOutsideTheFloat64Range fails; Python accepts the integer fixture. The
+    exponent bound is Server-side only: Python decoding cannot see a literal, and Python repr never writes an
+    exponent outside the range. The bound was needed because jsonb rejects 1e-20000 and 0e2147483648 as numeric
+    overflow and expands 0e-16383 to 16385 characters, all of which a float64 parse alone accepts. The
+    Postgres test checks that 1e-20000, 0e-16383 and 1e999999 are ErrInvalid before any insert.'
+  - 'Read-back measurement (PostgreSQL 17.11, scratch documents inserted into a temp jsonb column, not
+    committed): a report at the 1 MiB bound with 249 tool calls, each holding a 4096-byte summary
+    {"v":[...]} of one literal, measured as follows (pg_column_size / octet_length(report::text) / factor):
+    bare 1e308 1045683 B -> 82200 / 52766775 / 50.5x; the Runtime''s 1e+308 1046181 B -> 75911 / 45255192 /
+    43.3x; 5e-324 -> 76506 / 47727264 / 45.6x; -5e-324 -> 70997 / 41892447 / 40.0x; 0e-324 -> 68624 / 47727264
+    / 45.6x; plain 1 -> 152028 / 1557684 / 1.5x (jsonb text adds a space after each separator). The
+    theoretical maximum is about 51.8x (6-byte "1e308," to 311 characters). OBS-R110 states this factor,
+    who reads stored reports (the StageMetrics rebuild and the replay), and the reversal: bound the expanded
+    digit count in both the Runtime summary and the Server decoder.'
+  - 'After the re-review fix: go test -count=1 ./internal/telemetry/... ./internal/controlplane/... ./internal/contracts/...
+    with the database set: all ok; the new Postgres test ran (go test -v shows PASS, not SKIP). go test -count=1
+    -tags integration ./internal/telemetry/...: ok. go test -race on internal/telemetry and internal/contracts/reporting:
+    ok. internal/scheduler and internal/archtest: ok. internal/persistence fails only in TestKeyedMutationsUseTheSharedHelpers
+    and TestSQLAccessFollowsTableOwnership, the base failures recorded above. cd runtime && uv run --locked pytest -q
+    tests/test_metrics.py tests/test_allocation.py tests/test_contracts.py: all passed. Full Runtime suite: 4457
+    passed, 105 failed, 39 skipped; the failures are the same known macOS set plus the wall-clock parser test.
+    make test-wire-cross-language: passed (255 fixtures, 254 Go and 194 Python shared tests). make lint: passed.
+    make docs-dependencies: no change.'
+  - 'Round-2 re-review follow-up (2026-10-24, commit a5379e54): stored reports at the byte bound could not
+    be read. jsonb renders a stored report with a space after each separator and every number expanded, and
+    AllocationFinalReport.UnmarshalJSON applied the private 1 MiB check to every decode, so ListAllocationReports,
+    RebuildStageMetrics and the allocation replay lookup failed for the whole Stage. The check now runs in
+    AllocationFinalResponse.UnmarshalJSON on the raw report member a Runtime sent, before decoding. The existing test in
+    performance_test.go still pins it: an oversized, invalid resources block is rejected before it is discarded.
+    A stored report keeps the same strict decoder (strictjson required members, nulls, duplicates, unknown
+    members). Because the decoded numbers keep jsonb''s expansion (since 138aca3d), the 1e308 case then failed
+    in StageMetrics.Validate ("planner report: tool call 0 arguments exceed 4096 bytes"). StageMetrics.Validate,
+    whose only caller is RebuildStageMetrics, now runs ExecutionReport.validateStored: every rule of Validate,
+    including LIM-OBS-16, record counts and error-message bytes, but not the byte bounds that measure compact
+    JSON (4096-byte summaries, 1 MiB report). TestMetricsPostgresReadsReportsTrimmedToTheByteBound stores
+    1000 calls trimmed to the bound, in both report kinds, with 4096-byte summaries of 32-item arrays of "a"
+    and of 1e308. It checks that each stored row is truncated and renders more than 1 MiB (measured: "a"
+    1295573 / 1300358 bytes for allocation / Planner, 1e308 52079144 / 52287941), then replays both kinds and
+    runs ListAllocationReports and RebuildStageMetrics. On 437e31f0 it fails in all three readers for both
+    cases with "decode allocation report: allocation final report exceeds 1 MiB". The test takes about 5 s,
+    and 66 s under -race.'
+  - 'After the round-2 fix: go test -count=1 ./internal/telemetry/... ./internal/controlplane/... ./internal/contracts/...
+    with the database set: all ok. -tags integration ./internal/telemetry/...: ok. -race on internal/telemetry,
+    internal/contracts/reporting and internal/controlplane: ok. internal/scheduler, internal/runservice and
+    internal/archtest: ok. cd runtime && uv run --locked pytest -q tests/test_metrics.py tests/test_allocation.py:
+    all passed (the Runtime is unchanged in this round). make test-wire-cross-language: passed (255 fixtures).
+    make lint: passed. make docs-dependencies: no change.'
+  - 'Round 3 (2026-10-24, commits b14bef72 and f41fdbdb; b14bef72 holds only the rename of the integer
+    overflow fixture because of a staging error, f41fdbdb carries the change): the read-back expansion was
+    unbounded in Agents and paid on the polled Run detail path, so LIM-OBS-16 now bounds it. A tool argument
+    number is kept when it is zero or the decimal exponent of its leading digit lies in -7..19, and any
+    exponent it writes lies in that range too; both sides judge the number as written (the received literal,
+    encoding/json text for a Go value the Server built, Python repr for a Runtime float). Range rationale:
+    -7 keeps probabilities to 1e-7 and float32 epsilon (1.19e-7); 19 keeps every 64-bit integer (uint64 max
+    1.8e19), which covers ports, counts, sizes and s/ms/ns timestamps; repr switches to exponent form below
+    1e-4 and at 1e16, so the Runtime writes 1e-07 and 1e+19 at the edges. -6 would lose 1e-7 probabilities
+    and 18 would lose nanosecond timestamps after 2286 and uint64 sizes. One marker, "[NUMBER_OUT_OF_RANGE]",
+    replaces "[NON_FINITE]" in the Runtime summary for any other number, NaN and infinities, and sets
+    argumentsTruncated; contracts.base defines it once with the bounds, Go reporting.ArgumentNumberMarker
+    matches it and the trim fixture pins both. The Go sanitizer writes the marker for Server-built summaries
+    (Planner tool calls via streamline, passthrough and scheduler reports) and keeps a derived size only in
+    range; receipt of an ExecutionReport or WorkerStateToolCall rejects such a number with reason invariant
+    (Python _require_tool_arguments does the same for ToolCallRecord and Worker State). Ruled out: the
+    summarizer''s "[NON_FINITE]" (worker/summarizer.py) projects model input and is no tool argument
+    summary. Fixtures: telemetry-report-trim-cases.json gains argumentNumbers (range, marker, 14 kept and 8
+    replaced literals), checked by TestSharedArgumentNumbersAgreeWithTheRuntime and
+    test_shared_argument_numbers_agree_with_the_server; the Runtime-built case now shows the marker; invalid
+    private fixtures cover 1e-08, 1e+20 and the integer 10^20 (float-overflow stays), and a valid fixture
+    holds 1e-7, -1e-7, 0, 0.0001, 1e19 and +-99999999999999980000 in the shared canonical form;
+    mutation-cases.json and required-member-cases.json were regenerated with their -update flags.
+    Measured on PostgreSQL 17.11 with 1 MiB reports of 250 tool calls of 4096-byte summaries (raw /
+    rendered octet_length(report::text) / factor / pg_column_size jsonb): bare 1e19 1047996 / 4476007 /
+    4.27x / 2504744; -9e19 3.73x; Runtime 1e+19 1047996 / 3742507 / 3.57x / 2097744; 1e-7 2.16x; Runtime
+    1e-07 1.81x; one-character strings 1.24x; a realistic mix of ports, counts, timestamps, fractions, paths,
+    booleans and nulls 1.09x; 20-digit integers 1.05x. The analytic bound is 4.4x (5-byte "1e19," to
+    22-byte "10000000000000000000, "), so OBS-R110 states that factor and the accepted-risk paragraph is
+    gone. The byte-bound reader test now uses 280 calls of 8-character strings (still trimmed) and 60 calls
+    of 1e19, the fewest that render past 1 MiB (59 render 1048795 / 1048441 bytes, under the bound; 60
+    render 1066562 / 1066208); it takes 1 s, and 10 s under -race instead of 66 s.'
+  - 'After round 3 and the merge of claude/review-v407-v409 at 19f7477f (merge 8d1eb756; only the generated
+    tasks/BACKLOG.md conflicted and was regenerated; metrics._metric_identifier and _truncate_utf8, which
+    V407-012 imports, kept their names): go test -count=1 ./internal/telemetry/... ./internal/controlplane/...
+    ./internal/contracts/... with the database set: all ok, and go test -v shows the three
+    TestMetricsPostgres tests PASS. go test -race on internal/telemetry, internal/contracts/reporting and
+    internal/controlplane/...: ok (telemetry 19 s). -tags integration ./internal/telemetry/...: ok.
+    internal/scheduler, internal/runservice, internal/planner/streamline and internal/archtest: ok. cd runtime
+    && uv run --locked pytest -q tests/test_metrics.py tests/test_allocation.py: 67 passed; with
+    test_contracts.py, test_instrumentation.py and test_otlp_adapter.py: 367 passed. make
+    test-wire-cross-language: passed (261 fixtures, 292 Go and 198 Python shared tests). Full Runtime suite:
+    4582 passed, 105 failed, 39 skipped; the failures are the known macOS set (95 Podman, tool_process 2,
+    trailmark_child 2, projectfs_local_direct 2, projectfs_local_io 1, local_direct_faults 1,
+    code_analysis_graph 1, and the wall-clock code_analysis_shallow parser test), none in a touched module.
+    make lint: passed. make docs-dependencies: no change.'
+  siblings: 'Fixed: the double argument-summary measure in Go (policy.go) and Python (_bound_arguments).
+    Ruled out: runtime/src/contractor_runtime/worker/state.py _fit_snapshot already uses a binary search
+    (logarithmic encodes) under its own WRK State rule; registry.go heartbeatOrder (128) and stageReservationTombstones
+    reslice with [1:], so append reallocates only when capacity runs out (amortized constant), unlike the
+    per-append 255-entry copy. Python RuntimeReport.isolate_resources is decode-side isolation, not policy
+    application. Raw-size checks on read: AllocationFinalReport.UnmarshalJSON was the only UnmarshalJSON in
+    internal/ that bounds its input bytes (all custom decoders were checked). Planner reports (ExecutionReport)
+    have no such decoder, and their reader now passes at the bound with 1e308 too. Stored StageMetrics documents
+    are decoded without validation by RebuildStageMetrics and GetStageMetricsBatch. Ruled out:
+    finding_proposal_receipts.comparison_projection, whose decoder bounds the jsonb text, which its CHECK also
+    measures as octet_length(comparison_projection::text) at write. Other raw-size checks in internal/ bound encoded
+    output or non-jsonb payloads.'
+  decision: 'Boundary: Worker producer and Server trim independently (two languages), so one definition
+    is impossible; the guarantee is the shared fixture plus per-language differential tests against the
+    previous loop. Alternatives considered: halving or binary search over the removal count (logarithmic
+    encodes, still more than three, and halving would change the retained suffix) and incremental prefix
+    sums (chosen, exact and linear). Reversal: if a record field gains a custom marshaler or the report
+    encoding stops being element-additive, trimDetail/trim_report_detail fail loudly on the exact-size
+    check and the differential tests; then return to measuring candidates. Equal record sizes across the
+    boundary are a guarantee of the encoders, not of the fixture: empty arguments are absent on both sides
+    and the Server keeps the Runtime''s number literals (OBS-R42) rather than both sides formatting numbers
+    alike, because the Runtime''s float text is fixed by its JSON encoder and re-formatting loses integers
+    beyond 2^53. The Server''s redaction stays a second, independent pass (OBS-R27) but must leave Runtime
+    records unchanged; it may still change a record that holds a deployment secret it alone matches or a
+    text containing :// that its URL parser rejects, and only then removes more detail. Reopen if the Runtime
+    starts writing number text the Server must normalize, or if a Server-only redaction rule is added.
+    Re-review: the replay compares as jsonb in SQL rather than copying PostgreSQL''s numeric normalization
+    into Go, so equality is exactly the column''s own equality; a replay that writes 5e-05 where the first
+    delivery wrote 0.00005 is equal too, which is harmless because both denote the same value. The number
+    range is checked in validation next to the size bound rather than in decoding, so a violation gets the
+    same invariant class in Go and Python and both sides pin it in the shared fixtures.
+    Round 3 replaces the earlier acceptance of a read-back of about 52 times the byte bound: LIM-OBS-16
+    bounds the expanded digits at the source, so a stored report reads back as at most 4.4 times its bound.
+    Alternatives rejected: selecting only counters in the readers (Run detail and the replay still decode
+    whole documents, and the expansion would remain model-steerable) and re-encoding numbers on read (lossy
+    beyond 2^53). Cost: the Runtime now writes the marker for values such as 1e+300 or 5e-324 that it kept
+    before, which a security tool argument summary does not need. Reopen if a tool needs argument numbers
+    outside -7..19 in its summary; then widen the range only with a new measurement and OBS-R110 update.
+    Round 2: this task also repairs a reader defect that predates it. The private 1 MiB check in
+    AllocationFinalReport.UnmarshalJSON came from 0b6d4f1d, V32-001 (performance contracts and settings).
+    It applied to stored reports and made a report trimmed to the bound unreadable, even with plain strings.
+    The check belongs to the received bytes, so it moved to the private response. A stored report keeps
+    the strict decoder and every validation rule except the byte bounds. Those bounds measure compact JSON,
+    which the jsonb rendering no longer is. This is no lenient legacy reader: it reads the same documents
+    with the same rules. Alternative rejected: re-encode stored numbers into a shortest form on read. That
+    is lossy for integers beyond 2^53 and would need a copy of numeric normalization. No separate defect
+    record was added, so introduced_by stays V1-004.
+    Out of scope, reported: the Go metrics policy replaces every configured secret wherever it occurs,
+    while OBS-R31 limits secrets under 16 bytes to whole strings (controlplane/runtime_client.go has the
+    OBS-R31 matcher).'
+  new_spec_ids:
+  - OBS-R110 (docs/spec/platform/observability.md) and observability invariant 9
+  - LIM-OBS-16 (docs/spec/platform/limits.md, each tool argument number zero or with a leading-digit and
+    written decimal exponent between -7 and 19; other numbers become "[NUMBER_OUT_OF_RANGE]")
+  amended_spec_ids:
+  - OBS-R9 (a replay matches when the documents are equal as jsonb)
+  - OBS-R27 (placeholder shape, sensitive-name subset, idempotent second redaction)
+  - OBS-R42 (empty arguments absent, number literals kept, LIM-OBS-16 range and its rationale, the one
+    [NUMBER_OUT_OF_RANGE] marker on both sides)
+  - OBS-R110 (byte bounds measure received JSON; stored reports pass every other rule; read-back bounded at
+    4.4 times the byte bound with measured factors, no accepted risk)
+  - FAIL-OBS-1 (ambiguous delivery outcome)
+  - observability invariants 7 and 9 (new and renamed tests)

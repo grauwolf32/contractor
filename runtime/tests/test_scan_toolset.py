@@ -448,7 +448,7 @@ def test_scan_destinations_are_checked_before_launch(name, arguments, code, tmp_
         result = await tools[name](**arguments)
         assert result["status"] == "failed"
         assert result["errorCode"] == code
-        assert state.metrics.tool_calls[0].arguments == {}
+        assert state.metrics.tool_calls[0].arguments is None
         assert list((tmp_path / "workspace").iterdir()) == []
 
     asyncio.run(scenario())

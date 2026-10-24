@@ -493,7 +493,7 @@ def test_graph_results_are_bounded_relative_and_metrics_are_content_free(
         assert query_canary not in retained
         assert str(tmp_path) not in retained
         assert "cas1." not in retained
-        assert metrics.tool_calls[-1].arguments == {}
+        assert metrics.tool_calls[-1].arguments is None
         await _close(tools)
         assert list(scratch.iterdir()) == []
 

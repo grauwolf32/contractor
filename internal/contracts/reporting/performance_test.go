@@ -117,6 +117,46 @@ func TestPerformanceCollectionPolicyPinsOnlyAllocationDecisions(t *testing.T) {
 	}
 }
 
+func TestApplyResourcePolicyKeepsOnlyRequestedValidResources(t *testing.T) {
+	duration := 1.0
+	valid := RuntimeResources{Version: 1, Scope: "runtime_process", Status: ResourcePartial, DurationSeconds: &duration}
+	negative := -1.0
+	invalid := RuntimeResources{Version: 1, Scope: "runtime_process", Status: ResourcePartial, DurationSeconds: &negative}
+	decodeError := ResourceInvalidReport
+	sentinelReason := ResourceInvalidReport
+	sentinel := &RuntimeResources{
+		Version: PerformanceMetricsVersion, Scope: "runtime_process",
+		Status: ResourceUnavailable, Reason: &sentinelReason,
+	}
+	for _, test := range []struct {
+		name      string
+		policy    PerformanceCollectionPolicy
+		resources *RuntimeResources
+		decodeErr *ResourceReason
+		want      *RuntimeResources
+	}{
+		{name: "requested valid", policy: PerformanceCollectionRequested, resources: &valid, want: &valid},
+		{name: "requested absent", policy: PerformanceCollectionRequested},
+		{name: "requested undecodable", policy: PerformanceCollectionRequested, decodeErr: &decodeError, want: sentinel},
+		{name: "requested invalid", policy: PerformanceCollectionRequested, resources: &invalid, want: sentinel},
+		{name: "disabled valid", policy: PerformanceCollectionDisabled, resources: &valid},
+		{name: "disabled undecodable", policy: PerformanceCollectionDisabled, decodeErr: &decodeError},
+		{name: "unsupported invalid", policy: PerformanceCollectionUnsupported, resources: &invalid},
+		{name: "unknown policy", policy: "legacy", resources: &valid},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			report := RuntimeReport{Complete: true, Resources: test.resources, ResourcesError: test.decodeErr}
+			report.ApplyResourcePolicy(test.policy)
+			if report.ResourcesError != nil || !report.Complete || !reflect.DeepEqual(report.Resources, test.want) {
+				t.Fatalf("resources = %+v, diagnostic %v; want %+v", report.Resources, report.ResourcesError, test.want)
+			}
+			if report.Resources != nil && report.Resources.Validate() != nil {
+				t.Fatalf("kept resources are invalid: %+v", report.Resources)
+			}
+		})
+	}
+}
+
 func TestSharedPerformanceGoldenInvalidResourcesDoNotPoisonFinalReports(t *testing.T) {
 	base, err := contracts.DecodePrivateStrict[AllocationFinalResponse](contractstest.ReadFixture(t, "valid", "allocation-final-response.json"))
 	if err != nil {

@@ -1,0 +1,280 @@
+schema_version: '1.0'
+id: V411-003
+title: Fence and execute scoped HTTP preflight through the durable Audit action ledger
+milestone: autonomous-http-pentest-2026-10
+epic: audits
+kind: feature
+priority: P1
+status: pending
+depends_on:
+- V411-002
+languages:
+- go
+- python
+- sql
+- json
+goal: Execute real placed Runtime target preflight through one controlled HTTP adapter and durable action
+  ledger, so scope, actual-start rate/concurrency limits, cancellation and ambiguous outcomes are enforced
+  together from their first production caller.
+context:
+  authority: User request on 2026-10-24 to decompose the updated proposals into implementation tasks.
+    This record authorizes no implementation during planning and does not reactivate deferred work.
+  proposal:
+  - docs/proposals/0033-autonomous-pentest-audits.md#5-budgets-and-durable-accounting
+  - docs/proposals/0033-autonomous-pentest-audits.md#11-action-journal-cancellation-and-recovery
+  - docs/proposals/0033-autonomous-pentest-audits.md#41-route-policy
+  - docs/proposals/0033-autonomous-pentest-audits.md#42-initial-http-enforcement-implementation
+  - docs/proposals/0033-autonomous-pentest-audits.md#7-preflight-reconnaissance-and-surface-identity
+  specification:
+  - docs/spec/audits/execution.md#AUX-R82
+  - docs/spec/platform/persistence.md#PER-R24
+  - docs/spec/platform/persistence.md#PER-R25
+  - docs/spec/execution/control-plane.md#CTL-R149
+  - docs/spec/execution/scheduler.md
+  - docs/spec/tools/http-caido.md#HTP-R1
+  - docs/spec/tools/http-caido.md#HTP-R115
+  - docs/spec/execution/control-plane.md#CTL-R4
+  - docs/spec/execution/control-plane.md#CTL-R6
+  - docs/spec/audits/audits.md#AUD-R167
+  code:
+  - internal/auditstore
+  - internal/auditcontroller
+  - internal/auditservice
+  - internal/httpapi/privateartifacts
+  - internal/contracts/control
+  - runtime/src/contractor_runtime/contracts
+  - api/v1alpha1
+  - runtime/src/contractor_runtime/toolsets/http/transport.py
+  - runtime/src/contractor_runtime/core/target_policy.py
+  - runtime/src/contractor_runtime/toolsets/common
+  - internal/controlplane
+  - api/testdata
+scope:
+  in:
+  - Implement Audit-owned action/attempt journal records, request/concurrency reservations and actual-start
+    grants together with the allocation-owned pentest-target-http@1 controlled transport.
+  - Wire placed Runtime authorized target preflight end to end through actual prepare/grant/sending/write/started/outcome/settlement
+    operations and the authenticated private handlers; cancellation and Audit journal reads consume the
+    same records.
+  - Reuse existing DNS-pin/peer-check primitives while adding the stricter engagement origin/path/method/action/address
+    policy; ordinary http-tools@1 keeps its contract.
+  - Reuse KeyedMutation receipts/advisory infrastructure without network I/O under database locks; add
+    make test-pentest-action-process for real Server/Runtime preflight and protocol fault cases. V411-004
+    independently extends the transport conformance matrix.
+  - Enforce the pinned remaining cumulative active time for preflight sends from the first transport caller,
+    reusing the existing Audit admission clock and failing closed if remaining allowance cannot be established.
+  out:
+  - Model-visible pentest HTTP tools and trusted safe evidence publication are V411-007; private identity
+    injection/login is V411-005. Full model/evidence accounting and terminal time-cap drain/report behavior
+    are V411-006; minimum cumulative deadline enforcement for target sends belongs here.
+  - No upstream proxy, browser/scanner/MCP controlled transport, sandbox egress filtering, new generic
+    scheduler, receipt table, distributed claim framework or network I/O under a database lock.
+  - Before V411-005, preflight uses only the explicitly authorized anonymous identity and returns bounded
+    safe connectivity/policy metadata. Do not advertise model-visible pentest HTTP or complete proof capability.
+requirements:
+- id: R1
+  text: The actual placed Runtime preflight is the same-change production caller of every private action
+    endpoint and transport primitive, including sending/started/settlement. No protocol handler or exported
+    transport library waits for a later task to acquire its caller.
+- id: R2
+  text: A reservation is not a start grant. Runtime commits sending before write; started acknowledges
+    only the first target-request byte accepted at the controlled transport boundary. Server then waits
+    at least 1/RPS on its monotonic clock before the next grant.
+- id: R3
+  text: At most one unacknowledged start grant exists Audit-wide. Delayed/lost grants cannot accumulate;
+    expiry alone never permits replacement. Reconcile durable acknowledgements or prove old executor termination/fencing,
+    then apply a full cooldown. Duplicate late acknowledgements cannot clear a newer hold.
+- id: R4
+  text: Restart retains usage, unresolved grants and cooldown debt; interrupted cooldown restarts for
+    a full interval. Unknown requests keep their charge and concurrency remains held until termination
+    proof or quarantine.
+- id: R5
+  text: 'Register closed protocol outcomes in shared errors/fixtures: pentest_action_invalid 400, pentest_action_conflict
+    409, pentest_budget_exhausted 409 and pentest_action_fenced 409 are permanent; reuse safe 404 and
+    503 storage_transaction_conflict. Policy admission denial is permanent pentest_scope_denied 403; unsupported
+    selected controlled transport is pentest_transport_unsupported 400. Actual target HTTP statuses remain
+    captured target data. Add test-pentest-action-process to the release graph with zero-test selection
+    failure.'
+- id: R6
+  text: 'Use the canonical URL/path produced by shared fixtures for both matching and transmission: exact
+    origin, segment prefixes, exclusions winning, explicit addressRanges, no fragment/userinfo/alternate
+    IP spelling/encoded separators or nested escapes.'
+- id: R7
+  text: Resolve once through trusted resolver, validate every candidate and protected alias/address-port,
+    connect to that selected address, preserve approved Host/SNI and verify peer/certificate. Loopback/link-local/metadata
+    remain forbidden even where ordinary HTTP permits them.
+- id: R8
+  text: Each redirect/retry requires fresh policy validation and request permit; no cross-origin credential
+    carryover or implicit proxy fallback. Pools are keyed by engagement, identity, origin and policy generation.
+- id: R9
+  text: Call durable sending before transport write and started after first accepted target byte; connect/TLS
+    failure without request bytes cannot masquerade as a started request. Cancellation joins all transport
+    work before allocation release.
+- id: R10
+  text: Return only bounded non-secret preflight connectivity/policy outcomes. Raw response buffers are
+    memory-only and discarded on exit; useful model-visible response projection waits for V411-007. Every
+    redirect/retry consumes the shared ledger and lower existing/request/lifecycle limits win.
+- id: R11
+  text: At action admission and each grant use the immutable cumulative time cap and existing Audit admission
+    clock (queue wait counts, owner pause does not) to prove positive remaining allowance. Clip action/grant/transport
+    deadlines to that allowance; a delayed grant that expires before first target byte cannot send. Runtime
+    starts a bounded local allowance at grant-request dispatch and deducts the complete local request/response
+    elapsed interval before write, without shared wall-clock reliance. Unknown remaining allowance, paused
+    admission or exhausted cap denies target work, including after restart; expiry still cannot release
+    an unresolved grant hold. V411-006 extends this into full accounting and terminal drain/finalization.
+failure_outcomes:
+- operation: Prepare/grant/sending/started/settle action
+  permanent: Invalid identity/shape is 400 pentest_action_invalid; stale fence/conflicting bytes are 409
+    pentest_action_fenced/pentest_action_conflict; exhausted budget is 409 pentest_budget_exhausted. None
+    retries automatically.
+  retryable: Only 503 storage_transaction_conflict retries within the bounded operation deadline with
+    Retry-After; ledger unavailability denies new starts.
+  ambiguous: Replay the original action/attempt/key and inspect durable journal/receipt; never mint a
+    replacement action or refund unknown usage.
+  cancelled: Allocation owner joins pending protocol calls; cancel-before-send releases only after proof
+    the prior executor cannot send, while sending becomes conservatively unknown.
+  timeout: Protocol/storage timeout is distinct from target timeout. Expired permits retain rate/concurrency
+    holds until reconciliation or termination proof. Action/grant expiry or unprovable remaining cumulative
+    allowance prevents the first target write; return the registered budget/fence outcome without refunding
+    uncertain prior sends.
+- operation: Recover or page unresolved actions
+  permanent: Corrupt or mismatched journal identity blocks dispatch with a permanent contract outcome.
+  retryable: Classified storage failures retry on bounded controller backoff, not in an unbounded scan.
+  ambiguous: Reopen exact action rows and accepted acknowledgements; restart cannot regenerate fresh grants
+    for unknown sends.
+  cancelled: Controller claim/fence cancellation stops work and joins the bounded pass.
+  timeout: Each pass obeys the existing controller deadline and bounded row/byte budget.
+- operation: Validate/connect/send one managed target action
+  permanent: Policy refusal maps to non-retryable blocked_by_policy/pentest_scope_denied; unsupported
+    proxy/transport is permanent pentest_transport_unsupported. Private request validation uses 400/409
+    and safe 404 per V411-003.
+  retryable: Only a recipe-declared read failure proven before send may use the single extra retry; storage
+    permit conflicts use bounded 503 policy. Received HTTP 500 does not authorize retry.
+  ambiguous: Any uncertain write keeps the original action charged and unknown; do not resend for missing
+    telemetry.
+  cancelled: Adapter closes clients/streams and joins child tasks; unproven stop quarantines the allocation
+    and prevents conflicting replacement traffic.
+  timeout: Whole request defaults to 30 seconds, max 120 seconds, clipped to action/remaining active deadline;
+    DNS/connect do not obtain unrelated renewed allowances.
+- operation: Publish preflight outcome
+  permanent: Invalid safe projection or stale fence is a permanent contract failure; target failure is
+    not represented as empty successful discovery.
+  retryable: Bounded storage retries only under original lifecycle deadline.
+  ambiguous: Replay original action/outcome identity and never repeat target preflight merely because
+    report publication was ambiguous.
+  cancelled: Join publication before release or retain an explicit unavailable/unknown outcome.
+  timeout: Publication has its own bounded storage deadline and cannot extend target authorization.
+cardinality:
+- collection: Actions/attempts across an Audit with up to 512 child Runs
+  expected: 10,000 action intents and 5,000 physical requests
+  maximum: 100,000 intents, 50,000 requests, at most one unacknowledged grant and eight concurrent requests
+  bound: Action mutations touch one indexed action/attempt and Audit ledger; recovery pages at most 100
+    actions and 256 KiB metadata per pass; never rescan the entire journal.
+- collection: Protocol documents and projections
+  expected: One request/action per message
+  maximum: Existing 4 MiB document ceiling; request projection obeys 8,192-byte URL and 32 KiB header
+    bounds
+  bound: Use a tighter bounded metadata-only projection for receipts; raw body/secret material is not
+    stored in ledger rows.
+- collection: Connections/redirect attempts within one Audit
+  expected: Five requests per second and two concurrent requests
+  maximum: 20 requests per second, eight concurrent requests, five redirect hops and one additional safe
+    retry
+  bound: V411-003 reserves every physical send; response streaming stops at bounded bytes, and connection
+    attempts remain bounded by the shared resolver limit.
+- collection: One request/response and route policy
+  expected: 64 KiB request and 256 KiB response
+  maximum: 1 MiB each, 64 headers/32 KiB aggregate, 8,192-byte URL; 128 routes/exclusions and 16 origins
+  bound: Reject or stream-truncate before unbounded buffering; capture truncation metadata and no hidden
+    retry.
+lifecycle:
+- entity: Action journal, budget reservation and outstanding grant
+  delete: No caller deletes individual accepted actions; Audit purge owns cleanup after all executors
+    terminate and unresolved effects follow V411-008.
+  cascade: Allocation release fences late mutations; Audit deletion drains before journal/receipt cleanup
+    through existing ownership.
+  retention: Retain accepted/unknown action outcomes with Audit evidence/report; never persist raw credentials
+    or reset charged usage on pause/restart.
+- entity: Allocation-owned target client/pool and preflight result
+  delete: Release/cancel closes all streams/pools; no generic client escapes the allocation.
+  cascade: Stop descendants before releasing workspace/capacity; stale allocation publications fail.
+  retention: Only bounded safe outcomes persist until V411-007 exact captures; raw response buffers remain
+    memory-only.
+acceptance_criteria:
+- id: A1
+  given: Several allocations and delayed grants/started acknowledgements
+  when: Injected clocks advance while messages arrive late or out of order
+  then: At most one unacknowledged grant exists and actual start observations are separated by at least
+    1/RPS; started requests may overlap only within the concurrency cap.
+- id: A2
+  given: Crash before/after sending, write acknowledgement, settlement or cooldown
+  when: Controller/Runtime recover and replay original keys
+  then: No unknown send is repeated or refunded, no catch-up burst occurs and rate holds survive recovery.
+- id: A3
+  given: Duplicate/forged messages, changed bytes or stale allocation fence
+  when: Private endpoints receive them
+  then: Only exact authenticated replays succeed; conflicts/fenced calls have stable permanent errors
+    and cannot mutate another Audit.
+- id: A4
+  given: Maximum-sized real PostgreSQL journal and contending Audits
+  when: Admission and paged reconciliation execute
+  then: Indexed bounded work avoids whole-journal reads and preserves independent Audits without network
+    calls under locks.
+- id: A5
+  given: Lost termination acknowledgement and cancellation
+  when: A replacement allocation requests a permit
+  then: Capacity remains held or quarantined until proof permits safe continuation; timeout/expiry alone
+    cannot release it.
+- id: A6
+  given: Authorized direct HTTP/HTTPS targets, denied routes, a rebinding resolver and maximum-sized response
+    streams and a start grant delayed beyond the remaining cumulative allowance
+  when: Real placed Runtime preflight sends through the new adapter and action handlers
+  then: The approved canonical path/Host/SNI/peer and ledger refer to the same request; forbidden destinations
+    receive no target-request bytes, safe metadata is bounded and ordinary HTTP tools retain their contract.
+    An expired delayed grant produces no first-byte write, and unavailable remaining-time accounting fails
+    closed.
+tests:
+- command: go test -tags=integration -race -count=1 ./internal/auditstore/... ./internal/auditcontroller
+    ./internal/auditservice ./internal/httpapi/privateartifacts ./internal/contracts/... ./internal/controlplane
+    ./internal/scheduler
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+  - A6
+- command: make test-pentest-action-process test-wire-cross-language test-runtime test-http-caido-runtime
+  covers:
+  - A1
+  - A2
+  - A3
+  - A5
+  - A6
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+  - A6
+test_prerequisites:
+- Disposable PostgreSQL able to create/drop isolated schemas; never print its connection secret.
+- Repository-pinned Go and locked Runtime dependencies; run commands from the repository root unless the
+  command explicitly changes directory.
+verification_requirements:
+- Use testdata fixtures, never the live configs tree outside the documented e2e/eval exceptions. Keep
+  model choice unchanged; deterministic targets need no real Gateway.
+- Run every touched package in full, including any new package introduced by this task. Database tests
+  require disposable PostgreSQL through CONTRACTOR_TEST_DATABASE_URL; an unreachable configured database
+  fails and skipped mandatory cases do not pass.
+- New shared fixtures must be registered with their Go/Python/schema readers in the existing shared-fixture
+  gate. New process selections must fail when zero tests match and be reachable from release-verify.
+- Update the owning normative specification, shared limits/errors/lifecycle registries and public/private
+  contracts in the same change. Preserve existing contract ownership; do not add backward-compatibility
+  readers or edit generated clients manually.
+- This task creates test-pentest-action-process and registers it with release-verify. Use actual Server/Runtime
+  processes and deterministic HTTP/HTTPS targets to exercise the complete preflight caller, with injected
+  clocks for rate assertions. V411-004 adds independent adversarial coverage; it supplies no missing production
+  caller.

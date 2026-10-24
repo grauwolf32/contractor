@@ -1,0 +1,211 @@
+schema_version: '1.0'
+id: V410-001
+title: Publish a bounded Project sitemap through one authorized reducer
+milestone: project-sitemap-2026-10
+epic: projects-artifacts
+kind: feature
+priority: P1
+status: pending
+depends_on: []
+languages:
+- go
+- sql
+- json
+- yaml
+- markdown
+goal: Deliver a usable owner-facing sitemap service over ordinary ArtifactStore revisions, with deterministic identity,
+  safe metadata, reversible edits and lifetime accounting enforced on every publication path.
+context:
+  authority: User requested an implementation task breakdown of the reviewed proposals 0033 and 0042 on 2026-10-24;
+    this task records planned work, not implementation or verification evidence.
+  proposal: docs/proposals/0042-live-project-sitemap.md
+  proposal_sections: 'Sections 2-4, 6-11: representation, projection, identities, source replacement, suppression,
+    CAS, quotas and lifecycle.'
+  specification:
+  - docs/spec/artifacts/artifact-store.md
+  - docs/spec/artifacts/projects.md
+  - docs/spec/artifacts/retention-and-deletion.md
+  - docs/spec/platform/persistence.md
+  - docs/spec/platform/limits.md
+  - docs/spec/platform/errors.md
+  - docs/spec/api/public-api.md
+  - docs/spec/platform/security.md
+  boundary: The live sitemap is shared research context, not current Audit coverage, complete traffic archival or
+    proof. The HTTP/OpenAPI first slice has no dependency on proposal 0033 implementation or deferred V61/V62/V64
+    work.
+  code:
+  - internal/artifacts
+  - internal/projectstore
+  - internal/projectlifecycle
+  - internal/httpapi/public
+  - internal/cli
+  - internal/contracts
+  - internal/persistence/migrations
+  - api/openapi/contractor-public-v1.yaml
+  - api/testdata
+  - internal/archtest/layers_test.go
+scope:
+  in:
+  - Create the owning normative sitemap specification, strict versioned document/typed mutation schemas, canonical
+    fixtures and one domain reducer, with a classified layer and a production service caller in this task.
+  - Ship owner-bound Project read/mutation operations and matching CLI/public-client callers; endpoint and export
+    additions cannot be left referenced only by tests.
+  - Implement safe ingress projection, trusted source/content-kind provenance, engagement-local or Run-local context
+    keys, bounded concrete members and loss-aware regrouping; user-supplied facts cannot fabricate trusted HTTP
+    observations.
+  - Implement conditional creation, append merges, expected-revision manual edits, guarded source replacement, suppression/restore
+    and bounded source/global gaps.
+  - Atomically charge Run-originated and Project-lifetime publications, enforce the dedicated binding policy on
+    direct public Artifact writes/forks/rebinding, and retain counters outside replaceable document bytes.
+  - Integrate ordinary Run deletion and Project purge without breaking independently held evidence; define wire/public
+    errors, limits and failure outcomes alongside code.
+  out:
+  - Runtime allocation grants and model tools (V410-002).
+  - Automatic collectors and source adapters (V410-003 through V410-005).
+  - A second sitemap database, event journal, generic artifact GC or a new receipt/claim mechanism.
+  - UI sitemap graph, complete traffic archival and pentest enforcement.
+requirements:
+- id: R1
+  text: Use the proposal section 10 limits as the single selected starting policy; publish them once in the shared
+    registry/schema and test all consumers against shared fixtures. Missing binding is empty; malformed existing
+    bytes are a permanent error and are never replaced implicitly.
+- id: R2
+  text: Project identity and producer/source attribution come from authenticated service context. Safe projection
+    runs before public keys/digests/examples and removes secret-bearing path/query/body/header/structural values
+    without storing raw-secret hashes. Omitted data has bounded reason metadata.
+- id: R3
+  text: Contexts include trusted engagement/baseline identity plus local identityId, or Run-scoped/unknown identity
+    for ordinary Runs; aliases or labels do not merge principals. Concrete-member inventory is distinct from representative
+    examples; overflow cannot support lossless later regrouping.
+- id: R4
+  text: Preserve member-scoped metadata and suppression through regrouping. Ambiguous split/merge conflicts instead
+    of widening an edit, resurrecting a suppressed member or assigning discarded observations to a new route.
+- id: R5
+  text: A source replacement checks stable sourceId/deployment attribution and its expected generation, exact predecessor
+    ref/digest and policy digest. A stale pinned computation may be retained privately but cannot adopt a fresh
+    generation and retry its old source as current.
+- id: R6
+  text: Use existing keyed mutation receipts and Artifact CAS, with at most three CAS retries inside the owning
+    deadline for rebasable observation batches. Manual/source conflicts stay permanent; lost acknowledgements never
+    create another accepted revision.
+- id: R7
+  text: Project quota always applies; producer Run quota additionally applies when present. Charge encoded bytes
+    and one count for every new committed revision even if blobs deduplicate; a true no-op or receipt replay charges
+    nothing. Concurrent last-slot reservations are atomic.
+- id: R8
+  text: Run creation/deletion, entry removal, rebinding/resetting, raw generic Artifact writes and partitioning
+    cannot reset or bypass lifetime usage. Only Project purge clears it; exhaustion exposes a permanent collection
+    outcome without requiring another map revision.
+failure_outcomes:
+- operation: Owner read or typed mutation, including public Artifact bypass attempts
+  permanent: Reject invalid/unsupported documents and projection input with documented 400 sitemap validation errors;
+    owner-safe 404 for foreign Project; 409 for manual/source conflict or quota exhaustion. No accepted content
+    changes.
+  retryable: Only classified storage_transaction_conflict or unavailable storage receives bounded retry under existing
+    policy; deterministic rejection is never retried.
+  ambiguous: Reuse the existing keyed receipt and exact accepted revision; replay returns that result and does not
+    recharge usage.
+  cancelled: Join service work before returning cancellation; a committed publication remains discoverable by receipt.
+  timeout: The API operation deadline owns storage/reducer work; expiry does not authorize recreating a binding
+    or resetting counters.
+- operation: Run deletion or Project purge racing a publication
+  permanent: Deleting/fenced scope rejects publication; source evidence that no longer exists is unavailable rather
+    than an empty successful ref.
+  retryable: Use existing Project deletion claim/recovery and bounded purge batches.
+  ambiguous: Reconcile through existing lifecycle state and exact Artifact identities, not an added journal.
+  cancelled: Deletion uses existing cancel/drain/release gates before purging scope data.
+  timeout: Lifecycle deadlines and claims retain their existing owners; a timed-out batch resumes from committed
+    state.
+cardinality:
+- collection: Current map, concrete members, sources, rules, suppression and provenance
+  expected: 100-1000 groups and 1-10 writers
+  maximum: Proposal 0042 section 10 ceilings; the encoded document bound independently caps all nested state
+  bound: Bound one reducer request by batch rows/bytes and one map; reject conflicting or over-limit edits atomically
+    and aggregate omission counters without per-event growth.
+- collection: Published history across one Run and the entire Project
+  expected: Small coalesced revisions rather than one revision per request
+  maximum: Independent per-Run and Project-lifetime revision/encoded-byte ceilings in proposal 0042 section 10
+  bound: Reserve and charge within the publication transaction; generic writes cannot escape accounting and purge
+    uses existing bounded batches.
+lifecycle:
+- entity: Project sitemap binding, source generations and accounting
+  delete: Only ordinary trusted Project purge removes lifetime state; entry removal is reversible suppression.
+  cascade: Project purge removes map revisions, counters and source metadata; deleting a producer Run leaves self-contained
+    Project metadata.
+  retention: Exact selected evidence uses existing holds; no implicit historical revision deletion or TTL.
+- entity: Member/group edits and suppression markers
+  delete: Authenticated owner edits require expected revision; restore is explicit.
+  cascade: Regrouping carries exact membership selection and rejects ambiguous widening.
+  retention: Bound markers and notes with the current map; old revisions remain immutable.
+acceptance_criteria:
+- id: A1
+  given: An empty owned Project and strict valid/invalid document fixtures
+  when: The production CLI/API creates, reads and edits its sitemap
+  then: The same canonical reducer is used, malformed documents fail without replacement, and no endpoint/export
+    lacks a production caller.
+- id: A2
+  given: Secret canaries, repeated identity labels across engagements and member/context overflow
+  when: Observations or manual metadata enter through every public mutation path
+  then: Secrets and raw-secret hashes never enter keys/artifact bytes, principals remain distinct and discarded
+    data has bounded explicit gaps.
+- id: A3
+  given: Two source replacements for old/new exact schemas plus concurrent append observations
+  when: The new source commits before the older patch retries
+  then: Append observations survive; the old source transition conflicts and cannot refresh its expected predecessor
+    automatically.
+- id: A4
+  given: A populated member inventory and suppressions
+  when: Late templates/fixed routes split or merge groups after inventory overflow
+  then: Retained member identity survives, excluded members stay excluded, unrelated members are not suppressed
+    and discarded membership remains unknown.
+- id: A5
+  given: A real PostgreSQL Project one publication below each quota
+  when: Concurrent publications, duplicate payloads, lost acknowledgements, new Runs and generic Artifact writes/forks
+    compete
+  then: Only authorized charged commits succeed; receipt replay is free, no quota bypass/reset occurs and exhaustion
+    preserves the prior map.
+- id: A6
+  given: A populated Project with independently retained evidence and deleted producer Runs
+  when: Run deletion and Project deletion race readers/writers
+  then: Map metadata survives Run deletion, evidence availability is truthful, fenced writes fail and complete Project
+    purge removes only its owned state.
+deliverables:
+- path: internal/projectsitemap
+  description: New classified domain service/reducer with actual owner API/CLI callers; reuse existing Artifact
+    and keyed mutation services.
+- path: docs/spec/artifacts/project-sitemap.md
+  description: New owning normative contract with stable requirement IDs, linked registries and existing-spec boundary
+    updates.
+- path: make/features.mk
+  description: Register new test-project-sitemap-postgres with require-database and complete touched-package tests;
+    include it in the mandatory release graph.
+- path: api/testdata
+  description: Versioned canonical/projection/reducer fixtures; V410-002 adds the Runtime reader to the shared-reader
+    manifest without inventing an unused Runtime implementation here.
+tests:
+- command: make test-project-sitemap-postgres
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+  - A6
+- command: make verify-public-api verify-public-api-postgres
+  covers:
+  - A1
+  - A5
+  - A6
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+  - A6
+test_prerequisites:
+- test-project-sitemap-postgres is a required new target delivered here, not an existing passing check. It must
+  fail when the disposable PostgreSQL prerequisite is missing/unreachable or a selected suite matches zero tests.
+- Run complete packages touched by the change, including migrations, domain, Artifact/Project lifecycle, public
+  API and CLI; regenerate generated clients through repository targets.
