@@ -863,9 +863,13 @@ def test_shared_nuclei_pinned_worker_manifest_receipt_and_private_bytes(
             assert completion.failure is None, completion
         data, _, revision = store.values[(spec.namespace, "template-manifest")]
         manifest = json.loads(data)
-        assert manifest["packageDigest"] == digest
-        assert manifest["selectedTemplates"][0]["id"] == "contractor-pin-fixture"
-        assert manifest["engineVersion"] == "v3.11.1"
+        assert manifest == {
+            "schemaVersion": 2,
+            "packageDigest": digest,
+            "engineVersion": "v3.11.1",
+            "selectedTemplateCount": 1,
+            "source": {"kind": "installed"},
+        }
         if outcome == "completed":
             report = json.loads(store.values[(spec.namespace, "report")][0])
             observation = report["observation"]
@@ -924,8 +928,14 @@ def test_shared_nuclei_large_package_manifest_survives_worker_and_replay(tmp_pat
         completion = await runtime.invoke(value)
         assert completion.failure is None, completion
         manifest = store.values[(spec.namespace, "template-manifest")][0]
-        assert 512 * 1024 < len(manifest) < 16 * 1024 * 1024
-        assert len(json.loads(manifest)["selectedTemplates"]) == 12_001
+        assert len(manifest) < 512
+        assert json.loads(manifest) == {
+            "schemaVersion": 2,
+            "packageDigest": digest,
+            "engineVersion": "v3.11.1",
+            "selectedTemplateCount": 12_001,
+            "source": {"kind": "installed"},
+        }
         assert len(store.values[(spec.namespace, "report")][0]) < 512 * 1024
         recreated = await worker(tmp_path, store, tool, spec=spec)
         replay = await recreated.invoke(value)
@@ -1408,7 +1418,11 @@ def test_rulepack_adapter_uses_only_exact_pack_without_installed_rules(
         assert result["status"] == "completed", result
         assert result["source"] == "rulepack" and result["selectedTemplateCount"] == 1
         manifest = json.loads(store.values[("scanner", "template-manifest")][0])
+        assert manifest["schemaVersion"] == 2
         assert len(manifest["files"]) == 1
+        assert manifest["files"][0]["digest"].startswith("sha256:")
+        assert manifest["selectedTemplates"][0]["id"] == "contractor-pin-fixture"
+        assert manifest["selectedTemplates"][0]["digest"] == manifest["files"][0]["digest"]
         assert manifest["source"]["artifact"]["revision"] == "revision-pack"
         assert manifest["source"]["contentDigest"] == result["sourceContentDigest"]
         assert marker.read_text() == "scan\n"

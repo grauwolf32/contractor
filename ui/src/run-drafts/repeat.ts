@@ -1,4 +1,3 @@
-import type { ArtifactMetadata } from "../api/artifacts";
 import type { components } from "../api/generated/public";
 import type { RunRepeatDraftResponse } from "../api/runs";
 import type { RunMetadataLabelDraft } from "../api/run-metadata-labels";
@@ -81,8 +80,11 @@ export function prepareRepeatDraft(
       artifactOptionKey(input.metadata!.artifact),
     ]),
   );
-  const knownArtifacts: ArtifactMetadata[] = availableInputs.map(([, input]) =>
-    structuredClone(input.metadata!),
+  const knownArtifacts = Object.fromEntries(
+    availableInputs.map(([slot, input]) => [
+      slot,
+      [structuredClone(input.metadata!)],
+    ]),
   );
   const retained = response.draft.executionConfig.value;
   const overrides: ExecutionOverrideDraft = {
