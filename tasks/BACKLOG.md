@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-119 open tasks: 11 in progress, 83 pending, 25 deferred. 1079 finished: 1069 completed, 10 archived.
+119 open tasks: 13 in progress, 81 pending, 25 deferred. 1079 finished: 1069 completed, 10 archived.
 
 ## In progress
 
@@ -17,7 +17,9 @@ the epics are in [epics.yml](epics.yml).
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V410-010](v410-010-artifact-history-retention.yml) | projects-artifacts | feature | P1 | Apply automatic bounded history retention to every logical Artifact |
 | [V411-001](v411-001-target-credential-revisions.yml) | runtime-config | feature | P1 | Pin immutable target credential revisions in the existing encrypted store |
+| [V414-001](v414-001-openapi-inventory-string-bound.yml) | audits | defect | P2 | Give openapi-operations@1 the string bounds of the shared OpenAPI document rule |
 | [V414-002](v414-002-eval-token-budget-overflow.yml) | evals | defect | P2 | Keep the Eval token budget and stage token summaries defined when token counters exceed int64 |
+| [V414-007](v414-007-planner-session-state-limit.yml) | planner-worker | chore | P3 | Register the 2 MiB Planner session state bound and the other unregistered stored-size CHECKs |
 | [V414-010](v414-010-credential-recovery-previous-owner.yml) | execution-core | defect | P2 | Keep a previous lease owner's credential delete intent from committing behind the new owner's startup recovery |
 | [V414-018](v414-018-audit-detail-snapshot-read.yml) | audits | defect | P2 | Read the Audit detail projection in one snapshot instead of answering an undeclared 409 |
 | [V414-019](v414-019-held-inbox-page-bound.yml) | audits | defect | P2 | Bound the held Audit inbox page by the page, not by the Audit's holds |
@@ -41,7 +43,6 @@ the epics are in [epics.yml](epics.yml).
 | [V371-004](v371-004-worker-completion-exact-integers.yml) | defect | P3 | — | Bound WorkerCompletion integers to the range A2A carries exactly |
 | [V371-005](v371-005-worker-state-read-cost-guard.yml) | chore | P3 | — | Guard the Worker State read cost with a deterministic bound, make its benchmark runnable and re-measure it |
 | [V371-006](v371-006-workspace-observation-descriptor.yml) | chore | P3 | — | Take the Worker tools that observe the workspace from the shared Toolset descriptor |
-| [V414-007](v414-007-planner-session-state-limit.yml) | chore | P3 | — | Register the 2 MiB Planner session state bound and the other unregistered stored-size CHECKs |
 
 ### Runtime labels, configuration and credentials (`runtime-config`)
 
@@ -119,7 +120,6 @@ the epics are in [epics.yml](epics.yml).
 | [V411-010](v411-010-pentest-program-availability.yml) | feature | P1 | V411-002 | Pin optional pentest programs and nonblocking finding review |
 | [V411-012](v411-012-pentest-admission-rounds.yml) | feature | P1 | V411-009, V411-010, V62-005, V62-006, V62-007 | Admit typed pentest plans and derive exact later-round replay |
 | [V411-016](v411-016-pentest-proof-report.yml) | feature | P1 | V411-012, V411-014 | Assemble retained pentest proof and incomplete-coverage reports |
-| [V414-001](v414-001-openapi-inventory-string-bound.yml) | defect | P2 | — | Give openapi-operations@1 the string bounds of the shared OpenAPI document rule |
 | [V414-020](v414-020-preparation-phase-one-rule.yml) | chore | P3 | — | Give the pre-Round preparation phase set one definition in Go and one in the UI |
 
 ### Evaluations (`evals`)
