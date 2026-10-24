@@ -59,9 +59,12 @@ func Database(
 		t.Fatalf("create the budget fixture's database (the test role needs CREATEDB): %v", err)
 	}
 	// Cleanups run last in, first out: the pool closes before the database
-	// is dropped.
+	// is dropped. DROP DATABASE waits for an immediate checkpoint of the
+	// whole server, which takes seconds while other packages load it; the
+	// deadline owns only that wait, and a database left behind fails the
+	// test rather than accumulate on the server.
 	t.Cleanup(func() {
-		cleanup, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		cleanup, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
 		defer func() { _ = admin.Close(cleanup) }()
 		if _, err := admin.Exec(cleanup, "ROLLBACK"); err != nil {
